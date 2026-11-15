@@ -197,7 +197,9 @@ describe("holdScreenFor", () => {
     fadeScreenIn(screen.scene);
     let arrive: () => void = () => undefined;
     holdScreenFor(screen.scene, new Promise<void>((resolve) => (arrive = resolve)));
-    expect(paint.held.has(screen.scene)).toBe(true);
+    // Its labels are painted by the text worker while it is held, not on the main thread (issue #722): the screen waits
+    // for them below, but no frame builds them all.
+    expect(paint.held.has(screen.scene)).toBe(false);
     screen.emit("render");
     expect(screen.fades.at(-1)?.durationMs).toBeGreaterThan(10_000); // still held
     arrive();

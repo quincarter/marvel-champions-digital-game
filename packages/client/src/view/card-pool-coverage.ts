@@ -22,21 +22,35 @@ export interface CardPoolCoverage {
   readonly totalCards: number;
 }
 
+/** The live count per pool and registry: the same pool always gives the same count (issue #722: 19 ms per Title build). */
+const counted = new WeakMap<readonly AnyCard[], WeakMap<EngineDeps, number>>();
+
 export function cardPoolCoverageOf(
   cards: readonly AnyCard[],
   deps: EngineDeps,
   totalCards: number = CATALOG_CARD_COUNT,
 ): CardPoolCoverage {
+  const known = counted.get(cards)?.get(deps);
+  if (known !== undefined) return { liveCards: known, totalCards };
   const live = new Set<string>();
   for (const card of cards) {
     if (!abilityRefsOf(card).every((ref) => deps.abilities[ref.id] !== undefined)) continue;
     for (const code of printedCodesOfCard(card, CATALOG_REPRINTS)) live.add(code);
   }
+  let byDeps = counted.get(cards);
+  if (!byDeps) {
+    byDeps = new WeakMap();
+    counted.set(cards, byDeps);
+  }
+  byDeps.set(deps, live.size);
   return { liveCards: live.size, totalCards };
 }
 
+/** One formatter for the counts: `toLocaleString` made a new one each call, 6 ms the first time (issue #722). */
+const countFormat = new Intl.NumberFormat("en-US");
+
 /** "1,065 / 3,678 cards live" — the footer's own wording, so every caller says it the same way. */
 export function cardPoolCoverageText(coverage: CardPoolCoverage): string {
-  const count = (n: number): string => n.toLocaleString("en-US");
+  const count = (n: number): string => countFormat.format(n);
   return `${count(coverage.liveCards)} / ${count(coverage.totalCards)} cards live`;
 }

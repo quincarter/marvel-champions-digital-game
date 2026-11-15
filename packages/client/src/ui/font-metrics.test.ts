@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { FontMetricsCache, metricsKey, type FontMetrics, type MeasuringStyle } from "./font-metrics.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  FontMetricsCache,
+  metricsKey,
+  type FontMetrics,
+  type MeasuringStyle,
+  documentFontReady,
+} from "./font-metrics.js";
 
 /**
  * A `TextStyle` stand-in that follows Phaser's `setStyle` and `update` for the lines that matter: `_font` is built
@@ -142,5 +148,37 @@ describe("FontMetricsCache", () => {
     expect(cache.get("16px A", "|M")).toBeDefined();
     expect(cache.get("16px A", "other")).toBeUndefined();
     expect(metricsKey("a", "b")).not.toBe(metricsKey("ab", ""));
+  });
+});
+
+describe("documentFontReady (issue #722)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks the browser once per font for Latin-1 text, then remembers it", () => {
+    const check = vi.fn(() => true);
+    vi.stubGlobal("document", { fonts: { check } });
+    expect(documentFontReady("16px TestFontA", "Blitz on the Mountain")).toBe(true);
+    expect(documentFontReady("16px TestFontA", "Hey, Ronan. You're in Our Spot.")).toBe(true);
+    expect(documentFontReady("16px TestFontA", "Pequeña búsqueda")).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("text outside Latin-1 is asked each time, with its own characters", () => {
+    const check = vi.fn(() => true);
+    vi.stubGlobal("document", { fonts: { check } });
+    documentFontReady("16px TestFontB", "★ ✓");
+    documentFontReady("16px TestFontB", "★ ✓");
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(check).toHaveBeenLastCalledWith("16px TestFontB", "★ ✓");
+  });
+
+  it("a font not loaded yet is not remembered", () => {
+    let loaded = false;
+    const check = vi.fn(() => loaded);
+    vi.stubGlobal("document", { fonts: { check } });
+    expect(documentFontReady("16px TestFontC", "Title")).toBe(false);
+    loaded = true;
+    expect(documentFontReady("16px TestFontC", "Title")).toBe(true);
+    expect(check).toHaveBeenCalledTimes(2);
   });
 });

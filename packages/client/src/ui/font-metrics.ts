@@ -48,9 +48,22 @@ export function metricsKey(font: string, testString: string): string {
 /** True when the browser has the font's faces for `testString`, so a measure of it is the final one. */
 export type FontReady = (font: string, testString: string) => boolean;
 
+/** Fonts whose Latin-1 faces the browser has reported loaded: a loaded face stays loaded. */
+const latinReady = new Set<string>();
+const LATIN_1 = /^[ -ÿ]*$/;
+
+/**
+ * `document.fonts.check`, asked once per font for Latin-1 text rather than once per string (issue #722): it was 14 ms
+ * of every screen's first build, called for each new label. Text outside Latin-1 (another script, a symbol) is asked
+ * each time, since its face may be another, not yet loaded, subset.
+ */
 export const documentFontReady: FontReady = (font, testString) => {
+  const latin = LATIN_1.test(testString);
+  if (latin && latinReady.has(font)) return true;
   try {
-    return typeof document !== "undefined" && document.fonts?.check(font, testString) === true;
+    const ready = typeof document !== "undefined" && document.fonts?.check(font, latin ? "Aa" : testString) === true;
+    if (ready && latin) latinReady.add(font);
+    return ready;
   } catch {
     return false;
   }
