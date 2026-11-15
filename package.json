@@ -43,6 +43,7 @@
     "card-art:compress": "uv run scripts/fetch_card_art.py compress",
     "card-art:localize": "uv run scripts/fetch_card_art.py localize",
     "assets:fetch": "node scripts/assets-fetch.mjs",
+    "packs:fetch": "node scripts/packs-fetch.mjs",
     "assets:pack": "node scripts/assets-pack.mjs",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "node scripts/clean.mjs",

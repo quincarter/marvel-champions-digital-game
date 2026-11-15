@@ -83,6 +83,10 @@ jobs:
         uses: ./.github/actions/assets
         with:
           bundles: ${{ contains(matrix.args, '@mc/client') && 'card-art music art' || 'card-art' }}
+      # The community content packs (content-packs/community.json pins the registry commit): the mod SDK's per-pack
+      # tests and the client's pack tests read them. One shallow fetch of one commit.
+      - name: Fetch the community packs
+        run: node scripts/packs-fetch.mjs
       - run: pnpm test ${{ matrix.args }}
         env:
           # Heads this job's report on the run's summary page (vitest.config.ts).

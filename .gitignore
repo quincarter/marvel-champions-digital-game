@@ -68,11 +68,8 @@ artifacts/
 packages/mod-sdk/dist-npm/
 packages/mod-sdk/*.tgz
 
-# Community packs: the pictures are not in git (they ship in the content repo's release bundles). Each pack's
-# fetch-art.sh (or README) says how to get them for a local build.
-content-packs/community/*/cards/*/
-content-packs/community/*/alt-art/
-content-packs/community/*/cover.webp
+# Community packs: they live in the Mod Store registry repo; pnpm packs:fetch puts them here (content-packs/community.json).
+content-packs/community/
 
 # The site pages' builds (vite.site.config.ts)
 packages/client/dist-moved/
