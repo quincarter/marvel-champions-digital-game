@@ -9,7 +9,6 @@
 import Phaser from "phaser";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, surface, typeRole } from "../tokens.js";
-import { setMask } from "../ui/rex.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -40,7 +39,6 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
-  #masks: Phaser.GameObjects.Graphics[] = [];
   /** The cards list scrolls when the panel is taller than the screen; its position survives a redraw (a resize). */
   #region: McScrollRegion | null = null;
   readonly #scroll = new VariableListScroll();
@@ -70,8 +68,6 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
-      for (const mask of this.#masks) mask.destroy();
-      this.#masks = [];
       this.#region?.destroy();
       this.#region = null;
       if (from) {
@@ -90,8 +86,6 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    for (const mask of this.#masks) mask.destroy();
-    this.#masks = [];
     this.#region?.destroy();
     this.#region = null;
     destroyChildren(this);
@@ -191,16 +185,14 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       const key = ensurePictureLoaded(this, picture, () => this.#draw());
       if (key) {
         const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
-        const baked = bakedBadge(this, key, source, portrait * 2);
-        const image = this.add
+        // Its corners cut away in the texture rather than by a circular mask: a Mask filter on an Android phone can
+        // stop the game drawing (#365, #692, #733).
+        const baked = bakedBadge(this, key, source, portrait * 2, true);
+        this.add
           .image(cx - radius, cy - radius, baked)
           .setOrigin(0, 0)
           .setDisplaySize(portrait, portrait)
           .setDepth(2);
-        const mask = this.make.graphics({}, false);
-        mask.fillStyle(0xffffff).fillCircle(cx, cy, radius);
-        this.#masks.push(mask);
-        setMask(image, mask, "world");
       }
       this.add
         .graphics()

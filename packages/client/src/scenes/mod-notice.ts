@@ -7,18 +7,20 @@
  */
 import Phaser from "phaser";
 import { hit, surface, typeRole } from "../tokens.js";
-import { bangers, drawPicture, heroPicture, isPhoneWidth, speechBubble } from "../ui/campaign-chrome.js";
+import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import { bangers, heroPicture, isPhoneWidth, speechBubble } from "../ui/campaign-chrome.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { holdLabelsOnMain } from "../ui/lazy-text.js";
-import { setMask } from "../ui/rex.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton } from "../ui/widgets.js";
-import { formFactorFor } from "../view/layout.js";
+import { portraitCropRect } from "../view/badge-crop.js";
+import { formFactorFor, type Rect } from "../view/layout.js";
 import { MOD_NOTICE_BUTTONS, MOD_NOTICE_LINES, modNoticeLayoutOf, modNoticeOutcomeOf } from "../view/mod-notice.js";
 import type { ModNoticeAnswer } from "../view/mod-notice.js";
 import { rememberModNoticeSeen } from "../platform/mod-notice-seen.js";
 import { FocusRoute } from "./focus-route.js";
+import { bakedBadge } from "./board/team-up-badge.js";
 import { SCENES } from "./keys.js";
 import { giveBack } from "./option-notice.js";
 import { openReportIssue } from "./report-button.js";
@@ -76,6 +78,22 @@ export class ModNoticeOverlay extends Phaser.Scene {
     if (outcome.openReport && under) openReportIssue(under);
   }
 
+  /**
+   * A speaker's round portrait, its corners cut away in a baked texture rather than by a circular mask (issue #733, as
+   * the Briefing did in #692). A circular mask is a Mask filter, which sized its framebuffer past the picture (3240 x
+   * 5760 for Spider-Man's 2160 x 3840): on Android phones the game stopped drawing after Deadpool's row, so the notice
+   * had no buttons and the store could not be left. Null until the picture has loaded; the notice redraws then.
+   */
+  #roundPortrait(picture: Picture, rect: Rect): Phaser.GameObjects.Image | null {
+    const key = ensurePictureLoaded(this, picture, () => this.#draw());
+    if (!key) return null;
+    const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
+    const square = portraitCropRect(source, picture.focus, 0.15);
+    // Baked at three times its size, so a phone drawing at its own density still gets a sharp face.
+    const baked = bakedBadge(this, key, source, Math.round(rect.width * 3), true, square);
+    return this.add.image(rect.x, rect.y, baked).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+  }
+
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -96,13 +114,8 @@ export class ModNoticeOverlay extends Phaser.Scene {
       const cy = portrait.y + radius;
       this.add.graphics().fillStyle(surface.ink.hex, 1).fillCircle(cx, cy, radius);
       const picture = heroPicture(line.identityId);
-      const image = picture ? drawPicture(this, picture, portrait, () => this.#draw(), { focusY: 0.15 }) : null;
-      if (image) {
-        const maskShape = this.make.graphics({}, false);
-        maskShape.fillStyle(0xffffff).fillCircle(cx, cy, radius);
-        setMask(image, maskShape, "world");
-        image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
-      } else {
+      const image = picture ? this.#roundPortrait(picture, portrait) : null;
+      if (!image) {
         this.add.text(cx, cy, line.speaker.charAt(0), textStyle(bangers(radius), surface.paper.hex)).setOrigin(0.5);
       }
       this.add.graphics().lineStyle(3, surface.paper.hex, 1).strokeCircle(cx, cy, radius);
