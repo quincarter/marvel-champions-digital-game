@@ -180,7 +180,7 @@ made from `content-packs/sample-hero` (importing the SDK by its published name),
 and an import of each entry point. It needs the npm registry for jiti.
 
 `.github/workflows/mod-sdk.yml` builds and smoke-tests the tarball for each release, attaches it, and publishes it to
-npm when the `NPM_TOKEN` secret exists (`npm publish --provenance --access public`). `release-on-merge.yml` calls it,
+npm through npm trusted publishing (`npm publish --provenance --access public`, no npm token). `release-on-merge.yml` calls it,
 since a release that workflow publishes starts no other workflow; a manual run is a dry run by default.
 
 ## Importing a MarvelCDB-shaped pack

@@ -6,8 +6,10 @@
 # release published by hand. A manual run builds from the chosen tag (or the branch it runs on) and is a dry run by
 # default: it builds, smoke-tests and `npm publish --dry-run`s, and attaches nothing.
 #
-# npm: publishes only when the NPM_TOKEN secret exists (a notice says so otherwise), with provenance, and skips a
-# version npm already has. The package name is the repository variable MC_SDK_PACKAGE_NAME, or
+# npm: publishes through npm trusted publishing (GitHub's OIDC token, no npm token or 2FA), with provenance, and skips
+# a version npm already has. The package's trusted publishers on npmjs.com name the workflow that starts the run:
+# release-on-merge.yml for a release it cuts, mod-sdk.yml for a release published by hand. Both workflows need
+# `id-token: write`. The package name is the repository variable MC_SDK_PACKAGE_NAME, or
 # @champions-digital-game/mod-sdk.
 name: Mod SDK
 
@@ -26,9 +28,6 @@ on:
         required: false
         default: "true"
         type: string
-    secrets:
-      NPM_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       tag:
@@ -114,7 +113,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-      # npm provenance signs the package with the run's OIDC token.
+      # Trusted publishing and npm provenance both use the run's OIDC token.
       id-token: write
     env:
       TAG: ${{ inputs.tag || github.event.release.tag_name || '' }}
@@ -125,10 +124,11 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
     # No checkout of pack code and no install: this job only moves the tarball the build job made.
     steps:
+      # No registry-url: setup-node would write an .npmrc with a placeholder token. npm reaches registry.npmjs.org by
+      # default and authenticates with the OIDC token.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - uses: actions/download-artifact@v8
         with:
           name: mod-sdk-tarball
@@ -144,16 +144,14 @@ jobs:
       - name: Publish to npm
         if: env.NPM == 'true'
         shell: bash
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::notice::No NPM_TOKEN secret, so ${MC_SDK_PACKAGE_NAME}@${VERSION} was not published to npm (the release still has the tarball)."
-            exit 0
-          fi
           if npm view "${MC_SDK_PACKAGE_NAME}@${VERSION}" version >/dev/null 2>&1; then
             echo "::notice::${MC_SDK_PACKAGE_NAME}@${VERSION} is already on npm."
             exit 0
+          fi
+          # Trusted publishing needs npm 11.5.1 or later (https://docs.npmjs.com/trusted-publishers).
+          if ! node -e 'const [a,b,c]=process.argv[1].split(".").map(Number);process.exit(a>11||(a===11&&(b>5||(b===5&&c>=1)))?0:1)' "$(npm --version)"; then
+            npm install -g npm@11
           fi
           ARGS=(publish "$TARBALL" --provenance --access public)
           if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi

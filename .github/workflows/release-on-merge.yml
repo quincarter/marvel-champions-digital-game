@@ -544,14 +544,13 @@ jobs:
     if: needs.check-and-cut-release.outputs.should_release == 'true'
     permissions:
       contents: write
+      # npm trusted publishing: the package's trusted publisher on npmjs.com names this file.
       id-token: write
     uses: ./.github/workflows/mod-sdk.yml
     with:
       tag: ${{ needs.check-and-cut-release.outputs.tag }}
       # A draft release (the publish input off) is not on npm yet: publishing it by hand later runs mod-sdk.yml again.
       npm: ${{ needs.check-and-cut-release.outputs.publish != 'false' && 'true' || 'false' }}
-    secrets:
-      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # The landing page, built again now that the release is GitHub's latest: its news, report screenshots and baked-in
   # downloads wait for that (landing-deploy.yml). A draft release (the publish input off) gets it when published by hand.

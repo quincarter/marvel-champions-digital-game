@@ -768,8 +768,9 @@ The owner does these steps while the code is built. The code doesn't wait on the
 4. Add a CORS policy that allows `GET` and `HEAD` from the site's address and from `http://localhost:5173`.
 5. Create an R2 API token with Object Read & Write, scoped to `mc-packs`. Add its values as the Actions secrets
    `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` on `marvel-champions-mods`.
-6. Create an npm organization for the SDK's scope, and a granular token that can publish to it. Add the token to this
-   repo as the Actions secret `NPM_TOKEN`.
+6. Create an npm organization for the SDK's scope. Once the package exists on npm, add trusted publishers in its
+   Settings ▸ Trusted Publisher (GitHub Actions, this repository, "Allow npm publish" ticked): one with the workflow
+   filename `release-on-merge.yml`, and one with `mod-sdk.yml` for a release published by hand. No npm token.
 
 7. Add the same three R2 secrets to this repo too, and the repository variable `PACKS_BASE_URL`
    (`https://packs.<domain>`), for `publish-packs.yml`, which publishes the packs under `content-packs/` (§11.4).
@@ -791,8 +792,8 @@ CLI's help and the SDK README say so. The workflows are built around it:
   --publish`), the ownership check first in the `build` job, before any dependency is installed or any pack code runs,
   on the public `index.json`, and again in the `publish` job on the bucket's copy.
 - **This repo's `mod-sdk.yml`:** the `build` job builds the SDK tarball and smoke-tests it on the sample pack with no
-  secrets; the `publish` job attaches the tarball to the release and publishes it to npm with `NPM_TOKEN`, and runs
-  no pack code.
+  secrets; the `publish` job attaches the tarball to the release and publishes it to npm through trusted publishing (the
+  run's OIDC token, no npm secret), and runs no pack code.
 - **The registry's `check.yml`** runs a submitted pack's code with a read-only token and no secrets, and its
   `publish.yml` builds in a job without secrets; only its `upload` job has the R2 secrets, and it runs no pack code.
 
