@@ -66,6 +66,7 @@ import {
   pickReplayFile,
   replayErrorKey,
 } from "../replay/replay-files.js";
+import { ReplayOpenError } from "../replay/replay-core.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { appSession } from "../session.js";
@@ -171,9 +172,18 @@ export class PastGamesScene extends Phaser.Scene {
       onTab: (direction) => {
         if (!this.#popupOpen) this.#stepFilter(direction);
       },
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
-      onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
+      // The phone popup holds the list under it still.
+      onPage: (direction) => {
+        if (!this.#popupOpen) this.#list?.scrollByPage(direction);
+      },
+      onHomeEnd: (edge) => {
+        if (this.#popupOpen) return;
+        if (edge === "home") this.#list?.scrollToStart();
+        else this.#list?.scrollToEnd();
+      },
+      onScroll: (_dx, dy) => {
+        if (!this.#popupOpen) this.#list?.scrollByPx(dy);
+      },
     });
     this.#hover = new HoverPreview(this, {
       cardIds: () => {
@@ -311,7 +321,8 @@ export class PastGamesScene extends Phaser.Scene {
     } catch (cause) {
       if (!isAbort(cause)) {
         console.warn("past game export failed", cause);
-        this.#say(t("replay.exportFailed"));
+        // A game that won't open says why (its packs gone, a damaged save); a write that failed says so.
+        this.#say(t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.exportFailed"));
       }
     } finally {
       host?.dispose();
@@ -343,7 +354,7 @@ export class PastGamesScene extends Phaser.Scene {
     } catch (cause) {
       if (!isAbort(cause)) {
         console.warn("past game share failed", cause);
-        this.#say(t("replay.link.offline"));
+        this.#say(t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.link.offline"));
       }
       return;
     } finally {
@@ -629,6 +640,7 @@ export class PastGamesScene extends Phaser.Scene {
       },
       rowPressableAt: () => !this.#popupOpen,
       cursorBlocked: () => this.#popupOpen,
+      inputBlocked: () => this.#popupOpen,
     });
     const list = this.#list;
     list.onDestroy(cardFaces(this).onBaked(() => list.refreshRows()));
