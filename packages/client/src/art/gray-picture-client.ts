@@ -27,6 +27,8 @@ const UNAVAILABLE = "unavailable" as const;
 type WorkerAnswer = ImageBitmap | null | typeof UNAVAILABLE;
 
 let worker: Worker | null | undefined;
+/** How many answers the worker has sent: a worker still answering is slow (a big picture, a slow line), not stuck. */
+let answers = 0;
 let nextId = 1;
 const pending = new Map<number, (answer: WorkerAnswer) => void>();
 
@@ -40,6 +42,7 @@ function grayWorker(): Worker | null {
       name: "mc-picture-gray",
     });
     made.onmessage = (event: MessageEvent<GrayPictureReply>) => {
+      answers++;
       const { id, bitmap, failed } = event.data;
       const settle = pending.get(id);
       pending.delete(id);
@@ -111,9 +114,10 @@ async function grayOnMain(url: string, slot: Size): Promise<HTMLCanvasElement | 
 }
 
 /**
- * The gray copy of the picture at `url`, baked to cover `slot`, or null when it can't be loaded. A worker that doesn't
- * answer within `GRAY_WORKER_TIMEOUT_MS` (stopped under memory pressure, a fetch that hangs) is not waited on for
- * good: the bake moves to the main thread, so the picture's key never stays loading.
+ * The gray copy of the picture at `url`, baked to cover `slot`, or null when it can't be loaded. A worker that answers
+ * nothing at all for `GRAY_WORKER_TIMEOUT_MS` (stopped under memory pressure, a fetch that hangs) is not waited on for
+ * good: it is retired and the bake moves to the main thread, so the picture's key never stays loading. A worker that
+ * answered other bakes meanwhile is only slow, and is given another period rather than moving the work back here.
  */
 export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLCanvasElement | null> {
   const baker = grayWorker();
@@ -121,11 +125,19 @@ export async function decodedGrayPicture(url: string, slot: Size): Promise<HTMLC
   const id = nextId++;
   const absolute = new URL(url, document.baseURI).href;
   const answer = await new Promise<WorkerAnswer>((resolve) => {
-    const timer = setTimeout(() => {
+    let heard = answers;
+    let timer: ReturnType<typeof setTimeout>;
+    const expire = (): void => {
+      if (worker === baker && answers !== heard) {
+        heard = answers;
+        timer = setTimeout(expire, GRAY_WORKER_TIMEOUT_MS);
+        return;
+      }
       pending.delete(id);
       resolve(UNAVAILABLE);
       if (worker === baker) retireWorker();
-    }, GRAY_WORKER_TIMEOUT_MS);
+    };
+    timer = setTimeout(expire, GRAY_WORKER_TIMEOUT_MS);
     pending.set(id, (reply) => {
       clearTimeout(timer);
       resolve(reply);
