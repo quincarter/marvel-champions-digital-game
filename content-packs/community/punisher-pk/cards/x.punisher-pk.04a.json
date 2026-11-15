@@ -25,8 +25,8 @@
       },
       "icons": [],
       "text": {
-        "printed": "Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game.",
-        "current": "Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game."
+        "printed": "[star] Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game.",
+        "current": "[star] Forced Interrupt: When the player phase begins, each player who is not engaged with a minion discards the top card of the encounter deck. If that card is a minion, that player puts it into play engaged with them.\nIf this stage is completed, the players lose the game."
       },
       "traits": [],
       "keywords": [],

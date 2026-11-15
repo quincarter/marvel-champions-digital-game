@@ -15,15 +15,15 @@
   "traits": ["ELITE", "SOLDIER"],
   "keywords": [],
   "text": {
-    "printed": "The Punisher cannot attack Rachel Cole-Alves.\nThe Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When The Punisher schemes, heal 2 damage from him.",
-    "current": "The Punisher cannot attack Rachel Cole-Alves.\nThe Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When The Punisher schemes, heal 2 damage from him."
+    "printed": "The Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When Rachel Cole-Alves would engage a player, attach her to War on Crime instead. (She can still be attacked and affected by card abilities.)\nForced Interrupt: When The Punisher schemes, heal 2 damage from him.",
+    "current": "The Punisher gets +2 ATK while attacking a minion.\nForced Interrupt: When Rachel Cole-Alves would engage a player, attach her to War on Crime instead. (She can still be attacked and affected by card abilities.)\nForced Interrupt: When The Punisher schemes, heal 2 damage from him."
   },
   "abilities": [
     {
-      "id": "x.punisher-pk.14.rachel-cole-alves-constant"
+      "id": "x.punisher-pk.14.rachel-cole-alves-constant-2"
     },
     {
-      "id": "x.punisher-pk.14.rachel-cole-alves-constant-2"
+      "id": "x.punisher-pk.14.rachel-cole-alves-would-engage"
     },
     {
       "id": "x.punisher-pk.14.rachel-cole-alves-forced-interrupt"

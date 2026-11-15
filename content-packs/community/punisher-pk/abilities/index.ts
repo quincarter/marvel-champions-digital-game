@@ -52,6 +52,7 @@ import {
   gainsIcon,
   gainsKeyword,
   gets,
+  holdMinion,
   giveTough,
   heal,
   ifThen,
@@ -111,7 +112,7 @@ const punisherStage = (stage: "i" | "ii" | "iii") => ({
   // [star] Forced Response: After The Punisher activates against you, he also attacks each minion engaged with you.
   // Modeled on Headpool (44014, `enemyAttacksEnemy` with a boost card) and Whirlwind (01130, "also" attacks): one attack
   // per minion engaged with the player he activated against, resolved in an order the first player picks (forEachCard's
-  // default chooser). Rachel Cole-Alves is skipped by her own "cannot attack" rule. "Ignore each 'Boost' ability" is the
+  // default chooser). Rachel Cole-Alves is engaged with no player (War on Crime holds her), so it never reaches her. "Ignore each 'Boost' ability" is the
   // constant below (`ignoreBoostAbilities`): the boost card is dealt and its icons add to his ATK.
   [`x.punisher-pk.01.activation-attacks-minions-${stage}`]: forcedResponse(
     on.enemyActivates("self", { againstYou: true }),
@@ -280,11 +281,15 @@ export default definePackAbilities({
   // When Defeated: If Jigsaw was defeated by The Punisher, heal 3 damage from The Punisher.
   "x.punisher-pk.13.when-defeated": whenDefeated(ifThen(refMatches(eventSource, THE_PUNISHER), heal(3, theVillain))),
 
-  // Rachel Cole-Alves (the curators' proposal, not the author's card) — The Punisher cannot attack Rachel Cole-Alves.
-  // An `attacker`- and `target`-scoped `cannotAttack` rule also holds for an `enemyAttacksEnemy` attack (the effect's own
-  // contract, spec.ts), so forEachCard's attack on her does not happen. Modeled on Encased in Ice (54035).
-  "x.punisher-pk.14.rachel-cole-alves-constant": constant(
-    rule({ kind: "cannotAttack", attacker: THE_PUNISHER, target: { self: true } }),
+  // Rachel Cole-Alves (V3.0, the author's text) — Forced Interrupt: When Rachel Cole-Alves would engage a player, attach
+  // her to War on Crime instead. An interrupt to her own `minionEngaged` (Target Spotter 51038's window, "when a minion
+  // would engage"): she is held by War on Crime (`holdMinion`, Justice, Like Lightning 50131a), a minion in play engaged
+  // with no one (RRG 1.8 "Engage", p. 18; `attachCard` takes her out of the player's area). So Frank's War 1B, Maggia
+  // Enforcer, SMG Spray and his attacks on "each minion engaged with you" skip her, while War Zone and Explosive Surprise
+  // ("a minion in play") count her, and players can attack her. War on Crime is Permanent: she stays through stages.
+  "x.punisher-pk.14.rachel-cole-alves-would-engage": forcedInterrupt(
+    { on: "minionEngaged", selfIs: "target" },
+    holdMinion(self, WAR_ON_CRIME),
   ),
   // The Punisher gets +2 ATK while attacking a minion. Modeled on Secret Avengers (56142b: +ATK while attacking), with
   // `attackInProgress` reading the minion target of an enemyAttacksEnemy attack.

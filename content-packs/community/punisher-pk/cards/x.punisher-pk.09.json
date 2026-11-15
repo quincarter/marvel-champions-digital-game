@@ -18,7 +18,7 @@
     "printed": "Ignore Maggia Thug when resolving Frank's War's \"Forced Interrupt\" ability.",
     "current": "Ignore Maggia Thug when resolving Frank's War's \"Forced Interrupt\" ability."
   },
-  "flavor": "\"Nobody said nothin' about the Punisher when I took this job!\"",
+  "flavor": "\"Nobody said nothin' about The Punisher when I took this job!\"",
   "abilities": [
     {
       "id": "x.punisher-pk.09.maggia-thug-constant"
