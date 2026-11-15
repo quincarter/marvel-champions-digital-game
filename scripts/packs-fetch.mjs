@@ -60,7 +60,20 @@ if (
   process.exit(0);
 }
 
-const git = (cwd, ...gitArgs) => execFileSync("git", gitArgs, { cwd, stdio: ["ignore", "pipe", "inherit"] });
+const git = (cwd, gitArgs, env = process.env) =>
+  execFileSync("git", gitArgs, { cwd, env, stdio: ["ignore", "pipe", "inherit"] });
+
+/** Runs `step`, retrying a few times: another worktree's fetch may hold the shared cache's lock for a moment. */
+function withRetry(step) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return step();
+    } catch (error) {
+      if (attempt >= 4) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000 * attempt);
+    }
+  }
+}
 
 /** The registry's packs/ folder at the pinned commit (or the local checkout's), as a path. */
 function packsFolder() {
@@ -68,17 +81,20 @@ function packsFolder() {
   const bare = path.join(cacheDir(), "registry.git");
   if (!fs.existsSync(bare)) {
     fs.mkdirSync(bare, { recursive: true });
-    git(bare, "init", "--bare", "--quiet");
+    git(bare, ["init", "--bare", "--quiet"]);
   }
   // Fetch the commit unless the cache has it already (a commit, unlike a branch, never changes).
   try {
     execFileSync("git", ["cat-file", "-e", `${pin.commit}^{commit}`], { cwd: bare, stdio: "ignore" });
   } catch {
     console.log(`[packs] fetching ${pin.repo} at ${pin.commit.slice(0, 12)}`);
-    git(bare, "fetch", "--quiet", "--depth", "1", pin.repo, pin.commit);
+    withRetry(() => git(bare, ["fetch", "--quiet", "--depth", "1", pin.repo, pin.commit]));
   }
+  // Every checkout shares the cache, so each extraction gets its own index file: two worktrees fetching at once never
+  // contend for the bare repo's index.lock.
   const tree = fs.mkdtempSync(path.join(os.tmpdir(), "mc-packs-"));
-  git(bare, `--work-tree=${tree}`, "checkout", "--quiet", pin.commit, "--", "packs");
+  const index = { ...process.env, GIT_INDEX_FILE: path.join(tree, ".git-index") };
+  git(bare, [`--work-tree=${tree}`, "checkout", "--quiet", pin.commit, "--", "packs"], index);
   return path.join(tree, "packs");
 }
 
