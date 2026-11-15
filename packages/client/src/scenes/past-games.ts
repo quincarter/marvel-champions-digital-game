@@ -161,6 +161,13 @@ export class PastGamesScene extends Phaser.Scene {
   #detailsScroll = new VariableListScroll();
   #detailsScrollId: string | null = null;
   #alive = false;
+  /**
+   * This visit's number. Phaser reuses the scene, so an open still running from an earlier visit (a slow Watch, then
+   * Back and in again) checks it after each wait and stands down rather than act on this one.
+   */
+  #visit = 0;
+  /** Where the focus ring is: the side panel's actions take the stick and Page keys for the details. */
+  #focusKey: string | null = null;
 
   constructor() {
     super(SCENES.pastGames);
@@ -168,6 +175,7 @@ export class PastGamesScene extends Phaser.Scene {
 
   create(): void {
     this.#alive = true;
+    this.#visit += 1;
     this.#busy = null;
     this.#status = null;
     this.#saves = null;
@@ -179,19 +187,27 @@ export class PastGamesScene extends Phaser.Scene {
       onTab: (direction) => {
         if (!this.#popupOpen) this.#stepFilter(direction);
       },
-      // The phone popup holds the list under it still.
+      // The details scroll while the popup is up or the ring is on their actions; else the list does (the phone
+      // popup holds the list under it still).
       onPage: (direction) => {
-        if (this.#popupOpen) this.#detailsRegion?.scrollByPx(direction * (this.#detailsRegion.rect.height * 0.9));
-        else this.#list?.scrollByPage(direction);
+        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
+        if (details) details.scrollByPx(direction * details.rect.height * 0.9);
+        else if (!this.#popupOpen) this.#list?.scrollByPage(direction);
       },
       onHomeEnd: (edge) => {
-        if (this.#popupOpen) return;
-        if (edge === "home") this.#list?.scrollToStart();
+        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
+        if (details) details.scrollByPx(edge === "home" ? -1e6 : 1e6);
+        else if (this.#popupOpen) return;
+        else if (edge === "home") this.#list?.scrollToStart();
         else this.#list?.scrollToEnd();
       },
       onScroll: (_dx, dy) => {
-        if (this.#popupOpen) this.#detailsRegion?.scrollByPx(dy);
-        else this.#list?.scrollByPx(dy);
+        const details = this.#detailsHaveScroll() ? this.#detailsRegion : null;
+        if (details) details.scrollByPx(dy);
+        else if (!this.#popupOpen) this.#list?.scrollByPx(dy);
+      },
+      onFocusChange: (key) => {
+        this.#focusKey = key;
       },
     });
     this.#hover = new HoverPreview(this, {
@@ -205,6 +221,7 @@ export class PastGamesScene extends Phaser.Scene {
     const offLanguage = onLanguageChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#visit += 1;
       offLanguage();
       this.#hover?.destroy();
       this.#hover = null;
@@ -217,9 +234,20 @@ export class PastGamesScene extends Phaser.Scene {
     void this.#load();
   }
 
+  /** The stick and the Page keys scroll the details: the phone popup is up, or the ring is on the side panel's actions. */
+  #detailsHaveScroll(): boolean {
+    return this.#popupOpen || (this.#focusKey?.startsWith("action:") ?? false);
+  }
+
+  /** True while `visit` is still this scene's visit: a wait that began in an earlier one acts on nothing. */
+  #current(visit: number): boolean {
+    return this.#alive && this.#visit === visit;
+  }
+
   async #load(): Promise<void> {
+    const visit = this.#visit;
     const saves = await appSession().store.listSaves();
-    if (!this.#alive) return;
+    if (!this.#current(visit)) return;
     this.#saves = saves;
     this.#draw();
   }
@@ -292,27 +320,35 @@ export class PastGamesScene extends Phaser.Scene {
     }
   }
 
-  #setBusy(busy: Busy | null): void {
+  /** Sets what is running, for `visit` only: a late finish from an earlier visit leaves this one's state alone. */
+  #setBusy(busy: Busy | null, visit: number = this.#visit): void {
+    if (!this.#current(visit)) return;
     this.#busy = busy;
-    if (this.#alive) this.#draw();
+    this.#draw();
+  }
+
+  #sayIn(visit: number, text: string, ms?: number): void {
+    if (this.#current(visit)) this.#say(text, ms);
   }
 
   async #watch(row: PastGameRow): Promise<void> {
-    this.#setBusy({ id: row.id, action: "watch" });
+    const visit = this.#visit;
+    this.#setBusy({ id: row.id, action: "watch" }, visit);
     try {
       const host = await openReplay({ kind: "stored", gameId: row.id });
-      if (!this.#alive) return host.dispose();
+      if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
       await watchReplay(this, host, SCENES.pastGames);
     } catch (cause) {
-      this.#setBusy(null);
-      this.#say(t(replayErrorKey(cause)));
+      this.#setBusy(null, visit);
+      this.#sayIn(visit, t(replayErrorKey(cause)));
     }
   }
 
   /** Writes a game's replay file (or its log) and hands it out through the shell's own route. */
   async #export(row: PastGameRow, kind: "export" | "log"): Promise<void> {
-    this.#setBusy({ id: row.id, action: kind });
+    const visit = this.#visit;
+    this.#setBusy({ id: row.id, action: kind }, visit);
     let host: ReplayHost | null = null;
     try {
       host = await openReplay({ kind: "stored", gameId: row.id });
@@ -329,17 +365,17 @@ export class PastGamesScene extends Phaser.Scene {
         host.dispose();
         host = null;
         await deliverGameLog(text, name);
-        if (stopsAt !== null) this.#say(t("pastGames.partialLog", { n: stopsAt }), 8000);
+        if (stopsAt !== null) this.#sayIn(visit, t("pastGames.partialLog", { n: stopsAt }), 8000);
       }
     } catch (cause) {
       if (!isAbort(cause)) {
         console.warn("past game export failed", cause);
         // A game that won't open says why (its packs gone, a damaged save); a write that failed says so.
-        this.#say(t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.exportFailed"));
+        this.#sayIn(visit, t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.exportFailed"));
       }
     } finally {
       host?.dispose();
-      this.#setBusy(null);
+      this.#setBusy(null, visit);
     }
   }
 
@@ -349,7 +385,8 @@ export class PastGamesScene extends Phaser.Scene {
       await this.#deliverLink(cached);
       return;
     }
-    this.#setBusy({ id: row.id, action: "share" });
+    const visit = this.#visit;
+    this.#setBusy({ id: row.id, action: "share" }, visit);
     let url: string | null = null;
     let host: ReplayHost | null = null;
     try {
@@ -359,7 +396,7 @@ export class PastGamesScene extends Phaser.Scene {
       host = null;
       const shared = await shareLinkOf(bytes, detectPlatform() !== "web");
       if (!shared.ok) {
-        this.#say(t(shareFailureKey(shared.failure)));
+        this.#sayIn(visit, t(shareFailureKey(shared.failure)));
         return;
       }
       url = shared.url;
@@ -367,14 +404,14 @@ export class PastGamesScene extends Phaser.Scene {
     } catch (cause) {
       if (!isAbort(cause)) {
         console.warn("past game share failed", cause);
-        this.#say(t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.link.offline"));
+        this.#sayIn(visit, t(cause instanceof ReplayOpenError ? replayErrorKey(cause) : "replay.link.offline"));
       }
       return;
     } finally {
       host?.dispose();
-      this.#setBusy(null);
+      this.#setBusy(null, visit);
     }
-    if (url && this.#alive) await this.#deliverLink(url);
+    if (url && this.#current(visit)) await this.#deliverLink(url);
   }
 
   async #deliverLink(url: string): Promise<void> {
@@ -386,21 +423,22 @@ export class PastGamesScene extends Phaser.Scene {
   /** "Open a replay file": a replay someone else made, watched on the board; Exit comes back here. */
   async #openFile(): Promise<void> {
     if (this.#busy) return;
-    this.#setBusy({ id: "", action: "file" });
+    const visit = this.#visit;
+    this.#setBusy({ id: "", action: "file" }, visit);
     try {
       const picked = await pickReplayFile();
-      if (picked === null || !this.#alive) return this.#setBusy(null);
+      if (picked === null || !this.#current(visit)) return this.#setBusy(null, visit);
       if (picked === "unreadable") {
-        this.#setBusy(null);
-        return this.#say(t("replay.error.damaged"));
+        this.#setBusy(null, visit);
+        return this.#sayIn(visit, t("replay.error.damaged"));
       }
       const host = await openReplay({ kind: "file", bytes: picked });
-      if (!this.#alive) return host.dispose();
+      if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
       await watchReplay(this, host, SCENES.pastGames);
     } catch (cause) {
-      this.#setBusy(null);
-      this.#say(t(replayErrorKey(cause)));
+      this.#setBusy(null, visit);
+      this.#sayIn(visit, t(replayErrorKey(cause)));
     }
   }
 
