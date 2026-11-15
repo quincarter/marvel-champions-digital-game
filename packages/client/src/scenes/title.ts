@@ -112,7 +112,7 @@ import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import { themeSlotBeside } from "../view/theme-button.js";
-import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -312,12 +312,16 @@ export class TitleScene extends Phaser.Scene {
     this.#gamesScroll = new VariableListScroll();
     this.#starting = false;
     this.#rankUp = null;
-    this.#art = pickTitleArt(TITLE_ART, lastTitleArtKey);
+    // The picture the last visit already loaded for this one, so it is there when the screen fades in.
+    this.#art = nextTitleArt ?? pickTitleArt(TITLE_ART, lastTitleArtKey);
     lastTitleArtKey = this.#art?.key ?? null;
+    nextTitleArt = null;
     appSession().music?.playTitle();
     this.#checkRankUp();
     this.#rebuild();
     fadeScreenIn(this);
+    holdScreenFor(this, this.#artLoaded());
+    this.time.delayedCall(NEXT_ART_PRELOAD_MS, () => this.#preloadNextArt());
     // Opened from a shared replay's link (issue #693): fetch it and watch it (read and cleared once).
     const replayId = takeReplayLink();
     if (replayId === "invalid") this.#replayProblem(t("replay.link.invalid"));
@@ -334,14 +338,18 @@ export class TitleScene extends Phaser.Scene {
     else if (!receive && !replayId)
       void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
-    void refreshUnlocks()
-      .catch(() => false)
-      .then(() => {
-        if (!this.sys.isActive()) return;
-        this.#checkRankUp();
-        this.#rebuild();
-      });
-    void this.#refreshSaves();
+    // Both reads land before the screen fades in (`holdScreenFor`), so the menu is not seen redrawing for them.
+    holdScreenFor(
+      this,
+      refreshUnlocks()
+        .catch(() => false)
+        .then(() => {
+          if (!this.sys.isActive()) return;
+          this.#checkRankUp();
+          this.#rebuild();
+        }),
+    );
+    holdScreenFor(this, this.#refreshSaves());
     void steamInstall().then((install) => {
       if (!install || !this.sys.isActive()) return;
       this.#steam = install;
@@ -1167,6 +1175,21 @@ export class TitleScene extends Phaser.Scene {
     if (fraction > 0) g.fillStyle(accent.heroRed.hex, 1).fillRect(x + 1, y + 1, Math.max(2, (width - 2) * fraction), 4);
   }
 
+  /** Resolves once this visit's picture is loaded (at once when it already is, or there is none). */
+  #artLoaded(): Promise<void> {
+    const art = this.#art;
+    return new Promise((resolve) => {
+      if (!art || ensurePictureLoaded(this, art, resolve) !== null) resolve();
+    });
+  }
+
+  /** Loads the picture the next visit will show, so coming back to Title doesn't wait on it. */
+  #preloadNextArt(): void {
+    if (!this.sys.isActive() || nextTitleArt) return;
+    nextTitleArt = pickTitleArt(TITLE_ART, lastTitleArtKey);
+    if (nextTitleArt) ensurePictureLoaded(this, nextTitleArt, () => undefined);
+  }
+
   /** Draws this visit's picture if its texture is ready, otherwise loads it once and draws on arrival. */
   #drawArt(): void {
     const art = this.#art;
@@ -1316,6 +1339,10 @@ const RANK_UP_MS = 5000;
 
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;
+/** The picture the next visit shows, picked and loaded during this one (`#preloadNextArt`). */
+let nextTitleArt: TitleArt | null = null;
+/** How long after Title opens the next visit's picture starts loading: after this visit's own screen has settled. */
+const NEXT_ART_PRELOAD_MS = 1500;
 
 /** "Continue — Rhino · Spider-Man · round 4". See `view/continue-label.ts`. */
 function continueLabel(save: SaveMeta): string {

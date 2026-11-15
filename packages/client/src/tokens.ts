@@ -341,6 +341,15 @@ export const motion = {
   dockSlideOutMs: 260,
   /** One full screen giving way to the next (Title → Scenario, Setup → Board). */
   screenFadeMs: 200,
+  /**
+   * The longest a screen waits on the void for its text to be painted and its first data to arrive before it fades in
+   * anyway (`fadeScreenIn`): long enough for a slow device's text worker, short enough that a tap still feels answered.
+   */
+  screenHoldMaxMs: 450,
+  /** New content inside a screen (an Extras tab's shelf) fading in once its labels are painted (`revealWhenPainted`). */
+  revealMs: 140,
+  /** The longest that content waits for its labels before it fades in anyway. */
+  revealMaxMs: 250,
   /** The guide's highlight gliding to its next target (`view/guide-glide.ts`). */
   guideGlideMs: 360,
   /** The highlight fading out, and in again, when its next target sits on top of the last one. */

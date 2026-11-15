@@ -32,7 +32,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { McButton, McScrollPanel, McTabs, fitText, fitWrapped } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
 import { extrasRowCount, extrasTileAt, extrasTileRect, type ExtrasGrid } from "../view/extras-model.js";
@@ -242,7 +242,8 @@ export class ModStoreScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void this.#load();
+    // The catalog (usually the saved copy, at once) before the store fades in, not a "Loading" page swapped for it.
+    holdScreenFor(this, this.#load());
     // The first time the store opens, the heads-up about mods shows over it (remembered once answered).
     if (showNoticeOnOpen(modNoticeSeen())) this.#showNotice();
   }
