@@ -420,7 +420,7 @@ export function parsePackWave(data: unknown): string | undefined {
 }
 
 /**
- * How a pack's heroes and scenarios unlock when the player has turned "New custom content starts unlocked" off.
+ * How a pack's heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off.
  * `open` is always playable, `points` needs champion points spent by hand like an official hero, `wins` opens free
  * after winning games (or by points).
  */
@@ -508,7 +508,7 @@ export interface PackManifest {
    */
   readonly wave?: string;
   /**
-   * How the pack's heroes and scenarios unlock when the player has turned "New custom content starts unlocked" off
+   * How the pack's heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off
    * (`PackUnlockMode`). Absent means `"open"`.
    */
   readonly unlock?: PackUnlockMode;

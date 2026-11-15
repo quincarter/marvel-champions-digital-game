@@ -63,7 +63,7 @@ export interface Settings {
    */
   readonly customPlacement: CustomPlacement;
   /**
-   * New custom content starts unlocked (issue #734). Defaults on; off, each pack unlocks the way its creator chose
+   * Custom content starts unlocked (issue #734). Defaults on; off, each pack unlocks the way its creator chose
    * (always, with champion points, or by winning games).
    */
   readonly customUnlocked: boolean;

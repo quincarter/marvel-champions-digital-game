@@ -253,7 +253,7 @@ needs a paid Workers plan to survive another Reddit day.
   // optional, added 2026-11-15 (Mod Store playtest feedback, #734): how the pack is listed and unlocked.
   "tags": ["Symbiote", "Aggression"], // the creator's own store search tags: at most 8, each 1-24 characters, unique ignoring case
   "wave": "cycle5", // the release wave (a Cycle.id) whose shelf the pack's heroes and scenarios sit beside when custom content is mixed in
-  "unlock": "wins", // "open" (default) | "points" | "wins": how heroes and scenarios unlock when "New custom content starts unlocked" is off
+  "unlock": "wins", // "open" (default) | "points" | "wins": how heroes and scenarios unlock when "Custom content starts unlocked" is off
   "files": [
     { "path": "cards/x.fan-moon-knight.01a.webp", "bytes": 182044, "sha256": "…" },
     // every file, so a download can be verified and resumed file by file
@@ -274,9 +274,10 @@ needs a paid Workers plan to survive another Reddit day.
   of the client's unlock path). When the player mixes custom content in with the official content, the pack's heroes
   and scenarios sit on that wave's shelf. Absent: the pack stays in the custom shelf.
 - `unlock`: `open`, `points` or `wins` (`PACK_UNLOCK_MODES`; absent is `open`). It applies only when the player has
-  turned "New custom content starts unlocked" off (it is on by default, and then everything is open). `open` is always
-  playable; `points` needs champion points spent by hand like an official hero; `wins` opens free after winning games
-  (or by points).
+  turned "Custom content starts unlocked" off (it is on by default, and then everything is open). `open` is always
+  playable; `points` needs champion points spent by hand like an official hero; `wins` opens free once the player has
+  won 5 different scenarios (or by points before that). It covers the pack's heroes and scenarios; a pack's campaigns
+  stay open.
 
 `mc-pack validate` refuses more than 8 tags, a tag over 24 characters or empty, a duplicate tag, a `wave` that is not in
 `PACK_WAVE_IDS` and an `unlock` that is not one of the three modes. `mc-pack build` copies the three fields into the

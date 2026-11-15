@@ -232,9 +232,9 @@ export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
 export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
     id: "custom-unlocked",
-    title: "New custom content starts unlocked",
+    title: "Custom content starts unlocked",
     detail:
-      "Every installed pack's heroes and scenarios are ready to play. Off, each pack unlocks the way its creator chose: open, with champion points, or by winning games.",
+      "Every installed pack's heroes and scenarios are ready to play. Off, each pack's heroes and scenarios unlock the way its creator chose: open, with champion points, or by winning games. Its campaigns stay open.",
     on: settings.customUnlocked,
   };
 }

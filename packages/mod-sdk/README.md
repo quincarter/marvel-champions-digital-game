@@ -58,7 +58,7 @@ section 11.12). `mc-pack validate` checks them.
   characters, no duplicates ignoring case. The store lists them after the pack's kind.
 - `wave`: the release wave whose shelf the pack's heroes and scenarios sit beside when the player mixes custom content
   in with the official content: `core`, `wave1`, `cycle1`, `cycle3` to `cycle11` (`PACK_WAVE_IDS` in `@mc/content`).
-- `unlock`: how the heroes and scenarios unlock when the player has turned "New custom content starts unlocked" off.
+- `unlock`: how the heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off.
   `open` (the default) is always playable, `points` needs champion points spent by hand like an official hero, `wins`
   opens free after winning games (or by points).
 

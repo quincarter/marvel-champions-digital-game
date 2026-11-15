@@ -22,7 +22,8 @@ export const CUSTOM_WINS_TO_UNLOCK = 5;
 interface UnlockablePack {
   readonly id: string;
   readonly unlock?: CustomUnlockMode;
-  readonly scenarios?: readonly { readonly id: unknown }[];
+  readonly scenarios?: readonly { readonly id: unknown; readonly name?: string }[];
+  readonly cards?: readonly { readonly id: unknown; readonly name?: string }[];
 }
 
 /** The mode a hero (by its identity card code) unlocks by, or null for an official hero. */
@@ -51,6 +52,23 @@ export function customScenarioMode(
 /** Whether play has opened content of `mode`, given how many different scenarios the player has won. */
 export function customEarned(mode: CustomUnlockMode, scenariosWon: number): boolean {
   return mode === "open" || (mode === "wins" && scenariosWon >= CUSTOM_WINS_TO_UNLOCK);
+}
+
+/** The name a loaded pack's hero or scenario goes by, for the unlock confirm; undefined when no loaded pack has it. */
+export function customNameOf(id: string, packs: readonly UnlockablePack[] = loadedPacks()): string | undefined {
+  for (const pack of packs) {
+    const scenario = pack.scenarios?.find((one) => one.id === id);
+    if (scenario?.name) return scenario.name;
+    const card = pack.cards?.find((one) => one.id === id);
+    if (card?.name) return card.name;
+  }
+  return undefined;
+}
+
+/** The free way in, as a hint ("Win 3 more different scenarios"), or null for a points-only or open pack. */
+export function customFreeHint(mode: CustomUnlockMode, scenariosWon: number, lang?: CardLanguage): string | null {
+  if (mode !== "wins") return null;
+  return t("unlock.modWinsHint", { count: Math.max(1, CUSTOM_WINS_TO_UNLOCK - scenariosWon) }, lang);
 }
 
 /** Why locked custom content is locked, in a line: points only, or wins to go (and points meanwhile). */

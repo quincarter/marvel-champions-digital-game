@@ -5,9 +5,10 @@
  * Two views in one scene. **Browse** is six tabs (All, Heroes, Scenarios, Extras, Installed, Credits) over a grid of
  * pack tiles, with a search box, a sort and tag chips over it (issue #734) and an offline notice when the catalog is the
  * saved copy; each tile leads with the pack's featured card (thumbnail, picture or generated face from its
- * `preview.json`). Credits lists the creators instead, and picking one shows their packs. **Pack** is one pack's page: the featured card(s), header, scrolling text
- * (description, credits, permission, requirement), a gallery of the pack's cards (from the preview before an install,
- * from the installed pack after), a status line (progress bar or error) and the buttons its state offers.
+ * `preview.json`). Credits lists the creators instead, and picking one shows their packs. **Pack** is one pack's page:
+ * the featured card(s), header, scrolling text (description, credits, permission, requirement), a gallery of the pack's
+ * cards (from the preview before an install, from the installed pack after), a status line (progress bar or error) and
+ * the buttons its state offers.
  *
  * This scene only draws. Which packs a tab shows, what the buttons are, progress words and error words are
  * `view/mod-store-model.ts`'s; whether a pack can be installed is `packs/pack-state.ts`'s; the install itself, in a
@@ -431,6 +432,7 @@ export class ModStoreScene extends Phaser.Scene {
   #showCreator(credit: CreatorCredit): void {
     this.#filter = { ...this.#filter, creator: credit.name };
     this.#tab = "all";
+    this.#scroll("all").reset();
     this.#draw();
     this.#route?.focusKey("tab:all");
   }

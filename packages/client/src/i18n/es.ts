@@ -200,6 +200,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "unlock.modPoints": "Un paquete mod: desbloquéalo con puntos de campeón",
   "unlock.modWins":
     "Gana {count} escenarios distintos más para desbloquear este paquete mod gratis, o usa puntos de campeón",
+  "unlock.modWinsHint": "Gana {count} escenarios distintos más",
+  "unlock.freeCustom": "{hint} para desbloquear {name} gratis",
+  "unlock.thisScenario": "este escenario",
   "unlock.captionOrPts": "{short} · o {cost} pts",
   "unlock.everythingTitle": "¿Desbloquear todo gratis?",
   "unlock.everythingBody":

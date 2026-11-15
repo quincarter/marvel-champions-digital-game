@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { currentHeroShelfPacks } from "../content/pool.js";
+import { setLoadedPacks } from "./pack-registry.js";
+import type { PackRuntime } from "./pack-runtime.js";
 import { CUSTOM_SHELF_ID, placeHeroShelfPacks, placeScenarioShelves } from "./custom-placement.js";
 
 const official = [
@@ -59,5 +62,21 @@ describe("placeScenarioShelves (issue #734)", () => {
     expect(placeScenarioShelves(products, "mixed").shelfOf(undefined)).toBe(CUSTOM_SHELF_ID);
     expect(placeScenarioShelves(products, "mixed").shelfOf("nope")).toBe(CUSTOM_SHELF_ID);
     expect(placeScenarioShelves(products, "top").shelfOf("cycle1")).toBe(CUSTOM_SHELF_ID);
+  });
+});
+
+describe("currentHeroShelfPacks follows the placement setting (issue #734)", () => {
+  afterEach(() => setLoadedPacks([]));
+
+  it("gives a different list for each placement of the same loaded packs", () => {
+    setLoadedPacks([
+      { id: "carnage-nep", wave: "cycle5", decks: [{ packCode: "carnage-nep" }] },
+    ] as unknown as PackRuntime[]);
+    const shelfOf = (placement: "top" | "bottom" | "mixed") =>
+      currentHeroShelfPacks(placement).find((pack) => pack.code === "carnage-nep");
+    expect(shelfOf("bottom")?.cycleId).toBe(CUSTOM_SHELF_ID);
+    expect(shelfOf("mixed")?.cycleId).toBe("cycle5");
+    expect(shelfOf("top")!.cycleOrder).toBeLessThan(shelfOf("bottom")!.cycleOrder);
+    expect(shelfOf("bottom")?.cycleId).toBe(CUSTOM_SHELF_ID);
   });
 });

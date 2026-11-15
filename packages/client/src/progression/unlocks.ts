@@ -657,7 +657,7 @@ export class Unlocks {
   /** Null when the hero may sit at a table; otherwise what opens it. */
   heroLock(identityCardId: string, lang: CardLanguage = "en"): string | null {
     // An installed custom pack's hero is not on the waves' unlock path. It seats whenever the pack is installed, unless
-    // the player turned off "New custom content starts unlocked" and its creator asked for points or wins (issue #734).
+    // the player turned off "Custom content starts unlocked" and its creator asked for points or wins (issue #734).
     if (isCustomCardCode(identityCardId)) {
       if (this.heroEarned(identityCardId) || this.heroManual(identityCardId)) return null;
       return customLockText(customHeroMode(identityCardId) ?? "points", this.progress.wonScenarioIds.length, lang);

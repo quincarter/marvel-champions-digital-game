@@ -10,6 +10,7 @@ import { DEFAULT_CUSTOM_CONTENT_PREFS, setCustomContentPrefs } from "../packs/cu
 import { DEFAULT_UNLOCK_PREFS, Unlocks } from "./unlocks.js";
 import { setLoadedPacks } from "../packs/pack-registry.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
+import { confirmOf } from "../view/unlocks-model.js";
 
 const packs = [
   { id: "pts", unlock: "points" as const, scenarios: [{ id: "x.pts.scenario" }] },
@@ -73,5 +74,31 @@ describe("Unlocks with custom content locked (issue #734)", () => {
     setLoadedPacks(packs as unknown as PackRuntime[]);
     expect(unlocks().heroLock("x.pts.01a", "en")).toBeNull();
     expect(unlocks().chargesFor({ kind: "hero", identityCardId: "x.pts.01a" })).toEqual([]);
+  });
+});
+
+describe("the unlock confirm for custom content (issue #734)", () => {
+  afterEach(() => {
+    setCustomContentPrefs(DEFAULT_CUSTOM_CONTENT_PREFS);
+    setLoadedPacks([]);
+  });
+
+  it("names the pack's hero and scenario, and gives a wins pack's free way in", () => {
+    setLoadedPacks([
+      { id: "pts", unlock: "points", cards: [{ id: "x.pts.01a", name: "Gwenpool" }], scenarios: [] },
+      { id: "win", unlock: "wins", cards: [], scenarios: [{ id: "x.win.scenario", name: "Mephisto" }] },
+    ] as unknown as PackRuntime[]);
+    setCustomContentPrefs({ placement: "bottom", unlocked: false });
+    const none = new Unlocks({
+      progress: { wonScenarioIds: [], wonExpertScenarioIds: [], wonCampaignIds: [], wonExpertCampaignIds: [] },
+      prefs: DEFAULT_UNLOCK_PREFS,
+    });
+    const hero = confirmOf(none, { kind: "hero", identityCardId: "x.pts.01a" });
+    // Not enough points yet: the confirm says what it would cost, by the pack's own names.
+    expect(hero.body).toContain("Gwenpool");
+    expect(hero.body).not.toMatch(/precon|this hero/);
+    const scenario = confirmOf(none, { kind: "scenario", scenarioId: "x.win.scenario" });
+    expect(scenario.body).toContain("Mephisto");
+    expect(scenario.body).toMatch(/Win 5 more different scenarios to unlock Mephisto for free/);
   });
 });
