@@ -1,15 +1,17 @@
 /**
  * Where the title screen's release notice bar goes (`ui/release-notice-bar.ts`): the release report at
  * `public/releases/<version>/index.html`, served at the same path. Resolved exactly as `view/sync-info-link.ts` resolves
- * the sync guide: against the page in a browser, so a deploy preview opens its own copy, and the production site in the
- * Capacitor and Tauri apps, which have no site to resolve against. `src-tauri/capabilities/default.json` already lists
+ * the sync guide: against the page in a browser, so a deploy preview opens its own copy, and in the Capacitor and Tauri
+ * apps, which have no site to resolve against, the landing site, where the release pages live (the game's own
+ * address forwards `/releases/*` there, `cloudflare/game/_redirects`). `src-tauri/capabilities/default.json` lists
  * that site for Tauri's opener.
  */
 
 import type { CardLanguage } from "../art/card-language.js";
+import { LANDING_URL } from "../site/site-urls.js";
 import { RELEASE_NOTICE_VERSION } from "./release-notice.js";
 
-const SITE_URL = "https://marvel-champions-digital-game.netlify.app/";
+const SITE_URL = LANDING_URL;
 
 export const RELEASE_REPORT_PATH = `releases/${RELEASE_NOTICE_VERSION}/index.html`;
 export const RELEASE_REPORT_SITE_URL = `${SITE_URL}${RELEASE_REPORT_PATH}`;

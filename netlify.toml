@@ -22,7 +22,8 @@ to = "https://marvelcdb.com/api/public/deck/:id.json"
 status = 200
 force = true
 
-# Builds up to v0.39.0 have a title bar that opens this retired page.
+# Builds up to v0.39.0 have a title bar that opens this retired page. The game on Cloudflare has the same redirect in
+# packages/client/cloudflare/game/_redirects (a test keeps the two on one report).
 [[redirects]]
 from = "/shadowland-info.html"
 to = "/releases/v0.45.0/index.html"

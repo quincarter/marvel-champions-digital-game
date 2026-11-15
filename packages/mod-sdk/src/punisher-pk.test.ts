@@ -229,6 +229,12 @@ function attachTo(
   return { id, state: patch(placed, host, { attachments: [...placed.instances[host]!.attachments, id] }) };
 }
 
+/** Rachel Cole-Alves already held by War on Crime (surgery: no reveal), as her Forced Interrupt leaves her; hit points 4. */
+function heldRachel(state: GameState): { readonly state: GameState; readonly id: InstanceId } {
+  const placed = attachTo(state, "14", warOnCrime(state));
+  return { id: placed.id, state: patch(placed.state, placed.id, { heldMinion: true }) };
+}
+
 /** A card of the player's deck by code, moved to their hand (surgery: no draw effects). */
 function toHand(state: GameState, code: string): { readonly state: GameState; readonly id: InstanceId } {
   const owner = state.players.find((p) => p.playerId === P1)!;
@@ -393,25 +399,81 @@ describe("The Punisher attacks the minions engaged with you", () => {
     expect(next.state.outcome).toBeNull();
   });
 
-  it("Rachel Cole-Alves cannot be attacked by him", () => {
-    const rachel = conjure(open(), "14", { hp: 4 });
-    const thug = conjure(rachel.state, "09", { hp: 9, atk: 0 });
-    const next = toNextRound(withFiller(thug.state));
+  it("Rachel Cole-Alves: revealed, she attaches to War on Crime instead of engaging the player", () => {
+    const next = toNextRound(deckFor(open(), 1, "14"));
+    const [rachel] = inPlay(next.state, "14");
+    expect(rachel, "in play").toBeDefined();
+    const card = next.state.instances[rachel!]!;
+    expect(card.attachedTo, "held by War on Crime").toBe(warOnCrime(next.state));
+    expect(card.engagedWith, "engaged with no one").toBeNull();
+    expect(
+      next.state.players.some((p) => p.playArea.includes(rachel!)),
+      "in no player's area",
+    ).toBe(false);
+  });
+
+  it("Rachel Cole-Alves: Frank's War 1B treats the player as not engaged with her", () => {
+    // Boost, Rachel revealed (held), then 1B's discard at the next player phase: a Maggia Enforcer, put into play.
+    const next = toNextRound(deckFor(open(), 1, "14", "08"));
+    expect(inPlay(next.state, "14").length).toBe(1);
+    const enforcers = inPlay(next.state, "08");
+    expect(enforcers.length, "1B discarded and put a minion into play").toBe(1);
+    expect(next.state.instances[enforcers[0]!]!.engagedWith).toBe(P1);
+  });
+
+  it("Rachel Cole-Alves: he does not attack her (she is engaged with no one), only activates", () => {
+    const rachel = heldRachel(open());
+    const next = toNextRound(withFiller(rachel.state));
     expect(damageFrom(next.events, villainOf(next.state), rachel.id)).toEqual([]);
-    expect(damageFrom(next.events, villainOf(next.state), thug.id), "the Thug is").toEqual([4]);
+  });
+
+  it("Rachel Cole-Alves: War Zone counts her as a minion in play", () => {
+    const rachel = heldRachel(open());
+    const withZone = toNextRound(deckFor(rachel.state, 1, "18", "06")).state;
+    expect(inPlay(withZone, "18").length, "War Zone is in play").toBe(1);
+    const attack = applyCommand(
+      withZone,
+      {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identityOf(withZone),
+        targetInstanceId: villainOf(withZone),
+      },
+      deps,
+    );
+    expect(attack.ok, "a minion (Rachel) is in play").toBe(false);
+  });
+
+  it("Rachel Cole-Alves: a player can attack her", () => {
+    const rachel = heldRachel(open());
+    const attack = applyCommand(
+      rachel.state,
+      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(rachel.state), targetInstanceId: rachel.id },
+      deps,
+    );
+    expect(attack.ok).toBe(true);
+  });
+
+  it("Rachel Cole-Alves: Submachine Gun Spray skips her, Explosive Surprise (a minion in play) hits her", () => {
+    const rachel = heldRachel(open());
+    const spray = toNextRound(deckFor(rachel.state, 1, "21"));
+    expect(damageOf(spray.state, rachel.id), "not engaged with you").toBe(0);
+    const surprise = toNextRound(deckFor(rachel.state, 1, "20"));
+    expect(damageOf(surprise.state, rachel.id), "the minion in play with the fewest hit points").toBe(3);
   });
 
   it("Rachel Cole-Alves: he gets +2 ATK while attacking a minion, not an attack on you", () => {
-    const rachel = conjure(open(), "14", { hp: 4 });
+    const rachel = heldRachel(open());
     const thug = conjure(rachel.state, "09", { hp: 9, atk: 0 });
     const profileOutside = characterProfile(thug.state, villainOf(thug.state), deps)!;
     expect(profileOutside.atk, "outside an attack").toBe(2);
     const next = toNextRound(withFiller(thug.state));
     expect(damageFrom(next.events, villainOf(next.state), thug.id), "2 ATK + 2").toEqual([4]);
+    expect(damageFrom(next.events, villainOf(next.state), rachel.id), "Rachel is not attacked").toEqual([]);
   });
 
   it("Rachel Cole-Alves: when he schemes, heal 2 damage from him", () => {
-    const rachel = conjure(open(), "14", { hp: 4 });
+    const rachel = heldRachel(open());
     const hurt = patch(rachel.state, villainOf(rachel.state), { damage: 5 });
     const alterEgo: GameState = {
       ...hurt,

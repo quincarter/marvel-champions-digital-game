@@ -1,0 +1,37 @@
+// The game itself on Cloudflare's free plan, at https://marvel.champions-digital-game.com (src/site/site-urls.ts,
+// GAME_URL). Static assets are served free and don't count toward the 100,000 Worker requests a day. The one route
+// that needs code, MarvelCDB deck import by link, runs the small script (src/edge/game-worker.ts, game-routes.ts)
+// first; nothing else reaches it unless no asset matches.
+//
+// `pnpm --filter @mc/client game:build:cloudflare` builds `dist/` and copies in cloudflare/game/_headers and _redirects
+// (the cache headers and the release-page redirects that netlify.toml gives the Netlify site). CI deploys it on every
+// push to main (netlify-deploy.yml, "Build and deploy the game to Cloudflare") once the CLOUDFLARE_API_TOKEN and
+// CLOUDFLARE_ACCOUNT_ID secrets exist.
+//
+// The build carries every card scan in both languages: about 10,300 files and 1.6 GB, under the free plan's 20,000
+// files, with nothing near its 25 MiB a file (docs/custom-content-packs.md §4.1). A third card language would pass
+// 20,000 and need a paid plan.
+//
+// The custom domain is declared here, not attached in the dashboard: this file is the source of truth for the Worker,
+// so a later deploy can't drop a domain it doesn't list. The first deploy creates the domain and its DNS record; the
+// API token needs Zone > Workers Routes > Edit (and Zone > Zone > Read) on champions-digital-game.com for that.
+{
+  "name": "mc-game",
+  "main": "./src/edge/game-worker.ts",
+  // The newest date the pinned wrangler's local runtime supports, so `wrangler dev` runs it too.
+  "compatibility_date": "2026-10-15",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // A path with no file of its own is a route inside the game: it gets the game's page.
+    "not_found_handling": "single-page-application",
+    "html_handling": "auto-trailing-slash",
+    // Must match MARVELCDB_IMPORT_ROUTE in src/edge/game-routes.ts.
+    "run_worker_first": ["/api/marvelcdb-import/*"],
+  },
+  "routes": [{ "pattern": "marvel.champions-digital-game.com", "custom_domain": true }],
+  // Kept beside the custom domain (with routes it would default to off): an address to check a deploy on when the
+  // domain misbehaves. Nobody plays there, so its saves never compete with the real address's.
+  "workers_dev": true,
+  "preview_urls": false,
+}

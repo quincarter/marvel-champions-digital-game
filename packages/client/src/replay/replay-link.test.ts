@@ -97,7 +97,7 @@ describe("replay links", () => {
   test("links to this page on the web, and to the web version from the apps", () => {
     const here = { origin: "https://preview--site.netlify.app", pathname: "/" };
     expect(replayLinkOf(ID, false, here)).toBe(`https://preview--site.netlify.app/#replay=${ID}`);
-    expect(replayLinkOf(ID, true, here)).toBe(`https://marvel-champions-digital-game.netlify.app/#replay=${ID}`);
+    expect(replayLinkOf(ID, true, here)).toBe(`https://marvel.champions-digital-game.com/#replay=${ID}`);
   });
 
   test("reads a #replay= link once and clears it from the address", () => {

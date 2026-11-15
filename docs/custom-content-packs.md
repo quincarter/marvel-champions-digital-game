@@ -145,6 +145,14 @@ if Workers' previews fall short.
   and the deploy secrets, and update the site address in four client files, the Tauri capability and the README.
   Installed apps still link to the old address, which is one more reason to keep it answering.
 
+**Where it stands (2026-11-14).** The landing page is the assets-only Worker `mc-landing` at
+`champions-digital-game.com`. The game is the Worker `mc-game` (`packages/client/wrangler.game.jsonc`), deployed from
+`main` by CI, for `marvel.champions-digital-game.com`: its static assets carry every card scan in both languages
+(about 10,300 files and 1.6 GB, with an 8.4 MB largest file), and its only code is the MarvelCDB proxy above
+(`src/edge/game-routes.ts`, `run_worker_first` on that path). `packages/client/cloudflare/game/` holds the cache
+headers and the redirects that send `/releases/*` to the landing site. Netlify keeps the PR previews and, once
+`SITE_MOVED` is set, serves the moved page at the old address.
+
 ### 4.2 Where packs live
 
 **Recommendation: Cloudflare R2 for every platform, behind a subdomain of the new domain (`packs.<domain>`).** With the

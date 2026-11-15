@@ -12,7 +12,7 @@ describe("syncInfoUrl", () => {
 
   test("in the native apps it is the production site", () => {
     expect(syncInfoUrl("tauri://localhost/", true)).toBe(SYNC_INFO_SITE_URL);
-    expect(SYNC_INFO_SITE_URL).toBe("https://marvel-champions-digital-game.netlify.app/sync-info.html");
+    expect(SYNC_INFO_SITE_URL).toBe("https://marvel.champions-digital-game.com/sync-info.html");
   });
 
   test("a page url that cannot be resolved against falls back to the site", () => {

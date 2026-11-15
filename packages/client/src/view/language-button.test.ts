@@ -7,9 +7,14 @@ import {
   languageRowLabel,
   languageSlotBeside,
   otherLanguagesParagraphs,
+  WEB_VERSION_URL,
 } from "./language-button.js";
 
 describe("the card language button", () => {
+  it("sends a native player to the web version at the game's own address", () => {
+    expect(WEB_VERSION_URL).toBe("https://marvel.champions-digital-game.com/");
+  });
+
   it("says the language's code, not a flag", () => {
     expect(languageCodeOf("en")).toBe("EN");
     expect(languageCodeOf("es")).toBe("ES");

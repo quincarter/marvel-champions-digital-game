@@ -13,7 +13,7 @@
 # so only the Spanish pictures are taken from it.
 set -eu
 REPO=https://github.com/bluefireF5ran/mc-digital-custom-packs
-COMMIT=a51e50da556ece0b0fe9a75848320416b8794cef
+COMMIT=29217b40ea4cbe8803dce0d4e335fa39089a24e1
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 if [ "${1:-}" ]; then

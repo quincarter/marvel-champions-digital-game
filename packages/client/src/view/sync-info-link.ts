@@ -5,8 +5,10 @@
  * production site. `src-tauri/capabilities/default.json` lists that site for Tauri's opener.
  */
 
+import { GAME_URL } from "../site/site-urls.js";
+
 export const SYNC_INFO_PATH = "sync-info.html";
-export const SYNC_INFO_SITE_URL = "https://marvel-champions-digital-game.netlify.app/sync-info.html";
+export const SYNC_INFO_SITE_URL = `${GAME_URL}${SYNC_INFO_PATH}`;
 export const SYNC_INFO_LABEL = "More information ↗";
 
 /** `pageUrl` is `location.href`; `native` is `isNativeShell()`. */

@@ -9,12 +9,13 @@
  * the others.
  */
 import { CARD_LANGUAGES, CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
+import { GAME_URL } from "../site/site-urls.js";
 import type { Rect } from "./layout.js";
 
 /** The downloads page, whose files carry the language in their names (`MarvelChampions-1.2.3-ES-Android.apk`). */
 export const DOWNLOADS_URL = "https://github.com/quincarter/marvel-champions-digital-game/releases/latest";
 /** The production web version, which carries every language. */
-export const WEB_VERSION_URL = "https://marvel-champions-digital-game.netlify.app/";
+export const WEB_VERSION_URL = GAME_URL;
 
 /** "EN", "ES": what the button says beside its globe. */
 export function languageCodeOf(language: CardLanguage): string {

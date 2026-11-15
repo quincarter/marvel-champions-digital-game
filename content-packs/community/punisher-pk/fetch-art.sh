@@ -3,7 +3,7 @@
 # They are not in git (.gitignore); the content repo's release bundles carry them. Usage: sh fetch-art.sh
 set -eu
 REPO=https://github.com/bluefireF5ran/mc-digital-custom-packs
-COMMIT=a0c9f6000293115a9ecd58da347468ec875d52bb
+COMMIT=29217b40ea4cbe8803dce0d4e335fa39089a24e1
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT

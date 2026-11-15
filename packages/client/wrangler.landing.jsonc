@@ -3,8 +3,9 @@
 // with no script nothing here spends them. CI deploys it on every push to main (netlify-deploy.yml, "Deploy the
 // landing page") once the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets exist.
 //
-// The custom domain is attached in the Cloudflare dashboard (Workers & Pages > mc-landing > Settings > Domains &
-// Routes), not here, so a deploy never changes DNS. See the pull request's Action Items for the exact steps.
+// The custom domains are declared here as well as attached in the dashboard: this file is the source of truth for the
+// Worker, so a later deploy can't drop a domain it doesn't list. The API token needs Zone > Workers Routes > Edit (and
+// Zone > Zone > Read) on champions-digital-game.com for a deploy that lists them.
 {
   "name": "mc-landing",
   "compatibility_date": "2026-11-01",
@@ -15,7 +16,11 @@
     // release in the history and anything else to the top of the site (vite.site.config.ts).
     "not_found_handling": "404-page",
   },
-  // A workers.dev address to check a deploy before the custom domain points at it.
+  "routes": [
+    { "pattern": "champions-digital-game.com", "custom_domain": true },
+    { "pattern": "www.champions-digital-game.com", "custom_domain": true },
+  ],
+  // Kept beside the custom domains (with routes it would default to off): an address to check a deploy on.
   "workers_dev": true,
   "preview_urls": false,
 }

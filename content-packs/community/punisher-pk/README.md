@@ -6,8 +6,11 @@ Thugs), 3 side schemes and 5 treacheries, played with the recommended modular se
 `hood` set, `sinister_syndicate`). Standard plays The Punisher I and II, expert II and III. See `CREDITS.md` and
 `PERMISSION.md`.
 
-The author (PermaKarma) accepted all of the curators' changes on 2026-11-13, Rachel Cole-Alves included, and will apply
-them to his own files (curated repository `a51e50d`). Compare his new version when it is out.
+Version 0.2.0 is the author's **V3.0** (2026-11-14, curated repository `29217b4`). He applied nearly all of the curators'
+changes and added his own: a new Maggia Capo flavor, a star on Frank's War 1B's Forced Interrupt and on its acceleration,
+and a change to **Rachel Cole-Alves**: she no longer engages a player; "When Rachel Cole-Alves would engage a player,
+attach her to War on Crime instead". Pictures changed for 04b, 07, 08, 09 and 17 (English) and 04b, 07, 08 and 17
+(Spanish). The permission record is unchanged.
 
 ## Source layout
 
@@ -63,9 +66,11 @@ him). Hammerhead names "a friendly character", so his attack does not trigger it
 
 ## Open items
 
-- **The author accepted** the curators' rules and wording fixes on 2026-11-13; his own files will follow.
-- **Rachel Cole-Alves** is the curators' proposal (engaged with a player; The Punisher cannot attack her), not the author's
-  card, whose version attaches her to The Punisher.
+- **The author accepted** the curators' rules and wording fixes on 2026-11-13, and his V3.0 applies them.
+- **Frank's War 1B's acceleration star**: the card prints a star on its acceleration (+1[per_hero]). The card schema has no
+  star field for a main scheme's acceleration, so it is in the stage text only (the acceleration value is unchanged).
+- **Rachel Cole-Alves** (V3.0): a Forced Interrupt on her own `minionEngaged` holds her on War on Crime (`holdMinion`, as
+  Justice, Like Lightning 50131a holds a Thunderbolt). The engine already supports this with no new primitive.
 - **Questions for the author**, none sent: Maggia Capo's search with no Criminal minion left (read: the discarding stops at
   the end of the deck, RRG 1.8 "Encounter Deck", p. 17, and nothing comes into play); whether the 6[per_hero] war counter
   lock is meant as the doom clock; Bullseye's 1[per_hero] war counters.
@@ -94,6 +99,7 @@ him). Hammerhead names "a friendly character", so his attack does not trigger it
 - **The Russian.** "Defeated by a friendly character or a player card" is read as any defeating source that has a
   controller, so The Punisher's own attacks (an encounter card) defeat him normally, as the curators intend.
 - **Rachel Cole-Alves.** Her "+2 ATK while attacking a minion" applies to his attacks on minions only (not to his
-  activation against you), and "cannot attack Rachel" also stops his attack on her from the forced response above. War
-  Zone counts her as a minion in play.
+  activation against you). Held by War on Crime she is a minion in play engaged with no one: Frank's War 1B, Maggia
+  Enforcer, Submachine Gun Spray and his attacks on "each minion engaged with you" skip her; War Zone and Explosive
+  Surprise ("a minion in play") count her; players can attack her. War on Crime is Permanent, so she stays across stages.
 - **War Zone** restricts the players' attacks (the table is bound); it does not stop his own attacks on minions.
