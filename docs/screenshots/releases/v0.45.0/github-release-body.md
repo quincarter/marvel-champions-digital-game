@@ -1,6 +1,6 @@
 ## The Mod Store Is Open
 
-Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
+Community heroes and scenarios now install from inside the game: the Mod Store opens in Extras with eight fan-made packs by Neptune, DesignHacker, BlueHG, Patatasaurio, PermaKarma, Gideon's Gaming and Bluefire, curated by @bluefireF5ran and first asked for by @Kravenprime (#661, #677). Every game can now be watched back as a replay, exported or shared, and Past games lists every finished game to watch again (#693, #706), and the game has a website of its own, [champions-digital-game.com](https://champions-digital-game.com/) (#697), where the release reports now live, and the game itself has moved to [marvel.champions-digital-game.com](https://marvel.champions-digital-game.com/) (#707). @AlecHolland1582 reported both fixes, the blank Briefing on Android (#692) and Stealth Training (#700). Moving between Title, Extras and the Mod Store is smooth now (#712). Elektra and Iron Fist are on the way. Thank you!
 
 **[Read the full v0.45.0 report on the site ↗](https://champions-digital-game.com/releases/v0.45.0/)**: the Mod Store and its eight packs, replays and Past games, the new website, the fixes from your reports and the thank-you wall.
 
@@ -12,7 +12,7 @@ Community heroes and scenarios now install from inside the game: the Mod Store o
 
 ![Watch it back: a replay on the board with its bar on desktop and on a phone, where to find replays and how to share them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e3d1435ed47566dc30999e8971feaa230ccd89df/docs/screenshots/releases/v0.45.0/v0-45-0-release-03-watch-it-back.jpg)
 
-![A home of its own: the new landing page, and what happens to your saves when the game moves](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e3d1435ed47566dc30999e8971feaa230ccd89df/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
+![A home of its own: the new landing page, and what happens to your saves now that the game has moved](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e3d1435ed47566dc30999e8971feaa230ccd89df/docs/screenshots/releases/v0.45.0/v0-45-0-release-04-a-home-of-its-own.jpg)
 
 ![You asked, we fixed: the Briefing on Android and Stealth Training, both reported by @AlecHolland1582](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e3d1435ed47566dc30999e8971feaa230ccd89df/docs/screenshots/releases/v0.45.0/v0-45-0-release-05-you-asked-we-fixed.jpg)
 
