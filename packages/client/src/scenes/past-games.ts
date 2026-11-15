@@ -30,6 +30,8 @@ import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { addPressShield } from "../ui/press-shield.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
@@ -154,6 +156,10 @@ export class PastGamesScene extends Phaser.Scene {
   /** True while a phone's details popup is up: the list under it takes no taps. */
   #popupOpen = false;
   #offBaked: (() => void) | null = null;
+  /** The details' words, which scroll when they outgrow the panel; the offset is kept while the same game shows. */
+  #detailsRegion: McScrollRegion | null = null;
+  #detailsScroll = new VariableListScroll();
+  #detailsScrollId: string | null = null;
   #alive = false;
 
   constructor() {
@@ -175,7 +181,8 @@ export class PastGamesScene extends Phaser.Scene {
       },
       // The phone popup holds the list under it still.
       onPage: (direction) => {
-        if (!this.#popupOpen) this.#list?.scrollByPage(direction);
+        if (this.#popupOpen) this.#detailsRegion?.scrollByPx(direction * (this.#detailsRegion.rect.height * 0.9));
+        else this.#list?.scrollByPage(direction);
       },
       onHomeEnd: (edge) => {
         if (this.#popupOpen) return;
@@ -183,7 +190,8 @@ export class PastGamesScene extends Phaser.Scene {
         else this.#list?.scrollToEnd();
       },
       onScroll: (_dx, dy) => {
-        if (!this.#popupOpen) this.#list?.scrollByPx(dy);
+        if (this.#popupOpen) this.#detailsRegion?.scrollByPx(dy);
+        else this.#list?.scrollByPx(dy);
       },
     });
     this.#hover = new HoverPreview(this, {
@@ -408,6 +416,8 @@ export class PastGamesScene extends Phaser.Scene {
     this.#hoverCards = [];
     this.#offBaked?.();
     this.#offBaked = null;
+    this.#detailsRegion?.destroy();
+    this.#detailsRegion = null;
   }
 
   #draw(): void {
@@ -717,12 +727,14 @@ export class PastGamesScene extends Phaser.Scene {
       return found;
     });
 
+    // The words run in a region of their own above the actions: four heroes, a long title and a campaign line can
+    // outgrow the panel on a small screen, and the region scrolls (wheel, drag, the right stick) rather than cut any.
     const lines = this.#summaryLines(row);
     const text = parts.text;
-    const bottom = text.y + text.height;
+    const before = this.children.list.length;
     let y = text.y;
     const add = (value: string, style: Phaser.Types.GameObjects.Text.TextStyle, size: number, gap = 4) => {
-      const line = this.add.text(text.x, y, value, style).setWordWrapWidth(text.width);
+      const line = this.add.text(text.x, y, value, style).setWordWrapWidth(text.width - 10);
       line.setFontSize(size);
       y += line.height + gap;
       return line;
@@ -739,11 +751,9 @@ export class PastGamesScene extends Phaser.Scene {
     if (row.campaign)
       add(t("pastGames.campaign", { name: row.campaign }), textStyle(typeRole.label, ink, 0.75), 12, 10);
     for (const seat of row.seats) {
-      if (y > bottom - 18) break;
       const fate = seat.fell === null ? "" : ` · ${t(seat.fell ? "pastGames.seat.fell" : "pastGames.seat.stood")}`;
-      const name = add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
-      fitText(name, text.width, 11);
-      if (seat.damage !== null && seat.thwart !== null && y <= bottom - 16) {
+      add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
+      if (seat.damage !== null && seat.thwart !== null) {
         add(
           t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart }),
           textStyle(typeRole.body, ink, 0.75),
@@ -752,6 +762,20 @@ export class PastGamesScene extends Phaser.Scene {
         );
       }
     }
+    if (this.#detailsScrollId !== row.id) {
+      this.#detailsScroll = new VariableListScroll();
+      this.#detailsScrollId = row.id;
+    }
+    // Taken before the region exists, so its own root and mask are never moved into it.
+    const words = this.children.list.slice(before);
+    const region = new McScrollRegion(this, {
+      rect: text,
+      heights: [Math.max(text.height, y - text.y)],
+      scroll: this.#detailsScroll,
+    });
+    region.content.add(words);
+    region.refresh();
+    this.#detailsRegion = region;
 
     const busy = this.#busy;
     for (const action of PAST_GAME_ACTIONS) {
