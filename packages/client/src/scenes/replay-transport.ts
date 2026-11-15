@@ -29,7 +29,7 @@ import { fitTight, McButton, paintPanel } from "../ui/widgets.js";
 import { skin, textStyle, type WidgetKind } from "../ui/theme.js";
 import { padButtonGlyph } from "../view/input-glyph-model.js";
 import { detectPlatform } from "../platform/platform.js";
-import { replayLinkOf, uploadReplay, type ReplayLinkFailure } from "../replay/replay-link.js";
+import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { REPLAY_BANNER_HEIGHT } from "../view/layout.js";
 import { readBarOnTop, writeBarOnTop } from "../view/replay-bar-pref.js";
 import type { Rect } from "../view/layout.js";
@@ -232,10 +232,6 @@ class IconButton {
     this.#g.destroy();
     this.#zone.destroy();
   }
-}
-
-function isAbort(cause: unknown): boolean {
-  return typeof cause === "object" && cause !== null && (cause as { name?: unknown }).name === "AbortError";
 }
 
 export class ReplayTransportOverlay extends Phaser.Scene {
@@ -514,25 +510,9 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     }
   }
 
-  /** The failure wording of a share that did not make a link. */
-  #failureText(failure: ReplayLinkFailure): string {
-    switch (failure) {
-      case "full":
-        return t("replay.link.full");
-      case "rate-limited":
-        return t("replay.link.rateLimited");
-      case "too-large":
-        return t("replay.link.tooLarge");
-      case "not-found":
-        return t("replay.link.gone");
-      case "unavailable":
-        return t("replay.link.offline");
-    }
-  }
-
   /**
-   * Share link: uploads the replay, then hands the link to the system's share sheet where there is one (an
-   * AbortError is the player closing it), else copies it and says so in the banner.
+   * Share link: uploads the replay, then hands the link to the system's share sheet where there is one, else copies it
+   * and says so in the banner (`replay/replay-share.ts`).
    */
   async #share(): Promise<void> {
     const host = this.#host;
@@ -547,12 +527,12 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     let url: string | null = null;
     try {
       const { bytes } = await host.exportFile();
-      const uploaded = await uploadReplay(bytes);
-      if (!uploaded.ok) {
-        this.#say(this.#failureText(uploaded.failure));
+      const shared = await shareLinkOf(bytes, detectPlatform() !== "web");
+      if (!shared.ok) {
+        this.#say(t(shareFailureKey(shared.failure)));
         return;
       }
-      url = replayLinkOf(uploaded.value, detectPlatform() !== "web");
+      url = shared.url;
       this.#sharedUrl = url;
     } catch (cause) {
       if (isAbort(cause) || !this.#alive) return;
@@ -566,26 +546,12 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     if (url && this.#alive) await this.#deliverLink(url);
   }
 
-  /**
-   * Hands a link out: the share sheet where there is one (an AbortError is the player closing it), else the clipboard.
-   * A browser that refuses both (iOS, once the press is too old after the upload) is not a server failure: the link
-   * itself goes in the banner to read, and Share tries again with it.
-   */
+  /** Hands a link out; a link nothing would take goes in the banner to read, and Share tries again with it. */
   async #deliverLink(url: string): Promise<void> {
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ url, title: t("replay.title") });
-        return;
-      } catch (cause) {
-        if (isAbort(cause)) return;
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(url);
-      this.#say(t("replay.link.copied"));
-    } catch {
-      if (this.#alive) this.#say(`${t("replay.link.manual")} ${url}`, 30_000);
-    }
+    const delivered = await deliverReplayLink(url, t("replay.title"));
+    if (!this.#alive) return;
+    if (delivered === "copied") this.#say(t("replay.link.copied"));
+    else if (delivered === "manual") this.#say(`${t("replay.link.manual")} ${url}`, 30_000);
   }
 
   // ---- input ----------------------------------------------------------------------------------------------------

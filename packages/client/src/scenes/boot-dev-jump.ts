@@ -285,6 +285,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   if (screen === "trophies") return { key: SCENES.trophyRoom, data: {} };
   // `?screen=stats`: the Stats screen (reached from the Trophy Room); like the room, it reads the saves in IndexedDB.
   if (screen === "stats") return { key: SCENES.playerStats, data: {} };
+  // `?screen=past-games`: Past games (#706); finished games in IndexedDB are its rows.
+  if (screen === "past-games") return { key: SCENES.pastGames, data: {} };
   // `?screen=controls`: Settings ▸ Controls (`&pad=xbox|playstation|nintendo|handheld` fakes the last pad seen, for the drawing).
   if (screen === "controls") {
     const fakePads: Readonly<Record<string, string>> = {

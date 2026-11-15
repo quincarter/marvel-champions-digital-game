@@ -680,6 +680,21 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
 
+    const openPastGames = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.pastGames);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: t("title.pastGames"),
+        type: typeRole.menuButton,
+        rect: layout.pastGames,
+        onClick: openPastGames,
+      }),
+    );
+    this.#stops.set("past-games", { rect: layout.pastGames, activate: openPastGames });
+
     const openTrophies = (): void => {
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.trophyRoom);

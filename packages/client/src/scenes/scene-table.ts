@@ -42,6 +42,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.credits]: () => import("./credits.js").then((m) => m.CreditsScene),
   [SCENES.modStore]: () => import("./mod-store.js").then((m) => m.ModStoreScene),
   [SCENES.trophyRoom]: () => import("./trophy-room.js").then((m) => m.TrophyRoomScene),
+  [SCENES.pastGames]: () => import("./past-games.js").then((m) => m.PastGamesScene),
   [SCENES.playerStats]: () => import("./player-stats.js").then((m) => m.PlayerStatsScene),
   [SCENES.extrasReader]: () => import("./extras-reader.js").then((m) => m.ExtrasReaderScene),
   [SCENES.sideStoryReader]: () => import("./side-story-reader.js").then((m) => m.SideStoryReaderScene),
