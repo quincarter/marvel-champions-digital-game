@@ -38,6 +38,21 @@ const entry = (id, version, sha = "a".repeat(64), opts = {}) =>
   });
 const at = { today: "2026-11-11", now: "2026-11-11T12:00:00Z" };
 
+describe("packIndexEntry tags", () => {
+  it("lists the kind, then the creator's tags, deduped ignoring case and against the kind", () => {
+    const e = entry("tagged", "1.0.0", undefined, {
+      manifest: { tags: ["Symbiote", " HERO ", "symbiote", "", 4, "x".repeat(25), "Aggression"] },
+    });
+    assert.deepEqual(e.tags, ["hero", "Symbiote", "Aggression"]);
+  });
+
+  it("caps the creator's tags at 8 and ignores a tags field that is not a list", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `t${i}`);
+    assert.equal(entry("many", "1.0.0", undefined, { manifest: { tags: many } }).tags.length, 9);
+    assert.deepEqual(entry("odd", "1.0.0", undefined, { manifest: { tags: "Venom" } }).tags, ["hero"]);
+  });
+});
+
 describe("packIndexEntry", () => {
   it("writes the §11.5 entry with URLs under the version's base", () => {
     const e = entry("carnage-nep", "3.0.0");
