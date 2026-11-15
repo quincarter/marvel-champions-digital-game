@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Phaser from "phaser";
-import { ensurePictureLoaded, PICTURE_BATCH_MS, type Picture } from "./pictures.js";
+import { ensurePictureLoaded, isPictureSettled, PICTURE_BATCH_MS, type Picture } from "./pictures.js";
 
 /** A stand-in for the DOM `Image`: the test settles each one by hand. */
 class FakeImage {
@@ -216,5 +216,24 @@ describe("ensurePictureLoaded holds arrivals until the batch is in", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("isPictureSettled (#713 review)", () => {
+  test("loading is not settled; loaded is, and so is a load that failed and was forgotten", async () => {
+    const textures = new FakeTextures();
+    const scene = new FakeScene(textures);
+    const good: Picture = { key: "good", url: "/good.png" };
+    const missing: Picture = { key: "missing", url: "/missing.png" };
+    ensurePictureLoaded(scene.asScene, good, () => undefined);
+    ensurePictureLoaded(scene.asScene, missing, () => undefined);
+    expect(isPictureSettled(scene.asScene, "good")).toBe(false);
+    expect(isPictureSettled(scene.asScene, "missing")).toBe(false);
+    FakeImage.all.find((i) => i.src === "/good.png")!.onload?.();
+    FakeImage.all.find((i) => i.src === "/missing.png")!.onerror?.();
+    await settled();
+    expect(isPictureSettled(scene.asScene, "good")).toBe(true);
+    expect(textures.exists("missing")).toBe(false);
+    expect(isPictureSettled(scene.asScene, "missing")).toBe(true);
   });
 });

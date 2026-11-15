@@ -15,6 +15,10 @@ interface WorkerGlobal {
 }
 const worker = self as unknown as WorkerGlobal;
 
+// Its imports (the card pool, the cards' scripts) take a while on a slow phone: the client waits for this before it
+// times a refresh.
+worker.postMessage({ id: 0, result: null, ready: true });
+
 let campaigns: IdbCampaignStorage | null = null;
 let decks: IdbDeckStorage | null = null;
 

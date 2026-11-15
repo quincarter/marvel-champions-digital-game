@@ -37,6 +37,7 @@ import {
   isPhoneWidth,
   preloadDrawnPicture,
 } from "../ui/campaign-chrome.js";
+import { isPictureSettled } from "../art/pictures.js";
 import { PictureWait, settleWithin } from "../ui/picture-wait.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -274,7 +275,7 @@ export class ModStoreScene extends Phaser.Scene {
 
   /** The mods notice's speaker portraits, loading: settles once both are in the texture manager. */
   #loadNoticePortraits(): Promise<void> {
-    const wait = new PictureWait((key) => this.textures.exists(key));
+    const wait = new PictureWait((key) => isPictureSettled(this, key));
     const { width, height } = this.scale.gameSize;
     const layout = modNoticeLayoutOf(width, height, isPhoneWidth(formFactorFor(width, height)));
     MOD_NOTICE_LINES.forEach((line, index) => {

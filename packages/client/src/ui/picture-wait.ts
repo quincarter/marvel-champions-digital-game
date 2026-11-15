@@ -11,7 +11,8 @@ export class PictureWait {
   #resolve: (() => void) | null = null;
 
   /**
-   * `isLoaded` says whether a texture key is in now (`scene.textures.exists`): `ensurePictureLoaded` tells a waiter once
+   * `isLoaded` says whether a texture key has settled (`isPictureSettled`: loaded, or its load failed and was
+   * forgotten): `ensurePictureLoaded` tells a waiter once
    * per batch, and a batch need not hold every picture waited for (#713 review: Deadpool's and Spider-Man's portraits
    * can land in different batches), so each arrival checks which of the expected keys are in.
    */

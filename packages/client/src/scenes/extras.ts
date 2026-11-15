@@ -55,6 +55,7 @@ import type { SideStoryReaderData } from "./side-story-reader.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, pickReplayFile, replayErrorKey } from "../replay/replay-files.js";
 import { watchReplay } from "./replay-entry.js";
+import { isPictureSettled } from "../art/pictures.js";
 import { PictureWait } from "../ui/picture-wait.js";
 import { markRenderDirty } from "../ui/idle-render.js";
 
@@ -108,7 +109,7 @@ export class ExtrasScene extends Phaser.Scene {
     this.#tab = data.tab ?? this.#tab;
     this.#redrawQueued = false;
     this.#alive = true;
-    this.#pictures = new PictureWait((key) => this.textures.exists(key));
+    this.#pictures = new PictureWait((key) => isPictureSettled(this, key));
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     // A glyph that would hang over another control is not drawn (the phone's Back hint, over the Trophy Room button).

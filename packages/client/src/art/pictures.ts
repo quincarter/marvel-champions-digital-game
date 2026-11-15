@@ -76,6 +76,16 @@ interface Waiter {
 }
 const inFlight = new WeakMap<Phaser.Textures.TextureManager, Map<string, Waiter[]>>();
 
+/**
+ * Whether the texture `key` has settled in `scene`'s texture manager: loaded, or not loading any more (a load that
+ * failed is forgotten, and its waiters are never told). What a screen waiting for its pictures checks
+ * (`ui/picture-wait.ts`), so one missing picture can't hold it until the cap.
+ */
+export function isPictureSettled(scene: Phaser.Scene, key: string): boolean {
+  const textures = scene.textures;
+  return textures.exists(key) || !(inFlight.get(textures)?.has(key) ?? false);
+}
+
 export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onReady: () => void): string | null {
   return ensureTextureLoaded(scene, picture.key, () => decodedPicture(picture.url), onReady);
 }

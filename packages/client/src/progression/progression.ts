@@ -94,6 +94,9 @@ let progressInputs: ProgressInputs | null = null;
 /** Each achievement as the last refresh measured it. */
 let measured: readonly MeasuredAchievement[] = [];
 let statusesCache: readonly AchievementStatus[] | null = null;
+/** Refreshes started, and the newest one whose result is in. */
+let refreshesStarted = 0;
+let refreshApplied = 0;
 /** Ids earned as of the last refresh, in definition order; null until a refresh has read the stores. */
 let earnedIds: readonly string[] | null = null;
 let achievementPoints = 0;
@@ -159,6 +162,7 @@ function modInstalls(): Promise<InstalledPack[]> {
  * the same read, and the Extras screen redraws after it regardless.
  */
 export async function refreshUnlocks(): Promise<boolean> {
+  const refresh = ++refreshesStarted;
   const saves = (await appSession().store.listSaves()) as ProgressSaves;
   // Mods (docs/custom-content-packs.md section 11.12): every installed pack is noted once, for good, so removing a mod
   // never takes its install achievements back. The achievements of the packs loaded now come from the loaded runtimes.
@@ -192,6 +196,9 @@ export async function refreshUnlocks(): Promise<boolean> {
   };
   // The campaign and deck reads and the math run in the progress worker (issue #722); here only where it can't.
   const result = (await progressOffMain(inputs, saves)) ?? (await progressOnMain(inputs, saves));
+  // A refresh started earlier but finished later (two in flight: Title's and a pack change's) never rolls back a newer one.
+  if (refresh < refreshApplied) return false;
+  refreshApplied = refresh;
   progressInputs = inputs;
   measured = result.measured;
   statusesCache = null;
