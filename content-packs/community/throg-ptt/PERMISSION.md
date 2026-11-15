@@ -12,4 +12,9 @@ Patatasaurio and Caurel, the authors of Throg, gave permission for this pack to 
   2026-10-30 and 2026-11-07; the authors have not answered yet. The pack follows the curators' version and is a draft
   (the `DRAFT` file) until the owner decides otherwise.
 
+**Evidence (2026-11-15):** PatataSaurio's own OK, in Spanish, in screenshots of the Discord messages, shared by the
+project owner on 2026-11-15 (not kept in the repository; the registry review can ask the owner for them). Caurel, the
+co-author, is not in those screenshots; that grant still rests on the homebrew channel and the owner's confirmation
+above.
+
 **Store approval:** granted (`pack.json` `permission`).
