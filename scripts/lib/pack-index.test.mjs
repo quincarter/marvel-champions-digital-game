@@ -1,6 +1,5 @@
-// node --test scripts/lib/ (pnpm test:scripts). The Mod Store catalog upsert of the publish-packs workflow.
+// node --test scripts/lib/ (pnpm test:scripts). The Mod Store catalog upsert the e2e specs build their local catalog with.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -265,26 +264,6 @@ describe("ownershipConflicts", () => {
 
   it("finds nothing when there is no catalog yet", () => {
     assert.deepEqual(ownershipConflicts(undefined, ["carnage-nep"]), []);
-  });
-});
-
-describe("check-pack-ownership.mjs", () => {
-  const temps = [];
-  after(() => Promise.all(temps.map((dir) => fs.rm(dir, { recursive: true, force: true }))));
-  const script = path.join(import.meta.dirname, "..", "check-pack-ownership.mjs");
-  const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
-
-  it("fails on an id the registry owns, passes otherwise and when there is no index yet", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pack-owner-"));
-    temps.push(dir);
-    const file = path.join(dir, "index.json");
-    const registry = { ...entry("gwenpool-ptt", "1.0.0"), source: "registry" };
-    await fs.writeFile(file, JSON.stringify({ schema: 2, generated: "x", packs: [registry] }));
-    const refused = run(file, "carnage-nep", "gwenpool-ptt");
-    assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /::error::gwenpool-ptt is published by the registry repo/);
-    assert.equal(run(file, "carnage-nep").status, 0);
-    assert.equal(run(path.join(dir, "missing.json"), "gwenpool-ptt").status, 0);
   });
 });
 
