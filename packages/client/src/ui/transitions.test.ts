@@ -4,7 +4,7 @@ const loader = vi.hoisted(() => ({
   registered: new Set<string>(),
   load: vi.fn<(key: string) => Promise<void>>(),
 }));
-const paint = vi.hoisted(() => ({ waiting: 0, held: new Set<unknown>() }));
+const paint = vi.hoisted(() => ({ waiting: 0, held: new Set<unknown>(), paintedOnMain: [] as unknown[] }));
 
 vi.mock("../session.js", () => ({ appSession: () => ({ settings: { reducedMotion: false } }) }));
 vi.mock("../scenes/scene-loader.js", () => ({
@@ -16,10 +16,13 @@ vi.mock("../scenes/scene-order.js", () => ({ needed: (key: string) => [key] }));
 vi.mock("./lazy-text.js", () => ({
   prewarmTextPainter: () => undefined,
   labelsWaitingForPaint: () => paint.waiting,
-  holdLabelsOnMain: (scene: unknown, held: boolean) => (held ? paint.held.add(scene) : paint.held.delete(scene)),
+  holdLabelsOnMain: (scene: unknown, held: boolean) => {
+    if (held) paint.paintedOnMain.push(scene);
+    return held ? paint.held.add(scene) : paint.held.delete(scene);
+  },
 }));
 
-const { fadeScreenIn, goToScreen, holdScreenFor, revealWhenPainted } = await import("./transitions.js");
+const { fadeScreenIn, goToScreen, holdScreenFor, isScreenHeld, revealWhenPainted } = await import("./transitions.js");
 
 type Handler = (...args: unknown[]) => void;
 
@@ -222,6 +225,29 @@ describe("holdScreenFor", () => {
     screen.emit("render");
     expect(screen.fades.at(-1)).toEqual({ direction: "in", durationMs: 200 });
     now.mockRestore();
+  });
+
+  it("at the cap, labels the worker hasn't painted yet are painted here, so the screen still fades in whole (#722)", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const screen = fakeScene();
+    fadeScreenIn(screen.scene);
+    holdScreenFor(screen.scene, Promise.resolve());
+    paint.paintedOnMain.length = 0;
+    paint.waiting = 2;
+    now.mockReturnValue(1460);
+    screen.emit("render");
+    expect(paint.paintedOnMain).toEqual([screen.scene]);
+    expect(screen.fades.at(-1)).toEqual({ direction: "in", durationMs: 200 });
+    paint.waiting = 0;
+    now.mockRestore();
+  });
+
+  it("says whether a screen is held", () => {
+    const screen = fakeScene();
+    fadeScreenIn(screen.scene);
+    expect(isScreenHeld(screen.scene)).toBe(false);
+    holdScreenFor(screen.scene, new Promise<void>(() => undefined));
+    expect(isScreenHeld(screen.scene)).toBe(true);
   });
 
   it("does nothing once the entrance has begun", () => {

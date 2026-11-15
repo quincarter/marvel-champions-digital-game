@@ -172,6 +172,13 @@ describe("documentFontReady (issue #722)", () => {
     expect(check).toHaveBeenLastCalledWith("16px TestFontB", "★ ✓");
   });
 
+  it("is asked with every digit, so a face for one digit (Bangers' 7) counts", () => {
+    const check = vi.fn((_font: string, sample: string) => !sample.includes("7"));
+    vi.stubGlobal("document", { fonts: { check } });
+    expect(documentFontReady("16px TestFontD", "7 / 14")).toBe(false);
+    expect(check).toHaveBeenLastCalledWith("16px TestFontD", "Aa0123456789");
+  });
+
   it("a font not loaded yet is not remembered", () => {
     let loaded = false;
     const check = vi.fn(() => loaded);

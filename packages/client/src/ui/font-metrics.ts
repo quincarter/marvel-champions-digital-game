@@ -51,6 +51,11 @@ export type FontReady = (font: string, testString: string) => boolean;
 /** Fonts whose Latin-1 faces the browser has reported loaded: a loaded face stays loaded. */
 const latinReady = new Set<string>();
 const LATIN_1 = /^[ -ÿ]*$/;
+/**
+ * What a font's Latin-1 readiness is checked with: letters and every digit, since a family may load a character from a
+ * face of its own (Bangers' 7, `fonts/bangers-seven.css`, #660), and checking "Aa" alone would call it ready too soon.
+ */
+const LATIN_SAMPLE = "Aa0123456789";
 
 /**
  * `document.fonts.check`, asked once per font for Latin-1 text rather than once per string (issue #722): it was 14 ms
@@ -61,7 +66,8 @@ export const documentFontReady: FontReady = (font, testString) => {
   const latin = LATIN_1.test(testString);
   if (latin && latinReady.has(font)) return true;
   try {
-    const ready = typeof document !== "undefined" && document.fonts?.check(font, latin ? "Aa" : testString) === true;
+    const ready =
+      typeof document !== "undefined" && document.fonts?.check(font, latin ? LATIN_SAMPLE : testString) === true;
     if (ready && latin) latinReady.add(font);
     return ready;
   } catch {

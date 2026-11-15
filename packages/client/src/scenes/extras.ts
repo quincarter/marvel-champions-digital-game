@@ -25,7 +25,7 @@ import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { drawNowPlayingPanel, type NowPlayingPanel } from "../ui/now-playing-panel.js";
 import { earnedSongsOf } from "../view/music-player.js";
-import { fadeScreenIn, goToScreen, holdScreenFor, revealWhenPainted } from "../ui/transitions.js";
+import { fadeScreenIn, goToScreen, holdScreenFor, isScreenHeld, revealWhenPainted } from "../ui/transitions.js";
 import { paintScrolledIn } from "../ui/lazy-text.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { Rect } from "../view/layout.js";
@@ -70,7 +70,7 @@ const TAB_HEIGHT = 44;
  * The shelf's first build, while the screen is held on the void, draws rows for this long in a frame and the rest on
  * the frames after (issue #722): the whole window at once was a 30 ms frame on its own.
  */
-const FIRST_BUILD_BUDGET_MS = 0;
+const FIRST_BUILD_BUDGET_MS = 4;
 
 /** Emitted on this scene by the viewer when a promo card is picked or dropped. */
 export const PROMO_CHANGED = "promo-changed";
@@ -173,7 +173,10 @@ export class ExtrasScene extends Phaser.Scene {
         .then((changed) => {
           if (!changed && extras() === shown) return;
           this.#draw();
-          holdScreenFor(this, this.#pictures.settled());
+          holdScreenFor(
+            this,
+            (this.#list?.ready ?? Promise.resolve()).then(() => this.#pictures.settled()),
+          );
         }),
     );
   }
@@ -476,7 +479,8 @@ export class ExtrasScene extends Phaser.Scene {
 
     const fresh = this.#freshShelf;
     this.#freshShelf = false;
-    const firstBuild = this.#firstBuild;
+    // The first build, and any other while the screen is still held (a resize, the redraw after the progress read).
+    const firstBuild = this.#firstBuild || isScreenHeld(this);
     this.#firstBuild = false;
     const appearing: Phaser.GameObjects.GameObject[] = [];
     let collecting = fresh;
