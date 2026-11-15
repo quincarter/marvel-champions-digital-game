@@ -12,6 +12,7 @@ import {
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
+  partialLogStop,
   playedMinutesOf,
   seatFatesOf,
   type PastGameNames,
@@ -66,6 +67,8 @@ describe("which saves are past games", () => {
   test("a game left before its first move, a newer schema's save, a newer build's game and a lesson are left out", () => {
     expect(isPastGame(save("a", 1, { status: "abandoned", commandCount: 0 }))).toBe(false);
     expect(isPastGame(save("a", 1, { schema: 99 }))).toBe(false);
+    // A retired older schema, even finished with moves, is not a replay this build supports.
+    expect(isPastGame(save("a", 1, { schema: 2 }))).toBe(false);
     expect(isPastGame(save("a", 1, { lastPlayedOn: { appVersion: "99.0.0" } as never }), "1.0.0")).toBe(false);
     expect(isPastGame(save("a", 1, { guided: { kind: "aspect", aspect: "justice" } }))).toBe(false);
   });
@@ -158,14 +161,34 @@ describe("pastGameRowsOf", () => {
     expect(row!.villainCardId).toBeNull();
   });
 
-  test("why a game ended: a concession, a card's text, or (with no outcome) the summary's reason", () => {
+  test("why a game ended: a card's text, the encounter deck running out, or (with no outcome) the summary's reason", () => {
     const reasonOf = (extra: Partial<SaveMeta>): string => pastGameRowsOf([save("r", 1, extra)], NAMES)[0]!.reason;
-    expect(reasonOf({ status: "lost", outcome: { result: "conceded" } as never })).toBe("conceded");
-    expect(reasonOf({ status: "lost", outcome: { result: "loss", reason: "cardEffect" } as never })).toBe("cardLoss");
+    expect(reasonOf({ status: "lost", outcome: { result: "loss", reason: "cardAbility" } as never })).toBe("cardLoss");
+    expect(reasonOf({ status: "lost", outcome: { result: "loss", reason: "encounterDeckExhausted" } as never })).toBe(
+      "encounterDeckExhausted",
+    );
     expect(reasonOf({ status: "lost", outcome: null, summary: { lossReason: "playersDefeated" } as never })).toBe(
       "heroesDefeated",
     );
     expect(reasonOf({ status: "won", outcome: null })).toBe("unknown");
+  });
+
+  test("a concession, stored as abandoned with a conceded outcome, reads as conceded, not unfinished", () => {
+    const [row] = pastGameRowsOf(
+      [
+        save("c", 1, {
+          status: "abandoned",
+          outcome: { result: "conceded" } as never,
+          summary: { lossReason: "conceded", seats: [seat("she-hulk", false)] } as never,
+        }),
+      ],
+      NAMES,
+    );
+    expect([row!.result, row!.reason]).toEqual(["conceded", "conceded"]);
+    expect(row!.seats[0]!.fell).toBeNull();
+    expect(
+      pastGameRowsOf([save("c", 1, { status: "abandoned", outcome: { result: "conceded" } as never })], NAMES, "lost"),
+    ).toEqual([]);
   });
 
   test("a campaign game names its box", () => {
@@ -193,6 +216,15 @@ describe("seatFatesOf", () => {
     expect(seatFatesOf([fate("A", true), fate("B", false)])).toEqual({ fell: ["A"], stood: ["B"], wiped: false });
     expect(seatFatesOf([fate("A", true), fate("B", true)]).wiped).toBe(true);
     expect(seatFatesOf([fate("A", null)])).toEqual({ fell: [], stood: [], wiped: false });
+  });
+});
+
+describe("partialLogStop", () => {
+  test("a replay that stops short (a later command fails on this build) says where; a whole one says nothing", () => {
+    expect(partialLogStop({ length: 12, total: 40, failure: { commandIndex: 12, message: "rejected" } })).toBe(12);
+    expect(partialLogStop({ length: 12, total: 40, failure: null })).toBe(12);
+    expect(partialLogStop({ length: 40, total: 40, failure: null })).toBeNull();
+    expect(partialLogStop(null)).toBeNull();
   });
 });
 

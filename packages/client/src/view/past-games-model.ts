@@ -13,14 +13,15 @@
  * unfinished, or one from before summaries) says only what its save knows.
  */
 import { hit } from "../tokens.js";
-import { isLessonSave, isNewerSchema, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
+import { isCurrentSchema, isLessonSave, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { CLIENT_VERSION } from "../version.js";
 import { gameLabelOf } from "./continue-label.js";
 import type { GamesListNames } from "./games-list-model.js";
 import type { Rect } from "./layout.js";
 
-export type PastGameResult = "won" | "lost" | "unfinished";
+/** `conceded`: the players gave the game up, which the save stores as `abandoned` (`EngineSessionCore.statusOf`). */
+export type PastGameResult = "won" | "lost" | "conceded" | "unfinished";
 
 /** Why the game ended, as the row and the details word it. */
 export type PastGameReason =
@@ -30,6 +31,8 @@ export type PastGameReason =
   | "conceded"
   /** A card's own text lost the game (Odin leaving play). */
   | "cardLoss"
+  /** The encounter deck ran out where a scenario loses on it (`GameOutcome` `encounterDeckExhausted`). */
+  | "encounterDeckExhausted"
   | "unfinished"
   /** Won or lost, but the save does not say how. */
   | "unknown";
@@ -76,14 +79,14 @@ export interface PastGameRow {
   readonly save: SaveMeta;
 }
 
-export function resultOf(save: Pick<SaveMeta, "status">): PastGameResult | null {
+export function resultOf(save: Pick<SaveMeta, "status" | "outcome">): PastGameResult | null {
   switch (save.status) {
     case "won":
       return "won";
     case "lost":
       return "lost";
     case "abandoned":
-      return "unfinished";
+      return (save.outcome as { readonly result?: string } | null)?.result === "conceded" ? "conceded" : "unfinished";
     default:
       return null;
   }
@@ -91,12 +94,14 @@ export function resultOf(save: Pick<SaveMeta, "status">): PastGameResult | null 
 
 function reasonOf(save: SaveMeta, result: PastGameResult): PastGameReason {
   if (result === "unfinished") return "unfinished";
+  if (result === "conceded") return "conceded";
   const outcome = save.outcome as { readonly result: string; readonly reason?: string } | null;
   if (outcome?.result === "win") return "villainDefeated";
-  if (outcome?.result === "conceded") return "conceded";
   if (outcome?.reason === "mainSchemeCompleted") return "schemeCompleted";
   if (outcome?.reason === "allPlayersDefeated") return "heroesDefeated";
-  if (outcome) return "cardLoss";
+  if (outcome?.reason === "cardAbility") return "cardLoss";
+  if (outcome?.reason === "encounterDeckExhausted") return "encounterDeckExhausted";
+  if (outcome) return "unknown";
   switch (save.summary?.lossReason) {
     case "schemeCompleted":
       return "schemeCompleted";
@@ -116,7 +121,8 @@ export function isPastGame(save: SaveMeta, appVersion: string = CLIENT_VERSION):
   return (
     resultOf(save) !== null &&
     save.commandCount > 0 &&
-    !isNewerSchema(save) &&
+    // A retired older schema can't be replayed either (`game-storage.ts`); storage has already upgraded schema 3.
+    isCurrentSchema(save) &&
     !isLessonSave(save) &&
     !writtenByNewerApp(save, appVersion)
   );
@@ -124,7 +130,9 @@ export function isPastGame(save: SaveMeta, appVersion: string = CLIENT_VERSION):
 
 function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] {
   const named = (identityCardId: string): string => names.identityName(identityCardId) ?? identityCardId;
-  const unfinished = resultOf(save) === "unfinished";
+  // A game left or given up before its end: a hero still up then did not stand to the end of anything.
+  const result = resultOf(save);
+  const unfinished = result === "unfinished" || result === "conceded";
   const summarized = save.summary?.seats;
   if (summarized && summarized.length > 0) {
     return summarized
@@ -132,7 +140,6 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
       .map((seat) => ({
         identityCardId: seat.identityCardId,
         name: named(seat.identityCardId),
-        // A game left before its end: a hero still up when it was left did not stand to the end of anything.
         fell: seat.defeated ? true : unfinished ? null : false,
         damage: seat.damage,
         thwart: seat.thwart,
@@ -362,4 +369,14 @@ export function pastGameDetailParts(panel: Rect, heroes: number, popup: boolean)
     text: { x: panel.x + pad, y: textY, width: inner, height: Math.max(0, actions.watch.y - 10 - textY) },
     actions,
   };
+}
+
+/**
+ * Where a game's exported log stops short: the moves this build could replay (`ReplayInfo.length`) when a command
+ * failed or the replay ends before the log does, else null for a log that runs to the end.
+ */
+export function partialLogStop(
+  info: { readonly length: number; readonly total: number; readonly failure: unknown } | null,
+): number | null {
+  return info && (info.failure !== null || info.length < info.total) ? info.length : null;
 }

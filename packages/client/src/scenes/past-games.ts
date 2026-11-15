@@ -48,6 +48,7 @@ import {
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
+  partialLogStop,
   playedMinutesOf,
   seatFatesOf,
   type PastGameAction,
@@ -314,9 +315,13 @@ export class PastGamesScene extends Phaser.Scene {
         await deliverReplayFile(bytes, name);
       } else {
         const { text, name } = await host.exportLog();
+        // A game this build can't play to its end writes a log that stops where it does: say so, never hand it out
+        // looking complete.
+        const stopsAt = partialLogStop(host.info);
         host.dispose();
         host = null;
         await deliverGameLog(text, name);
+        if (stopsAt !== null) this.#say(t("pastGames.partialLog", { n: stopsAt }), 8000);
       }
     } catch (cause) {
       if (!isAbort(cause)) {
@@ -555,7 +560,11 @@ export class PastGamesScene extends Phaser.Scene {
   }
 
   #resultColor(row: PastGameRow): number {
-    return row.result === "won" ? signal.heal.hex : row.result === "lost" ? accent.heroRed.hex : surface.ink.hex;
+    return row.result === "won"
+      ? signal.heal.hex
+      : row.result === "lost" || row.result === "conceded"
+        ? accent.heroRed.hex
+        : surface.ink.hex;
   }
 
   #drawList(listRect: Rect, selected: PastGameRow | null, stops: Map<string, FocusStop>): void {
