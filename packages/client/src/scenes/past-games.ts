@@ -253,6 +253,11 @@ export class PastGamesScene extends Phaser.Scene {
   }
 
   #back(): void {
+    // A replay being put on the board (Watch, or a picked file) is not walked away from: once it is installed on the session
+    // only the board's own shutdown takes it down, and a Title fade already running would swallow the board's start.
+    if (this.#busy?.action === "watch") return;
+    // Anything else still waiting (a Share, an Export) stands down from here, not from the fade's end.
+    this.#visit += 1;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.title);
   }
@@ -432,6 +437,8 @@ export class PastGamesScene extends Phaser.Scene {
         this.#setBusy(null, visit);
         return this.#sayIn(visit, t("replay.error.damaged"));
       }
+      // From here the file is being put on the board, which Back waits for (the picker itself never holds Back).
+      this.#setBusy({ id: "", action: "watch" }, visit);
       const host = await openReplay({ kind: "file", bytes: picked });
       if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
