@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'The Mod Store no longer locks up on Android phones the first time it opens: the notice''s round portraits of Deadpool and Spider-Man are baked as discs instead of drawn through a circular mask, which stopped the game drawing after Deadpool''s line (#733). The Team-Up info portraits get the same fix.'
+time: 2026-11-15T17:04:03.3839956-05:00

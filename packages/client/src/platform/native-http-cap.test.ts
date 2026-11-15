@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const tauriFetch = vi.fn();
 vi.mock("@tauri-apps/plugin-http", () => ({ fetch: tauriFetch }));
+const capacitorGet = vi.fn();
+vi.mock("@capacitor/core", () => ({ CapacitorHttp: { get: capacitorGet } }));
 
-import { NativeTooLargeError, nativeGet, readCapped } from "./native-http.js";
+import { NativeTooLargeError, base64DecodedLength, nativeGet, readCapped } from "./native-http.js";
 
 function streamOf(chunks: number[], onPull?: () => void): ReadableStream<Uint8Array> {
   let i = 0;
@@ -41,5 +43,34 @@ describe("native response size cap", () => {
     tauriFetch.mockResolvedValueOnce(new Response(streamOf([30, 30]), { headers: { "content-length": "60" } }));
     const result = await nativeGet("tauri", "https://packs.example/x.zip", "bytes", 100);
     expect(result.body.byteLength).toBe(60);
+  });
+});
+
+/** Android's `Base64.DEFAULT`: a newline after every 76 characters, and one at the end. */
+const wrapped = (bytes: Uint8Array): string =>
+  (btoa(String.fromCharCode(...bytes)).match(/.{1,76}/g) ?? []).join("\n") + "\n";
+
+describe("Android base64 bodies", () => {
+  it("counts only the bytes a base64 body decodes to, not its line breaks or padding", () => {
+    for (const size of [0, 1, 2, 3, 56, 57, 58, 1000, 4097]) {
+      const bytes = new Uint8Array(size).map((_, i) => i % 251);
+      expect(base64DecodedLength(btoa(String.fromCharCode(...bytes)))).toBe(size);
+      expect(base64DecodedLength(wrapped(bytes))).toBe(size);
+    }
+  });
+
+  it("takes a wrapped body of exactly the cap, and decodes it whole", async () => {
+    const bytes = new Uint8Array(5000).map((_, i) => (i * 7) % 256);
+    capacitorGet.mockResolvedValueOnce({ status: 200, headers: { "Content-Length": "5000" }, data: wrapped(bytes) });
+    const response = await nativeGet("capacitor", "https://packs.example/x.zip", "bytes", 5000);
+    expect([...response.body]).toEqual([...bytes]);
+  });
+
+  it("still refuses a wrapped body over the cap", async () => {
+    const bytes = new Uint8Array(5001);
+    capacitorGet.mockResolvedValueOnce({ status: 200, headers: {}, data: wrapped(bytes) });
+    await expect(nativeGet("capacitor", "https://packs.example/x.zip", "bytes", 5000)).rejects.toBeInstanceOf(
+      NativeTooLargeError,
+    );
   });
 });
