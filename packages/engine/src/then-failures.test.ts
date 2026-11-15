@@ -60,6 +60,19 @@ const SEARCH = actionEvent("then-search", [
   { kind: "moveCards", cards: chosen("w"), to: "discard" },
   THEN_THREAT,
 ]);
+/** "Search your deck and discard pile for a widget and discard it. Then, …" (Agent Coulson, For Asgard). */
+const SEARCH_BOTH = actionEvent("then-search-both", [
+  {
+    kind: "chooseCards",
+    slot: "w",
+    from: { kind: "zone", zone: ["deck", "discard"], player: you, filter: { name: "widget" } },
+    chooser: you,
+    min: 1,
+    max: 1,
+  },
+  { kind: "moveCards", cards: chosen("w"), to: "discard" },
+  THEN_THREAT,
+]);
 /** The same search as a `selectCards` (Legions of Hydra's "search … for Madame Hydra and put her into play"). */
 const SELECT = actionEvent("then-select", [
   { kind: "selectCards", slot: "w", cards: { kind: "zone", zone: "deck", player: you, filter: { name: "widget" } } },
@@ -125,6 +138,7 @@ const REMOVE_ALL = actionEvent("then-remove-all", [
 
 const EVENTS = [
   SEARCH,
+  SEARCH_BOTH,
   SELECT,
   DISCARD_UNTIL,
   REVEAL_UNTIL,
@@ -202,6 +216,50 @@ describe("a search or 'discard until' that finds nothing", () => {
     const { state: after, events } = playFree(state, deps, SEARCH.card.id);
     expect(threat(after)).toBe(threat(state) + 7);
     expect(skipped(events)).toBe(false);
+  });
+
+  it("a search of deck and discard pile is initiated with nothing to find, and skips its 'Then'", () => {
+    // RRG 1.8 "Target" (p. 43): "An ability with a search effect requires only a searchable game area in order to
+    // initiate." A zone list naming the deck is a search as much as the deck alone.
+    const state = noWidgets(start());
+    const { state: after, events } = playFree(state, deps, SEARCH_BOTH.card.id);
+    expect(events.some((e) => e.type === "cardPlayed")).toBe(true);
+    expect(threat(after)).toBe(threat(state));
+    expect(causes(events)).toEqual(["searchFoundNothing"]);
+    expect(skipped(events)).toBe(true);
+    const full = start({ widgets: 12 });
+    expect(threat(playFree(full, deps, SEARCH_BOTH.card.id).state)).toBe(threat(full) + 7);
+  });
+
+  it("a search of deck and discard pile with a match only in the discard pile is offered, and its 'Then' runs", () => {
+    // RRG 1.8 "Target" (p. 43): a search needs only a searchable area; RRG 1.8 "'Then'" (p. 44): the post-"then" text
+    // RRG 1.8 "Target" (p. 43): a search needs only a searchable area; RRG 1.8 "'Then'" (p. 44): the post-"then" text
+    // resolves once the pre-"then" text did. The deck holds no widget; the discard pile holds two (so the pick is a real
+    // choice and not auto-resolved).
+    const full = start({ widgets: 2 });
+    const widgets = Object.values(full.instances)
+      .filter((i) => i.cardId === WIDGET.id)
+      .map((i) => i.instanceId);
+    const base = noWidgets(full);
+    const state: GameState = {
+      ...base,
+      players: base.players.map((p, i) => (i === 0 ? { ...p, discard: [...p.discard, ...widgets] } : p)),
+    };
+    // `playFree` answers the pick itself; the events show what was offered and what was taken.
+    const { state: after, events } = playFree(state, deps, SEARCH_BOTH.card.id);
+    expect(events.some((e) => e.type === "cardPlayed")).toBe(true);
+    const offered = events.flatMap((e) =>
+      e.type === "choiceRequested" ? [e.choice.options.map((o) => o.optionId)] : [],
+    );
+    expect(offered).toHaveLength(1);
+    expect([...offered[0]!].sort()).toEqual([...widgets].sort());
+    const taken = events.flatMap((e) => (e.type === "choiceResolved" ? e.selectedOptionIds : []));
+    expect(taken).toHaveLength(1);
+    expect(widgets).toContain(taken[0]);
+    expect(after.players[0]!.discard).toContain(taken[0]);
+    expect(causes(events)).toEqual([]);
+    expect(skipped(events)).toBe(false);
+    expect(threat(after)).toBe(threat(state) + 7);
   });
 
   it("a selectCards search behaves the same way", () => {
