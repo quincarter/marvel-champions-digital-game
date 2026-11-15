@@ -10,12 +10,17 @@ import { visibleTexts } from "./wave6-helpers-a.js";
 
 export const SHOT = process.env.E2E_SHOTS ?? "";
 
-type DevGame = "startUncannyDevGame" | "startPeacekeepersDevGame" | "startGiantWaspDevGame";
+type DevGame =
+  | "startUncannyDevGame"
+  | "startPeacekeepersDevGame"
+  | "startGiantWaspDevGame"
+  | "startStolenMemoriesDevGame";
 
 const MODULE: Record<DevGame, string> = {
   startUncannyDevGame: "/src/store/dev-uncanny-game.ts",
   startPeacekeepersDevGame: "/src/store/dev-in-play-cost-games.ts",
   startGiantWaspDevGame: "/src/store/dev-giant-wasp-game.ts",
+  startStolenMemoriesDevGame: "/src/store/dev-stolen-memories-game.ts",
 };
 
 /** Starts one of the dev games through the store and jumps to the Board. */
