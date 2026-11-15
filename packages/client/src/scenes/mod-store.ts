@@ -89,7 +89,9 @@ import {
   type ModStoreFilter,
 } from "../view/mod-store-browse.js";
 import { t } from "../i18n/translate.js";
-import { drawSearchField } from "./roster-panel.js";
+import { drawSearchField, drawSearchToggle } from "./roster-panel.js";
+import { McChipRail } from "../ui/chip-rail.js";
+import { RailScroll } from "../view/rail-scroll.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { refreshUnlocks } from "../progression/progression.js";
@@ -173,6 +175,11 @@ interface InstallState {
 
 export class ModStoreScene extends Phaser.Scene {
   #tab: ModStoreTab = "all";
+  /** A phone's search box, sort and chips are showing (`#drawPhoneBrowse`). */
+  #findersOpen = false;
+  /** A phone's tab row: where it was swiped to, kept across redraws. */
+  readonly #tabRail = new RailScroll();
+  #rails: McChipRail[] = [];
   /** The search box, tag chips, creator and sort (`view/mod-store-browse.ts`), kept across tabs and visits. */
   #filter: ModStoreFilter = EMPTY_FILTER;
   /** The search box: a DOM field kept across redraws (`scenes/seats.ts`'s pattern), so typing keeps its caret. */
@@ -553,6 +560,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#buttons = [];
     for (const tabs of this.#tabs) tabs.destroy();
     this.#tabs = [];
+    for (const rail of this.#rails) rail.destroy();
+    this.#rails = [];
     this.#list?.destroy();
     this.#list = null;
     this.#panel?.destroy();
@@ -693,7 +702,11 @@ export class ModStoreScene extends Phaser.Scene {
   ): void {
     const { width, height, phone, gutter, top } = frame;
     const captionBottom = this.#drawBetaCaption({ x: gutter, y: top + 12, width: width - gutter * 2 }, phone);
-    // Five tabs on a narrow phone (the iPhone SE) would cut their labels short: there they take two rows.
+    if (phone) {
+      this.#drawPhoneBrowse(frame, captionBottom + 10, stops, order);
+      return;
+    }
+    // Six tabs on a narrow window would cut their labels short: there they take two rows.
     const tabRows = modStoreTabRowsOf(width - gutter * 2);
     const tabRect: Rect = {
       x: gutter,
@@ -733,7 +746,77 @@ export class ModStoreScene extends Phaser.Scene {
       });
     });
 
-    let listTop = tabRect.y + tabRect.height + 14;
+    this.#drawBrowseBody(frame, tabRect.y + tabRect.height + 14, true, stops, order);
+  }
+
+  /**
+   * A phone's browse view (Quin, 2026-11-15: phones are short on height): the tabs as one sideways-scrolling row, as
+   * Your stats draws its tabs (`ui/chip-rail.ts`), with a magnifier at its end that shows the search box, sort and tag
+   * chips. They stay folded away until it is pressed, unless a search, tag or creator is narrowing the list.
+   */
+  #drawPhoneBrowse(
+    frame: { width: number; height: number; phone: boolean; gutter: number; top: number },
+    top: number,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const { width, gutter } = frame;
+    const toggleSize = TAB_HEIGHT;
+    const finding = this.#tab !== "credits" && this.#status !== "loading";
+    const railWidth = width - gutter * 2 - (finding ? toggleSize + CHIP_GAP : 0);
+    const at = MOD_STORE_TABS.findIndex((tab) => tab.id === this.#tab);
+    const rail = new McChipRail(this, {
+      rect: { x: gutter, y: top, width: railWidth, height: TAB_HEIGHT },
+      chips: MOD_STORE_TABS.map((tab) => ({
+        id: tab.id,
+        text: modStoreTabLabel(tab).toUpperCase(),
+        selected: tab.id === this.#tab,
+        onClick: () => this.#select(tab.id),
+      })),
+      scroll: this.#tabRail,
+    });
+    this.#rails.push(rail);
+    rail.scrollIntoView(at);
+    MOD_STORE_TABS.forEach((tab, index) => {
+      stops.set(`tab:${tab.id}`, {
+        rect: () => rail.rectFor(index),
+        activate: () => this.#select(tab.id),
+        ensureVisible: () => rail.scrollIntoView(index),
+      });
+      order.push(`tab:${tab.id}`);
+    });
+    this.#obstacles.push({ x: gutter, y: top, width: width - gutter * 2, height: TAB_HEIGHT });
+    const open = finding && (this.#findersOpen || isFiltering(this.#filter));
+    if (finding) {
+      const toggleRect: Rect = { x: width - gutter - toggleSize, y: top, width: toggleSize, height: toggleSize };
+      drawSearchToggle(this, toggleRect, "finders-toggle", open, () => this.#toggleFinders(), this.#buttons, stops);
+      order.push("finders-toggle");
+    }
+    this.#drawBrowseBody(frame, top + TAB_HEIGHT + 12, open, stops, order);
+  }
+
+  /** The phone's magnifier: shows or folds away the search box, sort and chips. Folding clears what they narrowed. */
+  #toggleFinders(): void {
+    const open = this.#findersOpen || isFiltering(this.#filter);
+    this.#findersOpen = !open;
+    if (open) {
+      this.#searchInput?.setValue("");
+      this.#filter = { ...EMPTY_FILTER, sort: this.#filter.sort };
+    }
+    this.#draw();
+    if (!open) this.#searchInput?.focus();
+  }
+
+  /** Everything under the tabs: the offline notice, then the finders (when shown) and the grid, or Credits. */
+  #drawBrowseBody(
+    frame: { width: number; height: number; phone: boolean; gutter: number; top: number },
+    top: number,
+    finders: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const { width, height, phone, gutter } = frame;
+    let listTop = top;
     if (this.#offline && this.#status === "ready") {
       const box: Rect = { x: gutter, y: listTop, width: width - gutter * 2, height: 34 };
       this.add.rectangle(box.x, box.y, box.width, box.height, surface.ink.hex).setOrigin(0, 0);
@@ -794,7 +877,9 @@ export class ModStoreScene extends Phaser.Scene {
       return;
     }
 
-    listTop = this.#drawFinders(tabTiles, { x: gutter, y: listTop, width: width - gutter * 2 }, phone, stops, order);
+    if (finders) {
+      listTop = this.#drawFinders(tabTiles, { x: gutter, y: listTop, width: width - gutter * 2 }, phone, stops, order);
+    }
     const tiles = filterTiles(tabTiles, this.#filter);
     const listRect = restRect(listTop);
     if (tiles.length === 0) {
