@@ -21,7 +21,7 @@ async function grayBitmapOf(url: string, slot: Size): Promise<ImageBitmap | null
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) {
     source.close();
-    return null;
+    throw new Error("No 2D context on an OffscreenCanvas here");
   }
   context.imageSmoothingQuality = "high";
   context.drawImage(source, 0, 0, size.width, size.height);
@@ -36,6 +36,6 @@ worker.addEventListener("message", (event) => {
   const { id, url, slot } = event.data;
   grayBitmapOf(url, slot).then(
     (bitmap) => worker.postMessage({ id, bitmap }, bitmap ? [bitmap] : []),
-    () => worker.postMessage({ id, bitmap: null }),
+    () => worker.postMessage({ id, bitmap: null, failed: true }),
   );
 });
