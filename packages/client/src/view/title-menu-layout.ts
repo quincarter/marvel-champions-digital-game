@@ -72,6 +72,9 @@ const UPDATE_BANNER_HEIGHT = hit.target + UPDATE_BANNER_PAD * 2;
 // Stacked: the text and the close button on one row, the action buttons on the next.
 const UPDATE_BANNER_STACKED_HEIGHT = UPDATE_BANNER_PAD * 3 + UPDATE_DISMISS_SIZE * 2;
 
+/** How far the Title's top-row buttons rise above the eyebrow they are centered on (40px buttons, 16px eyebrow). */
+const TOP_ROW_RISE = 12;
+
 const updateBannerHeight = (width: number): number =>
   width >= UPDATE_BANNER_INLINE_WIDTH ? UPDATE_BANNER_HEIGHT : UPDATE_BANNER_STACKED_HEIGHT;
 
@@ -360,7 +363,9 @@ function titleMenuLayoutAt(
         width: column,
         height: compact ? UPDATE_BANNER_HEIGHT : updateBannerHeight(column),
       };
-      y = pad + updateBanner.height + gap;
+      // The top row's buttons (Report, music, language, theme) sit level with the eyebrow and rise about 12px above it
+      // (`scenes/title.ts`, a 40px button on a 16px eyebrow), so the eyebrow keeps them clear of the banner.
+      y = pad + updateBanner.height + Math.max(gap, TOP_ROW_RISE + 8);
     }
   }
   const eyebrow: Rect = { x: left, y, width: column, height: 16 };
