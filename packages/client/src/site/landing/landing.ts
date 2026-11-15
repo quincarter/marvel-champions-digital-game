@@ -45,6 +45,7 @@ import {
 import { creatorsOf } from "./creators.js";
 import { GAME_ROSTER } from "./game-roster.js";
 import { LANDING_TEXT } from "./landing-text.js";
+import { publishedOnly } from "./published.js";
 import { onScrollFrame, reducedMotion, revealOnScroll, scrollSteps, scrollTopForStep } from "./scroll-motion.js";
 import boardShot from "../../../site/landing/showcase/board-play.jpg";
 import scenarioShot from "../../../site/landing/showcase/scenario-select.jpg";
@@ -78,6 +79,11 @@ let language: PageLanguage = browserLanguage();
 let t: Translate = textFor(language);
 // The build's copy until GitHub answers, so the buttons show at once and survive GitHub's rate limit.
 let release: LatestRelease | null | "loading" = BUILT_RELEASE ?? "loading";
+/**
+ * GitHub's latest release tag, the build's until GitHub answers: news and report screenshots of a release newer than it
+ * wait (`published.ts`), since its release PR merges to `main` before its downloads are published.
+ */
+let latestTag: string | null = BUILT_RELEASE?.tag_name ?? null;
 let mods: readonly StoreMod[] = MODS;
 let aspect: AspectFilter = "all";
 let villainsOpen = false;
@@ -99,7 +105,8 @@ const shots: readonly StageShot[] = [
   { src: seatsShot, caption: "shots.seats" },
   { src: setupShot, caption: "shots.setup" },
   { src: boardShot, caption: "shots.board" },
-  ...SCREENSHOTS.filter((s) => !/phone/i.test(s.src))
+  ...publishedOnly(SCREENSHOTS, latestTag)
+    .filter((s) => !/phone/i.test(s.src))
     .slice(0, 2)
     .map((s) => ({
       src: s.src,
@@ -128,7 +135,7 @@ function releaseUrl(entry: FeedRelease): string {
 }
 
 function feed(): readonly FeedRelease[] {
-  return RELEASES[language].length > 0 ? RELEASES[language] : RELEASES.en;
+  return publishedOnly(RELEASES[language].length > 0 ? RELEASES[language] : RELEASES.en, latestTag);
 }
 
 function drawArt(): void {
@@ -502,6 +509,11 @@ onScrollFrame(() => {
 
 void fetchLatestRelease(LATEST_RELEASE_API).then((latest) => {
   const next = latest ?? BUILT_RELEASE;
+  // A release published since the build (or one the build's GitHub call missed) joins the news.
+  if (next && next.tag_name !== latestTag) {
+    latestTag = next.tag_name;
+    drawNews();
+  }
   // The build's copy already shows that release: leave the panel (and any focus in it) alone.
   if (next === null ? release === null : release !== "loading" && release?.tag_name === next.tag_name) return;
   release = next;
