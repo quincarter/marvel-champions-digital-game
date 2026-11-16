@@ -57,7 +57,12 @@ export function encounterStripOf(
   const order: { instanceId: InstanceId; playerId: PlayerId }[] = encounter.dealt
     .filter((card) => dealtByBeat(card, shownEncounterIds.length))
     .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
-  const fromSurge = new Set(encounter.dealt.filter((card) => card.fromSurge).map((card) => card.instanceId));
+  // Also a card revealed from a surge deal made before the phase, which has no `dealt` entry; it is only listed once its
+  // reveal is shown, so the badge follows the same pacing.
+  const fromSurge = new Set([
+    ...encounter.dealt.filter((card) => card.fromSurge).map((card) => card.instanceId),
+    ...(encounter.surgeRevealed ?? []),
+  ]);
   // SURGE shows once the screen is past the beat the surge came at; a fixture without beats shows it with the reveal.
   const surged = new Set(
     encounter.surgedAt

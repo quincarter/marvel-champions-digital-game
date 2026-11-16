@@ -263,6 +263,11 @@ export interface EncounterTracking {
    * Absent in hand-built fixtures, read as shown with the reveal.
    */
   readonly surgedAt?: readonly { readonly instanceId: InstanceId; readonly atBeat: number }[];
+  /**
+   * Cards revealed that a surge dealt facedown outside this phase's own deals (the player phase's surge), so the
+   * strip can mark them FROM SURGE although `dealt` has no entry for them. Absent in hand-built fixtures.
+   */
+  readonly surgeRevealed?: readonly InstanceId[];
   /** The cards revealed so far, in order. */
   readonly revealed: readonly {
     readonly instanceId: InstanceId;
@@ -371,6 +376,7 @@ export function appendWalkthrough(
   let revealed = [...working.encounter.revealed];
   let surged = [...(working.encounter.surged ?? [])];
   let surgedAt = [...(working.encounter.surgedAt ?? [])];
+  let surgeRevealedIds = [...(working.encounter.surgeRevealed ?? [])];
   const surgeDealt = [...(working.surgeDealt ?? [])];
   const unmark = (id: InstanceId): void => {
     const i = surgeDealt.indexOf(id);
@@ -476,6 +482,7 @@ export function appendWalkthrough(
         revealed = [];
         surged = [];
         surgedAt = [];
+        surgeRevealedIds = [];
         tables = [];
       }
       activeIndex = stepIndex;
@@ -528,6 +535,7 @@ export function appendWalkthrough(
         break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
+        if (surgeRevealed) surgeRevealedIds.push(event.instanceId);
         // Each card starts clean: a finished activation from before it is not this card's. One still resolving keeps
         // going (an attack whose effect reveals a card mid-activation). Only in the reveal step: a card a step-2 effect
         // reveals (a stage's "reveal a card") stays with the activation it follows, as the recap groups it.
@@ -693,6 +701,7 @@ export function appendWalkthrough(
       revealed,
       surged,
       surgedAt,
+      surgeRevealed: surgeRevealedIds,
       current:
         !complete && activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? (revealed.at(-1) ?? null) : null,
     },

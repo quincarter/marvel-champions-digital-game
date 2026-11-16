@@ -166,13 +166,32 @@ describe("surge marks in the log and the recap (#764)", () => {
     // The deal is folded into the log in the player phase's command; the scene is launched fresh afterwards with
     // only what the log carried, never the Walkthrough value that saw the deal.
     const log = appendEvents(emptyLog(), [surgeDeal], game, me, POOL_DEPS);
-    const walk = appendWalkthrough(walkthroughSeededFrom(1, log.surgeDealt), rest, game, me, POOL_DEPS);
+    // In the real flow the deal's own move happened in the player phase, so the phase holds no deal of the card.
+    const surgedId = (surgeDeal as Extract<GameEvent, { type: "encounterCardDealt" }>).instanceId;
+    const inPhase = rest.filter(
+      (e) => !(e.type === "cardMoved" && e.instanceId === surgedId && e.to.kind === "dealtEncounter"),
+    );
+    const walk = appendWalkthrough(walkthroughSeededFrom(1, log.surgeDealt), inPhase, game, me, POOL_DEPS);
     const texts = walk.steps
       .flatMap((step) => step.beats)
       .filter((beat) => beat.eventType === "encounterCardRevealed")
       .map((beat) => beat.text);
     expect(reveal.type).toBe("encounterCardRevealed");
     expect(texts.filter((text) => text.includes("(from surge)"))).toHaveLength(1);
+    // The strip marks the tile too, though the card has no in-phase deal; only once its reveal beat is shown.
+    const revealId = (reveal as Extract<GameEvent, { type: "encounterCardRevealed" }>).instanceId;
+    const beatIds = walk.steps.flatMap((step) => step.beats).map((beat) => beat.encounterInstanceId);
+    const strip = (shown: number) =>
+      encounterStripOf(
+        walk.encounter,
+        beatIds.slice(0, shown),
+        me,
+        () => "Card",
+        () => "Hero",
+      );
+    expect(walk.encounter.dealt.some((card) => card.instanceId === revealId)).toBe(false);
+    expect(strip(beatIds.length).tiles.find((tile) => tile.instanceId === revealId)?.marks).toContain("FROM SURGE");
+    expect(strip(0).tiles.find((tile) => tile.instanceId === revealId)).toBeUndefined();
     // No marks carried over: nothing is marked.
     const bare = appendWalkthrough(walkthroughSeededFrom(1, undefined), rest, game, me, POOL_DEPS);
     expect(bare.steps.flatMap((step) => step.beats).some((beat) => /from surge/.test(beat.text))).toBe(false);
