@@ -1,0 +1,143 @@
+# Opens the pull request in the Mod Store registry (quincarter/marvel-champions-mods) that bumps its mod SDK pin (the
+# root package.json and package-lock.json every pack kept there builds with) to the version this repo just published
+# to npm. release-on-merge.yml calls it once its `mod-sdk` job has published; a manual run takes a version (empty:
+# npm's latest), for a release published by hand or to retry.
+#
+# The bump always goes on one branch, so a version published while an earlier bump is still open moves that pull
+# request (force-pushed, retitled) rather than opening a second one. A registry already at the version or newer, or an
+# open bump already at it, is left alone.
+#
+# Needs the secret MODS_REGISTRY_TOKEN: a fine-grained personal access token of the registry's maintainer, for
+# quincarter/marvel-champions-mods only, with Contents and Pull requests read and write. A pull request opened with this
+# run's own GITHUB_TOKEN could not reach the other repo, and one opened by a bot would start none of the registry's
+# checks; opened as the maintainer, the registry's gate checks it as a maintainer's SDK bump. Without the secret the
+# run warns and does nothing.
+#
+# Runs no pack code: it installs nothing but resolves the lockfile (`npm install --package-lock-only --ignore-scripts`,
+# which downloads and runs no package).
+name: Registry SDK bump
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "The SDK version published to npm (a leading v is dropped)"
+        required: true
+        type: string
+    secrets:
+      MODS_REGISTRY_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SDK version on npm to bump the registry to (a leading v is dropped; empty: npm's latest)"
+        required: false
+        default: ""
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: mods-registry-sdk-pr
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Open or move the registry's SDK bump
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions: {}
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Bump the registry's SDK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.MODS_REGISTRY_TOKEN }}
+          REGISTRY: quincarter/marvel-champions-mods
+          BRANCH: feature/mod-sdk-bump
+          PACKAGE: ${{ vars.MC_SDK_PACKAGE_NAME || '@champions-digital-game/mod-sdk' }}
+          INPUT_VERSION: ${{ inputs.version }}
+          GAME_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::MODS_REGISTRY_TOKEN is not set, so no registry pull request was opened."
+            exit 0
+          fi
+
+          VERSION="${INPUT_VERSION#v}"
+          if [ -z "$VERSION" ]; then VERSION=$(npm view "$PACKAGE" version); fi
+          case "$VERSION" in
+            *-*) echo "::notice::$VERSION is a prerelease: the registry pins releases only."; exit 0 ;;
+          esac
+          # Just published: wait until npm serves it, or the lockfile can't resolve it.
+          for attempt in $(seq 1 20); do
+            if [ "$(npm view "$PACKAGE@$VERSION" version 2> /dev/null)" = "$VERSION" ]; then break; fi
+            if [ "$attempt" -eq 20 ]; then echo "::error::npm doesn't serve $PACKAGE@$VERSION."; exit 1; fi
+            sleep 30
+          done
+
+          # Is `$1` a newer x.y.z release than `$2` (empty counts as older)?
+          newer() {
+            node -e '
+              const parse = (v) => (/^(\d+)\.(\d+)\.(\d+)$/.exec(v) ?? []).slice(1).map(Number);
+              const [a, b] = [parse(process.argv[1]), parse(process.argv[2])];
+              if (a.length !== 3) process.exit(2);
+              if (b.length !== 3) process.exit(0);
+              for (let i = 0; i < 3; i++) if (a[i] !== b[i]) process.exit(a[i] > b[i] ? 0 : 1);
+              process.exit(1);
+            ' "$1" "$2"
+          }
+          pinned() { node -p 'require("./package.json").devDependencies?.[process.argv[1]] ?? ""' "$PACKAGE"; }
+
+          gh auth setup-git
+          git clone --quiet --depth 1 "https://github.com/$REGISTRY.git" registry
+          cd registry
+
+          CURRENT=$(pinned)
+          if ! newer "$VERSION" "$CURRENT"; then
+            echo "::notice::The registry pins $PACKAGE $CURRENT, not older than $VERSION: nothing to bump."
+            exit 0
+          fi
+
+          PR=$(gh pr list --repo "$REGISTRY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$PR" ]; then
+            git fetch --quiet --depth 1 origin "$BRANCH"
+            OPEN=$(git show FETCH_HEAD:package.json \
+              | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).devDependencies?.[process.argv[1]] ?? ""' "$PACKAGE")
+            if [ "$OPEN" = "$VERSION" ] || { [ -n "$OPEN" ] && newer "$OPEN" "$VERSION"; }; then
+              echo "::notice::The open bump (#$PR) is already at $OPEN."
+              exit 0
+            fi
+          fi
+
+          git checkout --quiet -B "$BRANCH"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-dev --save-exact \
+            "$PACKAGE@$VERSION"
+          git diff --stat
+
+          # Committed as the token's owner (the registry's maintainer), with their GitHub noreply address.
+          LOGIN=$(gh api user --jq .login)
+          USER_ID=$(gh api user --jq .id)
+          NAME=$(gh api user --jq '.name // .login')
+          git -c user.name="$NAME" -c user.email="$USER_ID+$LOGIN@users.noreply.github.com" \
+            commit --quiet -m "Bump mod-sdk to $VERSION" -- package.json package-lock.json
+          git push --quiet --force origin "$BRANCH"
+
+          TITLE="Bump mod-sdk to $VERSION"
+          BODY="This bumps \`$PACKAGE\` from $CURRENT to $VERSION, the SDK the game's [v$VERSION release](https://github.com/$GAME_REPO/releases/tag/v$VERSION) published to npm. \`package-lock.json\` is regenerated against the published $VERSION, and the check rebuilds and re-checks every pack kept here with it.
+
+          Opened by the game repo's Registry SDK bump workflow. A newer SDK published before this is merged moves this pull request to it.
+
+          ## Action Items
+
+          - [ ] Merge this one on its own and let its **Publish packs** run finish before merging the next pull request."
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --repo "$REGISTRY" --title "$TITLE" --body "$BODY"
+            echo "::notice::Moved the registry's bump #$PR to $VERSION."
+          else
+            gh pr create --repo "$REGISTRY" --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"
+          fi

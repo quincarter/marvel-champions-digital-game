@@ -1,0 +1,3 @@
+kind: Added
+body: Each release now opens the Mod Store registry's pull request bumping its mod SDK to the version just published to npm, or moves the open one to it.
+time: 2026-11-16T11:19:22.1646102-05:00

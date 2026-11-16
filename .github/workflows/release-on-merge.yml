@@ -552,6 +552,19 @@ jobs:
       # A draft release (the publish input off) is not on npm yet: publishing it by hand later runs mod-sdk.yml again.
       npm: ${{ needs.check-and-cut-release.outputs.publish != 'false' && 'true' || 'false' }}
 
+  # The Mod Store registry's pull request bumping its SDK pin to the version just published to npm
+  # (mods-registry-sdk-pr.yml), or the open one moved to it. Only once npm has it: not for a draft release.
+  mods-registry:
+    name: Registry SDK bump
+    needs: [check-and-cut-release, mod-sdk]
+    if: needs.check-and-cut-release.outputs.should_release == 'true' && needs.check-and-cut-release.outputs.publish != 'false'
+    permissions: {}
+    uses: ./.github/workflows/mods-registry-sdk-pr.yml
+    with:
+      version: ${{ needs.check-and-cut-release.outputs.tag }}
+    secrets:
+      MODS_REGISTRY_TOKEN: ${{ secrets.MODS_REGISTRY_TOKEN }}
+
   # The landing page, built again now that the release is GitHub's latest: its news, report screenshots and baked-in
   # downloads wait for that (landing-deploy.yml). A draft release (the publish input off) gets it when published by hand.
   landing:
