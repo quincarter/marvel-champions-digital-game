@@ -41,7 +41,8 @@ import {
   shuffleDeck,
   stun,
   thwart,
-  valueAtMost,
+  valueAtLeast,
+  valueEquals,
   when,
   you,
   yourIdentity,
@@ -175,12 +176,16 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   ),
 
   // Clear the Area — Hero Action (thwart): Remove 2 threat from a scheme. If this removes the last threat on that
-  // scheme, draw 1 card. Checked before the removal (so "the last threat" reads pre-removal threat <= 2, not the
-  // scheme's possibly-already-left-play state after).
+  // scheme, draw 1 card. The last threat is read after the thwart (Creole Charmer's and Feline Senses' shape), and only
+  // when the scheme had threat to remove, so a thwart raised past 2 (Shrink, Ant-Man's "increase the amount of threat
+  // that event removes by 2") that clears the scheme still draws (issue #773); a confused hero or a crisis icon that
+  // removes nothing does not.
   "04049.clear-the-area-action": heroAction(
     { label: "thwart" },
     chooseTarget("scheme", query("scheme")),
-    ifThen(valueAtMost({ kind: "threat", of: chosen("scheme") }, 2), draw(1)),
-    thwart(2, chosen("scheme")),
+    ifThen(valueAtLeast({ kind: "threat", of: chosen("scheme") }, 1), [
+      thwart(2, chosen("scheme")),
+      ifThen(valueEquals({ kind: "threat", of: chosen("scheme") }, 0), draw(1)),
+    ]),
   ),
 });
