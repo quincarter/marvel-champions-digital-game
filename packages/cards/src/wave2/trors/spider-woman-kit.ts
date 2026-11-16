@@ -42,7 +42,7 @@ import {
   stun,
   thwart,
   valueAtLeast,
-  valueEquals,
+  varAtLeast,
   when,
   you,
   yourIdentity,
@@ -176,16 +176,18 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   ),
 
   // Clear the Area — Hero Action (thwart): Remove 2 threat from a scheme. If this removes the last threat on that
-  // scheme, draw 1 card. The last threat is read after the thwart (Creole Charmer's and Feline Senses' shape), and only
-  // when the scheme had threat to remove, so a thwart raised past 2 (Shrink, Ant-Man's "increase the amount of threat
-  // that event removes by 2") that clears the scheme still draws (issue #773); a confused hero or a crisis icon that
-  // removes nothing does not.
+  // scheme, draw 1 card. Judged by the removal itself (`removedLastThreat`, recorded as the threat comes off), so a
+  // thwart raised past 2 (Shrink, "increase the amount of threat that event removes by 2") that clears
+  // the scheme still draws (issue #773), and so does one whose scheme gets threat again from its own Forced Response
+  // before this reads it (The Search for Spiral; ruling October 10, 2025: "you still removed the last threat from The
+  // Search for Spiral, so you can draw a card with Clear the Area"). A thwart that removes nothing (a confused hero, a
+  // crisis icon) draws nothing.
   "04049.clear-the-area-action": heroAction(
     { label: "thwart" },
     chooseTarget("scheme", query("scheme")),
     ifThen(valueAtLeast({ kind: "threat", of: chosen("scheme") }, 1), [
-      thwart(2, chosen("scheme")),
-      ifThen(valueEquals({ kind: "threat", of: chosen("scheme") }, 0), draw(1)),
+      thwart(2, chosen("scheme"), { bind: "cleared" }),
+      ifThen(varAtLeast("cleared.removedLastThreat"), draw(1)),
     ]),
   ),
 });
