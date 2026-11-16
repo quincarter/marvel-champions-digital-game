@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runningInLinuxDesktopApp } from "../platform/linux-desktop.js";
-import { canvasOf } from "./bitmap-canvas.js";
+import { canvasOf, reusableCanvasOf } from "./bitmap-canvas.js";
 
 function fakeDocument() {
   const contexts: string[] = [];
@@ -41,6 +41,18 @@ describe("canvasOf", () => {
     expect(doc.contexts).toEqual(['2d{"willReadFrequently":true}']);
     expect(doc.drawn).toEqual([b]);
     expect(b.close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("reusableCanvasOf", () => {
+  it("always copies into a plain software 2D canvas, never a bitmaprenderer one, on every platform", () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Windows NT 10.0)" });
+    const doc = fakeDocument();
+    const b = bitmap();
+    expect(reusableCanvasOf(b)).toBe(doc.canvas);
+    expect(doc.contexts).toEqual(['2d{"willReadFrequently":true}']);
+    expect(doc.transferred).toEqual([]);
+    expect(doc.drawn).toEqual([b]);
   });
 });
 

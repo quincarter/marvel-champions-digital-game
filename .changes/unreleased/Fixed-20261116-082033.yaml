@@ -1,0 +1,3 @@
+kind: Fixed
+body: Button labels no longer go blank on the title menu after the Mod Store, or in Settings after changing a setting, on the desktop app (#744)
+time: 2026-11-16T08:20:33.3383372-05:00
