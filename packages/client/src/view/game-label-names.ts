@@ -80,7 +80,7 @@ export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNa
   names = {
     ...PAST_GAME_NAMES,
     cardName: (id) => {
-      const card = cardsById.get(id);
+      const card = cardInPacks(packs, id);
       return card ? cardDisplayName(card) : undefined;
     },
     starterDeckName: (id) => decks().find((deck) => (deck.id as string) === id)?.name,
