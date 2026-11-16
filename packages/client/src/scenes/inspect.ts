@@ -1572,7 +1572,9 @@ export class InspectOverlay extends Phaser.Scene {
       label: ability.label,
       run: (): void => {
         this.#close();
-        if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
+        // The identity's "play the top card of this deck" Action, offered on the deck's top card, is used on the identity.
+        const source = ability.sourceInstanceId ?? instanceId;
+        if (source) this.game.events.emit("mc-use-ability", source, ability.abilityId);
       },
     }));
     return playListed ? [play, ...uses] : uses;
