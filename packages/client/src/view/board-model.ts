@@ -73,6 +73,7 @@ import { gameEncounterSetName } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
 import { statStarsOf } from "./stat-stars.js";
+import { removalCostOf, removalCostText, type RemovalCost } from "./attachment-removal-cost.js";
 import { perRoundLabel, perRoundThreatOf, type PerRoundThreat } from "./per-round-threat.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
@@ -323,6 +324,11 @@ export interface AttachmentChip {
    * any more than the table's own picture of it does (`faceOf`'s own `back` branch).
    */
   readonly faceup: boolean;
+  /**
+   * What players spend to discard it (issue #767): "Hero Action: Exhaust your hero and spend [physical][physical]
+   * resources → discard this card". Null or absent for an attachment with no such ability.
+   */
+  readonly removalCost?: RemovalCost | null;
   /** "Labor (Hercules)" for a Labor card hanging here (an encounter card a player owns; short, the chip is narrow); null for every other card. */
   readonly ownedBy: string | null;
   /**
@@ -390,6 +396,7 @@ export function attachmentChipText(chip: AttachmentChip): string {
     chip.ownedBy,
     chip.tuckedNote,
     chip.exhausted ? "exhausted" : null,
+    chip.removalCost ? removalCostText(chip.removalCost) : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -1939,6 +1946,7 @@ function attachmentChipsOf(state: GameState, instance: CardInstance, deps: Engin
       damageThreshold: faceup ? breakPointOf(state, attachmentId, deps) : null,
       faceup,
       ownedBy: ownedEncounterLabel(state, attachmentId, true),
+      ...(faceup ? { removalCost: removalCostOf(state, deps, attachmentId) } : {}),
       ...tuckFacts(state, attachmentId, deps),
       ...(faceup && Object.keys(counterGoalsOf(state, attachmentId, deps)).length > 0
         ? { counterGoals: counterGoalsOf(state, attachmentId, deps) }
