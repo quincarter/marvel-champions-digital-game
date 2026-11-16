@@ -6,7 +6,7 @@
     <title>v0.47.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v0.47.0 of the fan-made Marvel Champions digital game: a download stats page on the site, with every release's downloads by platform and language, a Steam script button on the home page, and one top bar across the site's pages."
+      content="What's new in v0.47.0 of the fan-made Marvel Champions digital game: a download stats page on the site, with every release's downloads by platform and language, a Steam script button on the home page, one top bar across the site's pages, and a fix for blank button labels on the desktop app."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v0.47.0" />
     <meta
@@ -610,7 +610,7 @@
           <b>You've downloaded the game 4,156 times since v0.19.0.</b> I wanted to see where those downloads go, so the
           site has a Download stats page now: every installer since v0.19.0, by platform, by release and by card
           language, counted again twice a day. The home page's download panel gets a Steam script button with how to run
-          it, and every page on the site shares one top bar.
+          it, every page on the site shares one top bar, and button labels stay drawn on the Windows desktop app.
         </p>
       </section>
 
@@ -844,6 +844,56 @@
         </ul>
       </div>
 
+      <!-- ============ YOU ASKED ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issue #744 · PR #750</div>
+      </div>
+      <p class="lead">
+        <b>Button labels stay drawn on the desktop app.</b> In v0.46.0 on Windows, coming back from the Mod Store or
+        changing a setting could leave the buttons empty until the mouse went over them.
+      </p>
+      <div class="cards">
+        <div class="paper wide">
+          <div>
+            <div class="eb">#744 · Windows desktop app</div>
+            <h3>The labels come back</h3>
+            <p>
+              The title menu's buttons, the Settings tabs and rows, the panel heading and the language chip all went
+              blank. A label the mouse was over, or a selected one, still showed, because it is painted fresh in another
+              color.
+            </p>
+            <p>
+              Since v0.45.0 the game keeps painted labels and reuses them, and on some graphics cards a kept label came
+              back empty the second time it was drawn. Kept labels are now <b>copied into a plain picture</b> that draws
+              the same every time, the way the Linux build already did.
+            </p>
+          </div>
+          <figure class="a">
+            <img
+              src="img/labels-title.webp"
+              alt="The title screen after coming back from the Mod Store, with every menu button's label drawn"
+              width="1280"
+              height="800"
+              loading="lazy"
+            />
+            <figcaption>The title menu after the Mod Store, with the fix</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="shots" style="margin-top: 26px">
+        <figure>
+          <img
+            src="img/labels-settings.webp"
+            alt="Settings after changing a setting, with the tabs, the setting names and their switches all drawn"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Settings after changing a setting, with the fix</figcaption>
+        </figure>
+      </div>
+
       <!-- ============ THANKS ============ -->
       <section class="thanks">
         <div class="side">
@@ -877,22 +927,22 @@
       <section class="stats" aria-label="Code shipped since v0.46.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">3</div>
+          <div class="n">4</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">62</div>
+          <div class="n">69</div>
           <p>across the site, its build and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">3,145</div>
+          <div class="n c-green">3,254</div>
           <p>the stats page, the top bar and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">46</div>
+          <div class="n c-red">49</div>
           <p>most of them the home page's old links and styles, replaced by the bar.</p>
         </div>
       </section>
