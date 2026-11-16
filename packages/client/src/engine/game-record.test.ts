@@ -362,7 +362,7 @@ describe("game record: the stats screen's per-seat numbers (#529)", () => {
     });
     const ownedBy = (state: GameState, playerId: string) =>
       Object.values(state.instances).find(
-        (instance) => instance.ownerId === playerId && state.cardPool[instance.cardId]?.type !== "hero",
+        (instance) => instance.ownerId === playerId && state.cardPool[instance.cardId]?.type !== "hero_identity",
       )!;
 
     test("one card drawn twice is booked twice under its id", async () => {

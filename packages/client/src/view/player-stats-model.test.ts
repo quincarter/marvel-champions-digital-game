@@ -737,7 +737,12 @@ describe("Decks tab: the deck of every seat at the table (#756)", () => {
         summary: summary({
           seats: [
             seat({ starterDeckId: "spidey-justice" }),
-            seat({ identityCardId: "cap", aspects: ["leadership"], deckId: "d-cap", deckName }),
+            seat({
+              identityCardId: "cap",
+              aspects: ["leadership"],
+              deckId: "d-cap",
+              ...(deckName === null ? {} : { deckName }),
+            }),
           ],
         }),
       });
