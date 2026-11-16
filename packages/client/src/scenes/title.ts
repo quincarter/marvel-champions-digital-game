@@ -23,7 +23,8 @@ import { cssOf, skin, textStyle } from "../ui/theme.js";
 import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
 import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
-import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { TITLE_ART, coverFit, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
+import { drawnDensity } from "../platform/screen-settings.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
@@ -320,7 +321,7 @@ export class TitleScene extends Phaser.Scene {
     this.#starting = false;
     this.#rankUp = null;
     // The picture the last visit already loaded for this one, so it is there when the screen fades in.
-    this.#art = nextTitleArt ?? pickTitleArt(TITLE_ART, lastTitleArtKey);
+    this.#art = nextTitleArt ?? this.#pickArt();
     lastTitleArtKey = this.#art?.key ?? null;
     nextTitleArt = null;
     appSession().music?.playTitle();
@@ -1232,10 +1233,26 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  /** A picture for the art panel at this screen's size and density (`pickTitleArtFor`); the panel is null on a phone. */
+  #pickArt(): TitleArt | null {
+    const { width, height } = this.scale.gameSize;
+    const { artPanel } = titleMenuLayout({
+      width,
+      height,
+      continuable: false,
+      games: 0,
+      update: false,
+      civilWar: false,
+      quit: false,
+      noticeBar: RELEASE_NOTICE_ON,
+    });
+    return pickTitleArtFor(TITLE_ART, titleArtSizeOf, artPanel, drawnDensity(), lastTitleArtKey);
+  }
+
   /** Loads the picture the next visit will show, so coming back to Title doesn't wait on it. */
   #preloadNextArt(): void {
     if (!this.sys.isActive() || nextTitleArt) return;
-    nextTitleArt = pickTitleArt(TITLE_ART, lastTitleArtKey);
+    nextTitleArt = this.#pickArt();
     if (nextTitleArt) ensurePictureLoaded(this, nextTitleArt, () => undefined);
   }
 
