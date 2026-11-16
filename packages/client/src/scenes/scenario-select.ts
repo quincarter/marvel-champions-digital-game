@@ -231,6 +231,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
         tiles: () => [...this.#tileDebug.values()],
         selectedId: () => (this.#scenarioPicked() ? this.#draft.scenarioId : null),
+        folded: () => [...this.#folded],
+        drilledPack: () => this.#drill.packId,
+        listRect: () => this.#roster?.rect ?? null,
         recordText: () => this.#recordText,
         stops: () =>
           [...this.#stops].map(([key, stop]) => ({

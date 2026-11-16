@@ -1159,6 +1159,9 @@ export class SeatsScene extends Phaser.Scene {
     // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
+        folded: () => [...this.#folded],
+        drilledPack: () => this.#drill.packId,
+        listRect: () => this.#roster?.rect ?? null,
         recommended: () => this.#insights?.recommended.map((r) => ({ deckId: r.deckId, reason: r.reason })) ?? [],
         pairs: () => this.#insights?.pairs.map((p) => p.label) ?? [],
         hover: (deckId: string | null) => {
