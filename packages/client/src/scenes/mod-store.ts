@@ -285,7 +285,7 @@ export class ModStoreScene extends Phaser.Scene {
       const picture = heroPicture(line.identityId);
       const portrait = layout.speakers[index]?.portrait;
       if (!picture || !portrait) return;
-      // The same copy the notice draws (`drawPicture` in `scenes/mod-notice.ts`), baked for its portrait's size.
+      // The full picture the notice bakes its round portrait from (`#roundPortrait` in `scenes/mod-notice.ts`).
       if (preloadDrawnPicture(this, picture, portrait, wait.arrived) === null) {
         const key = drawnPictureKey(picture, portrait);
         if (key) wait.expect(key);

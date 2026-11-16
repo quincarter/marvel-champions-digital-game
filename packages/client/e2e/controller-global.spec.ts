@@ -440,8 +440,11 @@ test("PageDown on Take your seats never moves the seat", async ({ page }) => {
   await page.waitForTimeout(2500);
   const picking = async () => (await findText(page, "PICKING", "Seats")).map((m) => m.text).join("|");
   await tap(page, DPAD_DOWN); // the first press wakes the pad
-  // RB (the pad tab button) steps to the other seat.
-  await tap(page, RB, async () => (await picking()) !== "");
+  // RB (the pad tab button) steps to the other seat. A press in the first frames after the screen was held is dropped
+  // on purpose (`view/pad-press-guard.ts`); under a loaded suite that can be this one, so press again rather than fail.
+  for (let attempt = 0; attempt < 3 && (await picking()) === ""; attempt += 1) {
+    await tap(page, RB, async () => (await picking()) !== "");
+  }
   const start = await picking();
   expect(start).toContain("SEAT");
   await page.keyboard.press("PageDown");
