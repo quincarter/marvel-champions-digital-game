@@ -59,6 +59,7 @@ describe("player deck run-out (#769)", () => {
     const { state, store } = await rhinoGame();
     const me = store.state.perspectiveId!;
     const size = handSize(state, me, POOL_DEPS);
+    expect(size).toBeGreaterThanOrEqual(3);
     expect(playerDeckRunsOut(state, POOL_DEPS, me)).toBe(false);
     // An empty hand draws the whole hand size.
     expect(playerDeckRunsOut(withHandAndDeck(state, 0, size), POOL_DEPS, me)).toBe(false);

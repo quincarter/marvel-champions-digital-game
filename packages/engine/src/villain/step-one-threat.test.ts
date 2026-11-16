@@ -67,4 +67,10 @@ describe("stepThreeDealCount (#769)", () => {
     const heroic: GameState = { ...state, scenarioRules: { ...state.scenarioRules, heroicLevel: 2 } };
     expect(stepThreeDealCount(heroic, DEFAULT_DEPS)).toBe(3);
   });
+
+  it("deals nothing once every player is eliminated", () => {
+    const state = start();
+    const out: GameState = { ...state, players: state.players.map((p) => ({ ...p, eliminated: true })) };
+    expect(stepThreeDealCount(out, DEFAULT_DEPS)).toBe(0);
+  });
 });
