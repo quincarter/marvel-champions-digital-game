@@ -9,7 +9,7 @@
  */
 
 import { encounterRunsOut, playerDeckRunsOut } from "./pile-run-out.js";
-import type { AbilityId, Aspect, AnyCard, ResourceIconType } from "@mc/content";
+import type { AbilityId, Aspect, AnyCard, ResourceIconType, StatStar } from "@mc/content";
 import {
   handSize,
   printedHandSize,
@@ -72,6 +72,7 @@ import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } fr
 import { gameEncounterSetName } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
+import { statStarsOf } from "./stat-stars.js";
 import { perRoundLabel, perRoundThreatOf, type PerRoundThreat } from "./per-round-threat.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
@@ -108,6 +109,8 @@ export interface StatTile {
    * and for a printed dash, which no modifier makes usable.
    */
   readonly bonus: number;
+  /** The card prints a star beside this stat on the face that is up: an ability tied to it (issue #766). */
+  readonly star?: boolean;
 }
 
 /** A stat profile, as `characterProfile`/`printedProfile` both return it. */
@@ -139,6 +142,8 @@ export function profileStatTiles(
   rows: readonly ("thw" | "atk" | "def" | "rec" | "sch")[],
   current: number | undefined,
   max: number | undefined,
+  /** The stats the face that is up prints a star beside (`statStarsOf`). */
+  stars: readonly StatStar[] = [],
 ): readonly StatTile[] {
   const tiles: StatTile[] = rows.map((stat) => {
     const dashed = (stat === "atk" || stat === "thw" || stat === "sch") && profile.missing.includes(stat);
@@ -146,10 +151,16 @@ export function profileStatTiles(
       label: stat.toUpperCase() as StatTile["label"],
       value: dashed ? "—" : String(profile[stat]),
       bonus: dashed || !printed ? 0 : profile[stat] - printed[stat],
+      ...(stars.includes(stat) ? { star: true } : {}),
     };
   });
   if (current !== undefined && max !== undefined)
-    tiles.push({ label: "HP", value: hpFraction(current, max), bonus: 0 });
+    tiles.push({
+      label: "HP",
+      value: hpFraction(current, max),
+      bonus: 0,
+      ...(stars.includes("hp") ? { star: true } : {}),
+    });
   return tiles;
 }
 
@@ -1784,7 +1795,7 @@ function statTiles(
       : profile.kind === "ally"
         ? ["thw", "atk"]
         : ["atk", "sch"];
-  return profileStatTiles(profile, printed, rows, current, max);
+  return profileStatTiles(profile, printed, rows, current, max, statStarsOf(state, id));
 }
 
 /**

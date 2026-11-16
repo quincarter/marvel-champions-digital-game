@@ -807,6 +807,7 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
         stat: BADGE_STAT[tile.label],
         value: tile.value,
         bonus: tile.bonus,
+        ...(tile.star ? { star: true } : {}),
         alpha: dim,
       });
     });
