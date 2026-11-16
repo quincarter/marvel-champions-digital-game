@@ -16,6 +16,12 @@ export interface RemovalCost {
   readonly free: boolean;
   /** Usable only in hero form ("Hero Action"). */
   readonly heroOnly: boolean;
+  /**
+   * The removal has a prerequisite beyond its cost: a `while` on the action ("…if you have attacked and thwarted this
+   * phase", Psychic Inertia 40173), first player only, or another player's to use. The chip then says "see card"
+   * rather than "free" or a cost alone.
+   */
+  readonly conditional?: boolean;
 }
 
 /** An effect that puts the ability's own card into the discard pile: `discard(self)` or `moveCards(cards(self), "discard")`. */
@@ -44,12 +50,24 @@ export function removalCostOf(state: GameState, deps: EngineDeps, id: InstanceId
     if (!discardsItself(definition.effects)) continue;
     const cost = definition.cost;
     const free = cost === undefined || Object.values(cost).every((part) => part === undefined);
-    return { phrase: fullCostPhrase(cost), free, heroOnly: definition.trigger.form === "hero" };
+    const trigger = definition.trigger;
+    const conditional =
+      trigger.while !== undefined || trigger.firstPlayerOnly === true || trigger.triggerableBy !== undefined;
+    return {
+      phrase: fullCostPhrase(cost),
+      free,
+      heroOnly: trigger.form === "hero",
+      ...(conditional ? { conditional: true } : {}),
+    };
   }
   return null;
 }
 
-/** "remove: spend 2 physical, exhaust your identity", "remove: free", or "remove: see card" when it has no words. */
+/**
+ * "remove: spend 2 physical, exhaust your identity", "remove: free", or "remove: see card" when the cost has no words or
+ * the removal has a prerequisite (`conditional`).
+ */
 export function removalCostText(cost: RemovalCost): string {
+  if (cost.conditional) return "remove: see card";
   return `remove: ${cost.free ? "free" : (cost.phrase ?? "see card")}`;
 }

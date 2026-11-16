@@ -93,4 +93,11 @@ describe("removalCostOf (#767)", () => {
     expect(text.indexOf("must use")).toBeLessThan(text.indexOf("remove:"));
     expect(text.endsWith("remove: exhaust your identity, spend 2 physical")).toBe(true);
   });
+
+  test("Psychic Inertia: a removal with a prerequisite (attacked and thwarted this phase) reads see card, never free", async () => {
+    const { state, id } = await withAttachment("40173");
+    const cost = removalCostOf(state, POOL_DEPS, id)!;
+    expect(cost.conditional).toBe(true);
+    expect(removalCostText(cost)).toBe("remove: see card");
+  });
 });
