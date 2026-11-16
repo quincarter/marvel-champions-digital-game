@@ -628,6 +628,20 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=play-area-order[&order=played|type|cost|name]` (#768) and `&fixture=surge` (#764): `store/dev-order-surge-game.ts`.
+  if (screen === "board" && params.get("fixture") === "play-area-order") {
+    const { startDevPlayAreaOrderGame } = await import("../store/dev-order-surge-game.js");
+    await startDevPlayAreaOrderGame(params.get("order"));
+    return { key: SCENES.board, data: {} };
+  }
+  if (screen === "board" && params.get("fixture") === "surge") {
+    const { startDevSurgeGame } = await import("../store/dev-order-surge-game.js");
+    const finish = await startDevSurgeGame();
+    // The walkthrough only collects beats while Board is mounted: the turn ends once it is up.
+    if (params.get("delay") !== "manual") window.setTimeout(() => void finish(), Number(params.get("delay")) || 1500);
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
   // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
   // `?screen=board&fixture=work-life-ally`: Work-Life Balance used with an ally while Jessica is stalwart; the log says
