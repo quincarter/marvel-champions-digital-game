@@ -154,4 +154,21 @@ describe("a real game with an extra modular set", () => {
     // The scenario's own modular set is in the game once, as in the plain game.
     expect(inSet(more, "bomb_scare")).toBe(inSet(plain, "bomb_scare"));
   });
+
+  test("an extra set with its own deck (Infinity Gauntlet's stones) sets the deck aside, as when it is the counted pick", async () => {
+    const stonesOf = async (opts: { modularSetIds: string[]; houseModularSetIds?: string[] }) => {
+      const store = new SessionStore(new LocalEngineHost());
+      await store.start({ scenarioId: "rhino", difficulty: "standard", players, seed: 7, ...opts });
+      expect(store.state.status).not.toBe("failed");
+      const state = store.state.game!;
+      const stoneDeck = state.scenarioDecks["Infinity Stone"]?.deck ?? [];
+      const inEncounterDeck = state.encounterDeckOrder.flatMap((id) => state.encounterDecks[id]?.deck ?? []);
+      return { stoneDeck, inEncounterDeck };
+    };
+    const counted = await stonesOf({ modularSetIds: ["infinity_gauntlet"] });
+    expect(counted.stoneDeck).toHaveLength(6);
+    const extra = await stonesOf({ modularSetIds: ["bomb_scare"], houseModularSetIds: ["infinity_gauntlet"] });
+    expect(extra.stoneDeck).toHaveLength(6);
+    for (const stone of extra.stoneDeck) expect(extra.inEncounterDeck).not.toContain(stone);
+  });
 });

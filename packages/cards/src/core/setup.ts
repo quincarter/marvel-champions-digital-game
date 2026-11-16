@@ -192,6 +192,23 @@ export function setSeparateDecks(setIds: readonly string[]): NonNullable<GameSet
 }
 
 /**
+ * What a modular set adds to a game, built the way the builders build a counted modular: its encounter cards, the
+ * Setup-keyword cards that begin in play (`modularSetupCardIds`) and the separate decks it brings (`setSeparateDecks`,
+ * the Infinity Stones). The "Allow extra modular sets" house rule (#761) adds sets the builders refuse, so the session
+ * and the Table setup preview ask this instead of reading the set's cards alone, which would shuffle the Stones into
+ * the encounter deck.
+ */
+export function modularSetContents(
+  setIds: readonly string[],
+  pool: readonly AnyCard[] = CORE_CARDS,
+): { encounterDeck: CardId[]; scenarioDecks: NonNullable<GameSetupConfig["scenarioDecks"]> } {
+  return {
+    encounterDeck: [...encounterCardsOf(setIds, pool), ...modularSetupCardIds(setIds, pool)],
+    scenarioDecks: setSeparateDecks(setIds),
+  };
+}
+
+/**
  * A Core scenario set up from the scenario record (RRG Appendix II): the
  * villain stages for the difficulty (standard I–II, expert II–III), the
  * scenario's own set + modular set(s) + Standard (+ Expert), and each hero's

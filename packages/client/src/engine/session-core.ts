@@ -25,7 +25,7 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { cardsOfComposedSets, playableStarterDeckSetup } from "@mc/cards";
+import { cardsOfComposedSets, modularSetContents, playableStarterDeckSetup } from "@mc/cards";
 import { withHouseModularCards } from "../view/house-modular-sets.js";
 import { notReadySeatIdentity } from "./not-ready-seats.js";
 import { cardId } from "@mc/content";
@@ -263,7 +263,7 @@ const scenarioFor = (config: SessionConfig) => {
   // Modular sets beyond the scenario's count (the house rule, #761): the builder refuses such a pick, so their cards are
   // shuffled in here, on top of the deck it built.
   const built = config.houseModularSetIds?.length
-    ? withHouseModularCards(scenarioBuilt, cardsOfComposedSets(view.cards, config.houseModularSetIds))
+    ? withHouseModularCards(scenarioBuilt, modularSetContents(config.houseModularSetIds, view.cards))
     : scenarioBuilt;
   // The packs' cards join the game's pool after the builder, which knows only the base game's cards. They ride with
   // the config (`SessionConfig.packs`), so this worker needs no packs of its own and a resume rebuilds the same pool.

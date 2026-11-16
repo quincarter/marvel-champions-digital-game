@@ -22,7 +22,7 @@
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import Phaser from "phaser";
 import type { Deck, Scenario } from "@mc/content";
-import { cardsOfComposedSets } from "@mc/cards";
+import { modularSetContents } from "@mc/cards";
 import {
   houseModularAllowed,
   houseModularSetIdsOf,
@@ -523,7 +523,7 @@ export class TableSetupScene extends Phaser.Scene {
       );
       const config = withHouseModularCards(
         buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions),
-        cardsOfComposedSets([...currentCardsById().values()], sessionOptions.houseModularSetIds ?? []),
+        modularSetContents(sessionOptions.houseModularSetIds ?? [], [...currentCardsById().values()]),
       );
       previewStartStageIndex = config.villainStartStageIndex;
       preview = tableSetupPreviewOf(

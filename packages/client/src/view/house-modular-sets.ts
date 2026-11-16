@@ -44,20 +44,30 @@ export function withHouseModularSetIds(draft: SetupDraft, ids: readonly string[]
 }
 
 /**
- * `config` with these encounter cards shuffled in on top. Where a scenario's villains each carry their own deck, the
- * first villain's takes them (as a set an added rule shuffles in does, `table-setup-preview.ts`); otherwise the deck.
+ * `config` with these sets' contents added (`modularSetContents`, `@mc/cards`): their encounter cards shuffled in on top
+ * and their separate decks (the Infinity Stones, set aside facedown) merged into `scenarioDecks`. Where a scenario's
+ * villains each carry their own deck, the first villain's takes the cards (as a set an added rule shuffles in does,
+ * `table-setup-preview.ts`); otherwise the deck.
  */
 export function withHouseModularCards(
   config: GameSetupConfig,
-  cardIds: readonly GameSetupConfig["encounterDeck"][number][],
+  extra: {
+    readonly encounterDeck: readonly GameSetupConfig["encounterDeck"][number][];
+    readonly scenarioDecks?: GameSetupConfig["scenarioDecks"];
+  },
 ): GameSetupConfig {
-  if (cardIds.length === 0) return config;
-  if (config.villains && config.villains.length > 0 && config.sharedEncounterDeck !== true)
+  const cardIds = extra.encounterDeck;
+  const decks = extra.scenarioDecks ?? [];
+  if (cardIds.length === 0 && decks.length === 0) return config;
+  const withDecks: GameSetupConfig =
+    decks.length > 0 ? { ...config, scenarioDecks: [...(config.scenarioDecks ?? []), ...decks] } : config;
+  if (cardIds.length === 0) return withDecks;
+  if (withDecks.villains && withDecks.villains.length > 0 && withDecks.sharedEncounterDeck !== true)
     return {
-      ...config,
-      villains: config.villains.map((villain, index) =>
+      ...withDecks,
+      villains: withDecks.villains.map((villain, index) =>
         index === 0 ? { ...villain, encounterDeck: [...villain.encounterDeck, ...cardIds] } : villain,
       ),
     };
-  return { ...config, encounterDeck: [...config.encounterDeck, ...cardIds] };
+  return { ...withDecks, encounterDeck: [...withDecks.encounterDeck, ...cardIds] };
 }
