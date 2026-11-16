@@ -643,9 +643,9 @@ export class BoardScene extends Phaser.Scene {
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
     // A community pack's picture URL can land after the model asked for it (`art/pack-art.ts`): the model carries each
-    // card's picture source, so it is built again from the same state (a plain rebuild, as a language switch does), not
-    // only redrawn. Otherwise a card stays blank until the next command (#738).
-    const artSourcesOff = onArtChange(() => this.#onState(store.state));
+    // card's picture source, so it is built again, not only redrawn. Otherwise a card stays blank until the next command
+    // (#738).
+    const artSourcesOff = onArtChange(() => this.#refreshArtSources());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, artSourcesOff);
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
@@ -1005,11 +1005,7 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
-    const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
-    this.#model = this.#withDebugSideSchemes(
-      boardModel(state.game, state.peekSeat ?? state.perspectiveId, gameDeps(), mine),
-    );
+    this.#model = this.#modelOf(state);
     // A looked-at seat (`peekSeat`) is read-only: the acting seat's legal moves light nothing on its side of the table.
     this.#marks =
       state.legal && state.peekSeat === null
@@ -1115,6 +1111,27 @@ export class BoardScene extends Phaser.Scene {
    * (`BoardGuideMount`'s own `lockLog`/`roundDebrief` options, both `false` here), and its own completion writes
    * `markAspectLessonDone` instead of the tutorial's `markTutorialFinished`.
    */
+  /** The table's view model of `state`, for the seat shown. */
+  #modelOf(state: SessionState): BoardModel | null {
+    if (!state.game || state.perspectiveId === null) return null;
+    // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
+    const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
+    return this.#withDebugSideSchemes(boardModel(state.game, state.peekSeat ?? state.perspectiveId, gameDeps(), mine));
+  }
+
+  /**
+   * A pack's pictures landed after the model asked for them (#738): only the model is built again, since it carries
+   * each card's picture source, and the table redraws. Not `#onState`: that feeds the state's `lastEvents` to the
+   * guide again, which would count the last command's events twice.
+   */
+  #refreshArtSources(): void {
+    if (!this.#model) return;
+    const model = this.#modelOf(appSession().store.state);
+    if (!model) return;
+    this.#model = model;
+    this.#draw();
+  }
+
   #syncGuide(state: SessionState): void {
     if (!appSession().guidedRun || !state.game) return;
     const observation = { game: state.game, lastEvents: state.lastEvents, perspectiveId: state.perspectiveId };
