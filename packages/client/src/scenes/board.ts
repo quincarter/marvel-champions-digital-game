@@ -86,6 +86,7 @@ import {
   type PhoneTab,
   type Rect,
 } from "../view/layout.js";
+import { modelIsStale } from "../view/model-staleness.js";
 import { cardHoverFactor, cardSizeFactor, type Settings } from "../settings.js";
 import { onTap, setTapOccluders } from "../ui/tap.js";
 import { TableDrag, clampScroll, fullyInWindow, revealScroll, wheelPixels } from "../view/table-scroll.js";
@@ -528,7 +529,11 @@ export class BoardScene extends Phaser.Scene {
   override update(_time: number, deltaMs: number): void {
     // Settings can be opened over the board from Pause and change what it draws and wires (Card size, the piles' Cards
     // left taps, #575) under it; a wheel or drag asked for a scroll.
-    if (this.#scrollDirty || (this.#model && appSession().settings !== this.#drawnSettings)) this.#draw();
+    if (this.#model && modelIsStale(this.#drawnSettings, appSession().settings)) {
+      // Play area order is baked into the model's zone order (#768): rebuild it, not just redraw.
+      this.#model = this.#modelOf(appSession().store.state) ?? this.#model;
+      this.#draw();
+    } else if (this.#scrollDirty || (this.#model && appSession().settings !== this.#drawnSettings)) this.#draw();
     // A drawn card's ghost starting or landing: the ghost is redrawn from its own clock, so something has to ask.
     else if (this.#model && this.#motion.needsRedraw()) this.#draw();
     // The first player token passed while the table was covered: its flight starts the moment the table is back.
