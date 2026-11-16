@@ -74,7 +74,8 @@ export interface SeatRecord {
   /** Cards this seat drew (`cardDrawn`). Absent on a record written before the field existed. */
   readonly drawn?: number;
   /**
-   * The cards this seat drew, by card id (each `cardDrawn`, the opening hand included): with `plays`, how often a card
+   * The cards this seat drew, by card id (each `cardDrawn`, the opening hand included, and each mulligan redraw counted as an extra draw, exactly as `drawn` is;
+   * a card that flips after it is drawn is booked under the face it had when drawn): with `plays`, how often a card
    * that came to hand was played. Absent on a record written before the field existed, and while none was drawn.
    */
   readonly drawnCards?: Readonly<Record<string, number>>;
