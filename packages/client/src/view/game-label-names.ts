@@ -2,7 +2,17 @@
  * The pool's names for a saved game's label (`continue-label.ts`), shared by the Title's Continue row and the
  * in-progress games list so both say the same thing about a game.
  */
-import { CARDS_BY_ID, currentScenarios, POOL_STARTER_DECKS } from "../content/pool.js";
+import { packScenarioRecords } from "@mc/mod-sdk/game";
+import type { Scenario, StarterDeck } from "@mc/content";
+import {
+  CARDS_BY_ID,
+  currentScenarios,
+  currentStarterDecks,
+  POOL_SCENARIOS,
+  POOL_STARTER_DECKS,
+  poolViewOfPacks,
+} from "../content/pool.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 import { CAMPAIGNS } from "@mc/content";
 import type { GamesListNames } from "./games-list-model.js";
 import type { PastGameNames } from "./past-games-model.js";
@@ -15,16 +25,57 @@ export const GAME_LABEL_NAMES: GamesListNames = {
     const identity = CARDS_BY_ID.get(id);
     return identity ? cardDisplayName(identity) : undefined;
   },
-  starterDeckName: (id) => POOL_STARTER_DECKS.find((deck) => (deck.id as string) === id)?.name,
+  starterDeckName: (id) => currentStarterDecks().find((deck) => (deck.id as string) === id)?.name,
   campaignName: (id) => CAMPAIGNS.find((campaign) => (campaign.id as string) === id)?.name,
 };
 
 /** The Past games catalog's names (#706): the label's, and each game's pictures. */
 export const PAST_GAME_NAMES: PastGameNames = {
   ...GAME_LABEL_NAMES,
-  starterIdentity: (id) => POOL_STARTER_DECKS.find((deck) => (deck.id as string) === id)?.identityCardId as string,
+  starterIdentity: (id) => currentStarterDecks().find((deck) => (deck.id as string) === id)?.identityCardId as string,
   scenarioCardId: (id) => {
     const scenario = currentScenarios().find((candidate) => (candidate.id as string) === id);
     return scenario ? scenarioCardIdOf(scenario) : undefined;
   },
+  forPacks: (packs) => pastGameNamesForPacks(packs as readonly PackRuntime[]),
 };
+
+const PACK_NAMES = new WeakMap<object, PastGameNames>();
+const PACK_SCENARIOS = new WeakMap<object, readonly Scenario[]>();
+
+/**
+ * The Past games names for a game built with `packs` (its saved `SessionConfig.packs`): the base names, then the cards
+ * and scenarios of those packs, so a pack's hero and villain are found even when the pack is no longer installed (#758).
+ * Cached per packs array.
+ */
+export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNames {
+  let names = PACK_NAMES.get(packs);
+  if (names) return names;
+  const cardsById = poolViewOfPacks(packs).cardsById;
+  const scenarios = (): readonly Scenario[] => {
+    let list = PACK_SCENARIOS.get(packs);
+    if (!list) {
+      list = [...POOL_SCENARIOS, ...packScenarioRecords(packs)];
+      PACK_SCENARIOS.set(packs, list);
+    }
+    return list;
+  };
+  const decks = (): readonly StarterDeck[] => [...POOL_STARTER_DECKS, ...packs.flatMap((pack) => pack.decks)];
+  names = {
+    ...PAST_GAME_NAMES,
+    starterDeckName: (id) => decks().find((deck) => (deck.id as string) === id)?.name,
+    starterIdentity: (id) => decks().find((deck) => (deck.id as string) === id)?.identityCardId as string | undefined,
+    scenarioName: (id) =>
+      scenarios().find((candidate) => (candidate.id as string) === id)?.name ?? GAME_LABEL_NAMES.scenarioName(id),
+    identityName: (id) => {
+      const identity = cardsById.get(id);
+      return identity ? cardDisplayName(identity) : undefined;
+    },
+    scenarioCardId: (id) => {
+      const scenario = scenarios().find((candidate) => (candidate.id as string) === id);
+      return scenario ? scenarioCardIdOf(scenario) : undefined;
+    },
+  };
+  PACK_NAMES.set(packs, names);
+  return names;
+}

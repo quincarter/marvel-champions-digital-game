@@ -46,6 +46,12 @@ export interface PastGameNames extends GamesListNames {
   readonly starterIdentity: (starterDeckId: string) => string | undefined;
   /** The card that pictures a scenario (its villain, `scenarioCardIdOf`), or undefined when the pool has no such scenario. */
   readonly scenarioCardId: (scenarioId: string) => string | undefined;
+  /**
+   * The names for a game that carries its own packs (`SessionConfig.packs`: a custom hero, scenario or set, embedded at
+   * save time): the base names plus those packs' cards and scenarios, whether or not the packs are installed now, so a
+   * finished game's cover and label name its custom hero and villain after the pack is gone (#758).
+   */
+  readonly forPacks?: (packs: readonly unknown[]) => PastGameNames;
 }
 
 export interface PastGameSeat {
@@ -74,6 +80,8 @@ export interface PastGameRow {
   readonly playedMs: number | null;
   /** The villain's card (or the scenario's main scheme), for the hover; null when the pool doesn't know it. */
   readonly villainCardId: string | null;
+  /** The scenario's name, the villain's picture's stand-in text when its art is not available (an uninstalled pack); null when unknown. */
+  readonly villainName: string | null;
   /** Each seat, in seat order (a seat that sat the scenario out is left out). */
   readonly seats: readonly PastGameSeat[];
   readonly save: SaveMeta;
@@ -128,6 +136,12 @@ export function isPastGame(save: SaveMeta, appVersion: string = CLIENT_VERSION):
   );
 }
 
+/** `names` widened with the game's own packs, when it carries any and the names know how. */
+function namesOf(save: SaveMeta, names: PastGameNames): PastGameNames {
+  const packs = save.config.packs;
+  return packs && packs.length > 0 && names.forPacks ? names.forPacks(packs) : names;
+}
+
 function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] {
   const named = (identityCardId: string): string => names.identityName(identityCardId) ?? identityCardId;
   // A game left or given up before its end: a hero still up then did not stand to the end of anything.
@@ -158,7 +172,7 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
 /** The catalog's rows for `filter`, most recently ended first. */
 export function pastGameRowsOf(
   saves: readonly SaveMeta[],
-  names: PastGameNames,
+  allNames: PastGameNames,
   filter: PastGameFilter = "all",
   appVersion: string = CLIENT_VERSION,
 ): readonly PastGameRow[] {
@@ -168,6 +182,7 @@ export function pastGameRowsOf(
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((save) => {
       const result = resultOf(save)!;
+      const names = namesOf(save, allNames);
       return {
         id: save.id,
         title: gameLabelOf(save.config, names),
@@ -179,6 +194,7 @@ export function pastGameRowsOf(
         endedAt: save.updatedAt,
         playedMs: save.playedMs ?? null,
         villainCardId: names.scenarioCardId(save.config.scenarioId) ?? null,
+        villainName: names.scenarioName(save.config.scenarioId) ?? null,
         seats: seatsOf(save, names),
         save,
       };
