@@ -12,7 +12,9 @@ import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { CORE_CARDS } from "@mc/content";
-import { PAST_GAME_NAMES, pastGameNamesForPacks } from "./game-label-names.js";
+import { GAME_LABEL_NAMES, PAST_GAME_NAMES, pastGameNamesForPacks } from "./game-label-names.js";
+import { continueLabelOf } from "./continue-label.js";
+import { gameRowsOf } from "./games-list-model.js";
 import { pastGameRowsOf } from "./past-games-model.js";
 
 // #758: a finished game played with a pack's hero and scenario names them on its cover, loaded now or not.
@@ -118,5 +120,27 @@ describe("Past games covers for a game with pack content", () => {
     expect(row?.villainCardId).toBeNull();
     expect(row?.villainName).toBeNull();
     expect(row?.seats[0]).toMatchObject({ identityCardId: HERO, name: HERO });
+  });
+});
+
+// An in-progress game names its hero and precon from its own packs (Continue row and games list), loaded now or not.
+describe("in-progress game names for a game with pack content", () => {
+  it("names a pack precon and a pack identity after the pack is uninstalled", async () => {
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    for (const id of PACKS) await store.install(built.get(id)!.manifest, built.get(id)!.files);
+    await loadActivePacks(store);
+    const embedded = [...loadedPacks()];
+    const deck = embedded.flatMap((pack) => pack.decks)[0]!;
+    setLoadedPacks([]);
+
+    const precon = gameWith(embedded);
+    (precon.config as unknown as { players: unknown[] }).players = [{ starterDeckId: deck.id }];
+    expect(continueLabelOf(precon, GAME_LABEL_NAMES)).not.toContain(deck.id as string);
+    expect(gameRowsOf([precon], GAME_LABEL_NAMES, 10)[0]?.title).toContain("Sample Sentinel");
+
+    const custom = gameWith(embedded);
+    expect(continueLabelOf(custom, GAME_LABEL_NAMES)).toContain("Sample Sentinel");
+    expect(continueLabelOf(custom, GAME_LABEL_NAMES)).toContain("The Clockmaker");
+    expect(gameRowsOf([custom], GAME_LABEL_NAMES, 10)[0]?.title).toContain("Sample Sentinel");
   });
 });

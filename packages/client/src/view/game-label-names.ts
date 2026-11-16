@@ -26,6 +26,8 @@ export const GAME_LABEL_NAMES: GamesListNames = {
   },
   starterDeckName: (id) => currentStarterDecks().find((deck) => (deck.id as string) === id)?.name,
   campaignName: (id) => CAMPAIGNS.find((campaign) => (campaign.id as string) === id)?.name,
+  // An in-progress game names its hero and precon from the packs it carries, loaded now or not.
+  forPacks: (packs) => pastGameNamesForPacks(packs as readonly PackRuntime[]),
 };
 
 /** The Past games catalog's names (#706): the label's, and each game's pictures. */
