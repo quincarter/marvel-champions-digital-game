@@ -12,7 +12,7 @@ import { nextTurn } from "../store/dev-game-steps.js";
 import { SessionStore } from "../store/session-store.js";
 import { appendEvents, emptyLog } from "./log-lines.js";
 import { encounterStripOf } from "./villain-encounter-strip.js";
-import { appendWalkthrough, emptyWalkthrough } from "./villain-walkthrough.js";
+import { appendWalkthrough, emptyWalkthrough, walkthroughSeededFrom } from "./villain-walkthrough.js";
 
 const config = {
   scenarioId: "rhino",
@@ -153,6 +153,52 @@ describe("surge marks in the log and the recap (#764)", () => {
     // With no earlier deal seen, the same phase marks nothing.
     const bare = appendWalkthrough(emptyWalkthrough(1), rest, game, me, POOL_DEPS);
     expect(revealText(bare).some((text) => /from surge/.test(text))).toBe(false);
+  });
+
+  test("a phase opened after the player phase's surge deal, seeded from the log, marks the reveal beat", async () => {
+    const { store, surgeDeal, reveal } = await surgeCardEvents();
+    const me = store.state.perspectiveId!;
+    const game = store.state.game!;
+    const { updates } = await surgeGame();
+    const rest = updates
+      .flatMap((u) => u.events)
+      .filter((e) => e !== surgeDeal && !(e.type === "encounterCardDealt" && e.source === "surge"));
+    // The deal is folded into the log in the player phase's command; the scene is launched fresh afterwards with
+    // only what the log carried, never the Walkthrough value that saw the deal.
+    const log = appendEvents(emptyLog(), [surgeDeal], game, me, POOL_DEPS);
+    const walk = appendWalkthrough(walkthroughSeededFrom(1, log.surgeDealt), rest, game, me, POOL_DEPS);
+    const texts = walk.steps
+      .flatMap((step) => step.beats)
+      .filter((beat) => beat.eventType === "encounterCardRevealed")
+      .map((beat) => beat.text);
+    expect(reveal.type).toBe("encounterCardRevealed");
+    expect(texts.filter((text) => text.includes("(from surge)"))).toHaveLength(1);
+    // No marks carried over: nothing is marked.
+    const bare = appendWalkthrough(walkthroughSeededFrom(1, undefined), rest, game, me, POOL_DEPS);
+    expect(bare.steps.flatMap((step) => step.beats).some((beat) => /from surge/.test(beat.text))).toBe(false);
+  });
+
+  test("a surge-dealt card discarded unrevealed loses its mark, in the log and the recap", async () => {
+    const { store, surgeDeal, reveal } = await surgeCardEvents();
+    const me = store.state.perspectiveId!;
+    const game = store.state.game!;
+    const id = (surgeDeal as Extract<GameEvent, { type: "encounterCardDealt" }>).instanceId;
+    const discard = {
+      type: "cardMoved",
+      instanceId: id,
+      cardId: game.instances[id]!.cardId,
+      from: { kind: "dealtEncounter", playerId: me },
+      to: { kind: "encounterDiscard", deckId: "scenario" },
+    } as unknown as GameEvent;
+    const log = appendEvents(emptyLog(), [surgeDeal, discard, reveal], game, me, POOL_DEPS);
+    expect(log.lines.at(-1)?.text).toMatch(/^You revealed /);
+    expect(log.lines.at(-1)?.text).not.toMatch(/from surge/);
+    const stateBefore = appendEvents(emptyLog(), [surgeDeal], game, me, POOL_DEPS);
+    expect(stateBefore.surgeDealt).toEqual([id]);
+    const kept = appendEvents(stateBefore, [discard], game, me, POOL_DEPS);
+    expect(kept.surgeDealt).toEqual([]);
+    const walk = appendWalkthrough(emptyWalkthrough(1), [surgeDeal, discard], game, me, POOL_DEPS);
+    expect(walk.surgeDealt).toEqual([]);
   });
 
   test("the recap's strip marks SURGE on the card that surged and FROM SURGE on the card it dealt", async () => {

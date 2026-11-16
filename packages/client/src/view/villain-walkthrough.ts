@@ -308,6 +308,16 @@ export interface Walkthrough {
   readonly tables: readonly WalkthroughTable[];
 }
 
+/**
+ * A walkthrough for a villain phase that opens after the cards a surge dealt earlier (in the player phase, where the
+ * engine deals the card facedown until the phase's reveal step): seeded with the log's marks so their reveal beats read
+ * "(from surge)" as the log's lines do.
+ */
+export const walkthroughSeededFrom = (round: number, surgeDealt: readonly InstanceId[] | undefined): Walkthrough => ({
+  ...emptyWalkthrough(round),
+  ...(surgeDealt && surgeDealt.length > 0 ? { surgeDealt: [...surgeDealt] } : {}),
+});
+
 export const emptyWalkthrough = (round: number): Walkthrough => ({
   round,
   encounter: emptyEncounterTracking(),
@@ -420,6 +430,10 @@ export function appendWalkthrough(
     if (event.type === "encounterCardDealt") {
       unmark(event.instanceId);
       if (event.source === "surge") surgeDealt.push(event.instanceId);
+    }
+    // The log's rule for a surge-dealt card that leaves unrevealed (`appendEvents`).
+    if (event.type === "cardMoved" && (event.to.kind === "encounterDiscard" || event.to.kind === "encounterDeck")) {
+      unmark(event.instanceId);
     }
     const surgeRevealed = event.type === "encounterCardRevealed" && surgeDealt.includes(event.instanceId);
     if (event.type === "encounterCardRevealed") unmark(event.instanceId);

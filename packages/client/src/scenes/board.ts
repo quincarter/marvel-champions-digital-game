@@ -1449,7 +1449,11 @@ export class BoardScene extends Phaser.Scene {
     if (!begins) return;
     this.#logBeforePhase = logBefore;
     appSession().gameLog = this.#tableLog();
-    this.scene.launch(SCENES.villainPhase, { before, endOfTurn: this.#refillEnded } satisfies VillainPhaseLaunchData);
+    this.scene.launch(SCENES.villainPhase, {
+      before,
+      ...(logBefore.surgeDealt ? { surgeDealt: logBefore.surgeDealt } : {}),
+      endOfTurn: this.#refillEnded,
+    } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
     // does not run while the walkthrough is up, so on a slow machine no draw may have seen it, and the flag then

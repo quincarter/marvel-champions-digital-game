@@ -190,6 +190,7 @@ import {
   advanceReveal,
   appendWalkthrough,
   emptyWalkthrough,
+  walkthroughSeededFrom,
   defenderLineOf,
   inlineInterruptFor,
   inlinePressAnswers,
@@ -276,6 +277,8 @@ import {
 /** What Board hands over when it opens the walkthrough: the game as it stood before the command that began the phase. */
 export interface VillainPhaseLaunchData {
   readonly before: GameState | null;
+  /** The log's cards a surge dealt and not yet revealed, as of before this command (`LogState.surgeDealt`). */
+  readonly surgeDealt?: readonly InstanceId[];
   /**
    * Who drew what as the player phase ended (the draw up to hand size), which the Board folds across the commands a
    * refill can span (`view/villain-end-of-turn.ts`). Absent for a review.
@@ -419,7 +422,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     this.#before = data?.before ?? null;
     this.#recapScrolls.forEach((scroll) => scroll.reset());
-    this.#walkthrough = emptyWalkthrough(1);
+    this.#walkthrough = walkthroughSeededFrom(1, data?.surgeDealt);
     this.#revealed = 0;
     this.#version = -2;
     this.#hidden = false;

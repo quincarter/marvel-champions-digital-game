@@ -134,6 +134,11 @@ export function appendEvents(
       unmark(event.instanceId);
       if (event.source === "surge") surgeDealt.push(event.instanceId);
     }
+    // Sent back to an encounter deck or discard unrevealed (a discard, a reset's reshuffle): it is no longer the surge's
+    // facedown card, so a later reveal of it from the deck is not "from surge".
+    if (event.type === "cardMoved" && (event.to.kind === "encounterDiscard" || event.to.kind === "encounterDeck")) {
+      unmark(event.instanceId);
+    }
     if (event.type === "roundStarted") {
       round = event.round;
       beat = 0;
