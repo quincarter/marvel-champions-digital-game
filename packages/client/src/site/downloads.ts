@@ -126,6 +126,11 @@ export function primaryDownload(downloads: readonly Download[], device: DeviceKi
   return downloads.find((download) => download.device === device && !download.id.startsWith("steam-"));
 }
 
+/** The Install for Steam script for `device`, if it is a computer the release has one for. */
+export function steamScriptFor(downloads: readonly Download[], device: DeviceKind): Download | undefined {
+  return downloads.find((download) => download.device === device && download.id.startsWith("steam-"));
+}
+
 /** A big download button: the installer and the text key that names who it is for. */
 export interface PrimaryButton {
   readonly download: Download;

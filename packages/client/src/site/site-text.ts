@@ -26,6 +26,16 @@ const sharedEn = {
   "dl.otherNote": "We couldn't tell your device. Pick an installer below, or play in your browser.",
   "dl.cardLanguage": "Cards in {language}",
   "dl.steamNote": "Adds the game to your Steam library and keeps it updated.",
+  "dl.steam": "Steam script",
+  "dl.steamTitle": "Play it from Steam",
+  "dl.steamWhat":
+    "The Steam script installs the game, adds it to your Steam library with its art, and keeps it updated. Steam has to be closed while it runs; the script offers to close it.",
+  "steam.how.windows":
+    "Double-click the <code>.cmd</code> file. Windows may stop it first because it came from the internet: choose <b>More info</b>, then <b>Run anyway</b>. Nothing else needs changing, not even PowerShell's settings.",
+  "steam.how.mac":
+    "A script you download isn't allowed to run until you give it execute permission. In Terminal, run:<code class='cmd'>chmod +x ~/Downloads/{file}</code><code class='cmd'>~/Downloads/{file}</code>Or run it without that step:<code class='cmd'>bash ~/Downloads/{file}</code>",
+  "steam.how.linux":
+    "On a Steam Deck, switch to Desktop Mode first. A script you download isn't allowed to run until you give it execute permission. In a terminal (Konsole on the Steam Deck), run:<code class='cmd'>chmod +x ~/Downloads/{file}</code><code class='cmd'>~/Downloads/{file}</code>Or run it without that step:<code class='cmd'>bash ~/Downloads/{file}</code>",
   "dl.play": "Play in your browser",
   "device.windows": "Windows",
   "device.mac": "macOS",
@@ -71,6 +81,16 @@ const sharedEs: Catalog<SharedKey> = {
   "dl.otherNote": "No pudimos detectar tu dispositivo. Elige un instalador abajo o juega en el navegador.",
   "dl.cardLanguage": "Cartas en {language}",
   "dl.steamNote": "Añade el juego a tu biblioteca de Steam y lo mantiene actualizado.",
+  "dl.steam": "Script de Steam",
+  "dl.steamTitle": "Juega desde Steam",
+  "dl.steamWhat":
+    "El script de Steam instala el juego, lo añade a tu biblioteca de Steam con sus ilustraciones y lo mantiene actualizado. Steam tiene que estar cerrado mientras se ejecuta; el script se ofrece a cerrarlo.",
+  "steam.how.windows":
+    "Haz doble clic en el archivo <code>.cmd</code>. Puede que Windows lo detenga antes porque viene de internet: elige <b>Más información</b> y luego <b>Ejecutar de todas formas</b>. No hace falta cambiar nada más, ni siquiera la configuración de PowerShell.",
+  "steam.how.mac":
+    "Un script descargado no puede ejecutarse hasta que le das permiso de ejecución. En Terminal, ejecuta:<code class='cmd'>chmod +x ~/Downloads/{file}</code><code class='cmd'>~/Downloads/{file}</code>O ejecútalo sin ese paso:<code class='cmd'>bash ~/Downloads/{file}</code>",
+  "steam.how.linux":
+    "En una Steam Deck, cambia antes al modo escritorio. Un script descargado no puede ejecutarse hasta que le das permiso de ejecución. En una terminal (Konsole en la Steam Deck), ejecuta:<code class='cmd'>chmod +x ~/Downloads/{file}</code><code class='cmd'>~/Downloads/{file}</code>O ejecútalo sin ese paso:<code class='cmd'>bash ~/Downloads/{file}</code>",
   "dl.play": "Jugar en el navegador",
   "device.windows": "Windows",
   "device.mac": "macOS",

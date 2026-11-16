@@ -274,6 +274,7 @@ h1 .g,
   background: transparent;
   color: var(--fg);
   border-color: var(--fg);
+  box-shadow: 6px 6px 0 var(--gold);
   box-shadow: none;
 }
 .btn:hover:not(:disabled) {
@@ -505,6 +506,65 @@ figcaption {
   color: var(--muted);
   font-size: 13.5px;
   line-height: 1.4;
+}
+/* The Install for Steam script: a button beside the installer, and how to run it on this computer. */
+.btn.steam {
+  background: var(--bg);
+  color: var(--fg);
+  border-color: var(--fg);
+  box-shadow: 6px 6px 0 var(--gold);
+}
+.btn.steam {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.steam-logo {
+  flex: none;
+  width: 36px;
+  height: 36px;
+}
+.steam-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.btn.steam small {
+  overflow-wrap: anywhere;
+}
+.dl-steam {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--gold);
+  background: rgb(0 0 0 / 0.25);
+}
+.dl-steam h4 {
+  font: 400 24px/1.1 var(--d);
+  letter-spacing: 0.02em;
+  margin: 0 0 6px;
+}
+.dl-steam p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.dl-steam b {
+  color: var(--fg);
+}
+.dl-steam code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  background: rgb(0 0 0 / 0.35);
+  padding: 1px 5px;
+}
+/* A command to type: a line of its own, so it reads and copies whole. */
+.dl-steam code.cmd {
+  display: block;
+  margin: 6px 0 8px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--line);
 }
 .dl .all {
   display: inline-block;
