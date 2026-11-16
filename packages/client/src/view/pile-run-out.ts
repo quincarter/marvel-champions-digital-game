@@ -12,7 +12,8 @@ import {
   activeEncounterDeck,
   cardsInPlay,
   handSize,
-  hasKeyword,
+  getInstance,
+  getsBoostCard,
   iconsInPlay,
   isMinion,
   type EngineDeps,
@@ -24,23 +25,35 @@ import {
 export interface EncounterDemand {
   readonly total: number;
   readonly boost: number;
-  /** Step 4: one per player, plus one more per hazard icon in play (RRG 1.8 "Hazard Icon"). */
+  /** Step 3: one per player (more at heroic level), plus one per hazard icon in play in total (RRG 1.8 "Hazard Icon"). */
   readonly dealt: number;
 }
 
 const livePlayers = (state: GameState) => state.players.filter((player) => !player.eliminated);
 
 /**
- * One boost card per villain activation (the villain attacks or schemes once per player) and one per villainous minion
- * (it activates once), plus step 4's encounter cards: one per player and one per hazard icon in play for each.
+ * What the next villain phase deals from the encounter deck, mirroring the engine's own steps:
+ * - Step 2 boost cards: only the active villain activates, once per player (RRG 1.8 "Activation", p. 6; with several
+ *   villains in play, MC45 "Active Villain" and MC21: only the active one activates), and each minion engaged with a
+ *   live player whose activation gets a boost card (`getsBoostCard`: Villainous, gained or printed, RRG 1.8
+ *   "Villainous", p. 47).
+ * - Step 3: one card per player, X more each at heroic level X (RRG 1.8 "Modes of Play", p. 28), and one more per
+ *   hazard icon in play in total, "not one card per player" (RRG 1.8 "Hazard Icon", p. 21) — the engine's
+ *   `executeDealEncounterCards` count.
+ * Stunned or confused activations, extra or withheld boost cards and surge are left out: an estimate, not a promise.
  */
 export function encounterDemandOf(state: GameState, deps: EngineDeps): EncounterDemand {
-  const players = livePlayers(state).length;
-  const villainous = cardsInPlay(state).filter(
-    (id) => isMinion(state, id) && hasKeyword(state, id, "villainous", deps),
-  );
-  const boost = state.villains.length * players + villainous.length;
-  const dealt = players * (1 + iconsInPlay(state, deps, "hazard"));
+  const live = livePlayers(state);
+  const players = live.length;
+  const liveIds = new Set(live.map((player) => player.playerId));
+  const villainBoost = state.villains.length > 0 ? players : 0;
+  const minionBoost = cardsInPlay(state).filter((id) => {
+    const engagedWith = getInstance(state, id)?.engagedWith ?? null;
+    return isMinion(state, id) && engagedWith !== null && liveIds.has(engagedWith) && getsBoostCard(state, deps, id);
+  }).length;
+  const boost = villainBoost + minionBoost;
+  const dealt =
+    players === 0 ? 0 : players * (1 + (state.scenarioRules.heroicLevel ?? 0)) + iconsInPlay(state, deps, "hazard");
   return { total: boost + dealt, boost, dealt };
 }
 
