@@ -261,6 +261,8 @@ export function withModularSetContents(
   const withDecks: GameSetupConfig =
     decks.length > 0 ? { ...config, scenarioDecks: [...(config.scenarioDecks ?? []), ...decks] } : config;
   if (cardIds.length === 0) return withDecks;
+  // Engine-specific reading (CLAUDE.md authority order, item 5): no official source says where an added modular set's
+  // cards go at a scenario whose villains each have their own deck (Breakout); the first villain's deck takes them.
   if (withDecks.villains && withDecks.villains.length > 0 && withDecks.sharedEncounterDeck !== true)
     return {
       ...withDecks,

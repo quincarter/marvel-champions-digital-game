@@ -282,6 +282,24 @@ describe("scenarioWithPacks: refusals and options", () => {
       /not offered at a pack scenario/,
     );
   });
+  it("checks a house modular set (#761) as a counted pick: not twice, not also counted, not a pack's own scenario's set", () => {
+    const house = (ids: string[], modularSetIds?: string[]) => ({
+      ...seat,
+      houseModularSetIds: ids,
+      ...(modularSetIds ? { modularSetIds } : {}),
+    });
+    const deck = (ids: string[]) => scenarioWithPacks("rhino", house(ids), [pack]).encounterDeck!.map(String);
+    expect(deck([GEARS])).toContain(`${PACK}08`);
+    expect(() => scenarioWithPacks("rhino", house([GEARS, GEARS]), [pack])).toThrow(/added twice/);
+    expect(() => scenarioWithPacks("rhino", house([GEARS], [GEARS]), [pack])).toThrow(/already in the game/);
+    expect(() => scenarioWithPacks("thunderbolts", house([GEARS]), [pack])).toThrow(/modular set pool or a side/);
+    // At the pack's own scenario every house set is checked the same way.
+    expect(() => scenarioWithPacks(SCENARIO, house(["bomb_scare", "bomb_scare"]), [pack])).toThrow(/added twice/);
+    expect(() => scenarioWithPacks(SCENARIO, house(["standard_ii"]), [pack])).toThrow(/Standard or Expert/);
+    expect(() => scenarioWithPacks(SCENARIO, house([SCENARIO]), [pack])).toThrow(/already/);
+    expect(scenarioWithPacks(SCENARIO, house(["bomb_scare"]), [pack]).encounterDeck!.map(String)).toContain("01109");
+  });
+
   it("refuses another scenario's set and a set that is not a pack set at a pack scenario", () => {
     expect(() => scenarioWithPacks("rhino", { ...seat, modularSetIds: [SCENARIO] }, [pack])).toThrow(
       /belongs to another scenario|already part of/,

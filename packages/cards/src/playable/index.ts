@@ -77,6 +77,7 @@ import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
   checkModularPickCount,
+  modularPickProblem,
   chooseModularSets,
   extraModularCardIds,
 } from "../modular-pool.js";
@@ -337,6 +338,10 @@ function withHouseModularSets(
   for (const id of house) {
     if (UNSCRIPTED_ENCOUNTER_SET_IDS.has(id)) throw new Error(`${scenarioId}: ${id} is not playable yet`);
     if (dealt.has(id)) throw new Error(`${scenarioId}: ${id} is already in the game`);
+    // The same eligibility a counted pick meets (a Standard, Expert or difficulty set, a nemesis or campaign set, another
+    // scenario's set, a single-villain set at several villains), relaxing only the count.
+    const problem = scenario ? modularPickProblem(scenario, id, PLAYABLE_ENCOUNTER_SETS) : null;
+    if (problem) throw new Error(`${scenarioId}: ${problem}`);
   }
   return withModularSetContents(built, modularSetContents(house, PLAYABLE_CARDS));
 }

@@ -76,6 +76,7 @@ describe("Infinites as a house set", () => {
         PLAYABLE_SCENARIO_RECORDS.some((record) => record.id === candidate.id) &&
         !offersGenePoolThreat(scenarioGameSetIds(candidate)),
     );
+    expect(scenario).toBeDefined();
     if (!scenario) return;
     const config = playableScenario(scenario.id as string, {
       ...base,
@@ -83,6 +84,14 @@ describe("Infinites as a house set", () => {
       genePoolThreatPerPlayer: 2,
     });
     expect(setupOptionsOf(config)).toEqual([["infinites.gene-pool-threat", 2]]);
+    const created = createGame(config, PLAYABLE_DEPS);
+    expect(created.ok).toBe(true);
+    if (created.ok) {
+      const genePool = created.state.villainArea
+        .map((id) => created.state.instances[id]!)
+        .find((instance) => instance.cardId === "45071");
+      expect(genePool?.threat ?? 0).toBeGreaterThanOrEqual(2);
+    }
     expect(genePoolThreatOffer([...scenarioGameSetIds(scenario), "infinites"])).not.toBeNull();
   });
 
@@ -93,6 +102,25 @@ describe("Infinites as a house set", () => {
     expect(() => playableScenario("rhino", { ...base, houseModularSetIds: ["infinites", "infinites"] })).toThrow(
       "added twice",
     );
+  });
+});
+
+describe("a house set must be eligible as a counted pick would be", () => {
+  const house = (scenarioId: string, ids: string[]) =>
+    playableScenario(scenarioId, { ...base, houseModularSetIds: ids });
+  it("refuses a difficulty set and an id that is no modular set", () => {
+    expect(() => house("rhino", ["standard_ii"])).toThrow(/Standard or Expert/);
+    expect(() => house("rhino", ["standard"])).toThrow(/Standard or Expert/);
+    expect(() => house("rhino", ["expert"])).toThrow(/Standard or Expert/);
+    expect(() => house("rhino", ["rhino"])).toThrow(/already/);
+    expect(() => house("rhino", ["not_a_set"])).toThrow(/not an encounter set/);
+  });
+  it("refuses a pairing the scenario refuses when counted (a single-villain set at several villains)", () => {
+    const multi = PLAYABLE_SCENARIO_RECORDS.find((s) => s.multipleVillains && s.id !== "breakout");
+    const single = MODULAR_SETS.find((set) => set.singleVillainOnly);
+    expect(multi).toBeDefined();
+    expect(single).toBeDefined();
+    expect(() => house(multi!.id as string, [single!.id as string])).toThrow(/more than one villain/);
   });
 });
 

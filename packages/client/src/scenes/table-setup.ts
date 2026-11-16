@@ -515,24 +515,33 @@ export class TableSetupScene extends Phaser.Scene {
         currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
         tableRulesOf(appSession().settings),
       );
-      const config = buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions);
-      previewStartStageIndex = config.villainStartStageIndex;
-      preview = tableSetupPreviewOf(
-        config,
-        scenario,
-        this.#draft.difficulty,
-        currentCardsById(),
-        currentEncounterSets(),
-        undefined,
-        blindRevealOf(sessionOptions, null),
-        sessionOptions.modes?.skirmish?.villainVersion,
-      );
-      compositionRows = compositionRowsOf(preview.encounterDeck);
-      whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
-      if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
-      nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
-      gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
-      encounterDeckSize = preview.encounterDeckSize;
+      // A builder refusal (a stale or hand-edited save, a house set the scenario cannot take) is a setup problem shown
+      // on the screen, which also keeps Play off, not an error thrown while drawing.
+      let config: ReturnType<typeof buildScenarioWithLoadedPacks> | null = null;
+      try {
+        config = buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions);
+      } catch (error) {
+        this.#dealBlocked = error instanceof Error ? error.message : String(error);
+      }
+      if (config) {
+        previewStartStageIndex = config.villainStartStageIndex;
+        preview = tableSetupPreviewOf(
+          config,
+          scenario,
+          this.#draft.difficulty,
+          currentCardsById(),
+          currentEncounterSets(),
+          undefined,
+          blindRevealOf(sessionOptions, null),
+          sessionOptions.modes?.skirmish?.villainVersion,
+        );
+        compositionRows = compositionRowsOf(preview.encounterDeck);
+        whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
+        if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
+        nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
+        gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
+        encounterDeckSize = preview.encounterDeckSize;
+      }
     }
     // The cards say where the game begins: Apocalypse's easier start moves the standard card's stage to I.
     const difficultyCards = difficultyCardsFor(
