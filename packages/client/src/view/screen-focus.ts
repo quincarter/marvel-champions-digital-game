@@ -238,6 +238,8 @@ export interface DeckCheckFocusInput {
   readonly activeTab?: "curve" | "cards" | "aspect";
   /** Every card in the deck's own grid, in group-then-name order — wide always (already narrowed by `filterChipIds`, when one is selected), narrow only while the Cards tab is active. */
   readonly cardIds: readonly string[];
+  /** The face tiles listed above the grid (identity and multi-faced cards, issue #754), as `<slot>.<tile>` ids, ahead of the cards. */
+  readonly faceIds?: readonly string[];
   /** Wide only: the left rail's type filter chip ids (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), between Back and the grid. */
   readonly filterChipIds?: readonly string[];
   /** The card list's sort control is drawn: a stop ahead of the cards. */
@@ -255,7 +257,7 @@ export interface DeckCheckFocusInput {
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
   const sort = input.showSort ? ["deck-sort"] : [];
-  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  const cardStops = [...(input.faceIds ?? []).map((id) => `face:${id}`), ...input.cardIds.map((id) => `card:${id}`)];
   // The sort is drawn in the panel on wide, beside Edit deck, and over the cards on narrow.
   if (input.wide)
     return [

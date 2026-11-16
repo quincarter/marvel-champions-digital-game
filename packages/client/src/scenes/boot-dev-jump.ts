@@ -241,8 +241,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
 
   if (screen === "deck-check" || screen === "deck-builder") {
-    const deck = preconDecks(POOL_VERSION)[0]!;
-    if (screen === "deck-check") return { key: SCENES.deckCheck, data: { deck } satisfies DeckCheckSceneData };
+    // `&deck=<precon id>` picks another starter (default the first); `&tab=cards` opens the narrow layout's card list.
+    const all = preconDecks(POOL_VERSION);
+    const deck = all.find((d) => (d.id as string) === params.get("deck")) ?? all[0]!;
+    if (screen === "deck-check") {
+      const tab = params.get("tab");
+      const data: DeckCheckSceneData = { deck, ...(tab === "cards" || tab === "aspect" ? { tab } : {}) };
+      return { key: SCENES.deckCheck, data };
+    }
     return { key: SCENES.deckBuilder, data: { deck } satisfies DeckBuilderSceneData };
   }
 
