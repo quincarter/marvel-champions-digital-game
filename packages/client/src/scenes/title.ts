@@ -113,6 +113,7 @@ import { musicSlotBeside } from "../view/music-player.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import { themeSlotBeside } from "../view/theme-button.js";
 import { drawStoreIconButton } from "../ui/store-icon.js";
+import { drawDiscordIconButton, type DiscordIconButton } from "../ui/discord-icon.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
@@ -184,6 +185,8 @@ export class TitleScene extends Phaser.Scene {
   /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
   #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
+  /** The top row's Discord icon (tablet/desktop), for its focus label; rebuilt with the screen. */
+  #discordIcon: DiscordIconButton | null = null;
 
   constructor() {
     super(SCENES.title);
@@ -277,7 +280,10 @@ export class TitleScene extends Phaser.Scene {
       // The whole icon row beside the menu, not just the note and the bug.
       topRow: true,
       // The press glyphs on the top row and the notice bar show on the focused stop.
-      onFocusChange: () => this.#hints?.refresh(),
+      onFocusChange: () => {
+        this.#hints?.refresh();
+        this.#discordIcon?.setFocused(this.#route?.focused === "chrome:discord");
+      },
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
@@ -455,6 +461,7 @@ export class TitleScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#discordIcon = null;
     destroyChildren(this);
     this.#hints?.reset();
 
@@ -866,7 +873,8 @@ export class TitleScene extends Phaser.Scene {
     const openDiscord = (): void => openExternal(DISCORD_INVITE_URL);
     const discordText = this.add.text(0, layout.footer.y, "Discord ↗", textStyle(typeRole.label, textColor));
     discordText.setX(linkText.x - 24 - discordText.width);
-    const discord = discordText.x - 6 >= coverageText.x + coverageText.width + 8;
+    // Tablets and desktops have the Discord icon in the top row instead (#759): never both at once.
+    const discord = !layout.split && discordText.x - 6 >= coverageText.x + coverageText.width + 8;
     if (discord) {
       this.add
         .graphics()
@@ -950,6 +958,17 @@ export class TitleScene extends Phaser.Scene {
         when: () => this.#route?.focused === "chrome:mod-store",
       });
     }
+    // The Discord icon, left of the storefront (#759); the footer link stands in for it on a phone.
+    const discordIconRect = storeIconRect ? themeSlotBeside(storeIconRect) : null;
+    if (discordIconRect) {
+      const discordIcon = drawDiscordIconButton(this, discordIconRect, openDiscord);
+      this.#stops.set("chrome:discord", { rect: discordIconRect, activate: openDiscord });
+      this.#hints?.hang(discordIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
+        ground: onDark ? "ink" : "paper",
+        when: () => this.#route?.focused === "chrome:discord",
+      });
+      this.#discordIcon = discordIcon;
+    }
     for (const [key, rect] of topRow) {
       this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
         ground: onDark ? "ink" : "paper",
@@ -975,6 +994,7 @@ export class TitleScene extends Phaser.Scene {
         }),
         "rank-badge",
         ...(storeIconRect ? ["chrome:mod-store"] : []),
+        ...(discordIconRect ? ["chrome:discord"] : []),
       ],
       this.#stops,
     );
