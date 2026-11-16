@@ -33,6 +33,7 @@ import {
   clampMusicVolume,
   defaultSettings,
   DECK_SIGNATURE_CARDS_VALUES,
+  DECK_LIST_ON_OPEN_VALUES,
   resolutionPixelsOf,
   type Settings,
   type Resolution,
@@ -56,6 +57,7 @@ const BOOLEAN_FIELDS = [
   "musicShuffle",
   "confirmBeforeEndTurn",
   "deckCopyLimits",
+  "showPreconDecks",
   "notOfferedNotices",
   "deckCountsHero",
   "deckCountsEncounter",
@@ -153,6 +155,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const signatureValue = DECK_SIGNATURE_CARDS_VALUES.find((value) => value === source["deckSignatureCards"]);
   if (signatureValue !== undefined) out.deckSignatureCards = signatureValue;
+  const deckListValue = DECK_LIST_ON_OPEN_VALUES.find((value) => value === source["deckListOnOpen"]);
+  if (deckListValue !== undefined) out.deckListOnOpen = deckListValue;
   const cardLanguage = source["cardLanguage"];
   if (typeof cardLanguage === "string" && isCardLanguage(cardLanguage)) out.cardLanguage = cardLanguage;
   const resolution = source["textResolution"];

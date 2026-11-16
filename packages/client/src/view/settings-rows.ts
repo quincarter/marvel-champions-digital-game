@@ -44,6 +44,8 @@ import {
   INSPECT_CARD_VALUES,
   type CardSize,
   PLAY_AREA_ORDER_VALUES,
+  DECK_LIST_ON_OPEN_VALUES,
+  type DeckListOnOpen,
   type PlayAreaOrder,
   type DisplayMode,
   type FirstPlayerTokenMotion,
@@ -81,6 +83,7 @@ export type SettingsRowId =
   | "music-shuffle"
   | "confirm-end-turn"
   | "deck-copy-limits"
+  | "show-precon-decks"
   | "same-name-conflict"
   | "deck-counts-hero"
   | "deck-counts-encounter"
@@ -216,6 +219,20 @@ export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
   };
 }
 
+/**
+ * "Show preconstructed decks" under Gameplay (issue #755): the Decks screen's list. Settings only, so not in
+ * `settingsRowInfoOf`. It never takes a precon out of Take your seats.
+ */
+export function showPreconDecksRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "show-precon-decks",
+    title: "Show preconstructed decks",
+    detail:
+      "Lists the preconstructed decks on the Decks screen. Off hides them there; Take your seats still offers every one, so a table can always be filled.",
+    on: settings.showPreconDecks,
+  };
+}
+
 /** "Faded art on campaign pages" under Animation and display (issue #609). Settings only, not Pause's in-game group, so it is not in `settingsRowInfoOf`. */
 export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
@@ -322,6 +339,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
     case "deck-copy-limits":
       return { ...settings, deckCopyLimits: !settings.deckCopyLimits };
+    case "show-precon-decks":
+      return { ...settings, showPreconDecks: !settings.showPreconDecks };
     case "not-offered-notices":
       return { ...settings, notOfferedNotices: !settings.notOfferedNotices };
     case "same-name-conflict":
@@ -814,6 +833,42 @@ export function playAreaOrderRowInfoOf(settings: Settings): PlayAreaOrderRowInfo
 /** `settings` with the play area order set; a value that is not one of the four changes nothing. */
 export function nextSettingsAfterPlayAreaOrder(settings: Settings, value: PlayAreaOrder): Settings {
   return PLAY_AREA_ORDER_VALUES.includes(value) ? { ...settings, playAreaOrder: value } : settings;
+}
+
+export const DECK_LIST_ON_OPEN_LABELS: Readonly<Record<DeckListOnOpen, string>> = {
+  all: "All",
+  precon: "Precons",
+  build: "Mine",
+  community: "Shared",
+  last: "Last",
+};
+
+export interface DeckListOnOpenRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: DeckListOnOpen; readonly label: string }[];
+  readonly selected: DeckListOnOpen;
+}
+
+/** "Deck list on open" under Gameplay (#755): which list the Decks screen opens on. Hiding precons drops that option. */
+export function deckListOnOpenRowInfoOf(settings: Settings): DeckListOnOpenRowInfo {
+  return {
+    title: "Deck list on open",
+    detail:
+      "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Mine), only the community decks (Shared), or whichever you had open last. The list chips switch it any time.",
+    options: DECK_LIST_ON_OPEN_VALUES.filter((value) => value !== "precon" || settings.showPreconDecks).map(
+      (value) => ({
+        value,
+        label: DECK_LIST_ON_OPEN_LABELS[value],
+      }),
+    ),
+    selected: settings.deckListOnOpen === "precon" && !settings.showPreconDecks ? "all" : settings.deckListOnOpen,
+  };
+}
+
+/** `settings` with the opening list set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterDeckListOnOpen(settings: Settings, value: DeckListOnOpen): Settings {
+  return DECK_LIST_ON_OPEN_VALUES.includes(value) ? { ...settings, deckListOnOpen: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

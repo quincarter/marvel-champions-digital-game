@@ -15,6 +15,9 @@ import {
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
   playAreaOrderRowInfoOf,
+  deckListOnOpenRowInfoOf,
+  nextSettingsAfterDeckListOnOpen,
+  showPreconDecksRowInfoOf,
   nextSettingsAfterPlayAreaOrder,
   inspectCardRowInfoOf,
   nextSettingsAfterInspectCard,
@@ -58,6 +61,8 @@ const BASE: Settings = {
   confirmBeforeEndTurn: true,
   deckSignatureCards: "free",
   deckCopyLimits: false,
+  deckListOnOpen: "all",
+  showPreconDecks: true,
   notOfferedNotices: true,
   sameNameHeroAllyConflict: true,
   deckCountsHero: true,
@@ -117,6 +122,8 @@ describe("settingsRowInfoOf", () => {
       confirmBeforeEndTurn: false,
       deckSignatureCards: "free",
       deckCopyLimits: false,
+      deckListOnOpen: "all",
+      showPreconDecks: true,
       notOfferedNotices: false,
       sameNameHeroAllyConflict: false,
       deckCountsHero: false,
@@ -675,5 +682,35 @@ describe("Play area order row (#768)", () => {
   test("choosing an order sets it; a value that is not an order changes nothing", () => {
     expect(nextSettingsAfterPlayAreaOrder(BASE, "cost").playAreaOrder).toBe("cost");
     expect(nextSettingsAfterPlayAreaOrder(BASE, "bogus" as never)).toBe(BASE);
+  });
+});
+
+describe("Deck list settings (#755)", () => {
+  test("Deck list on open offers all five lists, All selected by default", () => {
+    const info = deckListOnOpenRowInfoOf(BASE);
+    expect(info.title).toBe("Deck list on open");
+    expect(info.options.map((o) => o.value)).toEqual(["all", "precon", "build", "community", "last"]);
+    expect(info.selected).toBe("all");
+  });
+
+  test("choosing a list sets it; a value that is not a list changes nothing", () => {
+    expect(nextSettingsAfterDeckListOnOpen(BASE, "community").deckListOnOpen).toBe("community");
+    expect(nextSettingsAfterDeckListOnOpen(BASE, "last").deckListOnOpen).toBe("last");
+    expect(nextSettingsAfterDeckListOnOpen(BASE, "bogus" as never)).toBe(BASE);
+  });
+
+  test("with the precons hidden the Preconstructed choice goes, and a saved one reads as All", () => {
+    const hidden = { ...BASE, showPreconDecks: false, deckListOnOpen: "precon" as const };
+    const info = deckListOnOpenRowInfoOf(hidden);
+    expect(info.options.map((o) => o.value)).not.toContain("precon");
+    expect(info.selected).toBe("all");
+  });
+
+  test("the Show preconstructed decks toggle is on by default and flips", () => {
+    expect(showPreconDecksRowInfoOf(BASE).on).toBe(true);
+    const off = nextSettingsAfterToggle(BASE, "show-precon-decks", 1);
+    expect(off.showPreconDecks).toBe(false);
+    expect(showPreconDecksRowInfoOf(off).on).toBe(false);
+    expect(nextSettingsAfterToggle(off, "show-precon-decks", 1).showPreconDecks).toBe(true);
   });
 });

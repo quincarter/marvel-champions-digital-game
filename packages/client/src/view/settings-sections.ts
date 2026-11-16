@@ -20,6 +20,7 @@ export type SettingsItemId =
   | "token-motion"
   | "fade-color"
   | "deck-signature"
+  | "deck-list-on-open"
   | "display-mode"
   | "resolution"
   | "couch-mode"
@@ -105,7 +106,15 @@ export function settingsSectionsOf(input: {
     {
       id: "gameplay",
       title: "Gameplay",
-      items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict", "deck-signature", "deck-copy-limits"],
+      items: [
+        "confirm-end-turn",
+        "not-offered-notices",
+        "same-name-conflict",
+        "deck-signature",
+        "deck-copy-limits",
+        "deck-list-on-open",
+        "show-precon-decks",
+      ],
     },
     {
       id: "cards-left",

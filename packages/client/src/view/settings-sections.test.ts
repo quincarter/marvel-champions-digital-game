@@ -22,6 +22,8 @@ describe("settingsSectionsOf", () => {
       "token-motion",
       "deck-signature",
       "deck-copy-limits",
+      "deck-list-on-open",
+      "show-precon-decks",
       "faded-campaign-art",
       "fade-color",
       "villain-auto",

@@ -165,6 +165,15 @@ import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { cardSizeFactor } from "../settings.js";
 import {
+  deckListChips,
+  deckListShows,
+  nextDeckList,
+  openingDeckList,
+  readLastDeckList,
+  writeLastDeckList,
+  type DeckListId,
+} from "../view/deck-list-open.js";
+import {
   deckSourcesOf,
   heroAspectsOf,
   heroRosterMatches,
@@ -216,6 +225,7 @@ import {
 } from "../ui/widgets.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { appSession, deckStorage } from "../session.js";
+import { isCommunityDeckId } from "../view/community-deck-id.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { TitleSceneData } from "./title.js";
@@ -439,8 +449,8 @@ export class DecksScene extends Phaser.Scene {
   /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
   #notesList: McVirtualList | null = null;
   #notesScroll = new ListScroll();
-  /** The "Community" quick filter: only the community group shows. */
-  #communityOnly = false;
+  /** The list shown alone (the Preconstructed, Your decks or Community chip), or null for all three (#755). */
+  #deckList: DeckListId | null = null;
   /** `communityOffers` for the saved decks and unlocks it was last built from (both are replaced, never mutated). */
   #offersCache: {
     readonly epoch: number;
@@ -495,7 +505,11 @@ export class DecksScene extends Phaser.Scene {
     this.#listScroll = new ListScroll();
     this.#poolListScroll = new ListScroll();
     this.#notesScroll = new ListScroll();
-    this.#communityOnly = false;
+    // A deck asked for by id (just saved, or sent here) is looked for in every list, so it is never filtered away.
+    const openSettings = appSession().settings;
+    this.#deckList = data.focusDeckId
+      ? null
+      : openingDeckList(openSettings.deckListOnOpen, readLastDeckList(), openSettings.showPreconDecks);
     this.#offersCache = null;
     this.#focusedOnce = false;
     this.#fallbackSelection = false;
@@ -913,7 +927,14 @@ export class DecksScene extends Phaser.Scene {
       !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId) ||
       (this.#fallbackSelection && wantedExists)
     ) {
-      this.#selectedDeckId = (wantedExists ? wanted : (allOptions[0]?.deck.id as string | undefined)) ?? null;
+      // The first deck on the list as it is drawn (a hidden precon or an unopened list is not it).
+      const firstShown = allOptions.find((o) =>
+        o.deck.source.kind === "precon"
+          ? deckListShows("precon", this.#deckList, appSession().settings.showPreconDecks)
+          : deckListShows(isCommunityDeckId(o.deck.id as string) ? "community" : "build", this.#deckList, true),
+      );
+      this.#selectedDeckId =
+        (wantedExists ? wanted : ((firstShown ?? allOptions[0])?.deck.id as string | undefined)) ?? null;
       this.#fallbackSelection = !wantedExists;
     }
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
@@ -1430,6 +1451,8 @@ export class DecksScene extends Phaser.Scene {
       });
     }
     for (const source of deckSourcesOf(decks)) {
+      // The Preconstructed list chip below is the same narrowing.
+      if (source === "precon") continue;
       defs.push({
         id: `source:${source}`,
         text: SOURCE_LABEL[source],
@@ -1440,16 +1463,18 @@ export class DecksScene extends Phaser.Scene {
         },
       });
     }
-    defs.push({
-      id: "community",
-      text: "Community",
-      selected: this.#communityOnly,
-      onClick: () => {
-        this.#communityOnly = !this.#communityOnly;
-        this.#listScroll.reset();
-        this.#rebuild();
-      },
-    });
+    for (const chip of deckListChips(appSession().settings.showPreconDecks)) {
+      defs.push({
+        id: chip.id === "community" ? "community" : `list:${chip.id}`,
+        text: chip.text,
+        selected: this.#deckList === chip.id,
+        onClick: () => {
+          this.#setList(nextDeckList(this.#deckList, chip.id));
+          this.#listScroll.reset();
+          this.#rebuild();
+        },
+      });
+    }
     defs.push({
       id: "legal-only",
       text: "Legal only",
@@ -1549,14 +1574,17 @@ export class DecksScene extends Phaser.Scene {
       ranked(option) && heroRosterMatches(option.deck, identityOf(option), chips, option.blockedReason);
     const isSelected = (option: DeckOption): boolean => (option.deck.id as string) === this.#selectedDeckId;
 
-    // "Community" narrows the list to the community group; a source chip (Precon, Imported, Built) narrows it to the
-    // player's own list, so the community group steps aside.
-    const own = this.#communityOnly ? [] : allOptions;
-    const precons = own.filter((o) => o.deck.source.kind === "precon");
-    const saved = own.filter((o) => o.deck.source.kind !== "precon");
+    // A list chip narrows to that list; a source chip (Imported, Built) narrows to the player's own list, so the
+    // community group steps aside. Hidden precons stay out (#755) except the one selected, which is never filtered away.
+    const showPrecon = appSession().settings.showPreconDecks;
+    const preconKind = (o: DeckOption): boolean => o.deck.source.kind === "precon";
+    const precons = allOptions.filter(
+      (o) => preconKind(o) && (deckListShows("precon", this.#deckList, showPrecon) || (!showPrecon && isSelected(o))),
+    );
+    const saved = deckListShows("build", this.#deckList, showPrecon) ? allOptions.filter((o) => !preconKind(o)) : [];
     const community = byScore(
       withSelectionPinned(
-        this.#filter.source ? [] : offers,
+        this.#filter.source || !deckListShows("community", this.#deckList, showPrecon) ? [] : offers,
         (offer) =>
           ranked(offer.option) &&
           communityOfferMatches(offer, {
@@ -1592,6 +1620,12 @@ export class DecksScene extends Phaser.Scene {
     );
     if (rows.length === 0) rows.push({ kind: "message", text: "No decks match this search." });
     return rows;
+  }
+
+  /** Shows one list alone (or all three) and remembers it for "Last used" (#755). */
+  #setList(list: DeckListId | null): void {
+    this.#deckList = list;
+    writeLastDeckList(list);
   }
 
   /** A deck row's picture, per visit, so a redraw never reshuffles a hero with several pictures. */
@@ -2944,7 +2978,7 @@ export class DecksScene extends Phaser.Scene {
       this.#savedDecks = await deckStorage().list();
       this.#selectedDeckId = copy.id as string;
       this.#scrollToDeckId = copy.id as string;
-      this.#communityOnly = false;
+      this.#setList(null);
       this.#status = {
         text: `Added "${copy.name}" ${communityCredit(offer.entry)} to your decks. Edit it like any deck.`,
         tone: "success",

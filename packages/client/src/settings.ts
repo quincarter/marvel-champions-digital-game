@@ -41,6 +41,10 @@ export function clampGlyphSize(percent: number): number {
 export const DECK_SIGNATURE_CARDS_VALUES = ["free", "standard", "hidden"] as const;
 export type DeckSignatureCards = (typeof DECK_SIGNATURE_CARDS_VALUES)[number];
 
+/** Which deck list the Decks screen opens on (#755): every list at once (as it has always opened), one of the three, or the one left open last. */
+export const DECK_LIST_ON_OPEN_VALUES = ["all", "precon", "build", "community", "last"] as const;
+export type DeckListOnOpen = (typeof DECK_LIST_ON_OPEN_VALUES)[number];
+
 export interface Settings {
   readonly reducedMotion: boolean;
   /** Text resolution multiplier; set from the device pixel ratio so text stays sharp. */
@@ -98,6 +102,13 @@ export interface Settings {
   readonly deckSignatureCards: DeckSignatureCards;
   /** The deck builder refuses an add that would break a copy limit (issue #531). Defaults off. */
   readonly deckCopyLimits: boolean;
+  /** The list the Decks screen opens on (#755). Defaults to all, the list of everything it has always opened to. */
+  readonly deckListOnOpen: DeckListOnOpen;
+  /**
+   * Show the preconstructed decks on the Decks screen (#755). Defaults on. Only that screen's browse list: Take your
+   * seats still offers every precon, so a table can always be filled.
+   */
+  readonly showPreconDecks: boolean;
   /**
    * Open a notice the first time in a game that one of your cards' interrupts or responses answered what happened but
    * could not be used: no valid target, or a cost you cannot pay (#431, Iron Lad with no other ready Avenger ally). The
@@ -471,6 +482,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     confirmBeforeEndTurn: true,
     deckSignatureCards: "free",
     deckCopyLimits: false,
+    deckListOnOpen: "all",
+    showPreconDecks: true,
     notOfferedNotices: true,
     deckCountsHero: true,
     deckCountsEncounter: false,

@@ -256,6 +256,14 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"playAreaOrder":2}')).toEqual({});
   });
 
+  test("deckListOnOpen: only the five known lists are read; showPreconDecks is a boolean", () => {
+    expect(parseSettingsOverrides('{"deckListOnOpen":"last"}')).toEqual({ deckListOnOpen: "last" });
+    expect(parseSettingsOverrides('{"deckListOnOpen":"precon"}')).toEqual({ deckListOnOpen: "precon" });
+    expect(parseSettingsOverrides('{"deckListOnOpen":"mine"}')).toEqual({});
+    expect(parseSettingsOverrides('{"showPreconDecks":false}')).toEqual({ showPreconDecks: false });
+    expect(parseSettingsOverrides('{"showPreconDecks":"no"}')).toEqual({});
+  });
+
   test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });

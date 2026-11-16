@@ -1,0 +1,98 @@
+import { describe, expect, test } from "vitest";
+import {
+  DECK_LIST_LAST_KEY,
+  deckListChips,
+  deckListShows,
+  nextDeckList,
+  openingDeckList,
+  readLastDeckList,
+  writeLastDeckList,
+} from "./deck-list-open.js";
+
+describe("openingDeckList (#755)", () => {
+  test("the default opens every list together, as the screen always has", () => {
+    expect(openingDeckList("all", null, true)).toBeNull();
+  });
+
+  test("a named list opens alone", () => {
+    expect(openingDeckList("precon", null, true)).toBe("precon");
+    expect(openingDeckList("build", "community", true)).toBe("build");
+    expect(openingDeckList("community", null, true)).toBe("community");
+  });
+
+  test("last used opens the list left open last, or all when none was", () => {
+    expect(openingDeckList("last", "community", true)).toBe("community");
+    expect(openingDeckList("last", null, true)).toBeNull();
+  });
+
+  test("hidden precons: never opens on the Preconstructed list", () => {
+    expect(openingDeckList("precon", null, false)).toBeNull();
+    expect(openingDeckList("last", "precon", false)).toBeNull();
+    expect(openingDeckList("build", null, false)).toBe("build");
+  });
+});
+
+describe("deckListShows", () => {
+  test("all shows every list; one list shows only itself", () => {
+    for (const group of ["precon", "build", "community"] as const) expect(deckListShows(group, null, true)).toBe(true);
+    expect(deckListShows("build", "build", true)).toBe(true);
+    expect(deckListShows("precon", "build", true)).toBe(false);
+    expect(deckListShows("community", "precon", true)).toBe(false);
+  });
+
+  test("hidden precons never show, whichever list is open", () => {
+    expect(deckListShows("precon", null, false)).toBe(false);
+    expect(deckListShows("precon", "precon", false)).toBe(false);
+    expect(deckListShows("build", null, false)).toBe(true);
+    expect(deckListShows("community", null, false)).toBe(true);
+  });
+});
+
+describe("the list chips", () => {
+  test("three lists, and two once the precons are hidden", () => {
+    expect(deckListChips(true).map((c) => c.id)).toEqual(["precon", "build", "community"]);
+    expect(deckListChips(false).map((c) => c.id)).toEqual(["build", "community"]);
+  });
+
+  test("tapping a chip opens its list; tapping the open one goes back to all", () => {
+    expect(nextDeckList(null, "build")).toBe("build");
+    expect(nextDeckList("build", "community")).toBe("community");
+    expect(nextDeckList("community", "community")).toBeNull();
+  });
+});
+
+describe("the remembered list", () => {
+  const memory = (): { store: Map<string, string>; storage: Pick<Storage, "getItem" | "setItem"> } => {
+    const store = new Map<string, string>();
+    return {
+      store,
+      storage: { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => void store.set(key, value) },
+    };
+  };
+
+  test("round-trips a list, and all reads back as null", () => {
+    const { storage, store } = memory();
+    expect(readLastDeckList(storage)).toBeNull();
+    writeLastDeckList("community", storage);
+    expect(store.get(DECK_LIST_LAST_KEY)).toBe("community");
+    expect(readLastDeckList(storage)).toBe("community");
+    writeLastDeckList(null, storage);
+    expect(readLastDeckList(storage)).toBeNull();
+  });
+
+  test("an unknown value or storage that throws is no list", () => {
+    const { storage, store } = memory();
+    store.set(DECK_LIST_LAST_KEY, "bogus");
+    expect(readLastDeckList(storage)).toBeNull();
+    const broken = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("full");
+      },
+    };
+    expect(readLastDeckList(broken)).toBeNull();
+    expect(() => writeLastDeckList("build", broken)).not.toThrow();
+  });
+});
