@@ -43,6 +43,8 @@ import {
   type InspectCard,
   INSPECT_CARD_VALUES,
   type CardSize,
+  PLAY_AREA_ORDER_VALUES,
+  type PlayAreaOrder,
   type DisplayMode,
   type FirstPlayerTokenMotion,
   CAMPAIGN_FADE_COLOR_VALUES,
@@ -782,6 +784,36 @@ export function cardSizeRowInfoOf(settings: Settings): CardSizeRowInfo {
 /** `settings` with the card size set; a value that is not one of the three changes nothing. */
 export function nextSettingsAfterCardSize(settings: Settings, value: CardSize): Settings {
   return CARD_SIZE_VALUES.includes(value) ? { ...settings, cardSize: value } : settings;
+}
+
+export const PLAY_AREA_ORDER_LABELS: Readonly<Record<PlayAreaOrder, string>> = {
+  played: "As played",
+  type: "By type",
+  cost: "By cost",
+  name: "By name",
+};
+
+export interface PlayAreaOrderRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: PlayAreaOrder; readonly label: string }[];
+  readonly selected: PlayAreaOrder;
+}
+
+/** "Play area order" under Cards (#768): how the cards in a play area are laid out. Only the drawing changes. */
+export function playAreaOrderRowInfoOf(settings: Settings): PlayAreaOrderRowInfo {
+  return {
+    title: "Play area order",
+    detail:
+      "How the cards in your play area are laid out. As played keeps the order they entered play. By type groups allies, supports, upgrades, then the rest; by cost and by name sort them. Only the table changes, never the game.",
+    options: PLAY_AREA_ORDER_VALUES.map((value) => ({ value, label: PLAY_AREA_ORDER_LABELS[value] })),
+    selected: settings.playAreaOrder,
+  };
+}
+
+/** `settings` with the play area order set; a value that is not one of the four changes nothing. */
+export function nextSettingsAfterPlayAreaOrder(settings: Settings, value: PlayAreaOrder): Settings {
+  return PLAY_AREA_ORDER_VALUES.includes(value) ? { ...settings, playAreaOrder: value } : settings;
 }
 
 // ---------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import {
   nextGuidePrefsAfterRow,
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
+  playAreaOrderRowInfoOf,
+  nextSettingsAfterPlayAreaOrder,
   inspectCardRowInfoOf,
   nextSettingsAfterInspectCard,
   effectsVolumeRowInfoOf,
@@ -70,6 +72,7 @@ const BASE: Settings = {
   cardHoverScale: "2.5x",
   inspectCard: "large",
   cardSize: "standard",
+  playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
   ultronDroneArt: true,
@@ -128,6 +131,7 @@ describe("settingsRowInfoOf", () => {
       cardHoverScale: "2.5x",
       inspectCard: "large",
       cardSize: "standard",
+      playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
       ultronDroneArt: true,
@@ -657,5 +661,19 @@ describe("sharper text at the density the game draws at", () => {
     const on = nextSettingsAfterToggle({ ...base, textResolution: 1 }, "sharper-text", 2);
     expect(on.textResolution).toBe(2);
     expect(nextSettingsAfterToggle(on, "sharper-text", 2).textResolution).toBe(1);
+  });
+});
+
+describe("Play area order row (#768)", () => {
+  test("offers as played, by type, by cost and by name, as played selected by default", () => {
+    const info = playAreaOrderRowInfoOf(BASE);
+    expect(info.title).toBe("Play area order");
+    expect(info.options.map((o) => o.label)).toEqual(["As played", "By type", "By cost", "By name"]);
+    expect(info.selected).toBe("played");
+  });
+
+  test("choosing an order sets it; a value that is not an order changes nothing", () => {
+    expect(nextSettingsAfterPlayAreaOrder(BASE, "cost").playAreaOrder).toBe("cost");
+    expect(nextSettingsAfterPlayAreaOrder(BASE, "bogus" as never)).toBe(BASE);
   });
 });

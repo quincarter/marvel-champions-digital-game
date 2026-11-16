@@ -1158,7 +1158,15 @@ export class BoardScene extends Phaser.Scene {
     if (!state.game || state.perspectiveId === null) return null;
     // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
     const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
-    return this.#withDebugSideSchemes(boardModel(state.game, state.peekSeat ?? state.perspectiveId, gameDeps(), mine));
+    return this.#withDebugSideSchemes(
+      boardModel(
+        state.game,
+        state.peekSeat ?? state.perspectiveId,
+        gameDeps(),
+        mine,
+        appSession().settings.playAreaOrder,
+      ),
+    );
   }
 
   /**
@@ -1502,7 +1510,9 @@ export class BoardScene extends Phaser.Scene {
     this.#debugPad = pad;
     const state = appSession().store.state;
     if (state.game && state.perspectiveId) {
-      this.#model = this.#withDebugSideSchemes(boardModel(state.game, shownSeat(state)!, gameDeps()));
+      this.#model = this.#withDebugSideSchemes(
+        boardModel(state.game, shownSeat(state)!, gameDeps(), null, appSession().settings.playAreaOrder),
+      );
     }
     this.#draw();
   }
@@ -3241,7 +3251,13 @@ export class BoardScene extends Phaser.Scene {
     const cached = this.#heldModelCache;
     if (cached && cached.base === live && cached.game === game && cached.key === key) return cached.model;
     const model = this.#withDebugSideSchemes(
-      boardModel(withFacedownHeld(game, facedown), shownSeat(state)!, gameDeps()),
+      boardModel(
+        withFacedownHeld(game, facedown),
+        shownSeat(state)!,
+        gameDeps(),
+        null,
+        appSession().settings.playAreaOrder,
+      ),
     );
     this.#heldModelCache = { base: live, game, key, model };
     return model;

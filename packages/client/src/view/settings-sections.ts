@@ -10,6 +10,7 @@ import type { GuideSettingsRowId, SettingsRowId } from "./settings-rows.js";
 export type SettingsItemId =
   | SettingsRowId
   | "card-size"
+  | "play-area-order"
   | "card-hover"
   | "card-language"
   | "inspect-card"
@@ -121,6 +122,7 @@ export function settingsSectionsOf(input: {
       title: "Cards",
       items: [
         "card-size",
+        "play-area-order",
         "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),
         ...(input.cardHover ? (["card-hover"] as const) : []),

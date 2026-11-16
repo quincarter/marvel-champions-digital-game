@@ -249,6 +249,13 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"inspectCard":true}')).toEqual({});
   });
 
+  test("playAreaOrder: only the four known orders are read", () => {
+    expect(parseSettingsOverrides('{"playAreaOrder":"cost"}')).toEqual({ playAreaOrder: "cost" });
+    expect(parseSettingsOverrides('{"playAreaOrder":"name"}')).toEqual({ playAreaOrder: "name" });
+    expect(parseSettingsOverrides('{"playAreaOrder":"random"}')).toEqual({});
+    expect(parseSettingsOverrides('{"playAreaOrder":2}')).toEqual({});
+  });
+
   test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });

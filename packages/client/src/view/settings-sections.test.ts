@@ -14,6 +14,7 @@ describe("settingsSectionsOf", () => {
       ...settingsRowInfoOf(defaultSettings()).map((row) => row.id),
       ...guideRowIds,
       "card-size",
+      "play-area-order",
       "hero-art",
       "card-hover",
       "music-volume",

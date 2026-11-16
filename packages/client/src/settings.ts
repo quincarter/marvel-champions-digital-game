@@ -141,6 +141,8 @@ export interface Settings {
    * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
    */
   readonly cardSize: CardSize;
+  /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
+  readonly playAreaOrder: PlayAreaOrder;
   /**
    * Inspect on a phone held upright: "large" stacks a full-width scan over the text (issue #358), "sideBySide" is the
    * older small scan beside the text. Phone portrait only; every other form factor keeps its own layout. Defaults large.
@@ -318,6 +320,10 @@ export function resolutionPixelsOf(
 export type CampaignFadeColor = "grey" | "blue" | "red" | "purple" | "green";
 export const CAMPAIGN_FADE_COLOR_VALUES: readonly CampaignFadeColor[] = ["grey", "blue", "red", "purple", "green"];
 
+/** How your play area is drawn on the table (a view preference only; the engine keeps the order cards entered play). */
+export type PlayAreaOrder = "played" | "type" | "cost" | "name";
+export const PLAY_AREA_ORDER_VALUES: readonly PlayAreaOrder[] = ["played", "type", "cost", "name"];
+
 export type FirstPlayerTokenMotion = "toss" | "slide" | "bounce" | "spin" | "instant";
 export const FIRST_PLAYER_TOKEN_MOTION_VALUES: readonly FirstPlayerTokenMotion[] = [
   "toss",
@@ -479,6 +485,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     villainDockTable: true,
     cardHoverScale: "2.5x",
     cardSize: "standard",
+    playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,
     hoverVillainCard: true,

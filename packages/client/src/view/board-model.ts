@@ -91,6 +91,8 @@ import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
 import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
+import { sortPlayArea } from "./play-area-order.js";
+import type { PlayAreaOrder } from "../settings.js";
 import { aspectName } from "./aspect-stamp.js";
 import { formCardGroupIds, formCardTokens, otherFormFaceName } from "./form-cards.js";
 
@@ -1204,6 +1206,8 @@ export function boardModel(
   deps: EngineDeps,
   /** The viewer's legal actions, which say whether the shown top card can be played and why not. */
   actions: LegalActions | null = null,
+  /** How your play area is laid out (`Settings.playAreaOrder`); the engine's own order is never changed. */
+  playAreaOrder: PlayAreaOrder = "played",
 ): BoardModel {
   const me = getPlayer(state, perspectiveId);
   if (!me) throw new Error(`no seat ${perspectiveId}`);
@@ -1253,20 +1257,31 @@ export function boardModel(
     // the play area is where a player looks for them. The engine keeps them on
     // the identity's own `attachments`, not in `playArea`, so they are read
     // from there; what the encounter deck hangs on you stays on the identity.
-    myPlayArea: [
-      ...(getInstance(state, me.identity.instanceId)?.attachments ?? []).filter(
-        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id) && !inFormColumn.has(id),
-      ),
-      ...me.playArea.filter((id) => {
-        // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
-        // the enemies zone, not this player's own cards — `minionsOf` already draws it there.
-        if (isMinion(state, id)) return false;
-        // Form cards sit in their own column beside the play area (`formCards`).
-        if (inFormColumn.has(id)) return false;
-        const attachedTo = getInstance(state, id)?.attachedTo ?? null;
-        return attachedTo === null || attachedTo === me.identity.instanceId;
-      }),
-    ].map((id) => characterPanel(state, id, deps)),
+    myPlayArea: sortPlayArea(
+      [
+        ...(getInstance(state, me.identity.instanceId)?.attachments ?? []).filter(
+          (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id) && !inFormColumn.has(id),
+        ),
+        ...me.playArea.filter((id) => {
+          // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
+          // the enemies zone, not this player's own cards — `minionsOf` already draws it there.
+          if (isMinion(state, id)) return false;
+          // Form cards sit in their own column beside the play area (`formCards`).
+          if (inFormColumn.has(id)) return false;
+          const attachedTo = getInstance(state, id)?.attachedTo ?? null;
+          return attachedTo === null || attachedTo === me.identity.instanceId;
+        }),
+      ],
+      playAreaOrder,
+      (id) => {
+        const card = cardOf(state, id);
+        return {
+          type: card?.type,
+          cost: card && "cost" in card && typeof card.cost === "number" ? card.cost : null,
+          name: faceUpName(state, id),
+        };
+      },
+    ).map((id) => characterPanel(state, id, deps)),
     hand: [
       ...me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
       ...playableOutsideHandOf(state, perspectiveId, deps).map(({ id, from }) => ({
