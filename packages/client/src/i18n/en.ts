@@ -145,6 +145,8 @@ export const en = {
   "filters.label": "Filters{active} {arrow}",
   "scenario.noMatches": "No matches.",
   "scenario.seeAll": "SEE ALL",
+  "scenario.randomBox": "Random box",
+  "scenario.randomScenario": "Random scenario",
   "scenario.clear": "Clear",
   "scenario.selected": "SELECTED",
   "scenario.locked": "LOCKED",

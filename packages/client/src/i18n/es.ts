@@ -145,6 +145,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "filters.label": "Filtros{active} {arrow}",
   "scenario.noMatches": "Sin resultados.",
   "scenario.seeAll": "VER TODO",
+  "scenario.randomBox": "Pack aleatorio",
+  "scenario.randomScenario": "Escenario aleatorio",
   "scenario.clear": "Borrar",
   "scenario.selected": "ELEGIDO",
   "scenario.locked": "BLOQUEADO",

@@ -524,6 +524,8 @@ export interface ScenarioSelectFocusInput {
   readonly filtersToggle?: boolean;
   /** The list's own focus keys in reading order (a header stop per shelf, then the cards of the shelves left open); replaces the keys `scenarioIds` would give (#753). */
   readonly shelfStopKeys?: readonly string[];
+  /** The Random buttons drawn above the list (#762), in draw order: they come right before the list. */
+  readonly randomStops?: readonly string[];
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -536,6 +538,7 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     "scenario-search",
     ...(input.filtersToggle ? ["filters-toggle"] : []),
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
+    ...(input.randomStops ?? []),
     ...(input.shelfStopKeys
       ? input.shelfStopKeys
       : input.scenarioIds.length > 0

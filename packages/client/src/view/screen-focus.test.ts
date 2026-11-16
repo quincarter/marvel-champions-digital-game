@@ -680,12 +680,15 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Scenario select: folded shelves keep their header stop and drop their cards", () => {
+  test("Scenario select: folded shelves keep their header stop and drop their cards, Random sits before the list", () => {
     const order = scenarioSelectFocusOrder({
       scenarioIds: ["a", "b"],
+      randomStops: ["random-box", "random-scenario"],
       shelfStopKeys: ["scenario-shelf:core", "scenario-shelf:mod", "scenario:b"],
     });
-    expect(order.slice(order.indexOf("scenario-shelf:core"))).toEqual([
+    expect(order.slice(order.indexOf("random-box"))).toEqual([
+      "random-box",
+      "random-scenario",
       "scenario-shelf:core",
       "scenario-shelf:mod",
       "scenario:b",
