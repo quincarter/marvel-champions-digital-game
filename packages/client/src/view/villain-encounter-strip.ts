@@ -58,7 +58,12 @@ export function encounterStripOf(
     .filter((card) => dealtByBeat(card, shownEncounterIds.length))
     .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
   const fromSurge = new Set(encounter.dealt.filter((card) => card.fromSurge).map((card) => card.instanceId));
-  const surged = new Set(encounter.surged ?? []);
+  // SURGE shows once the screen is past the beat the surge came at; a fixture without beats shows it with the reveal.
+  const surged = new Set(
+    encounter.surgedAt
+      ? encounter.surgedAt.filter((entry) => entry.atBeat < shownEncounterIds.length).map((entry) => entry.instanceId)
+      : (encounter.surged ?? []),
+  );
   for (const card of encounter.revealed) {
     if (shown.has(card.instanceId) && !order.some((entry) => entry.instanceId === card.instanceId)) order.push(card);
   }

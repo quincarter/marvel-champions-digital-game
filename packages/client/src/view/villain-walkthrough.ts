@@ -257,6 +257,12 @@ export interface EncounterTracking {
   }[];
   /** The cards whose surge dealt another card (`surgeTriggered`), in order. Absent in hand-built fixtures. */
   readonly surged?: readonly InstanceId[];
+  /**
+   * `surged` with the beats that came before each surge, so the strip marks SURGE once the screen has got that far,
+   * not as soon as the card's reveal shows (issue #386's pacing; one command can hold the reveal and a later surge).
+   * Absent in hand-built fixtures, read as shown with the reveal.
+   */
+  readonly surgedAt?: readonly { readonly instanceId: InstanceId; readonly atBeat: number }[];
   /** The cards revealed so far, in order. */
   readonly revealed: readonly {
     readonly instanceId: InstanceId;
@@ -364,6 +370,7 @@ export function appendWalkthrough(
   let dealt = [...working.encounter.dealt];
   let revealed = [...working.encounter.revealed];
   let surged = [...(working.encounter.surged ?? [])];
+  let surgedAt = [...(working.encounter.surgedAt ?? [])];
   const surgeDealt = [...(working.surgeDealt ?? [])];
   const unmark = (id: InstanceId): void => {
     const i = surgeDealt.indexOf(id);
@@ -468,6 +475,7 @@ export function appendWalkthrough(
         dealt = [];
         revealed = [];
         surged = [];
+        surgedAt = [];
         tables = [];
       }
       activeIndex = stepIndex;
@@ -516,6 +524,7 @@ export function appendWalkthrough(
         break;
       case "surgeTriggered":
         surged.push(event.instanceId);
+        surgedAt.push({ instanceId: event.instanceId, atBeat: beatCount() });
         break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
@@ -683,6 +692,7 @@ export function appendWalkthrough(
       dealt,
       revealed,
       surged,
+      surgedAt,
       current:
         !complete && activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? (revealed.at(-1) ?? null) : null,
     },

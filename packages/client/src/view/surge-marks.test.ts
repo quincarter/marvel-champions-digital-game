@@ -201,6 +201,43 @@ describe("surge marks in the log and the recap (#764)", () => {
     expect(walk.surgeDealt).toEqual([]);
   });
 
+  test("one batch holding a reveal and its later surge shows SURGE only once playback reaches the surge beat", async () => {
+    const { store, surger, updates } = await surgeGame();
+    const me = store.state.perspectiveId!;
+    const game = store.state.game!;
+    // Every event of the phase as one command, as the engine can deliver it.
+    const walk = appendWalkthrough(
+      emptyWalkthrough(1),
+      updates.flatMap((u) => u.events),
+      game,
+      me,
+      POOL_DEPS,
+    );
+    const beats = walk.steps.flatMap((step) => step.beats);
+    const ids = beats.map((beat) => beat.encounterInstanceId ?? null);
+    const stripAt = (shown: number) =>
+      encounterStripOf(
+        walk.encounter,
+        ids.slice(0, shown),
+        me,
+        (id) => id,
+        () => "x",
+      );
+    const marksOf = (shown: number) => stripAt(shown).tiles.find((tile) => tile.instanceId === surger)?.marks;
+    const revealBeat = beats.findIndex(
+      (beat) => beat.eventType === "encounterCardRevealed" && beat.encounterInstanceId === surger,
+    );
+    const surgeAt = walk.encounter.surgedAt!.find((entry) => entry.instanceId === surger)!.atBeat;
+    expect(revealBeat).toBeGreaterThanOrEqual(0);
+    // The surge comes after the reveal, with beats between that the recap has yet to show.
+    expect(surgeAt).toBeGreaterThan(revealBeat);
+    // The reveal is on screen, the surge's beat is not: no SURGE yet.
+    expect(marksOf(revealBeat + 1)).toEqual([]);
+    expect(marksOf(surgeAt)).toEqual([]);
+    // Playback past the surge beat: SURGE.
+    expect(marksOf(surgeAt + 1)).toEqual(["SURGE"]);
+  });
+
   test("the recap's strip marks SURGE on the card that surged and FROM SURGE on the card it dealt", async () => {
     const { store, surger, updates } = await surgeGame();
     const me = store.state.perspectiveId!;
