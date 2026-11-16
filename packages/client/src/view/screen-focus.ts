@@ -678,6 +678,7 @@ export function pastGamesFocusOrder(gameIds: readonly string[]): readonly string
     "filter:won",
     "filter:lost",
     "open-file",
+    "export-tracker",
     ...gameIds.map((id) => `game:${id}`),
     "action:watch",
     "action:share",

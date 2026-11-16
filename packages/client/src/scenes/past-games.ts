@@ -45,7 +45,7 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import { clipToView } from "../view/focus-list.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import { cardInPacks, PAST_GAME_NAMES } from "../view/game-label-names.js";
+import { cardInPacks, PAST_GAME_NAMES, TRACKER_EXPORT_NAMES } from "../view/game-label-names.js";
 import {
   PAST_GAME_ACTIONS,
   PAST_GAME_FILTERS,
@@ -61,6 +61,7 @@ import {
   type PastGameFilter,
   type PastGameRow,
 } from "../view/past-games-model.js";
+import { trackerCsv, trackerFileNameOf, trackerRowsOf, marvelcdbLinksOf } from "../view/tracker-export.js";
 import { pastGamesFocusOrder } from "../view/screen-focus.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { onLanguageChange } from "../language-change.js";
@@ -69,6 +70,7 @@ import { detectPlatform } from "../platform/platform.js";
 import {
   deliverGameLog,
   deliverReplayFile,
+  deliverTrackerCsv,
   openReplay,
   pickReplayFile,
   replayErrorKey,
@@ -76,7 +78,7 @@ import {
 import { ReplayOpenError } from "../replay/replay-core.js";
 import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
-import { appSession } from "../session.js";
+import { appSession, deckStorage } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { watchReplay } from "./replay-entry.js";
@@ -103,7 +105,7 @@ const ACTION_LABEL: Readonly<Record<PastGameAction, MessageKey>> = {
 /** What is running: an action on a game, or the file picker (`id` empty). One at a time. */
 interface Busy {
   readonly id: string;
-  readonly action: PastGameAction | "file";
+  readonly action: PastGameAction | "file" | "tracker";
 }
 
 /** Links shared this run, by game id: Share never uploads a game twice. */
@@ -471,6 +473,36 @@ export class PastGamesScene extends Phaser.Scene {
     else if (delivered === "manual") this.#say(`${t("replay.link.manual")} ${url}`, 30_000);
   }
 
+  /**
+   * "Export for MC Tracker (CSV)" (#757): the games the list shows now (the filter's), as one spreadsheet file, handed
+   * out by the shell's own route (save dialog, Android Save, share sheet or download).
+   */
+  async #exportTracker(): Promise<void> {
+    if (this.#busy || this.#leaving) return;
+    const visit = this.#visit;
+    const saves = this.#rows.map((row) => row.save);
+    this.#setBusy({ id: "", action: "tracker" }, visit);
+    try {
+      const decks = await deckStorage().list();
+      const input = { saves, names: TRACKER_EXPORT_NAMES, deckLinks: marvelcdbLinksOf(decks) };
+      const text = trackerCsv(input);
+      const games = trackerRowsOf(input).length;
+      if (games === 0) return this.#sayIn(visit, t("pastGames.exportTrackerNone"));
+      await deliverTrackerCsv(text, trackerFileNameOf(Date.now()));
+      this.#sayIn(
+        visit,
+        games === 1 ? t("pastGames.exportTrackerOne") : t("pastGames.exportTrackerDone", { n: games }),
+      );
+    } catch (cause) {
+      if (!isAbort(cause)) {
+        console.warn("MC Tracker export failed", cause);
+        this.#sayIn(visit, t("replay.exportFailed"));
+      }
+    } finally {
+      this.#setBusy(null, visit);
+    }
+  }
+
   /** "Open a replay file": a replay someone else made, watched on the board; Exit comes back here. */
   async #openFile(): Promise<void> {
     if (this.#busy || this.#leaving) return;
@@ -585,11 +617,35 @@ export class PastGamesScene extends Phaser.Scene {
     this.#hints.custom(
       (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
       16,
-      ({ width: hintWidth }) => ({ x: tabRect.x + tabRect.width - hintWidth, y: tabRect.y + tabRect.height + 6 }),
+      ({ width: hintWidth }) => ({
+        x: tabRect.x + tabRect.width - hintWidth,
+        y: tabRect.y + tabRect.height + 6 + (hit.target - 16) / 2,
+      }),
       { avoidObstacles: true },
     );
 
-    const areaTop = tabRect.y + tabRect.height + 26;
+    // The export button under the tabs, the LB / RB hint to its right where the pad shows one.
+    const exportRect: Rect = {
+      x: left,
+      y: tabRect.y + tabRect.height + 6,
+      width: Math.min(contentWidth, 340),
+      height: hit.target,
+    };
+    const exportTracker = (): void => void this.#exportTracker();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: this.#busy?.action === "tracker" ? t("pastGames.working") : t("pastGames.exportTracker"),
+        type: { ...typeRole.rowTitle, size: 13 },
+        rect: exportRect,
+        enabled: this.#busy === null && this.#rows.length > 0,
+        onClick: exportTracker,
+      }),
+    );
+    stops.set("export-tracker", { rect: exportRect, activate: exportTracker });
+    this.#obstacles.push(exportRect);
+
+    const areaTop = exportRect.y + exportRect.height + 10;
     const area: Rect = { x: left, y: areaTop, width: contentWidth, height: Math.max(80, height - areaTop - gutter) };
     const layout = pastGamesLayout(area, { width, height });
     const rows = this.#rows;

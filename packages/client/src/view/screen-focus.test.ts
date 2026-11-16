@@ -694,6 +694,7 @@ describe("screen focus routes", () => {
       "filter:won",
       "filter:lost",
       "open-file",
+      "export-tracker",
       "game:a",
       "game:b",
       "action:watch",

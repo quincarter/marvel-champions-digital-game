@@ -64,6 +64,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.loading": "Leyendo tus partidas…",
   "pastGames.empty":
     "Aún no has terminado ninguna partida. Cada partida que termines se guarda aquí para volver a verla.",
+  "pastGames.exportTracker": "Exportar para MC Tracker (CSV)",
+  "pastGames.exportTrackerDone": "Se exportaron {n} partidas para MC Tracker.",
+  "pastGames.exportTrackerOne": "Se exportó 1 partida para MC Tracker.",
+  "pastGames.exportTrackerNone": "No hay partidas ganadas o perdidas que exportar aquí.",
   "pastGames.emptyFilter": "Aún no hay partidas aquí.",
   "gameOver.watchReplay": "Ver repetición",
   "gamesList.watch": "Ver",

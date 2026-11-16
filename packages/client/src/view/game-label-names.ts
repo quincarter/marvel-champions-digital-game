@@ -8,6 +8,7 @@ import {
   CARDS_BY_ID,
   currentScenarios,
   currentStarterDecks,
+  POOL_ENCOUNTER_SETS,
   POOL_SCENARIOS,
   POOL_STARTER_DECKS,
 } from "../content/pool.js";
@@ -15,6 +16,7 @@ import type { PackRuntime } from "../packs/pack-runtime.js";
 import { CAMPAIGNS, type AnyCard } from "@mc/content";
 import type { GamesListNames } from "./games-list-model.js";
 import type { PastGameNames } from "./past-games-model.js";
+import type { TrackerExportNames } from "./tracker-export.js";
 import { scenarioCardIdOf } from "./random-villain.js";
 import { cardDisplayName } from "./hero-names.js";
 
@@ -99,3 +101,21 @@ export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNa
   PACK_NAMES.set(packs, names);
   return names;
 }
+
+/** The names the MC Tracker export adds to a game's (`view/tracker-export.ts`), from the game's own packs first (#757). */
+export const TRACKER_EXPORT_NAMES: TrackerExportNames = {
+  ...PAST_GAME_NAMES,
+  heroFace: (id, packs) => {
+    const card = cardInPacks(packs as readonly PackRuntime[] | undefined, id);
+    return card?.type === "hero_identity" ? { hero: card.hero.faceName, alterEgo: card.alterEgo.faceName } : undefined;
+  },
+  setName: (id, packs) =>
+    ((packs as readonly PackRuntime[] | undefined)?.flatMap((pack) => pack.encounterSets ?? []) ?? [])
+      .concat(POOL_ENCOUNTER_SETS)
+      .find((set) => (set.id as string) === id)?.name,
+  recommendedSets: (scenarioId, packs) => {
+    const own = packScenarioRecords((packs ?? []) as readonly PackRuntime[]);
+    const scenario = [...POOL_SCENARIOS, ...own].find((candidate) => (candidate.id as string) === scenarioId);
+    return scenario?.recommendedModularSetIds as readonly string[] | undefined;
+  },
+};

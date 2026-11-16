@@ -40,6 +40,15 @@ export function deliverGameLog(text: string, name: string): Promise<void> {
   return deliverTextFile(name, text, "text/plain", { title: "Export game log", filterName: "Text", extension: "txt" });
 }
 
+/** Hands the MC Tracker CSV out (#757). Rejects with an AbortError when the player closes the dialog. */
+export function deliverTrackerCsv(text: string, name: string): Promise<void> {
+  return deliverTextFile(name, text, "text/csv", {
+    title: "Export for MC Tracker",
+    filterName: "CSV",
+    extension: "csv",
+  });
+}
+
 /**
  * Asks for a replay file and reads it: its bytes, "unreadable" when it couldn't be read, or null when the picker closed
  * with nothing chosen. Whether it is a replay is the replay's open to say (`ReplayOpenError`).
