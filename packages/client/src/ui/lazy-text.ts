@@ -32,7 +32,7 @@
  */
 
 import Phaser from "phaser";
-import { canvasOf } from "../art/bitmap-canvas.js";
+import { reusableCanvasOf } from "../art/bitmap-canvas.js";
 import { pageFontSources } from "../art/card-face-baker.js";
 import { documentFontReady, installFontMetricsCache } from "./font-metrics.js";
 import { layoutText, WidthCache, workerCanPaint, type LayoutInput } from "./text-layout.js";
@@ -443,7 +443,8 @@ class SharedPaint implements PaintTarget {
 
   applyBitmap(bitmap: ImageBitmap, canvasWidth: number, canvasHeight: number, resolution: number): void {
     this.#done();
-    const canvas = canvasOf(bitmap);
+    // Kept and shared, so uploaded more than once: never a `bitmaprenderer` canvas (`reusableCanvasOf`).
+    const canvas = reusableCanvasOf(bitmap);
     if (this.#key !== null) painted.set(this.#key, { canvas, canvasWidth, canvasHeight, resolution });
     for (const label of this.#take()) label.applyCanvas(canvas, canvasWidth, canvasHeight, resolution);
   }

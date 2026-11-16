@@ -28,3 +28,16 @@ export function canvasOf(
   bitmap.close();
   return canvas;
 }
+
+/**
+ * The bitmap as a canvas that can be uploaded again and again: a plain software 2D canvas, always, whatever the
+ * platform. For pixels more than one texture is made from, such as a painted label kept for reuse
+ * (`ui/label-bitmap-cache.ts`) and shared by every label with the same text and style.
+ *
+ * A `bitmaprenderer` canvas uploads right the first time but not always after: on some Windows players' GPUs every
+ * label reused from the cache came back blank (the title menu after the Mod Store, Settings after changing a setting),
+ * while a label painted fresh, a hovered or selected one, showed (v0.46.0).
+ */
+export function reusableCanvasOf(bitmap: ImageBitmap): HTMLCanvasElement {
+  return canvasOf(bitmap, true);
+}
