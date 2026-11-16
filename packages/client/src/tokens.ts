@@ -271,6 +271,9 @@ export const threatMeter = {
   previewAlpha: 0.45,
 } as const;
 
+/** A pile the next round will empty (issue #769): a light wash of Hero Red, with the words "LOW" beside it. */
+export const pileRunOut = { alpha: 0.38, name: "LOW" } as const;
+
 /**
  * Section 03 — the selection ring, the one shadow in the system.
  * Static ring = committed choice. Pulsing ring = awaiting your tap.

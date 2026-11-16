@@ -12,11 +12,12 @@
  * top card faceup, and a tap opens that card with ◂ ▸ through the rest of the pile.
  */
 
+import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
 import type { ArtSource } from "../../art/art-source.js";
 import { CARD_BACKS } from "../../art/art-source.js";
 import { drawArt } from "../../art/card-art.js";
-import { ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, ink, pileRunOut, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, DeckTopView } from "../../view/board-model.js";
@@ -33,8 +34,8 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
   const { scene } = ctx;
   const narrow = row.deck.width < 64;
   const shown = model.myDeckTop;
-  if (shown) drawDeckTop(ctx, row.deck, model.myPiles.deck, shown, narrow);
-  else drawPile(ctx, row.deck, "deck", model.myPiles.deck, CARD_BACKS.player);
+  if (shown) drawDeckTop(ctx, row.deck, model.myPiles.deck, shown, narrow, model.myDeckRunsOut);
+  else drawPile(ctx, row.deck, "deck", model.myPiles.deck, CARD_BACKS.player, "top", model.myDeckRunsOut);
   drawPile(ctx, row.discard, narrow ? "disc." : "discard", model.myPiles.discard, model.myDiscardTop);
 
   ctx.frame.pileRects.set(pileKey("deck", model.perspectiveId), row.deck);
@@ -102,10 +103,17 @@ const ICON_WORD: Readonly<Record<ResourceIconType, { readonly word: string; read
  * the count kept, and the card's resource icons spelled out in words (her upgrades and spells read them). Tapping plays
  * it as a hand card is played when the engine says it can be; otherwise it opens Inspect, which carries the reason.
  */
-function drawDeckTop(ctx: BoardDrawContext, box: Rect, count: number, shown: DeckTopView, narrow: boolean): void {
+function drawDeckTop(
+  ctx: BoardDrawContext,
+  box: Rect,
+  count: number,
+  shown: DeckTopView,
+  narrow: boolean,
+  runsOut = false,
+): void {
   const { scene } = ctx;
   const { card } = shown;
-  drawPile(ctx, box, narrow ? "top" : "top card", count, card.art);
+  drawPile(ctx, box, narrow ? "top" : "top card", count, card.art, "top", runsOut);
 
   const icons = card.resourceIcons.map((icon) => (narrow ? ICON_WORD[icon].glyph : ICON_WORD[icon].word));
   const band = 16;
@@ -154,6 +162,8 @@ export function drawPile(
   art: ArtSource | null,
   /** "foot" puts the name in the count's chip at the pile's foot, clear of the card name along the top of its art. */
   caption: "top" | "foot" = "top",
+  /** The next round will empty this deck (issue #769): a light red wash and a "LOW" tag, so it is not color alone. */
+  runsOut = false,
 ): void {
   const { scene } = ctx;
   const g = scene.add.graphics();
@@ -166,6 +176,7 @@ export function drawPile(
 
   const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
   const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
+  if (runsOut) tintRunOut(scene.add.graphics(), box);
   // Paper on the ink ground or over art (on an ink chip); ink on the paper frame a missing scan leaves.
   const onPaper = count > 0 && !drawn;
   const color = onPaper ? surface.ink.hex : surface.paper.hex;
@@ -176,7 +187,7 @@ export function drawPile(
     scene,
     box.x + box.width / 2,
     box.y + 6,
-    name,
+    runsOut ? `${name} · ${pileRunOut.name}` : name,
     nameRole,
     color,
     count === 0 ? ink.meta : 1,
@@ -207,4 +218,10 @@ export function drawPile(
     const tag = label(scene, chip.x + 5, chip.y + chip.height / 2, name, typeRole.label, color, 1).setOrigin(0, 0.5);
     fitText(tag, Math.max(10, chip.width / 2 - number.width / 2 - 8), typeRole.label.size);
   }
+}
+
+/** The light red wash (and an edge in the same red) over a pile the next round will empty. */
+export function tintRunOut(g: Phaser.GameObjects.Graphics, box: Rect): void {
+  g.fillStyle(accent.heroRed.hex, pileRunOut.alpha).fillRect(box.x, box.y, box.width, box.height);
+  g.lineStyle(2, accent.heroRed.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
 }

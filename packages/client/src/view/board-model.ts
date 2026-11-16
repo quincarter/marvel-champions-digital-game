@@ -8,6 +8,7 @@
  * client-side sum is exactly how a UI starts disagreeing with the rules.
  */
 
+import { encounterRunsOut, playerDeckRunsOut } from "./pile-run-out.js";
 import type { AbilityId, Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   handSize,
@@ -832,6 +833,10 @@ export interface BoardModel {
   /** The top of your discard, which the pile box shows faceup. */
   readonly myDiscardTop: ArtSource | null;
   readonly encounterPiles: PileCounts;
+  /** The next round will empty the encounter deck (`view/pile-run-out.ts`): its tile and its discard's are tinted. */
+  readonly encounterRunsOut: boolean;
+  /** The next round's end-of-round draw will empty my deck. */
+  readonly myDeckRunsOut: boolean;
   /**
    * Encounter cards dealt facedown to you and not yet revealed (Expert setup deals one per player in the Age of
    * Apocalypse; the villain phase deals them; they flip in step four). Public as a count, never as a card: nobody looks
@@ -1249,6 +1254,8 @@ export function boardModel(
       deck: activeEncounterDeck(state).deck.length,
       discard: activeEncounterDeck(state).discard.length,
     },
+    encounterRunsOut: encounterRunsOut(state, deps),
+    myDeckRunsOut: playerDeckRunsOut(state, deps, perspectiveId),
     myDealt: [...me.dealtEncounter],
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
