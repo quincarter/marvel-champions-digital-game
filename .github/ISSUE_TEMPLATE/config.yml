@@ -6,3 +6,6 @@ contact_links:
   - name: Official FFG rulings
     url: https://hallofheroeslcg.com/latest-ffg-rulings-post-rrg-1-7/
     about: Unsure how a card should work? Check the Rules Reference and FFG's rulings before filing a rules bug.
+  - name: Submit your own mod
+    url: https://github.com/quincarter/marvel-champions-mod-template/blob/main/SUBMITTING.md
+    about: Made a hero, scenario or other mod? The pack template walks you through submitting it to the Mod Store yourself.

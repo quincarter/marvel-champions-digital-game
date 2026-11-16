@@ -1,0 +1,79 @@
+name: Mod request
+description: Ask for a mod (custom hero, scenario, modular set, campaign, art or house rule) to be added to the Mod Store.
+title: "[Mod]: "
+labels: ["Custom Content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The Mod Store only carries a mod with its creator's permission. If you made the mod, the fastest way in is to
+        submit it yourself: the [pack template](https://github.com/quincarter/marvel-champions-mod-template/blob/main/SUBMITTING.md)
+        walks you from the template to a pull request on the [Mod Store registry](https://github.com/quincarter/marvel-champions-mods).
+        This form works too, for your own mod or for one you found shared somewhere else.
+  - type: input
+    id: name
+    attributes:
+      label: Mod name
+      placeholder: "e.g. Moon Knight"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of mod is it?
+      description: Pick every kind it includes (a hero pack with its own nemesis set is just a hero).
+      multiple: true
+      options:
+        - Hero
+        - Scenario (a villain and its main scheme)
+        - Modular set
+        - Campaign
+        - Alternate art
+        - House rule
+    validations:
+      required: true
+  - type: dropdown
+    id: creator
+    attributes:
+      label: Did you make this mod?
+      options:
+        - "Yes, I made it"
+        - "No, someone else made it"
+    validations:
+      required: true
+  - type: input
+    id: creator-name
+    attributes:
+      label: Creator's name or link
+      description: Who made it, so the store credits them. A name, a profile link, or both.
+      placeholder: "e.g. Jane Doe, https://boardgamegeek.com/profile/..."
+    validations:
+      required: true
+  - type: textarea
+    id: permission
+    attributes:
+      label: Creator's permission
+      description: |
+        Optional, but the mod can't go in the store without it. If you are not the creator, link or quote where they said
+        it may be shared or included in other projects. Don't paste private messages without the sender's agreement:
+        describe them and we'll ask for them privately.
+  - type: input
+    id: download
+    attributes:
+      label: Download link
+      description: Optional. Where the files are shared, such as Google Drive, OneDrive, Dropbox, BoardGameGeek or a repo.
+      placeholder: "https://drive.google.com/..."
+  - type: textarea
+    id: files
+    attributes:
+      label: Files and notes
+      description: |
+        Optional. Drag and drop card images, PDFs or a zip into this box to attach them (GitHub keeps them with the issue).
+        Add anything else that helps: languages, cards that need a rule the game doesn't have yet, a version still in progress.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this mod has not been requested yet.
+          required: true
