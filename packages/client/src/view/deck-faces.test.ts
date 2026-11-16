@@ -51,6 +51,12 @@ describe("deck face groups", () => {
     expect(groups[0]!.tiles).toHaveLength(3);
   });
 
+  test("an empty card list still lists the identity's faces", () => {
+    const groups = deckFaceGroups(deckOf("12001a"), CARDS_BY_ID);
+    expect(groups.map((g) => g.key)).toEqual(["identity"]);
+    expect(groups[0]!.tiles.length).toBeGreaterThan(0);
+  });
+
   test("a deck whose identity is not in the pool lists no identity", () => {
     expect(deckFaceGroups(deckOf("nope"), CARDS_BY_ID)).toEqual([]);
   });

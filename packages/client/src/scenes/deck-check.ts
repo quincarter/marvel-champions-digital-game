@@ -162,7 +162,12 @@ type CardGridSlot =
   | { readonly kind: "header"; readonly group: DeckListGroup }
   | { readonly kind: "gridRow"; readonly group: DeckListGroup; readonly startIndex: number; readonly count: number }
   /** The identity's faces, or a multi-faced card's, as a row of tiles (issue #754). */
-  | { readonly kind: "faces"; readonly group: DeckFaceGroup; readonly layout: DeckFaceGroupLayout };
+  | { readonly kind: "faces"; readonly group: DeckFaceGroup; readonly layout: DeckFaceGroupLayout }
+  /** The "no cards match" line, under the face groups when the filter leaves no cards. */
+  | { readonly kind: "empty" };
+
+/** How tall the "no cards match" slot is. */
+const EMPTY_SLOT_HEIGHT = 40;
 
 /** How tall a group-header slot is (Bangers label + rule + count) — matches `scenes/rules.ts`'s own `SET_HEADER_HEIGHT` for the identical shape. */
 const GROUP_HEADER_HEIGHT = 34;
@@ -861,16 +866,6 @@ export class DeckCheckScene extends Phaser.Scene {
   // Card list tab uses it).
   // ------------------------------------------------------------------------------------------------------------
   #drawCardGrid(rect: Rect, groups: readonly DeckListGroup[]): readonly string[] {
-    if (groups.length === 0) {
-      this.add.text(
-        rect.x + 10,
-        rect.y + 10,
-        "No cards match this filter.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      );
-      return [];
-    }
-
     const totalCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
     const geometry = poolGridGeometry(
       rect.width,
@@ -884,6 +879,19 @@ export class DeckCheckScene extends Phaser.Scene {
     if (this.#typeFilter === null)
       for (const group of deckFaceGroups(this.#deck, currentCardsById()))
         slots.push({ kind: "faces", group, layout: deckFaceGroupLayout(faceWidth, group.tiles.length) });
+    // The identity's faces stay on screen when the card list is empty; the message goes under them.
+    if (groups.length === 0) {
+      if (slots.length === 0) {
+        this.add.text(
+          rect.x + 10,
+          rect.y + 10,
+          "No cards match this filter.",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        );
+        return [];
+      }
+      slots.push({ kind: "empty" });
+    }
     for (const group of groups) {
       slots.push({ kind: "header", group });
       const rows = Math.max(1, Math.ceil(group.entries.length / geometry.columns));
@@ -899,7 +907,13 @@ export class DeckCheckScene extends Phaser.Scene {
     }
 
     const heights = slots.map((slot) =>
-      slot.kind === "header" ? GROUP_HEADER_HEIGHT : slot.kind === "faces" ? slot.layout.height : geometry.cellHeight,
+      slot.kind === "header"
+        ? GROUP_HEADER_HEIGHT
+        : slot.kind === "faces"
+          ? slot.layout.height
+          : slot.kind === "empty"
+            ? EMPTY_SLOT_HEIGHT
+            : geometry.cellHeight,
     );
     const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
       this.#renderCardGridSlot(rowRect, slots[index]!, geometry);
@@ -1016,6 +1030,17 @@ export class DeckCheckScene extends Phaser.Scene {
   #renderCardGridSlot(rect: Rect, slot: CardGridSlot, geometry: PoolGridGeometry): VirtualListRow {
     if (slot.kind === "header") return this.#renderGroupHeaderRow(rect, slot.group);
     if (slot.kind === "faces") return this.#renderFaceGroupRow(rect, slot.group, slot.layout);
+    if (slot.kind === "empty")
+      return {
+        objects: [
+          this.add.text(
+            rect.x + 10,
+            rect.y + 10,
+            "No cards match this filter.",
+            textStyle(typeRole.body, surface.ink.hex, ink.meta),
+          ),
+        ],
+      };
     const objects: Phaser.GameObjects.GameObject[] = [];
     for (let col = 0; col < slot.count; col++) {
       const entry = slot.group.entries[slot.startIndex + col];
