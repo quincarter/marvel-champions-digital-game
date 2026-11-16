@@ -940,14 +940,14 @@ export class TitleScene extends Phaser.Scene {
       [CHROME_REPORT_STOP, reportRect],
     ];
     // The storefront button, left of the theme button: tablets and desktops only, where the top row has the room; a
-    // phone has the menu item.
+    // phone has the menu item. Its stop is keyed as one of the top row's (`chrome:`), which it is on screen.
     const storeIconRect = layout.split ? themeSlotBeside(themeSlotBeside(languageRect)) : null;
     if (storeIconRect) {
       drawStoreIconButton(this, storeIconRect, openModStore);
-      this.#stops.set("mod-store-icon", { rect: storeIconRect, activate: openModStore });
+      this.#stops.set("chrome:mod-store", { rect: storeIconRect, activate: openModStore });
       this.#hints?.hang(storeIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
         ground: onDark ? "ink" : "paper",
-        when: () => this.#route?.focused === "mod-store-icon",
+        when: () => this.#route?.focused === "chrome:mod-store",
       });
     }
     for (const [key, rect] of topRow) {
@@ -974,7 +974,7 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
-        ...(storeIconRect ? ["mod-store-icon"] : []),
+        ...(storeIconRect ? ["chrome:mod-store"] : []),
       ],
       this.#stops,
     );
