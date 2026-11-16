@@ -14,7 +14,7 @@ export const DECK_LIST_IDS: readonly DeckListId[] = ["precon", "build", "communi
 export const DECK_LIST_LAST_KEY = "mc-deck-list-last";
 
 /**
-` * The one list to open on, or null for every list together. Last used reads \`last\` (a list never left open is all).
+ * The one list to open on, or null for every list together. Last used reads `last` (a list never left open is all).
  * Preconstructed while the precons are hidden opens on all, so the screen never opens on a list that is not there.
  */
 export function openingDeckList(

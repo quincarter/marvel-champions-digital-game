@@ -855,8 +855,8 @@ export function nextSettingsAfterPlayAreaOrder(settings: Settings, value: PlayAr
 export const DECK_LIST_ON_OPEN_LABELS: Readonly<Record<DeckListOnOpen, string>> = {
   all: "All",
   precon: "Precons",
-  build: "Mine",
-  community: "Shared",
+  build: "Yours",
+  community: "Community",
   last: "Last",
 };
 
@@ -872,7 +872,7 @@ export function deckListOnOpenRowInfoOf(settings: Settings): DeckListOnOpenRowIn
   return {
     title: "Deck list on open",
     detail:
-      "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Mine), only the community decks (Shared), or whichever you had open last. The list chips switch it any time.",
+      "Which list the Decks screen opens on: all three together (as it always has), only the preconstructed decks (Precons), only your own (Yours, the Your decks chip), only the community decks (Community), or whichever you had open last. The list chips switch it any time.",
     options: DECK_LIST_ON_OPEN_VALUES.filter((value) => value !== "precon" || settings.showPreconDecks).map(
       (value) => ({
         value,

@@ -927,14 +927,13 @@ export class DecksScene extends Phaser.Scene {
       !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId) ||
       (this.#fallbackSelection && wantedExists)
     ) {
-      // The first deck on the list as it is drawn (a hidden precon or an unopened list is not it).
+      // The first deck on the list as it is drawn (a hidden precon or an unopened list is not it); none when the list is empty.
       const firstShown = allOptions.find((o) =>
         o.deck.source.kind === "precon"
           ? deckListShows("precon", this.#deckList, appSession().settings.showPreconDecks)
           : deckListShows(isCommunityDeckId(o.deck.id as string) ? "community" : "build", this.#deckList, true),
       );
-      this.#selectedDeckId =
-        (wantedExists ? wanted : ((firstShown ?? allOptions[0])?.deck.id as string | undefined)) ?? null;
+      this.#selectedDeckId = (wantedExists ? wanted : (firstShown?.deck.id as string | undefined)) ?? null;
       this.#fallbackSelection = !wantedExists;
     }
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;

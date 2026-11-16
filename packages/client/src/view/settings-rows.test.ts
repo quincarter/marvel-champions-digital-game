@@ -709,6 +709,13 @@ describe("Deck list settings (#755)", () => {
     expect(info.selected).toBe("all");
   });
 
+  test("the choices name the lists the chips do (Your decks, Community) in short forms", () => {
+    const label = (value: string) => deckListOnOpenRowInfoOf(BASE).options.find((o) => o.value === value)?.label;
+    expect(label("build")).toBe("Yours");
+    expect(label("community")).toBe("Community");
+    expect(deckListOnOpenRowInfoOf(BASE).detail).toContain("Your decks chip");
+  });
+
   test("choosing a list sets it; a value that is not a list changes nothing", () => {
     expect(nextSettingsAfterDeckListOnOpen(BASE, "community").deckListOnOpen).toBe("community");
     expect(nextSettingsAfterDeckListOnOpen(BASE, "last").deckListOnOpen).toBe("last");

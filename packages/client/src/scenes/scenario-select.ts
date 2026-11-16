@@ -52,7 +52,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import { rankShelvesByScore } from "../view/deck-search.js";
 import { scenarioSearchDocumentOf } from "../view/scenario-search.js";
 import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
-import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
+import { ALL_PACKS, drillIntoPack, drillOut, gridColumnsFor, type ShelfDrillState } from "../view/shelf-drill.js";
 import { padInputTracked } from "../platform/input-device.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
@@ -162,6 +162,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
   #leaving = false;
   #grid: McVirtualList | null = null;
+  /** The columns of the open box's grid, for the row a tile sits in. */
+  #gridColumns = 0;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
@@ -445,9 +447,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (id === null) return;
     this.#revealId = null;
     const shelves = this.#shelvesNow;
-    const shelfIndex = shelves.findIndex((shelf) => shelf.items.some((item) => (item.id as string) === id));
+    const holdsId = (shelf: Shelf<RosterEntry>): boolean => shelf.items.some((item) => (item.id as string) === id);
+    // In a box's grid it is that box's tiles that are laid out, so the index counts within the open box.
+    const shelfIndex = shelves.findIndex(
+      (shelf) => (this.#drill.packId === null ? true : shelf.id === this.#drill.packId) && holdsId(shelf),
+    );
     const itemIndex = shelfIndex < 0 ? -1 : shelves[shelfIndex]!.items.findIndex((item) => (item.id as string) === id);
-    if (itemIndex >= 0) this.#roster?.scrollIntoView(shelfIndex, itemIndex);
+    if (itemIndex >= 0) {
+      this.#roster?.scrollIntoView(shelfIndex, itemIndex);
+      // Inside a box's grid there is no shelf roster: the grid scrolls to the row the picked tile sits in.
+      if (this.#grid && this.#gridColumns > 0) this.#grid.scrollIntoView(Math.floor(itemIndex / this.#gridColumns));
+    }
     if (padInputTracked() && this.#stops.has(`scenario:${id}`)) this.#route?.focusKey(`scenario:${id}`);
   }
 
@@ -648,6 +658,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         height: layout.shelves.height - 36,
       };
       const items = shelf?.items ?? [];
+      this.#gridColumns = gridColumnsFor(gridRect.width, cardMetrics.cardWidth, cardMetrics.cardGap);
       this.#grid = drawPackGrid({
         scene: this,
         rect: gridRect,

@@ -1002,8 +1002,8 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
-        ...(storeIconRect ? ["chrome:mod-store"] : []),
         ...(discordIconFits ? ["chrome:discord"] : []),
+        ...(storeIconRect ? ["chrome:mod-store"] : []),
       ],
       this.#stops,
     );
