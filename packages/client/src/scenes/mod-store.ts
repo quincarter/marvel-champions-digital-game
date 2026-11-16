@@ -1342,7 +1342,21 @@ export class ModStoreScene extends Phaser.Scene {
     const rule = tile.kind === "house-rule";
     const ruleFaces = rule ? ruleFacesOf(installed, preview) : [];
     const { sections, records } = source
-      ? gallerySectionsOf({ cards: source.cards, decks: source.decks, baseCards: currentCardsById(), ruleFaces })
+      ? gallerySectionsOf({
+          cards: source.cards,
+          decks: source.decks,
+          baseCards: currentCardsById(),
+          ruleFaces,
+          // Set names and the scenario's own sets come from the loaded pack; a preview has none (names come from ids).
+          ...(packCards
+            ? {
+                encounterSets: packCards.encounterSets ?? [],
+                scenarioSetIds: (packCards.scenarios ?? []).flatMap(
+                  (scenario) => [...scenario.encounterSetIds] as string[],
+                ),
+              }
+            : {}),
+        })
       : rule
         ? gallerySectionsOf({ cards: [], decks: [], baseCards: currentCardsById(), ruleFaces })
         : { sections: [], records: new Map<string, AnyCard>() };

@@ -31,7 +31,7 @@ describe("the pack gallery", () => {
   const obligation = asPack(core("obligation"), { id: "x.demo.05" });
   const baseAlly = core("ally", 1);
 
-  it("groups a hero pack: hero, nemesis and obligation, then the deck with its base-game cards, with quantities", () => {
+  it("groups a hero pack: hero and the deck, then the obligation and the minion's set with its base-game cards, with quantities", () => {
     const { sections, records } = gallerySectionsOf({
       cards: [aspectCard, minion, signature, identity, obligation, identity],
       decks: [
@@ -44,11 +44,12 @@ describe("the pack gallery", () => {
       ],
       baseCards,
     });
-    expect(sections.map((section) => section.id)).toEqual(["hero", "encounter", "deck"]);
+    expect(sections.map((section) => section.id)).toEqual(["hero", "obligation", "modular", "deck"]);
     expect(sections[0]!.cards.map((card) => card.cardId)).toEqual(["x.demo.01a", "x.demo.02"]);
-    expect(sections[1]!.title).toBe("Nemesis and obligation");
-    expect(sections[1]!.cards.map((card) => card.cardId)).toEqual(["x.demo.04", "x.demo.05"]);
-    expect(sections[2]!.cards.map((card) => [card.cardId, card.quantity])).toEqual([
+    expect(sections[1]!.title).toBe("Obligation");
+    expect(sections[1]!.cards.map((card) => card.cardId)).toEqual(["x.demo.05"]);
+    expect(sections[2]!.cards.map((card) => card.cardId)).toEqual(["x.demo.04"]);
+    expect(sections[3]!.cards.map((card) => [card.cardId, card.quantity])).toEqual([
       ["x.demo.03", 2],
       [baseAlly.id, 3],
     ]);
@@ -60,13 +61,13 @@ describe("the pack gallery", () => {
     }
   });
 
-  it("groups a scenario pack: villain and scheme, then encounter cards", () => {
+  it("groups a scenario pack: villain and scheme, then the villain's own encounter set", () => {
     const villain = asPack(core("villain"), { id: "x.demo.01" });
     const scheme = asPack(core("main_scheme"), { id: "x.demo.02a" });
     const { sections } = gallerySectionsOf({ cards: [minion, scheme, villain], decks: [], baseCards });
     expect(sections.map((section) => [section.id, section.title])).toEqual([
       ["villain", "Villain and scheme"],
-      ["encounter", "Encounter cards"],
+      ["scenario", "Rhino"],
     ]);
   });
 
