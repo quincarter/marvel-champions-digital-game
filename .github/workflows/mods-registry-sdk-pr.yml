@@ -103,13 +103,32 @@ jobs:
             exit 0
           fi
 
+          TITLE="Bump mod-sdk to $VERSION"
+          BODY="This bumps \`$PACKAGE\` from $CURRENT to $VERSION, the SDK the game's [v$VERSION release](https://github.com/$GAME_REPO/releases/tag/v$VERSION) published to npm. \`package-lock.json\` is regenerated against the published $VERSION, and the check rebuilds and re-checks every pack kept here with it.
+
+          Opened by the game repo's Registry SDK bump workflow. A newer SDK published before this is merged moves this pull request to it.
+
+          ## Action Items
+
+          - [ ] Merge this one on its own and let its **Publish packs** run finish before merging the next pull request."
+
           PR=$(gh pr list --repo "$REGISTRY" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ -n "$PR" ]; then
             git fetch --quiet --depth 1 origin "$BRANCH"
             OPEN=$(git show FETCH_HEAD:package.json \
               | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).devDependencies?.[process.argv[1]] ?? ""' "$PACKAGE")
-            if [ "$OPEN" = "$VERSION" ] || { [ -n "$OPEN" ] && newer "$OPEN" "$VERSION"; }; then
-              echo "::notice::The open bump (#$PR) is already at $OPEN."
+            if [ -n "$OPEN" ] && newer "$OPEN" "$VERSION"; then
+              echo "::notice::The open bump (#$PR) is already at $OPEN, newer than $VERSION."
+              exit 0
+            fi
+            if [ "$OPEN" = "$VERSION" ]; then
+              # Already pushed, perhaps by a run that failed before retitling the pull request: finish that here.
+              if [ "$(gh pr view "$PR" --repo "$REGISTRY" --json title --jq .title)" != "$TITLE" ]; then
+                gh pr edit "$PR" --repo "$REGISTRY" --title "$TITLE" --body "$BODY"
+                echo "::notice::The open bump (#$PR) was already at $VERSION; retitled it."
+              else
+                echo "::notice::The open bump (#$PR) is already at $VERSION."
+              fi
               exit 0
             fi
           fi
@@ -127,14 +146,7 @@ jobs:
             commit --quiet -m "Bump mod-sdk to $VERSION" -- package.json package-lock.json
           git push --quiet --force origin "$BRANCH"
 
-          TITLE="Bump mod-sdk to $VERSION"
-          BODY="This bumps \`$PACKAGE\` from $CURRENT to $VERSION, the SDK the game's [v$VERSION release](https://github.com/$GAME_REPO/releases/tag/v$VERSION) published to npm. \`package-lock.json\` is regenerated against the published $VERSION, and the check rebuilds and re-checks every pack kept here with it.
-
-          Opened by the game repo's Registry SDK bump workflow. A newer SDK published before this is merged moves this pull request to it.
-
-          ## Action Items
-
-          - [ ] Merge this one on its own and let its **Publish packs** run finish before merging the next pull request."
+          # A run that fails between the push above and this edit is finished by a re-run (the already-pushed case).
           if [ -n "$PR" ]; then
             gh pr edit "$PR" --repo "$REGISTRY" --title "$TITLE" --body "$BODY"
             echo "::notice::Moved the registry's bump #$PR to $VERSION."
