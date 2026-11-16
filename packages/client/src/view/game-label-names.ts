@@ -10,10 +10,9 @@ import {
   currentStarterDecks,
   POOL_SCENARIOS,
   POOL_STARTER_DECKS,
-  poolViewOfPacks,
 } from "../content/pool.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
-import { CAMPAIGNS } from "@mc/content";
+import { CAMPAIGNS, type AnyCard } from "@mc/content";
 import type { GamesListNames } from "./games-list-model.js";
 import type { PastGameNames } from "./past-games-model.js";
 import { scenarioCardIdOf } from "./random-villain.js";
@@ -40,6 +39,18 @@ export const PAST_GAME_NAMES: PastGameNames = {
   forPacks: (packs) => pastGameNamesForPacks(packs as readonly PackRuntime[]),
 };
 
+/**
+ * A card by id from a game's own packs, else the base pool; never throws. It reads the packs' cards directly rather
+ * than merging a whole pool per save (a pack shadowing a base card would throw there, and the copy is large), #758.
+ */
+export function cardInPacks(packs: readonly PackRuntime[] | undefined, id: string): AnyCard | undefined {
+  for (const pack of packs ?? []) {
+    const card = pack.cards.find((candidate) => (candidate.id as string) === id);
+    if (card) return card;
+  }
+  return CARDS_BY_ID.get(id);
+}
+
 const PACK_NAMES = new WeakMap<object, PastGameNames>();
 const PACK_SCENARIOS = new WeakMap<object, readonly Scenario[]>();
 
@@ -51,7 +62,6 @@ const PACK_SCENARIOS = new WeakMap<object, readonly Scenario[]>();
 export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNames {
   let names = PACK_NAMES.get(packs);
   if (names) return names;
-  const cardsById = poolViewOfPacks(packs).cardsById;
   const scenarios = (): readonly Scenario[] => {
     let list = PACK_SCENARIOS.get(packs);
     if (!list) {
@@ -68,7 +78,7 @@ export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNa
     scenarioName: (id) =>
       scenarios().find((candidate) => (candidate.id as string) === id)?.name ?? GAME_LABEL_NAMES.scenarioName(id),
     identityName: (id) => {
-      const identity = cardsById.get(id);
+      const identity = cardInPacks(packs, id);
       return identity ? cardDisplayName(identity) : undefined;
     },
     scenarioCardId: (id) => {

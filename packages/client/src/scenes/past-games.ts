@@ -19,7 +19,8 @@
  * or a button presses nothing (issue #227).
  */
 import Phaser from "phaser";
-import { CARDS_BY_ID, POOL_CARDS, poolViewOfPacks } from "../content/pool.js";
+import type { AnyCard } from "@mc/content";
+import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
 import { packPictureFor } from "../art/pack-art.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { isCustomCard } from "../view/custom-content.js";
@@ -44,7 +45,7 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import { clipToView } from "../view/focus-list.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import { PAST_GAME_NAMES } from "../view/game-label-names.js";
+import { cardInPacks, PAST_GAME_NAMES } from "../view/game-label-names.js";
 import {
   PAST_GAME_ACTIONS,
   PAST_GAME_FILTERS,
@@ -115,9 +116,7 @@ function heroPictureOf(identityCardId: string, row: PastGameRow): string | null 
   // A pack's hero: its own picture, or its card's scan, from the pack installed now. Not cached: the picture arrives a
   // moment after the pack loads, and a pack removed since the game was played has none (#758).
   if (isCustomCard(identityCardId)) {
-    const card = poolViewOfPacks(row.save.config.packs as readonly PackRuntime[] | undefined).cardsById.get(
-      identityCardId,
-    );
+    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, identityCardId);
     return packPictureFor("hero", identityCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
   }
   if (!heroPictures.has(identityCardId)) {
@@ -129,9 +128,7 @@ function heroPictureOf(identityCardId: string, row: PastGameRow): string | null 
 
 function villainPictureOf(row: PastGameRow): string | null {
   if (row.villainCardId && isCustomCard(row.villainCardId)) {
-    const card = poolViewOfPacks(row.save.config.packs as readonly PackRuntime[] | undefined).cardsById.get(
-      row.villainCardId,
-    );
+    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, row.villainCardId);
     return packPictureFor("villain", row.villainCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
   }
   return (
@@ -145,6 +142,12 @@ const picturedCards = (row: PastGameRow): readonly (string | null)[] => [
   row.villainCardId,
   ...row.seats.map((seat) => seat.identityCardId),
 ];
+
+/** The card records a game's pictures stand for, from the game's own packs: the hover's card when its pack is gone. */
+const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[] =>
+  picturedCards(row).map((id) =>
+    id ? cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, id) : undefined,
+  );
 
 const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
   villainPictureOf(row),
@@ -763,10 +766,17 @@ export class PastGamesScene extends Phaser.Scene {
         const at = list.rectFor(index);
         if (at.y + at.height < view.y || at.y > view.y + view.height) return;
         const cards = picturedCards(row);
+        const records = picturedCardRecords(row);
         pastGameRowParts(boxIn(at), row.seats.length).pictures.forEach((pic, i) => {
           const cardId = cards[i];
           const shown = cardId ? clipHoverRect(pic, view) : null;
-          if (cardId && shown) found.set(hoverSlotOf(cardId, `row${index}:${i}`), { ...shown, cardId, through: true });
+          if (cardId && shown)
+            found.set(hoverSlotOf(cardId, `row${index}:${i}`), {
+              ...shown,
+              cardId,
+              ...(records[i] ? { card: records[i] } : {}),
+              through: true,
+            });
         });
       });
       return found;
@@ -809,11 +819,18 @@ export class PastGamesScene extends Phaser.Scene {
     parts.pictures.forEach((pic, i) => addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null));
     this.#offBaked = cardFaces(this).onBaked(() => thumbs.forEach((thumb) => thumb.refresh()));
     const cards = picturedCards(row);
+    const records = picturedCardRecords(row);
     this.#hoverCards.push(() => {
       const found = new Map<string, HoverCardIdRect>();
       parts.pictures.forEach((pic, i) => {
         const cardId = cards[i];
-        if (cardId) found.set(hoverSlotOf(cardId, `details:${i}`), { ...pic, cardId, through: true });
+        if (cardId)
+          found.set(hoverSlotOf(cardId, `details:${i}`), {
+            ...pic,
+            cardId,
+            ...(records[i] ? { card: records[i] } : {}),
+            through: true,
+          });
       });
       return found;
     });

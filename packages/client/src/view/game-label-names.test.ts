@@ -11,7 +11,8 @@ import { loadActivePacks } from "../packs/active-packs.js";
 import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import type { SaveMeta } from "../engine/game-storage.js";
-import { PAST_GAME_NAMES } from "./game-label-names.js";
+import { CORE_CARDS } from "@mc/content";
+import { PAST_GAME_NAMES, pastGameNamesForPacks } from "./game-label-names.js";
 import { pastGameRowsOf } from "./past-games-model.js";
 
 // #758: a finished game played with a pack's hero and scenario names them on its cover, loaded now or not.
@@ -93,6 +94,23 @@ describe("Past games covers for a game with pack content", () => {
     (save.config as unknown as { players: unknown[] }).players = [{ starterDeckId: deck.id }];
     const [row] = pastGameRowsOf([save], PAST_GAME_NAMES);
     expect(row?.seats).toMatchObject([{ identityCardId: deck.identityCardId, name: "Sample Sentinel" }]);
+  });
+
+  it("names a game's cards without throwing when its pack shadows a base card", async () => {
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    for (const id of PACKS) await store.install(built.get(id)!.manifest, built.get(id)!.files);
+    await loadActivePacks(store);
+    const embedded = [...loadedPacks()];
+    setLoadedPacks([]);
+    const base = CORE_CARDS.find((card) => card.type === "hero_identity")!;
+    // A pack that carries a base card's id: the merged pool would throw, a lookup in the pack's own cards does not.
+    const shadowing = [
+      ...embedded,
+      { ...embedded[0]!, cards: [{ ...base, name: "Shadow" }] },
+    ] as unknown as typeof embedded;
+    const names = pastGameNamesForPacks(shadowing);
+    expect(() => names.identityName(base.id as string)).not.toThrow();
+    expect(names.identityName(HERO)).toBe("Sample Sentinel");
   });
 
   it("falls back to the card id, and no villain, for a game that carries no copy of its pack", () => {
