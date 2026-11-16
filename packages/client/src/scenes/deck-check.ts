@@ -987,7 +987,11 @@ export class DeckCheckScene extends Phaser.Scene {
             },
             activate: () => this.#inspectFace(slot.group, i),
             inspect: () => this.#inspectFace(slot.group, i),
-            ensureVisible: () => list.scrollIntoView(index),
+            // The tile's own bounds: a wrapped group taller than the view must not jump between its ends.
+            ensureVisible: () => {
+              const t = slot.layout.tiles[i]!;
+              list.scrollIntoView(index, { y: t.y, height: t.height });
+            },
           });
         });
         return;
