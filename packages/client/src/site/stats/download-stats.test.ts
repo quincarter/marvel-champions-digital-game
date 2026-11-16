@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifyAsset, compareVersions, percent, summarizeDownloads, type GitHubRelease } from "./download-stats.js";
+import {
+  classifyAsset,
+  compareVersions,
+  percent,
+  sameCounts,
+  summarizeDownloads,
+  type GitHubRelease,
+} from "./download-stats.js";
 
 describe("classifyAsset", () => {
   it("names each installer's platform, format and card language", () => {
@@ -116,5 +123,24 @@ describe("percent", () => {
   it("rounds to a whole number and survives an empty whole", () => {
     expect(percent(1, 3)).toBe(33);
     expect(percent(0, 0)).toBe(0);
+  });
+});
+
+describe("sameCounts", () => {
+  it("ignores when the counts were taken, and sees any download since", () => {
+    const morning = summarizeDownloads(RELEASES, "v0.19.0", "2026-11-16T06:17:00Z");
+    const evening = summarizeDownloads(RELEASES, "v0.19.0", "2026-11-16T18:17:00Z");
+    expect(sameCounts(morning, evening)).toBe(true);
+    const more = RELEASES.map((release) =>
+      release.tag_name === "v0.39.0"
+        ? { ...release, assets: release.assets.map((a, i) => (i === 0 ? { ...a, download_count: 51 } : a)) }
+        : release,
+    );
+    expect(sameCounts(morning, summarizeDownloads(more, "v0.19.0", "2026-11-16T18:17:00Z"))).toBe(false);
+  });
+
+  it("matches the counts after a round trip through the published JSON", () => {
+    const stats = summarizeDownloads(RELEASES, "v0.19.0", "now");
+    expect(sameCounts(stats, JSON.parse(JSON.stringify(stats)))).toBe(true);
   });
 });

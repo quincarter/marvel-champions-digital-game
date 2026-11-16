@@ -13,7 +13,7 @@ const en = {
   "head.kick": "Download stats",
   "head.title": "{total} downloads <span class='g'>and counting</span>",
   "head.range": "{since} → {latest} · {count} releases · {from} – {to}",
-  "head.counted": "Counted {date}, and counted again every day.",
+  "head.counted": "Counted {date}, and counted again twice a day.",
   "how.title": "How we count",
   "how.text":
     "Every number is GitHub's own download count for a release's installers. A download is a file fetched, not a person: one player who updates five times counts five times, and checksums are left out. Playing in the browser isn't counted here at all.",
@@ -58,7 +58,7 @@ const en = {
     "GitHub's download counts couldn't be read when this page was built. Every release and its downloads are on <a href=\"{url}\">GitHub</a>.",
   "cta.text": "Want to add one more?",
   "cta.download": "Get the game",
-  "foot.counted": "Counted from GitHub on {date}. The page is rebuilt every day.",
+  "foot.counted": "Counted from GitHub on {date}. The page is updated twice a day when the numbers move.",
 } as const;
 
 export type StatsKey = keyof typeof en;
@@ -71,7 +71,7 @@ const es: Catalog<StatsKey> = {
   "head.kick": "Datos de descargas",
   "head.title": "{total} descargas <span class='g'>y sumando</span>",
   "head.range": "{since} → {latest} · {count} versiones · {from} – {to}",
-  "head.counted": "Contadas el {date}, y se vuelven a contar cada día.",
+  "head.counted": "Contadas el {date}, y se vuelven a contar dos veces al día.",
   "how.title": "Cómo contamos",
   "how.text":
     "Cada número es el recuento de descargas de GitHub para los instaladores de una versión. Una descarga es un archivo descargado, no una persona: quien actualiza cinco veces cuenta cinco veces, y las sumas de comprobación no cuentan. Jugar en el navegador no se cuenta aquí.",
@@ -117,7 +117,7 @@ const es: Catalog<StatsKey> = {
     'No se pudieron leer las descargas de GitHub al construir esta página. Todas las versiones y sus descargas están en <a href="{url}">GitHub</a>.',
   "cta.text": "¿Sumamos una más?",
   "cta.download": "Consigue el juego",
-  "foot.counted": "Contadas en GitHub el {date}. La página se reconstruye cada día.",
+  "foot.counted": "Contadas en GitHub el {date}. La página se actualiza dos veces al día si cambian los números.",
 };
 
 export const STATS_TEXT: Readonly<Record<PageLanguage, Catalog<StatsKey>>> = { en, es };

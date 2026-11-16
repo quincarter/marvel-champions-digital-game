@@ -1,7 +1,7 @@
 /**
  * The download stats page (`site/landing/stats/index.html`, at `/stats/` on the landing site): how often each release
  * has been downloaded, by platform, with the top five releases, the card-language split and the Install for Steam
- * runs. Every number comes from the build (`virtual:download-stats`), which a daily scheduled deploy refreshes, so the
+ * runs. Every number comes from the build (`virtual:download-stats`), which a scheduled deploy refreshes twice a day when the counts move, so the
  * page asks nothing of GitHub when it opens.
  */
 import { DOWNLOAD_STATS, RELEASE_TITLES } from "virtual:download-stats";
@@ -95,10 +95,11 @@ function drawHead(stats: DownloadStats): void {
     t("lead.text", {
       since: stats.since,
       total: number(stats.installers),
-      perDay: Math.round(stats.installers / days),
+      perDay: number(Math.round(stats.installers / days)),
     }),
   ];
-  if (stats.before > 0) {
+  // Only worth saying once it's at least twice as many.
+  if (stats.before > 0 && stats.installers >= stats.before * 2) {
     lead.push(t("lead.before", { times: Math.round(stats.installers / stats.before), before: number(stats.before) }));
   }
   $("lead").innerHTML = lead.join(" ");

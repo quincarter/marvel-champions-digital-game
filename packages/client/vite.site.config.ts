@@ -4,7 +4,14 @@ import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
 import { pointRootLinksAt } from "./src/site/release-links.js";
 import { siteNavLinks, withReleaseBar, type SitePage } from "./src/site/site-nav.js";
-import { summarizeDownloads, type GitHubRelease } from "./src/site/stats/download-stats.js";
+import {
+  STATS_JSON_PATH,
+  STATS_SINCE,
+  summarizeDownloads,
+  type DownloadStats,
+  type GitHubRelease,
+} from "./src/site/stats/download-stats.js";
+import { fetchAllReleases } from "./src/site/stats/github-releases.js";
 import { GAME_URL } from "./src/site/site-urls.js";
 
 /**
@@ -335,27 +342,17 @@ function siteNavPlugin(): Plugin {
   };
 }
 
-const RELEASES_API = "https://api.github.com/repos/quincarter/marvel-champions-digital-game/releases";
-/** The first release the stats page counts: the first one built by the release workflow the game ships with now. */
-const STATS_SINCE = "v0.19.0";
-
-/** Every release GitHub has, a page of 100 at a time (the API's most), or `null` if GitHub couldn't be read. */
+/**
+ * Every release GitHub has, or `null` if GitHub couldn't be read (the stats page then says so). In a deploy the build
+ * fails instead (landing-deploy.yml sets `STATS_REQUIRED`), so a deploy never swaps the live page's numbers for that
+ * note: the live site keeps its last counts.
+ */
 async function allReleases(): Promise<GitHubRelease[] | null> {
-  const token = process.env.GITHUB_TOKEN;
-  const releases: GitHubRelease[] = [];
   try {
-    for (let page = 1; page <= 20; page++) {
-      const response = await fetch(`${RELEASES_API}?per_page=100&page=${page}`, {
-        headers: { Accept: "application/vnd.github+json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const batch = (await response.json()) as GitHubRelease[];
-      releases.push(...batch);
-      if (batch.length < 100) return releases;
-    }
-    return releases;
+    return await fetchAllReleases(process.env.GITHUB_TOKEN);
   } catch (error) {
+    if (process.env.STATS_REQUIRED)
+      throw new Error(`GitHub's releases were out of reach for the download stats: ${String(error)}`);
     console.warn(`[stats] GitHub's releases were out of reach (${String(error)}); the stats page will say so.`);
     return null;
   }
@@ -366,9 +363,11 @@ const STATS_VIRTUAL = "virtual:download-stats";
 /**
  * `virtual:download-stats`: `DOWNLOAD_STATS`, the download counts of every release as GitHub has them at build time
  * (`null` if GitHub couldn't be read), and `RELEASE_TITLES`, each release's headline from the release history, for
- * the stats page's top five. A scheduled deploy rebuilds it every day (landing-deploy.yml).
+ * the stats page's top five. The counts are also published as `stats/downloads.json`, which the scheduled deploy
+ * (landing-deploy.yml, twice a day) compares with GitHub's to skip a rebuild when nothing changed.
  */
 function downloadStatsPlugin(): Plugin {
+  let counted: DownloadStats | null = null;
   return {
     name: "mc-download-stats",
     resolveId: (id) => (id === STATS_VIRTUAL ? `\0${STATS_VIRTUAL}` : undefined),
@@ -376,6 +375,7 @@ function downloadStatsPlugin(): Plugin {
       if (id !== `\0${STATS_VIRTUAL}`) return undefined;
       const releases = await allReleases();
       const stats = releases && summarizeDownloads(releases, STATS_SINCE, new Date().toISOString());
+      counted = stats;
       writeReleaseHistory();
       const history = join(PUBLIC_RELEASES, "history");
       const titles = (dir: string) =>
@@ -391,6 +391,9 @@ function downloadStatsPlugin(): Plugin {
         `export const DOWNLOAD_STATS = ${JSON.stringify(stats)};`,
         `export const RELEASE_TITLES = ${JSON.stringify({ en: titles(history), es: titles(join(history, "es")) })};`,
       ].join("\n");
+    },
+    generateBundle() {
+      if (counted) this.emitFile({ type: "asset", fileName: STATS_JSON_PATH, source: JSON.stringify(counted) });
     },
   };
 }

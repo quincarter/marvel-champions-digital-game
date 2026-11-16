@@ -1,7 +1,7 @@
 /**
  * The download stats page's numbers (`site/landing/stats/`), worked out from GitHub's own download count for each file
  * of each release. The landing build asks GitHub for every release and runs `summarizeDownloads` over them
- * (`vite.site.config.ts`, `virtual:download-stats`), and a daily scheduled deploy (landing-deploy.yml) rebuilds the
+ * (`vite.site.config.ts`, `virtual:download-stats`), and a scheduled deploy (landing-deploy.yml) rebuilds the
  * page, so the numbers are never more than a day old.
  *
  * A download is a file fetched, not a person: one player who updates five times counts five times. Only installers
@@ -214,4 +214,20 @@ export function summarizeDownloads(
 /** The share of `part` in `whole` as a whole percentage, 0 for an empty whole. */
 export function percent(part: number, whole: number): number {
   return whole === 0 ? 0 : Math.round((part / whole) * 100);
+}
+
+/** The first release the stats page counts: the first one built by the release workflow the game ships with now. */
+export const STATS_SINCE = "v0.19.0";
+
+/** Where the landing build publishes the stats it counted, so a later run can tell whether anything has changed. */
+export const STATS_JSON_PATH = "stats/downloads.json";
+
+/**
+ * Whether two counts say the same thing, whenever they were counted. The scheduled deploy (landing-deploy.yml) skips
+ * the rebuild when GitHub's numbers match the live page's.
+ */
+export function sameCounts(a: DownloadStats, b: DownloadStats): boolean {
+  const { countedAt: _a, ...left } = a;
+  const { countedAt: _b, ...right } = b;
+  return JSON.stringify(left) === JSON.stringify(right);
 }
