@@ -693,7 +693,7 @@ export function buildScenarioWithLoadedPacks(scenarioId: string, rawOptions: Pla
   const modular = [
     ...(options.modularSetIds ?? []),
     ...(options.extraModularSetIds ?? []),
-    ...((options as { houseModularSetIds?: readonly string[] }).houseModularSetIds ?? []),
+    ...(options.houseModularSetIds ?? []),
   ];
   return packsOwningContent(scenarioId, modular, packs).length > 0
     ? scenarioWithPacks(scenarioId, options, packs)

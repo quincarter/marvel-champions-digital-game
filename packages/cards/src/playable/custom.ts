@@ -28,7 +28,14 @@ import {
   type Scenario,
 } from "@mc/content";
 import type { GameSetupConfig } from "@mc/engine";
-import { encounterCardsOf, modularSetupCardIds, resolveModes, setSeparateDecks } from "../core/setup.js";
+import {
+  encounterCardsOf,
+  modularSetContents,
+  modularSetupCardIds,
+  resolveModes,
+  setSeparateDecks,
+  withModularSetContents,
+} from "../core/setup.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
@@ -351,20 +358,34 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
  */
 export function playableScenarioWithCustom(
   scenarioId: string,
-  options: PlayableScenarioOptions,
+  rawOptions: PlayableScenarioOptions,
   custom: CustomContent,
 ): GameSetupConfig {
   const clashes = customContentProblems(custom);
   if (clashes.length > 0) throw new Error(`custom content cannot join a game: ${clashes.join("; ")}`);
   const own = customScenarioOf(scenarioId, custom);
-  if (own) return customScenario(own, options, custom);
+  if (own) {
+    // A pack scenario builds no set-dependent option, so every house set (base or pack) is added after, from its pool.
+    const { houseModularSetIds: ownHouse = [], ...ownOptions } = rawOptions;
+    const built = customScenario(own, ownOptions, custom);
+    return withModularSetContents(built, modularSetContents(ownHouse, built.cards ?? PLAYABLE_CARDS));
+  }
   const customIds = new Set(custom.encounterSets.map((set) => set.id as string));
+  // The house rule's sets (#761): the base ones go to `playableScenario`, which builds them ahead of its set-dependent
+  // options; a pack's are added here, after, from the widened pool (a pack set brings no such option).
+  const houseIds = rawOptions.houseModularSetIds ?? [];
+  const customHouse = houseIds.filter((id) => customIds.has(id));
+  const withCustomHouse = (config: GameSetupConfig): GameSetupConfig =>
+    customHouse.length > 0
+      ? withModularSetContents(config, modularSetContents(customHouse, config.cards ?? PLAYABLE_CARDS))
+      : config;
+  const options = { ...rawOptions, houseModularSetIds: houseIds.filter((id) => !customIds.has(id)) };
   const picks = options.modularSetIds;
   const customPicks = (picks ?? []).filter((id) => customIds.has(id));
   const basePicks = (picks ?? []).filter((id) => !customIds.has(id));
   if (customPicks.length === 0) {
     const built = playableScenario(scenarioId, options);
-    return { ...built, cards: widenedPool(built.cards, custom) };
+    return withCustomHouse({ ...built, cards: widenedPool(built.cards, custom) });
   }
   const record = PLAYABLE_SCENARIO_RECORDS.find((s) => s.id === scenarioId);
   if (!record) throw new Error(`${scenarioId}: pack modular sets are not offered at this scenario`);
@@ -379,7 +400,7 @@ export function playableScenarioWithCustom(
   }
   const built = playableScenario(scenarioId, { ...options, modularSetIds: basePicks }, customPicks.length);
   const pool = widenedPool(built.cards, custom);
-  return {
+  return withCustomHouse({
     ...built,
     cards: pool,
     encounterDeck: [
@@ -387,5 +408,5 @@ export function playableScenarioWithCustom(
       ...encounterCardsOf(customPicks, pool),
       ...modularSetupCardIds(customPicks, pool),
     ],
-  };
+  });
 }

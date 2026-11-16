@@ -312,6 +312,11 @@ export interface PlayableScenarioChoices {
   readonly modes?: PlayModes;
   /** The modular sets picked so far; absent is the scenario's recommendation. */
   readonly modularSetIds?: readonly string[];
+  /**
+   * The "Allow extra modular sets" house rule's picks (`PlayableScenarioOptions.houseModularSetIds`): sets beyond the
+   * count that are built as counted ones, so a set-dependent option (the threat on Gene Pool) follows them too.
+   */
+  readonly houseModularSetIds?: readonly string[];
   /** The main scheme stages picked so far (`CoreScenarioOptions.mainSchemeStageIds`); absent is the recommendation. */
   readonly mainSchemeStageIds?: readonly string[];
 }
@@ -488,7 +493,10 @@ export function playableScenarioOffer(
     horsemanSides: horsemanSidesOffer(scenario, modes),
     skirmish: skirmishOffer(scenario, modes),
     easierStart: offersEasierStart(scenarioId, modes.expert ? "expert" : "standard"),
-    genePoolThreat: genePoolThreatOffer(scenarioGameSetIds(scenario, choices.modularSetIds), modes),
+    genePoolThreat: genePoolThreatOffer(
+      [...scenarioGameSetIds(scenario, choices.modularSetIds), ...(choices.houseModularSetIds ?? [])],
+      modes,
+    ),
     modularSetCount: {
       ...modularPickCountRange(scenario),
       problem: choices.modularSetIds ? modularPickCountProblem(scenario, choices.modularSetIds.length) : null,

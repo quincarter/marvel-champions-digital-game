@@ -18,6 +18,7 @@ export {
   coreScenario,
   encounterCardsOf,
   modularSetContents,
+  withModularSetContents,
   resolveModes,
   starterDeckSetup,
 } from "./core/index.js";

@@ -20,6 +20,7 @@ import {
   pickedSetCount,
   toggleModularSet,
 } from "./modular-sets.js";
+import { offerOf, reconcileWithOffer } from "./setup-options.js";
 import { initialSetupDraft, setScenario, toSessionConfig, type SetupDraft } from "./setup-draft.js";
 
 const scenarioOf = (id: string) => POOL_SCENARIOS.find((s) => (s.id as string) === id)!;
@@ -170,5 +171,60 @@ describe("a real game with an extra modular set", () => {
     const extra = await stonesOf({ modularSetIds: ["bomb_scare"], houseModularSetIds: ["infinity_gauntlet"] });
     expect(extra.stoneDeck).toHaveLength(6);
     for (const stone of extra.stoneDeck) expect(extra.inEncounterDeck).not.toContain(stone);
+  });
+});
+
+describe("Infinites and the Gene Pool threat follow the set between a counted pick and an extra", () => {
+  const withThreat = (draft: SetupDraft): SetupDraft => ({ ...draft, genePoolThreatPerPlayer: 2 });
+  const sent = (draft: SetupDraft) => toSessionConfig(draft, players, rhino);
+
+  test("a game with Infinites only as an extra is offered the threat and sends it", () => {
+    let draft = toggle(draftFor("rhino"), "infinites", true);
+    expect(effectiveModularSetIds(draft, rhino)).toEqual(["bomb_scare"]);
+    expect(houseModularSetIdsOf(draft)).toEqual(["infinites"]);
+    expect(offerOf(draft).genePoolThreat).not.toBeNull();
+    draft = withThreat(draft);
+    expect(reconcileWithOffer(draft).genePoolThreatPerPlayer).toBe(2);
+    expect(sent(draft).genePoolThreatPerPlayer).toBe(2);
+    expect(sent(draft).houseModularSetIds).toEqual(["infinites"]);
+  });
+
+  test("moving Infinites between the count and the extras keeps the chosen amount", () => {
+    // Counted Infinites with 2 per player; Bomb Scare then added beside it as an extra.
+    let draft = withThreat(toggle(draftFor("rhino"), "infinites", true));
+    draft = toggle(draft, "bomb_scare", true); // current is [bomb_scare]: deselect it, the extra steps in
+    expect(effectiveModularSetIds(draft, rhino)).toEqual(["infinites"]);
+    expect(sent(draft).genePoolThreatPerPlayer).toBe(2);
+    // Add Bomb Scare back as an extra, then take Infinites out of the count: Bomb Scare steps in, Infinites is gone.
+    draft = toggle(draft, "bomb_scare", true);
+    expect(houseModularSetIdsOf(draft)).toEqual(["bomb_scare"]);
+    expect(offerOf(draft).genePoolThreat).not.toBeNull();
+    expect(sent(draft).genePoolThreatPerPlayer).toBe(2);
+    draft = toggle(draft, "infinites", true);
+    expect(effectiveModularSetIds(draft, rhino)).toEqual(["bomb_scare"]);
+    expect(offerOf(draft).genePoolThreat).toBeNull();
+    expect(sent(draft).genePoolThreatPerPlayer).toBeUndefined();
+  });
+
+  test("a real game builds the threat on Gene Pool whether Infinites is counted or an extra", async () => {
+    const threatOf = async (opts: { modularSetIds: string[]; houseModularSetIds?: string[] }) => {
+      const store = new SessionStore(new LocalEngineHost());
+      await store.start({
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players,
+        seed: 7,
+        genePoolThreatPerPlayer: 2,
+        ...opts,
+      });
+      expect(store.state.status).not.toBe("failed");
+      const state = store.state.game!;
+      return state.villainArea
+        .map((id) => state.instances[id]!)
+        .find((instance) => (instance.cardId as string) === "45071")?.threat;
+    };
+    const counted = await threatOf({ modularSetIds: ["infinites"] });
+    expect(counted).toBeGreaterThan(0);
+    expect(await threatOf({ modularSetIds: ["bomb_scare"], houseModularSetIds: ["infinites"] })).toBe(counted);
   });
 });
