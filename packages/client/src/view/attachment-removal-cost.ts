@@ -1,12 +1,13 @@
 /**
  * What removing an attachment costs (issue #767): the printed "Hero Action: [cost] → discard this card" ability on it
  * (Solid-Sound Body, Vibranium Armor, Crown of the Enchantress, Haywire), read from its scripted ability's
- * `AbilityCost` and worded by `costPhrase`, the same words an action button uses, so the chip never invents one. Null
+ * `AbilityCost` and worded by `fullCostPhrase`, the same words an action button uses, so the chip never invents one, and "see card"
+ * when a part has none (a discard narrowed by a resource icon), rather than a cost that sounds cheaper than the card. Null
  * for an attachment players cannot remove that way.
  */
 
 import { activeAbilityRefs, cardOf, getInstance, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
-import { costPhrase } from "./ability-label.js";
+import { fullCostPhrase } from "./ability-label.js";
 
 export interface RemovalCost {
   /** "spend 2 physical, exhaust your identity"; null for a cost `costPhrase` has no words for (the chip then says so). */
@@ -43,7 +44,7 @@ export function removalCostOf(state: GameState, deps: EngineDeps, id: InstanceId
     if (!discardsItself(definition.effects)) continue;
     const cost = definition.cost;
     const free = cost === undefined || Object.values(cost).every((part) => part === undefined);
-    return { phrase: costPhrase(cost), free, heroOnly: definition.trigger.form === "hero" };
+    return { phrase: fullCostPhrase(cost), free, heroOnly: definition.trigger.form === "hero" };
   }
   return null;
 }

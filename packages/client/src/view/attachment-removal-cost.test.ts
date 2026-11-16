@@ -66,12 +66,12 @@ describe("removalCostOf (#767)", () => {
     expect(removalCostText(cost)).toBe("remove: each player exhausts, takes 1 damage");
   });
 
-  test("Haywire: removed by moving itself to the discard pile, its either-or cost said in full", async () => {
+  test("Haywire: its moveCards removal is recognised, and its energy-only discard is never worded as any card", async () => {
     const { state, id } = await withAttachment("29038");
     const cost = removalCostOf(state, POOL_DEPS, id)!;
-    expect(removalCostText(cost)).toBe(
-      "remove: discard 1 card or discard a card you control or take 2 indirect damage",
-    );
+    // "Discard a card you control with a printed [energy] resource or take 2 indirect damage": no words here for the
+    // energy-only discard, so the chip points at the card instead of offering an unrestricted one.
+    expect(removalCostText(cost)).toBe("remove: see card");
   });
 
   test("Armored Rhino Suit, with no such ability, has no removal cost", async () => {
