@@ -57,6 +57,8 @@ describe("packIndexEntry", () => {
   it("writes the §11.5 entry with URLs under the version's base", () => {
     const e = entry("carnage-nep", "3.0.0");
     assert.equal(e.creator, "Neptune");
+    // Every author, for the store's Credits tab (#734).
+    assert.deepEqual(e.authors, ["Neptune", "Someone"]);
     assert.equal(e.summary, "Fan-made hero pack.");
     assert.deepEqual(e.tags, ["hero"]);
     assert.equal(e.thumbnail, `${BASE}/carnage-nep/3.0.0/thumb.webp`);

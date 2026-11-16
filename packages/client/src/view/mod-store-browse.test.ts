@@ -13,10 +13,12 @@ import {
   tagChipsOf,
   toggleTag,
 } from "./mod-store-browse.js";
-import type { ModStoreTile } from "./mod-store-model.js";
+import { tileOf, type ModStoreTile } from "./mod-store-model.js";
 
 function tile(id: string, over: Partial<ModStoreTile> = {}): ModStoreTile {
+  const creator = over.creator ?? "Someone";
   return {
+    creators: creatorsIn(creator),
     id,
     name: id,
     creator: "Someone",
@@ -149,6 +151,32 @@ describe("credits", () => {
     expect(creatorsIn("DesignHacker & BlueHG (nemesis set)")).toEqual(["DesignHacker", "BlueHG"]);
     expect(creatorsIn("Neptune (Typhon00)")).toEqual(["Neptune"]);
     expect(creatorsIn("Ana (art, and text)")).toEqual(["Ana"]);
+  });
+
+  it("credits a co-author the catalog's creator line leaves out (GMW Fixes: Gideon's Gaming and Bluefire)", () => {
+    const entry = tileOf(
+      {
+        id: "gmw-fixes-gg",
+        kind: "house-rule",
+        name: "GMW Fixes",
+        creator: "Gideon's Gaming",
+        authors: ["Gideon's Gaming", "Bluefire"],
+        summary: "",
+        tags: [],
+        approved: "2026-11-12",
+        latest: "1.0.0",
+        withdrawn: false,
+        versions: {},
+      },
+      { appVersion: "0.45.0", supportedDslFeatures: [], installed: new Map() },
+    );
+    expect(entry.creators).toEqual(["Gideon's Gaming", "Bluefire"]);
+    const credits = creditsOf([entry, tile("lost-traits-bf", { name: "Lost Traits", creator: "Bluefire" })]);
+    expect(credits.find((credit) => credit.name === "Bluefire")?.packs.map((pack) => pack.id)).toEqual([
+      "gmw-fixes-gg",
+      "lost-traits-bf",
+    ]);
+    expect(filterTiles([entry], { ...EMPTY_FILTER, creator: "bluefire" })).toHaveLength(1);
   });
 
   it("lists each creator with their packs, the busiest first", () => {

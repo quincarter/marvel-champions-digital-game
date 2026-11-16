@@ -110,6 +110,8 @@ export function packIndexEntry({
     kind: manifest.kind,
     name: manifest.name,
     creator: manifest.authors?.[0] ?? "Unknown",
+    // Every credited author, for the store's Credits tab (#734): `creator` names only the first.
+    ...(Array.isArray(manifest.authors) && manifest.authors.length > 0 ? { authors: [...manifest.authors] } : {}),
     summary: String(manifest.description ?? "").split("\n")[0],
     tags: catalogTags(manifest),
     ...(hasThumb ? { thumbnail: `${base}thumb.webp` } : {}),

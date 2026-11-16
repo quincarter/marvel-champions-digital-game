@@ -593,6 +593,11 @@ export interface PackIndexEntry {
   readonly kind: PackKind;
   readonly name: string;
   readonly creator: string;
+  /**
+   * Everyone the pack's `pack.json` credits (`authors`), for the store's Credits tab (issue #734): `creator` is one
+   * line and may name only the lead. Absent on an entry written before the field existed.
+   */
+  readonly authors?: readonly string[];
   /** One line for the store list. */
   readonly summary: string;
   readonly tags: readonly string[];

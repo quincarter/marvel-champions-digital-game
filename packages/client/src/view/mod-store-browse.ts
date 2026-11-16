@@ -55,7 +55,7 @@ export function filterTiles(tiles: readonly ModStoreTile[], filter: ModStoreFilt
     (tile) =>
       matchesText(tile, filter.text) &&
       filter.tags.every((tag) => hasTag(tile, tag)) &&
-      (filter.creator === null || creatorsIn(tile.creator).some((one) => foldText(one) === foldText(filter.creator!))),
+      (filter.creator === null || tile.creators.some((one) => foldText(one) === foldText(filter.creator!))),
   );
   if (filter.sort === "name") return kept;
   return [...kept].sort((a, b) => (b.approved ?? "").localeCompare(a.approved ?? "") || a.name.localeCompare(b.name));
@@ -141,13 +141,13 @@ export interface CreatorCredit {
 }
 
 /**
- * The Credits tab: every creator the store's packs name (a shared credit counts for each person), the most packs first,
- * then A to Z, each with their packs by name.
+ * The Credits tab: every creator the store's packs credit (a shared credit, or a co-author the `creator` line leaves out,
+ * counts for each person), the most packs first, then A to Z, each with their packs by name.
  */
 export function creditsOf(tiles: readonly ModStoreTile[]): readonly CreatorCredit[] {
   const byCreator = new Map<string, { name: string; packs: Map<string, CreatorCredit["packs"][number]> }>();
   for (const tile of tiles) {
-    for (const name of creatorsIn(tile.creator)) {
+    for (const name of tile.creators) {
       const key = foldText(name);
       let credit = byCreator.get(key);
       if (!credit) {

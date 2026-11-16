@@ -14,6 +14,7 @@ import type { InstallProgress } from "../packs/install-pack.js";
 import type { PackInstallErrorCode } from "../packs/unpack-pack.js";
 import type { ExtrasGrid } from "./extras-model.js";
 import { ruleFaceOf } from "./pack-gallery-model.js";
+import { creatorsIn, foldText } from "./mod-store-browse.js";
 import { t, type MessageKey } from "../i18n/translate.js";
 import type { CardLanguage } from "../art/card-language.js";
 
@@ -88,6 +89,11 @@ export interface ModStoreTile {
   readonly id: string;
   readonly name: string;
   readonly creator: string;
+  /**
+   * Everyone credited for the pack: the people `creator` names, then the manifest's `authors` the catalog lists (or the
+   * installed copy's), once each. Credits and the creator filter read this (issue #734).
+   */
+  readonly creators: readonly string[];
   readonly kind: PackKind;
   readonly kindLabel: string;
   readonly summary: string;
@@ -115,6 +121,20 @@ export interface ModStoreTile {
   readonly approved: string | undefined;
 }
 
+/** The people a `creator` line and an `authors` list name, once each ignoring case and accents. */
+function creatorsOf(creator: string, authors: readonly unknown[]): readonly string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const strings = authors.filter((one): one is string => typeof one === "string");
+  for (const name of [creator, ...strings].flatMap(creatorsIn)) {
+    const key = foldText(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
+}
+
 /** An installed pack's cover path, read defensively (an install from before covers has none). */
 function installedCoverOf(pack: InstalledPack | undefined): string | undefined {
   const cover: unknown = pack?.manifest.cover;
@@ -135,6 +155,7 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     id: entry.id,
     name: entry.name,
     creator: entry.creator,
+    creators: creatorsOf(entry.creator, entry.authors ?? installed?.manifest.authors ?? []),
     kind: entry.kind,
     kindLabel: KIND_LABELS[entry.kind],
     summary: entry.summary,
@@ -161,6 +182,7 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     id: pack.id,
     name: pack.manifest.name,
     creator: pack.manifest.authors.join(", "),
+    creators: creatorsOf("", pack.manifest.authors),
     kind: pack.manifest.kind,
     kindLabel: KIND_LABELS[pack.manifest.kind],
     summary: pack.manifest.description,
