@@ -8,6 +8,7 @@ import { legalActions, type GameState, type InstanceId, type LegalActions, type 
 import { beforeAll, describe, expect, test } from "vitest";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { nextTurn } from "../store/dev-game-steps.js";
 import { startDevSenseHeroGame } from "../store/dev-sense-game.js";
 import { SessionStore } from "../store/session-store.js";
 import { inspectModel } from "./inspect-model.js";
@@ -46,7 +47,7 @@ describe("the Sense deck's top card offers Superhuman Senses", () => {
     expect(inspectModel(game, second, legal, me, POOL_DEPS).abilities).toEqual([]);
   });
 
-  test("not while the Action is not legal (no Play it on the alter-ego face)", () => {
+  test("not while the engine does not list the Action as legal", () => {
     const alterEgo: LegalActions =
       legal.kind === "turn"
         ? {
@@ -72,6 +73,25 @@ describe("the Sense deck's top card offers Superhuman Senses", () => {
     expect(model.abilities).toEqual([]);
     expect(model.status.playable).toBe(false);
     expect(model.status.message).toMatch(/Superhuman Senses: /);
+  });
+
+  test("on Matt Murdock's face the top card says the Action is on the hero side", async () => {
+    const aeStore = new SessionStore(new LocalEngineHost());
+    await aeStore.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "fne-daredevil-justice" }],
+      seed: 3,
+    });
+    await nextTurn(aeStore);
+    const ae = aeStore.state.game!;
+    expect(ae.players[0]!.identity.form).toBe("alterEgo");
+    const model = inspectModel(ae, senseDeck(ae)[0]!, aeStore.state.legal!.actions, me, POOL_DEPS);
+    expect(model.abilities).toEqual([]);
+    expect(model.status).toMatchObject({ playable: false });
+    expect(model.status.message).toBe(
+      "Daredevil's Superhuman Senses plays this card from the hero side: flip to Daredevil to play it.",
+    );
   });
 
   test("using it from the top card's button plays that card: it leaves the Sense deck for play", async () => {

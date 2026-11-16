@@ -715,7 +715,8 @@ function usableAbilitiesOf(
  * printed on the identity, but the player reaches for the Sense deck's top card to play it, and tapping it used to open
  * a sheet with no way to (reported from play, #782). Only abilities the engine lists as legal right now become buttons,
  * each used on the card that has it, so payment and the host choice run exactly as from the identity. One the engine
- * refuses (the top card costs more than the hero can pay) gives the sheet its reason instead of a silent card.
+ * refuses (the top card costs more than the hero can pay), or one printed on the hero face while the alter ego is up,
+ * gives the sheet its reason instead of a silent card.
  * Only an ability's top-level effects are read: a "play the top card" nested in a branch is not found.
  */
 function deckTopPlaysOf(
@@ -757,9 +758,21 @@ function deckTopPlaysOf(
     };
   }
   const refused = legal.illegal.find((entry) => playsTop(entry.action));
-  if (!refused || refused.action.kind !== "useAbility") return none;
-  const name = abilityLabelOf(state, refused.action.instanceId, refused.action.abilityId, deps);
-  return { plays: [], status: { playable: false, message: `${name}: ${refused.message}`, targets: [] } };
+  if (refused && refused.action.kind === "useAbility") {
+    const name = abilityLabelOf(state, refused.action.instanceId, refused.action.abilityId, deps);
+    return { plays: [], status: { playable: false, message: `${name}: ${refused.message}`, targets: [] } };
+  }
+  // On the alter-ego face the engine lists the hero face's Action neither way (only the face up is read), so the
+  // reason is the face: Superhuman Senses is printed on Daredevil, not on Matt Murdock.
+  const identity = player ? cardOf(state, player.identity.instanceId) : undefined;
+  if (player?.identity.form !== "alterEgo" || identity?.type !== "hero_identity") return none;
+  const heroRef = identity.hero.abilities.find((ref) =>
+    playsTop({ kind: "useAbility", instanceId: player.identity.instanceId, abilityId: ref.id }),
+  );
+  if (!heroRef) return none;
+  const label = heroRef.label ? `${identity.name}'s ${heroRef.label}` : `${identity.name}'s Action`;
+  const message = `${label} plays this card from the hero side: flip to ${identity.name} to play it.`;
+  return { plays: [], status: { playable: false, message, targets: [] } };
 }
 
 /**
