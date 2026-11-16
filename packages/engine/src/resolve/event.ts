@@ -2665,10 +2665,18 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   // `byThwart`: this removal is a thwart's ("After your hero thwarts and removes all threat", Turn the Tide 15015),
   // not a plain "remove threat" effect of a card or an identity (RRG 1.8 "Thwart", p. 44).
   addFrameVars(ctx, frameId, { amount: removed, ...(thwart ? { byThwart: 1 } : {}) });
-  // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
-  // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart.
-  addFrameVars(ctx, event.parentFrameId, { threatRemoved: removed, ...(thwart ? { amount: removed } : {}) });
   const after = mustInstance(ctx.state, event.schemeInstanceId);
+  // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
+  // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart. `removedLastThreat`: this removal
+  // took the scheme from some threat to none, kept on the parent frame (a thwart's, an activation's) so "If this
+  // removes the last threat …" (Clear the Area 04049) reads `<bind>.removedLastThreat` after the removal's own
+  // responses have run, even one that put threat back (The Search for Spiral; ruling October 10, 2025). A plain
+  // `removeThreat` has no parent frame: its own bind reads the same fact as `<bind>.lastThreatRemoved` (below).
+  addFrameVars(ctx, event.parentFrameId, {
+    threatRemoved: removed,
+    ...(thwart ? { amount: removed } : {}),
+    ...(removed > 0 && after.threat === 0 ? { removedLastThreat: 1 } : {}),
+  });
   // "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): this removal took the scheme, main
   // or side, from some threat to none. A result of the removal itself, so `requireResults: { lastThreatRemoved: 1 }`
   // answers it once, whether or not the scheme is defeated for it.

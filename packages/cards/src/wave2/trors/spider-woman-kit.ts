@@ -41,7 +41,7 @@ import {
   shuffleDeck,
   stun,
   thwart,
-  valueAtMost,
+  varAtLeast,
   when,
   you,
   yourIdentity,
@@ -175,12 +175,16 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   ),
 
   // Clear the Area — Hero Action (thwart): Remove 2 threat from a scheme. If this removes the last threat on that
-  // scheme, draw 1 card. Checked before the removal (so "the last threat" reads pre-removal threat <= 2, not the
-  // scheme's possibly-already-left-play state after).
+  // scheme, draw 1 card. Judged by the removal itself (`removedLastThreat`, recorded as the threat comes off), so a
+  // thwart raised past 2 (Shrink, "increase the amount of threat that event removes by 2") that clears
+  // the scheme still draws (issue #773), and so does one whose scheme gets threat again from its own Forced Response
+  // before this reads it (The Search for Spiral; ruling October 10, 2025: "you still removed the last threat from The
+  // Search for Spiral, so you can draw a card with Clear the Area"). A removal of nothing records nothing, so a thwart
+  // that removes no threat (a confused hero, a crisis icon, a scheme with none) draws nothing.
   "04049.clear-the-area-action": heroAction(
     { label: "thwart" },
     chooseTarget("scheme", query("scheme")),
-    ifThen(valueAtMost({ kind: "threat", of: chosen("scheme") }, 2), draw(1)),
-    thwart(2, chosen("scheme")),
+    thwart(2, chosen("scheme"), { bind: "cleared" }),
+    ifThen(varAtLeast("cleared.removedLastThreat"), draw(1)),
   ),
 });
