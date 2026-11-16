@@ -156,7 +156,9 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
       if (seat?.satOut) return;
       const identity =
         seat?.identityCardId ??
-        ("starterDeckId" in player ? names.starterDeck(player.starterDeckId)?.identityCardId : player.identityCardId);
+        ("starterDeckId" in player
+          ? (names.forSave?.(meta) ?? names).starterDeck(player.starterDeckId)?.identityCardId
+          : player.identityCardId);
       if (identity) addGame((heroes[identity] ??= blank()), won, lossReason, seat);
       const key = deckKeyOfPlayer(player);
       if (key) addGame((decks[key] ??= blank()), won, lossReason, seat);

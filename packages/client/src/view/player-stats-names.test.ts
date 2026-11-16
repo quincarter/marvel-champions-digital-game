@@ -91,3 +91,48 @@ describe("statsNamesForSaves", () => {
     expect(names.cardName(HERO)).toBeUndefined();
   });
 });
+
+describe("two versions of one pack", () => {
+  const versioned = (id: string, at: number, aspect: string, name: string): SaveMeta => {
+    const base = save() as unknown as SaveMeta & { config: { packs: unknown[] } };
+    const pack = {
+      ...PACK,
+      cards: PACK.cards.map((c) => (c.id === HERO ? { ...c, name } : c)),
+      decks: [{ ...PACK.decks[0]!, aspects: [aspect], name: `${name} deck` }],
+    };
+    // No summary: the seat comes from the precon id, so it reads the save's own version of the pack.
+    return {
+      ...base,
+      id,
+      updatedAt: at,
+      createdAt: at,
+      summary: null,
+      config: { ...base.config, packs: [pack] as never },
+    };
+  };
+  const older = versioned("old", 10, "justice", "Old Sample");
+  const newer = versioned("new", 20, "aggression", "New Sample");
+
+  test("each game's seat facts come from its own version of the pack", () => {
+    setLoadedPacks([]);
+    const names = statsNamesForSaves([older, newer]);
+    expect(names.forSave?.(older).starterDeck(DECK)?.aspects).toEqual(["justice"]);
+    expect(names.forSave?.(newer).starterDeck(DECK)?.aspects).toEqual(["aggression"]);
+    const stats = playerStatsOf([older, newer], names);
+    expect(stats.aspects.map((a) => a.aspect).sort()).toEqual(expect.arrayContaining(["justice", "aggression"]));
+  });
+
+  test("the aggregate display names do not depend on the order the saves arrive in", () => {
+    setLoadedPacks([]);
+    const forward = [older, newer];
+    const backward = [newer, older];
+    expect(playerStatsOf(forward, statsNamesForSaves(forward))).toEqual(
+      playerStatsOf(backward, statsNamesForSaves(backward)),
+    );
+    for (const saves of [forward, backward]) {
+      const names = statsNamesForSaves(saves);
+      expect(names.cardName(HERO)).toBe("New Sample");
+      expect(names.starterDeckName?.(DECK)).toBe("New Sample deck");
+    }
+  });
+});

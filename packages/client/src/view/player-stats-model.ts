@@ -39,6 +39,11 @@ export interface StatsNames {
   readonly isVillain?: (name: string) => boolean;
   /** The whole pool, for the Matchups grids' axes. Absent: only what the games hold. */
   readonly matchupAxes?: () => MatchupAxes;
+  /**
+   * The names as one saved game knew them (its own embedded packs), for the facts read per game: a seat's hero and
+   * aspects from a precon id. Absent: the same names for every game.
+   */
+  readonly forSave?: (save: SaveMeta) => StatsNames;
 }
 
 export type StatRow =
@@ -329,7 +334,7 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
   }
   return meta.config.players.flatMap((player: CorePlayer): SeatFacts[] => {
     if ("starterDeckId" in player) {
-      const starter = names.starterDeck(player.starterDeckId);
+      const starter = (names.forSave?.(meta) ?? names).starterDeck(player.starterDeckId);
       return starter
         ? [
             {

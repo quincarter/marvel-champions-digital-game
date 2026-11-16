@@ -67,16 +67,12 @@ export const POOL_STATS_NAMES: StatsNames = {
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };
 
-/**
- * The names for a set of saves: the pool's, then the cards and precons of the packs the saves were played with
- * (`SaveMeta.config.packs`), so a custom hero's deck, cards and signature marks read right with the pack uninstalled.
- * It reads the saved records only (no pack loading), so it runs in the stats worker. A custom id is `x.<pack>...`,
- * never a base id, so one merged lookup over every save's packs is safe.
- */
-export function statsNamesForSaves(
-  saves: readonly Pick<SaveMeta, "config">[],
-  base: StatsNames = POOL_STATS_NAMES,
-): StatsNames {
+interface PackRecords {
+  readonly cards: ReadonlyMap<string, AnyCard>;
+  readonly decks: ReadonlyMap<string, StarterDeck>;
+}
+
+function recordsOf(saves: readonly Pick<SaveMeta, "config">[]): PackRecords {
   const cards = new Map<string, AnyCard>();
   const decks = new Map<string, StarterDeck>();
   for (const save of saves) {
@@ -85,6 +81,10 @@ export function statsNamesForSaves(
       for (const deck of pack.decks) decks.set(deck.id as string, deck);
     }
   }
+  return { cards, decks };
+}
+
+function layered(base: StatsNames, { cards, decks }: PackRecords): StatsNames {
   if (cards.size === 0 && decks.size === 0) return base;
   return {
     ...base,
@@ -102,5 +102,38 @@ export function statsNamesForSaves(
       return deck ? { identityCardId: deck.identityCardId as string, aspects: deck.aspects } : base.starterDeck(id);
     },
     starterDeckName: (id) => decks.get(id)?.name ?? base.starterDeckName?.(id),
+  };
+}
+
+/**
+ * The names for a set of saves: the pool's, then the cards and precons of the packs the saves were played with
+ * (`SaveMeta.config.packs`), so a custom hero's deck, cards and signature marks read right with the pack uninstalled.
+ * It reads the saved records only (no pack loading), so it runs in the stats worker.
+ *
+ * Saves may carry different versions of one pack. Per-game facts (a seat's hero and aspects from a precon id) come from
+ * that save's own packs through `forSave`. The names shown for an id across games (a card's or a precon's name, a
+ * card's type and aspect, the signature mark) follow one policy: the newest save's version wins (`updatedAt`, then
+ * `createdAt`, then id), so the answer never depends on the order the saves arrive in.
+ */
+export function statsNamesForSaves(
+  saves: readonly Pick<SaveMeta, "config" | "updatedAt" | "createdAt" | "id">[],
+  base: StatsNames = POOL_STATS_NAMES,
+): StatsNames {
+  if (!saves.some((save) => (save.config?.packs?.length ?? 0) > 0)) return base;
+  const oldestFirst = [...saves].sort(
+    (a, b) =>
+      (a.updatedAt ?? 0) - (b.updatedAt ?? 0) ||
+      (a.createdAt ?? 0) - (b.createdAt ?? 0) ||
+      String(a.id ?? "").localeCompare(String(b.id ?? "")),
+  );
+  const aggregate = layered(base, recordsOf(oldestFirst));
+  const own = new WeakMap<object, StatsNames>();
+  return {
+    ...aggregate,
+    forSave: (save) => {
+      let names = own.get(save);
+      if (!names) own.set(save, (names = layered(base, recordsOf([save]))));
+      return names;
+    },
   };
 }
