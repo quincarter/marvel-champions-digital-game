@@ -55,7 +55,7 @@ export function perRoundThreatOf(state: GameState, deps: EngineDeps, id: Instanc
 }
 
 /** "+3 per round", the line beside a main scheme's threat. */
-export const perRoundLabel = (perRound: PerRoundThreat): string => `+${perRound.total} per round`;
+export const perRoundLabel = (perRound: PerRoundThreat): string => `${signed(perRound.total)} per round`;
 
 /** The hover's line: "+3 per round: Stage +1 · 1 acceleration token +1 · Hydra Bomb +1". */
 export const perRoundHoverLine = (perRound: PerRoundThreat): string =>

@@ -377,13 +377,16 @@ export function compactVillainNote(panel: CharacterPanel): string {
     const word = pip.status.charAt(0).toUpperCase() + pip.status.slice(1);
     return pip.count > 1 ? `${word} ×${pip.count}` : word;
   });
-  return [...statuses, ...panel.attachments.map(attachmentChipText), counterNote(panel.counters)]
+  return [...statuses, ...panel.attachments.map((chip) => attachmentChipText(chip)), counterNote(panel.counters)]
     .filter(Boolean)
     .join(" · ");
 }
 
-/** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
-export function attachmentChipText(chip: AttachmentChip): string {
+/**
+ * The chip's label without its damage: the part that may be clipped when the chip is narrow. `owed` (" · must use") goes
+ * ahead of the removal cost, which is the least of the chip's words: a narrow chip clips "remove: …", never "must use".
+ */
+export function attachmentChipText(chip: AttachmentChip, owed = ""): string {
   const goals = chip.counterGoals ?? {};
   const toward = Object.entries(goals).map(([name, goal]) => {
     const count = chip.counters.find((counter) => counter.name === name)?.count ?? 0;
@@ -396,10 +399,10 @@ export function attachmentChipText(chip: AttachmentChip): string {
     chip.ownedBy,
     chip.tuckedNote,
     chip.exhausted ? "exhausted" : null,
-    chip.removalCost ? removalCostText(chip.removalCost) : null,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(" · ")
+    .concat(owed, chip.removalCost ? ` · ${removalCostText(chip.removalCost)}` : "");
 }
 
 /**

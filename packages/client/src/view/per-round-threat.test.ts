@@ -7,7 +7,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { boardModel } from "./board-model.js";
-import { perRoundHoverLine, perRoundThreatOf } from "./per-round-threat.js";
+import { perRoundHoverLine, perRoundLabel, perRoundThreatOf } from "./per-round-threat.js";
 
 async function rhinoGame(): Promise<{ state: GameState; store: SessionStore }> {
   const store = new SessionStore(new LocalEngineHost());
@@ -115,5 +115,11 @@ describe("perRoundThreatOf (#765)", () => {
     expect(inA.sources.join(" ")).not.toContain("Klaw");
     expect(inB.sources).toContain('The "Immortal" Klaw +1');
     expect(inB.sources.join(" ")).not.toContain("Bomb Scare");
+  });
+
+  test('a negative total reads with a minus sign, never "+-1"', () => {
+    expect(perRoundLabel({ total: -1, sources: ["Stage −2", "1 acceleration token +1"] })).toBe("−1 per round");
+    expect(perRoundLabel({ total: 0, sources: [] })).toBe("+0 per round");
+    expect(perRoundHoverLine({ total: -1, sources: ["Stage −2"] })).toBe("−1 per round: Stage −2");
   });
 });

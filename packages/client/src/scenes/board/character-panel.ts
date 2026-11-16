@@ -532,7 +532,7 @@ function owedWords(ctx: BoardDrawContext, attachment: CharacterPanel["attachment
 
 /** The chip's text with its owed words, for the strips that draw a chip without measuring it. */
 function chipText(ctx: BoardDrawContext, attachment: CharacterPanel["attachments"][number]): string {
-  return `${attachmentChipText(attachment)}${owedWords(ctx, attachment)}`;
+  return attachmentChipText(attachment, owedWords(ctx, attachment));
 }
 
 /** The row under a chip's name that carries the count of damage on the attachment. */
@@ -565,7 +565,7 @@ function measureAttachmentChip(
   owed = "",
 ): AttachmentChipSpec {
   const damage = attachmentChipDamageTag(attachment);
-  const text = `${attachmentChipText(attachment)}${owed}`;
+  const text = attachmentChipText(attachment, owed);
   const shown = usable ? `\u25B6 ${text}` : text;
   // The damage count rides on its own row under the name ("0/3 dmg"), so a name keeps the whole width and wraps on
   // words, never mid-word around the count.

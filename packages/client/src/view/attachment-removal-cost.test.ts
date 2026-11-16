@@ -6,7 +6,7 @@ import type { GameState, InstanceId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
-import { boardModel } from "./board-model.js";
+import { attachmentChipText, boardModel } from "./board-model.js";
 import { removalCostOf, removalCostText } from "./attachment-removal-cost.js";
 
 /** A Klaw game with `code` attached to Klaw, standing in on a copy of the main scheme's instance. */
@@ -84,5 +84,13 @@ describe("removalCostOf (#767)", () => {
   test("Armored Rhino Suit, with no such ability, has no removal cost", async () => {
     const { state, id } = await withAttachment("01098");
     expect(removalCostOf(state, POOL_DEPS, id)).toBeNull();
+  });
+
+  test('an owed attachment\'s "must use" comes before its removal cost, so a narrow chip clips the cost first', async () => {
+    const { state, id, viewer } = await withAttachment("01152");
+    const chip = boardModel(state, viewer, POOL_DEPS).villain!.attachments.find((a) => a.instanceId === id)!;
+    const text = attachmentChipText(chip, " · must use");
+    expect(text.indexOf("must use")).toBeLessThan(text.indexOf("remove:"));
+    expect(text.endsWith("remove: exhaust your identity, spend 2 physical")).toBe(true);
   });
 });
