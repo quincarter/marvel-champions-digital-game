@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { CampaignId } from "@mc/content";
 import type { SaveMeta } from "../engine/game-storage.js";
 import {
   CSV_BOM,
@@ -241,7 +242,12 @@ describe("MC Tracker export rows (#757)", () => {
         config: {
           scenarioId: "rhino",
           difficulty: "expert",
-          modes: { expert: true, heroic: 2, skirmish: {}, campaign: { campaignId: "trors", expert: true } },
+          modes: {
+            expert: true,
+            heroic: 2,
+            skirmish: {},
+            campaign: { campaignId: "trors" as CampaignId, expertCampaign: true },
+          },
           modularSetIds: ["crime", "sci-fi"],
           houseRules: ["gmw"],
           players: [{ identityCardId: "spider-man", deck: [] }],
@@ -257,6 +263,46 @@ describe("MC Tracker export rows (#757)", () => {
       "Modular sets": "Crime; Sci-Fi",
       "Modular sets source": "Chosen",
       "House rules": "GMW Fixes",
+    });
+  });
+
+  test("a plain campaign is not marked expert", () => {
+    const cells = cellsOf([
+      save("p", DAY(9), {
+        campaignId: "trors",
+        config: {
+          scenarioId: "rhino",
+          difficulty: "standard",
+          modes: { campaign: { campaignId: "trors" as CampaignId } },
+          players: [{ identityCardId: "spider-man", deck: [] }],
+          seed: 1,
+        } as never,
+      }),
+    ]);
+    expect(cells.Mode).toBe("Campaign: The Rise of Red Skull");
+  });
+
+  test("extra and house-rule modular sets are listed and make the source Chosen", () => {
+    const withSets = (extra: Record<string, unknown>) =>
+      cellsOf([
+        save("m", DAY(9), {
+          config: {
+            scenarioId: "rhino",
+            difficulty: "standard",
+            players: [{ identityCardId: "spider-man", deck: [] }],
+            seed: 1,
+            ...extra,
+          } as never,
+        }),
+      ]);
+    expect(withSets({})).toMatchObject({ "Modular sets": "Bomb Scare", "Modular sets source": "Recommended" });
+    expect(withSets({ extraModularSetIds: ["crime"] })).toMatchObject({
+      "Modular sets": "Bomb Scare; Crime",
+      "Modular sets source": "Chosen",
+    });
+    expect(withSets({ modularSetIds: ["bomb_scare"], houseModularSetIds: ["sci-fi"] })).toMatchObject({
+      "Modular sets": "Bomb Scare; Sci-Fi (house rule)",
+      "Modular sets source": "Chosen",
     });
   });
 

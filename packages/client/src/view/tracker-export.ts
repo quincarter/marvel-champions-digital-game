@@ -9,8 +9,10 @@
  *  - Title: "<villain> — <hero> & <hero>".
  *  - Result: `Win` or `Loss`. Only won and lost games are exported; a game given up or left unfinished is not a result.
  *  - Scenario, Villain: the scenario's name and the villain(s) the game faced (a villain's stages share one name).
- *  - Modular sets: the set(s) played, printed names, semicolon-separated.
- *  - Modular sets source: `Recommended` (the scenario's own pick) or `Chosen` (the table picked others).
+ *  - Modular sets: the set(s) played, printed names, semicolon-separated: the scenario's or chosen sets, then extra
+ *    sets added on top (Longshot), then sets the "extra modular sets" house rule added, each marked "(house rule)".
+ *  - Modular sets source: `Recommended` (the scenario's own pick, nothing added) or `Chosen` (the table picked others
+ *    or added any extra or house-rule set).
  *  - House rules: names of the house rules switched on, semicolon-separated; empty for none.
  *  - Difficulty: `Standard` or `Expert` (`Extreme` for a per-villain version game).
  *  - Heroic level: the heroic level, 0 for none.
@@ -125,11 +127,13 @@ function difficultyOf(
   const { config } = save;
   const modes = config.modes;
   const expert = modes?.expert === true || config.difficulty === "expert";
-  const campaign = modes?.campaign as { readonly expert?: boolean } | undefined;
+  const campaign = modes?.campaign;
   const parts: string[] = [];
   if (modes?.skirmish) parts.push("Skirmish");
   if (save.campaignId !== null || campaign) {
-    parts.push(`${campaign?.expert ? "Expert Campaign" : "Campaign"}: ${campaignName ?? save.campaignId ?? ""}`.trim());
+    parts.push(
+      `${campaign?.expertCampaign ? "Expert Campaign" : "Campaign"}: ${campaignName ?? save.campaignId ?? ""}`.trim(),
+    );
   }
   return {
     difficulty: config.difficulty === "extreme" ? "Extreme" : expert ? "Expert" : "Standard",
@@ -155,9 +159,18 @@ function rowOf(row: PastGameRow, input: TrackerExportInput): TrackerExportRow {
 
   const chosen = save.config.modularSetIds;
   const recommended = names.recommendedSets(save.config.scenarioId, packs) ?? [];
-  const setIds = chosen ?? recommended;
+  const extras = save.config.extraModularSetIds ?? [];
+  const houseSets = save.config.houseModularSetIds ?? [];
+  const setLabel = (id: string): string => names.setName(id, packs) ?? id;
+  const setLabels = [
+    ...(chosen ?? recommended).map(setLabel),
+    ...extras.map(setLabel),
+    ...houseSets.map((id) => `${setLabel(id)} (house rule)`),
+  ];
   const sameAsRecommended =
-    chosen === undefined || (chosen.length === recommended.length && chosen.every((id) => recommended.includes(id)));
+    extras.length === 0 &&
+    houseSets.length === 0 &&
+    (chosen === undefined || (chosen.length === recommended.length && chosen.every((id) => recommended.includes(id))));
   const houseRules = (save.config.houseRules ?? []).map(
     (id) => (packs ?? []).find((pack) => pack.id === id)?.name ?? id,
   );
@@ -205,7 +218,7 @@ function rowOf(row: PastGameRow, input: TrackerExportInput): TrackerExportRow {
       row.result === "won" ? "Win" : "Loss",
       row.villainName ?? row.scenarioId,
       villain,
-      setIds.map((id) => names.setName(id, packs) ?? id).join("; "),
+      setLabels.join("; "),
       sameAsRecommended ? "Recommended" : "Chosen",
       houseRules.join("; "),
       difficulty,
