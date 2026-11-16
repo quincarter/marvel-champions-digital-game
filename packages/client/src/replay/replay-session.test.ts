@@ -115,6 +115,17 @@ describe("ReplaySession", () => {
     expect(session.snapshotAt(999, false).version).toBe(stored.commands.length);
   });
 
+  test("a file made for sharing carries no deck names, and the setup it replays from keeps its deck ids", async () => {
+    const stored = await playedGame(3, CONFIG);
+    const named = {
+      ...stored.meta.config,
+      players: stored.meta.config.players.map((player) => ({ ...player, deckId: "d-1", deckName: "Secret Name" })),
+    } as SessionConfig;
+    const file = ReplaySession.open({ kind: "log", log: { ...logOf(stored), config: named } }, HERE).toFile(0);
+    expect(JSON.stringify(file)).not.toContain("Secret Name");
+    expect(file.config.players.map((player) => (player as { deckId?: string }).deckId)).toEqual(["d-1"]);
+  });
+
   test("a file whose game plays out differently here says where it first differs", async () => {
     const stored = await playedGame(25, LONG_CONFIG);
     const file = ReplaySession.open({ kind: "log", log: logOf(stored) }, HERE).toFile(0);
