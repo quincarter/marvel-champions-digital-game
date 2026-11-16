@@ -106,6 +106,7 @@ import type { LogLine } from "../view/log-lines.js";
 import type { HandCardView } from "../view/board-model.js";
 import type { SessionState } from "../store/session-store.js";
 import { appSession, holdGameArt } from "../session.js";
+import { onArtChange } from "../language-change.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
@@ -297,6 +298,10 @@ export class SetupDealScene extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
+    // A community pack's picture URL lands after the view model asked for it (`art/pack-art.ts` reads it from the store
+    // asynchronously): the model carries each card's picture source, so it is built again, not only redrawn. Otherwise
+    // the opening hand stays blank until the next game state (#738).
+    const artSourcesOff = onArtChange(() => this.#onState(store.state));
 
     const binding = {
       blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect),
@@ -318,6 +323,7 @@ export class SetupDealScene extends Phaser.Scene {
       this.#stripMask = null;
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
+      artSourcesOff();
       this.#focusRing?.destroy();
       this.#focusRing = null;
       this.#hints.dispose();

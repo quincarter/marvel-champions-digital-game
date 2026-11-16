@@ -34,6 +34,7 @@ import type { VillainPhaseLaunchData, VillainPhaseOverlay } from "./villain-phas
 import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from "../view/villain-end-of-turn.js";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
+import { onArtChange } from "../language-change.js";
 import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
@@ -641,6 +642,11 @@ export class BoardScene extends Phaser.Scene {
     // A scan arrives after the frame that asked for it, so the board redraws
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
+    // A community pack's picture URL can land after the model asked for it (`art/pack-art.ts`): the model carries each
+    // card's picture source, so it is built again from the same state (a plain rebuild, as a language switch does), not
+    // only redrawn. Otherwise a card stays blank until the next command (#738).
+    const artSourcesOff = onArtChange(() => this.#onState(store.state));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, artSourcesOff);
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
