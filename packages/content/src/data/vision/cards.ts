@@ -714,6 +714,7 @@ export const VISION_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("vision_nemesis")],
     boostIcons: 2,
     traits: [trait("ANDROID"), trait("ELITE")],

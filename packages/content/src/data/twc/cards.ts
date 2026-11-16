@@ -77,6 +77,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 2,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Wrecker schemes, place the threat on his side scheme instead of the main scheme.\n[star] While Wrecker is attacking, he gets +2 ATK if the attack is undefended.",
               current: "[star] When Wrecker schemes, place the threat on his side scheme instead of the main scheme.\n[star] While Wrecker is attacking, he gets +2 ATK if the attack is undefended.",
@@ -92,6 +93,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 3,
             sch: 3,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Wrecker schemes, place the threat on his side scheme instead of the main scheme.\n[star] While Wrecker is attacking, he gets +2 ATK if the attack is undefended.",
               current: "[star] When Wrecker schemes, place the threat on his side scheme instead of the main scheme.\n[star] While Wrecker is attacking, he gets +2 ATK if the attack is undefended.",
@@ -165,6 +167,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07006.png") },
     attachesTo: { kind: "namedVillain", name: "Wrecker" },
     statModifiers: { atk: 1 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 3,
     traits: [],
@@ -190,6 +193,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07007.png") },
     attachesTo: { kind: "namedVillain", name: "Wrecker" },
     statModifiers: { sch: 1 },
+    statStars: ["sch"],
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 1,
     traits: [],
@@ -415,6 +419,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 13 },
             atk: 1,
             sch: 3,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Thunderball schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Response: After Thunderball attacks you, deal 1 damage to each character you control.",
               current: "[star] When Thunderball schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Response: After Thunderball attacks you, deal 1 damage to each character you control.",
@@ -433,6 +438,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 16 },
             atk: 2,
             sch: 3,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Thunderball schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Response: After Thunderball attacks you, deal 1 damage to each character you control.",
               current: "[star] When Thunderball schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Response: After Thunderball attacks you, deal 1 damage to each character you control.",
@@ -488,6 +494,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07020.png") },
     attachesTo: { kind: "namedVillain", name: "Thunderball" },
     statModifiers: { atk: 1 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 3,
     traits: [trait("WEAPON")],
@@ -534,6 +541,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07022.png") },
     attachesTo: { kind: "namedVillain", name: "Thunderball" },
     statModifiers: { atk: 3 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 3,
     traits: [trait("CONDITION")],
@@ -761,6 +769,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 11 },
             atk: 2,
             sch: 2,
+            statStars: ["sch"],
             text: {
               printed: "Retaliate 1.\n[star] When Piledriver schemes, place the threat on his side scheme instead of the main scheme.",
               current: "Retaliate 1.\n[star] When Piledriver schemes, place the threat on his side scheme instead of the main scheme.",
@@ -776,6 +785,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 3,
             sch: 2,
+            statStars: ["sch"],
             text: {
               printed: "Retaliate 1.\n[star] When Piledriver schemes, place the threat on his side scheme instead of the main scheme.",
               current: "Retaliate 1.\n[star] When Piledriver schemes, place the threat on his side scheme instead of the main scheme.",
@@ -1074,6 +1084,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 12 },
             atk: 3,
             sch: 1,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Bulldozer schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Interrupt: When Bulldozer attacks, the attack gains overkill.",
               current: "[star] When Bulldozer schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Interrupt: When Bulldozer attacks, the attack gains overkill.",
@@ -1092,6 +1103,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 3,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] When Bulldozer schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Interrupt: When Bulldozer attacks, the attack gains overkill.",
               current: "[star] When Bulldozer schemes, place the threat on his side scheme instead of the main scheme.\n[star] Forced Interrupt: When Bulldozer attacks, the attack gains overkill.",
@@ -1147,6 +1159,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07049.png") },
     attachesTo: { kind: "namedVillain", name: "Bulldozer" },
     statModifiers: { atk: 1 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("bulldozer")],
     boostIcons: 3,
     traits: [trait("ARMOR")],
@@ -1193,6 +1206,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07051.png") },
     attachesTo: { kind: "namedVillain", name: "Bulldozer" },
     statModifiers: { atk: 2 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("bulldozer")],
     boostIcons: 2,
     traits: [trait("CONDITION")],

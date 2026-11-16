@@ -393,6 +393,7 @@ export const VNM_CARDS: readonly AnyCard[] = [
     atk: 2,
     thw: 2,
     hp: 3,
+    statStars: ["atk"],
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
     traits: [trait("GUARDIAN")],

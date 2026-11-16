@@ -344,6 +344,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 1,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Response: After Archpriestess attacks you, give a minion a tough status card. If no tough status card was placed this way, discard the top 3 cards of the encounter deck, then deal 1 minion discarded this way to yourself as a facedown encounter card.",
               current: "[star] Forced Response: After Archpriestess attacks you, give a minion a tough status card. If no tough status card was placed this way, discard the top 3 cards of the encounter deck, then deal 1 minion discarded this way to yourself as a facedown encounter card.",
@@ -365,6 +366,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Forced Response: After Archpriestess attacks you, give a minion a tough status card. If no tough status card was placed this way, discard the top 3 cards of the encounter deck, then deal 1 minion discarded this way to yourself as a facedown encounter card.",
               current: "Steady. Toughness.\n[star] Forced Response: After Archpriestess attacks you, give a minion a tough status card. If no tough status card was placed this way, discard the top 3 cards of the encounter deck, then deal 1 minion discarded this way to yourself as a facedown encounter card.",
@@ -454,6 +456,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 2,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Interrupt: When Elektra attacks you, discard the top card of your deck. If that card's printed cost is an odd number, Elektra gets +1 ATK for this attack; otherwise, this attack gains overkill and piercing.",
               current: "[star] Forced Interrupt: When Elektra attacks you, discard the top card of your deck. If that card's printed cost is an odd number, Elektra gets +1 ATK for this attack; otherwise, this attack gains overkill and piercing.",
@@ -475,6 +478,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Forced Interrupt: When Elektra attacks you, discard the top card of your deck. If that card's printed cost is an odd number, Elektra gets +1 ATK for this attack; otherwise, this attack gains overkill and piercing.",
               current: "Steady. Toughness.\n[star] Forced Interrupt: When Elektra attacks you, discard the top card of your deck. If that card's printed cost is an odd number, Elektra gets +1 ATK for this attack; otherwise, this attack gains overkill and piercing.",
@@ -509,6 +513,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 2,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Interrupt: When Gorgon attacks you, choose:\n• Spend a [physical] resource.\n• Stun your identity.\n• Take 2 indirect damage.",
               current: "[star] Forced Interrupt: When Gorgon attacks you, choose:\n• Spend a [physical] resource.\n• Stun your identity.\n• Take 2 indirect damage.",
@@ -530,6 +535,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Forced Interrupt: When Gorgon attacks you, choose:\n• Spend a [physical] resource.\n• Stun your identity.\n• Take 2 indirect damage.",
               current: "Steady. Toughness.\n[star] Forced Interrupt: When Gorgon attacks you, choose:\n• Spend a [physical] resource.\n• Stun your identity.\n• Take 2 indirect damage.",
@@ -564,6 +570,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 1,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Response: After Lady Bullseye attacks you, if that attack was undefended, take 1 indirect damage; otherwise, place 1 threat on the main scheme.",
               current: "[star] Forced Response: After Lady Bullseye attacks you, if that attack was undefended, take 1 indirect damage; otherwise, place 1 threat on the main scheme.",
@@ -585,6 +592,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Forced Response: After Lady Bullseye attacks you, if that attack was undefended, take 1 indirect damage; otherwise, place 1 threat on the main scheme.",
               current: "Steady. Toughness.\n[star] Forced Response: After Lady Bullseye attacks you, if that attack was undefended, take 1 indirect damage; otherwise, place 1 threat on the main scheme.",
@@ -619,6 +627,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 0,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Response: After White Tiger attacks you, she attacks you again with +1 ATK. (Limit once per round per player.)",
               current: "[star] Forced Response: After White Tiger attacks you, she attacks you again with +1 ATK. (Limit once per round per player.)",
@@ -640,6 +649,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 1,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Forced Response: After White Tiger attacks you, she attacks you again. (Limit once per round per player.)",
               current: "Steady. Toughness.\n[star] Forced Response: After White Tiger attacks you, she attacks you again. (Limit once per round per player.)",
@@ -765,6 +775,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     atk: 1,
     sch: 1,
     hp: 5,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("dark_protege")],
     boostIcons: 2,
     traits: [trait("HAND")],
@@ -968,6 +979,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     atk: 1,
     sch: 1,
     hp: 2,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("ninja_swarm")],
     boostIcons: 1,
     traits: [trait("HAND"), trait("NINJA")],
@@ -1037,6 +1049,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     atk: 1,
     sch: 1,
     hp: 2,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("ninja_swarm")],
     boostIcons: 1,
     traits: [trait("HAND"), trait("NINJA")],
@@ -1117,6 +1130,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             infiniteHp: true,
             atk: 0,
             sch: 0,
+            statStars: ["atk", "sch"],
             text: {
               printed: "Stalwart.\n[star] Forced Interrupt: When Shifting Corridors would activate against you, instead remove 1 passage counter from here and reveal the top card of the trap deck.\nIf the last passage counter is removed from here, the players lose the game.",
               current: "Stalwart.\n[star] Forced Interrupt: When Shifting Corridors would activate against you, instead remove 1 passage counter from here and reveal the top card of the trap deck.\nIf the last passage counter is removed from here, the players lose the game.",
@@ -1616,6 +1630,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 3,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
               current: "Steady.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
@@ -1630,6 +1645,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 21 },
             atk: 4,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Steady. Toughness.\n[star] Krahllak's attacks gain overkill.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
               current: "Steady. Toughness.\n[star] Krahllak's attacks gain overkill.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
@@ -1644,6 +1660,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 25 },
             atk: 4,
             sch: 3,
+            statStars: ["atk"],
             text: {
               printed: "Retaliate 1. Steady. Toughness.\n[star] Krahllak's attacks gain overkill and piercing.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
               current: "Retaliate 1. Steady. Toughness.\n[star] Krahllak's attacks gain overkill and piercing.\n[star] Interrupt: When Krahllak attacks you, you may place 1 corruption counter on your Creeping Corruption. If you do, Krahllak gets -3 ATK for this attack.",
@@ -1779,6 +1796,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/65064.png") },
     statModifiers: { atk: 2 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("heart_of_shadow")],
     boostIcons: 3,
     traits: [trait("SPELL")],
@@ -1803,6 +1821,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/65065.png") },
     statModifiers: { thw: 2 },
+    statStars: ["thw"],
     encounterSetIds: [encounterSetId("heart_of_shadow")],
     boostIcons: 2,
     traits: [trait("SPELL")],
@@ -1873,6 +1892,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     atk: 4,
     sch: 1,
     hp: 9,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("heart_of_shadow")],
     boostIcons: 3,
     traits: [trait("BRUTE"), trait("DEMON"), trait("HAND")],
@@ -2006,6 +2026,7 @@ export const SHADOWLAND_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 1,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("black_flower")],
     boostIcons: 1,
     starIcon: true,

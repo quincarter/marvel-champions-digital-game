@@ -26,6 +26,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
       thw: 2,
       def: 2,
       handSize: 5,
+      statStars: ["atk"],
       keywords: [],
       text: {
         printed: "Power Recycling — Wonder Man gets +1 ATK for each card tucked under Ionic Physiology.\n[star] Forced Response: After Wonder Man makes a basic attack, discard each card tucked under Ionic Physiology.",
@@ -550,6 +551,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
     atk: 2,
     thw: 2,
     hp: 4,
+    statStars: ["atk"],
     consequentialDamage: { attack: 1, thwart: 2 },
     aspect: "basic",
     traits: [trait("AVENGER")],
@@ -634,6 +636,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 3,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("wonder_man_nemesis")],
     boostIcons: 2,
     traits: [trait("CYBORG")],

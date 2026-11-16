@@ -1,4 +1,4 @@
-import type { CardText, PrintedStat, ResourceIconCounts, Trait } from "../common.js";
+import type { CardText, PrintedStat, ResourceIconCounts, StatStar, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { CardId, EncounterSetId, ImageRef } from "../ids.js";
@@ -57,6 +57,8 @@ export interface CardFlipSide {
   readonly thw?: PrintedStat;
   readonly atk?: PrintedStat;
   readonly hp?: number;
+  /** Stats of this face (a back that restates the front's star still lists it) that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   /**
    * This face's own printed stat boxes, for a double-sided attachment whose faces print different ones
    * (`AttachmentCard.statModifiers` is the front's): Dense (+1 ATK) flips to Intangible (+1 SCH), `synthezoid`
@@ -125,6 +127,8 @@ export interface MinionCard extends EncounterCardCommon {
   /** `"X"` when the card's ability defines it (Titania); `null` for a printed "—". See `PrintedStat`. */
   readonly atk: PrintedStat;
   readonly sch: PrintedStat;
+  /** Stats of the minion's front face (ATK, SCH, HP) that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   /** The printed hit point numeral. With `hpPerPlayer`, the number printed before the per player icon. */
   readonly hp: number;
   /**
@@ -182,6 +186,8 @@ export interface AttachmentCard extends EncounterCardCommon {
   readonly playRestrictions?: PlayRestrictions;
   /** Printed stat-box modifiers applied to the host (Charge +3 ATK). */
   readonly statModifiers?: PrintedStatModifiers;
+  /** Stats of the attachment's front face, beside its stat boxes (ATK, SCH, THW) that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
 }
 
 export interface TreacheryCard extends EncounterCardCommon {

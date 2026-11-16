@@ -699,6 +699,7 @@ export const WARM_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 1,
     hp: 4,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("warm_nemesis")],
     boostIcons: 2,
     traits: [trait("CRIMINAL")],

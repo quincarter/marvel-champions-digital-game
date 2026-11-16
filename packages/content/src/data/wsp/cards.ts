@@ -59,6 +59,7 @@ export const WSP_CARDS: readonly AnyCard[] = [
         thw: 2,
         def: 3,
         handSize: 5,
+        statStars: ["atk", "thw"],
         keywords: [],
         text: {
           printed: "[star] Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose.\n[star] Damage you deal using your basic attack power (ATK) can be divided among enemies as you choose.",

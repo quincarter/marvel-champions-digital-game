@@ -20,7 +20,7 @@ import {
 } from "./context.ts";
 import type { RawCard } from "../raw-types.ts";
 import type { Prepared } from "./prepare.ts";
-import { scalingOf, schemeIcons } from "./values.ts";
+import { scalingOf, schemeIcons, statStarsField } from "./values.ts";
 
 /** MarvelCDB's three evidence type codes, keyed to the schema's `EvidenceKind` (docs/phase7-wave2.md §6.4). */
 const EVIDENCE_KIND_OF: Readonly<Record<string, EvidenceKind>> = {
@@ -111,6 +111,7 @@ export function normalizeEncounterCard(
         atk: p.dashedMinionStats?.includes("atk") ? null : rawAtk === -1 ? "X" : (rawAtk ?? 0),
         sch: p.dashedMinionStats?.includes("sch") ? null : (p.scheme ?? r.scheme ?? 0),
         hp: r.health ?? 0,
+        ...statStarsField(r),
         // A per player icon beside the hit points (raw `health_per_hero`): `hp` keeps the printed numeral and the
         // engine multiplies it by the players who started the scenario (RRG 1.8 "Per Player Icon", p. 32).
         ...(r.health_per_hero ? { hpPerPlayer: true as const } : {}),
@@ -177,6 +178,7 @@ export function normalizeEncounterCard(
         ...(p.hostChosenBy ? { hostChosenBy: p.hostChosenBy } : {}),
         ...(p.attachmentMaxPerHost !== undefined ? { playRestrictions: { maxPerHost: p.attachmentMaxPerHost } } : {}),
         ...(Object.keys(mods).length > 0 ? { statModifiers: mods } : {}),
+        ...statStarsField(r),
         ...encounterCommon,
         ...(encounterCommon.flipSide && flipMods
           ? { flipSide: { ...encounterCommon.flipSide, statModifiers: flipMods } }

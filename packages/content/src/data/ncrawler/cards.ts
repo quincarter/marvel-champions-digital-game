@@ -698,6 +698,7 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
       otherwise: { kind: "villain" },
     },
     statModifiers: { atk: 1 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("nightcrawler_nemesis")],
     boostIcons: 2,
     traits: [trait("WEAPON")],

@@ -116,3 +116,11 @@ export interface CardImages {
   readonly front?: ImageRef;
   readonly back?: ImageRef;
 }
+
+/**
+ * A printed stat that carries a star beside it: a card ability tied to that stat (a villain's "Forced Interrupt" when
+ * it attacks, a minion's when it schedules). MarvelCDB's `attack_star`, `scheme_star`, `thwart_star`, `defense_star`,
+ * `health_star` and `recover_star`. A card's or face's `statStars` lists the stats that print one, in this order;
+ * absent means none. Data only: the star changes no stat, the ability it points at is the card's own text.
+ */
+export type StatStar = "atk" | "sch" | "thw" | "def" | "hp" | "rec";

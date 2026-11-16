@@ -625,6 +625,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 6,
+    statStars: ["atk", "sch"],
     encounterSetIds: [encounterSetId("groot_nemesis")],
     boostIcons: 3,
     traits: [trait("LEVIATRON")],
@@ -1357,6 +1358,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 13 },
             atk: 2,
             sch: 1,
+            statStars: ["sch"],
             text: {
               printed: "[star] Forced Response: After Drang schemes, resolve the Badoon Ship's \"Charge Up\" ability.",
               current: "[star] Forced Response: After Drang schemes, resolve the Badoon Ship's \"Charge Up\" ability.",
@@ -1371,6 +1373,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 3,
             sch: 2,
+            statStars: ["sch"],
             text: {
               printed: "When Revealed: If Drang's Spear is in play, give Drang 1 facedown boost card; otherwise, search the encounter deck and discard pile for Drang's Spear, reveal it, and shuffle the encounter deck.\n[star] Forced Response: After Drang schemes, resolve the Badoon Ship's \"Charge Up\" ability.",
               current: "When Revealed: If Drang's Spear is in play, give Drang 1 facedown boost card; otherwise, search the encounter deck and discard pile for Drang's Spear, reveal it, and shuffle the encounter deck.\n[star] Forced Response: After Drang schemes, resolve the Badoon Ship's \"Charge Up\" ability.",
@@ -1385,6 +1388,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 3,
             sch: 3,
+            statStars: ["sch"],
             text: {
               printed: "When Revealed: Discard the top 4[per_hero] cards of the encounter deck. Each time a minion is discarded this way, put it into play engaged with the player who is engaged with the fewest minions.\n[star] Forced Response: After Drang activates, resolve the Badoon Ship's \"Charge Up\" ability.",
               current: "When Revealed: Discard the top 4[per_hero] cards of the encounter deck. Each time a minion is discarded this way, put it into play engaged with the player who is engaged with the fewest minions.\n[star] Forced Response: After Drang activates, resolve the Badoon Ship's \"Charge Up\" ability.",
@@ -1525,6 +1529,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 1,
     sch: 2,
     hp: 3,
+    statStars: ["atk", "sch"],
     encounterSetIds: [encounterSetId("brotherhood_of_badoon")],
     boostIcons: 0,
     starIcon: true,
@@ -1881,6 +1886,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 8 },
             atk: 1,
             sch: 1,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] Collector gets +X SCH and +X ATK, where X is equal to the main scheme's current stage number.\nForced Interrupt: When Collector would be defeated, remove 3[per_hero] threat from the main scheme and flip this card instead.",
               current: "[star] Collector gets +X SCH and +X ATK, where X is equal to the main scheme's current stage number.\nForced Interrupt: When Collector would be defeated, remove 3[per_hero] threat from the main scheme and flip this card instead.",
@@ -1943,6 +1949,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 10 },
             atk: 2,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "[star] Collector gets +X SCH and +X ATK, where X is equal to the main scheme's current stage number.\nForced Interrupt: When Collector would be defeated, remove 3[per_hero] threat from the main scheme and flip this card instead.",
               current: "[star] Collector gets +X SCH and +X ATK, where X is equal to the main scheme's current stage number.\nForced Interrupt: When Collector would be defeated, remove 3[per_hero] threat from the main scheme and flip this card instead.",
@@ -2180,6 +2187,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 2,
             sch: 1,
+            statStars: ["atk", "sch"],
             text: {
               printed: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play, then discard each of those attachments.",
               current: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play, then discard each of those attachments.",
@@ -2194,6 +2202,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 17 },
             atk: 2,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play, then choose and discard 1 of those attachments.",
               current: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play, then choose and discard 1 of those attachments.",
@@ -2208,6 +2217,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 20 },
             atk: 3,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play. You may then remove the top card of your deck from the game to choose and discard 1 of those attachments.",
               current: "The first Technique attachment revealed each round gains surge.\n[star] Forced Interrupt: When Nebula initiates an activation against you, resolve the \"Special\" ability on each Technique attachment in play. You may then remove the top card of your deck from the game to choose and discard 1 of those attachments.",
@@ -2541,6 +2551,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 2,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "Toughness.\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
               current: "Toughness.\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
@@ -2555,6 +2566,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 3,
             sch: 2,
+            statStars: ["atk", "sch"],
             text: {
               printed: "Toughness.\nWhen Revealed: Search the encounter deck and discard pile for the Cut the Power side scheme and reveal it. (Shuffle.)\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
               current: "Toughness.\nWhen Revealed: Search the encounter deck and discard pile for the Cut the Power side scheme and reveal it. (Shuffle.)\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
@@ -2572,6 +2584,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 25 },
             atk: 4,
             sch: 3,
+            statStars: ["atk", "sch"],
             text: {
               printed: "Retaliate 1. Toughness.\nWhen Revealed: Search the encounter deck and discard pile for the Superior Tactics side scheme and reveal it. (Shuffle.)\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
               current: "Retaliate 1. Toughness.\nWhen Revealed: Search the encounter deck and discard pile for the Superior Tactics side scheme and reveal it. (Shuffle.)\n[star] Forced Interrupt: When Ronan the Accuser activates against you, give him 1 additional boost card if you control the Power Stone.",
@@ -2709,6 +2722,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/16110.png") },
     attachesTo: { kind: "villain" },
     statModifiers: { atk: 1 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("ronan")],
     boostIcons: 2,
     traits: [trait("CONDITION")],
@@ -2963,6 +2977,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 1,
     hp: 4,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("band_of_badoon")],
     boostIcons: 0,
     starIcon: true,
@@ -3356,6 +3371,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 1,
     hp: 7,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("menagerie_medley")],
     boostIcons: 0,
     starIcon: true,
@@ -3380,6 +3396,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("space_pirates")],
     boostIcons: 1,
     starIcon: true,
@@ -3404,6 +3421,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 1,
     hp: 3,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("space_pirates")],
     boostIcons: 1,
     starIcon: true,
