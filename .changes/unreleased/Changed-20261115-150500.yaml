@@ -1,3 +1,0 @@
-kind: Changed
-body: The mod SDK publishes to npm through npm trusted publishing instead of an npm token
-time: 2026-11-15T15:05:00.000000-05:00

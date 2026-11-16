@@ -1,3 +1,0 @@
-kind: Fixed
-body: The e2e spec for PageDown on Take your seats presses RB again when the first press lands in the frames the pad guard drops, instead of failing under a loaded suite.
-time: 2026-11-15T18:44:19.9586865-05:00
