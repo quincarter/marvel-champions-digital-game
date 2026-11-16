@@ -616,6 +616,18 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=klaw-attachment` / `&fixture=player-side-scheme` (table readability, #763 to #769): `store/dev-table-readability-game.ts`.
+  if (screen === "board" && params.get("fixture") === "klaw-attachment") {
+    const { startDevKlawAttachmentGame } = await import("../store/dev-table-readability-game.js");
+    await startDevKlawAttachmentGame();
+    return { key: SCENES.board, data: {} };
+  }
+  if (screen === "board" && params.get("fixture") === "player-side-scheme") {
+    const { startDevPlayerSideSchemeGame } = await import("../store/dev-table-readability-game.js");
+    await startDevPlayerSideSchemeGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
   // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
   // `?screen=board&fixture=work-life-ally`: Work-Life Balance used with an ally while Jessica is stalwart; the log says
