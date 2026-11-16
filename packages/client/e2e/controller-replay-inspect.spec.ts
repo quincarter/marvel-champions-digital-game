@@ -9,13 +9,15 @@ import { declineMulligans, openApp, startGame } from "./wave6-helpers-b.js";
  * On a replay, the d-pad's down pauses it and hands the pad to the table: the d-pad moves the focus, Y inspects, and
  * nothing the table does moves the replay on. B gives the pad back to the bar (which then plays on A) without leaving.
  *
- * On the table of a game, the dark mode button is a stop on the focus route, and A flips the theme.
+ * On the table of a game, the dark mode button is a stop on the focus route, and A flips the theme. On a screen where it
+ * floats alone at the top centre, it is off the route (Tab never walks to it), and Up from the top reaches it.
  */
 
 const PAD_ID = "Xbox 360 Controller (STANDARD GAMEPAD Vendor: 045e Product: 028e)";
 const A = 0;
 const B = 1;
 const Y = 3;
+const DPAD_UP = 12;
 const DPAD_DOWN = 13;
 const DPAD_LEFT = 14;
 const DPAD_RIGHT = 15;
@@ -226,5 +228,65 @@ test("on the table the dark mode button is a stop, and A flips the theme", async
   expect(await scheme(page)).not.toBe(before);
   expect(await focusedKey(page)).toBe("theme");
   await tap(page, A, async () => (await scheme(page)) === before);
+  expect(errors).toEqual([]);
+});
+
+test("where the dark mode button floats alone, Up from the top reaches it and A flips the theme; Tab never does", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "the controller's case");
+  test.setTimeout(120_000);
+  const errors = trackPageErrors(page);
+  await installPad(page);
+  await page.goto("/?screen=scenario-select&unlock=all");
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { __mcFocusRoutes?: Record<string, unknown> }).__mcFocusRoutes?.ScenarioSelect !==
+      undefined,
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.waitForTimeout(1500);
+  // The pad's first press wakes it (glyphs and focus), as a player's first press does.
+  await setButton(page, DPAD_DOWN, true);
+  await page.waitForTimeout(120);
+  await setButton(page, DPAD_DOWN, false);
+  // The "controller connected" notice drops over the top bar for a few seconds, and the button waits under it.
+  await page.waitForTimeout(5500);
+  const focus = () =>
+    page.evaluate(
+      () =>
+        (
+          window as unknown as { __mcFocusState?: Record<string, () => { focus: string | null }> }
+        ).__mcFocusState?.ScenarioSelect?.().focus ?? null,
+    );
+  const route = await page.evaluate(() =>
+    (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string }[]> }).__mcFocusRoutes
+      .ScenarioSelect!().map((stop) => stop.key),
+  );
+  expect(route).not.toContain("chrome:theme");
+  for (let i = 0; i < 12 && (await focus()) !== "chrome:theme"; i += 1) {
+    const before = await focus();
+    await setButton(page, DPAD_UP, true);
+    await page.waitForTimeout(120);
+    await setButton(page, DPAD_UP, false);
+    await page.waitForTimeout(150);
+    if ((await focus()) === before) {
+      await setButton(page, DPAD_RIGHT, true);
+      await page.waitForTimeout(120);
+      await setButton(page, DPAD_RIGHT, false);
+      await page.waitForTimeout(150);
+    }
+  }
+  expect(await focus()).toBe("chrome:theme");
+  const before = await scheme(page);
+  await tap(page, A, async () => (await scheme(page)) !== before);
+  expect(await scheme(page)).not.toBe(before);
+  // Down goes back to the screen.
+  await setButton(page, DPAD_DOWN, true);
+  await page.waitForTimeout(120);
+  await setButton(page, DPAD_DOWN, false);
+  await page.waitForTimeout(200);
+  expect(await focus()).not.toBe("chrome:theme");
   expect(errors).toEqual([]);
 });

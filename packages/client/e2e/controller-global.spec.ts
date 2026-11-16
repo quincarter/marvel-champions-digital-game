@@ -266,7 +266,7 @@ test("a held Enter presses the dark mode button once", async ({ page }) => {
   expect(await schemeOf()).not.toBe(scheme);
 });
 
-test("the theme button is a stop on Title and on every other screen (#735)", async ({ page }) => {
+test("the theme button is a stop on Title only", async ({ page }) => {
   await openTitle(page);
   await waitForChrome(page, "Title");
   const keys = () =>
@@ -289,7 +289,7 @@ test("the theme button is a stop on Title and on every other screen (#735)", asy
       (stop) => stop.key,
     ),
   );
-  expect(decks).toContain("chrome:theme");
+  expect(decks).not.toContain("chrome:theme");
 });
 
 test("the music player: RB changes the track, B closes it", async ({ page }) => {

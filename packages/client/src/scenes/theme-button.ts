@@ -4,9 +4,10 @@
  *
  * Like the music, language and Report buttons it runs for the whole session from Boot as chrome, above every screen
  * (see `CHROME_SCENES`), and follows its slot every frame. It sits below the notices and popups that drop over the top
- * bar (an achievement, power saving), so a tap on one of those never lands here. It is a focus stop on every screen
- * that shows it (#735): in the top row beside the language button on Title and the table, and at the top centre
- * elsewhere (`scenes/focus-route.ts`, and the table's own route in `view/focus.ts`). Settings > Display > Dark mode
+ * bar (an achievement, power saving), so a tap on one of those never lands here. A controller reaches it on every
+ * screen that shows it (#735): a stop in the top row beside the language button on Title and the table (the table's
+ * own route, `view/focus.ts`), and where it floats at the top centre, Up from a stop with nothing above it
+ * (`scenes/focus-route.ts`), so it never joins Tab's walk or a sheet's narrowed route. Settings > Display > Dark mode
  * flips the same switch.
  */
 import Phaser from "phaser";

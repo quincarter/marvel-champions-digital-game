@@ -1,7 +1,7 @@
 /**
- * Which of the top bar's chrome buttons a screen's focus route takes as stops (`scenes/focus-route.ts`): the music note,
- * the bug and the dark mode button on every screen, and the language button beside them on a screen that asks for the
- * whole row (Title). Pure, so the rule is tested without a scene.
+ * Which of the top bar's chrome buttons a screen's focus route takes as stops (`scenes/focus-route.ts`): the music note
+ * and the bug on every screen, and the language and theme buttons beside them on a screen that asks for the whole row
+ * (Title). Pure, so the rule is tested without a scene.
  *
  * A button is a stop only while it is drawn, only for the screen on top (so a screen under an overlay never answers
  * for a button it is not showing), and only when none of the screen's own stops already sits over it.
@@ -17,7 +17,7 @@ export interface ChromeStopInput {
   /** Where each button is drawn now, or null while hidden. */
   readonly music: Rect | null;
   readonly report: Rect | null;
-  /** Left out by a route that takes only the note, the bug and the theme button. */
+  /** Left out by a route that takes only the note and the bug. */
   readonly language?: Rect | null;
   readonly theme?: Rect | null;
   /** The rects of the screen's own stops. */
@@ -43,9 +43,20 @@ export function chromeStopsOf(input: ChromeStopInput): ChromeStops {
   return {
     music: free(input.music),
     report: free(input.report),
-    // Only beside the note: the language button is drawn only in the row.
+    // Only beside the note: while the row is hidden the theme button floats on its own at the top centre.
     language: input.music ? free(input.language) : null,
-    // Wherever it is drawn: in the row, or floating on its own in the top bar's centre on every other screen.
-    theme: free(input.theme),
+    theme: input.music ? free(input.theme) : null,
   };
+}
+
+/**
+ * The dark mode button where it floats alone at the top centre of a screen (#735): no stop on the route (it would join
+ * Tab's walk and every narrowed route, a sheet's or a tooltip's), but the place Up goes from a stop with nothing above
+ * it. Null while the row is shown (the row's own stops have it then), for a screen not on top, or where the screen's
+ * own stop already sits over it.
+ */
+export function floatingThemeStopOf(input: ChromeStopInput): Rect | null {
+  if (input.excluded || !input.isTop || input.music || !input.theme) return null;
+  const theme = input.theme;
+  return input.own.some((own) => overlaps(own, theme)) ? null : theme;
 }
