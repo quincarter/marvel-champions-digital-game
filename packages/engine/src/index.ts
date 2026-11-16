@@ -679,6 +679,8 @@ export {
   encounterDeckOf,
   heroFacesOf,
   identityFace,
+  areaOfCard,
+  sameGameArea,
   isVillain,
   undefeatedVillains,
   villainOf,

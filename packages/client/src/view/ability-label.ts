@@ -110,9 +110,15 @@ function chosenSpendPhrase(x: NonNullable<AbilityCost["resourcesX"]>): string {
  * field that produced it, so a new cost shape either gets a phrase here or
  * silently contributes nothing rather than a guess.
  */
-function costPhrase(cost: AbilityCost | undefined): string | null {
+export function costPhrase(cost: AbilityCost | undefined): string | null {
   if (!cost) return null;
   const parts: string[] = [];
+  // "Choose to either discard a card … or take 2 indirect damage →" (Haywire 29038): each branch said in full, joined
+  // by "or"; a branch with no phrase of its own leaves the whole choice unsaid rather than half of it.
+  if (cost.either) {
+    const branches = cost.either.map((branch) => costPhrase(branch));
+    if (branches.every((branch): branch is string => branch !== null)) parts.push(branches.join(" or "));
+  }
   // Roughly the order printed cost text uses (RRG "Cost" gives no rule for
   // it): exhaust, then what's spent, then what's discarded — "Spend 1
   // [physical] resource and discard Tenacity" reads spend-then-discard, not
@@ -168,6 +174,8 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
       parts.push(`discard any number of ${noun}`);
     }
   }
+  if (cost.discardCards) parts.push("discard a card you control");
+  if (typeof cost.indirectDamage === "number") parts.push(`take ${cost.indirectDamage} indirect damage`);
   if (cost.discardSelf) parts.push("discard this card");
   if (cost.payPrintedCostOf) parts.push("pay a card's printed cost");
   return parts.length > 0 ? parts.join(", ") : null;

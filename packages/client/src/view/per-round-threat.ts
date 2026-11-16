@@ -4,7 +4,16 @@
  * hover: the stage's acceleration, acceleration tokens, and each card in play that shows acceleration icons.
  */
 
-import { cardsInPlay, iconsOn, stepOneThreatOf, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import {
+  areaOfCard,
+  cardsInPlay,
+  iconsOn,
+  sameGameArea,
+  stepOneThreatOf,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { faceUpName } from "./names.js";
 
 export interface PerRoundThreat {
@@ -30,7 +39,11 @@ export function perRoundThreatOf(state: GameState, deps: EngineDeps, id: Instanc
     // Each card showing the icon, named; anything the per-card count does not reach (an icon granted to the area
     // rather than a card) is one "other" line, so the parts always add up to the total.
     let named = 0;
+    // With separate game areas (Kang) the engine counts only the icons in this scheme's area, so only its cards are
+    // named (`nonSchemeIcons`' own `sameGameArea` test).
+    const area = state.gameAreas.length > 0 ? areaOfCard(state, id) : null;
     for (const card of cardsInPlay(state)) {
+      if (area && !sameGameArea(area, areaOfCard(state, card))) continue;
       const count = iconsOn(state, deps, card, "acceleration");
       if (count <= 0 || named + count > threat.icons) continue;
       sources.push(`${faceUpName(state, card)} +${count}`);

@@ -36,8 +36,9 @@ describe("encounter deck run-out (#769)", () => {
     expect(total).toBeGreaterThanOrEqual(2); // a boost card and an encounter card for one player
     expect(activeEncounterDeck(state).deck.length).toBeGreaterThan(total);
     expect(encounterRunsOut(state, POOL_DEPS)).toBe(false);
-    expect(encounterRunsOut(withEncounterDeck(state, total), POOL_DEPS)).toBe(false);
-    const low = withEncounterDeck(state, total - 1);
+    // Taking exactly the last card empties the deck, which resets it then and there (RRG 1.8 "Encounter Deck", p. 17).
+    expect(encounterRunsOut(withEncounterDeck(state, total + 1), POOL_DEPS)).toBe(false);
+    const low = withEncounterDeck(state, total);
     expect(encounterRunsOut(low, POOL_DEPS)).toBe(true);
     expect(boardModel(low, store.state.perspectiveId!, POOL_DEPS).encounterRunsOut).toBe(true);
   });
@@ -60,14 +61,18 @@ describe("player deck run-out (#769)", () => {
     const me = store.state.perspectiveId!;
     const size = handSize(state, me, POOL_DEPS);
     expect(size).toBeGreaterThanOrEqual(3);
+    expect(state.players[0]!.hand.length + state.players[0]!.deck.length).toBeGreaterThan(size + 1);
     expect(playerDeckRunsOut(state, POOL_DEPS, me)).toBe(false);
     // An empty hand draws the whole hand size.
-    expect(playerDeckRunsOut(withHandAndDeck(state, 0, size), POOL_DEPS, me)).toBe(false);
-    const low = withHandAndDeck(state, 0, size - 1);
+    // Drawing exactly the last card empties the deck: it reshuffles then (RRG 1.8 "Player Deck", p. 33).
+    expect(playerDeckRunsOut(withHandAndDeck(state, 0, size + 1), POOL_DEPS, me)).toBe(false);
+    const low = withHandAndDeck(state, 0, size);
     expect(playerDeckRunsOut(low, POOL_DEPS, me)).toBe(true);
     expect(boardModel(low, me, POOL_DEPS).myDeckRunsOut).toBe(true);
-    // Holding 2 cards, the draw needs size − 2: a deck of exactly that is enough, one fewer is not.
-    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 2), POOL_DEPS, me)).toBe(false);
-    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 3), POOL_DEPS, me)).toBe(true);
+    // Holding 2 cards, the draw needs size − 2: one card more than that is left over, exactly that empties the deck.
+    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 1), POOL_DEPS, me)).toBe(false);
+    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 2), POOL_DEPS, me)).toBe(true);
+    // A full hand draws nothing, so even an empty deck is not run out by the draw.
+    expect(playerDeckRunsOut(withHandAndDeck(state, size, 0), POOL_DEPS, me)).toBe(false);
   });
 });

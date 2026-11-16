@@ -57,20 +57,25 @@ export function encounterDemandOf(state: GameState, deps: EngineDeps): Encounter
   return { total: boost + dealt, boost, dealt };
 }
 
-/** The encounter deck (and so its discard, which gets shuffled in) runs out when the round needs more than it holds. */
+/** The encounter deck (and so its discard, which gets shuffled in) runs out when the round takes at least as many cards as it holds. */
+// A deck "runs out" on the move that takes its last card: RRG 1.8 "Encounter Deck" (p. 17) and "Player Deck" (p. 33)
+// both say "immediately"; ruling April 30, 2026 (3), answer 7; docs/phase7-wave3.md §4 Q15. So a round that takes
+// exactly what the deck holds empties it too: demand >= cards in the deck, when there is any demand at all.
 export function encounterRunsOut(state: GameState, deps: EngineDeps): boolean {
-  return encounterDemandOf(state, deps).total > activeEncounterDeck(state).deck.length;
+  const demand = encounterDemandOf(state, deps).total;
+  return demand > 0 && demand >= activeEncounterDeck(state).deck.length;
 }
 
 /**
- * A player's deck runs out when the end-of-round draw wants more than it holds. The draw is "until they have a number
+ * A player's deck runs out when the end-of-round draw takes its last card. The draw is "until they have a number
  * of cards in hand equal to their hand size" (RRG 1.8 "Player Phase", end of turn), so it is hand size less the cards
  * held now: a floor, since the player may still play or discard cards this turn and draw more.
  */
 export function playerDeckRunsOut(state: GameState, deps: EngineDeps, playerId: PlayerId): boolean {
   const player = state.players.find((candidate) => candidate.playerId === playerId);
   if (player === undefined || player.eliminated) return false;
-  return handSize(state, playerId, deps) - player.hand.length > player.deck.length;
+  const draw = handSize(state, playerId, deps) - player.hand.length;
+  return draw > 0 && draw >= player.deck.length;
 }
 
 /** The pile's reason for the table's text. */
