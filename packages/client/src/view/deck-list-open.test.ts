@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   DECK_LIST_LAST_KEY,
   deckListChips,
@@ -6,6 +6,7 @@ import {
   nextDeckList,
   openingDeckList,
   readLastDeckList,
+  reconcileDeckSelection,
   writeLastDeckList,
 } from "./deck-list-open.js";
 
@@ -94,5 +95,34 @@ describe("the remembered list", () => {
     };
     expect(readLastDeckList(broken)).toBeNull();
     expect(() => writeLastDeckList("build", broken)).not.toThrow();
+  });
+});
+
+describe("reconcileDeckSelection", () => {
+  const options = [
+    { id: "p1", group: "precon" as const },
+    { id: "s1", group: "build" as const },
+    { id: "c1", group: "community" as const },
+  ];
+  it("keeps a selection on the displayed list", () => {
+    expect(reconcileDeckSelection("s1", options, null, true)).toBe("s1");
+    expect(reconcileDeckSelection("s1", options, "build", true)).toBe("s1");
+  });
+  it("moves a saved deck's selection to the first deck of Precons or Community, and back", () => {
+    expect(reconcileDeckSelection("s1", options, "precon", true)).toBe("p1");
+    expect(reconcileDeckSelection("s1", options, "community", true)).toBe("c1");
+    expect(reconcileDeckSelection("c1", options, "build", true)).toBe("s1");
+  });
+  it("selects nothing when the list is empty", () => {
+    const noSaved = options.filter((o) => o.group !== "build");
+    expect(reconcileDeckSelection("p1", noSaved, "build", true)).toBeNull();
+    expect(reconcileDeckSelection(null, [], null, true)).toBeNull();
+  });
+  it("skips hidden precons", () => {
+    expect(reconcileDeckSelection("p1", options, null, false)).toBe("s1");
+  });
+  it("keeps a deck asked for by id on every list", () => {
+    expect(reconcileDeckSelection("s1", options, "precon", true, "s1")).toBe("s1");
+    expect(reconcileDeckSelection("s1", options, "precon", true, "c1")).toBe("p1");
   });
 });

@@ -170,6 +170,7 @@ import {
   nextDeckList,
   openingDeckList,
   readLastDeckList,
+  reconcileDeckSelection,
   writeLastDeckList,
   type DeckListId,
 } from "../view/deck-list-open.js";
@@ -469,6 +470,8 @@ export class DecksScene extends Phaser.Scene {
   #scrollToDeckId: string | null = null;
   /** True while the selected row is only the first one, standing in for a `focusDeckId` deck not loaded yet. */
   #fallbackSelection = false;
+  /** True until the list is changed: a `focusDeckId` deck opens on every list, but only on the way in. */
+  #focusPinned = true;
 
   constructor() {
     super(SCENES.decks);
@@ -936,6 +939,19 @@ export class DecksScene extends Phaser.Scene {
       this.#selectedDeckId = (wantedExists ? wanted : (firstShown?.deck.id as string | undefined)) ?? null;
       this.#fallbackSelection = !wantedExists;
     }
+    // The selection stays only while it is on the displayed list (the asked-for deck excepted, until the list changes).
+    const groupOf = (o: DeckOption): DeckListId =>
+      o.deck.source.kind === "precon" ? "precon" : isCommunityDeckId(o.deck.id as string) ? "community" : "build";
+    const groupRank: Record<DeckListId, number> = { precon: 0, build: 1, community: 2 };
+    this.#selectedDeckId = reconcileDeckSelection(
+      this.#selectedDeckId,
+      allOptions
+        .map((o) => ({ id: o.deck.id as string, group: groupOf(o) }))
+        .sort((a, b) => groupRank[a.group] - groupRank[b.group]),
+      this.#deckList,
+      appSession().settings.showPreconDecks,
+      this.#focusPinned ? wanted : null,
+    );
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
     const selectedOffer = offers.find((offer) => offer.option === selected) ?? null;
     const drawStats = (rect: Rect): void => {
@@ -1624,6 +1640,7 @@ export class DecksScene extends Phaser.Scene {
   /** Shows one list alone (or all three) and remembers it for "Last used" (#755). */
   #setList(list: DeckListId | null): void {
     this.#deckList = list;
+    this.#focusPinned = false;
     writeLastDeckList(list);
   }
 

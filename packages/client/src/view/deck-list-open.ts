@@ -74,3 +74,22 @@ export function writeLastDeckList(list: DeckListId | null, storage: ListStorage 
     // Private mode or a full quota.
   }
 }
+
+/**
+ * Which deck stays selected once the list shown changes or the rows rebuild (Codex on #778). The selection stays only
+ * while it is on the displayed list (or is `pinnedId`, a deck asked for by id, which opens on every list); otherwise
+ * the first displayed deck is selected, or nothing when the list is empty, so the details pane and the deck actions
+ * never target a deck that is not drawn. `options` are all known decks in display order, with the list group each is in.
+ */
+export function reconcileDeckSelection(
+  selectedId: string | null,
+  options: readonly { readonly id: string; readonly group: DeckListId }[],
+  list: DeckListId | null,
+  showPrecon: boolean,
+  pinnedId: string | null = null,
+): string | null {
+  const shown = (o: { readonly group: DeckListId }): boolean => deckListShows(o.group, list, showPrecon);
+  const current = options.find((o) => o.id === selectedId);
+  if (current && (shown(current) || current.id === pinnedId)) return current.id;
+  return options.find(shown)?.id ?? null;
+}
