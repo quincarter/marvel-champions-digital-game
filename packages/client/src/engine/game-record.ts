@@ -74,6 +74,11 @@ export interface SeatRecord {
   /** Cards this seat drew (`cardDrawn`). Absent on a record written before the field existed. */
   readonly drawn?: number;
   /**
+   * The cards this seat drew, by card id (each `cardDrawn`, the opening hand included): with `plays`, how often a card
+   * that came to hand was played. Absent on a record written before the field existed, and while none was drawn.
+   */
+  readonly drawnCards?: Readonly<Record<string, number>>;
+  /**
    * Resources this seat generated paying costs, by type: each resource ability's (`resourcesGenerated`), and each card
    * it spent from hand as the payment priced it (`paymentCommitted`). Absent while there are none.
    */
@@ -645,7 +650,14 @@ export function recordEvents(
         turn = undefined;
         break;
       case "cardDrawn":
-        onSeat(event.playerId, (seat) => ({ ...seat, drawn: (seat.drawn ?? 0) + 1 }));
+        onSeat(event.playerId, (seat) => {
+          const cardId = cardIdAt(event.instanceId);
+          return {
+            ...seat,
+            drawn: (seat.drawn ?? 0) + 1,
+            ...(cardId ? { drawnCards: bump(seat.drawnCards, cardId) } : {}),
+          };
+        });
         break;
       case "paymentCommitted":
         // Each card as the payment priced it, for the player who spent it (the engine's `spentFromHandOf`).

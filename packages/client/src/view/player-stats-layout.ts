@@ -23,6 +23,7 @@ export type StatsTab =
   | "encounter"
   | "records"
   | "all-cards"
+  | "decks"
   | "cards";
 
 /** The sections a list tab shows, in order; a tab with more than one heads each. */
@@ -52,6 +53,7 @@ export function statsTabsOf(stats: PlayerStats): readonly StatsTabEntry[] {
     ...(has("side-schemes") || has("encounter") ? [{ id: "encounter" as const, label: "Encounter" }] : []),
     ...(has("records") || has("devices") ? [{ id: "records" as const, label: "Records" }] : []),
     ...(stats.allCards ? [{ id: "all-cards" as const, label: "Cards" }] : []),
+    ...(stats.decks.length > 0 ? [{ id: "decks" as const, label: "Decks" }] : []),
     ...(stats.heroCards.length > 0 ? [{ id: "cards" as const, label: "Cards by hero" }] : []),
   ];
 }
@@ -168,6 +170,8 @@ export function cardRowsOf(
   cards: readonly { readonly cardId: string; readonly value: string; readonly detail: string }[],
   width: number,
   phone: boolean,
+  /** Room for a longer detail line under each card (the Decks tab's adds the draws). */
+  extraHeight = 0,
 ): DashRow[] {
   const cardWidth = phone ? 100 : 118;
   const cardHeight = Math.round(cardWidth * CARD_RATIO);
@@ -177,7 +181,7 @@ export function cardRowsOf(
     rows.push({
       kind: "cards",
       id: `${groupId}:strip:${i / perRow}`,
-      height: cardHeight + 50,
+      height: cardHeight + 50 + extraHeight,
       cardWidth,
       cardHeight,
       cards: cards.slice(i, i + perRow).map((card, j) => ({ ...card, x: j * (cardWidth + CARD_GAP) })),
@@ -225,6 +229,38 @@ export function dashboardRowsOf(
       if (cards.length === 0) continue;
       rows.push({ kind: "heading", id: `${group.id}:head`, height: phone ? 40 : 44, title: group.title });
       rows.push(...cardRowsOf(group.id, cards, width, phone));
+    }
+    return rows;
+  }
+  if (tab === "decks") {
+    // Each deck: a row for its record (the hero's picture, which opens the hover), then its most played cards.
+    const rows: DashRow[] = [];
+    for (const deck of stats.decks) {
+      rows.push({
+        kind: "stat",
+        id: `deck:${deck.id}`,
+        height: statHeight(phone),
+        row: {
+          kind: "stat",
+          id: `deck:${deck.id}`,
+          label: deck.name,
+          value: `${deck.wins}–${deck.losses}`,
+          detail: deck.detail,
+          cardId: deck.identityCardId,
+        },
+      });
+      const cards = shown(deck.cards);
+      if (cards.length > 0) rows.push(...cardRowsOf(`deck:${deck.id}`, cards, width, phone, 16));
+      else
+        rows.push({
+          kind: "note",
+          id: `deck:${deck.id}:none`,
+          height: noteHeight(phone),
+          text:
+            deck.tracked === 0
+              ? "Card stats start with the next game you finish with this deck."
+              : "No cards played from this deck yet.",
+        });
     }
     return rows;
   }

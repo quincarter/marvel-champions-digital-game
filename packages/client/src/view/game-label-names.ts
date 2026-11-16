@@ -33,6 +33,10 @@ export const GAME_LABEL_NAMES: GamesListNames = {
 /** The Past games catalog's names (#706): the label's, and each game's pictures. */
 export const PAST_GAME_NAMES: PastGameNames = {
   ...GAME_LABEL_NAMES,
+  cardName: (id) => {
+    const card = CARDS_BY_ID.get(id);
+    return card ? cardDisplayName(card) : undefined;
+  },
   starterIdentity: (id) => currentStarterDecks().find((deck) => (deck.id as string) === id)?.identityCardId as string,
   scenarioCardId: (id) => {
     const scenario = currentScenarios().find((candidate) => (candidate.id as string) === id);
@@ -75,6 +79,10 @@ export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNa
   const decks = (): readonly StarterDeck[] => [...POOL_STARTER_DECKS, ...packs.flatMap((pack) => pack.decks)];
   names = {
     ...PAST_GAME_NAMES,
+    cardName: (id) => {
+      const card = cardsById.get(id);
+      return card ? cardDisplayName(card) : undefined;
+    },
     starterDeckName: (id) => decks().find((deck) => (deck.id as string) === id)?.name,
     starterIdentity: (id) => decks().find((deck) => (deck.id as string) === id)?.identityCardId as string | undefined,
     scenarioName: (id) =>

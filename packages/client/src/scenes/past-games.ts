@@ -861,14 +861,22 @@ export class PastGamesScene extends Phaser.Scene {
     for (const seat of row.seats) {
       const fate = seat.fell === null ? "" : ` · ${t(seat.fell ? "pastGames.seat.fell" : "pastGames.seat.stood")}`;
       add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
-      if (seat.damage !== null && seat.thwart !== null) {
-        add(
-          t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart }),
-          textStyle(typeRole.body, ink, 0.75),
-          13,
-          6,
-        );
-      }
+      // Every seat at the table, not only the first: its stats, aspects and deck, and the cards it played most (#756).
+      // A deck named after its aspect (a precon) does not say it twice.
+      const deckParts = [
+        ...(seat.deckName ? [seat.deckName] : []),
+        ...seat.aspects.filter((aspect) => !seat.deckName?.includes(aspect)),
+      ];
+      const lines = [
+        ...(seat.damage !== null && seat.thwart !== null
+          ? [t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart })]
+          : []),
+        ...(deckParts.length > 0 ? [t("pastGames.seat.deck", { deck: deckParts.join(" · ") })] : []),
+        ...(seat.topCards.length > 0
+          ? [t("pastGames.seat.top", { cards: seat.topCards.map((card) => `${card.name} ${card.count}×`).join(", ") })]
+          : []),
+      ];
+      lines.forEach((line, i) => add(line, textStyle(typeRole.body, ink, 0.75), 13, i === lines.length - 1 ? 8 : 1));
     }
     if (this.#detailsScrollId !== row.id) {
       this.#detailsScroll = new VariableListScroll();

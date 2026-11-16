@@ -55,6 +55,61 @@ const seat = (identityCardId: string, defeated: boolean, extra: object = {}) => 
   ...extra,
 });
 
+/** What a seat the save says nothing about its deck for reads as (#756). */
+const none = { aspects: [], deckName: null, topCards: [] };
+
+describe("every seat's deck in a past game (#756)", () => {
+  test("each seat has its aspects, its deck's name and its most played cards, most first", () => {
+    const names: PastGameNames = {
+      ...NAMES,
+      cardName: (id) => ({ a: "Avenger", b: "Bash", c: "Cover", d: "Dive" })[id],
+    };
+    const [row] = pastGameRowsOf(
+      [
+        save("t", 1, {
+          config: {
+            scenarioId: "rhino",
+            difficulty: "standard",
+            players: [
+              { starterDeckId: "she-hulk-aggression" },
+              { identityCardId: "black-panther", deck: [], deckId: "mine", deckName: "Wakanda Wall" },
+            ],
+            seed: 1,
+          } as never,
+          summary: {
+            lossReason: null,
+            seats: [
+              seat("she-hulk", false, {
+                aspects: ["aggression"],
+                starterDeckId: "she-hulk-aggression",
+                plays: { b: 2 },
+              }),
+              seat("black-panther", false, {
+                aspects: ["protection", "pool"],
+                deckId: "mine",
+                deckName: "Wakanda Wall",
+                plays: { a: 1, b: 3, c: 3, d: 1 },
+              }),
+            ],
+          } as never,
+        }),
+      ],
+      names,
+    );
+    expect(row!.seats.map((s) => [s.deckName, s.aspects])).toEqual([
+      ["She-Hulk — Aggression", ["Aggression"]],
+      ["Wakanda Wall", ["Protection", "'Pool"]],
+    ]);
+    expect(row!.seats[0]!.topCards).toEqual([{ cardId: "b", name: "Bash", count: 2 }]);
+    // Ties by name; at most three.
+    expect(row!.seats[1]!.topCards.map((card) => [card.name, card.count])).toEqual([
+      ["Bash", 3],
+      ["Cover", 3],
+      ["Avenger", 1],
+    ]);
+  });
+});
+
 describe("which saves are past games", () => {
   test("won, lost and left-unfinished games are; one still being played, or of a retired schema, is not", () => {
     expect(isPastGame(save("a", 1, { status: "won" }))).toBe(true);
@@ -124,8 +179,8 @@ describe("pastGameRowsOf", () => {
       NAMES,
     );
     expect(row!.seats).toEqual([
-      { identityCardId: "she-hulk", name: "She-Hulk", fell: true, damage: 10, thwart: 4 },
-      { identityCardId: "black-panther", name: "Black Panther", fell: false, damage: 22, thwart: 9 },
+      { ...none, identityCardId: "she-hulk", name: "She-Hulk", fell: true, damage: 10, thwart: 4 },
+      { ...none, identityCardId: "black-panther", name: "Black Panther", fell: false, damage: 22, thwart: 9 },
     ]);
   });
 
@@ -156,7 +211,15 @@ describe("pastGameRowsOf", () => {
     );
     expect(row!.reason).toBe("heroesDefeated");
     expect(row!.seats).toEqual([
-      { identityCardId: "she-hulk", name: "She-Hulk", fell: true, damage: null, thwart: null },
+      {
+        ...none,
+        identityCardId: "she-hulk",
+        name: "She-Hulk",
+        fell: true,
+        damage: null,
+        thwart: null,
+        deckName: "She-Hulk — Aggression",
+      },
     ]);
     expect(row!.villainCardId).toBeNull();
   });
@@ -210,6 +273,9 @@ describe("seatFatesOf", () => {
     fell,
     damage: null,
     thwart: null,
+    aspects: [],
+    deckName: null,
+    topCards: [],
   });
 
   test("the fallen and those who stood; a wipe when every hero fell; nothing for heroes the save can't speak for", () => {

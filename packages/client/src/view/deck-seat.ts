@@ -40,6 +40,7 @@ export function corePlayerFromDeck(deck: Deck): CorePlayer {
     deck: deck.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId as string)),
     aspects: deck.aspects,
     deckId: deck.id as string,
+    deckName: deck.name,
   };
 }
 

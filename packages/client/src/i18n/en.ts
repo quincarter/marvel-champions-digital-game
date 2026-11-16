@@ -50,6 +50,8 @@ export const en = {
   "pastGames.seat.fell": "fell",
   "pastGames.seat.stood": "stood",
   "pastGames.seat.stats": "{damage} damage · {thwart} thwart",
+  "pastGames.seat.deck": "Deck: {deck}",
+  "pastGames.seat.top": "Most played: {cards}",
   "pastGames.minutes": "{minutes} min",
   "pastGames.campaign": "Campaign: {name}",
   "pastGames.watch": "Watch",

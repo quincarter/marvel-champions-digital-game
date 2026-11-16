@@ -9,6 +9,7 @@ const ANSWER: PlayerStats = {
   heroCards: [],
   allCards: null,
   aspects: [],
+  decks: [],
   matchups: null,
   filter: {},
   filterOptions: { heroes: [], villains: [], difficulties: [] },

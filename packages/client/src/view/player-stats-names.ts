@@ -54,6 +54,7 @@ export const POOL_STATS_NAMES: StatsNames = {
     const deck = POOL_STARTER_DECKS.find((candidate) => (candidate.id as string) === id);
     return deck ? { identityCardId: deck.identityCardId as string, aspects: deck.aspects } : undefined;
   },
+  starterDeckName: (id) => POOL_STARTER_DECKS.find((deck) => (deck.id as string) === id)?.name,
   scenarioModulars: (id) =>
     POOL_SCENARIOS.find((scenario) => (scenario.id as string) === id)?.recommendedModularSetIds.map(
       (set) => set as string,

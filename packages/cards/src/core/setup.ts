@@ -63,6 +63,11 @@ export type CorePlayer =
       readonly deck: readonly string[];
       readonly aspects?: readonly CoreAspect[];
       readonly deckId?: string;
+      /**
+       * The deck's name when the game was set up, opaque like `deckId` and never read by setup: kept so the stats and
+       * Past games can name the deck a finished game was played with after it is renamed or deleted (#756).
+       */
+      readonly deckName?: string;
     };
 
 export interface CoreScenarioOptions {

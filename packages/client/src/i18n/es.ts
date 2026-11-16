@@ -53,6 +53,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.seat.fell": "cayó",
   "pastGames.seat.stood": "resistió",
   "pastGames.seat.stats": "{damage} de daño · {thwart} de amenaza frustrada",
+  "pastGames.seat.deck": "Mazo: {deck}",
+  "pastGames.seat.top": "Más jugadas: {cards}",
   "pastGames.minutes": "{minutes} min",
   "pastGames.campaign": "Campaña: {name}",
   "pastGames.watch": "Ver",
