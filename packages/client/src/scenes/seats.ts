@@ -159,6 +159,7 @@ import {
   renderShelfHeader,
 } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { t } from "../i18n/translate.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { forwardHint } from "./campaign/pad-hints.js";
@@ -1019,9 +1020,10 @@ export class SeatsScene extends Phaser.Scene {
                 rect,
                 null,
                 () => this.#roster?.refreshVisible(),
-                `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}  ·  SEE ALL`,
+                `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
                 "▸",
                 shelf.collapsed ? "folded" : "open",
+                t("scenario.seeAll"),
               ),
         renderCard: (option, shelfIndex, _itemIndex, rect) =>
           this.#renderHeroCard(option, active, rect, shelves[shelfIndex]?.id === REC_SHELF_ID),

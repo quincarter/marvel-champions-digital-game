@@ -52,8 +52,16 @@ import type { VirtualListRow } from "./virtual-list.js";
 /** Which part of a header band a tap landed on: the right-hand "See all" end, or the rest (a fold toggle where a screen folds). */
 export type ShelfHeaderZone = "title" | "all";
 
-/** The width of the header band's right-hand "See all" end, measured from the roster's right edge. */
+/**
+ * The width of the header band's right-hand "See all" end, measured from the roster's right edge, for a header that does
+ * not report where its drawn caption starts (`ShelfHeaderRow.allX`).
+ */
 export const SHELF_HEADER_ALL_WIDTH = 150;
+
+/** A shelf header's row, with the x where its "See all" caption starts: a tap from there to the right opens the pack. */
+export interface ShelfHeaderRow extends VirtualListRow {
+  readonly allX?: number;
+}
 
 export interface ShelfRosterMetrics {
   readonly cardWidth: number;
@@ -69,7 +77,7 @@ export interface ShelfRosterOptions<T> {
   readonly shelves: readonly Shelf<T>[];
   readonly metrics: ShelfRosterMetrics;
   /** Draws shelf `shelf`'s header (title, rule, count) at `rect` — no chevrons, those are this widget's own. */
-  readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
+  readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => ShelfHeaderRow;
   /** Draws one card at `rect`. */
   readonly renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
   readonly onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
@@ -139,7 +147,9 @@ export class McShelfRoster<T> {
   #rect: Rect;
   #shelves: readonly Shelf<T>[];
   readonly #metrics: ShelfRosterMetrics;
-  readonly #renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
+  readonly #renderHeader: (shelf: Shelf<T>, rect: Rect) => ShelfHeaderRow;
+  /** Where each shelf's drawn "See all" caption starts, as its header last reported it. */
+  readonly #headerAllX = new Map<string, number>();
   readonly #renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
   readonly #onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
   readonly #onHeaderActivate: ((shelf: Shelf<T>, shelfIndex: number, zone: ShelfHeaderZone) => void) | undefined;
@@ -456,6 +466,8 @@ export class McShelfRoster<T> {
     const shelfTop = this.#rect.y + (this.#tops().tops[shelfIndex] ?? 0);
     const headerRect: Rect = { x: this.#rect.x, y: shelfTop, width: this.#rect.width, height: m.headerHeight };
     const headerRow = this.#renderHeader(shelf, headerRect);
+    if (headerRow.allX !== undefined) this.#headerAllX.set(shelf.id, headerRow.allX);
+    else this.#headerAllX.delete(shelf.id);
     const cards = this.#scene.add.container(0, 0);
     const container = this.#scene.add.container(0, 0, [
       ...(headerRow.objects as Phaser.GameObjects.GameObject[]),
@@ -681,7 +693,8 @@ export class McShelfRoster<T> {
       const withinShelf = at.within;
       // The header band drills in (W2b second pass) — checked before the card band, which starts only after it.
       if (withinShelf <= m.headerHeight) {
-        const inAll = pointer.x >= this.#rect.x + this.#rect.width - SHELF_HEADER_ALL_WIDTH;
+        const inAll =
+          pointer.x >= (this.#headerAllX.get(shelf.id) ?? this.#rect.x + this.#rect.width - SHELF_HEADER_ALL_WIDTH);
         this.#onHeaderActivate?.(shelf, shelfIndex, inAll ? "all" : "title");
         return;
       }

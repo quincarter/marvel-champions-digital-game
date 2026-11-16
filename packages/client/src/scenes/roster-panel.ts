@@ -25,7 +25,12 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McShelfRoster, type ShelfHeaderZone, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
+import {
+  McShelfRoster,
+  type ShelfHeaderRow,
+  type ShelfHeaderZone,
+  type ShelfRosterMetrics,
+} from "../ui/shelf-roster.js";
 import { drawAspectInfoSegment } from "../ui/aspect-tip.js";
 import type { ListScroll } from "../view/list-scroll.js";
 import { CHIP_GAP, compactChipWidthOf, splitInfoSegment, type ChipInfoToggle } from "../view/chip-layout.js";
@@ -517,7 +522,12 @@ export function renderShelfHeader(
   arrow = "▸",
   /** On a shelf the header folds (#753): its state as a ▾ / ▸ ahead of the title, a shape and not a colour. */
   fold?: "open" | "folded",
-): VirtualListRow {
+  /**
+   * The "See all" end of a header that has one ("SEE ALL"), drawn as its own link-styled caption, underlined, after the
+   * count; the row reports where it starts (`allX`) so a tap on it opens the pack and a tap on the count or title folds.
+   */
+  seeAll?: string,
+): ShelfHeaderRow {
   const objects: Phaser.GameObjects.GameObject[] = [];
   const midY = rect.y + rect.height / 2;
   let startX = rect.x;
@@ -543,16 +553,38 @@ export function renderShelfHeader(
     .text(textX, midY, shelf.title, textStyle(typeRole.sectionHeader, surface.ink.hex))
     .setOrigin(0, 0.5);
   objects.push(title);
+  let rightEdge = rect.x + rect.width;
+  let allX: number | undefined;
+  if (seeAll) {
+    const link = scene.add
+      .text(rightEdge, midY, `${seeAll} ${arrow}`, textStyle(typeRole.label, accent.heroRed.hex, 1))
+      .setOrigin(1, 0.5);
+    objects.push(link);
+    // The underline and the red are the link's marks: a shape and a colour, so it reads as a control on its own.
+    const underline = scene.add.graphics();
+    underline
+      .lineStyle(2, accent.heroRed.hex, 1)
+      .lineBetween(link.x - link.width, midY + link.height / 2, link.x, midY + link.height / 2);
+    objects.push(underline);
+    rightEdge = link.x - link.width;
+    allX = rightEdge - 8;
+    rightEdge -= 16;
+  }
   const count = scene.add
-    .text(rect.x + rect.width, midY, `${countLabel} ${arrow}`, textStyle(typeRole.label, surface.ink.hex, ink.label))
+    .text(
+      rightEdge,
+      midY,
+      seeAll ? `${countLabel}  ·` : `${countLabel} ${arrow}`,
+      textStyle(typeRole.label, surface.ink.hex, ink.label),
+    )
     .setOrigin(1, 0.5);
   objects.push(count);
   const rule = scene.add.graphics();
   rule
     .lineStyle(2, surface.ink.hex, ink.meta)
-    .lineBetween(textX + title.width + 10, midY, rect.x + rect.width - count.width - 12, midY);
+    .lineBetween(textX + title.width + 10, midY, rightEdge - count.width - 12, midY);
   objects.push(rule);
-  return { objects };
+  return allX === undefined ? { objects } : { objects, allX };
 }
 
 export interface ShelfRosterPanelOptions<T> {
@@ -563,7 +595,7 @@ export interface ShelfRosterPanelOptions<T> {
   /** Which screen's scroll-position cache to use (`view/shelf-scroll-cache.ts`) — a scene is destroyed and recreated on every trip to Deck check and back, so scroll position is kept outside it. */
   readonly screen: ShelfScreen;
   readonly renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
-  readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
+  readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => ShelfHeaderRow;
   readonly onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
   /** A tap on a shelf's own header band — drills into that pack (second-pass item 6). */
   readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number, zone: ShelfHeaderZone) => void;
