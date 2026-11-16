@@ -40,8 +40,8 @@
   "The mod SDK's <code>mc-pack validate</code> and <code>build</code> check them.": "<code>mc-pack validate</code> y <code>build</code> del mod SDK los comprueban.",
   "The store's packs now live and publish in the mods registry, each with the same id and every version it had, so installs and saved games carry on.": "Los packs de la tienda ahora viven y se publican en el registro de mods, cada uno con el mismo id y todas las versiones que tenía, así que las instalaciones y las partidas guardadas siguen igual.",
   "You asked, we fixed": "Lo pediste, lo corregimos",
-  "Issue #733 · PR #736": "Issue #733 · PR #736",
-  "<b>The Mod Store works on Android again.</b> Thank you, @zackburnley, for the report that led to both fixes.": "<b>La Mod Store vuelve a funcionar en Android.</b> Gracias, @zackburnley, por el reporte que llevó a las dos correcciones.",
+  "Issues #733 and #738 · PRs #736 and #740": "Issues #733 y #738 · PRs #736 y #740",
+  "<b>The Mod Store works on Android again,</b> and community heroes show their pictures from the first deal. Thank you, @zackburnley, for the Android report.": "<b>La Mod Store vuelve a funcionar en Android,</b> y los héroes de la comunidad muestran sus imágenes desde el primer reparto. Gracias, @zackburnley, por el reporte de Android.",
   "#733 · reported by @zackburnley": "#733 · reportado por @zackburnley",
   "The store opens": "La tienda abre",
   "The first time the store opened on Android, the game stopped after Deadpool's line, with no buttons and no way back. The two portraits asked for a picture larger than many phones can draw. They are <b>baked as round pictures</b> now, and so is the Team-Up info portrait, which had the same problem.": "La primera vez que la tienda abría en Android, el juego se detenía tras la frase de Deadpool, sin botones y sin forma de volver. Los dos retratos pedían una imagen más grande de lo que muchos teléfonos pueden dibujar. Ahora <b>se preparan como imágenes redondas</b>, y también el retrato de la información de Team-Up, que tenía el mismo problema.",
@@ -86,5 +86,8 @@
   "All, narrowed by a By DesignHacker chip to 2 of 8 packs: Night Thrasher and Yondu": "All, acotada por la etiqueta By DesignHacker a 2 de 8 packs: Night Thrasher y Yondu",
   "Settings, More, Custom content: Custom content in the lists with Top, Bottom and Mixed in, and Custom content starts unlocked, On": "Settings, More, Custom content: Custom content in the lists con Top, Bottom y Mixed in, y Custom content starts unlocked, activado",
   "On a phone, the Mod Store's first-visit notice with both Deadpool and Spider-Man, their lines and the Report a problem and Got it buttons": "En un teléfono, el aviso de la primera visita a la Mod Store con Deadpool y Spider-Man, sus frases y los botones Report a problem y Got it",
-  "Code shipped since v0.45.0": "Código publicado desde v0.45.0"
+  "Code shipped since v0.45.0": "Código publicado desde v0.45.0",
+  "#738 · found in play": "#738 · encontrado jugando",
+  "Pack pictures show up": "Las imágenes de los packs aparecen",
+  "A community hero's cards could stay blank on the opening hand until you kept it, and Gwenpool's table card showed her hero side while she was in alter-ego form. Both now <b>redraw as soon as the pack's pictures load</b>.": "Las cartas de un héroe de la comunidad podían quedarse en blanco en la mano inicial hasta que la aceptabas, y la carta de Gwenpool en la mesa mostraba su lado de héroe estando en forma de álter ego. Ahora ambas <b>se redibujan en cuanto cargan las imágenes del pack</b>."
 }
