@@ -6,14 +6,14 @@ You've downloaded the game 4,156 times since v0.19.0, so the site has a Download
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.47.0/index.es.html)**
 
-![The numbers: 4,156 installers downloaded since v0.19.0, 41% of them on Android and 33% in Español since v0.39.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-01-the-numbers.jpg)
+![The numbers: 4,156 installers downloaded since v0.19.0, 41% of them on Android and 33% in Español since v0.39.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-01-the-numbers.jpg)
 
-![A page for the numbers: the Download stats page, each platform's share, the five biggest releases, the page on a phone, a bar for every release, and card language and Install for Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-02-a-page-for-the-numbers.jpg)
+![A page for the numbers: the Download stats page, each platform's share, the five biggest releases, the page on a phone, a bar for every release, and card language and Install for Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-02-a-page-for-the-numbers.jpg)
 
-![Play it from Steam: the Steam script button beside the installer on Windows, Linux and a Mac at phone width, with how to run it](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-03-play-it-from-steam.jpg)
+![Play it from Steam: the Steam script button beside the installer on Windows, Linux and a Mac at phone width, with how to run it](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-03-play-it-from-steam.jpg)
 
-![One bar across the site: Home, Download stats and Releases on a release report and on the release history](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-04-one-bar-across-the-site.jpg)
+![One bar across the site: Home, Download stats and Releases on a release report and on the release history](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-04-one-bar-across-the-site.jpg)
 
-![Thank you to everyone who played, in English, in Español and on Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-05-thank-you.jpg)
+![Thank you to everyone who played, in English, in Español and on Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-05-thank-you.jpg)
 
-![Code shipped since v0.46.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/@SHA@/docs/screenshots/releases/v0.47.0/v0-47-0-release-06-code-shipped.jpg)
+![Code shipped since v0.46.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0aa9fa769897f5596e9a7c753a87154f9d49eb7a/docs/screenshots/releases/v0.47.0/v0-47-0-release-06-code-shipped.jpg)
