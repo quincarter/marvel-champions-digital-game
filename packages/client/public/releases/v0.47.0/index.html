@@ -6,12 +6,12 @@
     <title>v0.47.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v0.47.0 of the fan-made Marvel Champions digital game: a download stats page on the site, with every release's downloads by platform and language, and one top bar across the site's pages."
+      content="What's new in v0.47.0 of the fan-made Marvel Champions digital game: a download stats page on the site, with every release's downloads by platform and language, a Steam script button on the home page, and one top bar across the site's pages."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v0.47.0" />
     <meta
       property="og:description"
-      content="A download stats page on the site counts every installer since v0.19.0, by platform, release and language."
+      content="A download stats page counts every installer since v0.19.0, and the home page gets a Steam script button."
     />
     <meta property="og:image" content="https://champions-digital-game.com/releases/v0.47.0/img/og.jpg" />
     <style>
@@ -609,8 +609,8 @@
         <p>
           <b>You've downloaded the game 4,156 times since v0.19.0.</b> I wanted to see where those downloads go, so the
           site has a Download stats page now: every installer since v0.19.0, by platform, by release and by card
-          language, counted again twice a day. Every page on the site shares one top bar, so the stats, the release
-          history and these reports are a click apart.
+          language, counted again twice a day. The home page's download panel gets a Steam script button with how to run
+          it, and every page on the site shares one top bar.
         </p>
       </section>
 
@@ -734,6 +734,78 @@
         </div>
       </div>
 
+      <!-- ============ STEAM ============ -->
+      <div class="band">
+        <h2>Play it from Steam</h2>
+        <div class="lab">Issue #747 · PR #748</div>
+      </div>
+      <p class="lead">
+        <b>The home page's download panel has a Steam script button now,</b> with the Steam logo, right beside the
+        installer for your computer. Under it, a short note says what the script does and how to run it on that
+        computer.
+      </p>
+      <div class="shots s-phone">
+        <div class="shots" style="margin: 0">
+          <figure class="a">
+            <img
+              src="img/steam-windows.webp"
+              alt="The download panel on Windows: Download for Windows, a Steam script button with the Steam logo and the .cmd file's name, and Play in your browser, above a Play it from Steam note"
+              width="1280"
+              height="521"
+              loading="lazy"
+            />
+            <figcaption>On Windows: double-click the .cmd</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="img/steam-linux.webp"
+              alt="The download panel on Linux: the Steam script button beside Download for Linux and Steam Deck, and a note with the chmod and run commands, each on a line of its own"
+              width="1280"
+              height="686"
+              loading="lazy"
+            />
+            <figcaption>On Linux and Steam Deck, the commands to copy</figcaption>
+          </figure>
+        </div>
+        <figure class="a">
+          <img
+            src="img/steam-mac-phone.webp"
+            alt="The download panel for a Mac on a phone-sized screen, with the Steam script button and the Terminal commands wrapping to fit"
+            width="412"
+            height="1152"
+            loading="lazy"
+          />
+          <figcaption>The macOS note at phone width</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>What the script does</h3>
+          <ul class="ck">
+            <li>It installs the game, adds it to your Steam library with its art, and keeps it updated.</li>
+            <li>Steam has to be closed while it runs, and the script offers to close it.</li>
+            <li>
+              Phones, and computers the page can't recognize, get no Steam button. Every system's script is still under
+              Other devices.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>How to run it</h3>
+          <ul class="ck">
+            <li>
+              <b>Windows:</b> double-click the <code>.cmd</code>. If Windows stops it, choose <b>More info</b>, then
+              <b>Run anyway</b>. No PowerShell settings to change.
+            </li>
+            <li>
+              <b>macOS and Linux:</b> give it permission with <code>chmod +x</code>, then run it, or run it with
+              <code>bash</code> and skip that step. Each command sits on its own line, so it copies whole.
+            </li>
+            <li><b>Steam Deck:</b> switch to Desktop Mode and run it in Konsole.</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- ============ NAV ============ -->
       <div class="band">
         <h2>One bar across the site</h2>
@@ -805,22 +877,22 @@
       <section class="stats" aria-label="Code shipped since v0.46.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">2</div>
+          <div class="n">3</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">67</div>
+          <div class="n">62</div>
           <p>across the site, its build and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">2,887</div>
+          <div class="n c-green">3,145</div>
           <p>the stats page, the top bar and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">45</div>
+          <div class="n c-red">46</div>
           <p>most of them the home page's old links and styles, replaced by the bar.</p>
         </div>
       </section>
