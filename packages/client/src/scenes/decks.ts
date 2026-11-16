@@ -169,7 +169,7 @@ import {
   deckListGroupOf,
   deckListShows,
   nextDeckList,
-  openingDeckList,
+  freshDeckVisit,
   readLastDeckList,
   reconcileDeckSelection,
   writeLastDeckList,
@@ -511,12 +511,17 @@ export class DecksScene extends Phaser.Scene {
     this.#notesScroll = new ListScroll();
     // A deck asked for by id (just saved, or sent here) is looked for in every list, so it is never filtered away.
     const openSettings = appSession().settings;
-    this.#deckList = data.focusDeckId
-      ? null
-      : openingDeckList(openSettings.deckListOnOpen, readLastDeckList(), openSettings.showPreconDecks);
+    const visit = freshDeckVisit(
+      data.focusDeckId,
+      openSettings.deckListOnOpen,
+      readLastDeckList(),
+      openSettings.showPreconDecks,
+    );
+    this.#deckList = visit.deckList;
+    this.#focusPinned = visit.focusPinned;
+    this.#fallbackSelection = visit.fallbackSelection;
     this.#offersCache = null;
     this.#focusedOnce = false;
-    this.#fallbackSelection = false;
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);

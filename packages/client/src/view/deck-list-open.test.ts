@@ -5,6 +5,7 @@ import {
   deckListGroupOf,
   deckListShows,
   displayedDeckIds,
+  freshDeckVisit,
   nextDeckList,
   openingDeckList,
   readLastDeckList,
@@ -144,5 +145,24 @@ describe("deck list groups", () => {
     expect(reconcileDeckSelection("c1", options, "build", true)).toBeNull();
     expect(displayedDeckIds(options, null, true)).toEqual(["p1", "c1"]);
     expect(displayedDeckIds(options, "precon", false)).toEqual([]);
+  });
+});
+
+describe("freshDeckVisit", () => {
+  it("pins a requested deck on every visit, whatever an earlier visit's chip tap did", () => {
+    // Visit 1 ends with a chip tap (the scene sets its pin false); visit 2 asks for a hidden precon by id.
+    const visit = freshDeckVisit("precon-1", "last", "build", false);
+    expect(visit).toEqual({ deckList: null, focusPinned: true, fallbackSelection: false });
+    const options = [
+      { id: "precon-1", group: "precon" as const },
+      { id: "mine", group: "build" as const },
+    ];
+    expect(
+      reconcileDeckSelection("precon-1", options, visit.deckList, false, visit.focusPinned ? "precon-1" : null),
+    ).toBe("precon-1");
+  });
+
+  it("opens on the setting's list when no deck is asked for", () => {
+    expect(freshDeckVisit(null, "build", null, true).deckList).toBe("build");
   });
 });

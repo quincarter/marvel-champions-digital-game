@@ -26,6 +26,25 @@ export function openingDeckList(
   return wanted === "precon" && !showPrecon ? null : wanted;
 }
 
+/**
+ * The list state a visit to the Decks screen starts with. A scene instance is reused between visits, so `create()`
+ * sets every field from this, the pin included: a tap on a list chip in an earlier visit un-pins the requested deck,
+ * and that must not carry into the next visit's `focusDeckId` (Codex on #778). A deck asked for by id opens on every
+ * list and is pinned; otherwise the setting decides the list.
+ */
+export function freshDeckVisit(
+  focusDeckId: string | null | undefined,
+  setting: DeckListOnOpen,
+  last: DeckListId | null,
+  showPrecon: boolean,
+): { readonly deckList: DeckListId | null; readonly focusPinned: boolean; readonly fallbackSelection: boolean } {
+  return {
+    deckList: focusDeckId ? null : openingDeckList(setting, last, showPrecon),
+    focusPinned: true,
+    fallbackSelection: false,
+  };
+}
+
 /** Is `group` drawn while `list` (null: all) is the one chosen, and the precons shown or hidden? */
 export function deckListShows(group: DeckListId, list: DeckListId | null, showPrecon: boolean): boolean {
   if (group === "precon" && !showPrecon) return false;
