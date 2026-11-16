@@ -514,6 +514,22 @@ figcaption {
   border-color: var(--fg);
   box-shadow: 6px 6px 0 var(--gold);
 }
+.btn.steam {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.steam-logo {
+  flex: none;
+  width: 36px;
+  height: 36px;
+}
+.steam-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .btn.steam small {
   overflow-wrap: anywhere;
 }

@@ -15,6 +15,7 @@ import {
 import { LANGUAGE_KEY, LANGUAGE_NAMES, PAGE_LANGUAGES, storageWrite, type PageLanguage } from "./page-language.js";
 import { fileKey, fill, type SharedKey } from "./site-text.js";
 import { LATEST_RELEASE_URL } from "./site-urls.js";
+import steamLogo from "./steam-logo.svg";
 
 export type Translate = (key: string, params?: Readonly<Record<string, string | number>>) => string;
 
@@ -185,8 +186,13 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
       element(
         "a",
         { class: "btn steam", href: steam.url, rel: "noopener" },
-        element("span", {}, t("dl.steam")),
-        element("small", {}, steam.fileName),
+        element("img", { class: "steam-logo", src: steamLogo, alt: "", width: "36", height: "36" }),
+        element(
+          "span",
+          { class: "steam-text" },
+          element("span", {}, t("dl.steam")),
+          element("small", {}, steam.fileName),
+        ),
       ),
       play,
     );
