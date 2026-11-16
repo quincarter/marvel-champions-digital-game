@@ -71,8 +71,8 @@ describe("Clear the Area (04049): draws when it removes the last threat (#773)",
 
   it("The Search for Spiral: its Forced Response puts threat back, and Clear the Area still draws (ruling Oct 10, 2025)", () => {
     const { state, drew, target } = clear({ sideCode: "39016", side: 2 });
-    // Permanent, so it stays, with 3 per hero threat placed back after its last threat was removed.
-    expect(inst(state, target).threat).toBeGreaterThan(0);
+    // Permanent, so it stays, with its own 3 per hero threat placed back (one hero) after its last threat was removed.
+    expect(inst(state, target).threat).toBe(3);
     expect(drew).toBe(1);
   });
 

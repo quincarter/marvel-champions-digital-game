@@ -2668,9 +2668,10 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   const after = mustInstance(ctx.state, event.schemeInstanceId);
   // A thwart's frame also reports `amount`, the key a plain removal reports, so a `bind` on a "(thwart)" ability's
   // `removeThreat` reads `<bind>.amount` whether or not the label made it a thwart. `removedLastThreat`: this removal
-  // took the scheme from some threat to none, kept on the frame that asked for it so "If this removes the last threat
-  // …" (Clear the Area 04049) reads `<bind>.removedLastThreat` after the removal's own responses have run, even one
-  // that put threat back (The Search for Spiral; ruling October 10, 2025).
+  // took the scheme from some threat to none, kept on the parent frame (a thwart's, an activation's) so "If this
+  // removes the last threat …" (Clear the Area 04049) reads `<bind>.removedLastThreat` after the removal's own
+  // responses have run, even one that put threat back (The Search for Spiral; ruling October 10, 2025). A plain
+  // `removeThreat` has no parent frame: its own bind reads the same fact as `<bind>.lastThreatRemoved` (below).
   addFrameVars(ctx, event.parentFrameId, {
     threatRemoved: removed,
     ...(thwart ? { amount: removed } : {}),
