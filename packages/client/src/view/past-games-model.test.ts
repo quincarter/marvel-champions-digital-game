@@ -4,6 +4,7 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import {
   PAST_GAME_ACTIONS,
+  aspectsNotInName,
   ROW_SIDE_BY_SIDE_FROM,
   isPastGame,
   pastGameCounts,
@@ -373,4 +374,12 @@ describe("pastGamesLayout and the details", () => {
       expect(parts.text.height).toBeGreaterThan(120);
     });
   }
+});
+
+describe("aspectsNotInName", () => {
+  test("an aspect the deck's name already says is left out, whatever its case or the 'Pool apostrophe", () => {
+    expect(aspectsNotInName("Spider-Man (justice)", ["Justice", "Aggression"])).toEqual(["Aggression"]);
+    expect(aspectsNotInName("Pool party", ["'Pool"])).toEqual([]);
+    expect(aspectsNotInName(null, ["Justice"])).toEqual(["Justice"]);
+  });
 });

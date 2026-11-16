@@ -16,6 +16,7 @@ import { hit } from "../tokens.js";
 import { isCurrentSchema, isLessonSave, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { CLIENT_VERSION } from "../version.js";
+import { aspectName } from "./aspect-stamp.js";
 import { gameLabelOf } from "./continue-label.js";
 import type { GamesListNames } from "./games-list-model.js";
 import type { Rect } from "./layout.js";
@@ -150,14 +151,21 @@ function namesOf(save: SaveMeta, names: PastGameNames): PastGameNames {
   return packs && packs.length > 0 && names.forPacks ? names.forPacks(packs) : names;
 }
 
-const ASPECT_WORDS: Readonly<Record<string, string>> = {
-  aggression: "Aggression",
-  justice: "Justice",
-  leadership: "Leadership",
-  protection: "Protection",
-  pool: "'Pool",
-};
 const TOP_CARDS = 3;
+
+/** An aspect's display word from the app's one name table (`aspectName`): "'Pool", never "Pool". */
+const aspectWordOf = (aspect: string): string => aspectName(aspect);
+
+const plainWord = (word: string): string => word.toLowerCase().replace(/^'/, "");
+
+/**
+ * A seat's aspect words that its deck's name does not already say ("Spider-Man (Justice)" says Justice), compared
+ * without case or the 'Pool apostrophe, against the same display words the row shows.
+ */
+export function aspectsNotInName(deckName: string | null, aspects: readonly string[]): string[] {
+  const name = deckName === null ? "" : plainWord(deckName);
+  return aspects.filter((aspect) => !name.includes(plainWord(aspect)));
+}
 
 /** The deck a seat played (#756): the summary's record of it, else the game's own config seat. */
 function deckNameOf(
@@ -194,7 +202,7 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
               fell: seat.defeated ? true : unfinished ? null : false,
               damage: seat.damage,
               thwart: seat.thwart,
-              aspects: (seat.aspects ?? []).map((aspect) => ASPECT_WORDS[aspect] ?? aspect),
+              aspects: (seat.aspects ?? []).map((aspect) => aspectWordOf(aspect)),
               deckName: deckNameOf(seat, save.config.players[index], names),
               topCards: topCardsOf(seat.plays ?? {}, names),
             },
@@ -214,7 +222,7 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
         fell: wiped ? true : null,
         damage: null,
         thwart: null,
-        aspects: "aspects" in player ? (player.aspects ?? []).map((aspect) => ASPECT_WORDS[aspect] ?? aspect) : [],
+        aspects: "aspects" in player ? (player.aspects ?? []).map((aspect) => aspectWordOf(aspect)) : [],
         deckName: deckNameOf(null, player, names),
         topCards: [],
       },

@@ -52,6 +52,7 @@ import {
   pastGameCounts,
   pastGameDetailParts,
   pastGameRowHeight,
+  aspectsNotInName,
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
@@ -919,10 +920,7 @@ export class PastGamesScene extends Phaser.Scene {
       add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
       // Every seat at the table, not only the first: its stats, aspects and deck, and the cards it played most (#756).
       // A deck named after its aspect (a precon) does not say it twice.
-      const deckParts = [
-        ...(seat.deckName ? [seat.deckName] : []),
-        ...seat.aspects.filter((aspect) => !seat.deckName?.includes(aspect)),
-      ];
+      const deckParts = [...(seat.deckName ? [seat.deckName] : []), ...aspectsNotInName(seat.deckName, seat.aspects)];
       const lines = [
         ...(seat.damage !== null && seat.thwart !== null
           ? [t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart })]
