@@ -3,6 +3,7 @@ import {
   downloadsOf,
   primaryButtons,
   primaryDownload,
+  steamScriptFor,
   versionOf,
   type LatestRelease,
 } from "./downloads.js";
@@ -91,6 +92,27 @@ describe("primaryDownload", () => {
   it("is none for iOS, which has no app, or an unknown device", () => {
     expect(primaryDownload(downloads, "ios")).toBeUndefined();
     expect(primaryDownload(downloads, "other")).toBeUndefined();
+  });
+});
+
+describe("steamScriptFor", () => {
+  it("gives each computer its own Install for Steam script, and a phone none", () => {
+    const downloads = downloadsOf(
+      {
+        ...RELEASE,
+        assets: [
+          ...RELEASE.assets,
+          asset("MarvelChampions-macOS-Install-for-Steam.sh"),
+          asset("MarvelChampions-Linux-Install-for-Steam.sh"),
+        ],
+      },
+      "en",
+    );
+    expect(steamScriptFor(downloads, "windows")?.id).toBe("steam-windows");
+    expect(steamScriptFor(downloads, "mac")?.id).toBe("steam-mac");
+    expect(steamScriptFor(downloads, "linux")?.fileName).toBe("MarvelChampions-Linux-Install-for-Steam.sh");
+    expect(steamScriptFor(downloads, "android")).toBeUndefined();
+    expect(steamScriptFor(downloads, "ios")).toBeUndefined();
   });
 });
 

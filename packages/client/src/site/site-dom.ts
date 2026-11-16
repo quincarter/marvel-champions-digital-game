@@ -6,6 +6,7 @@
 import {
   downloadsOf,
   primaryButtons,
+  steamScriptFor,
   versionOf,
   type DeviceKind,
   type Download,
@@ -176,6 +177,31 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
     main.append(play);
     notes.push(element("p", { class: "dl-note" }, t(device === "ios" ? "dl.iosNote" : "dl.otherNote")));
   }
+  // The Install for Steam script for this computer, as a button of its own beside the installer, and how to run it:
+  // a downloaded script needs execute permission on macOS and Linux, and Windows asks before it runs a downloaded file.
+  const steam = primary ? steamScriptFor(downloads, device) : undefined;
+  if (steam) {
+    main.insertBefore(
+      element(
+        "a",
+        { class: "btn steam", href: steam.url, rel: "noopener" },
+        element("span", {}, t("dl.steam")),
+        element("small", {}, steam.fileName),
+      ),
+      play,
+    );
+  }
+  const steamHelp = steam
+    ? [
+        element(
+          "div",
+          { class: "dl-steam" },
+          element("h4", {}, t("dl.steamTitle")),
+          element("p", {}, t("dl.steamWhat")),
+          element("p", { html: t(`steam.how.${steam.device}`, { file: steam.fileName }) }),
+        ),
+      ]
+    : [];
   notes.unshift(
     element(
       "p",
@@ -207,5 +233,5 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
   );
   // A redraw (a language switch, GitHub answering) keeps the list open if the visitor opened it.
   if (!primary || container.querySelector<HTMLDetailsElement>("details.dl-more")?.open) more.open = true;
-  container.replaceChildren(main, ...notes, more);
+  container.replaceChildren(main, ...notes, ...steamHelp, more);
 }
