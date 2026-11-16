@@ -4,6 +4,9 @@
  * the pool loaded already.
  */
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import type { AnyCard, StarterDeck } from "@mc/content";
+import type { SaveMeta } from "../engine/game-storage.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 import { cardDisplayName } from "./hero-names.js";
 import type { MatchupAxes } from "./matchup-grid.js";
 import { modularCandidatesFor } from "./modular-candidates.js";
@@ -63,3 +66,41 @@ export const POOL_STATS_NAMES: StatsNames = {
   matchupAxes,
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };
+
+/**
+ * The names for a set of saves: the pool's, then the cards and precons of the packs the saves were played with
+ * (`SaveMeta.config.packs`), so a custom hero's deck, cards and signature marks read right with the pack uninstalled.
+ * It reads the saved records only (no pack loading), so it runs in the stats worker. A custom id is `x.<pack>...`,
+ * never a base id, so one merged lookup over every save's packs is safe.
+ */
+export function statsNamesForSaves(
+  saves: readonly Pick<SaveMeta, "config">[],
+  base: StatsNames = POOL_STATS_NAMES,
+): StatsNames {
+  const cards = new Map<string, AnyCard>();
+  const decks = new Map<string, StarterDeck>();
+  for (const save of saves) {
+    for (const pack of (save.config?.packs ?? []) as readonly PackRuntime[]) {
+      for (const card of pack.cards) cards.set(card.id as string, card);
+      for (const deck of pack.decks) decks.set(deck.id as string, deck);
+    }
+  }
+  if (cards.size === 0 && decks.size === 0) return base;
+  return {
+    ...base,
+    cardName: (id) => {
+      const card = cards.get(id);
+      return card ? cardDisplayName(card) : base.cardName(id);
+    },
+    cardType: (id) => cards.get(id)?.type ?? base.cardType(id),
+    cardAspect: (id) => {
+      const card = cards.get(id);
+      return card ? ("aspect" in card ? card.aspect : undefined) : base.cardAspect(id);
+    },
+    starterDeck: (id) => {
+      const deck = decks.get(id);
+      return deck ? { identityCardId: deck.identityCardId as string, aspects: deck.aspects } : base.starterDeck(id);
+    },
+    starterDeckName: (id) => decks.get(id)?.name ?? base.starterDeckName?.(id),
+  };
+}
