@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Download stats · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="How many times the fan-made Marvel Champions digital game has been downloaded: every release, every platform, counted from GitHub twice a day."
+    />
+    <meta property="og:title" content="Download stats · Marvel Champions: Digital Edition" />
+    <link rel="canonical" href="https://champions-digital-game.com/stats/" />
+    <link rel="stylesheet" href="../../shared/site.css" />
+    <link rel="stylesheet" href="../../shared/site-nav.css" />
+    <link rel="stylesheet" href="../landing.css" />
+    <link rel="stylesheet" href="./stats.css" />
+  </head>
+  <body>
+    <!-- ============ PINNED BAR: the landing page's own ============ -->
+    <header class="bar">
+      <a class="brand" href="/" aria-label="Marvel Champions: Digital Edition"
+        ><b>Marvel Champions</b><span data-t="bar.brand"></span
+      ></a>
+      <!-- site-nav:stats -->
+      <div class="lang" id="language"></div>
+      <a class="btn gold small" href="/#download"><span data-t="bar.download"></span></a>
+      <a class="btn primary small" data-href="game"><span data-t="bar.play"></span></a>
+    </header>
+
+    <main id="stats-page">
+      <!-- ============ HEADLINE ============ -->
+      <section class="sec stats-head">
+        <div class="wrap">
+          <div class="ai-note" id="ai-note" lang="es" data-t="lang.aiNote" hidden></div>
+          <div class="kick" data-t="head.kick"></div>
+          <h1 id="head-title"></h1>
+          <p class="stats-range" id="head-range"></p>
+          <p class="stats-lead" id="lead"></p>
+        </div>
+      </section>
+
+      <div id="stats-body">
+        <!-- ============ TILES ============ -->
+        <section class="sec dark">
+          <div class="wrap">
+            <ul class="tiles" id="tiles"></ul>
+            <details class="how">
+              <summary data-t="how.title"></summary>
+              <p data-t="how.text"></p>
+            </details>
+          </div>
+        </section>
+
+        <!-- ============ PLATFORMS ============ -->
+        <section class="sec">
+          <div class="wrap">
+            <h2 class="title" data-t="share.title"></h2>
+            <p class="sub" id="share-sub"></p>
+            <div class="share" id="share" aria-hidden="true"></div>
+            <ul class="share-files" id="share-files"></ul>
+          </div>
+        </section>
+
+        <!-- ============ EVERY RELEASE ============ -->
+        <section class="sec dark">
+          <div class="wrap">
+            <h2 class="title" data-t="releases.title"></h2>
+            <p class="sub" data-t="releases.sub"></p>
+            <p class="stats-note" data-t="releases.note"></p>
+            <ul class="legend" id="legend"></ul>
+            <ol class="rows" id="rows"></ol>
+            <details class="table-more">
+              <summary data-t="table.show"></summary>
+              <div class="table-scroll" tabindex="0"><table id="table"></table></div>
+            </details>
+          </div>
+        </section>
+
+        <!-- ============ TOP FIVE ============ -->
+        <section class="sec">
+          <div class="wrap">
+            <h2 class="title" data-t="top.title"></h2>
+            <p class="sub" data-t="top.sub"></p>
+            <ol class="top-five" id="top"></ol>
+          </div>
+        </section>
+
+        <!-- ============ LANGUAGES AND STEAM ============ -->
+        <section class="sec dark">
+          <div class="wrap">
+            <h2 class="title" data-t="more.title"></h2>
+            <div class="ways" id="ways"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ============ NO NUMBERS: GitHub was out of reach when the page was built ============ -->
+      <section class="sec dark" id="stats-offline" hidden>
+        <div class="wrap">
+          <h2 class="title" data-t="offline.title"></h2>
+          <p class="sub" id="offline-text"></p>
+        </div>
+      </section>
+
+      <section class="sec stats-cta">
+        <div class="wrap">
+          <h2 class="title" data-t="cta.text"></h2>
+          <div class="ctas">
+            <a class="btn gold big" href="/#download"><span data-t="cta.download"></span></a>
+            <a class="btn primary big" data-href="game"><span data-t="bar.play"></span></a>
+          </div>
+          <footer class="foot">
+            <span data-t="foot.fan"></span>
+            <nav>
+              <a data-href="repo" data-t="foot.source"></a>
+              <a data-href="issues" data-t="foot.report"></a>
+            </nav>
+          </footer>
+          <p class="fine" id="foot-counted"></p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="../../../src/site/stats/stats.ts"></script>
+  </body>
+</html>

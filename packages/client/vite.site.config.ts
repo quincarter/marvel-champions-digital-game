@@ -3,6 +3,15 @@ import { dirname, extname, join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
 import { pointRootLinksAt } from "./src/site/release-links.js";
+import { siteNavLinks, withReleaseBar, type SitePage } from "./src/site/site-nav.js";
+import {
+  STATS_JSON_PATH,
+  STATS_SINCE,
+  summarizeDownloads,
+  type DownloadStats,
+  type GitHubRelease,
+} from "./src/site/stats/download-stats.js";
+import { fetchAllReleases } from "./src/site/stats/github-releases.js";
 import { GAME_URL } from "./src/site/site-urls.js";
 
 /**
@@ -14,7 +23,9 @@ import { GAME_URL } from "./src/site/site-urls.js";
  *
  * The moved page reads the game's own save code from `src/`. The landing page reads its release feed, screenshots and
  * mod list at build time through `virtual:landing-data` (below), so it carries no copy of them and never reads the
- * card pool (its hero list is `src/site/landing/game-roster.json`, which a test keeps current).
+ * card pool (its hero list is `src/site/landing/game-roster.json`, which a test keeps current). The landing site has a
+ * second page, the download stats (`site/landing/stats/`, at `/stats/`), whose numbers come from GitHub at build time
+ * through `virtual:download-stats`.
  */
 const SITES = ["moved", "landing"] as const;
 type Site = (typeof SITES)[number];
@@ -294,13 +305,17 @@ function releasePagesPlugin(): Plugin {
       for (const folder of ["releases", "fonts"]) {
         cpSync(join(CLIENT, "public", folder), join(outDir, folder), { recursive: true });
       }
-      // Their Play links climb to the site's root, which here is the landing page: point them at the game.
+      // Their Play links climb to the site's root, which here is the landing page: point them at the game. And each
+      // gets the site's top nav, so a reader who lands on a release can get back to the rest of the site; the history
+      // page's own rail and bar pin to the top, so its nav scrolls away instead of pinning too.
       const releases = join(outDir, "releases");
       for (const file of readdirSync(releases, { recursive: true, encoding: "utf8" })) {
         if (!file.endsWith(".html")) continue;
         const path = join(releases, file);
-        writeFileSync(path, pointRootLinksAt(readFileSync(path, "utf8"), GAME_URL));
+        const pinned = file !== "index.html";
+        writeFileSync(path, withReleaseBar(pointRootLinksAt(readFileSync(path, "utf8"), GAME_URL), pinned));
       }
+      cpSync(join(CLIENT, "site/shared/site-nav.css"), join(outDir, "site-nav.css"));
       // The Worker's not-found page (wrangler.landing.jsonc, `404-page`). A release with no report of its own is a page
       // of the history, opened by its fragment: the old site sent `/releases/<version>` there (netlify.toml), so an old
       // link still lands on its release. Anything else goes to the top of the site.
@@ -311,6 +326,74 @@ function releasePagesPlugin(): Plugin {
           `location.replace(m?"/releases/#"+m[1]:"/");</script>` +
           `<p><a href="/">Marvel Champions: Digital Edition</a></p>`,
       );
+    },
+  };
+}
+
+/**
+ * The site's top nav in each page's own bar: a page marks the spot with `<!-- site-nav:<page> -->` (the page it is),
+ * and the nav comes from `src/site/site-nav.ts`, the same markup the release pages get.
+ */
+function siteNavPlugin(): Plugin {
+  return {
+    name: "mc-site-nav",
+    transformIndexHtml: (html) =>
+      html.replace(/<!--\s*site-nav:(home|stats|releases)\s*-->/g, (_, page: SitePage) => siteNavLinks(page)),
+  };
+}
+
+/**
+ * Every release GitHub has, or `null` if GitHub couldn't be read (the stats page then says so). In a deploy the build
+ * fails instead (landing-deploy.yml sets `STATS_REQUIRED`), so a deploy never swaps the live page's numbers for that
+ * note: the live site keeps its last counts.
+ */
+async function allReleases(): Promise<GitHubRelease[] | null> {
+  try {
+    return await fetchAllReleases(process.env.GITHUB_TOKEN);
+  } catch (error) {
+    if (process.env.STATS_REQUIRED)
+      throw new Error(`GitHub's releases were out of reach for the download stats: ${String(error)}`);
+    console.warn(`[stats] GitHub's releases were out of reach (${String(error)}); the stats page will say so.`);
+    return null;
+  }
+}
+
+const STATS_VIRTUAL = "virtual:download-stats";
+
+/**
+ * `virtual:download-stats`: `DOWNLOAD_STATS`, the download counts of every release as GitHub has them at build time
+ * (`null` if GitHub couldn't be read), and `RELEASE_TITLES`, each release's headline from the release history, for
+ * the stats page's top five. The counts are also published as `stats/downloads.json`, which the scheduled deploy
+ * (landing-deploy.yml, twice a day) compares with GitHub's to skip a rebuild when nothing changed.
+ */
+function downloadStatsPlugin(): Plugin {
+  let counted: DownloadStats | null = null;
+  return {
+    name: "mc-download-stats",
+    resolveId: (id) => (id === STATS_VIRTUAL ? `\0${STATS_VIRTUAL}` : undefined),
+    async load(id) {
+      if (id !== `\0${STATS_VIRTUAL}`) return undefined;
+      const releases = await allReleases();
+      const stats = releases && summarizeDownloads(releases, STATS_SINCE, new Date().toISOString());
+      counted = stats;
+      writeReleaseHistory();
+      const history = join(PUBLIC_RELEASES, "history");
+      const titles = (dir: string) =>
+        Object.fromEntries(
+          (stats?.top ?? []).flatMap(({ version }) => {
+            const file = join(dir, `${version}.json`);
+            if (!existsSync(file)) return [];
+            const { title, summaryHtml } = JSON.parse(readFileSync(file, "utf8")) as Record<string, string>;
+            return [[version, { title, summaryHtml }]];
+          }),
+        );
+      return [
+        `export const DOWNLOAD_STATS = ${JSON.stringify(stats)};`,
+        `export const RELEASE_TITLES = ${JSON.stringify({ en: titles(history), es: titles(join(history, "es")) })};`,
+      ].join("\n");
+    },
+    generateBundle() {
+      if (counted) this.emitFile({ type: "asset", fileName: STATS_JSON_PATH, source: JSON.stringify(counted) });
     },
   };
 }
@@ -408,13 +491,23 @@ export default defineConfig(({ mode }) => {
     publicDir: existsSync(resolve(CLIENT, "site", site, "public")) ? resolve(CLIENT, "site", site, "public") : false,
     plugins:
       site === "landing"
-        ? [siteReleasePlugin(), landingDataPlugin(), releasePagesPlugin()]
+        ? [siteReleasePlugin(), siteNavPlugin(), landingDataPlugin(), downloadStatsPlugin(), releasePagesPlugin()]
         : [siteReleasePlugin(), siteWallpapersPlugin()],
     server: { fs: { allow: [CLIENT] } },
     build: {
       target: "es2022",
       outDir: resolve(CLIENT, `dist-${site}`),
       emptyOutDir: true,
+      // The landing site's pages: the landing page itself and the download stats at /stats/.
+      rollupOptions:
+        site === "landing"
+          ? {
+              input: {
+                main: resolve(CLIENT, "site/landing/index.html"),
+                stats: resolve(CLIENT, "site/landing/stats/index.html"),
+              },
+            }
+          : undefined,
     },
   };
 });

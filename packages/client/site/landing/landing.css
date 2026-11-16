@@ -4,6 +4,11 @@
 html {
   scroll-padding-top: 72px;
 }
+@media (max-width: 1100px) {
+  html {
+    scroll-padding-top: 120px;
+  }
+}
 body {
   overflow-x: clip;
 }
@@ -40,17 +45,9 @@ body {
   text-transform: uppercase;
   color: var(--gold);
 }
-.nav {
-  display: flex;
-  gap: 18px;
-}
-.nav a {
-  font: 700 14px var(--b);
-  text-decoration: none;
-  color: var(--muted);
-}
-.nav a:hover {
-  color: var(--fg);
+/* The site's nav (site-nav.css) sits beside the name; where the bar runs out of room it takes a row of its own. */
+.bar .site-nav {
+  margin-right: 8px;
 }
 .btn.small {
   min-height: 40px;
@@ -682,6 +679,23 @@ body {
   margin-top: 24px;
   background: rgb(21 17 14 / 0.88);
 }
+/* The way to the download stats page, under the panel. */
+.dl-stats {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 14px;
+  padding: 6px 16px;
+  font: 700 15px var(--b);
+  color: var(--gold);
+  background: rgb(21 17 14 / 0.88);
+  border: 2px solid var(--gold);
+  text-decoration: none;
+}
+.dl-stats:hover {
+  background: var(--gold);
+  color: var(--gold-ink);
+}
 
 /* ---- Community ---- */
 .discords {
@@ -782,9 +796,17 @@ body {
 .bar .btn.small {
   white-space: nowrap;
 }
-@media (max-width: 1200px) {
-  .nav {
-    display: none;
+@media (max-width: 1100px) {
+  .bar {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .bar .site-nav {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: space-around;
+    margin: 0 0 -6px;
+    border-top: 1px solid var(--line);
   }
 }
 @media (max-width: 900px) {
@@ -796,9 +818,6 @@ body {
   }
 }
 @media (max-width: 1000px) {
-  .nav {
-    display: none;
-  }
   .scrolly-in {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;

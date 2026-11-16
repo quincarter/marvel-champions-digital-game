@@ -7,6 +7,9 @@
 #     release (src/site/landing/published.ts) and bakes in the latest release's downloads, so it needs this second
 #     build to show the new version;
 #   - it runs by hand from the Actions tab (or `gh workflow run landing-deploy.yml`) after a draft release is published.
+#   - it runs twice a day on a schedule, so the download stats page (/stats/), which counts GitHub's release downloads
+#     at build time, stays current. A scheduled run first compares GitHub's counts with the ones the live site
+#     published (scripts/download-stats-changed.mjs) and stops there when no one has downloaded anything since.
 #
 # The job builds inside the group, from main as it is when the job starts and with GitHub's latest release as it is
 # then, never from a build made before it waited. If main has moved on by the time the build is done, it doesn't deploy:
@@ -16,6 +19,9 @@ name: Deploy the landing page
 on:
   workflow_call:
   workflow_dispatch:
+  schedule:
+    # 06:17 and 18:17 UTC: off the hour, when GitHub's scheduler is least busy.
+    - cron: "17 6,18 * * *"
 
 permissions:
   contents: read
@@ -29,9 +35,11 @@ jobs:
       group: mc-landing-deploy
       cancel-in-progress: false
     steps:
+      # A scheduled run's event carries no repository, so its default branch falls back to the ref it runs on, which
+      # for a schedule is the default branch.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.event.repository.default_branch || github.ref_name }}
       - name: Check for Cloudflare secrets
         id: secrets
         env:
@@ -51,24 +59,33 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      - if: steps.secrets.outputs.ready == 'true'
+      # A scheduled run deploys only when the download counts moved; a push, a release or a run by hand always deploys.
+      - name: Check whether the download counts changed
+        id: counts
+        if: steps.secrets.outputs.ready == 'true' && github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/download-stats-changed.mjs
+      - if: steps.secrets.outputs.ready == 'true' && steps.counts.outputs.changed != 'false'
         run: pnpm install --frozen-lockfile
       # The title wallpapers and the hero and villain art; the screenshots come from the release reports, in git.
       - name: Fetch the art
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && steps.counts.outputs.changed != 'false'
         uses: ./.github/actions/assets
         with:
           bundles: art
       - name: Build
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && steps.counts.outputs.changed != 'false'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Fail rather than ship the stats page without its numbers if GitHub doesn't answer; the live page stays.
+          STATS_REQUIRED: "1"
         run: pnpm --filter @mc/client site:build:landing
       - name: Check that main hasn't moved on
         id: current
-        if: steps.secrets.outputs.ready == 'true'
+        if: steps.secrets.outputs.ready == 'true' && steps.counts.outputs.changed != 'false'
         env:
-          BRANCH: ${{ github.event.repository.default_branch }}
+          BRANCH: ${{ github.event.repository.default_branch || github.ref_name }}
         run: |
           built=$(git rev-parse HEAD)
           now=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
@@ -79,7 +96,9 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Deploy
-        if: steps.secrets.outputs.ready == 'true' && steps.current.outputs.deploy == 'true'
+        if: >-
+          steps.secrets.outputs.ready == 'true' && steps.counts.outputs.changed != 'false' &&
+          steps.current.outputs.deploy == 'true'
         working-directory: packages/client
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
