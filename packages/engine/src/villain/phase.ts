@@ -17,7 +17,6 @@ import {
 } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { hasPerPlayerMainSchemes } from "../per-player-main-schemes.js";
 import { activatesBeforeVillain, cannotActivate, iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
@@ -25,8 +24,6 @@ import {
   villainOf,
   getPlayer,
   isMinion,
-  mainSchemeValue,
-  sharedMainSchemes,
   mustPlayer,
   nextClockwisePlayer,
   nextVillainInActivationOrder,
@@ -42,8 +39,9 @@ import {
   pushEventsSharingResponses,
   pushRevealFrame,
 } from "../resolve/index.js";
-import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
+import { cardsInPlay } from "../select.js";
 import type { CardCausedActivation, TriggerEvent } from "../trigger-events.js";
+import { stepOneThreats } from "./step-one-threat.js";
 import type { ReportTarget } from "../stack.js";
 import type { GameState, GameStep } from "../state.js";
 
@@ -60,57 +58,33 @@ export function executePlaceThreat(ctx: Ctx): void {
     // already ended those that existed then (`finishPlayerPhase`); this catches one made while that end resolved.
     expireNextVillainPhaseEffects(ctx);
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
+    // Each main scheme's acceleration, tokens and the icons in play (`stepOneThreats`, which the table's "+N per round"
+    // reads too).
+    const threats = stepOneThreats(ctx.state, ctx.deps);
     if (ctx.state.gameAreas.length === 0) {
-      // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
-      // p. 10, "Each main scheme gains threat during step 1 of the villain phase, and they are each affected by any
-      // acceleration and crisis icons in play" (docs/phase7-wave4.md §3.2). One main scheme is every other game.
-      // Tokens on other cards add to "the main scheme" (docs/phase7-wave5.md §3.4).
-      const offScheme = offSchemeAccelerationTokens(ctx.state);
-      const tokensGoTo = gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
-      const schemes = sharedMainSchemes(ctx.state);
-      const perPlayer = hasPerPlayerMainSchemes(ctx.state);
-      const events = schemes.map((scheme, index): TriggerEvent => ({
+      const events = threats.map((threat, index): TriggerEvent => ({
         kind: "placeThreat",
-        schemeInstanceId: scheme.instanceId,
-        amount:
-          mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
-          scheme.accelerationTokens +
-          // With a main scheme per player, every token adds to each (MC60 p. 13: "Each acceleration token adds 1
-          // additional threat to each main scheme during step 1"; docs/phase7-wave11-scenarios.md §S3.1).
-          (perPlayer || scheme.instanceId === tokensGoTo ? offScheme : 0) +
-          iconsInPlay(ctx.state, ctx.deps, "acceleration"),
+        schemeInstanceId: threat.schemeInstanceId,
+        amount: threat.total,
         sourceInstanceId: null,
         // Several main schemes: all the threat lands first, then completions, then one shared response window
         // (docs/phase7-wave5.md §4.1 Q71, user ruling "All first"): Venom Goblin's Midtown completion moves the
         // glider to "the main scheme with the least threat", which must count every scheme's step-one threat.
-        ...(schemes.length > 1 ? { completionCheck: index === schemes.length - 1 ? "closing" : "deferred" } : {}),
+        ...(threats.length > 1 ? { completionCheck: index === threats.length - 1 ? "closing" : "deferred" } : {}),
       }));
       if (events.length === 1) pushEvent(ctx, events[0]!);
       else pushEventsSharingResponses(ctx, events);
       return;
     }
-    // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage, from its own
-    // acceleration, tokens and icons. The central stage's acceleration tokens add to every area's step one — RRG 1.8
-    // "Acceleration Token" (p. 5) adds their threat "to the main scheme during step one", and the central stage (The
-    // Master of Time 2B) prints no values; docs/phase7-wave2.md §4.3's proposed reading, unconfirmed.
+    // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage.
     pushEvents(
       ctx,
-      ctx.state.gameAreas.flatMap((area) => {
-        if (!area.mainScheme) return [];
-        const amount =
-          mainSchemeValue(ctx.state, "acceleration", ctx.deps, area.mainScheme) +
-          area.mainScheme.accelerationTokens +
-          ctx.state.mainScheme.accelerationTokens +
-          iconsInPlay(ctx.state, ctx.deps, "acceleration", area);
-        return [
-          {
-            kind: "placeThreat" as const,
-            schemeInstanceId: area.mainScheme.instanceId,
-            amount,
-            sourceInstanceId: null,
-          },
-        ];
-      }),
+      threats.map((threat) => ({
+        kind: "placeThreat" as const,
+        schemeInstanceId: threat.schemeInstanceId,
+        amount: threat.total,
+        sourceInstanceId: null,
+      })),
     );
     return;
   }

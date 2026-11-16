@@ -262,6 +262,11 @@ export const dotGrid = {
 /** Section 04 — the threat meter. Fill is always Hero Red: threat is the clock you lose to. */
 export const threatMeter = {
   fill: accent.heroRed,
+  /**
+   * A player side scheme's fill: a player's scheme, so never the villain side's red, and light enough that the ink
+   * count reads on it (issue #763).
+   */
+  playerFill: token(0x6f9fd8),
   /** The hatched tail previews next phase's gain, so the loss is visible a round early. */
   previewAlpha: 0.45,
 } as const;

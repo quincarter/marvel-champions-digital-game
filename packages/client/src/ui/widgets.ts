@@ -111,6 +111,8 @@ export interface ThreatMeterScheme {
   readonly meterMax: number | null;
   readonly target: number | null;
   readonly targetDashed?: boolean;
+  /** A player side scheme: filled in `threatMeter.playerFill`, not red (issue #763). */
+  readonly playerScheme?: boolean;
 }
 
 /**
@@ -138,12 +140,13 @@ export function paintThreatMeter(
   if (scheme.meterMax && scheme.meterMax > 0) {
     const ratio = (value: number) => Math.min(1, Math.max(0, value) / scheme.meterMax!);
     const solidWidth = meter.width * ratio(previewed ? projected : threat);
-    mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
+    const fill = scheme.playerScheme ? threatMeter.playerFill.hex : threatMeter.fill.hex;
+    mg.fillStyle(fill, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
     if (previewed) {
       hatchRect(
         mg,
         { x: meter.x + solidWidth, y: meter.y, width: meter.width * ratio(threat) - solidWidth, height: meter.height },
-        threatMeter.fill.hex,
+        fill,
         dim,
         6,
         3,

@@ -71,6 +71,7 @@ import { artFor, type ArtSource, type CardBack, type CardFace, type StandIn } fr
 import { gameEncounterSetName } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
+import { perRoundLabel, perRoundThreatOf, type PerRoundThreat } from "./per-round-threat.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";
 import { counterGoalsOf } from "./counter-goal.js";
 import { scenarioAreaLimitsOf } from "./scenario-area-limit.js";
@@ -420,6 +421,8 @@ export interface SchemePanel {
    * not overflow its own box.
    */
   readonly meterMax: number | null;
+  /** A player side scheme: its meter fills in the player's own color, never the villain side's red (issue #763). */
+  readonly playerScheme?: boolean;
   readonly isMain: boolean;
   /**
    * "vs Spider-Man": whose game area this scheme belongs to (Kang's per-player areas), null for a scheme every player
@@ -428,6 +431,8 @@ export interface SchemePanel {
   readonly areaLabel?: string | null;
   readonly crisis: boolean;
   readonly accelerationTokens: number;
+  /** A main scheme's step-one threat and its sources (issue #765); absent on a side scheme. */
+  readonly perRound?: PerRoundThreat | null;
   /**
    * Cards tucked facedown under this scheme (RRG "Tuck") — Open the Dark
    * Dimension holding the Invocation deck's top card (`09029`), Highway
@@ -1802,10 +1807,14 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     // attach to a main scheme rather than a character — the subtitle line is the only room a scheme panel has for
     // this, the same "· X tucked" pattern already appends here.
     const attachedNote = attachments.length > 0 ? ` · ${attachments.map((a) => a.name).join(", ")}` : "";
+    // What step one of the next villain phase places here (issue #765): the subtitle says "+N per round" in place of
+    // the bare token count, and the hover lists the sources.
+    const perRound = perRoundThreatOf(state, deps, id);
+    const perRoundNote = perRound ? ` · ${perRoundLabel(perRound)}` : accel > 0 ? ` · Accel ×${accel}` : "";
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${printedStageOf(stage)}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
+      subtitle: `Main scheme ${printedStageOf(stage)}${perRoundNote}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
       // The engine's own target (`mainSchemeValue`): scaled per player, and for a printed "X" (Apocalypse's scheme)
       // the ability-defined value, not the 0 the card data prints.
@@ -1823,6 +1832,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
       // 0 while the scheme's text box is blanked.
       crisis: iconsOn(state, deps, id, "crisis") > 0,
       accelerationTokens: accel,
+      perRound,
       tuckedCount: instance.tucked.length,
       ...schemeTuckFields(
         state,
@@ -1854,7 +1864,12 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
     threat: instance.threat,
     // A side scheme has no threshold: it is defeated when thwarted to 0.
     target: null,
-    meterMax: card?.type === "side_scheme" ? Math.max(scaleIn(state, card.startingThreat), instance.threat) : null,
+    // A player side scheme (Cable's, NeXt Evolution's) empties toward 0 the same way (issue #763: drawn blank before).
+    meterMax:
+      card?.type === "side_scheme" || card?.type === "player_side_scheme"
+        ? Math.max(scaleIn(state, card.startingThreat), instance.threat)
+        : null,
+    ...(card?.type === "player_side_scheme" ? { playerScheme: true } : {}),
     isMain: false,
     areaLabel: areaLabelOf(state, id),
     crisis,

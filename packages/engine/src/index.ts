@@ -115,6 +115,7 @@ export type {
   VillainPhaseRecord,
 } from "./villain/audit.js";
 export { auditVillainPhases } from "./villain/audit.js";
+export { stepOneThreatOf, stepOneThreats, type StepOneThreat } from "./villain/step-one-threat.js";
 
 export type {
   ActionRef,
