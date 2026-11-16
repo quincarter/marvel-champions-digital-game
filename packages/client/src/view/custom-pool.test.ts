@@ -110,7 +110,7 @@ describe("the pickers and the deck builder read the installed packs", () => {
     const custom = preconDecks().find((deck) => (deck.id as string) === `precon:${DECK_ID}`)!;
     const base = preconDecks()[0]!;
     expect(deckUsesCustomCards(custom)).toBe(true);
-    expect(customBadgeOf(custom)).toBe("CUSTOM");
+    expect(customBadgeOf(custom)).toBe("MOD PACK");
     expect(canExportToMarvelCdb(custom)).toBe(false);
     expect(deckUsesCustomCards(base)).toBe(false);
     expect(customBadgeOf(base)).toBeNull();

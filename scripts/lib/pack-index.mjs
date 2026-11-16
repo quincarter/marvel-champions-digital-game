@@ -67,6 +67,34 @@ export function packVersionEntry({ manifest, base, zipBytes, zipSha256, hasPrevi
   };
 }
 
+const PACK_TAGS_MAX = 8;
+const PACK_TAG_MAX_LENGTH = 24;
+
+/**
+ * The catalog entry's `tags`: the pack's kind, then the creator's own `tags` from its `pack.json`, read defensively
+ * like `parsePackTags` in packages/content/src/schema/packs.ts (trimmed, 1 to 24 characters, at most 8, unique ignoring
+ * case, and none that repeats the kind). The registry repo's scripts/update-index.mjs carries the same function.
+ */
+export function catalogTags(manifest) {
+  const out = [];
+  const seen = new Set([String(manifest.kind).toLowerCase()]);
+  const own = [];
+  for (const entry of Array.isArray(manifest.tags) ? manifest.tags : []) {
+    if (own.length >= PACK_TAGS_MAX) break;
+    if (typeof entry !== "string") continue;
+    const tag = entry.trim();
+    if (tag.length < 1 || tag.length > PACK_TAG_MAX_LENGTH) continue;
+    const key = tag.toLowerCase();
+    if (own.some((t) => t.toLowerCase() === key)) continue;
+    own.push(tag);
+  }
+  for (const tag of own) {
+    if (seen.has(tag.toLowerCase())) continue;
+    out.push(tag);
+  }
+  return [manifest.kind, ...out];
+}
+
 /** One pack's catalog entry with a single version: the built `pack.json` and the zip's size and sha256. */
 export function packIndexEntry({
   manifest,
@@ -82,8 +110,10 @@ export function packIndexEntry({
     kind: manifest.kind,
     name: manifest.name,
     creator: manifest.authors?.[0] ?? "Unknown",
+    // Every credited author, for the store's Credits tab (#734): `creator` names only the first.
+    ...(Array.isArray(manifest.authors) && manifest.authors.length > 0 ? { authors: [...manifest.authors] } : {}),
     summary: String(manifest.description ?? "").split("\n")[0],
-    tags: [manifest.kind],
+    tags: catalogTags(manifest),
     ...(hasThumb ? { thumbnail: `${base}thumb.webp` } : {}),
     approved,
     latest: manifest.version,

@@ -6,6 +6,7 @@
  * still owns the actual toggle (it needs `appSession()`, which view modules never
  * import), keyed by `SettingsRowInfo.id`.
  */
+import { CUSTOM_PLACEMENT_VALUES, type CustomPlacement } from "../packs/custom-content-prefs.js";
 import { couchFactorFits, type CouchSize } from "./couch-mode.js";
 import {
   SILENCED_WARNING_KEYS,
@@ -86,6 +87,7 @@ export type SettingsRowId =
   | "hover-villain"
   | "faded-campaign-art"
   | "discord-presence"
+  | "custom-unlocked"
   | EarnedItemId;
 
 export interface SettingsRowInfo {
@@ -223,6 +225,42 @@ export function fadedCampaignArtRowInfoOf(settings: Settings): SettingsRowInfo {
   };
 }
 
+/**
+ * Settings > More > Custom content (issue #734): whether new custom content starts unlocked. Settings only, not Pause's
+ * in-game group.
+ */
+export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "custom-unlocked",
+    title: "Custom content starts unlocked",
+    detail:
+      "Every installed pack's heroes and scenarios are ready to play. Off, each pack's heroes and scenarios unlock the way its creator chose: open, with champion points, or by winning games. Its campaigns stay open.",
+    on: settings.customUnlocked,
+  };
+}
+
+const CUSTOM_PLACEMENT_LABELS: Readonly<Record<CustomPlacement, string>> = {
+  top: "Top",
+  bottom: "Bottom",
+  mixed: "Mixed in",
+};
+
+/** Settings > More > Custom content (issue #734): where installed packs' heroes and scenarios sit in the lists. */
+export function customPlacementRowInfoOf(settings: Settings): AchievementPopupRowInfo<CustomPlacement> {
+  return {
+    title: "Custom content in the lists",
+    detail:
+      "Where installed packs' heroes and scenarios sit: on their own shelf at the top or the bottom, or mixed in beside the release wave each pack names (a pack that names none stays at the bottom).",
+    options: (["top", "bottom", "mixed"] as const).map((value) => ({ value, label: CUSTOM_PLACEMENT_LABELS[value] })),
+    selected: settings.customPlacement,
+  };
+}
+
+/** `settings` with the custom content placement set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterCustomPlacement(settings: Settings, value: CustomPlacement): Settings {
+  return CUSTOM_PLACEMENT_VALUES.includes(value) ? { ...settings, customPlacement: value } : settings;
+}
+
 /** The desktop app's "Show my game on Discord" row. Drawn only there, so it is not in `settingsRowInfoOf` (shared with Pause). */
 export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
   return {
@@ -300,6 +338,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, fadedCampaignArt: !settings.fadedCampaignArt };
     case "discord-presence":
       return { ...settings, discordPresence: !settings.discordPresence };
+    case "custom-unlocked":
+      return { ...settings, customUnlocked: !settings.customUnlocked };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
     case "promo-art":

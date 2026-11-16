@@ -21,6 +21,9 @@ import {
 } from "../content/pool.js";
 import { packPictureFor } from "../art/pack-art.js";
 import { CUSTOM_BADGE } from "../view/custom-content.js";
+import { placeScenarioShelves } from "../packs/custom-placement.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { customContentPrefsNow } from "../packs/custom-content-prefs.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
@@ -1207,6 +1210,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   #shelves(): readonly Shelf<RosterEntry>[] {
     const ranking = this.#ranking;
+    // Installed packs' scenarios: on a "Custom packs" shelf first or last, or beside the wave the pack names (issue #734).
+    const placed = placeScenarioShelves(
+      POOL_PACKS.map((p) => ({ code: p.code as string, cycleId: p.cycleId as string })),
+      customContentPrefsNow().placement,
+    );
+    const packWaves = new Map(
+      loadedPacks().flatMap((pack) => (pack.scenarios ?? []).map((one) => [one.id as string, pack.wave] as const)),
+    );
     const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
       currentScenarios(),
       () => true,
@@ -1217,15 +1228,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
         (ranking === null || ranking.has(s.id as string));
       return {
         item: s,
-        // Every installed pack's scenarios share one "Custom packs" shelf after the last release wave.
-        packCode: isPackScenario(s.id as string) ? CUSTOM_SHELF_ID : (s.packCode as string),
+        packCode: isPackScenario(s.id as string)
+          ? placed.shelfOf(packWaves.get(s.id as string))
+          : (s.packCode as string),
         searchHaystacks: [],
         passesChips,
       };
     });
     const shelves = shelvesOf(
       candidates,
-      [...POOL_PACKS.map((p) => p.code as string), CUSTOM_SHELF_ID],
+      placed.order,
       (code) => (code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code)),
       "",
     );

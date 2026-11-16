@@ -9,6 +9,8 @@
  * its own wave's builder (Core's, wave 1's, cycle 1's, cycle 2's, cycle 3's or cycle 4's) and widens the game's
  * card pool to every playable card, so any deck can sit at any scenario.
  */
+import { placeHeroShelfPacks } from "../packs/custom-placement.js";
+import { customContentPrefsNow, type CustomPlacement } from "../packs/custom-content-prefs.js";
 import {
   PLAYABLE_DEPS,
   PLAYABLE_SCENARIO_RECORDS,
@@ -341,36 +343,42 @@ export function currentStarterDecks(): readonly StarterDeck[] {
   return decks;
 }
 
-const SHELF_VIEWS = new WeakMap<object, readonly ShelfPack[]>();
+const SHELF_VIEWS = new WeakMap<object, Map<CustomPlacement, readonly ShelfPack[]>>();
 
-/** The shelf every installed custom pack's heroes share, after every release wave. */
-export const CUSTOM_SHELF_ID = "custom-packs";
+/** The shelf every installed custom pack's heroes share, after every release wave (or first: Settings, issue #734). */
+export { CUSTOM_SHELF_ID } from "../packs/custom-placement.js";
 
 /**
- * `POOL_HERO_SHELF_PACKS` plus one entry per loaded pack, all on one "Custom packs" shelf after the last wave, so a pack
- * hero's precon lands on a shelf instead of being dropped as a pack the roster does not know.
+ * `POOL_HERO_SHELF_PACKS` plus one entry per loaded pack's code, where the player's custom content placement puts it
+ * (`packs/custom-placement.ts`): on the shared "Custom packs" shelf after the last wave or before the first, or beside
+ * the wave the pack names. A pack hero's precon so lands on a shelf instead of being dropped as a pack the roster does
+ * not know.
  */
-export function currentHeroShelfPacks(): readonly ShelfPack[] {
+export function currentHeroShelfPacks(
+  placement: CustomPlacement = customContentPrefsNow().placement,
+): readonly ShelfPack[] {
   const packs = loadedPacks();
   if (packs.length === 0) return POOL_HERO_SHELF_PACKS;
-  let shelf = SHELF_VIEWS.get(packs);
+  let views = SHELF_VIEWS.get(packs);
+  if (!views) {
+    views = new Map();
+    SHELF_VIEWS.set(packs, views);
+  }
+  let shelf = views.get(placement);
   if (!shelf) {
-    const order = Math.max(0, ...POOL_HERO_SHELF_PACKS.map((pack) => pack.cycleOrder)) + 1;
-    shelf = [
-      ...POOL_HERO_SHELF_PACKS,
+    shelf = placeHeroShelfPacks(
+      POOL_HERO_SHELF_PACKS,
       // A house rule brings no hero of its own: it has no shelf entry.
-      ...packs
+      packs
         .filter((pack) => !isHouseRulePack(pack))
-        .flatMap((pack) =>
-          [...new Set([pack.id, ...pack.decks.map((deck) => deck.packCode as string)])].map((code): ShelfPack => ({
-            code,
-            cycleId: CUSTOM_SHELF_ID,
-            cycleName: "Custom packs",
-            cycleOrder: order,
-          })),
-        ),
-    ];
-    SHELF_VIEWS.set(packs, shelf);
+        .map((pack) => ({
+          id: pack.id,
+          codes: pack.decks.map((deck) => deck.packCode as string),
+          ...(pack.wave ? { wave: pack.wave } : {}),
+        })),
+      placement,
+    );
+    views.set(placement, shelf);
   }
   return shelf;
 }

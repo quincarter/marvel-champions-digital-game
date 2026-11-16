@@ -56,7 +56,7 @@ import {
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
-import { customBadgeOf, isCustomCard } from "../view/custom-content.js";
+import { CUSTOM_BADGE, customBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -1845,7 +1845,7 @@ export class SeatsScene extends Phaser.Scene {
           : blockedBy
             ? blockedTagOf(blockedBy)
             : // A custom hero says so and still says how many decks it has.
-              [decks.some((d) => customBadgeOf(d.deck) !== null) ? "CUSTOM" : null, countTag]
+              [decks.some((d) => customBadgeOf(d.deck) !== null) ? CUSTOM_BADGE : null, countTag]
                 .filter((part) => part !== null)
                 .join(" · ") || null;
     const rec = this.#insights?.analysis.get(option.deck.id as string);

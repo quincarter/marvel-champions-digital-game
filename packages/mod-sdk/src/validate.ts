@@ -8,6 +8,7 @@ import {
 import {
   PACK_COVER_MAX_BYTES,
   packAchievementProblems,
+  packCatalogFieldProblems,
   PACK_HOUSE_RULE_MODES,
   PACK_KINDS,
   PACK_PERMISSION_STATUSES,
@@ -322,6 +323,8 @@ function validateInto(input: PackInput, options: ValidateOptions, add: Add): voi
     });
   }
   checkAchievements(input, cards, packId, add);
+  // Store listing fields: the creator's tags, the wave the pack sits beside, how it unlocks.
+  for (const message of packCatalogFieldProblems(input.manifest)) add("pack.json", message);
 }
 
 /**

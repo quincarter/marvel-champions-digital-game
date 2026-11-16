@@ -14,22 +14,34 @@ import type { InstallProgress } from "../packs/install-pack.js";
 import type { PackInstallErrorCode } from "../packs/unpack-pack.js";
 import type { ExtrasGrid } from "./extras-model.js";
 import { ruleFaceOf } from "./pack-gallery-model.js";
+import { creatorsIn, foldText } from "./mod-store-browse.js";
+import { t, type MessageKey } from "../i18n/translate.js";
+import type { CardLanguage } from "../art/card-language.js";
 
-export type ModStoreTab = "all" | "heroes" | "scenarios" | "house-rules" | "installed";
+export type ModStoreTab = "all" | "heroes" | "scenarios" | "extras" | "installed" | "credits";
 
-/** The browse tabs. House rules have their own (the owner, 2026-11-13; docs/custom-content-packs.md §11.11). */
-export const MOD_STORE_TABS: readonly { readonly id: ModStoreTab; readonly label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "heroes", label: "Heroes" },
-  { id: "scenarios", label: "Scenarios" },
-  { id: "house-rules", label: "House rules" },
-  { id: "installed", label: "Installed" },
+/**
+ * The tabs. Extras holds every pack that is not a hero or a scenario: house rules, modular sets, art, and whatever new
+ * kinds of custom content come next (aspects, retcons, extra signatures). Credits lists the creators (bluefireF5ran's
+ * playtest notes, issue #734).
+ */
+export const MOD_STORE_TABS: readonly { readonly id: ModStoreTab; readonly key: MessageKey }[] = [
+  { id: "all", key: "modStore.tab.all" },
+  { id: "heroes", key: "modStore.tab.heroes" },
+  { id: "scenarios", key: "modStore.tab.scenarios" },
+  { id: "extras", key: "modStore.tab.extras" },
+  { id: "installed", key: "modStore.tab.installed" },
+  { id: "credits", key: "modStore.tab.credits" },
 ];
+
+/** A tab's label in the player's language. */
+export const modStoreTabLabel = (tab: (typeof MOD_STORE_TABS)[number], lang?: CardLanguage): string =>
+  t(tab.key, undefined, lang);
 
 /** The narrowest tab that still fits its label ("SCENARIOS", "INSTALLED") on one line. */
 const MIN_TAB_WIDTH = 84;
 
-/** The tabs laid out in rows for a row `width` wide: one row, or two (3 + 2) where five tabs would cut their labels. */
+/** The tabs laid out in rows for a row `width` wide: one row, or two (3 + 3) where six tabs would cut their labels. */
 export function modStoreTabRowsOf(width: number): readonly (typeof MOD_STORE_TABS)[number][][] {
   if (width / MOD_STORE_TABS.length >= MIN_TAB_WIDTH) return [[...MOD_STORE_TABS]];
   const split = Math.ceil(MOD_STORE_TABS.length / 2);
@@ -64,18 +76,24 @@ export const OFFLINE_NOTICE = "You are offline. Showing the last copy of the sto
 export const LOADING_TEXT = "Loading the store...";
 export const LOAD_FAILED_TEXT = "The store could not be reached, and there is no saved copy yet.";
 
-export function emptyTextOf(tab: ModStoreTab): string {
-  if (tab === "installed") return "No custom packs are installed yet.";
-  if (tab === "heroes") return "The store has no hero packs yet.";
-  if (tab === "scenarios") return "The store has no scenario packs yet.";
-  if (tab === "house-rules") return "The store has no house rules yet.";
-  return "The store has no packs yet. Check back soon.";
+export function emptyTextOf(tab: ModStoreTab, lang?: CardLanguage): string {
+  if (tab === "installed") return t("modStore.empty.installed", undefined, lang);
+  if (tab === "heroes") return t("modStore.empty.heroes", undefined, lang);
+  if (tab === "scenarios") return t("modStore.empty.scenarios", undefined, lang);
+  if (tab === "extras") return t("modStore.empty.extras", undefined, lang);
+  if (tab === "credits") return t("modStore.empty.credits", undefined, lang);
+  return t("modStore.empty.all", undefined, lang);
 }
 
 export interface ModStoreTile {
   readonly id: string;
   readonly name: string;
   readonly creator: string;
+  /**
+   * Everyone credited for the pack: the people `creator` names, then the manifest's `authors` the catalog lists (or the
+   * installed copy's), once each. Credits and the creator filter read this (issue #734).
+   */
+  readonly creators: readonly string[];
   readonly kind: PackKind;
   readonly kindLabel: string;
   readonly summary: string;
@@ -97,6 +115,24 @@ export interface ModStoreTile {
   readonly reason: string | undefined;
   /** False for an installed pack the catalog no longer lists. */
   readonly inCatalog: boolean;
+  /** The catalog's tags (none for a pack it no longer lists), for search and the tag chips. */
+  readonly tags: readonly string[];
+  /** The date the pack was approved for the store (`YYYY-MM-DD`), for Newest first; unset off the catalog. */
+  readonly approved: string | undefined;
+}
+
+/** The people a `creator` line and an `authors` list name, once each ignoring case and accents. */
+function creatorsOf(creator: string, authors: readonly unknown[]): readonly string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const strings = authors.filter((one): one is string => typeof one === "string");
+  for (const name of [creator, ...strings].flatMap(creatorsIn)) {
+    const key = foldText(name);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
 }
 
 /** An installed pack's cover path, read defensively (an install from before covers has none). */
@@ -119,6 +155,7 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     id: entry.id,
     name: entry.name,
     creator: entry.creator,
+    creators: creatorsOf(entry.creator, entry.authors ?? installed?.manifest.authors ?? []),
     kind: entry.kind,
     kindLabel: KIND_LABELS[entry.kind],
     summary: entry.summary,
@@ -134,6 +171,8 @@ export function tileOf(entry: PackIndexEntry, context: ModStoreContext): ModStor
     baseUrl: entry.versions[view.version]?.base,
     reason: view.reason,
     inCatalog: true,
+    tags: entry.tags,
+    approved: entry.approved,
   };
 }
 
@@ -143,6 +182,7 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     id: pack.id,
     name: pack.manifest.name,
     creator: pack.manifest.authors.join(", "),
+    creators: creatorsOf("", pack.manifest.authors),
     kind: pack.manifest.kind,
     kindLabel: KIND_LABELS[pack.manifest.kind],
     summary: pack.manifest.description,
@@ -158,19 +198,27 @@ export function orphanTileOf(pack: InstalledPack): ModStoreTile {
     baseUrl: undefined,
     reason: undefined,
     inCatalog: false,
+    tags: [],
+    approved: undefined,
   };
+}
+
+/** Which browse tab a kind of pack belongs to: a campaign is played like a scenario; anything else is an extra. */
+export function tabOfKind(kind: PackKind): "heroes" | "scenarios" | "extras" {
+  if (kind === "hero") return "heroes";
+  if (kind === "scenario" || kind === "campaign") return "scenarios";
+  return "extras";
 }
 
 function inTab(tile: ModStoreTile, tab: ModStoreTab): boolean {
   switch (tab) {
     case "all":
+    case "credits":
       return true;
     case "heroes":
-      return tile.kind === "hero";
     case "scenarios":
-      return tile.kind === "scenario";
-    case "house-rules":
-      return tile.kind === "house-rule";
+    case "extras":
+      return tabOfKind(tile.kind) === tab;
     case "installed":
       return tile.installed;
   }

@@ -470,6 +470,26 @@ describe("publishIssues", () => {
   });
 });
 
+describe("validatePack: tags, wave and unlock", () => {
+  const withFields = async (fields: object) => broken((pack) => void Object.assign(pack.manifest, fields));
+
+  it("accepts a pack with none of them and one with valid values", async () => {
+    expect(messages(await withFields({ tags: ["Symbiote", "Aggression"], wave: "cycle5", unlock: "wins" }))).toBe("");
+    expect(messages(await withFields({ unlock: "open", wave: "core" }))).toBe("");
+  });
+
+  it("refuses too many tags, too long, duplicates ignoring case, an unknown wave and an unknown unlock mode", async () => {
+    expect(messages(await withFields({ tags: Array.from({ length: 9 }, (_, i) => `t${i}`) }))).toContain(
+      "tags has 9 entries, over the 8 limit",
+    );
+    expect(messages(await withFields({ tags: ["z".repeat(25)] }))).toContain("over the 24 limit");
+    expect(messages(await withFields({ tags: ["Venom", "venom "] }))).toContain('repeats "Venom"');
+    expect(messages(await withFields({ tags: "Venom" }))).toContain("tags must be a list of text");
+    expect(messages(await withFields({ wave: "cycle2" }))).toContain('wave "cycle2" is not a known wave');
+    expect(messages(await withFields({ unlock: "never" }))).toContain('unlock "never" is not a known mode');
+  });
+});
+
 describe("validatePack: achievements", () => {
   const heroId = async () => {
     const pack = await tinyPack();

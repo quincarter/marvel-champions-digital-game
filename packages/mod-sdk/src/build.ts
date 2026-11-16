@@ -43,6 +43,9 @@ export type PackAuthorManifest = Pick<
   | "translators"
   | "cover"
   | "achievements"
+  | "tags"
+  | "wave"
+  | "unlock"
 > & { readonly requires: { readonly app: string; readonly packs?: readonly string[] } };
 
 /** A pack's source tree, loaded. */
@@ -202,6 +205,9 @@ export function assemblePack(source: PackSource): PackInput {
     ...(author.translators ? { translators: author.translators } : {}),
     ...(author.cover !== undefined ? { cover: author.cover } : {}),
     ...(author.achievements ? { achievements: author.achievements } : {}),
+    ...(author.tags ? { tags: author.tags } : {}),
+    ...(author.wave !== undefined ? { wave: author.wave } : {}),
+    ...(author.unlock !== undefined ? { unlock: author.unlock } : {}),
     files: listed,
     totalBytes: listed.reduce((sum, file) => sum + file.bytes, 0),
     license: author.license,

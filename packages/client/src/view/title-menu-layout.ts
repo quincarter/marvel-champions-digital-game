@@ -199,8 +199,10 @@ export interface TitleMenuLayout {
   readonly trophies: Rect;
   /** "Your stats", the right half of the Trophy Room's row: the two read the same history. */
   readonly stats: Rect;
-  /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
+  /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub; the left half of its row. */
   readonly howToPlay: Rect;
+  /** "Mod Store", the right half of How to play's row (issue #734): the store is a main-menu item of its own. */
+  readonly modStore: Rect;
   readonly settings: Rect;
   /**
    * The rank badge (docs/achievements.md): a corner plate with the rank, lifetime points and the bar to the next
@@ -237,6 +239,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.trophies,
     layout.stats,
     layout.howToPlay,
+    layout.modStore,
     layout.settings,
     layout.rankBadge,
     ...(layout.quit ? [layout.quit] : []),
@@ -432,7 +435,8 @@ function titleMenuLayoutAt(
   const trophies: Rect = { x: left, y, width: halfColumn, height: hit.target };
   const stats: Rect = { x: left + column - halfColumn, y, width: halfColumn, height: hit.target };
   y += hit.target + gap;
-  const howToPlay: Rect = { x: left, y, width: column, height: hit.target };
+  const howToPlay: Rect = { x: left, y, width: halfColumn, height: hit.target };
+  const modStore: Rect = { x: left + column - halfColumn, y, width: halfColumn, height: hit.target };
   y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
@@ -499,6 +503,7 @@ function titleMenuLayoutAt(
     trophies,
     stats,
     howToPlay,
+    modStore,
     settings,
     rankBadge,
     quit,

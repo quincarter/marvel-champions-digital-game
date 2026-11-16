@@ -250,6 +250,10 @@ needs a paid Workers plan to survive another Reddit day.
   // optional, added 2026-11-13: the store cover, a portrait .webp file of the pack (600x984 box art, the same in every
   // language). `mc-pack build` makes it the version's thumb.webp (§11.5); a cover is at most 1 MB, width/height 0.5-0.8.
   "cover": "cover.webp",
+  // optional, added 2026-11-15 (Mod Store playtest feedback, #734): how the pack is listed and unlocked.
+  "tags": ["Symbiote", "Aggression"], // the creator's own store search tags: at most 8, each 1-24 characters, unique ignoring case
+  "wave": "cycle5", // the release wave (a Cycle.id) whose shelf the pack's heroes and scenarios sit beside when custom content is mixed in
+  "unlock": "wins", // "open" (default) | "points" | "wins": how heroes and scenarios unlock when "Custom content starts unlocked" is off
   "files": [
     { "path": "cards/x.fan-moon-knight.01a.webp", "bytes": 182044, "sha256": "…" },
     // every file, so a download can be verified and resumed file by file
@@ -258,6 +262,26 @@ needs a paid Workers plan to survive another Reddit day.
   "license": "Fan-made, non-commercial; see CREDITS.md",
 }
 ```
+
+**Listing and unlock fields (`tags`, `wave`, `unlock`; all optional).** The `PackManifest` fields, with readers
+`parsePackTags`, `parsePackWave` and `parsePackUnlock` in `@mc/content` that drop or default anything malformed:
+
+- `tags`: the creator's search tags in the Mod Store (`"Symbiote"`, `"Aggression"`, `"Spider-Verse"`). At most
+  `PACK_TAGS_MAX` = 8, each 1 to `PACK_TAG_MAX_LENGTH` = 24 characters after trimming, no duplicates ignoring case. The
+  catalog entry's `tags` (§5.2) are the pack's `kind` followed by these, deduped against the kind, so the store's tag
+  chips and search find a pack by either.
+- `wave`: the release wave, one of `PACK_WAVE_IDS` (`core`, `wave1`, `cycle1`, `cycle3` to `cycle11`: the `Cycle.id`s
+  of the client's unlock path). When the player mixes custom content in with the official content, the pack's heroes
+  and scenarios sit on that wave's shelf. Absent: the pack stays in the custom shelf.
+- `unlock`: `open`, `points` or `wins` (`PACK_UNLOCK_MODES`; absent is `open`). It applies only when the player has
+  turned "Custom content starts unlocked" off (it is on by default, and then everything is open). `open` is always
+  playable; `points` needs champion points spent by hand like an official hero; `wins` opens free once the player has
+  won 5 different scenarios (or by points before that). It covers the pack's heroes and scenarios; a pack's campaigns
+  stay open.
+
+`mc-pack validate` refuses more than 8 tags, a tag over 24 characters or empty, a duplicate tag, a `wave` that is not in
+`PACK_WAVE_IDS` and an `unlock` that is not one of the three modes. `mc-pack build` copies the three fields into the
+built `pack.json`. The registry repo's `scripts/update-index.mjs` writes the catalog's `tags` the same way.
 
 **Picture naming (multi-stage cards).** A card's picture is `cards/<lang>/<code>.webp`. A card with several printed
 pictures letters them in order from its own code, derived from the card record's stage data, with no extra manifest

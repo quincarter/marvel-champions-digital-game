@@ -115,10 +115,10 @@ describe("a scenario pack in the pickers", () => {
     const options = modularSetOptionsFor(draftAt("rhino"), rhino, currentCardsById());
     const option = options.find((o) => o.id === GEARS)!;
     expect(option.name).toBe("Gears");
-    expect(option.descriptor?.startsWith("CUSTOM")).toBe(true);
+    expect(option.descriptor?.startsWith("MOD PACK")).toBe(true);
     expect(option.cardCount).toBeGreaterThan(0);
     // A base set carries no badge.
-    expect(options.find((o) => o.id === "bomb_scare")?.descriptor?.startsWith("CUSTOM") ?? false).toBe(false);
+    expect(options.find((o) => o.id === "bomb_scare")?.descriptor?.startsWith("MOD PACK") ?? false).toBe(false);
   });
 
   it("offers the pack scenario its own set as the recommendation, and no extras or options it would refuse", async () => {

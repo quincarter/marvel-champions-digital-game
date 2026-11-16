@@ -625,6 +625,7 @@ describe("screen focus routes", () => {
       "trophies",
       "stats",
       "how-to-play",
+      "mod-store",
       "settings",
       "release-notes",
     ]);
@@ -638,6 +639,7 @@ describe("screen focus routes", () => {
       "trophies",
       "stats",
       "how-to-play",
+      "mod-store",
       "settings",
       "release-notes",
     ]);
@@ -701,6 +703,7 @@ describe("screen focus routes", () => {
       "trophies",
       "stats",
       "how-to-play",
+      "mod-store",
       "settings",
       "release-notes",
       "update-notes",

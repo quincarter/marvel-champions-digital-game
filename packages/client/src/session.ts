@@ -6,6 +6,7 @@
  * dispatch" rule from PLAN.md Phase 4.
  */
 
+import { setCustomContentPrefs, type CustomContentPrefs } from "./packs/custom-content-prefs.js";
 import type Phaser from "phaser";
 import type { VillainReview } from "./view/villain-review.js";
 import { campaignDefinitionOf } from "@mc/cards";
@@ -169,6 +170,7 @@ export function appSession(): AppSession {
     );
     setArtLanguage(settingsStore.current.cardLanguage);
     setColorScheme(colorSchemeOf(settingsStore.current.darkMode));
+    setCustomContentPrefs(customContentPrefsOf(settingsStore.current));
     onPowerSavingChange(() => settingsStore.refreshDefaults());
     onHardwareChange(() => settingsStore.refreshDefaults());
     session = {
@@ -182,6 +184,8 @@ export function appSession(): AppSession {
         setPowerSavingIgnored(!next.powerSavingAdjust);
         setArtLanguage(next.cardLanguage);
         setColorScheme(colorSchemeOf(next.darkMode));
+        // Custom content moved or unlocked: the shelves and locks follow on the next draw.
+        setCustomContentPrefs(customContentPrefsOf(next));
       },
       gameLog: emptyLog(),
       villainReview: null,
@@ -326,4 +330,9 @@ export function campaignService(): CampaignService {
       loadedPackCampaignDefinition(loadedPacks(), campaignId),
   });
   return campaigns;
+}
+
+/** The custom content settings as `packs/custom-content-prefs.ts` holds them. */
+function customContentPrefsOf(settings: Settings): CustomContentPrefs {
+  return { placement: settings.customPlacement, unlocked: settings.customUnlocked };
 }
