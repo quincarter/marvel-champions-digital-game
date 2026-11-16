@@ -95,7 +95,7 @@ const LOSS_NOTES: Readonly<Partial<Record<PastGameReason, string>>> = {
   encounterDeckExhausted: "Lost: the encounter deck ran out.",
 };
 
-/** The saved decks' MarvelCDB links by deck id: the deck's recorded URL, else the decklist page of its MarvelCDB id. */
+/** The saved decks' MarvelCDB links by deck id: the deck's recorded URL only (a deck id is not a decklist id, so none is guessed). */
 export function marvelcdbLinksOf(
   decks: readonly {
     readonly id: string;
@@ -105,8 +105,7 @@ export function marvelcdbLinksOf(
   const links = new Map<string, string>();
   for (const deck of decks) {
     if (deck.source.kind !== "imported") continue;
-    const id = deck.source.marvelcdbDeckId;
-    const link = deck.source.url ?? (id ? `https://marvelcdb.com/decklist/view/${id}` : null);
+    const link = deck.source.url;
     if (link) links.set(deck.id, link);
   }
   return links;
@@ -229,21 +228,28 @@ export function trackerRowsOf(input: TrackerExportInput): readonly TrackerExport
     .map((row) => rowOf(row, input));
 }
 
-/** One CSV cell: quoted when it holds a comma, quote, or line break; quotes doubled; formula-looking text defanged. */
+/**
+ * One CSV cell: quoted when it holds a comma, quote, or line break; quotes doubled; text a spreadsheet would read as a
+ * formula (a leading `=`, `+`, `-`, `@`, tab or carriage return) gets a leading apostrophe, so a deck name starting
+ * with a sign arrives with that apostrophe.
+ */
 export function csvCell(value: string): string {
-  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
 /** The UTF-8 byte order mark Excel looks for. */
-export const CSV_BOM = "﻿";
+export const CSV_BOM = "\uFEFF";
+
+/** The file's text from rows already built: BOM, header, then a row per game, CRLF between rows (RFC 4180). */
+export function trackerCsvOfRows(rows: readonly { readonly cells: readonly string[] }[]): string {
+  const lines = [TRACKER_COLUMNS, ...rows.map((row) => row.cells)].map((cells) => cells.map(csvCell).join(","));
+  return `${CSV_BOM}${lines.join("\r\n")}\r\n`;
+}
 
 /** The file's text: BOM, header, then a row per game, CRLF between rows (RFC 4180). */
 export function trackerCsv(input: TrackerExportInput): string {
-  const lines = [TRACKER_COLUMNS, ...trackerRowsOf(input).map((row) => row.cells)].map((cells) =>
-    cells.map(csvCell).join(","),
-  );
-  return `${CSV_BOM}${lines.join("\r\n")}\r\n`;
+  return trackerCsvOfRows(trackerRowsOf(input));
 }
 
 /** The file's name: `marvel-champions-mc-tracker-2026-11-16.csv`. */

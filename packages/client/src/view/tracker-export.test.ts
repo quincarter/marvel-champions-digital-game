@@ -107,7 +107,7 @@ describe("MC Tracker export rows (#757)", () => {
     expect(Object.keys(cells)).toEqual([...TRACKER_COLUMNS]);
   });
 
-  test("a deck without a MarvelCDB source has no link; a link without a recorded URL is the decklist page", () => {
+  test("a deck without a MarvelCDB source has no link; a link is only ever the recorded URL", () => {
     expect(cellsOf([save("a", DAY(3))])["Decklist 1"]).toBe("");
     expect([
       ...marvelcdbLinksOf([
@@ -115,7 +115,7 @@ describe("MC Tracker export rows (#757)", () => {
         { id: "y", source: { kind: "imported", marvelcdbDeckId: "9", url: null } },
         { id: "z", source: { kind: "imported", marvelcdbDeckId: null, url: null } },
       ]),
-    ]).toEqual([["y", "https://marvelcdb.com/decklist/view/9"]]);
+    ]).toEqual([]);
   });
 
   test("a multi-seat game lists each hero in its slot, a precon by its name, and the shared hero name apart", () => {
@@ -277,6 +277,11 @@ describe("MC Tracker CSV text", () => {
   test("a cell that reads as a spreadsheet formula is defanged", () => {
     expect(csvCell("=1+1")).toBe("'=1+1");
     expect(csvCell("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(csvCell("-1+1")).toBe("'-1+1");
+    expect(csvCell("+1")).toBe("'+1");
+    expect(csvCell("\tx")).toBe("'\tx");
+    expect(csvCell("=a,b")).toBe('"\'=a,b"');
+    expect(csvCell("Spider-Man")).toBe("Spider-Man");
   });
 
   test("the file starts with a UTF-8 byte order mark, a header, and CRLF rows", () => {
