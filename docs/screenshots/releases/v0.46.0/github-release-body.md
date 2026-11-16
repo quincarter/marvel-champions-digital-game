@@ -21,16 +21,26 @@ The Mod Store moves onto the main menu, with everything @bluefireF5ran asked for
 ---
 
 ## [v0.46.0] - 2026-11-16
+
 ### Added
-* The v0.46.0 release report has its own page on the site, at /releases/v0.46.0/
+
+- The v0.46.0 release report has its own page on the site, at /releases/v0.46.0/
+
 ### Changed
-* The mod SDK publishes to npm through npm trusted publishing instead of an npm token
-* The community content packs (Carnage, Gwenpool, Mephisto, Night Thrasher, The Punisher, Yondu, Lost Traits, GMW Fixes and the Throg draft) moved to the Mod Store registry repo, which publishes them now; the game repo fetches them for its tests with pnpm packs:fetch.
+
+- The mod SDK publishes to npm through npm trusted publishing instead of an npm token
+- The community content packs (Carnage, Gwenpool, Mephisto, Night Thrasher, The Punisher, Yondu, Lost Traits, GMW Fixes and the Throg draft) moved to the Mod Store registry repo, which publishes them now; the game repo fetches them for its tests with pnpm packs:fetch.
+
 ### Fixed
-* The Mod Store no longer locks up on Android phones the first time it opens: the notice's round portraits of Deadpool and Spider-Man are baked as discs instead of drawn through a circular mask, which stopped the game drawing after Deadpool's line (#733). The Team-Up info portraits get the same fix.
-* Mod Store installs work on Android again: the download size check counted the line breaks in Android's base64 body as data, so every pack looked about 1% larger than its catalog size and was refused.
-* The e2e spec for PageDown on Take your seats presses RB again when the first press lands in the frames the pad guard drops, instead of failing under a loaded suite.
+
+- The Mod Store no longer locks up on Android phones the first time it opens: the notice's round portraits of Deadpool and Spider-Man are baked as discs instead of drawn through a circular mask, which stopped the game drawing after Deadpool's line (#733). The Team-Up info portraits get the same fix.
+- Mod Store installs work on Android again: the download size check counted the line breaks in Android's base64 body as data, so every pack looked about 1% larger than its catalog size and was refused.
+- The e2e spec for PageDown on Take your seats presses RB again when the first press lands in the frames the pad guard drops, instead of failing under a loaded suite.
+
 ### Docs
-* The v0.45.0 release notes in Spanish carry the twelve changelog lines that landed after they were written
+
+- The v0.45.0 release notes in Spanish carry the twelve changelog lines that landed after they were written
+
 ### Special thanks
-* @zackburnley reported #733.
+
+- @zackburnley reported #733.
