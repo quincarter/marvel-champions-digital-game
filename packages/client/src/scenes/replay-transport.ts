@@ -287,6 +287,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   #scrub = { dir: 0 as -1 | 0 | 1, heldMs: 0, lastMs: -1 };
   /** A direction held while looking around ended (it was walking the table): it scrubs only once let go. */
   #scrubLocked = false;
+  /** Inspect table was pressed while a step or seek was still in flight: the table is handed over once it lands. */
+  #inspectPending = false;
   /** False once the scene is shutting down: a request that fails because the replay closed is then no error. */
   #alive = false;
   /** A phone's bar is at the top of the screen (`view/replay-bar-pref.ts`). */
@@ -316,6 +318,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#auto = STOPPED;
     this.#speed = 1;
     this.#busy = 0;
+    this.#inspectPending = false;
     this.#drag = null;
     this.#drawnKey = "";
     this.#flash = null;
@@ -378,6 +381,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const board = this.#board();
     if (this.#placementKey(board) !== this.#drawnKey) this.#draw();
     this.#pollPads(delta);
+    this.#handOverWhenSettled();
     const wasPlaying = this.#auto.playing;
     const waiting = this.#busy > 0 || this.#drag !== null || !(board?.replayIdle() ?? true);
     const next = tickAutoPlay(this.#auto, delta, {
@@ -389,6 +393,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#auto = next.state;
     if (next.step) this.#settle(this.#stepForward().then((moved) => !moved && this.#stop()));
     if (wasPlaying !== this.#auto.playing) this.#draw();
+  }
+
+  /** Hands the table the keyboard and the pad for Inspect table once no step, seek or drag is in flight. */
+  #handOverWhenSettled(): void {
+    if (!this.#inspectPending || this.#busy > 0 || this.#drag !== null) return;
+    this.#inspectPending = false;
+    setReplayInspecting(true, this.game.loop.frame);
   }
 
   /** Swallows what a request that outlived its replay throws; any other failure is logged, never unhandled. */
@@ -419,6 +430,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   }
 
   #togglePlay(): void {
+    // Play while Inspect table waits on a step is a change of mind: the bar stays.
+    this.#inspectPending = false;
     const state = this.#state;
     if (!state) return;
     if (this.#auto.playing) {
@@ -549,8 +562,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         this.#settle(this.#share());
         break;
       case "inspect":
+        // Paused first; a step or seek already on its way lands before the table is handed over, so nothing moves
+        // under the reader (`update` hands it over once nothing is in flight).
         this.#stop();
-        setReplayInspecting(true, this.game.loop.frame);
+        this.#inspectPending = true;
+        this.#handOverWhenSettled();
         break;
       case "move":
         if (this.#layout?.kind !== "phone") break;

@@ -66,12 +66,13 @@ export function replayInspectRoute(intent: GamepadIntent): ReplayInspectRoute {
   }
 }
 
-/** The Board's own keys that only read the table (zones, the log and recap, the decks left, Team-Up and Evidence). */
+/** The Board's own keys that only read the table (zones, the log and recap, the piles, Team-Up and Evidence). */
 export const REPLAY_READING_KEYS: ReadonlySet<BoardKeyAction["kind"]> = new Set([
   "zone",
   "log",
   "recap",
   "teamUp",
   "evidence",
+  "discard",
   "deckLeft",
 ]);

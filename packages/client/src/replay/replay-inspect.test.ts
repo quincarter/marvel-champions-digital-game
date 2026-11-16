@@ -33,7 +33,7 @@ describe("looking around a paused replay (#735)", () => {
   });
 
   test("only the board keys that read the table pass", () => {
-    for (const kind of ["zone", "log", "recap", "deckLeft", "teamUp", "evidence"] as const) {
+    for (const kind of ["zone", "log", "recap", "discard", "deckLeft", "teamUp", "evidence"] as const) {
       expect(REPLAY_READING_KEYS.has(kind), kind).toBe(true);
     }
     for (const kind of ["basic", "endTurn", "undo", "confirm", "ability"] as const) {

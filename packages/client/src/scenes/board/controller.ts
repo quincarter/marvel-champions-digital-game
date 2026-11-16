@@ -565,6 +565,11 @@ export class BoardController {
       this.#host.openVictoryDisplay?.();
       return;
     }
+    // On a read-only table (a replay being looked around, #735) A on any other card reads it, a card in hand too, as Y does.
+    if (this.#readOnly && focus.kind === "card") {
+      this.#host.inspect(focus.instanceId);
+      return;
+    }
     if (this.#readOnly) return;
     // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
     if (focus.kind === "cancel") {

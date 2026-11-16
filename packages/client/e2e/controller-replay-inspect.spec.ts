@@ -192,6 +192,11 @@ test("on a replay the d-pad's down looks around the table read-only, and B gives
     await waitFor(async () => ((await isActive(page, "InspectOverlay")) ? true : null), "Y opens Inspect", 10_000);
     await tap(page, B, async () => !(await isActive(page, "InspectOverlay")));
     expect(await replayState(page)).toMatchObject({ inspecting: true });
+    // A reads it too, a card in hand included (the read-only table plays nothing).
+    await tap(page, A, () => isActive(page, "InspectOverlay"));
+    expect(await isActive(page, "InspectOverlay")).toBe(true);
+    await tap(page, B, async () => !(await isActive(page, "InspectOverlay")));
+    expect(await replayState(page)).toMatchObject({ inspecting: true });
   }
   // Nothing on the table moved the replay.
   expect((await replayState(page))!.position).toBe(at);

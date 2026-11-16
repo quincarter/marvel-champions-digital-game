@@ -2015,6 +2015,8 @@ export class BoardScene extends Phaser.Scene {
         break;
       case "activate":
         if (this.#focusRegion === "guide") this.#activateGuideFocus();
+        // A replay's discard pile opens to read, as its click does; the read-only controller holds every other stop back.
+        else if (this.#replay && this.#focus?.kind === "discard" && !this.#logFocused) this.#openMyDiscard();
         else if (this.#focus && !this.#logFocused) this.#controller.activate(this.#focus);
         else if (this.#focus === null && !this.#logFocused) this.#focusPrimary();
         break;
@@ -2040,7 +2042,8 @@ export class BoardScene extends Phaser.Scene {
         if (this.#focusRegion === "board") this.toggleLog(true);
         break;
       case "discard":
-        if (this.#focusRegion === "board" && !this.#controller.readOnly) this.#openMyDiscard();
+        // Read-only holds it back, except on a replay, where reading the pile is the point (#735).
+        if (this.#focusRegion === "board" && (!this.#controller.readOnly || this.#replay)) this.#openMyDiscard();
         break;
       case "expand":
         // On the table R3 lists the cards left: the decision popups that Expand belongs to own the pad while up.
