@@ -6,14 +6,16 @@ The Mod Store moves onto the main menu, with everything @bluefireF5ran asked for
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.46.0/index.es.html)**
 
-![The numbers: 5 playtest notes from @bluefireF5ran, 6 store tabs and 2 Android fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-01-the-numbers.jpg)
+![The numbers: 5 playtest notes from @bluefireF5ran, 6 store tabs and 2 Android fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-01-the-numbers.jpg)
 
-![The Mod Store moves up front: the store's tabs, search and sort, the menu entry, search on a phone, Credits, a creator's packs, and the two custom content settings](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-02-the-mod-store-moves-up-front.jpg)
+![The Mod Store moves up front: the store's tabs, search and sort, the menu entry, search on a phone, Credits, a creator's packs, and the two custom content settings](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-02-the-mod-store-moves-up-front.jpg)
 
-![You asked, we fixed: the store opening and packs installing on Android, reported by @zackburnley, and community pack pictures showing from the first deal](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-03-you-asked-we-fixed.jpg)
+![Look around a replay: a paused replay with the bar hidden, the replay bar's new magnifier, and dark mode on a controller](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-03-look-around-a-replay.jpg)
 
-![Also in v0.46.0: the community packs publish from the mods registry, and the mod SDK publishes to npm through trusted publishing](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-04-also-in-v0-46-0.jpg)
+![You asked, we fixed: the store opening and packs installing on Android, reported by @zackburnley, and community pack pictures showing from the first deal](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-04-you-asked-we-fixed.jpg)
 
-![Thank you to bluefireF5ran, zackburnley and the pack creators](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-05-thank-you.jpg)
+![Also in v0.46.0: the community packs publish from the mods registry, and the mod SDK publishes to npm through trusted publishing](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-05-also-in-v0-46-0.jpg)
 
-![Code shipped since v0.45.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e869edf2a87b16f783372bafd35385a0c850b254/docs/screenshots/releases/v0.46.0/v0-46-0-release-06-code-shipped.jpg)
+![Thank you to bluefireF5ran, zackburnley and the pack creators](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-06-thank-you.jpg)
+
+![Code shipped since v0.45.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d87aafe8b9b2e7aff57eeb997d85b4a0332507e9/docs/screenshots/releases/v0.46.0/v0-46-0-release-07-code-shipped.jpg)
