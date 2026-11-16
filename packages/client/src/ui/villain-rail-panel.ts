@@ -411,11 +411,12 @@ function drawStrip(
     }
     const status =
       tile.status === "now" ? "now" : tile.status === "next" ? "next" : tile.status === "done" ? "done" : "";
+    const marks = tile.marks.length > 0 ? ` · ${tile.marks.join(" · ")}` : "";
     const line = scene.add
       .text(
         swatch.x + swatch.width + 10,
         rect.y + rect.height - 10,
-        status ? `${tile.name} · ${status}` : tile.name,
+        `${status ? `${tile.name} · ${status}` : tile.name}${marks}`,
         textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paper.hex, live ? ink.body : ink.secondary),
       )
       .setOrigin(0, 1);

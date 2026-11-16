@@ -252,7 +252,11 @@ export interface EncounterTracking {
      * hand-built fixtures, read as known from the start.
      */
     readonly atBeat?: number;
+    /** A surge dealt it (`encounterCardDealt` source `surge`, the engine's own word, never read off the order). */
+    readonly fromSurge?: boolean;
   }[];
+  /** The cards whose surge dealt another card (`surgeTriggered`), in order. Absent in hand-built fixtures. */
+  readonly surged?: readonly InstanceId[];
   /** The cards revealed so far, in order. */
   readonly revealed: readonly {
     readonly instanceId: InstanceId;
@@ -344,6 +348,7 @@ export function appendWalkthrough(
   let startsActivation = false;
   let dealt = [...working.encounter.dealt];
   let revealed = [...working.encounter.revealed];
+  let surged = [...(working.encounter.surged ?? [])];
   /**
    * The round this phase belongs to, frozen when the phase starts.
    *
@@ -430,6 +435,7 @@ export function appendWalkthrough(
         activation = null;
         dealt = [];
         revealed = [];
+        surged = [];
         tables = [];
       }
       activeIndex = stepIndex;
@@ -468,6 +474,16 @@ export function appendWalkthrough(
             atBeat: beatCount(),
           });
         }
+        break;
+      case "encounterCardDealt":
+        if (event.source === "surge") {
+          let at = dealt.length - 1;
+          while (at >= 0 && dealt[at]!.instanceId !== event.instanceId) at--;
+          if (at >= 0) dealt[at] = { ...dealt[at]!, fromSurge: true };
+        }
+        break;
+      case "surgeTriggered":
+        surged.push(event.instanceId);
         break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
@@ -617,7 +633,11 @@ export function appendWalkthrough(
 
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
-    const described = logLine(event, state, viewer, deps, false, undefined, { events, at });
+    const described = logLine(event, state, viewer, deps, false, undefined, {
+      events,
+      at,
+      surgeDealt: dealt.filter((card) => card.fromSurge).map((card) => card.instanceId),
+    });
     if (described) {
       push(beatTextWithStatus(described), null, event);
       startsActivation = false;
@@ -630,6 +650,7 @@ export function appendWalkthrough(
     encounter: {
       dealt,
       revealed,
+      surged,
       current:
         !complete && activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? (revealed.at(-1) ?? null) : null,
     },

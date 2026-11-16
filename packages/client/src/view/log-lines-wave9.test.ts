@@ -30,8 +30,8 @@ const cardId = (id: InstanceId) => state.instances[id]!.cardId;
 
 describe("wave 9 log lines", () => {
   test("a surge deals a card", () => {
-    expect(text({ type: "surgeTriggered", instanceId: a, playerId: me })).toBe(
-      "Surge — You are dealt another encounter card.",
+    expect(text({ type: "surgeTriggered", instanceId: a, playerId: me })).toMatch(
+      /^.+ surges — You are dealt another encounter card\.$/,
     );
   });
 

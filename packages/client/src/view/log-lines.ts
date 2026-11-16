@@ -69,6 +69,8 @@ export interface LogState {
   readonly round: number;
   readonly beat: number;
   readonly nextId: number;
+  /** Encounter cards a surge dealt, so their reveal line can say so when it comes in a later command than the deal. */
+  readonly surgeDealt?: readonly InstanceId[];
 }
 
 export const emptyLog = (): LogState => ({ lines: [], round: 0, beat: 0, nextId: 1 });
@@ -119,6 +121,10 @@ export function appendEvents(
   let nextId = log.nextId;
   const lines = [...log.lines];
   let previous: GameEvent | undefined;
+  const surgeDealt = [...(log.surgeDealt ?? [])];
+  for (const event of events) {
+    if (event.type === "encounterCardDealt" && event.source === "surge") surgeDealt.push(event.instanceId);
+  }
 
   for (const [at, event] of events.entries()) {
     if (event.type === "roundStarted") {
@@ -136,7 +142,7 @@ export function appendEvents(
       event.to.kind === "scenarioArea" &&
       previous?.type === "cardDiscardedFromPlay" &&
       previous.instanceId === event.instanceId;
-    const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at });
+    const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at, surgeDealt });
     previous = event;
     if (!described) continue;
     beat += 1;
@@ -155,6 +161,7 @@ export function appendEvents(
     round,
     beat,
     nextId,
+    surgeDealt: surgeDealt.slice(-40),
   };
 }
 
@@ -262,7 +269,15 @@ function returnedName(id: InstanceId, event: GameEvent, state: GameState, burst:
 export interface Burst {
   readonly events: readonly GameEvent[];
   readonly at: number;
+  /** Cards a surge dealt, this command's and earlier ones (`LogState.surgeDealt`). */
+  readonly surgeDealt?: readonly InstanceId[];
 }
+
+/** Whether a surge dealt this card: the engine's own deal source, in this burst or an earlier one. */
+const dealtBySurge = (burst: Burst | undefined, instanceId: InstanceId): boolean =>
+  !!burst &&
+  ((burst.surgeDealt?.includes(instanceId) ?? false) ||
+    burst.events.some((e) => e.type === "encounterCardDealt" && e.instanceId === instanceId && e.source === "surge"));
 
 function describe(
   event: GameEvent,
@@ -1037,12 +1052,15 @@ function describe(
           voice: "villain",
         };
       }
-      return { text: `${who(event.playerId)} revealed ${card(event.instanceId)}.`, voice: "villain" };
+      return {
+        text: `${who(event.playerId)} revealed ${card(event.instanceId)}${dealtBySurge(burst, event.instanceId) ? " (from surge)" : ""}.`,
+        voice: "villain",
+      };
     }
     case "surgeTriggered":
       return {
         // Owner decision 22B: a surge deals a facedown encounter card that waits for the reveal step.
-        text: `Surge — ${who(event.playerId)} ${verb(event.playerId, "are", "is")} dealt another encounter card.`,
+        text: `${card(event.instanceId)} surges — ${who(event.playerId)} ${verb(event.playerId, "are", "is")} dealt another encounter card.`,
         voice: "villain",
       };
     // "The first [Technique] attachment revealed each round gains surge" (Nebula I-III) or "the first treachery the

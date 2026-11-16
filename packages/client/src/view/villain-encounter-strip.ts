@@ -20,6 +20,8 @@ export interface EncounterTile {
   readonly name: string;
   readonly status: EncounterTileStatus;
   readonly isViewer: boolean;
+  /** Plain-word marks, never colour alone: "SURGE" on the card that surged, "FROM SURGE" on the card it dealt. */
+  readonly marks: readonly ("SURGE" | "FROM SURGE")[];
 }
 
 export interface EncounterStrip {
@@ -55,6 +57,8 @@ export function encounterStripOf(
   const order: { instanceId: InstanceId; playerId: PlayerId }[] = encounter.dealt
     .filter((card) => dealtByBeat(card, shownEncounterIds.length))
     .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
+  const fromSurge = new Set(encounter.dealt.filter((card) => card.fromSurge).map((card) => card.instanceId));
+  const surged = new Set(encounter.surged ?? []);
   for (const card of encounter.revealed) {
     if (shown.has(card.instanceId) && !order.some((entry) => entry.instanceId === card.instanceId)) order.push(card);
   }
@@ -77,6 +81,12 @@ export function encounterStripOf(
       name: revealed ? nameOf(entry.instanceId) : "Facedown",
       status,
       isViewer,
+      // The surging card is marked once its reveal is on screen (it was facedown until then); a card a surge dealt is
+      // marked from its deal, which the strip only counts once the screen has got there.
+      marks: [
+        ...(revealed && surged.has(entry.instanceId) ? (["SURGE"] as const) : []),
+        ...(fromSurge.has(entry.instanceId) ? (["FROM SURGE"] as const) : []),
+      ],
     };
   });
 
