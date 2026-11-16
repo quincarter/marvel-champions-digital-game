@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { chromeStopsOf } from "./chrome-stops.js";
+import { chromeStopsOf, floatingThemeStopOf } from "./chrome-stops.js";
 
 const music = { x: 1094, y: 93, width: 44, height: 44 };
 const report = { x: 1146, y: 93, width: 44, height: 44 };
@@ -38,5 +38,20 @@ describe("chromeStopsOf", () => {
   test("a screen's own stop over the language or theme button keeps the screen's stop", () => {
     const own = [{ x: 1030, y: 93, width: 56, height: 44 }];
     expect(chromeStopsOf({ ...base, language, theme, own })).toEqual({ music, report, language: null, theme });
+  });
+});
+
+describe("floatingThemeStopOf (#735)", () => {
+  const floating = { x: 621, y: 6, width: 38, height: 30 };
+  const alone = { ...base, music: null, report: null, theme: floating };
+  test("the theme button floating alone is where Up goes from the top", () => {
+    expect(floatingThemeStopOf(alone)).toEqual(floating);
+  });
+  test("not while the row is shown, for a screen under an overlay, or under the screen's own stop", () => {
+    expect(floatingThemeStopOf({ ...alone, music })).toBeNull();
+    expect(floatingThemeStopOf({ ...alone, isTop: false })).toBeNull();
+    expect(floatingThemeStopOf({ ...alone, excluded: true })).toBeNull();
+    expect(floatingThemeStopOf({ ...alone, own: [{ x: 600, y: 0, width: 80, height: 40 }] })).toBeNull();
+    expect(floatingThemeStopOf({ ...alone, theme: null })).toBeNull();
   });
 });

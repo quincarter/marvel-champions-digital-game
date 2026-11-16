@@ -36,17 +36,22 @@ let controller: BoardController;
 let playable = new Set<string>();
 let bar = { count: 2, cancel: true };
 let music = true;
+let theme = false;
+let handCards: readonly string[] = [];
+const toggleTheme = vi.fn();
 const pressed: number[] = [];
 const openMusic = vi.fn();
 const inspect = vi.fn();
 let table: readonly InstanceId[] = [];
 const host = (): BoardControllerHost => ({
-  model: (): BoardModel | null => ({ hand: [] }) as unknown as BoardModel,
+  model: (): BoardModel | null => ({ hand: handCards.map((instanceId) => ({ instanceId })) }) as unknown as BoardModel,
   marks: (): Highlights | null => ({ playable, usableAbilities: new Set(), basics: [] }) as unknown as Highlights,
   barStops: () => bar,
   pressBarStop: (index) => void pressed.push(index),
   hasMusicStop: () => music,
   openMusic,
+  hasThemeStop: () => theme,
+  toggleTheme,
   tabbed: (): boolean => false,
   redraw: (): void => {},
   inspect,
@@ -81,6 +86,9 @@ beforeEach(async () => {
   controller = new BoardController(host());
   bar = { count: 2, cancel: true };
   music = true;
+  theme = false;
+  handCards = [];
+  toggleTheme.mockClear();
   pressed.length = 0;
   openMusic.mockClear();
   inspect.mockClear();
@@ -95,6 +103,23 @@ describe("the pad route through a mode bar", () => {
     expect(openMusic).toHaveBeenCalledTimes(1);
     music = false;
     expect(controller.focusOrder().some((target) => target.kind === "music")).toBe(false);
+  });
+
+  test("the dark mode button is the stop before the note, and Enter on it flips the theme on a read-only table too (#735)", () => {
+    expect(controller.focusOrder().some((target) => target.kind === "theme")).toBe(false);
+    theme = true;
+    expect(controller.focusOrder().slice(-2)).toEqual([{ kind: "theme" }, { kind: "music" }]);
+    controller.setReadOnly(true);
+    controller.activate({ kind: "theme" });
+    expect(toggleTheme).toHaveBeenCalledTimes(1);
+  });
+
+  test("on a read-only table A on a card in hand reads it and plays nothing (#735)", () => {
+    handCards = ["hand-card"];
+    controller.setReadOnly(true);
+    controller.activate({ kind: "card", instanceId: "hand-card" as InstanceId });
+    expect(inspect).toHaveBeenCalledWith("hand-card");
+    expect(controller.selection.kind).toBe("idle");
   });
 
   test("a payment's route is the sources, then the bar's buttons, then Cancel once", async () => {

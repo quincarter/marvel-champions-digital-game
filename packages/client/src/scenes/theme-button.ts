@@ -4,10 +4,11 @@
  *
  * Like the music, language and Report buttons it runs for the whole session from Boot as chrome, above every screen
  * (see `CHROME_SCENES`), and follows its slot every frame. It sits below the notices and popups that drop over the top
- * bar (an achievement, power saving), so a tap on one of those never lands here. It is a focus stop only on Title,
- * where it sits in the top row beside the language button (`FocusRouteOptions.topRow`). Elsewhere it is deliberately
- * not one: a stop at the top centre of every screen pulled the d-pad and Tab off each screen's own controls. A keyboard
- * or pad flips the same switch from Settings > Display > Dark mode, a row like any other.
+ * bar (an achievement, power saving), so a tap on one of those never lands here. A controller reaches it on every
+ * screen that shows it (#735): a stop in the top row beside the language button on Title and the table (the table's
+ * own route, `view/focus.ts`), and where it floats at the top centre, Up from a stop with nothing above it
+ * (`scenes/focus-route.ts`), so it never joins Tab's walk or a sheet's narrowed route. Settings > Display > Dark mode
+ * flips the same switch.
  */
 import Phaser from "phaser";
 import { appSession } from "../session.js";

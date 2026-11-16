@@ -155,6 +155,9 @@ export interface BoardControllerHost {
   /** True while the top bar's music note is drawn (a stop at the end of the idle route), and what Enter on it does. */
   hasMusicStop?(): boolean;
   openMusic?(): void;
+  /** True while the top bar's dark mode button is drawn (a stop before the note), and what Enter on it does (#735). */
+  hasThemeStop?(): boolean;
+  toggleTheme?(): void;
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
   hasDiscardStop?(): boolean;
   openDiscard?(): void;
@@ -494,6 +497,7 @@ export class BoardController {
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
+        ...(this.#host.hasThemeStop?.() ? { theme: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
         undo: this.undoOffer() !== null,
@@ -551,9 +555,19 @@ export class BoardController {
       this.onCharacterTap(focus.instanceId);
       return;
     }
+    // The theme is a setting, not a move: it flips on a replayed board too.
+    if (focus.kind === "theme") {
+      this.#host.toggleTheme?.();
+      return;
+    }
     // The pile sends nothing, so it opens on a replayed board too, as a tap does.
     if (focus.kind === "victoryDisplay") {
       this.#host.openVictoryDisplay?.();
+      return;
+    }
+    // On a read-only table (a replay being looked around, #735) A on any other card reads it, a card in hand too, as Y does.
+    if (this.#readOnly && focus.kind === "card") {
+      this.#host.inspect(focus.instanceId);
       return;
     }
     if (this.#readOnly) return;

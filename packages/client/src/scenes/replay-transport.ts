@@ -14,11 +14,21 @@
  * Escape leaves. On a pad: A play / pause, LB / RB step, LT / RT moment, Y speed, X export, R3 export log, View / Start
  * to the start / end, B leaves, and the d-pad or left stick scrubs (held, it repeats and speeds up). Presses fire through
  * `McButton` / `onTap`; the seek bar is a drag, which seeks on press and keeps seeking as the pointer moves.
+ *
+ * Inspect table (the d-pad's down, the down arrow, or its magnifier) pauses, hides the bar and hands the keyboard and
+ * the pad to the table to look around it read-only (`replay/replay-inspect.ts`, #735). The bar's place then holds only
+ * "Back to replay" (B, Escape, Start), which brings it back.
  */
 import Phaser from "phaser";
 import { deliverGameLog, deliverReplayFile } from "../replay/replay-files.js";
 import type { ReplayHost, ReplayPositionState } from "../replay/replay-host.js";
 import { activeReplay } from "../replay/replay-mode.js";
+import {
+  onReplayInspectChange,
+  replayInspectChangedIn,
+  replayInspecting,
+  setReplayInspecting,
+} from "../replay/replay-inspect.js";
 import { onLanguageChange } from "../language-change.js";
 import { t } from "../i18n/translate.js";
 import { accent, surface, typeRole } from "../tokens.js";
@@ -90,6 +100,8 @@ const PAD = {
   move: 10,
   /** D-pad up: shares the replay as a link. */
   share: 12,
+  /** D-pad down: looks around the table (#735). */
+  inspect: 13,
   left: 14,
   right: 15,
 } as const;
@@ -107,6 +119,7 @@ const KEYS: Readonly<Partial<Record<TransportControl, string>>> = {
   exit: "Esc",
   move: "M",
   share: "L",
+  inspect: "↓",
 };
 
 const PAD_OF: Readonly<Record<TransportControl, number>> = {
@@ -123,11 +136,23 @@ const PAD_OF: Readonly<Record<TransportControl, number>> = {
   exit: PAD.exit,
   move: PAD.move,
   share: PAD.share,
+  inspect: PAD.inspect,
 };
 
 const GLYPH_HEIGHT = 12;
 
-type IconId = "play" | "pause" | "back" | "forward" | "prevMoment" | "nextMoment" | "start" | "end" | "up" | "down";
+type IconId =
+  | "play"
+  | "pause"
+  | "back"
+  | "forward"
+  | "prevMoment"
+  | "nextMoment"
+  | "start"
+  | "end"
+  | "up"
+  | "down"
+  | "inspect";
 
 function triangle(g: Phaser.GameObjects.Graphics, cx: number, cy: number, size: number, dir: 1 | -1): void {
   g.fillTriangle(cx - dir * size * 0.6, cy - size, cx - dir * size * 0.6, cy + size, cx + dir * size * 0.8, cy);
@@ -174,6 +199,16 @@ function paintIcon(g: Phaser.GameObjects.Graphics, icon: IconId, rect: Rect, col
       g.fillRect(cx + s * 0.85, cy - s, s * 0.45, s * 2);
       triangle(g, cx - s * 0.3, cy, s, 1);
       break;
+    case "inspect": {
+      // A magnifier: a ring, and its handle down to the right.
+      const r = s * 0.85;
+      const lx = cx - s * 0.3;
+      const ly = cy - s * 0.3;
+      g.lineStyle(Math.max(2, s * 0.32), color, alpha).strokeCircle(lx, ly, r);
+      g.lineStyle(Math.max(2.5, s * 0.42), color, alpha);
+      g.lineBetween(lx + r * 0.72, ly + r * 0.72, lx + r * 1.9, ly + r * 1.9);
+      break;
+    }
   }
 }
 
@@ -250,6 +285,10 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   #icons: IconButton[] = [];
   #padDown = new Map<number, boolean[]>();
   #scrub = { dir: 0 as -1 | 0 | 1, heldMs: 0, lastMs: -1 };
+  /** A direction held while looking around ended (it was walking the table): it scrubs only once let go. */
+  #scrubLocked = false;
+  /** Inspect table was pressed while a step or seek was still in flight: the table is handed over once it lands. */
+  #inspectPending = false;
   /** False once the scene is shutting down: a request that fails because the replay closed is then no error. */
   #alive = false;
   /** A phone's bar is at the top of the screen (`view/replay-bar-pref.ts`). */
@@ -279,6 +318,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#auto = STOPPED;
     this.#speed = 1;
     this.#busy = 0;
+    this.#inspectPending = false;
     this.#drag = null;
     this.#drawnKey = "";
     this.#flash = null;
@@ -293,6 +333,10 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     const unLanguage = onLanguageChange(() => this.#draw());
+    const unInspect = onReplayInspectChange((on) => {
+      if (!on) this.#scrubLocked = true;
+      this.#draw();
+    });
     this.input.keyboard?.on("keydown", this.#onKey, this);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.#onMove, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.#endDrag, this);
@@ -301,6 +345,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       this.#alive = false;
       unPosition();
       unLanguage();
+      unInspect();
       this.scale.off("resize", onResize, this);
       this.input.keyboard?.off("keydown", this.#onKey, this);
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onMove, this);
@@ -313,7 +358,12 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     });
     if (import.meta.env.DEV) {
       (globalThis as { __mcReplayDebug?: unknown }).__mcReplayDebug = {
-        state: () => ({ position: this.#state?.position ?? 0, playing: this.#auto.playing, speed: this.#speed }),
+        state: () => ({
+          position: this.#state?.position ?? 0,
+          playing: this.#auto.playing,
+          speed: this.#speed,
+          inspecting: replayInspecting(),
+        }),
         rect: (id: TransportControl | "seek") =>
           id === "seek" ? (this.#layout?.seek ?? null) : (this.#layout?.controls.get(id) ?? null),
         togglePlay: () => this.#togglePlay(),
@@ -331,6 +381,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const board = this.#board();
     if (this.#placementKey(board) !== this.#drawnKey) this.#draw();
     this.#pollPads(delta);
+    this.#handOverWhenSettled();
     const wasPlaying = this.#auto.playing;
     const waiting = this.#busy > 0 || this.#drag !== null || !(board?.replayIdle() ?? true);
     const next = tickAutoPlay(this.#auto, delta, {
@@ -342,6 +393,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#auto = next.state;
     if (next.step) this.#settle(this.#stepForward().then((moved) => !moved && this.#stop()));
     if (wasPlaying !== this.#auto.playing) this.#draw();
+  }
+
+  /** Hands the table the keyboard and the pad for Inspect table once no step, seek or drag is in flight. */
+  #handOverWhenSettled(): void {
+    if (!this.#inspectPending || this.#busy > 0 || this.#drag !== null) return;
+    this.#inspectPending = false;
+    setReplayInspecting(true, this.game.loop.frame);
   }
 
   /** Swallows what a request that outlived its replay throws; any other failure is logged, never unhandled. */
@@ -372,6 +430,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
   }
 
   #togglePlay(): void {
+    // Play while Inspect table waits on a step is a change of mind: the bar stays.
+    this.#inspectPending = false;
     const state = this.#state;
     if (!state) return;
     if (this.#auto.playing) {
@@ -501,6 +561,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       case "share":
         this.#settle(this.#share());
         break;
+      case "inspect":
+        // Paused first; a step or seek already on its way lands before the table is handed over, so nothing moves
+        // under the reader (`update` hands it over once nothing is in flight).
+        this.#stop();
+        this.#inspectPending = true;
+        this.#handOverWhenSettled();
+        break;
       case "move":
         if (this.#layout?.kind !== "phone") break;
         this.#barOnTop = !this.#barOnTop;
@@ -565,7 +632,16 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     return this.scene.isActive(SCENES.villainPhase) && (code === "Escape" || code === "Enter");
   }
 
+  /**
+   * While the table is being looked around the keys and the pad are the Board's; and in the frame that ended it, the
+   * press that ended it (Escape, B) is the Board's too, not also a press here.
+   */
+  #lookingAround(): boolean {
+    return replayInspecting() || replayInspectChangedIn(this.game.loop.frame);
+  }
+
   #onKey(event: KeyboardEvent): void {
+    if (this.#lookingAround()) return;
     if (this.#blocked() || this.#walkthroughOwns(event.code) || event.ctrlKey || event.metaKey || event.altKey) return;
     const control = ((): TransportControl | null => {
       switch (event.code) {
@@ -591,6 +667,9 @@ export class ReplayTransportOverlay extends Phaser.Scene {
           return "share";
         case "KeyM":
           return "move";
+        case "ArrowDown":
+          // The villain-phase walkthrough keeps the table covered: nothing to look around until it closes.
+          return this.scene.isActive(SCENES.villainPhase) ? null : "inspect";
         case "Escape":
           return "exit";
         default:
@@ -627,7 +706,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       const edge = (button: number): boolean => now[button] === true && was[button] !== true;
       // While the villain walkthrough is up the pad is its own (A / B, X, Y, the bumpers and triggers for the defend's
       // picks, View, Start and the d-pad all do something there): nothing here fires until it closes.
-      if (blocked || this.scene.isActive(SCENES.villainPhase)) continue;
+      if (blocked || this.scene.isActive(SCENES.villainPhase) || this.#lookingAround()) continue;
+      if (edge(PAD.inspect)) {
+        this.#act("inspect");
+        continue;
+      }
       if (edge(PAD.play)) this.#act("play");
       if (edge(PAD.exit)) this.#act("exit");
       if (edge(PAD.move)) this.#act("move");
@@ -645,7 +728,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       if (now[PAD.left] === true || stick < -0.5) dir = -1;
       else if (now[PAD.right] === true || stick > 0.5) dir = 1;
     }
-    this.#scrubBy(dir, delta);
+    if (dir === 0 && !this.#lookingAround()) this.#scrubLocked = false;
+    this.#scrubBy(this.#scrubLocked ? 0 : dir, delta);
   }
 
   /** The d-pad / left stick: held, it moves the position a step at a time and then faster, never a page. */
@@ -745,6 +829,12 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.#drawnKey = this.#placementKey(board);
     if (!host || !state || !bar) return;
     const { info } = state;
+    if (replayInspecting()) {
+      this.#layout = null;
+      this.#track = null;
+      this.#drawLookingAround(bar, onTop);
+      return;
+    }
     const layout = transportLayout(bar, {
       titleBar,
       onTop,
@@ -819,6 +909,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     icon("nextMoment", "nextMoment", !atEnd);
     icon("end", "end", !atEnd);
     icon("move", onTop ? "down" : "up", true);
+    icon("inspect", "inspect", true);
 
     const word = (control: TransportControl, labelText: string, kind: WidgetKind = "onInk", wrap = false): void => {
       const rect = layout.controls.get(control);
@@ -845,6 +936,54 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     word("exportLog", t("replay.exportLog"), "onInk", true);
     word("export", narrow ? t("replay.exportShort") : t("replay.export"), "onInk", true);
     word("exit", t("replay.exit"));
+  }
+
+  /**
+   * Looking around the table (#735): the bar's controls are gone, and its place holds only "Back to replay" and a line
+   * saying the table is only being looked at. The table above takes the keyboard and the pad.
+   */
+  #drawLookingAround(bar: Rect, onTop: boolean): void {
+    const ground = this.add.graphics();
+    ground.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
+    ground
+      .fillStyle(surface.paperOnInk.hex, 0.35)
+      .fillRect(bar.x, onTop ? bar.y + bar.height - 1 : bar.y, bar.width, 1);
+    this.#swallow(bar);
+    const height = Math.min(40, bar.height - 12);
+    const width = Math.min(150, Math.max(110, bar.width * 0.3));
+    const rect: Rect = { x: bar.x + 8, y: bar.y + Math.floor((bar.height - height) / 2), width, height };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: t("replay.backToReplay"),
+        type: { ...typeRole.label, size: 13 },
+        rect,
+        wrap: true,
+        onClick: () => setReplayInspecting(false, this.game.loop.frame),
+      }),
+    );
+    // B, Escape and Start take it back too (the Board's own back and Start, `BoardScene#actOnIntent`); B is drawn.
+    this.#hints.custom(
+      (set, snapshot) => {
+        if (set === "keyboard") return [{ kind: "key", label: "Esc", name: t("replay.keyName", { key: "Esc" }) }];
+        const glyph = padButtonGlyph(PAD.exit, snapshot.state, snapshot.settings);
+        return glyph ? [glyph] : null;
+      },
+      GLYPH_HEIGHT,
+      ({ width: w }) => ({ x: rect.x + (rect.width - w) / 2, y: rect.y }),
+      { ground: "ink" },
+    );
+    const textX = rect.x + rect.width + 12;
+    const note = this.add
+      .text(
+        textX,
+        bar.y + bar.height / 2,
+        t("replay.lookingAround"),
+        textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paperOnInk.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(Math.max(40, bar.x + bar.width - 8 - textX), true);
+    if (note.height > bar.height - 4) note.setFontSize(11);
   }
 
   /** What an icon control is called: its tooltip on a desktop, where a pointer hovers. */
@@ -876,6 +1015,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         return t("replay.exportLog");
       case "exit":
         return t("replay.exit");
+      case "inspect":
+        return t("replay.inspect");
     }
   }
 

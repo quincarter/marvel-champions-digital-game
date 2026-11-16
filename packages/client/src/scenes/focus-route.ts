@@ -20,7 +20,7 @@ import { onInputDeviceChange } from "../platform/input-device.js";
 import { shownReportButton } from "../ui/report-slot.js";
 import { shownLanguageButton, shownMusicButton } from "../ui/music-slot.js";
 import { shownThemeButton } from "../ui/theme-slot.js";
-import { chromeStopsOf } from "../view/chrome-stops.js";
+import { chromeStopsOf, floatingThemeStopOf } from "../view/chrome-stops.js";
 import { McSelectionRing } from "../ui/widgets.js";
 import { stepKey } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -38,8 +38,12 @@ import type { ThemeButtonScene } from "./theme-button.js";
 /** The focus keys of the two top-bar chrome buttons, added to every route while they are on screen. */
 export const CHROME_MUSIC_STOP = "chrome:music";
 export const CHROME_REPORT_STOP = "chrome:report";
-/** The other two in the row, on a route with `topRow`. */
+/** The language button, on a route with `topRow`. */
 export const CHROME_LANGUAGE_STOP = "chrome:language";
+/**
+ * The dark mode button: on a route with `topRow`; elsewhere, where it floats alone, Up from the top reaches it off the
+ * route (#735).
+ */
 export const CHROME_THEME_STOP = "chrome:theme";
 
 const CHROME_STOPS: ReadonlySet<string> = new Set([
@@ -174,8 +178,8 @@ export interface FocusRouteOptions {
   readonly zoomEnabled?: () => boolean;
   /**
    * The language and theme buttons join the note and the bug as stops, for a screen with the whole top row beside its
-   * own controls (Title). Not for every screen: the theme button floats at the top centre of most of them, and a stop
-   * there pulled the d-pad off their own controls (`scenes/theme-button.ts`).
+   * own controls (Title). Elsewhere the theme button floats at the top centre, off the route (a stop there pulled Tab
+   * and the d-pad off the screen's own controls): Up from a stop with nothing above it reaches it (#735).
    */
   readonly topRow?: boolean;
 }
@@ -200,6 +204,10 @@ export class FocusRoute {
   #ringHidden = false;
   #chromeFrame = -1;
   #chromeStops: ReadonlyMap<string, FocusStop> = new Map();
+  /** The dark mode button floating alone at the top centre: off the route, reached by Up from the top (#735). */
+  #floatingTheme: FocusStop | null = null;
+  /** The stop Up left for the floating dark mode button: Down from the button goes back there. */
+  #themeFrom: string | null = null;
   #ownOrder: readonly string[] = [];
   #ownStops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -244,10 +252,17 @@ export class FocusRoute {
       // A chrome button can leave the route (the pad toast covers the bar for a moment), or move a frame after a
       // redraw (its scene follows the slot in its own update): the ring is drawn again for either.
       if (CHROME_STOPS.has(this.#focus)) {
-        // The theme button stays drawn while the row is hidden (it floats alone), so the note answers for all but the bug.
-        const hidden = (this.#focus === CHROME_REPORT_STOP ? shownReportButton() : shownMusicButton()) === null;
+        // The theme button stays drawn while the row is hidden (it floats alone): it answers for itself, the bug for
+        // itself, and the note for the rest of the row.
+        const shown =
+          this.#focus === CHROME_REPORT_STOP
+            ? shownReportButton()
+            : this.#focus === CHROME_THEME_STOP
+              ? shownThemeButton()
+              : shownMusicButton();
+        const hidden = shown === null;
         // No rect with the row shown: an overlay is on top for now, and focus waits here for it to close.
-        const rect = this.#chrome().get(this.#focus)?.rect as Rect | undefined;
+        const rect = this.#stopOf(this.#focus)?.rect as Rect | undefined;
         const ring = this.#ringRect;
         const moved =
           rect !== undefined &&
@@ -392,7 +407,7 @@ export class FocusRoute {
   /**
    * The music note and the bug in the top bar (and the language and theme buttons, with `topRow`), as focus stops, while
    * they are drawn and this is the screen on top: pressing up or right from the top row reaches them on every screen. A
-   * screen that already has a stop over one of them keeps its own.
+   * screen that already has a stop over one of them keeps its own. Also finds the floating theme button (#735).
    */
   #chrome(): ReadonlyMap<string, FocusStop> {
     // One answer per frame: a pad step asks for every stop's rect, and nothing here changes within a frame.
@@ -412,6 +427,17 @@ export class FocusRoute {
       ...(this.#topRow ? { language: shownLanguageButton(), theme: shownThemeButton() } : {}),
       own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
     });
+    const floating = floatingThemeStopOf({
+      isTop: top === this.#scene,
+      excluded: key === SCENES.reportIssue || key === SCENES.musicButton || key === SCENES.reportButton,
+      music: shownMusicButton(),
+      report: null,
+      theme: shownThemeButton(),
+      own: this.#ownOrder.flatMap((own) => this.#rectOfOwn(own) ?? []),
+    });
+    this.#floatingTheme = floating
+      ? { rect: floating, activate: () => (manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle() }
+      : null;
     // Left to right as drawn, so Tab walks the row in order.
     const out = new Map<string, FocusStop>();
     if (found.theme) {
@@ -464,8 +490,16 @@ export class FocusRoute {
     return stop !== undefined;
   }
 
+  /** On the route, or the floating dark mode button while it is drawn (off the route, reached by Up, #735). */
+  #reachable(key: string): boolean {
+    if (this.#order.includes(key)) return true;
+    return key === CHROME_THEME_STOP && this.#floatingTheme !== null;
+  }
+
   #stopOf(key: string): FocusStop | undefined {
-    return this.#ownStops.get(key) ?? this.#chrome().get(key);
+    const stop = this.#ownStops.get(key) ?? this.#chrome().get(key);
+    if (stop || key !== CHROME_THEME_STOP) return stop;
+    return this.#floatingTheme ?? undefined;
   }
 
   #rectOfOwn(key: string): Rect | null {
@@ -522,9 +556,37 @@ export class FocusRoute {
         // The top bar's buttons sit in a corner, off to the side of most screens' controls: from one of them an arrow
         // that finds nothing in its cone still reaches the screen below, so focus there is never stranded.
         const fromChrome = this.#focus !== null && CHROME_STOPS.has(this.#focus);
-        this.#moveTo(
-          spatialStep(this.#order, (key) => this.#rectOf(key), this.#focus, intent, this.#reachAcross() || fromChrome),
+        // The floating dark mode button is off the route: from it, every arrow steps over the route with it on.
+        this.#chrome();
+        const floating = this.#floatingTheme !== null && !this.#order.includes(CHROME_THEME_STOP);
+        const route = floating && this.#focus === CHROME_THEME_STOP ? [...this.#order, CHROME_THEME_STOP] : this.#order;
+        const next = spatialStep(
+          route,
+          (key) => this.#rectOf(key),
+          this.#focus,
+          intent,
+          this.#reachAcross() || fromChrome,
         );
+        // Up from a stop with nothing above it reaches the button in the top bar, and Down from it goes back to that
+        // stop (#735), so a walk down the screen picks up where it left off.
+        if (
+          intent === "up" &&
+          floating &&
+          this.#focus !== null &&
+          this.#focus !== CHROME_THEME_STOP &&
+          next === this.#focus
+        ) {
+          this.#themeFrom = this.#focus;
+          this.#moveTo(CHROME_THEME_STOP);
+          break;
+        }
+        const back = this.#themeFrom;
+        if (intent === "down" && this.#focus === CHROME_THEME_STOP && back !== null && this.#order.includes(back)) {
+          this.#themeFrom = null;
+          this.#moveTo(back);
+          break;
+        }
+        this.#moveTo(next);
         break;
       }
       case "activate":
@@ -597,7 +659,7 @@ export class FocusRoute {
     this.#ring?.destroy();
     this.#ring = null;
     this.#ringRect = null;
-    if (this.#focus !== null && !this.#order.includes(this.#focus)) {
+    if (this.#focus !== null && !this.#reachable(this.#focus)) {
       // A stop that left the route (the music note while the pad toast covers it) drops focus; the screen hears it, so
       // a glyph that depends on focus (Start's, A's) stops claiming a control that is no longer in focus.
       this.#focus = null;

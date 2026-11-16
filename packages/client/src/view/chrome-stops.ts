@@ -48,3 +48,15 @@ export function chromeStopsOf(input: ChromeStopInput): ChromeStops {
     theme: input.music ? free(input.theme) : null,
   };
 }
+
+/**
+ * The dark mode button where it floats alone at the top centre of a screen (#735): no stop on the route (it would join
+ * Tab's walk and every narrowed route, a sheet's or a tooltip's), but the place Up goes from a stop with nothing above
+ * it. Null while the row is shown (the row's own stops have it then), for a screen not on top, or where the screen's
+ * own stop already sits over it.
+ */
+export function floatingThemeStopOf(input: ChromeStopInput): Rect | null {
+  if (input.excluded || !input.isTop || input.music || !input.theme) return null;
+  const theme = input.theme;
+  return input.own.some((own) => overlaps(own, theme)) ? null : theme;
+}
