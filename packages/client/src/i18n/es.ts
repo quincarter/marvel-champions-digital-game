@@ -144,6 +144,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "scenario.search": "buscar escenarios, Villanos, packs…",
   "filters.label": "Filtros{active} {arrow}",
   "scenario.noMatches": "Sin resultados.",
+  "scenario.seeAll": "VER TODO",
   "scenario.clear": "Borrar",
   "scenario.selected": "ELEGIDO",
   "scenario.locked": "BLOQUEADO",

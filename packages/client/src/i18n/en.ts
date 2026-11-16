@@ -144,6 +144,7 @@ export const en = {
   "scenario.search": "search scenarios, villains, packs…",
   "filters.label": "Filters{active} {arrow}",
   "scenario.noMatches": "No matches.",
+  "scenario.seeAll": "SEE ALL",
   "scenario.clear": "Clear",
   "scenario.selected": "SELECTED",
   "scenario.locked": "LOCKED",

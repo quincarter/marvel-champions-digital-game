@@ -98,6 +98,14 @@ import { PadFilters } from "./pad-filters.js";
 import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.js";
 import { filtersLabel } from "../view/filters-layout.js";
 import { shelfPagingHints } from "./shelf-row-hints.js";
+import {
+  foldShelves,
+  loadShelfFolds,
+  openShelfItems,
+  saveShelfFolds,
+  shelfFocusKeys,
+  toggleShelfFold,
+} from "../view/shelf-folds.js";
 import { bindExtraInput } from "./extra-input.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
@@ -124,7 +132,7 @@ const roman = (n: number): string => ROMAN[n] ?? String(n);
 
 /** The stops that are the filters (search and the product chips), and the ones that are the list. */
 const FILTER_STOP = /^(scenario-search-toggle|scenario-search|filters-toggle|scenario-chip:.*)$/;
-const LIST_STOP = /^(drill-back|scenario-clear|scenario:.*)$/;
+const LIST_STOP = /^(drill-back|scenario-clear|scenario:.*|scenario-shelf:.*)$/;
 
 const scenarioCountCaption = (count: number): string => tPlural("scenario.countCaption", count);
 
@@ -164,6 +172,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** Whether the last redraw folded the chips, so Y knows whether it opens or folds them. */
   #chipsFolded = false;
   #drill: ShelfDrillState = ALL_PACKS;
+  /** The shelves folded to their header, remembered across visits (#753). */
+  #folded: ReadonlySet<string> = loadShelfFolds("scenario-select");
   /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
   #history: ReadonlyMap<string, ScenarioRecord> = new Map();
   /** The record line last drawn in the side panel, for the dev e2e hook only. */
@@ -337,6 +347,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
     goToScreen(this, SCENES.title);
   }
 
+  /** Whether a search or a chip is narrowing the list: folds are set aside so every match shows. */
+  #filtering(): boolean {
+    return this.#ranking !== null || !!this.#draft.scenarioFilter.product;
+  }
+
+  #toggleFold(shelfId: string): void {
+    this.#folded = toggleShelfFold(this.#folded, shelfId);
+    saveShelfFolds("scenario-select", this.#folded);
+    this.#rebuild();
+  }
+
   #drillOut(): void {
     this.#drill = drillOut();
     this.#rebuild();
@@ -492,6 +513,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
+    let shelfStopKeys: readonly string[] | undefined;
     if (this.#drill.packId !== null) {
       const shelf = shelves.find((s) => s.id === this.#drill.packId);
       const drillBack = (): void => this.#drillOut();
@@ -558,14 +580,22 @@ export class ScenarioSelectScene extends Phaser.Scene {
             rect,
             shelf.id === "your-decks" ? null : this.#packCoverFor(shelf.id),
             () => this.#roster?.refreshVisible(),
-            scenarioCountCaption(shelf.items.filter((e) => !isBuilderTile(e)).length),
+            `${scenarioCountCaption(shelf.items.filter((e) => !isBuilderTile(e)).length)}  ·  ${t("scenario.seeAll")}`,
+            "▸",
+            shelf.collapsed ? "folded" : "open",
           ),
         renderCard: (s, _shelfIndex, _itemIndex, rect) => this.#renderEntry(s, rect),
         onCardActivate: (s) => this.#activateEntry(s),
-        onHeaderActivate: (shelf) => {
-          this.#drill = drillIntoPack(shelf.id);
-          this.#rebuild();
+        // The header folds its shelf; the "See all" end opens the box as a full grid.
+        onHeaderActivate: (shelf, _index, zone) => {
+          if (zone === "all") {
+            this.#drill = drillIntoPack(shelf.id);
+            this.#rebuild();
+          } else {
+            this.#toggleFold(shelf.id);
+          }
         },
+        headerStops: { prefix: "scenario-shelf", toggle: (shelf) => this.#toggleFold(shelf.id) },
         inspect: (s) => this.#inspectEntry(s),
         onClear: () => {
           this.#draft = clearScenarioFilter(this.#draft);
@@ -576,7 +606,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
         stops: this.#stops,
         rowOfKey: this.#rowOfKey,
       });
-      cardIds = flattenShelves(shelves).map((s) => s.id as string);
+      cardIds = openShelfItems(shelves).map((s) => s.id as string);
+      const keys = shelfFocusKeys(shelves, "scenario-shelf", "scenario", (s) => s.id as string);
+      shelfStopKeys = keys.length > 0 ? keys : undefined;
     }
 
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
@@ -650,6 +682,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const order = scenarioSelectFocusOrder({
       scenarioIds: cardIds,
       scenarioChipIds: folded ? [] : chipDefs.map((c) => c.id),
+      ...(shelfStopKeys ? { shelfStopKeys } : {}),
       filtersToggle: this.#stops.has("filters-toggle"),
       stagesToggle: !layout.wide,
       searchToggle: !layout.wide,
@@ -1242,9 +1275,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
       "",
     );
     // A search puts the best match first, within each shelf and among the shelves.
-    return shelvesWithBuilderTile(
+    const ordered = shelvesWithBuilderTile(
       ranking ? rankShelvesByScore(shelves, (s) => ranking.get(s.id as string) ?? 0) : shelves,
     );
+    // The shelves the player folded show as their header alone (#753), unless a search or chip is narrowing the list.
+    return foldShelves(ordered, this.#folded, this.#filtering());
   }
 
   /** A roster entry's tap: a scenario becomes the draft's pick; the "Build your own" tile opens the builder. */

@@ -49,6 +49,12 @@ import { McButton, paintPanel } from "./widgets.js";
 import { setMask, clearMask } from "./rex.js";
 import type { VirtualListRow } from "./virtual-list.js";
 
+/** Which part of a header band a tap landed on: the right-hand "See all" end, or the rest (a fold toggle where a screen folds). */
+export type ShelfHeaderZone = "title" | "all";
+
+/** The width of the header band's right-hand "See all" end, measured from the roster's right edge. */
+export const SHELF_HEADER_ALL_WIDTH = 150;
+
 export interface ShelfRosterMetrics {
   readonly cardWidth: number;
   readonly cardHeight: number;
@@ -72,7 +78,7 @@ export interface ShelfRosterOptions<T> {
    * wrapped grid"). Absent means a header tap does nothing — the caller decides whether drilling in is offered at
    * all (it isn't, from inside the drilled-in grid itself, which draws no shelves).
    */
-  readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number) => void;
+  readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number, zone: ShelfHeaderZone) => void;
   readonly verticalScroll: ListScroll;
   /** Persistent per-shelf horizontal scroll, owned by the caller (`view/shelf-scroll-cache.ts`) so it survives this widget being destroyed and recreated. */
   readonly horizontalScrollFor: (shelfId: string) => ListScroll;
@@ -136,7 +142,7 @@ export class McShelfRoster<T> {
   readonly #renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
   readonly #renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
   readonly #onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
-  readonly #onHeaderActivate: ((shelf: Shelf<T>, shelfIndex: number) => void) | undefined;
+  readonly #onHeaderActivate: ((shelf: Shelf<T>, shelfIndex: number, zone: ShelfHeaderZone) => void) | undefined;
   readonly #verticalScroll: ListScroll;
   readonly #horizontalScrollFor: (shelfId: string) => ListScroll;
   readonly #paintBackground: boolean;
@@ -309,6 +315,12 @@ export class McShelfRoster<T> {
     if (top < offset) return this.#scrollByPx(top - offset);
     if (bottom > offset + this.#rect.height) return this.#scrollByPx(bottom - (offset + this.#rect.height));
     return false;
+  }
+
+  /** Scrolls the minimum distance so shelf `shelfIndex`'s header band is on screen (a header's focus stop). */
+  scrollHeaderIntoView(shelfIndex: number): void {
+    this.#momentum.stop();
+    if (this.#scrollShelfIntoView(shelfIndex)) this.#sync();
   }
 
   /** Scrolls both axes the minimum distance so the given card is fully on screen. */
@@ -669,7 +681,8 @@ export class McShelfRoster<T> {
       const withinShelf = at.within;
       // The header band drills in (W2b second pass) — checked before the card band, which starts only after it.
       if (withinShelf <= m.headerHeight) {
-        this.#onHeaderActivate?.(shelf, shelfIndex);
+        const inAll = pointer.x >= this.#rect.x + this.#rect.width - SHELF_HEADER_ALL_WIDTH;
+        this.#onHeaderActivate?.(shelf, shelfIndex, inAll ? "all" : "title");
         return;
       }
       if (shelf.collapsed || withinShelf > m.headerHeight + m.headerToCardsGap + m.cardHeight) return;

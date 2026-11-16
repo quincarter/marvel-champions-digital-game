@@ -25,7 +25,7 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McShelfRoster, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
+import { McShelfRoster, type ShelfHeaderZone, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
 import { drawAspectInfoSegment } from "../ui/aspect-tip.js";
 import type { ListScroll } from "../view/list-scroll.js";
 import { CHIP_GAP, compactChipWidthOf, splitInfoSegment, type ChipInfoToggle } from "../view/chip-layout.js";
@@ -515,18 +515,28 @@ export function renderShelfHeader(
   countLabel: string,
   /** The glyph after the count: "▸" (this shelf opens as a grid), or "▾"/"▸" on a shelf the header folds. */
   arrow = "▸",
+  /** On a shelf the header folds (#753): its state as a ▾ / ▸ ahead of the title, a shape and not a colour. */
+  fold?: "open" | "folded",
 ): VirtualListRow {
   const objects: Phaser.GameObjects.GameObject[] = [];
   const midY = rect.y + rect.height / 2;
-  let textX = rect.x;
+  let startX = rect.x;
+  if (fold) {
+    const foldMark = scene.add
+      .text(rect.x, midY, fold === "open" ? "▾" : "▸", textStyle(typeRole.sectionHeader, surface.ink.hex))
+      .setOrigin(0, 0.5);
+    objects.push(foldMark);
+    startX = rect.x + foldMark.width + 8;
+  }
+  let textX = startX;
   if (cover) {
     const coverSize = rect.height - 4;
     const key = ensurePictureLoaded(scene, cover, onCoverReady);
-    const coverRect: Rect = { x: rect.x, y: rect.y + 2, width: coverSize, height: coverSize };
+    const coverRect: Rect = { x: startX, y: rect.y + 2, width: coverSize, height: coverSize };
     const image = key ? drawArt(scene, key, coverRect, { fit: "cover" }) : null;
     if (image) {
       objects.push(image);
-      textX = rect.x + coverSize + 10;
+      textX = startX + coverSize + 10;
     }
   }
   const title = scene.add
@@ -556,7 +566,17 @@ export interface ShelfRosterPanelOptions<T> {
   readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
   readonly onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
   /** A tap on a shelf's own header band — drills into that pack (second-pass item 6). */
-  readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number) => void;
+  readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number, zone: ShelfHeaderZone) => void;
+  /**
+   * Every shelf's header is a focus stop `<prefix>:<shelfId>` that runs `toggle` on confirm (the screens that fold
+   * their shelves, #753); a folded shelf's cards get no stops, so focus skips them.
+   */
+  readonly headerStops?: {
+    readonly prefix: string;
+    readonly toggle: (shelf: Shelf<T>, shelfIndex: number) => void;
+    /** A shelf that has a header stop of its own already (Take your seats' Recommended shelf). */
+    readonly skip?: (shelf: Shelf<T>) => boolean;
+  };
   readonly focusPrefix: string;
   /** A shelf whose cards' focus stops carry another prefix (Take your seats' Recommended shelf repeats decks the pack shelves also hold, so its stops are `hero-rec:<id>`). Defaults to `focusPrefix`. */
   readonly focusPrefixOf?: (shelf: Shelf<T>) => string;
@@ -589,6 +609,7 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     renderHeader,
     onCardActivate,
     onHeaderActivate,
+    headerStops,
     focusPrefix,
     focusPrefixOf,
     idOf,
@@ -634,6 +655,13 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
   // A card face arriving from the baker redraws the cards (only — the headers keep their text).
   roster.onDestroy(cardFaces(scene).onBaked(() => roster.refreshCards()));
   shelves.forEach((shelf, shelfIndex) => {
+    if (headerStops && !headerStops.skip?.(shelf)) {
+      stops.set(`${headerStops.prefix}:${shelf.id}`, {
+        rect: () => roster.headerRectFor(shelfIndex),
+        activate: () => headerStops.toggle(shelf, shelfIndex),
+        ensureVisible: () => roster.scrollHeaderIntoView(shelfIndex),
+      });
+    }
     if (shelf.collapsed) return;
     const prefix = focusPrefixOf?.(shelf) ?? focusPrefix;
     shelf.items.forEach((item, itemIndex) => {

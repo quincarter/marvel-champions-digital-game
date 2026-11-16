@@ -522,6 +522,8 @@ export interface ScenarioSelectFocusInput {
   readonly customize?: boolean;
   /** The pad-mode Filters button beside the search field is drawn (`view/pad-filters.ts`). */
   readonly filtersToggle?: boolean;
+  /** The list's own focus keys in reading order (a header stop per shelf, then the cards of the shelves left open); replaces the keys `scenarioIds` would give (#753). */
+  readonly shelfStopKeys?: readonly string[];
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -534,7 +536,11 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     "scenario-search",
     ...(input.filtersToggle ? ["filters-toggle"] : []),
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
-    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    ...(input.shelfStopKeys
+      ? input.shelfStopKeys
+      : input.scenarioIds.length > 0
+        ? input.scenarioIds.map((id) => `scenario:${id}`)
+        : ["scenario-clear"]),
     // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
     ...(input.stagesToggle ? ["stages-toggle"] : []),
     // Civil War's "Customize this scenario" (docs/phase7-wave10-client.md 2.1), only while one is on the panel.
@@ -548,6 +554,8 @@ export interface SeatsFocusInput {
   readonly seatCount: number;
   /** Every seat option's deck id, in the pack-shelf roster's own reading order (`flattenShelves`) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
   readonly deckIds: readonly string[];
+  /** The list's own focus keys in reading order (a header stop per pack shelf, then the cards of the shelves left open); replaces the keys `deckIds` would give (#753). */
+  readonly shelfStopKeys?: readonly string[];
   readonly heroChipIds?: readonly string[];
   /** A narrow layout (`SeatsLayout.detailsToggle`/`searchToggle` non-null): routes through the two toggles too. */
   readonly narrow?: boolean;
@@ -586,7 +594,11 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.hasRecommended ? ["rec-toggle"] : []),
     ...(input.recommendedIds ?? []).map((id) => `hero-rec:${id}`),
-    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    ...(input.shelfStopKeys
+      ? input.shelfStopKeys
+      : input.deckIds.length > 0
+        ? input.deckIds.map((id) => `hero:${id}`)
+        : ["hero-clear"]),
     "deck-check",
     "play",
   ];
