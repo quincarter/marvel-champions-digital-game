@@ -1325,7 +1325,11 @@ function decksOf(games: readonly GameFacts[], names: StatsNames): DeckView[] {
     const wins = entries.filter((e) => e.game.result === "won").length;
     const aspects = newest.seat.aspects.filter((a) => ASPECTS.has(a));
     const aspectText = aspects.map(aspectLabel).join(" + ");
-    const recorded = entries.map((e) => e.seat.deckName).find((name): name is string => name !== null);
+    // The newest game's name for the deck (a renamed deck shows its current name), else the nearest older one.
+    const recorded = [...entries]
+      .sort((a, b) => b.game.at - a.game.at)
+      .map((e) => e.seat.deckName)
+      .find((name): name is string => name !== null);
     const name = id.startsWith("starter:")
       ? (names.starterDeckName?.(id.slice("starter:".length)) ?? `${hero} (precon)`)
       : (recorded ?? (aspectText ? `${hero} · ${aspectText}` : hero));

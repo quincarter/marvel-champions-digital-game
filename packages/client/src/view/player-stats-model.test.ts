@@ -723,6 +723,30 @@ describe("Decks tab: the deck of every seat at the table (#756)", () => {
     expect(cap.detail).toBe("Captain America · Leadership · 2 games · 50% won");
   });
 
+  test("a renamed deck shows the newest game's name, falling back to an older game when the newest has none", () => {
+    const game = (updatedAt: number, deckName: string | null): SaveMeta =>
+      meta({
+        config: {
+          ...twoSeats,
+          players: [
+            twoSeats.players[0]!,
+            { identityCardId: "cap", deck: [], aspects: ["leadership"], deckId: "d-cap" },
+          ],
+        },
+        updatedAt,
+        summary: summary({
+          seats: [
+            seat({ starterDeckId: "spidey-justice" }),
+            seat({ identityCardId: "cap", aspects: ["leadership"], deckId: "d-cap", deckName }),
+          ],
+        }),
+      });
+    const nameAfter = (games: SaveMeta[]) =>
+      playerStatsOf(games, names).decks.find((d) => d.id === "custom:d-cap")!.name;
+    expect(nameAfter([game(100, "Old Name"), game(300, "New Name"), game(200, "Mid Name")])).toBe("New Name");
+    expect(nameAfter([game(300, null), game(100, "Old Name")])).toBe("Old Name");
+  });
+
   test("a game from before card numbers still counts its decks, from the config seats", () => {
     const old = meta({ config: twoSeats, summary: null });
     const stats = playerStatsOf([old], names);
