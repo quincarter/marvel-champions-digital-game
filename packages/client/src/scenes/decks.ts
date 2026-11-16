@@ -166,6 +166,7 @@ import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } f
 import { cardSizeFactor } from "../settings.js";
 import {
   deckListChips,
+  deckListGroupOf,
   deckListShows,
   nextDeckList,
   openingDeckList,
@@ -941,7 +942,7 @@ export class DecksScene extends Phaser.Scene {
     }
     // The selection stays only while it is on the displayed list (the asked-for deck excepted, until the list changes).
     const groupOf = (o: DeckOption): DeckListId =>
-      o.deck.source.kind === "precon" ? "precon" : isCommunityDeckId(o.deck.id as string) ? "community" : "build";
+      deckListGroupOf(o.deck.source.kind === "precon", isCommunityDeckId(o.deck.id as string));
     const groupRank: Record<DeckListId, number> = { precon: 0, build: 1, community: 2 };
     this.#selectedDeckId = reconcileDeckSelection(
       this.#selectedDeckId,
@@ -1596,7 +1597,9 @@ export class DecksScene extends Phaser.Scene {
     const precons = allOptions.filter(
       (o) => preconKind(o) && (deckListShows("precon", this.#deckList, showPrecon) || (!showPrecon && isSelected(o))),
     );
-    const saved = deckListShows("build", this.#deckList, showPrecon) ? allOptions.filter((o) => !preconKind(o)) : [];
+    const saved = deckListShows("build", this.#deckList, showPrecon)
+      ? allOptions.filter((o) => deckListGroupOf(preconKind(o), isCommunityDeckId(o.deck.id as string)) === "build")
+      : [];
     const community = byScore(
       withSelectionPinned(
         this.#filter.source || !deckListShows("community", this.#deckList, showPrecon) ? [] : offers,

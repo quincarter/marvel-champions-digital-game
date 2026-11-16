@@ -93,3 +93,19 @@ export function reconcileDeckSelection(
   if (current && (shown(current) || current.id === pinnedId)) return current.id;
   return options.find(shown)?.id ?? null;
 }
+
+/** The list group a deck belongs to: one rule for the rows drawn and for the selection, so they cannot disagree. */
+export function deckListGroupOf(isPrecon: boolean, isCommunity: boolean): DeckListId {
+  return isPrecon ? "precon" : isCommunity ? "community" : "build";
+}
+
+/** The ids the chosen list displays, in display order (precons, own, community). */
+export function displayedDeckIds(
+  options: readonly { readonly id: string; readonly group: DeckListId }[],
+  list: DeckListId | null,
+  showPrecon: boolean,
+): readonly string[] {
+  return DECK_LIST_IDS.flatMap((group) =>
+    options.filter((o) => o.group === group && deckListShows(group, list, showPrecon)).map((o) => o.id),
+  );
+}

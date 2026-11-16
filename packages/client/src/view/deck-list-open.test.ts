@@ -2,7 +2,9 @@ import { describe, expect, it, test } from "vitest";
 import {
   DECK_LIST_LAST_KEY,
   deckListChips,
+  deckListGroupOf,
   deckListShows,
+  displayedDeckIds,
   nextDeckList,
   openingDeckList,
   readLastDeckList,
@@ -124,5 +126,23 @@ describe("reconcileDeckSelection", () => {
   it("keeps a deck asked for by id on every list", () => {
     expect(reconcileDeckSelection("s1", options, "precon", true, "s1")).toBe("s1");
     expect(reconcileDeckSelection("s1", options, "precon", true, "c1")).toBe("p1");
+  });
+});
+
+describe("deck list groups", () => {
+  it("classifies precon, community and own decks", () => {
+    expect(deckListGroupOf(true, false)).toBe("precon");
+    expect(deckListGroupOf(false, true)).toBe("community");
+    expect(deckListGroupOf(false, false)).toBe("build");
+  });
+  it("Your decks shows no community offers, even with zero saved decks", () => {
+    const options = [
+      { id: "p1", group: "precon" as const },
+      { id: "c1", group: "community" as const },
+    ];
+    expect(displayedDeckIds(options, "build", true)).toEqual([]);
+    expect(reconcileDeckSelection("c1", options, "build", true)).toBeNull();
+    expect(displayedDeckIds(options, null, true)).toEqual(["p1", "c1"]);
+    expect(displayedDeckIds(options, "precon", false)).toEqual([]);
   });
 });
