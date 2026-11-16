@@ -102,6 +102,11 @@ export interface Settings {
   readonly deckSignatureCards: DeckSignatureCards;
   /** The deck builder refuses an add that would break a copy limit (issue #531). Defaults off. */
   readonly deckCopyLimits: boolean;
+  /**
+   * House rule (#761): Table setup lets a scenario take more modular sets than it calls for. Defaults off, and a game
+   * played with it on is not the scenario as printed.
+   */
+  readonly allowExtraModularSets: boolean;
   /** The list the Decks screen opens on (#755). Defaults to all, the list of everything it has always opened to. */
   readonly deckListOnOpen: DeckListOnOpen;
   /**
@@ -482,6 +487,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     confirmBeforeEndTurn: true,
     deckSignatureCards: "free",
     deckCopyLimits: false,
+    allowExtraModularSets: false,
     deckListOnOpen: "all",
     showPreconDecks: true,
     notOfferedNotices: true,

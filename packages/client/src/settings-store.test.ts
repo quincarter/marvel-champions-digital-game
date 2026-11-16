@@ -262,6 +262,8 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"deckListOnOpen":"mine"}')).toEqual({});
     expect(parseSettingsOverrides('{"showPreconDecks":false}')).toEqual({ showPreconDecks: false });
     expect(parseSettingsOverrides('{"showPreconDecks":"no"}')).toEqual({});
+    expect(parseSettingsOverrides('{"allowExtraModularSets":true}')).toEqual({ allowExtraModularSets: true });
+    expect(parseSettingsOverrides('{"allowExtraModularSets":1}')).toEqual({});
   });
 
   test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {

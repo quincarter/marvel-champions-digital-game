@@ -26,6 +26,7 @@
  */
 
 import { cardsOfComposedSets, playableStarterDeckSetup } from "@mc/cards";
+import { withHouseModularCards } from "../view/house-modular-sets.js";
 import { notReadySeatIdentity } from "./not-ready-seats.js";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
@@ -237,7 +238,7 @@ const scenarioFor = (config: SessionConfig) => {
   const build = usesPackContent(config, view.packs)
     ? (id: string, options: PlayableScenarioOptions) => scenarioWithPacks(id, options, view.packs)
     : buildScenario;
-  const built = build(config.scenarioId, {
+  const scenarioBuilt = build(config.scenarioId, {
     difficulty: config.difficulty,
     players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs, BASE_DECK_IDS) : config.players,
     seed: config.seed,
@@ -259,6 +260,11 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.gameMode ? { gameMode: config.gameMode } : {}),
     ...(config.stack ? { stack: config.stack } : {}),
   });
+  // Modular sets beyond the scenario's count (the house rule, #761): the builder refuses such a pick, so their cards are
+  // shuffled in here, on top of the deck it built.
+  const built = config.houseModularSetIds?.length
+    ? withHouseModularCards(scenarioBuilt, cardsOfComposedSets(view.cards, config.houseModularSetIds))
+    : scenarioBuilt;
   // The packs' cards join the game's pool after the builder, which knows only the base game's cards. They ride with
   // the config (`SessionConfig.packs`), so this worker needs no packs of its own and a resume rebuilds the same pool.
   const setup = view.packs.length > 0 ? { ...built, cards: view.cards } : built;
@@ -291,8 +297,11 @@ const scenarioFor = (config: SessionConfig) => {
 /** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
 const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
   packs.length > 0 &&
-  packsOwningContent(config.scenarioId, [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])], packs)
-    .length > 0;
+  packsOwningContent(
+    config.scenarioId,
+    [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? []), ...(config.houseModularSetIds ?? [])],
+    packs,
+  ).length > 0;
 
 /** The engine deps a game runs with: the base game's, plus its packs' abilities (`SessionConfig.packs`). */
 const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);

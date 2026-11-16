@@ -32,7 +32,7 @@ export function withLoadedPacks(config: SessionConfig): SessionConfig {
   // pack's modular set carries that pack too), so a save, a rewind and a replay need nothing installed.
   const owners = packsOwningContent(
     config.scenarioId,
-    [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])],
+    [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? []), ...(config.houseModularSetIds ?? [])],
     loaded,
   );
   const wanted = new Set([...packsUsedBySeats(config.players, loaded), ...owners]);

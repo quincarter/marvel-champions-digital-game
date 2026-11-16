@@ -16,6 +16,7 @@ import {
   cardHoverRowInfoOf,
   playAreaOrderRowInfoOf,
   deckListOnOpenRowInfoOf,
+  extraModularSetsRowInfoOf,
   nextSettingsAfterDeckListOnOpen,
   showPreconDecksRowInfoOf,
   nextSettingsAfterPlayAreaOrder,
@@ -61,6 +62,7 @@ const BASE: Settings = {
   confirmBeforeEndTurn: true,
   deckSignatureCards: "free",
   deckCopyLimits: false,
+  allowExtraModularSets: false,
   deckListOnOpen: "all",
   showPreconDecks: true,
   notOfferedNotices: true,
@@ -122,6 +124,7 @@ describe("settingsRowInfoOf", () => {
       confirmBeforeEndTurn: false,
       deckSignatureCards: "free",
       deckCopyLimits: false,
+      allowExtraModularSets: false,
       deckListOnOpen: "all",
       showPreconDecks: true,
       notOfferedNotices: false,
@@ -682,6 +685,19 @@ describe("Play area order row (#768)", () => {
   test("choosing an order sets it; a value that is not an order changes nothing", () => {
     expect(nextSettingsAfterPlayAreaOrder(BASE, "cost").playAreaOrder).toBe("cost");
     expect(nextSettingsAfterPlayAreaOrder(BASE, "bogus" as never)).toBe(BASE);
+  });
+});
+
+describe("Allow extra modular sets (#761)", () => {
+  test("is a house rule, off by default, that flips", () => {
+    const info = extraModularSetsRowInfoOf(BASE);
+    expect(info.title).toBe("Allow extra modular sets");
+    expect(info.detail).toContain("House rule");
+    expect(info.on).toBe(false);
+    const on = nextSettingsAfterToggle(BASE, "extra-modular-sets", 1);
+    expect(on.allowExtraModularSets).toBe(true);
+    expect(extraModularSetsRowInfoOf(on).on).toBe(true);
+    expect(nextSettingsAfterToggle(on, "extra-modular-sets", 1).allowExtraModularSets).toBe(false);
   });
 });
 

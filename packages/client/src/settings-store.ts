@@ -58,6 +58,7 @@ const BOOLEAN_FIELDS = [
   "confirmBeforeEndTurn",
   "deckCopyLimits",
   "showPreconDecks",
+  "allowExtraModularSets",
   "notOfferedNotices",
   "deckCountsHero",
   "deckCountsEncounter",

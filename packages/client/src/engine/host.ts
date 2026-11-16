@@ -130,6 +130,12 @@ export interface SessionConfig {
    */
   readonly extraModularSetIds?: readonly string[];
   /**
+   * Modular sets shuffled into the encounter deck beyond the number the scenario calls for (the "Allow extra modular
+   * sets" house rule, issue #761). The scenario builders refuse such a pick, so `scenarioFor` adds their cards after the
+   * builder runs. Absent is none, and absent on every save written before this field existed.
+   */
+  readonly houseModularSetIds?: readonly string[];
+  /**
    * Optional setup rules the scenario's own rulebook offers, chosen at setup (Tower Defense's setup damage, MC21
    * p. 11, docs/phase7-wave4.md §4 Q4). Absent is none — the same `ScenarioSetupOptions` shape
    * `CoreScenarioOptions.setupOptions` (`@mc/cards`) takes, so this is sent straight through to `scenarioFor`

@@ -57,6 +57,8 @@ export function modularHeaderRightLabel(
   requiredCount: number,
   playerCount: number,
   pickedCount: number,
+  /** The "Allow extra modular sets" house rule (#761): null is off, a number is how many sets are chosen beyond the count. */
+  houseCount: number | null = null,
 ): string {
   const required = `${requiredCount} required`;
   const count = scenario.modularSetCount ?? 1;
@@ -75,7 +77,9 @@ export function modularHeaderRightLabel(
   }
   // A deselected pick leaves the table short until another is picked (#161): the label says so.
   if (pickedCount < count) return `${required} · ${pickedCount} of ${count} chosen`;
-  return `${required} · ${count} chosen`;
+  const chosen = `${required} · ${count} chosen`;
+  if (houseCount === null) return chosen;
+  return houseCount === 0 ? `${chosen} · house rule: add more` : `${chosen} + ${houseCount} extra (house rule)`;
 }
 
 /** The "Encounter deck N cards" summary value: Mojo's deck grows at setup when 1B shuffles a set-aside set in. */

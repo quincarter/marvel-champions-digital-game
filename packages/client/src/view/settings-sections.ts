@@ -114,6 +114,7 @@ export function settingsSectionsOf(input: {
         "deck-copy-limits",
         "deck-list-on-open",
         "show-precon-decks",
+        "extra-modular-sets",
       ],
     },
     {

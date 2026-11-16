@@ -84,6 +84,7 @@ export type SettingsRowId =
   | "confirm-end-turn"
   | "deck-copy-limits"
   | "show-precon-decks"
+  | "extra-modular-sets"
   | "same-name-conflict"
   | "deck-counts-hero"
   | "deck-counts-encounter"
@@ -220,6 +221,20 @@ export function deckCopyLimitsRowInfoOf(settings: Settings): SettingsRowInfo {
 }
 
 /**
+ * "Allow extra modular sets" under Gameplay (issue #761): a house rule for Table setup. Settings only, so not in
+ * `settingsRowInfoOf`. Off by default: a scenario takes the modular sets it calls for.
+ */
+export function extraModularSetsRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "extra-modular-sets",
+    title: "Allow extra modular sets",
+    detail:
+      "House rule, not the printed game. Table setup then lets a scenario take more modular sets than it calls for: the ones it names, plus any more you add, all shuffled into the encounter deck. Off keeps to the scenario's count.",
+    on: settings.allowExtraModularSets,
+  };
+}
+
+/**
  * "Show preconstructed decks" under Gameplay (issue #755): the Decks screen's list. Settings only, so not in
  * `settingsRowInfoOf`. It never takes a precon out of Take your seats.
  */
@@ -339,6 +354,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
     case "deck-copy-limits":
       return { ...settings, deckCopyLimits: !settings.deckCopyLimits };
+    case "extra-modular-sets":
+      return { ...settings, allowExtraModularSets: !settings.allowExtraModularSets };
     case "show-precon-decks":
       return { ...settings, showPreconDecks: !settings.showPreconDecks };
     case "not-offered-notices":

@@ -127,6 +127,11 @@ export interface SetupDraft {
    */
   readonly extraModularSetIds: readonly string[];
   /**
+   * Modular sets beyond the number the scenario calls for (the "Allow extra modular sets" house rule, #761,
+   * `view/house-modular-sets.ts`). Absent is none, so a draft that never used it keeps its shape.
+   */
+  readonly houseModularSetIds?: readonly string[];
+  /**
    * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4): place the printed
    * recommendation (1/2/3 damage per hero for standard/expert/heroic) on Avengers Tower during setup. Off by
    * default. Meaningless — and never sent (`toSessionConfig`) — for any scenario but Tower Defense, the same way
@@ -260,13 +265,15 @@ export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, s
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
   // A missing `scenarioPicked` already means picked: dropping the `false` keeps a picked draft's shape unchanged.
   // Skirmish goes with it: its versions belong to the scenario. Off is absent, so a draft that never had it keeps its shape.
-  const { scenarioPicked: _unpicked, skirmish: _skirmish, ...rest } = draft;
+  const { scenarioPicked: _unpicked, skirmish: _skirmish, houseModularSetIds: houseSets, ...rest } = draft;
   return {
     ...rest,
     scenarioId,
     difficulty,
     // A different scenario's modular picks never carry over (a Core modular is not a pick for Spiral's restricted pool).
     modularSetIds: scenarioId === draft.scenarioId ? draft.modularSetIds : null,
+    // The sets beyond the count are this scenario's too.
+    ...(scenarioId === draft.scenarioId && houseSets ? { houseModularSetIds: houseSets } : {}),
     difficultySets: null,
     genePoolThreatPerPlayer: 0,
     horsemanSides: null,
@@ -645,6 +652,9 @@ export function toSessionConfig(
       : {}),
     ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}),
     ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
+    ...(draft.houseModularSetIds && draft.houseModularSetIds.length > 0
+      ? { houseModularSetIds: draft.houseModularSetIds }
+      : {}),
     ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
     ...(draft.houseRules && draft.houseRules.length > 0 ? { houseRules: draft.houseRules } : {}),
     ...(tableRules ? { tableRules } : {}),

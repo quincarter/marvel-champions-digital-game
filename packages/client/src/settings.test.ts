@@ -40,6 +40,7 @@ describe("villain phase settings", () => {
     expect(settings.cardHoverScale).toBe("2.5x");
     expect(settings.cardSize).toBe("standard");
     expect(settings.playAreaOrder).toBe("played");
+    expect(settings.allowExtraModularSets).toBe(false);
     expect(settings.deckListOnOpen).toBe("all");
     expect(settings.showPreconDecks).toBe(true);
     expect(settings.inspectCard).toBe("large");
