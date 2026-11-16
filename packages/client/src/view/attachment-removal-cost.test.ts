@@ -74,6 +74,13 @@ describe("removalCostOf (#767)", () => {
     expect(removalCostText(cost)).toBe("remove: see card");
   });
 
+  test("Love Triangle: exhausting the attached ally has no words here, so the chip says see card, not just the mental", async () => {
+    const { state, id } = await withAttachment("55062");
+    const cost = removalCostOf(state, POOL_DEPS, id)!;
+    expect(cost.heroOnly).toBe(false);
+    expect(removalCostText(cost)).toBe("remove: see card");
+  });
+
   test("Armored Rhino Suit, with no such ability, has no removal cost", async () => {
     const { state, id } = await withAttachment("01098");
     expect(removalCostOf(state, POOL_DEPS, id)).toBeNull();

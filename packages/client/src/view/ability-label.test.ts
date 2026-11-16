@@ -287,6 +287,12 @@ describe("fullCostPhrase: a cost said in full, or not at all", () => {
     );
   });
 
+  test("a cost field with no words of its own (exhausting another card) leaves no full phrase", () => {
+    const cost = { resources: { mental: 1 }, exhaustCards: { slot: "x", query: {}, min: 1 } } as unknown as AbilityCost;
+    expect(costPhrase(cost)).toBe("spend 1 mental");
+    expect(fullCostPhrase(cost)).toBeNull();
+  });
+
   test("an either-or cost is said only when every branch can be", () => {
     const spend = { resources: { physical: 1 } } as AbilityCost;
     expect(fullCostPhrase({ either: [spend, { indirectDamage: 2 } as AbilityCost] })).toBe(

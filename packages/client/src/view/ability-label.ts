@@ -140,9 +140,36 @@ function discardCardsPhrase(pick: NonNullable<AbilityCost["discardCards"]>): str
   return word ? `discard ${word} you control` : null;
 }
 
+/**
+ * The `AbilityCost` fields `costWords` has words for. Any other field set on a cost (exhausting another card, Love
+ * Triangle 55062) is a part the phrase leaves out, so `fullCostPhrase` gives none rather than a cheaper-sounding cost.
+ * `changeFormFolded` is engine bookkeeping, never a printed part.
+ */
+const WORDED_COST_FIELDS: ReadonlySet<string> = new Set([
+  "changeForm",
+  "changeFormFolded",
+  "chooseTarget",
+  "damageSelf",
+  "damageThisCard",
+  "discardCards",
+  "discardFromHand",
+  "discardSelf",
+  "eachPlayer",
+  "either",
+  "exhaustIdentity",
+  "exhaustSelf",
+  "healCharacter",
+  "healIdentity",
+  "indirectDamage",
+  "payPrintedCostOf",
+  "resources",
+  "resourcesX",
+  "spendCounters",
+]);
+
 function costWords(cost: AbilityCost | undefined): { readonly phrase: string | null; readonly unsaid: boolean } {
   if (!cost) return { phrase: null, unsaid: false };
-  let unsaid = false;
+  let unsaid = Object.entries(cost).some(([field, part]) => part !== undefined && !WORDED_COST_FIELDS.has(field));
   const parts: string[] = [];
   // "Choose to either discard a card … or take 2 indirect damage →" (Haywire 29038): each branch said in full, joined
   // by "or"; a branch with no phrase of its own leaves the whole choice unsaid rather than half of it.
