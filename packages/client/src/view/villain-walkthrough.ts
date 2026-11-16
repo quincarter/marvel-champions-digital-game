@@ -294,6 +294,11 @@ export interface Walkthrough {
   readonly complete: boolean;
   readonly nextBeatId: number;
   /**
+   * Cards a surge dealt that have not been revealed since, folded in event order over every event this saw, in or
+   * out of the villain phase: the log's rule (`LogState.surgeDealt`), so a reveal line reads the same in both.
+   */
+  readonly surgeDealt?: readonly InstanceId[];
+  /**
    * The activation currently being walked, so it survives across the several
    * `appendWalkthrough` calls one activation can span (a defend choice pauses
    * mid-attack; the boosts and the resolution arrive in a later command).
@@ -349,6 +354,11 @@ export function appendWalkthrough(
   let dealt = [...working.encounter.dealt];
   let revealed = [...working.encounter.revealed];
   let surged = [...(working.encounter.surged ?? [])];
+  const surgeDealt = [...(working.surgeDealt ?? [])];
+  const unmark = (id: InstanceId): void => {
+    const i = surgeDealt.indexOf(id);
+    if (i >= 0) surgeDealt.splice(i, 1);
+  };
   /**
    * The round this phase belongs to, frozen when the phase starts.
    *
@@ -405,6 +415,14 @@ export function appendWalkthrough(
   };
 
   for (const [at, event] of events.entries()) {
+    // The log's event-order rule, before any phase check: a card a surge dealt outside the villain phase waits
+    // facedown until its reveal, and that reveal line says so here as it does in the log.
+    if (event.type === "encounterCardDealt") {
+      unmark(event.instanceId);
+      if (event.source === "surge") surgeDealt.push(event.instanceId);
+    }
+    const surgeRevealed = event.type === "encounterCardRevealed" && surgeDealt.includes(event.instanceId);
+    if (event.type === "encounterCardRevealed") unmark(event.instanceId);
     if (event.type === "roundStarted") {
       liveRound = event.round;
       continue;
@@ -636,7 +654,7 @@ export function appendWalkthrough(
     const described = logLine(event, state, viewer, deps, false, undefined, {
       events,
       at,
-      surgeDealt: dealt.filter((card) => card.fromSurge).map((card) => card.instanceId),
+      surgeDealt: surgeRevealed && event.type === "encounterCardRevealed" ? [event.instanceId] : surgeDealt,
     });
     if (described) {
       push(beatTextWithStatus(described), null, event);
@@ -663,6 +681,7 @@ export function appendWalkthrough(
     pausedAt: complete ? null : pausedAt,
     complete,
     nextBeatId,
+    surgeDealt: surgeDealt.slice(-40),
     activation,
   };
 }

@@ -121,12 +121,19 @@ export function appendEvents(
   let nextId = log.nextId;
   const lines = [...log.lines];
   let previous: GameEvent | undefined;
+  // Cards a surge dealt that have not been revealed since, kept in event order as the loop runs: a deal from any other
+  // source clears the mark (encounter instance ids survive the deck reset), and a reveal uses it up.
   const surgeDealt = [...(log.surgeDealt ?? [])];
-  for (const event of events) {
-    if (event.type === "encounterCardDealt" && event.source === "surge") surgeDealt.push(event.instanceId);
-  }
+  const unmark = (id: InstanceId): void => {
+    const i = surgeDealt.indexOf(id);
+    if (i >= 0) surgeDealt.splice(i, 1);
+  };
 
   for (const [at, event] of events.entries()) {
+    if (event.type === "encounterCardDealt") {
+      unmark(event.instanceId);
+      if (event.source === "surge") surgeDealt.push(event.instanceId);
+    }
     if (event.type === "roundStarted") {
       round = event.round;
       beat = 0;
@@ -144,6 +151,7 @@ export function appendEvents(
       previous.instanceId === event.instanceId;
     const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at, surgeDealt });
     previous = event;
+    if (event.type === "encounterCardRevealed") unmark(event.instanceId);
     if (!described) continue;
     beat += 1;
     lines.push({
@@ -269,15 +277,13 @@ function returnedName(id: InstanceId, event: GameEvent, state: GameState, burst:
 export interface Burst {
   readonly events: readonly GameEvent[];
   readonly at: number;
-  /** Cards a surge dealt, this command's and earlier ones (`LogState.surgeDealt`). */
+  /** Cards a surge dealt and not yet revealed, as of this event (`LogState.surgeDealt`, folded in event order). */
   readonly surgeDealt?: readonly InstanceId[];
 }
 
-/** Whether a surge dealt this card: the engine's own deal source, in this burst or an earlier one. */
+/** Whether a surge dealt this card and it has not been revealed since: `appendEvents` keeps the list in event order. */
 const dealtBySurge = (burst: Burst | undefined, instanceId: InstanceId): boolean =>
-  !!burst &&
-  ((burst.surgeDealt?.includes(instanceId) ?? false) ||
-    burst.events.some((e) => e.type === "encounterCardDealt" && e.instanceId === instanceId && e.source === "surge"));
+  burst?.surgeDealt?.includes(instanceId) ?? false;
 
 function describe(
   event: GameEvent,
