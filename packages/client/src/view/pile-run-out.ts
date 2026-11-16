@@ -14,7 +14,7 @@ import {
   handSize,
   getInstance,
   getsBoostCard,
-  iconsInPlay,
+  stepThreeDealCount,
   isMinion,
   type EngineDeps,
   type GameState,
@@ -52,8 +52,8 @@ export function encounterDemandOf(state: GameState, deps: EngineDeps): Encounter
     return isMinion(state, id) && engagedWith !== null && liveIds.has(engagedWith) && getsBoostCard(state, deps, id);
   }).length;
   const boost = villainBoost + minionBoost;
-  const dealt =
-    players === 0 ? 0 : players * (1 + (state.scenarioRules.heroicLevel ?? 0)) + iconsInPlay(state, deps, "hazard");
+  // Step 3 is the engine's own count (`stepThreeDealCount`, which `executeDealEncounterCards` deals).
+  const dealt = stepThreeDealCount(state, deps);
   return { total: boost + dealt, boost, dealt };
 }
 
@@ -62,10 +62,15 @@ export function encounterRunsOut(state: GameState, deps: EngineDeps): boolean {
   return encounterDemandOf(state, deps).total > activeEncounterDeck(state).deck.length;
 }
 
-/** A player's deck runs out when the end-of-round draw up to hand size wants more than it holds. */
+/**
+ * A player's deck runs out when the end-of-round draw wants more than it holds. The draw is "until they have a number
+ * of cards in hand equal to their hand size" (RRG 1.8 "Player Phase", end of turn), so it is hand size less the cards
+ * held now: a floor, since the player may still play or discard cards this turn and draw more.
+ */
 export function playerDeckRunsOut(state: GameState, deps: EngineDeps, playerId: PlayerId): boolean {
   const player = state.players.find((candidate) => candidate.playerId === playerId);
-  return player !== undefined && !player.eliminated && handSize(state, playerId, deps) > player.deck.length;
+  if (player === undefined || player.eliminated) return false;
+  return handSize(state, playerId, deps) - player.hand.length > player.deck.length;
 }
 
 /** The pile's reason for the table's text. */

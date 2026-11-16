@@ -9,7 +9,7 @@ import type { EngineDeps } from "../abilities.js";
 import type { InstanceId } from "../ids.js";
 import { hasPerPlayerMainSchemes } from "../per-player-main-schemes.js";
 import { iconsInPlay } from "../rules.js";
-import { mainSchemeValue, sharedMainSchemes } from "../query.js";
+import { mainSchemeValue, playerOrder, sharedMainSchemes } from "../query.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { GameState, MainSchemeState } from "../state.js";
 
@@ -90,3 +90,15 @@ export const stepOneThreatOf = (
   schemeInstanceId: InstanceId,
 ): StepOneThreat | null =>
   stepOneThreats(state, deps).find((entry) => entry.schemeInstanceId === schemeInstanceId) ?? null;
+
+/**
+ * How many encounter cards step 3 of the villain phase deals (RRG 1.8 "Villain Phase", p. 47): one to each player, X
+ * more each at heroic level X (RRG 1.8 "Modes of Play", p. 29), then one per hazard icon in play in total, "not one
+ * card per player" (RRG 1.8 "Hazard Icon", p. 21). `executeDealEncounterCards` deals exactly this many, and the table's
+ * encounter deck forecast (issue #769) reads it.
+ */
+export function stepThreeDealCount(state: GameState, deps: EngineDeps): number {
+  const players = playerOrder(state).length;
+  if (players === 0) return 0;
+  return players * (1 + (state.scenarioRules.heroicLevel ?? 0)) + iconsInPlay(state, deps, "hazard");
+}

@@ -17,7 +17,7 @@ import {
 } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { activatesBeforeVillain, cannotActivate, iconsInPlay } from "../rules.js";
+import { activatesBeforeVillain, cannotActivate } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
@@ -41,7 +41,7 @@ import {
 } from "../resolve/index.js";
 import { cardsInPlay } from "../select.js";
 import type { CardCausedActivation, TriggerEvent } from "../trigger-events.js";
-import { stepOneThreats } from "./step-one-threat.js";
+import { stepOneThreats, stepThreeDealCount } from "./step-one-threat.js";
 import type { ReportTarget } from "../stack.js";
 import type { GameState, GameStep } from "../state.js";
 
@@ -373,13 +373,12 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
     }
   }
   const order = playerOrder(ctx.state);
-  const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
   // One card each, X more rounds at heroic level X, then one per hazard icon, all in player order: card `index` goes to
   // `order[index % players]`. RRG 1.8 "Modes of Play" (p. 29); cards are dealt one at a time, "In Heroic Mode level 1,
   // cards would be dealt in the order ABCABC" (ruling, August 22, 2025). Engine reading, no source orders heroic against
   // hazards (issue #611): the per-player rounds come first, as the hazard cards come last in the printed step.
   const perPlayer = order.length * (1 + (ctx.state.scenarioRules.heroicLevel ?? 0));
-  const total = order.length === 0 ? 0 : perPlayer + hazards;
+  const total = stepThreeDealCount(ctx.state, ctx.deps);
   for (let index = step.dealt ?? 0; index < total; index++) {
     const player = order[index % order.length];
     // "When a player would be dealt an encounter card" (docs/phase7-wave9.md §3.45): each card has its own interrupt

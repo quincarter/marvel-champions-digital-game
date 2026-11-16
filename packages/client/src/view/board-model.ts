@@ -8,7 +8,6 @@
  * client-side sum is exactly how a UI starts disagreeing with the rules.
  */
 
-import { encounterRunsOut, playerDeckRunsOut } from "./pile-run-out.js";
 import type { AbilityId, Aspect, AnyCard, ResourceIconType, StatStar } from "@mc/content";
 import {
   handSize,
@@ -73,6 +72,7 @@ import { gameEncounterSetName } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
 import { breakPointOf } from "./break-point.js";
 import { statStarsOf } from "./stat-stars.js";
+import { encounterRunsOut, playerDeckRunsOut } from "./pile-run-out.js";
 import { removalCostOf, removalCostText, type RemovalCost } from "./attachment-removal-cost.js";
 import { perRoundLabel, perRoundThreatOf, type PerRoundThreat } from "./per-round-threat.js";
 import { giftReaderNote, giftSeatNote } from "./gift-count.js";

@@ -29,10 +29,6 @@ function withEncounterDeck(state: GameState, length: number): GameState {
   };
 }
 
-function withPlayerDeck(state: GameState, length: number): GameState {
-  return { ...state, players: state.players.map((p) => ({ ...p, deck: p.deck.slice(0, length) })) };
-}
-
 describe("encounter deck run-out (#769)", () => {
   test("flips on when the next villain phase needs more cards than the deck holds", async () => {
     const { state, store } = await rhinoGame();
@@ -48,14 +44,29 @@ describe("encounter deck run-out (#769)", () => {
 });
 
 describe("player deck run-out (#769)", () => {
-  test("flips on when the deck holds fewer cards than the hand size", async () => {
+  /** The game with `hand` cards in hand (the rest moved to the deck's bottom) and the deck cut to `deck` cards. */
+  function withHandAndDeck(state: GameState, hand: number, deck: number): GameState {
+    return {
+      ...state,
+      players: state.players.map((p) => {
+        const cards = [...p.hand, ...p.deck];
+        return { ...p, hand: cards.slice(0, hand), deck: cards.slice(hand, hand + deck) };
+      }),
+    };
+  }
+
+  test("counts only the cards the end-of-round draw still needs: hand size less the hand", async () => {
     const { state, store } = await rhinoGame();
     const me = store.state.perspectiveId!;
     const size = handSize(state, me, POOL_DEPS);
     expect(playerDeckRunsOut(state, POOL_DEPS, me)).toBe(false);
-    expect(playerDeckRunsOut(withPlayerDeck(state, size), POOL_DEPS, me)).toBe(false);
-    const low = withPlayerDeck(state, size - 1);
+    // An empty hand draws the whole hand size.
+    expect(playerDeckRunsOut(withHandAndDeck(state, 0, size), POOL_DEPS, me)).toBe(false);
+    const low = withHandAndDeck(state, 0, size - 1);
     expect(playerDeckRunsOut(low, POOL_DEPS, me)).toBe(true);
     expect(boardModel(low, me, POOL_DEPS).myDeckRunsOut).toBe(true);
+    // Holding 2 cards, the draw needs size − 2: a deck of exactly that is enough, one fewer is not.
+    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 2), POOL_DEPS, me)).toBe(false);
+    expect(playerDeckRunsOut(withHandAndDeck(state, 2, size - 3), POOL_DEPS, me)).toBe(true);
   });
 });

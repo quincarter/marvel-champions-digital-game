@@ -13,6 +13,9 @@ export interface PerRoundThreat {
   readonly sources: readonly string[];
 }
 
+/** "+2", "−1": an effect can lower a stage's acceleration below 0. */
+const signed = (value: number): string => (value < 0 ? `−${-value}` : `+${value}`);
+
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
 /** The step-one threat of the main scheme `id`, or null for a card that gains none (a side scheme). */
@@ -20,7 +23,7 @@ export function perRoundThreatOf(state: GameState, deps: EngineDeps, id: Instanc
   const threat = stepOneThreatOf(state, deps, id);
   if (!threat) return null;
   const sources: string[] = [];
-  if (threat.printed !== 0) sources.push(`Stage +${threat.printed}`);
+  if (threat.printed !== 0) sources.push(`Stage ${signed(threat.printed)}`);
   const tokens = threat.tokens + threat.otherTokens;
   if (tokens > 0) sources.push(`${plural(tokens, "acceleration token", "acceleration tokens")} +${tokens}`);
   if (threat.icons > 0) {
