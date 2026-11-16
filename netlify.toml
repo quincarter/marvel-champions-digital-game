@@ -26,7 +26,7 @@ force = true
 # packages/client/cloudflare/game/_redirects (a test keeps the two on one report).
 [[redirects]]
 from = "/shadowland-info.html"
-to = "/releases/v0.46.0/index.html"
+to = "/releases/v0.47.0/index.html"
 status = 302
 force = true
 
