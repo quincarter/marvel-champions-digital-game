@@ -124,6 +124,38 @@ export function marvelcdbLinksOf(
   return links;
 }
 
+/** The tracker export, run: what the scene did, so Back pressed mid-way is testable (it delivers nothing then). */
+export type TrackerExportOutcome =
+  | { readonly kind: "left" }
+  | { readonly kind: "none" }
+  | { readonly kind: "done"; readonly games: number };
+
+/**
+ * Lists the saved decks for their decklist links (a bonus: a deck store that will not list leaves the cells empty),
+ * then, only if the visit is still current, builds the CSV and hands it to `deliver`.
+ */
+export async function runTrackerExport(args: {
+  readonly saves: readonly SaveMeta[];
+  readonly names: TrackerExportNames;
+  readonly listDecks: () => Promise<Parameters<typeof marvelcdbLinksOf>[0]>;
+  readonly isCurrent: () => boolean;
+  readonly deliver: (csv: string, fileName: string) => Promise<unknown>;
+  readonly now: () => number;
+}): Promise<TrackerExportOutcome> {
+  let decks: Awaited<ReturnType<typeof args.listDecks>> = [];
+  try {
+    decks = await args.listDecks();
+  } catch (cause) {
+    console.warn("MC Tracker export: no decklist links", cause);
+  }
+  // Back pressed while the deck store was pending: no save dialog or share sheet over another screen.
+  if (!args.isCurrent()) return { kind: "left" };
+  const rows = trackerRowsOf({ saves: args.saves, names: args.names, deckLinks: marvelcdbLinksOf(decks) });
+  if (rows.length === 0) return { kind: "none" };
+  await args.deliver(trackerCsvOfRows(rows), trackerFileNameOf(args.now()));
+  return { kind: "done", games: rows.length };
+}
+
 /** `2026-11-02`: the local calendar day of `ms`. */
 function dayOf(ms: number): string {
   const date = new Date(ms);

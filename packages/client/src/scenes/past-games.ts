@@ -62,7 +62,7 @@ import {
   type PastGameFilter,
   type PastGameRow,
 } from "../view/past-games-model.js";
-import { trackerCsvOfRows, trackerFileNameOf, trackerRowsOf, marvelcdbLinksOf } from "../view/tracker-export.js";
+import { runTrackerExport } from "../view/tracker-export.js";
 import { pastGamesFocusOrder } from "../view/screen-focus.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { onLanguageChange } from "../language-change.js";
@@ -484,20 +484,19 @@ export class PastGamesScene extends Phaser.Scene {
     const saves = this.#rows.map((row) => row.save);
     this.#setBusy({ id: "", action: "tracker" }, visit);
     try {
-      // Decklist links are a bonus: a deck store that will not list leaves the cells empty rather than failing.
-      let decks: Awaited<ReturnType<ReturnType<typeof deckStorage>["list"]>> = [];
-      try {
-        decks = await deckStorage().list();
-      } catch (cause) {
-        console.warn("MC Tracker export: no decklist links", cause);
-      }
-      const rows = trackerRowsOf({ saves, names: TRACKER_EXPORT_NAMES, deckLinks: marvelcdbLinksOf(decks) });
-      const games = rows.length;
-      if (games === 0) return this.#sayIn(visit, t("pastGames.exportTrackerNone"));
-      await deliverTrackerCsv(trackerCsvOfRows(rows), trackerFileNameOf(Date.now()));
+      const outcome = await runTrackerExport({
+        saves,
+        names: TRACKER_EXPORT_NAMES,
+        listDecks: () => deckStorage().list(),
+        isCurrent: () => this.#current(visit),
+        deliver: deliverTrackerCsv,
+        now: Date.now,
+      });
+      if (outcome.kind === "left") return;
+      if (outcome.kind === "none") return this.#sayIn(visit, t("pastGames.exportTrackerNone"));
       this.#sayIn(
         visit,
-        games === 1 ? t("pastGames.exportTrackerOne") : t("pastGames.exportTrackerDone", { n: games }),
+        outcome.games === 1 ? t("pastGames.exportTrackerOne") : t("pastGames.exportTrackerDone", { n: outcome.games }),
       );
     } catch (cause) {
       if (!isAbort(cause)) {

@@ -12,7 +12,9 @@ import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { CORE_CARDS } from "@mc/content";
-import { GAME_LABEL_NAMES, PAST_GAME_NAMES, pastGameNamesForPacks } from "./game-label-names.js";
+import { GAME_LABEL_NAMES, PAST_GAME_NAMES, TRACKER_EXPORT_NAMES, pastGameNamesForPacks } from "./game-label-names.js";
+import { POOL_STARTER_DECKS } from "../content/pool.js";
+import { TRACKER_COLUMNS, trackerRowsOf } from "./tracker-export.js";
 import { continueLabelOf } from "./continue-label.js";
 import { gameRowsOf } from "./games-list-model.js";
 import { pastGameRowsOf } from "./past-games-model.js";
@@ -96,6 +98,31 @@ describe("Past games covers for a game with pack content", () => {
     (save.config as unknown as { players: unknown[] }).players = [{ starterDeckId: deck.id }];
     const [row] = pastGameRowsOf([save], PAST_GAME_NAMES);
     expect(row?.seats).toMatchObject([{ identityCardId: deck.identityCardId, name: "Sample Sentinel" }]);
+  });
+
+  it("exports a pack precon's aspects in the MC Tracker CSV for a save without a summary, pack uninstalled", async () => {
+    const store = new IdbPackStore({ factory: new IDBFactory() });
+    for (const id of PACKS) await store.install(built.get(id)!.manifest, built.get(id)!.files);
+    await loadActivePacks(store);
+    const embedded = [...loadedPacks()];
+    const deck = embedded.flatMap((pack) => pack.decks)[0]!;
+    setLoadedPacks([]);
+    const save = gameWith(embedded);
+    (save.config as unknown as { players: unknown[] }).players = [{ starterDeckId: deck.id }];
+    const [row] = trackerRowsOf({ saves: [save], names: TRACKER_EXPORT_NAMES, appVersion: "0.47.0" });
+    const cells = Object.fromEntries(row!.cells.map((cell, i) => [TRACKER_COLUMNS[i], cell]));
+    expect(cells["Aspects 1"]).toBe("Justice");
+  });
+
+  it("exports a base precon's aspects in the MC Tracker CSV for a save without a summary", () => {
+    const deck = POOL_STARTER_DECKS[0]!;
+    const save = gameWith(undefined);
+    (save.config as unknown as { players: unknown[] }).players = [{ starterDeckId: deck.id }];
+    const [row] = trackerRowsOf({ saves: [save], names: TRACKER_EXPORT_NAMES, appVersion: "0.47.0" });
+    const cells = Object.fromEntries(row!.cells.map((cell, i) => [TRACKER_COLUMNS[i], cell]));
+    expect(deck.aspects.length).toBeGreaterThan(0);
+    expect(cells["Aspects 1"]).not.toBe("");
+    expect(cells["Aspects 1"]!.split("; ")).toHaveLength(deck.aspects.length);
   });
 
   it("names a game's cards without throwing when its pack shadows a base card", async () => {

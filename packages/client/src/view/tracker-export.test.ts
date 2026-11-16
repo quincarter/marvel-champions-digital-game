@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { CampaignId } from "@mc/content";
 import type { SaveMeta } from "../engine/game-storage.js";
 import {
@@ -6,6 +6,7 @@ import {
   TRACKER_COLUMNS,
   csvCell,
   marvelcdbLinksOf,
+  runTrackerExport,
   trackerCsv,
   trackerFileNameOf,
   trackerRowsOf,
@@ -408,5 +409,48 @@ describe("MC Tracker CSV text", () => {
   test("no games is a header alone, and the file is named by day", () => {
     expect(trackerCsv(input([])).slice(1)).toBe(`${TRACKER_COLUMNS.join(",")}\r\n`);
     expect(trackerFileNameOf(DAY(16))).toBe("marvel-champions-mc-tracker-2026-11-16.csv");
+  });
+});
+
+describe("runTrackerExport (#757)", () => {
+  const run = (
+    isCurrent: () => boolean,
+    deliver: (csv: string, name: string) => Promise<unknown>,
+    list: () => Promise<[]>,
+  ) =>
+    runTrackerExport({
+      saves: [save("a", DAY(3))],
+      names: NAMES,
+      listDecks: list,
+      isCurrent,
+      deliver,
+      now: () => DAY(4),
+    });
+
+  test("leaving while the deck list is pending delivers nothing", async () => {
+    let open = true;
+    const deliver = vi.fn(async () => undefined);
+    const outcome = await run(
+      () => open,
+      deliver,
+      async () => {
+        open = false;
+        return [];
+      },
+    );
+    expect(outcome).toEqual({ kind: "left" });
+    expect(deliver).not.toHaveBeenCalled();
+  });
+
+  test("still on the screen: the CSV is delivered, and a failing deck list still exports", async () => {
+    const deliver = vi.fn(async () => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const outcome = await run(
+      () => true,
+      deliver,
+      async () => Promise.reject(new Error("no store")),
+    );
+    expect(outcome).toEqual({ kind: "done", games: 1 });
+    expect(deliver).toHaveBeenCalledTimes(1);
   });
 });

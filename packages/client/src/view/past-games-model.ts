@@ -45,6 +45,8 @@ export type PastGameFilter = (typeof PAST_GAME_FILTERS)[number];
 export interface PastGameNames extends GamesListNames {
   /** A precon's hero, as its identity card id. */
   readonly starterIdentity: (starterDeckId: string) => string | undefined;
+  /** A precon's aspects (raw ids), for a seat the save has no summary of; absent: none known. */
+  readonly starterAspects?: (starterDeckId: string) => readonly string[] | undefined;
   /** The card that pictures a scenario (its villain, `scenarioCardIdOf`), or undefined when the pool has no such scenario. */
   readonly scenarioCardId: (scenarioId: string) => string | undefined;
   /** A card's display name, for the cards a seat played most; absent: the card id stands in. */
@@ -222,7 +224,10 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
         fell: wiped ? true : null,
         damage: null,
         thwart: null,
-        aspects: "aspects" in player ? (player.aspects ?? []).map((aspect) => aspectWordOf(aspect)) : [],
+        aspects: ("identityCardId" in player
+          ? (player.aspects ?? [])
+          : (names.starterAspects?.(player.starterDeckId) ?? [])
+        ).map((aspect) => aspectWordOf(aspect)),
         deckName: deckNameOf(null, player, names),
         topCards: [],
       },

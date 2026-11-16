@@ -41,6 +41,8 @@ export const PAST_GAME_NAMES: PastGameNames = {
     return card ? cardDisplayName(card) : undefined;
   },
   starterIdentity: (id) => currentStarterDecks().find((deck) => (deck.id as string) === id)?.identityCardId as string,
+  starterAspects: (id) =>
+    currentStarterDecks().find((deck) => (deck.id as string) === id)?.aspects as string[] | undefined,
   scenarioCardId: (id) => {
     const scenario = currentScenarios().find((candidate) => (candidate.id as string) === id);
     return scenario ? scenarioCardIdOf(scenario) : undefined;
@@ -88,6 +90,7 @@ export function pastGameNamesForPacks(packs: readonly PackRuntime[]): PastGameNa
     },
     starterDeckName: (id) => decks().find((deck) => (deck.id as string) === id)?.name,
     starterIdentity: (id) => decks().find((deck) => (deck.id as string) === id)?.identityCardId as string | undefined,
+    starterAspects: (id) => decks().find((deck) => (deck.id as string) === id)?.aspects as string[] | undefined,
     scenarioName: (id) =>
       scenarios().find((candidate) => (candidate.id as string) === id)?.name ?? GAME_LABEL_NAMES.scenarioName(id),
     identityName: (id) => {
