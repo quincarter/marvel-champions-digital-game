@@ -36,7 +36,9 @@ const NAMES: TrackerExportNames = {
   cardName: (id) => (id === "rhino-1" ? "Rhino" : undefined),
   heroFace: (id) => FACES[id],
   setName: (id) => SETS[id],
-  recommendedSets: (id) => (id === "rhino" ? ["bomb_scare"] : id === "pack-villain" ? ["crime"] : undefined),
+  defaultSetAsideSets: (id) => (id === "hood" ? ["crime", "sci-fi"] : undefined),
+  recommendedSets: (id) =>
+    id === "hood" ? [] : id === "rhino" ? ["bomb_scare"] : id === "pack-villain" ? ["crime"] : undefined,
 };
 
 // Noon UTC, so the local day is the same in every time zone from -11 to +11.
@@ -302,6 +304,36 @@ describe("MC Tracker export rows (#757)", () => {
     });
     expect(withSets({ modularSetIds: ["bomb_scare"], houseModularSetIds: ["sci-fi"] })).toMatchObject({
       "Modular sets": "Bomb Scare; Sci-Fi (house rule)",
+      "Modular sets source": "Chosen",
+    });
+  });
+
+  test("set-aside modular sets (The Hood, Mojo) are listed, an explicit pick is Chosen, the Hood default is Recommended", () => {
+    const game = (scenarioId: string, extra: Record<string, unknown>) =>
+      cellsOf([
+        save("s", DAY(9), {
+          config: {
+            scenarioId,
+            difficulty: "standard",
+            players: [{ identityCardId: "spider-man", deck: [] }],
+            seed: 1,
+            ...extra,
+          } as never,
+        }),
+      ]);
+    expect(game("hood", { setAsideModularSetIds: ["bomb_scare", "crime"] })).toMatchObject({
+      "Modular sets": "Bomb Scare (set aside); Crime (set aside)",
+      "Modular sets source": "Chosen",
+    });
+    expect(game("hood", {})).toMatchObject({
+      "Modular sets": "Crime (set aside); Sci-Fi (set aside)",
+      "Modular sets source": "Recommended",
+    });
+    // Mojo: its own sets plus the picks set aside; a save with no picks has nothing to list.
+    expect(
+      game("pack-villain", { modularSetIds: ["crime"], setAsideModularSetIds: ["sci-fi", "bomb_scare"] }),
+    ).toMatchObject({
+      "Modular sets": "Crime; Sci-Fi (set aside); Bomb Scare (set aside)",
       "Modular sets source": "Chosen",
     });
   });

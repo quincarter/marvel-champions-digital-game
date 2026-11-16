@@ -19,6 +19,7 @@ import type { PastGameNames } from "./past-games-model.js";
 import type { TrackerExportNames } from "./tracker-export.js";
 import { scenarioCardIdOf } from "./random-villain.js";
 import { cardDisplayName } from "./hero-names.js";
+import { hasSetAsideModularChoice, setAsideCandidateIdsFor } from "./hood-modular-sets.js";
 
 export const GAME_LABEL_NAMES: GamesListNames = {
   scenarioName: (id) => currentScenarios().find((candidate) => (candidate.id as string) === id)?.name,
@@ -117,5 +118,12 @@ export const TRACKER_EXPORT_NAMES: TrackerExportNames = {
     const own = packScenarioRecords((packs ?? []) as readonly PackRuntime[]);
     const scenario = [...POOL_SCENARIOS, ...own].find((candidate) => (candidate.id as string) === scenarioId);
     return scenario?.recommendedModularSetIds as readonly string[] | undefined;
+  },
+  // The Hood's builder sets aside the first N candidates (`wave4/setup.ts`); a per-player count (Mojo) is random.
+  defaultSetAsideSets: (scenarioId) => {
+    const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === scenarioId);
+    return scenario && hasSetAsideModularChoice(scenario)
+      ? setAsideCandidateIdsFor(scenario).slice(0, scenario.setAsideModularSetCount as number)
+      : undefined;
   },
 };

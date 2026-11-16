@@ -10,9 +10,11 @@
  *  - Result: `Win` or `Loss`. Only won and lost games are exported; a game given up or left unfinished is not a result.
  *  - Scenario, Villain: the scenario's name and the villain(s) the game faced (a villain's stages share one name).
  *  - Modular sets: the set(s) played, printed names, semicolon-separated: the scenario's or chosen sets, then extra
- *    sets added on top (Longshot), then sets the "extra modular sets" house rule added, each marked "(house rule)".
+ *    sets added on top (Longshot), then the sets a scenario sets aside (The Hood, Mojo), each marked "(set aside)": the config's own picks, or The
+ *    Hood's default seven when it names none (Mojo's random picks are not in the save, so none are listed then); then
+ *    sets the "extra modular sets" house rule added, each marked "(house rule)".
  *  - Modular sets source: `Recommended` (the scenario's own pick, nothing added) or `Chosen` (the table picked others
- *    or added any extra or house-rule set).
+ *    or added any extra, set-aside or house-rule set by choice).
  *  - House rules: names of the house rules switched on, semicolon-separated; empty for none.
  *  - Difficulty: `Standard` or `Expert` (`Extreme` for a per-villain version game).
  *  - Heroic level: the heroic level, 0 for none.
@@ -55,6 +57,15 @@ export interface TrackerExportNames extends PastGameNames {
   readonly setName: (setId: string, packs: Packs) => string | undefined;
   /** The scenario's recommended modular set ids, undefined when the scenario is not known. */
   readonly recommendedSets: (scenarioId: string, packs: Packs) => readonly string[] | undefined;
+  /**
+   * The modular sets a scenario sets aside when the game's config names none (The Hood's own default seven); undefined
+   * when the scenario sets none aside or picks them at random (Mojo), which the saved config alone cannot say.
+   */
+  readonly defaultSetAsideSets?: (
+    scenarioId: string,
+    playerCount: number,
+    packs: Packs,
+  ) => readonly string[] | undefined;
 }
 
 export interface TrackerExportInput {
@@ -162,14 +173,19 @@ function rowOf(row: PastGameRow, input: TrackerExportInput): TrackerExportRow {
   const extras = save.config.extraModularSetIds ?? [];
   const houseSets = save.config.houseModularSetIds ?? [];
   const setLabel = (id: string): string => names.setName(id, packs) ?? id;
+  const explicitSetAside = save.config.setAsideModularSetIds;
+  const setAside =
+    explicitSetAside ?? names.defaultSetAsideSets?.(save.config.scenarioId, save.config.players.length, packs) ?? [];
   const setLabels = [
     ...(chosen ?? recommended).map(setLabel),
     ...extras.map(setLabel),
+    ...setAside.map((id) => `${setLabel(id)} (set aside)`),
     ...houseSets.map((id) => `${setLabel(id)} (house rule)`),
   ];
   const sameAsRecommended =
     extras.length === 0 &&
     houseSets.length === 0 &&
+    explicitSetAside === undefined &&
     (chosen === undefined || (chosen.length === recommended.length && chosen.every((id) => recommended.includes(id))));
   const houseRules = (save.config.houseRules ?? []).map(
     (id) => (packs ?? []).find((pack) => pack.id === id)?.name ?? id,
