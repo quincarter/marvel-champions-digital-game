@@ -210,8 +210,15 @@ export function gallerySectionsOf(input: GalleryInput): {
     groups.set("rule", list);
   }
   // The encounter sets as groups: nemesis first, then the scenario's own, then the modular sets, each in first-named order.
+  // A hero identity names its nemesis set (required), so that is the authority; the set's own link and the id are fallbacks.
+  const identityNemesisSets = new Set(
+    input.cards.flatMap((card) =>
+      card.type === "hero_identity" ? [(card as { nemesisEncounterSetId?: string }).nemesisEncounterSetId ?? ""] : [],
+    ),
+  );
   const kindOf = (setId: string): "nemesis" | "scenario" | "modular" => {
     const info = setInfo.get(setId);
+    if (identityNemesisSets.has(setId)) return "nemesis";
     if (info?.nemesisOfIdentityId !== undefined || (!info && /(^|[-_.])nemesis$/.test(setId))) return "nemesis";
     return scenarioSets.has(setId) ? "scenario" : "modular";
   };

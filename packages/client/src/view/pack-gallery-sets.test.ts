@@ -49,6 +49,50 @@ describe("the pack gallery grouped by set", () => {
     ]);
   });
 
+  it("takes the nemesis set from the identity's nemesisEncounterSetId, whatever the set's id and data say", () => {
+    const set = "carnage-nep-sinister-six";
+    const cards = [
+      card("01a", "hero_identity", { nemesisEncounterSetId: set }),
+      card("15", "minion", { encounterSetIds: [set] }),
+      card("19", "minion", { encounterSetIds: [TWISTED] }),
+    ];
+    // The set has no "nemesis" in its id and no nemesisOfIdentityId.
+    const { sections } = gallerySectionsOf({
+      cards,
+      decks: [],
+      baseCards: new Map(),
+      encounterSets: [
+        { id: set, name: "Sinister Six" },
+        { id: TWISTED, name: "Twisted Killers" },
+      ],
+    });
+    expect(summary(sections)).toEqual([
+      ["hero", "Hero", 1],
+      ["nemesis", "Nemesis set: Sinister Six", 1],
+      ["modular", "Twisted Killers", 1],
+    ]);
+  });
+
+  it("titles a nemesis group by its name: a bare 'Nemesis' says so, a name with nemesis in it stays", () => {
+    const titleOf = (name: string) => {
+      const set = "carnage-nep-six";
+      const cards = [
+        card("01a", "hero_identity", { nemesisEncounterSetId: set }),
+        card("15", "minion", { encounterSetIds: [set] }),
+      ];
+      const { sections } = gallerySectionsOf({
+        cards,
+        decks: [],
+        baseCards: new Map(),
+        encounterSets: [{ id: set, name }],
+      });
+      return sections.find((s) => s.id === "nemesis")!.title;
+    };
+    expect(titleOf("Nemesis")).toBe("Nemesis set");
+    expect(titleOf("Carnage Nemesis")).toBe("Carnage Nemesis");
+    expect(titleOf("Kraven's Hunters")).toBe("Nemesis set: Kraven's Hunters");
+  });
+
   it("groups from the ids alone when a preview has no set data", () => {
     const { sections } = gallerySectionsOf({ cards: carnage, decks: [], baseCards: new Map() });
     expect(summary(sections)).toEqual([
