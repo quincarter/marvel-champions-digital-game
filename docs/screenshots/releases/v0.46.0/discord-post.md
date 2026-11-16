@@ -7,6 +7,7 @@ The Mod Store moves onto the main menu, with everything bluefireF5ran asked for 
 🗂️ **New tabs**: Extras holds house rules, modular sets and more, and Credits lists every creator and what they made.
 ⚙️ **Your way**: Settings ▸ More ▸ Custom content puts mods at the top, the bottom or mixed in beside the official heroes and scenarios, and chooses whether they start unlocked or unlock as you play.
 🛠️ **Creators**: pack.json takes tags, wave and unlock, and the store's packs now publish from the mods registry.
+🎮 **Controller**: press down on a replay to pause it and look around the table, and reach dark mode from any screen.
 🤖 **Android**: the store no longer locks up after Deadpool's line, and packs install again.
 🖼️ **Pack pictures**: a community hero's cards show on the opening hand right away, and Gwenpool's table card shows her alter-ego side when it should.
 
@@ -26,6 +27,7 @@ La Mod Store pasa al menú principal, con todo lo que pidió bluefireF5ran despu
 🗂️ **Pestañas nuevas**: Extras reúne reglas de la casa, sets modulares y más, y Credits muestra a cada creador y lo que hizo.
 ⚙️ **A tu manera**: Settings ▸ More ▸ Custom content pone los mods arriba, abajo o mezclados junto a los héroes y escenarios oficiales, y elige si empiezan desbloqueados o se desbloquean al jugar.
 🛠️ **Creadores**: pack.json admite tags, wave y unlock, y los packs de la tienda ahora se publican desde el registro de mods.
+🎮 **Mando**: pulsa abajo en una repetición para pausarla y recorrer la mesa, y llega al modo oscuro desde cualquier pantalla.
 🤖 **Android**: la tienda ya no se bloquea tras la frase de Deadpool, y los packs vuelven a instalarse.
 🖼️ **Imágenes de los packs**: las cartas de un héroe de la comunidad se ven enseguida en la mano inicial, y el álter ego de Gwenpool muestra su propia imagen en la mesa.
 

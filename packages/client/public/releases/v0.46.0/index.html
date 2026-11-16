@@ -778,6 +778,58 @@
         </div>
       </div>
 
+      <!-- ============ CONTROLLER ============ -->
+      <div class="band">
+        <h2>Look around a replay</h2>
+        <div class="lab">Issue #735 · PR #742</div>
+      </div>
+      <p class="lead">
+        <b>A controller can stop a replay and walk the table.</b> Press down on the d-pad (or ↓ on the keyboard), or the
+        new magnifier on the replay bar, and the replay pauses and the bar steps aside. Nothing you press is played.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/replay-inspect.webp"
+            alt="A paused replay against Rhino with the bar hidden, a hand card focused, and Back to replay with the line Looking around the table. Nothing you press here is played."
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Looking around a paused replay, on a test game</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/replay-bar-inspect.webp"
+            alt="The replay bar with the new magnifier after the step and end buttons"
+            width="1280"
+            height="53"
+            loading="lazy"
+          />
+          <figcaption>The magnifier sits after the replay's step buttons</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>On the table</h3>
+          <ul class="ck">
+            <li>The d-pad moves focus, Y inspects a card (hold to zoom) and A reads it.</li>
+            <li>LB and RB jump between zones, View opens the recap or the log, and R3 lists the decks.</li>
+            <li><b>Back to replay</b> (B, Esc or Start) brings the bar back where it was.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Dark mode on a pad</h3>
+          <ul class="ck">
+            <li>On the table, the dark mode button is a stop just before the music, and A flips it.</li>
+            <li>
+              On every other screen, press up from the top of the screen to reach it, A to flip it, and down to go back
+              where you were.
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
@@ -885,22 +937,22 @@
       <section class="stats" aria-label="Code shipped since v0.45.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">7</div>
+          <div class="n">8</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">333</div>
+          <div class="n">354</div>
           <p>across the client, the mod SDK, the content schema and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">3,628</div>
+          <div class="n c-green">4,565</div>
           <p>the store's search, tabs and settings, and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">13,268</div>
+          <div class="n c-red">13,307</div>
           <p>most of them the community packs leaving the game's repository.</p>
         </div>
       </section>

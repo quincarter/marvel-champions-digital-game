@@ -89,5 +89,19 @@
   "Code shipped since v0.45.0": "Código publicado desde v0.45.0",
   "#738 · found in play": "#738 · encontrado jugando",
   "Pack pictures show up": "Las imágenes de los packs aparecen",
-  "A community hero's cards could stay blank on the opening hand until you kept it, and Gwenpool's table card showed her hero side while she was in alter-ego form. Both now <b>redraw as soon as the pack's pictures load</b>.": "Las cartas de un héroe de la comunidad podían quedarse en blanco en la mano inicial hasta que la aceptabas, y la carta de Gwenpool en la mesa mostraba su lado de héroe estando en forma de álter ego. Ahora ambas <b>se redibujan en cuanto cargan las imágenes del pack</b>."
+  "A community hero's cards could stay blank on the opening hand until you kept it, and Gwenpool's table card showed her hero side while she was in alter-ego form. Both now <b>redraw as soon as the pack's pictures load</b>.": "Las cartas de un héroe de la comunidad podían quedarse en blanco en la mano inicial hasta que la aceptabas, y la carta de Gwenpool en la mesa mostraba su lado de héroe estando en forma de álter ego. Ahora ambas <b>se redibujan en cuanto cargan las imágenes del pack</b>.",
+  "Look around a replay": "Explora una repetición",
+  "Issue #735 · PR #742": "Issue #735 · PR #742",
+  "<b>A controller can stop a replay and walk the table.</b> Press down on the d-pad (or ↓ on the keyboard), or the new magnifier on the replay bar, and the replay pauses and the bar steps aside. Nothing you press is played.": "<b>Un mando puede detener una repetición y recorrer la mesa.</b> Pulsa abajo en la cruceta (o ↓ en el teclado), o la nueva lupa de la barra de repetición, y la repetición se pausa y la barra se aparta. Nada de lo que pulses se juega.",
+  "Looking around a paused replay, on a test game": "Explorando una repetición pausada, en una partida de prueba",
+  "The magnifier sits after the replay's step buttons": "La lupa está después de los botones de avance de la repetición",
+  "On the table": "En la mesa",
+  "The d-pad moves focus, Y inspects a card (hold to zoom) and A reads it.": "La cruceta mueve el foco, Y inspecciona una carta (mantén para ampliar) y A la lee.",
+  "LB and RB jump between zones, View opens the recap or the log, and R3 lists the decks.": "LB y RB saltan entre zonas, View abre el resumen o el registro, y R3 muestra los mazos.",
+  "<b>Back to replay</b> (B, Esc or Start) brings the bar back where it was.": "<b>Back to replay</b> (B, Esc o Start) devuelve la barra donde estaba.",
+  "Dark mode on a pad": "El modo oscuro con mando",
+  "On the table, the dark mode button is a stop just before the music, and A flips it.": "En la mesa, el botón del modo oscuro es una parada justo antes de la música, y A lo cambia.",
+  "On every other screen, press up from the top of the screen to reach it, A to flip it, and down to go back where you were.": "En las demás pantallas, pulsa arriba desde lo alto de la pantalla para llegar a él, A para cambiarlo y abajo para volver donde estabas.",
+  "A paused replay against Rhino with the bar hidden, a hand card focused, and Back to replay with the line Looking around the table. Nothing you press here is played.": "Una repetición pausada contra Rhino con la barra oculta, una carta de la mano enfocada, y Back to replay con la línea Looking around the table. Nothing you press here is played.",
+  "The replay bar with the new magnifier after the step and end buttons": "La barra de repetición con la nueva lupa después de los botones de avance y de final"
 }
