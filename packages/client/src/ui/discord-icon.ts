@@ -1,7 +1,8 @@
 /**
  * The Discord button (issue #759): the community server's logo shape (a rounded game-pad face with two eyes), in the
- * Title's top row beside the storefront, theme, language, music and Report buttons on tablets and desktops. A phone's
- * top row has no room, so there the Title keeps its small "Discord" footer link instead. Drawn as the same ink chrome
+ * Title's top row beside the theme, language, music and Report buttons (and the storefront, on a tablet or desktop). A
+ * phone shows it only where the eyebrow leaves room, and keeps its small "Discord" footer link otherwise. Drawn as the
+ * same ink chrome
  * button as its neighbours (`ui/store-icon.ts`); a press is `onTap`'s, so a swipe's lift never fires it. A hover (or a
  * keyboard/controller focus, `setFocused`) shows the label "Discord", since a glyph alone is not a name.
  */
@@ -84,12 +85,12 @@ export function drawDiscordIconButton(scene: Phaser.Scene, rect: Rect, onPress: 
       ink,
       ground,
     );
-    // Hung under the button, kept on screen (the button sits near the top row's right of centre, never at an edge).
+    // Hung above the button (under it, the label lands on the title), kept on screen.
     const screenWidth = scene.scale.gameSize.width;
     label
       .setPosition(
         Math.max(8, Math.min(rect.x + rect.width / 2 - label.width / 2, screenWidth - label.width - 8)),
-        rect.y + rect.height + 6,
+        Math.max(2, rect.y - label.height - 4),
       )
       .setVisible(hovered || focused);
   };

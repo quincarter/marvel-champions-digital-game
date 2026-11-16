@@ -539,7 +539,7 @@ export class TitleScene extends Phaser.Scene {
     const textColor = onDark ? surface.paper.hex : surface.ink.hex;
     const menuKind = onDark ? "onInk" : "secondary";
 
-    this.add
+    const eyebrowText = this.add
       .text(layout.eyebrow.x, layout.eyebrow.y, t("title.eyebrow"), textStyle(typeRole.label, accent.heroRed.hex, 1))
       .setLetterSpacing(1);
     this.add
@@ -869,13 +869,22 @@ export class TitleScene extends Phaser.Scene {
     onTap(releaseZone, releaseNotes, "title:release-notes");
     this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
 
+    // The Discord icon's slot in the top row (#759), left of the storefront on a tablet or desktop and, on a phone, left of
+    // the theme button where the eyebrow leaves room (its width varies by language); none where it would touch the eyebrow.
+    const topLanguage = languageSlotBeside(musicRect);
+    const topTheme = themeSlotBeside(topLanguage);
+    const discordIconRect = layout.split ? themeSlotBeside(themeSlotBeside(topTheme)) : themeSlotBeside(topTheme);
+    const discordIconFits = discordIconRect.x >= eyebrowText.x + eyebrowText.width + 8;
     // The community Discord, left of Release notes in the same link style; dropped where the footer is too tight to
-    // keep it clear of the card-pool line (Report an issue carries it there too).
+    // keep it clear of the footer's left edge (Report an issue carries it there too).
     const openDiscord = (): void => openExternal(DISCORD_INVITE_URL);
     const discordText = this.add.text(0, layout.footer.y, "Discord ↗", textStyle(typeRole.label, textColor));
     discordText.setX(linkText.x - 24 - discordText.width);
-    // Tablets and desktops have the Discord icon in the top row instead (#759): never both at once.
-    const discord = !layout.split && discordText.x - 6 >= coverageText.x + coverageText.width + 8;
+    // The Discord icon in the top row stands in for this link (#759): never both at once.
+    // Where the top row has no room for the icon, the link is the only Discord control, so it wins the footer over the
+    // card-pool line (which is hidden when they would touch).
+    const discord = !discordIconFits && discordText.x - 6 >= layout.footer.x;
+    if (discord && discordText.x - 6 < coverageText.x + coverageText.width + 8) coverageText.setVisible(false);
     if (discord) {
       this.add
         .graphics()
@@ -959,9 +968,8 @@ export class TitleScene extends Phaser.Scene {
         when: () => this.#route?.focused === "chrome:mod-store",
       });
     }
-    // The Discord icon, left of the storefront (#759); the footer link stands in for it on a phone.
-    const discordIconRect = storeIconRect ? themeSlotBeside(storeIconRect) : null;
-    if (discordIconRect) {
+    // The Discord icon (#759); the footer link stands in for it where the top row has no room.
+    if (discordIconFits) {
       const discordIcon = drawDiscordIconButton(this, discordIconRect, openDiscord);
       this.#stops.set("chrome:discord", { rect: discordIconRect, activate: openDiscord });
       this.#hints?.hang(discordIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
@@ -995,7 +1003,7 @@ export class TitleScene extends Phaser.Scene {
         }),
         "rank-badge",
         ...(storeIconRect ? ["chrome:mod-store"] : []),
-        ...(discordIconRect ? ["chrome:discord"] : []),
+        ...(discordIconFits ? ["chrome:discord"] : []),
       ],
       this.#stops,
     );
