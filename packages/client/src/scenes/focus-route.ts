@@ -206,6 +206,8 @@ export class FocusRoute {
   #chromeStops: ReadonlyMap<string, FocusStop> = new Map();
   /** The dark mode button floating alone at the top centre: off the route, reached by Up from the top (#735). */
   #floatingTheme: FocusStop | null = null;
+  /** The stop Up left for the floating dark mode button: Down from the button goes back there. */
+  #themeFrom: string | null = null;
   #ownOrder: readonly string[] = [];
   #ownStops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -565,10 +567,26 @@ export class FocusRoute {
           intent,
           this.#reachAcross() || fromChrome,
         );
-        // Up from a stop with nothing above it reaches the button in the top bar (#735).
-        this.#moveTo(
-          intent === "up" && floating && this.#focus !== null && next === this.#focus ? CHROME_THEME_STOP : next,
-        );
+        // Up from a stop with nothing above it reaches the button in the top bar, and Down from it goes back to that
+        // stop (#735), so a walk down the screen picks up where it left off.
+        if (
+          intent === "up" &&
+          floating &&
+          this.#focus !== null &&
+          this.#focus !== CHROME_THEME_STOP &&
+          next === this.#focus
+        ) {
+          this.#themeFrom = this.#focus;
+          this.#moveTo(CHROME_THEME_STOP);
+          break;
+        }
+        const back = this.#themeFrom;
+        if (intent === "down" && this.#focus === CHROME_THEME_STOP && back !== null && this.#order.includes(back)) {
+          this.#themeFrom = null;
+          this.#moveTo(back);
+          break;
+        }
+        this.#moveTo(next);
         break;
       }
       case "activate":
