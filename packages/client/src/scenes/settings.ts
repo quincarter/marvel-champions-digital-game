@@ -71,6 +71,9 @@ import {
   discordRowInfoOf,
   deckCopyLimitsRowInfoOf,
   fadedCampaignArtRowInfoOf,
+  customUnlockedRowInfoOf,
+  customPlacementRowInfoOf,
+  nextSettingsAfterCustomPlacement,
   deckSignatureRowInfoOf,
   nextSettingsAfterDeckSignature,
   earnedItemRowInfoOf,
@@ -902,6 +905,7 @@ export class SettingsOverlay extends Phaser.Scene {
       ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
       deckCopyLimitsRowInfoOf(settings),
       fadedCampaignArtRowInfoOf(settings),
+      customUnlockedRowInfoOf(settings),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -965,6 +969,10 @@ export class SettingsOverlay extends Phaser.Scene {
     const promoShown = heroPromoShown(earnedPromoSets(), settings.promoArtOn);
     segmented("hero-art", heroArtRowInfoOf(settings, promoShown), CARD_HOVER_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterHeroArt(appSession().settings, v);
+      this.#draw();
+    });
+    segmented("custom-placement", customPlacementRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterCustomPlacement(appSession().settings, v);
       this.#draw();
     });
     // The achievement popup: picking a time or a position shows a sample there (`scenes/achievement-toast.ts`).

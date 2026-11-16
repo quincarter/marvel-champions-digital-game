@@ -112,6 +112,7 @@ import { setMusicSlot } from "../ui/music-slot.js";
 import { musicSlotBeside } from "../view/music-player.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import { themeSlotBeside } from "../view/theme-button.js";
+import { drawStoreIconButton } from "../ui/store-icon.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
@@ -761,6 +762,22 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("how-to-play", { rect: layout.howToPlay, activate: openHowToPlay });
 
+    // The Mod Store, a main-menu item of its own (issue #734, bluefireF5ran's playtest notes).
+    const openModStore = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.modStore);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: t("title.modStore"),
+        type: typeRole.menuButton,
+        rect: layout.modStore,
+        onClick: openModStore,
+      }),
+    );
+    this.#stops.set("mod-store", { rect: layout.modStore, activate: openModStore });
+
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {
       this.scene.launch(SCENES.settings);
@@ -922,6 +939,17 @@ export class TitleScene extends Phaser.Scene {
       [CHROME_MUSIC_STOP, musicRect],
       [CHROME_REPORT_STOP, reportRect],
     ];
+    // The storefront button, left of the theme button: tablets and desktops only, where the top row has the room; a
+    // phone has the menu item. Its stop is keyed as one of the top row's (`chrome:`), which it is on screen.
+    const storeIconRect = layout.split ? themeSlotBeside(themeSlotBeside(languageRect)) : null;
+    if (storeIconRect) {
+      drawStoreIconButton(this, storeIconRect, openModStore);
+      this.#stops.set("chrome:mod-store", { rect: storeIconRect, activate: openModStore });
+      this.#hints?.hang(storeIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
+        ground: onDark ? "ink" : "paper",
+        when: () => this.#route?.focused === "chrome:mod-store",
+      });
+    }
     for (const [key, rect] of topRow) {
       this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
         ground: onDark ? "ink" : "paper",
@@ -946,6 +974,7 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
+        ...(storeIconRect ? ["chrome:mod-store"] : []),
       ],
       this.#stops,
     );

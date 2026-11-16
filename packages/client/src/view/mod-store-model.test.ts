@@ -11,6 +11,7 @@ import {
   featuredFacesOf,
   MOD_STORE_TABS,
   modStoreGridOf,
+  modStoreTabLabel,
   modStoreTabRowsOf,
   packPageOf,
   progressOf,
@@ -92,28 +93,48 @@ describe("tilesOf", () => {
     expect(tilesOf(index([withdrawn]), context([installedPack("w")]), "all")[0]!.state).toBe("withdrawn");
   });
 
-  it("lists house rules on their own tab, labelled as house rules (docs/custom-content-packs.md §11.11)", () => {
-    const withRule = [...packs, entry("lost-traits-bf", { kind: "house-rule", name: "Lost Traits" })];
-    expect(MOD_STORE_TABS.map((tab) => tab.label)).toEqual(["All", "Heroes", "Scenarios", "House rules", "Installed"]);
-    const rules = tilesOf(index(withRule), context(), "house-rules");
-    expect(rules.map((t) => t.id)).toEqual(["lost-traits-bf"]);
-    expect(rules[0]!.kindLabel).toBe("House rule");
-    expect(tilesOf(index(withRule), context(), "heroes").map((t) => t.id)).toEqual(["b-hero"]);
-    expect(tilesOf(index(withRule), context(), "all").map((t) => t.id)).toContain("lost-traits-bf");
-    expect(emptyTextOf("house-rules")).toMatch(/house rules/);
+  it("lists house rules, modular sets and art on Extras, and campaigns with scenarios (issue #734)", () => {
+    const more = [
+      ...packs,
+      entry("lost-traits-bf", { kind: "house-rule", name: "Lost Traits" }),
+      entry("d-art", { kind: "art" }),
+      entry("e-campaign", { kind: "campaign" }),
+    ];
+    expect(MOD_STORE_TABS.map((tab) => modStoreTabLabel(tab, "en"))).toEqual([
+      "All",
+      "Heroes",
+      "Scenarios",
+      "Extras",
+      "Installed",
+      "Credits",
+    ]);
+    expect(MOD_STORE_TABS.map((tab) => modStoreTabLabel(tab, "es"))).toContain("Créditos");
+    const extras = tilesOf(index(more), context(), "extras");
+    expect(extras.map((t) => t.id)).toEqual(["c-mod", "d-art", "lost-traits-bf"]);
+    expect(extras.find((t) => t.id === "lost-traits-bf")!.kindLabel).toBe("House rule");
+    expect(tilesOf(index(more), context(), "scenarios").map((t) => t.id)).toEqual(["a-scenario", "e-campaign"]);
+    expect(tilesOf(index(more), context(), "heroes").map((t) => t.id)).toEqual(["b-hero"]);
+    expect(tilesOf(index(more), context(), "credits")).toHaveLength(more.length);
+    expect(emptyTextOf("extras", "en")).toMatch(/house rules/);
   });
 
-  it("puts the five tabs in one row, or two on a phone as narrow as the iPhone SE", () => {
-    expect(modStoreTabRowsOf(1392).map((row) => row.length)).toEqual([5]);
+  it("puts the six tabs in one row, or two rows of three on a phone as narrow as the iPhone SE", () => {
+    expect(modStoreTabRowsOf(1392).map((row) => row.length)).toEqual([6]);
     expect(modStoreTabRowsOf(343).map((row) => row.map((tab) => tab.id))).toEqual([
       ["all", "heroes", "scenarios"],
-      ["house-rules", "installed"],
+      ["extras", "installed", "credits"],
     ]);
+  });
+
+  it("carries the catalog's tags and approval date", () => {
+    const tile = tilesOf(index([entry("t", { tags: ["Spider-Verse"] })]), context(), "all")[0]!;
+    expect(tile.tags).toEqual(["Spider-Verse"]);
+    expect(tile.approved).toBe("2026-11-12");
   });
 
   it("handles a missing catalog", () => {
     expect(tilesOf(null, context(), "all")).toEqual([]);
-    expect(emptyTextOf("installed")).toMatch(/installed/);
+    expect(emptyTextOf("installed", "en")).toMatch(/installed/);
   });
 });
 

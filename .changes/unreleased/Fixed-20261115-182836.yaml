@@ -1,0 +1,3 @@
+kind: Fixed
+body: A community hero's cards on the opening-hands screen show their pictures as soon as they load, rather than staying blank until the hand is kept, and a community hero's alter-ego shows its own picture on the table rather than the hero side's (#738).
+time: 2026-11-15T18:28:36.7207608-05:00

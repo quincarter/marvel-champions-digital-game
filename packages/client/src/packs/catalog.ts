@@ -68,6 +68,7 @@ function validEntry(e: unknown): e is PackIndexEntry {
     (PACK_KINDS as readonly string[]).includes(e.kind) &&
     isString(e.name) &&
     isString(e.creator) &&
+    (e.authors === undefined || isStringArray(e.authors)) &&
     isString(e.summary) &&
     isStringArray(e.tags) &&
     (e.thumbnail === undefined || isString(e.thumbnail)) &&

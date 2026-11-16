@@ -6,6 +6,7 @@
  * that could change an outcome would belong in the rules, not in the client.
  */
 
+import type { CustomPlacement } from "./packs/custom-content-prefs.js";
 import type { TableRules } from "@mc/engine";
 import { preferredCardLanguage, type CardLanguage } from "./art/card-language.js";
 import type { KeyboardHand } from "./view/input-shortcuts.js";
@@ -56,6 +57,16 @@ export interface Settings {
    * art is never recolored (`view/color-scheme.ts`). Defaults off.
    */
   readonly darkMode: boolean;
+  /**
+   * Where installed custom packs' heroes and scenarios sit (issue #734, `packs/custom-content-prefs.ts`): on a shelf of
+   * their own after the official ones ("bottom", the default), before them ("top"), or beside the wave each names.
+   */
+  readonly customPlacement: CustomPlacement;
+  /**
+   * Custom content starts unlocked (issue #734). Defaults on; off, each pack unlocks the way its creator chose
+   * (always, with champion points, or by winning games).
+   */
+  readonly customUnlocked: boolean;
   /**
    * Background music and audio across menus and games.
    */
@@ -445,6 +456,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
         ),
     largeCardText: false,
     darkMode: false,
+    customPlacement: "bottom",
+    customUnlocked: true,
     sound: true,
     musicShuffle: false,
     musicVolume: MUSIC_VOLUME_MAX,

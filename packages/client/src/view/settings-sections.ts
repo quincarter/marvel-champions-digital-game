@@ -42,6 +42,7 @@ export type SettingsItemId =
   | "achievement-popup-time"
   | "achievement-popup-place"
   | "hero-art"
+  | "custom-placement"
   | "achievement-popup-size";
 
 export type SettingsSectionId =
@@ -55,6 +56,7 @@ export type SettingsSectionId =
   | "sound"
   | "guide"
   | "more"
+  | "custom"
   | "achievements"
   | "earned";
 
@@ -184,6 +186,7 @@ export function settingsSectionsOf(input: {
       title: "Achievements",
       items: ["achievement-popup-time", "achievement-popup-place", "achievement-popup-size"],
     },
+    { id: "custom", title: "Custom content", items: ["custom-placement", "custom-unlocked"] },
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
@@ -207,7 +210,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "achievements", "earned"] },
+  { id: "more", label: "More", sections: ["more", "achievements", "custom", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

@@ -1,12 +1,14 @@
 /**
- * Extras > Mod Store (docs/custom-content-packs.md §11.6): browse the catalog of community packs, open one, install,
+ * Title > Mod Store (docs/custom-content-packs.md §11.6): browse the catalog of community packs, open one, install,
  * update or remove it.
  *
- * Two views in one scene. **Browse** is four tabs (All, Heroes, Scenarios, Installed) over a grid of pack tiles, with an
- * offline notice when the catalog is the saved copy; each tile leads with the pack's featured card (thumbnail, picture or
- * generated face from its `preview.json`). **Pack** is one pack's page: the featured card(s), header, scrolling text
- * (description, credits, permission, requirement), a gallery of the pack's cards (from the preview before an install,
- * from the installed pack after), a status line (progress bar or error) and the buttons its state offers.
+ * Two views in one scene. **Browse** is six tabs (All, Heroes, Scenarios, Extras, Installed, Credits) over a grid of
+ * pack tiles, with a search box, a sort and tag chips over it (issue #734) and an offline notice when the catalog is the
+ * saved copy; each tile leads with the pack's featured card (thumbnail, picture or generated face from its
+ * `preview.json`). Credits lists the creators instead, and picking one shows their packs. **Pack** is one pack's page:
+ * the featured card(s), header, scrolling text (description, credits, permission, requirement), a gallery of the pack's
+ * cards (from the preview before an install, from the installed pack after), a status line (progress bar or error) and
+ * the buttons its state offers.
  *
  * This scene only draws. Which packs a tab shows, what the buttons are, progress words and error words are
  * `view/mod-store-model.ts`'s; whether a pack can be installed is `packs/pack-state.ts`'s; the install itself, in a
@@ -14,7 +16,8 @@
  * ends over a control fires nothing (CLAUDE.md, no tap on finger lift), and no control sits on a scrolling region: the
  * pack page's buttons are below its text panel, not over it.
  *
- * Pad and keyboard: Back, the tabs (LB / RB step them), then every tile; on a pack page, Back then its buttons.
+ * Pad and keyboard: Back, the tabs (LB / RB step them), the search box, sort and chips, then every tile; on a pack page,
+ * Back then its buttons.
  */
 import Phaser from "phaser";
 import {
@@ -42,7 +45,7 @@ import { PictureWait, settleWithin } from "../ui/picture-wait.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
-import { McButton, McScrollPanel, McTabs, fitText, fitWrapped } from "../ui/widgets.js";
+import { McButton, McScrollPanel, McTabs, McTextInput, fitText, fitWrapped } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -52,6 +55,7 @@ import {
   LOADING_TEXT,
   LOAD_FAILED_TEXT,
   MOD_STORE_TABS,
+  modStoreTabLabel,
   modStoreTabRowsOf,
   OFFLINE_NOTICE,
   actionsOf,
@@ -70,6 +74,25 @@ import {
   type PackAction,
   type PackCover,
 } from "../view/mod-store-model.js";
+import {
+  EMPTY_FILTER,
+  creditLineOf,
+  creditsOf,
+  filterTiles,
+  isFiltering,
+  packChips,
+  packCountText,
+  resultCountText,
+  tagChipsOf,
+  toggleTag,
+  type CreatorCredit,
+  type ModStoreFilter,
+} from "../view/mod-store-browse.js";
+import { t } from "../i18n/translate.js";
+import { drawSearchField, drawSearchToggle } from "./roster-panel.js";
+import { McChipRail } from "../ui/chip-rail.js";
+import { RailScroll } from "../view/rail-scroll.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
@@ -137,6 +160,9 @@ export interface ModStoreSceneData {
 }
 
 const TAB_HEIGHT = 44;
+/** The search row and each chip row. */
+const CONTROL_HEIGHT = 40;
+const CHIP_GAP = 8;
 const campaignTopBar = (phone: boolean): number => (phone ? CAMPAIGN_TOP_BAR.phone : CAMPAIGN_TOP_BAR.wide);
 const SCROLLBAR = 12;
 
@@ -149,6 +175,15 @@ interface InstallState {
 
 export class ModStoreScene extends Phaser.Scene {
   #tab: ModStoreTab = "all";
+  /** A phone's search box, sort and chips are showing (`#drawPhoneBrowse`). */
+  #findersOpen = false;
+  /** A phone's tab row: where it was swiped to, kept across redraws. */
+  readonly #tabRail = new RailScroll();
+  #rails: McChipRail[] = [];
+  /** The search box, tag chips, creator and sort (`view/mod-store-browse.ts`), kept across tabs and visits. */
+  #filter: ModStoreFilter = EMPTY_FILTER;
+  /** The search box: a DOM field kept across redraws (`scenes/seats.ts`'s pattern), so typing keeps its caret. */
+  #searchInput: McTextInput | null = null;
   #packId: string | null = null;
   #catalogUrl: string | undefined;
   #index: PackIndex | null = null;
@@ -219,6 +254,13 @@ export class ModStoreScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.#hints = new GlyphHints(this, () => this.#obstacles);
+    // A pad that put the caret in the search box can take it out again (B, A or Start). Bound before the route, so the
+    // A that focuses the field is not also read as the press that leaves it (`text-field-escape.ts`).
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.#overlayUp(),
+    );
     this.#route = new FocusRoute(this, {
       onCancel: () => this.#back(),
       // X (G / H on the keyboard) reopens the heads-up about mods.
@@ -230,7 +272,7 @@ export class ModStoreScene extends Phaser.Scene {
         this.#gallery?.scrollByPx(dy);
         this.#panel?.scrollByPx(dy);
       },
-      blocked: () => this.scene.isActive(SCENES.inspect),
+      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
     });
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
@@ -253,6 +295,8 @@ export class ModStoreScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       this.#hints.dispose();
       this.#destroyWidgets();
+      this.#searchInput?.destroy();
+      this.#searchInput = null;
     });
     this.#draw();
     fadeScreenIn(this);
@@ -376,13 +420,29 @@ export class ModStoreScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.extras);
+    goToScreen(this, SCENES.title);
   }
 
   #select(tab: ModStoreTab): void {
     if (tab === this.#tab) return;
     this.#tab = tab;
     this.#draw();
+  }
+
+  /** A new filter redraws the list from its top (a list scrolled down a long tab would show nothing). */
+  #setFilter(filter: ModStoreFilter): void {
+    this.#filter = filter;
+    this.#scroll(this.#tab).reset();
+    this.#requestRedraw();
+  }
+
+  /** A creator picked on Credits: every tab of theirs, from All. */
+  #showCreator(credit: CreatorCredit): void {
+    this.#filter = { ...this.#filter, creator: credit.name };
+    this.#tab = "all";
+    this.#scroll("all").reset();
+    this.#draw();
+    this.#route?.focusKey("tab:all");
   }
 
   #stepTab(direction: 1 | -1): void {
@@ -500,6 +560,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#buttons = [];
     for (const tabs of this.#tabs) tabs.destroy();
     this.#tabs = [];
+    for (const rail of this.#rails) rail.destroy();
+    this.#rails = [];
     this.#list?.destroy();
     this.#list = null;
     this.#panel?.destroy();
@@ -514,7 +576,11 @@ export class ModStoreScene extends Phaser.Scene {
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
+    // The search box's DOM field outlives a redraw, so its caret and what is typed stay put.
+    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     resetHoverCards(this);
     this.#hints.reset();
     this.#obstacles = [];
@@ -543,10 +609,10 @@ export class ModStoreScene extends Phaser.Scene {
       height: hit.target,
     };
     const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : tile ? "◂ STORE" : "◂ EXTRAS",
+      backLabel: phone ? "◂" : tile ? "◂ STORE" : "◂ TITLE",
       onBack: () => this.#back(),
       hints: this.#hints,
-      title: "Mod Store",
+      title: t("title.modStore"),
       // Quin, 2026-11-13: the store and community packs are new; say so on every store screen.
       badge: "Beta",
       ...(this.#installed.size > 0 ? { right: `${this.#installed.size} installed` } : {}),
@@ -570,8 +636,14 @@ export class ModStoreScene extends Phaser.Scene {
     stops.set("about", { rect: aboutRect, activate: aboutPress });
     order.push("about");
 
+    this.#searchDrawn = false;
     if (tile) this.#drawPage(tile, { width, height, phone, gutter, top: bar.height }, stops, order);
     else this.#drawBrowse({ width, height, phone, gutter, top: bar.height }, stops, order);
+    // Only browse (not Credits, not a pack page) has the search box: a DOM field is not hidden by not drawing it.
+    if (this.#searchInput && !this.#searchDrawn) {
+      this.#searchInput.destroy();
+      this.#searchInput = null;
+    }
     this.#route?.set(order, stops);
     this.#hover?.onDraw();
   }
@@ -628,9 +700,13 @@ export class ModStoreScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     order: string[],
   ): void {
-    const { width, height, phone, gutter, top } = frame;
+    const { width, phone, gutter, top } = frame;
     const captionBottom = this.#drawBetaCaption({ x: gutter, y: top + 12, width: width - gutter * 2 }, phone);
-    // Five tabs on a narrow phone (the iPhone SE) would cut their labels short: there they take two rows.
+    if (phone) {
+      this.#drawPhoneBrowse(frame, captionBottom + 10, stops, order);
+      return;
+    }
+    // Six tabs on a narrow window would cut their labels short: there they take two rows.
     const tabRows = modStoreTabRowsOf(width - gutter * 2);
     const tabRect: Rect = {
       x: gutter,
@@ -642,7 +718,7 @@ export class ModStoreScene extends Phaser.Scene {
       (row, index) =>
         new McTabs(this, {
           rect: { ...tabRect, y: tabRect.y + index * TAB_HEIGHT, height: TAB_HEIGHT },
-          tabs: row.map((tab) => ({ id: tab.id, label: tab.label })),
+          tabs: row.map((tab) => ({ id: tab.id, label: modStoreTabLabel(tab) })),
           activeId: this.#tab,
           onSelect: (id) => this.#select(id as ModStoreTab),
         }),
@@ -670,7 +746,77 @@ export class ModStoreScene extends Phaser.Scene {
       });
     });
 
-    let listTop = tabRect.y + tabRect.height + 22;
+    this.#drawBrowseBody(frame, tabRect.y + tabRect.height + 14, true, stops, order);
+  }
+
+  /**
+   * A phone's browse view (Quin, 2026-11-15: phones are short on height): the tabs as one sideways-scrolling row, as
+   * Your stats draws its tabs (`ui/chip-rail.ts`), with a magnifier at its end that shows the search box, sort and tag
+   * chips. They stay folded away until it is pressed, unless a search, tag or creator is narrowing the list.
+   */
+  #drawPhoneBrowse(
+    frame: { width: number; height: number; phone: boolean; gutter: number; top: number },
+    top: number,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const { width, gutter } = frame;
+    const toggleSize = TAB_HEIGHT;
+    const finding = this.#tab !== "credits" && this.#status !== "loading";
+    const railWidth = width - gutter * 2 - (finding ? toggleSize + CHIP_GAP : 0);
+    const at = MOD_STORE_TABS.findIndex((tab) => tab.id === this.#tab);
+    const rail = new McChipRail(this, {
+      rect: { x: gutter, y: top, width: railWidth, height: TAB_HEIGHT },
+      chips: MOD_STORE_TABS.map((tab) => ({
+        id: tab.id,
+        text: modStoreTabLabel(tab).toUpperCase(),
+        selected: tab.id === this.#tab,
+        onClick: () => this.#select(tab.id),
+      })),
+      scroll: this.#tabRail,
+    });
+    this.#rails.push(rail);
+    rail.scrollIntoView(at);
+    MOD_STORE_TABS.forEach((tab, index) => {
+      stops.set(`tab:${tab.id}`, {
+        rect: () => rail.rectFor(index),
+        activate: () => this.#select(tab.id),
+        ensureVisible: () => rail.scrollIntoView(index),
+      });
+      order.push(`tab:${tab.id}`);
+    });
+    this.#obstacles.push({ x: gutter, y: top, width: width - gutter * 2, height: TAB_HEIGHT });
+    const open = finding && (this.#findersOpen || isFiltering(this.#filter));
+    if (finding) {
+      const toggleRect: Rect = { x: width - gutter - toggleSize, y: top, width: toggleSize, height: toggleSize };
+      drawSearchToggle(this, toggleRect, "finders-toggle", open, () => this.#toggleFinders(), this.#buttons, stops);
+      order.push("finders-toggle");
+    }
+    this.#drawBrowseBody(frame, top + TAB_HEIGHT + 12, open, stops, order);
+  }
+
+  /** The phone's magnifier: shows or folds away the search box, sort and chips. Folding clears what they narrowed. */
+  #toggleFinders(): void {
+    const open = this.#findersOpen || isFiltering(this.#filter);
+    this.#findersOpen = !open;
+    if (open) {
+      this.#searchInput?.setValue("");
+      this.#filter = { ...EMPTY_FILTER, sort: this.#filter.sort };
+    }
+    this.#draw();
+    if (!open) this.#searchInput?.focus();
+  }
+
+  /** Everything under the tabs: the offline notice, then the finders (when shown) and the grid, or Credits. */
+  #drawBrowseBody(
+    frame: { width: number; height: number; phone: boolean; gutter: number; top: number },
+    top: number,
+    finders: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const { width, height, phone, gutter } = frame;
+    let listTop = top;
     if (this.#offline && this.#status === "ready") {
       const box: Rect = { x: gutter, y: listTop, width: width - gutter * 2, height: 34 };
       this.add.rectangle(box.x, box.y, box.width, box.height, surface.ink.hex).setOrigin(0, 0);
@@ -686,28 +832,29 @@ export class ModStoreScene extends Phaser.Scene {
       fitText(notice, box.width - 24, 12);
       listTop += box.height + 10;
     }
-    const listRect: Rect = {
-      x: gutter,
-      y: listTop,
-      width: width - gutter * 2,
-      height: Math.max(60, height - listTop - gutter),
-    };
 
-    const message = (text: string): void => {
+    const message = (text: string, at: Rect): void => {
       this.add
-        .text(listRect.x, listRect.y, text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .text(at.x, at.y, text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
         .setFontSize(14)
-        .setWordWrapWidth(listRect.width, true);
+        .setWordWrapWidth(at.width, true);
     };
+    const restRect = (top: number): Rect => ({
+      x: gutter,
+      y: top,
+      width: width - gutter * 2,
+      height: Math.max(60, height - top - gutter),
+    });
 
     if (this.#status === "loading") {
-      message(LOADING_TEXT);
+      message(LOADING_TEXT, restRect(listTop));
       return;
     }
-    const tiles = tilesOf(this.#index, this.#context(), this.#tab);
-    if (this.#status === "failed" && tiles.length === 0) {
-      message(LOAD_FAILED_TEXT);
-      const retryRect: Rect = { x: listRect.x, y: listRect.y + 56, width: 160, height: hit.target };
+    const tabTiles = tilesOf(this.#index, this.#context(), this.#tab);
+    if (this.#status === "failed" && tabTiles.length === 0) {
+      const at = restRect(listTop);
+      message(LOAD_FAILED_TEXT, at);
+      const retryRect: Rect = { x: at.x, y: at.y + 56, width: 160, height: hit.target };
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
@@ -721,8 +868,22 @@ export class ModStoreScene extends Phaser.Scene {
       order.push("retry");
       return;
     }
+    if (this.#tab === "credits") {
+      this.#drawCredits(creditsOf(tabTiles), restRect(listTop), phone, stops, order);
+      return;
+    }
+    if (tabTiles.length === 0) {
+      message(emptyTextOf(this.#tab), restRect(listTop));
+      return;
+    }
+
+    if (finders) {
+      listTop = this.#drawFinders(tabTiles, { x: gutter, y: listTop, width: width - gutter * 2 }, phone, stops, order);
+    }
+    const tiles = filterTiles(tabTiles, this.#filter);
+    const listRect = restRect(listTop);
     if (tiles.length === 0) {
-      message(emptyTextOf(this.#tab));
+      message(t("modStore.noMatch"), listRect);
       return;
     }
 
@@ -753,6 +914,220 @@ export class ModStoreScene extends Phaser.Scene {
       });
       order.push(`tile:${tile.id}`);
     });
+  }
+
+  /** The search box was drawn this frame (browse, not Credits): a frame without it destroys the DOM field. */
+  #searchDrawn = false;
+
+  /**
+   * The finders over a tab's grid (issue #734): the search box and the sort, then a row of chips (the creator picked on
+   * Credits, then the tab's tags, the most used first, then Clear) and the count of what shows. Returns the y below.
+   */
+  #drawFinders(
+    tabTiles: readonly ModStoreTile[],
+    at: { x: number; y: number; width: number },
+    phone: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): number {
+    const filter = this.#filter;
+    const sortWidth = phone ? 112 : 150;
+    const searchRect: Rect = { x: at.x, y: at.y, width: at.width - sortWidth - CHIP_GAP, height: CONTROL_HEIGHT };
+    this.#searchInput = drawSearchField(
+      this,
+      searchRect,
+      "search",
+      filter.text,
+      t("modStore.search"),
+      (value) => this.#setFilter({ ...this.#filter, text: value }),
+      this.#searchInput,
+      stops,
+    );
+    this.#searchDrawn = true;
+    order.push("search");
+    const sortRect: Rect = { x: at.x + at.width - sortWidth, y: at.y, width: sortWidth, height: CONTROL_HEIGHT };
+    const stepSort = (): void =>
+      this.#setFilter({ ...this.#filter, sort: this.#filter.sort === "name" ? "newest" : "name" });
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: `⇅ ${t(filter.sort === "name" ? "modStore.sort.name" : "modStore.sort.newest")}`,
+        type: typeRole.label,
+        rect: sortRect,
+        onClick: stepSort,
+      }),
+    );
+    stops.set("sort", { rect: sortRect, activate: stepSort });
+    order.push("sort");
+    this.#obstacles.push(searchRect, sortRect);
+
+    // The chips: the creator first (picked on Credits; its ✕ undoes that), the tags, then Clear while anything narrows.
+    type Chip = { id: string; label: string; selected: boolean; press: () => void };
+    const chips: Chip[] = [];
+    if (filter.creator !== null) {
+      chips.push({
+        id: "creator",
+        label: `${t("modStore.byCreator", { name: filter.creator })}  ✕`,
+        selected: true,
+        press: () => this.#setFilter({ ...this.#filter, creator: null }),
+      });
+    }
+    for (const chip of tagChipsOf(tabTiles, filter.tags)) {
+      chips.push({
+        id: `tag:${chip.tag}`,
+        label: chip.on ? `✓ ${chip.tag}` : `${chip.tag} ${chip.count}`,
+        selected: chip.on,
+        press: () => this.#setFilter({ ...this.#filter, tags: toggleTag(this.#filter.tags, chip.tag) }),
+      });
+    }
+    const filtering = isFiltering(filter);
+    const clear: Chip | null = filtering
+      ? {
+          id: "clear",
+          label: t("modStore.clear"),
+          selected: false,
+          press: () => {
+            this.#searchInput?.setValue("");
+            this.#setFilter({ ...EMPTY_FILTER, sort: this.#filter.sort });
+          },
+        }
+      : null;
+    const chipType = { ...typeRole.label, size: 11 };
+    const measure = (label: string): number => {
+      const probe = this.add.text(0, 0, label.toUpperCase(), textStyle(chipType, surface.ink.hex));
+      const w = probe.width;
+      probe.destroy();
+      return Math.ceil(w) + 24;
+    };
+    // Clear keeps the first row's end: the tags pack into what is left.
+    const clearWidth = clear ? measure(clear.label) : 0;
+    const packed = packChips(
+      chips,
+      (chip) => measure(chip.label),
+      at.width - (clear ? clearWidth + CHIP_GAP : 0),
+      phone ? 1 : 2,
+      CHIP_GAP,
+    );
+    const chipTop = at.y + CONTROL_HEIGHT + 10;
+    const placed: { chip: Chip; rect: Rect }[] = packed.slots.map((slot) => ({
+      chip: slot.item,
+      rect: {
+        x: at.x + slot.x,
+        y: chipTop + slot.row * (CONTROL_HEIGHT + CHIP_GAP),
+        width: slot.width,
+        height: CONTROL_HEIGHT,
+      },
+    }));
+    if (clear) {
+      placed.push({
+        chip: clear,
+        rect: { x: at.x + at.width - clearWidth, y: chipTop, width: clearWidth, height: CONTROL_HEIGHT },
+      });
+    }
+    for (const { chip, rect } of placed) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: chip.label,
+          type: chipType,
+          rect,
+          selected: chip.selected,
+          onClick: chip.press,
+        }),
+      );
+      stops.set(`chip:${chip.id}`, { rect, activate: chip.press });
+      order.push(`chip:${chip.id}`);
+      this.#obstacles.push(rect);
+    }
+    const chipRows = Math.max(packed.rows, clear ? 1 : 0);
+    const y = chipRows > 0 ? chipTop + chipRows * (CONTROL_HEIGHT + CHIP_GAP) - CHIP_GAP : at.y + CONTROL_HEIGHT;
+
+    // The count: how many show, and of how many while something narrows the list.
+    const shown = filterTiles(tabTiles, filter).length;
+    const count = this.add
+      .text(
+        at.x,
+        y + 8,
+        resultCountText(shown, tabTiles.length, filtering).toUpperCase(),
+        textStyle(typeRole.label, surface.ink.hex, ink.secondary),
+      )
+      .setFontSize(11);
+    fitText(count, at.width, 9);
+    return count.y + count.height + 8;
+  }
+
+  /** The Credits tab: one row per creator, their name, how many packs and which; a press shows their packs on All. */
+  #drawCredits(
+    credits: readonly CreatorCredit[],
+    rect: Rect,
+    phone: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const intro = this.add
+      .text(rect.x, rect.y, t("modStore.credits.intro"), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setFontSize(phone ? 12 : 14);
+    fitWrapped(intro, rect.width, 2, 11);
+    if (credits.length === 0) {
+      this.add
+        .text(rect.x, intro.y + intro.height + 12, emptyTextOf("credits"), textStyle(typeRole.body, surface.ink.hex))
+        .setFontSize(14);
+      return;
+    }
+    const top = intro.y + intro.height + 12;
+    const listRect: Rect = { x: rect.x, y: top, width: rect.width, height: Math.max(60, rect.y + rect.height - top) };
+    const rowHeight = phone ? 72 : 56;
+    const gap = 8;
+    const list: McVirtualList = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight: rowHeight + gap,
+      count: credits.length,
+      scroll: this.#scroll("credits"),
+      background: false,
+      renderRow: (index, row) => ({
+        objects: this.#drawCredit(credits[index]!, { ...row, width: row.width - SCROLLBAR, height: rowHeight }, phone),
+      }),
+      onRowActivate: (index) => this.#showCreator(credits[index]!),
+      rowPressableAt: () => true,
+      cursorBlocked: () => this.#overlayUp(),
+    });
+    this.#list = list;
+    credits.forEach((credit, index) => {
+      const key = `creator:${credit.name}`;
+      stops.set(key, {
+        rect: () => ({ ...list.rectFor(index), width: listRect.width - SCROLLBAR, height: rowHeight }),
+        activate: () => this.#showCreator(credit),
+        ensureVisible: () => list.scrollIntoView(index),
+        view: listRect,
+      });
+      order.push(key);
+    });
+  }
+
+  /** One creator's row: a red bar down the left edge, as a comic's credits box, their name, pack count and packs. */
+  #drawCredit(credit: CreatorCredit, rect: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {
+    const g = this.add.graphics();
+    g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+    g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x + 2, rect.y + 2, 6, rect.height - 4);
+    const x = rect.x + 20;
+    const textWidth = rect.x + rect.width - x - 12;
+    const count = this.add
+      .text(
+        rect.x + rect.width - 12,
+        rect.y + 10,
+        `${packCountText(credit.packs.length).toUpperCase()} ▸`,
+        textStyle(typeRole.label, surface.ink.hex, ink.secondary),
+      )
+      .setOrigin(1, 0)
+      .setFontSize(11);
+    const name = this.add.text(x, rect.y + 6, credit.name, textStyle(bangers(phone ? 20 : 24), surface.ink.hex));
+    fitText(name, textWidth - count.width - 12, 14);
+    const line = this.add
+      .text(x, name.y + name.height + 2, creditLineOf(credit), textStyle(typeRole.body, surface.ink.hex, 0.9))
+      .setFontSize(phone ? 11 : 12);
+    fitWrapped(line, textWidth, phone ? 2 : 1, 10);
+    return [g, count, name, line];
   }
 
   #renderRow(tiles: readonly ModStoreTile[], rowIndex: number, rect: Rect, grid: ExtrasGrid): VirtualListRow {

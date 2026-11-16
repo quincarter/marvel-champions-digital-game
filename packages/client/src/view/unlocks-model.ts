@@ -22,6 +22,13 @@ import {
 import { POOL_SCENARIOS } from "../content/pool.js";
 import { artLanguageNow } from "../art/art-source.js";
 import { t } from "../i18n/translate.js";
+import {
+  customFreeHint,
+  customHeroMode,
+  customNameOf,
+  customScenarioMode,
+  type CustomUnlockMode,
+} from "../progression/custom-unlock.js";
 
 const formatPoints = (points: number): string => points.toLocaleString("en-US");
 
@@ -274,6 +281,8 @@ function subjectOf(
 ): { name: string; title: string; free: string | null; note: string } {
   switch (target.kind) {
     case "hero": {
+      const custom = customHeroMode(target.identityCardId);
+      if (custom !== null) return customSubjectOf(unlocks, custom, customNameOf(target.identityCardId), "hero");
       const name = UNLOCK_HEROES.find((h) => h.identityCardId === target.identityCardId)?.name ?? t("unlock.thisHero");
       const hint = unlocks.heroHint(target.identityCardId, artLanguageNow());
       return {
@@ -301,6 +310,8 @@ function subjectOf(
       };
     }
     case "scenario": {
+      const custom = customScenarioMode(target.scenarioId);
+      if (custom !== null) return customSubjectOf(unlocks, custom, customNameOf(target.scenarioId), "scenario");
       const name = scenarioNameOf(target.scenarioId);
       const scenario = POOL_SCENARIOS.find((sc) => (sc.id as string) === target.scenarioId);
       const cycleId = scenario ? scenarioCycleOf(scenario) : undefined;
@@ -314,6 +325,23 @@ function subjectOf(
       };
     }
   }
+}
+
+/** A custom pack's hero or scenario (issue #734): its own name, and the free way in when its creator chose wins. */
+function customSubjectOf(
+  unlocks: Unlocks,
+  mode: CustomUnlockMode,
+  found: string | undefined,
+  kind: "hero" | "scenario",
+): { name: string; title: string; free: string | null; note: string } {
+  const name = found ?? t(kind === "hero" ? "unlock.thisHero" : "unlock.thisScenario");
+  const hint = customFreeHint(mode, unlocks.progress.wonScenarioIds.length);
+  return {
+    name,
+    title: t("unlock.unlockByHand", { name }),
+    free: hint ? t("unlock.freeCustom", { hint, name }) : null,
+    note: "",
+  };
 }
 
 export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm {

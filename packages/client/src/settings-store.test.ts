@@ -331,3 +331,16 @@ describe("glyphSource", () => {
     expect(parseSettingsOverrides(saved).glyphSource).toBe("pad");
   });
 });
+
+describe("custom content settings (issue #734)", () => {
+  test("default to the bottom shelf and unlocked, and read back what was saved", () => {
+    expect(defaultSettings().customPlacement).toBe("bottom");
+    expect(defaultSettings().customUnlocked).toBe(true);
+    const saved = parseSettingsOverrides(JSON.stringify({ customPlacement: "mixed", customUnlocked: false }));
+    expect(saved).toEqual({ customPlacement: "mixed", customUnlocked: false });
+  });
+
+  test("drop a value they do not know", () => {
+    expect(parseSettingsOverrides(JSON.stringify({ customPlacement: "sideways", customUnlocked: "no" }))).toEqual({});
+  });
+});

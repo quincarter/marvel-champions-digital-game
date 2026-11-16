@@ -51,6 +51,7 @@ import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS 
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { customEarned, customHeroMode, customLockText, customScenarioMode } from "./custom-unlock.js";
 
 /** What a win is worth, and what opening something by hand costs. */
 export const POINTS = {
@@ -595,6 +596,12 @@ export class Unlocks {
   /** Null when the scenario may be played: its wave is open, or it was opened on its own. */
   scenarioLock(scenario: Pick<Scenario, "id" | "packCode">, lang: CardLanguage = artLanguageNow()): string | null {
     if (this.prefs.scenarioIds.includes(scenario.id as string)) return null;
+    // A custom pack's scenario follows its pack's unlock (issue #734): open unless the player chose otherwise.
+    const custom = customScenarioMode(scenario.id as string);
+    if (custom !== null) {
+      if (this.everything || customEarned(custom, this.progress.wonScenarioIds.length)) return null;
+      return customLockText(custom, this.progress.wonScenarioIds.length, lang);
+    }
     return this.waveLock(scenarioCycleOf(scenario), lang);
   }
 
@@ -607,6 +614,8 @@ export class Unlocks {
 
   /** The scenario's wave was opened by play. */
   scenarioEarned(scenarioId: string): boolean {
+    const custom = customScenarioMode(scenarioId);
+    if (custom !== null) return customEarned(custom, this.progress.wonScenarioIds.length);
     const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId);
     const cycleId = scenario ? scenarioCycleOf(scenario) : undefined;
     return cycleId === undefined || (this.#waves.get(cycleId)?.earned ?? true);
@@ -614,6 +623,8 @@ export class Unlocks {
 
   /** Opened by play: the hero's wave cast it from the start, or its villain has been beaten. */
   heroEarned(identityCardId: string): boolean {
+    const custom = customHeroMode(identityCardId);
+    if (custom !== null) return customEarned(custom, this.progress.wonScenarioIds.length);
     const wave = this.#waveOfHero(identityCardId);
     if (!wave) return true;
     const reward = wave.heroRewards.find((r) => r.identityCardId === identityCardId);
@@ -645,8 +656,12 @@ export class Unlocks {
 
   /** Null when the hero may sit at a table; otherwise what opens it. */
   heroLock(identityCardId: string, lang: CardLanguage = "en"): string | null {
-    // An installed custom pack's hero is not on the unlock path: it seats whenever the pack is installed.
-    if (isCustomCardCode(identityCardId)) return null;
+    // An installed custom pack's hero is not on the waves' unlock path. It seats whenever the pack is installed, unless
+    // the player turned off "Custom content starts unlocked" and its creator asked for points or wins (issue #734).
+    if (isCustomCardCode(identityCardId)) {
+      if (this.heroEarned(identityCardId) || this.heroManual(identityCardId)) return null;
+      return customLockText(customHeroMode(identityCardId) ?? "points", this.progress.wonScenarioIds.length, lang);
+    }
     if (this.heroEarned(identityCardId) || this.heroManual(identityCardId)) return null;
     const waveLock = this.waveLock(heroCycleOf(identityCardId), lang);
     if (waveLock) return waveLock;

@@ -368,6 +368,110 @@ export function parsePackAchievements(data: unknown): readonly PackAchievement[]
   return out;
 }
 
+/** The most search tags one pack may carry, and the longest one (after trimming). */
+export const PACK_TAGS_MAX = 8;
+export const PACK_TAG_MAX_LENGTH = 24;
+
+/**
+ * The creator's tags of untrusted data (a `pack.json`, a `preview.json`): each entry is text, trimmed, 1 to
+ * `PACK_TAG_MAX_LENGTH` characters, unique ignoring case (the first spelling stays), at most `PACK_TAGS_MAX`. The rest
+ * are dropped, never thrown on; anything but a list gives `[]`.
+ */
+export function parsePackTags(data: unknown): readonly string[] {
+  if (!Array.isArray(data)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of data as unknown[]) {
+    if (out.length >= PACK_TAGS_MAX) break;
+    if (typeof entry !== "string") continue;
+    const tag = entry.trim();
+    if (tag.length < 1 || tag.length > PACK_TAG_MAX_LENGTH) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+  }
+  return out;
+}
+
+/**
+ * The release waves (`Cycle.id`s) a pack may sit beside, in release order: the same ids as the client's unlock path
+ * (`UNLOCK_WAVES` in the client's `progression/unlocks.ts`) and the `cycleId` of every official hero and scenario pack.
+ * `core` is the Core Set, `wave1` the first hero packs, `cycle1` The Rise of Red Skull, then `cycle3` to `cycle11`.
+ */
+export const PACK_WAVE_IDS: readonly string[] = [
+  "core",
+  "wave1",
+  "cycle1",
+  "cycle3",
+  "cycle4",
+  "cycle5",
+  "cycle6",
+  "cycle7",
+  "cycle8",
+  "cycle9",
+  "cycle10",
+  "cycle11",
+];
+
+/** The wave of untrusted data: a known `PACK_WAVE_IDS` entry, else `undefined`. */
+export function parsePackWave(data: unknown): string | undefined {
+  return typeof data === "string" && PACK_WAVE_IDS.includes(data) ? data : undefined;
+}
+
+/**
+ * How a pack's heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off.
+ * `open` is always playable, `points` needs champion points spent by hand like an official hero, `wins` opens free
+ * after winning games (or by points).
+ */
+export type PackUnlockMode = "open" | "points" | "wins";
+
+export const PACK_UNLOCK_MODES: readonly PackUnlockMode[] = ["open", "points", "wins"];
+
+/** The unlock mode of untrusted data: a known mode, else `"open"`. */
+export function parsePackUnlock(data: unknown): PackUnlockMode {
+  return PACK_UNLOCK_MODES.find((mode) => mode === data) ?? "open";
+}
+
+/**
+ * Everything wrong with a pack's `tags`, `wave` and `unlock`, as messages starting with the field name (the caller adds
+ * the `pack.json` path). Each field is optional.
+ */
+export function packCatalogFieldProblems(manifest: {
+  readonly tags?: unknown;
+  readonly wave?: unknown;
+  readonly unlock?: unknown;
+}): string[] {
+  const problems: string[] = [];
+  const { tags, wave, unlock } = manifest;
+  if (tags !== undefined) {
+    if (!Array.isArray(tags)) problems.push("tags must be a list of text");
+    else {
+      if (tags.length > PACK_TAGS_MAX)
+        problems.push(`tags has ${tags.length} entries, over the ${PACK_TAGS_MAX} limit`);
+      const seen = new Map<string, string>();
+      (tags as unknown[]).forEach((tag, index) => {
+        if (typeof tag !== "string") return void problems.push(`tags[${index}] must be text`);
+        const trimmed = tag.trim();
+        if (trimmed.length < 1) return void problems.push(`tags[${index}] must not be empty`);
+        if (trimmed.length > PACK_TAG_MAX_LENGTH)
+          problems.push(
+            `tags[${index}] "${trimmed}" is ${trimmed.length} characters, over the ${PACK_TAG_MAX_LENGTH} limit`,
+          );
+        const key = trimmed.toLowerCase();
+        const first = seen.get(key);
+        if (first !== undefined) problems.push(`tags[${index}] "${trimmed}" repeats "${first}" (tags ignore case)`);
+        else seen.set(key, trimmed);
+      });
+    }
+  }
+  if (wave !== undefined && parsePackWave(wave) === undefined)
+    problems.push(`wave "${String(wave)}" is not a known wave; use one of ${PACK_WAVE_IDS.join(", ")}`);
+  if (unlock !== undefined && !PACK_UNLOCK_MODES.some((mode) => mode === unlock))
+    problems.push(`unlock "${String(unlock)}" is not a known mode; use one of ${PACK_UNLOCK_MODES.join(", ")}`);
+  return problems;
+}
+
 /** A pack's `pack.json` (§5.1). */
 export interface PackManifest {
   readonly schema: typeof PACK_SCHEMA_VERSION;
@@ -393,6 +497,21 @@ export interface PackManifest {
   readonly permission?: PackPermission;
   /** The pack's own achievements (§11.12): worth no points, conditions are data only (`PackAchievementWhen`). */
   readonly achievements?: readonly PackAchievement[];
+  /**
+   * The creator's own search tags for the Mod Store ("Symbiote", "Aggression"): at most `PACK_TAGS_MAX`, each 1 to
+   * `PACK_TAG_MAX_LENGTH` characters, unique ignoring case. The catalog lists them after the pack's kind.
+   */
+  readonly tags?: readonly string[];
+  /**
+   * The release wave (one of `PACK_WAVE_IDS`, a `Cycle.id`) whose shelf the pack's heroes and scenarios sit beside when
+   * the player mixes custom content in with the official content.
+   */
+  readonly wave?: string;
+  /**
+   * How the pack's heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off
+   * (`PackUnlockMode`). Absent means `"open"`.
+   */
+  readonly unlock?: PackUnlockMode;
   /** Who made the card template the pack's cards are laid out on ("Hitch", "G.Triskelion"). */
   readonly templateCredit?: string;
   /** Who translated the pack, by language: `{ es: "Francisco Merchán" }`. */
@@ -474,6 +593,11 @@ export interface PackIndexEntry {
   readonly kind: PackKind;
   readonly name: string;
   readonly creator: string;
+  /**
+   * Everyone the pack's `pack.json` credits (`authors`), for the store's Credits tab (issue #734): `creator` is one
+   * line and may name only the lead. Absent on an entry written before the field existed.
+   */
+  readonly authors?: readonly string[];
   /** One line for the store list. */
   readonly summary: string;
   readonly tags: readonly string[];

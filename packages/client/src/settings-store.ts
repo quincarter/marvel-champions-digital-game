@@ -8,6 +8,7 @@
  * `guide/guide-prefs.ts`: unknown fields are ignored, a missing or wrong-typed field falls back to its default, a
  * corrupt record is no record, and a newer `version` is read best-effort.
  */
+import { CUSTOM_PLACEMENT_VALUES } from "./packs/custom-content-prefs.js";
 import { isCardLanguage } from "./art/card-language.js";
 import {
   ACHIEVEMENT_POPUP_PLACE_VALUES,
@@ -49,6 +50,7 @@ const BOOLEAN_FIELDS = [
   "reducedMotion",
   "largeCardText",
   "darkMode",
+  "customUnlocked",
   "sound",
   "musicShuffle",
   "confirmBeforeEndTurn",
@@ -87,6 +89,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
     const value = source[field];
     if (typeof value === "boolean") out[field] = value;
   }
+  const placement = CUSTOM_PLACEMENT_VALUES.find((value) => value === source["customPlacement"]);
+  if (placement !== undefined) out.customPlacement = placement;
   const heroArtValue = HERO_ART_VALUES.find((value) => value === source["heroArt"]);
   if (heroArtValue !== undefined) out.heroArt = heroArtValue;
   const promoArt = source["promoArt"];

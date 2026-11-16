@@ -52,6 +52,16 @@ ships it in the pack and writes it as `thumb.webp`, the store tile's picture, in
 filters `hero`, `villain`, `expert` and `houseRule` that name the pack's own content (docs/custom-content-packs.md
 section 11.12). `mc-pack validate` checks them.
 
+`tags`, `wave` and `unlock` (all optional) shape how the pack shows up in the game:
+
+- `tags`: your own search tags for the Mod Store (`["Symbiote", "Aggression", "Spider-Verse"]`). At most 8, each 1 to 24
+  characters, no duplicates ignoring case. The store lists them after the pack's kind.
+- `wave`: the release wave whose shelf the pack's heroes and scenarios sit beside when the player mixes custom content
+  in with the official content: `core`, `wave1`, `cycle1`, `cycle3` to `cycle11` (`PACK_WAVE_IDS` in `@mc/content`).
+- `unlock`: how the heroes and scenarios unlock when the player has turned "Custom content starts unlocked" off.
+  `open` (the default) is always playable, `points` needs champion points spent by hand like an official hero, `wins`
+  opens free after winning games (or by points).
+
 ### Pictures, languages and alternate art
 
 A card's picture is `cards/<lang>/<card code>.webp`, in the source folder and in the built pack alike (the card records

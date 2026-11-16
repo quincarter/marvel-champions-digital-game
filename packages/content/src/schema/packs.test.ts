@@ -13,6 +13,14 @@ import {
   packAchievementProblems,
   parsePackAchievements,
   PACK_ACHIEVEMENTS_MAX,
+  PACK_TAG_MAX_LENGTH,
+  PACK_TAGS_MAX,
+  PACK_UNLOCK_MODES,
+  PACK_WAVE_IDS,
+  packCatalogFieldProblems,
+  parsePackTags,
+  parsePackUnlock,
+  parsePackWave,
   webpSize,
 } from "./packs.js";
 
@@ -200,5 +208,50 @@ describe("pack achievements", () => {
     expect(parsed).toEqual([{ id: "a-one", name: "A One", description: "Does a thing.", when: { win: true } }]);
     expect(parsePackAchievements("nope")).toEqual([]);
     expect(parsePackAchievements(undefined)).toEqual([]);
+  });
+});
+
+describe("pack tags, wave and unlock", () => {
+  it("parses tags: trims, drops bad entries, dedupes ignoring case, caps the count", () => {
+    expect(
+      parsePackTags(["  Symbiote ", "symbiote", "", "   ", 3, "x".repeat(PACK_TAG_MAX_LENGTH + 1), "Spider-Verse"]),
+    ).toEqual(["Symbiote", "Spider-Verse"]);
+    expect(parsePackTags(Array.from({ length: 12 }, (_, i) => `tag${i}`))).toHaveLength(PACK_TAGS_MAX);
+    expect(parsePackTags("nope")).toEqual([]);
+    expect(parsePackTags(undefined)).toEqual([]);
+    expect(parsePackTags(["x".repeat(PACK_TAG_MAX_LENGTH)])).toHaveLength(1);
+  });
+
+  it("parses a wave as a known cycle id only", () => {
+    for (const id of PACK_WAVE_IDS) expect(parsePackWave(id)).toBe(id);
+    expect(parsePackWave("cycle2")).toBeUndefined();
+    expect(parsePackWave(4)).toBeUndefined();
+    expect(parsePackWave(undefined)).toBeUndefined();
+  });
+
+  it("parses an unlock mode, anything unknown being open", () => {
+    for (const mode of PACK_UNLOCK_MODES) expect(parsePackUnlock(mode)).toBe(mode);
+    expect(parsePackUnlock("sometimes")).toBe("open");
+    expect(parsePackUnlock(undefined)).toBe("open");
+    expect(parsePackUnlock(1)).toBe("open");
+  });
+
+  it("reports what is wrong with the three fields", () => {
+    expect(packCatalogFieldProblems({})).toEqual([]);
+    expect(packCatalogFieldProblems({ tags: ["A", "B"], wave: "cycle5", unlock: "wins" })).toEqual([]);
+    const many = packCatalogFieldProblems({ tags: Array.from({ length: PACK_TAGS_MAX + 1 }, (_, i) => `t${i}`) });
+    expect(many.join()).toMatch(/over the 8 limit/);
+    const bad = packCatalogFieldProblems({
+      tags: ["Aggression", " aggression", "y".repeat(25), "", 7],
+      wave: "cycle2",
+      unlock: "later",
+    }).join("\n");
+    expect(bad).toMatch(/tags\[1\] "aggression" repeats "Aggression"/);
+    expect(bad).toMatch(/tags\[2\].*over the 24 limit/);
+    expect(bad).toMatch(/tags\[3\] must not be empty/);
+    expect(bad).toMatch(/tags\[4\] must be text/);
+    expect(bad).toMatch(/wave "cycle2" is not a known wave/);
+    expect(bad).toMatch(/unlock "later" is not a known mode/);
+    expect(packCatalogFieldProblems({ tags: "x" })).toEqual(["tags must be a list of text"]);
   });
 });

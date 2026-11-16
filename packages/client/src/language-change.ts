@@ -26,8 +26,9 @@ export function announceLanguageChange(): void {
 
 /**
  * Something a card's picture depends on changed without the language changing (an installed pack's pictures became
- * available, `art/pack-art.ts`): only the art caches redraw and ask again. Deliberately not the language channel, which
- * makes the session store republish its state.
+ * available, `art/pack-art.ts`): the art caches redraw and ask again, and the table and the opening-hands screen
+ * (`scenes/board.ts`, `scenes/setup-deal.ts`) rebuild their view models, which carry each card's picture source (#738).
+ * Deliberately not the language channel, which makes the session store republish its state to every subscriber.
  */
 export function announceArtChange(): void {
   for (const listener of [...artListeners]) listener();
