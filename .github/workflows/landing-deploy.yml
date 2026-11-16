@@ -7,6 +7,8 @@
 #     release (src/site/landing/published.ts) and bakes in the latest release's downloads, so it needs this second
 #     build to show the new version;
 #   - it runs by hand from the Actions tab (or `gh workflow run landing-deploy.yml`) after a draft release is published.
+#   - it runs every day on a schedule, so the download stats page (/stats/), which counts GitHub's release downloads at
+#     build time, is never more than a day old. A scheduled run builds main as it is, like any other.
 #
 # The job builds inside the group, from main as it is when the job starts and with GitHub's latest release as it is
 # then, never from a build made before it waited. If main has moved on by the time the build is done, it doesn't deploy:
@@ -16,6 +18,9 @@ name: Deploy the landing page
 on:
   workflow_call:
   workflow_dispatch:
+  schedule:
+    # 06:17 UTC daily: off the hour, when GitHub's scheduler is least busy.
+    - cron: "17 6 * * *"
 
 permissions:
   contents: read

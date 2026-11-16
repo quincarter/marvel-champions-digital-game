@@ -1,0 +1,101 @@
+/* The top nav every page on the landing site shares (src/site/site-nav.ts): Home, Download stats and Releases. The
+   landing and stats pages set it inside their own pinned bar (landing.css); the release pages get `.site-top`, a bar of
+   its own, from the landing build, which copies this file to the site's root for them. A release page brings its own
+   fonts and colors but not site.css, so every value here falls back to the house style's own. */
+
+/* Each label is written in every page language; the page's <html lang> picks the one that shows. English stands in
+   for any page language without a label of its own. */
+.site-nav [lang],
+.site-brand [lang] {
+  display: none;
+}
+html:not([lang="es"]) .site-nav [lang="en"],
+html:not([lang="es"]) .site-brand [lang="en"],
+html[lang="es"] .site-nav [lang="es"],
+html[lang="es"] .site-brand [lang="es"] {
+  display: inline;
+}
+
+.site-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-bottom: 3px solid transparent;
+  font: 700 14px/1.2 var(--b, "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--muted, #b9b0a2);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-nav a:hover {
+  color: var(--fg, #f2ede1);
+}
+.site-nav a[aria-current="page"] {
+  color: var(--fg, #f2ede1);
+  border-bottom-color: var(--gold, #f0b42a);
+}
+.site-nav a:focus-visible,
+.site-brand:focus-visible {
+  outline: 3px solid var(--gold, #f0b42a);
+  outline-offset: -3px;
+}
+
+/* ---- The release pages' bar ---- */
+.site-top {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) 6px max(16px, env(safe-area-inset-left, 0px));
+  background: rgb(21 17 14 / 0.94);
+  border-bottom: 2px solid var(--red, #c8102e);
+  color: var(--fg, #f2ede1);
+}
+.site-top.pinned {
+  position: sticky;
+  top: 0;
+  backdrop-filter: blur(10px);
+}
+.site-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-right: auto;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-brand b {
+  font: 400 26px/1 var(--d, "Bangers", Impact, "Arial Black", sans-serif);
+  letter-spacing: 0.02em;
+  color: var(--fg, #f2ede1);
+}
+.site-brand span {
+  font: 700 11px var(--b, "Public Sans", system-ui, sans-serif);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold, #f0b42a);
+}
+@media (max-width: 760px) {
+  .site-brand span {
+    display: none !important;
+  }
+}
+/* A phone has room for the three links or the name, not both: Home takes the reader back to the name's page. */
+@media (max-width: 560px) {
+  .site-top {
+    padding-block: 2px;
+  }
+  .site-top .site-brand {
+    display: none;
+  }
+  .site-top .site-nav {
+    flex: 1;
+    justify-content: space-around;
+  }
+}

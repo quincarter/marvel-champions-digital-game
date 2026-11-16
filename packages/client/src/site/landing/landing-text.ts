@@ -13,10 +13,6 @@ const en = {
   "bar.brand": "Digital Edition",
   "bar.play": "Play now",
   "bar.download": "Download",
-  "nav.heroes": "Heroes",
-  "nav.villains": "Villains",
-  "nav.mods": "Mods",
-  "nav.news": "News",
 
   "hero.kick": "Fan-made · Free · No account",
   "hero.title": 'Suit up.<br /><span class="g">Save the day.</span>',
@@ -86,6 +82,7 @@ const en = {
   "news.all": "Every release",
 
   "dl.title": "Get the game",
+  "dl.stats": "See more download metrics",
 
   "community.title": "Join the community",
   "community.game": "The game's Discord",
@@ -121,10 +118,6 @@ const es: Catalog<LandingKey> = {
   "bar.brand": "Digital Edition",
   "bar.play": "Jugar",
   "bar.download": "Descargar",
-  "nav.heroes": "Héroes",
-  "nav.villains": "Villanos",
-  "nav.mods": "Mods",
-  "nav.news": "Novedades",
 
   "hero.kick": "Hecho por fans · Gratis · Sin cuenta",
   "hero.title": 'Equípate.<br /><span class="g">Salva el día.</span>',
@@ -194,6 +187,7 @@ const es: Catalog<LandingKey> = {
   "news.all": "Todas las versiones",
 
   "dl.title": "Consigue el juego",
+  "dl.stats": "Ver más datos de descargas",
 
   "community.title": "Únete a la comunidad",
   "community.game": "El Discord del juego",

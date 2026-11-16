@@ -1,0 +1,402 @@
+/* The download stats page: the landing page's sections, type and bar (landing.css), with tiles in the release reports'
+   style and bars in one color per platform. */
+:root {
+  --android: #4fbf73;
+  --windows: #6f9cf0;
+  --mac: #f2ede1;
+  --linux: #f0b42a;
+}
+.p-android {
+  --c: var(--android);
+}
+.p-windows {
+  --c: var(--windows);
+}
+.p-mac {
+  --c: var(--mac);
+}
+.p-linux {
+  --c: var(--linux);
+}
+
+/* ---- Headline ---- */
+.stats-head {
+  padding-bottom: clamp(32px, 5vw, 56px);
+  border-bottom: 3px solid var(--red);
+}
+.stats-head h1 {
+  font-size: clamp(54px, 10vw, 128px);
+  text-shadow: 4px 4px 0 #000;
+}
+.stats-range {
+  font: 13px/1.8 var(--m);
+  color: var(--muted);
+  margin: 16px 0 0;
+}
+.stats-lead {
+  font: 600 clamp(18px, 2vw, 22px) / 1.5 var(--b);
+  max-width: 52ch;
+  margin: 18px 0 0;
+}
+.stats-note {
+  color: var(--muted);
+  max-width: 80ch;
+  margin: 14px 0 0;
+}
+
+/* ---- Tiles ---- */
+.tiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+.tile {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 18px 20px;
+  background: var(--panel);
+  color: var(--panel-fg);
+  border-top: 8px solid var(--c, var(--red));
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+.tile.big {
+  grid-column: span 2;
+  background: var(--gold);
+  border-top-color: var(--red);
+}
+.tile-label {
+  font: 700 12px var(--b);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.tile b {
+  font: 400 clamp(48px, 6vw, 72px) / 1 var(--d);
+}
+.tile.big b {
+  font-size: clamp(64px, 9vw, 112px);
+}
+.tile-note {
+  font-size: 14px;
+  color: var(--panel-muted);
+}
+.how {
+  margin-top: 28px;
+  border: 2px dashed var(--line);
+  padding: 4px 16px;
+  max-width: 80ch;
+}
+.how summary {
+  font: 700 15px var(--b);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.how p {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+/* ---- Platform share ---- */
+.share {
+  display: flex;
+  min-height: 72px;
+  margin: 24px 0 18px;
+  border: 3px solid var(--fg);
+  box-shadow: 6px 6px 0 var(--shadow);
+}
+.share > span {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 6px 10px;
+  background: var(--c);
+  color: var(--gold-ink);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.share > span + span {
+  border-left: 3px solid var(--bg);
+}
+.share b {
+  font: 700 14px var(--b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.share span span {
+  font: 400 28px/1 var(--d);
+}
+.share-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 12px 24px;
+}
+.share-files li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  padding-left: 12px;
+  border-left: 6px solid var(--c);
+}
+.share-files li > b {
+  flex-basis: 100%;
+  font-size: 17px;
+}
+.share-files li > b span {
+  font: 13px var(--m);
+  color: var(--muted);
+  font-weight: 400;
+}
+.share-files .file {
+  font-size: 14px;
+  color: var(--muted);
+}
+.share-files em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/* ---- Every release: one row each, a bar as long as its downloads ---- */
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 22px 0 12px;
+  padding: 0;
+  font: 700 13px var(--b);
+}
+.legend li::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background: var(--c);
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+.rows li {
+  display: grid;
+  grid-template-columns: 74px 54px minmax(0, 1fr) 48px;
+  gap: 10px;
+  align-items: center;
+  min-height: 26px;
+}
+.row-v {
+  font: 13px var(--m);
+  color: var(--gold);
+  text-decoration: none;
+}
+.row-v:hover {
+  text-decoration: underline;
+}
+.row-d {
+  font: 12px var(--m);
+  color: var(--muted);
+}
+.row-bar {
+  display: flex;
+  height: 16px;
+  min-width: 0;
+}
+.row-bar i {
+  display: block;
+  height: 100%;
+  background: var(--c);
+}
+.row-bar i + i {
+  border-left: 1px solid var(--bg);
+}
+.row-n {
+  font: 700 14px var(--b);
+  text-align: right;
+}
+.table-more {
+  margin-top: 26px;
+}
+.table-more summary {
+  font: 700 15px var(--b);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--gold);
+}
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+.table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 14px var(--m);
+}
+.table-scroll th,
+.table-scroll td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+.table-scroll th:first-child {
+  text-align: left;
+  color: var(--gold);
+}
+.table-scroll thead th {
+  font: 700 12px var(--b);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.table-scroll .sum th,
+.table-scroll .sum td {
+  border-top: 3px solid var(--fg);
+  border-bottom: 0;
+}
+
+/* ---- Top five ---- */
+.top-five {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 20px;
+}
+.top-five li {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 20px 22px;
+  background: var(--bg2);
+  border: 3px solid var(--fg);
+  box-shadow: 6px 6px 0 var(--red);
+}
+.top-five li:first-child {
+  box-shadow: 6px 6px 0 var(--gold);
+}
+.top-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.top-rank {
+  font: 400 34px/1 var(--d);
+  color: var(--gold);
+}
+.top-v {
+  font: 13px var(--m);
+  color: var(--muted);
+}
+.top-n {
+  margin-left: auto;
+  font: 400 40px/1 var(--d);
+}
+.top-five h3 {
+  font: 400 30px/1 var(--d);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.top-five p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+.top-five .top-split {
+  font: 12px var(--m);
+}
+.top-five a {
+  font: 700 14px var(--b);
+  color: var(--gold);
+  justify-self: start;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- Languages and Steam ---- */
+.ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+.way {
+  padding: 22px 24px;
+  background: var(--panel);
+  color: var(--panel-fg);
+  box-shadow: 6px 6px 0 var(--gold);
+}
+.way .kick {
+  color: var(--red);
+}
+.way-n {
+  display: block;
+  font: 400 clamp(64px, 8vw, 96px) / 1 var(--d);
+  margin: 6px 0;
+}
+.way h3 {
+  font: 400 30px/1 var(--d);
+  margin: 0 0 8px;
+}
+.way p {
+  margin: 0;
+}
+.way-split {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 12px 0 0;
+  padding: 0;
+  font: 13px var(--m);
+  color: var(--panel-muted);
+}
+
+.stats-cta .ctas {
+  margin-top: 18px;
+}
+.stats-cta .foot {
+  margin-top: 48px;
+}
+
+@media (max-width: 640px) {
+  .tile.big {
+    grid-column: auto;
+  }
+  .rows li {
+    grid-template-columns: 66px minmax(0, 1fr) 40px;
+    gap: 8px;
+  }
+  .row-d {
+    display: none;
+  }
+  .share span span {
+    font-size: 20px;
+  }
+  .share b {
+    font-size: 11px;
+  }
+}
+/* A release's summary can run long; the card shows its start and links to the rest. */
+.top-five .top-sum {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
