@@ -200,7 +200,7 @@ function rowOf(row: PastGameRow, input: TrackerExportInput): TrackerExportRow {
       ? summarized.flatMap((seat, i) => (seat.satOut === true ? [] : [i]))
       : save.config.players.flatMap((player, i) => {
           const identity =
-            "identityCardId" in player ? player.identityCardId : names.starterIdentity(player.starterDeckId);
+            "identityCardId" in player ? player.identityCardId : gameNames.starterIdentity(player.starterDeckId);
           return identity ? [i] : [];
         });
   const slots: string[] = [];

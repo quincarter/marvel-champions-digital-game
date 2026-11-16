@@ -221,6 +221,39 @@ describe("MC Tracker export rows (#757)", () => {
     expect(text).toContain(",Crime,Recommended,");
   });
 
+  test("without a summary, a pack precon seat not installed any more keeps its own slot, so the next seat's link stays put", () => {
+    const packNames: TrackerExportNames = {
+      ...NAMES,
+      forPacks: () => ({ ...NAMES, starterIdentity: (id) => (id === "pack-deck" ? "pack-hero" : undefined) }),
+    };
+    const links = marvelcdbLinksOf([
+      { id: "d1", source: { kind: "imported", marvelcdbDeckId: "1", url: "https://marvelcdb.com/decklist/view/1/x" } },
+    ]);
+    const [row] = trackerRowsOf({
+      saves: [
+        save("n", DAY(4), {
+          config: {
+            scenarioId: "rhino",
+            difficulty: "standard",
+            players: [
+              { starterDeckId: "pack-deck" },
+              { identityCardId: "spider-man", deck: [], deckId: "d1", deckName: "Web Slinger" },
+            ],
+            seed: 1,
+            packs: [{ id: "my-pack", name: "My Pack" }],
+          } as never,
+          summary: null,
+        }),
+      ],
+      names: packNames,
+      deckLinks: links,
+      appVersion: "0.47.0",
+    });
+    const cells = Object.fromEntries(row!.cells.map((cell, i) => [TRACKER_COLUMNS[i], cell]));
+    expect(cells).toMatchObject({ "Hero 1": "Quill, Star-Lord", "Decklist 1": "", "Hero 2": "Spider-Man" });
+    expect(cells["Decklist 2"]).toBe("https://marvelcdb.com/decklist/view/1/x");
+  });
+
   test("a loss says why in its notes; a game given up or left unfinished is not exported", () => {
     const lost = save("l", DAY(6), {
       status: "lost",
