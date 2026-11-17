@@ -1,0 +1,3 @@
+kind: Changed
+body: Searches forgive a word typed with a letter or two left out ("crd siz" finds Card size) in Settings, Pause and the deck and card searches.
+time: 2026-11-17T17:57:07.297826-05:00

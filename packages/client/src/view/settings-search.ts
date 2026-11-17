@@ -8,6 +8,7 @@
  * matched: the letters typed, else the word one typo away, else the letters in order across a name.
  */
 import {
+  droppedLettersOf,
   editDistance,
   isSubsequence,
   normalizeText,
@@ -344,6 +345,8 @@ function tokenRanges(token: string, folded: string, loose: boolean): readonly Te
     );
     if (close.length > 0) return close.map(({ start, end }) => ({ start, end }));
   }
+  const shorthand = words.filter(({ word }) => droppedLettersOf(token, word));
+  if (shorthand.length > 0) return shorthand.map(({ start, end }) => ({ start, end }));
   if (!loose || token.length < 5 || folded[0] !== token[0] || !isSubsequence(token, folded)) return [];
   const letters: TextRange[] = [];
   let next = 0;

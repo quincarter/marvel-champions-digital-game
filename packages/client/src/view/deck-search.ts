@@ -8,7 +8,8 @@
  * query must match somewhere (AND). A word's score is the best any field gives it, by tier:
  *
  *   exact field 100 > field prefix 90 > a word of the field matches 80 > a word starts with it 75 > substring 65
- *   > one typo away from a word (edit distance 1, or 2 for long words) 45 > letters in order inside a name 30
+ *   > one typo away from a word (edit distance 1, or 2 for long words) 45 > a word with a letter or two left out 40
+ *   > letters in order inside a name 30
  *
  * scaled down for a weaker field (secondary x0.6, notes x0.2; notes are matched exactly or by substring, never
  * fuzzily, so a long write-up cannot match everything). A multi-word query also scores as one phrase against each
@@ -112,6 +113,20 @@ export function isSubsequence(needle: string, haystack: string): boolean {
 /** How many typos a query word may carry. Short words take none ("capt" one letter from "cast" matched Black Panther). */
 export const typoLimitOf = (token: string): number => (token.length >= 8 ? 2 : token.length >= 5 ? 1 : 0);
 
+/** The most letters a word may be typed without and still match (`droppedLettersOf`). */
+const DROPPED_LETTERS = 2;
+
+/** True when `token` is `word` with one or two letters left out, the first kept: "crd" in card, "sttngs" in settings. */
+export function droppedLettersOf(token: string, word: string): boolean {
+  return (
+    token.length >= 3 &&
+    word.length > token.length &&
+    word.length - token.length <= DROPPED_LETTERS &&
+    word[0] === token[0] &&
+    isSubsequence(token, word)
+  );
+}
+
 /** How well one query word matches one field, 0 for no match. `fuzzy` is off for notes. */
 function wordScore(token: string, field: PreparedField, fuzzy: boolean, loose = false): number {
   if (field.text === token) return 100;
@@ -133,6 +148,9 @@ function wordScore(token: string, field: PreparedField, fuzzy: boolean, loose = 
       if (word.length > token.length && editDistance(token, word.slice(0, token.length), limit) <= limit) return 45;
     }
   }
+  // A word typed with a letter or two left out ("crd" for card, "sttngs" for settings): same first letter, the rest in
+  // order, at most two letters missing. Short words take no typo, so this is how "crd siz" still finds Card size.
+  for (const word of field.words) if (droppedLettersOf(token, word)) return 40;
   // Letters in order across a whole name ("spdrmn" for Spider-Man): only names, where it is a deliberate shorthand.
   if (loose && token.length >= 5 && field.text[0] === token[0] && isSubsequence(token, field.text))
     best = Math.max(best, 30);

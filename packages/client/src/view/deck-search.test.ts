@@ -96,6 +96,28 @@ describe("short queries stay strict", () => {
   });
 });
 
+describe("a word typed with letters left out", () => {
+  const settings: readonly SearchDocument[] = [
+    { id: "size", primary: ["Card size"], secondary: ["Fit to screen sizes every card to the screen it is on."] },
+    { id: "undo", primary: ["Undo past your turn"], secondary: ["House rule."] },
+    { id: "sound", primary: ["Sound"], secondary: ["Background music and effects."] },
+  ];
+  const find = (query: string): string[] => rankDocuments(prepareDocuments(settings), query).map((r) => r.id);
+  test('"crd siz" finds Card size, and "sttngs"-style shorthand keeps the first letter', () => {
+    expect(find("crd siz")).toEqual(["size"]);
+    expect(find("snd")).toEqual(["sound"]);
+    expect(find("zrd")).toEqual([]);
+    expect(find("rcd")).toEqual([]);
+  });
+  test("it ranks below a real match", () => {
+    const both: readonly SearchDocument[] = [
+      { id: "cord", primary: ["Cord"] },
+      { id: "crd", primary: ["Crd"] },
+    ];
+    expect(rankDocuments(prepareDocuments(both), "crd").map((r) => r.id)).toEqual(["crd", "cord"]);
+  });
+});
+
 describe("editDistance", () => {
   test("counts edits and swaps, and gives up past the limit", () => {
     expect(editDistance("marvel", "marvel", 2)).toBe(0);
