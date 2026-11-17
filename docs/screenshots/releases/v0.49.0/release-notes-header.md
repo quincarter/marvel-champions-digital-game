@@ -6,16 +6,16 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.49.0/index.es.html)**
 
-![The numbers: Undo reaches back to move 1, three Undo choices and three reports answered](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-01-the-numbers.jpg)
+![The numbers: Undo reaches back to move 1, three Undo choices and three reports answered](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-01-the-numbers.jpg)
 
-![Undo past your turn: the Allow, Warn and Off setting, the same draw on a rewind, and Jump to a moment](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-02-undo-past-your-turn.jpg)
+![Undo past your turn: the Allow, Warn and Off setting, the same draw on a rewind, and Jump to a moment](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-02-undo-past-your-turn.jpg)
 
-![Manual adjust: the target list on desktop and phone, a hero's adjustments and the warning before the first one](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-03-manual-adjust.jpg)
+![Manual adjust: the target list on desktop and phone, a hero's adjustments and the warning before the first one](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-03-manual-adjust.jpg)
 
-![Fair stats, either way: Pause marks an adjusted game, and the log names each correction](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-04-fair-stats-either-way.jpg)
+![Fair stats, either way: Pause marks an adjusted game, and the log names each correction](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-04-fair-stats-either-way.jpg)
 
-![You asked, we fixed: Giant Strength waits for Giant form, reported by GarethMagis, and One Way or Another needs a side scheme, reported by @javgoro](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: Giant Strength waits for Giant form, reported by GarethMagis, and One Way or Another needs a side scheme, reported by @javgoro](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-05-you-asked-we-fixed.jpg)
 
-![Thank you to @sgaon42, GarethMagis and @javgoro](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-thank-you.jpg)
+![Thank you to @sgaon42, GarethMagis and @javgoro](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-thank-you.jpg)
 
-![Code shipped since v0.48.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.49.0/v0-49-0-release-07-code-shipped.jpg)
+![Code shipped since v0.48.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/50bd57cd6a245cddac9e61d8adea892be4ae7864/docs/screenshots/releases/v0.49.0/v0-49-0-release-07-code-shipped.jpg)
