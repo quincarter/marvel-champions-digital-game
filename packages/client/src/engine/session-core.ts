@@ -583,7 +583,9 @@ export class EngineSessionCore {
     this.#saveError = null;
     // A new session counts from now: the time since the game was last played, however short, is not play.
     this.#playedMs = stored.meta.playedMs;
-    this.#adjusted = stored.meta.adjusted === true;
+    // The log holds every Manual adjust, should a merged or older meta have lost the mark; an Undo past a reveal leaves
+    // nothing in the log, so for that the meta is the only record.
+    this.#adjusted = stored.meta.adjusted === true || stored.commands.some((command) => command.type === "adjust");
     this.#activeAt = this.#now();
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };

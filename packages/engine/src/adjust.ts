@@ -17,7 +17,8 @@
  *   resolve as for any defeat), a side scheme left with no threat is defeated, a main scheme at its target threat is
  *   completed, a uses card emptied of its counters is discarded, a vulnerable character given a stun or confuse is
  *   discarded, and a card discarded from play goes through `discardFromPlay` (its "when this leaves play" interrupts,
- *   its attachments with it; a permanent or "cannot leave play" card stays and the refusal is logged). Status card
+ *   its attachments with it; a "cannot leave play" card stays and the refusal is logged, and discarding a permanent
+ *   card is refused outright). Status card
  *   capacity (one of each, steady two, stalwart none), counter limits and sustained damage caps hold too: giving a
  *   status card a character cannot hold is refused, and placed damage or counters stop at the cap, as the
  *   state checks between frames would otherwise shed them again.
@@ -136,8 +137,12 @@ function applyAdjustment(ctx: Ctx, adjustment: Adjustment, command: AdjustComman
       discardFromHand(ctx, handHolding(ctx, adjustment.instanceId)!, adjustment.instanceId);
       return null;
     case "discardFromPlay":
-      // No source card: the game's own discard, so a permanent card stays (RRG 1.8 "Permanent", p. 32) and the refusal
-      // is logged as `leavePlayBlocked`.
+      // No source card: the game's own discard. A permanent card can't be discarded (RRG 1.8 "Permanent", p. 32); any
+      // other refusal ("cannot leave play") is logged as `leavePlayBlocked` by the discard itself.
+      // A refused discard is refused here, so a command that changes nothing never marks a game adjusted.
+      if (permanentStopsLeaving(ctx.state, ctx.deps, adjustment.instanceId, undefined)) {
+        return engineError("no_valid_target", "a permanent card can't be discarded", command);
+      }
       discardFromPlay(ctx, adjustment.instanceId);
       return null;
     case "damage":
@@ -283,6 +288,9 @@ function adjustForm(
       return engineError("no_valid_target", "already in that hero form", command);
     to = "hero";
   }
+  // Engine-specific exception to "no windows of its own": a separated identity whose flip waits on an attachment's
+  // leave-play interrupt (`separatedFlipWaits`) flips later through `runHostStep`, which opens the usual form-change
+  // response window. Rare, and the flip itself is still the one asked for.
   setForm(ctx, adjustment.playerId, to, false, heroForm);
   return null;
 }

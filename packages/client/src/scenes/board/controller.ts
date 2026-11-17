@@ -2091,7 +2091,13 @@ export class BoardController {
       return;
     }
     if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
-    if (offer.revealed && !(await this.#acknowledgeAdjusting())) return;
+    if (offer.revealed) {
+      if (!(await this.#acknowledgeAdjusting())) return;
+      // The table may have moved while the warning was up: take back only what was offered.
+      const still = this.undoOffer();
+      if (still?.kind !== "available" || still.target !== offer.target) return;
+      if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
+    }
     this.#undoing = true;
     try {
       const { game } = appSession().store.state;
@@ -2151,7 +2157,11 @@ export class BoardController {
       undoStepsOf(commandTrail, now, perspectiveId, undoRules())
         .slice(0, steps)
         .some((step) => step.revealed);
-    if (adjusted && !(await this.#acknowledgeAdjusting())) return false;
+    if (adjusted) {
+      if (!(await this.#acknowledgeAdjusting())) return false;
+      if (!this.undoTargets().includes(target)) return false;
+      if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return false;
+    }
     this.#undoing = true;
     try {
       const offer = this.undoOffer();

@@ -20,7 +20,9 @@
  * Undo past reveals (issue #791; `UndoRules.pastReveals`, which the board always passes) lifts only the third line: a
  * move that drew, revealed or picked at random can be taken back too, and the offer says so (`revealed`), so the board
  * first warns that the game will stop counting toward stats and achievements and, once the player acknowledges it,
- * marks the game adjusted (`SaveMeta.adjusted`). The rewind replays the stored log, the seed's draws included, so the
+ * marks the game adjusted (`SaveMeta.adjusted`). It lifts every event stop of that line, not only reveals: a move with
+ * another seat's cost share or a shared (pod) event in it can be taken back the same way. The turn's start and another
+ * seat's own commands still stop it. The rewind replays the stored log, the seed's draws included, so the
  * same move made again draws the same card: it puts a misplay right, it can't fish for a better draw.
  *
  * Randomness: the store records the engine's RNG draw count (`GameState.rng.draws`) around every command
