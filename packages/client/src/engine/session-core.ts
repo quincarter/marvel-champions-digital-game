@@ -88,6 +88,7 @@ import {
 import type {
   CardPool,
   LegalActionsFor,
+  RewindOptions,
   SavedGame,
   SealedEventState,
   SealedStateWithoutPool,
@@ -122,6 +123,8 @@ export interface Snapshot {
   readonly trail?: readonly BackOutTrailEntry[];
   /** The table at the villain phase's events, where the command had any (`EngineUpdate.states`). */
   readonly states?: readonly SealedEventState[];
+  /** The game was adjusted by hand or undone past a reveal (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
+  readonly adjusted?: true;
 }
 
 export type CoreDispatch =
@@ -387,6 +390,8 @@ export class EngineSessionCore {
   #playedMs: number | undefined = 0;
   /** When this session last took a command (or started or resumed the game); null with no game. */
   #activeAt: number | null = null;
+  /** `SaveMeta.adjusted`: a Manual adjust or an Undo past a reveal happened in this game (issue #791). Never cleared. */
+  #adjusted = false;
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -444,6 +449,7 @@ export class EngineSessionCore {
     this.#saveError = null;
     this.#gameId = null;
     this.#playedMs = 0;
+    this.#adjusted = false;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
 
@@ -577,6 +583,9 @@ export class EngineSessionCore {
     this.#saveError = null;
     // A new session counts from now: the time since the game was last played, however short, is not play.
     this.#playedMs = stored.meta.playedMs;
+    // The log holds every Manual adjust, should a merged or older meta have lost the mark; an Undo past a reveal leaves
+    // nothing in the log, so for that the meta is the only record.
+    this.#adjusted = stored.meta.adjusted === true || stored.commands.some((command) => command.type === "adjust");
     this.#activeAt = this.#now();
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
@@ -594,7 +603,7 @@ export class EngineSessionCore {
    * the same state a save-then-resume at that command count would. Persists the truncated log immediately (when
    * this session has storage), so a reload after backing out does not resurrect the undone commands.
    */
-  async rewindTo(commandCount: number): Promise<Snapshot> {
+  async rewindTo(commandCount: number, options: RewindOptions = {}): Promise<Snapshot> {
     const session = this.#require();
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
@@ -614,6 +623,7 @@ export class EngineSessionCore {
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
     this.#version = truncated.length;
     this.#record = record;
+    if (options.adjusted) this.#adjusted = true;
 
     const storage = this.#storage;
     const gameId = this.#gameId;
@@ -623,6 +633,7 @@ export class EngineSessionCore {
         commandCount: truncated.length,
         updatedAt: this.#played(),
         ...this.#playedField(),
+        ...this.#adjustedField(),
         status: statusOf(state),
         outcome: state.outcome,
         summary: summarizeGame(state, record, depsOf(config), config.players),
@@ -647,6 +658,7 @@ export class EngineSessionCore {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
+    if (command.type === "adjust") this.#adjusted = true;
     this.#record = recordEvents(this.#record, result.events, result.session.state, depsOf(this.#config));
     this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
@@ -795,6 +807,11 @@ export class EngineSessionCore {
     return this.#playedMs === undefined ? {} : { playedMs: this.#playedMs };
   }
 
+  /** `adjusted` for a progress write, absent on a game played by the rules. */
+  #adjustedField(): { readonly adjusted?: true } {
+    return this.#adjusted ? { adjusted: true } : {};
+  }
+
   #persist(command: Command, seq: number, state: GameState, at: number): void {
     const storage = this.#storage;
     const gameId = this.#gameId;
@@ -805,6 +822,7 @@ export class EngineSessionCore {
       commandCount: seq + 1,
       updatedAt: at,
       ...this.#playedField(),
+      ...this.#adjustedField(),
       status: statusOf(state),
       outcome: state.outcome,
       summary: summarizeGame(state, this.#record, depsOf(this.#config), this.#config?.players),
@@ -839,6 +857,7 @@ export class EngineSessionCore {
       saveError: this.#saveError,
       config: this.#config,
       gameId: this.#gameId,
+      ...this.#adjustedField(),
     };
   }
 

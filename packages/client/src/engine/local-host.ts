@@ -18,6 +18,7 @@ import type {
   DispatchResult,
   EngineHost,
   EngineUpdate,
+  RewindOptions,
   SavedGame,
   SessionConfig,
   UpdateListener,
@@ -51,8 +52,8 @@ export class LocalEngineHost implements EngineHost {
     return { ok: true, update };
   }
 
-  async rewindTo(commandCount: number): Promise<EngineUpdate> {
-    const snapshot = await this.#core.rewindTo(commandCount);
+  async rewindTo(commandCount: number, options?: RewindOptions): Promise<EngineUpdate> {
+    const snapshot = await this.#core.rewindTo(commandCount, options);
     const update = this.#hydrate(snapshot);
     this.#publish(update);
     return update;
@@ -128,6 +129,7 @@ export class LocalEngineHost implements EngineHost {
       saveError: snapshot.saveError,
       config: snapshot.config,
       ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
+      ...(snapshot.adjusted ? { adjusted: snapshot.adjusted } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
       ...(snapshot.states

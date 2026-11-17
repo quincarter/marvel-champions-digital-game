@@ -170,6 +170,21 @@ interface Pulled {
   readonly dbVersion?: number | undefined;
 }
 
+/**
+ * A game's meta taken from the other device keeps this device's `adjusted` mark (`SaveMeta.adjusted`, issue #791):
+ * the mark is sticky, and an Undo past a reveal leaves nothing in the log to find it again by, so whichever log wins,
+ * a game adjusted on either device stays adjusted. The written meta then differs from the remote one, so the next sync
+ * pushes it back with the mark. Any other record, or a meta neither side marked, is the remote value as it is.
+ */
+export function keptAdjusted(key: string, local: unknown, remote: unknown): unknown {
+  // A game's meta, or a campaign run (`CampaignRecord.adjusted`: an adjusted game was folded into it).
+  const marks = partOf(key) === "meta" || key.startsWith("db:mc-campaigns:campaigns:");
+  if (!marks || typeof remote !== "object" || remote === null) return remote;
+  const marked = (value: unknown): boolean =>
+    typeof value === "object" && value !== null && (value as { adjusted?: unknown }).adjusted === true;
+  return marked(local) && !marked(remote) ? { ...remote, adjusted: true } : remote;
+}
+
 interface KeyState {
   readonly key: string;
   readonly recordKey: string;
@@ -602,7 +617,7 @@ class Run {
         deleted: true,
       });
     } else {
-      into.writes.push({ key: state.key, value: remote.value });
+      into.writes.push({ key: state.key, value: keptAdjusted(state.key, state.local?.value, remote.value) });
       into.entries.push({
         key: state.key,
         recordKey: state.recordKey,
@@ -647,7 +662,19 @@ class Run {
     }
     // No stamp history on this side (a first join, a new space): the cloud's copy wins over this device's defaults.
     if (!remote.deleted && !state.entry && state.stampless) return this.#applyOf(state, apply);
-    if (remote.deleted || local.stamp >= remote.stamp) return this.#pushOf(state, pushes);
+    if (remote.deleted || local.stamp >= remote.stamp) {
+      // This device's record wins, keeping a mark the other side's carries (`keptAdjusted`: a campaign run).
+      const kept = remote.deleted ? local.value : keptAdjusted(state.key, remote.value, local.value);
+      if (kept === local.value) return this.#pushOf(state, pushes);
+      apply.writes.push({ key: state.key, value: kept });
+      pushes.push({
+        key: state.key,
+        recordKey: state.recordKey,
+        baseVersion: this.#base(state),
+        record: { ...local, value: kept, hash: await hashValue(kept) },
+      });
+      return;
+    }
     this.#applyOf(state, apply);
   }
 
@@ -713,7 +740,7 @@ class Run {
     let verdict = this.#analyse(list);
     if (verdict !== "diverged" && this.#firstContactDiffers(list)) verdict = "diverged";
     if (verdict === "local") {
-      this.#localOverRemote(list, pushes);
+      await this.#localOverRemote(list, pushes, apply);
       return false;
     }
     if (verdict === "remote") {
@@ -735,7 +762,7 @@ class Run {
     }
     if (!localMeta || !remoteMeta || remoteMeta.deleted) {
       // One side has no game record to show: nothing to ask, the side that has one wins (an edit beats a delete).
-      if (localMeta) this.#localOverRemote(list, pushes);
+      if (localMeta) await this.#localOverRemote(list, pushes, apply);
       else for (const s of list) if (s.remote) this.#applyOf(s, apply);
       return false;
     }
@@ -761,7 +788,7 @@ class Run {
     }
     // A remembered "later" never exists (it isn't stored), so what is left is one of the three real choices.
     if (choice === "keep-local") {
-      this.#localOverRemote(list, pushes);
+      await this.#localOverRemote(list, pushes, apply);
       return false;
     }
     if (choice === "keep-remote") {
@@ -795,7 +822,7 @@ class Run {
         })),
       );
     }
-    this.#localOverRemote(this.#rebased(list, full), pushes);
+    await this.#localOverRemote(this.#rebased(list, full), pushes, apply);
     return copied;
   }
 
@@ -901,9 +928,19 @@ class Run {
   }
 
   /** The remote side's pulled records are replaced by this device's: push what differs, delete what is gone here. */
-  #localOverRemote(list: readonly KeyState[], pushes: PushItem[]): void {
+  async #localOverRemote(list: readonly KeyState[], pushes: PushItem[], into: Apply): Promise<void> {
     for (const s of list) {
       if (s.local) {
+        // This device's game wins, but a mark the other device's copy carries stays (`keptAdjusted`, issue #791): the
+        // merged meta is written here and pushed, with its own hash so the next sync sees nothing new.
+        const merged =
+          s.remote && !s.remote.deleted ? keptAdjusted(s.key, s.remote.value, s.local.value) : s.local.value;
+        if (merged !== s.local.value) {
+          const record = { ...s.local, value: merged, hash: await hashValue(merged) };
+          into.writes.push({ key: s.key, value: merged });
+          pushes.push({ key: s.key, recordKey: s.recordKey, baseVersion: this.#base(s), record });
+          continue;
+        }
         if (s.localChanged || s.remote) this.#pushOf(s, pushes);
       } else if (s.remote ? !s.remote.deleted : s.entry !== undefined && !s.entry.deleted) {
         // Gone here (a truncated log, a removed game): a tombstone for what the server still holds.
@@ -916,7 +953,8 @@ class Run {
   #remoteOverLocal(list: readonly KeyState[], full: ReadonlyMap<string, Pulled>, into: Apply): void {
     for (const [key, p] of full) {
       if (p.deleted) continue;
-      into.writes.push({ key, value: p.value });
+      const local = list.find((s) => s.key === key)?.local?.value;
+      into.writes.push({ key, value: keptAdjusted(key, local, p.value) });
       into.entries.push({
         key,
         recordKey: p.recordKey,

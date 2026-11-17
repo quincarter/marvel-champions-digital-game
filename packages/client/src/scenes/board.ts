@@ -114,7 +114,7 @@ import { zoomCardOf } from "../view/inspect-hold.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
-import { askToEndTurn } from "./end-turn-confirm.js";
+import { askToAdjustGame, askToEndTurn } from "./end-turn-confirm.js";
 import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
 import { optionNoticesOf, unofferedNoticesOf, type OptionNotice } from "../view/option-notice.js";
 import { showHoldOn } from "./hold-on.js";
@@ -393,6 +393,8 @@ export class BoardScene extends Phaser.Scene {
       if (pair) this.#openTeamUpInfo(pair);
     },
     confirmEndTurn: (sentence, onConfirm, title) => askToEndTurn(this, sentence, onConfirm, title),
+    confirmAdjustGame: (sentence, confirmLabel, onConfirm, onCancel) =>
+      askToAdjustGame(this, sentence, confirmLabel, onConfirm, onCancel),
     // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
     // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
     holdOn: (hint, actions) =>
@@ -809,6 +811,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.deckLeft,
         SCENES.villainPhase,
         SCENES.pause,
+        SCENES.manualAdjust,
         SCENES.rules,
         SCENES.settings,
         SCENES.campaignBeat,

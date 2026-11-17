@@ -65,7 +65,7 @@ import {
   type PauseWideLayout,
 } from "../view/pause-layout.js";
 import { logLineWords, recentLogMoments } from "../view/pause-log-window.js";
-import { blindSheetNamesOf, pauseStatusOf, seedSuffixOf } from "../view/pause-model.js";
+import { adjustedSuffixOf, blindSheetNamesOf, pauseStatusOf, seedSuffixOf } from "../view/pause-model.js";
 import { rulesGlossaryOf, type RulesEntry } from "../view/rules-reference.js";
 import { scenarioCardListOf } from "../view/scenario-card-list.js";
 import {
@@ -82,6 +82,7 @@ import {
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
+import type { ManualAdjustData } from "./manual-adjust.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
@@ -159,6 +160,9 @@ export class PauseOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.rules) ||
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.playerStats) ||
+        this.scene.isActive(SCENES.manualAdjust) ||
+        // The "This game won't count" warning before a Jump to a moment past a reveal opens over the Board (#791).
+        this.scene.isActive(SCENES.endTurnConfirm) ||
         this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),
@@ -232,6 +236,12 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Manual adjust, over this sheet (#791): Done there closes it and Pause takes input again. */
+  #openManualAdjust(): void {
+    if (this.scene.isActive(SCENES.manualAdjust)) return;
+    this.scene.launch(SCENES.manualAdjust, { from: SCENES.pause } satisfies ManualAdjustData);
+  }
+
   /** Your stats, over this sheet: Back there closes it and Pause takes input again. */
   #openStats(): void {
     if (this.scene.isActive(SCENES.playerStats)) return;
@@ -248,6 +258,7 @@ export class PauseOverlay extends Phaser.Scene {
         SCENES.rules,
         SCENES.settings,
         SCENES.playerStats,
+        SCENES.manualAdjust,
         SCENES.controls,
         SCENES.choice,
         SCENES.inspect,
@@ -332,6 +343,12 @@ export class PauseOverlay extends Phaser.Scene {
         title: "Your stats",
         detail: "Your record, heroes, villains and the cards you play.",
         open: () => this.#openStats(),
+      },
+      {
+        id: "manualAdjust",
+        title: "Manual adjust",
+        detail: "Fix the table by hand after a bug or a misclick.",
+        open: () => this.#openManualAdjust(),
       },
       {
         id: "music",
@@ -563,10 +580,29 @@ export class PauseOverlay extends Phaser.Scene {
       );
     }
 
+    // The wide status line has no room for it, so the left panel says it in the gap above Manual adjust.
+    if (!this.#confirmingConcede && appSession().store.state.adjusted) {
+      this.add
+        .text(
+          layout.manualAdjust.x,
+          layout.manualAdjust.y - 36,
+          "Adjusted: not counted toward stats",
+          textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+        )
+        .setFontSize(11)
+        .setWordWrapWidth(layout.manualAdjust.width)
+        .setLineSpacing(2);
+    }
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
-    // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
-    // 2026-09-18); its place alone at the panel's foot, and the confirm step behind it, already set it apart.
-    else this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
+    else {
+      // Not the primary, and in the slot the concede confirm takes over, so the two never show at once.
+      this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
+        this.#openManualAdjust(),
+      );
+      // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
+      // 2026-09-18); its place alone at the panel's foot, and the confirm step behind it, already set it apart.
+      this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
+    }
 
     this.#drawWideRight(layout, entries, game, stops);
   }
@@ -990,7 +1026,14 @@ export class PauseOverlay extends Phaser.Scene {
       offer = null;
     }
     const setNames = new Map(gameEncounterSets().map((set) => [set.id as string, set.name]));
-    const status = pauseStatusOf(game, perspectiveId, config, gameScenarios(), blindSheetNamesOf(offer, setNames));
+    const status = pauseStatusOf(
+      game,
+      perspectiveId,
+      config,
+      gameScenarios(),
+      blindSheetNamesOf(offer, setNames),
+      appSession().store.state.adjusted,
+    );
     return status.blindSheet ?? status.buildSheet ?? [];
   }
 
@@ -1014,8 +1057,8 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios());
-    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}`;
+    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios(), undefined, appSession().store.state.adjusted);
+    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}${seedSuffixOf(s)}${adjustedSuffixOf(s)}`;
   }
 
   /**
@@ -1030,7 +1073,7 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: NonNullable<SessionState["perspectiveId"]>,
     config: SessionState["config"],
   ): string {
-    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios());
+    const s = pauseStatusOf(game, perspectiveId, config, gameScenarios(), undefined, appSession().store.state.adjusted);
     // The seed before the seat: the seat name is the part that gives way when the column is too narrow for both.
     return `Round ${s.round} · ${s.phaseLabel.toLowerCase()}${seedSuffixOf(s)} · ${s.seatLabel}`;
   }

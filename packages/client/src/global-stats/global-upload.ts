@@ -84,6 +84,7 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
       .filter(
         (meta) =>
           !meta.guided &&
+          !meta.adjusted &&
           (meta.status === "won" || meta.status === "lost") &&
           !sent.has(meta.id) &&
           meta.updatedAt >= since &&

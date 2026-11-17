@@ -21,6 +21,7 @@ describe("settingsSectionsOf", () => {
       "effects-volume",
       "token-motion",
       "deck-signature",
+      "undo-past-turn",
       "deck-copy-limits",
       "extra-modular-sets",
       "deck-list-on-open",

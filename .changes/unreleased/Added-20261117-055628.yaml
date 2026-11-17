@@ -1,0 +1,3 @@
+kind: Added
+body: "Undo now reaches past the start of your turn, a draw, a reveal or the villain phase, one move at a time. Settings ▸ Gameplay ▸ Undo past your turn picks Allow, Warn (the default: a warning you acknowledge first) or Off. A game where you undo that far no longer counts toward stats or achievements (#791)."
+time: 2026-11-17T05:56:28.1076263-05:00

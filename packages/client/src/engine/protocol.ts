@@ -9,7 +9,7 @@
 
 import type { Command, EngineError, EngineErrorCode, IllegalDeck, LegalActions, PlayerId } from "@mc/engine";
 import type { SaveMeta } from "./game-storage.js";
-import type { CardPool, SessionConfig, StateWithoutPool } from "./host.js";
+import type { CardPool, RewindOptions, SessionConfig, StateWithoutPool } from "./host.js";
 import type { Snapshot } from "./session-core.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -18,7 +18,12 @@ export type HostRequest =
   | { readonly kind: "start"; readonly id: number; readonly config: SessionConfig }
   | { readonly kind: "resume"; readonly id: number; readonly gameId: string }
   | { readonly kind: "dispatch"; readonly id: number; readonly command: Command }
-  | { readonly kind: "rewindTo"; readonly id: number; readonly commandCount: number }
+  | {
+      readonly kind: "rewindTo";
+      readonly id: number;
+      readonly commandCount: number;
+      readonly options?: RewindOptions;
+    }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
   | { readonly kind: "judgePayment"; readonly id: number; readonly playerId: PlayerId; readonly payment: PaymentState }
   | { readonly kind: "save"; readonly id: number }

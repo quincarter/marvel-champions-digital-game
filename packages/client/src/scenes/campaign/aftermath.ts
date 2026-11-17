@@ -133,6 +133,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #nodeId: string | null = null;
   #saved: SavedGame | null = null;
   #gameId: string | null = null;
+
+  /** The game being folded was adjusted by hand or undone past a reveal (issue #791): the run stops earning rewards. */
+  #isAdjusted(): boolean {
+    return appSession().store.state.adjusted === true;
+  }
   #answers: CampaignChoiceAnswer[] = [];
   #group: AftermathChoiceGroup | null = null;
   #seats: readonly AftermathSeat[] = [];
@@ -319,7 +324,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     await this.#afterFadeIn();
     if (!this.sys.isActive()) return;
     if (!won) {
-      const result = await service.fold(record, this.#saved, [], this.#gameId);
+      const result = await service.fold(record, this.#saved, [], this.#gameId, this.#isAdjusted());
       if (!this.sys.isActive()) return;
       if (result.kind !== "done") {
         // MC10 never asks a defeat question; another box that did would need its own screen, not a silent guess.
@@ -396,7 +401,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const saved = this.#saved;
     if (!record || !saved) return;
     const service = campaignService();
-    const result = await service.fold(record, saved, this.#answers, this.#gameId);
+    const result = await service.fold(record, saved, this.#answers, this.#gameId, this.#isAdjusted());
     if (!this.sys.isActive()) return;
     if (result.kind === "done") {
       this.#onFolded(result.record);
@@ -454,7 +459,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const saved = this.#saved;
     if (!record || !saved) return;
     for (let guard = 0; guard < 8; guard++) {
-      const peek = await service.fold(record, saved, this.#answers, this.#gameId);
+      const peek = await service.fold(record, saved, this.#answers, this.#gameId, this.#isAdjusted());
       if (!this.sys.isActive()) return;
       if (peek.kind === "done") {
         this.#busy = false;
@@ -507,7 +512,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#draw();
     const service = campaignService();
     const answers = [...this.#answers, answer];
-    const result = await service.fold(record, saved, answers, this.#gameId);
+    const result = await service.fold(record, saved, answers, this.#gameId, this.#isAdjusted());
     if (!this.sys.isActive()) return;
     this.#busy = false;
     this.#answers = answers;

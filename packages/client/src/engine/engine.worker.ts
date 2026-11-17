@@ -112,7 +112,11 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "rewindTo": {
-        reply({ kind: "rewound", id: request.id, snapshot: await core.rewindTo(request.commandCount) });
+        reply({
+          kind: "rewound",
+          id: request.id,
+          snapshot: await core.rewindTo(request.commandCount, request.options),
+        });
         announceSaved("game");
         publishPresence();
         return;

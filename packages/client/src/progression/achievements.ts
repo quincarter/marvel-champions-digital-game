@@ -21,7 +21,8 @@ import { NO_DECK_FEATS, type DeckFeats } from "./deck-feats.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
-import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedCampaign } from "../engine/campaign-storage.js";
+import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
 import {
@@ -98,6 +99,8 @@ export interface AchievementCampaign {
   readonly campaignId: string;
   /** Set for a run of a pack's campaign: custom content earns nothing here. */
   readonly pack?: unknown;
+  /** Set once an adjusted game was folded in (issue #791): the run earns nothing. */
+  readonly adjusted?: unknown;
   readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean; readonly balanced?: boolean } };
 }
 
@@ -215,12 +218,14 @@ const FINALES: ReadonlyMap<string, string> = new Map(
 );
 
 export function factsOf(history: AchievementHistory): Facts {
-  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s));
+  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s));
   const wonSaves = real.filter((s) => s.status === "won");
   const lostSaves = real.filter((s) => s.status === "lost");
   const heroesOf = (s: AchievementSave): string[] =>
     s.config.players.map(identityOfSeat).filter((id): id is string => id !== null);
-  const campaigns = history.campaigns.filter((c) => c.status === "won" && c.pack === undefined);
+  const campaigns = history.campaigns.filter(
+    (c) => c.status === "won" && c.pack === undefined && !isAdjustedCampaign(c),
+  );
   return {
     wins: wonSaves.length,
     losses: lostSaves.length,

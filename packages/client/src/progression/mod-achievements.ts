@@ -7,7 +7,8 @@
  * the Mods family. A game's `config.packs` carries the packs it was played with, so everything is read from the saves:
  * nothing stored but which mods were ever installed (`mod-installs.ts`). Pure: no storage, no Phaser.
  */
-import { isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedCampaign } from "../engine/campaign-storage.js";
+import { isAdjustedSave, isLessonSave } from "../engine/game-storage.js";
 import { parsePackAchievements, type PackAchievement, type PackAchievementWhen } from "@mc/content";
 import type { AchievementCampaign, AchievementProgress, AchievementSave } from "./achievements.js";
 
@@ -130,7 +131,9 @@ export interface ModHistory {
 
 /** Finished, real games: a won or lost row that is not a Try-it lesson. Custom content counts here. */
 const finishedGames = (saves: readonly AchievementSave[]): ModGame[] =>
-  saves.filter((s) => !isLessonSave(s) && (s.status === "won" || s.status === "lost")).map(modGameOf);
+  saves
+    .filter((s) => !isLessonSave(s) && !isAdjustedSave(s) && (s.status === "won" || s.status === "lost"))
+    .map(modGameOf);
 
 export const NO_MOD_FACTS: ModFacts = modFactsOf({ saves: [], campaigns: [] });
 
@@ -148,7 +151,9 @@ export function modFactsOf(history: ModHistory): ModFacts {
     wonCommunityHeroVsVillain: wins.some((g) => g.communityHeroes.size > 0 && g.communityVillain),
     communityWins: wins.filter(communityWin).length,
     wonCommunityHeroIds: new Set(wins.flatMap((g) => [...g.communityHeroes])),
-    wonCommunityCampaign: history.campaigns.some((c) => c.status === "won" && c.pack !== undefined),
+    wonCommunityCampaign: history.campaigns.some(
+      (c) => c.status === "won" && c.pack !== undefined && !isAdjustedCampaign(c),
+    ),
     playedHouseRule: games.some((g) => g.houseRules.length > 0),
     wonHouseRule: wins.some((g) => g.houseRules.length > 0),
     wonLostTraits: wins.some((g) => g.houseRules.includes(LOST_TRAITS_PACK_ID)),
@@ -327,7 +332,12 @@ export function measurePackAchievement(
   if (when.campaignWon !== undefined) {
     // The run must be of THIS pack's campaign: a campaign id alone could collide across packs.
     const won = campaigns.some(
-      (c) => c.status === "won" && isRecord(c.pack) && c.pack.id === packId && c.campaignId === when.campaignWon,
+      (c) =>
+        c.status === "won" &&
+        !isAdjustedCampaign(c) &&
+        isRecord(c.pack) &&
+        c.pack.id === packId &&
+        c.campaignId === when.campaignWon,
     );
     return { progress: flag(won), showProgress: false };
   }

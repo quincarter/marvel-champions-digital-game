@@ -61,7 +61,26 @@ import {
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
-import { undoOf, undoTargetsOf, undoneSummary, UNDO_REASONS, type UndoOffer } from "../../view/undo.js";
+import {
+  undoOf,
+  undoStepsOf,
+  undoTargetsOf,
+  undoneSummary,
+  UNDO_REASONS,
+  type UndoOffer,
+  type UndoRules,
+} from "../../view/undo.js";
+
+/**
+ * Undo reaches past the turn, a draw, a reveal or a random pick (issue #791, the owner 2026-11-17) unless Settings ▸
+ * "Undo past your turn" is Off. On Warn (the default) the player acknowledges first that the game will then stop
+ * counting toward stats and achievements; on Allow it goes without asking, and the game is marked all the same.
+ */
+const undoRules = (): UndoRules => ({ pastReveals: appSession().settings.undoPastTurn !== "off" });
+
+/** What the warning says before an Undo past a reveal. */
+const UNDO_PAST_REVEAL_SENTENCE =
+  "Undoing this takes back a card that was drawn, revealed or picked at random. Making the same move again gives the same result.";
 import {
   abilityActionsFor,
   legalEntriesOf,
@@ -136,6 +155,11 @@ export interface BoardControllerHost {
    */
   /** `title` replaces "End your turn?" (the small-hand-size confirm asks "Are you sure?"). */
   confirmEndTurn(sentence: string, onConfirm: () => void, title?: string): void;
+  /**
+   * Warns that this game will stop counting toward stats and achievements (issue #791: an Undo past a draw, reveal or
+   * random pick) and calls `onConfirm` only if the player acknowledges it.
+   */
+  confirmAdjustGame?(sentence: string, confirmLabel: string, onConfirm: () => void, onCancel: () => void): void;
   /**
    * Guided mode's "Hold on!" safety net (`docs/guided-mode.md` §4 G9b, `scenes/hold-on.ts`): shown instead of
    * sending the command `hint` was raised against. Calls exactly one of `onSafe`/`onAnyway` if the player picks
@@ -2004,7 +2028,7 @@ export class BoardController {
       game.step.kind === "turn" &&
       game.step.activePlayerId === perspectiveId
         ? { kind: "available", ...handover }
-        : undoOf(commandTrail, game, perspectiveId);
+        : undoOf(commandTrail, game, perspectiveId, undoRules());
     if (offer && this.#selection.kind !== "idle") return { kind: "unavailable", reason: UNDO_REASONS.selecting };
     return offer;
   }
@@ -2068,15 +2092,47 @@ export class BoardController {
       return;
     }
     if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
+    if (offer.revealed) {
+      if (!(await this.#acknowledgeAdjusting())) return;
+      // The table may have moved while the warning was up: take back only what was offered.
+      const still = this.undoOffer();
+      if (still?.kind !== "available" || still.target !== offer.target) return;
+      if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
+    }
     this.#undoing = true;
     try {
       const { game } = appSession().store.state;
       const what = game ? undoneSummary(offer.command, (id) => cardName(game, id)) : "last move";
-      if (await appSession().store.rewindTo(offer.target)) this.#noteUndo(`Undid: ${what}`);
+      const adjusted = offer.revealed === true;
+      if (await appSession().store.rewindTo(offer.target, { adjusted })) this.#noteUndo(`Undid: ${what}`);
     } finally {
       this.#undoing = false;
       this.#undoSettledAt = Date.now();
     }
+  }
+
+  /**
+   * The player's go-ahead to step outside the rules (issue #791): asked only while the game still counts, so a game
+   * already adjusted takes its next Undo past a reveal without asking again. Resolves false when they cancel, and
+   * true at once on a host with no warning to show.
+   */
+  #acknowledgeAdjusting(): Promise<boolean> {
+    if (
+      appSession().store.state.adjusted ||
+      appSession().settings.undoPastTurn === "allow" ||
+      !this.#host.confirmAdjustGame
+    ) {
+      return Promise.resolve(true);
+    }
+    const ask = this.#host.confirmAdjustGame.bind(this.#host);
+    return new Promise((resolve) => {
+      ask(
+        UNDO_PAST_REVEAL_SENTENCE,
+        "Undo anyway",
+        () => resolve(true),
+        () => resolve(false),
+      );
+    });
   }
 
   /**
@@ -2088,7 +2144,7 @@ export class BoardController {
     if (this.undoOffer()?.kind !== "available") return [];
     const { game, perspectiveId, commandTrail } = appSession().store.state;
     if (!game || !perspectiveId) return [];
-    return undoTargetsOf(commandTrail, game, perspectiveId);
+    return undoTargetsOf(commandTrail, game, perspectiveId, undoRules());
   }
 
   /**
@@ -2100,6 +2156,19 @@ export class BoardController {
     const steps = targets.indexOf(target) + 1;
     if (steps === 0) return false;
     if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return false;
+    // Any step on the way that takes back a draw, reveal or random pick marks the game adjusted (issue #791).
+    const { game: now, perspectiveId, commandTrail } = appSession().store.state;
+    const adjusted =
+      !!now &&
+      !!perspectiveId &&
+      undoStepsOf(commandTrail, now, perspectiveId, undoRules())
+        .slice(0, steps)
+        .some((step) => step.revealed);
+    if (adjusted) {
+      if (!(await this.#acknowledgeAdjusting())) return false;
+      if (!this.undoTargets().includes(target)) return false;
+      if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return false;
+    }
     this.#undoing = true;
     try {
       const offer = this.undoOffer();
@@ -2110,7 +2179,7 @@ export class BoardController {
           : game && offer?.kind === "available"
             ? undoneSummary(offer.command, (id) => cardName(game, id))
             : "last move";
-      if (!(await appSession().store.rewindTo(target))) return false;
+      if (!(await appSession().store.rewindTo(target, { adjusted }))) return false;
       this.#noteUndo(`Undid: ${what}`);
       return true;
     } finally {

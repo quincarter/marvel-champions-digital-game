@@ -116,6 +116,8 @@ export interface PauseWideLayout {
   readonly blindSheet: Rect | null;
   readonly menu: PauseMenuLayout;
   readonly concede: Rect;
+  /** Manual adjust (#791): the slot just above Concede, which the concede confirm's Cancel takes over while it is up. */
+  readonly manualAdjust: Rect;
   /** Where the confirm's "Yes, concede" / "Cancel" pair replace Concede's own slot — placed just above it, in the gap between the menu and the foot. */
   readonly concedeConfirmYes: Rect;
   readonly concedeConfirmCancel: Rect;
@@ -276,6 +278,7 @@ function wideLayout(
     blindSheet,
     menu,
     concede,
+    manualAdjust: concedeConfirmCancel,
     concedeConfirmYes,
     concedeConfirmCancel,
     rulesHeader,

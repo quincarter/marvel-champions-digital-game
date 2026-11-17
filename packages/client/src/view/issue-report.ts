@@ -12,6 +12,7 @@
  */
 import { withoutDeckNames } from "../engine/shared-config.js";
 import { CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
+import { ADJUSTED_LOG_LINE } from "./log-export.js";
 import type { LogLine } from "./log-lines.js";
 import { logLineWords } from "./pause-log-window.js";
 
@@ -58,6 +59,8 @@ export interface ReportGame {
   readonly config: unknown;
   /** Every command dispatched since the game started or resumed, in order. */
   readonly commands: readonly unknown[];
+  /** The game was adjusted (`SessionStore.state.adjusted`, issue #791). */
+  readonly adjusted?: boolean;
 }
 
 export interface ReportInput {
@@ -104,6 +107,7 @@ export function issueReportText(input: ReportInput): string {
       `Seed: ${game.seed ?? "unknown"}`,
       `Round: ${game.round ?? "unknown"}`,
       `Step: ${game.step == null ? "unknown" : JSON.stringify(game.step)}`,
+      ...(game.adjusted ? [ADJUSTED_LOG_LINE] : []),
       "",
       "== Game log (oldest first) ==",
       ...(game.lines.length === 0 ? ["(empty)"] : game.lines.map((line) => `${line.ref}  ${logLineWords(line)}`)),

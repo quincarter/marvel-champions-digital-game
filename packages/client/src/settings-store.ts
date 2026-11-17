@@ -33,6 +33,7 @@ import {
   clampMusicVolume,
   defaultSettings,
   DECK_SIGNATURE_CARDS_VALUES,
+  UNDO_PAST_TURN_VALUES,
   DECK_LIST_ON_OPEN_VALUES,
   resolutionPixelsOf,
   type Settings,
@@ -156,6 +157,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const signatureValue = DECK_SIGNATURE_CARDS_VALUES.find((value) => value === source["deckSignatureCards"]);
   if (signatureValue !== undefined) out.deckSignatureCards = signatureValue;
+  const undoValue = UNDO_PAST_TURN_VALUES.find((value) => value === source["undoPastTurn"]);
+  if (undoValue !== undefined) out.undoPastTurn = undoValue;
   const deckListValue = DECK_LIST_ON_OPEN_VALUES.find((value) => value === source["deckListOnOpen"]);
   if (deckListValue !== undefined) out.deckListOnOpen = deckListValue;
   const cardLanguage = source["cardLanguage"];

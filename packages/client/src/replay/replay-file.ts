@@ -55,6 +55,8 @@ export interface ReplayFile {
   readonly createdAt: number;
   readonly outcome: GameOutcome | null;
   readonly round: number;
+  /** The game was adjusted (`SaveMeta.adjusted`, issue #791). Absent on a game played by the rules and on older files. */
+  readonly adjusted?: true;
   readonly initialState: StateWithoutPool;
   readonly commands: readonly Command[];
   /** `checksums[k]` is `replayChecksum` of the state after `k * CHECKSUM_EVERY` commands, as the writer had it. */

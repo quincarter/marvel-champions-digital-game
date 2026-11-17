@@ -40,6 +40,7 @@ function fakeReplay(): { readonly host: InstanceType<typeof ReplayHost>; readonl
         divergedAt: null,
         failure: null,
         otherBuild: false,
+        adjusted: false,
         writer: { appVersion: "1", contentVersion: "a" },
         config: { scenarioId: "rhino", difficulty: "standard", players: [], seed: 1 },
         createdAt: 0,

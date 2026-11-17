@@ -20,6 +20,7 @@ export type SettingsItemId =
   | "token-motion"
   | "fade-color"
   | "deck-signature"
+  | "undo-past-turn"
   | "deck-list-on-open"
   | "display-mode"
   | "resolution"
@@ -108,6 +109,7 @@ export function settingsSectionsOf(input: {
       title: "Gameplay",
       items: [
         "confirm-end-turn",
+        "undo-past-turn",
         "not-offered-notices",
         "same-name-conflict",
         "deck-signature",

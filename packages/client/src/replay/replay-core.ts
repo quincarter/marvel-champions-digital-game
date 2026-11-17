@@ -172,6 +172,7 @@ export class ReplayCore {
             createdAt: meta.createdAt,
             outcome: meta.outcome,
             round: meta.round,
+            ...(meta.adjusted ? { adjusted: true as const } : {}),
             ...playedOnOf(meta.lastPlayedOn),
           },
         };

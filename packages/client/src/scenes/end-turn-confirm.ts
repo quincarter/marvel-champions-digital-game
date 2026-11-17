@@ -20,9 +20,14 @@ export interface EndTurnConfirmData {
   readonly sentence: string;
   /** "End your turn?" unless given ("Are you sure?" over a small hand size, `view/hand-size-note.ts`). */
   readonly title?: string;
+  /** The buttons' labels, "Keep playing" and "End turn" unless given (the adjusted-game warning, issue #791). */
+  readonly cancelLabel?: string;
+  readonly confirmLabel?: string;
   /** The scene that asked: its pointer input is off while this is up. */
   readonly from: string;
   readonly onConfirm: () => void;
+  /** Called when the player backs out instead (Cancel, Escape). */
+  readonly onCancel?: () => void;
 }
 
 export class EndTurnConfirmOverlay extends Phaser.Scene {
@@ -60,9 +65,10 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
   }
 
   #answer(confirmed: boolean): void {
-    const { onConfirm } = this.#data;
+    const { onConfirm, onCancel } = this.#data;
     this.scene.stop();
     if (confirmed) onConfirm();
+    else onCancel?.();
   }
 
   #draw(): void {
@@ -106,14 +112,14 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "secondary",
-        label: "Keep playing",
+        label: this.#data.cancelLabel ?? "Keep playing",
         type: buttonType,
         rect: keepRect,
         onClick: () => this.#answer(false),
       }),
       new McButton(this, {
         kind: "primary",
-        label: "End turn",
+        label: this.#data.confirmLabel ?? "End turn",
         type: buttonType,
         rect: endRect,
         onClick: () => this.#answer(true),
@@ -140,6 +146,39 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
     }
   }
 }
+
+/**
+ * Warns that stepping outside the rules (an Undo past a reveal, a Manual adjust; issue #791) means this game will no
+ * longer count toward stats or achievements, and calls `onConfirm` only if the player acknowledges it. The same box as
+ * the End turn confirm, with its own words.
+ */
+export function askToAdjustGame(
+  scene: Phaser.Scene,
+  sentence: string,
+  confirmLabel: string,
+  onConfirm: () => void,
+  onCancel: () => void,
+): void {
+  if (scene.scene.isActive(SCENES.endTurnConfirm)) {
+    onCancel();
+    return;
+  }
+  scene.scene.launch(SCENES.endTurnConfirm, {
+    sentence: `${sentence}
+
+${ADJUSTED_GAME_WARNING}`,
+    title: "This game won't count",
+    cancelLabel: "Cancel",
+    confirmLabel,
+    from: scene.scene.key,
+    onConfirm,
+    onCancel,
+  } satisfies EndTurnConfirmData);
+}
+
+/** The line every adjusted-game warning ends with. */
+export const ADJUSTED_GAME_WARNING =
+  "If you go ahead, this game will no longer count toward your stats or achievements, even if you win.";
 
 /** Asks "End your turn?" over `scene`, and calls `onConfirm` only if the player says End turn. */
 export function askToEndTurn(scene: Phaser.Scene, sentence: string, onConfirm: () => void, title?: string): void {

@@ -15,6 +15,7 @@ import type {
   DispatchResult,
   EngineHost,
   EngineUpdate,
+  RewindOptions,
   SavedGame,
   SessionConfig,
   UpdateListener,
@@ -68,8 +69,13 @@ export class WorkerEngineHost implements EngineHost {
     return { ok: true, update };
   }
 
-  async rewindTo(commandCount: number): Promise<EngineUpdate> {
-    const response = await this.#request({ kind: "rewindTo", id: this.#id(), commandCount });
+  async rewindTo(commandCount: number, options?: RewindOptions): Promise<EngineUpdate> {
+    const response = await this.#request({
+      kind: "rewindTo",
+      id: this.#id(),
+      commandCount,
+      ...(options ? { options } : {}),
+    });
     if (response.kind !== "rewound") throw new Error(`unexpected reply ${response.kind}`);
     const update = this.#hydrate(response.snapshot);
     // A rewind's whole point is a *lower* version than what's published, which `#publish`'s "drop an
@@ -218,6 +224,7 @@ export class WorkerEngineHost implements EngineHost {
       saveError: snapshot.saveError,
       config: snapshot.config,
       ...(snapshot.gameId !== undefined ? { gameId: snapshot.gameId } : {}),
+      ...(snapshot.adjusted ? { adjusted: snapshot.adjusted } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
       ...(snapshot.states

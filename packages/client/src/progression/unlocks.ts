@@ -50,7 +50,8 @@ import { artLanguageNow } from "../art/art-source.js";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
-import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedCampaign } from "../engine/campaign-storage.js";
+import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { customEarned, customHeroMode, customLockText, customScenarioMode } from "./custom-unlock.js";
 
 /** What a win is worth, and what opening something by hand costs. */
@@ -350,11 +351,15 @@ export function progressOf(
     readonly campaignId: string;
     /** Set for a run of a pack's campaign: custom content earns nothing here. */
     readonly pack?: unknown;
+    /** Set once an adjusted game was folded in (issue #791): the run earns nothing. */
+    readonly adjusted?: unknown;
     readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
   }[],
 ): UnlockProgress {
-  const wonSaves = saves.filter((s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s));
-  const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined);
+  const wonSaves = saves.filter(
+    (s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s),
+  );
+  const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined && !isAdjustedCampaign(c));
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),
     // A Skirmish game is shorter: a win, but not an Expert win.

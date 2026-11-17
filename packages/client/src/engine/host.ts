@@ -272,6 +272,8 @@ export interface EngineUpdate {
   readonly record: GameRecord;
   /** Set once saving has failed: the game plays on but may not survive a refresh. */
   readonly saveError: string | null;
+  /** The game was adjusted by hand or undone past a reveal (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
+  readonly adjusted?: true;
   /** The setup this game came from, for a rematch. */
   readonly config: SessionConfig | null;
   /** The id this game is stored under, or null/absent when it isn't saved (device sync leaves the open game alone). */
@@ -303,6 +305,15 @@ export interface SavedGame {
 
 export type UpdateListener = (update: EngineUpdate) => void;
 
+/** How a rewind came about, where it matters past the rewind itself. */
+export interface RewindOptions {
+  /**
+   * The rewind takes back a draw, reveal or random pick (an Undo the player acknowledged, issue #791): the
+   * game is marked adjusted (`SaveMeta.adjusted`) and stops counting toward achievements and stats.
+   */
+  readonly adjusted?: boolean;
+}
+
 export interface EngineHost {
   /** Creates the game and publishes its first update. */
   start(config: SessionConfig): Promise<EngineUpdate>;
@@ -316,7 +327,7 @@ export interface EngineHost {
    * that must have already checked this is safe to offer (`view/back-out.ts`'s own rule); this performs the rewind
    * unconditionally.
    */
-  rewindTo(commandCount: number): Promise<EngineUpdate>;
+  rewindTo(commandCount: number, options?: RewindOptions): Promise<EngineUpdate>;
   /** An on-demand query, for a seat that isn't the one the host prefetched. */
   legalActions(playerId: PlayerId): Promise<LegalActions>;
   /**

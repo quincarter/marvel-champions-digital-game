@@ -27,7 +27,14 @@ import { hasOffTurnAction } from "../view/highlights.js";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
-import type { EngineHost, EngineUpdate, LegalActionsFor, SavedGame, SessionConfig } from "../engine/host.js";
+import type {
+  EngineHost,
+  EngineUpdate,
+  LegalActionsFor,
+  RewindOptions,
+  SavedGame,
+  SessionConfig,
+} from "../engine/host.js";
 import { setGamePacks } from "../content/game-deps.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import type { PaymentState } from "../view/payment-model.js";
@@ -117,6 +124,11 @@ export interface SessionState {
    * rewound command count, so a second back-out right after the first still has an accurate trail.
    */
   readonly commandTrail: readonly BackOutTrailEntry[];
+  /**
+   * The players stepped outside the rules in this game: a Manual adjust, or an Undo past a reveal (`SaveMeta.adjusted`,
+   * issue #791). The game no longer counts toward achievements or stats, and the Pause menu says so.
+   */
+  readonly adjusted: boolean;
 }
 
 const INITIAL: SessionState = {
@@ -139,6 +151,7 @@ const INITIAL: SessionState = {
   config: null,
   gameId: null,
   commandTrail: [],
+  adjusted: false,
 };
 
 export type SessionListener = (state: SessionState) => void;
@@ -307,11 +320,11 @@ export class SessionStore {
    * which is never what this is: the caller (the choice scene's Back out button) has already checked this rewind
    * is legal (`view/back-out.ts`'s own rule) before ever calling this.
    */
-  async rewindTo(commandCount: number): Promise<boolean> {
+  async rewindTo(commandCount: number, options?: RewindOptions): Promise<boolean> {
     if (this.#state.inFlight) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
-      const update = await this.#host.rewindTo(commandCount);
+      const update = await this.#host.rewindTo(commandCount, options);
       // The trail has one entry per command dispatched so far, in the same order `commandTrail.length ===
       // version` already holds elsewhere in this class — truncating it to the rewound version keeps that true.
       this.#absorb(update, { force: true, commandTrail: this.#state.commandTrail.slice(0, update.version) });
@@ -436,6 +449,7 @@ export class SessionStore {
       // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
       // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
       commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,
+      adjusted: update.adjusted === true,
     });
     void this.#findOffTurnSeats(update);
   }

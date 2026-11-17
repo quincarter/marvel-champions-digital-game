@@ -82,6 +82,8 @@ import {
   nextSettingsAfterCustomPlacement,
   deckSignatureRowInfoOf,
   nextSettingsAfterDeckSignature,
+  nextSettingsAfterUndoPastTurn,
+  undoPastTurnRowInfoOf,
   earnedItemRowInfoOf,
   villainRowInfoOf,
   type GuideRowInfo,
@@ -976,6 +978,10 @@ export class SettingsOverlay extends Phaser.Scene {
     segmented("token-motion", tokenMotionRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setTokenMotion(v));
     segmented("deck-signature", deckSignatureRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);
+      this.#draw();
+    });
+    segmented("undo-past-turn", undoPastTurnRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterUndoPastTurn(appSession().settings, v);
       this.#draw();
     });
     segmented("deck-list-on-open", deckListOnOpenRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {

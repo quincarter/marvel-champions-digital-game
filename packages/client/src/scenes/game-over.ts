@@ -126,7 +126,8 @@ export class GameOverScene extends Phaser.Scene {
       const { guidedRun, guidedRunKind } = appSession();
       const lesson =
         (guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind })) ||
-        isCustomSave({ config });
+        isCustomSave({ config }) ||
+        appSession().store.state.adjusted;
       const after = new Extras(
         lesson
           ? before.progress
@@ -144,7 +145,8 @@ export class GameOverScene extends Phaser.Scene {
       (this.scene.get(SCENES.musicButton) as MusicButtonScene | null)?.extrasOpened(after);
       if (game.outcome.result !== "win") void refreshUnlocks().catch(() => false);
     }
-    if (game?.outcome?.result === "win" && config && !isCustomSave({ config })) {
+    // An adjusted game (issue #791) earns no unlocks: its save is left out of them (`isAdjustedSave`).
+    if (game?.outcome?.result === "win" && config && !isCustomSave({ config }) && !appSession().store.state.adjusted) {
       // Worked out from this result rather than read back from storage, which may not have the save's final
       // status yet; the cache itself catches up on the refresh below.
       const before = unlocks();

@@ -67,9 +67,11 @@ function covers(entry: LegalAction, command: Command): boolean {
     case "changeForm":
     case "endTurn":
       return action.kind === command.type;
-    // Neither is a turn action `legalActions` lists: a choice is answered, and conceding is always available.
+    // None is a turn action `legalActions` lists: a choice is answered, conceding is always available, and a Manual
+    // adjust (issue #791) is a correction from the Pause menu, not a move.
     case "resolveChoice":
     case "concede":
+    case "adjust":
       return false;
   }
 }

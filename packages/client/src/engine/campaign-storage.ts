@@ -54,6 +54,12 @@ export interface CampaignRecord extends CampaignLog {
    */
   readonly deckFreezeOptIns?: readonly number[];
   /**
+   * Sticky: an adjusted game (Manual adjust, or an Undo past a reveal acknowledged; `SaveMeta.adjusted`, issue #791)
+   * was folded into this run. The run carries on, but it earns no unlocks, achievements or Extras (`isAdjustedSave`'s
+   * campaign twin, `isAdjustedCampaign`).
+   */
+  readonly adjusted?: true;
+  /**
    * The table's own rules this run was signed with (`TableRules`; "a hero and an ally with the same name can't both be in
    * play"), applied to every issue of the run (`launchConfig`). Stored with the run rather than read from Settings each
    * time, so changing the setting later never changes a run in progress. Optional: a record written before the option
@@ -123,6 +129,8 @@ export interface CampaignSummary {
   readonly updatedAt: number;
   /** For a pack campaign's run: which pack and how many issues, so the shelf lists it without the pack. */
   readonly pack?: PackCampaignSummary;
+  /** An adjusted game was folded into this run (`CampaignRecord.adjusted`): it earns no rewards. */
+  readonly adjusted?: true;
 }
 
 function packSummaryOf(pack: PackCampaignRef, campaignId: string): PackCampaignSummary {
@@ -154,6 +162,7 @@ export function summaryOf(record: CampaignRecord): CampaignSummary {
     seats: record.seats.map((seat) => ({ seatNumber: seat.seatNumber, identityCardId: seat.identityCardId })),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
+    ...(record.adjusted === true ? { adjusted: true as const } : {}),
     ...(record.pack ? { pack: packSummaryOf(record.pack, record.campaignId as string) } : {}),
   };
 }
@@ -204,3 +213,6 @@ export class MemoryCampaignStorage implements CampaignStorage {
     if (record) this.#campaigns.set(id, { ...record, status });
   }
 }
+
+/** A run an adjusted game was folded into (`CampaignRecord.adjusted`): its completion counts for nothing. */
+export const isAdjustedCampaign = (run: object): boolean => (run as { readonly adjusted?: unknown }).adjusted === true;

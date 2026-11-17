@@ -45,6 +45,8 @@ export interface ReplayLog {
    * version can replay differently here, which the screen says. Its checksums are still this build's own.
    */
   readonly playedOn?: ReplayWriter;
+  /** The saved game was adjusted (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
+  readonly adjusted?: true;
 }
 
 export type ReplaySource =
@@ -68,6 +70,11 @@ export interface ReplayInfo {
   readonly createdAt: number;
   readonly outcome: GameOutcome | null;
   readonly round: number;
+  /**
+   * The game was adjusted (issue #791): its save or file says so, or a command in it is a Manual adjust. An Undo past a
+   * reveal leaves no command behind, so a file from before the mark existed can't show that one.
+   */
+  readonly adjusted: boolean;
 }
 
 /** A setup without its packs' data, which a replay file never carries (`ReplayFile.config`). */
@@ -153,6 +160,7 @@ export class ReplaySession {
       createdAt: log.createdAt,
       outcome: log.outcome,
       round: log.round,
+      adjusted: log.adjusted === true || log.commands.some((command) => command.type === "adjust"),
     };
     const checksums = source.kind === "file" ? source.file.checksums : (written?.values ?? []);
     const final = source.kind === "file" ? finalChecksum : written?.final;
@@ -200,6 +208,7 @@ export class ReplaySession {
         difficulty: difficultyLabelOf(config),
         result: state.outcome ? gameOverModel(state, record, config, this.#deps).headline : null,
         playedAt: this.info.createdAt,
+        adjusted: this.info.adjusted,
       },
       fullLogLines(this.#cursor.historyTo(this.info.length), state, this.#deps),
     );
@@ -240,6 +249,7 @@ export class ReplaySession {
       createdAt: log.createdAt,
       outcome: log.outcome,
       round: log.round,
+      ...(this.info.adjusted ? { adjusted: true as const } : {}),
       initialState: log.initialState,
       commands: log.commands,
       checksums: this.#checksums.regular,

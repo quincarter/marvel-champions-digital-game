@@ -132,6 +132,13 @@ export interface SaveMeta {
    * Absent on a save from before it existed (a purely additive field, no `SAVE_SCHEMA` bump).
    */
   readonly playedMs?: number;
+  /**
+   * Set once the players stepped outside the rules in this game (issue #791): a Manual adjust from the Pause menu, or an
+   * Undo past a draw, reveal or random pick the player acknowledged. Never cleared, not even by undoing
+   * the adjustment: an adjusted game doesn't count toward achievements, progression or stats (`isAdjustedSave`).
+   * Absent on every other game (a purely additive field, no `SAVE_SCHEMA` bump).
+   */
+  readonly adjusted?: true;
 }
 
 /**
@@ -180,7 +187,7 @@ export const writtenByNewerApp = (meta: Pick<SaveMeta, "lastPlayedOn">, appVersi
 
 /** What a command's arrival changes about a game's summary row. */
 export type SaveProgress = Pick<SaveMeta, "round" | "commandCount" | "updatedAt" | "status" | "outcome"> &
-  Partial<Pick<SaveMeta, "summary" | "playedMs">>;
+  Partial<Pick<SaveMeta, "summary" | "playedMs" | "adjusted">>;
 
 export interface StoredGame {
   readonly meta: SaveMeta;
@@ -328,6 +335,13 @@ export const isCustomSave = (meta: { readonly config?: { readonly packs?: readon
   (meta.config?.packs ?? []).some(
     (pack) => typeof pack !== "object" || pack === null || (pack as { houseRule?: unknown }).houseRule === undefined,
   );
+
+/**
+ * A game the players adjusted by hand or undid past a reveal (`SaveMeta.adjusted`, issue #791). Like a lesson, every
+ * result reader (achievements, progression, Extras, stats, the results history, global stats) leaves it out; the past
+ * games list still shows it.
+ */
+export const isAdjustedSave = (meta: object): boolean => (meta as { readonly adjusted?: unknown }).adjusted === true;
 
 export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
   meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";

@@ -53,6 +53,8 @@ import {
   type CampaignFadeColor,
   type Settings,
   DECK_SIGNATURE_CARDS_VALUES,
+  UNDO_PAST_TURN_VALUES,
+  type UndoPastTurn,
   type DeckSignatureCards,
   type VillainAutoAdvance,
   type VillainBeatSpeed,
@@ -892,6 +894,33 @@ export function nextSettingsAfterDeckListOnOpen(settings: Settings, value: DeckL
 // "First player token": how the token travels to a new first player (`view/first-player-token-motion.ts`). A
 // five-segment choice after Card size, shown on every form factor.
 // ---------------------------------------------------------------------------
+
+export interface UndoPastTurnRowInfo {
+  readonly title: string;
+  readonly detail: string;
+  readonly options: readonly { readonly value: UndoPastTurn; readonly label: string }[];
+  readonly selected: UndoPastTurn;
+}
+
+/** "Undo past your turn" under Gameplay (issue #791): allow, warn first, or off. */
+export function undoPastTurnRowInfoOf(settings: Settings): UndoPastTurnRowInfo {
+  return {
+    title: "Undo past your turn",
+    detail:
+      "House rule. Undo can go back past the start of your turn, a draw or a reveal, through the villain phase. A game where you do no longer counts toward stats or achievements. Warn asks first; Off keeps Undo to your own turn.",
+    options: [
+      { value: "allow", label: "Allow" },
+      { value: "warn", label: "Warn" },
+      { value: "off", label: "Off" },
+    ],
+    selected: settings.undoPastTurn,
+  };
+}
+
+/** `settings` with Undo's reach set; a value that is not one of the three changes nothing. */
+export function nextSettingsAfterUndoPastTurn(settings: Settings, value: UndoPastTurn): Settings {
+  return UNDO_PAST_TURN_VALUES.includes(value) ? { ...settings, undoPastTurn: value } : settings;
+}
 
 export interface DeckSignatureRowInfo {
   readonly title: string;

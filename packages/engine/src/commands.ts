@@ -288,6 +288,13 @@ export type Command =
    *   that gathers confirmations and then issues this one command — not engine behavior.
    */
   | { readonly type: "concede"; readonly playerId: PlayerId }
+  /**
+   * A manual correction of the game state, from the pause menu, after a bug or a misclick (issue #791). **Not an RRG
+   * rule**: like `concede`, a digital-implementation affordance, and a command for the same reason, so a `GameLog`
+   * replays it (saves, rewind, replays). `playerId` is the seat that made it; `adjustment` says what it does
+   * (`Adjustment`, applied by `adjust.ts`, which documents what each kind does and does not set off).
+   */
+  | { readonly type: "adjust"; readonly playerId: PlayerId; readonly adjustment: Adjustment }
   | {
       readonly type: "resolveChoice";
       readonly playerId: PlayerId;
@@ -296,3 +303,49 @@ export type Command =
     };
 
 export type CommandType = Command["type"];
+
+/** A status card a manual adjustment gives or removes. */
+export type AdjustableStatus = "stunned" | "confused" | "tough";
+
+/**
+ * What one manual adjustment (`Command adjust`) does. Amounts are whole numbers and never 0: a positive amount places,
+ * a negative one removes (never below 0). See `adjust.ts` for which game rules still follow each kind.
+ */
+export type Adjustment =
+  /** `playerId` draws `count` cards, as drawing normally does (an emptied deck resets, a drawn obligation enters play). */
+  | { readonly kind: "draw"; readonly playerId: PlayerId; readonly count: number }
+  /** A card in a player's hand goes to its discard pile. */
+  | { readonly kind: "discardFromHand"; readonly instanceId: InstanceId }
+  /** A card in play (not an identity, villain or main scheme) is discarded, its attachments with it. */
+  | { readonly kind: "discardFromPlay"; readonly instanceId: InstanceId }
+  /** Damage placed on (positive) or removed from (negative) a character. */
+  | { readonly kind: "damage"; readonly instanceId: InstanceId; readonly amount: number }
+  /** Threat placed on (positive) or removed from (negative) a main or side scheme. */
+  | { readonly kind: "threat"; readonly instanceId: InstanceId; readonly amount: number }
+  /** Counters of `counterType` placed on (positive) or removed from (negative) a card in play. */
+  | {
+      readonly kind: "counters";
+      readonly instanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+    }
+  /** One status card given to (`present: true`) or removed from (`present: false`) a character. */
+  | {
+      readonly kind: "status";
+      readonly instanceId: InstanceId;
+      readonly status: AdjustableStatus;
+      readonly present: boolean;
+    }
+  | { readonly kind: "exhaust"; readonly instanceId: InstanceId }
+  | { readonly kind: "ready"; readonly instanceId: InstanceId }
+  /**
+   * The player's identity turns to its other form, with no once-per-round limit and no form-change cost. `to` as for
+   * `Command changeForm`: required for a three-sided identity changing from alter-ego.
+   */
+  | {
+      readonly kind: "changeForm";
+      readonly playerId: PlayerId;
+      readonly to?: "alterEgo" | { readonly heroForm: number };
+    };
+
+export type AdjustmentKind = Adjustment["kind"];

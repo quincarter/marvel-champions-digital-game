@@ -43,7 +43,12 @@ import {
   type GuideToggleRowInfo,
 } from "./settings-rows.js";
 import { vi, afterEach } from "vitest";
-import { cardLanguageRowInfoOf, nextSettingsAfterCardLanguage } from "./settings-rows.js";
+import {
+  cardLanguageRowInfoOf,
+  nextSettingsAfterCardLanguage,
+  nextSettingsAfterUndoPastTurn,
+  undoPastTurnRowInfoOf,
+} from "./settings-rows.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
 import { defaultSettings, tableRulesOf, type Settings } from "../settings.js";
@@ -63,6 +68,7 @@ const BASE: Settings = {
   deckSignatureCards: "free",
   deckCopyLimits: false,
   allowExtraModularSets: false,
+  undoPastTurn: "warn",
   deckListOnOpen: "all",
   showPreconDecks: true,
   notOfferedNotices: true,
@@ -125,6 +131,7 @@ describe("settingsRowInfoOf", () => {
       deckSignatureCards: "free",
       deckCopyLimits: false,
       allowExtraModularSets: false,
+      undoPastTurn: "off",
       deckListOnOpen: "all",
       showPreconDecks: true,
       notOfferedNotices: false,
@@ -735,5 +742,16 @@ describe("Deck list settings (#755)", () => {
     expect(off.showPreconDecks).toBe(false);
     expect(showPreconDecksRowInfoOf(off).on).toBe(false);
     expect(nextSettingsAfterToggle(off, "show-precon-decks", 1).showPreconDecks).toBe(true);
+  });
+});
+
+describe("Undo past your turn (issue #791)", () => {
+  test("defaults to Warn, offers Allow / Warn / Off, and refuses anything else", () => {
+    const settings = defaultSettings();
+    expect(settings.undoPastTurn).toBe("warn");
+    const row = undoPastTurnRowInfoOf(settings);
+    expect(row.options.map((option) => option.value)).toEqual(["allow", "warn", "off"]);
+    expect(nextSettingsAfterUndoPastTurn(settings, "off").undoPastTurn).toBe("off");
+    expect(nextSettingsAfterUndoPastTurn(settings, "nope" as never)).toBe(settings);
   });
 });
