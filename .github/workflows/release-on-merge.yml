@@ -166,7 +166,8 @@ jobs:
           echo "Preparing ${TAG}."
 
           # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements
-          # (.changie.yaml), then bump Android's versionCode.
+          # (.changie.yaml), then bump Android's versionCode. The README's downloads wait for the published release
+          # (the readme-downloads job).
           changie batch "${TAG}" --allow-no-changes
           changie merge
           GRADLE_FILE="packages/client/android/app/build.gradle"
@@ -575,6 +576,20 @@ jobs:
       contents: read
     uses: ./.github/workflows/landing-deploy.yml
     secrets: inherit
+
+  # The README's version badge and download buttons, moved to this release only now that it is published with every
+  # installer they link to (#789; readme-downloads.yml opens the pull request). A draft release gets it when published
+  # by hand, through that workflow's `release: published` trigger.
+  readme-downloads:
+    name: README downloads
+    needs: [check-and-cut-release, finalize-release]
+    if: needs.check-and-cut-release.outputs.should_release == 'true' && needs.check-and-cut-release.outputs.publish != 'false'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/readme-downloads.yml
+    with:
+      tag: ${{ needs.check-and-cut-release.outputs.tag }}
 
   finalize-release:
     name: Finalize Release Manifest

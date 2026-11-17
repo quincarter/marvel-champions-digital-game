@@ -1,0 +1,91 @@
+# Opens the pull request that points the README's version badge and download buttons at a release, once that release is
+# published with every installer the buttons link to (#789). The release PR used to make this change itself (changie's
+# replacements), so for most of an hour after it merged every button on the README linked to files that didn't exist yet.
+#
+# release-on-merge.yml calls it after finalize-release publishes. A release that run publishes starts no other workflow,
+# so the `release: released` trigger only fires for a release published by hand (a draft cut with the publish input
+# off, which is also still marked a prerelease). `released` fires when a release goes public as a full release, or a
+# published prerelease is turned into one, and never for a prerelease. A manual run takes a tag, to retry.
+#
+# main requires a pull request, so the change goes on the bot-owned `release/readme-downloads` branch, rebuilt from main
+# on every run and force-pushed, and one open pull request is moved to the newest release rather than a second opened.
+# scripts/readme-downloads.mjs refuses a draft, a prerelease or a release missing a linked file, and leaves a README
+# already at that version or newer alone, on main or on the open pull request.
+name: README downloads
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The published release's tag (vX.Y.Z)"
+        required: true
+        type: string
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release to point the README at (vX.Y.Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Point the README at the release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: readme-downloads
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Bump the README and open its pull request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          BRANCH: release/readme-downloads
+        run: |
+          set -euo pipefail
+          RELEASE_FILE=$(mktemp)
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease,assets > "$RELEASE_FILE"
+          # An open pull request already moving the README to a newer release is not moved back.
+          PR=$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number')
+          OPEN_README=""
+          if [ -n "$PR" ] && git fetch --depth=1 origin "$BRANCH"; then
+            OPEN_README=$(mktemp)
+            git show FETCH_HEAD:README.md > "$OPEN_README"
+          fi
+          node scripts/readme-downloads.mjs "$RELEASE_FILE" $OPEN_README
+
+          if git diff --quiet; then
+            echo "Nothing to change for ${TAG}."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add README.md .github/assets/readme/
+          git commit --no-verify -m "chore(readme): point the downloads at ${TAG}"
+          git push --no-verify --force origin "$BRANCH"
+
+          TITLE="chore(readme): point the downloads at ${TAG}"
+          BODY="${TAG} is published with every installer, so the README's version badge and download buttons can point at it (#789)."
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --title "$TITLE" --body "$BODY"
+            echo "Moved README pull request #${PR} to ${TAG}."
+          else
+            gh pr create --head "$BRANCH" --base main --title "$TITLE" --body "$BODY"
+          fi

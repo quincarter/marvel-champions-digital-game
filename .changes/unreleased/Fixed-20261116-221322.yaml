@@ -1,0 +1,3 @@
+kind: Fixed
+body: The README's download buttons move to a new version only once that release is published with every installer, instead of 404ing while it builds (#789).
+time: 2026-11-16T22:13:22.0790837-05:00

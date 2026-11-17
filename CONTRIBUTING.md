@@ -317,10 +317,13 @@ Asset names spell out the card language, OS, architecture and installer kind
 `-EN-Android.apk` and so on). Every installer is built in English (`-EN-`) and Spanish (`-ES-`).
 `scripts/lib/release-collector.mjs` names them for both the workflow (`scripts/stage-release-assets.mjs`) and local
 builds, and every release's notes end with the table in `.github/release-downloads.md`. The README's download buttons name
-the version they fetch and link to that release's files; the release PR updates both through the `replacements` in
-`.changie.yaml` (the README links and the version on each `.github/assets/readme/download-*.svg`). A release is marked latest
+the version they fetch and link to that release's files. The release PR doesn't touch them: a release is marked latest
 only after every installer has been uploaded, which is what the apps' update notice
-(`packages/client/src/platform/update-check.ts`) reads.
+(`packages/client/src/platform/update-check.ts`) reads, and only then does `.github/workflows/readme-downloads.yml` open a
+`chore(readme): point the downloads at vX.Y.Z` PR (`scripts/readme-downloads.mjs`: the README links and the version on
+each `.github/assets/readme/download-*.svg`). It refuses a draft, a prerelease or a release missing a linked file,
+and a release published by hand as a full release starts it too. Like the release PR, it is opened by the workflow's
+own token, so CI doesn't run on it: merge it the same way.
 
 Every release thanks the people behind it. `scripts/release-credits.mjs` reads GitHub for the issues a release fixes
 and the pull requests it merges, and the release notes and release PR get a **Special thanks** section that
