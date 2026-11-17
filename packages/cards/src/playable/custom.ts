@@ -45,6 +45,7 @@ import {
   modularPickProblem,
 } from "../modular-pool.js";
 import { playableScenario, playableStarterDeckSetup, type PlayableScenarioOptions } from "./index.js";
+import { checkPlayableDifficultySets, skirmishOffer } from "./scenario-options.js";
 import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
 
 /**
@@ -190,7 +191,7 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   const pool = [...PLAYABLE_CARDS, ...custom.cards];
   const sets = allSets(custom);
   const range = (value: unknown): value is readonly [number, number] =>
-    Array.isArray(value) && value.length === 2 && value.every(Number.isInteger) && value[0] <= value[1];
+    Array.isArray(value) && value.length === 2 && value.every(Number.isSafeInteger) && value[0] <= value[1];
   for (const mode of ["standard", "expert"] as const)
     if (!range(scenario.villainStages?.[mode]))
       problems.push(`villainStages.${mode} must be [first stage, last stage] with first at most last`);
@@ -200,10 +201,23 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   if (!villain) problems.push(`villain ${scenario.villainCardId} is in neither the pack nor the base game`);
   else if (villain.type !== "villain") problems.push(`${scenario.villainCardId} is not a villain card`);
   else {
-    const stages = villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? [];
+    const stages = new Set(villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? []);
     for (const mode of ["standard", "expert"] as const) {
-      for (const stage of range(scenario.villainStages?.[mode]) ? scenario.villainStages[mode] : [])
-        if (!stages.includes(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
+      if (!range(scenario.villainStages?.[mode])) continue;
+      const [first, last] = scenario.villainStages[mode];
+      const ends = first === last ? [first] : [first, last];
+      const missingEnds = ends.filter((stage) => !stages.has(stage));
+      for (const stage of missingEnds) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
+      if (missingEnds.length > 0) continue;
+      // Every stage from first to last, not only the two ends: skirmish offers each one as a version (`skirmishOffer`).
+      // The work is bounded by the villain's own stages: a span wider than the villain has stages is a gap at once.
+      const span = last - first + 1;
+      if (span > stages.size) {
+        problems.push(`the villain lacks a stage between ${first} and ${last} (needed in ${mode} mode)`);
+        continue;
+      }
+      for (let stage = first + 1; stage < last; stage++)
+        if (!stages.has(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
     }
   }
   const scheme = pool.find((card) => card.id === scenario.mainSchemeCardId);
@@ -227,6 +241,12 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
           problems.push(`${field}: "${id}" needs classification "${expected}" (RRG 1.8 pp. 40, 19)`);
         if (field === "encounterSetIds" && (set.nemesisOfIdentityId !== undefined || set.campaignSpecific))
           problems.push(`${field}: "${id}" is a nemesis or campaign set, never a scenario's own set`);
+        // A Standard or Expert set among the scenario's own sets would be dealt even when Standard II / III or
+        // Expert II replaces it: it belongs in standardEncounterSetIds or expertEncounterSetIds only (#786).
+        if (field === "encounterSetIds" && (set.classification === "standard" || set.classification === "expert"))
+          problems.push(
+            `${field}: "${id}" is a ${set.classification} set; list it in ${set.classification}EncounterSetIds`,
+          );
         try {
           encounterCardsOf([id], pool);
         } catch {
@@ -282,7 +302,6 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   const unsupported: string[] = [];
   if (options.setAsideModularSetIds) unsupported.push("setAsideModularSetIds");
   if (options.extraModularSetIds?.length) unsupported.push("extraModularSetIds");
-  if (options.difficultySets) unsupported.push("difficultySets");
   if (options.setupOptions) unsupported.push("setupOptions");
   if (options.mainSchemeStageIds) unsupported.push("mainSchemeStageIds");
   if (options.villainSetId !== undefined || options.villainCardId !== undefined) unsupported.push("the villain choice");
@@ -296,7 +315,6 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   if (problems.length > 0) throw new Error(`${scenario.name} cannot be played: ${problems.join("; ")}`);
   const modes = resolveModes(options.difficulty, options.modes);
   if (options.difficulty === "extreme") throw new Error(`${scenario.name}: "extreme" is Breakout's own challenge`);
-  if (modes.skirmish) throw new Error(`${scenario.name} has no skirmish mode`);
   const heroic = modes.heroic ?? 0;
   if (!Number.isInteger(heroic) || heroic < 0) throw new Error(`heroic level ${heroic} is not a whole number`);
   const difficulty = difficultyOf(modes);
@@ -312,7 +330,13 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
     return index;
   };
-  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  // Skirmish mode (RRG 1.8 p. 29) keeps one version of the villain, as at a base scenario (`skirmishOffer`, #786).
+  const skirmish = modes.skirmish ? skirmishOffer(scenario, modes) : null;
+  if (modes.skirmish && !skirmish) throw new Error(`${scenario.name} has no skirmish mode`);
+  const version = modes.skirmish?.villainVersion;
+  if (skirmish && (version === undefined || !skirmish.versions.includes(version)))
+    throw new Error(`${scenario.name}: villain version ${version} is not one of ${skirmish.versions.join(", ")}`);
+  const [firstStage, lastStage] = skirmish ? [Number(version), Number(version)] : scenario.villainStages[difficulty];
   if (options.modularSetIds) checkModularPickCount(scenario, options.modularSetIds);
   const modular = chosenModularSetIds(scenario, options.modularSetIds, sets);
   for (const id of modular) {
@@ -320,14 +344,22 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     if (problem) throw new Error(`${scenario.name}: ${problem}`);
   }
   const ownAndModular = [...scenario.encounterSetIds, ...modular];
-  const difficultySets = difficultyEncounterSetIds(scenario, difficulty);
+  // Standard II / III and Expert II stand in for a pack scenario's plain Standard or Expert set under the base game's
+  // rule (The Hood insert p. 2, "Alternative Sets"; Q10 = A for Standard III), checked the same way (#786).
+  checkPlayableDifficultySets(scenario, options.difficultySets);
+  const difficultySets = difficultyEncounterSetIds(scenario, difficulty, options.difficultySets);
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   const autoIncludedSets = autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, pool);
   // `Scenario.setAsideCardIds`, as the wave 7 builder reads it: `quantityInSet` copies of each card go to
   // `GameSetupConfig.setAside` and every copy leaves the encounter deck dealt from its set.
+  // A card of a set this game does not use (the Expert set on standard, the Standard set Standard III replaced) is
+  // not in the game to set aside (RRG 1.8 "Set Aside", p. 39).
+  const inGame = new Set<string>([...ownAndModular, ...difficultySets]);
   const setAside = (scenario.setAsideCardIds ?? []).flatMap((id) => {
     const card = pool.find((candidate) => candidate.id === id);
     if (!card) throw new Error(`${scenario.name}: unknown set-aside card ${id}`);
+    if (!("encounterSetIds" in card) || !(card.encounterSetIds as readonly string[]).some((set) => inGame.has(set)))
+      return [];
     return Array.from({ length: "quantityInSet" in card ? card.quantityInSet : 1 }, () => id);
   });
   const setAsideIds = new Set<string>(setAside);
@@ -342,7 +374,8 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: [
       ...dealt(encounterCardsOf(ownAndModular, pool)),
-      ...encounterCardsOf(difficultySets, pool),
+      // A set-aside card may come from the Standard or Expert set too (`customScenarioProblems` allows it).
+      ...dealt(encounterCardsOf(difficultySets, pool)),
       ...modularSetupCardIds(modular, pool),
     ],
     ...(setAside.length > 0 ? { setAside } : {}),

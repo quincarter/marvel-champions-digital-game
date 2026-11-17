@@ -143,6 +143,42 @@ describe("sample-scenario pack", () => {
     expect(deck).not.toContain("01109");
   });
 
+  it("lets Standard II or III and Expert II stand in for the pack scenario's own Standard and Expert sets (#786)", () => {
+    const setCards = (setId: string): string[] =>
+      PLAYABLE_CARDS.filter(
+        (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId),
+      ).map((card) => String(card.id));
+    const deckOf = (difficultySets: { standard?: string; expert?: string }, difficulty: "standard" | "expert") =>
+      (
+        scenarioWithPacks(
+          SCENARIO,
+          { players: [{ starterDeckId: PRECON }], seed: 1, difficulty, difficultySets } as never,
+          [pack],
+        ).encounterDeck ?? []
+      ).map(String);
+    const standardIii = deckOf({ standard: "standard_iii" }, "standard");
+    expect(setCards("standard_iii").every((id) => standardIii.includes(id))).toBe(true);
+    expect(standardIii.some((id) => setCards("standard").includes(id))).toBe(false);
+    const expertIi = deckOf({ standard: "standard_ii", expert: "expert_ii" }, "expert");
+    expect(setCards("standard_ii").every((id) => expertIi.includes(id))).toBe(true);
+    expect(setCards("expert_ii").every((id) => expertIi.includes(id))).toBe(true);
+    expect(expertIi.some((id) => [...setCards("standard"), ...setCards("expert")].includes(id))).toBe(false);
+    expect(() => deckOf({ standard: "expert_ii" }, "standard")).toThrow(/not in the standard classification/);
+  });
+
+  it("plays the pack scenario in skirmish mode against one villain version, and refuses a version it lacks (#786)", () => {
+    const at = (villainVersion: string) =>
+      scenarioWithPacks(
+        SCENARIO,
+        { players: [{ starterDeckId: PRECON }], seed: 1, modes: { skirmish: { villainVersion } } },
+        [pack],
+      );
+    const config = at("2");
+    expect(config.villainStartStageIndex).toBe(1);
+    expect(config.villainLastStageIndex).toBe(1);
+    expect(() => at("3")).toThrow(/villain version 3 is not one of 1, 2/);
+  });
+
   it("mixes a base and a pack modular set when the scenario takes two, and counts the pack's toward the count", () => {
     expect(() =>
       scenarioWithPacks(
@@ -338,10 +374,12 @@ describe("scenarioWithPacks: refusals and options", () => {
     expect([standard.villainStartStageIndex, standard.villainLastStageIndex]).toEqual([0, 1]);
     expect(standard.difficulty).toBeUndefined();
   });
-  it("carries a heroic level, and refuses skirmish", () => {
+  it("carries a heroic level, and refuses skirmish where the villain deck has one version (expert's [2, 2])", () => {
     expect(scenarioWithPacks(SCENARIO, { ...seat, modes: { heroic: 2 } }, [pack]).heroicLevel).toBe(2);
     expect(() =>
-      scenarioWithPacks(SCENARIO, { ...seat, modes: { skirmish: { villainVersion: "1" } } as never }, [pack]),
+      scenarioWithPacks(SCENARIO, { ...seat, modes: { expert: true, skirmish: { villainVersion: "2" } } as never }, [
+        pack,
+      ]),
     ).toThrow(/no skirmish mode/);
   });
   it("does not offer a scenario's own Standard or Expert set as a modular pick", () => {
@@ -382,6 +420,63 @@ describe("scenarioWithPacks: refusals and options", () => {
     expect((config.encounterDeck ?? []).map(String)).toEqual(without);
     const created = createGame(config, gameDepsWithPacks(PLAYABLE_DEPS, [changed]));
     expect(created.ok).toBe(true);
+  });
+  it("sets aside a Standard set card only while the Standard set is in the game (#786)", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const aside = String(
+      PLAYABLE_CARDS.find(
+        (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes("standard"),
+      )!.id,
+    );
+    expect(customScenarioProblems({ ...record, setAsideCardIds: [aside] } as never, content)).toEqual([]);
+    const changed = { ...pack, scenarios: [{ ...record, setAsideCardIds: [aside] }] } as unknown as PackInput;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    const plain = scenarioWithPacks(SCENARIO, seat, [changed]);
+    expect(plain.setAside?.every((id) => String(id) === aside)).toBe(true);
+    expect(plain.setAside?.length).toBeGreaterThan(0);
+    expect((plain.encounterDeck ?? []).map(String)).not.toContain(aside);
+    const replaced = scenarioWithPacks(SCENARIO, { ...seat, difficultySets: { standard: "standard_iii" } as never }, [
+      changed,
+    ]);
+    expect(replaced.setAside).toBeUndefined();
+  });
+  it("needs the villain to have every stage between a mode's first and last, as skirmish offers each (#786)", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const problemsAt = (standard: [number, number], cards = pack.cards) =>
+      customScenarioProblems({ ...record, villainStages: { standard, expert: [2, 2] } } as never, {
+        cards,
+        encounterSets: pack.encounterSets!,
+        scenarios: [],
+      }).join(" ");
+    // A villain printed with stages I and III: both ends exist, the middle one does not.
+    const skipping = pack.cards.map((card) =>
+      card.type === "villain"
+        ? {
+            ...card,
+            sides: card.sides.map((side) => ({
+              ...side,
+              stages: side.stages.map((stage) => (stage.stageNumber === 2 ? { ...stage, stageNumber: 3 } : stage)),
+            })),
+          }
+        : card,
+    ) as typeof pack.cards;
+    expect(problemsAt([1, 3], skipping)).toMatch(/the villain has no stage 2/);
+    expect(problemsAt([1, 3], skipping)).not.toMatch(/stage 3/);
+    // A pack-controlled range answers at once, however wide, and an unsafe number is no stage range at all.
+    const started = Date.now();
+    expect(problemsAt([1, 1_000_000_000])).toMatch(/the villain has no stage 1000000000/);
+    expect(problemsAt([1, Number.MAX_SAFE_INTEGER + 2])).toMatch(/villainStages.standard must be/);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+  it("refuses the Standard or Expert set among a pack scenario's own sets, where a replacement would deal both", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const own = record.encounterSetIds as string[];
+    for (const set of ["standard", "expert"])
+      expect(customScenarioProblems({ ...record, encounterSetIds: [...own, set] } as never, content).join(" ")).toMatch(
+        new RegExp(`"${set}" is a ${set} set; list it in ${set}EncounterSetIds`),
+      );
   });
   it("checks the recommended modular sets against the scenario's modular count", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;

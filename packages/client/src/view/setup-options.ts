@@ -16,6 +16,7 @@
  * the scene hands the string back and never interprets it, and the focus order lists the same strings.
  */
 import {
+  packScenarioOffer,
   playableScenarioOffer,
   RANDOM_VILLAIN,
   scenarioWithVillain,
@@ -27,7 +28,7 @@ import {
 import { encounterSetId, type DifficultySetChoice, type PlayModes, type Scenario } from "@mc/content";
 import { applyPlayModeOption, modesOfChoice, playModeRows, reconcileSkirmish } from "./play-mode-options.js";
 import type { SetupDraft } from "./setup-draft.js";
-import { isPackEncounterSet } from "../content/pool.js";
+import { currentScenarios, isPackEncounterSet, isPackScenario } from "../content/pool.js";
 
 /** What every scenario offers when it is not in the playable pool (a draft naming it never builds). */
 const NO_OFFER: PlayableScenarioOffer = {
@@ -76,7 +77,11 @@ export function offerOf(
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
     });
   } catch {
-    return NO_OFFER;
+    // A pack's scenario is no playable base scenario: its own offer is the difficulty choices only (#786).
+    const pack = isPackScenario(draft.scenarioId)
+      ? currentScenarios().find((scenario) => (scenario.id as string) === draft.scenarioId)
+      : undefined;
+    return pack ? packScenarioOffer(pack, { difficulty: draft.difficulty, ...(modes ? { modes } : {}) }) : NO_OFFER;
   }
 }
 

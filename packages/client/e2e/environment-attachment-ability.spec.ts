@@ -35,7 +35,9 @@ test("Upgraded Drones' discard action is reachable from the Ultron Drones tile a
   await pressCard(page, false, drones!);
   await waitFor(async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null), "Inspect", 10_000);
   await settle(page, { quietMs: 300, maxMs: 1500 });
-  await clickText(page, "Spend 1 energy", { sceneKey: "InspectOverlay" });
+  // The action's button names the card ("Upgraded Drones – Spend …"); the "To remove: spend …" line in the rules panel
+  // (#772) carries the same words, so the press is keyed on the card's name, right of the card picture.
+  await clickText(page, "Upgraded Drones", { sceneKey: "InspectOverlay", minX: 700 });
   await waitForBoardText(page, /^PAYING/i, "the payment step opens");
   await settle(page, { quietMs: 300, maxMs: 1500 });
 
