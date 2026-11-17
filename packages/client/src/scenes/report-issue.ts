@@ -195,6 +195,7 @@ export class ReportIssueOverlay extends Phaser.Scene {
               lines: session.gameLog.lines,
               config: state.config,
               commands: state.commandTrail.map((entry) => ({ playerId: entry.playerId, command: entry.command })),
+              adjusted: state.adjusted,
             },
       snapshot: debugSnapshot(this.game),
       replayLink: this.#replayLinkNow,

@@ -161,6 +161,8 @@ export class PauseOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.settings) ||
         this.scene.isActive(SCENES.playerStats) ||
         this.scene.isActive(SCENES.manualAdjust) ||
+        // The "This game won't count" warning before a Jump to a moment past a reveal opens over the Board (#791).
+        this.scene.isActive(SCENES.endTurnConfirm) ||
         this.scene.isActive(SCENES.controls) ||
         this.scene.isActive(SCENES.inspect) ||
         (this.#searchInput?.focused ?? false),

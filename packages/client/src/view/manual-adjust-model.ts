@@ -13,6 +13,7 @@ import {
   cardsInPlay,
   getInstance,
   getPlayer,
+  heldStatusCapacity,
   heroFacesOf,
   playerOrder,
   type Adjustment,
@@ -178,9 +179,14 @@ function playChoices(game: GameState, seat: PlayerId, id: InstanceId): readonly 
     if (instance.threat > 0) out.push(choice(seat, { kind: "threat", instanceId: id, amount: -1 }));
   }
   if (categories.includes("character")) {
+    // Give while the character has room for another (Steady holds two stunned and two confused), remove while it
+    // holds one: both can show at once.
     for (const { status } of STATUSES) {
-      const present = instance.statuses[status] > 0;
-      out.push(choice(seat, { kind: "status", instanceId: id, status, present: !present }));
+      const held = instance.statuses[status];
+      if (held < heldStatusCapacity(game, id, status)) {
+        out.push(choice(seat, { kind: "status", instanceId: id, status, present: true }));
+      }
+      if (held > 0) out.push(choice(seat, { kind: "status", instanceId: id, status, present: false }));
     }
   }
   for (const counterType of counterKinds(game, id)) {

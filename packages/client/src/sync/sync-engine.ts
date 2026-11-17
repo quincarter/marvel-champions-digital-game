@@ -170,6 +170,19 @@ interface Pulled {
   readonly dbVersion?: number | undefined;
 }
 
+/**
+ * A game's meta taken from the other device keeps this device's `adjusted` mark (`SaveMeta.adjusted`, issue #791):
+ * the mark is sticky, and an Undo past a reveal leaves nothing in the log to find it again by, so whichever log wins,
+ * a game adjusted on either device stays adjusted. The written meta then differs from the remote one, so the next sync
+ * pushes it back with the mark. Any other record, or a meta neither side marked, is the remote value as it is.
+ */
+export function keptAdjusted(key: string, local: unknown, remote: unknown): unknown {
+  if (partOf(key) !== "meta" || typeof remote !== "object" || remote === null) return remote;
+  const marked = (value: unknown): boolean =>
+    typeof value === "object" && value !== null && (value as { adjusted?: unknown }).adjusted === true;
+  return marked(local) && !marked(remote) ? { ...remote, adjusted: true } : remote;
+}
+
 interface KeyState {
   readonly key: string;
   readonly recordKey: string;
@@ -602,7 +615,7 @@ class Run {
         deleted: true,
       });
     } else {
-      into.writes.push({ key: state.key, value: remote.value });
+      into.writes.push({ key: state.key, value: keptAdjusted(state.key, state.local?.value, remote.value) });
       into.entries.push({
         key: state.key,
         recordKey: state.recordKey,
@@ -916,7 +929,8 @@ class Run {
   #remoteOverLocal(list: readonly KeyState[], full: ReadonlyMap<string, Pulled>, into: Apply): void {
     for (const [key, p] of full) {
       if (p.deleted) continue;
-      into.writes.push({ key, value: p.value });
+      const local = list.find((s) => s.key === key)?.local?.value;
+      into.writes.push({ key, value: keptAdjusted(key, local, p.value) });
       into.entries.push({
         key,
         recordKey: p.recordKey,

@@ -320,6 +320,7 @@ export {
 export type { ConsequentialDamage, DamageSourceInfo, FormChangeCost, GrantedAbility } from "./rules.js";
 export {
   hasKeyword,
+  heldStatusCapacity,
   isPermanent,
   keywordsOf,
   keywordTotal,
