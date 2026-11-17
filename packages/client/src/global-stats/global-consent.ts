@@ -44,7 +44,7 @@ export const wasAsked = (storage: ConsentStorage | null = browserStorage()): boo
 
 /** Finished games that count as results: the ones the uploader could ever send. */
 export const finishedIdsOf = (saves: readonly SaveMeta[]): string[] =>
-  saves.filter((m) => !m.guided && (m.status === "won" || m.status === "lost")).map((m) => m.id);
+  saves.filter((m) => !m.guided && !m.adjusted && (m.status === "won" || m.status === "lost")).map((m) => m.id);
 
 export function readSent(storage: ConsentStorage | null = browserStorage()): Set<string> {
   try {

@@ -3,7 +3,7 @@ import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { CardPosition, ChoiceBehalf, PendingChoice, UnavailableOptions } from "./choices.js";
-import type { DelegableCostPart } from "./commands.js";
+import type { Adjustment, DelegableCostPart } from "./commands.js";
 import type { GroupId } from "./ids.js";
 import type { SharedEvent, SharedPodState, SharedResult } from "./pod.js";
 import type {
@@ -2447,6 +2447,12 @@ export type GameEvent =
   | { readonly type: "campaignLogWritten"; readonly write: LogWrite }
   /** `removeFromCampaign` resolved (RRG 1.8 p. 29), by face — ruling April 30, 2026 (4). */
   | { readonly type: "campaignCardRemoved"; readonly instanceId: InstanceId; readonly card: CampaignCardFace }
+  /**
+   * A manual adjustment began (`Command adjust`, issue #791): `playerId` corrected the game state by hand. Logged first,
+   * so the events that follow (a `damagePlaced`, a `cardDiscarded`, a defeat) read as its result. Not a game event:
+   * nothing in the rules answers it.
+   */
+  | { readonly type: "manualAdjustment"; readonly playerId: PlayerId; readonly adjustment: Adjustment }
   | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
 
 export type GameEventType = GameEvent["type"];

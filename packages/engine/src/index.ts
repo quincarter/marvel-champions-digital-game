@@ -166,7 +166,16 @@ export {
   type AsIfInHandPermission,
   type DeckTopPermission,
 } from "./actions.js";
-export type { Command, CommandType, Payment, ResourceAbilityUse, SpentCardAbilityUse } from "./commands.js";
+export type {
+  AdjustableStatus,
+  Adjustment,
+  AdjustmentKind,
+  Command,
+  CommandType,
+  Payment,
+  ResourceAbilityUse,
+  SpentCardAbilityUse,
+} from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 

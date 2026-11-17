@@ -126,7 +126,8 @@ export class GameOverScene extends Phaser.Scene {
       const { guidedRun, guidedRunKind } = appSession();
       const lesson =
         (guidedRun && guidedRunKind !== undefined && isLessonSave({ guided: guidedRunKind })) ||
-        isCustomSave({ config });
+        isCustomSave({ config }) ||
+        appSession().store.state.adjusted;
       const after = new Extras(
         lesson
           ? before.progress

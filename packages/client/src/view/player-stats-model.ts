@@ -358,7 +358,7 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
 }
 
 function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
-  if (meta.guided) return null;
+  if (meta.guided || meta.adjusted) return null;
   if (meta.status !== "won" && meta.status !== "lost") return null;
   const summary = meta.summary ?? null;
   const lossReason = meta.status === "won" ? null : (summary?.lossReason ?? lossReasonOfOutcome(meta));
@@ -450,7 +450,7 @@ function lossesOf(games: readonly GameFacts[]): { losses?: readonly LossPart[] }
 }
 
 const isConcession = (meta: SaveMeta): boolean =>
-  !meta.guided && meta.status === "abandoned" && meta.outcome?.result === "conceded";
+  !meta.guided && !meta.adjusted && meta.status === "abandoned" && meta.outcome?.result === "conceded";
 
 interface Tally {
   wins: number;

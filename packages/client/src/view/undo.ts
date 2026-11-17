@@ -17,6 +17,12 @@
  *   discarded at random), can't be taken back, and so neither can anything before it: the player keeps what they
  *   learned and can't undo to fish for a better draw or re-roll a random pick by playing in another order.
  *
+ * Undo past reveals (issue #791; `UndoRules.pastReveals`, which the board always passes) lifts only the third line: a
+ * move that drew, revealed or picked at random can be taken back too, and the offer says so (`revealed`), so the board
+ * first warns that the game will stop counting toward stats and achievements and, once the player acknowledges it,
+ * marks the game adjusted (`SaveMeta.adjusted`). The rewind replays the stored log, the seed's draws included, so the
+ * same move made again draws the same card: it puts a misplay right, it can't fish for a better draw.
+ *
  * Randomness: the store records the engine's RNG draw count (`GameState.rng.draws`) around every command
  * (`BackOutTrailEntry.rngDraws`); a move whose count moved used the generator, whatever events it produced. The event
  * allowlist is the second gate (it catches reveals that spend no randomness, and trail entries with no count).
@@ -204,6 +210,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   leavePlayBlocked: [ALLOWED, "rules bookkeeping, nothing hidden"],
   linkedCardsSetAside: [STOPS, "cards leave for out of play"],
   mainSchemeAdvanced: [STOPS, "the villain phase"],
+  manualAdjustment: [STOPS, "a manual adjustment (Pause ▸ Manual adjust, issue #791)"],
   mainSchemeCompleted: [STOPS, "the scheme ended the game"],
   mainSchemeFlippedToOtherFace: [STOPS, "turns a hidden face up"],
   mainSchemeStageRemoved: [STOPS, "scheme stages changed"],
@@ -377,9 +384,24 @@ export function isSafeToRewind(span: readonly BackOutTrailEntry[], mover: Player
   return !span.some((entry) => usedRandomness(entry) || entry.events.some((event) => eventStopsUndo(event, mover)));
 }
 
+/** How far Undo reaches. */
+export interface UndoRules {
+  /** Undo past reveals (issue #791): a move that drew, revealed or picked at random can be taken back too. */
+  readonly pastReveals?: boolean;
+}
+
 export type UndoOffer =
-  /** `target` is the command count to rewind to (`SessionStore.rewindTo`), `command` the move it takes back. */
-  | { readonly kind: "available"; readonly target: number; readonly command: Command }
+  /**
+   * `target` is the command count to rewind to (`SessionStore.rewindTo`), `command` the move it takes back. `revealed`:
+   * the move drew, revealed or picked at random, and is offered only under `UndoRules.pastReveals`; taking it back marks
+   * the game adjusted.
+   */
+  | {
+      readonly kind: "available";
+      readonly target: number;
+      readonly command: Command;
+      readonly revealed?: true;
+    }
   | { readonly kind: "unavailable"; readonly reason: string };
 
 /** Says why nothing earlier can be undone, the reason the disabled Undo button shows. */
@@ -401,6 +423,7 @@ export function undoOf(
   trail: readonly BackOutTrailEntry[],
   game: Pick<GameState, "outcome" | "pendingChoice" | "step">,
   perspectiveId: PlayerId,
+  rules: UndoRules = {},
 ): UndoOffer | null {
   if (game.outcome || game.pendingChoice) return null;
   const { step } = game;
@@ -426,7 +449,8 @@ export function undoOf(
     return { kind: "unavailable", reason: UNDO_REASONS.boundary };
   }
   if (!isSafeToRewind(move, perspectiveId)) {
-    return { kind: "unavailable", reason: UNDO_REASONS.revealed };
+    if (!rules.pastReveals) return { kind: "unavailable", reason: UNDO_REASONS.revealed };
+    return { kind: "available", target: start, command: opening.command, revealed: true };
   }
   return { kind: "available", target: start, command: opening.command };
 }
@@ -461,13 +485,24 @@ export function undoTargetsOf(
   trail: readonly BackOutTrailEntry[],
   game: Pick<GameState, "outcome" | "pendingChoice" | "step">,
   perspectiveId: PlayerId,
+  rules: UndoRules = {},
 ): readonly number[] {
-  const targets: number[] = [];
+  return undoStepsOf(trail, game, perspectiveId, rules).map((step) => step.target);
+}
+
+/** `undoTargetsOf` with whether each step takes back a draw, reveal or random pick (`UndoOffer.revealed`). */
+export function undoStepsOf(
+  trail: readonly BackOutTrailEntry[],
+  game: Pick<GameState, "outcome" | "pendingChoice" | "step">,
+  perspectiveId: PlayerId,
+  rules: UndoRules = {},
+): readonly { readonly target: number; readonly revealed: boolean }[] {
+  const steps: { target: number; revealed: boolean }[] = [];
   let rest = trail;
   for (;;) {
-    const offer = undoOf(rest, game, perspectiveId);
-    if (offer?.kind !== "available") return targets;
-    targets.push(offer.target);
+    const offer = undoOf(rest, game, perspectiveId, rules);
+    if (offer?.kind !== "available") return steps;
+    steps.push({ target: offer.target, revealed: offer.revealed === true });
     rest = rest.slice(0, offer.target);
   }
 }

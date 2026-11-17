@@ -10,6 +10,7 @@ import {
   useAbility,
 } from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { adjust } from "./adjust.js";
 import { cardTotalFault, type ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
@@ -113,6 +114,8 @@ function dispatch(ctx: Ctx, command: Command): EngineError | null {
       return resolveChoice(ctx, command);
     case "concede":
       return concede(ctx, command);
+    case "adjust":
+      return adjust(ctx, command);
   }
 }
 

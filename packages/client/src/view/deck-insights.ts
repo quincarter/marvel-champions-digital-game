@@ -138,7 +138,7 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
     { wins: number; losses: number; inWins: Record<string, number>; inLosses: Record<string, number> }
   > = {};
   for (const meta of saves) {
-    if (meta.guided || (meta.status !== "won" && meta.status !== "lost")) continue;
+    if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) continue;
     const won = meta.status === "won";
     const summary = meta.summary ?? null;
     const lossReason =

@@ -7,7 +7,7 @@
  * the Mods family. A game's `config.packs` carries the packs it was played with, so everything is read from the saves:
  * nothing stored but which mods were ever installed (`mod-installs.ts`). Pure: no storage, no Phaser.
  */
-import { isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isLessonSave } from "../engine/game-storage.js";
 import { parsePackAchievements, type PackAchievement, type PackAchievementWhen } from "@mc/content";
 import type { AchievementCampaign, AchievementProgress, AchievementSave } from "./achievements.js";
 
@@ -130,7 +130,9 @@ export interface ModHistory {
 
 /** Finished, real games: a won or lost row that is not a Try-it lesson. Custom content counts here. */
 const finishedGames = (saves: readonly AchievementSave[]): ModGame[] =>
-  saves.filter((s) => !isLessonSave(s) && (s.status === "won" || s.status === "lost")).map(modGameOf);
+  saves
+    .filter((s) => !isLessonSave(s) && !isAdjustedSave(s) && (s.status === "won" || s.status === "lost"))
+    .map(modGameOf);
 
 export const NO_MOD_FACTS: ModFacts = modFactsOf({ saves: [], campaigns: [] });
 

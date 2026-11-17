@@ -40,7 +40,7 @@ const isKey = (value: string): boolean => GLOBAL_KEY_PATTERN.test(value);
 const once = (values: readonly string[]): string[] => [...new Set(values)];
 
 export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): GlobalResult | null {
-  if (meta.guided || (meta.status !== "won" && meta.status !== "lost")) return null;
+  if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) return null;
   // A Skirmish game is shorter than the difficulty it would be counted under, so it stays out of the global numbers.
   if (meta.config.modes?.skirmish) return null;
   // A game with extra modular sets (the house rule, #761) is a harder deck than the scenario prints, so it stays out too.

@@ -21,7 +21,7 @@ import { NO_DECK_FEATS, type DeckFeats } from "./deck-feats.js";
 import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
-import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
 import {
@@ -215,7 +215,7 @@ const FINALES: ReadonlyMap<string, string> = new Map(
 );
 
 export function factsOf(history: AchievementHistory): Facts {
-  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s));
+  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s));
   const wonSaves = real.filter((s) => s.status === "won");
   const lostSaves = real.filter((s) => s.status === "lost");
   const heroesOf = (s: AchievementSave): string[] =>

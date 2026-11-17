@@ -50,7 +50,7 @@ import { artLanguageNow } from "../art/art-source.js";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
-import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { customEarned, customHeroMode, customLockText, customScenarioMode } from "./custom-unlock.js";
 
 /** What a win is worth, and what opening something by hand costs. */
@@ -353,7 +353,9 @@ export function progressOf(
     readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
   }[],
 ): UnlockProgress {
-  const wonSaves = saves.filter((s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s));
+  const wonSaves = saves.filter(
+    (s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s),
+  );
   const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined);
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),
