@@ -31,6 +31,10 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 - An exported game log, a shared replay and an issue report say when the game was adjusted by hand or undone past a reveal (#791).
 - The v0.49.0 release report has its own page on the site, at /releases/v0.49.0/
 
+### Fixed
+
+- Ant-Man's Giant Strength is only offered after changing to Giant hero form, and Ant-Man's Helmet only offers the response that matches the new form (#794).
+
 ### Engine
 
 - A new adjust command carries Manual adjust's table corrections through the game log, so saves, rewinds and replays keep them (#791).
