@@ -523,6 +523,7 @@ describe("screen focus routes", () => {
       "save-quit",
       "music",
       "report",
+      "manual-adjust",
       "concede",
     ]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
@@ -534,6 +535,7 @@ describe("screen focus routes", () => {
       "save-quit",
       "music",
       "report",
+      "manual-adjust",
       "concede",
       "keyword:guard",
       "keyword:stunned",
@@ -554,6 +556,7 @@ describe("screen focus routes", () => {
       "report",
       "guide-stop-tutorial",
       "guide-turn-guide-off",
+      "manual-adjust",
       "concede",
       "keyword:guard",
     ]);

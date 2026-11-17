@@ -403,7 +403,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "music",
       "report",
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
-      ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+      ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["manual-adjust", "concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),
       ...(input.momentIds ?? []).map((id) => `moment:${id}`),
     ];

@@ -37,6 +37,7 @@ import { unavailableOptionLines, unofferedReason } from "./ability-refusal.js";
 import { heroFaceNameAt } from "./hero-names.js";
 import { cardName, faceUpName, formWords, optionLabelOf, playerName, seatName } from "./names.js";
 import { faceVisible } from "./visibility.js";
+import { adjustmentText } from "./manual-adjust-model.js";
 
 /** A line that opens with a card named only as far as the table may see it ("a facedown card") starts with a capital. */
 const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
@@ -598,6 +599,9 @@ function describe(
         } (discarded, not healed).`,
         voice: "scenario",
       };
+    case "manualAdjustment":
+      // Issue #791: a correction by hand, not a game event, so it is worded apart from the rules' own lines.
+      return { text: `Manual adjust: ${adjustmentText(event.adjustment, card, who)}.`, voice: "player" };
     case "damageHealed":
       return { text: `${card(event.targetInstanceId)} healed ${event.amount} damage.`, voice: "player" };
     // A tough status card has timing priority over every other interrupt that would otherwise fire first

@@ -21,6 +21,8 @@ export interface PauseStatus {
   readonly seatLabel: string;
   /** The game's seed (the same seed plus the same moves replays the game), or null with no game config. */
   readonly seed: number | null;
+  /** The game was adjusted by hand (Manual adjust, or an Undo past a reveal) and no longer counts toward stats (#791). */
+  readonly adjusted: boolean;
   /**
    * A Civil War scenario played blind: the stage pair and the modular sets as they stand (hidden pieces worded and
    * counted). Absent for every other game.
@@ -98,12 +100,17 @@ function phaseLabelOf(state: GameState): string {
 /** " · Seed 54472" for the end of a status line, or nothing when the game has no seed on hand. */
 export const seedSuffixOf = (status: PauseStatus): string => (status.seed === null ? "" : ` · Seed ${status.seed}`);
 
+/** " · Adjusted: not counted toward stats" for the end of a status line of a game stepped outside the rules; else nothing. */
+export const adjustedSuffixOf = (status: PauseStatus): string =>
+  status.adjusted ? " · Adjusted: not counted toward stats" : "";
+
 export function pauseStatusOf(
   game: GameState,
   perspectiveId: PlayerId,
   config: SessionConfig | null,
   scenarios: readonly Scenario[],
   blindNames?: BlindSheetNames,
+  adjusted = false,
 ): PauseStatus {
   const reveal = blindNames ? blindRevealOf(config, game) : null;
   const scenario = config ? scenarios.find((candidate) => candidate.id === config.scenarioId) : undefined;
@@ -114,6 +121,7 @@ export function pauseStatusOf(
     phaseLabel: phaseLabelOf(game),
     seatLabel: playerName(game, perspectiveId),
     seed: config?.seed ?? null,
+    adjusted,
     ...(reveal && blindNames
       ? { blindSheet: blindSheetLines(reveal, blindNames, config?.mainSchemeStageIds?.[0] ?? null) }
       : {}),

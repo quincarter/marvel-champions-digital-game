@@ -130,6 +130,8 @@ export const SCENES = {
   heroDecks: "HeroDecksSheet",
   /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */
   searchHelp: "SearchHelpSheet",
+  /** "Manual adjust" (`scenes/manual-adjust.ts`, #791): correct the table by hand, over Pause. */
+  manualAdjust: "ManualAdjustOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
   endTurnConfirm: "EndTurnConfirmOverlay",
   /** "Only one option" (`scenes/option-notice.ts`, #412): a choose-one that took its only option, over the Board. */
