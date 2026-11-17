@@ -9,8 +9,8 @@
 #
 # main requires a pull request, so the change goes on the bot-owned `release/readme-downloads` branch, rebuilt from main
 # on every run and force-pushed, and one open pull request is moved to the newest release rather than a second opened.
-# scripts/readme-downloads.mjs refuses a draft, a prerelease or a release missing a linked file, and leaves a README
-# already at that version or newer alone, on main or on the open pull request.
+# scripts/readme-downloads.mjs refuses a draft, a prerelease or a release missing a linked file. It skips a release that
+# isn't GitHub's latest, and leaves a README already at that version or newer alone, on main or on the open pull request.
 name: README downloads
 
 on:
@@ -60,14 +60,20 @@ jobs:
           set -euo pipefail
           RELEASE_FILE=$(mktemp)
           gh release view "$TAG" --json tagName,isDraft,isPrerelease,assets > "$RELEASE_FILE"
-          # An open pull request already moving the README to a newer release is not moved back.
+          # The README follows GitHub's latest release only: a hand-published or retried older one is skipped.
+          # No latest release at all (a 404) reads as none, and the script skips.
+          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2> /dev/null || true)
+          # An open pull request already moving the README to a newer release is not moved back. Its branch has to
+          # be read, or this run stops: without it the force push below could replace a newer bump with this one.
           PR=$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number')
-          OPEN_README=""
-          if [ -n "$PR" ] && git fetch --depth=1 origin "$BRANCH"; then
+          ARGS=(--latest "$LATEST")
+          if [ -n "$PR" ]; then
+            git fetch --depth=1 origin "$BRANCH"
             OPEN_README=$(mktemp)
             git show FETCH_HEAD:README.md > "$OPEN_README"
+            ARGS+=(--open-readme "$OPEN_README")
           fi
-          node scripts/readme-downloads.mjs "$RELEASE_FILE" $OPEN_README
+          node scripts/readme-downloads.mjs "$RELEASE_FILE" "${ARGS[@]}"
 
           if git diff --quiet; then
             echo "Nothing to change for ${TAG}."

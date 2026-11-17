@@ -73,16 +73,41 @@ export function linkedAssets(readme, tag) {
   return [...new Set([...readme.matchAll(links)].map((match) => decodeURIComponent(match[1])))];
 }
 
+/** Why `release` isn't public as a full release yet: a draft or a prerelease never goes on the README. */
+export function publicationProblems(release) {
+  const problems = [];
+  if (release.isDraft) problems.push(`${release.tagName} is still a draft.`);
+  if (release.isPrerelease) problems.push(`${release.tagName} is a prerelease.`);
+  return problems;
+}
+
 /**
  * Why the README can't point at `release` yet (`gh release view --json tagName,isDraft,isPrerelease,assets`), or an
  * empty list when it can: the release has to be public and carry every file the bumped README links to.
  */
 export function releaseProblems(release, bumpedReadme) {
-  const problems = [];
-  if (release.isDraft) problems.push(`${release.tagName} is still a draft.`);
-  if (release.isPrerelease) problems.push(`${release.tagName} is a prerelease.`);
+  const problems = publicationProblems(release);
   const uploaded = new Set((release.assets ?? []).map((asset) => asset.name));
   const missing = linkedAssets(bumpedReadme, release.tagName).filter((name) => !uploaded.has(name));
   if (missing.length > 0) problems.push(`${release.tagName} has no ${missing.join(", ")}.`);
   return problems;
+}
+
+/**
+ * Why the README should stay as it is for `tag`, or null when it should move. The README follows GitHub's latest
+ * release only (`latest`), and never moves back: not while main (`current`) or the open README pull request
+ * (`pending`) already shows that version or a newer one. A hand-published or retried older release is skipped, not
+ * an error.
+ */
+export function skipReason({ tag, latest, current, pending }) {
+  const version = normalizeTag(tag);
+  if (!latest) return `GitHub has no latest release, so ${version} can't be confirmed as latest.`;
+  if (compareVersions(latest, version) !== 0) return `${version} is not GitHub's latest release (${latest} is).`;
+  for (const [where, shown] of [
+    ["The README", current],
+    ["The open README pull request", pending],
+  ]) {
+    if (shown && compareVersions(shown, version) >= 0) return `${where} already shows ${shown}.`;
+  }
+  return null;
 }

@@ -321,9 +321,9 @@ the version they fetch and link to that release's files. The release PR doesn't 
 only after every installer has been uploaded, which is what the apps' update notice
 (`packages/client/src/platform/update-check.ts`) reads, and only then does `.github/workflows/readme-downloads.yml` open a
 `chore(readme): point the downloads at vX.Y.Z` PR (`scripts/readme-downloads.mjs`: the README links and the version on
-each `.github/assets/readme/download-*.svg`). It refuses a draft, a prerelease or a release missing a linked file,
-and a release published by hand as a full release starts it too. Like the release PR, it is opened by the workflow's
-own token, so CI doesn't run on it: merge it the same way.
+each `.github/assets/readme/download-*.svg`). It refuses a draft, a prerelease or a release missing a linked file, and
+skips one that isn't GitHub's latest. A release published by hand as a full release starts it too. Like the release
+PR, it is opened by the workflow's own token, so CI doesn't run on it: merge it the same way.
 
 Every release thanks the people behind it. `scripts/release-credits.mjs` reads GitHub for the issues a release fixes
 and the pull requests it merges, and the release notes and release PR get a **Special thanks** section that

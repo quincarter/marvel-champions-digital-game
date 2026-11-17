@@ -7,8 +7,10 @@ import {
   bumpReadme,
   compareVersions,
   linkedAssets,
+  publicationProblems,
   readmeVersion,
   releaseProblems,
+  skipReason,
 } from "./readme-downloads.mjs";
 
 const REPO = "https://github.com/quincarter/marvel-champions-digital-game";
@@ -79,6 +81,14 @@ describe("whether a release can take the README", () => {
     assert.deepEqual(releaseProblems(published, bumped), []);
   });
 
+  it("names a draft or a prerelease before any skip, so the CLI fails on it rather than skipping it", () => {
+    assert.deepEqual(publicationProblems(published), []);
+    assert.deepEqual(publicationProblems({ ...published, isDraft: true, isPrerelease: true }), [
+      "v0.48.0 is still a draft.",
+      "v0.48.0 is a prerelease.",
+    ]);
+  });
+
   it("holds a draft or a prerelease", () => {
     assert.equal(releaseProblems({ ...published, isDraft: true }, bumped).length, 1);
     assert.equal(releaseProblems({ ...published, isPrerelease: true }, bumped).length, 1);
@@ -89,5 +99,28 @@ describe("whether a release can take the README", () => {
     assert.deepEqual(releaseProblems({ ...published, assets }, bumped), [
       "v0.48.0 has no MarvelChampions-0.48.0-ES-Android.apk.",
     ]);
+  });
+});
+
+describe("when the README stays as it is", () => {
+  const base = { tag: "v0.48.0", latest: "v0.48.0", current: "v0.47.0", pending: null };
+
+  it("moves for GitHub's latest release, newer than main and the open pull request", () => {
+    assert.equal(skipReason(base), null);
+    assert.equal(skipReason({ ...base, pending: "v0.47.0" }), null);
+  });
+
+  it("skips a release published or retried out of order, once a newer one is latest", () => {
+    // v0.49.0 is latest but its README pull request isn't open yet; a retry of v0.48.0 mustn't open one for v0.48.0.
+    assert.match(skipReason({ ...base, latest: "v0.49.0" }), /not GitHub's latest release \(v0\.49\.0 is\)/);
+  });
+
+  it("skips when GitHub has no latest release (the workflow reads a 404 as none)", () => {
+    assert.match(skipReason({ ...base, latest: "" }), /no latest release/);
+  });
+
+  it("never moves main or the open pull request back", () => {
+    assert.match(skipReason({ ...base, current: "v0.48.0" }), /The README already shows v0\.48\.0/);
+    assert.match(skipReason({ ...base, pending: "v0.49.0" }), /open README pull request already shows v0\.49\.0/);
   });
 });
