@@ -164,7 +164,7 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   const pool = [...PLAYABLE_CARDS, ...custom.cards];
   const sets = allSets(custom);
   const range = (value: unknown): value is readonly [number, number] =>
-    Array.isArray(value) && value.length === 2 && value.every(Number.isInteger) && value[0] <= value[1];
+    Array.isArray(value) && value.length === 2 && value.every(Number.isSafeInteger) && value[0] <= value[1];
   for (const mode of ["standard", "expert"] as const)
     if (!range(scenario.villainStages?.[mode]))
       problems.push(`villainStages.${mode} must be [first stage, last stage] with first at most last`);
@@ -174,12 +174,23 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   if (!villain) problems.push(`villain ${scenario.villainCardId} is in neither the pack nor the base game`);
   else if (villain.type !== "villain") problems.push(`${scenario.villainCardId} is not a villain card`);
   else {
-    const stages = villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? [];
+    const stages = new Set(villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? []);
     for (const mode of ["standard", "expert"] as const) {
+      if (!range(scenario.villainStages?.[mode])) continue;
+      const [first, last] = scenario.villainStages[mode];
+      const ends = first === last ? [first] : [first, last];
+      const missingEnds = ends.filter((stage) => !stages.has(stage));
+      for (const stage of missingEnds) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
+      if (missingEnds.length > 0) continue;
       // Every stage from first to last, not only the two ends: skirmish offers each one as a version (`skirmishOffer`).
-      const [first, last] = range(scenario.villainStages?.[mode]) ? scenario.villainStages[mode] : [1, 0];
-      for (let stage = first; stage <= last; stage++)
-        if (!stages.includes(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
+      // The work is bounded by the villain's own stages: a span wider than the villain has stages is a gap at once.
+      const span = last - first + 1;
+      if (span > stages.size) {
+        problems.push(`the villain lacks a stage between ${first} and ${last} (needed in ${mode} mode)`);
+        continue;
+      }
+      for (let stage = first + 1; stage < last; stage++)
+        if (!stages.has(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
     }
   }
   const scheme = pool.find((card) => card.id === scenario.mainSchemeCardId);
@@ -203,6 +214,12 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
           problems.push(`${field}: "${id}" needs classification "${expected}" (RRG 1.8 pp. 40, 19)`);
         if (field === "encounterSetIds" && (set.nemesisOfIdentityId !== undefined || set.campaignSpecific))
           problems.push(`${field}: "${id}" is a nemesis or campaign set, never a scenario's own set`);
+        // A Standard or Expert set among the scenario's own sets would be dealt even when Standard II / III or
+        // Expert II replaces it: it belongs in standardEncounterSetIds or expertEncounterSetIds only (#786).
+        if (field === "encounterSetIds" && (set.classification === "standard" || set.classification === "expert"))
+          problems.push(
+            `${field}: "${id}" is a ${set.classification} set; list it in ${set.classification}EncounterSetIds`,
+          );
         try {
           encounterCardsOf([id], pool);
         } catch {

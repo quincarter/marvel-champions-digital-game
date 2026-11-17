@@ -424,13 +424,41 @@ describe("scenarioWithPacks: refusals and options", () => {
     expect(replaced.setAside).toBeUndefined();
   });
   it("needs the villain to have every stage between a mode's first and last, as skirmish offers each (#786)", () => {
-    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
     const record = pack.scenarios![0] as never as Record<string, unknown>;
-    const gap = customScenarioProblems(
-      { ...record, villainStages: { standard: [1, 3], expert: [2, 2] } } as never,
-      content,
-    );
-    expect(gap.join(" ")).toMatch(/the villain has no stage 3/);
+    const problemsAt = (standard: [number, number], cards = pack.cards) =>
+      customScenarioProblems({ ...record, villainStages: { standard, expert: [2, 2] } } as never, {
+        cards,
+        encounterSets: pack.encounterSets!,
+        scenarios: [],
+      }).join(" ");
+    // A villain printed with stages I and III: both ends exist, the middle one does not.
+    const skipping = pack.cards.map((card) =>
+      card.type === "villain"
+        ? {
+            ...card,
+            sides: card.sides.map((side) => ({
+              ...side,
+              stages: side.stages.map((stage) => (stage.stageNumber === 2 ? { ...stage, stageNumber: 3 } : stage)),
+            })),
+          }
+        : card,
+    ) as typeof pack.cards;
+    expect(problemsAt([1, 3], skipping)).toMatch(/the villain has no stage 2/);
+    expect(problemsAt([1, 3], skipping)).not.toMatch(/stage 3/);
+    // A pack-controlled range answers at once, however wide, and an unsafe number is no stage range at all.
+    const started = Date.now();
+    expect(problemsAt([1, 1_000_000_000])).toMatch(/the villain has no stage 1000000000/);
+    expect(problemsAt([1, Number.MAX_SAFE_INTEGER + 2])).toMatch(/villainStages.standard must be/);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+  it("refuses the Standard or Expert set among a pack scenario's own sets, where a replacement would deal both", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const own = record.encounterSetIds as string[];
+    for (const set of ["standard", "expert"])
+      expect(customScenarioProblems({ ...record, encounterSetIds: [...own, set] } as never, content).join(" ")).toMatch(
+        new RegExp(`"${set}" is a ${set} set; list it in ${set}EncounterSetIds`),
+      );
   });
   it("checks the recommended modular sets against the scenario's modular count", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;
