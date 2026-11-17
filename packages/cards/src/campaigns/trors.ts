@@ -471,7 +471,7 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
                 {
                   field: "experimental",
                   mode: "append",
-                  value: { kind: "cardsThatEnteredPlay", query: { trait: EXPERIMENTAL } },
+                  value: { kind: "cardsThatEnteredPlay", query: { trait: EXPERIMENTAL }, distinct: true },
                 },
               ],
             },
