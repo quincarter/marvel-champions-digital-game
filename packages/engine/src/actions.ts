@@ -2684,6 +2684,27 @@ export interface ResourceCostStep {
   readonly bindings?: Bindings;
 }
 
+/**
+ * A resource ability's threat cost as its held step: the threat comes off before the card or ability paid for. The
+ * resources were generated from the planned amount; the removal has no frame to report an unpaid cost to.
+ */
+const threatCostStep = ({ instanceId, spender, fromId, amount }: ResourceThreatCost): ResourceCostStep => ({
+  effects: removeThreatCostEffects({ fromId, min: amount, max: amount }, null),
+  selfInstanceId: instanceId,
+  controllerId: spender,
+});
+
+/**
+ * A resource ability's damage cost as its held step (hero-packs H3.14): the spender's identity takes the damage, from
+ * the ability's card. `planCost` let the amount through only where all of it could be taken, and the resources were
+ * generated from it; damage an interrupt prevents as it is dealt is logged unpaid (`costDamageSettled`) and has no
+ * frame to report that to. None for an amount of 0.
+ */
+const damageCostStep = ({ instanceId, spender, amount }: ResourceDamageCost): ResourceCostStep[] =>
+  amount > 0
+    ? [{ effects: selfCostDamageEffects(amount, null), selfInstanceId: instanceId, controllerId: spender }]
+    : [];
+
 /** Resources one player generated in a payment (docs/phase7-wave5.md §3.25). */
 export interface GeneratedByPlayer {
   readonly playerId: PlayerId;
@@ -2711,24 +2732,16 @@ export interface SpentPayment {
    */
   readonly countersRemoved?: readonly TriggerEvent[];
   /**
-   * The threat costs of the resource abilities used ("remove up to 2 threat from … → generate a resource for each
-   * threat you removed this way"; docs/phase7-wave9.md §3.7 (b)), held for `announceResourcesSpent` like
-   * `countersRemoved`: the removal is an ordinary `removeThreat` event, which has to sit above the card or ability
-   * paid for so that it resolves first (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6).
-   */
-  readonly threatCosts?: readonly ResourceThreatCost[];
-  /**
-   * The damage costs of the resource abilities used ("When you spend this card, take up to 3 damage → this card
-   * generates 1 additional [energy] resource for each damage taken this way"; docs/phase7-wave10-hero-packs.md H3.14),
-   * held for `announceResourcesSpent` like `threatCosts`: the damage is an ordinary deal, which has to sit above the
-   * card or ability paid for so that it is taken first (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6).
-   */
-  readonly damageCosts?: readonly ResourceDamageCost[];
-  /**
-   * The other frame-pushing cost steps of the resource abilities used (`ResourceCostStep`), in payment order, held
-   * for `announceResourcesSpent` like `damageCosts`, so each resolves in full (damage, a defeat, the interrupts and
-   * responses to it) before the card or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5
-   * before step 6; "Cost", p. 13–14).
+   * The frame-pushing cost steps of the resource abilities used, in the order they resolve: one resource ability's
+   * after the one paid before it in the payment (`payPayment`). Each is held for `announceResourcesSpent`, so it
+   * resolves in full (damage, a defeat, the interrupts and responses to it) before the card or ability paid for
+   * commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6; "Cost", p. 13–14). They are:
+   * - the threat costs ("remove up to 2 threat from … → generate a resource for each threat you removed this way";
+   *   docs/phase7-wave9.md §3.7 (b), `ResourceThreatCost`), an ordinary `removeThreat` event;
+   * - the damage costs ("When you spend this card, take up to 3 damage → …"; docs/phase7-wave10-hero-packs.md H3.14,
+   *   `ResourceDamageCost`), an ordinary deal to the spender's identity;
+   * - the other steps `payCost` would push (Clarity of Purpose's "deal 1 damage to attached character →", a
+   *   `readyCards`, an `indirectDamage`; issue #813).
    */
   readonly costSteps?: readonly ResourceCostStep[];
 }
@@ -2752,8 +2765,6 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
   ...(a.cardSpenders || b.cardSpenders ? { cardSpenders: { ...a.cardSpenders, ...b.cardSpenders } } : {}),
   countersRemoved: [...(a.countersRemoved ?? []), ...(b.countersRemoved ?? [])],
-  ...(a.threatCosts || b.threatCosts ? { threatCosts: [...(a.threatCosts ?? []), ...(b.threatCosts ?? [])] } : {}),
-  ...(a.damageCosts || b.damageCosts ? { damageCosts: [...(a.damageCosts ?? []), ...(b.damageCosts ?? [])] } : {}),
   ...(a.costSteps || b.costSteps ? { costSteps: [...(a.costSteps ?? []), ...(b.costSteps ?? [])] } : {}),
 });
 
@@ -2773,9 +2784,16 @@ export function payPayment(
   const tuckedSpenders: Record<string, PlayerId> = {};
   const used: UsedResourceAbility[] = [];
   const countersRemoved: TriggerEvent[] = [];
-  const threatCosts: ResourceThreatCost[] = [];
-  const damageCosts: ResourceDamageCost[] = [];
   const costSteps: ResourceCostStep[] = [];
+  // One resource ability's held costs (`SpentPayment.costSteps`), added after those of the ability paid before it, so
+  // the costs of one payment resolve in payment order whatever kind each is.
+  const payHeldCost = (instanceId: InstanceId, spender: PlayerId, cost: AbilityCost | undefined, plan: CostPlan) => {
+    const threats: ResourceThreatCost[] = [];
+    const damages: ResourceDamageCost[] = [];
+    const steps: ResourceCostStep[] = [];
+    payCost(ctx, instanceId, spender, cost, plan, countersRemoved, threats, damages, steps);
+    costSteps.push(...steps, ...damages.flatMap(damageCostStep), ...threats.map(threatCostStep));
+  };
   let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
@@ -2825,18 +2843,7 @@ export function payPayment(
           spenderOfCard,
         );
         const plan = resourceCostPlan(ctx.state, ctx.deps, use, spenderOfCard);
-        if (!isFault(plan))
-          payCost(
-            ctx,
-            use.instanceId,
-            spenderOfCard,
-            definition.cost,
-            plan,
-            countersRemoved,
-            threatCosts,
-            damageCosts,
-            costSteps,
-          );
+        if (!isFault(plan)) payHeldCost(use.instanceId, spenderOfCard, definition.cost, plan);
         recordAbilityUse(ctx, use.instanceId, use.abilityId, definition, null, spenderOfCard);
         emit(ctx, {
           type: "resourcesGenerated",
@@ -2880,8 +2887,7 @@ export function payPayment(
       spender,
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
-    if (!isFault(plan))
-      payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved, threatCosts, damageCosts, costSteps);
+    if (!isFault(plan)) payHeldCost(instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
@@ -2915,8 +2921,6 @@ export function payPayment(
     generated: generatedBy,
     ...(Object.keys(tuckedSpenders).length > 0 ? { cardSpenders: tuckedSpenders } : {}),
     ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
-    ...(threatCosts.length > 0 ? { threatCosts } : {}),
-    ...(damageCosts.length > 0 ? { damageCosts } : {}),
     ...(costSteps.length > 0 ? { costSteps } : {}),
   };
 }
@@ -2964,32 +2968,11 @@ export function announceResourcesSpent(
       bindings: payingForInstanceId ? { [PAID_FOR_SLOT]: [payingForInstanceId] } : {},
     });
   }
-  // A resource ability's threat cost (`SpentPayment.threatCosts`): pushed last of all, so the threat comes off before
-  // the ability's own effects, the "after you spend" windows and the card or ability paid for. The resources were
-  // generated from the planned amount; the removal has no frame to report an unpaid cost to.
-  for (const { instanceId, spender, fromId, amount } of [...(paid.threatCosts ?? [])].reverse()) {
-    pushEffects(ctx, {
-      effects: removeThreatCostEffects({ fromId, min: amount, max: amount }, null),
-      selfInstanceId: instanceId,
-      controllerId: spender,
-    });
-  }
-  // A resource ability's damage cost (`SpentPayment.damageCosts`; hero-packs H3.14), pushed the same way: the
-  // spender's identity takes the damage, from the ability's card, before the card or ability paid for. `planCost` let
-  // the amount through only where all of it could be taken, and the resources were generated from it; damage an
-  // interrupt prevents as it is dealt is logged unpaid (`costDamageSettled`) and has no frame to report that to.
-  for (const { instanceId, spender, amount } of [...(paid.damageCosts ?? [])].reverse()) {
-    if (amount <= 0) continue;
-    pushEffects(ctx, {
-      effects: selfCostDamageEffects(amount, null),
-      selfInstanceId: instanceId,
-      controllerId: spender,
-    });
-  }
-  // A resource ability's other frame-pushing cost steps (`SpentPayment.costSteps`; issue #813): Clarity of Purpose's
-  // "deal 1 damage to attached character →" is dealt, and a defeat or any interrupt to it resolved, before the card
-  // or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6). Pushed last, so
-  // they resolve before everything above, the first paid on top.
+  // The resource abilities' held costs (`SpentPayment.costSteps`): pushed last of all, so each resolves in full (a
+  // threat removal, damage, a defeat, the interrupts and responses to it) before the ability's own effects, the "after
+  // you spend" windows and the card or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before
+  // step 6; issue #813). Pushed in reverse, the first paid resolves first: one payment's costs keep its order whatever
+  // kind each is (Clarity of Purpose's damage after a threat cost paid before it).
   for (const step of [...(paid.costSteps ?? [])].reverse()) pushEffects(ctx, step);
 }
 
@@ -4421,13 +4404,14 @@ export function payCost(
   collectCounterEvents?: TriggerEvent[],
   /**
    * Where a `removeThreat` cost's steps go instead of the stack, for the same reason: a resource ability's threat
-   * cost (`SpentPayment.threatCosts`), pushed by `announceResourcesSpent` above the card or ability paid for.
+   * cost (`threatCostStep`, held in `SpentPayment.costSteps`), pushed by `announceResourcesSpent` above the card or
+   * ability paid for.
    */
   collectThreatCosts?: ResourceThreatCost[],
   /**
    * Where a `damageSelf` cost goes instead of the stack, for the same reason: a resource ability's damage cost
-   * (`SpentPayment.damageCosts`), pushed by `announceResourcesSpent` above the card or ability paid for. A chosen
-   * amount is the plan's one number (`resourceCostPlan`).
+   * (`damageCostStep`, held in `SpentPayment.costSteps`), pushed by `announceResourcesSpent` above the card or
+   * ability paid for. A chosen amount is the plan's one number (`resourceCostPlan`).
    */
   collectDamageCosts?: ResourceDamageCost[],
   /**
