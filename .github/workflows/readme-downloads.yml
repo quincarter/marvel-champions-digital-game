@@ -61,8 +61,14 @@ jobs:
           RELEASE_FILE=$(mktemp)
           gh release view "$TAG" --json tagName,isDraft,isPrerelease,assets > "$RELEASE_FILE"
           # The README follows GitHub's latest release only: a hand-published or retried older one is skipped.
-          # No latest release at all (a 404) reads as none, and the script skips.
-          LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2> /dev/null || true)
+          # Retried, then the job fails: a failed lookup must stay visible and rerunnable, never read as "no latest" and
+          # skipped. This runs after a release is published, so GitHub always has a latest one here.
+          LATEST=""
+          for attempt in 1 2 3 4; do
+            if LATEST=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name); then break; fi
+            if [ "$attempt" -eq 4 ]; then echo "::error::Couldn't read GitHub's latest release."; exit 1; fi
+            sleep $((attempt * 15))
+          done
           # An open pull request already moving the README to a newer release is not moved back. Its branch has to
           # be read, or this run stops: without it the force push below could replace a newer bump with this one.
           PR=$(gh pr list --head "$BRANCH" --base main --state open --json number -q '.[0].number')

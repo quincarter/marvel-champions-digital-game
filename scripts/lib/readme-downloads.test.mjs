@@ -115,7 +115,7 @@ describe("when the README stays as it is", () => {
     assert.match(skipReason({ ...base, latest: "v0.49.0" }), /not GitHub's latest release \(v0\.49\.0 is\)/);
   });
 
-  it("skips when GitHub has no latest release (the workflow reads a 404 as none)", () => {
+  it("skips an empty latest tag rather than guessing (the workflow fails before passing one)", () => {
     assert.match(skipReason({ ...base, latest: "" }), /no latest release/);
   });
 
