@@ -104,11 +104,12 @@ import { readConsent } from "../global-stats/global-consent.js";
 import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
 import { heroPromoShown } from "../view/hero-art-choice.js";
 import { SettingsSearchClient } from "../view/settings-search-client.js";
-import type { SettingsSearchEntry, SettingsSearchResult } from "../view/settings-search.js";
+import type { SettingsSearchEntry, SettingsSearchIndexInput, SettingsSearchResult } from "../view/settings-search.js";
 import {
   groupPauseResults,
   pauseResultsContentOf,
   pauseSettingRowsOf,
+  PauseSearchSession,
   type PauseResultSlot,
   type PauseSettingRow,
 } from "../view/pause-search.js";
@@ -163,7 +164,6 @@ export class PauseOverlay extends Phaser.Scene {
   #unsubscribeGuide: (() => void) | null = null;
   #buttons: McButton[] = [];
   #searchInput: McTextInput | null = null;
-  #query = "";
   #route: FocusRoute | null = null;
   #confirmingConcede = false;
   /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
@@ -181,8 +181,8 @@ export class PauseOverlay extends Phaser.Scene {
    * once), and again whenever what the results say may have changed (a resize, a page closing over the sheet).
    */
   #searchClient: SettingsSearchClient | null = null;
-  /** The newest answer for what is typed; null until the first one comes back, and with nothing typed. */
-  #searchResults: readonly SettingsSearchResult[] | null = null;
+  /** What is typed and the worker's answer for it (`view/pause-search.ts`). */
+  #search: PauseSearchSession | null = null;
   #resultsRegion: McScrollRegion | null = null;
   #resultsScroll = new VariableListScroll();
 
@@ -195,14 +195,24 @@ export class PauseOverlay extends Phaser.Scene {
     this.#confirmingConcede = false;
     this.#logExpanded = false;
     this.#quickExpanded = false;
-    this.#query = "";
-    this.#searchResults = null;
+    this.#searchClient = new SettingsSearchClient();
+    this.#search = new PauseSearchSession(
+      this.#searchClient,
+      () => this.#searchIndexInput(),
+      () => {
+        this.#resultsScroll = new VariableListScroll();
+        if (this.sys.isActive()) this.#draw();
+      },
+    );
     this.#resultsScroll = new VariableListScroll();
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
     // The standalone Settings overlay (or another Pause) can change the same live guide prefs while this one is
     // open behind/beside it — redraw so it never shows a stale level/toggle.
-    this.#unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
+    this.#unsubscribeGuide = onGuidePrefsChange(() => {
+      this.#search?.reindex();
+      this.#draw();
+    });
     const onResize = (): void => {
       // A resize can change Settings' tabs (and so where a result lives, and which rows there are).
       this.#reindexSearch();
@@ -235,11 +245,12 @@ export class PauseOverlay extends Phaser.Scene {
       this.#resultsRegion = null;
       this.#searchClient?.destroy();
       this.#searchClient = null;
+      this.#search = null;
     });
     this.#draw();
     // The worker loads the pages it searches on its first message: start it now, so the first letter typed is answered
     // at once. Off the main thread, like the searching itself.
-    this.#indexForSearch();
+    this.#search.reindex();
   }
 
   /** True while a page opened from here (or the Board's own warning) is over this sheet and owns the input. */
@@ -401,7 +412,7 @@ export class PauseOverlay extends Phaser.Scene {
         id: "settings",
         title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
-        open: () => this.scene.launch(SCENES.settings),
+        open: () => this.#launchOver(SCENES.settings, {}),
       },
       {
         id: "stats",
@@ -464,7 +475,7 @@ export class PauseOverlay extends Phaser.Scene {
     const allQuickRows = this.#quickReferenceRows(game);
     const quickReferenceRows = this.#quickExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
     // With something typed, the results take everything between the field and the footer (phone) or the right panel (wide).
-    const searching = this.#query.trim().length > 0;
+    const searching = this.#search?.searching ?? false;
     const tableRows = settingsRowInfoOf(settings);
     const keywordEntries = game ? rulesGlossaryOf(game, gameDeps()) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
@@ -629,7 +640,7 @@ export class PauseOverlay extends Phaser.Scene {
       this.#openRules({ initialTab: "glossary" satisfies RulesTab }),
     );
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
-      this.scene.launch(SCENES.settings),
+      this.#launchOver(SCENES.settings, {}),
     );
     this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
@@ -1047,7 +1058,7 @@ export class PauseOverlay extends Phaser.Scene {
     else {
       this.#searchInput = new McTextInput(this, {
         rect,
-        value: this.#query,
+        value: this.#search?.query ?? "",
         placeholder: "Search settings and rules…",
         onChange: (value) => this.#onQuery(value),
       });
@@ -1057,33 +1068,19 @@ export class PauseOverlay extends Phaser.Scene {
 
   /** Empties the field and the results: the sheet is back to how it opens. */
   #clearSearch(): void {
-    this.#query = "";
     this.#searchInput?.setValue("");
-    this.#searchClient?.cancel();
-    this.#searchResults = null;
+    this.#search?.setQuery("");
   }
 
+  /** Each change drops the last answer at once, so nothing found for an older query is drawn or pressed. */
   #onQuery(value: string): void {
-    this.#query = value;
-    if (value.trim() === "") {
-      this.#searchClient?.cancel();
-      this.#searchResults = null;
-      this.#draw();
-      return;
-    }
-    this.#searchClient?.search(value, (results) => {
-      this.#searchResults = results;
-      this.#resultsScroll = new VariableListScroll();
-      if (this.sys.isActive()) this.#draw();
-    });
-    // The first letter swaps the sheet over to the results at once, rather than after the worker's answer.
-    if (this.#searchResults === null) this.#draw();
+    this.#search?.setQuery(value);
+    this.#draw();
   }
 
   /** Indexes again, and asks again for what is typed, so the results read what is true now. */
   #reindexSearch(): void {
-    this.#indexForSearch();
-    if (this.#query.trim() !== "") this.#onQuery(this.#query);
+    this.#search?.reindex();
   }
 
   /** The Settings rows this device shows and Pause can find, as they read now. */
@@ -1110,13 +1107,12 @@ export class PauseOverlay extends Phaser.Scene {
     }));
   }
 
-  /** What Settings' search worker indexes, with Pause's Settings rows and Reference rows. Once per open. */
-  #indexForSearch(): void {
+  /** What Settings' search worker indexes, with Pause's Settings rows and Reference rows, as they read now. */
+  #searchIndexInput(): SettingsSearchIndexInput {
     const { width, height } = this.scale.gameSize;
     const settings = appSession().settings;
     const { progress, prefs, devUnlockAll, achievementPoints } = unlocks();
-    this.#searchClient ??= new SettingsSearchClient();
-    this.#searchClient.index({
+    return {
       tabs: settingsTabsFor(this.game, width, height, settings, guideRowInfoOf(guidePrefs())),
       rows: this.#settingRows().map((row) => [row.id, { title: row.title, detail: row.detail }] as const),
       settings,
@@ -1125,7 +1121,7 @@ export class PauseOverlay extends Phaser.Scene {
       globalConsent: readConsent(),
       controls: controlsShown(),
       extra: this.#referenceEntries(),
-    });
+    };
   }
 
   /** A stop inside the results' scroll region, as `#lowerStop` is for the Table group's. */
@@ -1145,14 +1141,14 @@ export class PauseOverlay extends Phaser.Scene {
    * ids in draw order. Until the worker first answers for this query, a line says it is searching.
    */
   #drawSearchResults(room: Rect, stops: Map<string, FocusStop>): readonly string[] {
-    const results = this.#searchResults;
+    const results = this.#search?.results ?? null;
     if (results === null) {
       this.add
         .text(room.x, room.y + 14, "Searching…", textStyle(typeRole.body, surface.paper.hex, 0.7))
         .setFontSize(12);
       return [];
     }
-    const query = this.#query.trim();
+    const query = (this.#search?.query ?? "").trim();
     const rowsById = new Map(this.#settingRows().map((row) => [row.id as string, row]));
     type Item = {
       readonly slot: PauseResultSlot;
@@ -1396,9 +1392,12 @@ export class PauseOverlay extends Phaser.Scene {
       if (row.id.startsWith("achievement-popup-"))
         (this.scene.get(SCENES.achievementToast) as AchievementToastScene | null)?.preview();
     }
-    // The guide store's own change event redraws this sheet.
+    // The guide store's own change event indexes again and redraws this sheet.
     if (next.guide !== before.guide) setGuidePrefs(next.guide);
-    else this.#draw();
+    else {
+      this.#search?.reindex();
+      this.#draw();
+    }
   }
 
   /** Opens `key` over this sheet, which takes no input until it closes (its panel sits over this one's rows). */

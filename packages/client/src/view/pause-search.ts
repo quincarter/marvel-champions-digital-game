@@ -14,7 +14,12 @@ import type { Settings } from "../settings.js";
 import { hit } from "../tokens.js";
 import { estimateWrappedLines, toggleRowHeight } from "./layout.js";
 import type { SettingsItemId } from "./settings-sections.js";
-import type { SettingsRowText, SettingsSearchEntry, SettingsSearchResult } from "./settings-search.js";
+import type {
+  SettingsRowText,
+  SettingsSearchEntry,
+  SettingsSearchIndexInput,
+  SettingsSearchResult,
+} from "./settings-search.js";
 import {
   GUIDE_LEVEL_SEARCH_DETAIL,
   achievementPopupPlaceRowInfoOf,
@@ -332,4 +337,75 @@ export function pauseResultsContentOf(slots: readonly PauseResultSlot[], width: 
     y += height;
   });
   return { rects, totalHeight: y };
+}
+
+// ---------------------------------------------------------------------------
+// The query and its answer
+// ---------------------------------------------------------------------------
+
+/** The part of `SettingsSearchClient` the session uses, so a test can stand in a slow worker. */
+export interface PauseSearchClient {
+  index(input: SettingsSearchIndexInput): void;
+  search(query: string, done: (results: readonly SettingsSearchResult[]) => void): void;
+  cancel(): void;
+}
+
+/**
+ * What is typed in Pause's search and the worker's answer for it. An answer only ever belongs to the query it was asked
+ * for: typing again drops the last answer at once (the sheet says it is searching), so a result for an older query is
+ * never drawn or pressed under a newer one. `reindex` sends what the rows say now and asks again for what is typed, so a
+ * setting changed from the results reads as it is now.
+ */
+export class PauseSearchSession {
+  readonly #client: PauseSearchClient;
+  readonly #input: () => SettingsSearchIndexInput;
+  readonly #onAnswer: () => void;
+  #query = "";
+  #answer: { readonly query: string; readonly results: readonly SettingsSearchResult[] } | null = null;
+
+  constructor(client: PauseSearchClient, input: () => SettingsSearchIndexInput, onAnswer: () => void) {
+    this.#client = client;
+    this.#input = input;
+    this.#onAnswer = onAnswer;
+  }
+
+  get query(): string {
+    return this.#query;
+  }
+
+  /** True with something typed: the results have the sheet. */
+  get searching(): boolean {
+    return this.#query.trim() !== "";
+  }
+
+  /** The answer for what is typed now; null while it is on its way, and with nothing typed. */
+  get results(): readonly SettingsSearchResult[] | null {
+    return this.#answer !== null && this.#answer.query === this.#query ? this.#answer.results : null;
+  }
+
+  setQuery(query: string): void {
+    this.#query = query;
+    if (!this.searching) {
+      this.#client.cancel();
+      this.#answer = null;
+      return;
+    }
+    if (this.#answer?.query !== query) this.#answer = null;
+    this.#ask();
+  }
+
+  /** Sends what the rows say now, and asks again for what is typed. The answer on screen stays until the new one. */
+  reindex(): void {
+    this.#client.index(this.#input());
+    if (this.searching) this.#ask();
+  }
+
+  #ask(): void {
+    const query = this.#query;
+    this.#client.search(query, (results) => {
+      if (query !== this.#query) return;
+      this.#answer = { query, results };
+      this.#onAnswer();
+    });
+  }
 }

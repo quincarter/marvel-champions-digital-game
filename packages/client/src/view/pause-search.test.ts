@@ -8,6 +8,8 @@ import {
   groupPauseResults,
   pauseResultsContentOf,
   pauseSettingRowsOf,
+  PauseSearchSession,
+  type PauseSearchClient,
   type PauseSettingsEnv,
 } from "./pause-search.js";
 import { guideRowInfoOf } from "./settings-rows.js";
@@ -142,5 +144,101 @@ describe("pauseResultsContentOf", () => {
     // A new group sits further from the row above it than one row from the next.
     expect(heading2!.y - (toggle!.y + toggle!.height)).toBeGreaterThan(toggle!.y - (choice!.y + choice!.height));
     expect(content.totalHeight).toBe(link!.y + link!.height);
+  });
+});
+
+/** A worker that answers only when told to, from the index it was last sent, like the real one but slow. */
+class SlowWorker implements PauseSearchClient {
+  readonly host = new SettingsSearchHost();
+  indexed = 0;
+  pending: { query: string; done: (results: ReturnType<SettingsSearchHost["search"]>) => void }[] = [];
+  index(input: Parameters<SettingsSearchHost["index"]>[0]): void {
+    this.indexed++;
+    this.host.index(input);
+  }
+  search(query: string, done: (results: ReturnType<SettingsSearchHost["search"]>) => void): void {
+    this.pending.push({ query, done });
+  }
+  cancel(): void {
+    this.pending = [];
+  }
+  /** Answers every question still waiting, oldest first, as a worker that fell behind would. */
+  answerAll(): void {
+    const waiting = this.pending;
+    this.pending = [];
+    for (const { query, done } of waiting) done(this.host.search(query));
+  }
+}
+
+describe("PauseSearchSession", () => {
+  const rowsWith = (env: PauseSettingsEnv) =>
+    pauseSettingRowsOf(defaultSettings(), defaultGuidePrefs, env).map(
+      (row) => [row.id, { title: row.title, detail: row.detail }] as const,
+    );
+  const inputWith = (settings: ReturnType<typeof defaultSettings>) => ({
+    tabs: settingsTabsOf({
+      guideRowIds: guideRowInfoOf(defaultGuidePrefs).map((row) => row.id),
+      cardHover: false,
+      inspectCard: true,
+    }),
+    rows: pauseSettingRowsOf(settings, defaultGuidePrefs, ENV).map(
+      (row) => [row.id, { title: row.title, detail: row.detail }] as const,
+    ),
+    settings,
+    pad: null,
+    unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
+    globalConsent: "unset" as const,
+    controls: false,
+  });
+
+  it("drops the last answer the moment the query changes, and never takes an older query's late answer", () => {
+    const worker = new SlowWorker();
+    let answers = 0;
+    const session = new PauseSearchSession(
+      worker,
+      () => inputWith(defaultSettings()),
+      () => answers++,
+    );
+    session.reindex();
+    session.setQuery("undo");
+    worker.answerAll();
+    expect(session.results?.[0]?.entry.id).toBe("setting:undo-past-turn");
+
+    // Typing on: nothing found for "undo" stays on screen (or pressable) while "card size" is on its way.
+    session.setQuery("card");
+    session.setQuery("card size");
+    expect(session.results).toBeNull();
+    worker.answerAll();
+    expect(session.results?.[0]?.entry.id).toBe("setting:card-size");
+    // The answer for "card" arrived too, but only the one for what is typed counts.
+    expect(answers).toBe(2);
+
+    session.setQuery("");
+    expect(session.searching).toBe(false);
+    expect(session.results).toBeNull();
+  });
+
+  it("indexes again when a row's words change, so the results read what the row says now", () => {
+    const worker = new SlowWorker();
+    // Ultron Drone art's row says how to earn it until it is earned, then what it does.
+    let env: PauseSettingsEnv = ENV;
+    const session = new PauseSearchSession(
+      worker,
+      () => ({ ...inputWith(defaultSettings()), rows: rowsWith(env) }),
+      () => {},
+    );
+    session.reindex();
+    session.setQuery("drone art");
+    worker.answerAll();
+    expect(session.results?.[0]?.entry.detail).toMatch(/^Earn the Drone On achievement/);
+
+    env = { ...ENV, earned: new Set(["ultron-drone-art"]) };
+    const indexedBefore = worker.indexed;
+    session.reindex();
+    expect(worker.indexed).toBe(indexedBefore + 1);
+    // The old answer stays on screen until the new one comes, for the same query.
+    expect(session.results).not.toBeNull();
+    worker.answerAll();
+    expect(session.results?.[0]?.entry.detail).toMatch(/^Facedown Drones show/);
   });
 });
