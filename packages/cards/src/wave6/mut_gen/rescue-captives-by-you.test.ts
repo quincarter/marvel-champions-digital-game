@@ -10,6 +10,7 @@ import {
   endTurn,
   firstLegal,
   identityOf,
+  inst,
   instancesOf,
   P1,
   P2,
@@ -18,6 +19,7 @@ import {
   runWith,
   settle,
   toHero,
+  type Picker,
 } from "../../testing/harness.js";
 import { WAVE6_DEPS } from "../index.js";
 import { campaignGame } from "./campaign-cards-testing.js";
@@ -30,7 +32,7 @@ const offered = (s: GameState): boolean =>
   s.pendingChoice.options.some((o) => o.optionId.endsWith(RESPONSE));
 
 /** Rescue Captives flipped, `player` in hero form, and a Sentinel minion engaged with P1 about to die. */
-function stage(player: PlayerId): { state: GameState; sentinel: InstanceId } {
+function stage(player: PlayerId): { state: GameState; sentinel: InstanceId; scheme: InstanceId } {
   const start = campaignGame(2);
   const scheme = instancesOf(start, "32173a").find((id) => cardsInPlay(start).includes(id))!;
   const turn = player === P1 ? start : settled(run(start, endTurn(P1)));
@@ -48,7 +50,7 @@ function stage(player: PlayerId): { state: GameState; sentinel: InstanceId } {
       flipped.instances[id]!.engagedWith === P1 && flipped.cardPool[flipped.instances[id]!.cardId]?.type === "minion",
   )!;
   const ready = patchInstance(flipped, identityOf(flipped, player), { exhausted: false });
-  return { state: patchInstance(ready, sentinel, { damage: 999 }), sentinel };
+  return { state: patchInstance(ready, sentinel, { damage: 999 }), sentinel, scheme };
 }
 
 /** The first ally card of `player`'s deck, put into their play area ready, under their control (surgery). */
@@ -90,5 +92,35 @@ describe("Rescue Captives 32173b: 'after you defeat a Sentinel minion' (#817)", 
     const after = settled(run(withHelper, attack(player, ally, sentinel)), offered);
     expect(cardsInPlay(after)).not.toContain(sentinel);
     expect(offered(after)).toBe(false);
+  });
+
+  it("P2's response runs through: P2 picks it, pays 1 resource from P2's hand, and the chosen captive enters play under P2", () => {
+    const { state, sentinel, scheme } = stage(P2);
+    const captive = inst(state, scheme).tucked[0]!;
+    const asked = settled(run(state, attack(P2, identityOf(state, P2), sentinel)), offered);
+    expect(offered(asked)).toBe(true);
+    const p1Before = playerOf(asked, P1);
+    const p2Before = playerOf(asked, P2);
+    const pick: Picker = (s) => {
+      const options = s.pendingChoice?.options ?? [];
+      const response = options.find((o) => o.optionId.endsWith(RESPONSE));
+      if (response) return [response.optionId];
+      const kind = s.pendingChoice?.prompt.kind;
+      if (kind === "chooseCards") return [captive];
+      if (kind === "payForAbility") {
+        // Whatever pays must be P2's own card.
+        expect(options.every((o) => p2Before.hand.includes(o.optionId.replace("hand:", "") as InstanceId))).toBe(true);
+        return [options[0]!.optionId];
+      }
+      return firstLegal(s);
+    };
+    const done = settle(asked, pick, undefined, WAVE6_DEPS);
+    expect(playerOf(done, P2).playArea).toContain(captive);
+    expect(inst(done, captive).controllerId).toBe(P2);
+    expect(inst(done, scheme).tucked).not.toContain(captive);
+    expect(playerOf(done, P2).hand.length).toBe(p2Before.hand.length - 1);
+    expect(playerOf(done, P1).hand).toEqual(p1Before.hand);
+    expect(playerOf(done, P1).discard).toEqual(p1Before.discard);
+    expect(playerOf(done, P1).playArea).not.toContain(captive);
   });
 });
