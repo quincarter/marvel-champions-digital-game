@@ -93,7 +93,7 @@ import {
 } from "../view/settings-rows.js";
 import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { glyphRightInRow } from "../view/glyph-placement.js";
-import { settingsTabsOf, type SettingsItemId, type SettingsTabId } from "../view/settings-sections.js";
+import type { SettingsItemId, SettingsTabId } from "../view/settings-sections.js";
 import { SettingsSearchClient } from "../view/settings-search-client.js";
 import type { SettingsRowText, SettingsSearchEntry, SettingsSearchResult } from "../view/settings-search.js";
 import { readConsent } from "../global-stats/global-consent.js";
@@ -107,7 +107,7 @@ import { drawSearchResultRow, SEARCH_RESULT_ROW_HEIGHT } from "./settings-search
 import { McVirtualList } from "../ui/virtual-list.js";
 import { ListScroll } from "../view/list-scroll.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
-import { availableCardLanguages, type CardLanguage } from "../art/card-language.js";
+import type { CardLanguage } from "../art/card-language.js";
 import type {
   CardHoverScale,
   InspectCard,
@@ -119,14 +119,11 @@ import type {
   FlipEncounterSpeed,
   Resolution,
 } from "../settings.js";
-import { couchBaseSize } from "../ui/render-resolution.js";
-import type { CouchSize } from "../view/couch-mode.js";
 import {
   applyDesktopWindow,
   desktopMonitor,
   HANDHELD_DISPLAY,
   hasDesktopWindow,
-  onHandheldLinux,
   refreshDesktopMonitor,
   resolutionOptionsFor,
 } from "../platform/desktop-window.js";
@@ -158,17 +155,15 @@ import {
   type SettingsItemLayout,
   type SettingsItemSpec,
 } from "../view/settings-layout.js";
-import { formFactorFor, type Rect } from "../view/layout.js";
+import type { Rect } from "../view/layout.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
-import { canReadPowerSaving, onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
+import { onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
 import { onColorSchemeChange } from "../view/color-scheme.js";
 import { setThemeSlot } from "../ui/theme-slot.js";
-import { detectPlatform } from "../platform/platform.js";
-import { inputDevice, padAvailable } from "../platform/input-device.js";
-import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
+import { inputDevice } from "../platform/input-device.js";
 import {
   applyScreenSettings,
   applyTextResolution,
@@ -180,6 +175,7 @@ import { knownHardware, onHardwareChange } from "../platform/device-hardware.js"
 import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { controlsShown, couchBaseOf, couchModeShown, screenSettingsShown, settingsTabsFor } from "./settings-env.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
@@ -191,7 +187,6 @@ import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { knownSteamInstall } from "../platform/steam-install.js";
 import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
@@ -240,29 +235,6 @@ const COUCH_MODE_CONTROL_WIDTH = 560;
 /** Resolution's and Frame rate's up to four short segments ("Native", "720p"; "Screen", "60 fps"). */
 const SCREEN_CONTROL_WIDTH = 300;
 
-/**
- * The size couch mode divides, from the real window (couch mode shrinks the game's own size, which must not hide the
- * row that undoes it): the fixed resolution when one is set, else the window.
- */
-function couchBaseOf(game: Phaser.Game): CouchSize {
-  return couchBaseSize(game) ?? { width: window.innerWidth, height: window.innerHeight };
-}
-
-/** The Couch mode row: any build with a choice besides Off on this window (a phone has none), and while it is on. */
-function couchModeShown(game: Phaser.Game, settings: Settings): boolean {
-  return settings.couchMode !== "off" || couchModeRowInfoOf(settings, couchBaseOf(game)).options.length > 1;
-}
-
-/** The phone apps show Controls only once a controller is connected (the owner, 2026-10-24). */
-function controlsShown(): boolean {
-  return detectPlatform() !== "capacitor" || padAvailable();
-}
-
-/** The Screen section: every build, unless `?renderscale=off`. */
-function screenSettingsShown(): boolean {
-  const env = screenEnvironment();
-  return drawsAtScreenDensity(env.search);
-}
 const LIST_ROW_HEIGHT = 36;
 const LIST_VISIBLE_ROWS = 8;
 
@@ -291,9 +263,6 @@ interface SettingsItem extends SettingsRowText {
 /** The tab Settings last showed, so reopening it in the same session lands where the player left off. */
 let lastTab: SettingsTabId = "gameplay";
 
-/** The narrowest tab cell that still shows "Display" and "Sound" whole (#243). */
-const SOUND_TAB_MIN_CELL = 64;
-
 /** Launch data: `receive` opens Save data straight onto Receive with that code (a scanned QR link). */
 export interface SettingsSceneData {
   readonly receive?: TransferCode;
@@ -301,6 +270,8 @@ export interface SettingsSceneData {
   readonly syncLink?: SyncLinkAddress;
   /** Opens Controls straight away (the "Controller connected" toast's button), so it stacks over Settings as usual. */
   readonly openControls?: boolean;
+  /** Opens on this row's tab with the focus ring on it: a Settings row Pause's search found but cannot change inline. */
+  readonly focus?: { readonly item: SettingsItemId; readonly tab: SettingsTabId };
 }
 
 export class SettingsOverlay extends Phaser.Scene {
@@ -352,6 +323,10 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#hints = new GlyphHints(this);
     this.#searchOpen = false;
     this.#searchResults = null;
+    if (data.focus) {
+      lastTab = data.focus.tab;
+      this.#bodyScroll = new VariableListScroll();
+    }
     // Before the route: A, B or Start takes the caret out of the search field.
     bindTextFieldEscape(
       this,
@@ -422,8 +397,10 @@ export class SettingsOverlay extends Phaser.Scene {
     const receive = data.receive;
     this.sys.settings.data = {};
     const syncLink = data.syncLink;
+    const focus = data.focus;
     if (receive || syncLink) this.#openSaveData(receive, syncLink);
     if (data.openControls === true) this.#openControls();
+    if (focus) this.#route?.focusKey(`row:${this.#firstStopOf.get(focus.item) ?? focus.item}`);
     if (hasDesktopWindow()) void refreshDesktopMonitor().then(() => this.#redrawIfOpen());
     // The Frame rate row names the screen's refresh rate once the Android app has said it.
     if (screenSettingsShown() && knownRefreshInfo() === null) void readRefreshInfo().then(() => this.#redrawIfOpen());
@@ -557,29 +534,15 @@ export class SettingsOverlay extends Phaser.Scene {
       case "stats":
         this.#openStats(target.tab);
         return;
+      case "pause":
+        // Only Pause's search indexes its own rows.
+        return;
     }
   }
 
   /** The tabs this device shows now. */
   #tabsOf(width: number, height: number, settings: Settings, guideRows: readonly GuideRowInfo[]) {
-    return settingsTabsOf({
-      guideRowIds: guideRows.map((row) => row.id),
-      cardHover: formFactorFor(width, height) === "desktop",
-      cardLanguage: availableCardLanguages().length > 1,
-      inspectCard: formFactorFor(width, height) === "phone",
-      gameVolume: followsWindowsMixer(),
-      // Sound's own tab only where six fit with their names whole; a phone keeps five, Sound under Display.
-      soundTab: settingsLayout({ x: 0, y: 0, width, height }, []).tabs.width / 6 >= SOUND_TAB_MIN_CELL,
-      couchMode: couchModeShown(this.game, settings),
-      desktopWindow: hasDesktopWindow(),
-      discord: hasDesktopWindow(),
-      steamInstall: knownSteamInstall()?.canUpdate === true,
-      steamDeck: onHandheldLinux(),
-      powerSaving:
-        canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
-      screenSettings: screenSettingsShown(),
-      controls: controlsShown(),
-    });
+    return settingsTabsFor(this.game, width, height, settings, guideRows);
   }
 
   #openSteamUpdate(): void {
