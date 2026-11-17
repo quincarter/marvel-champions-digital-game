@@ -72,10 +72,11 @@ import {
 } from "../../view/undo.js";
 
 /**
- * Undo reaches past a draw, reveal or random pick (issue #791, the owner 2026-11-17): the button offers it, and the
- * player acknowledges first that the game will then stop counting toward stats and achievements.
+ * Undo reaches past the turn, a draw, a reveal or a random pick (issue #791, the owner 2026-11-17) unless Settings ▸
+ * "Undo past your turn" is Off. On Warn (the default) the player acknowledges first that the game will then stop
+ * counting toward stats and achievements; on Allow it goes without asking, and the game is marked all the same.
  */
-const undoRules = (): UndoRules => ({ pastReveals: true });
+const undoRules = (): UndoRules => ({ pastReveals: appSession().settings.undoPastTurn !== "off" });
 
 /** What the warning says before an Undo past a reveal. */
 const UNDO_PAST_REVEAL_SENTENCE =
@@ -2116,7 +2117,13 @@ export class BoardController {
    * true at once on a host with no warning to show.
    */
   #acknowledgeAdjusting(): Promise<boolean> {
-    if (appSession().store.state.adjusted || !this.#host.confirmAdjustGame) return Promise.resolve(true);
+    if (
+      appSession().store.state.adjusted ||
+      appSession().settings.undoPastTurn === "allow" ||
+      !this.#host.confirmAdjustGame
+    ) {
+      return Promise.resolve(true);
+    }
     const ask = this.#host.confirmAdjustGame.bind(this.#host);
     return new Promise((resolve) => {
       ask(

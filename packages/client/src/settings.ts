@@ -38,6 +38,14 @@ export function clampGlyphSize(percent: number): number {
   return Math.min(GLYPH_SIZE_MAX, Math.max(GLYPH_SIZE_MIN, stepped));
 }
 
+/**
+ * How far Undo reaches (issue #791, the owner 2026-11-17): past the start of your turn, a draw, a reveal or a random pick
+ * without asking ("allow"), only after the "This game won't count" warning ("warn"), or never ("off": Undo keeps to
+ * your own moves this turn that revealed nothing). Either way past that line marks the game adjusted.
+ */
+export const UNDO_PAST_TURN_VALUES = ["allow", "warn", "off"] as const;
+export type UndoPastTurn = (typeof UNDO_PAST_TURN_VALUES)[number];
+
 export const DECK_SIGNATURE_CARDS_VALUES = ["free", "standard", "hidden"] as const;
 export type DeckSignatureCards = (typeof DECK_SIGNATURE_CARDS_VALUES)[number];
 
@@ -107,6 +115,8 @@ export interface Settings {
    * played with it on is not the scenario as printed.
    */
   readonly allowExtraModularSets: boolean;
+  /** How far Undo reaches (`UNDO_PAST_TURN_VALUES`, issue #791). Defaults to warn. */
+  readonly undoPastTurn: UndoPastTurn;
   /** The list the Decks screen opens on (#755). Defaults to all, the list of everything it has always opened to. */
   readonly deckListOnOpen: DeckListOnOpen;
   /**
@@ -488,6 +498,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     deckSignatureCards: "free",
     deckCopyLimits: false,
     allowExtraModularSets: false,
+    undoPastTurn: "warn",
     deckListOnOpen: "all",
     showPreconDecks: true,
     notOfferedNotices: true,
