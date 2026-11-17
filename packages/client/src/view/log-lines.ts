@@ -69,6 +69,8 @@ export interface LogState {
   readonly round: number;
   readonly beat: number;
   readonly nextId: number;
+  /** Encounter cards a surge dealt, so their reveal line can say so when it comes in a later command than the deal. */
+  readonly surgeDealt?: readonly InstanceId[];
 }
 
 export const emptyLog = (): LogState => ({ lines: [], round: 0, beat: 0, nextId: 1 });
@@ -119,8 +121,24 @@ export function appendEvents(
   let nextId = log.nextId;
   const lines = [...log.lines];
   let previous: GameEvent | undefined;
+  // Cards a surge dealt that have not been revealed since, kept in event order as the loop runs: a deal from any other
+  // source clears the mark (encounter instance ids survive the deck reset), and a reveal uses it up.
+  const surgeDealt = [...(log.surgeDealt ?? [])];
+  const unmark = (id: InstanceId): void => {
+    const i = surgeDealt.indexOf(id);
+    if (i >= 0) surgeDealt.splice(i, 1);
+  };
 
   for (const [at, event] of events.entries()) {
+    if (event.type === "encounterCardDealt") {
+      unmark(event.instanceId);
+      if (event.source === "surge") surgeDealt.push(event.instanceId);
+    }
+    // Sent back to an encounter deck or discard unrevealed (a discard, a reset's reshuffle): it is no longer the surge's
+    // facedown card, so a later reveal of it from the deck is not "from surge".
+    if (event.type === "cardMoved" && (event.to.kind === "encounterDiscard" || event.to.kind === "encounterDeck")) {
+      unmark(event.instanceId);
+    }
     if (event.type === "roundStarted") {
       round = event.round;
       beat = 0;
@@ -136,8 +154,9 @@ export function appendEvents(
       event.to.kind === "scenarioArea" &&
       previous?.type === "cardDiscardedFromPlay" &&
       previous.instanceId === event.instanceId;
-    const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at });
+    const described = describe(event, state, perspectiveId, deps, redirected, undefined, { events, at, surgeDealt });
     previous = event;
+    if (event.type === "encounterCardRevealed") unmark(event.instanceId);
     if (!described) continue;
     beat += 1;
     lines.push({
@@ -155,6 +174,7 @@ export function appendEvents(
     round,
     beat,
     nextId,
+    surgeDealt: surgeDealt.slice(-40),
   };
 }
 
@@ -262,7 +282,13 @@ function returnedName(id: InstanceId, event: GameEvent, state: GameState, burst:
 export interface Burst {
   readonly events: readonly GameEvent[];
   readonly at: number;
+  /** Cards a surge dealt and not yet revealed, as of this event (`LogState.surgeDealt`, folded in event order). */
+  readonly surgeDealt?: readonly InstanceId[];
 }
+
+/** Whether a surge dealt this card and it has not been revealed since: `appendEvents` keeps the list in event order. */
+const dealtBySurge = (burst: Burst | undefined, instanceId: InstanceId): boolean =>
+  burst?.surgeDealt?.includes(instanceId) ?? false;
 
 function describe(
   event: GameEvent,
@@ -1037,12 +1063,15 @@ function describe(
           voice: "villain",
         };
       }
-      return { text: `${who(event.playerId)} revealed ${card(event.instanceId)}.`, voice: "villain" };
+      return {
+        text: `${who(event.playerId)} revealed ${card(event.instanceId)}${dealtBySurge(burst, event.instanceId) ? " (from surge)" : ""}.`,
+        voice: "villain",
+      };
     }
     case "surgeTriggered":
       return {
         // Owner decision 22B: a surge deals a facedown encounter card that waits for the reveal step.
-        text: `Surge — ${who(event.playerId)} ${verb(event.playerId, "are", "is")} dealt another encounter card.`,
+        text: `${card(event.instanceId)} surges — ${who(event.playerId)} ${verb(event.playerId, "are", "is")} dealt another encounter card.`,
         voice: "villain",
       };
     // "The first [Technique] attachment revealed each round gains surge" (Nebula I-III) or "the first treachery the

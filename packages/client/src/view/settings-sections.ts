@@ -10,6 +10,7 @@ import type { GuideSettingsRowId, SettingsRowId } from "./settings-rows.js";
 export type SettingsItemId =
   | SettingsRowId
   | "card-size"
+  | "play-area-order"
   | "card-hover"
   | "card-language"
   | "inspect-card"
@@ -19,6 +20,7 @@ export type SettingsItemId =
   | "token-motion"
   | "fade-color"
   | "deck-signature"
+  | "deck-list-on-open"
   | "display-mode"
   | "resolution"
   | "couch-mode"
@@ -104,7 +106,16 @@ export function settingsSectionsOf(input: {
     {
       id: "gameplay",
       title: "Gameplay",
-      items: ["confirm-end-turn", "not-offered-notices", "same-name-conflict", "deck-signature", "deck-copy-limits"],
+      items: [
+        "confirm-end-turn",
+        "not-offered-notices",
+        "same-name-conflict",
+        "deck-signature",
+        "deck-copy-limits",
+        "deck-list-on-open",
+        "show-precon-decks",
+        "extra-modular-sets",
+      ],
     },
     {
       id: "cards-left",
@@ -121,6 +132,7 @@ export function settingsSectionsOf(input: {
       title: "Cards",
       items: [
         "card-size",
+        "play-area-order",
         "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),
         ...(input.cardHover ? (["card-hover"] as const) : []),

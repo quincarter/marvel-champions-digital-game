@@ -5,7 +5,7 @@
  */
 import { deckInsightsOf } from "../view/deck-insights.js";
 import { playerStatsOf } from "../view/player-stats-model.js";
-import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
+import { statsNamesForSaves } from "../view/player-stats-names.js";
 import type { StatsRequest, StatsResponse } from "../view/player-stats-client.js";
 
 /** The client compiles with the DOM lib, so this names the members of the worker global actually used. */
@@ -18,9 +18,8 @@ const worker = self as unknown as WorkerGlobal;
 
 worker.onmessage = (event: MessageEvent<StatsRequest>) => {
   const { saves, kind, filter } = event.data;
+  const names = statsNamesForSaves(saves);
   worker.postMessage(
-    kind === "insights"
-      ? { insights: deckInsightsOf(saves, POOL_STATS_NAMES) }
-      : { stats: playerStatsOf(saves, POOL_STATS_NAMES, filter) },
+    kind === "insights" ? { insights: deckInsightsOf(saves, names) } : { stats: playerStatsOf(saves, names, filter) },
   );
 };

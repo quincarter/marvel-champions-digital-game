@@ -17,6 +17,7 @@ import {
   type PlayerId,
   type ResourcePool,
 } from "@mc/engine";
+import type { CorePlayer } from "@mc/cards";
 import type { GameRecord } from "./game-record.js";
 
 /**
@@ -31,8 +32,10 @@ import type { GameRecord } from "./game-record.js";
  * - 4: the cards spent from hand counted for every payment, a prompted or an effect's too (the engine's
  *   `paymentCommitted`), so the resources, the cards paid with and the cards discarded to pay are recounted.
  * - 5: what dealt the defeating blow at a loss to every hero falling (`defeatedBy`, `defeatedByCardId`).
+ * - 6: each seat's deck (`starterDeckId`, `deckId`, `deckName`) and the cards it drew (`drawnCards`), for the per-deck
+ *   views of every seat at the table (#756).
  */
-export const SUMMARY_VERSION = 5;
+export const SUMMARY_VERSION = 6;
 
 /** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
 export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
@@ -78,6 +81,13 @@ export interface SeatSummary {
   readonly allyDamage?: Readonly<Record<string, number>>;
   readonly allyBlocks?: Readonly<Record<string, number>>;
   readonly allyDiedBlocking?: Readonly<Record<string, number>>;
+  /** Cards drawn by card id, the opening hand included (`SeatRecord.drawnCards`). Absent before version 6. */
+  readonly drawnCards?: Readonly<Record<string, number>>;
+  /** The precon the seat played (`CorePlayer.starterDeckId`); absent for a saved deck or before version 6. */
+  readonly starterDeckId?: string;
+  /** The saved deck the seat played (`CorePlayer.deckId`) and its name then; absent for a precon or before version 6. */
+  readonly deckId?: string;
+  readonly deckName?: string;
 }
 
 /** A seat standing when the game was won. */
@@ -168,8 +178,18 @@ function deckOf(
   return { deck: atStart ? [...atStart] : [...deck].sort(), aspects: [...aspects].sort() };
 }
 
-function seatSummariesOf(state: GameState, record: GameRecord): SeatSummary[] {
-  return state.players.map((player) => {
+/** The deck a seat was set up with, from the game's config (a precon's id, or a saved deck's id and name). */
+function deckRefOf(player: CorePlayer | undefined): Pick<SeatSummary, "starterDeckId" | "deckId" | "deckName"> {
+  if (!player) return {};
+  if ("starterDeckId" in player) return { starterDeckId: player.starterDeckId };
+  return {
+    ...(player.deckId ? { deckId: player.deckId } : {}),
+    ...(player.deckName ? { deckName: player.deckName } : {}),
+  };
+}
+
+function seatSummariesOf(state: GameState, record: GameRecord, players?: readonly CorePlayer[]): SeatSummary[] {
+  return state.players.map((player, index) => {
     const seat = record.seats.find((s) => s.playerId === player.playerId);
     return {
       identityCardId: player.identity.cardId as string,
@@ -189,6 +209,8 @@ function seatSummariesOf(state: GameState, record: GameRecord): SeatSummary[] {
       allyDamage: seat?.allyDamage ?? {},
       allyBlocks: seat?.allyBlocks ?? {},
       allyDiedBlocking: seat?.allyDiedBlocking ?? {},
+      drawnCards: seat?.drawnCards ?? {},
+      ...deckRefOf(players?.[index]),
     };
   });
 }
@@ -236,7 +258,13 @@ function finalBlowCardOf(state: GameState, record: GameRecord): string | null {
 }
 
 /** The summary of a finished game, or null while the game is still being played. */
-export function summarizeGame(state: GameState, record: GameRecord, deps?: EngineDeps): GameSummary | null {
+export function summarizeGame(
+  state: GameState,
+  record: GameRecord,
+  deps?: EngineDeps,
+  /** The game's seats as configured (`SessionConfig.players`, in seat order), for each seat's deck. */
+  players?: readonly CorePlayer[],
+): GameSummary | null {
   const outcome = state.outcome;
   if (!outcome) return null;
   const won = outcome.result === "win";
@@ -259,7 +287,7 @@ export function summarizeGame(state: GameState, record: GameRecord, deps?: Engin
     alliesPlayed: record.seats.reduce((sum, seat) => sum + (seat.alliesPlayed ?? 0), 0),
     finalBlowBy: won ? finalBlowIdentityOf(state, record) : null,
     teamUpsPlayed: record.seats.reduce((sum, seat) => sum + (seat.teamUpsPlayed ?? 0), 0),
-    seats: seatSummariesOf(state, record),
+    seats: seatSummariesOf(state, record, players),
     villains: villainsOf(state),
     sideSchemes: { seen: record.sideSchemesSeen ?? {}, defeated: record.sideSchemesDefeated ?? {} },
     version: SUMMARY_VERSION,

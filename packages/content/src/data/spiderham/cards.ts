@@ -308,6 +308,7 @@ export const SPIDERHAM_CARDS: readonly AnyCard[] = [
     atk: 2,
     thw: 2,
     hp: 4,
+    statStars: ["thw"],
     consequentialDamage: { attack: 2, thwart: 2 },
     aspect: "justice",
     traits: [trait("WEB-WARRIOR")],

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Title backgrounds too small for the screen are no longer picked, so they stop looking pixelated (#760)
+time: 2026-11-16T16:00:02.9044935-05:00

@@ -65,6 +65,23 @@ describe("issueReportText", () => {
     expect(text).toContain('```json\n{"config":{"seed":83069},"commands":[{"kind":"mulligan"}]}\n```');
   });
 
+  test("the replay setup carries no deck names, though deck ids stay", () => {
+    const text = issueReportText({
+      environment,
+      game: {
+        seed: 1,
+        round: 1,
+        step: "heroPhase",
+        lines: [],
+        config: { seed: 1, players: [{ identityCardId: "cap", deckId: "d-cap", deckName: "Secret Name" }] },
+        commands: [],
+      },
+      snapshot: {},
+    });
+    expect(text).not.toContain("Secret Name");
+    expect(text).toContain('"deckId":"d-cap"');
+  });
+
   test("the replay and the snapshot are json code blocks, so they render as code once pasted into an issue", () => {
     const text = issueReportText({ environment, game: null, snapshot: { frame: 12 } });
     expect(text).toContain('== Debug snapshot ==\n```json\n{\n  "frame": 12\n}\n```');

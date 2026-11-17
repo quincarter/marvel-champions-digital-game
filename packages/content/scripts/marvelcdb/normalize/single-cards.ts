@@ -19,7 +19,7 @@ import { splitsIntoTwoCards } from "./encounter-sets.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
-import { amplifyIconsField, PLAYER_TYPES, printedStat, resourceIcons } from "./values.ts";
+import { amplifyIconsField, PLAYER_TYPES, printedStat, resourceIcons, statStarsField } from "./values.ts";
 
 export function normalizeSingleCards(
   ctx: NormalizeContext,
@@ -169,6 +169,7 @@ function readFlipSide(
       ...(pBack.flavor ? { flavor: pBack.flavor } : {}),
       abilities: abilityRefs(ctx, back.code, pBack.name, parsedBack.abilities),
       ...(backImage ? { image: backImage } : {}),
+      ...statStarsField(back),
       ...amplifyIconsField(back),
       ...(Object.keys(backIcons).length > 0 ? { resourceIcons: backIcons } : {}),
     };

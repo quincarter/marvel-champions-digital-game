@@ -338,6 +338,7 @@ export const STLD_CARDS: readonly AnyCard[] = [
     atk: 1,
     thw: 2,
     hp: 2,
+    statStars: ["atk"],
     consequentialDamage: { attack: 0, thwart: 1 },
     aspect: "leadership",
     traits: [trait("GUARDIAN")],

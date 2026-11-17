@@ -52,7 +52,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import { rankShelvesByScore } from "../view/deck-search.js";
 import { scenarioSearchDocumentOf } from "../view/scenario-search.js";
 import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
-import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
+import { ALL_PACKS, drillIntoPack, drillOut, gridColumnsFor, type ShelfDrillState } from "../view/shelf-drill.js";
 import { padInputTracked } from "../platform/input-device.js";
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
@@ -98,6 +98,16 @@ import { PadFilters } from "./pad-filters.js";
 import { drawFiltersControl, searchRectForInspectHint } from "./filters-control.js";
 import { filtersLabel } from "../view/filters-layout.js";
 import { shelfPagingHints } from "./shelf-row-hints.js";
+import {
+  foldShelves,
+  loadShelfFolds,
+  openShelfItems,
+  saveShelfFolds,
+  shelfFocusKeys,
+  toggleShelfFold,
+  unfoldShelf,
+} from "../view/shelf-folds.js";
+import { randomBox, randomScenario, randomVillainIn } from "../view/scenario-random.js";
 import { bindExtraInput } from "./extra-input.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { AreaJump, areaOf, type FocusAreas } from "../view/focus-areas.js";
@@ -124,7 +134,10 @@ const roman = (n: number): string => ROMAN[n] ?? String(n);
 
 /** The stops that are the filters (search and the product chips), and the ones that are the list. */
 const FILTER_STOP = /^(scenario-search-toggle|scenario-search|filters-toggle|scenario-chip:.*)$/;
-const LIST_STOP = /^(drill-back|scenario-clear|scenario:.*)$/;
+const LIST_STOP = /^(drill-back|random-.*|scenario-clear|scenario:.*|scenario-shelf:.*)$/;
+/** The row above the list that holds its Random buttons (and, drilled into a box, "◂ All packs"). */
+const RANDOM_ROW_HEIGHT = 36;
+const RANDOM_BUTTON_WIDTH = 150;
 
 const scenarioCountCaption = (count: number): string => tPlural("scenario.countCaption", count);
 
@@ -149,6 +162,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** A screen change is under way (Back, Choose heroes): later presses do nothing. */
   #leaving = false;
   #grid: McVirtualList | null = null;
+  /** The columns of the open box's grid, for the row a tile sits in. */
+  #gridColumns = 0;
   /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
@@ -164,6 +179,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** Whether the last redraw folded the chips, so Y knows whether it opens or folds them. */
   #chipsFolded = false;
   #drill: ShelfDrillState = ALL_PACKS;
+  /** The shelves folded to their header, remembered across visits (#753). */
+  #folded: ReadonlySet<string> = loadShelfFolds("scenario-select");
+  /** A scenario a Random just picked: scrolled to once the rebuild has drawn its shelf. */
+  #revealId: string | null = null;
   /** Every scenario's played record, keyed by scenario id, so the side panel reads the *current* selection's row on each redraw (issue 141). */
   #history: ReadonlyMap<string, ScenarioRecord> = new Map();
   /** The record line last drawn in the side panel, for the dev e2e hook only. */
@@ -214,6 +233,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (window as unknown as { __mcScenarioSelectDebug?: unknown }).__mcScenarioSelectDebug = {
         tiles: () => [...this.#tileDebug.values()],
         selectedId: () => (this.#scenarioPicked() ? this.#draft.scenarioId : null),
+        folded: () => [...this.#folded],
+        drilledPack: () => this.#drill.packId,
+        listRect: () => this.#roster?.rect ?? null,
         recordText: () => this.#recordText,
         stops: () =>
           [...this.#stops].map(([key, stop]) => ({
@@ -335,6 +357,108 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.title);
+  }
+
+  /** Whether a search or a chip is narrowing the list: folds are set aside so every match shows. */
+  #filtering(): boolean {
+    return this.#ranking !== null || !!this.#draft.scenarioFilter.product;
+  }
+
+  #toggleFold(shelfId: string): void {
+    this.#folded = toggleShelfFold(this.#folded, shelfId);
+    saveShelfFolds("scenario-select", this.#folded);
+    this.#rebuild();
+  }
+
+  /**
+   * The row above the list: its Random buttons (drilled into a box, "◂ All packs" holds the left and they sit at the
+   * right). Each is a focus stop and a tap, the same control. Returns the roster's rect below the row and the stops.
+   */
+  #drawRandomRow(
+    area: Rect,
+    buttons: readonly { readonly id: string; readonly label: string; readonly onClick: () => void }[],
+  ): { readonly below: Rect; readonly stops: readonly string[] } {
+    const gap = 8;
+    const width = Math.min(RANDOM_BUTTON_WIDTH, Math.floor((area.width - gap * (buttons.length - 1)) / buttons.length));
+    let x =
+      this.#drill.packId === null
+        ? area.x
+        : area.x + area.width - (width * buttons.length + gap * (buttons.length - 1));
+    for (const button of buttons) {
+      const rect: Rect = { x, y: area.y, width, height: RANDOM_ROW_HEIGHT - 8 };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: button.label,
+          type: typeRole.label,
+          rect,
+          onClick: button.onClick,
+        }),
+      );
+      this.#stops.set(button.id, { rect, activate: button.onClick });
+      x += width + gap;
+    }
+    return {
+      below: { x: area.x, y: area.y + RANDOM_ROW_HEIGHT, width: area.width, height: area.height - RANDOM_ROW_HEIGHT },
+      stops: buttons.map((button) => button.id),
+    };
+  }
+
+  readonly #isScenarioEntry = (entry: RosterEntry): entry is Scenario => !isBuilderTile(entry);
+
+  /** What Random may land on: a scenario that is on offer now, so not the builder tile and not one still locked. */
+  readonly #isRandomPick = (entry: RosterEntry): boolean =>
+    !isBuilderTile(entry) && unlocks().scenarioLock(entry) === null;
+
+  /** Step one: a random box of the ones showing, opened as its own grid of villains. */
+  #randomBox(): void {
+    const shelf = randomBox(this.#shelves(), this.#isRandomPick, Math.random);
+    if (!shelf) return;
+    this.#drill = drillIntoPack(shelf.id);
+    this.#rebuild();
+  }
+
+  /** Both steps at once: a random box, then a random villain in it, picked. */
+  #randomScenario(): void {
+    const pick = randomScenario(this.#shelves(), this.#isRandomPick, Math.random);
+    if (pick && this.#isScenarioEntry(pick.item)) this.#pickRandom(pick.shelf.id, pick.item);
+  }
+
+  /** Step two: a random villain of the box that is open. */
+  #randomVillain(): void {
+    const shelf = this.#shelves().find((s) => s.id === this.#drill.packId);
+    const item = shelf ? randomVillainIn(shelf, this.#isRandomPick, Math.random) : null;
+    if (shelf && item && this.#isScenarioEntry(item)) this.#pickRandom(shelf.id, item);
+  }
+
+  /** Picks what Random landed on, opening its shelf if it was folded so the pick is seen. */
+  #pickRandom(shelfId: string, entry: Scenario): void {
+    if (this.#folded.has(shelfId)) {
+      this.#folded = unfoldShelf(this.#folded, shelfId);
+      saveShelfFolds("scenario-select", this.#folded);
+    }
+    this.#revealId = entry.id as string;
+    this.#activateEntry(entry);
+  }
+
+  /** After a Random pick, brings its tile into view (and the pad's focus onto it). */
+  #revealPicked(): void {
+    const id = this.#revealId;
+    if (id === null) return;
+    this.#revealId = null;
+    const shelves = this.#shelvesNow;
+    const holdsId = (shelf: Shelf<RosterEntry>): boolean => shelf.items.some((item) => (item.id as string) === id);
+    // In a box's grid it is that box's tiles that are laid out, so the index counts within the open box.
+    const shelfIndex = shelves.findIndex(
+      (shelf) => (this.#drill.packId === null ? true : shelf.id === this.#drill.packId) && holdsId(shelf),
+    );
+    const itemIndex = shelfIndex < 0 ? -1 : shelves[shelfIndex]!.items.findIndex((item) => (item.id as string) === id);
+    if (itemIndex >= 0) {
+      this.#roster?.scrollIntoView(shelfIndex, itemIndex);
+      // Inside a box's grid there is no shelf roster: the grid scrolls to the row the picked tile sits in.
+      if (this.#grid && this.#gridColumns > 0) this.#grid.scrollIntoView(Math.floor(itemIndex / this.#gridColumns));
+    }
+    if (padInputTracked() && this.#stops.has(`scenario:${id}`)) this.#route?.focusKey(`scenario:${id}`);
   }
 
   #drillOut(): void {
@@ -490,11 +614,21 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     this.#drawSearchAndChips(layout, chipDefs, chipRows, folded);
 
-    const cardMetrics = this.#cardMetrics(layout.shelves);
+    // The Random row takes the top of the list, so the tiles are sized for what is left.
+    const cardMetrics = this.#cardMetrics({
+      ...layout.shelves,
+      height: layout.shelves.height - RANDOM_ROW_HEIGHT,
+    });
     let cardIds: readonly string[];
+    let shelfStopKeys: readonly string[] | undefined;
+    let randomStops: readonly string[] = [];
     if (this.#drill.packId !== null) {
       const shelf = shelves.find((s) => s.id === this.#drill.packId);
       const drillBack = (): void => this.#drillOut();
+      const randomRow = this.#drawRandomRow(layout.shelves, [
+        { id: "random-villain", label: t("scenario.randomVillain"), onClick: () => this.#randomVillain() },
+      ]);
+      randomStops = randomRow.stops;
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
@@ -508,7 +642,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 },
         activate: drillBack,
       });
-      this.add
+      const drillTitle = this.add
         .text(
           layout.shelves.x + 140,
           layout.shelves.y + 14,
@@ -516,6 +650,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
           textStyle(typeRole.sectionHeader, surface.ink.hex),
         )
         .setOrigin(0, 0.5);
+      fitText(drillTitle, layout.shelves.width - 140 - RANDOM_BUTTON_WIDTH - 12, typeRole.sectionHeader.size);
       const gridRect: Rect = {
         x: layout.shelves.x,
         y: layout.shelves.y + 36,
@@ -523,6 +658,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         height: layout.shelves.height - 36,
       };
       const items = shelf?.items ?? [];
+      this.#gridColumns = gridColumnsFor(gridRect.width, cardMetrics.cardWidth, cardMetrics.cardGap);
       this.#grid = drawPackGrid({
         scene: this,
         rect: gridRect,
@@ -543,9 +679,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
       });
       cardIds = ["drill-back", ...items.map((s) => s.id as string)];
     } else {
+      const randomRow = this.#drawRandomRow(layout.shelves, [
+        { id: "random-box", label: t("scenario.randomBox"), onClick: () => this.#randomBox() },
+        { id: "random-scenario", label: t("scenario.randomScenario"), onClick: () => this.#randomScenario() },
+      ]);
+      randomStops = randomRow.stops;
       this.#roster = drawShelfRosterPanel({
         scene: this,
-        rect: layout.shelves,
+        rect: randomRow.below,
         shelves,
         metrics: cardMetrics,
         screen: "scenario-select",
@@ -559,13 +700,22 @@ export class ScenarioSelectScene extends Phaser.Scene {
             shelf.id === "your-decks" ? null : this.#packCoverFor(shelf.id),
             () => this.#roster?.refreshVisible(),
             scenarioCountCaption(shelf.items.filter((e) => !isBuilderTile(e)).length),
+            "▸",
+            shelf.collapsed ? "folded" : "open",
+            t("scenario.seeAll"),
           ),
         renderCard: (s, _shelfIndex, _itemIndex, rect) => this.#renderEntry(s, rect),
         onCardActivate: (s) => this.#activateEntry(s),
-        onHeaderActivate: (shelf) => {
-          this.#drill = drillIntoPack(shelf.id);
-          this.#rebuild();
+        // The header folds its shelf; the "See all" end opens the box as a full grid.
+        onHeaderActivate: (shelf, _index, zone) => {
+          if (zone === "all") {
+            this.#drill = drillIntoPack(shelf.id);
+            this.#rebuild();
+          } else {
+            this.#toggleFold(shelf.id);
+          }
         },
+        headerStops: { prefix: "scenario-shelf", toggle: (shelf) => this.#toggleFold(shelf.id) },
         inspect: (s) => this.#inspectEntry(s),
         onClear: () => {
           this.#draft = clearScenarioFilter(this.#draft);
@@ -576,7 +726,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
         stops: this.#stops,
         rowOfKey: this.#rowOfKey,
       });
-      cardIds = flattenShelves(shelves).map((s) => s.id as string);
+      cardIds = openShelfItems(shelves).map((s) => s.id as string);
+      const keys = shelfFocusKeys(shelves, "scenario-shelf", "scenario", (s) => s.id as string);
+      shelfStopKeys = keys.length > 0 ? keys : undefined;
     }
 
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
@@ -650,6 +802,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const order = scenarioSelectFocusOrder({
       scenarioIds: cardIds,
       scenarioChipIds: folded ? [] : chipDefs.map((c) => c.id),
+      randomStops,
+      ...(shelfStopKeys ? { shelfStopKeys } : {}),
       filtersToggle: this.#stops.has("filters-toggle"),
       stagesToggle: !layout.wide,
       searchToggle: !layout.wide,
@@ -673,6 +827,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       shelfIndex: () => this.#rowOfKey.get(this.#route?.focused ?? "")?.shelfIndex ?? null,
     });
     this.#route?.set(order, this.#stops);
+    this.#revealPicked();
     this.#hoverViewport = layout.shelves;
     this.#hover?.onDraw();
   }
@@ -1208,6 +1363,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     }
   }
 
+  /** The shelves as last built, for the reveal after a rebuild. */
+  #shelvesNow: readonly Shelf<RosterEntry>[] = [];
+
   #shelves(): readonly Shelf<RosterEntry>[] {
     const ranking = this.#ranking;
     // Installed packs' scenarios: on a "Custom packs" shelf first or last, or beside the wave the pack names (issue #734).
@@ -1242,9 +1400,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
       "",
     );
     // A search puts the best match first, within each shelf and among the shelves.
-    return shelvesWithBuilderTile(
+    const ordered = shelvesWithBuilderTile(
       ranking ? rankShelvesByScore(shelves, (s) => ranking.get(s.id as string) ?? 0) : shelves,
     );
+    // The shelves the player folded show as their header alone (#753), unless a search or chip is narrowing the list.
+    const result = foldShelves(ordered, this.#folded, this.#filtering());
+    this.#shelvesNow = result;
+    return result;
   }
 
   /** A roster entry's tap: a scenario becomes the draft's pick; the "Build your own" tile opens the builder. */

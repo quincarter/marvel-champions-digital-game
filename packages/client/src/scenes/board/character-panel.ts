@@ -15,7 +15,7 @@ import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt, type ArtFit } from "../../art/card-art.js";
 import type { ArtSource } from "../../art/art-source.js";
-import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
+import { accent, font, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import {
   McHpPlate,
@@ -383,7 +383,10 @@ export function drawCharacter(
     chipsReserved = next;
     chipsFit += 1;
   }
-  for (const spec of specs.slice(chipsFit)) spec.name.destroy();
+  for (const spec of specs.slice(chipsFit)) {
+    spec.name.destroy();
+    spec.icons?.destroy();
+  }
   const statBlock = blockFor(chipsReserved);
   /**
    * Attachments hanging off this card — an upgrade on your identity, a
@@ -414,8 +417,13 @@ export function drawCharacter(
   const chipTuckedRows: TuckedRowDrawn[] = [];
   const chipsDrawn = chipsFit;
   for (const spec of specs.slice(0, chipsFit)) {
-    const { attachment, name, damage, height: chipHeight, usable } = spec;
+    const { attachment, name, damage, icons, iconsOwnRow, height: chipHeight, usable } = spec;
     name.setPosition(left + 3, top + 3);
+    if (icons) {
+      // Beside the words when they stayed on one line, else on the row under the wrapped name.
+      if (iconsOwnRow) icons.setPosition(left + 3, top + 3 + Math.ceil(name.height) + 1);
+      else icons.setPosition(left + 3 + Math.ceil(name.width) + 4, top + 3 + (name.height - icons.height) / 2);
+    }
     const chip: Rect = { x: left, y: top, width: textWidth, height: chipHeight };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
@@ -426,6 +434,7 @@ export function drawCharacter(
     ).strokeRect(chip.x, chip.y, chip.width, chip.height);
     // The chip's ground goes under its own text.
     scene.children.bringToTop(name);
+    if (icons) scene.children.bringToTop(icons);
     // Damage on the attachment (Crossbones' Armor's "2/5 dmg") sits on a row of its own at the chip's right edge: the
     // name keeps the whole width, and the count the table is watching is never cut.
     if (damage) {
@@ -502,6 +511,9 @@ export function drawCharacter(
   // After the panel, so an attachment chip wins the pointer over the host it
   // is drawn on top of.
   for (const target of chipTargets) {
+    // Mouseover opens the card hover popover on the attachment (the card hover rule), where the printed ability states
+    // the removal cost in words beside the chip's icons. A card already placed on the table keeps its own rect.
+    if (!ctx.frame.hitRects.has(target.instanceId)) ctx.frame.hitRects.set(target.instanceId, target.rect);
     // A tap shows the card; its sheet offers any ability it has, so nothing is used by a stray tap.
     ctx.makeTapTarget(target.rect, target.instanceId, () => controller.onCharacterTap(target.instanceId));
   }
@@ -532,11 +544,15 @@ function owedWords(ctx: BoardDrawContext, attachment: CharacterPanel["attachment
 
 /** The chip's text with its owed words, for the strips that draw a chip without measuring it. */
 function chipText(ctx: BoardDrawContext, attachment: CharacterPanel["attachments"][number]): string {
-  return `${attachmentChipText(attachment)}${owedWords(ctx, attachment)}`;
+  return attachmentChipText(attachment, owedWords(ctx, attachment));
 }
 
 /** The row under a chip's name that carries the count of damage on the attachment. */
 const DAMAGE_ROW = 14;
+/** The row under a wrapped chip name that carries the removal cost's icons. */
+const ICON_ROW = 17;
+/** The icons draw larger than the 9 px label beside them: a glyph at label size is a smudge. */
+const ICON_SIZE = 14;
 /** A header strip, a gap and a row of small cards: what a chip with cards tucked under it grows by. */
 const CHIP_TUCKED_ROOM = TUCKED_HEADER_HEIGHT + 3 + 36;
 
@@ -548,6 +564,10 @@ interface AttachmentChipSpec {
   /** The chip's name, already fitted (stepped down, then wrapped onto up to three lines) and not yet placed. */
   readonly name: Phaser.GameObjects.Text;
   readonly damage: string | null;
+  /** The removal cost's icons ("ppg") in the icon font, drawn after the words; null when it has none or the words say it. */
+  readonly icons: Phaser.GameObjects.Text | null;
+  /** The icons ride on a row of their own under the name (the name wrapped, or no room beside it). */
+  readonly iconsOwnRow: boolean;
   /** One row, or as tall as the wrapped name needs. */
   readonly height: number;
 }
@@ -565,8 +585,22 @@ function measureAttachmentChip(
   owed = "",
 ): AttachmentChipSpec {
   const damage = attachmentChipDamageTag(attachment);
-  const text = `${attachmentChipText(attachment)}${owed}`;
-  const shown = usable ? `\u25B6 ${text}` : text;
+  const iconCost = attachment.removalCost?.icons ?? null;
+  const text = attachmentChipText(attachment, owed, iconCost !== null);
+  const shown = usable ? `▶ ${text}` : text;
+  // The icons are their own text object (a Phaser Text holds one font), drawn after the words at the label's size.
+  const icons = iconCost
+    ? label(
+        scene,
+        0,
+        0,
+        iconCost,
+        { ...typeRole.label, family: font.icons, weight: 400, uppercase: false, size: ICON_SIZE },
+        surface.ink.hex,
+        ink.label * dim,
+      )
+    : null;
+  const iconRoom = icons ? Math.ceil(icons.width) + 4 : 0;
   // The damage count rides on its own row under the name ("0/3 dmg"), so a name keeps the whole width and wraps on
   // words, never mid-word around the count.
   const nameWidth = chipWidth - 6;
@@ -579,17 +613,23 @@ function measureAttachmentChip(
     usable ? signal.heal.hex : surface.ink.hex,
     (usable ? ink.body : ink.label) * dim,
   );
-  fitText(name, nameWidth, typeRole.label.size);
+  fitText(name, nameWidth - iconRoom, typeRole.label.size);
   let height = 16;
+  let iconsOwnRow = false;
   if (name.text !== shown) {
     name.setText(shown);
     fitWrapped(name, nameWidth, 3, typeRole.label.size);
     height = Math.max(16, Math.ceil(name.height) + 6);
+    // A wrapped name leaves no known gap at its last line, so the icons take a row under it.
+    if (icons) {
+      iconsOwnRow = true;
+      height += ICON_ROW;
+    }
   }
   if (damage) height += DAMAGE_ROW;
   // Cards tucked under the attachment (Ionic Physiology's events) ride in a row of their own under its name.
   if (attachment.tuckedCount > 0) height += CHIP_TUCKED_ROOM;
-  return { attachment, usable, name, damage, height };
+  return { attachment, usable, name, damage, icons, iconsOwnRow, height };
 }
 
 /**
@@ -807,6 +847,7 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
         stat: BADGE_STAT[tile.label],
         value: tile.value,
         bonus: tile.bonus,
+        ...(tile.star ? { star: true } : {}),
         alpha: dim,
       });
     });

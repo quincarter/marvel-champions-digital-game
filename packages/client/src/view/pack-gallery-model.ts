@@ -32,11 +32,25 @@ export interface LoadStatusLine {
   readonly detail: string;
 }
 
-export type GallerySectionId = "hero" | "villain" | "encounter" | "deck" | "rule";
+export type GallerySectionId =
+  | "hero"
+  | "villain"
+  | "obligation"
+  | "nemesis"
+  | "scenario"
+  | "modular"
+  | "encounter"
+  | "deck"
+  | "rule";
 
-/** A group of the gallery: the hero's own cards, a scenario's villain and schemes, nemesis and obligation, or the deck. */
+/**
+ * A group of the gallery: the hero's own cards, the deck, a scenario's villain and schemes, the obligation, the nemesis
+ * set, the scenario's own encounter set or one modular set (each of the last three by its own name).
+ */
 export interface GallerySection {
   readonly id: GallerySectionId;
+  /** The encounter set a `nemesis`, `scenario` or `modular` group is. */
+  readonly setId?: string;
   readonly title: string;
   readonly cards: readonly GalleryCard[];
 }
@@ -52,6 +66,17 @@ export interface GalleryInput {
    * official card it belongs to (`officialCardsByPictureCode`). Shown as their own group, in code order.
    */
   readonly ruleFaces?: readonly { readonly code: string; readonly card: AnyCard }[];
+  /**
+   * The pack's encounter sets (a loaded pack has them; a store preview does not), for the groups' names and which set is
+   * a nemesis set. Without one, a set's name is made from its id and a set whose id ends in "nemesis" is the nemesis set.
+   */
+  readonly encounterSets?: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly nemesisOfIdentityId?: string;
+  }[];
+  /** The encounter sets the pack's scenarios use as their own (`Scenario.encounterSetIds`); villain cards name theirs too. */
+  readonly scenarioSetIds?: readonly string[];
 }
 
 const PLAYER_TYPES: ReadonlySet<string> = new Set([
@@ -71,6 +96,7 @@ function isHeroCard(card: AnyCard): boolean {
 function sectionOf(card: AnyCard): GallerySectionId {
   if (isHeroCard(card)) return "hero";
   if (card.type === "villain" || card.type === "main_scheme") return "villain";
+  if (card.type === "obligation") return "obligation";
   if (PLAYER_TYPES.has(card.type)) return "deck";
   return "encounter";
 }
@@ -78,11 +104,36 @@ function sectionOf(card: AnyCard): GallerySectionId {
 const SECTION_TITLES: Readonly<Record<GallerySectionId, string>> = {
   hero: "Hero",
   villain: "Villain and scheme",
-  encounter: "Nemesis and obligation",
+  obligation: "Obligation",
+  nemesis: "Nemesis set",
+  scenario: "Scenario set",
+  modular: "Modular set",
+  encounter: "Encounter cards",
   deck: "Aspect and basic cards",
   rule: "Official cards it rebuilds",
 };
-const SECTION_ORDER: readonly GallerySectionId[] = ["rule", "hero", "villain", "encounter", "deck"];
+/** Table order. The encounter sets (nemesis, the scenario's own, modular) follow the obligation; the long deck list is last. */
+const SECTION_ORDER: readonly GallerySectionId[] = [
+  "rule",
+  "hero",
+  "villain",
+  "obligation",
+  "nemesis",
+  "scenario",
+  "modular",
+  "encounter",
+  "deck",
+];
+
+/** "carnage-nep-twisted-killers" in pack "carnage-nep" -> "Twisted Killers": a set's name when the data names none. */
+function setNameFromId(id: string, packPrefix: string): string {
+  const bare = id.startsWith(`${packPrefix}-`) ? id.slice(packPrefix.length + 1) : id;
+  return bare
+    .split(/[-_.]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 /** The face a rebuilt picture code shows: a hero identity's `b` code is its alter-ego, any other its default face. */
 export function ruleFaceOf(code: string, card: AnyCard): CardFace {
@@ -92,25 +143,49 @@ export function ruleFaceOf(code: string, card: AnyCard): CardFace {
 }
 
 /**
- * The gallery's groups, in table order: the hero (identity first), the villain and its scheme, nemesis and obligation
- * (or a scenario's encounter cards), then the aspect and basic cards of the first precon deck, base-game ones
- * included. A card listed twice shows once. `records` has every card shown, by id, for the tiles' art and Inspect.
+ * The gallery's groups, in table order: the hero (identity first), a scenario's villain and schemes, the obligation, each
+ * encounter set the cards name as its own group under the set's name (the nemesis set, the scenario's own set, each
+ * modular set), then the aspect and basic cards of the first precon deck (base-game ones included). A card names
+ * its set in `encounterSetIds` (the first one places it); an encounter card with none is a loose "Encounter cards"
+ * group. A card listed twice shows once. `records` has every card shown, by id, for the tiles' art and Inspect.
  */
 export function gallerySectionsOf(input: GalleryInput): {
   readonly sections: readonly GallerySection[];
   readonly records: ReadonlyMap<string, AnyCard>;
 } {
   const deck = new Map((input.decks[0]?.cards ?? []).map((entry) => [entry.cardId, entry.quantity]));
-  const hasHero = input.cards.some((card) => card.type === "hero_identity");
   const records = new Map<string, AnyCard>();
   const groups = new Map<GallerySectionId, GalleryCard[]>();
+  // One group per encounter set, in the order the cards first name them.
+  const setGroups = new Map<string, GalleryCard[]>();
+  const setInfo = new Map((input.encounterSets ?? []).map((set) => [set.id, set]));
+  const packPrefix = String(input.cards[0]?.id ?? "")
+    .replace(/^x\./, "")
+    .split(".")[0]!;
+  const scenarioSets = new Set(input.scenarioSetIds ?? []);
+  for (const card of input.cards) {
+    if (sectionOf(card) === "villain") {
+      for (const id of (card as { encounterSetIds?: readonly string[] }).encounterSetIds ?? []) scenarioSets.add(id);
+    }
+  }
   const add = (card: AnyCard, section: GallerySectionId, quantity: number): void => {
     const id = card.id as string;
     if (records.has(id)) return;
     records.set(id, card);
     const model = cardInspectModel(card, defaultFaceFor(card));
+    const entry: GalleryCard = { cardId: id, name: model.name, typeLine: model.typeLine, quantity };
+    const setId =
+      section === "encounter"
+        ? ((card as { encounterSetIds?: readonly string[] }).encounterSetIds ?? [])[0]
+        : undefined;
+    if (setId !== undefined) {
+      const list = setGroups.get(setId) ?? [];
+      list.push(entry);
+      setGroups.set(setId, list);
+      return;
+    }
     const list = groups.get(section) ?? [];
-    list.push({ cardId: id, name: model.name, typeLine: model.typeLine, quantity });
+    list.push(entry);
     groups.set(section, list);
   };
   const own = [...input.cards].sort(
@@ -134,10 +209,37 @@ export function gallerySectionsOf(input: GalleryInput): {
     list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face });
     groups.set("rule", list);
   }
+  // The encounter sets as groups: nemesis first, then the scenario's own, then the modular sets, each in first-named order.
+  // A hero identity names its nemesis set (required), so that is the authority; the set's own link and the id are fallbacks.
+  const identityNemesisSets = new Set(
+    input.cards.flatMap((card) =>
+      card.type === "hero_identity" ? [(card as { nemesisEncounterSetId?: string }).nemesisEncounterSetId ?? ""] : [],
+    ),
+  );
+  const kindOf = (setId: string): "nemesis" | "scenario" | "modular" => {
+    const info = setInfo.get(setId);
+    if (identityNemesisSets.has(setId)) return "nemesis";
+    if (info?.nemesisOfIdentityId !== undefined || (!info && /(^|[-_.])nemesis$/.test(setId))) return "nemesis";
+    return scenarioSets.has(setId) ? "scenario" : "modular";
+  };
+  const setSections = [...setGroups].map(([setId, cards]): GallerySection => {
+    const id = kindOf(setId);
+    const name = setInfo.get(setId)?.name ?? setNameFromId(setId, packPrefix);
+    // A nemesis group always says so: "Carnage Nemesis" does, "Kraven's Hunters" becomes "Nemesis set: Kraven's Hunters".
+    const title =
+      id !== "nemesis"
+        ? name
+        : /^nemesis$/i.test(name)
+          ? SECTION_TITLES.nemesis
+          : /nemesis/i.test(name)
+            ? name
+            : `${SECTION_TITLES.nemesis}: ${name}`;
+    return { id, setId, title, cards };
+  });
   const sections = SECTION_ORDER.flatMap((id): GallerySection[] => {
+    if (id === "nemesis" || id === "scenario" || id === "modular") return setSections.filter((s) => s.id === id);
     const cards = groups.get(id);
-    const title = id === "encounter" && !hasHero ? "Encounter cards" : SECTION_TITLES[id];
-    return cards && cards.length > 0 ? [{ id, title, cards }] : [];
+    return cards && cards.length > 0 ? [{ id, title: SECTION_TITLES[id], cards }] : [];
   });
   return { sections, records };
 }

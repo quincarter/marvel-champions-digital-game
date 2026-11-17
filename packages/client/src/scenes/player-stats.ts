@@ -1230,7 +1230,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       );
     }
 
-    if (lastTab === "cards" || lastTab === "all-cards") {
+    if (lastTab === "cards" || lastTab === "all-cards" || lastTab === "decks") {
       y = this.#drawChips(
         y + 10,
         gutter,

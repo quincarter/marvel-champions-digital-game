@@ -1,4 +1,4 @@
-import type { CardText, ScalingValue, Trait } from "../common.js";
+import type { CardText, ScalingValue, StatStar, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { EncounterSetId, ImageRef } from "../ids.js";
@@ -49,6 +49,8 @@ export interface VillainStage {
   readonly atk: number;
   /** Printed SCH. 0 when `dashedStats` lists `"sch"`. */
   readonly sch: number;
+  /** Stats of this stage (ATK, SCH, HP) that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   /**
    * Stats printed as "—" (RRG 1.8 "Dash (Value)": the character "cannot exhaust to use that power", and a
    * referenced dash "is treated as an unmodifiable 0"). Norman Osborn prints no ATK and Risky Business's Green

@@ -41,19 +41,19 @@ export const spawnStatsWorker: StatsWorkerFactory = () => {
 };
 
 async function statsHere(saves: readonly SaveMeta[], filter: StatsFilter = {}): Promise<PlayerStats> {
-  const [{ playerStatsOf }, { POOL_STATS_NAMES }] = await Promise.all([
+  const [{ playerStatsOf }, { statsNamesForSaves }] = await Promise.all([
     import("./player-stats-model.js"),
     import("./player-stats-names.js"),
   ]);
-  return playerStatsOf(saves, POOL_STATS_NAMES, filter);
+  return playerStatsOf(saves, statsNamesForSaves(saves), filter);
 }
 
 async function insightsHere(saves: readonly SaveMeta[]): Promise<DeckInsights> {
-  const [{ deckInsightsOf }, { POOL_STATS_NAMES }] = await Promise.all([
+  const [{ deckInsightsOf }, { statsNamesForSaves }] = await Promise.all([
     import("./deck-insights.js"),
     import("./player-stats-names.js"),
   ]);
-  return deckInsightsOf(saves, POOL_STATS_NAMES);
+  return deckInsightsOf(saves, statsNamesForSaves(saves));
 }
 
 /** One request to a worker that ends as soon as it answers; `here` when there is no worker or it fails. */

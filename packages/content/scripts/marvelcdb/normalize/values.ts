@@ -5,6 +5,7 @@ import type {
   ResourceIconCounts,
   ScalingValue,
   SchemeIcon,
+  StatStar,
 } from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
@@ -88,6 +89,23 @@ export function schemeIconsField(r: RawCard): { schemeIcons: SchemeIcon[] } | Re
 export function faceSchemeIconsField(r: RawCard): { schemeIcons: SchemeIcon[] } | Record<string, never> {
   const icons = schemeIcons(r);
   return icons.length > 0 ? { schemeIcons: icons } : {};
+}
+
+/**
+ * The stats that print a star beside them (MarvelCDB `attack_star` ... `recover_star`), as a ready-to-spread
+ * `statStars` field, in the schema's canonical order. Empty object when none: the committed data carries no empty list.
+ */
+const STAR_FIELDS: readonly (readonly [StatStar, keyof RawCard])[] = [
+  ["atk", "attack_star"],
+  ["sch", "scheme_star"],
+  ["thw", "thwart_star"],
+  ["def", "defense_star"],
+  ["hp", "health_star"],
+  ["rec", "recover_star"],
+];
+export function statStarsField(r: RawCard): { statStars: StatStar[] } | Record<string, never> {
+  const stars = STAR_FIELDS.filter(([, key]) => r[key] === true).map(([stat]) => stat);
+  return stars.length > 0 ? { statStars: stars } : {};
 }
 
 /**

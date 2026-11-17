@@ -695,6 +695,7 @@ export const ANT_CARDS: readonly AnyCard[] = [
       otherwise: { kind: "villain" },
     },
     statModifiers: { atk: 2, sch: 2 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("ant_nemesis")],
     boostIcons: 0,
     traits: [],

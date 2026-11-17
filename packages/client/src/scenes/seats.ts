@@ -29,6 +29,14 @@ import {
   type SeatInsights,
   type SeatedPair,
 } from "../view/seat-recommendations.js";
+import {
+  foldShelves,
+  loadShelfFolds,
+  openShelfItems,
+  saveShelfFolds,
+  shelfFocusKeys,
+  toggleShelfFold,
+} from "../view/shelf-folds.js";
 import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import {
@@ -92,7 +100,6 @@ import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout
 import {
   azShelvesOf,
   cycleShelvesOf,
-  flattenShelves,
   withTestedShelf,
   type Shelf,
   type ShelfCandidate,
@@ -152,6 +159,7 @@ import {
   renderShelfHeader,
 } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { t } from "../i18n/translate.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { forwardHint } from "./campaign/pad-hints.js";
@@ -207,7 +215,7 @@ function withInfo(info: ChipInfoToggle | undefined): { readonly info?: ChipInfoT
 const infoStopKey = (aspect: string): string => `hero-chip-info:${aspect}`;
 /** The stops that are the filters (search, the chips and their "i"), and the ones that are the list. */
 const FILTER_STOP = /^(hero-search-toggle|hero-search|filters-toggle|hero-chip:.*|hero-chip-info:.*)$/;
-const LIST_STOP = /^(rec-toggle|drill-back|hero-clear|hero:.*|hero-rec:.*)$/;
+const LIST_STOP = /^(rec-toggle|drill-back|hero-clear|hero:.*|hero-rec:.*|hero-shelf:.*)$/;
 
 /** What shuts a deck to this player: a precon's hero, or a tested community deck's hero or card wave. Null when it may be seated. */
 function deckLockOf(deck: Deck): string | null {
@@ -345,6 +353,8 @@ export class SeatsScene extends Phaser.Scene {
   #insights: SeatInsights | null = null;
   /** `null` until the player chooses; then remembered across visits (`view/seat-prefs.ts`). */
   #recCollapsed: boolean | null = loadRecommendedCollapsed();
+  /** The pack shelves folded to their header, remembered across visits (#753). */
+  #folded: ReadonlySet<string> = loadShelfFolds("seats");
   /** The deck under the pointer or under keyboard focus, whose reason the detail panel spells out. */
   #hoverDeckId: string | null = null;
   #focusDeckId: string | null = null;
@@ -908,6 +918,7 @@ export class SeatsScene extends Phaser.Scene {
     const packShelves = this.#shelves(deckOptions, seating, active);
     const cardMetrics = this.#cardMetrics(layout.shelves);
     let cardIds: readonly string[];
+    let shelfStopKeys: readonly string[] | undefined;
     this.#hoverBounds = [layout.shelves];
     this.#hoverViewport = layout.shelves;
     this.#hoverRecHidden = recCollapsed;
@@ -1010,18 +1021,29 @@ export class SeatsScene extends Phaser.Scene {
                 null,
                 () => this.#roster?.refreshVisible(),
                 `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
+                "▸",
+                shelf.collapsed ? "folded" : "open",
+                t("scenario.seeAll"),
               ),
         renderCard: (option, shelfIndex, _itemIndex, rect) =>
           this.#renderHeroCard(option, active, rect, shelves[shelfIndex]?.id === REC_SHELF_ID),
         onCardActivate: (option, shelfIndex) =>
           shelves[shelfIndex]?.id === REC_SHELF_ID ? this.#pickHero(option, active) : this.#onHeroTile(option, active),
-        onHeaderActivate: (shelf) => {
+        // A pack shelf's header folds it; the "See all" end opens the pack as a full grid.
+        onHeaderActivate: (shelf, _index, zone) => {
           if (shelf.id === REC_SHELF_ID) {
             toggleRecommended();
-            return;
+          } else if (zone === "all") {
+            this.#drill = drillIntoPack(shelf.id);
+            this.#rebuild();
+          } else {
+            this.#toggleFold(shelf.id);
           }
-          this.#drill = drillIntoPack(shelf.id);
-          this.#rebuild();
+        },
+        headerStops: {
+          prefix: "hero-shelf",
+          toggle: (shelf) => this.#toggleFold(shelf.id),
+          skip: (shelf) => shelf.id === REC_SHELF_ID,
         },
         inspect: (option) => this.#inspectOption(option, active),
         onClear: () => {
@@ -1042,7 +1064,9 @@ export class SeatsScene extends Phaser.Scene {
         });
         if (!recCollapsed) recIds = recOptions.map((o) => o.deck.id as string);
       }
-      cardIds = flattenShelves(packShelves).map((o) => o.deck.id as string);
+      cardIds = openShelfItems(packShelves).map((o) => o.deck.id as string);
+      const keys = shelfFocusKeys(packShelves, "hero-shelf", "hero", (o) => o.deck.id as string);
+      shelfStopKeys = keys.length > 0 ? keys : undefined;
     }
 
     // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Wide only: on
@@ -1137,6 +1161,9 @@ export class SeatsScene extends Phaser.Scene {
     // Dev e2e hook (never referenced by product code): every control's current rect, by focus key.
     if (import.meta.env.DEV) {
       (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
+        folded: () => [...this.#folded],
+        drilledPack: () => this.#drill.packId,
+        listRect: () => this.#roster?.rect ?? null,
         recommended: () => this.#insights?.recommended.map((r) => ({ deckId: r.deckId, reason: r.reason })) ?? [],
         pairs: () => this.#insights?.pairs.map((p) => p.label) ?? [],
         hover: (deckId: string | null) => {
@@ -1170,6 +1197,7 @@ export class SeatsScene extends Phaser.Scene {
     const baseOrder = seatsFocusOrder({
       seatCount: MAX_SEATS,
       deckIds: cardIds,
+      ...(shelfStopKeys ? { shelfStopKeys } : {}),
       heroChipIds: folded ? [] : chipDefs.map((c) => c.id),
       filtersToggle: this.#stops.has("filters-toggle"),
       narrow: !layout.wide,
@@ -2174,9 +2202,19 @@ ${sourceWordsOf(decks)}`
     this.#heroGroups = grouped.groups;
     // A search puts the best match first, within each shelf and among the shelves.
     const ranking = this.#ranking;
-    return ranking
+    const ordered = ranking
       ? rankShelvesByScore(grouped.shelves, (option) => ranking.get(option.deck.id as string) ?? 0)
       : grouped.shelves;
+    // The shelves the player folded show as their header alone (#753), unless a search or chip is narrowing the list.
+    const filter = this.#draft.heroFilter;
+    const filtering = ranking !== null || !!filter.aspect || !!filter.source || !!filter.playableOnly;
+    return foldShelves(ordered, this.#folded, filtering);
+  }
+
+  #toggleFold(shelfId: string): void {
+    this.#folded = toggleShelfFold(this.#folded, shelfId);
+    saveShelfFolds("seats", this.#folded);
+    this.#rebuild();
   }
 
   #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {

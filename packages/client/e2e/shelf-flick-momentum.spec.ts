@@ -20,8 +20,15 @@ const SCREENS = [
     query: "screen=scenario-select&unlock=all",
     hook: "__mcScenarioSelectDebug",
     prefix: "scenario:",
+    header: "scenario-shelf:",
   },
-  { scene: "Seats", query: "screen=seats&unlock=all", hook: "__mcSeatsDebug", prefix: "hero:" },
+  {
+    scene: "Seats",
+    query: "screen=seats&unlock=all",
+    hook: "__mcSeatsDebug",
+    prefix: "hero:",
+    header: "hero-shelf:",
+  },
 ] as const;
 
 type Screen = (typeof SCREENS)[number];
@@ -104,9 +111,14 @@ async function overflowingShelf(page: Page, screen: Screen, phone: boolean, room
     (await cardStops(page, screen.hook, screen.prefix)).find((s) => s.key === tracked)!.x;
   // From the second card of the row (inside the roster, clear of the desktop's detail panel on the right).
   const from = { x: Math.min(width * 0.7, row[0]!.x + row[0]!.width * 1.5), y: row[0]!.y + row[0]!.height / 2 };
-  // Just above the card row: the shelf's header band (the cards sit 8px under it).
+  // Just above the card row: the shelf's header band (the cards sit 8px under it). A tap on the band folds the shelf
+  // (#753); the pack opens from the "SEE ALL" link at the band's right end, found from the header's own stop.
   const header = { x: from.x, y: row[0]!.y - 16 };
-  return { flickPx, xOf, from, to: { x: from.x - flickPx, y: from.y }, header };
+  const band = (await hook<Stop[]>(page, screen.hook, "stops"))!
+    .filter((s) => s.key.startsWith(screen.header) && s.y < row[0]!.y)
+    .sort((a, b) => b.y - a.y)[0]!;
+  const seeAll = { x: band.x + band.width - 40, y: band.y + band.height / 2 };
+  return { flickPx, xOf, from, to: { x: from.x - flickPx, y: from.y }, header, seeAll };
 }
 
 /** What the screen has picked so far: the chosen scenario, or every seat card's text. */
@@ -173,7 +185,7 @@ for (const screen of SCREENS) {
     expect(errors).toEqual([]);
   });
 
-  test(`issue #478: a tap on a coasting ${screen.scene} shelf's header still opens its pack`, async ({
+  test(`issue #478: a tap on a coasting ${screen.scene} shelf's SEE ALL link still opens its pack`, async ({
     page,
   }, info) => {
     test.setTimeout(120_000);
@@ -188,9 +200,9 @@ for (const screen of SCREENS) {
     const a = await shelf.xOf();
     await page.waitForTimeout(40);
     expect(await shelf.xOf(), "the shelf is still coasting").toBeLessThan(a);
-    // The header never moved under the finger, so its tap is a tap: it drills into the pack, coast or no coast.
-    if (phone) await page.touchscreen.tap(shelf.header.x, shelf.header.y);
-    else await page.mouse.click(shelf.header.x, shelf.header.y);
+    // The link never moved under the finger, so its tap is a tap: it drills into the pack, coast or no coast.
+    if (phone) await page.touchscreen.tap(shelf.seeAll.x, shelf.seeAll.y);
+    else await page.mouse.click(shelf.seeAll.x, shelf.seeAll.y);
 
     await waitFor(async () => ((await drilledIn()) ? true : null), "the pack opens", 10_000);
     expect(errors).toEqual([]);

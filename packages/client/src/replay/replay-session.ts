@@ -9,6 +9,7 @@
  * as far as its commands still apply (`ReplayCursor`'s lenient build): `info` says where it first differs and where it
  * stops, for the screen to say so.
  */
+import { withoutDeckNames } from "../engine/shared-config.js";
 import { applyCommand, type Command, type EngineDeps, type GameOutcome, type GameState } from "@mc/engine";
 import { poolViewOfPacks } from "../content/pool.js";
 import { emptyRecord, recordEvents, type GameRecord } from "../engine/game-record.js";
@@ -234,7 +235,7 @@ export class ReplaySession {
       version: REPLAY_VERSION,
       exportedAt,
       writer: this.#writer,
-      config: withoutPacks(log.config),
+      config: withoutDeckNames(withoutPacks(log.config)),
       ...(log.config.packs?.length ? { packs: log.config.packs.map(({ id, version }) => ({ id, version })) } : {}),
       createdAt: log.createdAt,
       outcome: log.outcome,

@@ -110,9 +110,75 @@ function chosenSpendPhrase(x: NonNullable<AbilityCost["resourcesX"]>): string {
  * field that produced it, so a new cost shape either gets a phrase here or
  * silently contributes nothing rather than a guess.
  */
-function costPhrase(cost: AbilityCost | undefined): string | null {
-  if (!cost) return null;
+export function costPhrase(cost: AbilityCost | undefined): string | null {
+  return costWords(cost).phrase;
+}
+
+/**
+ * `costPhrase`, but null when any part of the cost has no words of its own here (a discard narrowed by a resource icon
+ * or a trait, Haywire 29038): for a line that states the whole cost (an attachment's removal chip), which must say
+ * "see card" rather than offer a cheaper-sounding cost than the card prints.
+ */
+export function fullCostPhrase(cost: AbilityCost | undefined): string | null {
+  const { phrase, unsaid } = costWords(cost);
+  return unsaid ? null : phrase;
+}
+
+/** Card types a "discard a … you control" cost names plainly (`discardCards` with nothing narrower than its type). */
+const DISCARD_TYPE_WORDS: Readonly<Record<string, string>> = {
+  ally: "an ally",
+  upgrade: "an upgrade",
+  support: "a support",
+};
+
+/** "discard an ally you control", or null when the pick is narrower than one card type (a resource icon, a trait). */
+function discardCardsPhrase(pick: NonNullable<AbilityCost["discardCards"]>): string | null {
+  const { categories, ...narrower } = pick.query;
+  if (Object.keys(narrower).length > 0 || pick.min !== 1 || (pick.max ?? 1) !== 1) return null;
+  if ("measure" in pick || "superlative" in pick) return null;
+  const word = categories?.length === 1 ? DISCARD_TYPE_WORDS[categories[0]!] : undefined;
+  return word ? `discard ${word} you control` : null;
+}
+
+/**
+ * The `AbilityCost` fields `costWords` has words for. Any other field set on a cost (exhausting another card, Love
+ * Triangle 55062) is a part the phrase leaves out, so `fullCostPhrase` gives none rather than a cheaper-sounding cost.
+ * `changeFormFolded` is engine bookkeeping, never a printed part.
+ */
+const WORDED_COST_FIELDS: ReadonlySet<string> = new Set([
+  "changeForm",
+  "changeFormFolded",
+  "chooseTarget",
+  "damageSelf",
+  "damageThisCard",
+  "discardCards",
+  "discardFromHand",
+  "discardSelf",
+  "eachPlayer",
+  "either",
+  "exhaustIdentity",
+  "exhaustSelf",
+  "healCharacter",
+  "healIdentity",
+  "indirectDamage",
+  "payPrintedCostOf",
+  "resources",
+  "resourcesX",
+  "spendCounters",
+]);
+
+function costWords(cost: AbilityCost | undefined): { readonly phrase: string | null; readonly unsaid: boolean } {
+  if (!cost) return { phrase: null, unsaid: false };
+  let unsaid = Object.entries(cost).some(([field, part]) => part !== undefined && !WORDED_COST_FIELDS.has(field));
   const parts: string[] = [];
+  // "Choose to either discard a card … or take 2 indirect damage →" (Haywire 29038): each branch said in full, joined
+  // by "or"; a branch with no phrase of its own leaves the whole choice unsaid rather than half of it.
+  if (cost.either) {
+    const branches = cost.either.map((branch) => costWords(branch));
+    if (branches.every((branch) => branch.phrase !== null && !branch.unsaid)) {
+      parts.push(branches.map((branch) => branch.phrase).join(" or "));
+    } else unsaid = true;
+  }
   // Roughly the order printed cost text uses (RRG "Cost" gives no rule for
   // it): exhaust, then what's spent, then what's discarded — "Spend 1
   // [physical] resource and discard Tenacity" reads spend-then-discard, not
@@ -151,6 +217,9 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
   if (cost.healCharacter) parts.push(`heal ${cost.healCharacter.amount} damage from a character`);
   if (cost.discardFromHand) {
     const { min, max, filter, combined } = cost.discardFromHand;
+    // A filter other than a trait (a printed [energy] resource, Haywire 29038) has no words below: the full phrase is
+    // not offered as if any card would do.
+    if (filter && Object.keys(filter).some((key) => key !== "trait")) unsaid = true;
     // "Attack cards" from `filter.trait` (Advanced Glider, `sm` 27136): traits are stored upper-cased (`trait()`,
     // `@mc/content`), so this titles just the one word rather than shouting it back at the player. Every other
     // filter shape falls back to the generic "cards" rather than guessing a phrase for it.
@@ -168,9 +237,15 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
       parts.push(`discard any number of ${noun}`);
     }
   }
+  if (cost.discardCards) {
+    const words = discardCardsPhrase(cost.discardCards);
+    if (words) parts.push(words);
+    else unsaid = true;
+  }
+  if (typeof cost.indirectDamage === "number") parts.push(`take ${cost.indirectDamage} indirect damage`);
   if (cost.discardSelf) parts.push("discard this card");
   if (cost.payPrintedCostOf) parts.push("pay a card's printed cost");
-  return parts.length > 0 ? parts.join(", ") : null;
+  return { phrase: parts.length > 0 ? parts.join(", ") : null, unsaid };
 }
 
 /**

@@ -15,6 +15,7 @@ describe("corePlayerFromDeck", () => {
       aspects: starter.aspects,
       deck: starter.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
       deckId: deck.id,
+      deckName: deck.name,
     });
   });
 
@@ -26,6 +27,7 @@ describe("corePlayerFromDeck", () => {
       aspects: starter.aspects,
       deck: [],
       deckId: deck.id,
+      deckName: deck.name,
     });
   });
 

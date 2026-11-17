@@ -31,6 +31,19 @@ function topOf(heights: readonly number[], index: number): number {
   return top;
 }
 
+/** A y-range inside a row, from the row's own top. */
+export interface RowRange {
+  readonly y: number;
+  readonly height: number;
+}
+
+/** The offset that shows content range [top, bottom] with the least movement from `offset`; the top wins if it cannot all fit. */
+export function offsetToShow(offset: number, viewportHeight: number, top: number, bottom: number): number {
+  if (top < offset || bottom - top > viewportHeight) return top;
+  if (bottom > offset + viewportHeight) return bottom - viewportHeight;
+  return offset;
+}
+
 export class VariableListScroll {
   #offset = 0;
 
@@ -97,13 +110,19 @@ export class VariableListScroll {
     return this.#offset !== before;
   }
 
-  /** Scrolls the minimum distance so row `index` is entirely on screen. */
-  scrollIntoView(index: number, heights: readonly number[], viewportHeight: number): boolean {
-    const top = topOf(heights, index);
-    const bottom = top + (heights[index] ?? 0);
+  /**
+   * Scrolls the minimum distance so row `index` is entirely on screen, or, with `within` (a y-range from the row's own
+   * top), so just that range is: a tile in a row taller than the viewport, not the whole row.
+   */
+  scrollIntoView(index: number, heights: readonly number[], viewportHeight: number, within?: RowRange): boolean {
+    const rowTop = topOf(heights, index);
     const before = this.#offset;
-    if (top < this.#offset) this.#offset = top;
-    else if (bottom > this.#offset + viewportHeight) this.#offset = bottom - viewportHeight;
+    this.#offset = offsetToShow(
+      this.#offset,
+      viewportHeight,
+      within ? rowTop + within.y : rowTop,
+      within ? rowTop + within.y + within.height : rowTop + (heights[index] ?? 0),
+    );
     this.clamp(heights, viewportHeight);
     return this.#offset !== before;
   }

@@ -16,6 +16,7 @@ import {
   ACHIEVEMENT_POPUP_SIZE_VALUES,
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
+  PLAY_AREA_ORDER_VALUES,
   INSPECT_CARD_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
@@ -32,6 +33,7 @@ import {
   clampMusicVolume,
   defaultSettings,
   DECK_SIGNATURE_CARDS_VALUES,
+  DECK_LIST_ON_OPEN_VALUES,
   resolutionPixelsOf,
   type Settings,
   type Resolution,
@@ -55,6 +57,8 @@ const BOOLEAN_FIELDS = [
   "musicShuffle",
   "confirmBeforeEndTurn",
   "deckCopyLimits",
+  "showPreconDecks",
+  "allowExtraModularSets",
   "notOfferedNotices",
   "deckCountsHero",
   "deckCountsEncounter",
@@ -105,6 +109,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (flipSpeedValue !== undefined) out.flipEncounterSpeed = flipSpeedValue;
   const hoverScaleValue = CARD_HOVER_SCALE_VALUES.find((value) => value === source["cardHoverScale"]);
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
+  const playAreaOrderValue = PLAY_AREA_ORDER_VALUES.find((value) => value === source["playAreaOrder"]);
+  if (playAreaOrderValue !== undefined) out.playAreaOrder = playAreaOrderValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);
   if (cardSizeValue !== undefined) out.cardSize = cardSizeValue;
   const inspectCardValue = INSPECT_CARD_VALUES.find((value) => value === source["inspectCard"]);
@@ -150,6 +156,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   }
   const signatureValue = DECK_SIGNATURE_CARDS_VALUES.find((value) => value === source["deckSignatureCards"]);
   if (signatureValue !== undefined) out.deckSignatureCards = signatureValue;
+  const deckListValue = DECK_LIST_ON_OPEN_VALUES.find((value) => value === source["deckListOnOpen"]);
+  if (deckListValue !== undefined) out.deckListOnOpen = deckListValue;
   const cardLanguage = source["cardLanguage"];
   if (typeof cardLanguage === "string" && isCardLanguage(cardLanguage)) out.cardLanguage = cardLanguage;
   const resolution = source["textResolution"];

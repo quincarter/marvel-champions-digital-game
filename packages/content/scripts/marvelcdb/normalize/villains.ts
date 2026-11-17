@@ -14,7 +14,7 @@ import {
   type NormalizeContext,
 } from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
-import { ROMAN, scalingOf } from "./values.ts";
+import { ROMAN, scalingOf, statStarsField } from "./values.ts";
 
 /**
  * A "mode + face" stage label (docs/phase7-wave3.md §1.1): The Galaxy's Most Wanted's Collector (`gmw` 16080a/b,
@@ -108,6 +108,7 @@ function buildVillainStage(
     ...(infiniteHp ? { infiniteHp: true } : {}),
     atk: r.attack ?? 0,
     sch: r.scheme ?? 0,
+    ...statStarsField(r),
     ...(dashedStats.length > 0 ? { dashedStats } : {}),
     text: p.text,
     traits: stageTraits,

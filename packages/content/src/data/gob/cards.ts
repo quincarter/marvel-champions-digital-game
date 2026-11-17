@@ -28,6 +28,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 0,
             sch: 2,
+            statStars: ["atk"],
             dashedStats: ["atk"],
             text: {
               printed: "[star] Forced Interrupt: When Norman Osborn would attack, place 1 infamy counter on Criminal Enterprise instead.\nForced Interrupt: When Norman Osborn would take any amount of damage, remove that many infamy counters from Criminal Enterprise instead.",
@@ -46,6 +47,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 0,
             sch: 2,
+            statStars: ["atk"],
             dashedStats: ["atk"],
             text: {
               printed: "[star] Forced Interrupt: When Norman Osborn would attack, place 2 infamy counter on Criminal Enterprise instead.\nForced Interrupt: When Norman Osborn would take any amount of damage, remove that many infamy counters from Criminal Enterprise instead.",
@@ -64,6 +66,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 22 },
             atk: 0,
             sch: 3,
+            statStars: ["atk"],
             dashedStats: ["atk"],
             text: {
               printed: "[star] Forced Interrupt: When Norman Osborn would attack, place 3 infamy counter on Criminal Enterprise instead.\nForced Interrupt: When Norman Osborn would take any amount of damage, remove that many infamy counters from Criminal Enterprise instead.",
@@ -88,6 +91,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 14 },
             atk: 3,
             sch: 0,
+            statStars: ["sch"],
             dashedStats: ["sch"],
             text: {
               printed: "When Revealed: Deal 3 indirect damage to each player in hero form.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
@@ -106,6 +110,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 4,
             sch: 0,
+            statStars: ["sch"],
             dashedStats: ["sch"],
             text: {
               printed: "When Revealed: Deal 4 indirect damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.",
@@ -124,6 +129,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 22 },
             atk: 4,
             sch: 0,
+            statStars: ["sch"],
             dashedStats: ["sch"],
             text: {
               printed: "When Revealed: Deal 4 damage to each player.\n[star] Forced Interrupt: When Green Goblin would scheme, remove 2 madness counters from State of Madness instead.",
@@ -419,6 +425,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 16 },
             atk: 2,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "[star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.",
               current: "[star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.",
@@ -433,6 +440,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 18 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "When Revealed: Deal 2 encounter cards to each player.\n[star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.",
               current: "When Revealed: Deal 2 encounter cards to each player.\n[star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.",
@@ -447,6 +455,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 20 },
             atk: 3,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "When Revealed: Deal 3 encounter cards to each player.\n[star] Forced Response: After Green Goblin attacks and damages you, place 2 threat on the main scheme.",
               current: "When Revealed: Deal 3 encounter cards to each player.\n[star] Forced Response: After Green Goblin attacks and damages you, place 2 threat on the main scheme.",
@@ -562,6 +571,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/02020.png") },
     attachesTo: { kind: "villain" },
+    statStars: ["atk", "sch"],
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 1,
     traits: [trait("CONDITION")],
@@ -583,6 +593,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/02021.png") },
     attachesTo: { kind: "villain" },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 2,
     traits: [trait("WEAPON")],
@@ -609,6 +620,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 7,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 2,
     starIcon: true,
@@ -881,6 +893,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/02034.png") },
     attachesTo: { kind: "villain" },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("goblin_gimmicks")],
     boostIcons: 2,
     traits: [trait("WEAPON")],
@@ -972,6 +985,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 3,
     hp: 7,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("a_mess_of_things")],
     boostIcons: 2,
     traits: [],
@@ -1059,6 +1073,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("power_drain")],
     boostIcons: 2,
     starIcon: true,
@@ -1168,6 +1183,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 2,
     hp: 9,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("running_interference")],
     boostIcons: 2,
     traits: [trait("CRIMINAL")],

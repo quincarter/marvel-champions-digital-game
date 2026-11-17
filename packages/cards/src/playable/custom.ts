@@ -28,7 +28,14 @@ import {
   type Scenario,
 } from "@mc/content";
 import type { GameSetupConfig } from "@mc/engine";
-import { encounterCardsOf, modularSetupCardIds, resolveModes, setSeparateDecks } from "../core/setup.js";
+import {
+  encounterCardsOf,
+  modularSetContents,
+  modularSetupCardIds,
+  resolveModes,
+  setSeparateDecks,
+  withModularSetContents,
+} from "../core/setup.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
@@ -38,6 +45,26 @@ import {
   modularPickProblem,
 } from "../modular-pool.js";
 import { playableScenario, playableStarterDeckSetup, type PlayableScenarioOptions } from "./index.js";
+import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
+
+/**
+ * The house rule's sets (#761) at a scenario of the custom path, checked as a counted pick is (`customModularPickProblem`,
+ * which includes `modularPickProblem`) with only the count relaxed: not twice, not already dealt (`dealt`), not gated.
+ */
+function checkHouseSets(
+  scenario: Scenario,
+  ids: readonly string[],
+  dealt: ReadonlySet<string>,
+  custom: CustomContent,
+): void {
+  if (new Set(ids).size !== ids.length) throw new Error(`${scenario.name}: a house modular set is added twice`);
+  for (const id of ids) {
+    if (UNSCRIPTED_ENCOUNTER_SET_IDS.has(id)) throw new Error(`${scenario.name}: ${id} is not playable yet`);
+    if (dealt.has(id)) throw new Error(`${scenario.name}: ${id} is already in the game`);
+    const problem = customModularPickProblem(scenario, id, custom);
+    if (problem) throw new Error(`${scenario.name}: ${problem}`);
+  }
+}
 
 /** What a game takes from custom packs: their cards, encounter sets and scenario records, whole. */
 export interface CustomContent {
@@ -351,20 +378,57 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
  */
 export function playableScenarioWithCustom(
   scenarioId: string,
-  options: PlayableScenarioOptions,
+  rawOptions: PlayableScenarioOptions,
   custom: CustomContent,
 ): GameSetupConfig {
   const clashes = customContentProblems(custom);
   if (clashes.length > 0) throw new Error(`custom content cannot join a game: ${clashes.join("; ")}`);
   const own = customScenarioOf(scenarioId, custom);
-  if (own) return customScenario(own, options, custom);
+  if (own) {
+    // A pack scenario builds no set-dependent option, so every house set (base or pack) is added after, from its pool.
+    const { houseModularSetIds: ownHouse = [], ...ownOptions } = rawOptions;
+    const built = customScenario(own, ownOptions, custom);
+    checkHouseSets(
+      own,
+      ownHouse,
+      new Set<string>([...own.encounterSetIds, ...(ownOptions.modularSetIds ?? own.recommendedModularSetIds)]),
+      custom,
+    );
+    return withModularSetContents(built, modularSetContents(ownHouse, built.cards ?? PLAYABLE_CARDS));
+  }
   const customIds = new Set(custom.encounterSets.map((set) => set.id as string));
+  // The house rule's sets (#761): the base ones go to `playableScenario`, which builds them ahead of its set-dependent
+  // options; a pack's are added here, after, from the widened pool (a pack set brings no such option).
+  const houseIds = rawOptions.houseModularSetIds ?? [];
+  const customHouse = houseIds.filter((id) => customIds.has(id));
+  const withCustomHouse = (config: GameSetupConfig): GameSetupConfig =>
+    customHouse.length > 0
+      ? withModularSetContents(config, modularSetContents(customHouse, config.cards ?? PLAYABLE_CARDS))
+      : config;
+  const options = { ...rawOptions, houseModularSetIds: houseIds.filter((id) => !customIds.has(id)) };
   const picks = options.modularSetIds;
+  if (customHouse.length > 0) {
+    // A pack set added beyond the count is checked as a counted pack pick is, and is not also a counted pick.
+    const houseRecord = PLAYABLE_SCENARIO_RECORDS.find((s) => s.id === scenarioId);
+    if (!houseRecord) throw new Error(`${scenarioId}: pack modular sets are not offered at this scenario`);
+    if (houseRecord.modularSetPool || houseRecord.side !== undefined)
+      throw new Error(
+        `${houseRecord.name}: pack modular sets are not offered at a scenario with a modular set pool or a side`,
+      );
+    if (new Set(houseIds).size !== houseIds.length)
+      throw new Error(`${houseRecord.name}: a house modular set is added twice`);
+    checkHouseSets(
+      houseRecord,
+      customHouse,
+      new Set<string>([...(picks ?? []), ...(options.extraModularSetIds ?? [])]),
+      custom,
+    );
+  }
   const customPicks = (picks ?? []).filter((id) => customIds.has(id));
   const basePicks = (picks ?? []).filter((id) => !customIds.has(id));
   if (customPicks.length === 0) {
     const built = playableScenario(scenarioId, options);
-    return { ...built, cards: widenedPool(built.cards, custom) };
+    return withCustomHouse({ ...built, cards: widenedPool(built.cards, custom) });
   }
   const record = PLAYABLE_SCENARIO_RECORDS.find((s) => s.id === scenarioId);
   if (!record) throw new Error(`${scenarioId}: pack modular sets are not offered at this scenario`);
@@ -379,7 +443,7 @@ export function playableScenarioWithCustom(
   }
   const built = playableScenario(scenarioId, { ...options, modularSetIds: basePicks }, customPicks.length);
   const pool = widenedPool(built.cards, custom);
-  return {
+  return withCustomHouse({
     ...built,
     cards: pool,
     encounterDeck: [
@@ -387,5 +451,5 @@ export function playableScenarioWithCustom(
       ...encounterCardsOf(customPicks, pool),
       ...modularSetupCardIds(customPicks, pool),
     ],
-  };
+  });
 }

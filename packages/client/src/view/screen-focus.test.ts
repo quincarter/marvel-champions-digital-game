@@ -378,6 +378,29 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("Deck check: the face tiles (#754) come ahead of the cards, wide and on the narrow Cards tab only", () => {
+    const faceIds = ["0.a", "0.b"];
+    expect(
+      deckCheckFocusOrder({ wide: true, faceIds, cardIds: ["c1"], filterChipIds: ["all"], showSort: true }),
+    ).toEqual(["back", "filter:all", "face:0.a", "face:0.b", "card:c1", "deck-sort", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "cards", faceIds, cardIds: ["c1"], showSort: true })).toEqual([
+      "back",
+      "tab:curve",
+      "tab:cards",
+      "tab:aspect",
+      "deck-sort",
+      "face:0.a",
+      "face:0.b",
+      "card:c1",
+      "edit-deck",
+      "start",
+    ]);
+    // The other narrow tabs show no tiles, so they take no stops.
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", faceIds, cardIds: ["c1"] })).not.toContain(
+      "face:0.a",
+    );
+  });
+
   test("Deck check wide: the rail's own type filter chips come between Back and the grid", () => {
     expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1"], filterChipIds: ["all", "ally", "event"] })).toEqual([
       "back",
@@ -671,12 +694,48 @@ describe("screen focus routes", () => {
       "filter:won",
       "filter:lost",
       "open-file",
+      "export-tracker",
       "game:a",
       "game:b",
       "action:watch",
       "action:share",
       "action:export",
       "action:log",
+    ]);
+  });
+
+  test("Scenario select: folded shelves keep their header stop and drop their cards, Random sits before the list", () => {
+    const order = scenarioSelectFocusOrder({
+      scenarioIds: ["a", "b"],
+      randomStops: ["random-box", "random-scenario"],
+      shelfStopKeys: ["scenario-shelf:core", "scenario-shelf:mod", "scenario:b"],
+    });
+    expect(order.slice(order.indexOf("random-box"))).toEqual([
+      "random-box",
+      "random-scenario",
+      "scenario-shelf:core",
+      "scenario-shelf:mod",
+      "scenario:b",
+      "next",
+    ]);
+    // Every shelf folded: the headers are still the list, not "Clear".
+    expect(scenarioSelectFocusOrder({ scenarioIds: [], shelfStopKeys: ["scenario-shelf:core"] })).toContain(
+      "scenario-shelf:core",
+    );
+  });
+
+  test("Take your seats: shelf header stops replace the plain hero stops", () => {
+    const order = seatsFocusOrder({
+      seatCount: 4,
+      deckIds: ["a"],
+      shelfStopKeys: ["hero-shelf:core", "hero-shelf:wave1", "hero:a"],
+    });
+    expect(order.slice(order.indexOf("hero-shelf:core"))).toEqual([
+      "hero-shelf:core",
+      "hero-shelf:wave1",
+      "hero:a",
+      "deck-check",
+      "play",
     ]);
   });
 

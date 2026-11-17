@@ -9,6 +9,7 @@ const ANSWER: PlayerStats = {
   heroCards: [],
   allCards: null,
   aspects: [],
+  decks: [],
   matchups: null,
   filter: {},
   filterOptions: { heroes: [], villains: [], difficulties: [] },
@@ -55,5 +56,52 @@ describe("loadDeckInsights", () => {
   test("with no worker, the insights are worked out here", async () => {
     const { loadDeckInsights } = await import("./player-stats-client.js");
     await expect(loadDeckInsights([], () => null)).resolves.toEqual({ heroes: {}, decks: {}, villains: {} });
+  });
+});
+
+describe("main-thread fallback names", () => {
+  const PACK = {
+    id: "sample",
+    cards: [
+      {
+        id: "x.sample.hero",
+        type: "hero_identity",
+        name: "Sample",
+        hero: { faceName: "S" },
+        alterEgo: { faceName: "s" },
+      },
+    ],
+    decks: [{ id: "x.sample.deck", name: "Sample Deck", identityCardId: "x.sample.hero", aspects: ["justice"] }],
+  };
+  const customGame = {
+    id: "g",
+    schema: 1,
+    config: {
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "x.sample.deck" }],
+      seed: 1,
+      packs: [PACK],
+    },
+    createdAt: 1,
+    updatedAt: 2,
+    status: "won",
+    round: 3,
+    commandCount: 5,
+    outcome: { result: "win", reason: "villainDefeated" },
+    campaignId: null,
+    campaignNodeId: null,
+  } as never;
+
+  test("a null worker factory and a failing worker both resolve a custom precon seat", async () => {
+    const { loadDeckInsights } = await import("./player-stats-client.js");
+    const viaNull = await loadPlayerStats([customGame], () => null);
+    const viaError = await loadPlayerStats([customGame], () => fakeWorker("error"));
+    expect(viaError).toEqual(viaNull);
+    expect(viaNull.decks.map((d) => d.name)).toContain("Sample Deck");
+    const insightsNull = await loadDeckInsights([customGame], () => null);
+    const insightsError = await loadDeckInsights([customGame], () => fakeWorker("error"));
+    expect(insightsError).toEqual(insightsNull);
+    expect(Object.keys(insightsNull.heroes)).toContain("x.sample.hero");
   });
 });

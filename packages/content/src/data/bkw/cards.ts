@@ -637,6 +637,7 @@ export const BKW_CARDS: readonly AnyCard[] = [
     atk: 0,
     sch: 0,
     hp: 4,
+    statStars: ["atk", "sch"],
     encounterSetIds: [encounterSetId("black_widow_nemesis")],
     boostIcons: 0,
     starIcon: true,

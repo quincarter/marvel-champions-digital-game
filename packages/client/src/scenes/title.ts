@@ -23,7 +23,8 @@ import { cssOf, skin, textStyle } from "../ui/theme.js";
 import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
 import { playPlatformMarkOf, playPlatformSlotIn } from "../view/play-platform-mark.js";
 import { McButton, fitText, paintDotGrid } from "../ui/widgets.js";
-import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { TITLE_ART, coverFit, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
+import { drawnDensity } from "../platform/screen-settings.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
@@ -113,6 +114,7 @@ import { musicSlotBeside } from "../view/music-player.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import { themeSlotBeside } from "../view/theme-button.js";
 import { drawStoreIconButton } from "../ui/store-icon.js";
+import { drawDiscordIconButton, type DiscordIconButton } from "../ui/discord-icon.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
 import { drawReleaseNoticeBar } from "../ui/release-notice-bar.js";
@@ -184,6 +186,8 @@ export class TitleScene extends Phaser.Scene {
   /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
   #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
+  /** The top row's Discord icon (tablet/desktop), for its focus label; rebuilt with the screen. */
+  #discordIcon: DiscordIconButton | null = null;
 
   constructor() {
     super(SCENES.title);
@@ -277,7 +281,10 @@ export class TitleScene extends Phaser.Scene {
       // The whole icon row beside the menu, not just the note and the bug.
       topRow: true,
       // The press glyphs on the top row and the notice bar show on the focused stop.
-      onFocusChange: () => this.#hints?.refresh(),
+      onFocusChange: () => {
+        this.#hints?.refresh();
+        this.#discordIcon?.setFocused(this.#route?.focused === "chrome:discord");
+      },
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.settings) ||
@@ -314,7 +321,7 @@ export class TitleScene extends Phaser.Scene {
     this.#starting = false;
     this.#rankUp = null;
     // The picture the last visit already loaded for this one, so it is there when the screen fades in.
-    this.#art = nextTitleArt ?? pickTitleArt(TITLE_ART, lastTitleArtKey);
+    this.#art = nextTitleArt ?? this.#pickArt();
     lastTitleArtKey = this.#art?.key ?? null;
     nextTitleArt = null;
     appSession().music?.playTitle();
@@ -455,6 +462,7 @@ export class TitleScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#discordIcon = null;
     destroyChildren(this);
     this.#hints?.reset();
 
@@ -531,7 +539,7 @@ export class TitleScene extends Phaser.Scene {
     const textColor = onDark ? surface.paper.hex : surface.ink.hex;
     const menuKind = onDark ? "onInk" : "secondary";
 
-    this.add
+    const eyebrowText = this.add
       .text(layout.eyebrow.x, layout.eyebrow.y, t("title.eyebrow"), textStyle(typeRole.label, accent.heroRed.hex, 1))
       .setLetterSpacing(1);
     this.add
@@ -861,12 +869,22 @@ export class TitleScene extends Phaser.Scene {
     onTap(releaseZone, releaseNotes, "title:release-notes");
     this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
 
+    // The Discord icon's slot in the top row (#759), left of the storefront on a tablet or desktop and, on a phone, left of
+    // the theme button where the eyebrow leaves room (its width varies by language); none where it would touch the eyebrow.
+    const topLanguage = languageSlotBeside(musicRect);
+    const topTheme = themeSlotBeside(topLanguage);
+    const discordIconRect = layout.split ? themeSlotBeside(themeSlotBeside(topTheme)) : themeSlotBeside(topTheme);
+    const discordIconFits = discordIconRect.x >= eyebrowText.x + eyebrowText.width + 8;
     // The community Discord, left of Release notes in the same link style; dropped where the footer is too tight to
-    // keep it clear of the card-pool line (Report an issue carries it there too).
+    // keep it clear of the footer's left edge (Report an issue carries it there too).
     const openDiscord = (): void => openExternal(DISCORD_INVITE_URL);
     const discordText = this.add.text(0, layout.footer.y, "Discord ↗", textStyle(typeRole.label, textColor));
     discordText.setX(linkText.x - 24 - discordText.width);
-    const discord = discordText.x - 6 >= coverageText.x + coverageText.width + 8;
+    // The Discord icon in the top row stands in for this link (#759): never both at once.
+    // Where the top row has no room for the icon, the link is the only Discord control, so it wins the footer over the
+    // card-pool line (which is hidden when they would touch).
+    const discord = !discordIconFits && discordText.x - 6 >= layout.footer.x;
+    if (discord && discordText.x - 6 < coverageText.x + coverageText.width + 8) coverageText.setVisible(false);
     if (discord) {
       this.add
         .graphics()
@@ -950,6 +968,16 @@ export class TitleScene extends Phaser.Scene {
         when: () => this.#route?.focused === "chrome:mod-store",
       });
     }
+    // The Discord icon (#759); the footer link stands in for it where the top row has no room.
+    if (discordIconFits) {
+      const discordIcon = drawDiscordIconButton(this, discordIconRect, openDiscord);
+      this.#stops.set("chrome:discord", { rect: discordIconRect, activate: openDiscord });
+      this.#hints?.hang(discordIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
+        ground: onDark ? "ink" : "paper",
+        when: () => this.#route?.focused === "chrome:discord",
+      });
+      this.#discordIcon = discordIcon;
+    }
     for (const [key, rect] of topRow) {
       this.#hints?.hang(rect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
         ground: onDark ? "ink" : "paper",
@@ -974,6 +1002,7 @@ export class TitleScene extends Phaser.Scene {
           gamesRow: layout.gamesRow !== null,
         }),
         "rank-badge",
+        ...(discordIconFits ? ["chrome:discord"] : []),
         ...(storeIconRect ? ["chrome:mod-store"] : []),
       ],
       this.#stops,
@@ -1212,10 +1241,26 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  /** A picture for the art panel at this screen's size and density (`pickTitleArtFor`); the panel is null on a phone. */
+  #pickArt(): TitleArt | null {
+    const { width, height } = this.scale.gameSize;
+    const { artPanel } = titleMenuLayout({
+      width,
+      height,
+      continuable: false,
+      games: 0,
+      update: false,
+      civilWar: false,
+      quit: false,
+      noticeBar: RELEASE_NOTICE_ON,
+    });
+    return pickTitleArtFor(TITLE_ART, titleArtSizeOf, artPanel, drawnDensity(), lastTitleArtKey);
+  }
+
   /** Loads the picture the next visit will show, so coming back to Title doesn't wait on it. */
   #preloadNextArt(): void {
     if (!this.sys.isActive() || nextTitleArt) return;
-    nextTitleArt = pickTitleArt(TITLE_ART, lastTitleArtKey);
+    nextTitleArt = this.#pickArt();
     if (nextTitleArt) ensurePictureLoaded(this, nextTitleArt, () => undefined);
   }
 

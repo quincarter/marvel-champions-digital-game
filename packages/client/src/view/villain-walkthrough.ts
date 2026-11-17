@@ -252,7 +252,22 @@ export interface EncounterTracking {
      * hand-built fixtures, read as known from the start.
      */
     readonly atBeat?: number;
+    /** A surge dealt it (`encounterCardDealt` source `surge`, the engine's own word, never read off the order). */
+    readonly fromSurge?: boolean;
   }[];
+  /** The cards whose surge dealt another card (`surgeTriggered`), in order. Absent in hand-built fixtures. */
+  readonly surged?: readonly InstanceId[];
+  /**
+   * `surged` with the beats that came before each surge, so the strip marks SURGE once the screen has got that far,
+   * not as soon as the card's reveal shows (issue #386's pacing; one command can hold the reveal and a later surge).
+   * Absent in hand-built fixtures, read as shown with the reveal.
+   */
+  readonly surgedAt?: readonly { readonly instanceId: InstanceId; readonly atBeat: number }[];
+  /**
+   * Cards revealed that a surge dealt facedown outside this phase's own deals (the player phase's surge), so the
+   * strip can mark them FROM SURGE although `dealt` has no entry for them. Absent in hand-built fixtures.
+   */
+  readonly surgeRevealed?: readonly InstanceId[];
   /** The cards revealed so far, in order. */
   readonly revealed: readonly {
     readonly instanceId: InstanceId;
@@ -290,6 +305,11 @@ export interface Walkthrough {
   readonly complete: boolean;
   readonly nextBeatId: number;
   /**
+   * Cards a surge dealt that have not been revealed since, folded in event order over every event this saw, in or
+   * out of the villain phase: the log's rule (`LogState.surgeDealt`), so a reveal line reads the same in both.
+   */
+  readonly surgeDealt?: readonly InstanceId[];
+  /**
    * The activation currently being walked, so it survives across the several
    * `appendWalkthrough` calls one activation can span (a defend choice pauses
    * mid-attack; the boosts and the resolution arrive in a later command).
@@ -298,6 +318,16 @@ export interface Walkthrough {
   /** The table at moments of the phase, oldest first (`WalkthroughTable`); empty when the host sent none. */
   readonly tables: readonly WalkthroughTable[];
 }
+
+/**
+ * A walkthrough for a villain phase that opens after the cards a surge dealt earlier (in the player phase, where the
+ * engine deals the card facedown until the phase's reveal step): seeded with the log's marks so their reveal beats read
+ * "(from surge)" as the log's lines do.
+ */
+export const walkthroughSeededFrom = (round: number, surgeDealt: readonly InstanceId[] | undefined): Walkthrough => ({
+  ...emptyWalkthrough(round),
+  ...(surgeDealt && surgeDealt.length > 0 ? { surgeDealt: [...surgeDealt] } : {}),
+});
 
 export const emptyWalkthrough = (round: number): Walkthrough => ({
   round,
@@ -344,6 +374,14 @@ export function appendWalkthrough(
   let startsActivation = false;
   let dealt = [...working.encounter.dealt];
   let revealed = [...working.encounter.revealed];
+  let surged = [...(working.encounter.surged ?? [])];
+  let surgedAt = [...(working.encounter.surgedAt ?? [])];
+  let surgeRevealedIds = [...(working.encounter.surgeRevealed ?? [])];
+  const surgeDealt = [...(working.surgeDealt ?? [])];
+  const unmark = (id: InstanceId): void => {
+    const i = surgeDealt.indexOf(id);
+    if (i >= 0) surgeDealt.splice(i, 1);
+  };
   /**
    * The round this phase belongs to, frozen when the phase starts.
    *
@@ -400,6 +438,18 @@ export function appendWalkthrough(
   };
 
   for (const [at, event] of events.entries()) {
+    // The log's event-order rule, before any phase check: a card a surge dealt outside the villain phase waits
+    // facedown until its reveal, and that reveal line says so here as it does in the log.
+    if (event.type === "encounterCardDealt") {
+      unmark(event.instanceId);
+      if (event.source === "surge") surgeDealt.push(event.instanceId);
+    }
+    // The log's rule for a surge-dealt card that leaves unrevealed (`appendEvents`).
+    if (event.type === "cardMoved" && (event.to.kind === "encounterDiscard" || event.to.kind === "encounterDeck")) {
+      unmark(event.instanceId);
+    }
+    const surgeRevealed = event.type === "encounterCardRevealed" && surgeDealt.includes(event.instanceId);
+    if (event.type === "encounterCardRevealed") unmark(event.instanceId);
     if (event.type === "roundStarted") {
       liveRound = event.round;
       continue;
@@ -430,6 +480,9 @@ export function appendWalkthrough(
         activation = null;
         dealt = [];
         revealed = [];
+        surged = [];
+        surgedAt = [];
+        surgeRevealedIds = [];
         tables = [];
       }
       activeIndex = stepIndex;
@@ -469,8 +522,20 @@ export function appendWalkthrough(
           });
         }
         break;
+      case "encounterCardDealt":
+        if (event.source === "surge") {
+          let at = dealt.length - 1;
+          while (at >= 0 && dealt[at]!.instanceId !== event.instanceId) at--;
+          if (at >= 0) dealt[at] = { ...dealt[at]!, fromSurge: true };
+        }
+        break;
+      case "surgeTriggered":
+        surged.push(event.instanceId);
+        surgedAt.push({ instanceId: event.instanceId, atBeat: beatCount() });
+        break;
       case "encounterCardRevealed":
         revealed.push({ instanceId: event.instanceId, cardId: event.cardId, playerId: event.playerId });
+        if (surgeRevealed) surgeRevealedIds.push(event.instanceId);
         // Each card starts clean: a finished activation from before it is not this card's. One still resolving keeps
         // going (an attack whose effect reveals a card mid-activation). Only in the reveal step: a card a step-2 effect
         // reveals (a stage's "reveal a card") stays with the activation it follows, as the recap groups it.
@@ -617,7 +682,11 @@ export function appendWalkthrough(
 
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
-    const described = logLine(event, state, viewer, deps, false, undefined, { events, at });
+    const described = logLine(event, state, viewer, deps, false, undefined, {
+      events,
+      at,
+      surgeDealt: surgeRevealed && event.type === "encounterCardRevealed" ? [event.instanceId] : surgeDealt,
+    });
     if (described) {
       push(beatTextWithStatus(described), null, event);
       startsActivation = false;
@@ -630,6 +699,9 @@ export function appendWalkthrough(
     encounter: {
       dealt,
       revealed,
+      surged,
+      surgedAt,
+      surgeRevealed: surgeRevealedIds,
       current:
         !complete && activeIndex === VILLAIN_STEPS.indexOf("revealEncounterCards") ? (revealed.at(-1) ?? null) : null,
     },
@@ -642,6 +714,7 @@ export function appendWalkthrough(
     pausedAt: complete ? null : pausedAt,
     complete,
     nextBeatId,
+    surgeDealt: surgeDealt.slice(-40),
     activation,
   };
 }

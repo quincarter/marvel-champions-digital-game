@@ -7,11 +7,17 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import { abilityId, trait } from "@mc/content";
-import type { AbilityDefinition, GameState, InstanceId, PlayerId } from "@mc/engine";
+import type { AbilityCost, AbilityDefinition, GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { abilityLabelOf, abilityShortLabelOf, keywordAbilityLabel } from "./ability-label.js";
+import {
+  abilityLabelOf,
+  abilityShortLabelOf,
+  costPhrase,
+  fullCostPhrase,
+  keywordAbilityLabel,
+} from "./ability-label.js";
 import { faceUpName } from "./names.js";
 import { POOL_DEPS } from "../content/pool.js";
 
@@ -258,5 +264,40 @@ describe("an icon token in a printed label", () => {
     const label = abilityShortLabelOf(furyState, player.identity.instanceId, ref, POOL_DEPS);
     expect(label).toBe("★ Gather Intel");
     expect(abilityLabelOf(furyState, player.identity.instanceId, ref, POOL_DEPS)).not.toContain("[star]");
+  });
+});
+
+describe("fullCostPhrase: a cost said in full, or not at all", () => {
+  const pick = (query: object): AbilityCost =>
+    ({ discardCards: { slot: "discarded", query, min: 1, max: 1 } }) as unknown as AbilityCost;
+
+  test("a discard of one card type in play is worded by its type", () => {
+    expect(fullCostPhrase(pick({ categories: ["ally"] }))).toBe("discard an ally you control");
+    expect(fullCostPhrase(pick({ categories: ["upgrade"] }))).toBe("discard an upgrade you control");
+  });
+
+  test("a discard narrowed past its type (a trait, a printed resource) has no full phrase", () => {
+    expect(fullCostPhrase(pick({ categories: ["upgrade"], traits: [trait("TECH")] }))).toBeNull();
+    expect(
+      fullCostPhrase(pick({ categories: ["ally", "upgrade", "support"], printedResources: ["energy"] })),
+    ).toBeNull();
+    // The button's own phrase keeps what it can say and leaves the rest unsaid, as before.
+    expect(costPhrase({ ...pick({ categories: ["upgrade"], traits: [trait("TECH")] }), exhaustSelf: true })).toBe(
+      "exhaust",
+    );
+  });
+
+  test("a cost field with no words of its own (exhausting another card) leaves no full phrase", () => {
+    const cost = { resources: { mental: 1 }, exhaustCards: { slot: "x", query: {}, min: 1 } } as unknown as AbilityCost;
+    expect(costPhrase(cost)).toBe("spend 1 mental");
+    expect(fullCostPhrase(cost)).toBeNull();
+  });
+
+  test("an either-or cost is said only when every branch can be", () => {
+    const spend = { resources: { physical: 1 } } as AbilityCost;
+    expect(fullCostPhrase({ either: [spend, { indirectDamage: 2 } as AbilityCost] })).toBe(
+      "spend 1 physical or take 2 indirect damage",
+    );
+    expect(fullCostPhrase({ either: [spend, pick({ categories: ["upgrade"], traits: [trait("TECH")] })] })).toBeNull();
   });
 });

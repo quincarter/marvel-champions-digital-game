@@ -41,6 +41,15 @@ describe("globalResultOf", () => {
     expect(globalResultOf(meta({ guided: { kind: "tutorial" } as never }), NAMES, ID)).toBeNull();
   });
 
+  test("a Skirmish game and a game with house-rule extra modular sets are not sent", () => {
+    const m = meta();
+    expect(globalResultOf({ ...m, config: { ...m.config, modes: { skirmish: {} } } } as never, NAMES, ID)).toBeNull();
+    expect(
+      globalResultOf({ ...m, config: { ...m.config, houseModularSetIds: ["under_attack"] } }, NAMES, ID),
+    ).toBeNull();
+    expect(globalResultOf({ ...m, config: { ...m.config, houseModularSetIds: [] } }, NAMES, ID)).not.toBeNull();
+  });
+
   test("an older summary, or none, or no seats is null", () => {
     expect(globalResultOf(meta({}, { version: 4 }), NAMES, ID)).toBeNull();
     expect(globalResultOf(meta({}, null), NAMES, ID)).toBeNull();

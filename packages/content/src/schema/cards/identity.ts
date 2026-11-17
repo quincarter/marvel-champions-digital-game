@@ -1,4 +1,4 @@
-import type { CardText, ResourceIconCounts, ResourceIconType, Trait } from "../common.js";
+import type { CardText, ResourceIconCounts, StatStar, ResourceIconType, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { ArtRef, CardId, EncounterSetId, ImageRef } from "../ids.js";
@@ -97,6 +97,8 @@ export interface HeroFace {
   readonly thw: number;
   readonly def: number;
   readonly handSize: number;
+  /** Stats of this hero face that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   /** Keywords are per face (Black Panther's Retaliate 1 is hero-side only). */
   readonly keywords: readonly KeywordInstance[];
   readonly text: CardText;
@@ -118,6 +120,8 @@ export interface AlterEgoFace {
   readonly faceName: string;
   readonly rec: number;
   readonly handSize: number;
+  /** Stats of this alter-ego face that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   readonly keywords: readonly KeywordInstance[];
   readonly text: CardText;
   readonly flavor?: string;

@@ -46,6 +46,12 @@ import type { ModularGridSection } from "./modular-grid-plan.js";
 import type { CompactModularEntry } from "./table-setup-layout.js";
 import { modularPicksAreSetAside } from "./modular-summary.js";
 import { setModularSetIds, setSetAsideModularSetIds, toggleExtraModularSet, type SetupDraft } from "./setup-draft.js";
+import {
+  houseModularAllowed,
+  houseModularSetIdsOf,
+  toggleHouseModularSet,
+  withHouseModularSetIds,
+} from "./house-modular-sets.js";
 
 /** The handful of encounter-card types a modular/required set is actually built from, each with a plural label a card can carry ("7 CARDS · SIDE SCHEMES"). Any other/mixed dominant type (or a set with no cards in this pool) omits the descriptor rather than guessing — PLAN.md's "don't invent copy". */
 const SET_TYPE_LABELS: Readonly<Partial<Record<AnyCard["type"], string>>> = {
@@ -97,6 +103,8 @@ export interface ModularSetOption {
   readonly id: string;
   readonly name: string;
   readonly selected: boolean;
+  /** Chosen beyond the number the scenario calls for (the house rule, #761); it is then also `selected`. */
+  readonly house?: boolean;
   readonly recommended: boolean;
   readonly cardCount: number;
   readonly descriptor: string | null;
@@ -120,6 +128,11 @@ export interface ModularPickerContext {
    * picks.
    */
   readonly campaign?: Pick<Campaign, "name" | "prohibited">;
+  /**
+   * The "Allow extra modular sets" house rule (#761) is on: a set beyond the scenario's count can be added, so a full
+   * pick no longer disables the rest, and the draft's `houseModularSetIds` read as chosen.
+   */
+  readonly allowMore?: boolean;
 }
 
 export interface RequiredEncounterSet {
@@ -255,20 +268,27 @@ export function modularSetOptionsFor(
 ): readonly ModularSetOption[] {
   const scope = context.scope ?? ALL_OPEN;
   const exclusions = context.exclusions ?? MODULAR_SET_EXCLUSIONS;
-  const chosen = new Set(effectiveModularSetIds(draft, scenario));
+  const base = new Set(effectiveModularSetIds(draft, scenario));
+  const allowMore = context.allowMore === true && houseModularAllowed(scenario);
+  const houseIds = allowMore ? houseModularSetIdsOf(draft) : [];
+  const chosen = new Set([...base, ...houseIds]);
   const encounterSets = context.encounterSets ?? currentEncounterSets();
   const setsById = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const scenarioId = scenario.id as string;
   const candidates = modularCandidatesFor(scenario, scope, encounterSets, context.campaign);
-  const atMaxReason = modularAtMaxReason(
-    modularPickRangeFor(scenario, draft.seats.length),
-    candidates.filter((c) => chosen.has(c.id)).length,
-  );
+  // With the house rule on a full pick holds no tile back: the next one is added beyond the count.
+  const atMaxReason = allowMore
+    ? null
+    : modularAtMaxReason(
+        modularPickRangeFor(scenario, draft.seats.length),
+        candidates.filter((c) => chosen.has(c.id)).length,
+      );
   const asOption = (c: (typeof candidates)[number], index: number): ModularSetOption => ({
     kind: "set" as const,
     id: c.id,
     name: setsById.get(c.id) ?? c.id,
     selected: chosen.has(c.id),
+    ...(houseIds.includes(c.id) ? { house: true } : {}),
     recommended: c.recommended,
     cardCount: cardCountForSet(c.id, cardsById),
     // A pack's set says so in words before its dominant card type.
@@ -401,7 +421,11 @@ export function compactModularEntriesFor(
 
 /** The sets (not the Random or extra chips) among `options` that are chosen. */
 export const pickedSetCount = (options: readonly ModularSetOption[]): number =>
-  options.filter((o) => o.kind === "set" && o.selected).length;
+  options.filter((o) => o.kind === "set" && o.selected && o.house !== true).length;
+
+/** The sets among `options` chosen beyond the scenario's count (the house rule, #761). */
+export const houseSetCount = (options: readonly ModularSetOption[]): number =>
+  options.filter((o) => o.kind === "set" && o.house === true).length;
 
 /** The uppercase label line a modular-set card draws under its name (D05: "REQUIRED BY KLAW · 8 CARDS", "CHOSEN · 7 CARDS · SIDE SCHEMES", "7 CARDS · MINION-HEAVY"). Plain text formatting over already-derived real data, not a rule — belongs beside the data it formats so a test can hold the exact wording once. */
 export function requiredCardLabel(villainName: string, cardCount: number): string {
@@ -410,6 +434,7 @@ export function requiredCardLabel(villainName: string, cardCount: number): strin
 
 export function modularCardLabel(
   option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor"> & {
+    readonly house?: boolean;
     readonly kind?: ModularSetOption["kind"];
     readonly disabledReason?: string | null;
   },
@@ -418,7 +443,7 @@ export function modularCardLabel(
   if (option.kind === "random") return option.selected ? "Chosen · drawn when the game is dealt" : "Clears your picks";
   if (option.kind === "extra") return option.selected ? "Chosen · not counted" : "Optional · not counted";
   const base = option.selected
-    ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
+    ? `${option.house ? "Chosen · extra" : "Chosen"} · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
     : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
   return option.descriptor ? `${base} · ${option.descriptor}` : base;
 }
@@ -433,6 +458,8 @@ export function toggleModularSet(
   scenario: Scenario,
   setId: string,
   playerCount: number = draft.seats.length,
+  /** The "Allow extra modular sets" house rule (#761) is on: a set past the count is added beside the picks instead of replacing one. */
+  allowMore = false,
 ): SetupDraft {
   // Mojo sets its picks aside, so they go to the set-aside field; every other scenario's are the modular sets.
   const write = modularPicksAreSetAside(scenario) ? setSetAsideModularSetIds : setModularSetIds;
@@ -445,6 +472,10 @@ export function toggleModularSet(
   const range = modularPickRangeFor(scenario, playerCount);
   const cap = range.max;
   const current = [...effectiveModularSetIds(draft, scenario)];
+  const more = allowMore && houseModularAllowed(scenario);
+  const house = houseModularSetIdsOf(draft);
+  // A set added beyond the count comes back out the same way.
+  if (house.includes(setId)) return toggleHouseModularSet(draft, setId);
   if (!current.includes(setId)) {
     // The other side's sets are never added; a range never rolls the oldest pick out (deselect first to swap).
     if (modularCandidatesFor(scenario).find((c) => c.id === setId)?.disabledReason !== undefined) return draft;
@@ -454,8 +485,11 @@ export function toggleModularSet(
   if (!current.includes(setId) && modularExclusionReason(scenario.id as string, setId) !== null) return draft;
   if (current.includes(setId)) {
     const rest = current.filter((id) => id !== setId);
+    // A pick beyond the count steps into the count rather than leaving the table short.
+    if (more && house.length > 0) return write(withHouseModularSetIds(draft, house.slice(1)), [...rest, house[0]!]);
     return write(draft, scenario.modularSetPool && rest.length === 0 ? null : rest);
   }
+  if (more && current.length >= cap) return toggleHouseModularSet(draft, setId);
   if (cap <= 0) return draft;
   const next = current.length >= cap ? [...current.slice(current.length - cap + 1), setId] : [...current, setId];
   return write(draft, next);

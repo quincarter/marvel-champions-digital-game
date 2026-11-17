@@ -28,6 +28,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 12 },
             atk: 2,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "Toughness\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: Advance the main scheme to stage 2 at the end of the phase.",
               current: "Toughness\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: Advance the main scheme to stage 2 at the end of the phase.",
@@ -132,6 +133,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 18, perPlayer: 0 },
             atk: 2,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] This villain gets +1 ATK for each obligation in play.\nWhen Defeated: Remove the Realm of Rama-Tut from the game. At the end of the phase, join another game area.",
               current: "Toughness.\n[star] This villain gets +1 ATK for each obligation in play.\nWhen Defeated: Remove the Realm of Rama-Tut from the game. At the end of the phase, join another game area.",
@@ -165,6 +167,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 18, perPlayer: 0 },
             atk: 3,
             sch: 0,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] This villain's attack gains piercing.\nWhen Defeated: Remove The Present Future War from the game. At the end of the phase, join another game area.",
               current: "Toughness.\n[star] This villain's attack gains piercing.\nWhen Defeated: Remove The Present Future War from the game. At the end of the phase, join another game area.",
@@ -201,6 +204,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 20 },
             atk: 2,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: The players win the game.",
               current: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: The players win the game.",
@@ -457,6 +461,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/11015.png") },
     attachesTo: { kind: "villain" },
     statModifiers: { atk: 2 },
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 2,
     traits: [trait("TECH"), trait("WEAPON")],
@@ -823,6 +828,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     atk: 1,
     sch: 1,
     hp: 3,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("temporal")],
     boostIcons: 1,
     traits: [trait("SOLDIER"), trait("TEMPORAL")],
@@ -846,6 +852,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     atk: 3,
     sch: 0,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("temporal")],
     boostIcons: 3,
     traits: [trait("CREATURE"), trait("TEMPORAL")],
@@ -898,6 +905,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 15 },
             atk: 3,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: Advance the main scheme to stage 2 at the end of the phase.",
               current: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: Advance the main scheme to stage 2 at the end of the phase.",
@@ -1002,6 +1010,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 22, perPlayer: 0 },
             atk: 3,
             sch: 2,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] This villain gets +1 ATK for each obligation in play.\nWhen Defeated: Remove The Realm of Rama-Tut from the game. At the end of the phase, join another game area.",
               current: "Toughness.\n[star] This villain gets +1 ATK for each obligation in play.\nWhen Defeated: Remove The Realm of Rama-Tut from the game. At the end of the phase, join another game area.",
@@ -1035,6 +1044,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 22, perPlayer: 0 },
             atk: 4,
             sch: 1,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] This villain's attacks gain piercing.\nWhen Defeated: Remove The Present Future War from the game. At the end of the phase, join another game area.",
               current: "Toughness.\n[star] This villain's attacks gain piercing.\nWhen Defeated: Remove The Present Future War from the game. At the end of the phase, join another game area.",
@@ -1071,6 +1081,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
             hp: { base: 0, perPlayer: 25 },
             atk: 3,
             sch: 3,
+            statStars: ["atk"],
             text: {
               printed: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: The players win the game.",
               current: "Toughness.\n[star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack.\nWhen Defeated: The players win the game.",
@@ -1174,6 +1185,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 5,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
     starIcon: true,

@@ -57,7 +57,10 @@ export function draftModes(draft: Pick<SetupDraft, "difficulty" | "heroicLevel" 
 
 /** The offer for the draft's scenario under its difficulty, modes and modular picks; nothing is offered for an unknown id. */
 export function offerOf(
-  draft: Pick<SetupDraft, "scenarioId" | "difficulty" | "modularSetIds" | "civilWar" | "heroicLevel" | "skirmish">,
+  draft: Pick<
+    SetupDraft,
+    "scenarioId" | "difficulty" | "modularSetIds" | "civilWar" | "heroicLevel" | "skirmish" | "houseModularSetIds"
+  >,
 ): PlayableScenarioOffer {
   const modes = draftModes(draft);
   try {
@@ -66,6 +69,10 @@ export function offerOf(
       ...(modes ? { modes } : {}),
       // A pack's set is no base set: the base offer is read as if only the base picks were made.
       ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds.filter((id) => !isPackEncounterSet(id)) } : {}),
+      // The house rule's extras are built as counted sets, so a set-dependent option (Gene Pool threat) follows them.
+      ...(draft.houseModularSetIds?.length
+        ? { houseModularSetIds: draft.houseModularSetIds.filter((id) => !isPackEncounterSet(id)) }
+        : {}),
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
     });
   } catch {

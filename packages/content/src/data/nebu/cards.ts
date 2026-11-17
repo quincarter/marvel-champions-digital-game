@@ -683,6 +683,7 @@ export const NEBU_CARDS: readonly AnyCard[] = [
     atk: 2,
     sch: 2,
     hp: 6,
+    statStars: ["atk"],
     encounterSetIds: [encounterSetId("nebu_nemesis")],
     boostIcons: 3,
     traits: [trait("ELITE"), trait("OUTLAW")],

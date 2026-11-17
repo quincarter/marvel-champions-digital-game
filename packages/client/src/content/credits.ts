@@ -219,7 +219,7 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "hero-villain-art",
     title: "Title screen pictures",
     shownIn: "The Title screen (one at random) and Extras artwork",
-    credit: `Box art, promotional art and wallpapers, among them the Core Set box, the Back to Basics back cover, the Mutant Genesis X-Men, the Rise of Apocalypse and the Spider-Verse team. ${ARTIST_NOT_RECORDED}`,
+    credit: `Box art, promotional art and wallpapers, among them the Core Set box, the Back to Basics back cover, the Mutant Genesis X-Men, the Rise of Apocalypse and the Spider-Verse team. Hercules is by Bruno Frenda (ArtStation); the artists and sources of the others are not recorded yet.`,
     notice: FFG_MARVEL,
     folders: ["art/title"],
     gap: true,
@@ -375,6 +375,17 @@ export const CREDITS: readonly CreditEntry[] = [
     credit:
       "Bangers by Vernon Adams, IBM Plex Mono by IBM, Public Sans by the U.S. Web Design System, all via Fontsource.",
     notice: "SIL Open Font License 1.1.",
+  },
+  {
+    id: "champions-icons",
+    group: "tools",
+    title: "Champions icon font",
+    shownIn: "Attachment chips on the board (removal cost)",
+    credit:
+      "Champions icon font (two versions, ChampionsIcons and ChampionsIcons2), shared by BluefireF5ran (community); " +
+      "source and licence not recorded yet.",
+    notice: "Source and licence not recorded.",
+    gap: true,
   },
 ];
 
