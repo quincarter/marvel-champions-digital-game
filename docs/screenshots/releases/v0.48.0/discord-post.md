@@ -1,4 +1,4 @@
-**Marvel Champions: Digital Edition v0.48.0: Eighteen Asks, Answered** 🃏
+**Marvel Champions: Digital Edition v0.48.0: With Great Reports Comes Great Patching** 🃏
 
 bluefireF5ran sent eighteen ideas, and every one of them is in this release.
 
@@ -19,7 +19,7 @@ Thank you, bluefireF5ran, and everyone who played and reported!
 
 🇪🇸 **Español**
 
-**Marvel Champions: Digital Edition v0.48.0: dieciocho pedidos, cumplidos** 🃏
+**Marvel Champions: Digital Edition v0.48.0: grandes reportes conllevan grandes parches** 🃏
 
 bluefireF5ran envió dieciocho ideas, y todas están en esta versión.
 
