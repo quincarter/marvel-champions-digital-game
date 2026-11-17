@@ -8,6 +8,17 @@ import { trackPageErrors } from "./helpers.js";
  */
 
 const RELEASES = readdirSync(new URL("../../../.changes/", import.meta.url)).filter((f) => /^v[\d.]+\.md$/.test(f));
+const newestFirst = (a: string, b: string): number => {
+  const [x, y] = [a, b].map((v) => v.replace(/^v/, "").split(".").map(Number));
+  return y![0]! - x![0]! || y![1]! - x![1]! || y![2]! - x![2]!;
+};
+/** Every release, newest first. Specs that need a release in the list of the latest pick by place, not by name. */
+const VERSIONS = RELEASES.map((f) => f.replace(/\.md$/, "")).sort(newestFirst);
+/** The newest release with a report and notes: always in the list of the latest, whatever ships next. */
+const NEWEST_REPORT = readdirSync(new URL("../public/releases/", import.meta.url))
+  .filter((f) => VERSIONS.includes(f))
+  .sort(newestFirst)[0]!;
+const OLDER_THAN_NEWEST_REPORT = VERSIONS[VERSIONS.indexOf(NEWEST_REPORT) + 1]!;
 const PAGE = "/releases/index.html";
 
 const LATEST_RELEASE = "https://api.github.com/**/releases/latest";
@@ -165,7 +176,7 @@ test("a release GitHub knows that this build does not links to GitHub", async ({
   const link = page.locator("main a");
   await expect(link).toHaveAttribute("href", /\/releases\/tag\/v9\.9\.9$/);
   await expect(page.locator("main")).toContainText("v9.9.9 isn't in this page yet");
-  await expect(page.locator(".rail a[data-version='v0.40.0']")).toHaveCount(1);
+  await expect(page.locator(`.rail a[data-version='${VERSIONS[0]}']`)).toHaveCount(1);
   await expect(page.locator(".pager")).toHaveCount(0);
 });
 
@@ -326,7 +337,8 @@ test("a controller walks the releases, with its own glyphs", async ({ page }, in
 test("a controller reaches a report's links, and a pager press keeps it on the page", async ({ page }, info) => {
   test.skip(info.project.name === "phone", "the same stops as desktop, in one column");
   await installPad(page, "Xbox 360 Controller (XInput STANDARD GAMEPAD)");
-  await page.goto(`${PAGE}#v0.40.0`);
+  // A release from the list of the latest: an older one's page starts with the way back to the older releases.
+  await page.goto(`${PAGE}#${NEWEST_REPORT}`);
   await expect(page.locator("#report h1")).toBeVisible();
   await press(page, RIGHT);
   expect(await focusedText(page)).toContain("Open on its own page");
@@ -340,7 +352,7 @@ test("a controller reaches a report's links, and a pager press keeps it on the p
   // A press on the pager replaces the page; the next press stays in it.
   await page.locator(".pager a.older").focus();
   await press(page, A);
-  await expect(page).toHaveURL(/#v0\.39\.0$/);
+  await expect(page).toHaveURL((url) => url.hash === `#${OLDER_THAN_NEWEST_REPORT}`);
   await expect(page.locator("main")).toBeFocused();
   await press(page, DOWN);
   expect(await page.evaluate(() => document.querySelector("main")!.contains(document.activeElement))).toBe(true);
