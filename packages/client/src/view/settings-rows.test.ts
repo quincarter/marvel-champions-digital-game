@@ -85,6 +85,7 @@ const BASE: Settings = {
   cardHoverScale: "2.5x",
   inspectCard: "large",
   cardSize: "standard",
+  largeSchemes: false,
   playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -148,6 +149,7 @@ describe("settingsRowInfoOf", () => {
       cardHoverScale: "2.5x",
       inspectCard: "large",
       cardSize: "standard",
+      largeSchemes: false,
       playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -196,6 +198,14 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(true);
     expect(rows.find((r) => r.id === "not-offered-notices")?.on).toBe(true);
     expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(true);
+  });
+
+  test("Large schemes is off by default and its toggle turns it on and back off", () => {
+    expect(settingsRowInfoOf(BASE).find((r) => r.id === "large-schemes")?.on).toBe(false);
+    const on = nextSettingsAfterToggle(BASE, "large-schemes", 1);
+    expect(on.largeSchemes).toBe(true);
+    expect(settingsRowInfoOf(on).find((r) => r.id === "large-schemes")?.on).toBe(true);
+    expect(nextSettingsAfterToggle(on, "large-schemes", 1).largeSchemes).toBe(false);
   });
 
   test("sound is available with no unavailable reason", () => {

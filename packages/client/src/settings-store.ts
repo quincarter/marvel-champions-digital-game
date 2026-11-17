@@ -70,6 +70,7 @@ const BOOLEAN_FIELDS = [
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
+  "largeSchemes",
   "ultronDroneArt",
   "fadedCampaignArt",
   "promoArtOn",

@@ -191,6 +191,145 @@ export function schemeListLayout(rect: Rect, input: SchemeListInput): SchemeList
   return { rows, viewport, heights, scrolls: sum(heights) > viewport.height };
 }
 
+/**
+ * How a row draws its card under the Large schemes setting: "beside" keeps the text and meter in a column on the right
+ * of a large card (a wide panel), "above" puts the card across the row with the text and meter under it (a narrow one).
+ * `cardWidth` is the card's drawn width; its height is that times `SCHEME_CARD_ASPECT`.
+ */
+export interface LargeSchemeShape {
+  readonly mode: "beside" | "above";
+  readonly cardWidth: number;
+}
+
+/** A scheme card's height over its width: the printed card is sideways, 3.5 wide by 2.5 tall. */
+export const SCHEME_CARD_ASPECT = 2.5 / 3.5;
+/** The narrowest text column beside a large card: the name, the subtitle and a meter that still reads. */
+export const LARGE_TEXT_MIN_WIDTH = 170;
+/**
+ * The room under an "above" card for the subtitle and the meter (the name is printed on the card right above). The
+ * lines a scheme adds (counters, an ability, tucked cards, area notes) come on top, as `infoExtra`.
+ */
+export const LARGE_INFO_HEIGHT = 52;
+/** No large scheme card is drawn wider than this, however big the panel: about the hover popover's own size. */
+export const LARGE_CARD_MAX_WIDTH = 560;
+/** The frame inset around the card and the gap and rule between it and the text column (`schemes.ts`). */
+const LARGE_ART_INSET = 3;
+/** How much of the next large scheme shows under a whole one. */
+const LARGE_PEEK_HEIGHT = 36;
+const LARGE_BESIDE_GUTTER = 8 + 6 + 8;
+
+export interface LargeSchemeListLayout extends SchemeListLayout {
+  readonly shape: LargeSchemeShape;
+}
+
+/**
+ * The Large schemes setting's rows (the owner, 2026-11-17, from a player's request): every scheme, main and side alike,
+ * drawn as a large card the way the hover popover shows it, without hovering. The table's own layout never changes for
+ * it, so the table never scrolls: each row is sized so one whole row fits the panel, and when they don't all fit the
+ * list scrolls inside the panel, mains first (nothing is pinned, since a pinned large main scheme would leave no room).
+ *
+ * The card goes beside the text column where that gives the larger card, else above the text.
+ */
+export function largeSchemeListLayout(
+  rect: Rect,
+  input: {
+    readonly mains: number;
+    readonly sides: number;
+    /** Pixels the tallest scheme's own lines need under an "above" card (`LARGE_INFO_HEIGHT`). */
+    readonly infoExtra?: number;
+  },
+): LargeSchemeListLayout {
+  const pad = SCHEME_PANEL_PADDING;
+  const gap = SCHEME_ROW_GAP;
+  const width = rect.width - pad * 2;
+  const inner = rect.height - pad * 2;
+  const info = LARGE_INFO_HEIGHT + (input.infoExtra ?? 0);
+  const inset = LARGE_ART_INSET * 2;
+  const total = input.mains + input.sides;
+  // With more than one scheme the row leaves a peek of the next under it, so the panel reads as a list to scroll.
+  const room = total > 1 ? inner - gap - LARGE_PEEK_HEIGHT : inner;
+
+  // Beside: the card is as tall as the panel allows, narrowed until the text column keeps its minimum width.
+  const besideWidth = Math.max(
+    0,
+    Math.min((room - inset) / SCHEME_CARD_ASPECT, width - LARGE_BESIDE_GUTTER - LARGE_TEXT_MIN_WIDTH),
+  );
+  // Above: the card spans the row, shortened until the text under it still fits the panel.
+  const aboveWidth = Math.max(0, Math.min(width - inset, (room - inset - info) / SCHEME_CARD_ASPECT));
+  const mode = besideWidth >= aboveWidth ? "beside" : "above";
+  const cardWidth = Math.floor(Math.min(LARGE_CARD_MAX_WIDTH, mode === "beside" ? besideWidth : aboveWidth));
+  const cardHeight = Math.round(cardWidth * SCHEME_CARD_ASPECT);
+  const rowHeight = mode === "beside" ? cardHeight + inset : cardHeight + inset + info;
+  const shape: LargeSchemeShape = { mode, cardWidth };
+
+  const x = rect.x + pad;
+  const rows: SchemeRowSlot[] = [];
+  if (total * rowHeight + gap * Math.max(0, total - 1) <= inner) {
+    let y = rect.y + pad;
+    for (let index = 0; index < total; index++) {
+      const kind = index < input.mains ? "main" : "side";
+      rows.push({ index, kind, pinned: true, rect: { x, y, width, height: rowHeight }, scrollIndex: -1 });
+      y += rowHeight + gap;
+    }
+    return { rows, viewport: null, heights: [], scrolls: false, shape };
+  }
+
+  const viewport: Rect = {
+    x: rect.x + 1,
+    y: rect.y + VIEWPORT_EDGE,
+    width: rect.width - 2,
+    height: rect.height - VIEWPORT_EDGE * 2,
+  };
+  const firstTop = rect.y + pad;
+  const heights: number[] = [];
+  let y = firstTop;
+  for (let index = 0; index < total; index++) {
+    const kind = index < input.mains ? "main" : "side";
+    rows.push({ index, kind, pinned: false, rect: { x, y, width, height: rowHeight }, scrollIndex: index });
+    const lead = index === 0 ? firstTop - viewport.y : 0;
+    const trail = index === total - 1 ? pad - VIEWPORT_EDGE : gap;
+    heights.push(lead + rowHeight + trail);
+    y += rowHeight + gap;
+  }
+  return { rows, viewport, heights, scrolls: sum(heights) > viewport.height, shape };
+}
+
+/**
+ * Where a scheme row's card and its text go: the card in a column on the left (the usual row, and a large "beside"
+ * row) or across the top (a large "above" row), and the text, the notes and the meter in what is left.
+ * `art` is null for a row too narrow for a card.
+ */
+export function schemeRowGeometry(
+  rect: Rect,
+  artWidth: number,
+  large: LargeSchemeShape | null = null,
+): { readonly art: Rect | null; readonly text: Rect; readonly above: boolean } {
+  if (large?.mode === "above") {
+    const cardHeight = Math.round(large.cardWidth * SCHEME_CARD_ASPECT);
+    const art: Rect = {
+      x: rect.x + Math.max(LARGE_ART_INSET, Math.round((rect.width - large.cardWidth) / 2)),
+      y: rect.y + LARGE_ART_INSET,
+      width: large.cardWidth,
+      height: cardHeight,
+    };
+    const top = art.y + art.height + 3;
+    return {
+      art,
+      text: { x: rect.x + 8, y: top, width: rect.width - 16, height: rect.y + rect.height - top },
+      above: true,
+    };
+  }
+  const width = large ? large.cardWidth : artWidth;
+  const art: Rect | null =
+    width > 0 ? { x: rect.x + LARGE_ART_INSET, y: rect.y + LARGE_ART_INSET, width, height: rect.height - 6 } : null;
+  const left = rect.x + 8 + (width > 0 ? width + 6 : 0);
+  return {
+    art,
+    text: { x: left, y: rect.y, width: rect.x + rect.width - 8 - left, height: rect.height },
+    above: false,
+  };
+}
+
 /** `rect` as it is drawn with the list scrolled by `offset`, clipped to `viewport`; null when none of it shows. */
 export function visibleSlice(rect: Rect, offset: number, viewport: Rect): Rect | null {
   const top = Math.max(rect.y - offset, viewport.y);

@@ -4,7 +4,8 @@
  *
  * Where the rows go is `view/scheme-list-layout.ts`'s decision. When they do not all fit the panel the main scheme
  * stays pinned at the top and the side schemes scroll under it in a clipped region (wheel, drag or touch, and
- * keyboard focus brings a scheme into view), so a row is never drawn outside the panel.
+ * keyboard focus brings a scheme into view), so a row is never drawn outside the panel. Under the Large schemes
+ * setting (`largeSchemeListLayout`) every scheme is a large card and the whole list scrolls, mains included.
  */
 
 import { cardRectInRow } from "../../view/card-hover.js";
@@ -16,7 +17,15 @@ import { textStyle } from "../../ui/theme.js";
 import { fitWrapped, label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
 import { counterNote, scenarioAreaTag, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
-import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
+import {
+  fullyVisible,
+  largeSchemeListLayout,
+  schemeListLayout,
+  schemeRowGeometry,
+  visibleSlice,
+  type LargeSchemeShape,
+  type SchemeListLayout,
+} from "../../view/scheme-list-layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { threatFromValue } from "../../view/threat-motion.js";
 import { drawFootStrip } from "./character-panel.js";
@@ -46,22 +55,43 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 
   // Tower Defense's own second main scheme is drawn like the first, pinned above the side schemes.
   const all = [model.mainScheme, ...model.extraMainSchemes, ...model.sideSchemes];
-  const list = schemeListLayout(rect, {
+  const counts = {
     mains: 1 + model.extraMainSchemes.length,
     sides: model.sideSchemes.length,
-    tabbed: ctx.tabbed,
-    scale: ctx.cardScale,
     // Room for the scenario area lines (`SchemeAreaNote`) between the subtitle and the meter.
     mainExtra: (model.mainScheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3),
-  });
+  };
+  // Large schemes: every scheme as a large card, scrolling inside this panel; the table's layout is the same either way.
+  const large = ctx.largeSchemes
+    ? largeSchemeListLayout(rect, {
+        mains: counts.mains,
+        sides: counts.sides,
+        infoExtra: Math.max(...all.map((scheme) => largeInfoExtra(ctx, scheme))),
+      })
+    : null;
+  const list = large ?? schemeListLayout(rect, { ...counts, tabbed: ctx.tabbed, scale: ctx.cardScale });
+  const shape = large?.shape ?? null;
 
   const scrolling = list.rows.filter((row) => !row.pinned);
   if (!list.viewport || !list.scrolls || scrolling.length === 0) {
-    for (const row of list.rows) drawScheme(ctx, row.rect, all[row.index]!);
+    for (const row of list.rows) drawScheme(ctx, row.rect, all[row.index]!, shape);
     return;
   }
-  for (const row of list.rows) if (row.pinned) drawScheme(ctx, row.rect, all[row.index]!);
-  drawScrollingRows(ctx, list, list.viewport, all);
+  for (const row of list.rows) if (row.pinned) drawScheme(ctx, row.rect, all[row.index]!, shape);
+  drawScrollingRows(ctx, list, list.viewport, all, shape);
+}
+
+/**
+ * The lines a scheme draws between its subtitle and its meter (counters, area notes, tucked cards, a printed ability),
+ * as the room they take under a large card drawn above its text, so the setting never hides one of them.
+ */
+function largeInfoExtra(ctx: BoardDrawContext, scheme: SchemePanel): number {
+  let extra = 0;
+  if (counterNote(scheme.counters)) extra += 14;
+  extra += (scheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3);
+  if (scheme.tuckedCount > 0 && scheme.tuckedLabel) extra += (scheme.targetNote ? 14 : 0) + FOOT_STRIP_HEIGHT + 3;
+  if (ctx.controller.abilityLine(scheme.instanceId)) extra += FOOT_STRIP_HEIGHT + 2;
+  return extra;
 }
 
 /** The rows that scroll: drawn once at scroll 0 into a clipped region that moves them, with a hint at a cut edge. */
@@ -70,6 +100,7 @@ function drawScrollingRows(
   list: SchemeListLayout,
   viewport: Rect,
   all: readonly SchemePanel[],
+  shape: LargeSchemeShape | null,
 ): void {
   const { scene, schemeScroll: state } = ctx;
   const rows = list.rows.filter((row) => !row.pinned);
@@ -123,7 +154,7 @@ function drawScrollingRows(
   ctx.frame.regions.push(region);
   if (list.heights.reduce((sum, height) => sum + height, 0) > viewport.height) ctx.frame.innerScroll.push(viewport);
   const before = scene.children.list.length;
-  for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!);
+  for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!, shape);
   region.content.add(scene.children.list.slice(before));
   hint = drawScrollHint(ctx, viewport, list.heights);
   region.syncInteractivity();
@@ -185,20 +216,19 @@ export function schemeArtWidth(rect: Rect, cardScale = 1): number {
   return Math.round(Math.min(Math.max(96, shaped), rect.width * (grown ? 0.5 : 0.3)));
 }
 
-export function schemeMeterRect(rect: Rect, cardScale = 1): Rect {
-  const artWidth = schemeArtWidth(rect, cardScale);
-  const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
-  const textWidth = rect.x + rect.width - 8 - textLeft;
+/** `large`: the Large schemes setting's card shape for this row (`largeSchemeListLayout`), null for the usual row. */
+export function schemeMeterRect(rect: Rect, cardScale = 1, large: LargeSchemeShape | null = null): Rect {
+  const { text } = schemeRowGeometry(rect, schemeArtWidth(rect, cardScale), large);
   // A short row (a side scheme at 52px) keeps a slimmer meter so its name and "SIDE SCHEME · WRECKER" stay above it.
-  if (schemeRowIsCompact(rect, cardScale)) {
+  if (!large && schemeRowIsCompact(rect, cardScale)) {
     return {
-      x: textLeft,
+      x: text.x,
       y: rect.y + rect.height - COMPACT_METER_HEIGHT - 4,
-      width: textWidth,
+      width: text.width,
       height: COMPACT_METER_HEIGHT,
     };
   }
-  return { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+  return { x: text.x, y: rect.y + rect.height - 26, width: text.width, height: 18 };
 }
 
 /** The slim meter of a compact row. */
@@ -214,7 +244,12 @@ export function schemeRowIsCompact(rect: Rect, cardScale = 1): boolean {
  * sits in a column on the left with a 3px rule beside it, which is how the
  * Long Table canvas frames a scheme. Returns the bottom edge it drew to.
  */
-export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
+export function drawScheme(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  scheme: SchemePanel,
+  large: LargeSchemeShape | null = null,
+): number {
   const { scene } = ctx;
   const selection = ctx.controller.selection;
   ctx.frame.hitRects.set(scheme.instanceId, rect);
@@ -226,14 +261,20 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // beside it. The old threshold was tuned for the long table and silently
   // dropped the main scheme's card on every narrower panel.
   // ...and the column widens with a taller row, so a grown row shows a bigger card, not the same 96px one.
+  // Large schemes sizes the card itself, beside the text or above it (`schemeRowGeometry`).
   const artWidth = schemeArtWidth(rect, ctx.cardScale);
-  ctx.frame.hoverSizeRects.set(scheme.instanceId, cardRectInRow(rect, artWidth));
-  if (artWidth > 0) {
-    const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
+  const geometry = schemeRowGeometry(rect, artWidth, large);
+  const { text } = geometry;
+  ctx.frame.hoverSizeRects.set(scheme.instanceId, large && geometry.art ? geometry.art : cardRectInRow(rect, artWidth));
+  if (large) ctx.frame.largeSchemeShapes.set(scheme.instanceId, large);
+  let artDrawn = false;
+  if (geometry.art) {
+    const column = geometry.art;
     const frame = scene.add.graphics();
     frame.fillStyle(surface.parchment.hex, dim).fillRect(column.x, column.y, column.width, column.height);
     const key = ctx.art.request(scene, scheme.art);
-    if (!drawArt(scene, key, column, { alpha: dim, focusY: 0.3 })) {
+    artDrawn = drawArt(scene, key, column, { alpha: dim, focusY: 0.3 }) !== null;
+    if (!artDrawn) {
       label(
         scene,
         column.x + column.width / 2,
@@ -245,21 +286,29 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
       ).setOrigin(0.5);
     }
     const rule = scene.add.graphics();
-    rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
+    // The 3px rule between the card and the text: beside it, or under it for a large card drawn above the text.
+    if (geometry.above)
+      rule.fillStyle(surface.ink.hex, dim).fillRect(rect.x + 3, column.y + column.height, rect.width - 6, 3);
+    else rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
   }
 
-  const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
-  const textWidth = rect.x + rect.width - 8 - textLeft;
-  const meter = schemeMeterRect(rect, ctx.cardScale);
-  const compact = schemeRowIsCompact(rect, ctx.cardScale);
+  const textLeft = text.x;
+  const textWidth = text.width;
+  const meter = schemeMeterRect(rect, ctx.cardScale, large);
+  const compact = !large && schemeRowIsCompact(rect, ctx.cardScale);
   // The name and the subtitle (with whose game area it is in, Kang's per-player areas) stack above the meter: each wraps
   // whole words into the room that is left, and the subtitle starts under however many lines the name took, so a long
   // name never lands on "MAIN SCHEME 2" and the meter never covers "SIDE SCHEME · WRECKER".
   const nameText = scene.add
-    .text(textLeft, rect.y + (compact ? 3 : 6), scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+    .text(textLeft, text.y + (compact ? 3 : 6), scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
     .setWordWrapWidth(textWidth);
-  fitWrapped(nameText, textWidth, rect.height >= 78 * Math.max(1, ctx.cardScale) ? 2 : 1, typeRole.rowTitle.size);
-  const subtitleTop = nameText.y + Math.ceil(nameText.height) + 1;
+  const nameLines = text.height >= 78 * (large ? 1 : Math.max(1, ctx.cardScale)) ? 2 : 1;
+  fitWrapped(nameText, textWidth, nameLines, typeRole.rowTitle.size);
+  // A large card drawn above its text already shows the name, once its scan is up; the subtitle starts the text under
+  // it instead. Until then (or with no scan at all) the name stays, and a line of the subtitle gives way to it.
+  const nameShown = !(geometry.above && artDrawn);
+  if (!nameShown) nameText.setVisible(false);
+  const subtitleTop = nameShown ? nameText.y + Math.ceil(nameText.height) + 1 : text.y + 6;
   const subtitleText = label(
     scene,
     textLeft,
@@ -270,6 +319,8 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
     ink.label * dim,
   );
   fitWrapped(subtitleText, textWidth, meter.y - 1 - subtitleTop >= 26 ? 2 : 1, typeRole.label.size);
+  // The name standing in for a scan not up yet takes the subtitle's line under a large card when both don't fit.
+  if (geometry.above && nameShown && subtitleTop + subtitleText.height > meter.y) subtitleText.setVisible(false);
 
   // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
   // (The Grand Collection's "discard 1 card from The Collection", the Milano's
@@ -279,9 +330,9 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
   // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
   // the tally that drives the scenario is on the table and not only in Inspect.
-  let abilityTop = Math.max(rect.y + 48, subtitleTop + Math.ceil(subtitleText.height) + 2);
+  let abilityTop = Math.max(text.y + (geometry.above ? 0 : 48), subtitleTop + Math.ceil(subtitleText.height) + 2);
   const counterText = counterNote(scheme.counters);
-  if (counterText && abilityTop + 14 <= schemeMeterRect(rect, ctx.cardScale).y - 2) {
+  if (counterText && abilityTop + 14 <= meter.y - 2) {
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
     abilityTop += 14;
   }

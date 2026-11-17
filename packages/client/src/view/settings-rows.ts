@@ -93,6 +93,7 @@ export type SettingsRowId =
   | "deck-boost-average"
   | "hover-hero"
   | "hover-villain"
+  | "large-schemes"
   | "faded-campaign-art"
   | "discord-presence"
   | "custom-unlocked"
@@ -204,6 +205,13 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       title: "Villain card popover",
       detail: "With a mouse, resting on a villain card shows the larger popover. Off leaves villain cards as they are.",
       on: settings.hoverVillainCard,
+    },
+    {
+      id: "large-schemes",
+      title: "Large schemes",
+      detail:
+        "Shows the main scheme and side schemes as large cards on the table, as the hover popover does. The schemes panel scrolls when they don't all fit.",
+      on: settings.largeSchemes,
     },
   ];
 }
@@ -374,6 +382,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverHeroCard: !settings.hoverHeroCard };
     case "hover-villain":
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
+    case "large-schemes":
+      return { ...settings, largeSchemes: !settings.largeSchemes };
     case "faded-campaign-art":
       return { ...settings, fadedCampaignArt: !settings.fadedCampaignArt };
     case "discord-presence":

@@ -167,6 +167,12 @@ export interface Settings {
    * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
    */
   readonly cardSize: CardSize;
+  /**
+   * Large schemes: the main scheme and every side scheme drawn as a large card on the table, the way the hover popover
+   * shows one, without hovering (a player's request, the owner 2026-11-17). Only the schemes panel scrolls when they do
+   * not all fit; the table keeps its layout. Defaults off.
+   */
+  readonly largeSchemes: boolean;
   /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
   readonly playAreaOrder: PlayAreaOrder;
   /**
@@ -515,6 +521,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     villainDockTable: true,
     cardHoverScale: "2.5x",
     cardSize: "standard",
+    largeSchemes: false,
     playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,

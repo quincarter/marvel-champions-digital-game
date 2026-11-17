@@ -169,6 +169,7 @@ import {
 } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
+import type { LargeSchemeShape } from "../view/scheme-list-layout.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
@@ -1649,6 +1650,7 @@ export class BoardScene extends Phaser.Scene {
       marks: this.#controller.readOnly ? null : this.#marks,
       tabbed: layout.tabbed,
       cardScale,
+      largeSchemes: this.#drawnSettings.largeSchemes,
       controller: this.#controller,
       hand: this.#hand,
       schemeScroll: this.#schemeScroll,
@@ -3095,12 +3097,14 @@ export class BoardScene extends Phaser.Scene {
   guideAnchorFrame(): {
     readonly hitRects: ReadonlyMap<InstanceId, Rect>;
     readonly focusRects: ReadonlyMap<string, Rect>;
+    readonly largeSchemeShapes: ReadonlyMap<InstanceId, LargeSchemeShape>;
     readonly mainSchemeInstanceId: InstanceId | null;
   } {
     const game = appSession().store.state.game;
     return {
       hitRects: this.#frame.hitRects,
       focusRects: this.#frame.focusRects,
+      largeSchemeShapes: this.#frame.largeSchemeShapes,
       mainSchemeInstanceId: game?.mainScheme.instanceId ?? null,
     };
   }
