@@ -243,6 +243,21 @@ function hiddenThenName(id: InstanceId, burst: Burst | undefined): string | null
   return role ? facedownRoleName(role) : null;
 }
 
+/**
+ * The printed name of a card that went back into its owner's separate deck in this command instead of leaving play
+ * (Daredevil's Sense upgrades): it was faceup in play a moment ago, so the lines about it
+ * name it, though by the end of the command it sits hidden in the deck ("a facedown card", issue #782's log).
+ */
+function returnedName(id: InstanceId, event: GameEvent, state: GameState, burst: Burst | undefined): string | null {
+  const returned = [event, ...(burst?.events ?? [])].find(
+    (candidate): candidate is Extract<GameEvent, { type: "returnedToSeparateDeck" }> =>
+      // `replaced`: it left play (`landedInSeparateDeck`), so the table saw it faceup. A return without it is a move
+      // from anywhere, a hidden zone included (an eliminated player's dealt encounter cards), and stays unnamed.
+      candidate.type === "returnedToSeparateDeck" && candidate.instanceId === id && candidate.replaced === true,
+  );
+  return returned ? (getCard(state, returned.cardId)?.name ?? null) : null;
+}
+
 /** The command's whole event list and where `event` sits in it: a few lines read the events around them. */
 export interface Burst {
   readonly events: readonly GameEvent[];
@@ -264,7 +279,11 @@ function describe(
   /** "Your deck" vs "Spider-Man's deck": "you" possessive isn't "you's". */
   const possessive = (id: PlayerId): string => (id === viewer ? "Your" : `${who(id)}'s`);
   const card = (id: Parameters<typeof cardName>[1]): string =>
-    faceNames?.get(id) ?? hiddenThenName(id, burst) ?? swappedOutName(state, id, event, burst) ?? cardName(state, id);
+    faceNames?.get(id) ??
+    hiddenThenName(id, burst) ??
+    swappedOutName(state, id, event, burst) ??
+    returnedName(id, event, state, burst) ??
+    cardName(state, id);
 
   switch (event.type) {
     case "roundStarted":
