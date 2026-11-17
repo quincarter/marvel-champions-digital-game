@@ -67,11 +67,36 @@ describe("undoOf with Undo past reveals", () => {
     expect(offer).not.toHaveProperty("revealed");
   });
 
-  test("on, the turn's start and another seat's move still stop it", () => {
+  test("without the rule, the turn's start and another seat's move still stop it", () => {
     const start = entry(command("endTurn", P2), [event("turnStarted", { playerId: P1 })]);
-    expect(undoOf([start], turnOf(P1), P1, PAST)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.nothing });
+    expect(undoOf([start], turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.nothing });
     const theirs = [entry(command("playCard")), entry(command("resolveChoice", P2))];
-    expect(undoOf(theirs, turnOf(P1), P1, PAST)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.otherPlayer });
+    expect(undoOf(theirs, turnOf(P1), P1)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.otherPlayer });
+  });
+
+  test("on, it reaches back through the villain phase: an End turn goes with the phase it led to", () => {
+    // The owner's report (2026-11-17): round 2 begins after both turns and a villain phase full of answers.
+    const trail = [
+      entry(command("resolveChoice", P1)), // mulligans: setup, no move
+      entry(command("resolveChoice", P2)),
+      entry(command("basicAttack", P1)),
+      entry(command("endTurn", P1), [event("turnEnded"), event("turnStarted", { playerId: P2 })]),
+      entry(command("basicAttack", P2)),
+      entry(command("endTurn", P2), [event("turnEnded"), event("stepChanged")]),
+      entry(command("resolveChoice", P1), [event("encounterCardRevealed")]),
+      entry(command("resolveChoice", P2), [event("roundStarted"), event("turnStarted", { playerId: P1 })]),
+    ];
+    expect(undoOf(trail, turnOf(P1), P1, PAST)).toMatchObject({ kind: "available", target: 5, revealed: true });
+    expect(undoTargetsOf(trail, turnOf(P1), P1, PAST)).toEqual([5, 4, 3, 2]);
+  });
+
+  test("on, another seat's move and a Manual adjust can be taken back; setup's mulligans can't", () => {
+    const theirs = [entry(command("playCard")), entry(command("resolveChoice", P2))];
+    expect(undoOf(theirs, turnOf(P1), P1, PAST)).toMatchObject({ kind: "available", target: 0, revealed: true });
+    const adjusted = [entry(command("basicThwart")), entry(command("adjust"), [event("manualAdjustment")])];
+    expect(undoOf(adjusted, turnOf(P1), P1, PAST)).toMatchObject({ kind: "available", target: 1, revealed: true });
+    const setup = [entry(command("resolveChoice", P1)), entry(command("resolveChoice", P2))];
+    expect(undoOf(setup, turnOf(P1), P1, PAST)).toEqual({ kind: "unavailable", reason: UNDO_REASONS.nothing });
   });
 
   test("Jump to a moment reaches past a reveal only with the rule on, and marks which steps were reveals", () => {

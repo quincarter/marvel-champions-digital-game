@@ -17,13 +17,13 @@
  *   discarded at random), can't be taken back, and so neither can anything before it: the player keeps what they
  *   learned and can't undo to fish for a better draw or re-roll a random pick by playing in another order.
  *
- * Undo past reveals (issue #791; `UndoRules.pastReveals`, which the board always passes) lifts only the third line: a
- * move that drew, revealed or picked at random can be taken back too, and the offer says so (`revealed`), so the board
- * first warns that the game will stop counting toward stats and achievements and, once the player acknowledges it,
- * marks the game adjusted (`SaveMeta.adjusted`). It lifts every event stop of that line, not only reveals: a move with
- * another seat's cost share or a shared (pod) event in it can be taken back the same way. The turn's start and another
- * seat's own commands still stop it. The rewind replays the stored log, the seed's draws included, so the
- * same move made again draws the same card: it puts a misplay right, it can't fish for a better draw.
+ * Undo past reveals (issue #791; `UndoRules.pastReveals`, which the board always passes) lifts all three lines once
+ * the ordinary Undo has nothing to offer: it takes back the last move whatever it was, a draw, a reveal, another seat's
+ * turn or the villain phase included (an End turn is taken back with the villain phase it led to), one move per press,
+ * back to the first move of the game. Such an offer says so (`revealed`), so the board first warns that the game will
+ * stop counting toward stats and achievements and, once the player acknowledges it, marks the game adjusted
+ * (`SaveMeta.adjusted`). The rewind replays the stored log, the seed's draws included, so the same move made again
+ * draws the same card: it puts a misplay right, it can't fish for a better draw.
  *
  * Randomness: the store records the engine's RNG draw count (`GameState.rng.draws`) around every command
  * (`BackOutTrailEntry.rngDraws`); a move whose count moved used the generator, whatever events it produced. The event
@@ -438,24 +438,36 @@ export function undoOf(
   while (cursor > 0 && trail[cursor - 1]!.command.type === "resolveChoice") cursor -= 1;
   const start = cursor - 1;
   const opening = trail[start];
-  if (!opening || !MOVE_COMMAND_TYPES.has(opening.command.type)) {
-    // The trail reaches back to whatever began this turn (the last turn's End turn, the villain phase), or to a
-    // resume with nothing played since.
-    return { kind: "unavailable", reason: UNDO_REASONS.nothing };
-  }
-  const move = trail.slice(start);
-  if (move.some((entry) => entry.playerId !== perspectiveId)) {
-    return { kind: "unavailable", reason: UNDO_REASONS.otherPlayer };
-  }
-  if (move.some((entry) => entry.events.some((event) => BOUNDARY_EVENT_TYPES.has(event.type)))) {
-    return { kind: "unavailable", reason: UNDO_REASONS.boundary };
-  }
-  if (!isSafeToRewind(move, perspectiveId)) {
-    if (!rules.pastReveals) return { kind: "unavailable", reason: UNDO_REASONS.revealed };
-    return { kind: "available", target: start, command: opening.command, revealed: true };
-  }
-  return { kind: "available", target: start, command: opening.command };
+  const strict = ((): UndoOffer => {
+    if (!opening || !MOVE_COMMAND_TYPES.has(opening.command.type)) {
+      // The trail reaches back to whatever began this turn (the last turn's End turn, the villain phase), or to a
+      // resume with nothing played since.
+      return { kind: "unavailable", reason: UNDO_REASONS.nothing };
+    }
+    const move = trail.slice(start);
+    if (move.some((entry) => entry.playerId !== perspectiveId)) {
+      return { kind: "unavailable", reason: UNDO_REASONS.otherPlayer };
+    }
+    if (move.some((entry) => entry.events.some((event) => BOUNDARY_EVENT_TYPES.has(event.type)))) {
+      return { kind: "unavailable", reason: UNDO_REASONS.boundary };
+    }
+    if (!isSafeToRewind(move, perspectiveId)) return { kind: "unavailable", reason: UNDO_REASONS.revealed };
+    return { kind: "available", target: start, command: opening.command };
+  })();
+  if (strict.kind === "available" || !rules.pastReveals) return strict;
+  // Undo past reveals (issue #791, the owner 2026-11-17): back through anything, a turn's start, the villain phase
+  // and another seat's turn included, one move at a time. A move here is the command that began it (a play, an
+  // ability, a basic power, a change of form, an End turn, a Manual adjust) and every answer after it, so taking back
+  // an End turn takes back the villain phase it led to. Setup's own answers (mulligans) begin no move: Undo stops there.
+  let back = trail.length - 1;
+  while (back >= 0 && !PAST_REVEALS_OPENINGS.has(trail[back]!.command.type)) back -= 1;
+  const reached = trail[back];
+  if (!reached) return strict;
+  return { kind: "available", target: back, command: reached.command, revealed: true };
 }
+
+/** The commands that begin a move Undo past reveals can take back (`undoOf`). */
+const PAST_REVEALS_OPENINGS: ReadonlySet<Command["type"]> = new Set([...MOVE_COMMAND_TYPES, "endTurn", "adjust"]);
 
 /** What an undo took back, for the notice that follows it: "played Backflip", "attack", "change of form". */
 export function undoneSummary(command: Command, cardName: (id: InstanceId) => string): string {
