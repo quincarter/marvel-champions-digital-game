@@ -1,4 +1,12 @@
-import { allyLimitFor, characterProfile, hasKeyword, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  allyLimitFor,
+  characterProfile,
+  hasKeyword,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import { CORE_CARDS } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -21,6 +29,7 @@ import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { nebulaScenario } from "./support.js";
 
+const SIDE_SCHEME_IDS = new Set<string>(CORE_CARDS.filter((c) => c.type === "side_scheme").map((c) => c.id));
 const nebulaVsRhino = (seed = 1) => startWave4Game(nebulaScenario("rhino", { seed }));
 const mainSchemeId = (state: GameState): InstanceId => state.mainScheme.instanceId;
 
@@ -509,6 +518,34 @@ describe("One Way or Another (event, 22015)", () => {
     const state = settle(runWith(WAVE4_DEPS, given.state, play(P1, card, [])), firstLegal, undefined, WAVE4_DEPS);
     // -1 played (0-cost, no payment), +3 drawn = net +2.
     expect(playerOf(state, P1).hand.length).toBe(before - 1 + 3);
+  });
+
+  // #795; ruling October 21, 2024, Q29: a search that finds no side scheme has not paid the cost, so no cards.
+  it("22015.one-way-or-another-action: draws nothing when the encounter deck holds no side scheme", () => {
+    const given = moveToHand(runWith(WAVE4_DEPS, nebulaVsRhino(16), toHero()), P1, "22015");
+    const [card] = given.ids as [InstanceId];
+    // The reported case: an encounter deck that still has cards, none of them a side scheme.
+    const deckId = activeEncounterDeckId(given.state);
+    const piles = given.state.encounterDecks[deckId]!;
+    const isSideScheme = (id: InstanceId) => SIDE_SCHEME_IDS.has(given.state.instances[id]!.cardId);
+    const deck = piles.deck.filter((id) => !isSideScheme(id));
+    expect(deck.length).toBeGreaterThan(0);
+    expect(deck.length).toBeLessThan(piles.deck.length);
+    const noSideSchemes: GameState = {
+      ...given.state,
+      encounterDecks: {
+        ...given.state.encounterDecks,
+        [deckId]: { deck, discard: [...piles.discard, ...piles.deck.filter(isSideScheme)] },
+      },
+    };
+    const before = playerOf(noSideSchemes, P1).hand.length;
+    const sideSchemesInPlay = (st: GameState) => st.villainArea.filter((id) => isSideScheme(id)).length;
+    const inPlayBefore = sideSchemesInPlay(noSideSchemes);
+    const state = settle(runWith(WAVE4_DEPS, noSideSchemes, play(P1, card, [])), firstLegal, undefined, WAVE4_DEPS);
+    expect(playerOf(state, P1).hand.length).toBe(before - 1);
+    expect(playerOf(state, P1).discard).toContain(card);
+    expect(state.encounterDecks[deckId]!.deck).toHaveLength(deck.length);
+    expect(sideSchemesInPlay(state)).toBe(inPlayBefore);
   });
 });
 
