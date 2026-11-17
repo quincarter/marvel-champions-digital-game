@@ -100,9 +100,11 @@ export function normalizePlayerCard(
   // positive integer" — defaulted to 1 the same way a unique card is, for the same reason.
   const isLinked = parsed.keywords.some((k) => k.name === "linked");
   const exemptFromDeckLimit = Boolean(separateDeck) || isLinked || (specificTo !== undefined && !r.is_unique);
-  const deckLimit = separateDeck ? 0 : (r.deck_limit ?? (isLinked || r.is_unique || specificTo !== undefined ? 1 : 0));
+  // A curated `Correction.deckLimit` replaces MarvelCDB's `deck_limit` where the scan disagrees (Shawarma, 21183).
+  const rawDeckLimit = p.deckLimit ?? r.deck_limit;
+  const deckLimit = separateDeck ? 0 : (rawDeckLimit ?? (isLinked || r.is_unique || specificTo !== undefined ? 1 : 0));
   if (!exemptFromDeckLimit && (!Number.isInteger(deckLimit) || deckLimit < 1)) {
-    errors.push(`${r.code}: deck_limit ${String(r.deck_limit)} invalid`);
+    errors.push(`${r.code}: deck_limit ${String(rawDeckLimit)} invalid`);
   }
   if (parsed.maxPerDeckText !== undefined && parsed.maxPerDeckText !== deckLimit) {
     errors.push(`${r.code}: text says Max ${parsed.maxPerDeckText} per deck but deck_limit=${deckLimit}`);

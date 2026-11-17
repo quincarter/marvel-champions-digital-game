@@ -155,6 +155,12 @@ export interface Correction {
    */
   readonly quantityInSet?: number;
   /**
+   * Overrides MarvelCDB's `deck_limit` where it disagrees with the card's printed "Max N per deck." (Shawarma, `mts`
+   * 21183, prints "Max 1 per deck."; raw sends no text and `deck_limit: 3`, issue #807). Player cards only; never
+   * errata.
+   */
+  readonly deckLimit?: number;
+  /**
    * The host of an attachment that prints no "Attach to X." sentence at all — its host is established by another
    * card's own effect instead of the ordinary reveal-and-attach rule (wave 4, docs/phase7-wave4.md §1.13): Focused
    * Defense (`mts` 21101) is put into play "attached to this stage" by The Armies of Thanos 2A's own When Revealed;
