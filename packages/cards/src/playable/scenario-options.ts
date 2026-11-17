@@ -465,16 +465,22 @@ export function civilWarGameModes(): readonly GameModeOption[] {
 }
 
 /**
- * What a pack's scenario offers (`playableScenarioWithCustom` builds it): the Standard and Expert set alternatives,
- * under the same rule as a base scenario's (#786), and nothing else; the pack builder refuses every other choice.
+ * What a pack's scenario offers (`playableScenarioWithCustom` builds it): the difficulty choices a base scenario has,
+ * under the same rules (#786): the Standard and Expert set alternatives and skirmish mode (heroic is offered at every
+ * scenario). The pack builder refuses every other choice, so nothing else is offered.
  */
 export function packScenarioOffer(
-  scenario: Pick<Scenario, "standardEncounterSetIds" | "expertEncounterSetIds">,
+  scenario: Pick<
+    Scenario,
+    "standardEncounterSetIds" | "expertEncounterSetIds" | "villainStages" | "multipleVillains" | "villainOptions"
+  > &
+    Pick<Scenario, "victory" | "victoryCondition">,
+  choices: Pick<PlayableScenarioChoices, "difficulty" | "modes"> = {},
 ): PlayableScenarioOffer {
   return {
     difficultySets: difficultySetAlternativesFor(scenario),
     horsemanSides: null,
-    skirmish: null,
+    skirmish: skirmishOffer(scenario, resolveModes(choices.difficulty, choices.modes)),
     easierStart: false,
     genePoolThreat: null,
     modularSetCount: { min: 0, max: 0, problem: null },

@@ -127,12 +127,13 @@ describe("a scenario pack in the pickers", () => {
     expect(modularCandidatesFor(scenario)[0]).toMatchObject({ id: GEARS, recommended: true });
     const draft = draftAt(SCENARIO_ID);
     expect(modularSetOptionsFor(draft, scenario, currentCardsById()).some((o) => o.kind === "extra")).toBe(false);
-    // Skirmish and the easier start are the base scenarios' own: neither is offered.
+    // The easier start is Apocalypse's own: not offered.
     const offer = offerOf(draft);
-    expect(offer.skirmish).toBeNull();
     expect(offer.easierStart).toBe(false);
-    // The plain Standard and Expert sets may be swapped for Standard II / III and Expert II, as at a base scenario (#786).
+    // Every difficulty choice a base scenario has (#786): Standard II / III and Expert II for the plain sets, and
+    // skirmish mode with the villain versions the difficulty uses.
     expect(offer.difficultySets).toEqual({ standard: ["standard_ii", "standard_iii"], expert: ["expert_ii"] });
+    expect(offer.skirmish).toEqual({ versions: ["1", "2"], printed: false });
   });
 
   it("starts the pack's scenario with Standard III in place of the Standard set (#786)", async () => {

@@ -70,11 +70,11 @@ export function offerOf(
       ...(draft.civilWar && draft.civilWar.stageIds.length > 0 ? { mainSchemeStageIds: draft.civilWar.stageIds } : {}),
     });
   } catch {
-    // A pack's scenario is no playable base scenario: its own offer is the Standard and Expert sets only (#786).
+    // A pack's scenario is no playable base scenario: its own offer is the difficulty choices only (#786).
     const pack = isPackScenario(draft.scenarioId)
       ? currentScenarios().find((scenario) => (scenario.id as string) === draft.scenarioId)
       : undefined;
-    return pack ? packScenarioOffer(pack) : NO_OFFER;
+    return pack ? packScenarioOffer(pack, { difficulty: draft.difficulty, ...(modes ? { modes } : {}) }) : NO_OFFER;
   }
 }
 

@@ -166,6 +166,19 @@ describe("sample-scenario pack", () => {
     expect(() => deckOf({ standard: "expert_ii" }, "standard")).toThrow(/not in the standard classification/);
   });
 
+  it("plays the pack scenario in skirmish mode against one villain version, and refuses a version it lacks (#786)", () => {
+    const at = (villainVersion: string) =>
+      scenarioWithPacks(
+        SCENARIO,
+        { players: [{ starterDeckId: PRECON }], seed: 1, modes: { skirmish: { villainVersion } } },
+        [pack],
+      );
+    const config = at("2");
+    expect(config.villainStartStageIndex).toBe(1);
+    expect(config.villainLastStageIndex).toBe(1);
+    expect(() => at("3")).toThrow(/villain version 3 is not one of 1, 2/);
+  });
+
   it("mixes a base and a pack modular set when the scenario takes two, and counts the pack's toward the count", () => {
     expect(() =>
       scenarioWithPacks(
@@ -343,10 +356,12 @@ describe("scenarioWithPacks: refusals and options", () => {
     expect([standard.villainStartStageIndex, standard.villainLastStageIndex]).toEqual([0, 1]);
     expect(standard.difficulty).toBeUndefined();
   });
-  it("carries a heroic level, and refuses skirmish", () => {
+  it("carries a heroic level, and refuses skirmish where the villain deck has one version (expert's [2, 2])", () => {
     expect(scenarioWithPacks(SCENARIO, { ...seat, modes: { heroic: 2 } }, [pack]).heroicLevel).toBe(2);
     expect(() =>
-      scenarioWithPacks(SCENARIO, { ...seat, modes: { skirmish: { villainVersion: "1" } } as never }, [pack]),
+      scenarioWithPacks(SCENARIO, { ...seat, modes: { expert: true, skirmish: { villainVersion: "2" } } as never }, [
+        pack,
+      ]),
     ).toThrow(/no skirmish mode/);
   });
   it("does not offer a scenario's own Standard or Expert set as a modular pick", () => {

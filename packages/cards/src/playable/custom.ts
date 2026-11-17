@@ -38,7 +38,7 @@ import {
   modularPickProblem,
 } from "../modular-pool.js";
 import { playableScenario, playableStarterDeckSetup, type PlayableScenarioOptions } from "./index.js";
-import { checkPlayableDifficultySets } from "./scenario-options.js";
+import { checkPlayableDifficultySets, skirmishOffer } from "./scenario-options.js";
 
 /** What a game takes from custom packs: their cards, encounter sets and scenario records, whole. */
 export interface CustomContent {
@@ -269,7 +269,6 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   if (problems.length > 0) throw new Error(`${scenario.name} cannot be played: ${problems.join("; ")}`);
   const modes = resolveModes(options.difficulty, options.modes);
   if (options.difficulty === "extreme") throw new Error(`${scenario.name}: "extreme" is Breakout's own challenge`);
-  if (modes.skirmish) throw new Error(`${scenario.name} has no skirmish mode`);
   const heroic = modes.heroic ?? 0;
   if (!Number.isInteger(heroic) || heroic < 0) throw new Error(`heroic level ${heroic} is not a whole number`);
   const difficulty = difficultyOf(modes);
@@ -285,7 +284,13 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
     return index;
   };
-  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  // Skirmish mode (RRG 1.8 p. 29) keeps one version of the villain, as at a base scenario (`skirmishOffer`, #786).
+  const skirmish = modes.skirmish ? skirmishOffer(scenario, modes) : null;
+  if (modes.skirmish && !skirmish) throw new Error(`${scenario.name} has no skirmish mode`);
+  const version = modes.skirmish?.villainVersion;
+  if (skirmish && (version === undefined || !skirmish.versions.includes(version)))
+    throw new Error(`${scenario.name}: villain version ${version} is not one of ${skirmish.versions.join(", ")}`);
+  const [firstStage, lastStage] = skirmish ? [Number(version), Number(version)] : scenario.villainStages[difficulty];
   if (options.modularSetIds) checkModularPickCount(scenario, options.modularSetIds);
   const modular = chosenModularSetIds(scenario, options.modularSetIds, sets);
   for (const id of modular) {
@@ -318,7 +323,8 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: [
       ...dealt(encounterCardsOf(ownAndModular, pool)),
-      ...encounterCardsOf(difficultySets, pool),
+      // A set-aside card may come from the Standard or Expert set too (`customScenarioProblems` allows it).
+      ...dealt(encounterCardsOf(difficultySets, pool)),
       ...modularSetupCardIds(modular, pool),
     ],
     ...(setAside.length > 0 ? { setAside } : {}),
