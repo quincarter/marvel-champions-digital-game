@@ -2777,10 +2777,10 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
  * ends" bullet covers only an attack already underway (cf. Metal Shards ruling, rrg-1-0-to-1-4/48-mutant-genesis.md).
  * Owner call (#816): the played event's attack resolves in full.
  *
- * A later attack of an "(attack)" ability whose earlier attack was underway at the elimination (one sharing its
- * `attackOf` root was marked) ends too: the labeled ability is one attack under way (owner ruling Q47), so Berserker
- * Barrage's repeat after its "take 2 damage" eliminated Wolverine is part of the attack that ends (#816 review). Only
- * an attack that begins in a new ability (the event the Claws play) resolves.
+ * Only an attack on the stack at the elimination is marked and ends. A new attack started afterwards resolves, a repeat
+ * of the same "(attack)" ability included: Berserker Barrage's repeat after its "take 2 damage" eliminated Wolverine
+ * (rules expert, #816 review: the FFG Wolverine ruling, rrg-1-0-to-1-4/54-wolverine.md, makes the repeat a new attack,
+ * and owner ruling Q47 does not make it part of the finished first one).
  */
 function attackOfEliminatedResolves(
   state: GameState,
@@ -2790,12 +2790,7 @@ function attackOfEliminatedResolves(
   const owner = state.players.find((player) => player.identity.instanceId === attack.attackerInstanceId);
   if (owner?.eliminated !== true) return false;
   const frame = findFrame(state, frameId);
-  if (frame?.kind !== "event" || frame.attackerEliminated === true) return false;
-  const root = frame.attackOf;
-  return (
-    root === undefined ||
-    !state.stack.some((other) => other.kind === "event" && other.attackOf === root && other.attackerEliminated === true)
-  );
+  return frame?.kind === "event" && frame.attackerEliminated !== true;
 }
 
 /**

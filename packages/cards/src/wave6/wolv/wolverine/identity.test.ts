@@ -346,10 +346,10 @@ describe("Wolverine / Logan (35001a/b)", () => {
       expect(after.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
     });
 
-    it("Berserker Barrage's repeat damage eliminates Wolverine: the repeated attack ends, it deals nothing (#816 review)", () => {
-      // RRG 1.8 "Player Elimination" p. 34: "If a player is eliminated in the middle of an attack, that attack ends." The
-      // labeled ability is one attack under way (owner ruling Q47), so its repeat is part of the attack that ends; only
-      // an attack in a new ability (the event the Claws play) resolves after an elimination.
+    it("Berserker Barrage's repeat damage eliminates Wolverine: the repeat still resolves (#816 review)", () => {
+      // Elimination by the repeat's 2 damage ends only the finished first attack; the repeat is a new attack and
+      // resolves: RRG 1.8 "Player Elimination" p.34 ("resolve the entire ability"); FFG Wolverine ruling (repeat = new
+      // attack, 54-wolverine.md); consistent with owner #816.
       const base = withForm(wolverineGame("rhino", { extraPlayers: [{ starterDeckId: "core-spider-man-justice" }] }), {
         heroForm: 0,
       });
@@ -368,13 +368,11 @@ describe("Wolverine / Logan (35001a/b)", () => {
         return at(second.id)(s);
       };
       const after = drive(state, pick, use(P1, clawsOf(state), CLAWS, [], { event: [given.ids[0]!] }));
-      expect(repeats).toBe(1);
       expect(playerOf(after, P1).eliminated).toBe(true);
       expect(after.outcome).toBeNull();
-      // The first attack (with piercing) defeated the Hydra Mercenary; the repeat dealt nothing to anyone.
+      // The first attack (with piercing) defeated the Hydra Mercenary; the repeat's 4 damage defeated the other minion.
       expect(cardsInPlay(after)).not.toContain(first.id);
-      expect(cardsInPlay(after)).toContain(second.id);
-      expect(inst(after, second.id).damage).toBe(0);
+      expect(cardsInPlay(after)).not.toContain(second.id);
       expect(inst(after, villainOf(after)).damage).toBe(0);
     });
 
