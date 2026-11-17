@@ -465,6 +465,29 @@ export function civilWarGameModes(): readonly GameModeOption[] {
 }
 
 /**
+ * What a pack's scenario offers (`playableScenarioWithCustom` builds it): the Standard and Expert set alternatives,
+ * under the same rule as a base scenario's (#786), and nothing else; the pack builder refuses every other choice.
+ */
+export function packScenarioOffer(
+  scenario: Pick<Scenario, "standardEncounterSetIds" | "expertEncounterSetIds">,
+): PlayableScenarioOffer {
+  return {
+    difficultySets: difficultySetAlternativesFor(scenario),
+    horsemanSides: null,
+    skirmish: null,
+    easierStart: false,
+    genePoolThreat: null,
+    modularSetCount: { min: 0, max: 0, problem: null },
+    sides: null,
+    mainSchemeStages: null,
+    modularSets: null,
+    gameModes: null,
+    villains: null,
+    mainSchemePicks: null,
+  };
+}
+
+/**
  * Every optional setup choice a game of `scenarioId` offers under the choices made so far. Ask again when the
  * difficulty or the modular picks change: the easier start is standard only, the Horsemen's defaults follow the mode,
  * and the Gene Pool control follows the Infinites set. Throws for a scenario the playable pool does not have.

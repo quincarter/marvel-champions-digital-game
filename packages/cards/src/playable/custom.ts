@@ -38,6 +38,7 @@ import {
   modularPickProblem,
 } from "../modular-pool.js";
 import { playableScenario, playableStarterDeckSetup, type PlayableScenarioOptions } from "./index.js";
+import { checkPlayableDifficultySets } from "./scenario-options.js";
 
 /** What a game takes from custom packs: their cards, encounter sets and scenario records, whole. */
 export interface CustomContent {
@@ -255,7 +256,6 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   const unsupported: string[] = [];
   if (options.setAsideModularSetIds) unsupported.push("setAsideModularSetIds");
   if (options.extraModularSetIds?.length) unsupported.push("extraModularSetIds");
-  if (options.difficultySets) unsupported.push("difficultySets");
   if (options.setupOptions) unsupported.push("setupOptions");
   if (options.mainSchemeStageIds) unsupported.push("mainSchemeStageIds");
   if (options.villainSetId !== undefined || options.villainCardId !== undefined) unsupported.push("the villain choice");
@@ -293,7 +293,10 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     if (problem) throw new Error(`${scenario.name}: ${problem}`);
   }
   const ownAndModular = [...scenario.encounterSetIds, ...modular];
-  const difficultySets = difficultyEncounterSetIds(scenario, difficulty);
+  // Standard II / III and Expert II stand in for a pack scenario's plain Standard or Expert set under the base game's
+  // rule (The Hood insert p. 2, "Alternative Sets"; Q10 = A for Standard III), checked the same way (#786).
+  checkPlayableDifficultySets(scenario, options.difficultySets);
+  const difficultySets = difficultyEncounterSetIds(scenario, difficulty, options.difficultySets);
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   const autoIncludedSets = autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, pool);
   // `Scenario.setAsideCardIds`, as the wave 7 builder reads it: `quantityInSet` copies of each card go to

@@ -127,11 +127,28 @@ describe("a scenario pack in the pickers", () => {
     expect(modularCandidatesFor(scenario)[0]).toMatchObject({ id: GEARS, recommended: true });
     const draft = draftAt(SCENARIO_ID);
     expect(modularSetOptionsFor(draft, scenario, currentCardsById()).some((o) => o.kind === "extra")).toBe(false);
-    // Skirmish, set alternatives and the easier start are the base scenarios' own: none is offered.
+    // Skirmish and the easier start are the base scenarios' own: neither is offered.
     const offer = offerOf(draft);
     expect(offer.skirmish).toBeNull();
     expect(offer.easierStart).toBe(false);
-    expect(offer.difficultySets).toEqual({ standard: [], expert: [] });
+    // The plain Standard and Expert sets may be swapped for Standard II / III and Expert II, as at a base scenario (#786).
+    expect(offer.difficultySets).toEqual({ standard: ["standard_ii", "standard_iii"], expert: ["expert_ii"] });
+  });
+
+  it("starts the pack's scenario with Standard III in place of the Standard set (#786)", async () => {
+    await installed();
+    const config = toSessionConfig(draftAt(SCENARIO_ID, { difficultySets: { standard: "standard_iii" } as never }), [
+      PRECON as never,
+    ]);
+    expect(config.difficultySets).toEqual({ standard: "standard_iii" });
+    const { state } = await new LocalEngineHost(new MemoryGameStorage()).start(config);
+    const setsOf = (instanceId: string): readonly string[] => {
+      const card = gameCardsById().get(state.instances[instanceId as never]!.cardId as string);
+      return card && "encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : [];
+    };
+    const deck = Object.values(state.encounterDecks).flatMap((d) => d.deck.map((id) => setsOf(id as string)));
+    expect(deck.some((ids) => ids.includes("standard_iii"))).toBe(true);
+    expect(deck.some((ids) => ids.includes("standard"))).toBe(false);
   });
 
   it("offers no pack set where the builder refuses one (a scenario that draws from a modular pool)", async () => {

@@ -111,6 +111,7 @@ export {
   mainSchemePicksOffer,
   offersEasierStart,
   offersGenePoolThreat,
+  packScenarioOffer,
   playableScenarioOffer,
   scenarioGameSetIds,
   skirmishOffer,

@@ -143,6 +143,29 @@ describe("sample-scenario pack", () => {
     expect(deck).not.toContain("01109");
   });
 
+  it("lets Standard II or III and Expert II stand in for the pack scenario's own Standard and Expert sets (#786)", () => {
+    const setCards = (setId: string): string[] =>
+      PLAYABLE_CARDS.filter(
+        (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId),
+      ).map((card) => String(card.id));
+    const deckOf = (difficultySets: { standard?: string; expert?: string }, difficulty: "standard" | "expert") =>
+      (
+        scenarioWithPacks(
+          SCENARIO,
+          { players: [{ starterDeckId: PRECON }], seed: 1, difficulty, difficultySets } as never,
+          [pack],
+        ).encounterDeck ?? []
+      ).map(String);
+    const standardIii = deckOf({ standard: "standard_iii" }, "standard");
+    expect(setCards("standard_iii").every((id) => standardIii.includes(id))).toBe(true);
+    expect(standardIii.some((id) => setCards("standard").includes(id))).toBe(false);
+    const expertIi = deckOf({ standard: "standard_ii", expert: "expert_ii" }, "expert");
+    expect(setCards("standard_ii").every((id) => expertIi.includes(id))).toBe(true);
+    expect(setCards("expert_ii").every((id) => expertIi.includes(id))).toBe(true);
+    expect(expertIi.some((id) => [...setCards("standard"), ...setCards("expert")].includes(id))).toBe(false);
+    expect(() => deckOf({ standard: "expert_ii" }, "standard")).toThrow(/not in the standard classification/);
+  });
+
   it("mixes a base and a pack modular set when the scenario takes two, and counts the pack's toward the count", () => {
     expect(() =>
       scenarioWithPacks(
