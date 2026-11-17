@@ -172,6 +172,25 @@ describe("Ant-Man kit", () => {
     expect(settled.lastingEffects.length).toBe(before);
   });
 
+  // Discord report (GarethMagis): Giant Strength was offered on every form change, Tiny included. Its "to Giant hero
+  // form" is the trigger's condition, so a change to Tiny hero form, from Giant or from Scott Lang, never offers it.
+  it.each([
+    ["Giant hero form", GIANT],
+    ["alter-ego", "alterEgo"],
+  ] as const)("Giant Strength: not offered when changing from %s to Tiny hero form", (_from, from) => {
+    const start = from === "alterEgo" ? antManVsRhino() : withForm(antManVsRhino(), from);
+    const { state: withStrength } = playFromHand(start, "12009", 1);
+    const offered: string[] = [];
+    const recording: Picker = (state) => {
+      offered.push(...(state.pendingChoice?.options.map((o) => o.optionId) ?? []));
+      return accepting("12009.giant-strength-response")(state);
+    };
+    const settled = changeTo(withStrength, TINY, recording);
+    expect(traits(settled)).toContain("TINY");
+    expect(offered.filter((id) => id.endsWith("12009.giant-strength-response"))).toEqual([]);
+    expect(settled.lastingEffects.length).toBe(withStrength.lastingEffects.length);
+  });
+
   it("Wrist Gauntlets: each action is usable only in its own hero form", () => {
     const giant = withForm(antManVsRhino(), GIANT);
     const { state: inPlay, id: gauntlets } = playFromHand(giant, "12010", 1);

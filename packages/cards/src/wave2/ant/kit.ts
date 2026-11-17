@@ -110,18 +110,22 @@ export const ANT_MAN_KIT = defineAbilities({
 
   // Ant-Man's Helmet — Hero Response: after you change to Giant hero form, heal 2 damage from your hero. Hero
   // Response: after you change to Tiny hero form, draw 1 card.
+  // The form is the trigger's own condition (`while`, checked once the change has happened), not an `ifThen` inside
+  // it, so changing to the other form offers no empty prompt (Discord report, Giant Strength).
   "12008.ant-mans-helmet-response": heroResponse(
     on.youChangeForm(),
-    ifThen(youHaveTrait(GIANT), heal(2, yourIdentity)),
+    { while: youHaveTrait(GIANT) },
+    heal(2, yourIdentity),
   ),
-  "12008.ant-mans-helmet-hero-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(TINY), draw(1))),
+  "12008.ant-mans-helmet-hero-response": heroResponse(on.youChangeForm(), { while: youHaveTrait(TINY) }, draw(1)),
 
   // Giant Strength — Hero Response: after you change to Giant hero form, you get +1 ATK until the end of this
-  // turn. `on.youChangeForm()` fires on any form change (as Ant-Man's Helmet above does too); the printed "to
-  // Giant hero form" is the `ifThen` guard.
+  // turn. `on.youChangeForm()` hears any form change; the printed "to Giant hero form" is the `while` condition, so a
+  // change to Tiny hero form or to alter-ego neither offers the response nor grants the +1.
   "12009.giant-strength-response": heroResponse(
     on.youChangeForm(),
-    ifThen(youHaveTrait(GIANT), modifyStat("atk", 1, yourIdentity, "endOfTurn")),
+    { while: youHaveTrait(GIANT) },
+    modifyStat("atk", 1, yourIdentity, "endOfTurn"),
   ),
 
   // Wrist Gauntlets — Hero Action: If you are in Giant hero form, exhaust and spend [P][P] → stun an enemy. Hero
