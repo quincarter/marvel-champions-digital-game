@@ -45,6 +45,7 @@ import {
   type EngineDeps,
   type GameState,
   type InstanceId,
+  type LegalAction,
   type LegalActions,
   type PlayerId,
   type ResourceGeneration,
@@ -95,6 +96,11 @@ export interface UsableAbility {
   /** From `abilityLabelOf` — the card's own name plus its printed label or cost. Never invented. */
   readonly label: string;
   readonly needsPayment: boolean;
+  /**
+   * The card whose ability this is, when it is not the inspected card: Daredevil's "Play the top card of the Sense
+   * deck as if it were in your hand" (60001a) is offered on the Sense deck's top card too, and is used on the identity.
+   */
+  readonly sourceInstanceId?: InstanceId;
 }
 
 /** What the engine says about this card right now. */
@@ -398,6 +404,7 @@ export function inspectModel(
   const asked = opts.face ?? faceOf(state, instanceId, view);
   // A card whose reverse is hidden is read by its showing face only, whatever face was asked for (`view/hidden-reverse.ts`).
   const face: CardFace = asked.kind === "flipSide" && !otherFaceVisible(state, instanceId) ? { kind: "front" } : asked;
+  const deckTop = deckTopPlaysOf(state, instanceId, legal, perspectiveId, deps);
 
   return {
     instanceId,
@@ -451,8 +458,8 @@ export function inspectModel(
     art: artFor(card, face),
     footerLeft: footerLeftOf(card, face),
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
-    status: statusOf(state, instanceId, legal, perspectiveId, payment, deps),
-    abilities: usableAbilitiesOf(state, instanceId, legal, deps),
+    status: deckTop.status ?? statusOf(state, instanceId, legal, perspectiveId, payment, deps),
+    abilities: [...deckTop.plays, ...usableAbilitiesOf(state, instanceId, legal, deps)],
     hidden: false,
     timing: timingEntriesFor(state, instanceId, deps),
     keywordDefinitions: keywordDefinitionsFor(state, instanceId, deps),
@@ -700,6 +707,72 @@ function usableAbilitiesOf(
     label: abilityLabelOf(state, instanceId, entry.action.abilityId, deps),
     needsPayment: entry.needsPayment,
   }));
+}
+
+/**
+ * The Action abilities that play this card from the top of its separate deck, offered on that card: Daredevil's
+ * Superhuman Senses (60001a, "Play the top card of the Sense deck as if it were in your hand (paying its cost).") is
+ * printed on the identity, but the player reaches for the Sense deck's top card to play it, and tapping it used to open
+ * a sheet with no way to (reported from play, #782). Only abilities the engine lists as legal right now become buttons,
+ * each used on the card that has it, so payment and the host choice run exactly as from the identity. One the engine
+ * refuses (the top card costs more than the hero can pay), or one printed on the hero face while the alter ego is up,
+ * gives the sheet its reason instead of a silent card.
+ * Only an ability's top-level effects are read: a "play the top card" nested in a branch is not found.
+ */
+function deckTopPlaysOf(
+  state: GameState,
+  instanceId: InstanceId,
+  legal: LegalActions | null,
+  perspectiveId: PlayerId,
+  deps: EngineDeps,
+): { readonly plays: readonly UsableAbility[]; readonly status: InspectStatus | null } {
+  const none = { plays: [], status: null };
+  const instance = getInstance(state, instanceId);
+  if (!legal || (legal.kind !== "turn" && legal.kind !== "notYourTurn")) return none;
+  if (!instance || instance.home.kind !== "separateDeck" || instance.ownerId !== perspectiveId) return none;
+  const deckName = instance.home.name;
+  const player = state.players.find((p) => p.playerId === perspectiveId);
+  if (player?.separateDecks[deckName]?.deck[0] !== instanceId) return none;
+  const playsTop = (action: LegalAction["action"]): action is Extract<LegalAction["action"], { kind: "useAbility" }> =>
+    action.kind === "useAbility" &&
+    (deps.abilities[action.abilityId]?.effects ?? []).some(
+      (effect) =>
+        effect.kind === "playFromHand" &&
+        typeof effect.from === "object" &&
+        "separateDeck" in effect.from &&
+        effect.from.separateDeck === deckName &&
+        effect.from.position === "top",
+    );
+  const names: string[] = [];
+  const plays = legal.legal.flatMap((entry): UsableAbility[] => {
+    if (!playsTop(entry.action)) return [];
+    const { instanceId: source, abilityId } = entry.action;
+    const name = abilityLabelOf(state, source, abilityId, deps);
+    names.push(name);
+    return [{ abilityId, label: `Play it (${name})`, needsPayment: entry.needsPayment, sourceInstanceId: source }];
+  });
+  if (plays.length > 0) {
+    return {
+      plays,
+      status: { playable: true, message: `Playable from the top of the deck: ${names.join(", ")}.`, targets: [] },
+    };
+  }
+  const refused = legal.illegal.find((entry) => playsTop(entry.action));
+  if (refused && refused.action.kind === "useAbility") {
+    const name = abilityLabelOf(state, refused.action.instanceId, refused.action.abilityId, deps);
+    return { plays: [], status: { playable: false, message: `${name}: ${refused.message}`, targets: [] } };
+  }
+  // On the alter-ego face the engine lists the hero face's Action neither way (only the face up is read), so the
+  // reason is the face: Superhuman Senses is printed on Daredevil, not on Matt Murdock.
+  const identity = player ? cardOf(state, player.identity.instanceId) : undefined;
+  if (player?.identity.form !== "alterEgo" || identity?.type !== "hero_identity") return none;
+  const heroRef = identity.hero.abilities.find((ref) =>
+    playsTop({ kind: "useAbility", instanceId: player.identity.instanceId, abilityId: ref.id }),
+  );
+  if (!heroRef) return none;
+  const label = heroRef.label ? `${identity.name}'s ${heroRef.label}` : `${identity.name}'s Action`;
+  const message = `${label} plays this card from the hero side: flip to ${identity.name} to play it.`;
+  return { plays: [], status: { playable: false, message, targets: [] } };
 }
 
 /**
