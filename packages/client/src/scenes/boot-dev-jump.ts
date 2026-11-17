@@ -609,6 +609,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=sense-hero`: Daredevil alone, flipped to his hero face, so the Sense deck's top card offers "Play it".
+  if (screen === "board" && params.get("fixture") === "sense-hero") {
+    const { startDevSenseHeroGame } = await import("../store/dev-sense-game.js");
+    await startDevSenseHeroGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=grounded`: Jubilee on round 2 with Grounded in play, for Flip to hero's additional cost.
   // `?screen=board&fixture=jackpot`: Domino paused on Jackpot!'s response to Luck Be a Lady's discard (#222).
   // `?screen=board&fixture=work-life-ally`: Work-Life Balance used with an ally while Jessica is stalwart; the log says
