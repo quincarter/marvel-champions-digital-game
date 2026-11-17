@@ -24,6 +24,7 @@ import {
   CAMPAIGN_ACCEPT,
   campaignChoiceKey,
   campaignResultOf,
+  cardsInPlay,
   createCampaignLog,
   createGame,
   replay,
@@ -41,6 +42,7 @@ import {
   type GameState,
 } from "@mc/engine";
 import { playToOutcome } from "../testing/driver.js";
+import { firstLegal, settle as settleGame } from "../testing/harness.js";
 import { WAVE2_DEPS, wave2Scenario } from "../wave2/index.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
@@ -199,6 +201,20 @@ describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
     const created = createGame({ ...config, campaign: start.input }, WAVE2_DEPS);
     expect(created.ok ? "ok" : created.error.message).toBe("ok");
 
+    // MC10 p. 7: "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck." The
+    // Crossbones game recorded at least the weapon its 1B When Revealed attached during setup.
+    const recorded = afterWin.shared.experimental?.kind === "cardList" ? afterWin.shared.experimental.cardIds : [];
+    expect(recorded.length).toBeGreaterThanOrEqual(1);
+    if (created.ok) {
+      const game = settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE2_DEPS);
+      const encounterCards = game.encounterDeckOrder.flatMap((deckId) => {
+        const deck = game.encounterDecks[deckId]!;
+        return [...deck.deck, ...deck.discard];
+      });
+      const placed = [...encounterCards, ...cardsInPlay(game)].map((id) => game.instances[id]!.cardId as string);
+      for (const id of recorded) expect(placed).toContain(id);
+    }
+
     // The same deck is still refused outside the campaign: a granted card is legal only where it was granted.
     const standalone = createGame(config, WAVE2_DEPS);
     expect(standalone.ok).toBe(false);
@@ -227,9 +243,12 @@ describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
     let log = crossbones.logAfterForcedWin;
     expect(log.position.resolved.crossbones).toBe("completed");
     expect(log.position.nextNodeId).toBe("absorbing-man");
-    // mc10.s1.victory.experimental: the "experimental" field is a cardList, present (even if empty — Crossbones may
-    // or may not draw an Experimental Weapons card in a short greedy game; the point is the write happened).
+    // mc10.s1.victory.experimental: the "experimental" field is a cardList holding at least the weapon Attack on
+    // Mount Athena 1B's When Revealed puts on Crossbones during setup (more if a stage or Crossbones III revealed one).
     expect(log.shared.experimental).toEqual({ kind: "cardList", cardIds: expect.any(Array) });
+    const recorded = log.shared.experimental?.kind === "cardList" ? log.shared.experimental.cardIds : [];
+    expect(recorded.length).toBeGreaterThanOrEqual(1);
+    expect(recorded.every((id) => ["04072", "04073", "04074", "04075"].includes(id as string))).toBe(true);
     // No `remainingHp` write: this campaign is played in standard (non-expert-campaign) mode, and every
     // `remainingHp` write is gated `whenModes: { expertCampaign: true }`.
     expect(log.seats[0]?.fields.remainingHp).toBeUndefined();
