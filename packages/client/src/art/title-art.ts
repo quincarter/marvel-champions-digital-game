@@ -30,9 +30,9 @@ export const pickTitleArt = pickPicture;
 export const TITLE_ART_SIZES: Readonly<Record<string, { readonly width: number; readonly height: number }>> = {
   "back-to-basics-back-cover.jpg": { width: 3975, height: 3056 },
   "box-core-set.jpeg": { width: 418, height: 478 },
-  "hercules.jpeg": { width: 399, height: 501 },
+  "hercules.jpeg": { width: 815, height: 1295 },
   "mutant-genesis-x-men.webp": { width: 875, height: 1350 },
-  "rise-of-apocalypse.jpeg": { width: 399, height: 501 },
+  "rise-of-apocalypse.jpeg": { width: 1080, height: 1350 },
   "spider-verse-team.webp": { width: 1027, height: 1609 },
   "wallpaper-1.jpg": { width: 2560, height: 1600 },
   "wallpaper-2.jpg": { width: 8000, height: 4456 },

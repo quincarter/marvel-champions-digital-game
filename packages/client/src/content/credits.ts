@@ -219,7 +219,7 @@ export const CREDITS: readonly CreditEntry[] = [
     group: "hero-villain-art",
     title: "Title screen pictures",
     shownIn: "The Title screen (one at random) and Extras artwork",
-    credit: `Box art, promotional art and wallpapers, among them the Core Set box, the Back to Basics back cover, the Mutant Genesis X-Men, the Rise of Apocalypse and the Spider-Verse team. ${ARTIST_NOT_RECORDED}`,
+    credit: `Box art, promotional art and wallpapers, among them the Core Set box, the Back to Basics back cover, the Mutant Genesis X-Men, the Rise of Apocalypse and the Spider-Verse team. Hercules is by Bruno Frenda (ArtStation); the artists and sources of the others are not recorded yet.`,
     notice: FFG_MARVEL,
     folders: ["art/title"],
     gap: true,

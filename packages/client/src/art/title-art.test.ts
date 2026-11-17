@@ -75,7 +75,7 @@ describe("TITLE_ART_SIZES", () => {
   });
 
   test("is found by a picture's texture key", () => {
-    expect(titleArtSizeOf({ key: "title-art:hercules.jpeg", url: "" })).toEqual({ width: 399, height: 501 });
+    expect(titleArtSizeOf({ key: "title-art:hercules.jpeg", url: "" })).toEqual({ width: 815, height: 1295 });
     expect(titleArtSizeOf({ key: "title-art:nope.png", url: "" })).toBeNull();
   });
 });
@@ -126,8 +126,11 @@ describe("pickTitleArtFor", () => {
     }));
     const offered = (panelSize: { width: number; height: number }, density: number) =>
       real.filter((p) => upscaleOf(titleArtSizeOf(p)!, panelSize, density) <= 1.5).map((p) => p.key.slice(10));
-    // Every small picture is dropped on a desktop's art panel (about 55% of 1920 wide, full height).
-    expect(offered({ width: 1056, height: 1080 }, 1)).not.toContain("hercules.jpeg");
+    // A small picture is dropped on a desktop's art panel (about 55% of 1920 wide, full height).
+    expect(offered({ width: 1056, height: 1080 }, 1)).not.toContain("box-core-set.jpeg");
+    // The sharper Hercules and Rise of Apocalypse pictures (815x1295, 1080x1350) cover it now.
+    expect(offered({ width: 1056, height: 1080 }, 1)).toContain("hercules.jpeg");
+    expect(offered({ width: 1056, height: 1080 }, 1)).toContain("rise-of-apocalypse.jpeg");
     expect(offered({ width: 1056, height: 1080 }, 1)).toContain("wallpaper-2.jpg");
     expect(real.length).toBeGreaterThan(offered({ width: 1056, height: 1080 }, 1).length);
   });
