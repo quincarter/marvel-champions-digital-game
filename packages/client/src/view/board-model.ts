@@ -382,11 +382,18 @@ export function compactVillainNote(panel: CharacterPanel): string {
     .join(" · ");
 }
 
+/** " · remove: spend 2 physical…", or just " · remove" when `iconCost` and the cost's icons follow it as their own text. */
+function removalCostTail(cost: RemovalCost | null | undefined, iconCost: boolean): string {
+  if (!cost) return "";
+  return iconCost && cost.icons ? " · remove" : ` · ${removalCostText(cost)}`;
+}
+
 /**
  * The chip's label without its damage: the part that may be clipped when the chip is narrow. `owed` (" · must use") goes
  * ahead of the removal cost, which is the least of the chip's words: a narrow chip clips "remove: …", never "must use".
+ * With `iconCost`, a cost that has icons says only "remove" here and the caller draws `removalCost.icons` after it.
  */
-export function attachmentChipText(chip: AttachmentChip, owed = ""): string {
+export function attachmentChipText(chip: AttachmentChip, owed = "", iconCost = false): string {
   const goals = chip.counterGoals ?? {};
   const toward = Object.entries(goals).map(([name, goal]) => {
     const count = chip.counters.find((counter) => counter.name === name)?.count ?? 0;
@@ -402,7 +409,7 @@ export function attachmentChipText(chip: AttachmentChip, owed = ""): string {
   ]
     .filter(Boolean)
     .join(" · ")
-    .concat(owed, chip.removalCost ? ` · ${removalCostText(chip.removalCost)}` : "");
+    .concat(owed, removalCostTail(chip.removalCost, iconCost));
 }
 
 /**

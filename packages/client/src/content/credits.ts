@@ -376,6 +376,17 @@ export const CREDITS: readonly CreditEntry[] = [
       "Bangers by Vernon Adams, IBM Plex Mono by IBM, Public Sans by the U.S. Web Design System, all via Fontsource.",
     notice: "SIL Open Font License 1.1.",
   },
+  {
+    id: "champions-icons",
+    group: "tools",
+    title: "Champions icon font",
+    shownIn: "Attachment chips on the board (removal cost)",
+    credit:
+      "Champions icon font (two versions, ChampionsIcons and ChampionsIcons2), shared by BluefireF5ran (community); " +
+      "source and licence not recorded yet.",
+    notice: "Source and licence not recorded.",
+    gap: true,
+  },
 ];
 
 export const creditGaps = (): readonly CreditEntry[] => CREDITS.filter((entry) => entry.gap);

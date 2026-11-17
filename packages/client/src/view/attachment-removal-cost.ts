@@ -8,6 +8,7 @@
 
 import { activeAbilityRefs, cardOf, getInstance, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
 import { fullCostPhrase } from "./ability-label.js";
+import { removalCostIcons } from "./removal-cost-icons.js";
 
 export interface RemovalCost {
   /** "spend 2 physical, exhaust your identity"; null for a cost `costPhrase` has no words for (the chip then says so). */
@@ -22,6 +23,11 @@ export interface RemovalCost {
    * rather than "free" or a cost alone.
    */
   readonly conditional?: boolean;
+  /**
+   * The cost as icon-font letters ("ppg": two physical, exhaust the hero), only when every part has an icon and the
+   * removal has no prerequisite; the words in `phrase` stay for the hover and Inspect.
+   */
+  readonly icons?: string;
 }
 
 /** An effect that puts the ability's own card into the discard pile: `discard(self)` or `moveCards(cards(self), "discard")`. */
@@ -53,11 +59,13 @@ export function removalCostOf(state: GameState, deps: EngineDeps, id: InstanceId
     const trigger = definition.trigger;
     const conditional =
       trigger.while !== undefined || trigger.firstPlayerOnly === true || trigger.triggerableBy !== undefined;
+    const icons = conditional || free ? null : removalCostIcons(cost);
     return {
       phrase: fullCostPhrase(cost),
       free,
       heroOnly: trigger.form === "hero",
       ...(conditional ? { conditional: true } : {}),
+      ...(icons ? { icons } : {}),
     };
   }
   return null;

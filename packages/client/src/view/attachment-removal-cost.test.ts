@@ -7,6 +7,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { attachmentChipText, boardModel } from "./board-model.js";
+import { inspectModel } from "./inspect-model.js";
 import { removalCostOf, removalCostText } from "./attachment-removal-cost.js";
 
 /** A Klaw game with `code` attached to Klaw, standing in on a copy of the main scheme's instance. */
@@ -47,7 +48,7 @@ describe("removalCostOf (#767)", () => {
   test("Solid-Sound Body: spend energy, mental and physical", async () => {
     const { state, id } = await withAttachment("01119");
     const cost = removalCostOf(state, POOL_DEPS, id)!;
-    expect(cost).toEqual({ phrase: "spend 1 energy, 1 mental, 1 physical", free: false, heroOnly: true });
+    expect(cost).toEqual({ phrase: "spend 1 energy, 1 mental, 1 physical", free: false, heroOnly: true, icons: "pme" });
     expect(removalCostText(cost)).toBe("remove: spend 1 energy, 1 mental, 1 physical");
   });
 
@@ -55,6 +56,7 @@ describe("removalCostOf (#767)", () => {
     const { state, id, viewer } = await withAttachment("01152");
     const cost = removalCostOf(state, POOL_DEPS, id)!;
     expect(removalCostText(cost)).toBe("remove: exhaust your identity, spend 2 physical");
+    expect(cost.icons).toBe("ppg");
     const chip = boardModel(state, viewer, POOL_DEPS).villain!.attachments.find((a) => a.instanceId === id)!;
     expect(chip.removalCost).toEqual(cost);
   });
@@ -64,6 +66,7 @@ describe("removalCostOf (#767)", () => {
     const cost = removalCostOf(state, POOL_DEPS, id)!;
     expect(cost.free).toBe(false);
     expect(removalCostText(cost)).toBe("remove: each player exhausts, takes 1 damage");
+    expect(cost.icons).toBeUndefined();
   });
 
   test("Haywire: its moveCards removal is recognised, and its energy-only discard is never worded as any card", async () => {
@@ -92,6 +95,9 @@ describe("removalCostOf (#767)", () => {
     const text = attachmentChipText(chip, " · must use");
     expect(text.indexOf("must use")).toBeLessThan(text.indexOf("remove:"));
     expect(text.endsWith("remove: exhaust your identity, spend 2 physical")).toBe(true);
+    // With the icons drawn beside it, the chip's words say only "remove".
+    const withIcons = attachmentChipText(chip, " · must use", true);
+    expect(withIcons.endsWith("must use · remove")).toBe(true);
   });
 
   test("Psychic Inertia: a removal with a prerequisite (attacked and thwarted this phase) reads see card, never free", async () => {
@@ -99,5 +105,11 @@ describe("removalCostOf (#767)", () => {
     const cost = removalCostOf(state, POOL_DEPS, id)!;
     expect(cost.conditional).toBe(true);
     expect(removalCostText(cost)).toBe("remove: see card");
+  });
+
+  test("Inspect states the cost in words beside the chip's icons", async () => {
+    const { state, id, viewer } = await withAttachment("01152");
+    const model = inspectModel(state, id, null, viewer, POOL_DEPS);
+    expect(model.areaNotes).toContain("To remove: exhaust your identity, spend 2 physical");
   });
 });

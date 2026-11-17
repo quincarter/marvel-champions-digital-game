@@ -11,6 +11,7 @@
  * legality: the message and the target list come from the engine.
  */
 
+import { removalCostOf, removalCostText } from "./attachment-removal-cost.js";
 import { attackBarNote, attackRefusalWording } from "./attack-bar.js";
 import { counterGoalsOf } from "./counter-goal.js";
 import { counterLimitsOf } from "./counter-limit.js";
@@ -477,7 +478,11 @@ export function inspectModel(
     forcedNote: forcedNoteOf(state, instanceId, legal, deps),
     hitPointFloorNote: hitPointFloorNote(state, instanceId, deps),
     resourceIconNote: resourceIconNote(state, deps, instanceId),
-    areaNotes: [...scenarioAreaNotes(state, deps, instanceId), ...placementNotes(state, instanceId)],
+    areaNotes: [
+      ...scenarioAreaNotes(state, deps, instanceId),
+      ...placementNotes(state, instanceId),
+      ...removalNotes(state, deps, instanceId),
+    ],
     attackBarNote: attackBarNote(state, deps, instanceId),
     attached: attachedLinks(state, instanceId),
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
@@ -1294,4 +1299,10 @@ function keywordDefinitionsFor(
     entries.push({ label: entry.displayName, definition: entry.definition, citeLabel: citeLabelOf(entry.sources) });
   }
   return entries;
+}
+
+/** The removal cost of an attachment in words ("To remove: spend 2 physical, exhaust your identity"), the icons' twin. */
+function removalNotes(state: GameState, deps: EngineDeps, id: InstanceId): readonly string[] {
+  const cost = removalCostOf(state, deps, id);
+  return cost ? [`To ${removalCostText(cost)}`] : [];
 }

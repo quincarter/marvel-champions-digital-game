@@ -150,6 +150,8 @@ export const font = {
   display: "Bangers",
   body: "Public Sans",
   mono: "IBM Plex Mono",
+  /** The community icon font (`fonts/champions-icons.css`): resource and hero icons drawn as letters. */
+  icons: "Champions Icons",
 } as const;
 
 /**
@@ -163,6 +165,7 @@ export const WEB_FONTS = [
   "700 12px 'Public Sans'",
   "800 12px 'Public Sans'",
   "400 12px 'IBM Plex Mono'",
+  "400 12px 'Champions Icons'",
 ] as const;
 
 /**
