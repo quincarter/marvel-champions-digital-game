@@ -353,6 +353,7 @@ export class CampaignService {
     saved: SavedGame,
     answers: readonly CampaignChoiceAnswer[] = [],
     gameId: string | null = null,
+    adjusted = false,
   ): Promise<CampaignStepResult> {
     let replayed = this.#replays.get(saved);
     if (!replayed) {
@@ -361,7 +362,7 @@ export class CampaignService {
       replayed = { state: result.state, events: result.events };
       this.#replays.set(saved, replayed);
     }
-    return this.foldState(record, replayed.state, replayed.events, answers, gameId);
+    return this.foldState(record, replayed.state, replayed.events, answers, gameId, adjusted);
   }
 
   /** `fold` for a caller that already has the final state and the whole event stream. */
@@ -371,6 +372,7 @@ export class CampaignService {
     events: readonly GameEvent[],
     answers: readonly CampaignChoiceAnswer[] = [],
     gameId: string | null = null,
+    adjusted = false,
   ): Promise<CampaignStepResult> {
     const definition = this.definitionFor(record);
     const result = campaignPostGameFold(
@@ -384,7 +386,9 @@ export class CampaignService {
       answers,
     );
     if (result.kind === "pending") return result;
-    return { kind: "done", record: await this.#put(record, result.value) };
+    // An adjusted game (Manual adjust, or an Undo past a reveal; issue #791) marks the run for good: it plays on, but
+    // its completion earns no unlocks, achievements or Extras (`CampaignRecord.adjusted`).
+    return { kind: "done", record: await this.#put(record, result.value, { adjusted }) };
   }
 
   /**
@@ -506,7 +510,7 @@ export class CampaignService {
   async #put(
     previous: CampaignRecord,
     log: CampaignLog,
-    options: { readonly composedAgain?: boolean } = {},
+    options: { readonly composedAgain?: boolean; readonly adjusted?: boolean } = {},
   ): Promise<CampaignRecord> {
     const keepEasierStart =
       previous.easierStartNodeId !== undefined &&
@@ -531,6 +535,7 @@ export class CampaignService {
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
       ...(previous.pack ? { pack: previous.pack } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
+      ...(previous.adjusted === true || options.adjusted === true ? { adjusted: true as const } : {}),
       ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
     };
     await this.storage.put(next);

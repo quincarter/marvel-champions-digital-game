@@ -8,11 +8,14 @@ import { describe, expect, test } from "vitest";
 import type { CampaignChoiceAnswer, GameState } from "@mc/engine";
 import { preconDecks } from "../view/deck-list-model.js";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
-import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
+import { MemoryCampaignStorage, summaryOf } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { gameInProgressOf } from "./unfolded-game.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { campaignDefinitionOf } from "@mc/cards";
+import { factsOf } from "../progression/achievements.js";
+import { extrasProgressOf } from "../progression/extras.js";
+import { progressOf } from "../progression/unlocks.js";
 import { CAMPAIGN_RECORDS, CampaignService } from "./campaign-service.js";
 
 const POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
@@ -128,6 +131,33 @@ describe("CampaignService", () => {
     expect(folded.record.attempt).toBeUndefined();
     expect(folded.record.position.nextNodeId).toBe("crossbones");
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
+  });
+
+  // Issue #791: an adjusted game still folds, and marks the run so its completion earns nothing.
+  test("folding an adjusted game marks the run for good, and the marker earns nothing", async () => {
+    const campaigns = service();
+    const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const composed = await campaigns.compose(signed);
+    if (composed.kind !== "done") throw new Error("composing issue #1 asked a question");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(campaigns.launchConfig(composed.record));
+    core.dispatch({ type: "concede", playerId: started.snapshot.state.firstPlayerId });
+    const folded = await campaigns.fold(composed.record, core.save(), [], null, true);
+    if (folded.kind !== "done") throw new Error("the fold asked a question");
+    expect(folded.record.adjusted).toBe(true);
+    expect(summaryOf(folded.record).adjusted).toBe(true);
+    // The marker survives later edits of the run (every write goes through the same record builder).
+    const composedAgain = await campaigns.compose(folded.record);
+    if (composedAgain.kind !== "done") throw new Error("recomposing asked a question");
+    expect(composedAgain.record.adjusted).toBe(true);
+
+    // A completed run carrying the marker counts for no unlock, achievement or Extra.
+    const done = { status: "won", campaignId: "trors", adjusted: true, position: { nextNodeId: null, resolved: {} } };
+    expect(progressOf([], [done]).wonCampaignIds).toEqual([]);
+    expect(extrasProgressOf([], [done])).toMatchObject({ wonCampaignIds: [], startedCampaignIds: [] });
+    expect(factsOf({ saves: [], campaigns: [done] }).wonCampaigns.size).toBe(0);
+    const clean = { ...done, adjusted: undefined };
+    expect(progressOf([], [clean]).wonCampaignIds).toEqual(["trors"]);
   });
 
   // Issue #448: Aftermath folds again for every answer it sends, and each fold used to replay the whole game.

@@ -76,6 +76,13 @@ const cellsOf = (saves: SaveMeta[], extra: object = {}) =>
   Object.fromEntries(trackerRowsOf(input(saves, extra))[0]!.cells.map((cell, i) => [TRACKER_COLUMNS[i], cell]));
 
 describe("MC Tracker export rows (#757)", () => {
+  test("an adjusted game is left out of the export (issue #791)", () => {
+    const rows = trackerRowsOf(
+      input([save("a", DAY(3)), save("b", DAY(4), { adjusted: true }), save("c", DAY(5), { status: "lost" })]),
+    );
+    expect(rows).toHaveLength(2);
+  });
+
   test("a won single-hero game fills every column", () => {
     const links = marvelcdbLinksOf([
       {
