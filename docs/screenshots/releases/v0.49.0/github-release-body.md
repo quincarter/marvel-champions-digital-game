@@ -34,6 +34,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 ### Fixed
 
 - Ant-Man's Giant Strength is only offered after changing to Giant hero form, and Ant-Man's Helmet only offers the response that matches the new form (#794).
+- One Way or Another no longer draws 3 cards when the search finds no side scheme in the encounter deck, and takes the side scheme it finds (#795).
 - The release history e2e specs pick the newest release and report instead of v0.40.0, so a new release no longer breaks them (#802).
 
 ### Engine
@@ -42,5 +43,6 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 
 ### Special thanks
 
+- @javgoro reported #795.
 - @sgaon42 reported #791.
 - GarethMagis reported #794 on Discord.
