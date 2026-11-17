@@ -34,6 +34,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 ### Fixed
 
 - Ant-Man's Giant Strength is only offered after changing to Giant hero form, and Ant-Man's Helmet only offers the response that matches the new form (#794).
+- The release history e2e specs pick the newest release and report instead of v0.40.0, so a new release no longer breaks them (#802).
 
 ### Engine
 
