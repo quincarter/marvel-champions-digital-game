@@ -201,6 +201,25 @@ describe("Ant-Man kit", () => {
     expect(() => runWave2(tiny, use(P1, gauntlets, "12010.wrist-gauntlets-action"))).toThrow(/cannot be triggered/);
   });
 
+  // Each Helmet response is offered only after a change to its own form, not as an empty prompt after the other.
+  it.each([
+    ["Giant hero form", GIANT, TINY, "12008.ant-mans-helmet-response", "12008.ant-mans-helmet-hero-response"],
+    ["Tiny hero form", TINY, GIANT, "12008.ant-mans-helmet-hero-response", "12008.ant-mans-helmet-response"],
+  ] as const)(
+    "Ant-Man's Helmet: changing to %s offers only that form's response",
+    (_to, to, from, offeredId, notId) => {
+      const { state: withHelmet } = playFromHand(withForm(antManVsRhino(), from), "12008", 3);
+      const offered: string[] = [];
+      const recording: Picker = (state) => {
+        offered.push(...(state.pendingChoice?.options.map((o) => o.optionId) ?? []));
+        return firstLegal(state);
+      };
+      changeTo(withHelmet, to, recording);
+      expect(offered.some((id) => id.endsWith(offeredId))).toBe(true);
+      expect(offered.filter((id) => id.endsWith(notId))).toEqual([]);
+    },
+  );
+
   it("Ant-Man's Helmet: heals 2 damage from your hero after you change to Giant hero form", () => {
     const { state: withHelmet } = playFromHand(antManVsRhino(), "12008", 3);
     const identity = identityOf(withHelmet);
