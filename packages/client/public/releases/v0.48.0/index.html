@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.48.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.48.0 of the fan-made Marvel Champions digital game: eighteen ideas from one player, from a clearer table and a play area order to folding shelves, Random picks, every card face in the deck check, a Decks tab in Your stats and an export for MC Tracker, plus fixes for Clear the Area and Daredevil's Sense deck."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.48.0" />
+    <meta
+      property="og:description"
+      content="Eighteen ideas from one player: a clearer table, quicker pickers, every card face and your decks in numbers."
+    />
+    <meta property="og:image" content="https://champions-digital-game.com/releases/v0.48.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.48.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Eighteen Asks,<br /><span class="g">Answered</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.48.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/771">#771</a><br />after v0.47.0
+          (Nov 16)<br />Android · Web · Windows · macOS · Linux<br />Nov 16, 2026<span data-history-link
+            ><br /><a href="../index.html#v0.48.0">All releases</a> ·
+            <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star">★</div>
+          <div><small>Achievement unlocked</small><span>The Wish List</span></div>
+        </div>
+        <p>
+          <b>bluefireF5ran sent eighteen ideas, and every one of them is in this release.</b> The table reads at a
+          glance, your play area sorts the way you like, the pickers fold and roll at random, the deck check shows every
+          face of a card, and Your stats keeps every seat's decks, with an export for MC Tracker. Clear the Area and
+          Daredevil's Sense deck are fixed too.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>Ideas from one player</h4>
+          <div class="n">18</div>
+          <p>issues from bluefireF5ran, #753 to #770, all closed in this release.</p>
+        </div>
+        <div class="tile">
+          <h4>Stat stars</h4>
+          <div class="n c-blue">571</div>
+          <p>printed stars added to the card data and drawn on the table.</p>
+        </div>
+        <div class="tile">
+          <h4>New settings</h4>
+          <div class="n c-green">4</div>
+          <p>for your play area, your deck list and extra modular sets.</p>
+        </div>
+      </section>
+
+      <!-- ============ TABLE ============ -->
+      <div class="band gold">
+        <h2>Read the table at a glance</h2>
+        <div class="lab">Issues #763, #765, #766, #767, #769 · PR #772</div>
+      </div>
+      <p class="lead">
+        <b>The table says more without a hover.</b> The main scheme tells you how much threat it gains each round, a
+        stat whose card prints a star shows that star, an attachment says what removing it costs, and a deck the next
+        round will empty turns light red.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/table-klaw.webp"
+            alt="Klaw in round 3 with four heroes: Secret Rendezvous reads +5 per round, Klaw's ATK has its star, Solid-Sound Body names its removal cost, and the encounter deck and discard read LOW in light red"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Klaw, round 3: +5 per round, the ATK star, the removal cost and two LOW piles</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <div class="shots" style="margin: 0">
+          <figure>
+            <img
+              src="img/table-hover.webp"
+              alt="The main scheme's hover: Secret Rendezvous with its threat bar and +5 per round: Stage +4, The Immortal Klaw +1"
+              width="1280"
+              height="551"
+              loading="lazy"
+            />
+            <figcaption>The hover names where each round's threat comes from</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="img/table-side-scheme.webp"
+              alt="Angel's Render Medical Aid, a player side scheme, with its threat bar filled in blue under the main scheme"
+              width="1280"
+              height="444"
+              loading="lazy"
+            />
+            <figcaption>A player side scheme's bar, filled in blue</figcaption>
+          </figure>
+        </div>
+        <figure class="a">
+          <img
+            src="img/table-phone.webp"
+            alt="The Threat tab on a phone, with the main scheme's per-round threat and the side schemes"
+            width="412"
+            height="924"
+            loading="lazy"
+          />
+          <figcaption>The Threat tab on a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>What the table shows now</h3>
+          <ul class="ck">
+            <li><b>+N per round</b> under the main scheme, from its stage, acceleration icons and tokens.</li>
+            <li>A <b>small white star</b> on a stat whose card prints one, from 571 entries in the card data.</li>
+            <li>
+              An attachment's chip reads like <b>"remove: exhaust your identity, spend 2 physical"</b>, worded the same
+              as the action buttons.
+            </li>
+            <li>A <b>player side scheme</b> fills its bar in player blue, so it never looks like the villain's.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Decks running out</h3>
+          <p>
+            The encounter deck and its discard read <b>LOW</b> in light red when the next villain phase needs more cards
+            than the deck holds, and your deck does the same before the end-of-round draw.
+          </p>
+          <p>
+            It counts boost cards, each player's encounter card, heroic level and hazard icons the way the Rules
+            Reference does, and the game deals from the same numbers it shows you.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ ORDER AND SURGE ============ -->
+      <div class="band">
+        <h2>Your play area, in order</h2>
+        <div class="lab">Issues #768, #764 · PR #777</div>
+      </div>
+      <p class="lead">
+        <b>Settings ▸ Cards has a Play area order now:</b> As played, By type, By cost or By name. It only changes how
+        your play area is drawn, never the game, and there is no button on the table for a stray click to hit.
+      </p>
+      <div class="shots">
+        <figure>
+          <img
+            src="img/order-setting.webp"
+            alt="The Play area order setting with As played, By type, By cost and By name, By type selected"
+            width="960"
+            height="222"
+            loading="lazy"
+          />
+          <figcaption>The setting, on the Cards tab after Card size</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/order-played.webp"
+            alt="Doctor Strange's play area as played: Cloak of Levitation, The Eye of Agamotto, Sanctum Sanctorum, then The Night Nurse"
+            width="1280"
+            height="226"
+            loading="lazy"
+          />
+          <figcaption>As played: the order the cards entered play</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/order-type.webp"
+            alt="The same play area by type: the supports Sanctum Sanctorum and The Night Nurse move ahead of the upgrades"
+            width="1280"
+            height="226"
+            loading="lazy"
+          />
+          <figcaption>By type: allies, supports, upgrades, then the rest</figcaption>
+        </figure>
+      </div>
+      <p class="lead">
+        <b>Surge is easier to follow.</b> The log names the card that surged and marks the card its surge dealt, and the
+        villain phase's encounter strip tags them SURGE and FROM SURGE.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/surge-strip.webp"
+            alt="The villain phase strip: Heart-Shaped Herb tagged SURGE and the next card tagged FROM SURGE, with the phase log below"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>SURGE and FROM SURGE in the encounter strip</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/surge-recap.webp"
+            alt="The villain phase recap: Heart-Shaped Herb surges and you are dealt another encounter card, Hydra Bomber"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The recap, in the order it happened</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ MENUS AND PICKERS ============ -->
+      <div class="band gold">
+        <h2>Find your game faster</h2>
+        <div class="lab">Issues #753, #755, #759, #760, #761, #762 · PR #778</div>
+      </div>
+      <p class="lead">
+        <b>The hero and scenario lists fold.</b> Tap a cycle's header to fold its shelf, and SEE ALL at the header's
+        right end opens the box. Scenario select rolls at random at every step, and the title menu gets a Discord
+        button.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/pick-random.webp"
+            alt="Scenario select after Random scenario: the Core Set shelf open with Ultron selected, and Random box and Random scenario above the list"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Random box and Random scenario, with Ultron picked</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/pick-folded.webp"
+            alt="Scenario select with the Core Set shelf folded to its header, and SEE ALL in red at the header's right end"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>A folded shelf, with SEE ALL to open the box</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure>
+          <img
+            src="img/title-discord.webp"
+            alt="The title menu with a Discord icon button beside the Mod Store button, its label showing on hover"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Discord button on the title menu</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/pick-phone.webp"
+            alt="Take your seats on a phone with a cycle's shelf folded"
+            width="412"
+            height="924"
+            loading="lazy"
+          />
+          <figcaption>Take your seats on a phone</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/settings-decks.webp"
+            alt="Settings, the Game tab: Deck list on open with All, Precons, Yours, Comm. and Last, Show preconstructed decks, and Allow extra modular sets"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Three new rows on the Game tab</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/setup-extra.webp"
+            alt="Table setup for Rhino with Bomb Scare chosen and Masters of Evil and Under Attack added as extras, the header reading 1 required, 1 chosen and 2 extra (house rule)"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Extra modular sets, a house rule that's off by default</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Pick it, or let it pick</h3>
+          <ul class="ck">
+            <li>Folds are <b>remembered per list</b>, and a search or a filter opens them all so every match shows.</li>
+            <li>
+              <b>Random box</b>, <b>Random scenario</b> and <b>Random villain</b> draw only from what that step shows,
+              and skip locked scenarios.
+            </li>
+            <li>
+              <b>Deck list on open</b> picks the list the Decks screen starts on, and
+              <b>Show preconstructed decks</b> can hide the precons there.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Sharper and wider</h3>
+          <ul class="ck">
+            <li>
+              Title backgrounds too small for your screen are <b>no longer stretched</b>, so they stop looking
+              pixelated.
+            </li>
+            <li>
+              <b>Allow extra modular sets</b> lets Table setup add sets beyond the scenario's count. Those games stay
+              out of global stats, the same as Skirmish.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ CARD FACES ============ -->
+      <div class="band">
+        <h2>Every face, every pack</h2>
+        <div class="lab">Issues #754, #758, #770 · PR #779</div>
+      </div>
+      <p class="lead">
+        <b>The deck check shows the whole identity:</b> Hero, Alter-Ego and any extra hero form, then both sides of
+        every double-sided card in the deck. Every face opens the card hover.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/faces-antman.webp"
+            alt="The deck check for Ant-Man (Leadership): Identity, 3 faces, with Tiny Ant-Man, Scott Lang and Giant Ant-Man"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Ant-Man's three faces</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/faces-vision.webp"
+            alt="Vision's deck check with Intangible and Dense as front and back, and the hover open on the Dense face"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Vision's two-sided card, with the hover on its back</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/past-cover.webp"
+            alt="Past games: a Yondu game against Mephisto, both from custom packs, with their art on the cover"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Past games covers show custom heroes and villains</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/store-sets.webp"
+            alt="Carnage's page in the Mod Store, its cards grouped as Obligation, Carnage Nemesis and Twisted Killers"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>A Mod Store pack's cards, grouped by set</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            A Past games cover reads the pack from the save itself, so the art shows even after the pack is removed, and
+            the names show if the art is gone.
+          </li>
+          <li>
+            A Mod Store pack lists Hero, Villain and scheme, Obligation, Nemesis set, Scenario set, each modular set by
+            name, then aspect and basic cards.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ============ STATS ============ -->
+      <div class="band gold">
+        <h2>Your decks, in numbers</h2>
+        <div class="lab">Issues #756, #757 · PR #781</div>
+      </div>
+      <p class="lead">
+        <b>Your stats has a Decks tab.</b> Every deck played at any seat, with its record, win rate, hero and aspects,
+        and its most played cards with how often you played and drew them.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/stats-decks.webp"
+            alt="Your stats, the Decks tab: She-Hulk Aggression 2-1 and Spider-Man Justice 2-0, each with its most played cards and their play and draw counts"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Decks tab, with each deck's most played cards</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/stats-past.webp"
+            alt="Past games details: She-Hulk and Black Panther, each with their deck, aspect and most played cards"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Past games shows every seat's deck and most played cards</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/stats-export.webp"
+            alt="Past games with the Export for MC Tracker (CSV) button and a note reading Exported 3 games for MC Tracker"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Export for MC Tracker (CSV)</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Kept for every seat</h3>
+          <ul class="ck">
+            <li>Each seat's deck and the cards it drew are saved with the game, beside the cards it played.</li>
+            <li>Older games are replayed once in the background to fill these in.</li>
+            <li>A deck name you typed stays out of shared replay files and issue reports.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Export for MC Tracker</h3>
+          <ul class="ck">
+            <li>
+              Past games saves the won and lost games on the tab you're on as a CSV, one row per game, for
+              marvelchampionstracker.com.
+            </li>
+            <li>
+              Scenario, modular sets, difficulty, mode, then each hero, aspects, deck name and MarvelCDB link, when the
+              deck has one.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ============ YOU ASKED ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #773, #782 · PRs #774, #784</div>
+      </div>
+      <div class="cards">
+        <div class="paper">
+          <div class="eb">#773 · reported by @sgaon42</div>
+          <h3>Clear the Area draws with Shrink</h3>
+          <p>
+            Clear the Area draws a card when it removes the last threat on a scheme. With Shrink raising the removal, it
+            cleared the scheme and drew nothing.
+          </p>
+          <p>
+            Now it draws <b>whenever its thwart takes the last threat</b>, however much it removed, and even when the
+            scheme gets threat back right away, as The Search for Spiral does.
+          </p>
+          <div class="src">Ruling, October 10, 2025: Clear the Area still draws after The Search for Spiral.</div>
+        </div>
+        <div class="paper">
+          <div class="eb">#782 · reported by @javgoro</div>
+          <h3>Play it from the Sense deck</h3>
+          <p>
+            Daredevil's Superhuman Senses plays the top card of the Sense deck, but tapping the deck only showed the
+            card.
+          </p>
+          <p>
+            Now the top card has a <b>Play it</b> button while the Action can be used, and the log names a Sense upgrade
+            going back into the deck instead of calling it a facedown card.
+          </p>
+        </div>
+      </div>
+      <div class="shots" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/sense-play.webp"
+            alt="Heightened Hearing, the top card of the Sense deck, with a Play it (Daredevil, Superhuman Senses) button"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Sense deck's top card, with Play it</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v0.48.0</h2>
+        <div class="lab">PRs #752, #776</div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            A <b>Mod request</b> issue form asks for a mod to join the Mod Store: its kind, its creator, their
+            permission and a link or the files.
+          </li>
+          <li>Each release opens the Mod Store registry's update to the new mod SDK by itself.</li>
+        </ul>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Keep the ideas and reports coming from Pause ▸ Report a problem, a GitHub issue or the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person wide">
+            <h3>bluefireF5ran</h3>
+            <p>
+              Sent <b>eighteen</b> ideas, #753 to #770, from the side scheme bar to the MC Tracker export. Every one is
+              in this release.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@sgaon42</h3>
+            <p>Reported Clear the Area not drawing with Shrink, <b>#773</b>.</p>
+          </div>
+          <div class="person">
+            <h3>@javgoro</h3>
+            <p>Reported the Sense deck you couldn't play from, <b>#782</b>.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.47.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.47.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">10</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">360</div>
+          <p>across the engine, the cards, the client and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">10,760</div>
+          <p>most of them the new screens and settings and their tests.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">371</div>
+          <p>code the new selectors and groups replaced.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v0.48.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.48.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
