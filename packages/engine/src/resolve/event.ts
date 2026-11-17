@@ -2770,6 +2770,35 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
 }
 
 /**
+ * An attack by the identity of an eliminated player that began after the elimination (not marked
+ * `attackerEliminated`): the rest of an ability that is resolved in full, so it goes on.
+ *
+ * RRG 1.8 "Player Elimination" p. 34: eliminated partway through an ability -> resolve the entire ability; the "attack
+ * ends" bullet covers only an attack already underway (cf. Metal Shards ruling, rrg-1-0-to-1-4/48-mutant-genesis.md).
+ * Owner call (#816): the played event's attack resolves in full.
+ *
+ * A later attack of an "(attack)" ability whose earlier attack was underway at the elimination (one sharing its
+ * `attackOf` root was marked) ends too: the labeled ability is one attack under way (owner ruling Q47), so Berserker
+ * Barrage's repeat after its "take 2 damage" eliminated Wolverine is part of the attack that ends (#816 review). Only
+ * an attack that begins in a new ability (the event the Claws play) resolves.
+ */
+function attackOfEliminatedResolves(
+  state: GameState,
+  attack: Extract<TriggerEvent, { kind: "attack" }>,
+  frameId: FrameId,
+): boolean {
+  const owner = state.players.find((player) => player.identity.instanceId === attack.attackerInstanceId);
+  if (owner?.eliminated !== true) return false;
+  const frame = findFrame(state, frameId);
+  if (frame?.kind !== "event" || frame.attackerEliminated === true) return false;
+  const root = frame.attackOf;
+  return (
+    root === undefined ||
+    !state.stack.some((other) => other.kind === "event" && other.attackOf === root && other.attackerEliminated === true)
+  );
+}
+
+/**
  * A player's attack, after its interrupt window. An attack whose attacker has left play by now ends: no damage, and none
  * of its other results (`characterAttacked`, which retaliate and "after … attacks" hang off). This mirrors RRG 1.8
  * "Activation" (p. 6), which ends an enemy's attack when the enemy leaves play; RRG 1.8 "Attack (Player Ability Type)"
@@ -2783,7 +2812,10 @@ function applyPlayerAttack(
   frameId: FrameId,
 ): boolean | void {
   const target = attack.targetInstanceId;
-  if (!cardsInPlay(ctx.state).includes(attack.attackerInstanceId)) {
+  if (
+    !cardsInPlay(ctx.state).includes(attack.attackerInstanceId) &&
+    !attackOfEliminatedResolves(ctx.state, attack, frameId)
+  ) {
     // A label-only attack that began before any enemy was named (`beginLabelAttack`) has no target to log an end
     // against; its attacker is an identity, whose leaving play is the player's elimination and is logged as that.
     if (target !== null) {

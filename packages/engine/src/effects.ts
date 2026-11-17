@@ -2587,9 +2587,27 @@ export function settlePaidForEffects(ctx: Ctx, frameId: FrameId, effectsFrameId:
  * May 16, 2024): the attack on event frame `attackFrameId`, whose source is `sourceId`, is being initiated. Every
  * effect still waiting on the first attack of that card is retimed to `endOfEvent` on it, so it applies to this attack
  * only and ends as the attack finishes.
+ *
+ * An effect an earlier attack of the same card already claimed ends here instead: a second attack of that card is not
+ * "that attack". The earlier attack's frame can still be on the stack, waiting beneath its "(attack)" ability until the
+ * whole ability has resolved (`waitBeneathAbility`, owner ruling Q47), as when Berserker Barrage repeats its ability
+ * (FFG ruling, Wolverine, rrg-1-0-to-1-4/54-wolverine.md: "if you repeat its ability, the new attack will not have
+ * piercing"; #811). Ended, not retimed back: the earlier attack was made, so a later cancel cannot hand it on.
  */
 export function startFirstAttackEffects(ctx: Ctx, sourceId: InstanceId, attackFrameId: FrameId): void {
   for (const effect of [...ctx.state.lastingEffects]) {
+    // Assumes each `attack` event frame of one source is a separate attack; an attack instruction naming several enemies
+    // would be one attack over several frames (none shipped) and would need its frames grouped here.
+    const claimed = effect.duration.kind === "endOfEvent" ? effect.duration.ifCancelled : undefined;
+    if (
+      claimed?.kind === "endOfPaidFor" &&
+      claimed.firstAttackVia === sourceId &&
+      effect.duration.kind === "endOfEvent" &&
+      effect.duration.frameId !== attackFrameId
+    ) {
+      endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
     if (effect.duration.kind !== "endOfPaidFor" || effect.duration.firstAttackVia !== sourceId) continue;
     const duration: LastingDuration = { kind: "endOfEvent", frameId: attackFrameId, ifCancelled: effect.duration };
     ctx.state = {

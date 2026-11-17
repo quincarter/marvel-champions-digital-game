@@ -214,14 +214,25 @@ describe("'that attack' as the first attack made (FFG ruling 190): a cancelled f
     effects: [{ kind: "cancelTriggeringEvent" }],
   });
   const PARRY = stubUpgrade({ id: "parry", cost: 0, abilities: [PARRY_ACTION.ref] });
-  const firstDeps: EngineDeps = depsOf(FIRST_CLAWS_ACTION, DOUBLE_ACTION, PARRY_ACTION);
+  /**
+   * Berserker Barrage's repeat (35008), as one "(attack)" ability making a second attack: the first attack waits beneath
+   * the ability until it has resolved (`waitBeneathAbility`), and the villain is given a tough card in between, so only
+   * a piercing second attack would damage it.
+   */
+  const REPEAT_ACTION = stubAbility("repeat.action", {
+    trigger: { kind: "action" },
+    label: ["attack"],
+    effects: [strike(3), { kind: "giveStatus", target: VILLAIN_REF, status: "tough" }, strike(3)],
+  });
+  const REPEAT = { ...stubEvent({ id: "repeat", cost: 1, abilities: [REPEAT_ACTION.ref] }), traits: [ATTACK] };
+  const firstDeps: EngineDeps = depsOf(FIRST_CLAWS_ACTION, DOUBLE_ACTION, PARRY_ACTION, REPEAT_ACTION);
 
-  function play(parry: boolean): GameState {
+  function play(parry: boolean, event = DOUBLE): GameState {
     const base = gameAtFirstTurn({
-      cards: [FIRST_CLAWS, DOUBLE, PARRY, VILLAIN],
+      cards: [FIRST_CLAWS, DOUBLE, PARRY, REPEAT, VILLAIN],
       deps: firstDeps,
       villain: VILLAIN,
-      deck: [FIRST_CLAWS.id, DOUBLE.id, PARRY.id],
+      deck: [FIRST_CLAWS.id, DOUBLE.id, PARRY.id, REPEAT.id],
     });
     let placed = playerCardIntoPlay(base, FIRST_CLAWS.id);
     const claws = placed.id;
@@ -230,7 +241,7 @@ describe("'that attack' as the first attack made (FFG ruling 190): a cancelled f
       mustPlayer(placed.state, P1).identity.form === "hero"
         ? placed.state
         : driveSession(startSession(placed.state), firstDeps, [{ type: "changeForm", playerId: P1 }]).session.state;
-    const given = giveCard(state, P1, DOUBLE.id);
+    const given = giveCard(state, P1, event.id);
     const { session } = driveSession(startSession(withTough(given.state)), firstDeps, [
       {
         type: "useAbility",
@@ -256,5 +267,15 @@ describe("'that attack' as the first attack made (FFG ruling 190): a cancelled f
     const after = play(true);
     expect(mustInstance(after, villainOf(after)).statuses.tough ?? 0).toBe(0);
     expect(mustInstance(after, villainOf(after)).damage).toBe(3);
+  });
+
+  it("a second attack of the same ability does not pierce while the first still waits beneath it (#811)", () => {
+    // FFG ruling (rrg-1-0-to-1-4/54-wolverine.md): Berserker Barrage "makes one attack initially, so that one gains
+    // piercing; if you repeat its ability, the new attack will not have piercing". The first attack pierces the tough
+    // card and deals 3; the second's 3 damage is stopped by the tough card given in between.
+    const after = play(false, REPEAT);
+    expect(mustInstance(after, villainOf(after)).damage).toBe(3);
+    expect(mustInstance(after, villainOf(after)).statuses.tough ?? 0).toBe(0);
+    expect(after.lastingEffects.filter((effect) => effect.kind === "ruleGrant")).toEqual([]);
   });
 });

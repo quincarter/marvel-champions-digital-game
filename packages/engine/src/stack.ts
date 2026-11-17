@@ -441,6 +441,13 @@ export type StackFrame =
        */
       readonly attackBegun?: true;
       /**
+       * On a player's `attack` event: its attacker's player was eliminated while this attack was underway (on the stack),
+       * so it ends (RRG 1.8 "Player Elimination", p. 34: "If a player is eliminated in the middle of an attack, that
+       * attack ends"; `eliminatePlayer`). An attack its identity begins after that, as the rest of an ability that is
+       * resolved in full, is not marked and resolves (owner call, #816; `applyPlayerAttack`).
+       */
+      readonly attackerEliminated?: true;
+      /**
        * On an attack whose damage is all prevented (`modifyAttack.preventAllDamage` with a `bind`,
        * docs/phase7-wave9.md §3.4): where each instance the prevention stops is recorded, as this frame's vars
        * `attackPreventedVars(bind)`. `targetInstanceId`: the character a player attack was against when the effect

@@ -1,0 +1,3 @@
+kind: Engine
+body: 'A player eliminated partway through an ability still resolves it in full: when Wolverine''s Claws'' cost eliminates Wolverine, the chosen event is still played and its attack lands, while an attack already under way (Berserker Barrage''s repeat included) still ends (#816).'
+time: 2026-11-17T18:04:08.9321742-05:00
