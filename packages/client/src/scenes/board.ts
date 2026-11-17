@@ -811,6 +811,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.deckLeft,
         SCENES.villainPhase,
         SCENES.pause,
+        SCENES.manualAdjust,
         SCENES.rules,
         SCENES.settings,
         SCENES.campaignBeat,

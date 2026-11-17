@@ -83,7 +83,15 @@ export class ManualAdjustOverlay extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#hints = new GlyphHints(this);
-    this.#unsubscribe = appSession().store.subscribe(() => this.#draw());
+    // A correction that ends the game (the villain's last hit points, the scheme's last threat) closes this, so Game
+    // Over is never left under it.
+    this.#unsubscribe = appSession().store.subscribe((state) => {
+      if (state.game?.outcome) {
+        // Pause opened this; it goes too, as it does after a concession, and the Board hands off to Game Over.
+        if (this.scene.isActive(SCENES.pause)) this.scene.stop(SCENES.pause);
+        this.#close();
+      } else this.#draw();
+    });
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCards(),
       area: (pointer) => screenHoverArea(this, pointer, { blocked: () => this.scene.isActive(SCENES.inspect) }),
