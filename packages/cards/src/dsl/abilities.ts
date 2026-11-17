@@ -3267,6 +3267,14 @@ const pattern = (
   ...parts: readonly Partial<EventPattern>[]
 ): EventPattern => Object.assign({ on }, ...parts) as EventPattern;
 /**
+ * "After **you** defeat X" (`on.defeated` / `on.schemeDefeated` `byYou`): the defeating player is the controller, and
+ * what defeated it (`characterDefeated` / `schemeDefeated` `sourceInstanceId`) is an extension of that player's identity
+ * (`extensionOf`: the identity, an event they play, an upgrade of theirs not on another friendly character), so an ally,
+ * support, player side scheme or encounter card does not count
+ * (RRG 1.8 "You, Your", p. 49; issue #817).
+ */
+const YOU_DEFEAT: Partial<EventPattern> = { playerIs: "controller", sourceIs: { extensionOf: { kind: "controller" } } };
+/**
  * "[enemy] attacks **you**" (`EventPattern.usesAttackedPlayer`). Who "you" is follows the timing (RRG 1.8 "Defend,
  * Defense", pp. 15-16; owner ruling 2026-10-09, docs/phase7-wave8.md §4.1 row 91): an interrupt ("When [enemy]
  * attacks you") is the player the attack was initiated against, and a response ("After [enemy] attacks you") is the
@@ -3697,7 +3705,6 @@ export const on = {
       { playerIs: "controller", targetIs: opts.what ?? { categories: ["treachery"] } },
       opts.inDiscard ? { eventIs: { to: "encounterDiscard" } } : {},
     ),
-  /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
   /**
    * "After Abjuration prevents 2 or more damage from a single attack" (docs/phase7-wave4.md §3.20): this card prevented
    * damage — by its `preventAllDamageTo` constant or a `preventDamage` effect of its own. `fromAttack`: the damage was an
@@ -3710,6 +3717,14 @@ export const on = {
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.atLeast !== undefined ? { eventAtLeast: { amount: opts.atLeast } } : {},
     ),
+  /**
+   * "When/After X is defeated". `byYou`: "after *you* defeat a minion" is the player's own doing: their identity (or an
+   * event, or upgrade not on another friendly character) defeated it, **not** an ally, support or other card (RRG 1.8 "You, Your",
+   * p. 49: a game function "you" perform resolves as if the identity performed it; FFG ruling January 24, 2025
+   * (Change of Fortune): an event a player plays counts as the identity). An ally's attack, thwart or own ability
+   * damage is the ally's, so a card that does mean "a character you control" names its own `sourceIs` (it overrides
+   * this one: `{ ...on.defeated(q, { byYou: true }), sourceIs: ... }`; issue #817).
+   */
   defeated: (
     what: Who,
     opts: {
@@ -3737,11 +3752,13 @@ export const on = {
        */
       readonly villainStage?: number;
     } = {},
-  ): EventPattern =>
-    pattern(
+  ): EventPattern => {
+    // `byAttackFrom` sets its own `sourceIs`, which would silently replace `byYou`'s: name the source in one place.
+    if (opts.byYou && opts.byAttackFrom) throw new Error("on.defeated: byYou and byAttackFrom both set sourceIs");
+    return pattern(
       "characterDefeated",
       asTarget(what),
-      opts.byYou ? { playerIs: "controller" } : {},
+      opts.byYou ? YOU_DEFEAT : {},
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
       opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
       opts.consequential !== undefined ? { consequential: opts.consequential } : {},
@@ -3751,13 +3768,13 @@ export const on = {
             eventAtMost: { villainStageNumber: opts.villainStage },
           }
         : {},
-    ),
+    );
+  },
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
    * wave2.md §17.2): matches both `characterDefeated` and `schemeDefeated` by *source* — which card dealt the
-   * defeating damage or removed the last threat — not by player. `on.defeated({ byYou: true })`'s `playerIs` also
-   * accepts an ally's own attack, which a card naming a specific card ("Wasp, or an event") needs to exclude;
-   * `source` should therefore name the card(s), not just `controller: "you"` alone.
+   * defeating damage or removed the last threat — not by player. `on.defeated({ byYou: true })` is the
+   * identity-or-extension reading of "you defeat" (an ally's defeat is not heard); this one names the card(s) itself.
    */
   defeats: (source: TargetQuery): EventPattern =>
     pattern(["characterDefeated", "schemeDefeated"], { sourceIs: source }),
@@ -3766,7 +3783,8 @@ export const on = {
    * distinct trigger event from `defeated`, which is characters only. "When attached scheme is defeated"
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
    */
-  schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
+  schemeDefeated: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
+    pattern("schemeDefeated", asTarget(what), opts.byYou ? YOU_DEFEAT : {}),
   /**
    * "After the last threat is removed from this scheme" (docs/phase7-wave7.md §3.34): a removal that took `what` from
    * some threat to none. The way a permanent side scheme answers reaching no threat without being defeated: RRG 1.8

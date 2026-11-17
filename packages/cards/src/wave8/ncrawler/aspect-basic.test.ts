@@ -319,11 +319,11 @@ describe("aspect-basic registry", () => {
     expect(NCRAWLER_ASPECT_BASIC[PROTECTION]).toBe(WAVE7_ABILITIES["01079.the-power-of-protection-constant"]);
     expect(NCRAWLER_ASPECT_BASIC[MOIRA]).toBe(WAVE7_ABILITIES["38018.moira-mactaggert-response"]);
   });
-  it("Change of Fortune's trigger is the identity's defeat in the villain phase: the defeating source is never an ally (RRG p. 49)", () => {
+  it("Change of Fortune's trigger is the identity's defeat in the villain phase: the defeating source is the identity or an extension of it, never an ally (RRG p. 49)", () => {
     const definition = NCRAWLER_ASPECT_BASIC[FORTUNE]!;
     const trigger = definition.trigger as { on: { sourceIs?: unknown; playerIs?: string }; while?: unknown };
     expect(trigger.on.playerIs).toBe("controller");
-    expect(trigger.on.sourceIs).toEqual({ not: { categories: ["ally"] } });
+    expect(trigger.on.sourceIs).toEqual({ extensionOf: { kind: "controller" } });
     expect(trigger.while).toEqual({ kind: "gameStep", phase: "villain" });
   });
   it("Energy, Genius and Strength (48023 to 48025) print no ability; each is 2 resources of its type", () => {

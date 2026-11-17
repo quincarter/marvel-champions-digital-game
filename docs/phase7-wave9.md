@@ -2023,7 +2023,10 @@ continue the discard effect with the newly shuffled encounter deck."
   and the rest go to their owners' discard piles (encounter cards to the encounter discard pile). The discard is the
   identity card's own (§4.1 Q7).
 - **Silk Sense** tucks only a card that is in the encounter discard pile when the response resolves: not a card that
-  went to the victory display, was shuffled away or was removed from the game. "You defeat": the defeating player.
+  went to the victory display, was shuffled away or was removed from the game. "You defeat": the defeating player's
+  identity, or a card that extends it (an event or resource the player plays, an upgrade on the identity), never an
+  ally, support, player side scheme or upgrade on another character the player controls (RRG 1.8 "You, Your",
+  p. 49; FFG ruling January 24, 2025, Change of Fortune). Corrected from "the defeating player" for issue #817.
   "Resolve a treachery card": a treachery this player revealed and resolved (`encounterCardResolved`), not one
   resolved as a boost card.
 - **"From the same encounter set as"** reads the two cards' sets (`encounterSetOf`), a card of several sets matching
