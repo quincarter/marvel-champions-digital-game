@@ -2671,6 +2671,19 @@ export interface ResourceDamageCost {
   readonly amount: number;
 }
 
+/**
+ * A step of a resource ability's cost that `payCost` would push as an effects frame (Clarity of Purpose's "deal 1
+ * damage to attached character →", a picked `damageCards`; a `readyCards`; an `indirectDamage`), held for
+ * `announceResourcesSpent` instead. Pushed while paying, it would sit under the card or ability paid for, which is
+ * pushed after the payment, so the cost would resolve after that card (issue #813). Plain data: the `pushEffects` spec.
+ */
+export interface ResourceCostStep {
+  readonly effects: readonly EffectSpec[];
+  readonly selfInstanceId: InstanceId;
+  readonly controllerId: PlayerId;
+  readonly bindings?: Bindings;
+}
+
 /** Resources one player generated in a payment (docs/phase7-wave5.md §3.25). */
 export interface GeneratedByPlayer {
   readonly playerId: PlayerId;
@@ -2711,6 +2724,13 @@ export interface SpentPayment {
    * card or ability paid for so that it is taken first (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6).
    */
   readonly damageCosts?: readonly ResourceDamageCost[];
+  /**
+   * The other frame-pushing cost steps of the resource abilities used (`ResourceCostStep`), in payment order, held
+   * for `announceResourcesSpent` like `damageCosts`, so each resolves in full (damage, a defeat, the interrupts and
+   * responses to it) before the card or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5
+   * before step 6; "Cost", p. 13–14).
+   */
+  readonly costSteps?: readonly ResourceCostStep[];
 }
 
 export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [], generated: [] };
@@ -2732,7 +2752,9 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
   ...(a.cardSpenders || b.cardSpenders ? { cardSpenders: { ...a.cardSpenders, ...b.cardSpenders } } : {}),
   countersRemoved: [...(a.countersRemoved ?? []), ...(b.countersRemoved ?? [])],
+  ...(a.threatCosts || b.threatCosts ? { threatCosts: [...(a.threatCosts ?? []), ...(b.threatCosts ?? [])] } : {}),
   ...(a.damageCosts || b.damageCosts ? { damageCosts: [...(a.damageCosts ?? []), ...(b.damageCosts ?? [])] } : {}),
+  ...(a.costSteps || b.costSteps ? { costSteps: [...(a.costSteps ?? []), ...(b.costSteps ?? [])] } : {}),
 });
 
 /**
@@ -2753,6 +2775,7 @@ export function payPayment(
   const countersRemoved: TriggerEvent[] = [];
   const threatCosts: ResourceThreatCost[] = [];
   const damageCosts: ResourceDamageCost[] = [];
+  const costSteps: ResourceCostStep[] = [];
   let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
@@ -2803,7 +2826,17 @@ export function payPayment(
         );
         const plan = resourceCostPlan(ctx.state, ctx.deps, use, spenderOfCard);
         if (!isFault(plan))
-          payCost(ctx, use.instanceId, spenderOfCard, definition.cost, plan, countersRemoved, threatCosts, damageCosts);
+          payCost(
+            ctx,
+            use.instanceId,
+            spenderOfCard,
+            definition.cost,
+            plan,
+            countersRemoved,
+            threatCosts,
+            damageCosts,
+            costSteps,
+          );
         recordAbilityUse(ctx, use.instanceId, use.abilityId, definition, null, spenderOfCard);
         emit(ctx, {
           type: "resourcesGenerated",
@@ -2848,7 +2881,7 @@ export function payPayment(
     );
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
     if (!isFault(plan))
-      payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved, threatCosts, damageCosts);
+      payCost(ctx, instanceId, spender, definition.cost, plan, countersRemoved, threatCosts, damageCosts, costSteps);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
@@ -2884,6 +2917,7 @@ export function payPayment(
     ...(countersRemoved.length > 0 ? { countersRemoved } : {}),
     ...(threatCosts.length > 0 ? { threatCosts } : {}),
     ...(damageCosts.length > 0 ? { damageCosts } : {}),
+    ...(costSteps.length > 0 ? { costSteps } : {}),
   };
 }
 
@@ -2952,6 +2986,11 @@ export function announceResourcesSpent(
       controllerId: spender,
     });
   }
+  // A resource ability's other frame-pushing cost steps (`SpentPayment.costSteps`; issue #813): Clarity of Purpose's
+  // "deal 1 damage to attached character →" is dealt, and a defeat or any interrupt to it resolved, before the card
+  // or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6). Pushed last, so
+  // they resolve before everything above, the first paid on top.
+  for (const step of [...(paid.costSteps ?? [])].reverse()) pushEffects(ctx, step);
 }
 
 /**
@@ -4391,9 +4430,18 @@ export function payCost(
    * amount is the plan's one number (`resourceCostPlan`).
    */
   collectDamageCosts?: ResourceDamageCost[],
+  /**
+   * Where a picked `damageCards`, a `readyCards` and an `indirectDamage` cost go instead of the stack, for the same
+   * reason (`SpentPayment.costSteps`; issue #813).
+   */
+  collectCostSteps?: ResourceCostStep[],
 ): void {
   const cost = plan.cost ?? written;
   if (!cost) return;
+  const pushCostStep = (step: ResourceCostStep): void => {
+    if (collectCostSteps) collectCostSteps.push(step);
+    else pushEffects(ctx, step);
+  };
   // The frame this cost pays for, which callers push just before paying (read before any payment pushes its own).
   const top = ctx.state.stack[0];
   const paidFor = (top?.kind === "ability" || top?.kind === "playCard") && top.instanceId === sourceId ? top : null;
@@ -4661,7 +4709,7 @@ export function payCost(
   // "Take 3 indirect damage →" (`indirectDamage`, `cost-damage.ts`): assigned and dealt above the ability's own frame,
   // which the caller has just pushed, so it resolves first; if not all of it is taken, that frame's effects don't.
   if (cost.indirectDamage) {
-    pushEffects(ctx, {
+    pushCostStep({
       effects: costDamageEffects(cost.indirectDamage, paidFor),
       selfInstanceId: sourceId,
       controllerId: payerOf("indirectDamage"),
@@ -4701,7 +4749,7 @@ export function payCost(
       // "Ready your sidekick →" (`readyCards`, `ready-cards-cost.ts`): readied above the ability's own frame, so it
       // resolves first; a picked card that is not ready afterward leaves that frame's effects unresolved.
       if (ids.length > 0) {
-        pushEffects(ctx, {
+        pushCostStep({
           effects: readyCardsCostEffects(pick.slot, paidFor),
           selfInstanceId: sourceId,
           controllerId: playerId,
@@ -4711,8 +4759,9 @@ export function payCost(
     } else if (mode === "damage") {
       // "Deal 1 damage to a [Web-Warrior] character you control →" (`damageCards`, `cost-damage.ts`): dealt above the
       // ability's own frame, so it resolves first; paid even if prevented (RRG 1.8 "Cost", p. 14), so never settled.
+      // In a payment (Clarity of Purpose), held for `announceResourcesSpent` to push above the card paid for (#813).
       if (ids.length > 0) {
-        pushEffects(ctx, {
+        pushCostStep({
           effects: pickedCostDamageEffects(pick.slot, (pick as DamageCostPick).amount),
           selfInstanceId: sourceId,
           controllerId: playerId,

@@ -699,6 +699,32 @@ describe("SP//dr's supports, upgrades and resources (31007-31013, 31018-31020, 3
       expect(inst(after, identity).exhausted).toBe(false);
     });
 
+    // Issue #813; RRG 1.8 "Initiating Abilities" p. 24 (step 5, the costs are paid, before step 6, the card commences
+    // being played) and "Cost" p. 13–14: the cost's 1 damage is dealt before the heal resolves, so 1 + 1 - 2 = 0. The
+    // bug dealt it after the paid-for card resolved, leaving the identity on 1.
+    it("deals its cost damage before the card it pays for resolves (First Aid heals that damage too)", () => {
+      const spdr = runWave5(spdrVsRhinoWithExtras(["31029", "01086"]), toHero(P1));
+      const identity = identityOf(spdr, P1);
+      const { state: withClarity, id: clarity } = playAttachedTo(spdr, "31029", 1, identity);
+      const hurt = patchInstance(withClarity, identity, { damage: 1 });
+      const given = moveToHand(hurt, P1, "01086");
+      const [firstAid] = given.ids as [InstanceId];
+      const healIdentity: Picker = (state) =>
+        state.pendingChoice?.options.some((o) => o.optionId === identity) ? [identity] : firstLegal(state);
+      const after = settle(
+        runWave5(
+          given.state,
+          play(P1, firstAid, [], { abilities: [resourceAbility(clarity, "31029.clarity-of-purpose-resource")] }),
+        ),
+        healIdentity,
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(playerOf(after, P1).discard).toContain(firstAid);
+      expect(inst(after, clarity).exhausted).toBe(true);
+      expect(inst(after, identity).damage).toBe(0);
+    });
+
     it("an already-exhausted Clarity of Purpose cannot pay", () => {
       const hero = runWave5(spdrWithClarityInDeck(), toHero(P1));
       const identity = identityOf(hero, P1);

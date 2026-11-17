@@ -713,6 +713,51 @@ describe("§4.1 Q33 = A: the deck's last card resets the deck, and the response 
   });
 });
 
+// Issue #810. FFG ruling, September 21, 2023, answers 2 and 4 (docs/rulings/post-rrg-1-5/05-september-2023.md): the
+// responses to a discard wait until it is complete, "whether a target of the discard is found, or the deck is emptied
+// by the discard", and the deck is shuffled before they resolve. A card discarded earlier in the discard that emptied
+// the deck answers from where the reset put it, as the last card does (Q33 = A).
+describe("§4.1 Q33 = A, extended: a card discarded before the one that emptied the deck answers from the new deck", () => {
+  /** The deck holds `top` only; the discard pile 4 fillers. No [justice] card: the 'discard until' empties the deck. */
+  const emptied = (top: readonly Name[], inPlay: readonly InPlay[] = []) => start(top, { rest: 0, discard: 4, inPlay });
+
+  it("White Fox (Call for Aid's discard until): her response is offered and she enters play from the new deck", () => {
+    const table = emptied(["filler", "fox", "filler"]);
+    const fox = table.top[1]!;
+    const result = play(table, UNTIL, triggering(FOX_RESPONSE));
+    const heard = heardDiscards(result.events).find((e) => e.kind === "cardDiscardedFromDeck" && e.instanceId === fox);
+    expect(heard).toEqual(discarded(fox, result.played, "deck"));
+    expect(resolved(result.events, FOX_RESPONSE)).toHaveLength(1);
+    expect(seat(result.state).playArea).toContain(fox);
+    // The reset's 7 cards (3 discarded, 4 fillers), less White Fox; the reset was the only shuffle.
+    expect(seat(result.state).deck).toHaveLength(6);
+    expect(seat(result.state).deck).not.toContain(fox);
+    expect(shuffles(result.events)).toBe(1);
+    expectReplays(result);
+  });
+
+  it("every card of that discard is announced where the reset put it, in discard order", () => {
+    const table = emptied(["filler", "hand", "filler"], ["tally"]);
+    const result = play(table, UNTIL, triggering(HAND_RESPONSE));
+    expect(heardDiscards(result.events)).toEqual(table.top.map((id) => discarded(id, result.played, "deck")));
+    expect(windows(result.events).filter((w) => w.includes(HAND_RESPONSE.ref.id))).toHaveLength(1);
+    expect(counters(result.state, table.inPlay.tally, "seen")).toBe(3);
+    expect(seat(result.state).hand).toContain(table.top[1]);
+    expect(seat(result.state).deck).toHaveLength(6);
+    expectReplays(result);
+  });
+
+  it("'shuffle it back into your deck' is not offered for an earlier card either: the reset has done it", () => {
+    const table = emptied(["back", "filler"]);
+    const result = play(table, UNTIL, triggering(BACK_RESPONSE));
+    expect(windows(result.events)).toEqual([]);
+    expect(resolved(result.events, BACK_RESPONSE)).toEqual([]);
+    expect(seat(result.state).deck).toContain(table.top[0]);
+    expect(shuffles(result.events)).toBe(1);
+    expectReplays(result);
+  });
+});
+
 describe("§3.55 a game with no ability that hears a deck discard is unchanged", () => {
   it("records, logs and announces nothing; its log has only the moves it always had", () => {
     const table = start(["hand", "filler", "back"], { using: silentDeps });
