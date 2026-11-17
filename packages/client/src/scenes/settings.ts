@@ -171,11 +171,27 @@ import {
   knownRefreshInfo,
   readRefreshInfo,
 } from "../platform/screen-settings.js";
-import { knownHardware, onHardwareChange } from "../platform/device-hardware.js";
-import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
+import { onHardwareChange } from "../platform/device-hardware.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import { controlsShown, couchBaseOf, couchModeShown, screenSettingsShown, settingsTabsFor } from "./settings-env.js";
+import {
+  CONTROLS_ROW,
+  CONTROLS_ROW_DETAIL,
+  RULES_ROW,
+  RULES_ROW_DETAIL,
+  RULES_ROW_TITLE,
+  SAVE_DATA_ROW,
+  STATS_ROW,
+  STATS_ROW_DETAIL,
+  STEAM_DECK_DETAIL,
+  UNLOCKS_ROW,
+  controlsShown,
+  couchBaseOf,
+  couchModeShown,
+  screenAdviceOf,
+  screenSettingsShown,
+  settingsTabsFor,
+} from "./settings-env.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
 import type { RulesSceneData } from "./rules.js";
@@ -190,26 +206,6 @@ import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-mod
 import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
-
-/** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
-const UNLOCKS_ROW = "unlocks";
-
-/** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
-const SAVE_DATA_ROW = "save-data";
-const STATS_ROW = "stats";
-
-/** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
-const RULES_ROW = "rules";
-const RULES_ROW_TITLE = "Rules reference";
-/** The Steam Deck row (SteamOS and Bazzite only): back to the display a Deck starts with. */
-const STEAM_DECK_DETAIL =
-  "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
-
-/** The Controls row: a door to `scenes/controls.ts`, the drawn controller and the keyboard's keys. */
-const CONTROLS_ROW = "controls";
-const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts and the on-screen hints.";
-
-const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
 
 /** Between the title bar's search and ✕ buttons. */
 const SEARCH_GAP = 10;
@@ -984,9 +980,7 @@ export class SettingsOverlay extends Phaser.Scene {
         applyScreenSettings(this.game, next);
         this.#draw();
       };
-      const hardware = knownHardware();
-      const recommended = recommendedScreenOf(hardware);
-      const advice = { ...recommended, tier: tierLabelOf(recommended.tier), summary: hardwareSummaryOf(hardware) };
+      const advice = screenAdviceOf();
       // A 1x screen has nothing below Native to offer, so the row is left out there.
       const scaleInfo = renderScaleRowInfoOf(settings, screen, advice);
       if (scaleInfo.options.length > 1) {
@@ -1105,9 +1099,7 @@ export class SettingsOverlay extends Phaser.Scene {
       });
     };
     door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
-    door(STATS_ROW, "Your stats", "Your record, heroes, villains, side schemes and the cards you play.", () =>
-      this.#openStats(),
-    );
+    door(STATS_ROW, "Your stats", STATS_ROW_DETAIL, () => this.#openStats());
     door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());

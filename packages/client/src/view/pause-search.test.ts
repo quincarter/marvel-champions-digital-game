@@ -118,6 +118,43 @@ describe("Pause's search", () => {
 
 const rankOf = (id: string): number => ["settings", "rules", "reference", "more"].indexOf(id);
 
+describe("rows Pause has no control for", () => {
+  it("are found anyway, and open Settings: the desktop window's rows and Discord", () => {
+    // `scenes/settings-env.ts`'s `settingsDeviceRowsFor` sends these words, as Settings draws them, ahead of Pause's own.
+    const device = [
+      ["display-mode", { title: "Display mode", detail: "Windowed, borderless or fullscreen." }],
+      ["resolution", { title: "Resolution", detail: "The window's size." }],
+      ["discord-presence", { title: "Show my game on Discord", detail: "Your status says what you are playing." }],
+    ] as const;
+    const searchHost = new SettingsSearchHost();
+    searchHost.index({
+      tabs: settingsTabsOf({
+        guideRowIds: guideRowInfoOf(defaultGuidePrefs).map((row) => row.id),
+        cardHover: true,
+        desktopWindow: true,
+        discord: true,
+      }),
+      rows: [...device, ...rowsNow().map((row) => [row.id, { title: row.title, detail: row.detail }] as const)],
+      settings: defaultSettings(),
+      pad: null,
+      unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
+      globalConsent: "unset",
+      controls: false,
+    });
+    const inline = new Set<string>(rowsNow().map((row) => row.id));
+    for (const [query, id] of [
+      ["resolution", "setting:resolution"],
+      ["fullscreen", "setting:display-mode"],
+      ["discord", "setting:discord-presence"],
+    ] as const) {
+      const [best] = groupPauseResults(searchHost.search(query))[0]?.results ?? [];
+      expect(best?.entry.id).toBe(id);
+      // Not one Pause draws a control for: its result opens Settings on the row.
+      expect(inline.has(id.slice("setting:".length))).toBe(false);
+    }
+  });
+});
+
 describe("pauseResultsContentOf", () => {
   it("stacks headings and rows without overlap, a choice row tall enough for its options", () => {
     const content = pauseResultsContentOf(

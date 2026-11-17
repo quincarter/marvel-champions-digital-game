@@ -113,7 +113,7 @@ import {
   type PauseResultSlot,
   type PauseSettingRow,
 } from "../view/pause-search.js";
-import { controlsShown, settingsTabsFor } from "./settings-env.js";
+import { controlsShown, settingsDeviceRowsFor, settingsTabsFor } from "./settings-env.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { drawSearchResultRow } from "./settings-search-row.js";
 import type { SettingsSceneData } from "./settings.js";
@@ -1114,7 +1114,11 @@ export class PauseOverlay extends Phaser.Scene {
     const { progress, prefs, devUnlockAll, achievementPoints } = unlocks();
     return {
       tabs: settingsTabsFor(this.game, width, height, settings, guideRowInfoOf(guidePrefs())),
-      rows: this.#settingRows().map((row) => [row.id, { title: row.title, detail: row.detail }] as const),
+      rows: [
+        // The rows Pause has no control for first, so a row Pause can change wins where both name it.
+        ...settingsDeviceRowsFor(this.game, width, height, settings),
+        ...this.#settingRows().map((row) => [row.id, { title: row.title, detail: row.detail }] as const),
+      ],
       settings,
       pad: inputDevice().pad,
       unlocks: { progress, prefs, devUnlockAll, achievementPoints },
