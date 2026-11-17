@@ -2,6 +2,6 @@
 # Netlify reads a _redirects in its publish directory before netlify.toml, and a PR preview serves its own copy of the
 # release pages. In production the release pages live on the landing site, so they go there.
 # Builds up to v0.39.0 have a title bar that opens this retired page: the latest release report, as in netlify.toml.
-/shadowland-info.html  https://champions-digital-game.com/releases/v0.48.0/  302
+/shadowland-info.html  https://champions-digital-game.com/releases/v0.49.0/  302
 /releases              https://champions-digital-game.com/releases/          301
 /releases/*            https://champions-digital-game.com/releases/:splat    301
