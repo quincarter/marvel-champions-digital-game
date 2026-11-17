@@ -39,7 +39,10 @@ bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in thi
 ### Fixed
 
 - Clear the Area draws its card when a thwart raised by Shrink removes a scheme's last threat (#773)
+- Daredevil's Sense deck top card now offers Play it, which runs Superhuman Senses, so a Sense upgrade can be played from the deck (#782, reported by @javgoro).
+- The log names a Sense upgrade that goes back into Daredevil's Sense deck instead of calling it a facedown card (#782).
 
 ### Special thanks
 
+- @javgoro reported #782.
 - @sgaon42 reported #773.
