@@ -726,7 +726,7 @@ class Run {
     let verdict = this.#analyse(list);
     if (verdict !== "diverged" && this.#firstContactDiffers(list)) verdict = "diverged";
     if (verdict === "local") {
-      this.#localOverRemote(list, pushes);
+      await this.#localOverRemote(list, pushes, apply);
       return false;
     }
     if (verdict === "remote") {
@@ -748,7 +748,7 @@ class Run {
     }
     if (!localMeta || !remoteMeta || remoteMeta.deleted) {
       // One side has no game record to show: nothing to ask, the side that has one wins (an edit beats a delete).
-      if (localMeta) this.#localOverRemote(list, pushes);
+      if (localMeta) await this.#localOverRemote(list, pushes, apply);
       else for (const s of list) if (s.remote) this.#applyOf(s, apply);
       return false;
     }
@@ -774,7 +774,7 @@ class Run {
     }
     // A remembered "later" never exists (it isn't stored), so what is left is one of the three real choices.
     if (choice === "keep-local") {
-      this.#localOverRemote(list, pushes);
+      await this.#localOverRemote(list, pushes, apply);
       return false;
     }
     if (choice === "keep-remote") {
@@ -808,7 +808,7 @@ class Run {
         })),
       );
     }
-    this.#localOverRemote(this.#rebased(list, full), pushes);
+    await this.#localOverRemote(this.#rebased(list, full), pushes, apply);
     return copied;
   }
 
@@ -914,9 +914,19 @@ class Run {
   }
 
   /** The remote side's pulled records are replaced by this device's: push what differs, delete what is gone here. */
-  #localOverRemote(list: readonly KeyState[], pushes: PushItem[]): void {
+  async #localOverRemote(list: readonly KeyState[], pushes: PushItem[], into: Apply): Promise<void> {
     for (const s of list) {
       if (s.local) {
+        // This device's game wins, but a mark the other device's copy carries stays (`keptAdjusted`, issue #791): the
+        // merged meta is written here and pushed, with its own hash so the next sync sees nothing new.
+        const merged =
+          s.remote && !s.remote.deleted ? keptAdjusted(s.key, s.remote.value, s.local.value) : s.local.value;
+        if (merged !== s.local.value) {
+          const record = { ...s.local, value: merged, hash: await hashValue(merged) };
+          into.writes.push({ key: s.key, value: merged });
+          pushes.push({ key: s.key, recordKey: s.recordKey, baseVersion: this.#base(s), record });
+          continue;
+        }
         if (s.localChanged || s.remote) this.#pushOf(s, pushes);
       } else if (s.remote ? !s.remote.deleted : s.entry !== undefined && !s.entry.deleted) {
         // Gone here (a truncated log, a removed game): a tombstone for what the server still holds.

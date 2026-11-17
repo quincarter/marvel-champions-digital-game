@@ -3,7 +3,11 @@
  * undid past a reveal (a shorter log, marked); device B played on (a longer log, unmarked): B's log wins, A's mark stays.
  */
 import { describe, expect, test } from "vitest";
-import { keptAdjusted } from "./sync-engine.js";
+import { deriveCredentials } from "./sync-credentials.js";
+import { keptAdjusted, SyncEngine } from "./sync-engine.js";
+import { FakeLocal, FakeServer, FakeState } from "./sync-fakes.js";
+
+const creds = await deriveCredentials("ABCDEFGHJKMNPQRSTUVWXYZ23");
 
 describe("keptAdjusted", () => {
   test("a remote meta written over a marked local one keeps the mark", () => {
@@ -21,5 +25,63 @@ describe("keptAdjusted", () => {
     const marked = { id: "g1", adjusted: true };
     expect(keptAdjusted("game:g1:meta", undefined, marked)).toBe(marked);
     expect(keptAdjusted("game:g1:log:0", { adjusted: true }, remote)).toBe(remote);
+  });
+});
+
+describe("two devices: an Undo past a reveal on one, a longer game on the other", () => {
+  const device = (server: FakeServer, answer: "keep-local" | "keep-both" = "keep-local") => {
+    const local = new FakeLocal();
+    const engine = new SyncEngine({
+      credentials: creds,
+      api: server.api,
+      local,
+      state: new FakeState(),
+      now: () => 10_000,
+      resolveConflict: async () => answer,
+    });
+    return { local, sync: async () => expect((await engine.sync()).ok).toBe(true) };
+  };
+  const markAdjusted = (local: FakeLocal, id: string) => {
+    const meta = local.values.get(`game:${id}:meta`) as object;
+    local.values.set(`game:${id}:meta`, { ...meta, adjusted: true });
+  };
+  const adjusted = (local: FakeLocal, id: string) =>
+    (local.values.get(`game:${id}:meta`) as { adjusted?: unknown } | undefined)?.adjusted === true;
+
+  // The two logs have diverged (an undo shortened one), so the player is asked which to keep.
+  test("keeping the unmarked device's game over the marked one keeps the mark on both devices", async () => {
+    const server = new FakeServer();
+    const a = device(server);
+    const b = device(server);
+    await a.local.setGame("g", 66, { tag: "x" });
+    await a.sync();
+    await b.sync();
+    // A undoes past a reveal (a shorter log, marked); B plays on (a longer log, unmarked).
+    await a.local.setGame("g", 60, { tag: "x" });
+    markAdjusted(a.local, "g");
+    await b.local.setGame("g", 100, { tag: "x" });
+    await a.sync();
+    await b.sync();
+    expect(b.local.gameCommands("g")).toHaveLength(100);
+    expect(adjusted(b.local, "g")).toBe(true);
+    await a.sync();
+    expect(a.local.gameCommands("g")).toHaveLength(100);
+    expect(adjusted(a.local, "g")).toBe(true);
+  });
+
+  test("keeping both: the marked game comes over as its own copy, still marked", async () => {
+    const server = new FakeServer();
+    const a = device(server, "keep-both");
+    const b = device(server, "keep-both");
+    await a.local.setGame("g", 66, { tag: "x" });
+    await a.sync();
+    await b.sync();
+    await a.local.setGame("g", 60, { tag: "x" });
+    markAdjusted(a.local, "g");
+    await b.local.setGame("g", 100, { tag: "x" });
+    await a.sync();
+    await b.sync();
+    // B's own game never had the undo; the copy of A's game keeps its mark.
+    expect(adjusted(b.local, "copy-1")).toBe(true);
   });
 });
