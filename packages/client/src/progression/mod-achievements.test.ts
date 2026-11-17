@@ -149,6 +149,9 @@ describe("built-in mod achievements", () => {
     const run = (pack: unknown) => ({ status: "won", campaignId: "x", ...(pack ? { pack } : {}) });
     expect(modEarned("mods-win-campaign", hist([], { campaigns: [run(undefined)] }))).toBe(false);
     expect(modEarned("mods-win-campaign", hist([], { campaigns: [run({ id: "fan-x" })] }))).toBe(true);
+    // An adjusted run (issue #791) earns nothing.
+    const adjusted = { ...run({ id: "fan-x" }), adjusted: true };
+    expect(modEarned("mods-win-campaign", hist([], { campaigns: [adjusted] }))).toBe(false);
   });
 
   it("ignore a Try-it lesson and a game still in progress", () => {
@@ -228,6 +231,7 @@ describe("pack-defined achievements", () => {
     const saga = { status: "won", campaignId: "fan-x-saga", pack: { id: "fan-x" } };
     expect(statusOf(withPack([], { campaigns: [saga] }), "campaign")?.earned).toBe(true);
     expect(statusOf(withPack([], { campaigns: [{ ...saga, pack: undefined }] }), "campaign")?.earned).toBe(false);
+    expect(statusOf(withPack([], { campaigns: [{ ...saga, adjusted: true }] }), "campaign")?.earned).toBe(false);
   });
 
   it("keeps an earned achievement after the pack is uninstalled, under its pack name, and hides unearned ones", () => {

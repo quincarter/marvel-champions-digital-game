@@ -26,6 +26,14 @@ describe("keptAdjusted", () => {
     expect(keptAdjusted("game:g1:meta", undefined, marked)).toBe(marked);
     expect(keptAdjusted("game:g1:log:0", { adjusted: true }, remote)).toBe(remote);
   });
+
+  test("a campaign run keeps its mark too", () => {
+    expect(keptAdjusted("db:mc-campaigns:campaigns:r1", { id: "r1", adjusted: true }, { id: "r1" })).toEqual({
+      id: "r1",
+      adjusted: true,
+    });
+    expect(keptAdjusted("db:mc-decks:decks:d1", { adjusted: true }, { id: "d1" })).toEqual({ id: "d1" });
+  });
 });
 
 describe("two devices: an Undo past a reveal on one, a longer game on the other", () => {
@@ -83,5 +91,29 @@ describe("two devices: an Undo past a reveal on one, a longer game on the other"
     await b.sync();
     // B's own game never had the undo; the copy of A's game keeps its mark.
     expect(adjusted(b.local, "copy-1")).toBe(true);
+  });
+
+  test("a marked campaign run stays marked when an unmarked later write of it wins", async () => {
+    const server = new FakeServer();
+    const a = device(server);
+    const b = device(server);
+    const key = "db:mc-campaigns:campaigns:r1";
+    a.local.values.set(key, { id: "r1", updatedAt: 5, status: "active" });
+    await a.sync();
+    await b.sync();
+    a.local.values.set(key, { id: "r1", updatedAt: 50, status: "active", adjusted: true });
+    b.local.values.set(key, { id: "r1", updatedAt: 60, status: "won" });
+    await a.sync();
+    await b.sync();
+    expect(b.local.values.get(key)).toMatchObject({ status: "won", adjusted: true });
+    await a.sync();
+    expect(a.local.values.get(key)).toMatchObject({ status: "won", adjusted: true });
+    // And the other way round: the marked side's record is the later one, the unmarked side keeps the mark.
+    a.local.values.set(key, { id: "r1", updatedAt: 80, status: "won", adjusted: true });
+    b.local.values.set(key, { id: "r1", updatedAt: 70, status: "won" });
+    await b.sync();
+    await a.sync();
+    await b.sync();
+    expect(b.local.values.get(key)).toMatchObject({ adjusted: true });
   });
 });

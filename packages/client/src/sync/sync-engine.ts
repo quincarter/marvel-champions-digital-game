@@ -177,7 +177,9 @@ interface Pulled {
  * pushes it back with the mark. Any other record, or a meta neither side marked, is the remote value as it is.
  */
 export function keptAdjusted(key: string, local: unknown, remote: unknown): unknown {
-  if (partOf(key) !== "meta" || typeof remote !== "object" || remote === null) return remote;
+  // A game's meta, or a campaign run (`CampaignRecord.adjusted`: an adjusted game was folded into it).
+  const marks = partOf(key) === "meta" || key.startsWith("db:mc-campaigns:campaigns:");
+  if (!marks || typeof remote !== "object" || remote === null) return remote;
   const marked = (value: unknown): boolean =>
     typeof value === "object" && value !== null && (value as { adjusted?: unknown }).adjusted === true;
   return marked(local) && !marked(remote) ? { ...remote, adjusted: true } : remote;
@@ -660,7 +662,19 @@ class Run {
     }
     // No stamp history on this side (a first join, a new space): the cloud's copy wins over this device's defaults.
     if (!remote.deleted && !state.entry && state.stampless) return this.#applyOf(state, apply);
-    if (remote.deleted || local.stamp >= remote.stamp) return this.#pushOf(state, pushes);
+    if (remote.deleted || local.stamp >= remote.stamp) {
+      // This device's record wins, keeping a mark the other side's carries (`keptAdjusted`: a campaign run).
+      const kept = remote.deleted ? local.value : keptAdjusted(state.key, remote.value, local.value);
+      if (kept === local.value) return this.#pushOf(state, pushes);
+      apply.writes.push({ key: state.key, value: kept });
+      pushes.push({
+        key: state.key,
+        recordKey: state.recordKey,
+        baseVersion: this.#base(state),
+        record: { ...local, value: kept, hash: await hashValue(kept) },
+      });
+      return;
+    }
     this.#applyOf(state, apply);
   }
 
