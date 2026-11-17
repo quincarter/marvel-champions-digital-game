@@ -150,6 +150,8 @@ export const font = {
   display: "Bangers",
   body: "Public Sans",
   mono: "IBM Plex Mono",
+  /** The community icon font (`fonts/champions-icons.css`): resource and hero icons drawn as letters. */
+  icons: "Champions Icons",
 } as const;
 
 /**
@@ -163,6 +165,7 @@ export const WEB_FONTS = [
   "700 12px 'Public Sans'",
   "800 12px 'Public Sans'",
   "400 12px 'IBM Plex Mono'",
+  "400 12px 'Champions Icons'",
 ] as const;
 
 /**
@@ -262,9 +265,17 @@ export const dotGrid = {
 /** Section 04 — the threat meter. Fill is always Hero Red: threat is the clock you lose to. */
 export const threatMeter = {
   fill: accent.heroRed,
+  /**
+   * A player side scheme's fill: a player's scheme, so never the villain side's red, and light enough that the ink
+   * count reads on it (issue #763).
+   */
+  playerFill: token(0x6f9fd8),
   /** The hatched tail previews next phase's gain, so the loss is visible a round early. */
   previewAlpha: 0.45,
 } as const;
+
+/** A pile the next round will empty (issue #769): a light wash of Hero Red, with the words "LOW" beside it. */
+export const pileRunOut = { alpha: 0.38, name: "LOW" } as const;
 
 /**
  * Section 03 — the selection ring, the one shadow in the system.

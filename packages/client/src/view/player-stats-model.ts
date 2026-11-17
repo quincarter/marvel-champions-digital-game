@@ -16,7 +16,7 @@
 import type { CorePlayer } from "@mc/cards";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
-import { villainNameOf } from "./deck-insights.js";
+import { deckKeyOfPlayer, villainNameOf } from "./deck-insights.js";
 import { matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
 
 export interface StatsNames {
@@ -29,6 +29,8 @@ export interface StatsNames {
   readonly starterDeck: (
     starterDeckId: string,
   ) => { readonly identityCardId: string; readonly aspects: readonly string[] } | undefined;
+  /** A precon's own name ("Spider-Man (Justice)"), or undefined for an id the pool does not have. */
+  readonly starterDeckName?: (starterDeckId: string) => string | undefined;
   /** The modular sets a scenario uses when a game names none (its recommended ones). */
   readonly scenarioModulars?: (scenarioId: string) => readonly string[];
   /** An encounter set's name. */
@@ -37,6 +39,11 @@ export interface StatsNames {
   readonly isVillain?: (name: string) => boolean;
   /** The whole pool, for the Matchups grids' axes. Absent: only what the games hold. */
   readonly matchupAxes?: () => MatchupAxes;
+  /**
+   * The names as one saved game knew them (its own embedded packs), for the facts read per game: a seat's hero and
+   * aspects from a precon id. Absent: the same names for every game.
+   */
+  readonly forSave?: (save: SaveMeta) => StatsNames;
 }
 
 export type StatRow =
@@ -163,6 +170,34 @@ export interface HeroCardsView {
   readonly note: string | null;
 }
 
+/**
+ * The Decks tab for one deck: a precon or saved deck, whichever seat at the table played it (a game with two heroes
+ * counts each seat's deck, so the decks of every seat show, not only the first). `cards` is its most played cards.
+ */
+export interface DeckView {
+  /** `starter:<id>`, `custom:<id>` (`deckKeyOfPlayer`), or `loose:<hero>:<aspects>` for a saved deck from before decks had ids. */
+  readonly id: string;
+  readonly name: string;
+  readonly identityCardId: string;
+  readonly heroName: string;
+  /** The aspects in the newest game that used the deck. */
+  readonly aspects: readonly string[];
+  readonly games: number;
+  readonly wins: number;
+  readonly losses: number;
+  /** "Spider-Man · Justice · 4 games · 75% won", for the row's second line. */
+  readonly detail: string;
+  /** Games of the deck that carry card numbers; the cards below come from those only. */
+  readonly tracked: number;
+  /** The deck's most played cards. */
+  readonly cards: readonly {
+    readonly cardId: string;
+    readonly value: string;
+    readonly detail: string;
+    readonly signature?: true;
+  }[];
+}
+
 export interface PlayerStats {
   readonly header: StatsHeader;
   /**
@@ -178,6 +213,8 @@ export interface PlayerStats {
   readonly allCards: HeroCardsView | null;
   /** The Aspects tab's donut: each aspect's share of your games, most played first. */
   readonly aspects: readonly AspectShare[];
+  /** The Decks tab: every deck brought to any seat of any game, most played first (#756). */
+  readonly decks: readonly DeckView[];
   /** The Matchups tab's grids, or null before any game. */
   readonly matchups: Matchups | null;
   /** The filter these stats were folded with, and what else it could be (from every game, not just the filtered). */
@@ -239,6 +276,9 @@ interface SeatFacts {
   readonly identityCardId: string;
   readonly aspects: readonly string[];
   readonly summary: SeatSummary | null;
+  /** The deck the seat played: its key (see `DeckView.id`) and the name the game recorded for it, if any. */
+  readonly deckKey: string;
+  readonly deckName: string | null;
 }
 
 const ASPECT_LABELS: Readonly<Record<string, string>> = {
@@ -261,19 +301,59 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n =
 const record = (wins: number, losses: number): string => `${wins}–${losses}`;
 const aspectLabel = (aspect: string): string => ASPECT_LABELS[aspect] ?? aspect;
 
+/** A seat's deck key and recorded name: the summary's own (version 6), else the game's config seat (`deckKeyOfPlayer`). */
+function deckOfSeat(
+  seat: SeatSummary | null,
+  player: CorePlayer | undefined,
+  identityCardId: string,
+  aspects: readonly string[],
+): { readonly deckKey: string; readonly deckName: string | null } {
+  const configName = player && !("starterDeckId" in player) ? (player.deckName ?? null) : null;
+  const deckName = seat?.deckName ?? configName;
+  if (seat?.starterDeckId) return { deckKey: `starter:${seat.starterDeckId}`, deckName: null };
+  if (seat?.deckId) return { deckKey: `custom:${seat.deckId}`, deckName };
+  const key = player ? deckKeyOfPlayer(player) : null;
+  return { deckKey: key ?? `loose:${identityCardId}:${[...aspects].sort().join("+")}`, deckName };
+}
+
 function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
   const detailed = meta.summary?.seats;
   if (detailed) {
-    return detailed
-      .filter((seat) => !seat.satOut)
-      .map((seat) => ({ identityCardId: seat.identityCardId, aspects: seat.aspects, summary: seat }));
+    return detailed.flatMap((seat, index): SeatFacts[] =>
+      seat.satOut
+        ? []
+        : [
+            {
+              identityCardId: seat.identityCardId,
+              aspects: seat.aspects,
+              summary: seat,
+              ...deckOfSeat(seat, meta.config.players[index], seat.identityCardId, seat.aspects),
+            },
+          ],
+    );
   }
   return meta.config.players.flatMap((player: CorePlayer): SeatFacts[] => {
     if ("starterDeckId" in player) {
-      const starter = names.starterDeck(player.starterDeckId);
-      return starter ? [{ identityCardId: starter.identityCardId, aspects: starter.aspects, summary: null }] : [];
+      const starter = (names.forSave?.(meta) ?? names).starterDeck(player.starterDeckId);
+      return starter
+        ? [
+            {
+              identityCardId: starter.identityCardId,
+              aspects: starter.aspects,
+              summary: null,
+              ...deckOfSeat(null, player, starter.identityCardId, starter.aspects),
+            },
+          ]
+        : [];
     }
-    return [{ identityCardId: player.identityCardId, aspects: player.aspects ?? [], summary: null }];
+    return [
+      {
+        identityCardId: player.identityCardId,
+        aspects: player.aspects ?? [],
+        summary: null,
+        ...deckOfSeat(null, player, player.identityCardId, player.aspects ?? []),
+      },
+    ];
   });
 }
 
@@ -1227,6 +1307,74 @@ function allCardsOf(games: readonly GameFacts[], names: StatsNames): HeroCardsVi
   };
 }
 
+/** How many cards a deck's strip shows. */
+const DECK_TOP = 8;
+
+/**
+ * The Decks tab (#756): one entry per deck brought to any seat of any game. A seat is one deck, so a two-hero game
+ * counts both decks, each with that game's result; a deck's cards come from the games that carry card numbers.
+ */
+function decksOf(games: readonly GameFacts[], names: StatsNames): DeckView[] {
+  const heroName = (id: string): string => names.cardName(id) ?? id;
+  const byDeck = new Map<string, { game: GameFacts; seat: SeatFacts }[]>();
+  for (const game of games)
+    for (const seat of game.seats) {
+      const list = byDeck.get(seat.deckKey);
+      if (list) list.push({ game, seat });
+      else byDeck.set(seat.deckKey, [{ game, seat }]);
+    }
+  const views = [...byDeck.entries()].map(([id, entries]): DeckView => {
+    const newest = [...entries].sort((a, b) => b.game.at - a.game.at)[0]!;
+    const identityCardId = newest.seat.identityCardId;
+    const hero = heroName(identityCardId);
+    const wins = entries.filter((e) => e.game.result === "won").length;
+    const aspects = newest.seat.aspects.filter((a) => ASPECTS.has(a));
+    const aspectText = aspects.map(aspectLabel).join(" + ");
+    // The newest game's name for the deck (a renamed deck shows its current name), else the nearest older one.
+    const recorded = [...entries]
+      .sort((a, b) => b.game.at - a.game.at)
+      .map((e) => e.seat.deckName)
+      .find((name): name is string => name !== null);
+    const name = id.startsWith("starter:")
+      ? (names.starterDeckName?.(id.slice("starter:".length)) ?? `${hero} (precon)`)
+      : (recorded ?? (aspectText ? `${hero} · ${aspectText}` : hero));
+    const seats = entries.flatMap((e) => (e.seat.summary ? [e.seat.summary] : []));
+    const plays = countsOf(seats, (s) => s.plays);
+    const drawn = countsOf(seats, (s) => s.drawnCards ?? {});
+    const cards = [...plays.entries()]
+      .filter(([cardId]) => !(names.cardType(cardId) ?? "").includes("identity"))
+      .sort(([a, x], [b, y]) => y.total - x.total || y.games - x.games || heroName(a).localeCompare(heroName(b)))
+      .slice(0, DECK_TOP)
+      .map(([cardId, entry]) => ({
+        cardId,
+        value: `${entry.total}×`,
+        detail: [
+          `In ${entry.games} of ${plural(seats.length, "game")}`,
+          ...(drawn.has(cardId) ? [`drawn ${drawn.get(cardId)!.total}×`] : []),
+        ].join(" · "),
+      }));
+    return {
+      id,
+      name,
+      identityCardId,
+      heroName: hero,
+      aspects,
+      games: entries.length,
+      wins,
+      losses: entries.length - wins,
+      detail: [
+        hero,
+        ...(aspectText ? [aspectText] : []),
+        plural(entries.length, "game"),
+        `${percent(wins, entries.length)} won`,
+      ].join(" · "),
+      tracked: seats.length,
+      cards,
+    };
+  });
+  return views.sort((a, b) => b.games - a.games || b.wins - a.wins || a.name.localeCompare(b.name));
+}
+
 const DIFFICULTY_LABELS: Readonly<Record<GameFacts["difficulty"], string>> = {
   standard: "Standard",
   expert: "Expert",
@@ -1722,6 +1870,7 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
       heroCards: [],
       allCards: null,
       aspects: [],
+      decks: [],
       matchups: null,
       filter,
       filterOptions,
@@ -1759,6 +1908,12 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
       return all ? markSignature(all, names) : null;
     })(),
     aspects,
+    decks: decksOf(games, names).map((deck) => ({
+      ...deck,
+      cards: deck.cards.map((card) =>
+        names.cardAspect(card.cardId)?.startsWith("hero:") ? { ...card, signature: true as const } : card,
+      ),
+    })),
     matchups: matchupsOf(
       games.map((g) => ({
         scenarioId: g.scenarioId,

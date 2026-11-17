@@ -157,6 +157,7 @@ export default defineConfig({
         "global-stats.spec.ts",
         "roster-picker-drag.spec.ts",
         "shelf-flick-momentum.spec.ts",
+        "shelf-fold-swipe.spec.ts",
         "roster-picker-row-text.spec.ts",
         "villain-decision-dock.spec.ts",
         "villain-threat-interrupt.spec.ts",

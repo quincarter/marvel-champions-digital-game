@@ -26,6 +26,7 @@ export const JJ_CARDS: readonly AnyCard[] = [
       thw: 3,
       def: 1,
       handSize: 5,
+      statStars: ["atk", "thw", "def"],
       keywords: [],
       text: {
         printed: "[star] Gather Evidence — Response: After you use a basic power, place 1 evidence counter on Alias Investigations.",
@@ -763,6 +764,7 @@ export const JJ_CARDS: readonly AnyCard[] = [
     atk: 0,
     sch: 0,
     hp: 6,
+    statStars: ["atk", "sch"],
     encounterSetIds: [encounterSetId("jessica_jones_nemesis")],
     boostIcons: 3,
     traits: [trait("PSIONIC")],

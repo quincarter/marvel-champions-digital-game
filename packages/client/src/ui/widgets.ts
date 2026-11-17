@@ -111,6 +111,8 @@ export interface ThreatMeterScheme {
   readonly meterMax: number | null;
   readonly target: number | null;
   readonly targetDashed?: boolean;
+  /** A player side scheme: filled in `threatMeter.playerFill`, not red (issue #763). */
+  readonly playerScheme?: boolean;
 }
 
 /**
@@ -138,12 +140,13 @@ export function paintThreatMeter(
   if (scheme.meterMax && scheme.meterMax > 0) {
     const ratio = (value: number) => Math.min(1, Math.max(0, value) / scheme.meterMax!);
     const solidWidth = meter.width * ratio(previewed ? projected : threat);
-    mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
+    const fill = scheme.playerScheme ? threatMeter.playerFill.hex : threatMeter.fill.hex;
+    mg.fillStyle(fill, dim).fillRect(meter.x, meter.y, solidWidth, meter.height);
     if (previewed) {
       hatchRect(
         mg,
         { x: meter.x + solidWidth, y: meter.y, width: meter.width * ratio(threat) - solidWidth, height: meter.height },
-        threatMeter.fill.hex,
+        fill,
         dim,
         6,
         3,
@@ -1648,7 +1651,18 @@ export interface McStatBadgeOptions {
   readonly value: string;
   /** Additive modifiers on the stat, drawn as a signed chip. */
   readonly bonus?: number;
+  /** The card prints a star beside this stat (an ability tied to it, issue #766): drawn on the burst's left shoulder. */
+  readonly star?: boolean;
   readonly alpha?: number;
+}
+
+/** A five-point star's outline, centered on 0,0 (the printed stat star, issue #766). */
+export function starPoints(radius: number): Phaser.Math.Vector2[] {
+  return Array.from({ length: 10 }, (_unused, index) => {
+    const reach = index % 2 === 0 ? radius : radius * 0.45;
+    const angle = -Math.PI / 2 + (index * Math.PI) / 5;
+    return new Phaser.Math.Vector2(Math.cos(angle) * reach, Math.sin(angle) * reach);
+  });
 }
 
 /** Points on the starburst: enough to read as the printed splat at badge size without becoming a circle. */
@@ -1683,6 +1697,7 @@ export class McStatBadge {
   readonly #label: Phaser.GameObjects.Text;
   readonly #chip: Phaser.GameObjects.Graphics;
   readonly #chipText: Phaser.GameObjects.Text;
+  readonly #star: Phaser.GameObjects.Graphics;
   #options: McStatBadgeOptions;
 
   constructor(scene: Phaser.Scene, options: McStatBadgeOptions) {
@@ -1693,6 +1708,7 @@ export class McStatBadge {
     this.#label = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
     this.#chip = scene.add.graphics();
     this.#chipText = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
+    this.#star = scene.add.graphics();
     this.container = scene.add.container(options.cx, options.cy, [
       this.#burst,
       this.#ribbon,
@@ -1700,6 +1716,7 @@ export class McStatBadge {
       this.#label,
       this.#chip,
       this.#chipText,
+      this.#star,
     ]);
     this.redraw();
   }
@@ -1710,9 +1727,20 @@ export class McStatBadge {
   }
 
   redraw(): void {
-    const { cx, cy, size, stat, value, bonus = 0, alpha = 1 } = this.#options;
+    const { cx, cy, size, stat, value, bonus = 0, star = false, alpha = 1 } = this.#options;
     this.container.setPosition(cx, cy);
     const radius = size / 2;
+
+    // The printed star beside the stat (issue #766), on the upper-left shoulder: the bonus chip owns the upper right.
+    // White with an ink edge, as the card prints it.
+    this.#star.clear();
+    if (star) {
+      const points = starPoints(Math.max(5, size * 0.2)).map(
+        (point) => new Phaser.Math.Vector2(point.x - radius * 0.86, point.y - radius * 0.82),
+      );
+      this.#star.fillStyle(surface.paper.hex, alpha).fillPoints(points, true);
+      this.#star.lineStyle(1.5, surface.ink.hex, alpha).strokePoints(points, true, true);
+    }
 
     const burst = Array.from({ length: BURST_POINTS * 2 }, (_unused, index) => {
       const reach = index % 2 === 0 ? radius : radius * BURST_INNER;

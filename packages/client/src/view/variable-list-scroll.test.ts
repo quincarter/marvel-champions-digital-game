@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { VariableListScroll, variableThumbOf } from "./variable-list-scroll.js";
+import { VariableListScroll, offsetToShow, variableThumbOf } from "./variable-list-scroll.js";
 
 const HEIGHTS = [30, 200, 200, 30, 200, 30, 200];
 const VIEWPORT = 300;
@@ -131,5 +131,37 @@ describe("variableThumbOf", () => {
     expect(thumb!.top).toBe(0);
     expect(thumb!.size).toBeGreaterThan(0);
     expect(thumb!.size).toBeLessThan(1);
+  });
+});
+
+describe("scrolling a tile of a row taller than the viewport into view (#754)", () => {
+  // A face group 500 high (two visual rows of tiles, 0-240 and 260-500) in a 300 viewport, after a 30 header.
+  const heights = [30, 500, 30];
+  const TOP_TILE = { y: 0, height: 240 };
+  const BOTTOM_TILE = { y: 260, height: 240 };
+
+  test("offsetToShow moves the least distance, and a range that cannot fit shows its top", () => {
+    expect(offsetToShow(0, 300, 100, 200)).toBe(0);
+    expect(offsetToShow(0, 300, 250, 400)).toBe(100);
+    expect(offsetToShow(300, 300, 100, 200)).toBe(100);
+    expect(offsetToShow(0, 300, 50, 450)).toBe(50);
+  });
+
+  test("focusing a tile in the first, then the last, visual row brings that tile fully into view each time", () => {
+    const scroll = new VariableListScroll();
+    const shown = (tile: { y: number; height: number }): boolean => {
+      const top = 30 + tile.y - scroll.offsetPx;
+      return top >= 0 && top + tile.height <= 300;
+    };
+    scroll.scrollIntoView(1, heights, 300, BOTTOM_TILE);
+    expect(shown(BOTTOM_TILE)).toBe(true);
+    scroll.scrollIntoView(1, heights, 300, TOP_TILE);
+    expect(shown(TOP_TILE)).toBe(true);
+    scroll.scrollIntoView(1, heights, 300, BOTTOM_TILE);
+    expect(shown(BOTTOM_TILE)).toBe(true);
+    // Without a range the row alternates between its ends whichever tile is focused.
+    scroll.scrollToStart(heights, 300);
+    scroll.scrollIntoView(1, heights, 300);
+    expect(shown(TOP_TILE)).toBe(true);
   });
 });

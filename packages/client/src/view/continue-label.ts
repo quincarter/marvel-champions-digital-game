@@ -13,6 +13,17 @@ export interface ContinueLabelNames {
   readonly identityName: (identityCardId: string) => string | undefined;
   /** A starter deck's display name ("Tigra — Aggression"), or undefined when unknown. */
   readonly starterDeckName: (starterDeckId: string) => string | undefined;
+  /**
+   * The names widened with a game's own embedded packs (`SessionConfig.packs`), so a pack's hero or precon is named
+   * after the pack is uninstalled. Optional: names without it serve the base pool only.
+   */
+  readonly forPacks?: (packs: readonly unknown[]) => ContinueLabelNames;
+}
+
+/** `names` widened with the config's own packs, when it carries any and the names know how. */
+export function labelNamesFor<N extends ContinueLabelNames>(config: SessionConfig, names: N): N {
+  const packs = config.packs;
+  return (packs && packs.length > 0 && names.forPacks ? names.forPacks(packs) : names) as N;
 }
 
 export function continueLabelOf(
@@ -24,6 +35,7 @@ export function continueLabelOf(
 
 /** "Rhino · Spider-Man": what a game is, without its round — the name a sync conflict prompt shows. */
 export function gameLabelOf(config: SessionConfig, names: ContinueLabelNames): string {
+  names = labelNamesFor(config, names);
   const scenario =
     describeCivilWar(config) ??
     // A pack's scenario is named by the packs the save carries, installed or not.

@@ -19,7 +19,12 @@
  * or a button presses nothing (issue #227).
  */
 import Phaser from "phaser";
+import type { AnyCard } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
+import { packPictureFor } from "../art/pack-art.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
+import { isCustomCard } from "../view/custom-content.js";
+import { onArtChange } from "../language-change.js";
 import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
@@ -40,13 +45,14 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import { clipToView } from "../view/focus-list.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import { PAST_GAME_NAMES } from "../view/game-label-names.js";
+import { cardInPacks, PAST_GAME_NAMES, TRACKER_EXPORT_NAMES } from "../view/game-label-names.js";
 import {
   PAST_GAME_ACTIONS,
   PAST_GAME_FILTERS,
   pastGameCounts,
   pastGameDetailParts,
   pastGameRowHeight,
+  aspectsNotInName,
   pastGameRowParts,
   pastGameRowsOf,
   pastGamesLayout,
@@ -56,6 +62,7 @@ import {
   type PastGameFilter,
   type PastGameRow,
 } from "../view/past-games-model.js";
+import { runTrackerExport } from "../view/tracker-export.js";
 import { pastGamesFocusOrder } from "../view/screen-focus.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { onLanguageChange } from "../language-change.js";
@@ -64,6 +71,7 @@ import { detectPlatform } from "../platform/platform.js";
 import {
   deliverGameLog,
   deliverReplayFile,
+  deliverTrackerCsv,
   openReplay,
   pickReplayFile,
   replayErrorKey,
@@ -71,7 +79,7 @@ import {
 import { ReplayOpenError } from "../replay/replay-core.js";
 import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
-import { appSession } from "../session.js";
+import { appSession, deckStorage } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { watchReplay } from "./replay-entry.js";
@@ -98,7 +106,7 @@ const ACTION_LABEL: Readonly<Record<PastGameAction, MessageKey>> = {
 /** What is running: an action on a game, or the file picker (`id` empty). One at a time. */
 interface Busy {
   readonly id: string;
-  readonly action: PastGameAction | "file";
+  readonly action: PastGameAction | "file" | "tracker";
 }
 
 /** Links shared this run, by game id: Share never uploads a game twice. */
@@ -107,7 +115,13 @@ const sharedUrls = new Map<string, string>();
 /** Each hero's picture by identity, kept while the app runs (finding one walks the pool). */
 const heroPictures = new Map<string, string | null>();
 
-function heroPictureOf(identityCardId: string): string | null {
+function heroPictureOf(identityCardId: string, row: PastGameRow): string | null {
+  // A pack's hero: its own picture, or its card's scan, from the pack installed now. Not cached: the picture arrives a
+  // moment after the pack loads, and a pack removed since the game was played has none (#758).
+  if (isCustomCard(identityCardId)) {
+    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, identityCardId);
+    return packPictureFor("hero", identityCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
+  }
   if (!heroPictures.has(identityCardId)) {
     const art = heroArtForIdentity(HERO_ART, identityCardId, POOL_CARDS, () => 0)?.url ?? null;
     heroPictures.set(identityCardId, art ?? artFor(CARDS_BY_ID.get(identityCardId), { kind: "front" })?.url ?? null);
@@ -116,6 +130,10 @@ function heroPictureOf(identityCardId: string): string | null {
 }
 
 function villainPictureOf(row: PastGameRow): string | null {
+  if (row.villainCardId && isCustomCard(row.villainCardId)) {
+    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, row.villainCardId);
+    return packPictureFor("villain", row.villainCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
+  }
   return (
     villainArtFor(ART_CATALOG, row.scenarioId, () => 0)?.url ??
     (row.villainCardId ? (artFor(CARDS_BY_ID.get(row.villainCardId), { kind: "front" })?.url ?? null) : null)
@@ -128,10 +146,41 @@ const picturedCards = (row: PastGameRow): readonly (string | null)[] => [
   ...row.seats.map((seat) => seat.identityCardId),
 ];
 
+/** The card records a game's pictures stand for, from the game's own packs: the hover's card when its pack is gone. */
+const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[] =>
+  picturedCards(row).map((id) =>
+    id ? cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, id) : undefined,
+  );
+
 const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
   villainPictureOf(row),
-  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId)),
+  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, row)),
 ];
+
+/** The names to print on pictures that have no art (a custom hero or villain whose pack is gone), villain first. */
+const picturedNames = (row: PastGameRow): readonly (string | null)[] => [
+  row.villainName,
+  ...row.seats.map((seat) => seat.name),
+];
+
+/** The name printed on the placeholder of a picture with no art, so a cover never shows an unnamed blank (#758). */
+function addStandInName(
+  scene: Phaser.Scene,
+  rect: Rect,
+  name: string | null,
+  url: string | null,
+): Phaser.GameObjects.Text | null {
+  if (url !== null || !name) return null;
+  const label = scene.add
+    .text(rect.x + rect.width / 2, rect.y + rect.height / 2, name, {
+      ...textStyle(typeRole.label, surface.ink.hex, 0.85),
+      align: "center",
+      wordWrap: { width: rect.width - 8 },
+    })
+    .setOrigin(0.5, 0.5);
+  fitText(label, rect.width - 8, 12);
+  return label;
+}
 
 export class PastGamesScene extends Phaser.Scene {
   /** Every save on the device, or null while they are read. */
@@ -221,10 +270,13 @@ export class PastGamesScene extends Phaser.Scene {
       area: (pointer) => screenHoverArea(this, pointer),
     });
     const offLanguage = onLanguageChange(() => this.#draw());
+    // A pack's pictures are read from the store after the packs load: draw again when they land.
+    const offArt = onArtChange(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.#visit += 1;
       offLanguage();
+      offArt();
       this.#hover?.destroy();
       this.#hover = null;
       this.scale.off("resize", this.#draw, this);
@@ -422,6 +474,40 @@ export class PastGamesScene extends Phaser.Scene {
     else if (delivered === "manual") this.#say(`${t("replay.link.manual")} ${url}`, 30_000);
   }
 
+  /**
+   * "Export for MC Tracker (CSV)" (#757): the games the list shows now (the filter's), as one spreadsheet file, handed
+   * out by the shell's own route (save dialog, Android Save, share sheet or download).
+   */
+  async #exportTracker(): Promise<void> {
+    if (this.#busy || this.#leaving) return;
+    const visit = this.#visit;
+    const saves = this.#rows.map((row) => row.save);
+    this.#setBusy({ id: "", action: "tracker" }, visit);
+    try {
+      const outcome = await runTrackerExport({
+        saves,
+        names: TRACKER_EXPORT_NAMES,
+        listDecks: () => deckStorage().list(),
+        isCurrent: () => this.#current(visit),
+        deliver: deliverTrackerCsv,
+        now: Date.now,
+      });
+      if (outcome.kind === "left") return;
+      if (outcome.kind === "none") return this.#sayIn(visit, t("pastGames.exportTrackerNone"));
+      this.#sayIn(
+        visit,
+        outcome.games === 1 ? t("pastGames.exportTrackerOne") : t("pastGames.exportTrackerDone", { n: outcome.games }),
+      );
+    } catch (cause) {
+      if (!isAbort(cause)) {
+        console.warn("MC Tracker export failed", cause);
+        this.#sayIn(visit, t("replay.exportFailed"));
+      }
+    } finally {
+      this.#setBusy(null, visit);
+    }
+  }
+
   /** "Open a replay file": a replay someone else made, watched on the board; Exit comes back here. */
   async #openFile(): Promise<void> {
     if (this.#busy || this.#leaving) return;
@@ -536,11 +622,35 @@ export class PastGamesScene extends Phaser.Scene {
     this.#hints.custom(
       (set, snapshot) => (set === "pad" ? specsForShortcuts(["zonePrevious", "zoneNext"], snapshot) : null),
       16,
-      ({ width: hintWidth }) => ({ x: tabRect.x + tabRect.width - hintWidth, y: tabRect.y + tabRect.height + 6 }),
+      ({ width: hintWidth }) => ({
+        x: tabRect.x + tabRect.width - hintWidth,
+        y: tabRect.y + tabRect.height + 6 + (hit.target - 16) / 2,
+      }),
       { avoidObstacles: true },
     );
 
-    const areaTop = tabRect.y + tabRect.height + 26;
+    // The export button under the tabs, the LB / RB hint to its right where the pad shows one.
+    const exportRect: Rect = {
+      x: left,
+      y: tabRect.y + tabRect.height + 6,
+      width: Math.min(contentWidth, 340),
+      height: hit.target,
+    };
+    const exportTracker = (): void => void this.#exportTracker();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: this.#busy?.action === "tracker" ? t("pastGames.working") : t("pastGames.exportTracker"),
+        type: { ...typeRole.rowTitle, size: 13 },
+        rect: exportRect,
+        enabled: this.#busy === null && this.#rows.length > 0,
+        onClick: exportTracker,
+      }),
+    );
+    stops.set("export-tracker", { rect: exportRect, activate: exportTracker });
+    this.#obstacles.push(exportRect);
+
+    const areaTop = exportRect.y + exportRect.height + 10;
     const area: Rect = { x: left, y: areaTop, width: contentWidth, height: Math.max(80, height - areaTop - gutter) };
     const layout = pastGamesLayout(area, { width, height });
     const rows = this.#rows;
@@ -643,6 +753,8 @@ export class PastGamesScene extends Phaser.Scene {
         const thumb = renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2);
         thumbs.push(thumb);
         objects.push(thumb.object);
+        const standIn = addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
+        if (standIn) objects.push(standIn);
       });
       const lines = this.#summaryLines(row);
       const result = this.add.text(
@@ -715,10 +827,17 @@ export class PastGamesScene extends Phaser.Scene {
         const at = list.rectFor(index);
         if (at.y + at.height < view.y || at.y > view.y + view.height) return;
         const cards = picturedCards(row);
+        const records = picturedCardRecords(row);
         pastGameRowParts(boxIn(at), row.seats.length).pictures.forEach((pic, i) => {
           const cardId = cards[i];
           const shown = cardId ? clipHoverRect(pic, view) : null;
-          if (cardId && shown) found.set(hoverSlotOf(cardId, `row${index}:${i}`), { ...shown, cardId, through: true });
+          if (cardId && shown)
+            found.set(hoverSlotOf(cardId, `row${index}:${i}`), {
+              ...shown,
+              cardId,
+              ...(records[i] ? { card: records[i] } : {}),
+              through: true,
+            });
         });
       });
       return found;
@@ -758,13 +877,21 @@ export class PastGamesScene extends Phaser.Scene {
 
     const urls = picturedUrls(row);
     const thumbs = parts.pictures.map((pic, i) => renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2));
+    parts.pictures.forEach((pic, i) => addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null));
     this.#offBaked = cardFaces(this).onBaked(() => thumbs.forEach((thumb) => thumb.refresh()));
     const cards = picturedCards(row);
+    const records = picturedCardRecords(row);
     this.#hoverCards.push(() => {
       const found = new Map<string, HoverCardIdRect>();
       parts.pictures.forEach((pic, i) => {
         const cardId = cards[i];
-        if (cardId) found.set(hoverSlotOf(cardId, `details:${i}`), { ...pic, cardId, through: true });
+        if (cardId)
+          found.set(hoverSlotOf(cardId, `details:${i}`), {
+            ...pic,
+            cardId,
+            ...(records[i] ? { card: records[i] } : {}),
+            through: true,
+          });
       });
       return found;
     });
@@ -795,14 +922,19 @@ export class PastGamesScene extends Phaser.Scene {
     for (const seat of row.seats) {
       const fate = seat.fell === null ? "" : ` · ${t(seat.fell ? "pastGames.seat.fell" : "pastGames.seat.stood")}`;
       add(`${seat.name}${fate}`, textStyle(typeRole.rowTitle, ink), 14, 1);
-      if (seat.damage !== null && seat.thwart !== null) {
-        add(
-          t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart }),
-          textStyle(typeRole.body, ink, 0.75),
-          13,
-          6,
-        );
-      }
+      // Every seat at the table, not only the first: its stats, aspects and deck, and the cards it played most (#756).
+      // A deck named after its aspect (a precon) does not say it twice.
+      const deckParts = [...(seat.deckName ? [seat.deckName] : []), ...aspectsNotInName(seat.deckName, seat.aspects)];
+      const lines = [
+        ...(seat.damage !== null && seat.thwart !== null
+          ? [t("pastGames.seat.stats", { damage: seat.damage, thwart: seat.thwart })]
+          : []),
+        ...(deckParts.length > 0 ? [t("pastGames.seat.deck", { deck: deckParts.join(" · ") })] : []),
+        ...(seat.topCards.length > 0
+          ? [t("pastGames.seat.top", { cards: seat.topCards.map((card) => `${card.name} ${card.count}×`).join(", ") })]
+          : []),
+      ];
+      lines.forEach((line, i) => add(line, textStyle(typeRole.body, ink, 0.75), 13, i === lines.length - 1 ? 8 : 1));
     }
     if (this.#detailsScrollId !== row.id) {
       this.#detailsScroll = new VariableListScroll();

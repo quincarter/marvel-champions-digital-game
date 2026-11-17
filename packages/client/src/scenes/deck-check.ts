@@ -87,6 +87,12 @@ import {
   type DeckListSort,
   type PlayerCardType,
 } from "../view/deck-stats.js";
+import {
+  deckFaceGroupLayout,
+  deckFaceGroups,
+  type DeckFaceGroup,
+  type DeckFaceGroupLayout,
+} from "../view/deck-faces.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
 import { testedCatalog } from "../view/seatable-decks.js";
@@ -147,15 +153,26 @@ export interface DeckCheckSceneData {
   readonly onStartGame?: (from: Phaser.Scene) => void;
   /** The count and status to show instead of the loose-deck rules': a campaign deck is judged by its campaign. */
   readonly verdict?: CampaignDeckVerdict;
+  /** The narrow layout's tab to open on (dev jumps and tests); defaults to Curve. */
+  readonly tab?: DeckCheckTab;
 }
 
 /** One flattened slot of the card grid's `McVariableList`: a group's own header, or one row of that group's cards. */
 type CardGridSlot =
   | { readonly kind: "header"; readonly group: DeckListGroup }
-  | { readonly kind: "gridRow"; readonly group: DeckListGroup; readonly startIndex: number; readonly count: number };
+  | { readonly kind: "gridRow"; readonly group: DeckListGroup; readonly startIndex: number; readonly count: number }
+  /** The identity's faces, or a multi-faced card's, as a row of tiles (issue #754). */
+  | { readonly kind: "faces"; readonly group: DeckFaceGroup; readonly layout: DeckFaceGroupLayout }
+  /** The "no cards match" line, under the face groups when the filter leaves no cards. */
+  | { readonly kind: "empty" };
+
+/** How tall the "no cards match" slot is. */
+const EMPTY_SLOT_HEIGHT = 40;
 
 /** How tall a group-header slot is (Bangers label + rule + count) — matches `scenes/rules.ts`'s own `SET_HEADER_HEIGHT` for the identical shape. */
 const GROUP_HEADER_HEIGHT = 34;
+/** The face tiles' inset from the card list's own edge (the group title sits at +4). */
+const FACES_INSET = 4;
 /** A card cell's own header strip (cost pip, name, type) and footer strip (a short line of rules text) — D04's own card-cell shape, header above the art rather than a caption below it. */
 // A name wraps to two lines (never "EXPLOIT WEAK…"), with the type under it; the rules strip holds two whole lines.
 const CELL_HEADER_HEIGHT = 46;
@@ -225,6 +242,8 @@ export class DeckCheckScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
   #cardList: McVariableList | null = null;
+  /** The face tiles drawn above the card grid, as `<slot>.<tile>` ids, for the focus route. */
+  #faceIds: string[] = [];
   #cardListScroll = new VariableListScroll();
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
@@ -248,7 +267,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#deckSort = deckBuilderView().deckSort;
     this.#onStartGame = data.onStartGame;
     this.#verdict = data.verdict;
-    this.#activeTab = "curve";
+    this.#activeTab = data.tab ?? "curve";
     this.#typeFilter = null;
     this.#cardListScroll = new VariableListScroll();
 
@@ -312,6 +331,7 @@ export class DeckCheckScene extends Phaser.Scene {
   #rebuild(): void {
     resetHoverCards(this);
     this.#gridHover = null;
+    this.#faceIds = [];
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
@@ -458,6 +478,7 @@ export class DeckCheckScene extends Phaser.Scene {
         wide: layout.wide,
         activeTab: this.#activeTab,
         cardIds,
+        faceIds: this.#faceIds,
         filterChipIds,
         showSort: layout.wide || this.#activeTab === "cards",
       }),
@@ -845,16 +866,6 @@ export class DeckCheckScene extends Phaser.Scene {
   // Card list tab uses it).
   // ------------------------------------------------------------------------------------------------------------
   #drawCardGrid(rect: Rect, groups: readonly DeckListGroup[]): readonly string[] {
-    if (groups.length === 0) {
-      this.add.text(
-        rect.x + 10,
-        rect.y + 10,
-        "No cards match this filter.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      );
-      return [];
-    }
-
     const totalCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
     const geometry = poolGridGeometry(
       rect.width,
@@ -863,6 +874,24 @@ export class DeckCheckScene extends Phaser.Scene {
       cardSizeFactor(appSession().settings.cardSize),
     );
     const slots: CardGridSlot[] = [];
+    // The identity's faces and every multi-faced card's, above the cards; a type filter narrows to cards alone.
+    const faceWidth = rect.width - FACES_INSET * 2;
+    if (this.#typeFilter === null)
+      for (const group of deckFaceGroups(this.#deck, currentCardsById()))
+        slots.push({ kind: "faces", group, layout: deckFaceGroupLayout(faceWidth, group.tiles.length) });
+    // The identity's faces stay on screen when the card list is empty; the message goes under them.
+    if (groups.length === 0) {
+      if (slots.length === 0) {
+        this.add.text(
+          rect.x + 10,
+          rect.y + 10,
+          "No cards match this filter.",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        );
+        return [];
+      }
+      slots.push({ kind: "empty" });
+    }
     for (const group of groups) {
       slots.push({ kind: "header", group });
       const rows = Math.max(1, Math.ceil(group.entries.length / geometry.columns));
@@ -877,14 +906,34 @@ export class DeckCheckScene extends Phaser.Scene {
       }
     }
 
-    const heights = slots.map((slot) => (slot.kind === "header" ? GROUP_HEADER_HEIGHT : geometry.cellHeight));
+    const heights = slots.map((slot) =>
+      slot.kind === "header"
+        ? GROUP_HEADER_HEIGHT
+        : slot.kind === "faces"
+          ? slot.layout.height
+          : slot.kind === "empty"
+            ? EMPTY_SLOT_HEIGHT
+            : geometry.cellHeight,
+    );
     const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
       this.#renderCardGridSlot(rowRect, slots[index]!, geometry);
     const onRowActivate = (index: number, pointer: Phaser.Input.Pointer): void => {
       const slot = slots[index];
-      if (slot?.kind !== "gridRow") return;
       const list = this.#cardList;
       if (!list) return;
+      if (slot?.kind === "faces") {
+        const at = list.rectFor(index);
+        const tile = slot.layout.tiles.findIndex(
+          (t) =>
+            pointer.x >= at.x + FACES_INSET + t.x &&
+            pointer.x <= at.x + FACES_INSET + t.x + t.width &&
+            pointer.y >= at.y + t.y &&
+            pointer.y <= at.y + t.y + t.height,
+        );
+        if (tile >= 0) this.#inspectFace(slot.group, tile);
+        return;
+      }
+      if (slot?.kind !== "gridRow") return;
       const column = poolColumnAt(geometry, list.rectFor(index), pointer.x, slot.count);
       if (column === null) return;
       const entry = slot.group.entries[slot.startIndex + column];
@@ -903,6 +952,22 @@ export class DeckCheckScene extends Phaser.Scene {
       const found: (readonly [string, HoverCardIdRect])[] = [];
       const view = list.rect;
       slots.forEach((slot, index) => {
+        if (slot.kind === "faces") {
+          const at = list.rectFor(index);
+          slot.layout.art.forEach((art, i) => {
+            const rect = clipHoverRect(
+              { x: at.x + FACES_INSET + art.x, y: at.y + art.y, width: art.width, height: art.height },
+              view,
+            );
+            const tile = slot.group.tiles[i]!;
+            if (rect)
+              found.push([
+                hoverSlotOf(slot.group.cardId, `face${index}.${i}`),
+                { ...rect, cardId: slot.group.cardId, face: tile.face, through: true },
+              ]);
+          });
+          return;
+        }
         if (slot.kind !== "gridRow") return;
         const at = list.rectFor(index);
         if (at.y + at.height <= view.y || at.y >= view.y + view.height) return;
@@ -922,7 +987,29 @@ export class DeckCheckScene extends Phaser.Scene {
     };
 
     const cardIds: string[] = [];
+    this.#faceIds = [];
     slots.forEach((slot, index) => {
+      if (slot.kind === "faces") {
+        slot.group.tiles.forEach((_, i) => {
+          const id = `${index}.${i}`;
+          this.#faceIds.push(id);
+          this.#stops.set(`face:${id}`, {
+            rect: () => {
+              const at = list.rectFor(index);
+              const t = slot.layout.tiles[i]!;
+              return { x: at.x + FACES_INSET + t.x, y: at.y + t.y, width: t.width, height: t.height };
+            },
+            activate: () => this.#inspectFace(slot.group, i),
+            inspect: () => this.#inspectFace(slot.group, i),
+            // The tile's own bounds: a wrapped group taller than the view must not jump between its ends.
+            ensureVisible: () => {
+              const t = slot.layout.tiles[i]!;
+              list.scrollIntoView(index, { y: t.y, height: t.height });
+            },
+          });
+        });
+        return;
+      }
       if (slot.kind !== "gridRow") return;
       for (let col = 0; col < slot.count; col++) {
         const entry = slot.group.entries[slot.startIndex + col];
@@ -942,6 +1029,18 @@ export class DeckCheckScene extends Phaser.Scene {
 
   #renderCardGridSlot(rect: Rect, slot: CardGridSlot, geometry: PoolGridGeometry): VirtualListRow {
     if (slot.kind === "header") return this.#renderGroupHeaderRow(rect, slot.group);
+    if (slot.kind === "faces") return this.#renderFaceGroupRow(rect, slot.group, slot.layout);
+    if (slot.kind === "empty")
+      return {
+        objects: [
+          this.add.text(
+            rect.x + 10,
+            rect.y + 10,
+            "No cards match this filter.",
+            textStyle(typeRole.body, surface.ink.hex, ink.meta),
+          ),
+        ],
+      };
     const objects: Phaser.GameObjects.GameObject[] = [];
     for (let col = 0; col < slot.count; col++) {
       const entry = slot.group.entries[slot.startIndex + col];
@@ -1088,6 +1187,61 @@ export class DeckCheckScene extends Phaser.Scene {
     objects.push(qtyBg, qtyText);
 
     return objects;
+  }
+
+  /**
+   * One identity or multi-faced card: a title over a row (wrapping on a narrow screen) of its faces, each a scan with
+   * its label and printed name under it. A missing scan draws "no scan", as the card cells do.
+   */
+  #renderFaceGroupRow(rect: Rect, group: DeckFaceGroup, layout: DeckFaceGroupLayout): VirtualListRow {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const count = group.tiles.length;
+    const title = group.identity ? `IDENTITY · ${count} FACES` : `${group.title.toUpperCase()} · ${count} FACES`;
+    const heading = this.add.text(rect.x + 4, rect.y + 4, title, {
+      ...textStyle(typeRole.barTitle, surface.ink.hex),
+      fontSize: "19px",
+    });
+    fitText(heading, rect.width - 8, 19);
+    objects.push(heading);
+    group.tiles.forEach((tile, i) => {
+      const t = layout.tiles[i]!;
+      const a = layout.art[i]!;
+      const x = rect.x + FACES_INSET;
+      const artRect: Rect = { x: x + a.x, y: rect.y + a.y, width: a.width, height: a.height };
+      const frame = this.add.graphics();
+      paintPanel(frame, artRect, "card", "rest");
+      objects.push(frame);
+      const key = cardArt(this).request(this, tile.art);
+      const picture = drawArt(this, key, artRect);
+      if (picture) objects.push(picture);
+      else
+        objects.push(
+          label(
+            this,
+            artRect.x + artRect.width / 2,
+            artRect.y + artRect.height / 2,
+            "no scan",
+            typeRole.label,
+            surface.ink.hex,
+            ink.meta,
+          ).setOrigin(0.5),
+        );
+      const captionY = rect.y + t.y + a.height + 3;
+      objects.push(label(this, x + t.x, captionY, tile.label.toUpperCase(), typeRole.label, surface.ink.hex, ink.meta));
+      const name = this.add.text(x + t.x, captionY + 14, tile.name, {
+        ...textStyle(typeRole.barTitle, surface.ink.hex),
+        fontSize: "13px",
+      });
+      fitWrapped(name, t.width, 1, 13);
+      objects.push(name);
+    });
+    return { objects };
+  }
+
+  #inspectFace(group: DeckFaceGroup, tile: number): void {
+    const face = group.tiles[tile]?.face;
+    if (!face) return;
+    this.scene.launch(SCENES.inspect, { card: { cardId: group.cardId, face } });
   }
 
   #inspect(entry: DeckListEntry): void {

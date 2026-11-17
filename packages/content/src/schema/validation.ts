@@ -1226,6 +1226,12 @@ export function validateEvidenceCard(card: EvidenceCard): ValidationResult {
 
 /** Dispatches to the type-specific validator. */
 export function validateCard(card: AnyCard): ValidationResult {
+  const byType = validateCardByType(card);
+  const starErrors = statStarsErrors(card);
+  return starErrors.length === 0 ? byType : result([...byType.errors, ...starErrors]);
+}
+
+function validateCardByType(card: AnyCard): ValidationResult {
   switch (card.type) {
     case "ally":
       return validateAllyCard(card);
@@ -1256,6 +1262,36 @@ export function validateCard(card: AnyCard): ValidationResult {
     case "evidence":
       return validateEvidenceCard(card);
   }
+}
+
+const STAT_STARS: readonly string[] = ["atk", "sch", "thw", "def", "hp", "rec"];
+
+/**
+ * `statStars` (`StatStar`, `common.ts`) wherever a card or one of its faces carries it: a non-empty list of distinct
+ * stats in the canonical order (atk, sch, thw, def, hp, rec). Absent means no star.
+ */
+export function statStarsErrors(card: AnyCard): string[] {
+  const errors: string[] = [];
+  const check = (holder: unknown, where: string): void => {
+    if (typeof holder !== "object" || holder === null || !("statStars" in holder)) return;
+    const stars = (holder as { statStars?: unknown }).statStars;
+    if (stars === undefined) return;
+    const order = Array.isArray(stars) ? stars.map((x) => STAT_STARS.indexOf(x as string)) : [];
+    const valid =
+      Array.isArray(stars) && stars.length > 0 && order.every((i, n) => i >= 0 && (n === 0 || i > (order[n - 1] ?? 0)));
+    if (!valid) {
+      errors.push(`${where} statStars must be a non-empty list of distinct stats in atk, sch, thw, def, hp, rec order`);
+    }
+  };
+  const any = card as unknown as Record<string, unknown>;
+  check(card, card.type);
+  check(any.flipSide, `${card.type} flip side`);
+  check(any.hero, "hero face");
+  check(any.alterEgo, "alter-ego face");
+  for (const form of (any.additionalHeroForms as unknown[] | undefined) ?? []) check(form, "hero form");
+  for (const side of (any.sides as { stages?: unknown[] }[] | undefined) ?? [])
+    for (const stage of side.stages ?? []) check(stage, "villain stage");
+  return errors;
 }
 
 const isStageRange = (value: unknown): boolean =>

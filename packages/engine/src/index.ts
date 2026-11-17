@@ -115,6 +115,7 @@ export type {
   VillainPhaseRecord,
 } from "./villain/audit.js";
 export { auditVillainPhases } from "./villain/audit.js";
+export { stepOneThreatOf, stepOneThreats, stepThreeDealCount, type StepOneThreat } from "./villain/step-one-threat.js";
 
 export type {
   ActionRef,
@@ -678,6 +679,8 @@ export {
   encounterDeckOf,
   heroFacesOf,
   identityFace,
+  areaOfCard,
+  sameGameArea,
   isVillain,
   undefeatedVillains,
   villainOf,
@@ -727,7 +730,7 @@ export {
   villainStage,
   zoneContents,
 } from "./query.js";
-export { legalDefenders } from "./resolve/enemy-activation.js";
+export { getsBoostCard, legalDefenders } from "./resolve/enemy-activation.js";
 export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { collectionCandidates } from "./resolve/collection.js";

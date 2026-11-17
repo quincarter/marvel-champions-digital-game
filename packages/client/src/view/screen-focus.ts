@@ -238,6 +238,8 @@ export interface DeckCheckFocusInput {
   readonly activeTab?: "curve" | "cards" | "aspect";
   /** Every card in the deck's own grid, in group-then-name order — wide always (already narrowed by `filterChipIds`, when one is selected), narrow only while the Cards tab is active. */
   readonly cardIds: readonly string[];
+  /** The face tiles listed above the grid (identity and multi-faced cards, issue #754), as `<slot>.<tile>` ids, ahead of the cards. */
+  readonly faceIds?: readonly string[];
   /** Wide only: the left rail's type filter chip ids (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), between Back and the grid. */
   readonly filterChipIds?: readonly string[];
   /** The card list's sort control is drawn: a stop ahead of the cards. */
@@ -255,7 +257,7 @@ export interface DeckCheckFocusInput {
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
   const sort = input.showSort ? ["deck-sort"] : [];
-  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  const cardStops = [...(input.faceIds ?? []).map((id) => `face:${id}`), ...input.cardIds.map((id) => `card:${id}`)];
   // The sort is drawn in the panel on wide, beside Edit deck, and over the cards on narrow.
   if (input.wide)
     return [
@@ -522,6 +524,10 @@ export interface ScenarioSelectFocusInput {
   readonly customize?: boolean;
   /** The pad-mode Filters button beside the search field is drawn (`view/pad-filters.ts`). */
   readonly filtersToggle?: boolean;
+  /** The list's own focus keys in reading order (a header stop per shelf, then the cards of the shelves left open); replaces the keys `scenarioIds` would give (#753). */
+  readonly shelfStopKeys?: readonly string[];
+  /** The Random buttons drawn above the list (#762), in draw order: they come right before the list. */
+  readonly randomStops?: readonly string[];
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -534,7 +540,12 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     "scenario-search",
     ...(input.filtersToggle ? ["filters-toggle"] : []),
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
-    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    ...(input.randomStops ?? []),
+    ...(input.shelfStopKeys
+      ? input.shelfStopKeys
+      : input.scenarioIds.length > 0
+        ? input.scenarioIds.map((id) => `scenario:${id}`)
+        : ["scenario-clear"]),
     // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
     ...(input.stagesToggle ? ["stages-toggle"] : []),
     // Civil War's "Customize this scenario" (docs/phase7-wave10-client.md 2.1), only while one is on the panel.
@@ -548,6 +559,8 @@ export interface SeatsFocusInput {
   readonly seatCount: number;
   /** Every seat option's deck id, in the pack-shelf roster's own reading order (`flattenShelves`) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
   readonly deckIds: readonly string[];
+  /** The list's own focus keys in reading order (a header stop per pack shelf, then the cards of the shelves left open); replaces the keys `deckIds` would give (#753). */
+  readonly shelfStopKeys?: readonly string[];
   readonly heroChipIds?: readonly string[];
   /** A narrow layout (`SeatsLayout.detailsToggle`/`searchToggle` non-null): routes through the two toggles too. */
   readonly narrow?: boolean;
@@ -586,7 +599,11 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.hasRecommended ? ["rec-toggle"] : []),
     ...(input.recommendedIds ?? []).map((id) => `hero-rec:${id}`),
-    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    ...(input.shelfStopKeys
+      ? input.shelfStopKeys
+      : input.deckIds.length > 0
+        ? input.deckIds.map((id) => `hero:${id}`)
+        : ["hero-clear"]),
     "deck-check",
     "play",
   ];
@@ -661,6 +678,7 @@ export function pastGamesFocusOrder(gameIds: readonly string[]): readonly string
     "filter:won",
     "filter:lost",
     "open-file",
+    "export-tracker",
     ...gameIds.map((id) => `game:${id}`),
     "action:watch",
     "action:share",

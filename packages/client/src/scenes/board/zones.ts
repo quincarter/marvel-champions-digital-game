@@ -9,7 +9,7 @@ import type Phaser from "phaser";
 import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
-import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
+import { accent, ink, pileRunOut, signal, status, surface, typeRole } from "../../tokens.js";
 import { cssOf, skin, textStyle } from "../../ui/theme.js";
 import { appSession } from "../../session.js";
 import { McButton, fitText, fitTight, fitWrapped, hatchRect, label, paintPanel } from "../../ui/widgets.js";
@@ -91,7 +91,7 @@ import {
 } from "../../view/encounter-pile-layout.js";
 import { bandHeightWithMinions, MINION_ROW_MIN_HEIGHT } from "../../view/enemies-band.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
-import { drawDeckLeftGlyph, drawPile } from "./piles.js";
+import { drawDeckLeftGlyph, drawPile, tintRunOut } from "./piles.js";
 import { drawDealtPile } from "./dealt-pile.js";
 import { dealtPileParts, dealtWords } from "../../view/dealt-pile.js";
 import { addTapTarget } from "./tap-target.js";
@@ -1155,6 +1155,8 @@ export function drawEncounter(
 
     const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
     const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
+    const runsOut = model.encounterRunsOut && (kind === "encounterDeck" || kind === "encounterDiscard");
+    if (runsOut) tintRunOut(scene.add.graphics(), box);
 
     // A faceup top card (Falcon's hero form) puts its name and boost on the tile: the art alone is a crop too small to read.
     const shown = kind === "encounterDeck" && drawn ? model.encounterDeckTop : null;
@@ -1190,7 +1192,7 @@ export function drawEncounter(
       scene,
       chips.name.x + 5,
       chips.name.y + chips.name.height / 2,
-      `${name}${shownInRow}`,
+      `${name}${runsOut ? ` · ${pileRunOut.name}` : ""}${shownInRow}`,
       nameRole,
       drawn ? surface.paper.hex : surface.ink.hex,
       drawn ? ink.body : ink.label,

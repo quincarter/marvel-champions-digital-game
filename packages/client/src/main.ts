@@ -16,6 +16,8 @@ import "@fontsource/public-sans/800.css";
 import "@fontsource/ibm-plex-mono/400.css";
 // After Bangers: the crossed 7 that overrides Bangers' own (issue #660). Order matters, see the file.
 import "./fonts/bangers-seven.css";
+// The icon font the attachment chips draw a removal cost with (#767).
+import "./fonts/champions-icons.css";
 import Phaser from "phaser";
 import { surface } from "./tokens.js";
 import { cssOf, setTextResolution } from "./ui/theme.js";

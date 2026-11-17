@@ -42,7 +42,13 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
-import { checkScenarioSetupOptions, resolveModes, type CorePlayer } from "../core/setup.js";
+import {
+  checkScenarioSetupOptions,
+  modularSetContents,
+  resolveModes,
+  withModularSetContents,
+  type CorePlayer,
+} from "../core/setup.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { wave1Scenario, type Wave1ScenarioOptions } from "../wave1/setup.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
@@ -58,19 +64,20 @@ import { WAVE7_ABILITIES } from "../wave7/index.js";
 import { wave7Scenario } from "../wave7/setup.js";
 import { INFINITES_SET_ID, infinitesGenePoolThreat } from "../wave8/aoa/infinites.js";
 import { WAVE8_ABILITIES } from "../wave8/index.js";
-import { wave8Scenario, type Wave8ScenarioOptions } from "../wave8/setup.js";
+import { offersGenePoolThreat, wave8Scenario, type Wave8ScenarioOptions } from "../wave8/setup.js";
 import { WAVE9_ABILITIES } from "../wave9/index.js";
 import { wave9Scenario } from "../wave9/setup.js";
 import { WAVE10_ABILITIES } from "../wave10/index.js";
 import { wave10Scenario } from "../wave10/setup.js";
 import { WAVE11_ABILITIES } from "../wave11/index.js";
 import { wave11Scenario, type Wave11ScenarioOptions } from "../wave11/setup.js";
-import { checkPlayableDifficultySets, skirmishOffer } from "./scenario-options.js";
+import { checkPlayableDifficultySets, scenarioGameSetIds, skirmishOffer } from "./scenario-options.js";
 import { UNSCRIPTED_ENCOUNTER_SET_IDS } from "./unscripted.js";
 import {
   PLAYABLE_ENCOUNTER_SETS,
   PLAYABLE_SCENARIO_RECORDS,
   checkModularPickCount,
+  modularPickProblem,
   chooseModularSets,
   extraModularCardIds,
 } from "../modular-pool.js";
@@ -110,6 +117,16 @@ export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(
 export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
 
 /**
+ * The "Allow extra modular sets" house rule (#761): modular sets beyond the scenario's count. They never count toward
+ * the scenario's required number (`checkModularPickCount`), but they are built as a counted modular set is
+ * (`withHouseModularSets`), ahead of the set-dependent setup options, so a game that uses Infinites this way offers and
+ * builds the threat on Gene Pool as if it were a counted pick (`genePoolThreatOffer`).
+ */
+export interface HouseModularOptions {
+  readonly houseModularSetIds?: readonly string[];
+}
+
+/**
  * Wave 1's options are the widest base (Breakout's `"extreme"` and `villainVersions`); every other builder takes a
  * subset, except wave 4's own `setAsideModularSetIds` (The Hood's seven-of-nine modular choice, docs/phase7-wave4.md
  * §2.3), which is additive here the same way. Wave 8 adds its three setup choices (docs/phase7-wave8.md section 4.1 Q1,
@@ -117,6 +134,7 @@ export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
  * and `easierStart` for Apocalypse on standard. `./scenario-options.ts` says which of them a scenario offers.
  */
 export type PlayableScenarioOptions = Wave1ScenarioOptions &
+  HouseModularOptions &
   Pick<Wave4ScenarioOptions, "setAsideModularSetIds"> &
   Pick<Wave6ScenarioOptions, "extraModularSetIds"> &
   Pick<Wave8ScenarioOptions, "genePoolThreatPerPlayer" | "horsemanSides" | "easierStart"> &
@@ -156,16 +174,28 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  */
 export function playableScenario(
   scenarioId: string,
-  options: PlayableScenarioOptions,
+  allOptions: PlayableScenarioOptions,
   /** How many of the modular picks are a custom pack's (`./custom.ts`): counted toward the scenario's count, never built here. */
   customModularPicks = 0,
 ): GameSetupConfig {
+  // The house sets are built by `withHouseModularSets`, never by a wave's builder.
+  const { houseModularSetIds: house = [], ...unhoused } = allOptions;
   // The picks are checked against the scenario's required count here, where the app's table setup builds a game; each
   // builder checks what a pick may be (`chosenModularSetIds`).
   // A wave 11 record is checked the same way before the wave is joined to the playable records.
   const scenario =
     PLAYABLE_SCENARIO_RECORDS.find((candidate) => candidate.id === scenarioId) ??
     WAVE11_SCENARIOS.find((candidate) => candidate.id === scenarioId);
+  // A wave 8 builder reads `genePoolThreatPerPlayer` against its own sets; where only a house set brings Infinites it is
+  // applied after the house sets are added instead (`withGenePoolThreat`).
+  const options: PlayableScenarioOptions =
+    house.length > 0 &&
+    unhoused.genePoolThreatPerPlayer !== undefined &&
+    scenario !== undefined &&
+    WAVE8_SCENARIOS.some((candidate) => candidate.id === scenarioId) &&
+    !offersGenePoolThreat(scenarioGameSetIds(scenario, unhoused.modularSetIds))
+      ? (({ genePoolThreatPerPlayer: _threat, ...rest }) => rest)(unhoused)
+      : unhoused;
   // Which stages the main scheme deck is made of is a choice at a Civil War leader only (MC56 p. 5); every other
   // builder would drop the option silently.
   if (options.mainSchemeStageIds !== undefined && !isWave10Scenario(scenarioId))
@@ -181,8 +211,15 @@ export function playableScenario(
     withAutoIncludedSets(
       withGenePoolThreat(
         scenarioId,
-        options,
-        withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+        unhoused.genePoolThreatPerPlayer,
+        options.genePoolThreatPerPlayer === undefined && unhoused.genePoolThreatPerPlayer !== undefined,
+        withHouseModularSets(
+          scenarioId,
+          house,
+          scenario,
+          unhoused,
+          withExtraModularSets(scenarioId, options, playableScenarioUnstacked(scenarioId, options)),
+        ),
       ),
     ),
   );
@@ -274,6 +311,41 @@ function withExtraModularSets(
   return { ...built, encounterDeck: [...(built.encounterDeck ?? []), ...extraModularCardIds(extra, PLAYABLE_CARDS)] };
 }
 
+/**
+ * The house rule's sets (#761), built as a counted modular set is (`modularSetContents`): encounter cards with a
+ * double-sided card dealt once, Setup-keyword and encounter-back cards, and the separate decks (the Infinity Stones).
+ * Added before `withGenePoolThreat`, which reads the dealt deck for the Infinites set. A set the scenario already
+ * deals, or that is not playable yet, is refused rather than shuffled in twice.
+ */
+function withHouseModularSets(
+  scenarioId: string,
+  house: readonly string[],
+  scenario: Scenario | undefined,
+  options: PlayableScenarioOptions,
+  built: GameSetupConfig,
+): GameSetupConfig {
+  if (house.length === 0) return built;
+  if (new Set(house).size !== house.length) throw new Error(`${scenarioId}: a house modular set is added twice`);
+  const dealt = new Set<string>(
+    scenario
+      ? [
+          ...scenarioGameSetIds(scenario, options.modularSetIds),
+          ...(options.extraModularSetIds ?? []),
+          ...(options.setAsideModularSetIds ?? []),
+        ]
+      : [],
+  );
+  for (const id of house) {
+    if (UNSCRIPTED_ENCOUNTER_SET_IDS.has(id)) throw new Error(`${scenarioId}: ${id} is not playable yet`);
+    if (dealt.has(id)) throw new Error(`${scenarioId}: ${id} is already in the game`);
+    // The same eligibility a counted pick meets (a Standard, Expert or difficulty set, a nemesis or campaign set, another
+    // scenario's set, a single-villain set at several villains), relaxing only the count.
+    const problem = scenario ? modularPickProblem(scenario, id, PLAYABLE_ENCOUNTER_SETS) : null;
+    if (problem) throw new Error(`${scenarioId}: ${problem}`);
+  }
+  return withModularSetContents(built, modularSetContents(house, PLAYABLE_CARDS));
+}
+
 /** The Infinites set's cards, by id: a game whose encounter deck holds one uses the set. */
 const INFINITES_CARD_IDS: ReadonlySet<string> = new Set(
   PLAYABLE_CARDS.filter(
@@ -290,11 +362,13 @@ const INFINITES_CARD_IDS: ReadonlySet<string> = new Set(
  */
 function withGenePoolThreat(
   scenarioId: string,
-  options: PlayableScenarioOptions,
+  perPlayer: number | undefined,
+  /** The wave 8 builder was not given the amount (only a house set brings Infinites), so it is applied here. */
+  builderSkipped: boolean,
   built: GameSetupConfig,
 ): GameSetupConfig {
-  const perPlayer = options.genePoolThreatPerPlayer;
-  if (perPlayer === undefined || WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId)) return built;
+  if (perPlayer === undefined) return built;
+  if (!builderSkipped && WAVE8_SCENARIOS.some((scenario) => scenario.id === scenarioId)) return built;
   const dealt = [...(built.encounterDeck ?? []), ...(built.villains ?? []).flatMap((v) => v.encounterDeck ?? [])];
   if (!dealt.some((id) => INFINITES_CARD_IDS.has(id)))
     throw new Error(`${scenarioId}: genePoolThreatPerPlayer belongs to a game that uses the Infinites set`);

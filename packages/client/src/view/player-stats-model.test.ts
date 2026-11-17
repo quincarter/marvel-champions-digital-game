@@ -664,3 +664,119 @@ describe("playerStatsOf: the numbers a version 2 summary carries", () => {
     expect(groups.get("all:paid")!.cards.map((c) => c.cardId)).toEqual(["tac"]);
   });
 });
+
+describe("Decks tab: the deck of every seat at the table (#756)", () => {
+  const names: StatsNames = {
+    ...NAMES,
+    starterDeckName: (id) => (id === "spidey-justice" ? "Spider-Man (Justice)" : undefined),
+    starterDeck: (id) =>
+      id === "spidey-justice"
+        ? { identityCardId: "spidey", aspects: ["justice"] }
+        : id === "cap-lead"
+          ? { identityCardId: "cap", aspects: ["leadership"] }
+          : undefined,
+  };
+  const twoSeats: SessionConfig = {
+    ...CONFIG,
+    players: [
+      { starterDeckId: "spidey-justice" },
+      { identityCardId: "cap", deck: [], aspects: ["leadership"], deckId: "d-cap", deckName: "Cap Tempo" },
+    ],
+  };
+  const table = (result: "won" | "lost", capPlays: Record<string, number>): SaveMeta =>
+    meta({
+      config: twoSeats,
+      status: result,
+      outcome:
+        result === "won"
+          ? { result: "win", reason: "villainDefeated" }
+          : { result: "loss", reason: "mainSchemeCompleted" },
+      summary: summary({
+        lossReason: result === "won" ? null : "schemeCompleted",
+        seats: [
+          seat({ starterDeckId: "spidey-justice", plays: { aunt: 2 }, drawnCards: { aunt: 3 } }),
+          seat({
+            identityCardId: "cap",
+            aspects: ["leadership"],
+            deckId: "d-cap",
+            deckName: "Cap Tempo",
+            plays: capPlays,
+          }),
+        ],
+      }),
+    });
+
+  test("both seats' decks are listed, with the game's result and each deck's own most played cards", () => {
+    const stats = playerStatsOf([table("won", { tac: 4, put: 1 }), table("lost", { tac: 1 })], names);
+    expect(stats.decks.map((d) => d.id)).toEqual(["custom:d-cap", "starter:spidey-justice"]);
+    const spidey = stats.decks.find((d) => d.id === "starter:spidey-justice")!;
+    const cap = stats.decks.find((d) => d.id === "custom:d-cap")!;
+    expect(spidey).toMatchObject({ name: "Spider-Man (Justice)", games: 2, wins: 1, losses: 1 });
+    expect(spidey.cards).toEqual([
+      { cardId: "aunt", value: "4×", detail: "In 2 of 2 games · drawn 6×", signature: true },
+    ]);
+    expect(cap).toMatchObject({ name: "Cap Tempo", identityCardId: "cap", aspects: ["leadership"], games: 2, wins: 1 });
+    expect(cap.cards.map((c) => [c.cardId, c.value])).toEqual([
+      ["tac", "5×"],
+      ["put", "1×"],
+    ]);
+    expect(cap.detail).toBe("Captain America · Leadership · 2 games · 50% won");
+  });
+
+  test("a renamed deck shows the newest game's name, falling back to an older game when the newest has none", () => {
+    const game = (updatedAt: number, deckName: string | null): SaveMeta =>
+      meta({
+        config: {
+          ...twoSeats,
+          players: [
+            twoSeats.players[0]!,
+            { identityCardId: "cap", deck: [], aspects: ["leadership"], deckId: "d-cap" },
+          ],
+        },
+        updatedAt,
+        summary: summary({
+          seats: [
+            seat({ starterDeckId: "spidey-justice" }),
+            seat({
+              identityCardId: "cap",
+              aspects: ["leadership"],
+              deckId: "d-cap",
+              ...(deckName === null ? {} : { deckName }),
+            }),
+          ],
+        }),
+      });
+    const nameAfter = (games: SaveMeta[]) =>
+      playerStatsOf(games, names).decks.find((d) => d.id === "custom:d-cap")!.name;
+    expect(nameAfter([game(100, "Old Name"), game(300, "New Name"), game(200, "Mid Name")])).toBe("New Name");
+    expect(nameAfter([game(300, null), game(100, "Old Name")])).toBe("Old Name");
+  });
+
+  test("a game from before card numbers still counts its decks, from the config seats", () => {
+    const old = meta({ config: twoSeats, summary: null });
+    const stats = playerStatsOf([old], names);
+    expect(stats.decks.map((d) => d.id).sort()).toEqual(["custom:d-cap", "starter:spidey-justice"]);
+    expect(stats.decks.every((d) => d.tracked === 0 && d.cards.length === 0)).toBe(true);
+    expect(stats.decks.find((d) => d.id === "custom:d-cap")!.name).toBe("Cap Tempo");
+  });
+
+  test("a saved deck with no id is told apart by hero and aspects, and named after them", () => {
+    const loose = meta({
+      config: { ...CONFIG, players: [{ identityCardId: "cap", deck: [], aspects: ["leadership"] }] },
+      summary: null,
+    });
+    const [deck] = playerStatsOf([loose], names).decks;
+    expect(deck!.id).toBe("loose:cap:leadership");
+    expect(deck!.name).toBe("Captain America · Leadership");
+  });
+
+  test("the Decks tab appears once a deck has games, with a card strip per deck", async () => {
+    const { statsTabsOf, dashboardRowsOf } = await import("./player-stats-layout.js");
+    const stats = playerStatsOf([table("won", { tac: 4 })], names);
+    expect(statsTabsOf(stats).some((tab) => tab.id === "decks")).toBe(true);
+    expect(statsTabsOf(playerStatsOf([], names)).some((tab) => tab.id === "decks")).toBe(false);
+    const rows = dashboardRowsOf(stats, "decks", 0, 900, false);
+    expect(rows.filter((r) => r.kind === "stat").map((r) => r.id)).toHaveLength(2);
+    expect(rows.some((r) => r.kind === "cards")).toBe(true);
+  });
+});

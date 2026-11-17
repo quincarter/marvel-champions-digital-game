@@ -8,5 +8,12 @@ export const CORE_ABILITIES: AbilityRegistry = CORE_BUILTIN_PACK.abilities;
 export const CORE_DEPS: EngineDeps = { abilities: CORE_ABILITIES };
 
 export { CORE_BUILTIN_PACK } from "./pack.js";
-export { coreScenario, encounterCardsOf, resolveModes, starterDeckSetup } from "./setup.js";
+export {
+  coreScenario,
+  encounterCardsOf,
+  modularSetContents,
+  resolveModes,
+  starterDeckSetup,
+  withModularSetContents,
+} from "./setup.js";
 export type { CoreDifficulty, CorePlayer, CoreScenarioOptions } from "./setup.js";

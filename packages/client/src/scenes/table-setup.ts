@@ -22,6 +22,7 @@
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import Phaser from "phaser";
 import type { Deck, Scenario } from "@mc/content";
+import { houseModularAllowed, houseModularSetIdsOf, withHouseModularSetIds } from "../view/house-modular-sets.js";
 import {
   buildScenarioWithLoadedPacks,
   CARDS_BY_ID,
@@ -71,6 +72,7 @@ import {
   type ModularGroupSummary,
   modularSetOptionsFor,
   pickedSetCount,
+  houseSetCount,
   requiredCardLabel,
   requiredEncounterSetsFor,
   toggleModularSet,
@@ -437,7 +439,15 @@ export class TableSetupScene extends Phaser.Scene {
     this.#status?.setText(value.length > 0 && parsed === null ? "seed must be a whole number" : this.#statusIdle);
   };
 
+  /** The "Allow extra modular sets" house rule (#761), a setting; off is the printed count. */
+  #allowMoreModular(): boolean {
+    return appSession().settings.allowExtraModularSets;
+  }
+
   #rebuild(): void {
+    // Turning the setting off takes the sets beyond the count out of the table.
+    if (!this.#allowMoreModular() && houseModularSetIdsOf(this.#draft).length > 0)
+      this.#draft = withHouseModularSetIds(this.#draft, []);
     this.#thumbs = [];
     resetHoverCards(this);
     this.#hoverFaces = [];
@@ -468,7 +478,10 @@ export class TableSetupScene extends Phaser.Scene {
     const requiredSets = this.#cwSummary ? [] : requiredEncounterSetsFor(scenario, currentCardsById());
     const modularOptions = this.#cwSummary
       ? []
-      : modularSetOptionsFor(this.#draft, scenario, currentCardsById(), { scope: progressionScope() });
+      : modularSetOptionsFor(this.#draft, scenario, currentCardsById(), {
+          scope: progressionScope(),
+          allowMore: this.#allowMoreModular(),
+        });
     const modularCardCount = this.#cwSummary
       ? this.#cwSummary.rows.length + 1
       : requiredSets.length + modularOptions.length;
@@ -502,24 +515,33 @@ export class TableSetupScene extends Phaser.Scene {
         currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
         tableRulesOf(appSession().settings),
       );
-      const config = buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions);
-      previewStartStageIndex = config.villainStartStageIndex;
-      preview = tableSetupPreviewOf(
-        config,
-        scenario,
-        this.#draft.difficulty,
-        currentCardsById(),
-        currentEncounterSets(),
-        undefined,
-        blindRevealOf(sessionOptions, null),
-        sessionOptions.modes?.skirmish?.villainVersion,
-      );
-      compositionRows = compositionRowsOf(preview.encounterDeck);
-      whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
-      if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
-      nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
-      gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
-      encounterDeckSize = preview.encounterDeckSize;
+      // A builder refusal (a stale or hand-edited save, a house set the scenario cannot take) is a setup problem shown
+      // on the screen, which also keeps Play off, not an error thrown while drawing.
+      let config: ReturnType<typeof buildScenarioWithLoadedPacks> | null = null;
+      try {
+        config = buildScenarioWithLoadedPacks(this.#draft.scenarioId, sessionOptions);
+      } catch (error) {
+        this.#dealBlocked = error instanceof Error ? error.message : String(error);
+      }
+      if (config) {
+        previewStartStageIndex = config.villainStartStageIndex;
+        preview = tableSetupPreviewOf(
+          config,
+          scenario,
+          this.#draft.difficulty,
+          currentCardsById(),
+          currentEncounterSets(),
+          undefined,
+          blindRevealOf(sessionOptions, null),
+          sessionOptions.modes?.skirmish?.villainVersion,
+        );
+        compositionRows = compositionRowsOf(preview.encounterDeck);
+        whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
+        if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
+        nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
+        gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
+        encounterDeckSize = preview.encounterDeckSize;
+      }
     }
     // The cards say where the game begins: Apocalypse's easier start moves the standard card's stage to I.
     const difficultyCards = difficultyCardsFor(
@@ -1379,7 +1401,7 @@ export class TableSetupScene extends Phaser.Scene {
     const onClick = (): void => {
       if (barred) return;
       const scenario = this.#scenario();
-      this.#draft = toggleModularSet(this.#draft, scenario, option.id);
+      this.#draft = toggleModularSet(this.#draft, scenario, option.id, undefined, this.#allowMoreModular());
       this.#rebuild();
     };
     this.#buttons.push(
@@ -2178,12 +2200,18 @@ export class TableSetupScene extends Phaser.Scene {
   #modularRightLabel(scenario: Scenario, requiredCount: number, options: readonly ModularSetOption[]): string {
     return this.#cwSummary
       ? this.#cwSummary.build
-      : modularHeaderRightLabel(scenario, requiredCount, this.#draft.seats.length, pickedSetCount(options));
+      : modularHeaderRightLabel(
+          scenario,
+          requiredCount,
+          this.#draft.seats.length,
+          pickedSetCount(options),
+          this.#allowMoreModular() && houseModularAllowed(scenario) ? houseSetCount(options) : null,
+        );
   }
 
   /** How many modular sets are in the game (a Civil War build's own count, else the picker's). */
   #pickedCount(options: readonly ModularSetOption[]): number {
-    return this.#cwSummary ? this.#cwSummary.setCount : pickedSetCount(options);
+    return this.#cwSummary ? this.#cwSummary.setCount : pickedSetCount(options) + houseSetCount(options);
   }
 
   /** Back to the builder on this draft, at its review step: the picks change there, never on two screens. */
@@ -2449,7 +2477,7 @@ export class TableSetupScene extends Phaser.Scene {
     const onClick = (): void => {
       if (barred) return;
       const scenario = this.#scenario();
-      this.#draft = toggleModularSet(this.#draft, scenario, option.id);
+      this.#draft = toggleModularSet(this.#draft, scenario, option.id, undefined, this.#allowMoreModular());
       this.#rebuild();
     };
     this.#buttons.push(
@@ -2727,7 +2755,7 @@ export class TableSetupScene extends Phaser.Scene {
   #onSetCardsAction(setId: string): void {
     if (!this.sys.isActive()) return;
     const scenario = this.#scenario();
-    this.#draft = toggleModularSet(this.#draft, scenario, setId);
+    this.#draft = toggleModularSet(this.#draft, scenario, setId, undefined, this.#allowMoreModular());
     this.#rebuild();
   }
 

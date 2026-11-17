@@ -361,6 +361,7 @@ export const CAP_CARDS: readonly AnyCard[] = [
     atk: 3,
     thw: 1,
     hp: 3,
+    statStars: ["atk"],
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "leadership",
     traits: [trait("AVENGER")],

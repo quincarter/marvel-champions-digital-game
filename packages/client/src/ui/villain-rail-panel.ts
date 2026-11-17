@@ -406,20 +406,31 @@ function drawStrip(
     const swatch: Rect = { x: rect.x + 6, y: rect.y + 6, width: side, height: side };
     const frame = live ? accent.heroRed.hex : tile.status === "done" ? surface.paper.hex : surface.paper.hex;
     drawSeatAvatar(scene, swatch, game, tile.playerId, frame, tile.status === "facedown" ? 0.6 : 1);
+    // The mark ("SURGE" / "FROM SURGE") is its own tag on the top row, at full strength and shrunk to fit before it is
+    // ever clipped: the name below is what gets the ellipsis, never the mark. "YOU" follows it where there is room.
+    const textX = swatch.x + swatch.width + 10;
+    const textRoom = rect.x + rect.width - textX - 8;
+    let topX = textX;
+    if (tile.marks.length > 0) {
+      const mark = label(scene, textX, rect.y + 10, tile.marks.join(" · "), typeRole.label, surface.paper.hex, 1);
+      fitText(mark, textRoom, typeRole.label.size);
+      topX += mark.width + 10;
+    }
     if (tile.isViewer) {
-      label(scene, swatch.x + swatch.width + 10, rect.y + 10, "YOU", typeRole.label, surface.paper.hex, ink.label);
+      const you = label(scene, topX, rect.y + 10, "YOU", typeRole.label, surface.paper.hex, ink.label);
+      if (topX + you.width > textX + textRoom) you.destroy();
     }
     const status =
       tile.status === "now" ? "now" : tile.status === "next" ? "next" : tile.status === "done" ? "done" : "";
     const line = scene.add
       .text(
-        swatch.x + swatch.width + 10,
+        textX,
         rect.y + rect.height - 10,
         status ? `${tile.name} · ${status}` : tile.name,
         textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paper.hex, live ? ink.body : ink.secondary),
       )
       .setOrigin(0, 1);
-    fitText(line, rect.x + rect.width - (swatch.x + swatch.width + 10) - 8, 13);
+    fitText(line, textRoom, 13);
   });
   if (more > 0 && !vertical) {
     label(

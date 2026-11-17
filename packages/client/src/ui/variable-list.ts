@@ -16,7 +16,7 @@
 import Phaser from "phaser";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import type { Rect } from "../view/layout.js";
-import { VariableListScroll, variableThumbOf } from "../view/variable-list-scroll.js";
+import { VariableListScroll, variableThumbOf, type RowRange } from "../view/variable-list-scroll.js";
 import { surface } from "../tokens.js";
 import { paintPanel } from "./widgets.js";
 import { setMask, clearMask } from "./rex.js";
@@ -134,8 +134,9 @@ export class McVariableList {
     };
   }
 
-  scrollIntoView(index: number): void {
-    if (this.#scroll.scrollIntoView(index, this.#heights, this.#rect.height)) this.#redrawWindow(false);
+  /** Brings row `index` fully on screen, or only `within` it (a y-range from its top) when the row is taller than the view. */
+  scrollIntoView(index: number, within?: RowRange): void {
+    if (this.#scroll.scrollIntoView(index, this.#heights, this.#rect.height, within)) this.#redrawWindow(false);
   }
 
   scrollByPage(direction: 1 | -1): void {

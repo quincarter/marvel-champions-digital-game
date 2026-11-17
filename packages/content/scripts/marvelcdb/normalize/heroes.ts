@@ -20,7 +20,7 @@ import {
   type NormalizeContext,
 } from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
-import { faceSchemeIconsField } from "./values.ts";
+import { faceSchemeIconsField, statStarsField } from "./values.ts";
 import { parseCardText } from "../parse-text.ts";
 import { parseTraits, toPlainText } from "../text.ts";
 import type { RawCard } from "../raw-types.ts";
@@ -49,6 +49,7 @@ function buildExtraFace(
       thw: p.thwart ?? r.thwart ?? 0,
       def: r.defense ?? 0,
       handSize: r.hand_size ?? 0,
+      ...statStarsField(r),
       keywords: parsed.keywords,
       text: p.text,
       ...(p.flavor ? { flavor: p.flavor } : {}),
@@ -200,6 +201,7 @@ function buildSeparatedIdentity(
       thw: h.thwart ?? r.thwart ?? 0,
       def: r.defense ?? 0,
       handSize: r.hand_size ?? 0,
+      ...statStarsField(r),
       keywords: hp.keywords,
       text: h.text,
       ...(h.flavor ? { flavor: h.flavor } : {}),
@@ -312,6 +314,7 @@ export function normalizeHeroes(
         thw: h.thwart ?? r.thwart ?? 0,
         def: r.defense ?? 0,
         handSize: r.hand_size ?? 0,
+        ...statStarsField(r),
         keywords: hp.keywords,
         text: h.text,
         ...(h.flavor ? { flavor: h.flavor } : {}),
@@ -324,6 +327,7 @@ export function normalizeHeroes(
         traits: a.traits,
         rec: ae.recover ?? 0,
         handSize: ae.hand_size ?? 0,
+        ...statStarsField(ae),
         keywords: ap.keywords,
         text: a.text,
         ...(a.flavor ? { flavor: a.flavor } : {}),

@@ -348,6 +348,62 @@ describe("game record: the stats screen's per-seat numbers (#529)", () => {
     expect(recordEvents(emptyRecord(), [drawn, drawn], state).seats[0]!.drawn).toBe(2);
   });
 
+  describe("the cards each seat drew", () => {
+    const twoSeats: SessionConfig = {
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-black-panther-protection" }],
+      seed: 43523,
+    };
+    const draw = (playerId: string, instanceId: string): GameEvent => ({
+      type: "cardDrawn",
+      playerId: playerId as never,
+      instanceId: instanceId as never,
+    });
+    const ownedBy = (state: GameState, playerId: string) =>
+      Object.values(state.instances).find(
+        (instance) => instance.ownerId === playerId && state.cardPool[instance.cardId]?.type !== "hero_identity",
+      )!;
+
+    test("one card drawn twice is booked twice under its id", async () => {
+      const { state, me } = await table();
+      const card = ownedBy(state, me);
+      const seat = recordEvents(emptyRecord(), [draw(me, card.instanceId), draw(me, card.instanceId)], state).seats[0]!;
+      expect(seat.drawnCards).toEqual({ [card.cardId]: 2 });
+      expect(seat.drawn).toBe(2);
+    });
+
+    test("draws on two seats in one batch stay apart", async () => {
+      const game = await recordedGame(twoSeats);
+      const state = game.state();
+      const [a, b] = state.players.map((player) => player.playerId);
+      const cardA = ownedBy(state, a!);
+      const cardB = ownedBy(state, b!);
+      const record = recordEvents(
+        emptyRecord(),
+        [draw(a!, cardA.instanceId), draw(b!, cardB.instanceId), draw(b!, cardB.instanceId)],
+        state,
+      );
+      expect(record.seats[0]!.drawnCards).toEqual({ [cardA.cardId]: 1 });
+      expect(record.seats[1]!.drawnCards).toEqual({ [cardB.cardId]: 2 });
+      expect(record.seats.map((seat) => seat.drawn)).toEqual([1, 2]);
+    });
+
+    test("a card that flips after it is drawn is booked under its face at draw time", async () => {
+      const { state, me } = await table();
+      const card = ownedBy(state, me);
+      const flip: GameEvent = {
+        type: "cardFlippedToOtherFace",
+        instanceId: card.instanceId,
+        from: "front-face" as never,
+        to: card.cardId,
+        typeChanged: false,
+      };
+      const seat = recordEvents(emptyRecord(), [draw(me, card.instanceId), flip], state).seats[0]!;
+      expect(seat.drawnCards).toEqual({ "front-face": 1 });
+    });
+  });
+
   test("resources by type, and the cards paid with: cards spent from hand and a resource ability in play", async () => {
     const { state, me, support } = await table();
     const [handCard, whenSpent] = state.players[0]!.hand as [InstanceId, InstanceId];

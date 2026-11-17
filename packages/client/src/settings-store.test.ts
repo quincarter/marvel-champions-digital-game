@@ -249,6 +249,23 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"inspectCard":true}')).toEqual({});
   });
 
+  test("playAreaOrder: only the four known orders are read", () => {
+    expect(parseSettingsOverrides('{"playAreaOrder":"cost"}')).toEqual({ playAreaOrder: "cost" });
+    expect(parseSettingsOverrides('{"playAreaOrder":"name"}')).toEqual({ playAreaOrder: "name" });
+    expect(parseSettingsOverrides('{"playAreaOrder":"random"}')).toEqual({});
+    expect(parseSettingsOverrides('{"playAreaOrder":2}')).toEqual({});
+  });
+
+  test("deckListOnOpen: only the five known lists are read; showPreconDecks is a boolean", () => {
+    expect(parseSettingsOverrides('{"deckListOnOpen":"last"}')).toEqual({ deckListOnOpen: "last" });
+    expect(parseSettingsOverrides('{"deckListOnOpen":"precon"}')).toEqual({ deckListOnOpen: "precon" });
+    expect(parseSettingsOverrides('{"deckListOnOpen":"mine"}')).toEqual({});
+    expect(parseSettingsOverrides('{"showPreconDecks":false}')).toEqual({ showPreconDecks: false });
+    expect(parseSettingsOverrides('{"showPreconDecks":"no"}')).toEqual({});
+    expect(parseSettingsOverrides('{"allowExtraModularSets":true}')).toEqual({ allowExtraModularSets: true });
+    expect(parseSettingsOverrides('{"allowExtraModularSets":1}')).toEqual({});
+  });
+
   test("cardHoverScale: only the five known values are read (a saved 5x falls back to the default)", () => {
     expect(parseSettingsOverrides('{"cardHoverScale":"1.5x"}')).toEqual({ cardHoverScale: "1.5x" });
     expect(parseSettingsOverrides('{"cardHoverScale":"off"}')).toEqual({ cardHoverScale: "off" });

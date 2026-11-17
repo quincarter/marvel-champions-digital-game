@@ -12,7 +12,7 @@ import { brand, traitOf } from "./brand.ts";
 import { record, type NormalizeContext, type SingleRecord } from "./context.ts";
 import type { Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
-import { CORE_ASPECTS, printedStat, resourceIcons, scalingOf } from "./values.ts";
+import { CORE_ASPECTS, printedStat, resourceIcons, scalingOf, statStarsField } from "./values.ts";
 
 /** Aspects a `printedAspect` may name (validation.ts `CHOOSABLE_PRINTED_ASPECTS`) — narrower than `CORE_ASPECTS`, which also has "basic". */
 const PRINTABLE_ASPECTS: readonly CoreAspect[] = ["aggression", "justice", "leadership", "protection", "pool"];
@@ -186,6 +186,7 @@ export function normalizePlayerCard(
         atk: printedStat(p.attack),
         thw: printedStat(p.thwart ?? r.thwart),
         hp: r.health ?? 0,
+        ...statStarsField(r),
         consequentialDamage: { attack: r.attack_cost ?? 0, thwart: r.thwart_cost ?? 0 },
         ...playerCommon,
       };

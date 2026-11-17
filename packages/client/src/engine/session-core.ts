@@ -237,7 +237,7 @@ const scenarioFor = (config: SessionConfig) => {
   const build = usesPackContent(config, view.packs)
     ? (id: string, options: PlayableScenarioOptions) => scenarioWithPacks(id, options, view.packs)
     : buildScenario;
-  const built = build(config.scenarioId, {
+  const scenarioBuilt = build(config.scenarioId, {
     difficulty: config.difficulty,
     players: view.packs.length > 0 ? seatsWithPackDecks(config.players, view.packs, BASE_DECK_IDS) : config.players,
     seed: config.seed,
@@ -254,11 +254,14 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.mainSchemePicks ? { mainSchemePicks: config.mainSchemePicks } : {}),
     ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
     ...(config.extraModularSetIds ? { extraModularSetIds: config.extraModularSetIds } : {}),
+    ...(config.houseModularSetIds?.length ? { houseModularSetIds: config.houseModularSetIds } : {}),
     ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),
     ...(config.mainSchemeStageIds ? { mainSchemeStageIds: config.mainSchemeStageIds } : {}),
     ...(config.gameMode ? { gameMode: config.gameMode } : {}),
     ...(config.stack ? { stack: config.stack } : {}),
   });
+  // Modular sets beyond the scenario's count (the house rule, #761) are built by the scenario builder (`houseModularSetIds`).
+  const built = scenarioBuilt;
   // The packs' cards join the game's pool after the builder, which knows only the base game's cards. They ride with
   // the config (`SessionConfig.packs`), so this worker needs no packs of its own and a resume rebuilds the same pool.
   const setup = view.packs.length > 0 ? { ...built, cards: view.cards } : built;
@@ -291,8 +294,11 @@ const scenarioFor = (config: SessionConfig) => {
 /** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
 const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
   packs.length > 0 &&
-  packsOwningContent(config.scenarioId, [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? [])], packs)
-    .length > 0;
+  packsOwningContent(
+    config.scenarioId,
+    [...(config.modularSetIds ?? []), ...(config.extraModularSetIds ?? []), ...(config.houseModularSetIds ?? [])],
+    packs,
+  ).length > 0;
 
 /** The engine deps a game runs with: the base game's, plus its packs' abilities (`SessionConfig.packs`). */
 const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);
@@ -619,7 +625,7 @@ export class EngineSessionCore {
         ...this.#playedField(),
         status: statusOf(state),
         outcome: state.outcome,
-        summary: summarizeGame(state, record, depsOf(config)),
+        summary: summarizeGame(state, record, depsOf(config), config.players),
       };
       // Chained onto `#writes`, the same queue `#persist` appends onto — a command dispatched just before this
       // rewind may still have an `append` in flight, and truncating ahead of it would let that append land
@@ -749,7 +755,7 @@ export class EngineSessionCore {
           record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
           state = result.state;
         }
-        const summary = summarizeGame(state, record, depsOf(stored.meta.config));
+        const summary = summarizeGame(state, record, depsOf(stored.meta.config), stored.meta.config.players);
         return summary ? { state, summary } : null;
       },
       undefined,
@@ -801,7 +807,7 @@ export class EngineSessionCore {
       ...this.#playedField(),
       status: statusOf(state),
       outcome: state.outcome,
-      summary: summarizeGame(state, this.#record, depsOf(this.#config)),
+      summary: summarizeGame(state, this.#record, depsOf(this.#config), this.#config?.players),
     };
     this.#writes = this.#writes
       .then(() => storage.append(gameId, seq, command, progress))

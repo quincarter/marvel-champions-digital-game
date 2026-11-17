@@ -1,5 +1,5 @@
 import type { Aspect, CoreAspect } from "../aspects.js";
-import type { CardText, PrintedStat, ResourceIconCounts, ScalingValue, Trait } from "../common.js";
+import type { CardText, PrintedStat, ResourceIconCounts, ScalingValue, StatStar, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { EncounterSetId } from "../ids.js";
@@ -200,6 +200,8 @@ export interface AllyCard extends PlayerCardCommon, CostedCard {
    * each pym counter" placed by an "Interrupt: When [this ally] enters play" (docs/phase7-wave2.md §3.9).
    */
   readonly hp: number;
+  /** Stats of the ally's front face (ATK, THW, HP) that print a star beside them (see `StatStar`). Absent: none. */
+  readonly statStars?: readonly StatStar[];
   /** The small number printed beside ATK/THW: damage the ally takes after using that icon (RRG "Consequential Damage"). */
   readonly consequentialDamage: {
     readonly attack: number;

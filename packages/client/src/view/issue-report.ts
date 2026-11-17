@@ -10,6 +10,7 @@
  * The GitHub link opens the repo's Bug report form with the device details in its Game details box. It carries no log: a URL has a
  * length limit and a full game's commands do not fit, so the form asks the player to paste or attach it instead.
  */
+import { withoutDeckNames } from "../engine/shared-config.js";
 import { CARD_LANGUAGE_NAMES, type CardLanguage } from "../art/card-language.js";
 import type { LogLine } from "./log-lines.js";
 import { logLineWords } from "./pause-log-window.js";
@@ -108,7 +109,7 @@ export function issueReportText(input: ReportInput): string {
       ...(game.lines.length === 0 ? ["(empty)"] : game.lines.map((line) => `${line.ref}  ${logLineWords(line)}`)),
       "",
       "== Replay (setup and commands) ==",
-      jsonBlock(JSON.stringify({ config: game.config, commands: game.commands })),
+      jsonBlock(JSON.stringify({ config: withoutDeckNames(game.config), commands: game.commands })),
     );
   }
   sections.push("", "== Debug snapshot ==", jsonBlock(JSON.stringify(input.snapshot, null, 2)), "");

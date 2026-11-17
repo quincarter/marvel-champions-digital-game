@@ -43,6 +43,8 @@ export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): G
   if (meta.guided || (meta.status !== "won" && meta.status !== "lost")) return null;
   // A Skirmish game is shorter than the difficulty it would be counted under, so it stays out of the global numbers.
   if (meta.config.modes?.skirmish) return null;
+  // A game with extra modular sets (the house rule, #761) is a harder deck than the scenario prints, so it stays out too.
+  if (meta.config.houseModularSetIds && meta.config.houseModularSetIds.length > 0) return null;
   const summary = meta.summary;
   if (!summary || (summary.version ?? 1) < MIN_SUMMARY_VERSION || !summary.seats) return null;
   const villain = villainNameOf(meta, names);

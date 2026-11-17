@@ -63,6 +63,11 @@ export type CorePlayer =
       readonly deck: readonly string[];
       readonly aspects?: readonly CoreAspect[];
       readonly deckId?: string;
+      /**
+       * The deck's name when the game was set up, opaque like `deckId` and never read by setup: kept so the stats and
+       * Past games can name the deck a finished game was played with after it is renamed or deleted (#756).
+       */
+      readonly deckName?: string;
     };
 
 export interface CoreScenarioOptions {
@@ -189,6 +194,88 @@ export function setSeparateDecks(setIds: readonly string[]): NonNullable<GameSet
   return PLAYABLE_ENCOUNTER_SETS.filter((set) => setIds.includes(set.id) && set.separateDecks).flatMap((set) =>
     set.separateDecks!.map((deck) => ({ ...deck, buildAtSetup: true as const })),
   );
+}
+
+/** A double-sided encounter card whose two faces are both in one deck is one card: its front face (the waves' `withoutBackFaces`). */
+function withoutBackFaces(deck: readonly CardId[], pool: readonly AnyCard[]): CardId[] {
+  const byId = new Map<string, AnyCard>(pool.map((card) => [card.id as string, card]));
+  const inDeck = new Set<string>(deck);
+  return deck.filter((id) => {
+    const other = byId.get(id)?.otherFaceId;
+    return other === undefined || !inDeck.has(other) || String(id) < String(other);
+  });
+}
+
+/**
+ * Player-typed cards with an encounter back that belong to a modular set through `specificTo` and are dealt with its
+ * encounter deck: Hope Summers (setup keyword, wave 7's `setupKeywordCardIds`) and Shop Proprietor (revealed from the
+ * deck, wave 11's `encounterBackedCardIds`). `modularSetupCardIds` leaves encounter-back cards out.
+ */
+function encounterBackedModularCardIds(setIds: readonly string[], pool: readonly AnyCard[]): CardId[] {
+  const ids: CardId[] = [];
+  for (const card of pool) {
+    if (!("specificTo" in card) || card.specificTo?.kind !== "scenario") continue;
+    if (!("cardBack" in card) || card.cardBack !== "encounter") continue;
+    if (!setIds.includes(card.specificTo.encounterSetId)) continue;
+    if ("encounterSetIds" in card && (card.encounterSetIds as readonly string[]).length > 0) continue;
+    for (let copy = 0; copy < card.quantityInSet; copy++) ids.push(card.id);
+  }
+  return ids;
+}
+
+/**
+ * What a modular set adds to a game, built the way the later waves' builders build a counted modular: its encounter
+ * cards with a double-sided card dealt once (its front), the Setup-keyword cards that begin in play
+ * (`modularSetupCardIds`), the player-typed cards with an encounter back it owns, and the separate decks it brings
+ * (`setSeparateDecks`, the Infinity Stones). The "Allow extra modular sets" house rule (#761) adds sets the builders
+ * refuse to count; `playableScenario` adds their contents with this, ahead of its set-dependent setup options.
+ */
+export function modularSetContents(
+  setIds: readonly string[],
+  pool: readonly AnyCard[] = CORE_CARDS,
+): { encounterDeck: CardId[]; scenarioDecks: NonNullable<GameSetupConfig["scenarioDecks"]> } {
+  return {
+    encounterDeck: withoutBackFaces(
+      [
+        ...encounterCardsOf(setIds, pool),
+        ...modularSetupCardIds(setIds, pool),
+        ...encounterBackedModularCardIds(setIds, pool),
+      ],
+      pool,
+    ),
+    scenarioDecks: setSeparateDecks(setIds),
+  };
+}
+
+/**
+ * `config` with these sets' contents (`modularSetContents`) added: the encounter cards on top of the deck and the
+ * separate decks (the Infinity Stones, set aside facedown) merged into `scenarioDecks`. Where a scenario's villains
+ * each carry their own deck, the first villain's takes the cards (as a set an added rule shuffles in does); otherwise
+ * the deck. The engine shuffles at the deal, so the cards mix in like any others.
+ */
+export function withModularSetContents(
+  config: GameSetupConfig,
+  extra: {
+    readonly encounterDeck: readonly CardId[];
+    readonly scenarioDecks?: GameSetupConfig["scenarioDecks"];
+  },
+): GameSetupConfig {
+  const cardIds = extra.encounterDeck;
+  const decks = extra.scenarioDecks ?? [];
+  if (cardIds.length === 0 && decks.length === 0) return config;
+  const withDecks: GameSetupConfig =
+    decks.length > 0 ? { ...config, scenarioDecks: [...(config.scenarioDecks ?? []), ...decks] } : config;
+  if (cardIds.length === 0) return withDecks;
+  // Engine-specific reading (CLAUDE.md authority order, item 5): no official source says where an added modular set's
+  // cards go at a scenario whose villains each have their own deck (Breakout); the first villain's deck takes them.
+  if (withDecks.villains && withDecks.villains.length > 0 && withDecks.sharedEncounterDeck !== true)
+    return {
+      ...withDecks,
+      villains: withDecks.villains.map((villain, index) =>
+        index === 0 ? { ...villain, encounterDeck: [...villain.encounterDeck, ...cardIds] } : villain,
+      ),
+    };
+  return { ...withDecks, encounterDeck: [...withDecks.encounterDeck, ...cardIds] };
 }
 
 /**

@@ -241,8 +241,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
 
   if (screen === "deck-check" || screen === "deck-builder") {
-    const deck = preconDecks(POOL_VERSION)[0]!;
-    if (screen === "deck-check") return { key: SCENES.deckCheck, data: { deck } satisfies DeckCheckSceneData };
+    // `&deck=<precon id>` picks another starter (default the first); `&tab=cards` opens the narrow layout's card list.
+    const all = preconDecks(POOL_VERSION);
+    const deck = all.find((d) => (d.id as string) === params.get("deck")) ?? all[0]!;
+    if (screen === "deck-check") {
+      const tab = params.get("tab");
+      const data: DeckCheckSceneData = { deck, ...(tab === "cards" || tab === "aspect" ? { tab } : {}) };
+      return { key: SCENES.deckCheck, data };
+    }
     return { key: SCENES.deckBuilder, data: { deck } satisfies DeckBuilderSceneData };
   }
 
@@ -613,6 +619,32 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   if (screen === "board" && params.get("fixture") === "sense-hero") {
     const { startDevSenseHeroGame } = await import("../store/dev-sense-game.js");
     await startDevSenseHeroGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=klaw-attachment` / `&fixture=player-side-scheme` (table readability, #763 to #769): `store/dev-table-readability-game.ts`.
+  if (screen === "board" && params.get("fixture") === "klaw-attachment") {
+    const { startDevKlawAttachmentGame } = await import("../store/dev-table-readability-game.js");
+    await startDevKlawAttachmentGame();
+    return { key: SCENES.board, data: {} };
+  }
+  if (screen === "board" && params.get("fixture") === "player-side-scheme") {
+    const { startDevPlayerSideSchemeGame } = await import("../store/dev-table-readability-game.js");
+    await startDevPlayerSideSchemeGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=play-area-order[&order=played|type|cost|name]` (#768) and `&fixture=surge` (#764): `store/dev-order-surge-game.ts`.
+  if (screen === "board" && params.get("fixture") === "play-area-order") {
+    const { startDevPlayAreaOrderGame } = await import("../store/dev-order-surge-game.js");
+    await startDevPlayAreaOrderGame(params.get("order"));
+    return { key: SCENES.board, data: {} };
+  }
+  if (screen === "board" && params.get("fixture") === "surge") {
+    const { startDevSurgeGame } = await import("../store/dev-order-surge-game.js");
+    const finish = await startDevSurgeGame();
+    // The walkthrough only collects beats while Board is mounted: the turn ends once it is up.
+    if (params.get("delay") !== "manual") window.setTimeout(() => void finish(), Number(params.get("delay")) || 1500);
     return { key: SCENES.board, data: {} };
   }
 

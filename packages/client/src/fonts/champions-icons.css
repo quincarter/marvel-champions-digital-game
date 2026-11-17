@@ -1,0 +1,16 @@
+/*
+ * The community Champions icon font (issue #767), shared by BluefireF5ran: Marvel Champions' resource, hero and
+ * scheme icons as letters, so a Phaser Text in this family draws them inline. p physical, m mental, e energy,
+ * w wild, g or v hero, s star, u unique, c crisis, t per player, "-" an arrow, "=" a dash (either case).
+ *
+ * Two versions are kept. `ChampionsIcons2.ttf` (v2) is the one used: the board's chips draw their removal cost
+ * from it. `ChampionsIcons.ttf` (v1) is kept as the original the reporter first shared, unused.
+ * Source and licence are not recorded yet (a gap in `content/credits.ts`).
+ */
+@font-face {
+  font-family: "Champions Icons";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./ChampionsIcons2.ttf) format("truetype");
+}

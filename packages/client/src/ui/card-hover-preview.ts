@@ -25,6 +25,7 @@ import { drawGeneratedFace, faceModelOf } from "./generated-card-face.js";
 import { textStyle } from "./theme.js";
 import { McHpPlate, fieldsOf, paintThreatMeter } from "./widgets.js";
 import { schemePanel } from "../view/board-model.js";
+import { perRoundHoverLine } from "../view/per-round-threat.js";
 import {
   HOVER_DELAY_MS,
   slotOfHoverKey,
@@ -520,7 +521,8 @@ export class HoverPreview {
     // A scheme's threat is drawn as the board draws it, the red meter with its count (the owner, 2026-10-14), not
     // as words in the strip.
     const card0 = cardOf(game, id);
-    const isScheme = card0?.type === "main_scheme" || card0?.type === "side_scheme";
+    const isScheme =
+      card0?.type === "main_scheme" || card0?.type === "side_scheme" || card0?.type === "player_side_scheme";
     const scheme = isScheme ? schemePanel(game, id, gameDeps(), card0?.type === "main_scheme") : null;
     const lines = instance
       ? hoverStateLines({
@@ -534,6 +536,8 @@ export class HoverPreview {
           attachments: model.attached?.attachments.length ?? 0,
         })
       : [];
+    // A main scheme's "+N per round" and where it comes from (issue #765).
+    if (scheme?.perRound) lines.push(perRoundHoverLine(scheme.perRound));
 
     const key = cardArt(this.scene).request(this.scene, model.art);
     const source = key && this.scene.textures.exists(key) ? this.scene.textures.get(key).getSourceImage() : null;

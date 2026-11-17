@@ -212,7 +212,7 @@ describe("summary version 2", () => {
       seats: [seat({ resources: stale, paidWith: {}, discardedToPay: 0, drawn: 9 })],
       hurtBy: { "01094": 4 },
     };
-    expect(SUMMARY_VERSION).toBe(5);
+    expect(SUMMARY_VERSION).toBe(6);
     expect(needsBackfill(meta(v2), WRITER)).toBe(true);
     expect(needsBackfill(meta({ ...v2, version: 3 }), WRITER)).toBe(true);
     const replayed: GameSummary = {
