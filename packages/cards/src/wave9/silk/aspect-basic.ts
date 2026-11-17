@@ -64,7 +64,10 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
 const TECH = trait("TECH");
 
 /** "Web-Warrior cards you control": any card type, the identity in the face that prints the trait included. */
-const YOUR_WEB_WARRIOR_CARDS = query("character", { trait: WEB_WARRIOR, controller: "you" });
+const YOUR_WEB_WARRIOR_CARDS = query(["identity", "ally", "upgrade", "support"], {
+  trait: WEB_WARRIOR,
+  controller: "you",
+});
 
 /**
  * Wave 9 scripting module `silk/aspect-basic` (docs/phase7-wave9.md section 8.4, 3.51, 3.52), first half (52013 to 52021).

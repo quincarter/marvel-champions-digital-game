@@ -34,8 +34,10 @@ import {
   theMainScheme,
   theVillain,
   thwart,
+  valueAtLeast,
   varAtLeast,
   when,
+  zoneCountOf,
   you,
   YOUR_IDENTITY,
   yourIdentity,
@@ -92,10 +94,11 @@ import {
  * this card includes the repeat effect itself. As long as a player who can spend 3 resources and exhaust a
  * Web-Warrior card can be chosen, the ability can be repeated" — read here as the chosen player becoming the new
  * "you" for their own copy of the exhaust/search/put-into-play sentence, which is exactly what `repeatWhile`
- * re-running its own effects, parametrized on `chosenPlayer("player")`, gives for free; a player with no legal
- * Web-Warrior card to exhaust or no matching ally in their discard pile just has those steps resolve as no-ops,
- * the same forgiving "chooseCards `min: 0`, then act on whatever was chosen" idiom `identity.ts`'s own docblock
- * uses for Gwen Stacy's "shuffle Ticket to the Multiverse … if it's there"). `spendResources`'s own `<bind>.made`
+ * re-running its own effects, parametrized on `chosenPlayer("player")`). FFG ruling 2023-12-08 (docs/rulings/
+ * post-rrg-1-5/08-december-2023.md): the original use needs a Web-Warrior ally in your discard pile (the action's
+ * `while`; it is not offered without one), and the repeat is only offered to a chosen player who controls a ready
+ * Web-Warrior card and has such an ally in their own discard pile (a "may" with the requirement unmet is not offered
+ * at all), so the search steps always have something to find. `spendResources`'s own `<bind>.made`
  * var (`wave4/mts/thanos.ts`'s "Sanctuary" precedent) is both the loop's own decision flag and its `while`
  * condition, so a decline (no `spendResources` call at all in that branch) reads as `0`/`false` and ends the loop.
  *
@@ -119,16 +122,25 @@ const searchAndPutIntoPlay = (actor: PlayerRef) => [
  * "…then choose a player. That player may spend 3 resources of any type to repeat this ability." Repeating includes
  * the cost (RRG 1.8 FAQ p. 62/63: the chosen player must be able to spend 3 resources AND exhaust a Web-Warrior
  * card), so the repeat is only offered when the chosen player controls a ready Web-Warrior card, and the exhaust is
- * made for them (in the effect, since the cost slot belongs to the original activation).
+ * made for them (in the effect, since the cost slot belongs to the original activation). It is also only offered when
+ * that player has a Web-Warrior ally in their discard pile (FFG ruling 2023-12-08): the offer is not made to a
+ * player the repeat could not do anything for.
  */
 const CHOOSE_A_PLAYER_WHO_MAY_REPEAT = [
   choosePlayer("player"),
   ifThen(exists({ ...A_WEB_WARRIOR_CARD, controlledBy: chosenPlayer("player"), exhausted: false }), [
-    chooseOneBy(
-      chosenPlayer("player"),
-      option("Spend 3 resources of any type to repeat", spendResources({ generic: 3 }, "paid", chosenPlayer("player"))),
-      option("Do not repeat"),
-    ),
+    // The repeat's effect needs a Web-Warrior ally in the chosen player's discard pile, or the offer is not made
+    // (FFG ruling 2023-12-08, docs/rulings/post-rrg-1-5/08-december-2023.md; RRG 1.8 "Cost", p. 14).
+    ifThen(valueAtLeast(zoneCountOf("discard", chosenPlayer("player"), query("ally", { trait: WEB_WARRIOR })), 1), [
+      chooseOneBy(
+        chosenPlayer("player"),
+        option(
+          "Spend 3 resources of any type to repeat",
+          spendResources({ generic: 3 }, "paid", chosenPlayer("player")),
+        ),
+        option("Do not repeat"),
+      ),
+    ]),
   ]),
   ifThen(varAtLeast("paid.made"), [
     chooseTarget(
@@ -167,7 +179,11 @@ export const GHOST_SPIDER_EVENTS_B = defineAbilities({
   "27016.what-doesnt-kill-me-action": heroAction({ cost: healYourIdentityCost(2) }, ready(yourIdentity)),
 
   "27018.across-the-spider-verse-action": heroAction(
-    { cost: exhaustCardsCost(A_WEB_WARRIOR_CARD) },
+    {
+      cost: exhaustCardsCost(A_WEB_WARRIOR_CARD),
+      // FFG ruling 2023-12-08: the event can't be played or used without a Web-Warrior ally in your discard pile.
+      while: valueAtLeast(zoneCountOf("discard", you, query("ally", { trait: WEB_WARRIOR })), 1),
+    },
     ...searchAndPutIntoPlay(you),
     repeatWhile(varAtLeast("paid.made"), CHOOSE_A_PLAYER_WHO_MAY_REPEAT),
   ),

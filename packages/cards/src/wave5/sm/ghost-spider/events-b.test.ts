@@ -208,10 +208,13 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     const state = ghostSpiderVsRhino();
     const hero = run(state, toHero(P1));
     const identity = identityOf(hero);
-    // Spider-Man (Miles Morales, 27011): a Web-Warrior ally, discarded so the search has something to find.
+    // Spider-Man (Miles Morales, 27011) and Silk (27010): Web-Warrior allies, discarded so the search has something to
+    // find, and so one is still in the discard pile for the repeat (it is only offered with one there).
     const withMilesDiscarded = moveToDiscard(hero, P1, "27011");
     const miles = withMilesDiscarded.id;
-    const given = moveToHand(withMilesDiscarded.state, P1, "27018");
+    const withBoth = moveToDiscard(withMilesDiscarded.state, P1, "27010");
+    const silk = withBoth.id;
+    const given = moveToHand(withBoth.state, P1, "27018");
     const [card] = given.ids as [never];
     let repeats = 0;
     // Repeat exactly once: the repeat's own exhaust step falls to Miles Morales (Ghost-Spider is already
@@ -249,9 +252,70 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
       WAVE5_DEPS,
     );
     expect(inst(after, identity).exhausted).toBe(true); // the printed sentence's own exhaust
-    expect(cardsInPlay(after)).toContain(miles); // found in the discard pile and put into play
-    expect(inst(after, miles).exhausted).toBe(true); // exhausted again for the one repeat
+    // Both allies were found (one per pass); the first one found is exhausted by the repeat, the second enters ready.
+    expect(cardsInPlay(after)).toContain(miles);
+    expect(cardsInPlay(after)).toContain(silk);
+    expect([miles, silk].filter((id) => inst(after, id).exhausted)).toHaveLength(1);
     expect(repeats).toBe(1);
+  });
+
+  // FFG ruling 2023-12-08 (docs/rulings/post-rrg-1-5/08-december-2023.md): no Web-Warrior ally in the chosen player's
+  // discard pile after the first pass means the repeat is not offered; with one there, it is.
+  it("27018.across-the-spider-verse-action: the repeat is not offered when no Web-Warrior ally is left in the discard pile", () => {
+    const hero = run(ghostSpiderVsRhino(), toHero(P1));
+    const withMilesDiscarded = moveToDiscard(hero, P1, "27011"); // the only one: put into play by the first pass
+    const given = moveToHand(withMilesDiscarded.state, P1, "27018");
+    const [card] = given.ids as [never];
+    const offered: string[] = [];
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, play(P1, card, payWith(given.state, P1, 2, [card]))),
+      (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "chooseOption") offered.push(...choice.options.map((o) => o.label));
+        // The search is "min 0": take the ally found rather than letting firstLegal pick nothing.
+        if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === "found") {
+          return choice.options.slice(0, choice.maxSelections).map((o) => o.optionId);
+        }
+        return firstLegal(s);
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(cardsInPlay(after)).toContain(withMilesDiscarded.id);
+    expect(offered).not.toContain("Spend 3 resources of any type to repeat");
+  });
+
+  it("27018.across-the-spider-verse-action: the repeat is offered when a Web-Warrior ally is left in the discard pile", () => {
+    const hero = run(ghostSpiderVsRhino(), toHero(P1));
+    const withBoth = moveToDiscard(moveToDiscard(hero, P1, "27011").state, P1, "27010");
+    const given = moveToHand(withBoth.state, P1, "27018");
+    const [card] = given.ids as [never];
+    const offered: string[] = [];
+    settle(
+      runWith(WAVE5_DEPS, given.state, play(P1, card, payWith(given.state, P1, 2, [card]))),
+      (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "chooseOption") offered.push(...choice.options.map((o) => o.label));
+        // The search is "min 0": take the ally found rather than letting firstLegal pick nothing.
+        if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === "found") {
+          return choice.options.slice(0, choice.maxSelections).map((o) => o.optionId);
+        }
+        return firstLegal(s);
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(offered).toContain("Spend 3 resources of any type to repeat");
+  });
+
+  it("27018.across-the-spider-verse-action: not playable without a Web-Warrior ally in your discard pile", () => {
+    const hero = run(ghostSpiderVsRhino(), toHero(P1));
+    const given = moveToHand(hero, P1, "27018"); // Ghost-Spider (ready, a Web-Warrior card) could pay the exhaust
+    const [card] = given.ids as [never];
+    expect(() => runWith(WAVE5_DEPS, given.state, play(P1, card, payWith(given.state, P1, 2, [card])))).toThrow();
+    const withAlly = moveToHand(moveToDiscard(hero, P1, "27011").state, P1, "27018");
+    const [ok] = withAlly.ids as [never];
+    expect(() => runWith(WAVE5_DEPS, withAlly.state, play(P1, ok, payWith(withAlly.state, P1, 2, [ok])))).not.toThrow();
   });
 
   it("27018.across-the-spider-verse-action: the exhaust is a cost, so with no ready Web-Warrior card the event is not playable", () => {
@@ -267,7 +331,8 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
     const hero = run(ghostSpiderVsRhino(), toHero(P1));
     const identity = identityOf(hero);
     const { state: withAlly, id: ally } = playFromHand(hero, "27011", 4); // Spider-Man (Miles Morales), a Web-Warrior ally.
-    const given = moveToHand(withAlly, P1, "27018");
+    // Silk (27010) in the discard pile satisfies the play condition (a Web-Warrior ally there).
+    const given = moveToHand(moveToDiscard(withAlly, P1, "27010").state, P1, "27018");
     const [card] = given.ids as [never];
     const after = settle(
       runWith(
