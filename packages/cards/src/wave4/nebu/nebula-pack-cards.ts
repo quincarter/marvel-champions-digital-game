@@ -34,6 +34,7 @@ import {
   partOf,
   query,
   ready,
+  refCount,
   refMatches,
   removeCounter,
   removeThreat,
@@ -45,6 +46,7 @@ import {
   statOf,
   theMainScheme,
   threatOn,
+  valueAtLeast,
   valueAtMost,
   varOf,
   whileOnChosenMainScheme,
@@ -125,11 +127,17 @@ export const NEBULA_PACK_CARDS = defineAbilities({
 
   // One Way or Another (event, 22015) — Max 1 per round (data). Hero Action: Search the encounter deck for a side
   // scheme. Reveal that side scheme → draw 3 cards (shuffle the encounter deck).
+  // A side scheme the search finds is taken (RRG 1.8 "Search", p. 39: "the player adds that card"). The search and
+  // the reveal are the printed cost (before the arrow, RRG 1.8 "Cost", p. 13): a search that finds no side scheme has
+  // not paid it, so no cards are drawn (ruling October 21, 2024, Q29, on One Way or Another and Return the Favor;
+  // #795). The deck is still shuffled, as any searched deck is (RRG 1.8 "Search", p. 39).
+  // Not modelled: Q29 also says the failed card does not count as "played", so its Max 1 per round and "after you
+  // play an event" checks should not see it; undoing a play is an engine change (Return the Favor has the same gap).
   "22015.one-way-or-another-action": heroAction(
     { limit: { count: 1, period: "round" } },
-    chooseCards("found", encounterCards(["deck"], query("sideScheme")), { min: 0, max: 1 }),
+    chooseCards("found", encounterCards(["deck"], query("sideScheme")), { min: 1, max: 1 }),
     revealCard(chosen("found")),
-    draw(3),
+    ifThen(valueAtLeast(refCount(chosen("found")), 1), draw(3)),
     shuffleEncounterDeck(),
   ),
 
