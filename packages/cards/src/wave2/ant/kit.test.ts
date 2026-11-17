@@ -172,6 +172,25 @@ describe("Ant-Man kit", () => {
     expect(settled.lastingEffects.length).toBe(before);
   });
 
+  // Discord report (GarethMagis): Giant Strength was offered on every form change, Tiny included. Its "to Giant hero
+  // form" is the trigger's condition, so a change to Tiny hero form, from Giant or from Scott Lang, never offers it.
+  it.each([
+    ["Giant hero form", GIANT],
+    ["alter-ego", "alterEgo"],
+  ] as const)("Giant Strength: not offered when changing from %s to Tiny hero form", (_from, from) => {
+    const start = from === "alterEgo" ? antManVsRhino() : withForm(antManVsRhino(), from);
+    const { state: withStrength } = playFromHand(start, "12009", 1);
+    const offered: string[] = [];
+    const recording: Picker = (state) => {
+      offered.push(...(state.pendingChoice?.options.map((o) => o.optionId) ?? []));
+      return accepting("12009.giant-strength-response")(state);
+    };
+    const settled = changeTo(withStrength, TINY, recording);
+    expect(traits(settled)).toContain("TINY");
+    expect(offered.filter((id) => id.endsWith("12009.giant-strength-response"))).toEqual([]);
+    expect(settled.lastingEffects.length).toBe(withStrength.lastingEffects.length);
+  });
+
   it("Wrist Gauntlets: each action is usable only in its own hero form", () => {
     const giant = withForm(antManVsRhino(), GIANT);
     const { state: inPlay, id: gauntlets } = playFromHand(giant, "12010", 1);
@@ -181,6 +200,25 @@ describe("Ant-Man kit", () => {
     const tiny = withForm(inPlay, TINY);
     expect(() => runWave2(tiny, use(P1, gauntlets, "12010.wrist-gauntlets-action"))).toThrow(/cannot be triggered/);
   });
+
+  // Each Helmet response is offered only after a change to its own form, not as an empty prompt after the other.
+  it.each([
+    ["Giant hero form", GIANT, TINY, "12008.ant-mans-helmet-response", "12008.ant-mans-helmet-hero-response"],
+    ["Tiny hero form", TINY, GIANT, "12008.ant-mans-helmet-hero-response", "12008.ant-mans-helmet-response"],
+  ] as const)(
+    "Ant-Man's Helmet: changing to %s offers only that form's response",
+    (_to, to, from, offeredId, notId) => {
+      const { state: withHelmet } = playFromHand(withForm(antManVsRhino(), from), "12008", 3);
+      const offered: string[] = [];
+      const recording: Picker = (state) => {
+        offered.push(...(state.pendingChoice?.options.map((o) => o.optionId) ?? []));
+        return firstLegal(state);
+      };
+      changeTo(withHelmet, to, recording);
+      expect(offered.some((id) => id.endsWith(offeredId))).toBe(true);
+      expect(offered.filter((id) => id.endsWith(notId))).toEqual([]);
+    },
+  );
 
   it("Ant-Man's Helmet: heals 2 damage from your hero after you change to Giant hero form", () => {
     const { state: withHelmet } = playFromHand(antManVsRhino(), "12008", 3);
