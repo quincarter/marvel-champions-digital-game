@@ -1,4 +1,4 @@
-import { NCRAWLER_CARDS, NCRAWLER_STARTER_DECKS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
+import { NCRAWLER_CARDS, NCRAWLER_STARTER_DECKS, PHOENIX_CARDS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -78,7 +78,8 @@ const ALL_REFS = [
 ];
 
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, NCRAWLER_ASPECT_BASIC) };
-const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...NCRAWLER_CARDS];
+// Phoenix's Psychic Misdirection (34033) joins for the Change of Fortune ruling test below.
+const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...NCRAWLER_CARDS, ...PHOENIX_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 
 const PRECON = NCRAWLER_STARTER_DECKS.find((d) => d.id === "nightcrawler-protection")!;
@@ -898,6 +899,55 @@ describe("Change of Fortune (48014): after you defeat an enemy in the villain ph
     const second = moveToHand(s, P1, "48014");
     const pay1 = playerOf(second.state, P1).hand.find((h) => h !== second.ids[0])!;
     expect(accepted(second.state, play(P1, second.ids[0]!, [pay1]))).toBe(false);
+  });
+});
+
+describe("Change of Fortune (48014) with Psychic Misdirection (34033): the event is an extension of your identity", () => {
+  // FFG ruling of January 24, 2025: "you'd be able to use Change of Fortune if your playing of Psychic Misdirection
+  // defeated an enemy ... Psychic Misdirection is an event, meaning it's an extension of your identity, so your
+  // identity defeated the enemy" (docs/rulings/post-rrg-1-6/07-january-2025.md). The attacker is the damage's source
+  // on the stack, so the engine reads the defeat as the redirecting event's.
+  const MISDIRECTION = "34033.psychic-misdirection-interrupt";
+  /** Nightcrawler given the PSIONIC trait Misdirection asks of an identity (a pool edit, never a rules one). */
+  function psionic(state: GameState): GameState {
+    const identityCard = inst(state, identityOf(state)).cardId as string;
+    const card = state.cardPool[identityCard as keyof typeof state.cardPool] as unknown as {
+      hero: { traits: unknown[] };
+      alterEgo: { traits: unknown[] };
+    };
+    const add = (face: { traits: unknown[] }) => ({ ...face, traits: [...face.traits, "PSIONIC"] });
+    return {
+      ...state,
+      cardPool: { ...state.cardPool, [identityCard]: { ...card, hero: add(card.hero), alterEgo: add(card.alterEgo) } },
+    } as unknown as GameState;
+  }
+  function scene(redirected: boolean) {
+    const staged = stage(heroGame([NC("34033")], MODULAR, 1, false), ["48014", "34033"]);
+    const base = psionic(staged.state);
+    const first = engage(base, MERCENARY);
+    const second = engage(first.state, MERCENARY);
+    const placed = playStaged(second.state, "48014", 1, {
+      except: [staged.ids[1]!],
+    });
+    // `first` attacks and `second` (2 damage of 3) takes its 1 damage when redirected, which defeats it.
+    const s = rhinoStunned(
+      patchInstance(placed.state, second.id, {
+        damage: 2,
+        statuses: { ...inst(placed.state, second.id).statuses, stunned: 1 },
+      }),
+    );
+    return villainPhase(
+      s,
+      [CROWD_CONTROL, BREAKIN],
+      picker(...(redirected ? [accept(MISDIRECTION), take(second.id), pay(2)] : []), accept(FORTUNE)),
+    );
+  }
+  it("Misdirection's redirected damage defeats the enemy: Change of Fortune is offered and draws 2", () => {
+    const { state, seen, events } = scene(true);
+    expect(offered(seen, MISDIRECTION)).toBe(true);
+    expect(encounterDiscard(state)).toContain(MERCENARY);
+    expect(offered(seen, FORTUNE)).toBe(true);
+    expect(events.some((e) => e.type === "abilityResolved" && e.abilityId === FORTUNE)).toBe(true);
   });
 });
 

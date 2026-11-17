@@ -2161,8 +2161,11 @@ export function applyDamage(
           ...(damageUsedStat(ctx.state, event) === "atk" ? { usedStat: "atk" as const } : {}),
         }
       : undefined,
-    defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
-    sourceInstanceId: source,
+    // Damage redirected by a player's card (`redirectedBy`) defeats as that card (and its controller) does.
+    defeatedByPlayerId: event.redirectedBy
+      ? sourcePlayerOf(ctx.state, { sourceInstanceId: event.redirectedBy })
+      : sourcePlayerOf(ctx.state, event),
+    sourceInstanceId: event.redirectedBy ?? source,
     reportFrameId: frameId,
     // An overkill spill's defeat is told to its attack (`spillDefeatedKey`), so "attacks and defeats" answers it too.
     ...(!event.parentFrameId && event.spilledFromFrameId ? { spilledFromFrameId: event.spilledFromFrameId } : {}),

@@ -1229,7 +1229,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             id !== attacker && inPlay.includes(id) && (categories.includes("enemy") || categories.includes("ally"))
           );
         });
-        if (attacker && character) addFrameSlots(ctx, activation, { damageTo: [character] });
+        if (attacker && character) {
+          addFrameSlots(ctx, activation, {
+            damageTo: [character],
+            ...(frame.selfInstanceId ? { damageRedirector: [frame.selfInstanceId] } : {}),
+          });
+        }
       }
       // "That attack removes threat from the main scheme instead of dealing damage" (`removesThreatFrom`): the scheme,
       // the card whose removal it is and, for a "(thwart)" ability, the thwarting identity, read at the attack's
