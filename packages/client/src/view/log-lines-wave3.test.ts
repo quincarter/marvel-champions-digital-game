@@ -86,7 +86,14 @@ describe("wave 3 log lines", () => {
   test("controllerChanged by attachment names the controller and the host hero, not the first player", () => {
     const { upgrade, host, attached } = withUpgradeOnOpponent();
     const beat = logLine(
-      { type: "controllerChanged", instanceId: upgrade, from: me, to: opponent, reason: "attachedTo" },
+      {
+        type: "controllerChanged",
+        instanceId: upgrade,
+        from: me,
+        to: opponent,
+        reason: "attachedTo",
+        hostInstanceId: host,
+      },
       attached,
       me,
       POOL_DEPS,
@@ -100,6 +107,27 @@ describe("wave 3 log lines", () => {
     expect(beat!.text).toContain("now controls");
     expect(beat!.text).toContain(`(attached to ${hostName})`);
     expect(beat!.text.toLowerCase()).not.toContain("first player");
+  });
+
+  test("controllerChanged by attachment uses the host at emission, not where the upgrade is now; none for older logs", () => {
+    const { upgrade, host, attached } = withUpgradeOnOpponent();
+    const event = {
+      type: "controllerChanged",
+      instanceId: upgrade,
+      from: me,
+      to: opponent,
+      reason: "attachedTo",
+    } as const;
+    // The state now shows the upgrade unattached, but the line still names the host it was attached to.
+    const moved = {
+      ...attached,
+      instances: { ...attached.instances, [upgrade]: { ...attached.instances[upgrade]!, attachedTo: null } },
+    };
+    const named = logLine({ ...event, hostInstanceId: host }, moved, me, POOL_DEPS)!.text;
+    expect(named).toContain("(attached to ");
+    const bare = logLine(event, attached, me, POOL_DEPS)!.text;
+    expect(bare).not.toContain("attached to");
+    expect(bare).toContain("now controls");
   });
 
   test("controllerChanged by an effect says the player takes control", () => {

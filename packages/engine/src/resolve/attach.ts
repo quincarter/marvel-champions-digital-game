@@ -242,7 +242,17 @@ export function settleUpgradeControl(ctx: Ctx, id: InstanceId, otherwise: Player
   const from = instance.controllerId;
   if (to === from) return;
   updateInstance(ctx, id, (i) => ({ ...i, controllerId: to }));
-  if (to !== null) emit(ctx, { type: "controllerChanged", instanceId: id, from, to, reason: "attachedTo" });
+  if (to !== null) {
+    const hostInstanceId = instance.attachedTo ?? undefined;
+    emit(ctx, {
+      type: "controllerChanged",
+      instanceId: id,
+      from,
+      to,
+      reason: "attachedTo",
+      ...(hostInstanceId ? { hostInstanceId } : {}),
+    });
+  }
 }
 
 /**

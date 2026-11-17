@@ -3225,7 +3225,8 @@ ${entry.detail}`,
     const lang = artLanguageNow();
     if (!cardNamesReady(lang)) {
       void loadCardNames(lang).then(() => {
-        if (this.sys.isActive() && this.#poolSearch === search) this.#requestPoolSearch(text);
+        // The field may have changed (or been cleared) while the names loaded: ask for what it holds now.
+        if (this.sys.isActive() && this.#poolSearch === search) this.#requestPoolSearch(this.#filterText);
       });
       return;
     }

@@ -1010,10 +1010,11 @@ function describe(
     // "Upgrade", p. 44). "effect": a card took control of it. Otherwise silent, since nothing about the card's own
     // state changes, only who may use its ability.
     case "controllerChanged": {
-      const host = state.instances[event.instanceId]?.attachedTo;
+      // The host at emission: the upgrade may have moved or been discarded since (older logs carry none).
+      const host = event.hostInstanceId;
       const text =
         event.reason === "attachedTo"
-          ? `${who(event.to)} now controls ${card(event.instanceId)} (attached to ${host ? card(host) : who(event.to)}).`
+          ? `${who(event.to)} now controls ${card(event.instanceId)}${host ? ` (attached to ${card(host)})` : ""}.`
           : event.reason === "effect"
             ? `${who(event.to)} takes control of ${card(event.instanceId)}.`
             : `${card(event.instanceId)} now follows the first player, ${who(event.to)}.`;
