@@ -10,7 +10,7 @@ bluefireF5ran sent eighteen ideas, and every one of them is in this release.
 🃏 **Every face**: the deck check shows every identity face and both sides of double-sided cards.
 📊 **Your decks**: a Decks tab in Your stats for every seat, and Past games exports to MC Tracker as a CSV.
 💬 **Discord button** on the title menu.
-🛠️ **Fixes**: Clear the Area draws with Shrink (thanks, sgaon42!), and Daredevil's Sense deck has a Play it button (thanks, javgoro!).
+🛠️ **Fixes**: Clear the Area draws with Shrink (thanks, sgaon42!), Daredevil's Sense deck has a Play it button (thanks, javgoro!), and Mod Store scenarios get Standard II/III, Expert II and Skirmish (thanks, ZackBurnley!).
 
 Full report: https://champions-digital-game.com/releases/v0.48.0/
 Downloads: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.48.0
@@ -31,7 +31,7 @@ bluefireF5ran envió dieciocho ideas, y todas están en esta versión.
 🃏 **Cada cara**: la revisión del mazo muestra cada cara de la identidad y las dos caras de las cartas de doble cara.
 📊 **Tus mazos**: una pestaña Decks en Your stats para cada asiento, y Past games exporta a MC Tracker en CSV.
 💬 **Botón de Discord** en el menú principal.
-🛠️ **Correcciones**: Clear the Area roba con Shrink (¡gracias, sgaon42!) y el mazo Sense de Daredevil tiene un botón Play it (¡gracias, javgoro!).
+🛠️ **Correcciones**: Clear the Area roba con Shrink (¡gracias, sgaon42!) el mazo Sense de Daredevil tiene un botón Play it (¡gracias, javgoro!) y los escenarios de la Mod Store tienen Standard II/III, Expert II y Skirmish (¡gracias, ZackBurnley!).
 
 Informe completo: https://champions-digital-game.com/releases/v0.48.0/index.es.html
 Descargas: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.48.0

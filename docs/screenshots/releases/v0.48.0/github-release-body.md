@@ -1,8 +1,8 @@
 ## With Great Reports Comes Great Patching
 
-bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in this release. The table reads at a glance: the main scheme says how much threat it gains each round, stats show their printed star, an attachment says what removing it costs and a deck about to run out turns red (#772). Play area order sorts your play area, and surge is marked in the log and the recap (#777). The hero and scenario lists fold and pick at random, the title menu has a Discord button, and three new settings cover deck lists and extra modular sets (#778). The deck check shows every face of a card, Past games covers show custom packs, and the Mod Store groups cards by set (#779). Your stats has a Decks tab for every seat, and Past games exports your games for MC Tracker (#781). Clear the Area draws with Shrink, thanks to @sgaon42's report (#773), and Daredevil's Sense deck has a Play it button, thanks to @javgoro's report (#782). Thank you for playing!
+bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in this release. The table reads at a glance: the main scheme says how much threat it gains each round, stats show their printed star, an attachment says what removing it costs and a deck about to run out turns red (#772). Play area order sorts your play area, and surge is marked in the log and the recap (#777). The hero and scenario lists fold and pick at random, the title menu has a Discord button, and three new settings cover deck lists and extra modular sets (#778). The deck check shows every face of a card, Past games covers show custom packs, and the Mod Store groups cards by set (#779). Your stats has a Decks tab for every seat, and Past games exports your games for MC Tracker (#781). Clear the Area draws with Shrink, thanks to @sgaon42's report (#773), and Daredevil's Sense deck has a Play it button, thanks to @javgoro's report (#782), and Mod Store scenarios get every difficulty, thanks to @zackburnley (#786). Thank you for playing!
 
-**[Read the full v0.48.0 report on the site ↗](https://champions-digital-game.com/releases/v0.48.0/)**: the clearer table, play area order and surge marks, folding shelves and Random picks, every card face, the Decks tab and the MC Tracker export, the fixes and the thank-you wall.
+**[Read the full v0.48.0 report on the site ↗](https://champions-digital-game.com/releases/v0.48.0/)**: the clearer table, play area order and surge marks, folding shelves and Random picks, every card face, the Decks tab and the MC Tracker export, the fixes, including every difficulty for Mod Store scenarios, and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.48.0/index.es.html)**
 
@@ -60,6 +60,7 @@ bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in thi
 - Past games: a game played with a custom hero or scenario pack shows the pack's hero and villain on its cover, with their names if the pack has since been removed (#758)
 - Daredevil's Sense deck top card now offers Play it, which runs Superhuman Senses, so a Sense upgrade can be played from the deck (#782, reported by @javgoro).
 - The log names a Sense upgrade that goes back into Daredevil's Sense deck instead of calling it a facedown card (#782).
+- Mod Store pack scenarios now offer every difficulty choice official scenarios have at Set the Table (Standard II and III, Expert II on expert, and skirmish mode) (#786).
 
 ### Content
 
@@ -70,3 +71,4 @@ bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in thi
 - @bluefireF5ran reported #753, #754, #755, #756, #757, #758, #759, #760, #761, #762, #763, #764, #765, #766, #767, #768, #769 and #770.
 - @javgoro reported #782.
 - @sgaon42 reported #773.
+- @zackburnley reported #786 on Discord.
