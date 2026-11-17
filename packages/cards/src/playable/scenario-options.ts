@@ -472,9 +472,14 @@ export function civilWarGameModes(): readonly GameModeOption[] {
 export function packScenarioOffer(
   scenario: Pick<
     Scenario,
-    "standardEncounterSetIds" | "expertEncounterSetIds" | "villainStages" | "multipleVillains" | "villainOptions"
-  > &
-    Pick<Scenario, "victory" | "victoryCondition">,
+    | "standardEncounterSetIds"
+    | "expertEncounterSetIds"
+    | "villainStages"
+    | "multipleVillains"
+    | "villainOptions"
+    | "victory"
+    | "victoryCondition"
+  >,
   choices: Pick<PlayableScenarioChoices, "difficulty" | "modes"> = {},
 ): PlayableScenarioOffer {
   return {

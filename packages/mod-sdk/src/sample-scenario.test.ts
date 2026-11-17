@@ -403,6 +403,35 @@ describe("scenarioWithPacks: refusals and options", () => {
     const created = createGame(config, gameDepsWithPacks(PLAYABLE_DEPS, [changed]));
     expect(created.ok).toBe(true);
   });
+  it("sets aside a Standard set card only while the Standard set is in the game (#786)", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const aside = String(
+      PLAYABLE_CARDS.find(
+        (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes("standard"),
+      )!.id,
+    );
+    expect(customScenarioProblems({ ...record, setAsideCardIds: [aside] } as never, content)).toEqual([]);
+    const changed = { ...pack, scenarios: [{ ...record, setAsideCardIds: [aside] }] } as unknown as PackInput;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    const plain = scenarioWithPacks(SCENARIO, seat, [changed]);
+    expect(plain.setAside?.every((id) => String(id) === aside)).toBe(true);
+    expect(plain.setAside?.length).toBeGreaterThan(0);
+    expect((plain.encounterDeck ?? []).map(String)).not.toContain(aside);
+    const replaced = scenarioWithPacks(SCENARIO, { ...seat, difficultySets: { standard: "standard_iii" } as never }, [
+      changed,
+    ]);
+    expect(replaced.setAside).toBeUndefined();
+  });
+  it("needs the villain to have every stage between a mode's first and last, as skirmish offers each (#786)", () => {
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const gap = customScenarioProblems(
+      { ...record, villainStages: { standard: [1, 3], expert: [2, 2] } } as never,
+      content,
+    );
+    expect(gap.join(" ")).toMatch(/the villain has no stage 3/);
+  });
   it("checks the recommended modular sets against the scenario's modular count", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;
     const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };

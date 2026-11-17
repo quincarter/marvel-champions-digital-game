@@ -176,7 +176,9 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   else {
     const stages = villain.sides[0]?.stages.map((stage) => stage.stageNumber) ?? [];
     for (const mode of ["standard", "expert"] as const) {
-      for (const stage of range(scenario.villainStages?.[mode]) ? scenario.villainStages[mode] : [])
+      // Every stage from first to last, not only the two ends: skirmish offers each one as a version (`skirmishOffer`).
+      const [first, last] = range(scenario.villainStages?.[mode]) ? scenario.villainStages[mode] : [1, 0];
+      for (let stage = first; stage <= last; stage++)
         if (!stages.includes(stage)) problems.push(`the villain has no stage ${stage} (needed in ${mode} mode)`);
     }
   }
@@ -306,9 +308,14 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
   const autoIncludedSets = autoIncludedSetsOf(PLAYABLE_ENCOUNTER_SETS, pool);
   // `Scenario.setAsideCardIds`, as the wave 7 builder reads it: `quantityInSet` copies of each card go to
   // `GameSetupConfig.setAside` and every copy leaves the encounter deck dealt from its set.
+  // A card of a set this game does not use (the Expert set on standard, the Standard set Standard III replaced) is
+  // not in the game to set aside (RRG 1.8 "Set Aside", p. 39).
+  const inGame = new Set<string>([...ownAndModular, ...difficultySets]);
   const setAside = (scenario.setAsideCardIds ?? []).flatMap((id) => {
     const card = pool.find((candidate) => candidate.id === id);
     if (!card) throw new Error(`${scenario.name}: unknown set-aside card ${id}`);
+    if (!("encounterSetIds" in card) || !(card.encounterSetIds as readonly string[]).some((set) => inGame.has(set)))
+      return [];
     return Array.from({ length: "quantityInSet" in card ? card.quantityInSet : 1 }, () => id);
   });
   const setAsideIds = new Set<string>(setAside);
