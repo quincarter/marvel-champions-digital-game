@@ -470,6 +470,12 @@ const optionIdOf = (candidate: TriggerCandidate, among: readonly TriggerCandidat
   return twinned ? `${plain}@${candidate.sharedEvent.index}` : plain;
 };
 
+/** `frame` without `candidate`'s card in `eventsPlayed`, when it is an event from a hand that the window played before. */
+function consumeReturn(frame: Frame<"window">, candidate: TriggerCandidate): Frame<"window"> {
+  if (candidate.fromHand !== true || !(frame.eventsPlayed ?? []).includes(candidate.instanceId)) return frame;
+  return { ...frame, eventsPlayed: (frame.eventsPlayed ?? []).filter((id) => id !== candidate.instanceId) };
+}
+
 export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.answer) return absorbWindowAnswer(ctx, frame, frame.answer);
   // RRG "Interrupt": once an interrupt cancels or replaces the imminent event,
@@ -486,8 +492,12 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.queue.length > 0) {
     const [next, ...rest] = frame.queue;
     if (!next) throw new EngineInvariantError("empty trigger queue");
+    // A returned event picked again has had its new opportunity: it counts as played again only once the play goes
+    // through (`playWindowEvent`), so backing out of its cost, or dropping it below, does not offer it a third time
+    // (review of #824).
+    const picking = consumeReturn(frame, next);
     // Its event was cancelled or replaced by an interrupt that resolved first (a shared window, §4.1 Q33 of wave 5).
-    if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
+    if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...picking, queue: rest });
     // The damage it answers was changed by an interrupt that resolved first, and no longer meets its condition.
     if (!conditionStillMet(ctx, frame, next)) {
       emit(ctx, {
@@ -496,22 +506,22 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
         abilityId: next.abilityId,
         event: answered(ctx, frame, next).event,
       });
-      return setFrame(ctx, { ...frame, queue: rest });
+      return setFrame(ctx, { ...picking, queue: rest });
     }
     // A response to a card's discard from a deck, chosen before an earlier response in the queue moved that card: it
     // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
     // One that answers several discards at once (`EventPattern.together`) still has the others to act on.
     const answering = next.together ?? [answered(ctx, frame, next).event];
     if (answering.every((each) => each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)))
-      return setFrame(ctx, { ...frame, queue: rest });
+      return setFrame(ctx, { ...picking, queue: rest });
     // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).
-    if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...frame, queue: rest });
-    if (askCostPick(ctx, frame, next, rest)) return;
-    if (askHandDiscard(ctx, frame, next, rest)) return;
-    if (askCostCounters(ctx, frame, next, rest)) return;
-    if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
-    return triggerCandidate(ctx, { ...frame, queue: rest }, next);
+    if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...picking, queue: rest });
+    if (askCostPick(ctx, picking, next, rest)) return;
+    if (askHandDiscard(ctx, picking, next, rest)) return;
+    if (askCostCounters(ctx, picking, next, rest)) return;
+    if (next.fromHand) return requestWindowPayment(ctx, picking, next, rest);
+    return triggerCandidate(ctx, { ...picking, queue: rest }, next);
   }
   // A player picked some of the optional abilities offered and they have resolved: the window is not declined, so the
   // rest are offered again, to every player with one left (`pickedThisRound`). One that can no longer be initiated
