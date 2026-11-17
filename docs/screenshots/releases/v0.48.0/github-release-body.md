@@ -20,7 +20,7 @@ bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in thi
 
 ![You asked, we fixed: Clear the Area draws with Shrink, reported by @sgaon42, Play it on Daredevil's Sense deck, reported by @javgoro, and every difficulty for Mod Store scenarios, reported by @zackburnley](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/64ddde0b2a6050af91c49755eaad9aa48e07b6e9/docs/screenshots/releases/v0.48.0/v0-48-0-release-07-you-asked-we-fixed.jpg)
 
-![Also in v0.48.0: the Mod request issue form and the Mod Store registry's SDK update](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/64ddde0b2a6050af91c49755eaad9aa48e07b6e9/docs/screenshots/releases/v0.48.0/v0-48-0-release-08-also-in-v0-48-0.jpg)
+![Also in v0.48.0: the Mod request issue form, the Mod Store registry's SDK update and README download buttons that wait for the release](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/64ddde0b2a6050af91c49755eaad9aa48e07b6e9/docs/screenshots/releases/v0.48.0/v0-48-0-release-08-also-in-v0-48-0.jpg)
 
 ![Thank you to bluefireF5ran, @sgaon42, @javgoro and @zackburnley](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/64ddde0b2a6050af91c49755eaad9aa48e07b6e9/docs/screenshots/releases/v0.48.0/v0-48-0-release-09-thank-you.jpg)
 
@@ -61,6 +61,7 @@ bluefireF5ran sent eighteen ideas, #753 to #770, and every one of them is in thi
 - Daredevil's Sense deck top card now offers Play it, which runs Superhuman Senses, so a Sense upgrade can be played from the deck (#782, reported by @javgoro).
 - The log names a Sense upgrade that goes back into Daredevil's Sense deck instead of calling it a facedown card (#782).
 - Mod Store pack scenarios now offer every difficulty choice official scenarios have at Set the Table (Standard II and III, Expert II on expert, and skirmish mode) (#786).
+- The README's download buttons move to a new version only once that release is published with every installer, instead of 404ing while it builds (#789).
 
 ### Content
 
