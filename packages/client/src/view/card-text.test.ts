@@ -25,6 +25,10 @@ const TABLE: Readonly<Record<string, LocalizedFace>> = {
     t: "Sentido arácnido — Interrupción: cuando el Villano inicie un ataque contra ti, roba 1 carta.",
   },
   "01001b": { t: "Científico — Recurso: Genera un recurso [mental]. (Límite de una vez por ronda.)" },
+  "04028": {
+    n: "Marcado para morir",
+    t: "Cuando se muestre esta carta: ... devuelve a Sinsajo a la mano de su propietario.",
+  },
   "01003": {
     n: "Voltereta hacia atrás",
     t: "Interrupción (defensa): cuando vayas a sufrir cualquier cantidad de Daño provocado por un ataque, evita todo ese Daño.",
@@ -79,6 +83,15 @@ describe("the Inspect sheet in Spanish", () => {
     const alterEgo = cardInspectModel(card("01001a"), { kind: "alterEgo" });
     expect(alterEgo.name).toBe("Peter Parker");
     expect(alterEgo.rulesText).toBe("Científico — Recurso: Genera un recurso mental. (Límite de una vez por ronda.)");
+  });
+
+  it("keeps the English current text and errata diff on a face with errata (Marked for Death, 04028)", async () => {
+    useSpanish();
+    await loadSpanish();
+    const sheet = cardInspectModel(card("04028"), { kind: "front" });
+    expect(sheet.name).toBe("Marcado para morir");
+    expect(sheet.rulesText).toMatch(/return the tucked Mockingbird/);
+    expect(sheet.printedText).toMatch(/return Mockingbird to her owner's hand/);
   });
 
   it("falls back to English for a face the table lacks, and in an English session", async () => {

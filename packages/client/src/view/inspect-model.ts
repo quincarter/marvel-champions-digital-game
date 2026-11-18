@@ -993,15 +993,19 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
 /**
  * The sheet in the card language (issue #391): the face's name, rules text and flavor text from MarvelCDB's Spanish site
  * where it has them, the English everywhere else. The name is swapped only where the sheet prints the face's own printed
- * name (a qualifier such as "(Peter Parker)" stays). A Balanced scan keeps its own written text, and a translated text has
- * no English errata diff to show beside it. Display only: the notes above were worked out from the English data.
+ * name (a qualifier such as "(Peter Parker)" stays). A Balanced scan keeps its own written text, and so does a face
+ * with errata (below). Display only: the notes above were worked out from the English data.
  */
 function localizedSheet(sheet: InspectModel, card: AnyCard, face: CardFace): InspectModel {
   const lang = artLanguageNow();
   const local = localizedFaceOf(printedFaceCodeOf(card, face), lang);
   if (!local) return sheet;
   const english = printedFaceNameOf(card, face);
-  const text = local.t !== undefined && balancedTextOf(artFor(card, face)) === null ? local.t : null;
+  // A face with errata (the data's current wording differs from the printing, Marked for Death 04028) keeps the
+  // English current text and its errata diff: MarvelCDB's Spanish text translates the printing, not the correction.
+  const printing = textOf(card, face);
+  const errata = printing.printed !== "" && printing.printed !== printing.current;
+  const text = local.t !== undefined && !errata && balancedTextOf(artFor(card, face)) === null ? local.t : null;
   return {
     ...sheet,
     name:
