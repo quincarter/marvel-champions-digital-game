@@ -119,15 +119,35 @@ export function cachedCatalog(storage: CatalogDeps["storage"] = defaultStorage()
   }
 }
 
+/** How far ahead of this device's clock a catalog's `generated` time may be before it is not believed. */
+const FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
+
+/** A catalog's `generated` instant, or undefined when it is not a date or is implausibly far in the future. */
+function generatedAt(index: PackIndex, now: number): number | undefined {
+  const at = Date.parse(index.generated);
+  return Number.isFinite(at) && at <= now + FUTURE_SLACK_MS ? at : undefined;
+}
+
+/**
+ * True when `a` is a strictly newer catalog than `b`, by their `generated` instants (parsed, so offsets and fractions
+ * compare correctly). A copy whose time is missing, malformed or far in the future never counts as newer, so a bad
+ * saved copy can't pin the store; against such a copy any good one is newer.
+ */
+export function isNewerCatalog(a: PackIndex, b: PackIndex, now: number = Date.now()): boolean {
+  const at = generatedAt(a, now);
+  if (at === undefined) return false;
+  const bt = generatedAt(b, now);
+  return bt === undefined || at > bt;
+}
+
 /**
  * Keeps `index` as the last good copy and tells the `onCatalogCached` listeners. A copy older than the saved one (two
- * requests that cross, a stale CDN answer) never replaces it: `generated` is an ISO time, so the strings compare in time
- * order.
+ * requests that cross, a stale CDN answer) never replaces it (`isNewerCatalog`).
  */
 export function saveCatalog(index: PackIndex, storage: CatalogDeps["storage"] = defaultStorage()): void {
   if (!storage) return;
   const saved = cachedCatalog(storage);
-  if (saved && saved.generated > index.generated) return;
+  if (saved && isNewerCatalog(saved, index)) return;
   try {
     storage.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
   } catch {
@@ -155,7 +175,7 @@ export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult
     saveCatalog(index, storage);
     // A stale answer (a CDN edge behind, two requests that crossed) loses to a newer saved copy.
     const saved = cachedCatalog(storage);
-    return { index: saved && saved.generated > index.generated ? saved : index, offline: false };
+    return { index: saved && isNewerCatalog(saved, index) ? saved : index, offline: false };
   } catch (error) {
     const cached = cachedCatalog(storage);
     if (cached) return { index: cached, offline: true };

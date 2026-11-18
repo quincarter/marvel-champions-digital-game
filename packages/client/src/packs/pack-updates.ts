@@ -12,7 +12,7 @@
 import type { PackIndex } from "@mc/content";
 import { packStateOf } from "./pack-state.js";
 import type { InstalledPack, PackStorage } from "./pack-store.js";
-import { cachedCatalog, loadCatalog, saveCatalog, type CatalogDeps } from "./catalog.js";
+import { cachedCatalog, isNewerCatalog, loadCatalog, saveCatalog, type CatalogDeps } from "./catalog.js";
 import { sharedPackStore } from "./active-packs.js";
 import { SUPPORTED_DSL_FEATURES } from "./supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -87,7 +87,7 @@ export function notePackUpdates(
 ): void {
   noted += 1;
   // A store answer older than the catalog already remembered (requests that crossed) leaves that one in place.
-  if (index && !(lastIndex && lastIndex.generated > index.generated)) {
+  if (index && !(lastIndex && isNewerCatalog(lastIndex, index))) {
     lastIndex = index;
     // An offline copy is never fresh: the next Title check reaches for the network again.
     lastFetched = offline ? Number.NEGATIVE_INFINITY : Date.now();
@@ -153,9 +153,9 @@ async function runCheck(deps: CheckDeps): Promise<number> {
     // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
     if (fresh && noted === started) {
       // The store may have saved a newer catalog that it has not noted yet, or a CDN may answer with an older one: the
-      // newer of the two is counted from and kept (`generated` is an ISO time, so the strings compare in time order).
+      // newer of the two (`isNewerCatalog`) is counted from and kept.
       const saved = cachedCatalog(deps.storage);
-      const newest = saved && saved.generated > fresh.generated ? saved : fresh;
+      const newest = saved && isNewerCatalog(saved, fresh) ? saved : fresh;
       index = newest;
       lastIndex = newest;
       lastFetched = now();
