@@ -10,6 +10,7 @@ import {
   mainThreat,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   payWith,
   play,
@@ -23,7 +24,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { conjure, playOut, rhino } from "../../../testing/qa-bench.js";
-import { moveToDiscard, stackSetAside, withDamage } from "../../../testing/staging.js";
+import { moveToDiscard, stackSetAside, withDamage, withForm } from "../../../testing/staging.js";
 import { game, villainOf } from "../../../wave7/rulings-2026-10-06-harness.js";
 import { playFromHand, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "./support.js";
@@ -306,6 +307,76 @@ describe("Ghost-Spider's events, part B (27013–27019)", () => {
       WAVE5_DEPS,
     );
     expect(offered).toContain("Spend 3 resources of any type to repeat");
+  });
+
+  // The chosen player's own repeat prerequisites (PR #820 review): P1 plays the event and chooses P2, so the repeat is
+  // offered to P2 only with a ready Web-Warrior card and a Web-Warrior ally in P2's own discard pile (FFG ruling
+  // 2023-12-08, docs/rulings/post-rrg-1-5/08-december-2023.md; RRG 1.8 FAQ p. 62/63: repeating includes the cost).
+  const twoPlayerSpiderVerse = (p2Discard: boolean) => {
+    const base = startWave5Game(
+      ghostSpiderScenario("rhino", { seed: 1, extraPlayers: [{ starterDeckId: "spider-man-morales" }] }),
+    );
+    // P2 is in hero form so its identity (Spider-Man, Miles Morales) is a ready Web-Warrior card.
+    const hero = withForm(run(base, toHero(P1)), { heroForm: 0 }, P2);
+    // P1: Silk (27010) for the first pass (not Miles, who would meet P2's same-named unique identity); with a second
+    // ally (Miles, 27011) when P2 has none, so "P1 has a target" cannot be what offers the repeat to P2.
+    const p1Silk = moveToDiscard(hero, P1, "27010");
+    const p1Staged = p2Discard ? p1Silk.state : moveToDiscard(p1Silk.state, P1, "27011").state;
+    const p2Ally = p2Discard ? moveToDiscard(p1Staged, P2, "27041") : undefined; // Spider-Woman, a Web-Warrior ally.
+    const given = moveToHand(p2Ally?.state ?? p1Staged, P1, "27018");
+    return { given, p2Identity: identityOf(given.state, P2), p2Ally: p2Ally?.id, p1Ally: p1Silk.id };
+  };
+  const driveSpiderVerse = (setup: ReturnType<typeof twoPlayerSpiderVerse>) => {
+    const [card] = setup.given.ids as [never];
+    const offered: string[] = [];
+    let paidWith = 0;
+    const after = settle(
+      runWith(WAVE5_DEPS, setup.given.state, play(P1, card, payWith(setup.given.state, P1, 2, [card]))),
+      (s) => {
+        const choice = s.pendingChoice;
+        if (!choice) return [];
+        const prompt = choice.prompt;
+        if (prompt.kind === "choosePlayer") return [choice.options.find((o) => o.label === "p2")!.optionId];
+        if (prompt.kind === "chooseOption") {
+          offered.push(...choice.options.map((o) => o.label));
+          const repeat = choice.options.find((o) => o.label === "Spend 3 resources of any type to repeat");
+          if (repeat) return [repeat.optionId];
+        }
+        if (prompt.kind === "spendResources") {
+          paidWith = Math.min(3, choice.options.length);
+          return choice.options.slice(0, 3).map((o) => o.optionId);
+        }
+        if (prompt.kind === "chooseCards" && prompt.slot === "found") {
+          return choice.options.slice(0, choice.maxSelections).map((o) => o.optionId);
+        }
+        return firstLegal(s);
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    return { after, offered, paidWith };
+  };
+
+  it("27018.across-the-spider-verse-action: a chosen P2 with a ready Web-Warrior card and an ally in P2's own discard is offered the repeat, pays 3 and exhausts P2's Web-Warrior card", () => {
+    const setup = twoPlayerSpiderVerse(true);
+    const handBefore = playerOf(setup.given.state, P2).hand.length;
+    const { after, offered, paidWith } = driveSpiderVerse(setup);
+    expect(offered).toContain("Spend 3 resources of any type to repeat");
+    expect(paidWith).toBe(3);
+    // P2 paid from P2's own hand, exhausted P2's own Web-Warrior identity, and the ally came from P2's discard.
+    expect(playerOf(after, P2).hand.length).toBe(handBefore - 3);
+    expect(inst(after, setup.p2Identity).exhausted).toBe(true);
+    expect(playerOf(after, P2).discard).not.toContain(setup.p2Ally!);
+    expect(cardsInPlay(after)).toContain(setup.p2Ally!);
+    expect(cardsInPlay(after)).toContain(setup.p1Ally); // P1's own first pass found Silk, so the repeat is not the only pass
+  });
+
+  it("27018.across-the-spider-verse-action: the repeat is not offered to a chosen P2 with no ally in P2's own discard, even though P1 has one", () => {
+    const setup = twoPlayerSpiderVerse(false);
+    const { after, offered } = driveSpiderVerse(setup);
+    expect(offered).not.toContain("Spend 3 resources of any type to repeat");
+    expect(inst(after, setup.p2Identity).exhausted).toBe(false);
+    expect(playerOf(after, P2).hand.length).toBe(playerOf(setup.given.state, P2).hand.length);
   });
 
   it("27018.across-the-spider-verse-action: not playable without a Web-Warrior ally in your discard pile", () => {
