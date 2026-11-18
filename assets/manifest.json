@@ -169,31 +169,31 @@
       "name": "music-soundtrack",
       "group": "music",
       "dir": "music/soundtrack",
-      "tag": "music-soundtrack-c8e88b0b9709",
+      "tag": "music-soundtrack-6e3783549080",
       "file": "music-soundtrack.zip",
-      "size": 590695518,
-      "sha256": "c8e88b0b970950e3be80845638745e63ae409cfa0830a468bb9679073009c0b5",
-      "files": 183
+      "size": 670259035,
+      "sha256": "6e37835490801771b26d5a75df450f23e319af13df6fac804555d82ca32a12f0",
+      "files": 212
     },
     {
       "name": "music-scenarios",
       "group": "music",
       "dir": "music/scenarios",
-      "tag": "music-scenarios-fe741c7fff3a",
+      "tag": "music-scenarios-18555bd00227",
       "file": "music-scenarios.zip",
-      "size": 504260565,
-      "sha256": "fe741c7fff3a169aa48c9d353372f9a487d85660450896c63feb079714d8e22d",
-      "files": 160
+      "size": 569240996,
+      "sha256": "18555bd00227e45997baaa63252eb20be513ef087cdb49410ac31650e71428a1",
+      "files": 185
     },
     {
       "name": "music-campaigns",
       "group": "music",
       "dir": "music/campaigns",
-      "tag": "music-campaigns-5437a41ffde8",
+      "tag": "music-campaigns-d2daefdb0ce4",
       "file": "music-campaigns.zip",
-      "size": 66791063,
-      "sha256": "5437a41ffde8e5e6c8dc43442c84c2a49e215ae4bafb65c0d18459b935082ad9",
-      "files": 18
+      "size": 81374261,
+      "sha256": "d2daefdb0ce47f74015f216c019ff3b777013a7572268585c36d633d64c23d15",
+      "files": 22
     },
     {
       "name": "music-gameplay",
