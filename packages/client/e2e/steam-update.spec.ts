@@ -367,7 +367,11 @@ test.describe("an install from the release's installers (#843)", () => {
     const errors = trackPageErrors(page);
     await page.addInitScript(() => {
       // The updater started the old game again after the installer stopped (scripts/update/update-game.*).
-      const failed = { running: false, exitCode: 1, log: "MC_UPDATE ready 999.0.0\nError: the installer stopped.\n" };
+      const failed = {
+        running: false,
+        exitCode: 1,
+        log: "MC_UPDATE ready 999.0.0\nError: the installer stopped.\nMC_UPDATE failed 999.0.0\n",
+      };
       (window as unknown as { __initialStatus: unknown }).__initialStatus = failed;
     });
     await openAsSteamInstall(page, null, "", { kind: "nsis" });

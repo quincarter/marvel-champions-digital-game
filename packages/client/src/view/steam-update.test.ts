@@ -96,9 +96,13 @@ describe("a finished download waiting to install", () => {
 });
 
 describe("an update that didn't install after the game quit", () => {
-  it("is one that was ready, then stopped with an error", () => {
+  it("is one whose updater ended on a failed report", () => {
     const log = (text: string) => ({ running: false, exitCode: 1, log: text });
-    expect(updateFailedAfterQuit(log("MC_UPDATE ready 1.1.0\nError: the installer stopped with code 5.\n"))).toBe(true);
+    const failed = "MC_UPDATE ready 1.1.0\nError: the installer stopped with code 5.\nMC_UPDATE failed 1.1.0\n";
+    expect(updateFailedAfterQuit(log(failed))).toBe(true);
+    // Only the end of the log reaches the game: a package manager's long output pushes `ready` out of it.
+    const longInstall = `${"Setting up a package...\n".repeat(400)}Error: post-install failed.\nMC_UPDATE failed 1.1.0\n`;
+    expect(updateFailedAfterQuit(log(longInstall.slice(-4096)))).toBe(true);
     // Failed while downloading, installed, still running, or nothing at all.
     expect(updateFailedAfterQuit(log("Error: the download failed.\n"))).toBe(false);
     expect(updateFailedAfterQuit(log("MC_UPDATE ready 1.1.0\nMC_UPDATE done 1.1.0\n"))).toBe(false);

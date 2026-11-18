@@ -45,11 +45,14 @@ mounted=""
 # The AppImage's download, made beside it under a name of this run's own (mktemp), so the swap is a rename on one disk
 # and no file the player or another updater left there is written over or removed. Empty until it exists.
 staged_appimage=""
+# On macOS, a folder beside the app that this run made (mktemp -d) for the disk's swap check and the new app: the only
+# folder there it ever removes. Empty until it exists.
+owned_dir=""
 cleanup() {
   if [ -n "$mounted" ]; then hdiutil detach -quiet "$mounted" 2> /dev/null || true; fi
   rm -rf "$tmp"
   if [ -n "$staged_appimage" ]; then rm -f "$staged_appimage"; fi
-  [ "$kind" != dmg ] || rm -rf "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
+  if [ -n "$owned_dir" ]; then rm -rf "$owned_dir"; fi
 }
 trap cleanup EXIT
 
@@ -64,13 +67,13 @@ swap_paths() {
 if [ "$kind" = dmg ]; then
   # Each folder holds a file naming it, and both must have traded places: a volume whose swap reports success but only
   # renames one over the other (seen on macFUSE) is caught here.
-  mkdir "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
-  : > "$parent/.mc-swap-test.$$.a/a"
-  : > "$parent/.mc-swap-test.$$.b/b"
-  { swap_paths "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b" &&
-    [ -f "$parent/.mc-swap-test.$$.a/b" ] && [ -f "$parent/.mc-swap-test.$$.b/a" ]; } ||
+  owned_dir="$(mktemp -d "$parent/.$(basename "$game").update.XXXXXX")" || die "$parent can't be written to."
+  mkdir "$owned_dir/a" "$owned_dir/b"
+  : > "$owned_dir/a/a"
+  : > "$owned_dir/b/b"
+  { swap_paths "$owned_dir/a" "$owned_dir/b" && [ -f "$owned_dir/a/b" ] && [ -f "$owned_dir/b/a" ]; } ||
     die "the disk the game is on can't replace an app in one step, so it can't update itself there. Download the update instead."
-  rm -rf "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
+  rm -rf "$owned_dir/a" "$owned_dir/b"
 fi
 
 printf 'Downloading version %s...\n' "$version"
@@ -103,9 +106,16 @@ start_game() {
 # The player has quit to install by now, so a failure from here on starts the game they had again, and says why in the
 # log, which the game shows on its Title (`platform/self-update.ts`).
 give_up() {
-  printf 'Error: %s\n' "$*"
+  failed_after_quit "$*"
   start_game || true
   exit 1
+}
+
+# The reason, then a last report the game reads on its next launch (`view/steam-update.ts`): written last, so it is in
+# the end of the log the game reads however much the installer printed before it.
+failed_after_quit() {
+  printf 'Error: %s\n' "$*"
+  printf 'MC_UPDATE failed %s\n' "$version"
 }
 
 # The package as the package manager has it: installed and configured, and its version.
@@ -161,7 +171,7 @@ install() {
     fi
     local repair="sudo apt-get -f install"
     [ "$kind" = rpm ] && repair="sudo dnf reinstall $package (or sudo rpm -U --replacepkgs with the release's .rpm)"
-    printf 'Error: the package update stopped partway, so the game may not start. To repair it, run: %s\n' "$repair"
+    failed_after_quit "the package update stopped partway, so the game may not start. To repair it, run: $repair"
     if package_ok; then start_game || true; fi
     exit 1
   fi
@@ -173,20 +183,11 @@ install() {
   fi
   app="$(find "$mounted" -maxdepth 1 -name '*.app' -print -quit)"
   [ -n "$app" ] || give_up "the disk image has no app in it, so the game is unchanged."
-  # Copied in beside the old app first, so a failed copy leaves the old one as it was; then the two trade places in one
-  # step (the disk was checked above), and the old app, now at the staged path, goes.
-  local staged
-  staged="$parent/.$(basename "$game").new"
-  rm -rf "$staged"
-  ditto "$app" "$staged" || {
-    rm -rf "$staged"
-    give_up "the new app couldn't be copied into $parent, so the game is unchanged."
-  }
-  swap_paths "$staged" "$game" || {
-    rm -rf "$staged"
-    give_up "the new app couldn't be swapped in, so the game is unchanged."
-  }
-  rm -rf "$staged"
+  # Copied in beside the old app first, into this run's own folder, so a failed copy leaves the old one as it was; then
+  # the two trade places in one step (the disk was checked above), and the old app, now in that folder, goes with it.
+  local staged="$owned_dir/$(basename "$game")"
+  ditto "$app" "$staged" || give_up "the new app couldn't be copied into $parent, so the game is unchanged."
+  swap_paths "$staged" "$game" || give_up "the new app couldn't be swapped in, so the game is unchanged."
 }
 
 install || give_up "the update couldn't be installed, so the game is unchanged."

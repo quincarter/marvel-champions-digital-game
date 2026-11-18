@@ -89,7 +89,11 @@ try {
 # The player quit to install, so the game starts again either way: updated, or as it was, with the reason in the log
 # for its Title to show (platform/self-update.ts).
 # The reason goes in the log before the game starts, so the game finds it there.
-if ($null -ne $failure) { Write-Host "Error: $failure" }
+if ($null -ne $failure) {
+  Write-Host "Error: $failure"
+  # Last, so the game finds it at the end of the log on its next launch however much the installer printed before it.
+  if ($quit) { Write-Host "MC_UPDATE failed $Version" }
+}
 if ($quit) { Start-Game }
 if ($null -ne $failure) { exit 1 }
 exit 0
