@@ -86,12 +86,13 @@ export function notePackUpdates(
   offline = false,
 ): void {
   noted += 1;
-  if (index) {
+  // A store answer older than the catalog already remembered (requests that crossed) leaves that one in place.
+  if (index && !(lastIndex && lastIndex.generated > index.generated)) {
     lastIndex = index;
     // An offline copy is never fresh: the next Title check reaches for the network again.
     lastFetched = offline ? Number.NEGATIVE_INFINITY : Date.now();
   }
-  const known = index ?? lastIndex;
+  const known = lastIndex ?? index;
   if (known) setCount(packUpdateCountOf(known, installed));
 }
 
@@ -158,7 +159,7 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       index = newest;
       lastIndex = newest;
       lastFetched = now();
-      if (newest === fresh) saveCatalog(fresh, deps.storage);
+      saveCatalog(fresh, deps.storage);
     }
   }
   // The Mod Store noted a newer installed list while this check waited: its count stands.

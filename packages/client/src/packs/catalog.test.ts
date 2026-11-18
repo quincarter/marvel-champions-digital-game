@@ -63,4 +63,12 @@ describe("catalog", () => {
   it("throws when offline with no cache", async () => {
     await expect(loadCatalog({ storage: memoryStorage(), fetch: json(index, 404) })).rejects.toThrow();
   });
+
+  it("never replaces a newer saved copy with an older catalog", async () => {
+    const storage = memoryStorage();
+    await loadCatalog({ fetch: json({ ...index, generated: "2026-11-19T00:00:00Z" }), storage });
+    const older = await loadCatalog({ fetch: json(index), storage });
+    expect(older.index.generated).toBe("2026-11-10T00:00:00Z");
+    expect(cachedCatalog(storage)?.generated).toBe("2026-11-19T00:00:00Z");
+  });
 });

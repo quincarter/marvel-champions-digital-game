@@ -189,4 +189,15 @@ describe("checkPackUpdates", () => {
     expect(await checkPackUpdates({ ...deps, fetch: next })).toBe(1);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it("keeps the newer catalog when an older store answer is noted last", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-19T00:00:00Z",
+    };
+    const deps = { store: store([installed("fan-newer", "1.1.0")]), storage: null };
+    expect(await checkPackUpdates({ ...deps, fetch: json(newer) })).toBe(1);
+    notePackUpdates(index, [installed("fan-newer", "1.1.0")]);
+    expect(packUpdateCount()).toBe(1);
+  });
 });

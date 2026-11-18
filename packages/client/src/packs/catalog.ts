@@ -119,9 +119,15 @@ export function cachedCatalog(storage: CatalogDeps["storage"] = defaultStorage()
   }
 }
 
-/** Keeps `index` as the last good copy and tells the `onCatalogCached` listeners. */
+/**
+ * Keeps `index` as the last good copy and tells the `onCatalogCached` listeners. A copy older than the saved one (two
+ * requests that cross, a stale CDN answer) never replaces it: `generated` is an ISO time, so the strings compare in time
+ * order.
+ */
 export function saveCatalog(index: PackIndex, storage: CatalogDeps["storage"] = defaultStorage()): void {
   if (!storage) return;
+  const saved = cachedCatalog(storage);
+  if (saved && saved.generated > index.generated) return;
   try {
     storage.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
   } catch {
