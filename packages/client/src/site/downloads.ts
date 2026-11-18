@@ -186,3 +186,21 @@ export async function fetchLatestRelease(
     clearTimeout(timer);
   }
 }
+
+/**
+ * The Steam script button for `device`, offered where the download section offers it: beside an installer for this
+ * device. A release that has the script but not yet the installer (assets still uploading) offers neither, so a button
+ * never links a script whose how-to-run help the section isn't showing.
+ */
+export function steamButtonFor(downloads: readonly Download[], device: DeviceKind): Download | undefined {
+  return primaryButtons(downloads, device).length > 0 ? steamScriptFor(downloads, device) : undefined;
+}
+
+/**
+ * Whether two answers name the same release with the same files. A release's assets keep arriving after it is published
+ * (each installer is uploaded as its build finishes), so the tag alone can't tell a page that the list has grown.
+ */
+export function sameRelease(a: LatestRelease, b: LatestRelease): boolean {
+  const names = (release: LatestRelease) => release.assets.map((asset) => asset.name).join("\n");
+  return a.tag_name === b.tag_name && names(a) === names(b);
+}

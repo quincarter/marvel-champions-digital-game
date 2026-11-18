@@ -6,7 +6,7 @@
 import {
   downloadsOf,
   primaryButtons,
-  steamScriptFor,
+  steamButtonFor,
   versionOf,
   type DeviceKind,
   type Download,
@@ -180,7 +180,7 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
   }
   // The Install for Steam script for this computer, as a button of its own beside the installer, and how to run it:
   // a downloaded script needs execute permission on macOS and Linux, and Windows asks before it runs a downloaded file.
-  const steam = primary ? steamScriptFor(downloads, device) : undefined;
+  const steam = steamButtonFor(downloads, device);
   if (steam) {
     main.insertBefore(
       element(

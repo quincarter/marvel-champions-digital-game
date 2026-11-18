@@ -13,6 +13,7 @@ const en = {
   "bar.brand": "Digital Edition",
   "bar.play": "Play now",
   "bar.download": "Download",
+  "bar.steam": "Steam",
 
   "hero.kick": "Fan-made · Free · No account",
   "hero.title": 'Suit up.<br /><span class="g">Save the day.</span>',
@@ -118,6 +119,7 @@ const es: Catalog<LandingKey> = {
   "bar.brand": "Digital Edition",
   "bar.play": "Jugar",
   "bar.download": "Descargar",
+  "bar.steam": "Steam",
 
   "hero.kick": "Hecho por fans · Gratis · Sin cuenta",
   "hero.title": 'Equípate.<br /><span class="g">Salva el día.</span>',

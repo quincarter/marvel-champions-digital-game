@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG_CACHE_KEY, cachedCatalog, loadCatalog, parseCatalog } from "./catalog.js";
+import { CATALOG_CACHE_KEY, cachedCatalog, loadCatalog, onCatalogCached, parseCatalog } from "./catalog.js";
 import { buildPack } from "./test-zip.js";
 
 const index = { schema: 2, generated: "2026-11-10T00:00:00Z", packs: [buildPack().entry] };
@@ -30,6 +30,19 @@ describe("catalog", () => {
     expect(result.index.packs[0]?.id).toBe("fan-test");
     expect(storage.map.has(CATALOG_CACHE_KEY)).toBe(true);
     expect(cachedCatalog(storage)?.packs).toHaveLength(1);
+  });
+
+  it("tells listeners when a fresh catalog is cached, not when it falls back to the cache", async () => {
+    const storage = memoryStorage();
+    let calls = 0;
+    const stop = onCatalogCached(() => calls++);
+    await loadCatalog({ fetch: json(index), storage });
+    expect(calls).toBe(1);
+    await loadCatalog({ fetch: json(index, 500), storage });
+    expect(calls).toBe(1);
+    stop();
+    await loadCatalog({ fetch: json(index), storage });
+    expect(calls).toBe(1);
   });
 
   it("falls back to the cache when offline or the catalog is bad", async () => {

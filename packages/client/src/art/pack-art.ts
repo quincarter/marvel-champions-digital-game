@@ -41,6 +41,8 @@ interface PackArtPack {
   readonly pictures: PackManifest["pictures"];
   /** A `house-rule` pack's rule: its pictures are rebuilt official faces (docs/custom-content-packs.md §11.11). */
   readonly houseRule: PackManifest["houseRule"];
+  /** The catalog zip checksum the install was verified against, when the store recorded it (issue #840). */
+  readonly zipSha256?: string | undefined;
 }
 
 let packs: ReadonlyMap<string, PackArtPack> = new Map();
@@ -78,6 +80,7 @@ export function setPackArt(
   manifests: readonly PackManifest[],
   from: PackArtStore | undefined,
   unloaded: readonly PackManifest[] = [],
+  sources: ReadonlyMap<string, string | undefined> = new Map(),
 ): void {
   store = from;
   const previousSize = packs.size;
@@ -110,6 +113,7 @@ export function setPackArt(
         files: new Set(manifest.files.map((file) => file.path)),
         pictures: manifest.pictures,
         houseRule: manifest.houseRule,
+        zipSha256: sources.get(manifest.id),
       },
     ]),
   ]);
@@ -133,6 +137,27 @@ export function setPackArt(
     announcedSignature = signature;
     if (packs.size > 0 || previousSize > 0) announceSoon();
   }
+}
+
+/**
+ * The loaded packs' picture files, for Discord presence (issue #840): posted as they are (a `Set` survives the
+ * structured clone), so the main thread does no work for it. A pack held only for its Mod Store cover is listed too,
+ * harmlessly: no game uses its cards, and it has no card pictures.
+ */
+export function presencePackTable(): readonly {
+  readonly id: string;
+  readonly version: string;
+  readonly languages: PackLanguages | undefined;
+  readonly files: ReadonlySet<string>;
+  readonly zipSha256: string | undefined;
+}[] {
+  return [...packs.values()].map(({ id, version, languages, files, zipSha256 }) => ({
+    id,
+    version,
+    languages,
+    files,
+    zipSha256,
+  }));
 }
 
 /**

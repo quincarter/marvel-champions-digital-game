@@ -186,6 +186,7 @@ export async function loadActivePacks(
     installed.filter((pack) => loaded.has(pack.id)).map((pack) => pack.manifest),
     store,
     installed.filter((pack) => !loaded.has(pack.id)).map((pack) => pack.manifest),
+    new Map(installed.map((pack) => [pack.id, pack.source?.zipSha256])),
   );
   for (const listener of [...listeners]) listener(result);
   return result;

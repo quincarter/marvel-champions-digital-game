@@ -3,6 +3,8 @@ import {
   downloadsOf,
   primaryButtons,
   primaryDownload,
+  sameRelease,
+  steamButtonFor,
   steamScriptFor,
   versionOf,
   type LatestRelease,
@@ -147,6 +149,25 @@ describe("primaryButtons", () => {
       ["MarvelChampions-0.44.0-EN-Windows-x64-Setup.exe", "device.windows"],
     ]);
     expect(buttonsOf(RELEASE, "ios")).toEqual([]);
+  });
+});
+
+describe("steamButtonFor", () => {
+  it("offers the script only beside an installer for the device, as the download section does", () => {
+    expect(steamButtonFor(downloadsOf(RELEASE, "en"), "windows")?.id).toBe("steam-windows");
+    // The script is up but the installers are still uploading: no button that would skip the section's help.
+    const scriptOnly = { ...RELEASE, assets: [asset("MarvelChampions-Windows-Install-for-Steam.cmd")] };
+    expect(steamScriptFor(downloadsOf(scriptOnly, "en"), "windows")).toBeDefined();
+    expect(steamButtonFor(downloadsOf(scriptOnly, "en"), "windows")).toBeUndefined();
+  });
+});
+
+describe("sameRelease", () => {
+  it("tells a release whose files have grown since from the one the page has", () => {
+    const grown = { ...RELEASE, assets: [...RELEASE.assets, asset("MarvelChampions-Linux-Install-for-Steam.sh")] };
+    expect(sameRelease(RELEASE, { ...RELEASE })).toBe(true);
+    expect(sameRelease(RELEASE, grown)).toBe(false);
+    expect(sameRelease(RELEASE, { ...RELEASE, tag_name: "v0.45.0" })).toBe(false);
   });
 });
 
