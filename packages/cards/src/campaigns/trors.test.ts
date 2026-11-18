@@ -24,6 +24,7 @@ import {
   CAMPAIGN_ACCEPT,
   campaignChoiceKey,
   campaignResultOf,
+  cardsInPlay,
   createCampaignLog,
   createGame,
   replay,
@@ -41,6 +42,7 @@ import {
   type GameState,
 } from "@mc/engine";
 import { playToOutcome } from "../testing/driver.js";
+import { firstLegal, settle as settleGame } from "../testing/harness.js";
 import { WAVE2_DEPS, wave2Scenario } from "../wave2/index.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
@@ -102,6 +104,8 @@ function settle<T>(
 const TECH_IDS = ["04155", "04156", "04157", "04158"];
 const BASIC_IDS = ["04159a", "04160a", "04161a", "04162a"];
 const OBLIGATION_IDS = ["04163", "04164", "04165", "04166"];
+/** MC10 p. 5's Experimental Weapons (Laser Rifle, Energy Shield, Power Gauntlets, Exo-Suit), one copy each. */
+const WEAPON_IDS = ["04072", "04073", "04074", "04075"];
 /** MC10 p. 10's Taskmaster Captive allies, which the victory instruction adds to the rescuer's deck. */
 const MOON_KNIGHT = "04097";
 
@@ -127,7 +131,7 @@ interface Played {
  * Composes the log's next node, creates and drives a real game to its real outcome (always a loss — see the file
  * header), folds that back, then re-derives the fold with the same finished state's `outcome` overridden to a win.
  */
-function playNode(log: CampaignLog): Played {
+function playNode(log: CampaignLog, opts: { readonly reenterWeapon?: boolean } = {}): Played {
   const composed = settle(
     (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
     SCRIPT,
@@ -146,7 +150,18 @@ function playNode(log: CampaignLog): Played {
   if (!driven.outcome) throw new Error(`${start.nodeId} never reached an outcome`);
   const replayed = replay(driven.session.log, WAVE2_DEPS);
   if (!replayed.ok) throw new Error(`${start.nodeId}'s session log did not replay`);
-  const events = [...created.events, ...replayed.events];
+  const played = [...created.events, ...replayed.events];
+  // `reenterWeapon`: the first Experimental Weapon to enter play enters again, as if it was discarded and later
+  // revealed from the reshuffled encounter deck. Still one physical card, so it must be recorded once.
+  const weaponEntry = played.find(
+    (event) =>
+      event.type === "triggerEvent" &&
+      event.phase === "resolved" &&
+      event.event.kind === "cardEntersPlay" &&
+      WEAPON_IDS.includes(driven.session.state.instances[event.event.instanceId]?.cardId as string),
+  );
+  if (opts.reenterWeapon && !weaponEntry) throw new Error("no Experimental Weapon entered play to re-enter");
+  const events = opts.reenterWeapon && weaponEntry ? [...played, weaponEntry] : played;
 
   const fold = (state: GameState): CampaignLog => {
     const result = campaignResultOf(TRORS_CAMPAIGN_DEFINITION, composed.value, state, events, WAVE2_DEPS);
@@ -170,6 +185,50 @@ function playNode(log: CampaignLog): Played {
   };
 }
 
+/**
+ * Composes and creates the scenario after Crossbones from `log`, seated as a client launches it, and checks MC10 p. 7's
+ * "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck": exactly one physical
+ * copy of each recorded weapon in the whole game, in the encounter deck (or already drawn from it), and none of the
+ * unrecorded weapons at all. Returns the config for further checks.
+ */
+function expectWeaponsCarriedOnce(log: CampaignLog, nodeId = "absorbing-man") {
+  const composed = settle(
+    (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
+    SCRIPT,
+  );
+  const start = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed.value);
+  expect(start.nodeId).toBe(nodeId);
+  // Seated exactly as a client launches it: each seat's composed deck, grants and all — not the starter lists.
+  const config = wave2Scenario(start.scenarioId as string, {
+    players: start.input.seats.map((seat) => ({
+      identityCardId: seat.identityCardId,
+      deck: seat.deck,
+      aspects: seat.aspects,
+    })),
+    seed: start.input.seed,
+  });
+  const created = createGame({ ...config, campaign: start.input }, WAVE2_DEPS);
+  expect(created.ok ? "ok" : created.error.message).toBe("ok");
+
+  const recorded = log.shared.experimental?.kind === "cardList" ? log.shared.experimental.cardIds : [];
+  expect(recorded.length).toBeGreaterThanOrEqual(1);
+  if (created.ok) {
+    const game = settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE2_DEPS);
+    const encounterCards = game.encounterDeckOrder.flatMap((deckId) => {
+      const deck = game.encounterDecks[deckId]!;
+      return [...deck.deck, ...deck.discard];
+    });
+    const placed = new Set([...encounterCards, ...cardsInPlay(game)]);
+    for (const weapon of WEAPON_IDS) {
+      const copies = Object.values(game.instances).filter((instance) => (instance.cardId as string) === weapon);
+      expect(copies, weapon).toHaveLength(recorded.includes(weapon as CardId) ? 1 : 0);
+      for (const copy of copies) expect(placed.has(copy.instanceId), weapon).toBe(true);
+    }
+  }
+
+  return config;
+}
+
 describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
   it("the next scenario sets up with the campaign's own decks, granted TECH upgrades included (MC10 p. 3/p. 5)", () => {
     const seedLog = createCampaignLog(TRORS_CAMPAIGN_DEFINITION, {
@@ -179,25 +238,28 @@ describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
       poolVersion: "smoke-test",
       seed: 9002,
     });
-    const afterWin = playNode(seedLog).logAfterForcedWin;
+    const afterWin = playNode(seedLog, { reenterWeapon: true }).logAfterForcedWin;
     expect(afterWin.seats.every((seat) => seat.grants.length === 1)).toBe(true);
 
-    const composed = settle(
-      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, afterWin, DEPS, afterWin.modes, answers),
-      SCRIPT,
-    );
-    const start = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed.value);
-    // Seated exactly as a client launches it: each seat's composed deck, grants and all — not the starter lists.
-    const config = wave2Scenario(start.scenarioId as string, {
-      players: start.input.seats.map((seat) => ({
-        identityCardId: seat.identityCardId,
-        deck: seat.deck,
-        aspects: seat.aspects,
-      })),
-      seed: start.input.seed,
-    });
-    const created = createGame({ ...config, campaign: start.input }, WAVE2_DEPS);
-    expect(created.ok ? "ok" : created.error.message).toBe("ok");
+    // The Crossbones game recorded at least the weapon its 1B When Revealed attached during setup, and a weapon that
+    // entered play twice is still recorded once (`cardsThatEnteredPlay` `distinct`).
+    const recorded = afterWin.shared.experimental?.kind === "cardList" ? afterWin.shared.experimental.cardIds : [];
+    expect(new Set(recorded).size).toBe(recorded.length);
+    const config = expectWeaponsCarriedOnce(afterWin);
+
+    // Every later scenario lists the shuffle in its own setup (scenarios 2 to 4 through `repeatedSetup`, Red Skull
+    // separately), so each is checked, from a log that lists a weapon twice as one saved before `distinct` can: it
+    // still carries over as one copy.
+    for (const nodeId of ["absorbing-man", "taskmaster", "zola", "red-skull"]) {
+      expectWeaponsCarriedOnce(
+        {
+          ...afterWin,
+          position: { ...afterWin.position, nextNodeId: nodeId },
+          shared: { ...afterWin.shared, experimental: { kind: "cardList", cardIds: [...recorded, recorded[0]!] } },
+        },
+        nodeId,
+      );
+    }
 
     // The same deck is still refused outside the campaign: a granted card is legal only where it was granted.
     const standalone = createGame(config, WAVE2_DEPS);
@@ -227,9 +289,12 @@ describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
     let log = crossbones.logAfterForcedWin;
     expect(log.position.resolved.crossbones).toBe("completed");
     expect(log.position.nextNodeId).toBe("absorbing-man");
-    // mc10.s1.victory.experimental: the "experimental" field is a cardList, present (even if empty — Crossbones may
-    // or may not draw an Experimental Weapons card in a short greedy game; the point is the write happened).
+    // mc10.s1.victory.experimental: the "experimental" field is a cardList holding at least the weapon Attack on
+    // Mount Athena 1B's When Revealed puts on Crossbones during setup (more if a stage or Crossbones III revealed one).
     expect(log.shared.experimental).toEqual({ kind: "cardList", cardIds: expect.any(Array) });
+    const recorded = log.shared.experimental?.kind === "cardList" ? log.shared.experimental.cardIds : [];
+    expect(recorded.length).toBeGreaterThanOrEqual(1);
+    expect(recorded.every((id) => WEAPON_IDS.includes(id as string))).toBe(true);
     // No `remainingHp` write: this campaign is played in standard (non-expert-campaign) mode, and every
     // `remainingHp` write is gated `whenModes: { expertCampaign: true }`.
     expect(log.seats[0]?.fields.remainingHp).toBeUndefined();

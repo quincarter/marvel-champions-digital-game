@@ -68,8 +68,10 @@ import {
   theMainScheme,
 } from "../dsl/index.js";
 
-/** MC10 p. 5's Experimental Weapons deck: "EXPERIMENTAL. WEAPON." (04089–04092). */
+/** MC10 p. 5's Experimental Weapons deck: "EXPERIMENTAL. WEAPON." (04072–04075). */
 const EXPERIMENTAL = trait("EXPERIMENTAL");
+/** Laser Rifle, Energy Shield, Power Gauntlets, Exo-Suit: one copy each in the set. */
+const EXPERIMENTAL_WEAPON_IDS = ["04072", "04073", "04074", "04075"] as const;
 /** MC10 p. 10's Taskmaster-set allies: "CAPTIVE. HERO FOR HIRE." (04097–04100). */
 const CAPTIVE = trait("CAPTIVE");
 /** MC10 p. 5's four campaign upgrades: "TECH." (04155–04158). */
@@ -195,13 +197,51 @@ function obligationSetup(prefix: string, citation: string): readonly CampaignIns
 }
 
 /**
+ * "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck" (MC10 pp. 7, 10, 12,
+ * 15). The Experimental Weapons set belongs only to the Crossbones scenario, so a later scenario's game holds no copy
+ * of a recorded weapon until one is brought in: the between-games step sets each recorded card aside (RRG 1.8 "Set
+ * Aside", p. 39), and the in-game step then finds it there and shuffles it into the encounter deck. Without the first
+ * step the selector matched nothing and every recorded weapon was silently left out of scenarios 2 to 5.
+ */
+function experimentalSetup(prefix: string, citation: string): readonly CampaignInstruction[] {
+  return [
+    {
+      id: `${prefix}.experimental-gather`,
+      text: "(The gathering half of the next bullet: set aside each EXPERIMENTAL attachment recorded in the campaign log.)",
+      citation,
+      step: {
+        kind: "betweenGames",
+        // One copy per weapon whatever the field holds: each is a single physical card, and a log saved before
+        // `cardsThatEnteredPlay` `distinct` can list a weapon that re-entered play twice. The in-game shuffle then
+        // finds no second instance for a repeated entry and skips it.
+        ops: EXPERIMENTAL_WEAPON_IDS.map((id): CampaignOp => ({
+          kind: "if",
+          when: { kind: "fieldContains", field: "experimental", value: id },
+          then: [{ kind: "setAsideCards", cards: [{ kind: "const", value: id }] }],
+        })),
+      },
+    },
+    {
+      id: `${prefix}.experimental`,
+      text: "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck.",
+      citation,
+      step: {
+        kind: "inGame",
+        window: DEFAULT_CAMPAIGN_WINDOW,
+        effects: [moveCards(campaignLogCards("experimental"), "encounterDeckShuffle")],
+      },
+    },
+  ];
+}
+
+/**
  * Printed identically on scenarios 2–5's SETUP list (MC10 p. 7, p. 10, p. 12, p. 15) — not on scenario 1's, which
  * has nothing recorded yet to search for or shuffle in. Kept as one factory rather than `everyNodeSetup` (design
  * §4's "instructions appended to *every* node's setup") because scenario 1 does not print this block: the four
  * boxes MC50/MC45 use `everyNodeSetup` for genuinely print it on every scenario's page, and this box does not.
  *
- * All four printed bullets, in printed order; the fourth is `obligationSetup`'s pair (see its own comment for why
- * one sentence is two instructions). Scenario 5 prints the same four plus two of its own, so it lists them itself.
+ * All four printed bullets, in printed order; the second is `experimentalSetup`'s pair and the fourth is
+ * `obligationSetup`'s (see their own comments for why one sentence is two instructions). Scenario 5 prints the same four plus two of its own, so it lists them itself.
  */
 function repeatedSetup(prefix: string, citation: string): readonly CampaignInstruction[] {
   return [
@@ -216,16 +256,7 @@ function repeatedSetup(prefix: string, citation: string): readonly CampaignInstr
       // kept only to keep the printed setup list complete and citable.
       step: { kind: "inGame", window: DEFAULT_CAMPAIGN_WINDOW, effects: [] },
     },
-    {
-      id: `${prefix}.experimental`,
-      text: "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck.",
-      citation,
-      step: {
-        kind: "inGame",
-        window: DEFAULT_CAMPAIGN_WINDOW,
-        effects: [moveCards(campaignLogCards("experimental"), "encounterDeckShuffle")],
-      },
-    },
+    ...experimentalSetup(prefix, citation),
     {
       id: `${prefix}.hp-set`,
       text: "Expert Campaign Only: Set each player's hit points to their remaining hit point value recorded in the campaign log for the previous scenario.",
@@ -449,7 +480,7 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
                 {
                   field: "experimental",
                   mode: "append",
-                  value: { kind: "cardsThatEnteredPlay", query: { trait: EXPERIMENTAL } },
+                  value: { kind: "cardsThatEnteredPlay", query: { trait: EXPERIMENTAL }, distinct: true },
                 },
               ],
             },
@@ -707,16 +738,7 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
             citation: "MC10 p. 15",
             step: { kind: "inGame", window: DEFAULT_CAMPAIGN_WINDOW, effects: [] },
           },
-          {
-            id: "mc10.s5.setup.experimental",
-            text: "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck.",
-            citation: "MC10 p. 15",
-            step: {
-              kind: "inGame",
-              window: DEFAULT_CAMPAIGN_WINDOW,
-              effects: [moveCards(campaignLogCards("experimental"), "encounterDeckShuffle")],
-            },
-          },
+          ...experimentalSetup("mc10.s5.setup", "MC10 p. 15"),
           {
             id: "mc10.s5.setup.delay-threat-standard",
             text: "Place X threat counters on the main scheme, where X is the number of delay counters recorded in the campaign log.",

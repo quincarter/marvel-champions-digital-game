@@ -208,7 +208,9 @@ export const TRORS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("04061a"),
     cardSetCode: "crossbones",
     marvelcdbCodes: ["04061a", "04061b", "04062a", "04062b", "04063a", "04063b"],
-    corrections: [],
+    corrections: [
+      "04061b: MarvelCDB's record for Attack on Mount Athena 1B has no text at all, so its \"When Revealed: Reveal the top card of the Experimental Weapons deck.\" never resolved and Crossbones started every game without an Experimental Weapon. [evidence: Card scan assets/card-art/bundles/cards/04061.png (Crossbones 4/19, 61B), read 2026-11-17; same wording as 2B (04062) and 3B (04063) in raw.]",
+    ],
   },
   { cardId: cardId("04064"), cardSetCode: "crossbones", marvelcdbCodes: ["04064"], corrections: [] },
   { cardId: cardId("04065"), cardSetCode: "crossbones", marvelcdbCodes: ["04065"], corrections: [] },

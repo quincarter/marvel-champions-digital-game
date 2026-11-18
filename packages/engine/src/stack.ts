@@ -549,6 +549,13 @@ export type StackFrame =
        */
       readonly pickedThisRound?: true;
       /**
+       * The cards this window has played as events from a hand (or as if from a hand), by instance, in play order.
+       * Each play moved the card out of the hand, so one found in a hand again when the picked abilities have resolved
+       * came back (Morphogenetics returning the event it answered) and is a fresh copy: it is offered again for the
+       * same occurrence (`returnedToHandCandidates`). Absent until the window plays one.
+       */
+      readonly eventsPlayed?: readonly InstanceId[];
+      /**
        * Interrupt windows only: the optional abilities that were live as the window opened and listen for this kind
        * of event (`hearersOf`), by key, whether or not their whole condition was met then. One of them whose
        * condition comes to be met while the window is open, before the event resolves, is offered then ("When you
