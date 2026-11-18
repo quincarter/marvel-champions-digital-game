@@ -75,18 +75,6 @@ Tracks: **The King of Hell's Kitchen** (battle), **Long Live the Kingpin** (vill
 Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
 ```
 
-## Fear No Evil campaign interlude
-
-Track: **Hell's Kitchen After Dark** (`campaigns/fne/interlude.mp3`).
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Campaign interlude, about 2 minutes, loops: the heroes regroup in a law office and a private eye's cluttered back room between nights on the street, piecing together which underling the crime boss sends next. Quiet noir: a slow brushed snare, a lonely muted trumpet motif, soft upright bass, rain-on-the-window synth pads, a distant city hum. No big drums, no climax, steady so it can loop under menus. About 72 BPM, D minor with brief turns to F major.
-
-Title: "Hell's Kitchen After Dark"
-```
-
 ## Fear No Evil campaign finale
 
 Track: **The Neighborhood Breathes Again** (`campaigns/fne/finale.mp3`).
@@ -214,7 +202,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - Kingpin: `scenarios/kingpin/`
-- Fear No Evil campaign interlude: `campaigns/fne/interlude.mp3`
 - Fear No Evil campaign finale: `campaigns/fne/finale.mp3`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
@@ -501,6 +488,18 @@ Tracks: **Ink and Gunfire** (battle), **The Story Dies Tonight** (villain wins),
 
 ```text
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
+```
+
+## Fear No Evil campaign interlude
+
+Track: **Hell's Kitchen After Dark** (`campaigns/fne/interlude.mp3`).
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign interlude, about 2 minutes, loops: the heroes regroup in a law office and a private eye's cluttered back room between nights on the street, piecing together which underling the crime boss sends next. Quiet noir: a slow brushed snare, a lonely muted trumpet motif, soft upright bass, rain-on-the-window synth pads, a distant city hum. No big drums, no climax, steady so it can loop under menus. About 72 BPM, D minor with brief turns to F major.
+
+Title: "Hell's Kitchen After Dark"
 ```
 
 </details>
