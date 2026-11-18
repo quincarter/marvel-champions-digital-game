@@ -1356,7 +1356,11 @@ export function pushAttackedByAbility(ctx: Ctx, frame: Frame<"event">): boolean 
   return true;
 }
 
-/** The attack of `frame`'s "(attack)" ability that is waiting for it: the one made last, when there are several. */
+/**
+ * The attack of `frame`'s "(attack)" ability that is waiting for it: the one made last, when there are several. Not one
+ * its player's elimination ended (`attackerEliminated`, `eliminated-attack.ts`): damage the rest of the ability deals is
+ * no longer that attack's.
+ */
 export function waitingAbilityAttack(
   state: GameState,
   deps: EngineDeps,
@@ -1369,7 +1373,8 @@ export function waitingAbilityAttack(
       other.kind === "event" &&
       other.event.kind === "attack" &&
       other.attackOf === root &&
-      other.attackWaiting === true,
+      other.attackWaiting === true &&
+      other.attackerEliminated !== true,
   );
   return waiting[waiting.length - 1];
 }

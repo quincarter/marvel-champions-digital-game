@@ -1162,7 +1162,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
   updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
   // "If a player is eliminated in the middle of an attack, that attack ends" (RRG 1.8 "Player Elimination", p. 34): each
-  // attack of theirs underway now is marked to end (`attackerEliminated`, read by `applyPlayerAttack`).
+  // attack of theirs underway now is marked to end, at any step (`attackerEliminated`, `eliminated-attack.ts`).
   markAttacksUnderway(ctx, identityId);
   // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
   // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any

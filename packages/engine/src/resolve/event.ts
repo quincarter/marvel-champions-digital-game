@@ -5,6 +5,7 @@ import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { applyStatusBeingGiven, statusGiveNotMade, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
+import { endEliminatedAttack, endedByElimination, partOfEliminatedAttack } from "./eliminated-attack.js";
 import { resolveImminentAttach } from "./imminent-attach.js";
 import { applyCountersBeingPlaced } from "./counters-being-placed.js";
 import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
@@ -181,6 +182,12 @@ import { awaitEnclosingAbility, dropHeldResponses, refreshHeldResponses } from "
 import { pushUsingAfterWould, startCharacterBoost } from "./villainous.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
+  // The attack this `characterAttacked` belongs to ended with its player's elimination (RRG 1.8 p. 34): no retaliate,
+  // no "after … is attacked" (`eliminated-attack.ts`).
+  if (partOfEliminatedAttack(ctx.state, frame)) {
+    popFrame(ctx);
+    return;
+  }
   switch (frame.stage) {
     case "interrupts": {
       // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
@@ -509,6 +516,12 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "responses": {
+      // An attack its player's elimination ended (RRG 1.8 "Player Elimination", p. 34; `eliminated-attack.ts`): it does
+      // not wait for its ability, names no enemy as attacked and opens no "after … attacks" window.
+      if (endedByElimination(frame)) {
+        endEliminatedAttack(ctx, frame);
+        return;
+      }
       // An "(attack)" ability's attack waits for the rest of its ability before it finishes (RRG 1.8 "Attack (Player
       // Ability Type)", p. 10: the ability is a single attack; owner ruling Q47, `attack-ability.ts`). Its results go
       // to the instruction that made it now, as the ability's next instructions read them.
@@ -2807,6 +2820,9 @@ function applyPlayerAttack(
   frameId: FrameId,
 ): boolean | void {
   const target = attack.targetInstanceId;
+  // Its player was eliminated while it was underway: it ends, logged at its response step (`endEliminatedAttack`).
+  const marked = findFrame(ctx.state, frameId);
+  if (marked?.kind === "event" && endedByElimination(marked)) return;
   if (
     !cardsInPlay(ctx.state).includes(attack.attackerInstanceId) &&
     !attackOfEliminatedResolves(ctx.state, attack, frameId)
