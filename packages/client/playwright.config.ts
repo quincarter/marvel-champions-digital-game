@@ -107,6 +107,7 @@ export default defineConfig({
         "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
         "victory-display.spec.ts",
+        "scheme-stack-fan.spec.ts",
         "deck-builder-search-help.spec.ts",
         "deck-builder-review.spec.ts",
         "ironheart-level-up.spec.ts",
