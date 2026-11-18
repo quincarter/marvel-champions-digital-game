@@ -210,4 +210,23 @@ describe("checkPackUpdates", () => {
     notePackUpdates(newer, [installed("fan-newer", "1.1.0")]);
     expect(await checkPackUpdates({ ...deps, fetch: json(index), force: true })).toBe(1);
   });
+
+  it("counts from a newer saved copy when the next fetch fails", async () => {
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    const deps = { store: store([installed("fan-newer", "1.1.0")]), storage };
+    expect(await checkPackUpdates({ ...deps, fetch: json(index) })).toBe(0);
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
+    saved.set(CATALOG_CACHE_KEY, JSON.stringify(newer));
+    const down = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    expect(await checkPackUpdates({ ...deps, fetch: down, force: true })).toBe(1);
+  });
 });

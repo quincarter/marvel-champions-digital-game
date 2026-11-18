@@ -148,7 +148,9 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       }
     } catch {
       // Offline: the saved copy is counted from, but not fresh, so the next check tries the network again.
-      index ??= cachedCatalog(deps.storage);
+      // Another tab or a store load may have saved a newer copy since this one was remembered.
+      const saved = cachedCatalog(deps.storage);
+      if (saved && (!index || isNewerCatalog(saved, index))) index = saved;
     }
     // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
     if (fresh && noted === started) {
