@@ -7,6 +7,8 @@ A misclick or a bug no longer has to cost you the game.
 📊 **Fair stats**: a game you adjust or undo that far is marked adjusted and stays out of stats and achievements. It still shows in Past games.
 🐜 **Giant Strength** now waits for Giant hero form, and Ant-Man's Helmet gets the same fix (thanks, GarethMagis!).
 🌌 **One Way or Another** draws only when its search finds a side scheme (thanks, javgoro!).
+🔁 **Morphogenetics**: an event Ms. Marvel returns to hand, like Turn the Tide, can be played again off the same trigger (thanks, Gooffrey [KRBY]!).
+🎩 **Public Support (High)** now needs its full 1 per hero counters to replace a boost card, as FFG ruled.
 
 Both Undo and Manual adjust came from sgaon42's request. Thank you!
 
@@ -22,6 +24,8 @@ Un clic equivocado o un error ya no tienen por qué costarte la partida.
 📊 **Estadísticas justas**: una partida que ajustas o deshaces hasta ahí queda marcada como ajustada y no cuenta para las estadísticas ni los logros. Sigue apareciendo en Past games.
 🐜 **Giant Strength** ahora espera a la forma de héroe Giant, y Ant-Man's Helmet recibe la misma corrección (¡gracias, GarethMagis!).
 🌌 **One Way or Another** solo roba cuando su búsqueda encuentra un plan secundario (¡gracias, javgoro!).
+🔁 **Morphogenetics**: un evento que Ms. Marvel devuelve a la mano, como Turn the Tide, puede jugarse otra vez con el mismo disparador (¡gracias, Gooffrey [KRBY]!).
+🎩 **Public Support (High)** ahora necesita todos sus contadores, 1 por héroe, para reemplazar una carta de potenciación, como resolvió FFG.
 
 Undo y Manual adjust nacen de la petición de sgaon42. ¡Gracias!
 

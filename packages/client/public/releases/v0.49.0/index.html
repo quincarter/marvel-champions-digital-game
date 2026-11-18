@@ -6,7 +6,7 @@
     <title>v0.49.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand, and Giant Strength and One Way or Another are fixed."
+      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand, and Giant Strength, One Way or Another and Morphogenetics are fixed."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v0.49.0" />
     <meta
@@ -610,7 +610,7 @@
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
           draw, a reveal and the villain phase, and Pause has a Manual adjust screen to correct the table by hand. Both
           came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Giant
-          Strength and One Way or Another are fixed too.
+          Strength, One Way or Another and Morphogenetics are fixed too.
         </p>
       </section>
 
@@ -627,8 +627,8 @@
         </div>
         <div class="tile">
           <h4>Reports answered</h4>
-          <div class="n c-green">3</div>
-          <p>from @sgaon42, @javgoro and GarethMagis on Discord.</p>
+          <div class="n c-green">4</div>
+          <p>from @sgaon42, @javgoro, and GarethMagis and Gooffrey [KRBY] on Discord.</p>
         </div>
       </section>
 
@@ -788,7 +788,7 @@
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #794, #795 · PRs #796, #797</div>
+        <div class="lab">Issues #794, #795, #804 · PRs #796, #797, #824</div>
       </div>
       <div class="cards">
         <div class="paper">
@@ -813,6 +813,37 @@
           </p>
           <div class="src">Ruling, October 21, 2024: a search that finds nothing means the cost wasn't paid.</div>
         </div>
+        <div class="paper" style="grid-column: 1 / -1">
+          <div class="eb">#804 · reported by Gooffrey [KRBY] on Discord</div>
+          <h3>Morphogenetics gives you the event back, for real</h3>
+          <p>
+            Ms. Marvel thwarts the last threat, plays Turn the Tide and returns it to her hand with Morphogenetics. The
+            game wouldn't offer Turn the Tide again for that same thwart.
+          </p>
+          <p>
+            Now an event she returns to hand is <b>offered again off the same trigger</b>, so a second Turn the Tide
+            deals another 3, and Wiggle Room can answer the same attack twice. A card in play that used its ability is
+            still offered only once.
+          </p>
+          <div class="src">
+            FFG ruling (Ms. Marvel): a returned Wiggle Room can be played again "the same as if you had 2 copies".
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v0.49.0</h2>
+        <div class="lab">Issue #829 · PR #830</div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            Kingpin's <b>Public Support (High)</b> replaces a boost card only when it can remove the full 1 per hero
+            support counters. FFG's rules specialist answered by email that the whole effect has to resolve, so with
+            fewer counters Kingpin is given the boost card and the counters stay.
+          </li>
+        </ul>
       </div>
 
       <!-- ============ THANKS ============ -->
@@ -839,6 +870,12 @@
             <h3>@javgoro</h3>
             <p>Reported One Way or Another drawing after a search that found nothing, <b>#795</b>.</p>
           </div>
+          <div class="person wide">
+            <h3>Gooffrey [KRBY]</h3>
+            <p>
+              Reported on Discord that Morphogenetics couldn't replay Turn the Tide off the same thwart, <b>#804</b>.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -850,22 +887,22 @@
       <section class="stats" aria-label="Code shipped since v0.48.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">6</div>
+          <div class="n">8</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">118</div>
+          <div class="n">131</div>
           <p>across the engine, the cards, the client and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">3,967</div>
+          <div class="n c-green">4,655</div>
           <p>most of them Undo, Manual adjust and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">153</div>
+          <div class="n c-red">191</div>
           <p>code the new Undo and adjust paths replaced.</p>
         </div>
       </section>
