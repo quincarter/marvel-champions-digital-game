@@ -83,16 +83,6 @@ Tracks: **Phase Shift** (battle), **Density Absolute** (villain wins), **A Synth
 An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
 ```
 
-# Earlier boxes: scenarios with no music
-
-## Zola
-
-Tracks: **The Bio-Fanatic** (battle), **A Mind That Cannot Die** (villain wins), **The Screen Goes Dark** (heroes win).
-
-```text
-A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
-```
-
 # Not on this list, on purpose
 
 - The five Galaxy's Most Wanted scenarios each have a battle track only; their win and loss music is the box's shared
@@ -107,7 +97,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Zola: `scenarios/zola/`
 
 # Already in the game
 
@@ -486,6 +475,14 @@ Tracks: **Whatever He Touches** (battle), **Ball and Chain** (villain wins), **N
 
 ```text
 A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
+```
+
+## Zola
+
+Tracks: **The Bio-Fanatic** (battle), **A Mind That Cannot Die** (villain wins), **The Screen Goes Dark** (heroes win).
+
+```text
+A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
 ```
 
 </details>
