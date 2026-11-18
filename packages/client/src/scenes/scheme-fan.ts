@@ -86,6 +86,18 @@ export class SchemeFanOverlay extends Phaser.Scene {
       onScroll: (_dx, dy) => this.#region?.scrollByPx(dy),
     });
     this.#artOff = cardArt(this).onArrived(() => this.#draw());
+    // The fan is a look at the schemes, never a place to act from: an ability used or a card played from the Inspect
+    // sheet it opened, or any change to the game, puts the board back in front at once, so the prompt that follows is
+    // never left under the fan (and the fan never shows schemes as they were).
+    const leave = (): void => {
+      if (this.scene.isActive()) this.scene.stop();
+    };
+    const actions = ["mc-use-ability", "mc-play-card"] as const;
+    for (const action of actions) this.game.events.on(action, leave);
+    const startGame = appSession().store.state.game;
+    const unsubscribe = appSession().store.subscribe((state) => {
+      if (state.game !== startGame) leave();
+    });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cards: () => this.#visibleCards(),
@@ -103,6 +115,8 @@ export class SchemeFanOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       this.#artOff?.();
+      for (const action of actions) this.game.events.off(action, leave);
+      unsubscribe();
       this.#artOff = null;
       this.#hints.dispose();
       this.#hover?.destroy();
