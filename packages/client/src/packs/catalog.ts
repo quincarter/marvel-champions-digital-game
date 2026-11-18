@@ -153,7 +153,9 @@ export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult
     const index = parseCatalog(await response.json());
     if (!index) throw new Error("The pack catalog has an unexpected shape");
     saveCatalog(index, storage);
-    return { index, offline: false };
+    // A stale answer (a CDN edge behind, two requests that crossed) loses to a newer saved copy.
+    const saved = cachedCatalog(storage);
+    return { index: saved && saved.generated > index.generated ? saved : index, offline: false };
   } catch (error) {
     const cached = cachedCatalog(storage);
     if (cached) return { index: cached, offline: true };
