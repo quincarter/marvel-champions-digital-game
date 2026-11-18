@@ -1,4 +1,4 @@
-# v0.49.0: Take It Back, Set It Right ⏪
+# v0.49.0: Time Heist: Take-Backs Allowed ⏪
 
 A misclick or a bug no longer has to cost you the game.
 
@@ -16,7 +16,7 @@ Both Undo and Manual adjust came from sgaon42's request. Thank you, bluefireF5ra
 Full report: https://champions-digital-game.com/releases/v0.49.0/
 Downloads: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.49.0
 
-# v0.49.0: Deshazlo, arréglalo ⏪
+# v0.49.0: Atraco en el tiempo: se vale deshacer ⏪
 
 Un clic equivocado o un error ya no tienen por qué costarte la partida.
 
