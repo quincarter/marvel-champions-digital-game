@@ -10,175 +10,15 @@ Rename this track. Its title is exactly "<the title>". Use that as the name and 
 
 Tracks already delivered are folded into the collapsed section at the bottom, **Already in the game**, so only what is left shows here.
 
-## What's left (2026-11-18)
+**What's left** (updated 2026-11-18):
 
-**New tracks (9):** Captain Marvel (Registration), She-Hulk (Registration) and Vision (Resistance), three each.
+**New tracks:** none. Every playable scenario and campaign has its music.
 
-**Remakes of tracks already in the game (25, optional):** Crossbones' heroes win; The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
-
-# Wave 10: Civil War
-
-The four ready-made Civil War scenarios, one set of three per leader. A custom scenario plays its leader's music. Iron Man, Captain America and Spider-Woman are done and folded into **Already in the game** below.
-
-## Captain Marvel (Registration)
-
-Folder: `music/scenarios/registration-captain-marvel/`
-
-### Chain of Command (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Chain of Command"
-```
-
-### Grounded by Order (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Grounded by Order"
-```
-
-### Clear Skies Again (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Clear Skies Again"
-```
-
-# Synthezoid Smackdown
-
-The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music).
-
-## She-Hulk (Registration)
-
-Folder: `music/scenarios/registration-she-hulk/`
-
-### Objection Overruled (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
-
-Title: "Objection Overruled"
-```
-
-### Case Closed (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
-
-Title: "Case Closed"
-```
-
-### Verdict Reversed (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
-
-Title: "Verdict Reversed"
-```
-
-## Vision (Resistance)
-
-Folder: `music/scenarios/resistance-vision/`
-
-### Phase Shift (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "Phase Shift"
-```
-
-### Density Absolute (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "Density Absolute"
-```
-
-### A Synthetic Heart (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "A Synthetic Heart"
-```
+**Remakes of tracks already in the game (24, optional):** The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
 
 # Regenerating tracks that already exist
 
 These slots already have music. The blocks below remake them in the current style, under the titles they already carry, so a new file drops straight into the same slot and the jukebox entry does not change.
-
-# The Rise of Red Skull (existing tracks)
-
-## Crossbones
-
-Folder: `music/scenarios/crossbones/`
-
-### When the Siege Breaks (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
-
-Title: "When the Siege Breaks"
-```
 
 # The Galaxy's Most Wanted (existing tracks)
 
@@ -538,10 +378,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 96 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 106 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 96 prompts already used</summary>
+<summary>Show the 106 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1763,152 @@ Use the same main melody and instruments as the battle track I just generated.
 A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
 
 Title: "Calculated Finality"
+```
+
+### When the Siege Breaks (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
+
+Title: "When the Siege Breaks"
+```
+
+## Captain Marvel (Registration)
+
+Folder: `music/scenarios/registration-captain-marvel/`
+
+### Chain of Command (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Chain of Command"
+```
+
+### Grounded by Order (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Grounded by Order"
+```
+
+### Clear Skies Again (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Clear Skies Again"
+```
+
+## She-Hulk (Registration)
+
+Folder: `music/scenarios/registration-she-hulk/`
+
+### Objection Overruled (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Objection Overruled"
+```
+
+### Case Closed (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Case Closed"
+```
+
+### Verdict Reversed (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+
+Title: "Verdict Reversed"
+```
+
+## Vision (Resistance)
+
+Folder: `music/scenarios/resistance-vision/`
+
+### Phase Shift (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Phase Shift"
+```
+
+### Density Absolute (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Density Absolute"
+```
+
+### A Synthetic Heart (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "A Synthetic Heart"
 ```
 
 </details>

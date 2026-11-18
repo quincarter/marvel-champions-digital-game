@@ -55,34 +55,6 @@ If the generator names it something else, reply in the same chat:
 Rename this track. Its title is exactly "<the title>". Use that as the name and file name.
 ```
 
-# Wave 10: Civil War
-
-## Captain Marvel (Registration)
-
-Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **Clear Skies Again** (heroes win).
-
-```text
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-```
-
-# Synthezoid Smackdown
-
-## She-Hulk (Registration)
-
-Tracks: **Objection Overruled** (battle), **Case Closed** (villain wins), **Verdict Reversed** (heroes win).
-
-```text
-A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
-```
-
-## Vision (Resistance)
-
-Tracks: **Phase Shift** (battle), **Density Absolute** (villain wins), **A Synthetic Heart** (heroes win).
-
-```text
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-```
-
 # Not on this list, on purpose
 
 - The five Galaxy's Most Wanted scenarios each have a battle track only; their win and loss music is the box's shared
@@ -94,9 +66,7 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 Every scenario and campaign listed here is playable, so each track goes straight into `music/scenarios/<scenarioId>/` or
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
-- Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- She-Hulk (Registration): `scenarios/registration-she-hulk/`
-- Vision (Resistance): `scenarios/resistance-vision/`
+As of 2026-11-18 no playable scenario or campaign is missing a track; a new box adds its own section above.
 
 # Already in the game
 
@@ -483,6 +453,30 @@ Tracks: **The Bio-Fanatic** (battle), **A Mind That Cannot Die** (villain wins),
 
 ```text
 A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
+```
+
+## Captain Marvel (Registration)
+
+Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **Clear Skies Again** (heroes win).
+
+```text
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+```
+
+## She-Hulk (Registration)
+
+Tracks: **Objection Overruled** (battle), **Case Closed** (villain wins), **Verdict Reversed** (heroes win).
+
+```text
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
+```
+
+## Vision (Resistance)
+
+Tracks: **Phase Shift** (battle), **Density Absolute** (villain wins), **A Synthetic Heart** (heroes win).
+
+```text
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
 ```
 
 </details>
