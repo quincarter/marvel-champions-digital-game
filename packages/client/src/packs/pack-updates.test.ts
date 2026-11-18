@@ -11,6 +11,7 @@ import {
   resetPackUpdatesForTest,
 } from "./pack-updates.js";
 import { buildPack } from "./test-zip.js";
+import { CATALOG_CACHE_KEY } from "./catalog.js";
 import type { InstalledPack } from "./pack-store.js";
 
 const context = { appVersion: "0.49.0", supportedDslFeatures: [] };
@@ -168,5 +169,19 @@ describe("checkPackUpdates", () => {
     const back = json(index);
     await checkPackUpdates({ ...deps, fetch: back });
     expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("never replaces a newer saved catalog with an older answer", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-19T00:00:00Z",
+    };
+    const saved = new Map<string, string>([[CATALOG_CACHE_KEY, JSON.stringify(newer)]]);
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    await checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: json(index), storage });
+    expect(JSON.parse(saved.get(CATALOG_CACHE_KEY)!).generated).toBe("2026-11-19T00:00:00Z");
   });
 });

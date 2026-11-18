@@ -154,7 +154,10 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       index = fresh;
       lastIndex = fresh;
       lastFetched = now();
-      saveCatalog(fresh, deps.storage);
+      // The store may have saved a newer catalog that it has not noted yet: an older answer never replaces it (the
+      // catalog's `generated` is an ISO time, so the strings compare in time order).
+      const saved = cachedCatalog(deps.storage);
+      if (!saved || saved.generated <= fresh.generated) saveCatalog(fresh, deps.storage);
     }
   }
   // The Mod Store noted a newer installed list while this check waited: its count stands.
