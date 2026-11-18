@@ -24,8 +24,12 @@ param(
 $ErrorActionPreference = "Stop"
 $StateDir = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".marvel-champions"
 
+# The update lock this run holds (below), or $null.
+$lock = $null
+
 function Fail([string]$message) {
   Write-Host "Error: $message"
+  if ($null -ne $lock) { Remove-Item $lock -Recurse -Force -ErrorAction SilentlyContinue }
   exit 1
 }
 
@@ -33,6 +37,22 @@ function Fail([string]$message) {
 function Start-Game {
   if (Test-Path $Game) { Start-Process -FilePath $Game -WorkingDirectory (Split-Path $Game) }
 }
+
+# Two copies of the game running at once could each start an update; the second finds the first's lock (a folder, made
+# in one step) and stops, unless the run that left it has gone.
+New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
+$lockPath = Join-Path $StateDir "update.lock"
+function New-Lock { try { New-Item -ItemType Directory -Path $lockPath -ErrorAction Stop | Out-Null; $true } catch { $false } }
+if (-not (New-Lock)) {
+  $holder = [string](Get-Content (Join-Path $lockPath "pid") -ErrorAction SilentlyContinue)
+  if ($holder -match '^\d+$' -and $null -ne (Get-Process -Id ([int]$holder) -ErrorAction SilentlyContinue)) {
+    Fail "another copy of the game is already updating it. Wait for that update to finish."
+  }
+  Remove-Item $lockPath -Recurse -Force -ErrorAction SilentlyContinue
+  if (-not (New-Lock)) { Fail "another copy of the game is already updating it." }
+}
+$lock = $lockPath
+Set-Content -Path (Join-Path $lock "pid") -Value $PID
 
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("mc-update-" + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $temp | Out-Null
@@ -101,6 +121,8 @@ if ($null -ne $failure) {
   # Last, so the game finds it at the end of the log on its next launch however much the installer printed before it.
   if ($quit) { Write-Host "MC_UPDATE failed $Version" }
 }
+Remove-Item $lock -Recurse -Force -ErrorAction SilentlyContinue
+$lock = $null
 if ($quit) { Start-Game }
 if ($null -ne $failure) { exit 1 }
 exit 0

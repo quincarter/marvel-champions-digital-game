@@ -54,11 +54,30 @@ cleanup() {
   if [ -n "$staged_appimage" ]; then rm -f "$staged_appimage"; fi
   if [ -n "$owned_dir" ]; then rm -rf "$owned_dir"; fi
   if [ -n "$installing" ]; then rm -f "$installing"; fi
+  if [ -n "$lock" ]; then rm -rf "$lock"; fi
 }
 # While the game is being replaced, this file holds this run's process id, and a game started meanwhile leaves at once
 # (src-tauri/src/steam_install.rs, leave_for_running_update) rather than run on half-replaced files. Empty until then.
 installing=""
+# The update lock this run holds: one update at a time, whichever copy of the game started it. Empty until taken.
+lock=""
 trap cleanup EXIT
+
+# Two copies of the game running at once could each start an update; the second finds the first's lock (a folder, made
+# in one step) and stops, unless the run that left it has died.
+state_dir="$HOME/.marvel-champions"
+mkdir -p "$state_dir"
+if ! mkdir "$state_dir/update.lock" 2> /dev/null; then
+  holder="$(cat "$state_dir/update.lock/pid" 2> /dev/null || true)"
+  case "$holder" in '' | *[!0-9]*) holder="" ;; esac
+  if [ -n "$holder" ] && kill -0 "$holder" 2> /dev/null; then
+    die "another copy of the game is already updating it. Wait for that update to finish."
+  fi
+  rm -rf "$state_dir/update.lock"
+  mkdir "$state_dir/update.lock" 2> /dev/null || die "another copy of the game is already updating it."
+fi
+lock="$state_dir/update.lock"
+echo "$$" > "$lock/pid"
 
 # Swaps two paths in one step (renameatx_np with RENAME_SWAP, through the perl macOS ships), so no moment passes, not
 # even a crash or a power cut, with no app at the game's path. AT_FDCWD is -2 on macOS. APFS can; HFS+ and exFAT can't.
