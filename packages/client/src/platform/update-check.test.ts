@@ -167,16 +167,29 @@ describe("updateFor", () => {
         expect(updateFor(release(assets), "0.19.1", { os, kind })).toEqual({
           version: "0.20.0",
           downloadUrl: file(name),
+          downloadDigest: null,
           notesUrl: page,
         });
       }
     });
   }
 
+  it("carries the installer's checksum, which the game's own updater checks the download against (#843)", () => {
+    const digest = `sha256:${"0f".repeat(32)}`;
+    const json = {
+      tag_name: "v0.20.0",
+      html_url: page,
+      assets: [{ name: DOWNLOADS.nsis, browser_download_url: file(DOWNLOADS.nsis), digest }],
+    };
+    const parsed = parseLatestRelease(json)!;
+    expect(updateFor(parsed, "0.19.1", { os: "windows", kind: "nsis" })?.downloadDigest).toBe(digest);
+  });
+
   it("links only the release page when the installer isn't known", () => {
     expect(updateFor(release(ALL_ASSETS), "0.19.1", { os: "linux", kind: null })).toEqual({
       version: "0.20.0",
       downloadUrl: null,
+      downloadDigest: null,
       notesUrl: page,
     });
   });
@@ -198,6 +211,7 @@ describe("updateFor", () => {
     expect(updateFor(msiOnly, "0.19.1", { os: "windows", kind: "nsis" })).toEqual({
       version: "0.20.0",
       downloadUrl: null,
+      downloadDigest: null,
       notesUrl: page,
     });
   });

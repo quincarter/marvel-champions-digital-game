@@ -206,7 +206,9 @@ import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
+import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
+import { t } from "../i18n/translate.js";
+import { knownSteamAdd, steamAdd } from "../platform/steam-add.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
 
@@ -368,6 +370,13 @@ export class SettingsOverlay extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     // The hardware check finishing changes the Screen rows' recommendation.
     const unsubscribeHardware = onHardwareChange(() => this.#redrawIfOpen());
+    // Add to Steam's check (#844) reads Steam's files and may still be going when Settings opens: once it says the
+    // game can be added, More gains the row.
+    if (knownSteamAdd() === null) {
+      void steamAdd().then((info) => {
+        if (info !== null) this.#redrawIfOpen();
+      });
+    }
     // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
     const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -548,6 +557,20 @@ export class SettingsOverlay extends Phaser.Scene {
     if (this.scene.isActive(SCENES.steamUpdate)) return;
     // Asks the script itself rather than the update check: this is also how to look again after closing the banner.
     this.scene.launch(SCENES.steamUpdate, { version: null, fallbackUrl: DOWNLOADS_URL } satisfies SteamUpdateSceneData);
+  }
+
+  /** Add to Steam (#844): the same panel, running the Steam script on this game as it is. */
+  #openSteamAdd(): void {
+    if (this.scene.isActive(SCENES.steamUpdate)) return;
+    this.scene.launch(SCENES.steamUpdate, {
+      version: null,
+      fallbackUrl: DOWNLOADS_URL,
+      mode: "add-steam",
+    } satisfies SteamUpdateSceneData);
+    // Back from it: redraw, so a game just added to Steam loses the row (and gains the Steam install row) at once.
+    this.game.events.once(STEAM_UPDATE_CLOSED, () => {
+      if (this.sys.isActive()) this.#draw();
+    });
   }
 
   #openUnlocks(data: UnlocksSceneData = {}): void {
@@ -1111,6 +1134,26 @@ export class SettingsOverlay extends Phaser.Scene {
     door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
     door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
     door("steam-install", STEAM_INSTALL_ROW_TITLE, STEAM_INSTALL_ROW_DETAIL, () => this.#openSteamUpdate());
+    items.set("steam-add", {
+      title: t("steamAdd.row.title"),
+      detail: t("steamAdd.row.detail"),
+      spec: { kind: "toggle", id: "steam-add", detail: t("steamAdd.row.detail") },
+      draw: (item, stops) => {
+        const open = (): void => this.#openSteamAdd();
+        const title = t("steamAdd.row.title");
+        this.#drawDoorRow(
+          item.row,
+          "steam-add",
+          title,
+          t("steamAdd.row.detail"),
+          item.slot,
+          stops,
+          open,
+          t("steamAdd.row.open"),
+        );
+        return ["steam-add"];
+      },
+    });
     items.set("steam-deck", {
       title: "Steam Deck",
       detail: STEAM_DECK_DETAIL,

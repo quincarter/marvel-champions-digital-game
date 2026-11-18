@@ -27,6 +27,27 @@ export function steamInstall(): Promise<SteamInstall | null> {
 /** The record if it has been read: for screens drawn after Title, which can't wait on it. */
 export const knownSteamInstall = (): SteamInstall | null => answer;
 
+const listeners = new Set<(install: SteamInstall | null) => void>();
+
+/** Calls `listener` whenever the record is read again (`readSteamInstallAgain`); returns the unsubscribe. */
+export function onSteamInstallChange(listener: (install: SteamInstall | null) => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/**
+ * Reads the record again, as Add to Steam (`steam-add.ts`) does once the script has written one: the Title and
+ * Settings then offer the script's update right away, rather than after the next launch.
+ */
+export function readSteamInstallAgain(): Promise<SteamInstall | null> {
+  known = null;
+  answer = null;
+  return steamInstall().then((install) => {
+    for (const listener of listeners) listener(install);
+    return install;
+  });
+}
+
 async function invokeShell<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
   return invoke<T>(command, args);

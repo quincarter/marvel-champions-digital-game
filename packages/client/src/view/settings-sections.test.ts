@@ -158,6 +158,13 @@ describe("the desktop app's Window section", () => {
     expect(window.items).toEqual(["display-mode", "resolution", "steam-deck"]);
   });
 
+  test("More offers Add to Steam only where the game can be added (#844)", () => {
+    const more = (steamAdd: boolean) =>
+      settingsSectionsOf({ guideRowIds, cardHover: true, steamAdd }).find((s) => s.id === "more")!.items;
+    expect(more(true)).toContain("steam-add");
+    expect(more(false)).not.toContain("steam-add");
+  });
+
   test("the Android app leads Animation and display with Lighter play in power saving; elsewhere it is left out", () => {
     const motion = (powerSaving: boolean) =>
       settingsSectionsOf({ guideRowIds, cardHover: false, powerSaving }).find((s) => s.id === "motion")!.items;

@@ -50,4 +50,15 @@ describe("updateActions", () => {
       { id: "update-notes", label: "View release ↗", url: "https://x/notes" },
     ]);
   });
+
+  test("an install that updates itself opens the update panel instead of the download (#843)", () => {
+    const update = { downloadUrl: "https://x/setup.exe", notesUrl: "https://x/notes" };
+    expect(updateActions(update, false, true)).toEqual([
+      { id: "update-notes", label: "What's new ↗", url: "https://x/notes" },
+      { id: "update-install", label: "Update", url: null },
+    ]);
+    // With no installer to fetch it falls back to the release page, and the Steam script's update wins.
+    expect(updateActions({ ...update, downloadUrl: null }, false, true).map((a) => a.id)).toEqual(["update-notes"]);
+    expect(updateActions(update, true, true).map((a) => a.id)).toEqual(["update-notes", "update-steam"]);
+  });
 });

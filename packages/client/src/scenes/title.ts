@@ -29,7 +29,13 @@ import { ensurePictureLoaded } from "../art/pictures.js";
 import { cardLanguage } from "../art/card-language.js";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
-import { UPDATE_DISMISS_ID, appVersionText, buildCommit, updateActions } from "../view/app-version.js";
+import {
+  UPDATE_DISMISS_ID,
+  UPDATE_RESTART_ID,
+  appVersionText,
+  buildCommit,
+  updateActions,
+} from "../view/app-version.js";
 import { releaseNotesPageUrl } from "../view/release-report-link.js";
 import { dismissUpdate, dismissedUpdateVersion, isUpdateDismissed } from "../platform/update-dismissal.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -45,8 +51,16 @@ import {
   dismissOldSaveNotice,
   oldSaveNoticeWanted,
 } from "../platform/old-save-notice.js";
-import { steamInstall, type SteamInstall } from "../platform/steam-install.js";
+import {
+  onSteamInstallChange,
+  quitForSteamUpdate,
+  steamInstall,
+  type SteamInstall,
+} from "../platform/steam-install.js";
+import { steamAdd } from "../platform/steam-add.js";
+import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
+import { STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -114,6 +128,14 @@ import { musicSlotBeside } from "../view/music-player.js";
 import { languageSlotBeside } from "../view/language-button.js";
 import { themeSlotBeside } from "../view/theme-button.js";
 import { drawStoreIconButton } from "../ui/store-icon.js";
+import { drawCountBadge } from "../ui/count-badge.js";
+import {
+  badgeTextOf,
+  CHECK_INTERVAL_MS,
+  checkPackUpdates,
+  onPackUpdateCount,
+  packUpdateCount,
+} from "../packs/pack-updates.js";
 import { drawDiscordIconButton, type DiscordIconButton } from "../ui/discord-icon.js";
 import { fadeScreenIn, goToScreen, holdScreenFor } from "../ui/transitions.js";
 import { RELEASE_NOTICE_ON } from "../view/release-notice.js";
@@ -173,6 +195,14 @@ export class TitleScene extends Phaser.Scene {
   #oldSave = false;
   /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
   #steam: SteamInstall | null = null;
+  /** Whether this install updates itself (`platform/self-update.ts`), once the shell has said. */
+  #selfUpdate: SelfUpdate | null = null;
+  /** A downloaded update waiting for the game to restart (or, for the Steam script, to quit), by its version. */
+  #readyVersion: string | null = null;
+  /** The ready version whose banner the player closed this visit: the 2-second recheck must not bring it back. */
+  #readyDismissed: string | null = null;
+  /** The last update was downloaded and the game quit for it, but it didn't install (the old game started again). */
+  #updateFailed = false;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
   #art: TitleArt | null = null;
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
@@ -245,6 +275,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(data: TitleSceneData = {}): void {
+    this.#readyDismissed = null;
     if (data.initialSeatDeckId) {
       const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
       const seedDecks =
@@ -269,8 +300,20 @@ export class TitleScene extends Phaser.Scene {
       if (!this.sys.isActive()) return;
       void this.#refreshSaves();
     });
+    // Installed mod packs with a newer version in the store: the Mod Store button and icon wear the count.
+    const unsubscribePackUpdates = onPackUpdateCount(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
+    // Checked again while the Title stays open (the checker fetches at most once an interval) and when the network
+    // comes back, so an update published meanwhile, or a check that failed offline, still reaches the badge.
+    void checkPackUpdates();
+    this.time.addEvent({ delay: CHECK_INTERVAL_MS, loop: true, callback: () => void checkPackUpdates() });
+    const recheckOnline = (): void => void checkPackUpdates();
+    globalThis.addEventListener?.("online", recheckOnline);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
+      unsubscribePackUpdates();
+      globalThis.removeEventListener?.("online", recheckOnline);
       unsubscribePowerSaving();
       unsubscribeLanguage();
       unsubscribeSync();
@@ -358,9 +401,34 @@ export class TitleScene extends Phaser.Scene {
         }),
     );
     holdScreenFor(this, this.#refreshSaves());
+    // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens; once it has added the game, the Title
+    // takes the Steam script's update and says so, without a relaunch.
+    void steamAdd();
+    const unsubscribeSteam = onSteamInstallChange((install) => {
+      if (!this.sys.isActive()) return;
+      this.#steam = install;
+      this.#rebuild();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribeSteam);
     void steamInstall().then((install) => {
       if (!install || !this.sys.isActive()) return;
       this.#steam = install;
+      this.#rebuild();
+    });
+    void selfUpdateInfo().then((info) => {
+      if (!info || !this.sys.isActive()) return;
+      this.#selfUpdate = info;
+      this.#rebuild();
+    });
+    this.#checkReadyUpdate();
+    // A download left going in the background can finish while the player stays here: ask again now and then, so
+    // the banner turns to "restart to apply" without leaving the screen. (Phaser stops the timer with the scene.)
+    if (detectPlatform() === "tauri") {
+      this.time.addEvent({ delay: READY_CHECK_MS, loop: true, callback: () => this.#checkReadyUpdate() });
+    }
+    void lastUpdateFailed().then((failed) => {
+      if (!failed || !this.sys.isActive()) return;
+      this.#updateFailed = true;
       this.#rebuild();
     });
     void checkForUpdate().then((update) => {
@@ -474,7 +542,7 @@ export class TitleScene extends Phaser.Scene {
       continuable: this.#continuable !== null,
       games: this.#listedGames().length,
       // The native apps' update banner and the web game's old-save banner share the slot; a build only ever has one.
-      update: this.#update !== null || this.#oldSave,
+      update: this.#update !== null || this.#oldSave || this.#readyVersion !== null,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
       noticeBar: RELEASE_NOTICE_ON,
@@ -785,6 +853,8 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("mod-store", { rect: layout.modStore, activate: openModStore });
+    const packUpdates = packUpdateCount();
+    if (packUpdates > 0) drawCountBadge(this, layout.modStore, badgeTextOf(packUpdates), { name: "mod-store" });
 
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {
@@ -962,6 +1032,8 @@ export class TitleScene extends Phaser.Scene {
     const storeIconRect = layout.split ? themeSlotBeside(themeSlotBeside(languageRect)) : null;
     if (storeIconRect) {
       drawStoreIconButton(this, storeIconRect, openModStore);
+      if (packUpdates > 0)
+        drawCountBadge(this, storeIconRect, badgeTextOf(packUpdates), { name: "store-icon", inset: 2 });
       this.#stops.set("chrome:mod-store", { rect: storeIconRect, activate: openModStore });
       this.#hints?.hang(storeIconRect, ["activate"], TOP_ROW_GLYPH_HEIGHT, {
         ground: onDark ? "ink" : "paper",
@@ -1059,9 +1131,12 @@ export class TitleScene extends Phaser.Scene {
    */
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
+    if (this.#readyVersion !== null && banner) return this.#drawReadyBanner(banner, this.#readyVersion);
     if (!update && this.#oldSave && banner) return this.#drawOldSaveBanner(banner);
     if (!update || !banner) return [];
-    const all = updateActions(update, this.#steam?.canUpdate === true);
+    // The game's own updater checks the download against the release's checksum, so it needs one.
+    const selfUpdate = this.#selfUpdate !== null && update.downloadDigest !== null;
+    const all = updateActions(update, this.#steam?.canUpdate === true, selfUpdate);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
     this.add
@@ -1069,21 +1144,28 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setStrokeStyle(2, surface.inkOnHue.hex);
     const heading = this.add
-      .text(parts.text.x, parts.text.y, t("title.updateAvailable"), textStyle(typeRole.label, surface.inkOnHue.hex))
-      .setLetterSpacing(1);
-    fitText(heading, parts.textWidth, typeRole.label.size); // a translation can run longer than the English
-    this.add
+      // The last try was downloaded but didn't install (the old game started again): said in the heading, which is short
+      // enough for a phone's banner, where the version line would be cut off.
       .text(
         parts.text.x,
-        parts.text.y + 16,
-        `Version ${update.version}`,
-        textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+        parts.text.y,
+        t(this.#updateFailed ? "title.updateFailed" : "title.updateAvailable"),
+        textStyle(typeRole.label, surface.inkOnHue.hex),
       )
-      .setWordWrapWidth(parts.textWidth);
+      .setLetterSpacing(1);
+    fitText(heading, parts.textWidth, typeRole.label.size); // a translation can run longer than the English
+    const detail = this.add.text(
+      parts.text.x,
+      parts.text.y + 16,
+      `Version ${update.version}`,
+      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+    );
+    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;
       const { url } = action;
-      const open = (): void => (url === null ? this.#openSteamUpdate(update) : openExternal(url));
+      const open = (): void =>
+        url !== null ? openExternal(url) : this.#openSteamUpdate(update, action.id === "update-install");
       this.#bannerButton(action.id, action.id === "update-notes" ? "secondary" : "primary", action.label, rect, open);
     });
     this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
@@ -1127,6 +1209,56 @@ export class TitleScene extends Phaser.Scene {
     return [OLD_SAVE_OPEN_ID];
   }
 
+  /**
+   * "The game has been updated, restart to apply" (issue #843): a downloaded update waiting on the game, in the update
+   * banner's slot. Restart quits; the updater installs and, for the game's own updater, starts the game again. The
+   * Steam script's update leaves starting it again to Steam, so its button says Quit. Close hides it for this visit;
+   * the update still installs whenever the game quits.
+   */
+  #drawReadyBanner(banner: Rect, version: string): readonly string[] {
+    const parts = updateBannerParts(banner, 1);
+    const steam = this.#steam !== null;
+    this.add
+      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.inkOnHue.hex);
+    const heading = this.add
+      .text(parts.text.x, parts.text.y, t("title.updateReady"), textStyle(typeRole.label, surface.inkOnHue.hex))
+      .setLetterSpacing(1);
+    fitText(heading, parts.textWidth, typeRole.label.size);
+    const detail = this.add.text(
+      parts.text.x,
+      parts.text.y + 16,
+      t(steam ? "title.updateReadySteam" : "title.updateReadyDetail", { version }),
+      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+    );
+    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
+    this.#bannerButton(
+      UPDATE_RESTART_ID,
+      "primary",
+      t(steam ? "title.updateQuit" : "title.updateRestart"),
+      parts.buttons[0]!,
+      () => void quitForSteamUpdate(),
+    );
+    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
+      this.#readyDismissed = version;
+      this.#readyVersion = null;
+      this.#rebuild();
+    });
+    return [UPDATE_RESTART_ID];
+  }
+
+  /** Asks whether a downloaded update is waiting, and shows the banner for it (on arrival, and when the panel closes). */
+  #checkReadyUpdate(): void {
+    void readyUpdateVersion().then((ready) => {
+      // A version closed this visit stays closed; a newer one that becomes ready shows.
+      const version = ready === this.#readyDismissed ? null : ready;
+      if (version === this.#readyVersion || !this.sys.isActive()) return;
+      this.#readyVersion = version;
+      this.#rebuild();
+    });
+  }
+
   /** A banner button: drawn, a focus stop, and the press glyph while a pad or the keyboard has it focused. */
   #bannerButton(id: string, kind: "primary" | "secondary", label: string, rect: Rect, activate: () => void): void {
     const button = new McButton(this, { kind, label, type: typeRole.rowTitle, rect, onClick: activate });
@@ -1135,12 +1267,25 @@ export class TitleScene extends Phaser.Scene {
     this.#hints?.button(button, ["activate"], "ink", { when: () => this.#route?.focused === id });
   }
 
-  #openSteamUpdate(update: AvailableUpdate): void {
+  /** The update panel: the Steam script's update, or with `installer` the game's own (`platform/self-update.ts`). */
+  #openSteamUpdate(update: AvailableUpdate, installer = false): void {
     if (this.scene.isActive(SCENES.steamUpdate)) return;
     this.scene.launch(SCENES.steamUpdate, {
       version: update.version,
       fallbackUrl: update.downloadUrl ?? update.notesUrl,
+      ...(installer && update.downloadUrl !== null && update.downloadDigest !== null
+        ? {
+            // These install for every user, so the system asks for an administrator's permission first.
+            mode: ["msi", "deb", "rpm"].includes(this.#selfUpdate?.kind ?? "") ? "installer-admin" : "installer",
+            installerUrl: update.downloadUrl,
+            installerDigest: update.downloadDigest,
+          }
+        : {}),
     } satisfies SteamUpdateSceneData);
+    // Closed with the download ready, the Title says so.
+    this.game.events.once(STEAM_UPDATE_CLOSED, () => {
+      if (this.sys.isActive()) this.#checkReadyUpdate();
+    });
   }
 
   /**
@@ -1393,6 +1538,9 @@ export class TitleScene extends Phaser.Scene {
     goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
   }
 }
+
+/** How often the Title asks whether a background update download has finished (`#checkReadyUpdate`). */
+const READY_CHECK_MS = 2000;
 
 /**
  * Depth ladder for the title picture: the ink ground and dot grid under it, the picture, then (phone only) the

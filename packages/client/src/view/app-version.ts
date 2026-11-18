@@ -8,6 +8,7 @@
  */
 import { BASE_CARD_LANGUAGE, type CardLanguage } from "../art/card-language.js";
 import type { Platform } from "../platform/platform.js";
+import { t } from "../i18n/translate.js";
 import { STEAM_SCRIPT_TAG } from "./steam-update.js";
 
 export function appVersionText(
@@ -36,7 +37,7 @@ export const releaseNotesUrl = (version: string): string =>
 /** One button of the Title's update banner. */
 export interface UpdateAction {
   /** Also its focus stop on the Title menu. */
-  readonly id: "update-notes" | "update-download" | "update-steam";
+  readonly id: "update-notes" | "update-download" | "update-steam" | "update-install";
   readonly label: string;
   /** Null for the one that opens the update panel instead of a link. */
   readonly url: string | null;
@@ -44,6 +45,9 @@ export interface UpdateAction {
 
 /** The banner's close button: a focus stop and a button id, not a link (it hides the banner for that release). */
 export const UPDATE_DISMISS_ID = "update-dismiss";
+
+/** The "restart to apply" banner's button (issue #843): quits so the downloaded update installs. */
+export const UPDATE_RESTART_ID = "update-restart";
 
 /**
  * What the update banner offers (`platform/update-check.ts`): the changelog and this install's own installer. When
@@ -53,7 +57,15 @@ export const UPDATE_DISMISS_ID = "update-dismiss";
 export function updateActions(
   update: { readonly downloadUrl: string | null; readonly notesUrl: string },
   steamScript = false,
+  selfUpdate = false,
 ): readonly UpdateAction[] {
+  // An install that updates itself (`platform/self-update.ts`) opens the same panel, with this install's installer.
+  if (selfUpdate && !steamScript && update.downloadUrl !== null) {
+    return [
+      { id: "update-notes", label: "What's new ↗", url: update.notesUrl },
+      { id: "update-install", label: t("title.updateInstall"), url: null },
+    ];
+  }
   if (steamScript) {
     return [
       { id: "update-notes", label: "What's new ↗", url: update.notesUrl },

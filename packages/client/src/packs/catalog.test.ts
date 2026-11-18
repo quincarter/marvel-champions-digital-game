@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG_CACHE_KEY, cachedCatalog, loadCatalog, onCatalogCached, parseCatalog } from "./catalog.js";
+import type { PackIndex } from "@mc/content";
+import {
+  CATALOG_CACHE_KEY,
+  cachedCatalog,
+  isNewerCatalog,
+  loadCatalog,
+  onCatalogCached,
+  parseCatalog,
+} from "./catalog.js";
 import { buildPack } from "./test-zip.js";
 
 const index = { schema: 2, generated: "2026-11-10T00:00:00Z", packs: [buildPack().entry] };
@@ -62,5 +70,31 @@ describe("catalog", () => {
 
   it("throws when offline with no cache", async () => {
     await expect(loadCatalog({ storage: memoryStorage(), fetch: json(index, 404) })).rejects.toThrow();
+  });
+
+  it("never replaces a newer saved copy with an older catalog, and returns the newer one", async () => {
+    const storage = memoryStorage();
+    await loadCatalog({ fetch: json({ ...index, generated: "2026-11-19T00:00:00Z" }), storage });
+    const older = await loadCatalog({ fetch: json(index), storage });
+    expect(older.index.generated).toBe("2026-11-19T00:00:00Z");
+    expect(cachedCatalog(storage)?.generated).toBe("2026-11-19T00:00:00Z");
+  });
+
+  it("orders catalogs by parsed time and never lets a bad or future time win", () => {
+    const at = (generated: string): PackIndex => ({ ...index, schema: 2, generated });
+    const now = Date.parse("2026-11-18T12:00:00Z");
+    expect(isNewerCatalog(at("2026-11-18T01:00:00+02:00"), at("2026-11-17T23:30:00.5Z"), now)).toBe(false);
+    expect(isNewerCatalog(at("2026-11-18T03:00:00+02:00"), at("2026-11-18T00:30:00Z"), now)).toBe(true);
+    expect(isNewerCatalog(at("not a date"), at("2026-11-10T00:00:00Z"), now)).toBe(false);
+    expect(isNewerCatalog(at("2026-11-10T00:00:00Z"), at("not a date"), now)).toBe(true);
+    expect(isNewerCatalog(at("2099-01-01T00:00:00Z"), at("2026-11-10T00:00:00Z"), now)).toBe(false);
+  });
+
+  it("a future-dated saved copy does not pin the store", async () => {
+    const storage = memoryStorage();
+    storage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ ...index, generated: "2099-01-01T00:00:00Z" }));
+    const result = await loadCatalog({ fetch: json(index), storage });
+    expect(result.index.generated).toBe(index.generated);
+    expect(cachedCatalog(storage)?.generated).toBe(index.generated);
   });
 });

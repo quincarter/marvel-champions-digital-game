@@ -119,6 +119,50 @@ export function cachedCatalog(storage: CatalogDeps["storage"] = defaultStorage()
   }
 }
 
+/** How far ahead of this device's clock a catalog's `generated` time may be before it is not believed. */
+const FUTURE_SLACK_MS = 24 * 60 * 60 * 1000;
+
+/** A catalog's `generated` instant, or undefined when it is not a date or is implausibly far in the future. */
+function generatedAt(index: PackIndex, now: number): number | undefined {
+  const at = Date.parse(index.generated);
+  return Number.isFinite(at) && at <= now + FUTURE_SLACK_MS ? at : undefined;
+}
+
+/**
+ * True when `a` is a strictly newer catalog than `b`, by their `generated` instants (parsed, so offsets and fractions
+ * compare correctly). A copy whose time is missing, malformed or far in the future never counts as newer, so a bad
+ * saved copy can't pin the store; against such a copy any good one is newer.
+ */
+export function isNewerCatalog(a: PackIndex, b: PackIndex, now: number = Date.now()): boolean {
+  const at = generatedAt(a, now);
+  if (at === undefined) return false;
+  const bt = generatedAt(b, now);
+  return bt === undefined || at > bt;
+}
+
+/**
+ * Keeps `index` as the last good copy and tells the `onCatalogCached` listeners. A copy older than the saved one (two
+ * requests that cross, a stale CDN answer) never replaces it (`isNewerCatalog`).
+ */
+export function saveCatalog(index: PackIndex, storage: CatalogDeps["storage"] = defaultStorage()): void {
+  if (!storage) return;
+  const saved = cachedCatalog(storage);
+  if (saved && isNewerCatalog(saved, index)) return;
+  try {
+    storage.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
+  } catch {
+    // Quota or private mode: the catalog still works this session.
+    return;
+  }
+  for (const listener of [...cachedListeners]) {
+    try {
+      listener();
+    } catch {
+      // One listener's failure must not stop the others or the store.
+    }
+  }
+}
+
 /** Fetches the catalog; on any failure falls back to the cached copy, and throws only when there is neither. */
 export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult> {
   const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
@@ -128,23 +172,10 @@ export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult
     if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
     const index = parseCatalog(await response.json());
     if (!index) throw new Error("The pack catalog has an unexpected shape");
-    let cachedNow = false;
-    try {
-      storage?.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
-      cachedNow = !!storage;
-    } catch {
-      // Quota or private mode: the catalog still works this session.
-    }
-    if (cachedNow) {
-      for (const listener of [...cachedListeners]) {
-        try {
-          listener();
-        } catch {
-          // One listener's failure must not stop the others or the store.
-        }
-      }
-    }
-    return { index, offline: false };
+    saveCatalog(index, storage);
+    // A stale answer (a CDN edge behind, two requests that crossed) loses to a newer saved copy.
+    const saved = cachedCatalog(storage);
+    return { index: saved && isNewerCatalog(saved, index) ? saved : index, offline: false };
   } catch (error) {
     const cached = cachedCatalog(storage);
     if (cached) return { index: cached, offline: true };

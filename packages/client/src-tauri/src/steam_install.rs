@@ -24,7 +24,7 @@ use tauri::{AppHandle, Manager};
 
 const STATE_FOLDER: &str = ".marvel-champions";
 const MARKER_FILE: &str = "install.json";
-const LOG_FILE: &str = "update.log";
+pub(crate) const LOG_FILE: &str = "update.log";
 const METHOD: &str = "steam-script";
 #[cfg(windows)]
 const SCRIPT_FILE: &str = "install-for-steam.ps1";
@@ -38,8 +38,8 @@ const LOG_TAIL_BYTES: u64 = 4096;
 #[cfg(any(windows, test))]
 const INSTALLING_MAX: Duration = Duration::from_secs(180);
 
-/// The running update, kept to ask whether it has finished.
-static UPDATE: Mutex<Option<Child>> = Mutex::new(None);
+/// The running update and which one it is (`spawn_update`'s `job`), kept to ask whether it has finished.
+pub(crate) static UPDATE: Mutex<Option<(Child, &'static str)>> = Mutex::new(None);
 
 #[derive(Deserialize)]
 struct Marker {
@@ -59,6 +59,8 @@ pub struct SteamInstall {
 #[serde(rename_all = "camelCase")]
 pub struct SteamUpdateStatus {
   running: bool,
+  /// Which job the running (or last) child is (`spawn_update`), so a panel opened for another can tell it isn't its own.
+  job: Option<&'static str>,
   exit_code: Option<i32>,
   log: String,
 }
@@ -84,13 +86,13 @@ fn parse_marker(text: &str) -> Option<Marker> {
     .filter(|marker| marker.method == METHOD)
 }
 
-fn state_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn state_dir(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(app.path().home_dir().map_err(|e| e.to_string())?.join(STATE_FOLDER))
 }
 
 /// The AppImage the player launched, which `current_exe` isn't: that is a path
 /// inside the AppImage's own mount.
-fn running_game() -> Option<String> {
+pub(crate) fn running_game() -> Option<String> {
   if let Some(appimage) = std::env::var_os("APPIMAGE") {
     return Some(appimage.to_string_lossy().into_owned());
   }
@@ -105,8 +107,8 @@ fn still_installing(age: Duration) -> bool {
 /// Called first thing. Windows' installer closes a running game and can't
 /// replace a locked exe, so a game started while the script runs it (the player
 /// quit to install, then pressed Play straight away) gets out of the way. Steam
-/// shows it stop, and the next press plays the new version. Only Windows: the
-/// other systems' swap is a rename.
+/// shows it stop, and the next press plays the new version. The game's own
+/// updater on the other systems writes the same file (see below).
 #[cfg(windows)]
 pub fn leave_for_running_update() {
   let Some(home) = std::env::var_os("USERPROFILE") else {
@@ -120,6 +122,41 @@ pub fn leave_for_running_update() {
     eprintln!("an update is installing; start the game again in a moment");
     std::process::exit(0);
   }
+}
+
+/// Called first thing on macOS and Linux. The game's own updater
+/// (scripts/update/update-game.sh) writes its process id to the same
+/// `installing` file while it replaces the game, so a game started meanwhile
+/// (the player pressed Play again straight away) doesn't run against a half
+/// replaced app or package: it leaves, and the updater starts the new version
+/// itself. A file whose updater has gone (it died) doesn't count.
+#[cfg(not(windows))]
+pub fn leave_for_running_update() {
+  let Some(home) = std::env::var_os("HOME") else {
+    return;
+  };
+  let Ok(text) = std::fs::read_to_string(Path::new(&home).join(STATE_FOLDER).join("installing")) else {
+    return;
+  };
+  let Some(pid) = installer_pid(&text) else {
+    return;
+  };
+  let alive = Command::new("kill")
+    .args(["-0", &pid.to_string()])
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status()
+    .is_ok_and(|status| status.success());
+  if alive {
+    eprintln!("an update is installing; the game starts again by itself when it's done");
+    std::process::exit(0);
+  }
+}
+
+/// The updater's process id in an `installing` file, if it holds one.
+#[cfg(any(not(windows), test))]
+fn installer_pid(text: &str) -> Option<u32> {
+  text.trim().parse().ok().filter(|&pid| pid > 1)
 }
 
 /// The record of this install, or `None` for a game installed any other way.
@@ -171,34 +208,57 @@ pub fn steam_update_start(app: AppHandle, language: String) -> Result<(), String
   if language.len() != 2 || !language.bytes().all(|b| b.is_ascii_lowercase()) {
     return Err(format!("not a language: {language}"));
   }
-  let mut update = UPDATE.lock().map_err(|e| e.to_string())?;
-  if let Some(child) = update.as_mut() {
-    if matches!(child.try_wait(), Ok(None)) {
-      return Ok(());
-    }
-  }
   let dir = state_dir(&app)?;
   let script = dir.join(SCRIPT_FILE);
   if !script.is_file() {
     return Err(format!("{} is missing", script.display()));
   }
+  spawn_update(&dir, STEAM_UPDATE_JOB, || script_command(&script, &language))
+}
+
+/// Runs `job` in the background with its output in `update.log`: the Steam
+/// script's update, the game's own update (self_update.rs) or Add to Steam
+/// (steam_add.rs), which the same panel and status call follow. The same job
+/// already running carries on (the player closed the panel and opened it
+/// again); a different one is refused, since its log is the one on screen.
+pub(crate) fn spawn_update(dir: &Path, job: &'static str, command: impl FnOnce() -> Command) -> Result<(), String> {
+  let mut update = UPDATE.lock().map_err(|e| e.to_string())?;
+  if let Some((child, running)) = update.as_mut() {
+    if matches!(child.try_wait(), Ok(None)) {
+      return if *running == job { Ok(()) } else { Err(busy_message(running)) };
+    }
+  }
+  std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
   // An update from an earlier run of the game may still be writing to the last log. It stops by itself when its
   // download ends (the game it was waiting for has gone), and doesn't belong in this one.
   #[cfg(not(windows))]
   let _ = std::fs::remove_file(dir.join(LOG_FILE));
   let log = File::create(dir.join(LOG_FILE)).map_err(|e| e.to_string())?;
   let errors = log.try_clone().map_err(|e| e.to_string())?;
-  let child = script_command(&script, &language)
+  let child = command()
     // Not the AppImage's mount, which has to go away when the game exits.
-    .current_dir(&dir)
+    .current_dir(dir)
     .stdin(Stdio::null())
     .stdout(log)
     .stderr(errors)
     .spawn()
     .map_err(|e| e.to_string())?;
-  *update = Some(child);
+  *update = Some((child, job));
   Ok(())
 }
+
+/// What the panel says when another job is running.
+fn busy_message(running: &str) -> String {
+  let what = match running {
+    STEAM_ADD_JOB => "Adding the game to Steam",
+    _ => "An update",
+  };
+  format!("{what} is still running. Wait for it to finish, then try again.")
+}
+
+pub(crate) const STEAM_UPDATE_JOB: &str = "steam-update";
+pub(crate) const SELF_UPDATE_JOB: &str = "self-update";
+pub(crate) const STEAM_ADD_JOB: &str = "steam-add";
 
 fn log_tail(path: &Path) -> String {
   let Ok(mut file) = File::open(path) else {
@@ -214,13 +274,14 @@ fn log_tail(path: &Path) -> String {
 #[tauri::command]
 pub fn steam_update_status(app: AppHandle) -> Result<SteamUpdateStatus, String> {
   let mut update = UPDATE.lock().map_err(|e| e.to_string())?;
-  let (running, exit_code) = match update.as_mut().map(Child::try_wait) {
+  let job = update.as_ref().map(|(_, job)| *job);
+  let (running, exit_code) = match update.as_mut().map(|(child, _)| child.try_wait()) {
     Some(Ok(None)) => (true, None),
     Some(Ok(Some(status))) => (false, status.code()),
     Some(Err(e)) => return Err(e.to_string()),
     None => (false, None),
   };
-  Ok(SteamUpdateStatus { running, exit_code, log: log_tail(&state_dir(&app)?.join(LOG_FILE)) })
+  Ok(SteamUpdateStatus { running, job, exit_code, log: log_tail(&state_dir(&app)?.join(LOG_FILE)) })
 }
 
 /// The panel's Quit and update: the script is waiting for this process to end.
@@ -252,6 +313,14 @@ mod tests {
   #[cfg(windows)]
   fn a_windows_record_ignores_case() {
     assert!(is_this_game("G:\\MarvelChampions\\marvel-champions.exe", "g:\\marvelchampions\\Marvel-Champions.exe"));
+  }
+
+  #[test]
+  fn an_installing_file_names_the_updater() {
+    assert_eq!(installer_pid("4242\n"), Some(4242));
+    assert_eq!(installer_pid(""), None);
+    assert_eq!(installer_pid("1"), None);
+    assert_eq!(installer_pid("not a pid"), None);
   }
 
   #[test]
