@@ -12,7 +12,7 @@
 import type { PackIndex } from "@mc/content";
 import { packStateOf } from "./pack-state.js";
 import type { InstalledPack, PackStorage } from "./pack-store.js";
-import { loadCatalog, type CatalogDeps } from "./catalog.js";
+import { cachedCatalog, loadCatalog, saveCatalog, type CatalogDeps } from "./catalog.js";
 import { sharedPackStore } from "./active-packs.js";
 import { SUPPORTED_DSL_FEATURES } from "./supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -125,17 +125,21 @@ async function runCheck(deps: CheckDeps): Promise<number> {
   }
   let index = lastIndex;
   if (deps.force || !index || now() - lastFetched >= CHECK_INTERVAL_MS) {
+    // The saved copy is read and written here rather than by `loadCatalog`, so a response that lands after the store
+    // noted a newer catalog never replaces the store's saved copy either.
+    let fresh: PackIndex | undefined;
     try {
-      // An offline answer is the saved copy: counted from, but not fresh, so the next check tries the network again.
-      const catalog = await loadCatalog(deps);
-      index = catalog.index;
-      // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
-      if (noted === started) {
-        lastIndex = index;
-        if (!catalog.offline) lastFetched = now();
-      }
+      fresh = (await loadCatalog({ ...deps, storage: null })).index;
     } catch {
-      // No network and no saved copy: nothing to count from.
+      // Offline: the saved copy is counted from, but not fresh, so the next check tries the network again.
+      index ??= cachedCatalog(deps.storage);
+    }
+    // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
+    if (fresh && noted === started) {
+      index = fresh;
+      lastIndex = fresh;
+      lastFetched = now();
+      saveCatalog(fresh, deps.storage);
     }
   }
   // The Mod Store noted a newer installed list while this check waited: its count stands.

@@ -119,6 +119,24 @@ export function cachedCatalog(storage: CatalogDeps["storage"] = defaultStorage()
   }
 }
 
+/** Keeps `index` as the last good copy and tells the `onCatalogCached` listeners. */
+export function saveCatalog(index: PackIndex, storage: CatalogDeps["storage"] = defaultStorage()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
+  } catch {
+    // Quota or private mode: the catalog still works this session.
+    return;
+  }
+  for (const listener of [...cachedListeners]) {
+    try {
+      listener();
+    } catch {
+      // One listener's failure must not stop the others or the store.
+    }
+  }
+}
+
 /** Fetches the catalog; on any failure falls back to the cached copy, and throws only when there is neither. */
 export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult> {
   const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
@@ -128,22 +146,7 @@ export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult
     if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
     const index = parseCatalog(await response.json());
     if (!index) throw new Error("The pack catalog has an unexpected shape");
-    let cachedNow = false;
-    try {
-      storage?.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
-      cachedNow = !!storage;
-    } catch {
-      // Quota or private mode: the catalog still works this session.
-    }
-    if (cachedNow) {
-      for (const listener of [...cachedListeners]) {
-        try {
-          listener();
-        } catch {
-          // One listener's failure must not stop the others or the store.
-        }
-      }
-    }
+    saveCatalog(index, storage);
     return { index, offline: false };
   } catch (error) {
     const cached = cachedCatalog(storage);

@@ -121,7 +121,12 @@ describe("checkPackUpdates", () => {
           release = () => resolve(new Response(JSON.stringify(index), { status: 200 }));
         }),
     );
-    const check = checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: slow, storage: null });
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    const check = checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: slow, storage });
     await vi.waitFor(() => expect(release).toBeDefined());
     // The store's catalog is newer than the one the slow check is fetching: it already lists 1.2.0.
     const newer = indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry);
@@ -136,5 +141,7 @@ describe("checkPackUpdates", () => {
       await checkPackUpdates({ store: store([installed("fan-newer", "1.1.0")]), fetch: next, storage: null }),
     ).toBe(1);
     expect(next).not.toHaveBeenCalled();
+    // Nor does the slow answer replace the saved copy.
+    expect(saved.size).toBe(0);
   });
 });
