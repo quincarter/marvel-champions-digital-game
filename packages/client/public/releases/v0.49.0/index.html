@@ -6,7 +6,7 @@
     <title>v0.49.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand and a search that finds any setting, and Giant Strength, One Way or Another and Morphogenetics are fixed."
+      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand and a search that finds any setting, and fifteen player reports are answered, from Giant Strength to Wolverine's Claws."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v0.49.0" />
     <meta
@@ -610,8 +610,9 @@
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
           draw, a reveal and the villain phase, and Pause has a Manual adjust screen to correct the table by hand. Both
           came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Pause's
-          search now finds any setting, and every search box forgives typos. Giant Strength, One Way or Another and
-          Morphogenetics are fixed too.
+          search now finds any setting, and every search box forgives typos. @bluefireF5ran's ten reports fix Madame
+          Web, Wolverine's Claws, Silk Sense and more, and Giant Strength, One Way or Another and Morphogenetics are
+          fixed too.
         </p>
       </section>
 
@@ -628,8 +629,8 @@
         </div>
         <div class="tile">
           <h4>Reports answered</h4>
-          <div class="n c-green">4</div>
-          <p>from @sgaon42, @javgoro, and GarethMagis and Gooffrey [KRBY] on Discord.</p>
+          <div class="n c-green">15</div>
+          <p>from six players, ten of them from @bluefireF5ran.</p>
         </div>
       </section>
 
@@ -849,7 +850,7 @@
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #794, #795, #804 · PRs #796, #797, #824</div>
+        <div class="lab">Issues #794, #795, #804, #806 · PRs #796, #797, #822, #824</div>
       </div>
       <div class="cards">
         <div class="paper">
@@ -874,7 +875,7 @@
           </p>
           <div class="src">Ruling, October 21, 2024: a search that finds nothing means the cost wasn't paid.</div>
         </div>
-        <div class="paper" style="grid-column: 1 / -1">
+        <div class="paper">
           <div class="eb">#804 · reported by Gooffrey [KRBY] on Discord</div>
           <h3>Morphogenetics gives you the event back, for real</h3>
           <p>
@@ -889,6 +890,64 @@
           <div class="src">
             FFG ruling (Ms. Marvel): a returned Wiggle Room can be played again "the same as if you had 2 copies".
           </div>
+        </div>
+        <div class="paper">
+          <div class="eb">#806 · requested by @andy-xxvii27</div>
+          <h3>Find cards by their Spanish name</h3>
+          <p>
+            With the game in Spanish, the card search in the deck builder and on the Decks screen matches each card's
+            Spanish name as well as its English one.
+          </p>
+          <p><b>"La Balsa"</b> finds The Raft, accents or not, from 1,880 Spanish names taken from MarvelCDB.</p>
+        </div>
+      </div>
+
+      <!-- ============ BLUEFIRE ============ -->
+      <div class="band gold">
+        <h2>Ten reports, ten fixes</h2>
+        <div class="lab">Issues #809 to #818 · PRs #820, #821, #822, #825, #826</div>
+      </div>
+      <p class="lead">
+        <b>@bluefireF5ran played Spider-Verse and Wolverine decks hard and sent ten precise reports.</b> Every one is
+        fixed in this release.
+      </p>
+      <div class="cols">
+        <div class="box">
+          <h3>Cards that work as printed</h3>
+          <ul class="ck">
+            <li><b>Madame Web</b> counts every Web-Warrior card you control, not only characters (#809).</li>
+            <li><b>Deathunt 9000</b>'s boost gives tough to the enemy it boosts (#815).</li>
+            <li>
+              <b>Across the Spider-Verse</b> needs a Web-Warrior ally in your discard pile, and only offers its repeat
+              to a player who has one (#818).
+            </li>
+            <li>
+              <b>Silk Sense</b> and other "after you defeat" cards trigger only when your identity, or an event,
+              resource or upgrade of yours, makes the defeat, not an ally (#817).
+            </li>
+            <li>
+              <b>Change of Fortune</b> triggers when Psychic Misdirection's redirected damage defeats an enemy (#817).
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Timing, costs and the log</h3>
+          <ul class="ck">
+            <li>A repeated <b>Berserker Barrage</b> no longer keeps Wolverine's Claws' piercing (#811).</li>
+            <li>
+              When Wolverine's Claws' cost eliminates Wolverine, the <b>chosen event is still played</b> and its attack
+              lands (#816).
+            </li>
+            <li>
+              <b>White Fox</b> and other "after this is discarded from your deck" responses are offered when the same
+              discard empties the deck (#810).
+            </li>
+            <li><b>Clarity of Purpose</b>'s cost damage is dealt while paying, before the card it pays for (#813).</li>
+            <li>
+              The log calls a cancelled thwart a thwart (#812), and names who controls an upgrade on another player's
+              hero (#814).
+            </li>
+          </ul>
         </div>
       </div>
 
@@ -941,6 +1000,17 @@
             <p>Reported One Way or Another drawing after a search that found nothing, <b>#795</b>.</p>
           </div>
           <div class="person wide">
+            <h3>@bluefireF5ran</h3>
+            <p>
+              Sent <b>ten</b> reports, #809 to #818, from Madame Web's count to Wolverine's Claws, and every one is
+              fixed in this release.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@andy-xxvii27</h3>
+            <p>Asked for card search by Spanish name, <b>#806</b>.</p>
+          </div>
+          <div class="person">
             <h3>Gooffrey [KRBY]</h3>
             <p>
               Reported on Discord that Morphogenetics couldn't replay Turn the Tide off the same thwart, <b>#804</b>.
@@ -957,22 +1027,22 @@
       <section class="stats" aria-label="Code shipped since v0.48.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">11</div>
+          <div class="n">17</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">176</div>
+          <div class="n">240</div>
           <p>across the engine, the cards, the client and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">7,033</div>
+          <div class="n c-green">11,369</div>
           <p>most of them Undo, Manual adjust and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">425</div>
+          <div class="n c-red">572</div>
           <p>code the new Undo and adjust paths replaced.</p>
         </div>
       </section>

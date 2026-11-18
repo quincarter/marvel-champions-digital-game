@@ -6,14 +6,11 @@ A misclick or a bug no longer has to cost you the game.
 🛠️ **Manual adjust**: Pause ▸ Manual adjust corrects the table by hand: damage, threat, counters, stunned, confused and tough, exhaust or ready, discard, draw 1 and change form. Every correction goes in the log.
 📊 **Fair stats**: a game you adjust or undo that far is marked adjusted and stays out of stats and achievements. It still shows in Past games.
 🔎 **Pause search**: type in Pause to find any setting and change it right there ("undo", "rewind", "zoom"). Every search box now forgives accents, typos and dropped letters.
-🐜 **Giant Strength** now waits for Giant hero form, and Ant-Man's Helmet gets the same fix (thanks, GarethMagis!).
-🌌 **One Way or Another** draws only when its search finds a side scheme (thanks, javgoro!).
-🔁 **Morphogenetics**: an event Ms. Marvel returns to hand, like Turn the Tide, can be played again off the same trigger (thanks, Gooffrey [KRBY]!).
-💀 **Crossbones** starts with an Experimental Weapon, and Red Skull campaign weapons carry over to scenarios 2 to 5.
-🌯 **Shawarma** shows its printed Max 1 per deck, and decks allow one copy.
-🎩 **Public Support (High)** now needs its full 1 per hero counters to replace a boost card, as FFG ruled.
+🛠️ **Fixes**: Giant Strength waits for Giant form (thanks, GarethMagis!), One Way or Another needs a side scheme (thanks, javgoro!), Morphogenetics replays Turn the Tide (thanks, Gooffrey [KRBY]!), plus Crossbones' weapon, Shawarma and Public Support.
+🕸️ **Ten reports from bluefireF5ran**, all fixed: Madame Web, Deathunt 9000, Across the Spider-Verse, White Fox, Clarity of Purpose, Silk Sense, Change of Fortune, Wolverine's Claws and the log.
+🇪🇸 **Spanish card names** in the deck builder's search (thanks, andy-xxvii27!).
 
-Both Undo and Manual adjust came from sgaon42's request. Thank you!
+Both Undo and Manual adjust came from sgaon42's request. Thank you, bluefireF5ran, and everyone who reported!
 
 Full report: https://champions-digital-game.com/releases/v0.49.0/
 Downloads: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.49.0
@@ -26,14 +23,11 @@ Un clic equivocado o un error ya no tienen por qué costarte la partida.
 🛠️ **Manual adjust**: Pause ▸ Manual adjust corrige la mesa a mano: daño, amenaza, contadores, aturdido, confundido y tough, agotar o preparar, descartar, robar 1 y cambiar de forma. Cada corrección queda en el registro.
 📊 **Estadísticas justas**: una partida que ajustas o deshaces hasta ahí queda marcada como ajustada y no cuenta para las estadísticas ni los logros. Sigue apareciendo en Past games.
 🔎 **Búsqueda en Pause**: escribe en Pause para encontrar cualquier ajuste y cambiarlo ahí mismo ("undo", "rewind", "zoom"). Todas las búsquedas perdonan acentos, erratas y letras que faltan.
-🐜 **Giant Strength** ahora espera a la forma de héroe Giant, y Ant-Man's Helmet recibe la misma corrección (¡gracias, GarethMagis!).
-🌌 **One Way or Another** solo roba cuando su búsqueda encuentra un plan secundario (¡gracias, javgoro!).
-🔁 **Morphogenetics**: un evento que Ms. Marvel devuelve a la mano, como Turn the Tide, puede jugarse otra vez con el mismo disparador (¡gracias, Gooffrey [KRBY]!).
-💀 **Crossbones** empieza con un Experimental Weapon, y los de la campaña de Red Skull pasan a los escenarios 2 a 5.
-🌯 **Shawarma** muestra su Max 1 per deck impreso, y los mazos permiten una copia.
-🎩 **Public Support (High)** ahora necesita todos sus contadores, 1 por héroe, para reemplazar una carta de potenciación, como resolvió FFG.
+🛠️ **Correcciones**: Giant Strength espera a la forma Giant (¡gracias, GarethMagis!), One Way or Another necesita un plan secundario (¡gracias, javgoro!), Morphogenetics vuelve a jugar Turn the Tide (¡gracias, Gooffrey [KRBY]!), y además el arma de Crossbones, Shawarma y Public Support.
+🕸️ **Diez reportes de bluefireF5ran**, todos corregidos: Madame Web, Deathunt 9000, Across the Spider-Verse, White Fox, Clarity of Purpose, Silk Sense, Change of Fortune, Wolverine's Claws y el registro.
+🇪🇸 **Nombres de cartas en español** en la búsqueda del constructor de mazos (¡gracias, andy-xxvii27!).
 
-Undo y Manual adjust nacen de la petición de sgaon42. ¡Gracias!
+Undo y Manual adjust nacen de la petición de sgaon42. ¡Gracias, bluefireF5ran, y a todos los que reportaron!
 
 Informe completo: https://champions-digital-game.com/releases/v0.49.0/index.es.html
 Descargas: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.49.0
