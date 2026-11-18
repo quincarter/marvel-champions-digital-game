@@ -65,6 +65,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 - Wolverine's Claws: a repeated Berserker Barrage no longer keeps the piercing; only the first attack gains it (#811).
 - Change of Fortune now triggers when Psychic Misdirection's redirected damage defeats an enemy, as FFG ruled on January 24, 2025 (#817).
 - Kingpin's Public Support (High) now replaces a boost card only when it can remove the full 1 per hero support counters, as FFG ruled (#829).
+- Stack schemes: while a prompt can pick a scheme hidden behind the stack, the panel lists every scheme so a controller or keyboard can reach it (#808).
 
 ### Engine
 
