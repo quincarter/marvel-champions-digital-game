@@ -12,31 +12,9 @@ Tracks already delivered are folded into the collapsed section at the bottom, **
 
 **What's left** (updated 2026-11-18):
 
-**New tracks (3):** Vision (Resistance).
+**New tracks:** none. Every playable scenario and campaign has its music.
 
 **Remakes of tracks already in the game (24, optional):** The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
-
-# Synthezoid Smackdown
-
-The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music).
-
-## Vision (Resistance)
-
-Folder: `music/scenarios/resistance-vision/`
-
-### A Synthetic Heart (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "A Synthetic Heart"
-```
 
 # Regenerating tracks that already exist
 
@@ -400,10 +378,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 105 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 106 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 105 prompts already used</summary>
+<summary>Show the 106 prompts already used</summary>
 
 ## Black Widow
 
@@ -1917,6 +1895,20 @@ Use the same main melody and instruments as the battle track I just generated.
 An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
 
 Title: "Density Absolute"
+```
+
+### A Synthetic Heart (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "A Synthetic Heart"
 ```
 
 </details>
