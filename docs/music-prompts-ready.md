@@ -158,20 +158,6 @@ The three Shadowland scenarios and the campaign's two tracks. Files go straight 
 
 Folder: `music/scenarios/shadow-labyrinth/`
 
-### No Way Out (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
-
-Title: "No Way Out"
-```
-
 ### The Way Out Found (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -840,10 +826,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 75 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 76 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 75 prompts already used</summary>
+<summary>Show the 76 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1909,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
 
 Title: "Labyrinth of Blades"
+```
+
+### No Way Out (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
+
+Title: "No Way Out"
 ```
 
 </details>
