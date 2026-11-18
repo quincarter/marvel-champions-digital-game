@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { STACK_SWIPE_IDLE_MS, STACK_SWIPE_PX, StackSwipe, stackFlip, stackFrontAfter } from "./scheme-stack.js";
+import {
+  STACK_SWIPE_IDLE_MS,
+  STACK_SWIPE_PX,
+  StackSwipe,
+  stackFlip,
+  stackFrontAfter,
+  schemePickIds,
+  stackShowsEligible,
+} from "./scheme-stack.js";
 
 describe("the scheme stack's front", () => {
   const ids = ["main", "side-a", "side-b", "side-c"];
@@ -66,5 +74,44 @@ describe("a swipe on the stack's front card", () => {
     expect(swipe.step(-10, STACK_SWIPE_IDLE_MS + 1)).toBe(0);
     swipe.end();
     expect(swipe.step(-(STACK_SWIPE_PX - 5), 1000)).toBe(0);
+  });
+});
+
+describe("a prompt on the stack", () => {
+  const order = ["main", "a", "b", "c", "d"];
+
+  test("is answered on the stack while every scheme it can pick is the front card or a band", () => {
+    expect(stackShowsEligible(order, ["main", "c"], 3)).toBe(true);
+    expect(stackShowsEligible(order, [], 3)).toBe(true);
+  });
+
+  test("lists every scheme when one it can pick is hidden past the bands (a fifth scheme)", () => {
+    expect(stackShowsEligible(order, ["a", "d"], 3)).toBe(false);
+    expect(stackShowsEligible(order, ["b"], 1)).toBe(false);
+  });
+});
+
+describe("the schemes a decision can pick", () => {
+  const ids = ["main", "a", "b", "c", "d"];
+  const all = (): boolean => true;
+
+  test("a target, payment, divided power, discard or in-play cost picks on the table", () => {
+    for (const mode of ["targeting", "paying", "dividingPower", "choosingDiscard", "choosingInPlayCost"])
+      expect(
+        schemePickIds(mode, ids, (id) => id === "d"),
+        mode,
+      ).toEqual(["d"]);
+  });
+
+  test("a decision asked on a sheet of its own picks no scheme, so five schemes keep their stack (review on #834)", () => {
+    for (const mode of [
+      "choosingForm",
+      "choosingController",
+      "choosingCostSelection",
+      "confirmingAllianceHelp",
+      "idle",
+    ])
+      expect(schemePickIds(mode, ids, all), mode).toEqual([]);
+    expect(stackShowsEligible(ids, schemePickIds("choosingForm", ids, all), 3)).toBe(true);
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { boardLayout, formFactorFor, PHONE_TABS, type FormFactor, type Rect, type ZoneName } from "./layout.js";
 import {
+  focusSliceOf,
+  OFFSCREEN_FOCUS_STRIP,
   fullyVisible,
   LARGE_TEXT_MIN_WIDTH,
   largeSchemeListLayout,
@@ -15,6 +17,7 @@ import {
   visibleSlice,
 } from "./scheme-list-layout.js";
 import { VariableListScroll } from "./variable-list-scroll.js";
+import { spatialStep } from "./spatial-nav.js";
 
 /** The board's form factors at the sizes people actually hold them, including a tablet with browser chrome on it. */
 const VIEWPORTS: readonly { readonly name: string; readonly width: number; readonly height: number }[] = [
@@ -316,5 +319,77 @@ describe("Stack schemes: one large card at the front, the rest stacked behind it
     expect(stackOrder(["a", "b", "c", "d"], 2)).toEqual(["c", "d", "a", "b"]);
     expect(stackOrder(["a", "b"], -1)).toEqual(["b", "a"]);
     expect(stackOrder([], 3)).toEqual([]);
+  });
+});
+
+describe("a scrolling scheme row's focus stop", () => {
+  const viewport: Rect = { x: 0, y: 100, width: 300, height: 200 };
+  const row = (y: number): Rect => ({ x: 10, y, width: 280, height: 80 });
+
+  test("is the visible slice while any of the row shows", () => {
+    expect(focusSliceOf(row(120), 0, viewport)).toEqual(row(120));
+    expect(focusSliceOf(row(260), 0, viewport)).toEqual({ x: 10, y: 260, width: 280, height: 40 });
+  });
+
+  test("is a thin strip just past the edge once the row is wholly out of view, so the D-pad still reaches it", () => {
+    expect(focusSliceOf(row(400), 0, viewport)).toEqual({ x: 10, y: 305, width: 280, height: OFFSCREEN_FOCUS_STRIP });
+    expect(focusSliceOf(row(120), 200, viewport)).toEqual({ x: 10, y: 91, width: 280, height: OFFSCREEN_FOCUS_STRIP });
+  });
+
+  test("a hidden row's strip is always past a row with only a 1px sliver showing, so down and up still move (#834)", () => {
+    const centre = (r: Rect): number => r.y + r.height / 2;
+    // Down: the row above shows 1px at the bottom edge; the next row is wholly below.
+    const sliver = focusSliceOf(row(299), 0, viewport);
+    expect(sliver.height).toBe(1);
+    expect(centre(focusSliceOf(row(305), 0, viewport))).toBeGreaterThan(centre(sliver));
+    // Up: the row below shows 1px at the top edge; the row before it is wholly above.
+    const top = focusSliceOf(row(101), 80, viewport);
+    expect(top.height).toBe(1);
+    expect(centre(focusSliceOf(row(10), 80, viewport))).toBeLessThan(centre(top));
+  });
+});
+
+describe("a stack too small for card art", () => {
+  test("draws no bands, so a prompt counts only the front card as shown (review on #834)", () => {
+    const stack = schemeStackLayout({ x: 0, y: 0, width: 120, height: 60 }, 4);
+    expect(stack.behind).toHaveLength(0);
+  });
+});
+
+describe("D-pad Up and Down over a scrolled scheme list (review on #834)", () => {
+  // Six 80px rows 6px apart in a 200px viewport, the way a long Large schemes list stacks them.
+  const viewport: Rect = { x: 0, y: 100, width: 300, height: 200 };
+  const rows = Array.from({ length: 6 }, (_unused, at): Rect => ({ x: 10, y: 100 + at * 86, width: 280, height: 80 }));
+  const ids = rows.map((_row, at) => `scheme-${at}`);
+  /** One press: the stop `spatialStep` picks from the focused row, then the list scrolls it into view as focus does. */
+  const press = (current: string, offset: number, direction: "up" | "down"): { id: string; offset: number } => {
+    const rectOf = (id: string): Rect => focusSliceOf(rows[ids.indexOf(id)]!, offset, viewport);
+    const next = spatialStep(ids, rectOf, current, direction)!;
+    const row = rows[ids.indexOf(next)]!;
+    const top = row.y - viewport.y;
+    const bottom = row.y + row.height - (viewport.y + viewport.height);
+    return { id: next, offset: top < offset ? top : bottom > offset ? bottom : offset };
+  };
+
+  test("Up from the first row in view steps through three hidden rows above one at a time", () => {
+    // Scrolled to the bottom: rows 0 to 2 are wholly above the viewport, row 3 is the first in view.
+    let at = { id: "scheme-3", offset: rows[5]!.y + rows[5]!.height - (viewport.y + viewport.height) };
+    expect(focusSliceOf(rows[2]!, at.offset, viewport).y).not.toBe(focusSliceOf(rows[0]!, at.offset, viewport).y);
+    const seen: string[] = [];
+    for (let presses = 0; presses < 3; presses++) {
+      at = press(at.id, at.offset, "up");
+      seen.push(at.id);
+    }
+    expect(seen).toEqual(["scheme-2", "scheme-1", "scheme-0"]);
+  });
+
+  test("Down from the last row in view steps through the hidden rows below one at a time", () => {
+    let at = { id: "scheme-1", offset: 0 };
+    const seen: string[] = [];
+    for (let presses = 0; presses < 4; presses++) {
+      at = press(at.id, at.offset, "down");
+      seen.push(at.id);
+    }
+    expect(seen).toEqual(["scheme-2", "scheme-3", "scheme-4", "scheme-5"]);
   });
 });

@@ -393,6 +393,37 @@ export function schemeRowGeometry(
   };
 }
 
+/** How tall the focus strip of a row scrolled wholly out of the schemes viewport is, just past the edge it lies past. */
+export const OFFSCREEN_FOCUS_STRIP = 4;
+/** How far apart hidden rows' strips are, as a share of how far apart the rows are: keeps them in the list's order. */
+const OFFSCREEN_ORDER_SCALE = 0.05;
+
+/**
+ * Where a scrolling scheme row is a pad and keyboard focus stop: its visible slice, or, scrolled wholly out of view, a
+ * thin strip just outside the viewport's edge it lies past (`OFFSCREEN_FOCUS_STRIP`), so the D-pad can still move to it;
+ * focus landing there scrolls it into view (`schemes.ts`). Outside, not on, the edge: a row with a 1px sliver showing
+ * has its centre there, and the D-pad only moves to a stop whose centre is past the current one's (review on #834).
+ * A row's tap rect stays its visible slice only.
+ */
+export function focusSliceOf(rect: Rect, offset: number, viewport: Rect): Rect {
+  const slice = visibleSlice(rect, offset, viewport);
+  if (slice) return slice;
+  const top = rect.y - offset;
+  const bottom = viewport.y + viewport.height;
+  // Rows further out sit further out, in the order of the list, so Up and Down step to the next row, never past it
+  // (review on #834: several hidden rows on one side once shared one strip, and Up took the first of them).
+  if (top >= bottom)
+    return {
+      x: rect.x,
+      y: bottom + (top - bottom) * OFFSCREEN_ORDER_SCALE,
+      width: rect.width,
+      height: OFFSCREEN_FOCUS_STRIP,
+    };
+  const gap = viewport.y - (top + rect.height);
+  const y = viewport.y - OFFSCREEN_FOCUS_STRIP - gap * OFFSCREEN_ORDER_SCALE;
+  return { x: rect.x, y, width: rect.width, height: OFFSCREEN_FOCUS_STRIP };
+}
+
 /** `rect` as it is drawn with the list scrolled by `offset`, clipped to `viewport`; null when none of it shows. */
 export function visibleSlice(rect: Rect, offset: number, viewport: Rect): Rect | null {
   const top = Math.max(rect.y - offset, viewport.y);
