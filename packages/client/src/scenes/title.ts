@@ -54,6 +54,7 @@ import {
 import { quitForSteamUpdate, steamInstall, type SteamInstall } from "../platform/steam-install.js";
 import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
+import { STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { titleMenuFocusOrder } from "../view/screen-focus.js";
@@ -1236,7 +1237,9 @@ export class TitleScene extends Phaser.Scene {
         : {}),
     } satisfies SteamUpdateSceneData);
     // Closed with the download ready, the Title says so.
-    this.scene.get(SCENES.steamUpdate).events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#checkReadyUpdate());
+    this.game.events.once(STEAM_UPDATE_CLOSED, () => {
+      if (this.sys.isActive()) this.#checkReadyUpdate();
+    });
   }
 
   /**

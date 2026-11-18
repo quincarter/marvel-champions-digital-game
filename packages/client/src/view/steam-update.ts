@@ -32,6 +32,12 @@ export interface SteamUpdateView {
   readonly percent: number | null;
 }
 
+/**
+ * Emitted on the game's event bus when the panel closes. The panel is loaded on first use (`scenes/scene-table.ts`), so a
+ * screen that opened it can't reach its scene to listen to its own shutdown; it listens for this instead.
+ */
+export const STEAM_UPDATE_CLOSED = "steam-update-closed";
+
 /** The Title footer and bug reports: how this install got here. */
 export const STEAM_SCRIPT_TAG = "Steam script";
 

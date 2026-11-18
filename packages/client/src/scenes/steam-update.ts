@@ -27,6 +27,7 @@ import {
   type SteamUpdateStatus,
   type SteamUpdateView,
   type UpdateMode,
+  STEAM_UPDATE_CLOSED,
 } from "../view/steam-update.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { PressGuard } from "./press-guard.js";
@@ -95,6 +96,7 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     });
     const poll = this.time.addEvent({ delay: POLL_MS, loop: true, callback: () => void this.#poll() });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.emit(STEAM_UPDATE_CLOSED);
       poll.remove(false);
       this.scale.off("resize", onResize, this);
       this.#hints.dispose();
