@@ -23,7 +23,8 @@ import {
   downloadsOf,
   fetchLatestRelease,
   primaryDownload,
-  steamScriptFor,
+  sameRelease,
+  steamButtonFor,
   versionOf,
   type LatestRelease,
 } from "../downloads.js";
@@ -178,7 +179,8 @@ function drawHeroDownload(): void {
         )
       : toSection(device === "mac" ? t("dl.forDevice", { device: t("device.mac") }) : t("bar.download")),
   );
-  const steam = steamScriptFor(downloads, device);
+  // Only where the download section below shows it too, with how to run it (`steamButtonFor`).
+  const steam = steamButtonFor(downloads, device);
   if (steam) {
     ctas.append(
       element(
@@ -546,8 +548,11 @@ void fetchLatestRelease(LATEST_RELEASE_API).then((latest) => {
     drawNews();
     drawShots();
   }
-  // The build's copy already shows that release: leave the panel (and any focus in it) alone.
-  if (next === null ? release === null : release !== "loading" && release?.tag_name === next.tag_name) return;
+  // The build's copy already shows that release with the same files: leave the panel (and any focus in it) alone. A
+  // file uploaded since the build (an installer, the Steam script) redraws it.
+  if (next === null ? release === null : release !== "loading" && release !== null && sameRelease(release, next)) {
+    return;
+  }
   release = next;
   drawDownloads();
 });
