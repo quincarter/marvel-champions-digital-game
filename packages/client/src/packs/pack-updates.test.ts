@@ -277,4 +277,21 @@ describe("checkPackUpdates", () => {
     expect(await checkPackUpdates({ store: live, fetch: next, storage: null })).toBe(1);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it("an empty list read before a store install does not clear the store's count", async () => {
+    let release: (() => void) | undefined;
+    const slowList = {
+      list: () =>
+        new Promise<InstalledPack[]>((resolve) => {
+          release = () => resolve([]);
+        }),
+    };
+    const check = checkPackUpdates({ store: slowList, fetch: json(index), storage: null });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    notePackUpdates(index, [installed("fan-newer", "1.0.0")]);
+    expect(packUpdateCount()).toBe(1);
+    release!();
+    await check;
+    expect(packUpdateCount()).toBe(1);
+  });
 });

@@ -127,7 +127,8 @@ async function runCheck(deps: CheckDeps): Promise<number> {
   }
   // Nothing installed: nothing to update, and no reason to reach the network.
   if (installed.length === 0) {
-    setCount(0);
+    // Unless the store noted a change while the list was read: its count is the newer one.
+    if (noted === started) setCount(0);
     return count;
   }
   let index = lastIndex;
