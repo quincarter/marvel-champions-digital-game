@@ -85,14 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Shadowland
 
-## Shadow Labyrinth
-
-Tracks: **Labyrinth of Blades** (battle), **No Way Out** (villain wins), **The Way Out Found** (heroes win).
-
-```text
-A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
-```
-
 ## Heart of Shadow
 
 Tracks: **The Beast at the Heart** (battle), **Shadowland Rises** (villain wins), **The Darkness Driven Out** (heroes win).
@@ -173,7 +165,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Shadow Labyrinth: `scenarios/shadow-labyrinth/`
 - Heart of Shadow: `scenarios/heart-of-shadow/`
 - Shadowland campaign interlude: `campaigns/shadowland/interlude.mp3`
 - Shadowland campaign finale: `campaigns/shadowland/finale.mp3`
@@ -495,6 +486,14 @@ Tracks: **Midnight Belongs to the Hand** (battle), **Swallowed by the Dark** (vi
 
 ```text
 A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
+```
+
+## Shadow Labyrinth
+
+Tracks: **Labyrinth of Blades** (battle), **No Way Out** (villain wins), **The Way Out Found** (heroes win).
+
+```text
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. The heroes push through the fortress's maze of trapped halls, never sure what the next corridor springs on them. Claustrophobic trap-maze tension: a ticking mechanical pulse, low taiko and frame drums, spiky string clusters and sudden metallic hits for each trap, a winding flute line that never finds its way out, until brass breaks through. About 128 BPM, G minor, tense and twisting.
 ```
 
 </details>

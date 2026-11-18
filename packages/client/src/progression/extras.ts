@@ -665,6 +665,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/shadows-in-the-night/villain-loses.mp3": "First Light on the Rooftops",
   "scenarios/shadow-labyrinth/battle.mp3": "Labyrinth of Blades",
   "scenarios/shadow-labyrinth/villain-wins.mp3": "No Way Out",
+  "scenarios/shadow-labyrinth/villain-loses.mp3": "The Way Out Found",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
