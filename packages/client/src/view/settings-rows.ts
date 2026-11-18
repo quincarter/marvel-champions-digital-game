@@ -1216,6 +1216,12 @@ export function renderScaleRowInfoOf(
 }
 
 /** `settings` with the render scale set; a value that is not one of the four changes nothing. */
+/** Whether Settings draws the Render scale row (and so whether a search can find it): a 1x screen has nothing below
+ * Native to offer, so the row is left out there. */
+export function renderScaleRowShown(info: { readonly options: readonly unknown[] }): boolean {
+  return info.options.length > 1;
+}
+
 export function nextSettingsAfterRenderScale(settings: Settings, value: RenderScale): Settings {
   return RENDER_SCALE_VALUES.includes(value) ? { ...settings, renderScale: value } : settings;
 }

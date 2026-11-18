@@ -374,6 +374,8 @@ export type PauseFocusInput =
       readonly confirmingConcede: boolean;
       /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" to the menu. */
       readonly guidedRunActive?: boolean;
+      /** With something typed in the search: the results' stops, in draw order, in place of the cards and the log. */
+      readonly searchResultIds?: readonly string[];
     }
   | {
       readonly kind: "phone";
@@ -386,6 +388,11 @@ export type PauseFocusInput =
       readonly confirmingConcede: boolean;
       /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" ahead of "Table". */
       readonly guidedRunActive?: boolean;
+      /**
+       * With something typed in the search: the results' stops, in draw order, which take the place of everything
+       * between the field and the footer.
+       */
+      readonly searchResultIds?: readonly string[];
     };
 
 /** "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — both entries, only while a guided run is active. */
@@ -404,10 +411,17 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "report",
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["manual-adjust", "concede"]),
-      ...input.keywordIds.map((id) => `keyword:${id}`),
-      ...(input.momentIds ?? []).map((id) => `moment:${id}`),
+      "search",
+      ...(input.searchResultIds ?? [
+        ...input.keywordIds.map((id) => `keyword:${id}`),
+        ...(input.momentIds ?? []).map((id) => `moment:${id}`),
+      ]),
     ];
   }
+  const footer = input.confirmingConcede
+    ? ["concede-confirm-yes", "concede-confirm-cancel"]
+    : ["resume", "save-quit", "concede"];
+  if (input.searchResultIds) return ["close", "search", ...input.searchResultIds, ...footer];
   return [
     "close",
     "search",
@@ -417,9 +431,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
     ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
     ...input.tableRowIds.map((id) => `table:${id}`),
     ...(input.guideRowIds ?? []).map((id) => `guide:${id}`),
-    ...(input.confirmingConcede
-      ? ["concede-confirm-yes", "concede-confirm-cancel"]
-      : ["resume", "save-quit", "concede"]),
+    ...footer,
   ];
 }
 

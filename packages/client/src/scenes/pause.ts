@@ -97,7 +97,30 @@ import { OverlayMotion } from "../ui/transitions.js";
 import type { BoardScene } from "./board.js";
 import { withLevel } from "../guide/guide-prefs.js";
 import { detectPlatform } from "../platform/platform.js";
-import { padAvailable } from "../platform/input-device.js";
+import { inputDevice, padAvailable } from "../platform/input-device.js";
+import { followsWindowsMixer } from "../platform/app-volume.js";
+import { powerSavingOn } from "../platform/power-saving.js";
+import { readConsent } from "../global-stats/global-consent.js";
+import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
+import { heroPromoShown } from "../view/hero-art-choice.js";
+import { SettingsSearchClient } from "../view/settings-search-client.js";
+import type { SettingsSearchEntry, SettingsSearchIndexInput, SettingsSearchResult } from "../view/settings-search.js";
+import {
+  groupPauseResults,
+  pauseResultsContentOf,
+  pauseSettingRowsOf,
+  PauseSearchSession,
+  type PauseResultSlot,
+  type PauseSettingRow,
+} from "../view/pause-search.js";
+import { controlsShown, settingsDeviceRowsFor, settingsTabsFor } from "./settings-env.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
+import { drawSearchResultRow } from "./settings-search-row.js";
+import type { SettingsSceneData } from "./settings.js";
+import type { UnlocksSceneData } from "./unlocks.js";
+import type { SaveDataSceneData } from "./save-data.js";
+import type { ControlsSceneData } from "./controls.js";
+import type { AchievementToastScene } from "./achievement-toast.js";
 
 /** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
@@ -109,6 +132,23 @@ interface QuickReferenceRow {
   /** Shares one line with the other compact rows (Music, Report, Controls): a short title in a cell, no detail, no chevron. */
   readonly compact?: true;
 }
+
+/** Other words a player might search Pause's Reference rows by. Searched, never drawn. */
+const REFERENCE_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
+  villainPhase: ["villain turn", "steps", "order", "phase"],
+  glossary: ["keywords", "terms", "definitions", "status"],
+  cardList: ["encounter sets", "cards", "scenario", "modular"],
+  jumpLog: ["history", "log", "undo", "rewind", "jump to a moment", "what happened"],
+  settings: ["options", "preferences", "all settings"],
+  stats: ["record", "wins", "losses", "win rate"],
+  manualAdjust: ["fix", "edit", "change", "override", "health", "threat", "counters", "bug", "misclick"],
+  music: ["songs", "soundtrack", "jukebox", "player"],
+  report: ["bug", "feedback", "issue", "wrong ruling", "problem"],
+  controls: ["controller", "gamepad", "keyboard", "shortcuts", "buttons"],
+};
+
+/** The rows whose change the music player has to hear about. */
+const MUSIC_ROW_IDS: ReadonlySet<string> = new Set(["sound", "music-shuffle", "music-volume", "effects-volume"]);
 
 /** The wide menu's own Bangers size — smaller than a bar title, still the display face, matching D13's own read of "RESUME"/"SETTINGS" etc. */
 const MENU_BUTTON_TYPE: TypeSpec = { ...typeRole.barTitle, size: 18 };
@@ -124,7 +164,6 @@ export class PauseOverlay extends Phaser.Scene {
   #unsubscribeGuide: (() => void) | null = null;
   #buttons: McButton[] = [];
   #searchInput: McTextInput | null = null;
-  #query = "";
   #route: FocusRoute | null = null;
   #confirmingConcede = false;
   /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
@@ -137,6 +176,15 @@ export class PauseOverlay extends Phaser.Scene {
   /** Phone only — the Guide group's own scroll region (docs/guided-mode.md §4 G2b); `null` on a wide layout, which has no inline Guide group. */
   #lowerRegion: McScrollRegion | null = null;
   #lowerScroll = new VariableListScroll();
+  /**
+   * The search: Settings' own search worker, indexed when the sheet opens (so the first letter typed is answered at
+   * once), and again whenever what the results say may have changed (a resize, a page closing over the sheet).
+   */
+  #searchClient: SettingsSearchClient | null = null;
+  /** What is typed and the worker's answer for it (`view/pause-search.ts`). */
+  #search: PauseSearchSession | null = null;
+  #resultsRegion: McScrollRegion | null = null;
+  #resultsScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.pause);
@@ -147,25 +195,40 @@ export class PauseOverlay extends Phaser.Scene {
     this.#confirmingConcede = false;
     this.#logExpanded = false;
     this.#quickExpanded = false;
-    this.#query = "";
+    this.#searchClient = new SettingsSearchClient();
+    this.#search = new PauseSearchSession(
+      this.#searchClient,
+      () => this.#searchIndexInput(),
+      (newQuery) => {
+        // A new query's list reads from its top; the same query answered again (a setting changed in place) stays
+        // where the player had scrolled to.
+        if (newQuery) this.#resultsScroll = new VariableListScroll();
+        if (this.sys.isActive()) this.#draw();
+      },
+    );
+    this.#resultsScroll = new VariableListScroll();
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
     // The standalone Settings overlay (or another Pause) can change the same live guide prefs while this one is
     // open behind/beside it — redraw so it never shows a stale level/toggle.
-    this.#unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
-    const onResize = (): void => this.#draw();
+    this.#unsubscribeGuide = onGuidePrefsChange(() => {
+      this.#search?.reindex();
+      this.#draw();
+    });
+    const onResize = (): void => {
+      // A resize can change Settings' tabs (and so where a result lives, and which rows there are).
+      this.#reindexSearch();
+      this.#draw();
+    };
     this.scale.on("resize", onResize, this);
+    // Before the route: A, B or Start takes the caret out of the search field (as on Settings).
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.#covered(),
+    );
     this.#route = new FocusRoute(this, {
-      blocked: () =>
-        this.scene.isActive(SCENES.rules) ||
-        this.scene.isActive(SCENES.settings) ||
-        this.scene.isActive(SCENES.playerStats) ||
-        this.scene.isActive(SCENES.manualAdjust) ||
-        // The "This game won't count" warning before a Jump to a moment past a reveal opens over the Board (#791).
-        this.scene.isActive(SCENES.endTurnConfirm) ||
-        this.scene.isActive(SCENES.controls) ||
-        this.scene.isActive(SCENES.inspect) ||
-        (this.#searchInput?.focused ?? false),
+      blocked: () => this.#covered() || (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#confirmingConcede ? this.#setConfirmingConcede(false) : this.#resume()),
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -180,8 +243,32 @@ export class PauseOverlay extends Phaser.Scene {
       this.#buttons = [];
       this.#lowerRegion?.destroy();
       this.#lowerRegion = null;
+      this.#resultsRegion?.destroy();
+      this.#resultsRegion = null;
+      this.#searchClient?.destroy();
+      this.#searchClient = null;
+      this.#search = null;
     });
     this.#draw();
+    // The worker loads the pages it searches on its first message: start it now, so the first letter typed is answered
+    // at once. Off the main thread, like the searching itself.
+    this.#search.reindex();
+  }
+
+  /** True while a page opened from here (or the Board's own warning) is over this sheet and owns the input. */
+  #covered(): boolean {
+    return (
+      this.scene.isActive(SCENES.rules) ||
+      this.scene.isActive(SCENES.settings) ||
+      this.scene.isActive(SCENES.playerStats) ||
+      this.scene.isActive(SCENES.manualAdjust) ||
+      // The "This game won't count" warning before a Jump to a moment past a reveal opens over the Board (#791).
+      this.scene.isActive(SCENES.endTurnConfirm) ||
+      this.scene.isActive(SCENES.controls) ||
+      this.scene.isActive(SCENES.unlocks) ||
+      this.scene.isActive(SCENES.saveData) ||
+      this.scene.isActive(SCENES.inspect)
+    );
   }
 
   /** The music player, over this sheet (the same scene the top bar's note opens). */
@@ -199,7 +286,11 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #toggleFullGameLog(): void {
-    this.#logExpanded = !this.#logExpanded;
+    // The log draws where the results are: from a search, leave it for the log, open whatever it was before.
+    if (this.#search?.searching) {
+      this.#clearSearch();
+      this.#logExpanded = true;
+    } else this.#logExpanded = !this.#logExpanded;
     this.#draw();
   }
 
@@ -294,15 +385,6 @@ export class PauseOverlay extends Phaser.Scene {
   /** Phone only — wide mode's menu links straight to Rules reference/Settings instead of this chevron list. */
   #quickReferenceRows(game: SessionState["game"]): readonly QuickReferenceRow[] {
     const rows: QuickReferenceRow[] = [];
-    const query = this.#query.trim();
-    if (query.length > 0) {
-      rows.push({
-        id: "search",
-        title: `Search "${query}" in the glossary`,
-        detail: "Opens Rules reference, filtered to this.",
-        open: () => this.#openRules({ initialTab: "glossary", initialQuery: query }),
-      });
-    }
     const glossaryCount = game ? rulesGlossaryOf(game, gameDeps()).length : 0;
     const cardListSetCount = game ? scenarioCardListOf(game, gameEncounterSets()).length : 0;
     rows.push(
@@ -336,7 +418,7 @@ export class PauseOverlay extends Phaser.Scene {
         id: "settings",
         title: "Show all settings",
         detail: "Sound, card size, villain phase and more.",
-        open: () => this.scene.launch(SCENES.settings),
+        open: () => this.#launchOver(SCENES.settings, {}),
       },
       {
         id: "stats",
@@ -388,6 +470,8 @@ export class PauseOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#lowerRegion?.destroy();
     this.#lowerRegion = null;
+    this.#resultsRegion?.destroy();
+    this.#resultsRegion = null;
     this.#momentIds = [];
 
     const { store, settings } = appSession();
@@ -395,9 +479,9 @@ export class PauseOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
 
     const allQuickRows = this.#quickReferenceRows(game);
-    // A typed search's row is the way to run it, so the rows stay open while there is a query.
-    const quickReferenceExpanded = this.#quickExpanded || this.#query.trim().length > 0;
-    const quickReferenceRows = quickReferenceExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
+    const quickReferenceRows = this.#quickExpanded ? allQuickRows : allQuickRows.filter((row) => row.compact);
+    // With something typed, the results take everything between the field and the footer (phone) or the right panel (wide).
+    const searching = this.#search?.searching ?? false;
     const tableRows = settingsRowInfoOf(settings);
     const keywordEntries = game ? rulesGlossaryOf(game, gameDeps()) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
@@ -425,15 +509,11 @@ export class PauseOverlay extends Phaser.Scene {
       },
     );
 
-    const kept = layout.kind === "phone" && this.#searchInput ? [this.#searchInput.gameObject] : [];
+    // The field outlives a redraw: rebuilding a DOM <input> mid-keystroke would drop the caret.
+    const kept = this.#searchInput?.gameObjects ?? [];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
-    if (layout.kind === "wide" && this.#searchInput) {
-      // Wide mode has no search field of its own — search lives in the full Rules reference overlay instead.
-      this.#searchInput.destroy();
-      this.#searchInput = null;
-    }
 
     // Dim scrim over the board — the sheet itself paints its own two panels below.
     const scrim = this.add.graphics();
@@ -445,9 +525,10 @@ export class PauseOverlay extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
 
     if (layout.kind === "wide") {
-      this.#drawWide(layout, keywordEntries, game, perspectiveId, config, stops);
+      const resultIds = this.#drawWide(layout, keywordEntries, game, perspectiveId, config, stops, searching);
       this.#route?.set(
         pauseFocusOrder({
+          ...(searching ? { searchResultIds: resultIds } : {}),
           kind: "wide",
           keywordIds: keywordEntries.slice(0, layout.keywordGrid.shown).map((entry) => entry.id),
           momentIds: this.#momentIds,
@@ -457,7 +538,7 @@ export class PauseOverlay extends Phaser.Scene {
         stops,
       );
     } else {
-      const guideRowIds = this.#drawPhone(
+      const { guideRowIds, resultIds } = this.#drawPhone(
         layout,
         quickReferenceRows,
         tableRows,
@@ -466,9 +547,11 @@ export class PauseOverlay extends Phaser.Scene {
         perspectiveId,
         config,
         stops,
+        searching,
       );
       this.#route?.set(
         pauseFocusOrder({
+          ...(searching ? { searchResultIds: resultIds } : {}),
           kind: "phone",
           // The compact cells share the toggle's line, so they come before the rows it opens.
           quickReferenceIds: [
@@ -490,6 +573,8 @@ export class PauseOverlay extends Phaser.Scene {
       );
     }
 
+    // A kept field's ring was first on the list, under the panels drawn since (as in `scenes/settings.ts`).
+    for (const node of kept) this.children.bringToTop(node);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -504,7 +589,8 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: SessionState["perspectiveId"],
     config: SessionState["config"],
     stops: Map<string, FocusStop>,
-  ): void {
+    searching: boolean,
+  ): readonly string[] {
     // A hard offset shadow behind the sheet — the design's own one shadow besides the selection ring.
     const shadow = this.add.graphics();
     shadow
@@ -518,14 +604,15 @@ export class PauseOverlay extends Phaser.Scene {
       .strokeRect(layout.left.x, layout.left.y, layout.left.width, layout.left.height);
     paintDotGrid(this, layout.left, "ink", { spacing: 8, radius: 1, alpha: 0.08 });
 
+    // Searching, the right panel turns ink like the left, the ground the results (and the phone's) are drawn for.
     const rightG = this.add.graphics();
     rightG
-      .fillStyle(surface.paper.hex, 1)
+      .fillStyle(searching ? surface.ink.hex : surface.paper.hex, 1)
       .fillRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
     rightG
-      .lineStyle(4, surface.ink.hex, 1)
+      .lineStyle(4, searching ? surface.paper.hex : surface.ink.hex, 1)
       .strokeRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
-    paintDotGrid(this, layout.right, "paper", { spacing: 6, radius: 1, alpha: 0.1 });
+    paintDotGrid(this, layout.right, searching ? "ink" : "paper", { spacing: 6, radius: 1, alpha: 0.1 });
 
     this.add.text(layout.title.x, layout.title.y, caseOf(typeRole.barTitle, "Paused"), {
       ...textStyle(typeRole.barTitle, surface.paper.hex),
@@ -559,7 +646,7 @@ export class PauseOverlay extends Phaser.Scene {
       this.#openRules({ initialTab: "glossary" satisfies RulesTab }),
     );
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
-      this.scene.launch(SCENES.settings),
+      this.#launchOver(SCENES.settings, {}),
     );
     this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
@@ -604,7 +691,10 @@ export class PauseOverlay extends Phaser.Scene {
       this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
     }
 
+    this.#drawSearchField(layout.search, stops);
+    if (searching) return this.#drawSearchResults(layout.searchResults, stops);
     this.#drawWideRight(layout, entries, game, stops);
+    return [];
   }
 
   #menuButton(
@@ -916,7 +1006,8 @@ export class PauseOverlay extends Phaser.Scene {
     perspectiveId: SessionState["perspectiveId"],
     config: SessionState["config"],
     stops: Map<string, FocusStop>,
-  ): readonly string[] {
+    searching: boolean,
+  ): { readonly guideRowIds: readonly string[]; readonly resultIds: readonly string[] } {
     const panel = this.add.graphics();
     panel
       .fillStyle(surface.ink.hex, 1)
@@ -928,19 +1019,13 @@ export class PauseOverlay extends Phaser.Scene {
 
     this.#drawHeader(layout.header, layout.closeButton, layout.blindSheet, game, perspectiveId, config, stops);
 
-    if (this.#searchInput) this.#searchInput.layout(layout.search);
-    else {
-      this.#searchInput = new McTextInput(this, {
-        rect: layout.search,
-        value: this.#query,
-        placeholder: 'Search rules — "retaliate", "confused"…',
-        onChange: (value) => {
-          this.#query = value;
-          this.#draw();
-        },
-      });
+    this.#drawSearchField(layout.search, stops);
+
+    if (searching) {
+      const resultIds = this.#drawSearchResults(layout.searchResults, stops);
+      this.#drawPhoneFooter(layout, stops);
+      return { guideRowIds: [], resultIds };
     }
-    stops.set("search", { rect: layout.search, activate: () => this.#searchInput?.focus() });
 
     this.#drawQuickReferenceToggle(
       layout.quickReferenceToggle,
@@ -955,13 +1040,437 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.#logExpanded) this.#drawLogBox(layout.lowerViewport, stops);
     else guideStopIds = this.#drawLowerGroup(layout.lowerViewport, layout.lowerContent, tableRows, guideRows, stops);
 
+    this.#drawPhoneFooter(layout, stops);
+    return { guideRowIds: guideStopIds, resultIds: [] };
+  }
+
+  #drawPhoneFooter(layout: PausePhoneLayout, stops: Map<string, FocusStop>): void {
     if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
       this.#button(stops, "resume", "primary", "Resume", layout.resume, () => this.#resume());
       this.#button(stops, "save-quit", "secondary", "Save & quit", layout.saveQuit, () => this.#saveAndQuit());
       this.#button(stops, "concede", "quiet", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
     }
-    return guideStopIds;
+  }
+
+  // ------------------------------------------------------------------------------------------------------------
+  // The search (phone): with something typed, grouped results in place of everything between the field and the
+  // footer (`view/pause-search.ts`). Settings rows change in place; the rest open their page.
+  // ------------------------------------------------------------------------------------------------------------
+
+  /** The one search field, wherever this layout puts it. */
+  #drawSearchField(rect: Rect, stops: Map<string, FocusStop>): void {
+    if (this.#searchInput) this.#searchInput.layout(rect);
+    else {
+      this.#searchInput = new McTextInput(this, {
+        rect,
+        value: this.#search?.query ?? "",
+        placeholder: "Search settings and rules…",
+        onChange: (value) => this.#onQuery(value),
+      });
+    }
+    stops.set("search", { rect, activate: () => this.#searchInput?.focus() });
+  }
+
+  /** Empties the field and the results: the sheet is back to how it opens. */
+  #clearSearch(): void {
+    this.#searchInput?.setValue("");
+    this.#search?.setQuery("");
+  }
+
+  /** Each change drops the last answer at once, so nothing found for an older query is drawn or pressed. */
+  #onQuery(value: string): void {
+    this.#search?.setQuery(value);
+    this.#draw();
+  }
+
+  /** Indexes again, and asks again for what is typed, so the results read what is true now. */
+  #reindexSearch(): void {
+    this.#search?.reindex();
+  }
+
+  /** The Settings rows this device shows and Pause can find, as they read now. */
+  #settingRows(): readonly PauseSettingRow[] {
+    const settings = appSession().settings;
+    return pauseSettingRowsOf(settings, guidePrefs(), {
+      powerSaving: powerSavingOn(),
+      mixer: followsWindowsMixer(),
+      promoShown: heroPromoShown(earnedPromoSets(), settings.promoArtOn),
+      earned: earnedItems(),
+    });
+  }
+
+  /** Pause's own Reference rows, as search entries. */
+  #referenceEntries(): readonly SettingsSearchEntry[] {
+    const { game } = appSession().store.state;
+    return this.#quickReferenceRows(game).map((row) => ({
+      id: `pause:${row.id}`,
+      title: row.title,
+      detail: row.detail,
+      place: "Pause",
+      target: { kind: "pause", id: row.id },
+      ...(REFERENCE_KEYWORDS[row.id] ? { keywords: REFERENCE_KEYWORDS[row.id] } : {}),
+    }));
+  }
+
+  /** What Settings' search worker indexes, with Pause's Settings rows and Reference rows, as they read now. */
+  #searchIndexInput(): SettingsSearchIndexInput {
+    const { width, height } = this.scale.gameSize;
+    const settings = appSession().settings;
+    const { progress, prefs, devUnlockAll, achievementPoints } = unlocks();
+    return {
+      tabs: settingsTabsFor(this.game, width, height, settings, guideRowInfoOf(guidePrefs())),
+      rows: [
+        // The rows Pause has no control for first, so a row Pause can change wins where both name it.
+        ...settingsDeviceRowsFor(this.game, width, height, settings),
+        ...this.#settingRows().map((row) => [row.id, { title: row.title, detail: row.detail }] as const),
+      ],
+      settings,
+      pad: inputDevice().pad,
+      unlocks: { progress, prefs, devUnlockAll, achievementPoints },
+      globalConsent: readConsent(),
+      controls: controlsShown(),
+      extra: this.#referenceEntries(),
+    };
+  }
+
+  /** A stop inside the results' scroll region, as `#lowerStop` is for the Table group's. */
+  #resultsStop(rect: Rect, index: number, activate: () => void): FocusStop {
+    return {
+      rect: () => ({ ...rect, y: rect.y - this.#resultsScroll.offsetPx }),
+      activate,
+      ensureVisible: () => this.#resultsRegion?.scrollIntoView(index),
+    };
+  }
+
+  #resultsClip = (): Rect | null => this.#resultsRegion?.rect ?? null;
+  #resultsSuppressClick = (): boolean => this.#resultsRegion?.isDragSuppressingClick ?? false;
+
+  /**
+   * The grouped results in `room`'s own scroll region: each group's heading, then its rows. Returns the focus stop
+   * ids in draw order. Until the worker first answers for this query, a line says it is searching.
+   */
+  #drawSearchResults(room: Rect, stops: Map<string, FocusStop>): readonly string[] {
+    const results = this.#search?.results ?? null;
+    if (results === null) {
+      this.add
+        .text(room.x, room.y + 14, "Searching…", textStyle(typeRole.body, surface.paper.hex, 0.7))
+        .setFontSize(12);
+      return [];
+    }
+    const query = (this.#search?.query ?? "").trim();
+    const rowsById = new Map(this.#settingRows().map((row) => [row.id as string, row]));
+    type Item = {
+      readonly slot: PauseResultSlot;
+      readonly draw: (rect: Rect, index: number) => readonly string[];
+    };
+    const items: Item[] = [];
+    if (results.length === 0) {
+      items.push({
+        slot: { kind: "link" },
+        draw: (rect) => {
+          this.add
+            .text(
+              rect.x,
+              rect.y + 14,
+              "Nothing in Settings or Pause matches that.",
+              textStyle(typeRole.body, surface.paper.hex, 0.8),
+            )
+            .setFontSize(12)
+            .setWordWrapWidth(rect.width);
+          return [];
+        },
+      });
+    }
+    for (const group of groupPauseResults(results)) {
+      items.push({
+        slot: { kind: "heading" },
+        draw: (rect) => {
+          label(this, rect.x, rect.y + 4, group.title, typeRole.label, surface.paper.hex, ink.secondary);
+          return [];
+        },
+      });
+      for (const result of group.results) {
+        const target = result.entry.target;
+        const row = target.kind === "setting" ? rowsById.get(target.item) : undefined;
+        if (row && row.control.kind === "toggle") {
+          const control = row.control;
+          items.push({
+            slot: { kind: "toggle", detail: row.detail },
+            draw: (rect, index) => [this.#drawResultToggle(rect, row, control, index, stops)],
+          });
+        } else if (row && row.control.kind === "choice") {
+          const control = row.control;
+          items.push({
+            slot: { kind: "choice", detail: row.detail },
+            draw: (rect, index) => this.#drawResultChoice(rect, row, control, index, stops),
+          });
+        } else {
+          items.push({
+            slot: { kind: "link" },
+            draw: (rect, index) => [this.#drawResultLink(rect, result, index, stops)],
+          });
+        }
+      }
+      // The Rules group ends with the way into the full glossary, filtered to what is typed.
+      if (group.id === "rules") {
+        const glossary: SettingsSearchResult = {
+          entry: {
+            id: "pause-glossary-search",
+            title: `Search "${query}" in the glossary`,
+            detail: "Opens Rules reference, filtered to this.",
+            place: "Rules reference",
+            target: { kind: "rules", tab: "glossary", query },
+          },
+          titleRanges: [],
+          detailRanges: [],
+        };
+        items.push({
+          slot: { kind: "link" },
+          draw: (rect, index) => [this.#drawResultLink(rect, glossary, index, stops)],
+        });
+      }
+    }
+
+    const content = pauseResultsContentOf(
+      items.map((item) => item.slot),
+      room.width,
+    );
+    // `clipInteractive`: a row scrolled up under the field must not take a press meant for it (as `#drawLowerGroup`).
+    this.#resultsRegion = new McScrollRegion(this, {
+      rect: room,
+      heights: contentSlotHeights(content.rects),
+      scroll: this.#resultsScroll,
+      clipInteractive: true,
+    });
+    const container = this.#resultsRegion.content;
+    const ids: string[] = [];
+    items.forEach((item, index) => {
+      const at = content.rects[index]!;
+      const rect: Rect = { x: room.x + at.x, y: room.y + at.y, width: at.width, height: at.height };
+      this.#captureInto(container, () => ids.push(...item.draw(rect, index)));
+    });
+    this.#resultsRegion.syncInteractivity();
+    return ids;
+  }
+
+  /** A Settings toggle found by the search, drawn as the Table group draws its rows: a press flips it here. */
+  #drawResultToggle(
+    rect: Rect,
+    row: PauseSettingRow,
+    control: Extract<PauseSettingRow["control"], { kind: "toggle" }>,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): string {
+    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(
+        rect.x,
+        rect.y + 20,
+        row.detail,
+        textStyle(typeRole.body, surface.paper.hex, control.unavailable ? 0.55 : 0.8),
+      )
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+    const toggleRect: Rect = { x: rect.x + rect.width - 86, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const enabled = control.unavailable === undefined;
+    const activate = (): void => {
+      if (enabled) this.#applySetting(row);
+    };
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      enabled,
+      clip: this.#resultsClip,
+      suppressClick: this.#resultsSuppressClick,
+    });
+    this.#buttons.push(
+      new McButton(this, {
+        kind: control.on ? "secondary" : "quiet",
+        label: enabled ? (control.on ? "ON" : "OFF") : "—",
+        type: typeRole.label,
+        rect: toggleRect,
+        enabled,
+        ...(control.unavailable ? { reason: control.unavailable } : {}),
+        selected: control.on,
+        onClick: activate,
+        clip: this.#resultsClip,
+        suppressClick: this.#resultsSuppressClick,
+      }),
+    );
+    if (control.on && enabled) paintOnFrame(this, toggleRect);
+    const id = `result:${row.id}`;
+    stops.set(id, this.#resultsStop(rect, index, activate));
+    return id;
+  }
+
+  /** A Settings choice found by the search: its title and description, then one cell per option, the chosen one in guide yellow. */
+  #drawResultChoice(
+    rect: Rect,
+    row: PauseSettingRow,
+    control: Extract<PauseSettingRow["control"], { kind: "choice" }>,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): readonly string[] {
+    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, row.detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 4);
+    const gap = 4;
+    const EDGE_INSET = 2;
+    const count = control.options.length;
+    const cellWidth = (rect.width - EDGE_INSET - gap * (count - 1)) / count;
+    const top = rect.y + rect.height - hit.target - 6;
+    return control.options.map((option, i) => {
+      const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: top, width: cellWidth, height: hit.target };
+      const selected = control.selected === option.value;
+      const activate = (): void => this.#applySetting(row, option.value);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick: activate,
+          clip: this.#resultsClip,
+          suppressClick: this.#resultsSuppressClick,
+        }),
+      );
+      const g = this.add.graphics();
+      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
+        cellRect.x + 1,
+        cellRect.y + 1,
+        cellRect.width - 2,
+        cellRect.height - 2,
+      );
+      const text = this.add
+        .text(
+          cellRect.x + cellRect.width / 2,
+          cellRect.y + cellRect.height / 2,
+          option.label,
+          textStyle(typeRole.label, selected ? surface.inkOnHue.hex : surface.paper.hex),
+        )
+        .setOrigin(0.5);
+      fitText(text, cellRect.width - 8, typeRole.label.size);
+      const id = `result:${row.id}:${option.value}`;
+      stops.set(id, this.#resultsStop(cellRect, index, activate));
+      return id;
+    });
+  }
+
+  /** A result that opens its page: Settings' own result row (what matched, marked), with a chevron. */
+  #drawResultLink(rect: Rect, result: SettingsSearchResult, index: number, stops: Map<string, FocusStop>): string {
+    drawSearchResultRow(this, { ...rect, width: rect.width - 18 }, result);
+    label(
+      this,
+      rect.x + rect.width - 8,
+      rect.y + rect.height / 2,
+      "›",
+      typeRole.rowTitle,
+      surface.paper.hex,
+      ink.secondary,
+    ).setOrigin(0.5);
+    const activate = (): void => this.#openSearchResult(result.entry);
+    addRowTapZone(this, rect, {
+      onClick: activate,
+      clip: this.#resultsClip,
+      suppressClick: this.#resultsSuppressClick,
+    });
+    const id = `result:${result.entry.id}`;
+    stops.set(id, this.#resultsStop(rect, index, activate));
+    return id;
+  }
+
+  /** A press on a Settings toggle (no `value`) or one of a choice's options, found by the search. */
+  #applySetting(row: PauseSettingRow, value?: string): void {
+    if (!row.apply) return;
+    const before = { settings: appSession().settings, guide: guidePrefs() };
+    const next = row.apply(before, value, drawnDensity());
+    if (next.settings !== before.settings) {
+      if (row.id === "sharper-text") applyTextResolution(next.settings);
+      if (MUSIC_ROW_IDS.has(row.id)) appSession().music?.syncSettings(next.settings);
+      appSession().settings = next.settings;
+      applyEarnedItems();
+      // A sample at the new level, and the popup where it now shows, as Settings does.
+      if (row.id === "effects-volume") appSession().music?.playEffect("basic-attack");
+      if (row.id.startsWith("achievement-popup-"))
+        (this.scene.get(SCENES.achievementToast) as AchievementToastScene | null)?.preview();
+    }
+    // The guide store's own change event indexes again and redraws this sheet.
+    if (next.guide !== before.guide) setGuidePrefs(next.guide);
+    else {
+      this.#search?.reindex();
+      this.#draw();
+    }
+  }
+
+  /** Opens `key` over this sheet, which takes no input until it closes (its panel sits over this one's rows). */
+  #launchOver(key: string, data: object): void {
+    if (this.scene.isActive(key)) return;
+    this.input.enabled = false;
+    this.scene.launch(key, data);
+    this.scene.bringToTop(key);
+    this.scene.get(key).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+      if (!this.sys.isActive()) return;
+      this.#reindexSearch();
+      this.#draw();
+    });
+  }
+
+  /** A press on a result with no control of its own: its page, on the spot it was found. */
+  #openSearchResult(entry: SettingsSearchEntry): void {
+    this.#searchInput?.blur();
+    const target = entry.target;
+    switch (target.kind) {
+      case "setting":
+        this.#launchOver(SCENES.settings, {
+          focus: { item: target.item, tab: target.tab },
+        } satisfies SettingsSceneData);
+        return;
+      case "rules":
+        this.#openRules({
+          initialTab: target.tab,
+          initialScope: "all",
+          ...(target.query !== undefined ? { initialQuery: target.query } : {}),
+        });
+        return;
+      case "unlocks":
+        this.#launchOver(SCENES.unlocks, {
+          ...(target.row !== undefined ? { row: target.row } : {}),
+          ...(target.guideSection !== undefined ? { guideSection: target.guideSection } : {}),
+        } satisfies UnlocksSceneData);
+        return;
+      case "saveData":
+        this.#launchOver(SCENES.saveData, { row: target.row } satisfies SaveDataSceneData);
+        return;
+      case "controls":
+        this.#launchOver(SCENES.controls, { tab: target.tab } satisfies ControlsSceneData);
+        return;
+      case "stats":
+        if (!this.scene.isActive(SCENES.playerStats))
+          this.scene.launch(SCENES.playerStats, {
+            from: SCENES.pause,
+            overlay: true,
+            tab: target.tab,
+          } satisfies PlayerStatsData);
+        return;
+      case "pause":
+        if (target.id === "jumpLog") {
+          this.#toggleFullGameLog();
+          return;
+        }
+        this.#quickReferenceRows(appSession().store.state.game)
+          .find((row) => row.id === target.id)
+          ?.open?.();
+        return;
+    }
   }
 
   #drawHeader(

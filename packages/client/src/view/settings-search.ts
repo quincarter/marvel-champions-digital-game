@@ -8,6 +8,7 @@
  * matched: the letters typed, else the word one typo away, else the letters in order across a name.
  */
 import {
+  droppedLettersOf,
   editDistance,
   isSubsequence,
   normalizeText,
@@ -55,7 +56,9 @@ export type SettingsSearchTarget =
   | { readonly kind: "unlocks"; readonly row?: string; readonly guideSection?: number }
   | { readonly kind: "saveData"; readonly row: string }
   | { readonly kind: "controls"; readonly tab: ControlsTab }
-  | { readonly kind: "stats"; readonly tab: StatsTab };
+  | { readonly kind: "stats"; readonly tab: StatsTab }
+  /** One of Pause's own Reference rows (`scenes/pause.ts`), by its id there: only Pause's search indexes these. */
+  | { readonly kind: "pause"; readonly id: string };
 
 export interface SettingsSearchEntry {
   readonly id: string;
@@ -64,7 +67,43 @@ export interface SettingsSearchEntry {
   /** Where it lives, as a player would say it: "Unlocks ▸ How it works". */
   readonly place: string;
   readonly target: SettingsSearchTarget;
+  /** Other words a player might search for it by ("rewind" for Undo): searched, never drawn. */
+  readonly keywords?: readonly string[];
 }
+
+/**
+ * Words a player might type for a setting that its title and description do not say. Searched with the description,
+ * never drawn, so they can be loose: "zoom" finds Card size, "rewind" finds Undo past your turn.
+ */
+export const SETTINGS_KEYWORDS: Partial<Readonly<Record<SettingsItemId, readonly string[]>>> = {
+  "undo-past-turn": ["undo", "rewind", "take back", "go back", "mistake", "misclick", "house rule"],
+  "confirm-end-turn": ["end turn", "accidental", "prompt", "are you sure"],
+  "card-size": ["zoom", "bigger", "smaller", "scale", "readable", "tiny"],
+  "large-card-text": ["font", "text size", "readable", "accessibility", "bigger text"],
+  "reduced-motion": ["animation", "motion sickness", "accessibility", "faster", "skip animation"],
+  "sharper-text": ["blurry", "crisp", "fuzzy", "resolution", "font"],
+  "dark-mode": ["theme", "night", "colours", "colors", "light mode"],
+  sound: ["audio", "mute", "music", "effects", "quiet"],
+  "music-volume": ["audio", "loud", "quiet", "mute", "soundtrack"],
+  "effects-volume": ["audio", "sfx", "sound effects", "loud", "quiet", "mute"],
+  "music-shuffle": ["random", "playlist", "songs"],
+  "villain-auto": ["villain turn", "automatic", "auto play", "skip", "wait"],
+  "villain-speed": ["fast", "slow", "animation speed", "villain turn"],
+  "villain-flip-speed": ["fast", "slow", "encounter cards", "reveal"],
+  "villain-hold": ["pause", "wait", "encounter cards", "read"],
+  "villain-flip": ["reveal", "encounter cards", "animation"],
+  "villain-dock": ["villain turn", "panel", "window", "table"],
+  "token-motion": ["first player", "animation"],
+  "card-hover": ["mouse", "popover", "preview", "zoom"],
+  "inspect-card": ["long press", "zoom", "preview", "portrait"],
+  "hover-hero": ["mouse", "popover", "preview"],
+  "hover-villain": ["mouse", "popover", "preview"],
+  "deck-counts-hero": ["cards left", "deck size", "remaining"],
+  "deck-counts-encounter": ["cards left", "deck size", "remaining"],
+  "deck-boost-average": ["boost", "odds", "average"],
+  "guide-level": ["tutorial", "hints", "help", "beginner", "coach"],
+  "play-area-order": ["sort", "arrange", "layout"],
+};
 
 /** A Settings row, as the scene knows it (its title and detail depend on what it can draw on this device). */
 export interface SettingsRowText {
@@ -93,6 +132,7 @@ export function settingsRowEntriesOf(
             detail: row.detail,
             place: `Settings ▸ ${tab.label}`,
             target: { kind: "setting", item, tab: tab.id } satisfies SettingsSearchTarget,
+            ...(SETTINGS_KEYWORDS[item] ? { keywords: SETTINGS_KEYWORDS[item] } : {}),
           },
         ];
       }),
@@ -259,7 +299,7 @@ export function searchDocumentsOf(entries: readonly SettingsSearchEntry[]): read
   return entries.map((entry) => ({
     id: entry.id,
     primary: [entry.title],
-    secondary: [entry.detail],
+    secondary: [entry.detail, ...(entry.keywords ?? [])],
     notes: [entry.place],
   }));
 }
@@ -305,6 +345,8 @@ function tokenRanges(token: string, folded: string, loose: boolean): readonly Te
     );
     if (close.length > 0) return close.map(({ start, end }) => ({ start, end }));
   }
+  const shorthand = words.filter(({ word }) => droppedLettersOf(token, word));
+  if (shorthand.length > 0) return shorthand.map(({ start, end }) => ({ start, end }));
   if (!loose || token.length < 5 || folded[0] !== token[0] || !isSubsequence(token, folded)) return [];
   const letters: TextRange[] = [];
   let next = 0;
@@ -345,6 +387,8 @@ export interface SettingsSearchIndexInput {
   readonly unlocks: UnlocksInput;
   readonly globalConsent: GlobalConsent;
   readonly controls: boolean;
+  /** Entries of the caller's own, searched with the rest (Pause's Reference rows). */
+  readonly extra?: readonly SettingsSearchEntry[];
 }
 
 /** A match, with which letters of its title and description to mark. */
@@ -374,6 +418,7 @@ export class SettingsSearchHost {
     const entries = [
       ...settingsRowEntriesOf(input.tabs, new Map(input.rows)),
       ...nestedPageEntriesOf({ settings, unlocks: new Unlocks(input.unlocks), family, swap, globalConsent, controls }),
+      ...(input.extra ?? []),
     ];
     this.#entries = new Map(entries.map((entry) => [entry.id, entry]));
     this.#documents = prepareDocuments(searchDocumentsOf(entries));

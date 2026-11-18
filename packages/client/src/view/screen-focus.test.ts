@@ -455,6 +455,26 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(true, [])).toEqual(["continue", "skip"]);
   });
 
+  test("Pause (phone) searching reads close, search, the results, then the footer", () => {
+    expect(
+      pauseFocusOrder({
+        kind: "phone",
+        quickReferenceIds: ["glossary"],
+        tableRowIds: ["sound"],
+        searchResultIds: ["result:undo-past-turn:allow", "result:pause:jumpLog"],
+        confirmingConcede: false,
+      }),
+    ).toEqual([
+      "close",
+      "search",
+      "result:undo-past-turn:allow",
+      "result:pause:jumpLog",
+      "resume",
+      "save-quit",
+      "concede",
+    ]);
+  });
+
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(
       pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
@@ -513,7 +533,7 @@ describe("screen focus routes", () => {
     expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
   });
 
-  test("Pause (wide, D13) reads the left menu top to bottom, then the keyword grid", () => {
+  test("Pause (wide, D13) reads the left menu top to bottom, the search, then the keyword grid", () => {
     expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual([
       "resume",
       "full-game-log",
@@ -525,6 +545,7 @@ describe("screen focus routes", () => {
       "report",
       "manual-adjust",
       "concede",
+      "search",
     ]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
       "resume",
@@ -537,9 +558,19 @@ describe("screen focus routes", () => {
       "report",
       "manual-adjust",
       "concede",
+      "search",
       "keyword:guard",
       "keyword:stunned",
     ]);
+    expect(
+      pauseFocusOrder({
+        kind: "wide",
+        keywordIds: ["guard"],
+        momentIds: ["l1"],
+        searchResultIds: ["result:card-size:large"],
+        confirmingConcede: false,
+      }).slice(-2),
+    ).toEqual(["search", "result:card-size:large"]);
   });
 
   test("Pause (wide) adds Stop tutorial/Turn guide off after Save & quit only while guidedRunActive (§3.10, G5c part 3)", () => {
@@ -558,6 +589,7 @@ describe("screen focus routes", () => {
       "guide-turn-guide-off",
       "manual-adjust",
       "concede",
+      "search",
       "keyword:guard",
     ]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).not.toContain(
