@@ -168,6 +168,12 @@ PY
 # The game shows these MC_UPDATE lines' meaning on screen (packages/client/src/view/steam-update.ts). Steam isn't
 # touched: the entry already points at the AppImage's path, and Steam may be what started the game.
 if [ "$update" = 1 ]; then
+  # The AppImage the record names: Add to Steam (--keep-game) records the game where the player keeps it.
+  recorded="$(marker_value game)"
+  if [ -n "$recorded" ]; then
+    INSTALLED="$recorded"
+    INSTALL_DIR="$(dirname "$recorded")"
+  fi
   [ -n "$language" ] || language="$(marker_value language)"
   lookup_latest || die "couldn't find the latest release on GitHub."
   if [ -x "$INSTALLED" ] && [ "$(marker_value version)" = "$latest_version" ] &&
@@ -464,6 +470,15 @@ fi
 
 [ -f "$appimage" ] || die "$appimage doesn't exist."
 appimage="$(cd "$(dirname "$appimage")" && pwd)/$(basename "$appimage")"
+# The library art's icon lives beside the game, so the shortcut keeps it if Steam's grid folder is cleared.
+ICON_DIR="$INSTALL_DIR"
+if [ -n "$keep_game" ]; then
+  # Add to Steam from the game: the entry points at the AppImage the player runs, where it is, rather than a copy that
+  # could replace (or downgrade) one installed here before. The icon goes in the state folder, not beside it.
+  INSTALLED="$appimage"
+  INSTALL_DIR="$(dirname "$appimage")"
+  ICON_DIR="$STATE_DIR"
+fi
 mkdir -p "$INSTALL_DIR"
 if [ "$appimage" != "$INSTALLED" ]; then
   say "Installing $(basename "$appimage") to $INSTALLED"
@@ -491,7 +506,8 @@ if [ "$art_dir" = "$tmp_dir/art" ]; then
   fi
 fi
 # The icon also lives beside the game, so the shortcut keeps it even if Steam's grid folder is cleared.
-[ -f "$art_dir/icon.png" ] && cp -f "$art_dir/icon.png" "$INSTALL_DIR/icon.png"
+mkdir -p "$ICON_DIR"
+[ -f "$art_dir/icon.png" ] && cp -f "$art_dir/icon.png" "$ICON_DIR/icon.png"
 
 # --- Launch options --------------------------------------------------------------------------------------------------
 
@@ -536,7 +552,7 @@ fi
 for user in "${users[@]}"; do
   config="$steam_root/userdata/$user/config"
   icon=""
-  [ -f "$INSTALL_DIR/icon.png" ] && icon="$INSTALL_DIR/icon.png"
+  [ -f "$ICON_DIR/icon.png" ] && icon="$ICON_DIR/icon.png"
   result="$(vdf_tool add "$config/shortcuts.vdf" "$INSTALLED" "$APP_NAME" "$INSTALL_DIR" "$icon" "$launch" "$drop")"
   IFS=$'\t' read -r id written replaced <<< "$result"
   grid="$config/grid"
