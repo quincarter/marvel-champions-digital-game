@@ -6,14 +6,14 @@ A small release with a big soundtrack. Kingpin, all three Shadowland scenarios (
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.50.0/index.es.html)**
 
-![The numbers: 33 tracks in this release, 212 songs in the jukebox and 10 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
+![The numbers: 33 tracks in this release, 212 songs in the jukebox and 10 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
 
-![Hell's Kitchen has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-hell-s-kitchen-has-a-soundtrack.jpg)
+![Hell's Kitchen has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-hell-s-kitchen-has-a-soundtrack.jpg)
 
-![Your mods, on Discord: the website's downloads that Get the game opens, and Gwenpool and Mephisto from the Mod Store](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-your-mods-on-discord.jpg)
+![Your mods, on Discord: the website's downloads that Get the game opens, and Gwenpool and Mephisto from the Mod Store](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-your-mods-on-discord.jpg)
 
-![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-also-in-v0-50-0.jpg)
+![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-also-in-v0-50-0.jpg)
 
-![Thank you to Patatasaurio, Neptune (Typhon00) and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-thank-you.jpg)
+![Thank you to Patatasaurio, Neptune (Typhon00) and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-thank-you.jpg)
 
-![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/d4dcf8c68993dac075066229c7c530ad50c75996/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-code-shipped.jpg)
+![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0fae960db24474e87525fa3765832861d220de22/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-code-shipped.jpg)
