@@ -42,10 +42,13 @@ esac
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/mc-update.XXXXXX")"
 mounted=""
+# The AppImage's download, made beside it under a name of this run's own (mktemp), so the swap is a rename on one disk
+# and no file the player or another updater left there is written over or removed. Empty until it exists.
+staged_appimage=""
 cleanup() {
   if [ -n "$mounted" ]; then hdiutil detach -quiet "$mounted" 2> /dev/null || true; fi
   rm -rf "$tmp"
-  rm -f "$game.new"
+  if [ -n "$staged_appimage" ]; then rm -f "$staged_appimage"; fi
   [ "$kind" != dmg ] || rm -rf "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
 }
 trap cleanup EXIT
@@ -67,8 +70,8 @@ fi
 
 printf 'Downloading version %s...\n' "$version"
 if [ "$kind" = appimage ]; then
-  # Beside the game, so the swap is a rename on one disk.
-  download="$game.new"
+  staged_appimage="$(mktemp "$parent/.$(basename "$game").update.XXXXXX")" || die "$parent can't be written to."
+  download="$staged_appimage"
 else
   download="$tmp/update.$kind"
 fi
@@ -136,8 +139,9 @@ install_package() {
 install() {
   if [ "$kind" = appimage ]; then
     # rename(2) puts the new AppImage over the old in one step: at every moment one of them is the game.
-    chmod +x "$download" || return 1
+    chmod 755 "$download" || return 1
     mv -f "$download" "$game" || give_up "the new AppImage couldn't be put in place, so the game is unchanged."
+    staged_appimage=""
     return
   fi
   if [ "$kind" = deb ] || [ "$kind" = rpm ]; then
