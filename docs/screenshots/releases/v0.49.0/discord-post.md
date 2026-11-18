@@ -14,7 +14,7 @@ A misclick or a bug no longer has to cost you the game.
 Both Undo and Manual adjust came from sgaon42's request. Thank you, bluefireF5ran, and everyone who reported!
 
 Full report: https://champions-digital-game.com/releases/v0.49.0/
-Downloads: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.49.0
+Downloads: https://champions-digital-game.com/#download
 
 # v0.49.0: El parche más poderoso de la Tierra 🛡️
 
@@ -32,4 +32,4 @@ Un clic equivocado o un error ya no tienen por qué costarte la partida.
 Undo y Manual adjust nacen de la petición de sgaon42. ¡Gracias, bluefireF5ran, y a todos los que reportaron!
 
 Informe completo: https://champions-digital-game.com/releases/v0.49.0/index.es.html
-Descargas: https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.49.0
+Descargas: https://champions-digital-game.com/#download
