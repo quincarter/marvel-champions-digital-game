@@ -85,18 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Shadowland
 
-## Shadowland campaign interlude
-
-Track: **Before the Tower** (`campaigns/shadowland/interlude.mp3`).
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Campaign interlude, about 2 minutes, loops: the heroes catch their breath in the shadow of the black fortress, each feeling the darkness creeping into them. Uneasy calm: a soft low taiko heartbeat, a slow shakuhachi-style flute motif, quiet sustained strings with an eerie shimmer, a distant temple-bell tone. No big drums, no climax, steady so it can loop under menus. About 70 BPM, A minor with brief turns to C major.
-
-Title: "Before the Tower"
-```
-
 ## Shadowland campaign finale
 
 Track: **The Shadow Lifts** (`campaigns/shadowland/finale.mp3`).
@@ -157,7 +145,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Shadowland campaign interlude: `campaigns/shadowland/interlude.mp3`
 - Shadowland campaign finale: `campaigns/shadowland/finale.mp3`
 - The Wrecking Crew: `scenarios/breakout/`
 - Kang: `scenarios/kang/`
@@ -493,6 +480,18 @@ Tracks: **The Beast at the Heart** (battle), **Shadowland Rises** (villain wins)
 
 ```text
 A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. At the fortress's core a monstrous demon beast rises, feeding on the darkness that has crept into the heroes themselves. Demonic finale battle: crushing taiko and timpani, a huge dark choir-like synth wall, a grinding low-brass beast theme, desperate heroic strings and horns clawing upward, shamisen-like flurries. About 104 BPM, C minor, colossal and terrifying.
+```
+
+## Shadowland campaign interlude
+
+Track: **Before the Tower** (`campaigns/shadowland/interlude.mp3`).
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign interlude, about 2 minutes, loops: the heroes catch their breath in the shadow of the black fortress, each feeling the darkness creeping into them. Uneasy calm: a soft low taiko heartbeat, a slow shakuhachi-style flute motif, quiet sustained strings with an eerie shimmer, a distant temple-bell tone. No big drums, no climax, steady so it can loop under menus. About 70 BPM, A minor with brief turns to C major.
+
+Title: "Before the Tower"
 ```
 
 </details>
