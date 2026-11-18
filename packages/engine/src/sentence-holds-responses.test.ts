@@ -559,3 +559,96 @@ describe("a response that cannot be used, while a sentence holds its responses (
     expect(notOfferedCount(SENTENCE.card)).toBe(1);
   });
 });
+
+/**
+ * An event returned to hand during the early round (#804) is a fresh copy that may answer the same occurrence again
+ * (RRG 1.8 "Response", p. 38; FFG ruling, RRG 1.0-1.4 rulings, Ms. Marvel's Wiggle Room). The early round still offers
+ * only what answers a group no forced response answers (RRG 1.8 p. 5 chart), and a returned copy declined there is
+ * offered again after the forced tier, as any early candidate is.
+ */
+describe("an event returned to hand in the early round of a sentence's window (#804)", () => {
+  const markOf = (counterType: string): EffectSpec => ({
+    kind: "addCounters",
+    target: { kind: "identityOf", player: { kind: "controller" } },
+    counterType,
+    amount: { kind: "const", value: 1 },
+  });
+  /**
+   * Echo, an event: "Response: After the villain takes damage, …" and "Response: After threat is placed on the main
+   * scheme, …".
+   */
+  const ECHO_DAMAGE = stubAbility("echo.damage-response", {
+    trigger: { kind: "response", forced: false, on: { on: "dealDamage", targetIs: { categories: ["villain"] } } },
+    effects: [markOf("echo")],
+  } satisfies AbilityDefinition);
+  const ECHO_THREAT = stubAbility("echo.threat-response", {
+    trigger: { kind: "response", forced: false, on: { on: "placeThreat", targetIs: { categories: ["mainScheme"] } } },
+    effects: [markOf("echo")],
+  } satisfies AbilityDefinition);
+  const ECHO = stubEvent({ id: "echo", cost: 0, abilities: [ECHO_DAMAGE.ref, ECHO_THREAT.ref] });
+  /** Recall: "Response: After you play an event, exhaust Recall → return that event to your hand." */
+  const RECALL_RESPONSE = stubAbility("recall.response", {
+    trigger: {
+      kind: "response",
+      forced: false,
+      on: { on: "cardPlayed", targetIs: { categories: ["event"] }, playerIs: "controller" },
+    },
+    cost: { exhaustSelf: true },
+    effects: [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "eventTarget" } }, to: "hand" }],
+  } satisfies AbilityDefinition);
+  const RECALL = stubSupport({ id: "recall", cost: 0, abilities: [RECALL_RESPONSE.ref] });
+  /** "Place 1 threat on the main scheme and deal 1 damage to the villain." */
+  const MIXED = actionEvent("mixed", [
+    {
+      kind: "sentence",
+      effects: [place(1), { kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 1 } }],
+    },
+  ]);
+  const returnDeps = depsOf(TALLY, ECHO_DAMAGE, ECHO_THREAT, RECALL_RESPONSE, MIXED.ability);
+
+  it("offered again early for its forced-free group only, and again after the forced tier when declined", () => {
+    let state = gameAtFirstTurn({
+      cards: [TALLIER, RECALL, ECHO, MIXED.card],
+      deps: returnDeps,
+      deck: [TALLIER.id, RECALL.id, ECHO.id, MIXED.card.id],
+    });
+    state = playerCardIntoPlay(state, TALLIER.id as never).state;
+    state = playerCardIntoPlay(state, RECALL.id as never).state;
+    state = giveCard(state, P1, ECHO.id as never).state;
+    const given = giveCard(state, P1, MIXED.card.id as never);
+    const identity = mustPlayer(given.state, P1).identity.instanceId;
+    const offers: string[][] = [];
+    let echoed = false;
+    const pick = (current: GameState): readonly string[] => {
+      const choice = current.pendingChoice;
+      if (choice?.prompt.kind !== "chooseTriggers") return defaultPick(current);
+      const ids = choice.options.map((option) => option.optionId);
+      offers.push(ids.map((id) => id.split(":").slice(1).join(":")));
+      // Echo for the damage once, Recall whenever offered, nothing else.
+      return ids.filter((id) => {
+        if (id.endsWith(":recall.response")) return true;
+        if (!echoed && id.endsWith(":echo.damage-response")) return (echoed = true);
+        return false;
+      });
+    };
+    const { events } = driveSession(
+      startSession(given.state),
+      returnDeps,
+      [{ type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }],
+      pick,
+    );
+    const log = events.flatMap((event: GameEvent) =>
+      event.type === "counterAdded" && event.instanceId === identity ? [event.counterType] : [],
+    );
+    expect(offers).toEqual([
+      // The early round: the damage group, which no forced response answers.
+      ["echo.damage-response"],
+      ["recall.response"],
+      // Returned: offered again in the early round, for the damage group only (the placement's forced tally first).
+      ["echo.damage-response"],
+      // Declined there: offered again after the forced tally, with its answer to the placement.
+      ["echo.threat-response", "echo.damage-response"],
+    ]);
+    expect(log).toEqual(["echo", "tally"]);
+  });
+});

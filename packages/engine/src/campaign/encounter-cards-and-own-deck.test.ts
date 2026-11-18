@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import { CORE_CARDS, campaignId, cardId, scenarioId, type AnyCard, type PlayModes, type PlayerCard } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult, CampaignLog, LogWriteSpec } from "../campaign.js";
+import type { GameEvent } from "../events.js";
 import type { InstanceId } from "../ids.js";
 import { stubTreachery } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
@@ -170,6 +171,36 @@ describe("CampaignGameQuery.cardsInEncounterDeckAndDiscard (MC32 pp. 7/10/12/16)
     expect(second).toEqual(first);
     expect(first.records[0]?.write.distinct).toBe(true);
     expect(fold(definition, log, second)).toEqual(fold(definition, log, first));
+  });
+});
+
+describe("CampaignGameQuery.cardsThatEnteredPlay (MC10 p. 5)", () => {
+  // fp-3 entered play, left, and entered again: one physical card, two entries in the event stream.
+  const state = finishedGame();
+  const fp3 = state.villainArea.find((id) => state.instances[id]?.cardId === "fp-3")!;
+  const entered: GameEvent = {
+    type: "triggerEvent",
+    phase: "resolved",
+    event: { kind: "cardEntersPlay", instanceId: fp3, playerId: null },
+  };
+  const recordedWith = (distinct: boolean) => {
+    const definition = record([
+      {
+        field: "found",
+        mode: "append",
+        value: { kind: "cardsThatEnteredPlay", query: FP_QUERY, ...(distinct ? { distinct: true as const } : {}) },
+      },
+    ]);
+    const result = campaignResultOf(definition, composedLog(definition), state, [entered, entered], DEFAULT_DEPS);
+    return result.records[0]?.write.value;
+  };
+
+  it("keeps every entry by default (a card that entered play twice is listed twice)", () => {
+    expect(recordedWith(false)).toEqual({ kind: "cardList", cardIds: ["fp-3", "fp-3"] });
+  });
+
+  it("with `distinct`, lists each card once however often it entered play", () => {
+    expect(recordedWith(true)).toEqual({ kind: "cardList", cardIds: ["fp-3"] });
   });
 });
 

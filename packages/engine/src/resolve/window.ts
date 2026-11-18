@@ -255,6 +255,42 @@ function lateCandidates(ctx: Ctx, frame: Frame<"window">, would: boolean): reado
   return windowCandidates(ctx, frame, false, would).filter((candidate) => listening.has(keyOf(candidate)));
 }
 
+/**
+ * The events this window played (`eventsPlayed`) that are back in a hand once the picked abilities have resolved,
+ * offered again for the same occurrence: Morphogenetics (05001a) returning the Turn the Tide or Wiggle Room it answered
+ * (#804). RRG 1.8 "Response" (p. 38) and "Triggering Condition" (p. 45) limit each ability to one use per occurrence
+ * per card, and several copies may each answer the same condition; FFG ruling (RRG 1.0-1.4 rulings, Ms. Marvel: Wiggle
+ * Room retrieved with Morphogenetics "can be played again in response to the same instance. It's the same as if you
+ * had 2 copies"). An event that was played and came back is a new copy, so its one use is not spent. Every play the
+ * window made is recorded, from a hand or as if from one (the top of a deck, a tuck, an attachment), but only one found
+ * in a hand again is offered. A card in play that used its ability stays used for the occurrence (its candidate left
+ * `pending` when picked and is never gathered again). None already among `pending`, by card, ability and player.
+ * In the early round of a window with several condition groups (`offerEarlyOptional`), only one answering a group no
+ * forced response answers: forced before optional (RRG 1.8 p. 5 chart).
+ */
+function returnedToHandCandidates(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  pending: readonly TriggerCandidate[],
+): readonly TriggerCandidate[] {
+  const played = new Set(frame.eventsPlayed ?? []);
+  if (played.size === 0) return [];
+  const keyOf = (candidate: TriggerCandidate): string =>
+    `${useKey(candidate)}|${candidate.fromHand === true ? "hand" : ""}`;
+  const offered = new Set(pending.map(keyOf));
+  const groups = frame.earlyOptional === "offering" ? frame.conditionGroups : undefined;
+  const forcedGroups = groups ? groupsWithForced(ctx, frame, groups) : undefined;
+  return windowCandidates(ctx, frame, false, frame.wouldTier !== undefined).filter(
+    (candidate) =>
+      candidate.fromHand === true &&
+      played.has(candidate.instanceId) &&
+      !offered.has(keyOf(candidate)) &&
+      !(groups && forcedGroups?.has(groupOf(groups, candidate))) &&
+      conditionStillMet(ctx, frame, candidate) &&
+      stillOffered(ctx.state, ctx.deps, candidate, answered(ctx, frame, candidate).event),
+  );
+}
+
 /** The faceup face of each double-sided card in play: `Frame<"window">.facesAtOpen`. */
 function facesInPlay(state: GameState): Readonly<Record<InstanceId, boolean>> {
   const faces: Record<InstanceId, boolean> = {};
@@ -434,6 +470,12 @@ const optionIdOf = (candidate: TriggerCandidate, among: readonly TriggerCandidat
   return twinned ? `${plain}@${candidate.sharedEvent.index}` : plain;
 };
 
+/** `frame` without `candidate`'s card in `eventsPlayed`, when it is an event from a hand that the window played before. */
+function consumeReturn(frame: Frame<"window">, candidate: TriggerCandidate): Frame<"window"> {
+  if (candidate.fromHand !== true || !(frame.eventsPlayed ?? []).includes(candidate.instanceId)) return frame;
+  return { ...frame, eventsPlayed: (frame.eventsPlayed ?? []).filter((id) => id !== candidate.instanceId) };
+}
+
 export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.answer) return absorbWindowAnswer(ctx, frame, frame.answer);
   // RRG "Interrupt": once an interrupt cancels or replaces the imminent event,
@@ -450,8 +492,12 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.queue.length > 0) {
     const [next, ...rest] = frame.queue;
     if (!next) throw new EngineInvariantError("empty trigger queue");
+    // A returned event picked again has had its new opportunity: it counts as played again only once the play goes
+    // through (`playWindowEvent`), so backing out of its cost, or dropping it below, does not offer it a third time
+    // (review of #824).
+    const picking = consumeReturn(frame, next);
     // Its event was cancelled or replaced by an interrupt that resolved first (a shared window, §4.1 Q33 of wave 5).
-    if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...frame, queue: rest });
+    if (!stillImminent(ctx, frame, next)) return setFrame(ctx, { ...picking, queue: rest });
     // The damage it answers was changed by an interrupt that resolved first, and no longer meets its condition.
     if (!conditionStillMet(ctx, frame, next)) {
       emit(ctx, {
@@ -460,34 +506,42 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
         abilityId: next.abilityId,
         event: answered(ctx, frame, next).event,
       });
-      return setFrame(ctx, { ...frame, queue: rest });
+      return setFrame(ctx, { ...picking, queue: rest });
     }
     // A response to a card's discard from a deck, chosen before an earlier response in the queue moved that card: it
     // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
     // One that answers several discards at once (`EventPattern.together`) still has the others to act on.
     const answering = next.together ?? [answered(ctx, frame, next).event];
     if (answering.every((each) => each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)))
-      return setFrame(ctx, { ...frame, queue: rest });
+      return setFrame(ctx, { ...picking, queue: rest });
     // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).
-    if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...frame, queue: rest });
-    if (askCostPick(ctx, frame, next, rest)) return;
-    if (askHandDiscard(ctx, frame, next, rest)) return;
-    if (askCostCounters(ctx, frame, next, rest)) return;
-    if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
-    return triggerCandidate(ctx, { ...frame, queue: rest }, next);
+    if (candidateDefenseBar(ctx.state, ctx.deps, next) !== null) return setFrame(ctx, { ...picking, queue: rest });
+    if (askCostPick(ctx, picking, next, rest)) return;
+    if (askHandDiscard(ctx, picking, next, rest)) return;
+    if (askCostCounters(ctx, picking, next, rest)) return;
+    if (next.fromHand) return requestWindowPayment(ctx, picking, next, rest);
+    return triggerCandidate(ctx, { ...picking, queue: rest }, next);
   }
   // A player picked some of the optional abilities offered and they have resolved: the window is not declined, so the
   // rest are offered again, to every player with one left (`pickedThisRound`). One that can no longer be initiated
   // (its card is gone, its cost or target is) is dropped, as it is after the forced tier.
   if (frame.pickedThisRound) {
-    const { pickedThisRound: _resolved, ...settled } = frame;
-    const remaining = frame.pending.filter(
+    const { pickedThisRound: _resolved, ...unpicked } = frame;
+    const kept = frame.pending.filter(
       (candidate) =>
         stillImminent(ctx, frame, candidate) &&
         conditionStillMet(ctx, frame, candidate) &&
         stillOffered(ctx.state, ctx.deps, candidate, answered(ctx, frame, candidate).event),
     );
+    const returned = returnedToHandCandidates(ctx, frame, kept);
+    const remaining = [...kept, ...returned];
+    // A returned event joins `optionalAtOpen` too: declined in the early round, it is offered again after the forced
+    // tier, as any early candidate is (picking it there strips it again, `absorbWindowAnswer`).
+    const used = new Set((frame.optionalAtOpen ?? []).map(useKey));
+    const joined = returned.filter((candidate) => !used.has(useKey(candidate)));
+    const settled =
+      joined.length > 0 ? { ...unpicked, optionalAtOpen: [...(frame.optionalAtOpen ?? []), ...joined] } : unpicked;
     if (remaining.length === 0) return setFrame(ctx, { ...settled, pending: [] });
     emit(ctx, {
       type: "windowOpened",
@@ -659,6 +713,14 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
 const groupOf = (groups: readonly number[], candidate: TriggerCandidate): number | undefined =>
   groups[candidate.sharedEvent ? candidate.sharedEvent.index : groups.length - 1];
 
+/** The triggering condition groups of a window with `conditionGroups` that some forced response answers now. */
+const groupsWithForced = (
+  ctx: Ctx,
+  frame: Frame<"window">,
+  groups: readonly number[],
+): ReadonlySet<number | undefined> =>
+  new Set(windowCandidates(ctx, frame, true).map((candidate) => groupOf(groups, candidate)));
+
 /** A candidate as one use of its ability for one condition, by one player: what the early round has used. */
 const useKey = (candidate: TriggerCandidate): string =>
   `${hearerKey(candidate.instanceId, candidate.abilityId, candidate.sharedEvent?.index)}|${candidate.controllerId ?? ""}`;
@@ -678,9 +740,8 @@ function offerEarlyOptional(ctx: Ctx, frame: Frame<"window">): boolean {
   // Read here only to know which groups have forced responses. The forced tier itself is read again after this round,
   // on purpose: an optional response picked here may have changed what can be initiated (a forced ability's card left
   // play), as the forced tier of any window is read as it begins.
-  const forced = windowCandidates(ctx, frame, true);
-  if (forced.length === 0) return false;
-  const answered = new Set(forced.map((candidate) => groupOf(groups, candidate)));
+  const answered = groupsWithForced(ctx, frame, groups);
+  if (answered.size === 0) return false;
   const atOpen = windowCandidates(ctx, frame, false);
   const early = atOpen.filter((candidate) => !answered.has(groupOf(groups, candidate)));
   if (early.length === 0) return false;
@@ -1323,6 +1384,12 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   );
   if (isPriceFault(priced)) return;
   const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced, asIfInHand);
+  // Played: it has left the hand, so finding it there again later means it came back (`returnedToHandCandidates`).
+  updateFrame(ctx, frame.frameId, (current) =>
+    current.kind === "window"
+      ? { ...current, eventsPlayed: [...(current.eventsPlayed ?? []), candidate.instanceId] }
+      : current,
+  );
   pushPlayCardFrame(
     ctx,
     candidate.instanceId,

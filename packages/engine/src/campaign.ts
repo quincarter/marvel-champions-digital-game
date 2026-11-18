@@ -389,7 +389,16 @@ export const NO_CAMPAIGN_WRITES: CampaignInGameWrites = { logWrites: [], removed
  */
 export type CampaignGameQuery =
   /** MC10 p. 5: "Record the name of each Experimental attachment that entered the game in the campaign log." */
-  | { readonly kind: "cardsThatEnteredPlay"; readonly query: TargetQuery }
+  | {
+      readonly kind: "cardsThatEnteredPlay";
+      readonly query: TargetQuery;
+      /**
+       * Each card once, however often it entered play: a card that left play and came back is still one physical card.
+       * MC10 p. 5's Experimental Weapons are one copy each, and a weapon discarded and revealed again from the reshuffled
+       * encounter deck must not be recorded (and carried into the next scenario) twice. Absent: every entry is kept.
+       */
+      readonly distinct?: true;
+    }
   /** MC60 p. 13: "Record the title of each unique ally and support that was removed from the game in the campaign log." */
   | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery }
   /**

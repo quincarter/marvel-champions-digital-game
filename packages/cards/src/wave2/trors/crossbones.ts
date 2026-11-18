@@ -101,6 +101,12 @@ export const CROSSBONES_SET = defineAbilities({
 
   // Attack on Mount Athena 1A — Setup: Create the Experimental Weapons deck and set it next to the main scheme deck.
   "04061a.setup": setup(buildScenarioDeck("Experimental Weapons")),
+  // Attack on Mount Athena 1B — When Revealed: Reveal the top card of the Experimental Weapons deck. Resolves at
+  // setup step 12b (RRG 1.8 Appendix II), after 1A's Setup has built the deck, so Crossbones starts with a weapon.
+  "04061b.when-revealed": whenRevealed(
+    selectCards("top", scenarioDeck("Experimental Weapons", { top: 1 })),
+    revealCard(chosen("top"), firstPlayer),
+  ),
   // The Infinity Stone (2A/2B) — When Revealed: Reveal the top card of the Experimental Weapons deck.
   "04062b.when-revealed": whenRevealed(
     selectCards("top", scenarioDeck("Experimental Weapons", { top: 1 })),
