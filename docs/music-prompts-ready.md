@@ -1,4 +1,4 @@
-# Music prompts, ready to paste (2026-10-10, wave 11 added 2026-10-20, updated 2026-10-26)
+# Music prompts, ready to paste (2026-10-10, wave 11 added 2026-10-20, updated 2026-11-18)
 
 One block per track still to make. Copy a whole block into the generator; nothing needs to be added. Within a scenario, do the three in order **in the same chat**, so the second and third reuse the battle track's melody. Built from [music-prompts-missing.md](music-prompts-missing.md); the titles are the ones the files and jukebox entries will carry.
 
