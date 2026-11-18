@@ -61,6 +61,19 @@ body {
 .btn.small.gold {
   box-shadow: 4px 4px 0 var(--red);
 }
+/* The Install for Steam script, beside Download on a computer the release has one for (landing.ts). */
+.bar .btn.small.steam {
+  gap: 8px;
+  padding-inline: 12px 16px;
+  box-shadow: 4px 4px 0 var(--gold);
+}
+.bar .btn.steam[hidden] {
+  display: none;
+}
+.bar .steam-logo {
+  width: 22px;
+  height: 22px;
+}
 .bar .lang button {
   min-height: 32px;
   padding: 4px 10px;
@@ -810,6 +823,10 @@ body {
   }
 }
 @media (max-width: 900px) {
+  /* The hero offers the Steam script on its own; the bar keeps one row for Download and Play. */
+  .bar .steam {
+    display: none;
+  }
   .bar .lang .name {
     display: none;
   }

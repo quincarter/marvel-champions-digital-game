@@ -23,12 +23,14 @@ import {
   downloadsOf,
   fetchLatestRelease,
   primaryDownload,
+  steamScriptFor,
   versionOf,
   type LatestRelease,
 } from "../downloads.js";
 import { browserLanguage, type PageLanguage } from "../page-language.js";
 import { applyText, element, mountLanguageToggle, renderDownloads, translator, type Translate } from "../site-dom.js";
 import { fileKey, SHARED_TEXT } from "../site-text.js";
+import steamLogo from "../steam-logo.svg";
 import {
   GAME_DISCORD_URL,
   GAME_URL,
@@ -152,13 +154,18 @@ function drawArt(): void {
   }
 }
 
-/** The hero's second button: the visitor's installer, straight from the release, else the download section. */
+/**
+ * The hero's download buttons: the visitor's installer, straight from the release, else the download section; and on a
+ * computer the release has an Install for Steam script for, that script beside it (the download section below says how
+ * to run it). The pinned bar gets the script too, where it has room (landing.css).
+ */
 function drawHeroDownload(): void {
   const ctas = $("hero-ctas");
-  ctas.querySelector(".dl-cta")?.remove();
+  for (const old of ctas.querySelectorAll(".dl-cta, .steam-cta")) old.remove();
   const known = release !== "loading" && release !== null ? release : null;
+  const downloads = known ? downloadsOf(known, language) : [];
   // A Mac can't be told Intel from Apple silicon, so it goes to the download section, which offers both by name.
-  const primary = known && device !== "mac" ? primaryDownload(downloadsOf(known, language), device) : undefined;
+  const primary = known && device !== "mac" ? primaryDownload(downloads, device) : undefined;
   const toSection = (label: string) =>
     element("a", { class: "btn gold big dl-cta", href: "#download" }, element("span", {}, label));
   ctas.append(
@@ -171,6 +178,28 @@ function drawHeroDownload(): void {
         )
       : toSection(device === "mac" ? t("dl.forDevice", { device: t("device.mac") }) : t("bar.download")),
   );
+  const steam = steamScriptFor(downloads, device);
+  if (steam) {
+    ctas.append(
+      element(
+        "a",
+        { class: "btn steam big steam-cta", href: steam.url, rel: "noopener" },
+        element("img", { class: "steam-logo", src: steamLogo, alt: "", width: "36", height: "36" }),
+        element(
+          "span",
+          { class: "steam-text" },
+          element("span", {}, t("dl.steam")),
+          element("small", {}, t(fileKey(steam.id))),
+        ),
+      ),
+    );
+  }
+  const bar = $<HTMLAnchorElement>("bar-steam");
+  bar.hidden = !steam;
+  if (steam) {
+    bar.href = steam.url;
+    bar.setAttribute("aria-label", t(fileKey(steam.id)));
+  }
 }
 
 function drawStats(): void {
