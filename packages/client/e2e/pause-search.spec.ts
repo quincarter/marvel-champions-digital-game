@@ -68,8 +68,16 @@ test("issue #800: Pause's search puts settings first, changes them in place, and
     scenes.start("Board");
   });
   await boardUp(page);
+  // As the Board's MENU button does.
   await page.evaluate(
-    (key) => (window as unknown as { __mcGame: { scene: { launch: (k: string) => void } } }).__mcGame.scene.launch(key),
+    (key) =>
+      (
+        window as unknown as {
+          __mcGame: { scene: { getScene: (k: string) => { scene: { launch: (k: string) => void } } } };
+        }
+      ).__mcGame.scene
+        .getScene("Board")
+        .scene.launch(key),
     PAUSE,
   );
   await waitFor(async () => ((await stopKeys(page)).includes("search") ? true : null), "Pause's search", 15000);

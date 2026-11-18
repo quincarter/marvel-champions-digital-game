@@ -255,6 +255,29 @@ describe("PauseSearchSession", () => {
     expect(session.results).toBeNull();
   });
 
+  it("tells a new query's answer from the same query answered again, so a list keeps its place after a change", () => {
+    const worker = new SlowWorker();
+    const answers: boolean[] = [];
+    const session = new PauseSearchSession(
+      worker,
+      () => inputWith(defaultSettings()),
+      (newQuery) => answers.push(newQuery),
+    );
+    session.reindex();
+    session.setQuery("card");
+    worker.answerAll();
+    // A setting changed in place further down the list: the same query, answered again.
+    session.reindex();
+    worker.answerAll();
+    // Typing on, then back to the same words: a new list each time.
+    session.setQuery("card size");
+    worker.answerAll();
+    session.setQuery("");
+    session.setQuery("card size");
+    worker.answerAll();
+    expect(answers).toEqual([true, false, true, true]);
+  });
+
   it("indexes again when a row's words change, so the results read what the row says now", () => {
     const worker = new SlowWorker();
     // Ultron Drone art's row says how to earn it until it is earned, then what it does.

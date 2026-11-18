@@ -359,11 +359,17 @@ export interface PauseSearchClient {
 export class PauseSearchSession {
   readonly #client: PauseSearchClient;
   readonly #input: () => SettingsSearchIndexInput;
-  readonly #onAnswer: () => void;
+  readonly #onAnswer: (newQuery: boolean) => void;
   #query = "";
   #answer: { readonly query: string; readonly results: readonly SettingsSearchResult[] } | null = null;
+  /** The query the list on screen was last answered for, kept through `setQuery` dropping the answer itself. */
+  #lastAnswered: string | null = null;
 
-  constructor(client: PauseSearchClient, input: () => SettingsSearchIndexInput, onAnswer: () => void) {
+  /**
+   * `onAnswer` is told whether the answer is for a new query (a list to read from its top) or a fresh answer for the
+   * same one after `reindex` (the same list, where the player was).
+   */
+  constructor(client: PauseSearchClient, input: () => SettingsSearchIndexInput, onAnswer: (newQuery: boolean) => void) {
     this.#client = client;
     this.#input = input;
     this.#onAnswer = onAnswer;
@@ -388,6 +394,7 @@ export class PauseSearchSession {
     if (!this.searching) {
       this.#client.cancel();
       this.#answer = null;
+      this.#lastAnswered = null;
       return;
     }
     if (this.#answer?.query !== query) this.#answer = null;
@@ -405,7 +412,9 @@ export class PauseSearchSession {
     this.#client.search(query, (results) => {
       if (query !== this.#query) return;
       this.#answer = { query, results };
-      this.#onAnswer();
+      const newQuery = this.#lastAnswered !== query;
+      this.#lastAnswered = query;
+      this.#onAnswer(newQuery);
     });
   }
 }

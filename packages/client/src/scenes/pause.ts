@@ -199,8 +199,10 @@ export class PauseOverlay extends Phaser.Scene {
     this.#search = new PauseSearchSession(
       this.#searchClient,
       () => this.#searchIndexInput(),
-      () => {
-        this.#resultsScroll = new VariableListScroll();
+      (newQuery) => {
+        // A new query's list reads from its top; the same query answered again (a setting changed in place) stays
+        // where the player had scrolled to.
+        if (newQuery) this.#resultsScroll = new VariableListScroll();
         if (this.sys.isActive()) this.#draw();
       },
     );
