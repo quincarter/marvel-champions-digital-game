@@ -7,6 +7,7 @@
  *
  * Pure, so parsing is tested against the real files without a scene.
  */
+import { queryScoreOf } from "./deck-search.js";
 
 export type BookBlock =
   /** A heading inside a section (one the section split didn't break on). */
@@ -177,17 +178,18 @@ export function parseBook(markdown: string, options: BookParseOptions): readonly
 }
 
 /**
- * The sections a search finds, in book order: every section whose title or text holds `query` (case-insensitive),
- * title matches first. An empty query finds every section.
+ * The sections a search finds, in book order: every section whose title or text holds `query`, title matches first.
+ * Accents and case never matter. A title also forgives a typo or a letter or two left out (`queryScoreOf`); the text,
+ * long enough that a near miss would match everything, matches words as typed. An empty query finds every section.
  */
 export function searchBook(sections: readonly BookSection[], query: string): readonly number[] {
-  const needle = query.trim().toLowerCase();
   const all = sections.map((_, index) => index);
-  if (needle === "") return all;
-  const inTitle = all.filter((index) => sections[index]!.title.toLowerCase().includes(needle));
+  if (query.trim() === "") return all;
+  const inTitle = all.filter((index) => queryScoreOf(query, { primary: [sections[index]!.title] }) !== null);
   const inBody = all.filter(
     (index) =>
-      !inTitle.includes(index) && sections[index]!.blocks.some((block) => block.text.toLowerCase().includes(needle)),
+      !inTitle.includes(index) &&
+      queryScoreOf(query, { primary: [], notes: sections[index]!.blocks.map((block) => block.text) }) !== null,
   );
   return [...inTitle, ...inBody];
 }

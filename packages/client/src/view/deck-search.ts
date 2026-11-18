@@ -180,6 +180,32 @@ export function scoreDocument(doc: PreparedDocument, tokens: readonly string[], 
   return score;
 }
 
+/** One item's texts, by strength, for `queryScoreOf`. Missing texts are skipped. */
+export interface QueryFields {
+  readonly primary: readonly (string | null | undefined)[];
+  readonly secondary?: readonly (string | null | undefined)[];
+  readonly notes?: readonly (string | null | undefined)[];
+}
+
+/**
+ * How well `query` matches one item, by the same tiers as `rankDocuments`: accents and case ignored, a typo or a letter
+ * or two left out forgiven, every word of the query matched somewhere. Null when some word matches nothing; 0 for an
+ * empty query. For a short list filtered where it is drawn (the roster, the glossary, the rulebook); a long one goes
+ * through a search worker instead.
+ */
+export function queryScoreOf(query: string, fields: QueryFields): number | null {
+  const phrase = normalizeText(query).trim().replace(/\s+/g, " ");
+  const tokens = wordsOf(phrase);
+  if (tokens.length === 0) return 0;
+  const doc: PreparedDocument = {
+    id: "",
+    primary: prepareFields(fields.primary),
+    secondary: prepareFields(fields.secondary),
+    notes: prepareFields(fields.notes),
+  };
+  return scoreDocument(doc, tokens, phrase);
+}
+
 /** Every document the query matches, best first; an empty query matches everything in the order given. */
 export function rankDocuments(documents: readonly PreparedDocument[], query: string): readonly RankedDocument[] {
   const phrase = normalizeText(query).trim().replace(/\s+/g, " ");

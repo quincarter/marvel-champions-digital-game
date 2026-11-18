@@ -16,6 +16,7 @@
  * this module only decides the shelf *structure*: which shelf an item lands
  * in, whether a query keeps it there, and which shelves survive at all.
  */
+import { queryScoreOf } from "./deck-search.js";
 import { matchesSearch, normalizeSearch } from "./roster-filter.js";
 
 /** The synthetic shelf id for decks with no pack (saved and imported decks) — always first, and only shown when non-empty. */
@@ -100,7 +101,7 @@ export function shelvesOf<T>(
   /** What survives the query from one pack: all of it when the pack's own name matches, else its matching items. */
   const survivors = (packCode: string, title: string | null): readonly T[] => {
     const bucket = byPack.get(packCode) ?? [];
-    const packNameMatches = q !== "" && title !== null && normalizeSearch(title).includes(q);
+    const packNameMatches = q !== "" && title !== null && queryScoreOf(query, { primary: [title] }) !== null;
     return (packNameMatches ? bucket : bucket.filter((c) => matchesSearch(c.searchHaystacks, query))).map(
       (c) => c.item,
     );

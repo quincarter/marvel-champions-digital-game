@@ -39,6 +39,7 @@
  * (`CONCEPT_ENTRIES` below) — and `rulesGlossaryPoolOf`'s "all rules" scope always includes
  * them too, the same way the three table-state entries are always included there.
  */
+import { queryScoreOf } from "./deck-search.js";
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
 import { originNoteOf } from "./new-in-box-model.js";
@@ -327,15 +328,19 @@ function filterByQuery(entries: readonly RulesEntry[], query: string): readonly 
     if (name.startsWith(needle)) return 1;
     return name.includes(needle) ? 2 : 3;
   };
+  // The term itself matches the shared fuzzy way (`queryScoreOf`): a typo, a letter left out or a missing accent still
+  // finds it. A definition or a card's name has to hold the whole query, so a phrase finds the one entry it describes.
+  const mentions = (entry: RulesEntry): boolean =>
+    normalize(entry.definition).includes(needle) || entry.cardRefs.some((ref) => normalize(ref.name).includes(needle));
   return entries
-    .filter(
-      (entry) =>
-        normalize(entry.displayName).includes(needle) ||
-        normalize(entry.definition).includes(needle) ||
-        entry.cardRefs.some((ref) => normalize(ref.name).includes(needle)),
-    )
-    .map((entry, index) => ({ entry, index, rank: rankOf(entry) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry, index) => ({
+      entry,
+      index,
+      rank: rankOf(entry),
+      score: queryScoreOf(query, { primary: [entry.displayName] }),
+    }))
+    .filter((hit) => hit.score !== null || mentions(hit.entry))
+    .sort((a, b) => a.rank - b.rank || (b.score ?? 0) - (a.score ?? 0) || a.index - b.index)
     .map(({ entry }) => entry);
 }
 
