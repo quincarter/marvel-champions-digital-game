@@ -6,27 +6,27 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.49.0/index.es.html)**
 
-![The numbers: Undo reaches back to move 1, three Undo choices and fifteen reports answered](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-01-the-numbers.jpg)
+![The numbers: Undo reaches back to move 1, three Undo choices and fifteen reports answered](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-01-the-numbers.jpg)
 
-![Undo past your turn: the Allow, Warn and Off setting, the same draw on a rewind, and Jump to a moment](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-02-undo-past-your-turn.jpg)
+![Undo past your turn: the Allow, Warn and Off setting, the same draw on a rewind, and Jump to a moment](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-02-undo-past-your-turn.jpg)
 
-![Manual adjust: the target list on desktop and phone, a hero's adjustments and the warning before the first one](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-03-manual-adjust.jpg)
+![Manual adjust: the target list on desktop and phone, a hero's adjustments and the warning before the first one](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-03-manual-adjust.jpg)
 
-![Fair stats, either way: Pause marks an adjusted game, and the log names each correction](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-04-fair-stats-either-way.jpg)
+![Fair stats, either way: Pause marks an adjusted game, and the log names each correction](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-04-fair-stats-either-way.jpg)
 
-![Find any setting from Pause: undo and zoom typed in Pause's search, the results on a phone, and every search box forgiving typos](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-05-find-any-setting-from-pause.jpg)
+![Find any setting from Pause: undo and zoom typed in Pause's search, the results on a phone, and every search box forgiving typos](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-05-find-any-setting-from-pause.jpg)
 
-![Schemes you can read: Large schemes and Stack schemes on desktop, Fan out with no background and with 50%, the new settings, and the stack on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-schemes-you-can-read.jpg)
+![Schemes you can read: Large schemes and Stack schemes on desktop, Fan out with no background and with 50%, the new settings, and the stack on a phone](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-schemes-you-can-read.jpg)
 
-![You asked, we fixed: Giant Strength waits for Giant form, reported by GarethMagis, One Way or Another needs a side scheme, reported by @javgoro, Morphogenetics replays Turn the Tide, reported by Gooffrey [KRBY], and Spanish card names in search, requested by @andy-xxvii27](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-07-you-asked-we-fixed.jpg)
+![You asked, we fixed: Giant Strength waits for Giant form, reported by GarethMagis, One Way or Another needs a side scheme, reported by @javgoro, Morphogenetics replays Turn the Tide, reported by Gooffrey [KRBY], and Spanish card names in search, requested by @andy-xxvii27](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-07-you-asked-we-fixed.jpg)
 
-![Ten reports, ten fixes: @bluefireF5ran's reports on Madame Web, Deathunt 9000, Across the Spider-Verse, Silk Sense, Change of Fortune, Wolverine's Claws, White Fox, Clarity of Purpose and the log](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-08-ten-reports-ten-fixes.jpg)
+![Ten reports, ten fixes: @bluefireF5ran's reports on Madame Web, Deathunt 9000, Across the Spider-Verse, Silk Sense, Change of Fortune, Wolverine's Claws, White Fox, Clarity of Purpose and the log](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-08-ten-reports-ten-fixes.jpg)
 
-![Also in v0.49.0: Crossbones starts with an Experimental Weapon and campaign weapons carry over, Shawarma's Max 1 per deck, and Public Support (High) needs its full 1 per hero counters, as FFG ruled](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-09-also-in-v0-49-0.jpg)
+![Also in v0.49.0: Crossbones starts with an Experimental Weapon and campaign weapons carry over, Shawarma's Max 1 per deck, and Public Support (High) needs its full 1 per hero counters, as FFG ruled](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-09-also-in-v0-49-0.jpg)
 
-![Thank you to @sgaon42, GarethMagis, @javgoro, @bluefireF5ran, @andy-xxvii27 and Gooffrey [KRBY]](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-10-thank-you.jpg)
+![Thank you to @sgaon42, GarethMagis, @javgoro, @bluefireF5ran, @andy-xxvii27 and Gooffrey [KRBY]](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-10-thank-you.jpg)
 
-![Code shipped since v0.48.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/dc0ec4e2827502ad43eb37dd2482c2a432c83aa8/docs/screenshots/releases/v0.49.0/v0-49-0-release-11-code-shipped.jpg)
+![Code shipped since v0.48.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/eea0a041dd54c5bb8079bddfba58079c3daa43d7/docs/screenshots/releases/v0.49.0/v0-49-0-release-11-code-shipped.jpg)
 
 ---
 
