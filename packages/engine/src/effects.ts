@@ -208,9 +208,29 @@ export function swapIdentity(ctx: Ctx, playerId: PlayerId): boolean {
 
 export function endGame(ctx: Ctx, outcome: GameOutcome): void {
   if (ctx.state.outcome) return;
+  // Nothing more resolves, so a card an ability still held in an eliminated player's hand goes to their discard pile
+  // now, before `gameEnded` is logged: no card moves are logged after it (#816 review).
+  discardEliminatedHands(ctx);
   ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };
   setStep(ctx, { phase: "gameOver", kind: "gameOver" });
   emit(ctx, { type: "gameEnded", outcome });
+}
+
+/**
+ * The rest of RRG 1.8 "Player Elimination" (p. 34) step 5 for a hand `eliminatePlayer` left cards in (an ability still
+ * resolving had chosen them; #816): each card still in an eliminated player's hand goes to their discard pile, as the
+ * elimination's own sweep would have sent it. Returns true when it moved any. Called by `runFlow` with an empty stack,
+ * so the ability that held them, and anything it pushed, has resolved; and by `endGame` before `gameEnded`, since
+ * nothing more resolves once the game is over.
+ */
+export function discardEliminatedHands(ctx: Ctx): boolean {
+  let moved = false;
+  for (const player of ctx.state.players) {
+    if (!player.eliminated || player.hand.length === 0) continue;
+    for (const id of [...player.hand]) moveCard(ctx, id, { kind: "discard", playerId: player.playerId }, "top");
+    moved = true;
+  }
+  return moved;
 }
 
 export function shuffleZone(ctx: Ctx, zone: ZoneId, ids: readonly InstanceId[]): readonly InstanceId[] {

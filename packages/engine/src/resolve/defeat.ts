@@ -1176,7 +1176,8 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // ends" bullet covers only an attack already underway (cf. Metal Shards ruling, rrg-1-0-to-1-4/48-mutant-genesis.md).
   // Owner call (#816): the played event's attack resolves in full.
   // So a card in hand that an ability still resolving has chosen (Wolverine's Claws' cost picks the event it plays) stays
-  // there for that ability; `discardEliminatedHands` clears it once nothing is resolving.
+  // there for that ability; `discardEliminatedHands` clears it once nothing is resolving, or as the game ends
+  // (`endGame`).
   // With no other player left the game ends here and nothing more resolves, so nothing is held.
   const othersRemain = ctx.state.players.some((p) => p.playerId !== playerId && !p.eliminated);
   const held = othersRemain ? handCardsHeldByAbilities(ctx.state, playerId) : new Set<InstanceId>();
@@ -1256,22 +1257,6 @@ function handCardsHeldByAbilities(state: GameState, playerId: PlayerId): Readonl
     for (const ids of Object.values(frame.bindings)) for (const id of ids) if (hand.has(id)) held.add(id);
   }
   return held;
-}
-
-/**
- * The rest of RRG 1.8 "Player Elimination" (p. 34) step 5 for a hand `eliminatePlayer` left cards in
- * (`handCardsHeldByAbilities`): once nothing is resolving, each card still in an eliminated player's hand goes to their
- * discard pile, as the elimination's own sweep would have sent it. Returns true when it moved any. Called by `runFlow`
- * with an empty stack, so the ability that held them, and anything it pushed, has resolved.
- */
-export function discardEliminatedHands(ctx: Ctx): boolean {
-  let moved = false;
-  for (const player of ctx.state.players) {
-    if (!player.eliminated || player.hand.length === 0) continue;
-    for (const id of [...player.hand]) moveCard(ctx, id, { kind: "discard", playerId: player.playerId }, "top");
-    moved = true;
-  }
-  return moved;
 }
 
 /**
