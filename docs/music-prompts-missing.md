@@ -65,16 +65,6 @@ Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **C
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
 ```
 
-# Wave 11: Fear No Evil
-
-## Kingpin
-
-Tracks: **The King of Hell's Kitchen** (battle), **Long Live the Kingpin** (villain wins), **The Kingdom Falls** (heroes win).
-
-```text
-Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
-```
-
 # Synthezoid Smackdown
 
 ## She-Hulk (Registration)
@@ -189,7 +179,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- Kingpin: `scenarios/kingpin/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
 - Shadows in the Night: `scenarios/shadows-in-the-night/`
@@ -499,6 +488,14 @@ Generate an instrumental music track. No vocals, no sung or spoken words. Style:
 Campaign finale, 2-3 minutes: the crime lord's empire is broken, his underlings are behind bars, and the heroes watch the sun come up over the neighborhood they saved. Starts quiet with solo muted trumpet and soft piano, a steady brushed snare enters, then it grows into a warm, proud street-level anthem for full orchestra with a hint of soulful guitar. Relief turning to quiet pride, about 84 BPM, ending on a long warm major chord.
 
 Title: "The Neighborhood Breathes Again"
+```
+
+## Kingpin
+
+Tracks: **The King of Hell's Kitchen** (battle), **Long Live the Kingpin** (villain wins), **The Kingdom Falls** (heroes win).
+
+```text
+Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
 ```
 
 </details>
