@@ -24,20 +24,6 @@ The four ready-made Civil War scenarios, one set of three per leader. A custom s
 
 Folder: `music/scenarios/registration-captain-marvel/`
 
-### Grounded by Order (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Grounded by Order"
-```
-
 ### Clear Skies Again (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -506,10 +492,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 98 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 99 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 98 prompts already used</summary>
+<summary>Show the 99 prompts already used</summary>
 
 ## Black Widow
 
@@ -1921,6 +1907,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
 
 Title: "Chain of Command"
+```
+
+### Grounded by Order (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Grounded by Order"
 ```
 
 </details>
