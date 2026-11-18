@@ -52,7 +52,7 @@ import {
   oldSaveNoticeWanted,
 } from "../platform/old-save-notice.js";
 import { quitForSteamUpdate, steamInstall, type SteamInstall } from "../platform/steam-install.js";
-import { readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
+import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
@@ -184,6 +184,8 @@ export class TitleScene extends Phaser.Scene {
   #selfUpdate: SelfUpdate | null = null;
   /** A downloaded update waiting for the game to restart (or, for the Steam script, to quit), by its version. */
   #readyVersion: string | null = null;
+  /** The last update was downloaded and the game quit for it, but it didn't install (the old game started again). */
+  #updateFailed = false;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
   #art: TitleArt | null = null;
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
@@ -380,6 +382,11 @@ export class TitleScene extends Phaser.Scene {
       this.#rebuild();
     });
     this.#checkReadyUpdate();
+    void lastUpdateFailed().then((failed) => {
+      if (!failed || !this.sys.isActive()) return;
+      this.#updateFailed = true;
+      this.#rebuild();
+    });
     void checkForUpdate().then((update) => {
       // A banner the player closed for this very release stays closed; a newer release brings it back.
       if (!update || !this.sys.isActive() || isUpdateDismissed(update.version, dismissedUpdateVersion())) return;
@@ -1090,14 +1097,13 @@ export class TitleScene extends Phaser.Scene {
       .text(parts.text.x, parts.text.y, t("title.updateAvailable"), textStyle(typeRole.label, surface.inkOnHue.hex))
       .setLetterSpacing(1);
     fitText(heading, parts.textWidth, typeRole.label.size); // a translation can run longer than the English
-    this.add
-      .text(
-        parts.text.x,
-        parts.text.y + 16,
-        `Version ${update.version}`,
-        textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
-      )
-      .setWordWrapWidth(parts.textWidth);
+    const detail = this.add.text(
+      parts.text.x,
+      parts.text.y + 16,
+      this.#updateFailed ? t("title.updateFailed", { version: update.version }) : `Version ${update.version}`,
+      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+    );
+    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
     actions.forEach((action, index) => {
       const rect = parts.buttons[index]!;
       const { url } = action;

@@ -11,7 +11,7 @@
 
 import { detectPlatform } from "./platform.js";
 import { steamUpdateStatus } from "./steam-install.js";
-import { readyVersionOf } from "../view/steam-update.js";
+import { readyVersionOf, updateFailedAfterQuit } from "../view/steam-update.js";
 
 export interface SelfUpdate {
   /** The installer it updates with (`update-check.ts`'s `InstallerKind`). */
@@ -45,4 +45,10 @@ export function startSelfUpdate(url: string, version: string): Promise<void> {
 export function readyUpdateVersion(): Promise<string | null> {
   if (detectPlatform() !== "tauri") return Promise.resolve(null);
   return steamUpdateStatus().then(readyVersionOf, () => null);
+}
+
+/** Whether the last update was installing when it failed, after the game quit for it. Never rejects. */
+export function lastUpdateFailed(): Promise<boolean> {
+  if (detectPlatform() !== "tauri") return Promise.resolve(false);
+  return steamUpdateStatus().then(updateFailedAfterQuit, () => false);
 }

@@ -50,30 +50,58 @@ kill -0 "$pid" 2> /dev/null || die "the game closed before the download finished
 printf 'MC_UPDATE ready %s\n' "$version"
 while kill -0 "$pid" 2> /dev/null; do sleep 1; done
 
-if [ "$kind" = appimage ]; then
-  chmod +x "$download"
-  mv -f "$download" "$game"
-else
+# The game starts on its own, out of this script's process group, with none of the old AppImage's environment.
+start_game() {
+  if [ "$kind" = appimage ]; then
+    env -u APPIMAGE -u APPDIR -u ARGV0 -u OWD setsid "$game" > /dev/null 2>&1 < /dev/null &
+  else
+    open -n "$game"
+  fi
+}
+
+# The player has quit to install by now, so a failure from here on starts the game they had again, and says why in the
+# log, which the game shows on its Title (`platform/self-update.ts`).
+give_up() {
+  printf 'Error: %s\n' "$*"
+  start_game || true
+  exit 1
+}
+
+install() {
+  if [ "$kind" = appimage ]; then
+    chmod +x "$download" || return 1
+    mv -f "$download" "$game"
+    return
+  fi
   mounted="$tmp/mount"
   mkdir "$mounted"
-  hdiutil attach -quiet -nobrowse -readonly -mountpoint "$mounted" "$download" || {
+  if ! hdiutil attach -quiet -nobrowse -readonly -mountpoint "$mounted" "$download"; then
     mounted=""
-    die "the downloaded disk image wouldn't open."
-  }
+    give_up "the downloaded disk image wouldn't open, so the game is unchanged."
+  fi
   app="$(find "$mounted" -maxdepth 1 -name '*.app' -print -quit)"
-  [ -n "$app" ] || die "the disk image has no app in it."
-  # Copied in beside the old app first, so a failed copy leaves the old one as it was.
-  staged="$parent/.$(basename "$game").new"
-  rm -rf "$staged"
-  ditto "$app" "$staged" || die "the new app couldn't be copied into $parent."
-  rm -rf "$game"
-  mv "$staged" "$game"
-fi
-printf 'MC_UPDATE done %s\n' "$version"
+  [ -n "$app" ] || give_up "the disk image has no app in it, so the game is unchanged."
+  # Copied in beside the old app first, and the old app kept until the new one is in its place, so a failure at any
+  # step leaves a game to start.
+  local staged="$parent/.$(basename "$game").new"
+  local backup="$parent/.$(basename "$game").old"
+  rm -rf "$staged" "$backup"
+  ditto "$app" "$staged" || {
+    rm -rf "$staged"
+    give_up "the new app couldn't be copied into $parent, so the game is unchanged."
+  }
+  mv "$game" "$backup" || {
+    rm -rf "$staged"
+    give_up "the old app couldn't be moved aside, so the game is unchanged."
+  }
+  if ! mv "$staged" "$game"; then
+    mv "$backup" "$game" || true
+    rm -rf "$staged"
+    give_up "the new app couldn't be put in place, so the game is unchanged."
+  fi
+  rm -rf "$backup"
+}
 
-# The new game starts on its own, out of this script's process group, with none of the old AppImage's environment.
-if [ "$kind" = appimage ]; then
-  env -u APPIMAGE -u APPDIR -u ARGV0 -u OWD setsid "$game" > /dev/null 2>&1 < /dev/null &
-else
-  open -n "$game"
-fi
+install || give_up "the update couldn't be installed, so the game is unchanged."
+printf 'MC_UPDATE done %s\n' "$version"
+start_game

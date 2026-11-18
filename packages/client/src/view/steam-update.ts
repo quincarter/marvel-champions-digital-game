@@ -154,3 +154,14 @@ export function readyVersionOf(status: SteamUpdateStatus | null): string | null 
   const report = lastReport(status.log);
   return report?.state === "ready" ? report.version : null;
 }
+
+/**
+ * Whether the last update was downloaded and the game quit for it, but it didn't install: the updater started the old
+ * game again and left an `Error:` line (scripts/update/update-game.*). The Title's update banner says so on the next
+ * launch, since the game wasn't running to show the panel.
+ */
+export function updateFailedAfterQuit(status: SteamUpdateStatus | null): boolean {
+  if (status === null || status.running) return false;
+  const reports = [...status.log.matchAll(/^MC_UPDATE (\w+) /gm)].map((match) => match[1]);
+  return reports.at(-1) === "ready" && /^Error: /m.test(status.log.slice(status.log.lastIndexOf("MC_UPDATE ready")));
+}

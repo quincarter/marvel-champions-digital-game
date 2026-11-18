@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readyVersionOf, steamUpdateViewOf, type SteamUpdateStatus } from "./steam-update.js";
+import { readyVersionOf, steamUpdateViewOf, updateFailedAfterQuit, type SteamUpdateStatus } from "./steam-update.js";
 
 const running = (log: string): SteamUpdateStatus => ({ running: true, exitCode: null, log });
 const exited = (exitCode: number, log: string): SteamUpdateStatus => ({ running: false, exitCode, log });
@@ -92,5 +92,17 @@ describe("a finished download waiting to install", () => {
     expect(readyVersionOf(running("###  50.0%"))).toBeNull();
     expect(readyVersionOf({ running: false, exitCode: null, log: "MC_UPDATE ready 1.1.0\n" })).toBeNull();
     expect(readyVersionOf(null)).toBeNull();
+  });
+});
+
+describe("an update that didn't install after the game quit", () => {
+  it("is one that was ready, then stopped with an error", () => {
+    const log = (text: string) => ({ running: false, exitCode: 1, log: text });
+    expect(updateFailedAfterQuit(log("MC_UPDATE ready 1.1.0\nError: the installer stopped with code 5.\n"))).toBe(true);
+    // Failed while downloading, installed, still running, or nothing at all.
+    expect(updateFailedAfterQuit(log("Error: the download failed.\n"))).toBe(false);
+    expect(updateFailedAfterQuit(log("MC_UPDATE ready 1.1.0\nMC_UPDATE done 1.1.0\n"))).toBe(false);
+    expect(updateFailedAfterQuit(running("MC_UPDATE ready 1.1.0\n"))).toBe(false);
+    expect(updateFailedAfterQuit(null)).toBe(false);
   });
 });
