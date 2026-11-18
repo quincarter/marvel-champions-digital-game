@@ -587,7 +587,14 @@ export const MTS_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["21182b"],
     corrections: [],
   },
-  { cardId: cardId("21183"), cardSetCode: "mts_campaign", marvelcdbCodes: ["21183"], corrections: [] },
+  {
+    cardId: cardId("21183"),
+    cardSetCode: "mts_campaign",
+    marvelcdbCodes: ["21183"],
+    corrections: [
+      "21183: MarvelCDB has no text for Shawarma and sends deck_limit 3, but the card prints \"Max 1 per deck.\" (issue #807). [evidence: card scan (assets/card-art/bundles/cards/21183.png), read 2026-11-17]",
+    ],
+  },
   {
     cardId: cardId("21184a"),
     cardSetCode: "mts_campaign",

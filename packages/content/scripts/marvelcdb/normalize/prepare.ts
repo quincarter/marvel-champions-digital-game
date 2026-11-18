@@ -55,6 +55,8 @@ export interface Prepared {
   readonly cardBack?: "encounter" | "player";
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
+  /** A curated `Correction.deckLimit` override of MarvelCDB's `deck_limit` (player cards only; issue #807). */
+  readonly deckLimit?: number;
   /** A curated `Correction.dashedThreatFields` (main scheme B sides only) — absent for every ordinary card. */
   readonly dashedThreatFields?: readonly MainSchemeThreatField[];
   /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
@@ -103,6 +105,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
+  let deckLimit: number | undefined;
   let cardBack: "encounter" | "player" | undefined;
   let impliedAttachHost: "mainScheme" | "ally" | "minion" | "ownWhenRevealed" | AttachmentHost | undefined;
   let hostChosenBy: AttachmentHostChooser | undefined;
@@ -163,6 +166,11 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.specialCost !== undefined) specialCost = c.specialCost;
     if (c.cardBack !== undefined) cardBack = c.cardBack;
     if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
+    if (c.deckLimit !== undefined) {
+      if (c.deckLimit === r.deck_limit)
+        errors.push(`${r.code}: correction deckLimit ${c.deckLimit} already matches raw`);
+      deckLimit = c.deckLimit;
+    }
     if (c.dashedThreatFields !== undefined) dashedThreatFields = c.dashedThreatFields;
     if (c.evidenceIcon !== undefined) evidenceIcon = c.evidenceIcon;
     if (c.definedCounterTypes !== undefined) definedCounterTypes = c.definedCounterTypes;
@@ -213,6 +221,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     notes,
     ignored,
     quantityInSet,
+    ...(deckLimit !== undefined ? { deckLimit } : {}),
     ...(specialCost ? { specialCost } : {}),
     ...(cardBack ? { cardBack } : {}),
     ...(impliedAttachHost ? { impliedAttachHost } : {}),
