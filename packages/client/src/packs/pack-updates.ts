@@ -164,7 +164,7 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       index = newest;
       lastIndex = newest;
       lastFetched = now();
-      saveCatalog(fresh, deps.storage);
+      saveCatalog(newest, deps.storage);
     }
   }
   // The Mod Store noted a newer installed list while this check waited: its count stands.

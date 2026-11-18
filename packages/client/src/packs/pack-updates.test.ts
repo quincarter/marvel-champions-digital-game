@@ -229,4 +229,20 @@ describe("checkPackUpdates", () => {
     });
     expect(await checkPackUpdates({ ...deps, fetch: down, force: true })).toBe(1);
   });
+
+  it("saves the newest copy once storage works again", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
+    notePackUpdates(newer, [installed("fan-newer", "1.1.0")]);
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    const deps = { store: store([installed("fan-newer", "1.1.0")]), storage };
+    expect(await checkPackUpdates({ ...deps, fetch: json(index), force: true })).toBe(1);
+    expect(JSON.parse(saved.get(CATALOG_CACHE_KEY)!).generated).toBe(newer.generated);
+  });
 });
