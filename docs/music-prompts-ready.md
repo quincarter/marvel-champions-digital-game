@@ -158,18 +158,6 @@ The three Shadowland scenarios and the campaign's two tracks. Files go straight 
 
 Folder: `music/scenarios/shadows-in-the-night/`
 
-### Midnight Belongs to the Hand (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
-
-Title: "Midnight Belongs to the Hand"
-```
-
 ### Swallowed by the Dark (villain wins, `villain-wins.mp3`)
 
 ```text
@@ -896,10 +884,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 71 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 72 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 71 prompts already used</summary>
+<summary>Show the 72 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1907,22 @@ Use the same main melody and instruments as the battle track I just generated.
 Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
 
 Title: "The Kingdom Falls"
+```
+
+## Shadows in the Night
+
+Folder: `music/scenarios/shadows-in-the-night/`
+
+### Midnight Belongs to the Hand (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
+
+Title: "Midnight Belongs to the Hand"
 ```
 
 </details>
