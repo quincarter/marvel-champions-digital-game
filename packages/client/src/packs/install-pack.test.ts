@@ -33,6 +33,8 @@ describe("installPack", () => {
     });
     expect(installed.id).toBe("fan-test");
     expect((await store.get("fan-test"))?.version).toBe("1.0.0");
+    // The catalog zip it was verified against, for Discord presence's store pictures (issue #840).
+    expect((await store.get("fan-test"))?.source).toEqual({ zipSha256: built.entry.versions["1.0.0"]!.zipSha256 });
     const blob = await store.fileBlob("fan-test", "pictures/hero.webp");
     expect(blob?.size).toBe(8);
     const phases = seen.map((p) => p.phase);

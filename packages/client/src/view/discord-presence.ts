@@ -9,7 +9,7 @@
  * deck"). Discord shows strings of 2 to 128 characters, so every string is clipped here, never cut by the Rust side.
  */
 
-import { GAME_URL } from "../site/site-urls.js";
+import { DOWNLOADS_URL, GAME_URL } from "../site/site-urls.js";
 
 /** The shape `discord_set_activity` takes (camelCase), a mirror of the Rust `DiscordActivity`. */
 export interface DiscordActivity {
@@ -26,8 +26,8 @@ export interface DiscordActivity {
 
 /** Where the deployed game (which carries every card scan under `/card-art/`) lives, with no trailing slash. */
 export const PRESENCE_SITE_URL = GAME_URL.replace(/\/$/, "");
-/** The page "Get the game" opens: the latest GitHub release carries every installer. */
-export const PRESENCE_DOWNLOAD_URL = "https://github.com/quincarter/marvel-champions-digital-game/releases/latest";
+/** The page "Get the game" opens: the website's downloads section, friendlier than the GitHub release page. */
+export const PRESENCE_DOWNLOAD_URL = DOWNLOADS_URL;
 /** The asset key of the game's logo in the Discord application's Rich Presence art. */
 export const PRESENCE_LOGO_KEY = "logo";
 export const PRESENCE_APP_NAME = "Marvel Champions Digital Edition";
@@ -63,6 +63,12 @@ export interface PresenceGame {
   /** Card art by address in the app (`/card-art/...`) or an absolute URL. */
   readonly villainArt?: string | null;
   readonly heroArt?: string | null;
+  /**
+   * A mod card's picture codes, best first, when the villain or hero is custom content: its art has no address in the
+   * app, so the presence worker finds the Mod Store's public copy (`discord-presence-pack-art.ts`, issue #840).
+   */
+  readonly villainArtCodes?: readonly string[] | null;
+  readonly heroArtCodes?: readonly string[] | null;
 }
 
 export interface PresenceSnapshot {

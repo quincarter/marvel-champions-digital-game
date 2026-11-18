@@ -15,6 +15,7 @@ import { loadInWorker } from "./load-client.js";
 import { NO_REQUIRED_CONTENT } from "./pack-load.js";
 import { loadedPacks, setLoadedPacks } from "./pack-registry.js";
 import { IdbPackStore } from "./pack-store.js";
+import { presencePackTable } from "../art/pack-art.js";
 
 const SAMPLE_DIR = fileURLToPath(new URL("../../../../content-packs/sample-hero", import.meta.url));
 const PACK_ID = "sample-hero";
@@ -64,6 +65,21 @@ describe("active packs", () => {
       Object.keys(POOL_DEPS.abilities).length + Object.keys(pack.abilities).length,
     );
     for (const id of Object.keys(pack.abilities)) expect(currentDeps().abilities[id]).toBeDefined();
+  });
+
+  it("hands the install's recorded store checksum to Discord presence's pack table (issue #840)", async () => {
+    const store = newStore();
+    await store.install(manifest, files, { zipSha256: "c".repeat(64) });
+    await loadActivePacks(store);
+    expect(presencePackTable()).toMatchObject([{ id: PACK_ID, version: manifest.version, zipSha256: "c".repeat(64) }]);
+    // Withdrawal keeps the record's source.
+    await store.markWithdrawn(PACK_ID, true);
+    expect((await store.get(PACK_ID))?.source).toEqual({ zipSha256: "c".repeat(64) });
+    // An install with no recorded source (written before #840) has none.
+    const unrecorded = newStore();
+    await unrecorded.install(manifest, files);
+    await loadActivePacks(unrecorded);
+    expect(presencePackTable()[0]?.zipSha256).toBeUndefined();
   });
 
   it("runs the load here when the worker cannot start or fails", async () => {

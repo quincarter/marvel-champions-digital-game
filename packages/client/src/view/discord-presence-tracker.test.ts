@@ -124,6 +124,39 @@ describe("PresenceTracker", () => {
     expect(sent).toHaveLength(2);
   });
 
+  test("a mod villain shows the Mod Store's public picture once the packs arrive (issue #840)", () => {
+    const { tracker, sent, advance } = rig();
+    const base = "https://packs.champions-digital-game.com/mephisto-nep/1.2.0/";
+    tracker.sceneUp("Board");
+    tracker.setGame(
+      { ...GAME, kind: "oneOff", villain: "Mephisto", villainArt: null, villainArtCodes: ["x.mephisto-nep.01"] },
+      "g1",
+    );
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[0]?.largeImage).toBe("logo");
+    tracker.setPackArt(
+      [
+        {
+          id: "mephisto-nep",
+          version: "1.2.0",
+          languages: { base: "en", available: ["en"] },
+          files: new Set(["cards/en/x.mephisto-nep.01.webp"]),
+          zipSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+      ],
+      new Map([
+        ["mephisto-nep@1.2.0", { base, zipSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }],
+      ]),
+    );
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[1]).toMatchObject({ largeImage: `${base}cards/en/x.mephisto-nep.01.webp`, largeText: "Mephisto" });
+    expect(sent[1]?.buttons).toHaveLength(1);
+    // A refreshed catalog that withdrew the pack: back to the logo.
+    tracker.setPackArt([], new Map());
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[2]?.largeImage).toBe("logo");
+  });
+
   test("a stored run names its campaign by the shelf's box name, else its own", async () => {
     const { tracker, sent, advance } = rig();
     tracker.sceneUp("CampaignRun", { runId: "run2" });

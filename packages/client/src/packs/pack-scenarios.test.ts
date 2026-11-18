@@ -19,6 +19,7 @@ import {
 } from "../content/pool.js";
 import { gameCardsById, gameEncounterSetName, gameScenarios, setGamePacks } from "../content/game-deps.js";
 import { pauseStatusOf } from "../view/pause-model.js";
+import { presenceGameOf } from "../view/discord-presence-game.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { modularCandidatesFor } from "../view/modular-candidates.js";
@@ -162,6 +163,18 @@ describe("a scenario pack in the pickers", () => {
 
 describe("a game at a pack scenario or with a pack modular set", () => {
   const configAt = (over: Partial<SetupDraft>) => toSessionConfig(draftAt("rhino", over), [PRECON as never]);
+
+  it("names the pack villain's picture codes for Discord presence, never an in-app URL (issue #840)", async () => {
+    await installed();
+    const config = { scenarioId: SCENARIO_ID, difficulty: "standard" as const, players: [PRECON], seed: 5 };
+    const update = await new LocalEngineHost(new MemoryGameStorage()).start(config);
+    const game = presenceGameOf(update.state, config);
+    expect(game.villainArt).toBeNull();
+    expect(game.villainArtCodes?.[0]).toMatch(/^x\.sample-scenario\./);
+    // The base precon's hero keeps its own scan and needs no codes.
+    expect(game.heroArt).toMatch(/^\/card-art\//);
+    expect(game.heroArtCodes).toBeNull();
+  });
 
   it("starts the pack's scenario with a base precon through the client's own host and resumes it with no packs loaded", async () => {
     await installed();

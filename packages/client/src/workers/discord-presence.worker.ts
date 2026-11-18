@@ -5,6 +5,7 @@
  */
 import { IdbCampaignStorage } from "../engine/idb-campaign-storage.js";
 import { PresenceTracker } from "../view/discord-presence-tracker.js";
+import { packBasesOf } from "../view/discord-presence-pack-art.js";
 import type { PresenceGameMessage, PresenceIn, PresenceOut } from "../view/discord-presence-protocol.js";
 
 /** The client compiles with the DOM lib only, so this names the members of the worker global that are used. */
@@ -58,6 +59,9 @@ worker.addEventListener("message", (event) => {
       return;
     case "enabled":
       setEnabled(message.on);
+      return;
+    case "packArt":
+      tracker.setPackArt(message.packs, packBasesOf(message.catalog), message.trustUnrecorded);
       return;
     case "clear":
       tracker.clear();

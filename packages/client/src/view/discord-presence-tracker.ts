@@ -7,6 +7,7 @@
  */
 import { presenceKey, presenceOf, type DiscordActivity, type PresenceGame } from "./discord-presence.js";
 import { namesCampaign, screenOf } from "./discord-presence-screen.js";
+import { publicPackArtUrl, type PresencePack, type PresencePackBases } from "./discord-presence-pack-art.js";
 
 export const PRESENCE_DEBOUNCE_MS = 1000;
 
@@ -38,6 +39,9 @@ export class PresenceTracker {
   #gameKey = "";
   #wasInGame = false;
   readonly #runNames = new Map<string, string>();
+  #packs: ReadonlyMap<string, PresencePack> = new Map();
+  #packBases: PresencePackBases = new Map();
+  #trustUnrecorded = false;
 
   constructor(deps: PresenceTrackerDeps, enabled = true) {
     this.#deps = deps;
@@ -47,6 +51,14 @@ export class PresenceTracker {
 
   setCampaignNames(names: Readonly<Record<string, string>>): void {
     this.#names = names;
+  }
+
+  /** The loaded packs and the store's base URLs, for a mod card's public picture (issue #840). */
+  setPackArt(packs: readonly PresencePack[], bases: PresencePackBases, trustUnrecorded = false): void {
+    this.#packs = new Map(packs.map((pack) => [pack.id, pack]));
+    this.#packBases = bases;
+    this.#trustUnrecorded = trustUnrecorded;
+    this.#schedule();
   }
 
   sceneUp(key: string, data: SceneData = {}): void {
@@ -127,6 +139,15 @@ export class PresenceTracker {
     return null;
   }
 
+  /** A mod villain's or hero's picture, from the Mod Store's public copy when the game has no URL for it. */
+  #withPackArt(game: PresenceGame): PresenceGame {
+    const villainArt =
+      game.villainArt ?? publicPackArtUrl(game.villainArtCodes, this.#packs, this.#packBases, this.#trustUnrecorded);
+    const heroArt =
+      game.heroArt ?? publicPackArtUrl(game.heroArtCodes, this.#packs, this.#packBases, this.#trustUnrecorded);
+    return { ...game, villainArt, heroArt };
+  }
+
   #compute(): DiscordActivity | null {
     if (!this.#enabled) return null;
     const now = Math.floor(this.#deps.now() / 1000);
@@ -148,7 +169,7 @@ export class PresenceTracker {
       screen,
       startedAt: inGame ? this.#gameSince : this.#menuSince,
       campaignName: screen === "campaign" ? this.#campaignName() : null,
-      game: game ? { ...game, campaignName } : null,
+      game: game ? { ...this.#withPackArt(game), campaignName } : null,
     });
   }
 }

@@ -15,6 +15,14 @@ export const PACKS_HOST = "https://packs.champions-digital-game.com";
 export const CATALOG_URL = import.meta.env?.DEV ? "/packs/index.json" : `${PACKS_HOST}/index.json`;
 export const CATALOG_CACHE_KEY = "mc-pack-catalog";
 
+const cachedListeners = new Set<() => void>();
+
+/** Calls `listener` each time a freshly fetched catalog is cached (Discord presence rereads it, issue #840). */
+export function onCatalogCached(listener: () => void): () => void {
+  cachedListeners.add(listener);
+  return () => void cachedListeners.delete(listener);
+}
+
 /** `maxBytes` refuses a response bigger than that, before or while its body is read (`pack-fetch.ts`). */
 export type FetchInit = RequestInit & { readonly maxBytes?: number };
 export type FetchLike = (url: string, init?: FetchInit) => Promise<Response>;
@@ -120,10 +128,21 @@ export async function loadCatalog(deps: CatalogDeps = {}): Promise<CatalogResult
     if (!response.ok) throw new Error(`Catalog request failed (${response.status})`);
     const index = parseCatalog(await response.json());
     if (!index) throw new Error("The pack catalog has an unexpected shape");
+    let cachedNow = false;
     try {
       storage?.setItem(CATALOG_CACHE_KEY, JSON.stringify(index));
+      cachedNow = !!storage;
     } catch {
       // Quota or private mode: the catalog still works this session.
+    }
+    if (cachedNow) {
+      for (const listener of [...cachedListeners]) {
+        try {
+          listener();
+        } catch {
+          // One listener's failure must not stop the others or the store.
+        }
+      }
     }
     return { index, offline: false };
   } catch (error) {
