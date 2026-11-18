@@ -6,19 +6,19 @@ Every playable scenario now has its own music. Kingpin, all three Shadowland sce
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.50.0/index.es.html)**
 
-![The numbers: 43 tracks in this release, 221 songs in the jukebox and 13 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
+![The numbers: 43 tracks in this release, 221 songs in the jukebox and 13 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
 
-![Every scenario has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario, Civil War included](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-every-scenario-has-a-soundtrack.jpg)
+![Every scenario has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario, Civil War included](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-every-scenario-has-a-soundtrack.jpg)
 
-![Updates that install themselves: The game has been updated with Restart now, the Restart banner, how each installer updates, and Settings ▸ More ▸ Add to Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-updates-that-install-themselves.jpg)
+![Updates that install themselves: The game has been updated with Restart now, the Restart banner, how each installer updates, and Settings ▸ More ▸ Add to Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-updates-that-install-themselves.jpg)
 
-![Your mods, on Discord and the Title: Carnage vs The Punisher in Discord, the website's downloads that Get the game opens, Gwenpool and Mephisto from the Mod Store, and the Mod Store button's update badge](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-your-mods-on-discord-and-the-title.jpg)
+![Your mods, on Discord and the Title: Carnage vs The Punisher in Discord, the website's downloads that Get the game opens, Gwenpool and Mephisto from the Mod Store, and the Mod Store button's update badge](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-your-mods-on-discord-and-the-title.jpg)
 
-![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-also-in-v0-50-0.jpg)
+![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-also-in-v0-50-0.jpg)
 
-![Thank you to Patatasaurio, Neptune (Typhon00), PermaKarma and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-thank-you.jpg)
+![Thank you to Patatasaurio, Neptune (Typhon00), PermaKarma and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-thank-you.jpg)
 
-![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-07-code-shipped.jpg)
+![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5f59aad0e6a90bd5ad478455fa61eba155728545/docs/screenshots/releases/v0.50.0/v0-50-0-release-07-code-shipped.jpg)
 
 ---
 
