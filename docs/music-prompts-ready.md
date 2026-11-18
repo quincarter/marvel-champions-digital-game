@@ -24,20 +24,6 @@ The two Synthezoid leaders' scenarios, one set of three each, in the same shape 
 
 Folder: `music/scenarios/resistance-vision/`
 
-### Density Absolute (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "Density Absolute"
-```
-
 ### A Synthetic Heart (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -414,10 +400,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 104 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 105 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 104 prompts already used</summary>
+<summary>Show the 105 prompts already used</summary>
 
 ## Black Widow
 
@@ -1917,6 +1903,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
 
 Title: "Phase Shift"
+```
+
+### Density Absolute (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Density Absolute"
 ```
 
 </details>
