@@ -329,14 +329,12 @@ export const FNE_SCENARIOS_KINGPIN: AbilityRegistry = defineAbilities({
     ]),
   ),
   // Any player may use it (an encounter card's optional ability, RRG 1.8 "Ability", p. 4). No cost arrow, so the
-  // removal is a replacement effect, not a cost (RRG 1.8 "Cost Arrow Icon", p. 14), and it may partially resolve
-  // ("Otherwise", p. 31; "Initiating Abilities", p. 24; replacement effects, p. 37): with at least 1 counter, remove as
-  // many as possible up to 1[per_hero] and the boost card is not given. With 0 counters the replacement cannot resolve
-  // and cannot trigger (ruling Mar 19, 2026 R5, Redwing; June 27, 2023 #32, C.S.I.). PROVISIONAL owner reading, no
-  // FFG ruling exists yet; revisit when one is issued (owner Q207, 2026-10-19).
+  // removal is a replacement effect, not a cost (RRG 1.8 "Cost Arrow Icon", p. 14). FFG ruling (email from the rules
+  // specialist, November 2026; spec Q207, issue #829): the full effect must resolve for the replacement to happen, so
+  // the Interrupt is offered only while all 1[per_hero] counters can be removed. With fewer the boost card is given.
   "60163b.public-support-interrupt": interrupt(
     on.boostCardWouldBeGiven({ to: query("enemy") }),
-    { would: true, while: valueAtLeast(countersOn(self, "support"), 1) },
+    { would: true, while: valueAtLeast(countersOn(self, "support"), perHero(1)) },
     instead(removeCountersFrom(self, "support", perHero(1))),
   ),
   "60163b.public-support-forced-response": forcedResponse(after.defeated(query("minion")), addCounters("support", 1)),
