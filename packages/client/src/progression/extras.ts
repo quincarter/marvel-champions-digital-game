@@ -683,6 +683,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/zola/battle.mp3": "The Bio-Fanatic",
   "scenarios/zola/villain-wins.mp3": "A Mind That Cannot Die",
   "scenarios/zola/villain-loses.mp3": "The Screen Goes Dark",
+  "scenarios/registration-captain-marvel/battle.mp3": "Chain of Command",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */

@@ -24,18 +24,6 @@ The four ready-made Civil War scenarios, one set of three per leader. A custom s
 
 Folder: `music/scenarios/registration-captain-marvel/`
 
-### Chain of Command (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Chain of Command"
-```
-
 ### Grounded by Order (villain wins, `villain-wins.mp3`)
 
 ```text
@@ -518,10 +506,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 97 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 98 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 97 prompts already used</summary>
+<summary>Show the 98 prompts already used</summary>
 
 ## Black Widow
 
@@ -1917,6 +1905,22 @@ Use the same main melody and instruments as the battle track I just generated.
 A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
 
 Title: "When the Siege Breaks"
+```
+
+## Captain Marvel (Registration)
+
+Folder: `music/scenarios/registration-captain-marvel/`
+
+### Chain of Command (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Chain of Command"
 ```
 
 </details>
