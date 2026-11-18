@@ -17,7 +17,7 @@ Work down this list and stop at the highest source that answers the question. Wh
 
 1. **The latest Rules Reference (v1.8, July 2026)**, for general rules and timing: `docs/rules/mc_rulesreference_v18_compressed.pdf` (read it with the Read tool's `pages` parameter), with `docs/rules/mc_rulesreference_v18_compressed.md` as a searchable transcription. Cite the entry name and page.
 2. **Current official errata**, for individual cards (the Rules Reference's errata section; the card data's `text.current`).
-3. **FFG rulings issued after v1.8**, unless a later rules update contradicts them: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes' transcription of FFG's Game Rules Specialist), cited by its date heading and the Rules Reference page it clarifies.
+3. **FFG rulings issued after v1.8**, unless a later rules update contradicts them: `docs/rulings/marvel-champions-rulings-post-rrg-1-7.md` (Hall of Heroes' transcription of FFG's Game Rules Specialist), cited by its date heading and the Rules Reference page it clarifies. Answers the owner received from FFG's rules specialist by email are in `docs/rules/ffg-direct-rulings.md`, at the same tier; cite them by date and card.
 4. **Older FFG rulings**: valid where consistent with v1.8, superseded where v1.8 contradicts them. FFG calls contact-form answers preliminary until a Rules Reference update includes them.
 5. **Engine-specific interpretations**, only where no official source answers. Say clearly that the answer is an engine reading.
 
