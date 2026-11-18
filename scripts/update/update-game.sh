@@ -53,7 +53,11 @@ cleanup() {
   rm -rf "$tmp"
   if [ -n "$staged_appimage" ]; then rm -f "$staged_appimage"; fi
   if [ -n "$owned_dir" ]; then rm -rf "$owned_dir"; fi
+  if [ -n "$installing" ]; then rm -f "$installing"; fi
 }
+# While the game is being replaced, this file holds this run's process id, and a game started meanwhile leaves at once
+# (src-tauri/src/steam_install.rs, leave_for_running_update) rather than run on half-replaced files. Empty until then.
+installing=""
 trap cleanup EXIT
 
 # Swaps two paths in one step (renameatx_np with RENAME_SWAP, through the perl macOS ships), so no moment passes, not
@@ -93,9 +97,15 @@ fi
 kill -0 "$pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
 printf 'MC_UPDATE ready %s\n' "$version"
 while kill -0 "$pid" 2> /dev/null; do sleep 1; done
+mkdir -p "$HOME/.marvel-champions"
+installing="$HOME/.marvel-champions/installing"
+printf '%s\n' "$$" > "$installing"
 
 # The game starts on its own, out of this script's process group, with none of the old AppImage's environment.
 start_game() {
+  # Done replacing (or not replacing) the game: it may start again.
+  if [ -n "$installing" ]; then rm -f "$installing"; fi
+  installing=""
   if [ "$kind" != dmg ]; then
     env -u APPIMAGE -u APPDIR -u ARGV0 -u OWD setsid "$game" > /dev/null 2>&1 < /dev/null &
   else
@@ -172,7 +182,17 @@ install() {
     local repair="sudo apt-get -f install"
     [ "$kind" = rpm ] && repair="sudo dnf reinstall $package (or sudo rpm -U --replacepkgs with the release's .rpm)"
     failed_after_quit "the package update stopped partway, so the game may not start. To repair it, run: $repair"
-    if package_ok; then start_game || true; fi
+    if package_ok; then
+      start_game || true
+    else
+      # The game may not start to say so on its Title, so the desktop says it, where it has a notifier.
+      if [ -n "$installing" ]; then rm -f "$installing"; fi
+      installing=""
+      if command -v notify-send > /dev/null; then
+        notify-send --urgency=critical "Marvel Champions didn't finish updating" \
+          "The package update stopped partway. To repair it, run in a terminal: $repair" 2> /dev/null || true
+      fi
+    fi
     exit 1
   fi
   mounted="$tmp/mount"

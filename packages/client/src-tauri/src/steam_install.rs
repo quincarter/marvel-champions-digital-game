@@ -105,8 +105,8 @@ fn still_installing(age: Duration) -> bool {
 /// Called first thing. Windows' installer closes a running game and can't
 /// replace a locked exe, so a game started while the script runs it (the player
 /// quit to install, then pressed Play straight away) gets out of the way. Steam
-/// shows it stop, and the next press plays the new version. Only Windows: the
-/// other systems' swap is a rename.
+/// shows it stop, and the next press plays the new version. The game's own
+/// updater on the other systems writes the same file (see below).
 #[cfg(windows)]
 pub fn leave_for_running_update() {
   let Some(home) = std::env::var_os("USERPROFILE") else {
@@ -120,6 +120,41 @@ pub fn leave_for_running_update() {
     eprintln!("an update is installing; start the game again in a moment");
     std::process::exit(0);
   }
+}
+
+/// Called first thing on macOS and Linux. The game's own updater
+/// (scripts/update/update-game.sh) writes its process id to the same
+/// `installing` file while it replaces the game, so a game started meanwhile
+/// (the player pressed Play again straight away) doesn't run against a half
+/// replaced app or package: it leaves, and the updater starts the new version
+/// itself. A file whose updater has gone (it died) doesn't count.
+#[cfg(not(windows))]
+pub fn leave_for_running_update() {
+  let Some(home) = std::env::var_os("HOME") else {
+    return;
+  };
+  let Ok(text) = std::fs::read_to_string(Path::new(&home).join(STATE_FOLDER).join("installing")) else {
+    return;
+  };
+  let Some(pid) = installer_pid(&text) else {
+    return;
+  };
+  let alive = Command::new("kill")
+    .args(["-0", &pid.to_string()])
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status()
+    .is_ok_and(|status| status.success());
+  if alive {
+    eprintln!("an update is installing; the game starts again by itself when it's done");
+    std::process::exit(0);
+  }
+}
+
+/// The updater's process id in an `installing` file, if it holds one.
+#[cfg(any(not(windows), test))]
+fn installer_pid(text: &str) -> Option<u32> {
+  text.trim().parse().ok().filter(|&pid| pid > 1)
 }
 
 /// The record of this install, or `None` for a game installed any other way.
@@ -260,6 +295,14 @@ mod tests {
   #[cfg(windows)]
   fn a_windows_record_ignores_case() {
     assert!(is_this_game("G:\\MarvelChampions\\marvel-champions.exe", "g:\\marvelchampions\\Marvel-Champions.exe"));
+  }
+
+  #[test]
+  fn an_installing_file_names_the_updater() {
+    assert_eq!(installer_pid("4242\n"), Some(4242));
+    assert_eq!(installer_pid(""), None);
+    assert_eq!(installer_pid("1"), None);
+    assert_eq!(installer_pid("not a pid"), None);
   }
 
   #[test]
