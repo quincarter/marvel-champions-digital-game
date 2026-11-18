@@ -43,6 +43,14 @@ export const TRORS_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "04061b",
+      reason:
+        'MarvelCDB\'s record for Attack on Mount Athena 1B has no text at all, so its "When Revealed: Reveal the top card of the Experimental Weapons deck." never resolved and Crossbones started every game without an Experimental Weapon.',
+      evidence:
+        "Card scan assets/card-art/bundles/cards/04061.png (Crossbones 4/19, 61B), read 2026-11-17; same wording as 2B (04062) and 3B (04063) in raw.",
+      textReplace: { find: "", replace: "When Revealed: Reveal the top card of the Experimental Weapons deck." },
+    },
+    {
       code: "04031b",
       reason:
         'MarvelCDB\'s own transcription typo: Jessica Drew\'s ability header is "<b>Action:</b>:", which renders as "Action::" on the Inspect card text.',

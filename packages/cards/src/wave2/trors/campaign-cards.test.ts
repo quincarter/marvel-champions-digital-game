@@ -305,7 +305,9 @@ describe("Basic Thwart Upgrade (04159a) / Improved Thwart Upgrade (04159b)", () 
     const scheme = instancesOf(revealed, "04070").find((i) => cardsInPlay(revealed).includes(i))!;
     const identity = identityOf(revealed);
     const ready = patchInstance(patchInstance(revealed, scheme, { threat: 1 }), identity, { exhausted: false });
-    const handBefore = playerOf(ready, P1).hand.length;
+    // Counted from the deck, not the hand: Crossbones starts with an Experimental Weapon (Attack on Mount Athena 1B),
+    // and if it is Power Gauntlets, Crossbones' Assault's own attack makes P1 discard a card from hand.
+    const deckBefore = playerOf(ready, P1).deck.length;
     const thwarted = settle(
       runWave2(ready, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: scheme }),
       (s) => {
@@ -317,7 +319,7 @@ describe("Basic Thwart Upgrade (04159a) / Improved Thwart Upgrade (04159b)", () 
       WAVE2_DEPS,
     );
     expect(inst(thwarted, id).exhausted).toBe(true);
-    expect(playerOf(thwarted, P1).hand.length).toBe(handBefore + 1);
+    expect(playerOf(thwarted, P1).deck.length).toBe(deckBefore - 1);
   });
 });
 

@@ -165,7 +165,12 @@ const profile = (s: GameState, id: InstanceId) => characterProfile(s, id, WAVE11
 const counters = (s: GameState, id: InstanceId, kind: string): number =>
   (inst(s, id).counters as Record<string, number> | undefined)?.[kind] ?? 0;
 
-const SEATS = [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }];
+const SEATS = [
+  { starterDeckId: "core-spider-man-justice" },
+  { starterDeckId: "core-captain-marvel-leadership" },
+  { starterDeckId: "core-iron-man-aggression" },
+  { starterDeckId: "core-she-hulk-aggression" },
+];
 const ECHO_SEATS = [{ starterDeckId: "fne-daredevil-justice" }, { starterDeckId: "fne-echo-protection" }];
 
 /** A Kingpin game past setup (side 1; `side: "B"` turns him to his second side, as Public Support does). */
@@ -614,6 +619,23 @@ describe("Public Support, High side (60163b.public-support-interrupt)", () => {
     }
     return declines(s);
   };
+  /** `takesSupport`, also noting whether Public Support's Interrupt was ever offered. */
+  const watchSupport = () => {
+    let offered = false;
+    const watch: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      if (
+        choice.prompt.kind === "chooseTriggers" &&
+        choice.options.some((o) => {
+          const ref = (o as { ref?: { kind: string; abilityId?: string } }).ref;
+          return ref?.kind === "ability" && ref.abilityId === "60163b.public-support-interrupt";
+        })
+      )
+        offered = true;
+      return takesSupport(s);
+    };
+    return { watch, wasOffered: () => offered };
+  };
 
   it("taken, each boost card Kingpin would be given is replaced by removing 1[per_hero] counters (1 hero: 1)", () => {
     const base = high(hobbledExceptKingpin(newGame()), 5);
@@ -627,20 +649,21 @@ describe("Public Support, High side (60163b.public-support-interrupt)", () => {
     expect(counters(taken.state, support(taken.state), "support")).toBe(5 - given);
   });
 
-  it("2 heroes: 2 counters a give; with 3 counters both gives are replaced, the second removing the last 1 (Q207 = B)", () => {
+  it("2 heroes: 2 counters a give; with 3 counters only the first give is replaced and the last counter stays (FFG ruling, #829)", () => {
     const base = high(hobbledExceptKingpin(newGame({ players: 2 })), 3);
     const kingpin = villainOf(base);
     const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
     expect(given).toBe(2);
     const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], takesSupport);
-    expect(counters(taken.state, support(taken.state), "support")).toBe(0);
-    expect(boostsGiven(taken.events, kingpin)).toBe(0);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(1);
+    expect(boostsGiven(taken.events, kingpin)).toBe(1);
   });
 
-  // Provisional owner reading Q207 (2026-10-19), no FFG ruling: no cost arrow, so a replacement effect (RRG 1.8 pp. 14,
-  // 24, 37) removing as many as possible up to 1[per_hero]. Table in a 2-player game: 2+ -> 2, 1 -> 1, 0 -> not offered.
-  it("2 heroes, 2 or more counters: each replaced give removes exactly 2 and no boost card is given (Q207)", () => {
-    for (const n of [2, 5]) {
+  // FFG ruling (rules specialist email, November 2026; spec Q207, issue #829): no cost arrow, so a replacement effect
+  // (RRG 1.8 pp. 14, 37) that happens only if all 1[per_hero] counters can be removed. 2-player table: 2+ -> 2 a give,
+  // 1 or 0 -> not offered.
+  it("2 heroes, 2 or more counters: each replaced give removes exactly 2 and no boost card is given (#829)", () => {
+    for (const n of [2, 3, 5]) {
       const base = high(hobbledExceptKingpin(newGame({ players: 2 })), n);
       const kingpin = villainOf(base);
       const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
@@ -648,19 +671,47 @@ describe("Public Support, High side (60163b.public-support-interrupt)", () => {
       const left = counters(taken.state, support(taken.state), "support");
       const replaced = given - boostsGiven(taken.events, kingpin);
       expect(replaced).toBeGreaterThan(0);
-      expect(left).toBe(Math.max(0, n - 2 * replaced));
-      if (n === 5) expect(left).toBe(5 - 2 * given);
+      expect(left).toBe(n - 2 * replaced);
+      expect(left).toBeGreaterThanOrEqual(0);
+      if (n === 5) expect(replaced).toBe(Math.min(given, 2));
     }
   });
 
-  it("2 heroes, 1 counter: the give is replaced and the counter is gone (the removal partly resolves, Q207 = B)", () => {
+  it("2 heroes, 1 counter: the Interrupt is not offered, every boost card is given and the counter stays (#829)", () => {
     const base = high(hobbledExceptKingpin(newGame({ players: 2 })), 1);
     const kingpin = villainOf(base);
+    const { watch, wasOffered } = watchSupport();
     const given = boostsGiven(bare(base, [BRO, BRO, BRO, INFLUENCE]).events, kingpin);
-    const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], takesSupport);
-    expect(counters(taken.state, support(taken.state), "support")).toBe(0);
-    expect(boostsGiven(taken.events, kingpin)).toBe(given - 1);
+    const taken = bare(base, [BRO, BRO, BRO, INFLUENCE], watch);
+    expect(wasOffered()).toBe(false);
+    expect(counters(taken.state, support(taken.state), "support")).toBe(1);
+    expect(boostsGiven(taken.events, kingpin)).toBe(given);
   });
+
+  // The threshold follows the player count (perHero(1)): one counter short is never offered, the exact number replaces
+  // one give and spends them all, and the next give then finds too few (#829).
+  for (const players of [3, 4]) {
+    it(`${players} heroes: ${players - 1} counters are not enough; ${players} replace one give and the next is given (#829)`, () => {
+      const stack = [BRO, BRO, BRO, INFLUENCE];
+      const short = high(hobbledExceptKingpin(newGame({ players })), players - 1);
+      const kingpin = villainOf(short);
+      const control = boostsGiven(bare(short, stack).events, kingpin);
+      expect(control).toBeGreaterThanOrEqual(2);
+
+      const shortWatch = watchSupport();
+      const shortRun = bare(short, stack, shortWatch.watch);
+      expect(shortWatch.wasOffered()).toBe(false);
+      expect(counters(shortRun.state, support(shortRun.state), "support")).toBe(players - 1);
+      expect(boostsGiven(shortRun.events, kingpin)).toBe(control);
+
+      const exact = high(hobbledExceptKingpin(newGame({ players })), players);
+      const exactWatch = watchSupport();
+      const exactRun = bare(exact, stack, exactWatch.watch);
+      expect(exactWatch.wasOffered()).toBe(true);
+      expect(counters(exactRun.state, support(exactRun.state), "support")).toBe(0);
+      expect(boostsGiven(exactRun.events, kingpin)).toBe(control - 1);
+    });
+  }
 
   it("0 counters: the Interrupt is not offered and every boost card is given", () => {
     const base = high(hobbledExceptKingpin(newGame()), 0);

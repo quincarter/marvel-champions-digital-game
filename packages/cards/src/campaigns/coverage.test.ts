@@ -161,6 +161,7 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
       "absorbing-man": {
         setup: [
           "mc10.s2.setup.setup-keyword",
+          "mc10.s2.setup.experimental-gather",
           "mc10.s2.setup.experimental",
           "mc10.s2.setup.hp-set",
           "mc10.s2.setup.obligation",
@@ -172,6 +173,7 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
       taskmaster: {
         setup: [
           "mc10.s3.setup.setup-keyword",
+          "mc10.s3.setup.experimental-gather",
           "mc10.s3.setup.experimental",
           "mc10.s3.setup.hp-set",
           "mc10.s3.setup.obligation",
@@ -183,6 +185,7 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
       zola: {
         setup: [
           "mc10.s4.setup.setup-keyword",
+          "mc10.s4.setup.experimental-gather",
           "mc10.s4.setup.experimental",
           "mc10.s4.setup.hp-set",
           "mc10.s4.setup.obligation",
@@ -201,6 +204,7 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
       "red-skull": {
         setup: [
           "mc10.s5.setup.setup-keyword",
+          "mc10.s5.setup.experimental-gather",
           "mc10.s5.setup.experimental",
           "mc10.s5.setup.delay-threat-standard",
           "mc10.s5.setup.delay-threat-expert",

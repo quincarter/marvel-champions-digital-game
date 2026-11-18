@@ -46,6 +46,19 @@ function mockingbirdInPlay(state: GameState, player: PlayerId): { readonly state
   };
 }
 
+describe("Attack on Mount Athena 1B — When Revealed: Reveal the top card of the Experimental Weapons deck", () => {
+  it("Crossbones starts the game with one Experimental Weapon attached, taken from the Experimental Weapons deck", () => {
+    const state = crossbonesVsHawkeye();
+    const villain = state.villains[0]!.instanceId;
+    const weapons = ["04072", "04073", "04074", "04075"].flatMap((code) => instancesOf(state, code));
+    const attached = weapons.filter((id) => inst(state, id).attachedTo === villain);
+    expect(attached).toHaveLength(1);
+    // The other three are still face down in the Experimental Weapons deck (MC10 p. 5).
+    expect(state.scenarioDecks["Experimental Weapons"]?.deck).toHaveLength(3);
+    expect(state.scenarioDecks["Experimental Weapons"]?.deck).not.toContain(attached[0]);
+  });
+});
+
 /**
  * The Crossbones scenario's own scripted cards (`crossbones.ts`). A full villain-stage-advance harness for "When
  * Revealed" abilities on a villain's own stage card doesn't exist yet in the wave 2 test helpers (there's no
