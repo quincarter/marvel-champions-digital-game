@@ -169,21 +169,21 @@
       "name": "music-soundtrack",
       "group": "music",
       "dir": "music/soundtrack",
-      "tag": "music-soundtrack-6e3783549080",
+      "tag": "music-soundtrack-e9bafba26364",
       "file": "music-soundtrack.zip",
-      "size": 670259035,
-      "sha256": "6e37835490801771b26d5a75df450f23e319af13df6fac804555d82ca32a12f0",
-      "files": 212
+      "size": 691924817,
+      "sha256": "e9bafba26364c85dc5209d04c7ec065b4a3c1f3d5afff77ed1e5e6f3079f24c7",
+      "files": 221
     },
     {
       "name": "music-scenarios",
       "group": "music",
       "dir": "music/scenarios",
-      "tag": "music-scenarios-18555bd00227",
+      "tag": "music-scenarios-9a1768c1a330",
       "file": "music-scenarios.zip",
-      "size": 569240996,
-      "sha256": "18555bd00227e45997baaa63252eb20be513ef087cdb49410ac31650e71428a1",
-      "files": 185
+      "size": 590907092,
+      "sha256": "9a1768c1a330695ae8271a8c4102900e448726032577c38b7471172752eba75b",
+      "files": 194
     },
     {
       "name": "music-campaigns",
