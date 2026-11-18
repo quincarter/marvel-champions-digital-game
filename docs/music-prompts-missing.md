@@ -83,20 +83,6 @@ Tracks: **Phase Shift** (battle), **Density Absolute** (villain wins), **A Synth
 An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
 ```
 
-# Shadowland
-
-## Shadowland campaign finale
-
-Track: **The Shadow Lifts** (`campaigns/shadowland/finale.mp3`).
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Campaign finale, 2-3 minutes: the demon is beaten, the black fortress crumbles, and dawn breaks over the freed neighborhood. Starts quiet with solo flute and soft strings, a steady taiko pulse enters, then it grows into a broad, triumphant anthem for full orchestra with a shining choir-like pad. Relief turning to triumph, about 84 BPM, ending on a long warm major chord.
-
-Title: "The Shadow Lifts"
-```
-
 # Earlier boxes: scenarios with no music
 
 ## The Wrecking Crew
@@ -145,7 +131,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Shadowland campaign finale: `campaigns/shadowland/finale.mp3`
 - The Wrecking Crew: `scenarios/breakout/`
 - Kang: `scenarios/kang/`
 - Absorbing Man: `scenarios/absorbing-man/`
@@ -492,6 +477,18 @@ Generate an instrumental music track. No vocals, no sung or spoken words. Style:
 Campaign interlude, about 2 minutes, loops: the heroes catch their breath in the shadow of the black fortress, each feeling the darkness creeping into them. Uneasy calm: a soft low taiko heartbeat, a slow shakuhachi-style flute motif, quiet sustained strings with an eerie shimmer, a distant temple-bell tone. No big drums, no climax, steady so it can loop under menus. About 70 BPM, A minor with brief turns to C major.
 
 Title: "Before the Tower"
+```
+
+## Shadowland campaign finale
+
+Track: **The Shadow Lifts** (`campaigns/shadowland/finale.mp3`).
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign finale, 2-3 minutes: the demon is beaten, the black fortress crumbles, and dawn breaks over the freed neighborhood. Starts quiet with solo flute and soft strings, a steady taiko pulse enters, then it grows into a broad, triumphant anthem for full orchestra with a shining choir-like pad. Relief turning to triumph, about 84 BPM, ending on a long warm major chord.
+
+Title: "The Shadow Lifts"
 ```
 
 </details>
