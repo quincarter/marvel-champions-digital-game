@@ -156,20 +156,6 @@ Title: "A Synthetic Heart"
 
 Folder: `music/scenarios/zola/`
 
-### A Mind That Cannot Die (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
-
-Title: "A Mind That Cannot Die"
-```
-
 ### The Screen Goes Dark (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -592,10 +578,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 92 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 93 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 92 prompts already used</summary>
+<summary>Show the 93 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1905,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
 
 Title: "The Bio-Fanatic"
+```
+
+### A Mind That Cannot Die (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
+
+Title: "A Mind That Cannot Die"
 ```
 
 </details>
