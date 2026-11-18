@@ -680,6 +680,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/absorbing-man/battle.mp3": "Whatever He Touches",
   "scenarios/absorbing-man/villain-wins.mp3": "Ball and Chain",
   "scenarios/absorbing-man/villain-loses.mp3": "Nothing Left to Absorb",
+  "scenarios/zola/battle.mp3": "The Bio-Fanatic",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
