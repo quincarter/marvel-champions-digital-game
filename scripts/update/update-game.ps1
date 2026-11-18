@@ -56,21 +56,28 @@ try {
   if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
     throw "the game closed before the download finished, so nothing changed."
   }
-  Write-Host "MC_UPDATE ready $Version"
-  while ($null -ne (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) { Start-Sleep -Seconds 1 }
-  $quit = $true
-
-  # A game started while the installer runs exits at once (steam_install.rs, leave_for_running_update).
+  # From here until the install is done, a game started again exits at once (steam_install.rs,
+  # leave_for_running_update): made before waiting, so even a game restarted the moment this one quits can't run on
+  # the files the installer is replacing. The file counts while it is fresh, so it is touched every second.
   $installing = Join-Path $StateDir "installing"
   New-Item -ItemType File -Force -Path $installing | Out-Null
   try {
+    Write-Host "MC_UPDATE ready $Version"
+    while ($null -ne (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
+      (Get-Item -LiteralPath $installing).LastWriteTime = Get-Date
+      Start-Sleep -Seconds 1
+    }
+    $quit = $true
     if ($Kind -eq "msi") {
       # The .msi installs for every user, so Windows asks for an administrator's permission.
       $process = Start-Process msiexec.exe -ArgumentList @("/i", ('"' + $installer + '"'), "/passive", "/norestart") `
-        -Verb RunAs -Wait -PassThru
+        -Verb RunAs -PassThru
     } else {
-      $process = Start-Process $installer -ArgumentList "/S" -Wait -PassThru
+      $process = Start-Process $installer -ArgumentList "/S" -PassThru
     }
+    # Holding the handle from the start keeps the exit code readable once it ends.
+    $null = $process.Handle
+    while (-not $process.WaitForExit(1000)) { (Get-Item -LiteralPath $installing).LastWriteTime = Get-Date }
   } finally {
     Remove-Item $installing -ErrorAction SilentlyContinue
   }

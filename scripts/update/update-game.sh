@@ -95,11 +95,13 @@ else
 fi
 [ "$got" = "$sha256" ] || die "the download doesn't match the release, so nothing changed."
 kill -0 "$pid" 2> /dev/null || die "the game closed before the download finished, so nothing changed."
-printf 'MC_UPDATE ready %s\n' "$version"
-while kill -0 "$pid" 2> /dev/null; do sleep 1; done
+# Made before waiting, so even a game restarted the moment this one quits leaves rather than run on the files about to
+# be replaced (steam_install.rs, leave_for_running_update). It names this run, which removes it when it's done.
 mkdir -p "$HOME/.marvel-champions"
 installing="$HOME/.marvel-champions/installing"
 printf '%s\n' "$$" > "$installing"
+printf 'MC_UPDATE ready %s\n' "$version"
+while kill -0 "$pid" 2> /dev/null; do sleep 1; done
 
 # The game starts on its own, out of this script's process group, with none of the old AppImage's environment.
 start_game() {
