@@ -130,7 +130,10 @@ describe("checkPackUpdates", () => {
     const check = checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: slow, storage });
     await vi.waitFor(() => expect(release).toBeDefined());
     // The store's catalog is newer than the one the slow check is fetching: it already lists 1.2.0.
-    const newer = indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry);
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
     notePackUpdates(newer, [installed("fan-newer", "1.1.0")]);
     expect(packUpdateCount()).toBe(1);
     release!();
@@ -142,8 +145,8 @@ describe("checkPackUpdates", () => {
       await checkPackUpdates({ store: store([installed("fan-newer", "1.1.0")]), fetch: next, storage: null }),
     ).toBe(1);
     expect(next).not.toHaveBeenCalled();
-    // Nor does the slow answer replace the saved copy.
-    expect(saved.size).toBe(0);
+    // Nor does the slow answer become the saved copy: the store's newer one does.
+    expect(JSON.parse(saved.get(CATALOG_CACHE_KEY)!).generated).toBe(newer.generated);
   });
 
   it("gives up on a catalog request that hangs, counts from the saved copy, and lets the next check retry", async () => {
@@ -244,5 +247,34 @@ describe("checkPackUpdates", () => {
     const deps = { store: store([installed("fan-newer", "1.1.0")]), storage };
     expect(await checkPackUpdates({ ...deps, fetch: json(index), force: true })).toBe(1);
     expect(JSON.parse(saved.get(CATALOG_CACHE_KEY)!).generated).toBe(newer.generated);
+  });
+
+  it("keeps a newer fetched catalog when the store notes an older one meanwhile", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
+    let release: (() => void) | undefined;
+    const slow = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(new Response(JSON.stringify(newer), { status: 200 }));
+        }),
+    );
+    let packs = [installed("fan-newer", "1.0.0")];
+    const live = { list: async () => [...packs] };
+    const check = checkPackUpdates({ store: live, fetch: slow, storage: null });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    // The store updated the pack to 1.1.0 from its older catalog, which offers nothing newer.
+    packs = [installed("fan-newer", "1.1.0")];
+    notePackUpdates(index, packs);
+    expect(packUpdateCount()).toBe(0);
+    release!();
+    await check;
+    // The check's newer catalog offers 1.2.0 over today's 1.1.0, and it is remembered.
+    expect(packUpdateCount()).toBe(1);
+    const next = json(index);
+    expect(await checkPackUpdates({ store: live, fetch: next, storage: null })).toBe(1);
+    expect(next).not.toHaveBeenCalled();
   });
 });

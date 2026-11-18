@@ -55,7 +55,7 @@ let count = 0;
 let lastIndex: PackIndex | undefined;
 let lastFetched = Number.NEGATIVE_INFINITY;
 let inFlight: Promise<number> | undefined;
-/** Bumped by each `notePackUpdates`: a check that started before it read an older installed list, and stands down. */
+/** Bumped by each `notePackUpdates`: a check that started before it read an older installed list, and reads it again. */
 let noted = 0;
 const listeners = new Set<(count: number) => void>();
 
@@ -127,7 +127,7 @@ async function runCheck(deps: CheckDeps): Promise<number> {
   }
   // Nothing installed: nothing to update, and no reason to reach the network.
   if (installed.length === 0) {
-    if (noted === started) setCount(0);
+    setCount(0);
     return count;
   }
   let index = lastIndex;
@@ -152,11 +152,10 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       const saved = cachedCatalog(deps.storage);
       if (saved && (!index || isNewerCatalog(saved, index))) index = saved;
     }
-    // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
-    if (fresh && noted === started) {
-      // The store may have saved a newer catalog that it has not noted yet, or a CDN may answer with an older one: the
-      // newest of the copies (`isNewerCatalog`) is counted from and kept.
-      // The one in memory counts too: with no storage (or a failed write) it may be the only newer copy.
+    if (fresh) {
+      // Whatever else landed while this fetch waited (the store noting its catalog, another tab saving one, a stale CDN
+      // answer here), the newest copy (`isNewerCatalog`) among the fetched, saved and remembered ones is counted from
+      // and kept. The one in memory counts too: with no storage (or a failed write) it may be the only newer copy.
       let newest = fresh;
       for (const other of [cachedCatalog(deps.storage), lastIndex]) {
         if (other && isNewerCatalog(other, newest)) newest = other;
@@ -167,8 +166,17 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       saveCatalog(newest, deps.storage);
     }
   }
-  // The Mod Store noted a newer installed list while this check waited: its count stands.
-  if (index && noted === started) setCount(packUpdateCountOf(index, installed));
+  // The Mod Store installed, updated or removed a pack while this check waited: count against today's list, and from
+  // the newest catalog either of us holds.
+  if (noted !== started) {
+    try {
+      installed = await (deps.store ?? sharedPackStore()).list();
+    } catch {
+      return count;
+    }
+    if (lastIndex && (!index || isNewerCatalog(lastIndex, index))) index = lastIndex;
+  }
+  if (index) setCount(packUpdateCountOf(index, installed));
   return count;
 }
 
