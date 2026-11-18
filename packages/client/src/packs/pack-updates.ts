@@ -153,9 +153,12 @@ async function runCheck(deps: CheckDeps): Promise<number> {
     // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
     if (fresh && noted === started) {
       // The store may have saved a newer catalog that it has not noted yet, or a CDN may answer with an older one: the
-      // newer of the two (`isNewerCatalog`) is counted from and kept.
-      const saved = cachedCatalog(deps.storage);
-      const newest = saved && isNewerCatalog(saved, fresh) ? saved : fresh;
+      // newest of the copies (`isNewerCatalog`) is counted from and kept.
+      // The one in memory counts too: with no storage (or a failed write) it may be the only newer copy.
+      let newest = fresh;
+      for (const other of [cachedCatalog(deps.storage), lastIndex]) {
+        if (other && isNewerCatalog(other, newest)) newest = other;
+      }
       index = newest;
       lastIndex = newest;
       lastFetched = now();

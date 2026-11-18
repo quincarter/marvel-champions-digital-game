@@ -200,4 +200,14 @@ describe("checkPackUpdates", () => {
     notePackUpdates(index, [installed("fan-newer", "1.1.0")]);
     expect(packUpdateCount()).toBe(1);
   });
+
+  it("keeps a newer catalog held only in memory when storage is unavailable", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
+    const deps = { store: store([installed("fan-newer", "1.1.0")]), storage: null };
+    notePackUpdates(newer, [installed("fan-newer", "1.1.0")]);
+    expect(await checkPackUpdates({ ...deps, fetch: json(index), force: true })).toBe(1);
+  });
 });
