@@ -123,9 +123,18 @@ describe("checkPackUpdates", () => {
     );
     const check = checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: slow, storage: null });
     await vi.waitFor(() => expect(release).toBeDefined());
-    notePackUpdates(index, [installed("fan-newer", "1.1.0")]);
+    // The store's catalog is newer than the one the slow check is fetching: it already lists 1.2.0.
+    const newer = indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry);
+    notePackUpdates(newer, [installed("fan-newer", "1.1.0")]);
+    expect(packUpdateCount()).toBe(1);
     release!();
     await check;
-    expect(packUpdateCount()).toBe(0);
+    expect(packUpdateCount()).toBe(1);
+    // The next check reuses the store's catalog, not the slow check's older one.
+    const next = json(index);
+    expect(
+      await checkPackUpdates({ store: store([installed("fan-newer", "1.1.0")]), fetch: next, storage: null }),
+    ).toBe(1);
+    expect(next).not.toHaveBeenCalled();
   });
 });

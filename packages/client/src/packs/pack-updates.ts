@@ -129,8 +129,11 @@ async function runCheck(deps: CheckDeps): Promise<number> {
       // An offline answer is the saved copy: counted from, but not fresh, so the next check tries the network again.
       const catalog = await loadCatalog(deps);
       index = catalog.index;
-      lastIndex = index;
-      if (!catalog.offline) lastFetched = now();
+      // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
+      if (noted === started) {
+        lastIndex = index;
+        if (!catalog.offline) lastFetched = now();
+      }
     } catch {
       // No network and no saved copy: nothing to count from.
     }
