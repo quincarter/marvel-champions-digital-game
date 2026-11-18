@@ -1,4 +1,4 @@
-# Music prompts for every empty slot (2026-10-10, updated 2026-10-26)
+# Music prompts for every empty slot (2026-10-10, updated 2026-11-18)
 
 Every scenario and campaign slot in `music/` that has no track today: 40 tracks. The titles here are the ones to
 use for the files and the `TRACK_TITLES` entries, whatever name the generator gives the download. None repeats a
@@ -66,14 +66,6 @@ A cosmic-powered air force pilot and government agent who believes heroes must f
 ```
 
 # Wave 11: Fear No Evil
-
-## Stop the Presses!
-
-Tracks: **Ink and Gunfire** (battle), **The Story Dies Tonight** (villain wins), **Extra! Extra!** (heroes win).
-
-```text
-Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
-```
 
 ## Kingpin
 
@@ -221,7 +213,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
-- Stop the Presses!: `scenarios/stop-the-presses/`
 - Kingpin: `scenarios/kingpin/`
 - Fear No Evil campaign interlude: `campaigns/fne/interlude.mp3`
 - Fear No Evil campaign finale: `campaigns/fne/finale.mp3`
@@ -502,6 +493,14 @@ Tracks: **Riot on the Raft** (battle), **Every Cell Open** (villain wins), **The
 
 ```text
 Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Alarms howl across an island super-prison as a villain springs every cell, and the heroes fight inmates down steel corridors before the island empties. Prison-riot urgency: blaring alarm-like brass, clanging metallic percussion, a driving staccato string ostinato, distorted synth bass, a heroic horn line fighting through the chaos. About 140 BPM, B minor, loud and desperate.
+```
+
+## Stop the Presses!
+
+Tracks: **Ink and Gunfire** (battle), **The Story Dies Tonight** (villain wins), **Extra! Extra!** (heroes win).
+
+```text
+Street-level noir in a rough New York neighborhood at night, where a blind vigilante lawyer, a hard-drinking private eye and an unbreakable hero for hire fight a crime boss's underlings. Thugs storm a city newspaper to bury the story that would expose their boss, and the heroes defend the newsroom while the presses keep rolling. Newsroom thriller: typewriter-clatter percussion and a pulsing printing-press rhythm, urgent pizzicato strings, a determined trumpet melody, low-brass blows from the thugs. About 132 BPM, G minor, urgent and righteous.
 ```
 
 </details>
