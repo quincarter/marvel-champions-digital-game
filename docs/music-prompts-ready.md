@@ -156,20 +156,6 @@ Title: "A Synthetic Heart"
 
 Folder: `music/scenarios/absorbing-man/`
 
-### Ball and Chain (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
-
-Title: "Ball and Chain"
-```
-
 ### Nothing Left to Absorb (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -636,10 +622,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 89 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 90 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 89 prompts already used</summary>
+<summary>Show the 90 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1905,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
 
 Title: "Whatever He Touches"
+```
+
+### Ball and Chain (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
+
+Title: "Ball and Chain"
 ```
 
 </details>
