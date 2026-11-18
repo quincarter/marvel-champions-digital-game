@@ -184,6 +184,8 @@ export class TitleScene extends Phaser.Scene {
   #selfUpdate: SelfUpdate | null = null;
   /** A downloaded update waiting for the game to restart (or, for the Steam script, to quit), by its version. */
   #readyVersion: string | null = null;
+  /** The ready version whose banner the player closed this visit: the 2-second recheck must not bring it back. */
+  #readyDismissed: string | null = null;
   /** The last update was downloaded and the game quit for it, but it didn't install (the old game started again). */
   #updateFailed = false;
   /** This visit's picture (`art/title-art.ts`), chosen once per `create` so a resize redraws the same one. */
@@ -258,6 +260,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(data: TitleSceneData = {}): void {
+    this.#readyDismissed = null;
     if (data.initialSeatDeckId) {
       const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
       const seedDecks =
@@ -1191,6 +1194,7 @@ export class TitleScene extends Phaser.Scene {
       () => void quitForSteamUpdate(),
     );
     this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
+      this.#readyDismissed = version;
       this.#readyVersion = null;
       this.#rebuild();
     });
@@ -1199,7 +1203,9 @@ export class TitleScene extends Phaser.Scene {
 
   /** Asks whether a downloaded update is waiting, and shows the banner for it (on arrival, and when the panel closes). */
   #checkReadyUpdate(): void {
-    void readyUpdateVersion().then((version) => {
+    void readyUpdateVersion().then((ready) => {
+      // A version closed this visit stays closed; a newer one that becomes ready shows.
+      const version = ready === this.#readyDismissed ? null : ready;
       if (version === this.#readyVersion || !this.sys.isActive()) return;
       this.#readyVersion = version;
       this.#rebuild();

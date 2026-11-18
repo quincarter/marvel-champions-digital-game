@@ -347,6 +347,22 @@ test.describe("an install from the release's installers (#843)", () => {
     expect(errors).toEqual([]);
   });
 
+  test("closing the restart banner keeps it closed past the Title's recheck", async ({ page }) => {
+    const errors = trackPageErrors(page);
+    await page.addInitScript(() => {
+      const ready = { running: true, exitCode: null, log: "MC_UPDATE ready 999.0.0\n" };
+      (window as unknown as { __initialStatus: unknown }).__initialStatus = ready;
+    });
+    await openAsSteamInstall(page, null, "", { kind: "nsis" });
+    await waitForStop(page, "update-restart");
+    await pressStop(page, "Title", "update-dismiss");
+    await waitFor(async () => !(await stopKeys(page, "Title")).includes("update-restart"), "the banner closed");
+    // The Title asks the updater every 2 seconds; the closed banner stays closed.
+    await page.waitForTimeout(4500);
+    expect(await stopKeys(page, "Title")).not.toContain("update-restart");
+    expect(errors).toEqual([]);
+  });
+
   test("an update that didn't install after the restart says so, and can be tried again", async ({ page }) => {
     const errors = trackPageErrors(page);
     await page.addInitScript(() => {

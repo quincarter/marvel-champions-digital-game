@@ -176,9 +176,12 @@ fn can_replace(game: &Path, kind: &str) -> bool {
   if cfg!(windows) {
     return true;
   }
-  // A system package goes where the package manager puts it, as root, through polkit's password prompt.
+  // A system package goes where the package manager puts it, as root, through polkit's password prompt. Only when the
+  // package manager's own records say this game came from our package: a Debian or Fedora system alone says nothing
+  // about how this copy got here (unpacked to /opt, built by hand), and the update must not install a package the
+  // player never had.
   if kind == "deb" || kind == "rpm" {
-    return has_pkexec();
+    return has_pkexec() && owning_package(game, kind).is_some_and(|name| name == PACKAGE_NAME);
   }
   let Some(parent) = game.parent() else {
     return false;
@@ -186,7 +189,64 @@ fn can_replace(game: &Path, kind: &str) -> bool {
   let probe = parent.join(format!(".mc-update-probe-{}", std::process::id()));
   let made = std::fs::File::create(&probe).is_ok();
   let _ = std::fs::remove_file(&probe);
-  made
+  made && (!kind.starts_with("dmg") || can_swap_in(parent))
+}
+
+/// Whether `dir`'s disk can swap two paths in one step, which the .app update needs so a crash can't leave the game
+/// missing (update-game.sh). APFS can; HFS+ and exFAT can't, and an app there keeps the download link.
+#[cfg(target_os = "macos")]
+fn can_swap_in(dir: &Path) -> bool {
+  use std::ffi::CString;
+  use std::os::unix::ffi::OsStrExt;
+  extern "C" {
+    fn renamex_np(from: *const std::ffi::c_char, to: *const std::ffi::c_char, flags: u32) -> std::ffi::c_int;
+  }
+  const RENAME_SWAP: u32 = 0x2;
+  let a = dir.join(format!(".mc-swap-probe-{}.a", std::process::id()));
+  let b = dir.join(format!(".mc-swap-probe-{}.b", std::process::id()));
+  let swap = || -> bool {
+    if std::fs::create_dir(&a).is_err() || std::fs::create_dir(&b).is_err() {
+      return false;
+    }
+    let (Ok(from), Ok(to)) = (CString::new(a.as_os_str().as_bytes()), CString::new(b.as_os_str().as_bytes())) else {
+      return false;
+    };
+    // SAFETY: both are NUL-terminated paths that live through the call.
+    unsafe { renamex_np(from.as_ptr(), to.as_ptr(), RENAME_SWAP) == 0 }
+  };
+  let swapped = swap();
+  let _ = std::fs::remove_dir(&a);
+  let _ = std::fs::remove_dir(&b);
+  swapped
+}
+
+#[cfg(not(target_os = "macos"))]
+fn can_swap_in(_dir: &Path) -> bool {
+  false
+}
+
+/// The .deb's and .rpm's package name, from the app's product name (tauri.conf.json); update-game.sh checks the same.
+const PACKAGE_NAME: &str = "marvel-champions";
+
+/// The installed package that owns `game`, by the package manager's records (`dpkg-query -S`, `rpm -qf`).
+fn owning_package(game: &Path, kind: &str) -> Option<String> {
+  let output = if kind == "deb" {
+    Command::new("dpkg-query").arg("-S").arg(game).output()
+  } else {
+    Command::new("rpm").args(["-qf", "--queryformat", "%{NAME}\n"]).arg(game).output()
+  }
+  .ok()?;
+  if !output.status.success() {
+    return None;
+  }
+  package_of(&String::from_utf8_lossy(&output.stdout), kind)
+}
+
+/// The package name in `dpkg-query -S` ("name: /path", or "name:arch: /path") or `rpm -qf` ("name") output.
+fn package_of(output: &str, kind: &str) -> Option<String> {
+  let line = output.lines().next()?.trim();
+  let name = if kind == "deb" { line.split(':').next()? } else { line };
+  (!name.is_empty() && !name.contains(char::is_whitespace)).then(|| name.to_owned())
 }
 
 fn has_pkexec() -> bool {
@@ -315,6 +375,16 @@ mod tests {
     // Not a Windows Installer entry, or one with no folder.
     assert!(msi_install_location(&entry.replace("0x1", "0x0")).is_none());
     assert!(msi_install_location("    WindowsInstaller    REG_DWORD    0x1\n").is_none());
+  }
+
+  #[test]
+  fn the_package_that_owns_the_game_is_read_from_the_package_manager() {
+    assert_eq!(package_of("marvel-champions: /usr/bin/marvel-champions\n", "deb").as_deref(), Some("marvel-champions"));
+    assert_eq!(package_of("marvel-champions:amd64: /usr/bin/marvel-champions\n", "deb").as_deref(), Some("marvel-champions"));
+    assert_eq!(package_of("marvel-champions\n", "rpm").as_deref(), Some("marvel-champions"));
+    // rpm's answer for a file no package owns, and nothing at all.
+    assert_eq!(package_of("file /opt/mc/marvel-champions is not owned by any package\n", "rpm"), None);
+    assert_eq!(package_of("", "deb"), None);
   }
 
   #[test]
