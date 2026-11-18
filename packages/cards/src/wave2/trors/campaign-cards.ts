@@ -109,10 +109,8 @@ export const TRORS_CAMPAIGN_CARDS = defineAbilities({
   "04159b.improved-thwart-upgrade-constant": constant(gets("hp", 2, YOUR_IDENTITY)),
   "04159b.improved-thwart-upgrade-constant-2": constant(gets("thw", 1, YOUR_HERO)),
   "04159b.improved-thwart-upgrade-response": response(
-    // "After you defeat a side scheme": `on.schemeDefeated` has no `byYou` option (unlike `on.defeated`), so the
-    // player scope is added directly on the raw pattern — `defeatedByPlayerId` is the event's player subject,
-    // matched by `playerIs: "controller"` (`packages/engine/src/trigger-events.ts`).
-    { ...on.schemeDefeated(query("sideScheme")), playerIs: "controller" },
+    // "After you defeat a side scheme": the player's identity or an event, not an ally (RRG 1.8 p. 49).
+    on.schemeDefeated(query("sideScheme"), { byYou: true }),
     { cost: exhaustThis },
     draw(1),
   ),

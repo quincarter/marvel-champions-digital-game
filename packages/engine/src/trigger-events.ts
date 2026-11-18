@@ -188,6 +188,14 @@ export type TriggerEventBody =
        */
       readonly notAttacked?: true;
       /**
+       * The card whose effect redirected that damage (`notAttacked`; Psychic Misdirection), when it is a card of a player
+       * (`modifyAttack.damageTo` records it, enemy-activation.ts). The damage keeps the attacker as its source, but a
+       * defeat it causes is the redirecting card's: its `characterDefeated.sourceInstanceId` and defeating player are
+       * that card and its controller, so "after you defeat an enemy" hears it (FFG ruling January 24, 2025: Psychic
+       * Misdirection is an extension of your identity, so your identity defeated the enemy).
+       */
+      readonly redirectedBy?: InstanceId;
+      /**
        * A share of an attack's damage dealt to a character that is not the attacked character: indirect damage assigned
        * to another character (RRG 1.8 "Indirect Damage", p. 24: "Only the defending character, or the attacked player's
        * identity if the attack was undefended, is considered to have been attacked, even if other characters were

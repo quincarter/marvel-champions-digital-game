@@ -661,6 +661,20 @@ describe("52021.madame-web-response: after she enters play, look at the top X en
     const state = placed(placed(hero(), SCARLET).state, BYTE).state;
     expect(playWeb(state).looked).toEqual(DECK.slice(0, 4));
   });
+  // Issue #809: "Web-Warrior cards you control" is any card type, not only characters.
+  it("a Web-Warrior support counts too: identity, Scarlet Spider (ally), Web of Life and Destiny (support) and Madame Web make X 4", () => {
+    // 27023 is a Web-Warrior support from Spider-Man's set, which this precon does not hold: staged straight into play.
+    // The Silk precon holds no Web-Warrior support, so 27023 (Spider-Man's set) is staged straight into P1's play area.
+    const support = patchInstance(
+      engaged(placed(hero(), SCARLET).state, "27023", "web-support"),
+      "web-support" as InstanceId,
+      {
+        ownerId: P1,
+        controllerId: P1,
+      },
+    );
+    expect(playWeb(support).looked).toEqual(DECK.slice(0, 4));
+  });
   it("only Web-Warrior cards you control count: a non-Web-Warrior ally and another player's Web-Warrior do not", () => {
     const withSinclair = placed(hero({ second: true }), SINCLAIR).state;
     expect(playWeb(withSinclair).looked).toEqual(DECK.slice(0, 2));

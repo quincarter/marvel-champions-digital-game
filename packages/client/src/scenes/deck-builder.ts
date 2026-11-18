@@ -76,7 +76,7 @@ import {
 import { loadedPacks } from "../packs/pack-registry.js";
 import { isHouseRulePack } from "../packs/pack-runtime.js";
 import { cardDisplayName, qualifiedHeroName } from "../view/hero-names.js";
-import { artFor } from "../art/art-source.js";
+import { artFor, artLanguageNow } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
 import { customCardBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -236,7 +236,9 @@ import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from ".
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { SearchDocument } from "../view/deck-search.js";
+import type { CardLanguage } from "../art/card-language.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
+import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
@@ -309,15 +311,25 @@ function withSearchClauses(filter: PoolFilter, search: string): PoolFilter {
 const freeTextOf = (text: string): string => parsePoolQuery(text).text.trim();
 
 /** Built on first search and kept: the documents the search worker ranks (every card; every hero). */
-let poolSearchDocuments: { readonly pool: readonly AnyCard[]; readonly docs: readonly SearchDocument[] } | null = null;
+let poolSearchDocuments: {
+  readonly pool: readonly AnyCard[];
+  readonly lang: CardLanguage;
+  readonly docs: readonly SearchDocument[];
+} | null = null;
 const POOL_SEARCH_DOCUMENTS = (): readonly SearchDocument[] => {
   const now = poolNow();
-  if (poolSearchDocuments?.pool !== now) {
+  const lang = artLanguageNow();
+  if (poolSearchDocuments?.pool !== now || poolSearchDocuments.lang !== lang) {
     const infos = packInfos();
     poolSearchDocuments = {
       pool: now,
+      lang,
       docs: now.map((card) =>
-        cardSearchDocumentOf(card, infos.find((pack) => pack.code === (card.setCode as string))?.name),
+        cardSearchDocumentOf(
+          card,
+          infos.find((pack) => pack.code === (card.setCode as string))?.name,
+          localizedNameOf(card.id as string, lang),
+        ),
       ),
     };
   }
@@ -3209,7 +3221,16 @@ ${entry.detail}`,
       this.#rebuild();
       return;
     }
-    search.setDocuments(POOL_SEARCH_DOCUMENTS(), currentPoolKey());
+    // The card language's names load on first use (English needs none); the search runs once they are in.
+    const lang = artLanguageNow();
+    if (!cardNamesReady(lang)) {
+      void loadCardNames(lang).then(() => {
+        // The field may have changed (or been cleared) while the names loaded: ask for what it holds now.
+        if (this.sys.isActive() && this.#poolSearch === search) this.#requestPoolSearch(this.#filterText);
+      });
+      return;
+    }
+    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${currentPoolKey()}:${lang}`);
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));

@@ -638,6 +638,26 @@ describe("Robert Kelly (32066)", () => {
       expect(window).toBeLessThan(dealt);
     });
 
+    // PR #825 review: a redirect credits the redirecting card only when a player card moves the damage onto another
+    // enemy (Psychic Misdirection, FFG ruling January 24, 2025). Robert Kelly taking the attack himself is still
+    // Sabretooth's damage, so his defeat names Sabretooth as its source and no player defeated him.
+    it("undefended, with Robert Kelly at 7 of 9 damage: the redirected attack defeats him as Sabretooth's, credited to no player", () => {
+      const after = detached();
+      const kelly = kellyOf(after);
+      const { state, events } = attackPhase(hurt(after, kelly, 7));
+      expect(resolvedKelly(events)).toHaveLength(1);
+      const defeats = events.flatMap((e) =>
+        e.type === "triggerEvent" && e.event.kind === "characterDefeated" && e.event.instanceId === kelly
+          ? [e.event]
+          : [],
+      );
+      expect(defeats.length).toBeGreaterThan(0);
+      for (const defeat of defeats) {
+        expect(defeat.sourceInstanceId).toBe(villain(state));
+        expect(defeat.defeatedByPlayerId ?? null).toBeNull();
+      }
+    });
+
     it("a defended attack does not trigger it: the defender keeps its tough card and Robert Kelly takes nothing", () => {
       const after = detached();
       const me = identityOf(after);

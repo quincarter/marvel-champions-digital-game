@@ -51,7 +51,8 @@ describe("M.O.D.O.K., four players, a purposeful line (Captain Marvel + Captain 
       [2, 2, 14, 0, 1, 11],
       [3, 7, 8, 0, 11, 22],
       [4, 3, 19, 31, 0, 13],
-      [5, 2, 22, 30, 0, 26],
+      // Round 5: Thor's ally Lady Sif defeats an A.I.M. minion, so Interrogation Room (01063) no longer removes 1 threat (#817, RRG 1.8 p. 49 "You, Your").
+      [5, 1, 22, 31, 0, 26],
       [6, 0, 24, 0, 0, 20],
       [7, 1, 8, 0, 0, 0],
     ]);

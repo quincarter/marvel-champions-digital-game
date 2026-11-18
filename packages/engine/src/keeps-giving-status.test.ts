@@ -174,7 +174,13 @@ describe("§3.9 keepsGivingStatus", () => {
     const result = driveSession(settled.session, deps, [thwart(settled.session.state)]);
     const hero = heroOf(result.session.state);
     expect(statusLog(result.events)).toEqual([
-      { type: "statusRemoved", instanceId: hero, status: "confused", reason: "cancelledSchemeOrThwart" },
+      {
+        type: "statusRemoved",
+        instanceId: hero,
+        status: "confused",
+        reason: "cancelledSchemeOrThwart",
+        cancelled: "thwart",
+      },
       { type: "statusGiven", instanceId: hero, status: "confused", reason: "constant" },
     ]);
     expect(confusedOf(result.session.state)).toBe(1);
@@ -222,7 +228,13 @@ describe("§3.9 keepsGivingStatus", () => {
     const p2Hero = heroOf(result.state, P2);
     expect(statusLog(result.events)).toEqual([
       { type: "statusGiven", instanceId: p2Hero, status: "confused", reason: "constant" },
-      { type: "statusRemoved", instanceId: p1Hero, status: "confused", reason: "cancelledSchemeOrThwart" },
+      {
+        type: "statusRemoved",
+        instanceId: p1Hero,
+        status: "confused",
+        reason: "cancelledSchemeOrThwart",
+        cancelled: "thwart",
+      },
     ]);
     expect(confusedOf(result.state, P1)).toBe(0);
     expect(confusedOf(result.state, P2)).toBe(1);
@@ -241,7 +253,13 @@ describe("§3.9 keepsGivingStatus", () => {
     const result = driveSession(steady.session, deps, [thwart(steady.session.state)]);
     const hero = heroOf(result.session.state);
     expect(statusLog(result.events)).toEqual([
-      { type: "statusRemoved", instanceId: hero, status: "confused", reason: "cancelledSchemeOrThwart" },
+      {
+        type: "statusRemoved",
+        instanceId: hero,
+        status: "confused",
+        reason: "cancelledSchemeOrThwart",
+        cancelled: "thwart",
+      },
       { type: "statusGiven", instanceId: hero, status: "confused", reason: "constant" },
       { type: "statusGiven", instanceId: hero, status: "confused", reason: "constant" },
     ]);

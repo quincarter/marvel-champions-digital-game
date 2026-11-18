@@ -14,14 +14,15 @@ export function plainRulesTextOf(card: AnyCard): string {
   return current.replace(/[[\]]/g, " ").replace(/_/g, " ").replace(/\s+/g, " ").trim();
 }
 
-export function cardSearchDocumentOf(card: AnyCard, packName?: string): SearchDocument {
+/** `localName` is the card's name in the player's card language when it differs (`view/card-names.ts`): searchable as a name too. */
+export function cardSearchDocumentOf(card: AnyCard, packName?: string, localName?: string | null): SearchDocument {
   const subtitle = "subtitle" in card && typeof card.subtitle === "string" ? card.subtitle : null;
   const traits = "traits" in card ? (card.traits as readonly string[]) : [];
   const aspect = "aspect" in card && typeof card.aspect === "string" ? card.aspect : null;
   const rules = plainRulesTextOf(card);
   return {
     id: card.id as string,
-    primary: [card.name, ...(subtitle ? [subtitle] : [])],
+    primary: [card.name, ...(localName && localName !== card.name ? [localName] : []), ...(subtitle ? [subtitle] : [])],
     secondary: [...traits, card.type.replace(/_/g, " "), ...(aspect ? [aspect] : []), ...(packName ? [packName] : [])],
     notes: rules ? [rules] : [],
   };

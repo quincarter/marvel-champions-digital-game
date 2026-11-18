@@ -348,6 +348,8 @@ export type GameEvent =
        * to its owner when it moves to a card no other player controls (RRG 1.8 "Ownership and Control", p. 31).
        */
       readonly reason: "firstPlayer" | "effect" | "attachedTo";
+      /** The host the upgrade was attached to when this was logged (reason `attachedTo`; absent in older logs). */
+      readonly hostInstanceId?: InstanceId;
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -962,6 +964,11 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly status: "stunned" | "confused" | "tough";
       readonly reason: StatusDiscardCause;
+      /**
+       * Which activity a `cancelledSchemeOrThwart` removal cancelled, read from the character's role when it happened
+       * (an ally treated as a minion schemes, so it cancels a scheme). Absent in older logs.
+       */
+      readonly cancelled?: "thwart" | "scheme";
     }
   | {
       readonly type: "threatPlaced";

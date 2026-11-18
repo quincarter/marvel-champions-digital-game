@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  activatingEnemy,
   adjustBoostCount,
   allOf,
   alterEgoAction,
@@ -374,7 +375,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // Deathunt 9000 — Toughness. Villainous (data). [star] Boost: give this enemy a tough status card and another
   // boost card.
-  "11041.boost": boost(giveTough(self), modifyAttack({ extraBoostCards: 1 })),
+  "11041.boost": boost(giveTough(activatingEnemy), modifyAttack({ extraBoostCards: 1 })),
 
   // Sir Raston — Guard. Retaliate 1 (data). [star] Boost: take 1 damage. Give this enemy another boost card.
   "11042.boost": boost(takeDamage(1), modifyAttack({ extraBoostCards: 1 })),

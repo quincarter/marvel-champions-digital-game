@@ -759,8 +759,21 @@ const SPECS: Readonly<Record<string, Spec>> = {
   // Spider-Man (Peter Parker) is the Core Spider-Man deck's identity (the unique rule), so she is seated in Captain Marvel's.
   // Requirement ([physical][mental][energy]) cost 3: Core's Strength, Genius and Energy pay it.
   "52022": { hero: "core-captain-marvel-leadership", pay: ["01090", "01089", "01088"] },
-  // Hero Action: exhaust a Web-Warrior card you control.
-  "52023": { stage: (st) => inPlayArea(st, "52014").state },
+  // Hero Action: exhaust a Web-Warrior card you control; a Web-Warrior ally must be in the discard pile first
+  // (FFG ruling 2023-12-08, #818).
+  "52023": {
+    stage: (st) => {
+      const given = conjure(inPlayArea(st, "52014").state, P1, "52013");
+      return {
+        ...given.state,
+        players: given.state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, hand: p.hand.filter((x) => x !== given.id), discard: [...p.discard, given.id] }
+            : p,
+        ),
+      };
+    },
+  },
   // Hero Action: deal 1 damage to a Web-Warrior character you control (Requirement [mental]).
   "52034": { stage: (st) => inPlayArea(st, "52014").state },
   // Attach to an Aerial ally.

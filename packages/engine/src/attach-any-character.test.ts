@@ -256,7 +256,9 @@ function offeredHosts(state: GameState, card: { readonly id: CardId }): readonly
 }
 
 const controlChanges = (events: readonly GameEvent[], id: InstanceId) =>
-  typed(events, "controllerChanged").filter((e) => e.instanceId === id);
+  typed(events, "controllerChanged")
+    .filter((e) => e.instanceId === id)
+    .map(({ hostInstanceId: _host, ...rest }) => rest);
 
 describe("§3.49 attach (effect): any character is a host; another player's card hands its player control (p. 31)", () => {
   it("the villain: on it, owned and controlled by p1", () => {
@@ -281,6 +283,10 @@ describe("§3.49 attach (effect): any character is a host; another player's card
     expect(controlChanges(attached, charm)).toEqual([
       { type: "controllerChanged", instanceId: charm, from: p1, to: p2, reason: "attachedTo" },
     ]);
+    // The event carries the host at emission, so a retained log line can still name it after the upgrade moves.
+    expect(typed(attached, "controllerChanged").find((e) => e.instanceId === charm)?.hostInstanceId).toBe(
+      identityId(onP2, p2),
+    );
     // The host flips: the identity is the same card, so the charm stays on it (RRG 1.8 "Attach To", p. 8).
     const { state: flipped, events } = play(onP2, FLIP_P2.card);
     expect(mustPlayer(flipped, p2).identity.form).toBe("hero");

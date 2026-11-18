@@ -1,4 +1,4 @@
-import { NCRAWLER_CARDS, NCRAWLER_STARTER_DECKS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
+import { NCRAWLER_CARDS, NCRAWLER_STARTER_DECKS, PHOENIX_CARDS, WAVE7_CARDS, cardId, type AnyCard } from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -78,7 +78,8 @@ const ALL_REFS = [
 ];
 
 const DEPS: EngineDeps = { abilities: mergeRegistries(WAVE7_ABILITIES, NCRAWLER_ASPECT_BASIC) };
-const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...NCRAWLER_CARDS];
+// Phoenix's Psychic Misdirection (34033) joins for the Change of Fortune ruling test below.
+const POOL: readonly AnyCard[] = [...WAVE7_CARDS, ...NCRAWLER_CARDS, ...PHOENIX_CARDS];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 
 const PRECON = NCRAWLER_STARTER_DECKS.find((d) => d.id === "nightcrawler-protection")!;
@@ -319,11 +320,11 @@ describe("aspect-basic registry", () => {
     expect(NCRAWLER_ASPECT_BASIC[PROTECTION]).toBe(WAVE7_ABILITIES["01079.the-power-of-protection-constant"]);
     expect(NCRAWLER_ASPECT_BASIC[MOIRA]).toBe(WAVE7_ABILITIES["38018.moira-mactaggert-response"]);
   });
-  it("Change of Fortune's trigger is the identity's defeat in the villain phase: the defeating source is never an ally (RRG p. 49)", () => {
+  it("Change of Fortune's trigger is the identity's defeat in the villain phase: the defeating source is the identity or an extension of it, never an ally (RRG p. 49)", () => {
     const definition = NCRAWLER_ASPECT_BASIC[FORTUNE]!;
     const trigger = definition.trigger as { on: { sourceIs?: unknown; playerIs?: string }; while?: unknown };
     expect(trigger.on.playerIs).toBe("controller");
-    expect(trigger.on.sourceIs).toEqual({ not: { categories: ["ally"] } });
+    expect(trigger.on.sourceIs).toEqual({ extensionOf: { kind: "controller" } });
     expect(trigger.while).toEqual({ kind: "gameStep", phase: "villain" });
   });
   it("Energy, Genius and Strength (48023 to 48025) print no ability; each is 2 resources of its type", () => {
@@ -443,6 +444,8 @@ function villainPhase(
   stack: readonly string[],
   pick: Picker,
   more: readonly Command[] = [],
+  /** The commands that open the phase: P1 ends their turn unless the scene has already passed it on. */
+  opening: readonly Command[] = [endTurn(P1)],
 ): {
   readonly state: GameState;
   readonly seen: { kind: string; options: string[] }[];
@@ -451,7 +454,7 @@ function villainPhase(
   const probe = spy(pick);
   const events: { type: string; [key: string]: unknown }[] = [];
   let state = stackEncounterDeck(s, ...stack);
-  for (const command of [endTurn(P1), ...more]) {
+  for (const command of [...opening, ...more]) {
     const result = applyCommand(state, command, DEPS);
     if (!result.ok) throw new Error(`${command.type} rejected: ${result.error.message}`);
     events.push(...(result.events as typeof events));
@@ -898,6 +901,103 @@ describe("Change of Fortune (48014): after you defeat an enemy in the villain ph
     const second = moveToHand(s, P1, "48014");
     const pay1 = playerOf(second.state, P1).hand.find((h) => h !== second.ids[0])!;
     expect(accepted(second.state, play(P1, second.ids[0]!, [pay1]))).toBe(false);
+  });
+});
+
+describe("Change of Fortune (48014) with Psychic Misdirection (34033): the event is an extension of your identity", () => {
+  // FFG ruling of January 24, 2025: "you'd be able to use Change of Fortune if your playing of Psychic Misdirection
+  // defeated an enemy ... Psychic Misdirection is an event, meaning it's an extension of your identity, so your
+  // identity defeated the enemy" (docs/rulings/post-rrg-1-6/07-january-2025.md). The attacker is the damage's source
+  // on the stack, so the engine reads the defeat as the redirecting event's.
+  const MISDIRECTION = "34033.psychic-misdirection-interrupt";
+  /** Nightcrawler given the PSIONIC trait Misdirection asks of an identity (a pool edit, never a rules one). */
+  function psionic(state: GameState, player: PlayerId = P1): GameState {
+    const identityCard = inst(state, identityOf(state, player)).cardId as string;
+    const card = state.cardPool[identityCard as keyof typeof state.cardPool] as unknown as {
+      hero: { traits: unknown[] };
+      alterEgo: { traits: unknown[] };
+    };
+    const add = (face: { traits: unknown[] }) => ({ ...face, traits: [...face.traits, "PSIONIC"] });
+    return {
+      ...state,
+      cardPool: { ...state.cardPool, [identityCard]: { ...card, hero: add(card.hero), alterEgo: add(card.alterEgo) } },
+    } as unknown as GameState;
+  }
+  function scene(redirected: boolean) {
+    const staged = stage(heroGame([NC("34033")], MODULAR, 1, false), ["48014", "34033"]);
+    const base = psionic(staged.state);
+    const first = engage(base, MERCENARY);
+    const second = engage(first.state, MERCENARY);
+    const placed = playStaged(second.state, "48014", 1, {
+      except: [staged.ids[1]!],
+    });
+    // `first` attacks and `second` (2 damage of 3) takes its 1 damage when redirected, which defeats it.
+    const s = rhinoStunned(
+      patchInstance(placed.state, second.id, {
+        damage: 2,
+        statuses: { ...inst(placed.state, second.id).statuses, stunned: 1 },
+      }),
+    );
+    return villainPhase(
+      s,
+      [CROWD_CONTROL, BREAKIN],
+      picker(...(redirected ? [accept(MISDIRECTION), take(second.id), pay(2)] : []), accept(FORTUNE)),
+    );
+  }
+  it("Misdirection's redirected damage defeats the enemy: Change of Fortune is offered and draws 2", () => {
+    const { state, seen, events } = scene(true);
+    expect(offered(seen, MISDIRECTION)).toBe(true);
+    expect(encounterDiscard(state)).toContain(MERCENARY);
+    expect(offered(seen, FORTUNE)).toBe(true);
+    expect(events.some((e) => e.type === "abilityResolved" && e.abilityId === FORTUNE)).toBe(true);
+  });
+
+  // PR #825 review: which player is credited for the redirected defeat. Two seats with an "after you defeat" Response
+  // each in play (Interrogation Room 01063 and Change of Fortune 48014 for Spider-Man's seat, Change of Fortune for
+  // Nightcrawler's). P2 (Nightcrawler) plays Misdirection against a minion engaged with P2 and redirects its damage
+  // onto a wounded minion engaged with P1. The redirecting event is P2's, so P2's identity defeated it (same
+  // January 24, 2025 ruling); P1 owns the target and is not the one attacked, and gets no credit. A minion's logged
+  // `characterDefeated` names no defeating player, so the credit is read from who is offered the Responses.
+  it("two players: P2's Misdirection defeats a minion engaged with P1; only P2's Response is offered, never P1's", () => {
+    const seats = [CORE("01063", "48014"), NC("34033", "48014")];
+    const p1Hand = stage(heroGame(seats, MODULAR, 1, false), [], 4, P1);
+    const p2Hand = stage(p1Hand.state, ["34033"], 4, P2);
+    const base = psionic(p2Hand.state, P2);
+    const p1Room = playStaged(base, "01063", 3, { p: P1 });
+    const p1Fortune = playStaged(p1Room.state, "48014", 1, { p: P1 });
+    // P2 plays on P2's own turn, so P1 ends theirs first.
+    const p2Turn = runWith(DEPS, p1Fortune.state, endTurn(P1));
+    const p2Fortune = playStaged(p2Turn, "48014", 1, { p: P2, except: [p2Hand.ids[0]!] });
+    const attacker = engage(p2Fortune.state, MERCENARY, P2); // attacks P2
+    const target = engage(attacker.state, MERCENARY, P1); // 2 of 3 hit points gone, engaged with P1
+    const s = rhinoStunned(
+      patchInstance(target.state, target.id, {
+        damage: 2,
+        statuses: { ...inst(target.state, target.id).statuses, stunned: 1 },
+      }),
+    );
+    const offers: { who: PlayerId; options: string[] }[] = [];
+    const watch: Rule = (st) => {
+      const c = st.pendingChoice;
+      if (c?.prompt.kind === "chooseTriggers")
+        offers.push({ who: c.playerId, options: c.options.map((o) => o.optionId) });
+      return undefined;
+    };
+    const { state, events } = villainPhase(
+      s,
+      [CROWD_CONTROL, BREAKIN],
+      picker(watch, accept(MISDIRECTION), take(target.id), pay(2), accept(FORTUNE)),
+      [],
+      [endTurn(P2)],
+    );
+    expect(encounterDiscard(state)).toContain(MERCENARY);
+    expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === target.id)).toBe(true);
+    const defeatOffers = offers.filter((o) => o.options.some((id) => id.includes(FORTUNE) || id.includes("01063")));
+    expect(defeatOffers.length).toBeGreaterThan(0);
+    expect(defeatOffers.every((o) => o.who === P2)).toBe(true);
+    expect(inst(state, p2Fortune.id).exhausted).toBe(true);
+    expect(inst(state, p1Fortune.id).exhausted).toBe(false);
+    expect(inst(state, p1Room.id).exhausted).toBe(false);
   });
 });
 

@@ -108,10 +108,11 @@ import { heroPacksOf } from "../view/hero-deck-groups.js";
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
+import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { cardArt } from "../art/card-art.js";
-import { artFor } from "../art/art-source.js";
+import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
@@ -2291,15 +2292,27 @@ export class DecksScene extends Phaser.Scene {
 
   /** Hands the pool worker the selected deck's browsable cards when its hero or aspects change, and re-asks the open query. */
   #syncPoolDocuments(deck: Deck, identity: HeroIdentityCard): void {
-    const version = `${currentPoolKey()}:${identity.id as string}:${deck.aspects.join(",")}`;
+    const lang = artLanguageNow();
+    // The card language's names load on first use; the documents are built again once they are in.
+    if (!cardNamesReady(lang)) {
+      void loadCardNames(lang).then(() => {
+        if (!this.sys.isActive()) return;
+        this.#poolDocsVersion = null;
+        this.#poolDocs.clear();
+        this.#syncPoolDocuments(deck, identity);
+      });
+      return;
+    }
+    const version = `${currentPoolKey()}:${identity.id as string}:${deck.aspects.join(",")}:${lang}`;
     if (version === this.#poolDocsVersion) return;
     this.#poolDocsVersion = version;
     const documents = browsablePool(currentPool(), identity, deck.aspects, {}).map((card) => {
       const key = card.id as string;
-      let doc = this.#poolDocs.get(key);
+      const docKey = `${key}:${lang}`;
+      let doc = this.#poolDocs.get(docKey);
       if (!doc) {
-        doc = cardSearchDocumentOf(card, packNameOf(card.setCode as string));
-        this.#poolDocs.set(key, doc);
+        doc = cardSearchDocumentOf(card, packNameOf(card.setCode as string), localizedNameOf(key, lang));
+        this.#poolDocs.set(docKey, doc);
       }
       return doc;
     });

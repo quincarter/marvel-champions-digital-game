@@ -29,6 +29,7 @@ import {
   isLooseVillainCard,
   isSeatlessIdentity,
   locateCard,
+  isMinion,
   mainSchemeStateOf,
   mainSchemeStates,
   mustCard,
@@ -207,9 +208,29 @@ export function swapIdentity(ctx: Ctx, playerId: PlayerId): boolean {
 
 export function endGame(ctx: Ctx, outcome: GameOutcome): void {
   if (ctx.state.outcome) return;
+  // Nothing more resolves, so a card an ability still held in an eliminated player's hand goes to their discard pile
+  // now, before `gameEnded` is logged: no card moves are logged after it (#816 review).
+  discardEliminatedHands(ctx);
   ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };
   setStep(ctx, { phase: "gameOver", kind: "gameOver" });
   emit(ctx, { type: "gameEnded", outcome });
+}
+
+/**
+ * The rest of RRG 1.8 "Player Elimination" (p. 34) step 5 for a hand `eliminatePlayer` left cards in (an ability still
+ * resolving had chosen them; #816): each card still in an eliminated player's hand goes to their discard pile, as the
+ * elimination's own sweep would have sent it. Returns true when it moved any. Called by `runFlow` with an empty stack,
+ * so the ability that held them, and anything it pushed, has resolved; and by `endGame` before `gameEnded`, since
+ * nothing more resolves once the game is over.
+ */
+export function discardEliminatedHands(ctx: Ctx): boolean {
+  let moved = false;
+  for (const player of ctx.state.players) {
+    if (!player.eliminated || player.hand.length === 0) continue;
+    for (const id of [...player.hand]) moveCard(ctx, id, { kind: "discard", playerId: player.playerId }, "top");
+    moved = true;
+  }
+  return moved;
 }
 
 export function shuffleZone(ctx: Ctx, zone: ZoneId, ids: readonly InstanceId[]): readonly InstanceId[] {
@@ -385,7 +406,14 @@ export function discardStatusCards(
   const held = getInstance(ctx.state, id)?.statuses[status] ?? 0;
   if (held <= keep) return [];
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: keep } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause });
+  // An enemy (a minion, even a converted ally, or the villain) schemes; a hero identity or ally thwarts.
+  const cancelled =
+    cause === "cancelledSchemeOrThwart"
+      ? isMinion(ctx.state, id) || mustCardOf(ctx.state, id).type === "villain"
+        ? ("scheme" as const)
+        : ("thwart" as const)
+      : undefined;
+  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause, ...(cancelled ? { cancelled } : {}) });
   return Array.from({ length: held - keep }, () => ({ kind: "statusDiscarded", instanceId: id, status, cause }));
 }
 
@@ -2579,9 +2607,27 @@ export function settlePaidForEffects(ctx: Ctx, frameId: FrameId, effectsFrameId:
  * May 16, 2024): the attack on event frame `attackFrameId`, whose source is `sourceId`, is being initiated. Every
  * effect still waiting on the first attack of that card is retimed to `endOfEvent` on it, so it applies to this attack
  * only and ends as the attack finishes.
+ *
+ * An effect an earlier attack of the same card already claimed ends here instead: a second attack of that card is not
+ * "that attack". The earlier attack's frame can still be on the stack, waiting beneath its "(attack)" ability until the
+ * whole ability has resolved (`waitBeneathAbility`, owner ruling Q47), as when Berserker Barrage repeats its ability
+ * (FFG ruling, Wolverine, rrg-1-0-to-1-4/54-wolverine.md: "if you repeat its ability, the new attack will not have
+ * piercing"; #811). Ended, not retimed back: the earlier attack was made, so a later cancel cannot hand it on.
  */
 export function startFirstAttackEffects(ctx: Ctx, sourceId: InstanceId, attackFrameId: FrameId): void {
   for (const effect of [...ctx.state.lastingEffects]) {
+    // Assumes each `attack` event frame of one source is a separate attack; an attack instruction naming several enemies
+    // would be one attack over several frames (none shipped) and would need its frames grouped here.
+    const claimed = effect.duration.kind === "endOfEvent" ? effect.duration.ifCancelled : undefined;
+    if (
+      claimed?.kind === "endOfPaidFor" &&
+      claimed.firstAttackVia === sourceId &&
+      effect.duration.kind === "endOfEvent" &&
+      effect.duration.frameId !== attackFrameId
+    ) {
+      endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
     if (effect.duration.kind !== "endOfPaidFor" || effect.duration.firstAttackVia !== sourceId) continue;
     const duration: LastingDuration = { kind: "endOfEvent", frameId: attackFrameId, ifCancelled: effect.duration };
     ctx.state = {

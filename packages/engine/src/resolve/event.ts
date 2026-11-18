@@ -5,6 +5,7 @@ import { applyMainSchemeTurnsToB } from "./main-scheme-side.js";
 import type { CardId } from "@mc/content";
 import { applyStatusBeingGiven, statusGiveNotMade, statusStillToGive } from "./status-being-given.js";
 import { resolveTuck } from "./tuck.js";
+import { endEliminatedAttack, endedByElimination, partOfEliminatedAttack } from "./eliminated-attack.js";
 import { resolveImminentAttach } from "./imminent-attach.js";
 import { applyCountersBeingPlaced } from "./counters-being-placed.js";
 import { applyWouldDiscard, wouldDiscardNotMade } from "./would-discard.js";
@@ -181,6 +182,12 @@ import { awaitEnclosingAbility, dropHeldResponses, refreshHeldResponses } from "
 import { pushUsingAfterWould, startCharacterBoost } from "./villainous.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
+  // The attack this `characterAttacked` belongs to ended with its player's elimination (RRG 1.8 p. 34): no retaliate,
+  // no "after … is attacked" (`eliminated-attack.ts`).
+  if (partOfEliminatedAttack(ctx.state, frame)) {
+    popFrame(ctx);
+    return;
+  }
   switch (frame.stage) {
     case "interrupts": {
       // A standing "If …, discard this card" took the card out of play the moment it was in play (`fromEntering`,
@@ -509,6 +516,12 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "responses": {
+      // An attack its player's elimination ended (RRG 1.8 "Player Elimination", p. 34; `eliminated-attack.ts`): it does
+      // not wait for its ability, names no enemy as attacked and opens no "after … attacks" window.
+      if (endedByElimination(frame)) {
+        endEliminatedAttack(ctx, frame);
+        return;
+      }
       // An "(attack)" ability's attack waits for the rest of its ability before it finishes (RRG 1.8 "Attack (Player
       // Ability Type)", p. 10: the ability is a single attack; owner ruling Q47, `attack-ability.ts`). Its results go
       // to the instruction that made it now, as the ability's next instructions read them.
@@ -2161,8 +2174,11 @@ export function applyDamage(
           ...(damageUsedStat(ctx.state, event) === "atk" ? { usedStat: "atk" as const } : {}),
         }
       : undefined,
-    defeatedByPlayerId: sourcePlayerOf(ctx.state, event),
-    sourceInstanceId: source,
+    // Damage redirected by a player's card (`redirectedBy`) defeats as that card (and its controller) does.
+    defeatedByPlayerId: event.redirectedBy
+      ? sourcePlayerOf(ctx.state, { sourceInstanceId: event.redirectedBy })
+      : sourcePlayerOf(ctx.state, event),
+    sourceInstanceId: event.redirectedBy ?? source,
     reportFrameId: frameId,
     // An overkill spill's defeat is told to its attack (`spillDefeatedKey`), so "attacks and defeats" answers it too.
     ...(!event.parentFrameId && event.spilledFromFrameId ? { spilledFromFrameId: event.spilledFromFrameId } : {}),
@@ -2767,6 +2783,30 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
 }
 
 /**
+ * An attack by the identity of an eliminated player that began after the elimination (not marked
+ * `attackerEliminated`): the rest of an ability that is resolved in full, so it goes on.
+ *
+ * RRG 1.8 "Player Elimination" p. 34: eliminated partway through an ability -> resolve the entire ability; the "attack
+ * ends" bullet covers only an attack already underway (cf. Metal Shards ruling, rrg-1-0-to-1-4/48-mutant-genesis.md).
+ * Owner call (#816): the played event's attack resolves in full.
+ *
+ * Only an attack on the stack at the elimination is marked and ends. A new attack started afterwards resolves, a repeat
+ * of the same "(attack)" ability included: Berserker Barrage's repeat after its "take 2 damage" eliminated Wolverine
+ * (rules expert, #816 review: the FFG Wolverine ruling, rrg-1-0-to-1-4/54-wolverine.md, makes the repeat a new attack,
+ * and owner ruling Q47 does not make it part of the finished first one).
+ */
+function attackOfEliminatedResolves(
+  state: GameState,
+  attack: Extract<TriggerEvent, { kind: "attack" }>,
+  frameId: FrameId,
+): boolean {
+  const owner = state.players.find((player) => player.identity.instanceId === attack.attackerInstanceId);
+  if (owner?.eliminated !== true) return false;
+  const frame = findFrame(state, frameId);
+  return frame?.kind === "event" && frame.attackerEliminated !== true;
+}
+
+/**
  * A player's attack, after its interrupt window. An attack whose attacker has left play by now ends: no damage, and none
  * of its other results (`characterAttacked`, which retaliate and "after … attacks" hang off). This mirrors RRG 1.8
  * "Activation" (p. 6), which ends an enemy's attack when the enemy leaves play; RRG 1.8 "Attack (Player Ability Type)"
@@ -2780,7 +2820,13 @@ function applyPlayerAttack(
   frameId: FrameId,
 ): boolean | void {
   const target = attack.targetInstanceId;
-  if (!cardsInPlay(ctx.state).includes(attack.attackerInstanceId)) {
+  // Its player was eliminated while it was underway: it ends, logged at its response step (`endEliminatedAttack`).
+  const marked = findFrame(ctx.state, frameId);
+  if (marked?.kind === "event" && endedByElimination(marked)) return;
+  if (
+    !cardsInPlay(ctx.state).includes(attack.attackerInstanceId) &&
+    !attackOfEliminatedResolves(ctx.state, attack, frameId)
+  ) {
     // A label-only attack that began before any enemy was named (`beginLabelAttack`) has no target to log an end
     // against; its attacker is an identity, whose leaving play is the player's elimination and is logged as that.
     if (target !== null) {
