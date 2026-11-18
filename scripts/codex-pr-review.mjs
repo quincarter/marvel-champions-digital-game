@@ -134,22 +134,48 @@ for (const f of findings) {
 }
 
 const sha = head.slice(0, 9);
-let body =
-  findings.length === 0
-    ? `[Codex] No findings on ${sha}.`
-    : `[Codex] ${findings.length} finding${findings.length === 1 ? "" : "s"} on ${sha}.`;
-for (const f of outside) body += `\n\n---\n\n\`${f.file}:${f.line_start}\` (outside the diff)\n\n${text(f)}`;
+const reviewOf = () => {
+  let body =
+    findings.length === 0
+      ? `[Codex] No findings on ${sha}.`
+      : `[Codex] ${findings.length} finding${findings.length === 1 ? "" : "s"} on ${sha}.`;
+  for (const f of outside)
+    body += `
 
-const reviewRequest = { commit_id: info.headRefOid, event: "COMMENT", body, comments };
+---
+
+\`${f.file}:${f.line_start}\` (outside the diff)
+
+${text(f)}`;
+  return { commit_id: info.headRefOid, event: "COMMENT", body, comments };
+};
 if (dryRun) {
-  console.log(JSON.stringify(reviewRequest, null, 2));
+  console.log(JSON.stringify(reviewOf(), null, 2));
   process.exit(0);
 }
-const posted = JSON.parse(
-  run("gh", ["api", "--method", "POST", `repos/${repo}/pulls/${pr}/reviews`, "--input", "-"], {
-    input: JSON.stringify(reviewRequest),
-  }),
-);
+// GitHub refuses an inline comment on a file whose diff it will not show ("Diff entry <file> diff is too large", a large
+// generated file): that file's findings move to the review's body and the review is posted again.
+let posted = null;
+while (!posted) {
+  try {
+    posted = JSON.parse(
+      run("gh", ["api", "--method", "POST", `repos/${repo}/pulls/${pr}/reviews`, "--input", "-"], {
+        input: JSON.stringify(reviewOf()),
+        stdio: ["pipe", "pipe", "pipe"],
+      }),
+    );
+  } catch (err) {
+    const tooLarge = new Set(
+      [...[err.stdout, err.stderr].join(" ").matchAll(/Diff entry (\S+) diff is too large/g)].map((m) => m[1]),
+    );
+    const moved = comments.filter((c) => tooLarge.has(c.path));
+    if (moved.length === 0) throw err;
+    for (const c of moved) {
+      comments.splice(comments.indexOf(c), 1);
+      outside.push(findings.find((f) => text(f) === c.body));
+    }
+  }
+}
 console.log(
   `Posted a Codex review to PR #${pr}: ${comments.length} inline, ${outside.length} outside the diff. ${posted.html_url}`,
 );

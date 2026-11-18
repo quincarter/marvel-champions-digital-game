@@ -37,6 +37,7 @@ import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
 import { colorSchemeOf, setColorScheme } from "./view/color-scheme.js";
 import { setArtLanguage, setShownBalancedScans, setShownHouseRules } from "./art/art-source.js";
+import { bringInCardText } from "./view/card-text.js";
 import { BalancedArtGate } from "./art/balanced-art.js";
 import { HouseRuleArtGate } from "./art/house-rule-art.js";
 import { onLanguageChange } from "./language-change.js";
@@ -169,6 +170,8 @@ export function appSession(): AppSession {
       }),
     );
     setArtLanguage(settingsStore.current.cardLanguage);
+    // The card language's text (issue #391) loads in the background; until it is in, sheets read in English, then redraw.
+    bringInCardText(settingsStore.current.cardLanguage);
     setColorScheme(colorSchemeOf(settingsStore.current.darkMode));
     setCustomContentPrefs(customContentPrefsOf(settingsStore.current));
     onPowerSavingChange(() => settingsStore.refreshDefaults());
@@ -183,6 +186,7 @@ export function appSession(): AppSession {
         settingsStore.set(next);
         setPowerSavingIgnored(!next.powerSavingAdjust);
         setArtLanguage(next.cardLanguage);
+        bringInCardText(next.cardLanguage);
         setColorScheme(colorSchemeOf(next.darkMode));
         // Custom content moved or unlocked: the shelves and locks follow on the next draw.
         setCustomContentPrefs(customContentPrefsOf(next));

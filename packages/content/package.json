@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p scripts/tsconfig.json",
     "ingest": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/ingest-marvelcdb.ts",
+    "card-text-es": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/card-text-es.ts",
     "catalog": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/generate-catalog.ts",
     "export-added-records": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/export-added-records.ts"
   },

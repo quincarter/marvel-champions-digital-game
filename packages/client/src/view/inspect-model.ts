@@ -53,7 +53,7 @@ import {
   type ResourcePool,
   type TargetQuery,
 } from "@mc/engine";
-import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { artFor, artLanguageNow, printedFaceCodeOf, type ArtSource, type CardFace } from "../art/art-source.js";
 import { balancedTextOf } from "../art/balanced-art.js";
 import { abilityActionsFor } from "./highlights.js";
 import { qualifiedHeroName } from "./hero-names.js";
@@ -62,7 +62,8 @@ import { idleTriggerNotes, targetRefusalReason } from "./ability-refusal.js";
 import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHistoryLog } from "./card-history.js";
 import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
-import { cardTextDisplay } from "./card-text-display.js";
+import { cardTextDisplay, cardTextDisplayEs } from "./card-text-display.js";
+import { localizedFaceOf, textFingerprint, type LocalizedFace } from "./card-text.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { resourceLimitOf } from "./resource-limit.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
@@ -407,7 +408,7 @@ export function inspectModel(
   const face: CardFace = asked.kind === "flipSide" && !otherFaceVisible(state, instanceId) ? { kind: "front" } : asked;
   const deckTop = deckTopPlaysOf(state, instanceId, legal, perspectiveId, deps);
 
-  return {
+  const sheet: InspectModel = {
     instanceId,
     name:
       card.type === "hero_identity" || face.kind === "flipSide"
@@ -490,6 +491,7 @@ export function inspectModel(
     campaignNotice: campaignNoticeFor(textOf(card, face).current),
     teamUpNotice: teamUpNoticeFor(state, card, instanceId, poolTeamUpPairs(state)),
   };
+  return localizedSheet(sheet, card, face);
 }
 
 /**
@@ -936,7 +938,7 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
     text: keywordLabel(keyword),
     glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
   }));
-  return {
+  const sheet: InspectModel = {
     instanceId: "" as InstanceId,
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card, face),
@@ -985,6 +987,54 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
     campaignNotice: campaignNoticeFor(text.current),
     teamUpNotice: teamUpNoticeFor(null, card, null, []),
   };
+  return localizedSheet(sheet, card, face);
+}
+
+/**
+ * The sheet in the card language (issue #391): the face's name, rules text and flavor text from MarvelCDB's Spanish site
+ * where it has them, the English everywhere else. The name is swapped only where the sheet prints the face's own printed
+ * name (a qualifier such as "(Peter Parker)" stays). A Balanced scan keeps its own written text, and so does a face
+ * with errata (below). Display only: the notes above were worked out from the English data.
+ */
+function localizedSheet(sheet: InspectModel, card: AnyCard, face: CardFace): InspectModel {
+  const lang = artLanguageNow();
+  // The face's scan names its MarvelCDB code, mostly: Vision's Intangible scans as 26002a where MarvelCDB says 26002,
+  // so the code without its letter is tried too, then the card's own id.
+  const stem = printedFaceCodeOf(card, face);
+  if (stem === null) return sheet;
+  const codes = [...new Set([stem, stem.replace(/a$/, ""), card.id as string])];
+  // The Spanish rules text and flavor show only where they translate this face's own English: MarvelCDB's English for
+  // the code must fingerprint the same as the data's printing (`e`; or, for a face with no rules text, its flavor, `g`).
+  // Core's main schemes name their scans crossed, so a code can belong to the other side.
+  const printing = textOf(card, face);
+  const englishFlavor = flavorOf(card, face);
+  const ownFace = (entry: LocalizedFace): boolean =>
+    entry.e !== undefined
+      ? entry.e === textFingerprint(printing.printed || printing.current)
+      : entry.g !== undefined && englishFlavor !== null && entry.g === textFingerprint(englishFlavor);
+  const entries = codes.map((code) => localizedFaceOf(code, lang));
+  const matched = entries.find((entry) => entry !== null && ownFace(entry)) ?? null;
+  const named = matched ?? entries[0] ?? entries[1] ?? null;
+  if (!named) return sheet;
+  const english = printedFaceNameOf(card, face);
+  // A face with errata keeps the English current text and its errata diff (Marked for Death 04028: MarvelCDB's Spanish
+  // translates the printing, not the correction), and so does a Balanced scan.
+  const errata = printing.printed !== "" && printing.printed !== printing.current;
+  const text = matched?.t !== undefined && !errata && balancedTextOf(artFor(card, face)) === null ? matched.t : null;
+  return {
+    ...sheet,
+    name:
+      named.n !== undefined && sheet.name.startsWith(english) ? named.n + sheet.name.slice(english.length) : sheet.name,
+    ...(text === null ? {} : { rulesText: lang === "es" ? cardTextDisplayEs(text) : text, printedText: null }),
+    ...(matched?.f === undefined ? {} : { flavor: matched.f }),
+  };
+}
+
+/** The name printed on this face, unqualified. */
+function printedFaceNameOf(card: AnyCard, face: CardFace): string {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
+  if (card.type !== "hero_identity") return card.name;
+  return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
 }
 
 /** `keywordDefinitionsFor`'s no-game equivalent: the glossary entry for every keyword printed on this face. */

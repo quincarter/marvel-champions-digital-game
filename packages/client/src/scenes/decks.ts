@@ -85,7 +85,7 @@ import {
   type HeroIdentityCard,
 } from "@mc/content";
 import { communityDecks } from "@mc/cards";
-import { DECK_MIN_CARDS, uniqueLabel } from "@mc/engine";
+import { DECK_MIN_CARDS } from "@mc/engine";
 import {
   POOL_VERSION,
   currentDeps,
@@ -109,6 +109,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import type { SearchDocument } from "../view/deck-search.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
+import { localizedLabelOf } from "../view/card-text.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { cardArt } from "../art/card-art.js";
@@ -2400,7 +2401,7 @@ export class DecksScene extends Phaser.Scene {
       const name = this.add.text(
         cardRect.x + 8,
         ruleY + 6,
-        uniqueLabel(card),
+        localizedLabelOf(card, artLanguageNow()),
         textStyle(typeRole.rowTitle, surface.ink.hex),
       );
       fitText(name, cardRect.width - 16);

@@ -6,6 +6,7 @@
  *   pnpm --filter @mc/content ingest -- --pack core
  *   pnpm --filter @mc/content ingest -- --pack ant --dry-run --offline   # one pack, report only
  *   pnpm --filter @mc/content ingest -- --all --dry-run --offline        # every raw/marvelcdb/*.json, report only
+ *   pnpm --filter @mc/content ingest -- --all --locale es                # cache every pack's Spanish text only
  *
  * 1. Fetch `https://marvelcdb.com/api/public/cards/<pack>` (or read the cache with --offline).
  * 2. Write the response verbatim to `raw/marvelcdb/<pack>.json` — every field the
@@ -15,6 +16,11 @@
  * 3. Normalize against the schema + hand curation (scripts/marvelcdb/curation/<pack>.ts).
  * 4. Emit typed TS modules to the curation's outDir (src/data/<pack> unless the
  *    curation overrides it — Core keeps its historical src/data/core).
+ *
+ * `--locale <lang>` fetches `https://<lang>.marvelcdb.com/api/public/cards/<pack>` instead, the same records with the
+ * name, text, traits and flavor in that language, and writes them verbatim to `raw/marvelcdb/<lang>/<pack>.json`; it
+ * normalizes and emits nothing. The client's localized card text is generated from those caches (`card-text-es.ts`,
+ * issue #391). It may run with `--all`, one pack at a time with a pause between requests.
  *
  * Curation registry: `REGISTERED_CURATIONS` below is the only place a pack
  * gets its real (hand-verified) curation wired in. A pack with no entry there
@@ -190,6 +196,8 @@ interface Args {
   readonly offline: boolean;
   readonly dryRun: boolean;
   readonly allowBare: boolean;
+  /** `--locale <lang>`: only cache the packs' records from MarvelCDB's site in that language. */
+  readonly locale: string | null;
 }
 
 async function allPackCodes(): Promise<string[]> {
@@ -206,22 +214,30 @@ async function parseArgs(argv: readonly string[]): Promise<Args> {
   let offline = false;
   let dryRun = false;
   let allowBare = false;
+  let locale: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--offline") offline = true;
     else if (a === "--all") all = true;
     else if (a === "--dry-run") dryRun = true;
     else if (a === "--allow-bare") allowBare = true;
+    else if (a === "--locale") locale = argv[++i] ?? null;
     else if (a === "--pack") pack = argv[++i] ?? pack;
     else if (a?.startsWith("--pack=")) pack = a.slice("--pack=".length);
     else if (a === "--") continue;
     else throw new Error(`unknown argument ${String(a)}`);
   }
   if (all && pack) throw new Error("--all and --pack are mutually exclusive");
-  if (all && !offline)
+  if (locale !== null && !/^[a-z]{2}$/.test(locale)) throw new Error(`--locale takes a language code such as es`);
+  // `--locale` only fetches and writes caches: a read-only run of it has nothing to do, so say so before any request.
+  if (locale !== null && (offline || dryRun))
+    throw new Error(
+      "--locale fetches and writes raw/marvelcdb/<lang>/; it cannot be combined with --offline or --dry-run",
+    );
+  if (all && !offline && locale === null)
     throw new Error("--all requires --offline — it reads the committed raw caches, it does not refetch 63 packs");
   const packs = all ? await allPackCodes() : [pack ?? "core"];
-  return { packs, offline, dryRun, allowBare };
+  return { packs, offline, dryRun, allowBare, locale };
 }
 
 async function loadRaw(pack: string, offline: boolean, scanOnly: boolean): Promise<RawCache> {
@@ -423,8 +439,29 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
   };
 }
 
+/** `--locale`: caches one pack's records from MarvelCDB's site in `lang`, verbatim, beside the English cache. */
+async function cacheLocale(pack: string, lang: string): Promise<string> {
+  const source = `https://${lang}.marvelcdb.com/api/public/cards/${pack}`;
+  const res = await fetch(source, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`GET ${source} → HTTP ${res.status}`);
+  const body = (await res.json()) as unknown;
+  if (!Array.isArray(body)) throw new Error(`GET ${source} did not return an array`);
+  const cache: RawCache = { source, fetchedAt: new Date().toISOString().slice(0, 10), pack, cards: body as RawCard[] };
+  const cachePath = join(RAW_DIR, lang, `${pack}.json`);
+  await mkdir(dirname(cachePath), { recursive: true });
+  await writeFile(cachePath, `${JSON.stringify(cache, null, 2)}\n`);
+  return `cached ${cache.cards.length} ${lang} records → ${relative(PKG_ROOT, cachePath)}`;
+}
+
 async function main(): Promise<void> {
   const args = await parseArgs(process.argv.slice(2));
+  if (args.locale !== null) {
+    for (const [i, pack] of args.packs.entries()) {
+      if (i > 0) await new Promise((done) => setTimeout(done, 500));
+      console.log(await cacheLocale(pack, args.locale));
+    }
+    return;
+  }
   let failures = 0;
   for (const pack of args.packs) {
     const { ok, summary } = await ingestOne(pack, args);
