@@ -284,7 +284,11 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #toggleFullGameLog(): void {
-    this.#logExpanded = !this.#logExpanded;
+    // The log draws where the results are: from a search, leave it for the log, open whatever it was before.
+    if (this.#search?.searching) {
+      this.#clearSearch();
+      this.#logExpanded = true;
+    } else this.#logExpanded = !this.#logExpanded;
     this.#draw();
   }
 
@@ -1457,10 +1461,7 @@ export class PauseOverlay extends Phaser.Scene {
         return;
       case "pause":
         if (target.id === "jumpLog") {
-          // The log draws where the results are: leave the search for it, open, whatever it was before.
-          this.#clearSearch();
-          this.#logExpanded = true;
-          this.#draw();
+          this.#toggleFullGameLog();
           return;
         }
         this.#quickReferenceRows(appSession().store.state.game)
