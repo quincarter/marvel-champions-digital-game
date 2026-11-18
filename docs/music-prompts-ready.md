@@ -156,20 +156,6 @@ Title: "A Synthetic Heart"
 
 Folder: `music/scenarios/kang/`
 
-### History Belongs to Kang (villain wins, `villain-wins.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
-
-Title: "History Belongs to Kang"
-```
-
 ### Time Runs Out (heroes win, `villain-loses.mp3`)
 
 ```text
@@ -680,10 +666,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 86 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 87 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 86 prompts already used</summary>
+<summary>Show the 87 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1905,20 @@ Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, 
 A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
 
 Title: "Conqueror of All Tomorrows"
+```
+
+### History Belongs to Kang (villain wins, `villain-wins.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Villain wins: about 75 seconds, slow and heavy, the same theme turned dark, ends unresolved.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
+
+Title: "History Belongs to Kang"
 ```
 
 </details>
