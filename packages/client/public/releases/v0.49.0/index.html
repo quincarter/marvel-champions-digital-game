@@ -6,7 +6,7 @@
     <title>v0.49.0 · Marvel Champions: Digital Edition</title>
     <meta
       name="description"
-      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand, and Giant Strength, One Way or Another and Morphogenetics are fixed."
+      content="What's new in v0.49.0 of the fan-made Marvel Champions digital game: Undo reaches past the start of your turn, a draw or a reveal, Pause has a Manual adjust screen to correct the table by hand and a search that finds any setting, and Giant Strength, One Way or Another and Morphogenetics are fixed."
     />
     <meta property="og:title" content="Marvel Champions: Digital Edition v0.49.0" />
     <meta
@@ -609,8 +609,9 @@
         <p>
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
           draw, a reveal and the villain phase, and Pause has a Manual adjust screen to correct the table by hand. Both
-          came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Giant
-          Strength, One Way or Another and Morphogenetics are fixed too.
+          came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Pause's
+          search now finds any setting, and every search box forgives typos. Giant Strength, One Way or Another and
+          Morphogenetics are fixed too.
         </p>
       </section>
 
@@ -785,6 +786,66 @@
         </ul>
       </div>
 
+      <!-- ============ SEARCH ============ -->
+      <div class="band">
+        <h2>Find any setting from Pause</h2>
+        <div class="lab">Issue #800 · PR #801</div>
+      </div>
+      <p class="lead">
+        <b>Type in Pause's search and the results take over the menu,</b> grouped Settings first, then Rules, Pause's
+        own Reference rows and more. A setting changes right there: "undo" shows Undo past your turn with Allow, Warn
+        and Off.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/search-undo.webp"
+            alt="Pause with undo typed: Undo past your turn with Allow, Warn and Off under Settings, then the glossary search, Game log and the Undo controls"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>"undo": the setting, changeable in place</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/search-phone.webp"
+            alt="The same search on a phone, the results filling the Pause sheet above Resume"
+            width="412"
+            height="924"
+            loading="lazy"
+          />
+          <figcaption>On a phone, the results fill the sheet</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/search-zoom.webp"
+            alt="Pause with zoom typed: Card size and Card size on hover with their choices, and Inspect, hold to zoom, under Controls"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>"zoom", a synonym, finds Card size</figcaption>
+        </figure>
+        <div class="box">
+          <h3>Every search forgives</h3>
+          <ul class="ck">
+            <li><b>Synonyms</b>: "rewind" finds Undo past your turn, "mute" finds the sound rows.</li>
+            <li>
+              <b>Accents, case, typos and dropped letters</b> don't matter: "crd siz" finds Card size, in every search
+              box in the game.
+            </li>
+            <li>
+              The hero roster, the Rules glossary, the rulebook reader and the campaign card picker now search the same
+              way as Settings, Pause and the deck builder.
+            </li>
+            <li>Tablets and desktop get Pause's search field too.</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
@@ -896,22 +957,22 @@
       <section class="stats" aria-label="Code shipped since v0.48.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">10</div>
+          <div class="n">11</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">153</div>
+          <div class="n">176</div>
           <p>across the engine, the cards, the client and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">4,983</div>
+          <div class="n c-green">7,033</div>
           <p>most of them Undo, Manual adjust and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">251</div>
+          <div class="n c-red">425</div>
           <p>code the new Undo and adjust paths replaced.</p>
         </div>
       </section>
