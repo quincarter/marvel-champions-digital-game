@@ -330,13 +330,32 @@ describe("a scrolling scheme row's focus stop", () => {
     expect(focusSliceOf(row(260), 0, viewport)).toEqual({ x: 10, y: 260, width: 280, height: 40 });
   });
 
-  test("is a thin strip on the edge it is past once the row is wholly out of view, so the D-pad still reaches it", () => {
-    expect(focusSliceOf(row(400), 0, viewport)).toEqual({
+  test("is a thin strip just past the edge once the row is wholly out of view, so the D-pad still reaches it", () => {
+    expect(focusSliceOf(row(400), 0, viewport)).toEqual({ x: 10, y: 300, width: 280, height: OFFSCREEN_FOCUS_STRIP });
+    expect(focusSliceOf(row(120), 200, viewport)).toEqual({
       x: 10,
-      y: 300 - OFFSCREEN_FOCUS_STRIP,
+      y: 100 - OFFSCREEN_FOCUS_STRIP,
       width: 280,
       height: OFFSCREEN_FOCUS_STRIP,
     });
-    expect(focusSliceOf(row(120), 200, viewport)).toEqual({ x: 10, y: 100, width: 280, height: OFFSCREEN_FOCUS_STRIP });
+  });
+
+  test("a hidden row's strip is always past a row with only a 1px sliver showing, so down and up still move (#834)", () => {
+    const centre = (r: Rect): number => r.y + r.height / 2;
+    // Down: the row above shows 1px at the bottom edge; the next row is wholly below.
+    const sliver = focusSliceOf(row(299), 0, viewport);
+    expect(sliver.height).toBe(1);
+    expect(centre(focusSliceOf(row(305), 0, viewport))).toBeGreaterThan(centre(sliver));
+    // Up: the row below shows 1px at the top edge; the row before it is wholly above.
+    const top = focusSliceOf(row(101), 80, viewport);
+    expect(top.height).toBe(1);
+    expect(centre(focusSliceOf(row(10), 80, viewport))).toBeLessThan(centre(top));
+  });
+});
+
+describe("a stack too small for card art", () => {
+  test("draws no bands, so a prompt counts only the front card as shown (review on #834)", () => {
+    const stack = schemeStackLayout({ x: 0, y: 0, width: 120, height: 60 }, 4);
+    expect(stack.behind).toHaveLength(0);
   });
 });

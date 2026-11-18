@@ -38,8 +38,8 @@ import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import { McButton, fitText } from "../../ui/widgets.js";
-import { STACK_MAX_BEHIND, schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
-import { StackSwipe, stackFlip, stackFrontAfter, stackShowsEligible } from "../../view/scheme-stack.js";
+import { schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
+import { StackSwipe, schemePickIds, stackFlip, stackFrontAfter, stackShowsEligible } from "../../view/scheme-stack.js";
 
 /**
  * The schemes column's scroll position and what it last scrolled to, kept by the scene across draws (a board redraw
@@ -138,13 +138,20 @@ function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly Scheme
   state.stackTargets = decided.targetsKey;
   const frontIndex = Math.max(0, decided.front ? ids.indexOf(decided.front) : 0);
   const order = stackOrder(all, frontIndex);
-  // A prompt (a target, divided power, a cost or a discard pick) that can pick a scheme the stack hides past its bands
-  // is answered on the full list instead (Codex review on PR #831): there every scheme is a focus stop.
-  if (selection.kind !== "idle") {
-    const eligible = ids.filter((id) => targetState(selection, id) !== "unavailable");
-    const orderIds = order.map((scheme) => scheme.instanceId);
-    if (!stackShowsEligible(orderIds, eligible, Math.min(STACK_MAX_BEHIND, all.length - 1))) return false;
-  }
+  const infoExtra = Math.max(...all.map((scheme) => largeInfoExtra(ctx, scheme)));
+  const stack = schemeStackLayout(rect, all.length, infoExtra);
+  // A decision that answers on the table (a target, divided power, a cost or a discard) and can pick a scheme the stack
+  // hides past the bands it actually draws is answered on the full list instead (Codex review on PR #831, review on
+  // #834): there every scheme is a focus stop. A decision asked on a sheet of its own picks no scheme and keeps the stack.
+  const eligible = schemePickIds(selection.kind, ids, (id) => targetState(selection, id) !== "unavailable");
+  if (
+    !stackShowsEligible(
+      order.map((scheme) => scheme.instanceId),
+      eligible,
+      stack.behind.length,
+    )
+  )
+    return false;
   const bringForward = (id: InstanceId): void => {
     state.stackFront = id;
     ctx.requestDraw();
@@ -154,9 +161,6 @@ function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly Scheme
     if (next) bringForward(next);
   };
   const fan = (): void => ctx.openSchemeFan(order, bringForward);
-
-  const infoExtra = Math.max(...all.map((scheme) => largeInfoExtra(ctx, scheme)));
-  const stack = schemeStackLayout(rect, all.length, infoExtra);
 
   // The header: which card of how many is at the front, the arrows, and Fan out.
   const { header } = stack;

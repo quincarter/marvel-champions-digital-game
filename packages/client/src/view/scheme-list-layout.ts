@@ -393,19 +393,21 @@ export function schemeRowGeometry(
   };
 }
 
-/** How tall the focus strip of a row scrolled wholly out of the schemes viewport is, at the edge it is past. */
+/** How tall the focus strip of a row scrolled wholly out of the schemes viewport is, just past the edge it lies past. */
 export const OFFSCREEN_FOCUS_STRIP = 4;
 
 /**
  * Where a scrolling scheme row is a pad and keyboard focus stop: its visible slice, or, scrolled wholly out of view, a
- * thin strip on the viewport's edge it lies past (`OFFSCREEN_FOCUS_STRIP`), so the D-pad can still move to it; focus
- * landing there scrolls it into view (`schemes.ts`). A row's tap rect stays its visible slice only.
+ * thin strip just outside the viewport's edge it lies past (`OFFSCREEN_FOCUS_STRIP`), so the D-pad can still move to it;
+ * focus landing there scrolls it into view (`schemes.ts`). Outside, not on, the edge: a row with a 1px sliver showing
+ * has its centre there, and the D-pad only moves to a stop whose centre is past the current one's (review on #834).
+ * A row's tap rect stays its visible slice only.
  */
 export function focusSliceOf(rect: Rect, offset: number, viewport: Rect): Rect {
   const slice = visibleSlice(rect, offset, viewport);
   if (slice) return slice;
   const below = rect.y - offset >= viewport.y + viewport.height;
-  const y = below ? viewport.y + viewport.height - OFFSCREEN_FOCUS_STRIP : viewport.y;
+  const y = below ? viewport.y + viewport.height : viewport.y - OFFSCREEN_FOCUS_STRIP;
   return { x: rect.x, y, width: rect.width, height: OFFSCREEN_FOCUS_STRIP };
 }
 

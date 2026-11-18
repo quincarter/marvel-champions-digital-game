@@ -75,3 +75,21 @@ export function stackShowsEligible<T>(order: readonly T[], eligible: readonly T[
   const shown = order.slice(0, 1 + Math.max(0, shownBehind));
   return eligible.every((id) => shown.includes(id));
 }
+
+/**
+ * The open decisions that answer on cards on the table, so can pick a scheme: a target, a payment's sources, divided
+ * power, a discard and an in-play cost. Every other decision (a form, a seat, an ability, a cost to help with) asks on a
+ * sheet of its own, and the stack stays as it is.
+ */
+export const SCHEME_PICK_MODES: ReadonlySet<string> = new Set([
+  "targeting",
+  "paying",
+  "dividingPower",
+  "choosingDiscard",
+  "choosingInPlayCost",
+]);
+
+/** The schemes the open decision (`mode`) can pick: those `pickable` says yes to, and none outside `SCHEME_PICK_MODES`. */
+export function schemePickIds<T>(mode: string, ids: readonly T[], pickable: (id: T) => boolean): readonly T[] {
+  return SCHEME_PICK_MODES.has(mode) ? ids.filter(pickable) : [];
+}

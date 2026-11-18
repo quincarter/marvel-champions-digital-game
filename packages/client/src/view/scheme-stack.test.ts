@@ -5,6 +5,7 @@ import {
   StackSwipe,
   stackFlip,
   stackFrontAfter,
+  schemePickIds,
   stackShowsEligible,
 } from "./scheme-stack.js";
 
@@ -87,5 +88,30 @@ describe("a prompt on the stack", () => {
   test("lists every scheme when one it can pick is hidden past the bands (a fifth scheme)", () => {
     expect(stackShowsEligible(order, ["a", "d"], 3)).toBe(false);
     expect(stackShowsEligible(order, ["b"], 1)).toBe(false);
+  });
+});
+
+describe("the schemes a decision can pick", () => {
+  const ids = ["main", "a", "b", "c", "d"];
+  const all = (): boolean => true;
+
+  test("a target, payment, divided power, discard or in-play cost picks on the table", () => {
+    for (const mode of ["targeting", "paying", "dividingPower", "choosingDiscard", "choosingInPlayCost"])
+      expect(
+        schemePickIds(mode, ids, (id) => id === "d"),
+        mode,
+      ).toEqual(["d"]);
+  });
+
+  test("a decision asked on a sheet of its own picks no scheme, so five schemes keep their stack (review on #834)", () => {
+    for (const mode of [
+      "choosingForm",
+      "choosingController",
+      "choosingCostSelection",
+      "confirmingAllianceHelp",
+      "idle",
+    ])
+      expect(schemePickIds(mode, ids, all), mode).toEqual([]);
+    expect(stackShowsEligible(ids, schemePickIds("choosingForm", ids, all), 3)).toBe(true);
   });
 });
