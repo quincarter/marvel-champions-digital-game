@@ -85,14 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Shadowland
 
-## Shadows in the Night
-
-Tracks: **Midnight Belongs to the Hand** (battle), **Swallowed by the Dark** (villain wins), **First Light on the Rooftops** (heroes win).
-
-```text
-A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
-```
-
 ## Shadow Labyrinth
 
 Tracks: **Labyrinth of Blades** (battle), **No Way Out** (villain wins), **The Way Out Found** (heroes win).
@@ -181,7 +173,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Shadows in the Night: `scenarios/shadows-in-the-night/`
 - Shadow Labyrinth: `scenarios/shadow-labyrinth/`
 - Heart of Shadow: `scenarios/heart-of-shadow/`
 - Shadowland campaign interlude: `campaigns/shadowland/interlude.mp3`
@@ -496,6 +487,14 @@ Tracks: **The King of Hell's Kitchen** (battle), **Long Live the Kingpin** (vill
 
 ```text
 Street-level noir in a rough New York neighborhood at night. The crime lord who owns the city at last steps out himself: a huge, calm, terrifyingly strong man in a white suit, running his empire from a high-rise office while the public turns for or against the heroes. Imperial crime-boss menace: a slow, crushing low-brass and timpani march, a cold string-quartet theme played with aristocratic poise, a deep choir-like pad, jazz-noir saxophone for the streets below, the whole orchestra slamming down like a fist. About 96 BPM, F minor, massive and controlled.
+```
+
+## Shadows in the Night
+
+Tracks: **Midnight Belongs to the Hand** (battle), **Swallowed by the Dark** (villain wins), **First Light on the Rooftops** (heroes win).
+
+```text
+A city neighborhood swallowed by an ancient ninja cult's black fortress, its martial-arts fighters possessed by a demonic darkness. One of the cult's possessed champions leads waves of ninjas across moonlit rooftops while the heroes fight to keep the darkness from spreading. Martial-arts horror: taiko drums and fast shamisen-like plucks, shakuhachi-style flute over a dark string ostinato, whispered choir-like synth pads, sharp blade-swish percussion. About 138 BPM, D minor, swift and sinister.
 ```
 
 </details>
