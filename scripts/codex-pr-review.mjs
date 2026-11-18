@@ -166,10 +166,7 @@ while (!posted) {
     );
   } catch (err) {
     const tooLarge = new Set(
-      [
-        ...`${err.stdout ?? ""}
-${err.stderr ?? ""}`.matchAll(/Diff entry (\S+) diff is too large/g),
-      ].map((m) => m[1]),
+      [...[err.stdout, err.stderr].join(" ").matchAll(/Diff entry (\S+) diff is too large/g)].map((m) => m[1]),
     );
     const moved = comments.filter((c) => tooLarge.has(c.path));
     if (moved.length === 0) throw err;
