@@ -160,7 +160,8 @@ or post to Discord yourself.
 - `discord-post.md`: one message for Discord #announcements, English first, then the same in Spanish, under 4,000
   characters in all (Discord's limit with Nitro; count with `wc -m`). No image links: the report link unfurls with
   `og.jpg`. A headline, a few short bullets of what players get, the report links in both languages, the downloads
-  link (`https://github.com/quincarter/marvel-champions-digital-game/releases/tag/<version>`) and a thank-you naming
+  link to the website's download section (`https://champions-digital-game.com/#download`, easier to navigate than
+  the GitHub release page; Quin, 2026-11-18) and a thank-you naming
   the reporters and contributors. Plain words, no em dashes.
 - **Say only what's live.** A feature that needs setup outside the repo (a Cloudflare bucket, a domain, a secret, an
   npm token) is described by what it does, with no address or date promised, until the setup is confirmed. Check with
