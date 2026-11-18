@@ -25,6 +25,7 @@ import {
   frameRateRowInfoOf,
   gameVolumeRowInfoOf,
   renderScaleRowInfoOf,
+  renderScaleRowShown,
   resolutionRowInfoOf,
   type GuideRowInfo,
 } from "../view/settings-rows.js";
@@ -119,7 +120,9 @@ export function settingsDeviceRowsFor(
   if (screenSettingsShown()) {
     const screen = { width, height, devicePixelRatio: globalThis.devicePixelRatio || 1 };
     const advice = screenAdviceOf();
-    add("render-scale", renderScaleRowInfoOf(settings, screen, advice));
+    // Only where Settings draws it: a result must land on a row that is there.
+    const scale = renderScaleRowInfoOf(settings, screen, advice);
+    if (renderScaleRowShown(scale)) add("render-scale", scale);
     add(
       "frame-rate",
       frameRateRowInfoOf(settings, knownRefreshInfo()?.maxRefreshRate ?? null, powerSavingOn(), advice),

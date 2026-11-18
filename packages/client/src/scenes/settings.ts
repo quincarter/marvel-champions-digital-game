@@ -48,6 +48,7 @@ import {
   nextSettingsAfterCouchMode,
   couchModeRowInfoOf,
   renderScaleRowInfoOf,
+  renderScaleRowShown,
   nextSettingsAfterCardSize,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
@@ -983,7 +984,7 @@ export class SettingsOverlay extends Phaser.Scene {
       const advice = screenAdviceOf();
       // A 1x screen has nothing below Native to offer, so the row is left out there.
       const scaleInfo = renderScaleRowInfoOf(settings, screen, advice);
-      if (scaleInfo.options.length > 1) {
+      if (renderScaleRowShown(scaleInfo)) {
         segmented("render-scale", scaleInfo, SCREEN_CONTROL_WIDTH, (v) =>
           setScreen(nextSettingsAfterRenderScale(appSession().settings, v)),
         );

@@ -7,6 +7,7 @@ import {
   nextSettingsAfterCouchMode,
   couchModeRowInfoOf,
   renderScaleRowInfoOf,
+  renderScaleRowShown,
   nextSettingsAfterDisplayMode,
   nextSettingsAfterResolution,
   resolutionRowInfoOf,
@@ -571,6 +572,11 @@ describe("the Android app's Screen rows", () => {
     expect(row.options.map((o) => o.label)).toEqual(["Native", "720p", "540p", "360p"]);
     expect(row.selected).toBe("native");
     expect(row.detail).toContain("1080 × 2364");
+  });
+
+  test("a 1x screen has no Resolution row to draw or find; a denser one does", () => {
+    expect(renderScaleRowShown(renderScaleRowInfoOf(BASE, { ...phone, devicePixelRatio: 1 }))).toBe(false);
+    expect(renderScaleRowShown(renderScaleRowInfoOf(BASE, phone))).toBe(true);
   });
 
   test("a 2x phone has no separate 720p: that is its native, and a saved 2x shows as Native", () => {
