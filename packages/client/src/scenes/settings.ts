@@ -206,7 +206,7 @@ import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
+import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { t } from "../i18n/translate.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
@@ -560,7 +560,7 @@ export class SettingsOverlay extends Phaser.Scene {
       mode: "add-steam",
     } satisfies SteamUpdateSceneData);
     // Back from it: redraw, so a game just added to Steam loses the row (and gains the Steam install row) at once.
-    this.scene.get(SCENES.steamUpdate).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    this.game.events.once(STEAM_UPDATE_CLOSED, () => {
       if (this.sys.isActive()) this.#draw();
     });
   }

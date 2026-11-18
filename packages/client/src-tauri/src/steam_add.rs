@@ -152,7 +152,9 @@ pub fn steam_add_info(app: AppHandle) -> Option<SteamAdd> {
     return None;
   }
   let game = game.to_string_lossy();
-  let listed = lists.iter().any(|list| std::fs::read(list).is_ok_and(|vdf| lists_game(&vdf, &game)));
+  // Every signed-in user's list, since the script adds the game to each: one that stopped partway, or a shortcut added by
+  // hand in one account, still offers Add to Steam to finish the rest.
+  let listed = lists.iter().all(|list| std::fs::read(list).is_ok_and(|vdf| lists_game(&vdf, &game)));
   (!listed).then_some(SteamAdd { can_add: true })
 }
 
