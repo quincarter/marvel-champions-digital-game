@@ -229,6 +229,11 @@ async function parseArgs(argv: readonly string[]): Promise<Args> {
   }
   if (all && pack) throw new Error("--all and --pack are mutually exclusive");
   if (locale !== null && !/^[a-z]{2}$/.test(locale)) throw new Error(`--locale takes a language code such as es`);
+  // `--locale` only fetches and writes caches: a read-only run of it has nothing to do, so say so before any request.
+  if (locale !== null && (offline || dryRun))
+    throw new Error(
+      "--locale fetches and writes raw/marvelcdb/<lang>/; it cannot be combined with --offline or --dry-run",
+    );
   if (all && !offline && locale === null)
     throw new Error("--all requires --offline — it reads the committed raw caches, it does not refetch 63 packs");
   const packs = all ? await allPackCodes() : [pack ?? "core"];
