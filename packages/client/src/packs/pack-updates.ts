@@ -20,6 +20,9 @@ import { CLIENT_VERSION } from "../version.js";
 /** How long a fetched catalog answers the Title before it is fetched again. */
 export const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
+/** How long the Title waits on the catalog before it gives up and counts from the saved copy. */
+export const FETCH_TIMEOUT_MS = 20 * 1000;
+
 export interface PackUpdateContext {
   readonly appVersion: string;
   readonly supportedDslFeatures: readonly string[];
@@ -85,7 +88,8 @@ export function notePackUpdates(
   noted += 1;
   if (index) {
     lastIndex = index;
-    if (!offline) lastFetched = Date.now();
+    // An offline copy is never fresh: the next Title check reaches for the network again.
+    lastFetched = offline ? Number.NEGATIVE_INFINITY : Date.now();
   }
   const known = index ?? lastIndex;
   if (known) setCount(packUpdateCountOf(known, installed));
@@ -96,6 +100,8 @@ export interface CheckDeps extends CatalogDeps {
   readonly now?: () => number;
   /** Fetch even when the last catalog is fresh. */
   readonly force?: boolean;
+  /** How long to wait on the catalog (`FETCH_TIMEOUT_MS`). */
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -129,7 +135,16 @@ async function runCheck(deps: CheckDeps): Promise<number> {
     // noted a newer catalog never replaces the store's saved copy either.
     let fresh: PackIndex | undefined;
     try {
-      fresh = (await loadCatalog({ ...deps, storage: null })).index;
+      // Bounded, so a request that hangs never holds the shared check (and every later one) open.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The catalog took too long")), deps.timeoutMs ?? FETCH_TIMEOUT_MS);
+      });
+      try {
+        fresh = (await Promise.race([loadCatalog({ ...deps, storage: null }), timeout])).index;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch {
       // Offline: the saved copy is counted from, but not fresh, so the next check tries the network again.
       index ??= cachedCatalog(deps.storage);

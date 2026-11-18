@@ -144,4 +144,29 @@ describe("checkPackUpdates", () => {
     // Nor does the slow answer replace the saved copy.
     expect(saved.size).toBe(0);
   });
+
+  it("gives up on a catalog request that hangs, counts from the saved copy, and lets the next check retry", async () => {
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    const deps = { store: store([installed("fan-newer", "1.0.0")]), storage };
+    await checkPackUpdates({ ...deps, fetch: json(index) });
+    resetPackUpdatesForTest();
+    const hang = vi.fn(() => new Promise<Response>(() => {}));
+    expect(await checkPackUpdates({ ...deps, fetch: hang, timeoutMs: 10 })).toBe(1);
+    const back = json(index);
+    await checkPackUpdates({ ...deps, fetch: back });
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not treat the store's offline copy as fresh", async () => {
+    const deps = { store: store([installed("fan-newer", "1.0.0")]), storage: null };
+    await checkPackUpdates({ ...deps, fetch: json(index) });
+    notePackUpdates(index, [installed("fan-newer", "1.0.0")], true);
+    const back = json(index);
+    await checkPackUpdates({ ...deps, fetch: back });
+    expect(back).toHaveBeenCalledTimes(1);
+  });
 });
