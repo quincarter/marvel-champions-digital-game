@@ -13,6 +13,8 @@ export const GAME_URL = `https://marvel.${SITE_DOMAIN}/`;
 
 /** The landing page. */
 export const LANDING_URL = `https://${SITE_DOMAIN}/`;
+/** The landing page's downloads section: every installer, easier to find than on the GitHub release page. */
+export const DOWNLOADS_URL = `${LANDING_URL}#download`;
 
 /** The old address, where the "we have moved" page stays so it can still read the saves this origin holds. */
 export const OLD_SITE_URL = "https://marvel-champions-digital-game.netlify.app/";

@@ -33,6 +33,8 @@ describe("presenceOf", () => {
       largeText: "Marvel Champions Digital Edition",
       buttons: [{ label: "Get the game", url: PRESENCE_DOWNLOAD_URL }],
     });
+    // The website's downloads section, not the GitHub release page.
+    expect(PRESENCE_DOWNLOAD_URL).toBe("https://champions-digital-game.com/#download");
   });
 
   test("the deck builder and setup say what the player is doing", () => {

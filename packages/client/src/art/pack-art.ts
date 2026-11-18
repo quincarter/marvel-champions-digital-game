@@ -136,6 +136,21 @@ export function setPackArt(
 }
 
 /**
+ * The loaded packs' picture files, for Discord presence (issue #840): posted as they are (a `Set` survives the
+ * structured clone), so the main thread does no work for it. A pack shown only for its Mod Store cover is left out.
+ */
+export function presencePackTable(): readonly {
+  readonly id: string;
+  readonly version: string;
+  readonly languages: PackLanguages | undefined;
+  readonly files: ReadonlySet<string>;
+}[] {
+  return [...packs.values()]
+    .filter((pack) => pack.languages !== undefined)
+    .map(({ id, version, languages, files }) => ({ id, version, languages, files }));
+}
+
+/**
  * The picture of custom card `code` in language `lang` (the player's, falling back to the pack's base language), or
  * null when there is none yet: the pack is not loaded, has no picture for the card, or its URL is still being read
  * (an art change is announced when it lands).

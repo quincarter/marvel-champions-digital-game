@@ -4,11 +4,15 @@
  * worker (`engine/engine.worker.ts`): nothing here may touch Phaser or the DOM, nor the campaign story text.
  */
 import { activeVillain, cardOf, villainStageOf, type GameState, type InstanceId } from "@mc/engine";
-import { artFor, type CardFace } from "../art/art-source.js";
+import type { AnyCard } from "@mc/content";
+import { artFor, packPictureCodes, type CardFace } from "../art/art-source.js";
 import type { SessionConfig } from "../engine/host.js";
 import { difficultyLabelOf } from "./difficulty-label.js";
 import type { PresenceGame } from "./discord-presence.js";
 import { cardName, playerName } from "./names.js";
+
+/** A `blob:` URL (a pack picture, were the resolver ever set here) means nothing outside this app: drop it. */
+const publicOnly = (url: string | null | undefined): string | null => (url && !url.startsWith("blob:") ? url : null);
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
 
@@ -34,12 +38,21 @@ function identityFaceOf(state: GameState, identityId: InstanceId): CardFace {
   return index > 0 ? { kind: "heroForm", index } : { kind: "hero" };
 }
 
+/** A custom card's picture codes for `face`, or null for a base-game card (its art has a public address already). */
+function packArtCodesOf(card: AnyCard | undefined, face: CardFace): readonly string[] | null {
+  return card && (card.id as string).startsWith("x.") ? packPictureCodes(card, face) : null;
+}
+
 export function presenceGameOf(state: GameState, config: SessionConfig | null): PresenceGame {
   const seats = state.players.filter((seat) => !seat.sittingOut);
   const villain = activeVillain(state);
   const stage = villainStageOf(state, villain.instanceId);
   const outcome = state.outcome;
   const lead = seats[0];
+  const villainCard = cardOf(state, villain.instanceId);
+  const villainFace = villainFaceOf(state);
+  const leadCard = lead ? cardOf(state, lead.identity.instanceId) : undefined;
+  const leadFace = lead ? identityFaceOf(state, lead.identity.instanceId) : undefined;
   const phase = state.step.phase === "villain" ? "villain" : state.step.phase === "setup" ? "setup" : "player";
   return {
     kind: config?.campaign ? "campaign" : "oneOff",
@@ -54,9 +67,9 @@ export function presenceGameOf(state: GameState, config: SessionConfig | null): 
     phase,
     difficulty: difficultyLabelOf(config),
     result: outcome ? (outcome.result === "win" ? "win" : outcome.result === "conceded" ? "conceded" : "loss") : null,
-    villainArt: artFor(cardOf(state, villain.instanceId), villainFaceOf(state))?.url ?? null,
-    heroArt: lead
-      ? (artFor(cardOf(state, lead.identity.instanceId), identityFaceOf(state, lead.identity.instanceId))?.url ?? null)
-      : null,
+    villainArt: publicOnly(artFor(villainCard, villainFace)?.url),
+    heroArt: leadCard && leadFace ? publicOnly(artFor(leadCard, leadFace)?.url) : null,
+    villainArtCodes: packArtCodesOf(villainCard, villainFace),
+    heroArtCodes: leadCard && leadFace ? packArtCodesOf(leadCard, leadFace) : null,
   };
 }
