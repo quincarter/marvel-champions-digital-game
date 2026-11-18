@@ -150,9 +150,33 @@ async function dealIt(page: Page): Promise<void> {
   // On a phone the seed field sits below the fold of the Set the table scroll: bring it up, or the click misses it,
   // the typing goes nowhere and Enter (which deals, with nothing focused) starts the game before this clicks Deal it out.
   await scrollStopIntoView(page, "seed", "Setup");
-  await clickStop(page, "seed", "Setup");
+  // At phone size the field can sit just above the bottom bar, where the scroll region hides its text box even though
+  // its stop counts as in view (#833): scroll on until the box shows, or the press focuses nothing, the typing goes
+  // nowhere and Enter deals a game with a random seed before Deal it out is pressed.
+  const seedShown = (): Promise<boolean> =>
+    page.evaluate(() =>
+      [...document.querySelectorAll("input")].some(
+        (input) => input.placeholder === "seed" && getComputedStyle(input).display !== "none",
+      ),
+    );
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  for (let tries = 0; tries < 8 && !(await seedShown()); tries++) {
+    await page.mouse.move(size.width / 2, size.height / 2);
+    await page.mouse.wheel(0, 120);
+    await settle(page);
+  }
+  const seedFocused = (): Promise<boolean> => page.evaluate(() => document.activeElement?.tagName === "INPUT");
+  for (let tries = 0; tries < 5 && !(await seedFocused()); tries++) {
+    await clickStop(page, "seed", "Setup");
+    await settle(page, { quietMs: 150, maxMs: 600 });
+  }
+  expect(await seedFocused(), "the seed field has the focus before typing").toBe(true);
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.type(SEED);
+  expect(
+    await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.value ?? ""),
+    "the seed was typed into the field",
+  ).toBe(SEED);
   await page.keyboard.press("Enter");
   await settle(page);
   await assertNoRawText(page, "Civil War table setup");
