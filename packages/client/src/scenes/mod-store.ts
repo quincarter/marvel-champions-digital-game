@@ -94,6 +94,7 @@ import { McChipRail } from "../ui/chip-rail.js";
 import { RailScroll } from "../view/rail-scroll.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
+import { notePackUpdates } from "../packs/pack-updates.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
 import {
@@ -369,6 +370,8 @@ export class ModStoreScene extends Phaser.Scene {
       this.#index = catalog.index;
       this.#offline = catalog.offline;
       this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+      // A dev catalog override is not the real store's, so it never sets the Title's update badge.
+      if (!this.#catalogUrl) notePackUpdates(catalog.index, installed);
       this.#status = "ready";
     } catch {
       // No network and no saved copy: still show what is installed.
@@ -390,6 +393,7 @@ export class ModStoreScene extends Phaser.Scene {
   async #refreshInstalled(): Promise<void> {
     const installed = await this.#store.list().catch(() => [] as InstalledPack[]);
     this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+    if (!this.#catalogUrl) notePackUpdates(this.#index ?? undefined, installed);
     // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
     void refreshActivePacks();
   }
