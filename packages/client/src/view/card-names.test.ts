@@ -22,6 +22,16 @@ describe("Spanish card names in the search (issue #806)", () => {
     expect(localizedNameOf("51018", "en")).toBeNull();
   });
 
+  test("a failed import is not cached: the next request retries and loads the names", async () => {
+    const failing = () => Promise.reject(new Error("offline"));
+    expect(await loadCardNames("es", failing)).toBe(false);
+    expect(cardNamesReady("es")).toBe(false);
+    expect(localizedNameOf("51018", "es")).toBeNull();
+    expect(await loadCardNames("es", () => Promise.resolve({ "51018": "La Balsa" }))).toBe(true);
+    expect(cardNamesReady("es")).toBe(true);
+    expect(localizedNameOf("51018", "es")).toBe("La Balsa");
+  });
+
   test('searching "la balsa" (or "balsa", accent-free) finds The Raft, and "raft" still does', async () => {
     await loadCardNames("es");
     const host = new DeckSearchHost();
