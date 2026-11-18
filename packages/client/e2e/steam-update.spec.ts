@@ -413,6 +413,13 @@ test("Settings ▸ More's Add to Steam runs the Steam script on the game, then s
   await waitForText(page, "Added to Steam", { sceneKey: "SteamUpdateOverlay" });
   await shoot(page, "steam-add-done");
   expect(await stopKeys(page, "SteamUpdateOverlay")).toEqual(["close"]);
+  // Closed: the row is gone from the More tab behind it, so the script can't be started again by mistake.
+  await pressStop(page, "SteamUpdateOverlay", "close");
+  await waitForPhase(page, null);
+  await waitFor(
+    async () => !((await routeStops(page, "SettingsOverlay"))?.stops ?? []).some((s) => s.key === "row:steam-add"),
+    "the Add to Steam row gone",
+  );
   expect(errors).toEqual([]);
 });
 

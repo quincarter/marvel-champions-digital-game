@@ -47,6 +47,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "steamAdd.working.body": "Steam se cierra mientras se escribe su biblioteca. Tarda un momento.",
   "steamAdd.done.heading": "Añadido a Steam",
   "steamAdd.failed.heading": "No se añadió el juego",
+  "steamAdd.failed.body":
+    "{reason} Puede que Steam haya cambiado en parte: vuelve a probar Añadir a Steam para terminar, o quita la entrada del juego en Steam. La salida del script está en {log}.",
   "steamAdd.done.body": "Abre Steam: Marvel Champions Digital Edition está en tu biblioteca.",
   "title.oldSave": "¿Y TU PARTIDA ANTIGUA?",
   "title.oldSaveDetail": "Recupérala en la página antigua.",

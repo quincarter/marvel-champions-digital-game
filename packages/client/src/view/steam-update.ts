@@ -195,7 +195,8 @@ function addSteamViewOf(status: SteamUpdateStatus | null, started: boolean): Ste
   return {
     phase: "failed",
     heading: t("steamAdd.failed.heading"),
-    body: `${failureOf(status.log)} Steam is unchanged. The script's output is in ${LOG_PATH}.`,
+    // The script writes each Steam user's shortcut in turn, so one that stopped partway may have changed some of them.
+    body: t("steamAdd.failed.body", { reason: failureOf(status.log), log: LOG_PATH }),
     percent: null,
   };
 }

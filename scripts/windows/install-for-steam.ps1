@@ -88,10 +88,15 @@ function Get-LatestRelease([string]$kind) {
   $name = "-" + $Language.ToUpperInvariant() + $suffix
   $asset = @($release.assets | Where-Object { $_.name.EndsWith($name) }) | Select-Object -First 1
   if ($null -eq $asset) { return $null }
-  return @{ Version = $release.tag_name.TrimStart("v"); Url = $asset.browser_download_url; Name = $asset.name }
+  return @{
+    Version = $release.tag_name.TrimStart("v"); Url = $asset.browser_download_url; Name = $asset.name
+    # GitHub's SHA-256 of the file ("sha256:<hex>"), which the download is checked against before it is run.
+    Digest = [string]$asset.digest
+  }
 }
 
-function Save-Download([string]$url, [string]$file) {
+# Downloads $url to $file, and stops unless it matches the release's checksum, so a cut-off or wrong file is never run.
+function Save-Download([string]$url, [string]$file, [string]$digest) {
   # curl.exe ships with Windows and shows progress, which the game reads to fill its bar; Invoke-WebRequest doesn't.
   $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
   if ($null -ne $curl) {
@@ -99,6 +104,11 @@ function Save-Download([string]$url, [string]$file) {
     if ($LASTEXITCODE -ne 0) { Fail "the download failed." }
   } else {
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $file
+  }
+  if ($digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { Fail "the release lists no checksum for $(Split-Path -Leaf $file)." }
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash -ne $Matches[1].ToUpperInvariant()) {
+    Remove-Item $file -ErrorAction SilentlyContinue
+    Fail "the download doesn't match the release, so nothing changed."
   }
 }
 
@@ -329,17 +339,22 @@ function Find-Game {
   return $null
 }
 
-# Which installer the game at $exe came from: the .msi registers itself with Windows Installer, the per-user setup
-# doesn't. A game that isn't installed yet gets the per-user setup, which needs no admin rights.
+# Which installer the game at $exe came from, read from what each leaves behind (as the game itself reads it,
+# src-tauri/src/self_update.rs): the per-user setup's uninstall.exe beside the game, or the .msi's Windows Installer
+# entry for the game's folder. A game that isn't installed yet gets the per-user setup, which needs no admin rights.
+# "unknown" when an installed game shows neither, rather than a guess that would run the other installer.
 function Get-InstallKind([string]$exe) {
+  if (-not $exe -or -not (Test-Path $exe)) { return "nsis" }
+  $dir = (Split-Path (Resolve-Path $exe).Path).TrimEnd("\")
+  if (Test-Path (Join-Path $dir "uninstall.exe")) { return "nsis" }
   $keys = @("HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
     "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
-  $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue |
-      Where-Object { $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 })
-  if ($msi.Count -gt 0 -and $exe -and -not $exe.StartsWith($env:LOCALAPPDATA, [System.StringComparison]::OrdinalIgnoreCase)) {
-    return "msi"
-  }
-  return "nsis"
+  $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object {
+      $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 -and $_.InstallLocation -and
+      ([string]$_.InstallLocation).TrimEnd("\") -ieq $dir
+    })
+  if ($msi.Count -gt 0) { return "msi" }
+  return "unknown"
 }
 
 # The version the installed game says it is, or "" when it can't be read.
@@ -369,6 +384,7 @@ if ($Update) {
   if ($Path -eq "") { $Path = Find-Game }
   if (-not $Path) { Fail "the game isn't installed where its installer puts it." }
   $kind = Get-InstallKind $Path
+  if ($kind -eq "unknown") { Fail "couldn't tell which installer put the game at $Path, so it can't update itself. Download the update from the release instead." }
   $latest = Get-LatestRelease $kind
   if ($null -eq $latest) { Fail "couldn't find the latest release on GitHub." }
   if (Test-Latest $Path $latest.Version) {
@@ -378,7 +394,7 @@ if ($Update) {
   $temp = New-TempFolder
   $installer = Join-Path $temp $latest.Name
   Write-Host "Downloading version $($latest.Version)..."
-  Save-Download $latest.Url $installer
+  Save-Download $latest.Url $installer $latest.Digest
   if ($WaitPid -gt 0) {
     # The game went while this downloaded. It may have been started again, and the installer would close it.
     if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
@@ -418,13 +434,14 @@ if ($Uninstall) {
     if (Test-Latest $Path $latest.Version) {
       Write-Host "Version $($latest.Version) is already installed."
     } else {
+      if ($kind -eq "unknown") { Fail "couldn't tell which installer put the game at $Path. Install the update from the release, then run this again." }
       if ($null -ne (Get-Process -Name marvel-champions -ErrorAction SilentlyContinue)) {
         Fail "the game is running. Close it and run this again."
       }
       $temp = New-TempFolder
       $installer = Join-Path $temp $latest.Name
       Write-Host "Downloading version $($latest.Version)..."
-      Save-Download $latest.Url $installer
+      Save-Download $latest.Url $installer $latest.Digest
       Write-Host "Installing..."
       Install-Game $installer $kind
       Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue

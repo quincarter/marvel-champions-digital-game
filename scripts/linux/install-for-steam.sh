@@ -105,6 +105,8 @@ marker_value() {
 # never a draft or a prerelease.
 latest_version=""
 latest_url=""
+# GitHub's SHA-256 of the AppImage, which the download is checked against before it replaces anything.
+latest_sha256=""
 lookup_latest() {
   command -v curl > /dev/null || return 1
   local answer
@@ -114,15 +116,35 @@ release = json.load(sys.stdin)
 images = [a for a in release.get("assets", []) if a["name"].endswith(".AppImage")]
 tag = f"-{sys.argv[1].upper()}-Linux-"
 image = next((a for a in images if tag in a["name"]), None)
-print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", sep="\t")
+digest = (image or {}).get("digest") or ""
+print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", digest[7:] if digest.startswith("sha256:") else digest, sep="\t")
 ' "${language:-en}" 2> /dev/null)" || return 1
-  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  IFS=$'\t' read -r latest_version latest_url latest_sha256 <<< "$answer"
   [ -n "$latest_url" ]
 }
 
 fetch_appimage() {
   say "Downloading version $latest_version..."
   curl -fL --progress-bar -o "$1" "$latest_url" || die "the download failed."
+  check_download "$1"
+}
+
+# Stops unless the file matches the release's checksum, so a cut-off or wrong download never replaces the game.
+check_download() {
+  local got
+  case "$latest_sha256" in
+    *[!0-9a-f]* | "") die "the release lists no checksum for the AppImage." ;;
+  esac
+  [ "${#latest_sha256}" = 64 ] || die "the release lists no checksum for the AppImage."
+  if command -v sha256sum > /dev/null; then
+    got="$(sha256sum < "$1" | cut -d' ' -f1)"
+  else
+    got="$(shasum -a 256 < "$1" | cut -d' ' -f1)"
+  fi
+  if [ "$got" != "$latest_sha256" ]; then
+    rm -f "$1"
+    die "the download doesn't match the release, so nothing changed."
+  fi
 }
 
 # The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
@@ -143,11 +165,16 @@ save_script() {
 # Records the install: <version> <Steam kind>.
 write_marker() {
   mkdir -p "$STATE_DIR"
-  python3 - "$MARKER" "$INSTALLED" "$1" "${language:-en}" "$2" << 'PY'
+  # "kept": the game was added where the player keeps it (--keep-game, or an update of such a game), not copied in by this
+  # script, so --uninstall never deletes it.
+  local kept="${keep_game:+1}"
+  [ -n "$kept" ] || [ "$update" != 1 ] || [ "$(marker_value kept)" != "True" ] || kept=1
+  python3 - "$MARKER" "$INSTALLED" "$1" "${language:-en}" "$2" "$kept" << 'PY'
 import datetime, json, os, sys
 
-path, game, version, language, steam = sys.argv[1:6]
+path, game, version, language, steam, kept = sys.argv[1:7]
 record = {
+    "kept": kept == "1",
     "method": "steam-script",
     "os": "linux",
     "game": game,
@@ -403,8 +430,12 @@ PY
 if [ "$uninstall" = 1 ]; then
   # Add to Steam from the game (--keep-game) records an AppImage the player keeps somewhere else: its entry is the one
   # to remove, and that AppImage, like anything in the default folder, is not this script's to delete.
+  # Only a game this script copied into the default folder is its to delete: the record says so ("kept" is false) and
+  # names that folder's AppImage. A record that says nothing about it (written before "kept") counts as the script's
+  # only at the default path, which is the only place those runs put the game.
   recorded="$(marker_value game)"
   owned=1
+  [ "$(marker_value kept)" != "True" ] || owned=0
   if [ -n "$recorded" ] && [ "$recorded" != "$INSTALLED" ]; then
     INSTALLED="$recorded"
     owned=0

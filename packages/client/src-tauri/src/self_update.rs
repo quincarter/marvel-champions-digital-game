@@ -16,7 +16,7 @@
 //! the package. The Android app's update stays a download: Android's own
 //! installer has to run it.
 
-use crate::steam_install::{running_game, spawn_update, state_dir};
+use crate::steam_install::{running_game, spawn_update, state_dir, SELF_UPDATE_JOB};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -326,7 +326,7 @@ pub fn self_update_start(app: AppHandle, url: String, version: String, digest: S
   std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let helper = dir.join(HELPER_FILE);
   std::fs::write(&helper, HELPER).map_err(|e| e.to_string())?;
-  spawn_update(&dir, || helper_command(&helper, &url, kind, &version, &sha256, &game))
+  spawn_update(&dir, SELF_UPDATE_JOB, || helper_command(&helper, &url, kind, &version, &sha256, &game))
 }
 
 #[cfg(test)]

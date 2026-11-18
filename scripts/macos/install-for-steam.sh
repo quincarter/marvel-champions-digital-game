@@ -117,6 +117,8 @@ is_latest() {
 # "latest" is never a draft or a prerelease.
 latest_version=""
 latest_url=""
+# GitHub's SHA-256 of the .dmg, which the download is checked against before anything is installed from it.
+latest_sha256=""
 lookup_latest() {
   local chip="Intel-x64" answer
   [ "$(sysctl -n hw.optional.arm64 2> /dev/null || true)" = 1 ] && chip="AppleSilicon-arm64"
@@ -125,9 +127,10 @@ my ($lang, $chip) = @ARGV; local $/;
 my $release = JSON::PP->new->utf8->decode(scalar <STDIN>);
 (my $version = $release->{tag_name}) =~ s/^v//;
 my ($dmg) = grep { $_->{name} =~ /-\U$lang\E-macOS-\Q$chip\E\.dmg$/ } @{ $release->{assets} };
-print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\n";
+my $digest = $dmg && $dmg->{digest} ? $dmg->{digest} : ""; $digest =~ s/^sha256://;
+print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\t$digest\n";
 ' "$language" "$chip")" || return 1
-  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  IFS=$'\t' read -r latest_version latest_url latest_sha256 <<< "$answer"
   [ -n "$latest_url" ]
 }
 
@@ -142,6 +145,10 @@ fetch_app() {
   staged="$1.new.$$"
   say "Downloading version $latest_version..."
   curl -fL --progress-bar -o "$dmg" "$latest_url" || die "the download failed."
+  # A cut-off or wrong download is never installed.
+  [ "${#latest_sha256}" = 64 ] || die "the release lists no checksum for the .dmg."
+  [ "$(shasum -a 256 < "$dmg" | cut -d' ' -f1)" = "$latest_sha256" ] ||
+    die "the download doesn't match the release, so nothing changed."
   mkdir -p "$mount"
   hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mount" || die "couldn't open the .dmg."
   found="$(find "$mount" -maxdepth 1 -name '*.app' | head -n 1)"
@@ -152,7 +159,14 @@ fetch_app() {
   xattr -dr com.apple.quarantine "$staged" 2> /dev/null || true
 }
 
+# Puts $staged in $1's place. Where the disk can (APFS), the two trade places in one step (renameatx_np with
+# RENAME_SWAP, through perl; AT_FDCWD is -2 on macOS), so no crash leaves the game missing; elsewhere, two renames.
 swap_app() {
+  if [ -d "$1" ] && perl -e 'exit(syscall(488, -2, $ARGV[0], -2, $ARGV[1], 2) == 0 ? 0 : 1)' "$staged" "$1" 2> /dev/null; then
+    rm -rf "$staged"
+    staged=""
+    return
+  fi
   rm -rf "$1.old"
   [ ! -d "$1" ] || mv "$1" "$1.old" || die "couldn't replace $1."
   if ! mv "$staged" "$1"; then

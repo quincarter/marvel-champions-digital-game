@@ -15,7 +15,7 @@
 //! game isn't in it yet, and on Linux the game is an AppImage (the script adds
 //! an AppImage; a .deb or .rpm install is the system's).
 
-use crate::steam_install::{running_game, spawn_update, state_dir, steam_install_present};
+use crate::steam_install::{running_game, spawn_update, state_dir, steam_install_present, STEAM_ADD_JOB};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -113,10 +113,25 @@ fn game_path() -> Option<PathBuf> {
     return None;
   }
   let running = PathBuf::from(running_game()?);
+  // The script's updates replace the AppImage in its folder, so one in a folder the player can't write to (/opt, a
+  // read-only mount) isn't offered: it could be added, but never updated there.
+  if cfg!(all(unix, not(target_os = "macos"))) && !folder_writable(&running) {
+    return None;
+  }
   if cfg!(target_os = "macos") {
     return running.ancestors().find(|p| p.extension().is_some_and(|e| e == "app")).map(Path::to_path_buf);
   }
   Some(running)
+}
+
+fn folder_writable(file: &Path) -> bool {
+  let Some(parent) = file.parent() else {
+    return false;
+  };
+  let probe = parent.join(format!(".mc-steam-add-probe-{}", std::process::id()));
+  let made = std::fs::File::create(&probe).is_ok();
+  let _ = std::fs::remove_file(&probe);
+  made
 }
 
 /// Whether to offer Add to Steam, or `None` when Steam isn't installed, the
@@ -186,7 +201,7 @@ pub fn steam_add_start(app: AppHandle, language: String) -> Result<(), String> {
   std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let script = dir.join(SCRIPT_FILE);
   std::fs::write(&script, SCRIPT).map_err(|e| e.to_string())?;
-  spawn_update(&dir, || script_command(&script, &game, &language, &version))
+  spawn_update(&dir, STEAM_ADD_JOB, || script_command(&script, &game, &language, &version))
 }
 
 #[cfg(test)]

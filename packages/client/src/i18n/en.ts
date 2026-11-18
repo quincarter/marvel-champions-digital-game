@@ -45,6 +45,8 @@ export const en = {
   "steamAdd.working.body": "Steam closes while its library is written. This takes a moment.",
   "steamAdd.done.heading": "Added to Steam",
   "steamAdd.failed.heading": "The game wasn't added",
+  "steamAdd.failed.body":
+    "{reason} Steam may be partly changed: try Add to Steam again to finish, or remove the game's entry in Steam. The script's output is in {log}.",
   "steamAdd.done.body": "Start Steam: Marvel Champions Digital Edition is in your library.",
   "title.oldSave": "LOOKING FOR YOUR OLD SAVE?",
   "title.oldSaveDetail": "The old page shows how to recover it.",

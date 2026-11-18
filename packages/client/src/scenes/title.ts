@@ -51,7 +51,12 @@ import {
   dismissOldSaveNotice,
   oldSaveNoticeWanted,
 } from "../platform/old-save-notice.js";
-import { quitForSteamUpdate, steamInstall, type SteamInstall } from "../platform/steam-install.js";
+import {
+  onSteamInstallChange,
+  quitForSteamUpdate,
+  steamInstall,
+  type SteamInstall,
+} from "../platform/steam-install.js";
 import { steamAdd } from "../platform/steam-add.js";
 import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
@@ -376,8 +381,15 @@ export class TitleScene extends Phaser.Scene {
         }),
     );
     holdScreenFor(this, this.#refreshSaves());
-    // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens.
+    // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens; once it has added the game, the Title
+    // takes the Steam script's update and says so, without a relaunch.
     void steamAdd();
+    const unsubscribeSteam = onSteamInstallChange((install) => {
+      if (!this.sys.isActive()) return;
+      this.#steam = install;
+      this.#rebuild();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribeSteam);
     void steamInstall().then((install) => {
       if (!install || !this.sys.isActive()) return;
       this.#steam = install;

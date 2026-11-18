@@ -559,6 +559,10 @@ export class SettingsOverlay extends Phaser.Scene {
       fallbackUrl: DOWNLOADS_URL,
       mode: "add-steam",
     } satisfies SteamUpdateSceneData);
+    // Back from it: redraw, so a game just added to Steam loses the row (and gains the Steam install row) at once.
+    this.scene.get(SCENES.steamUpdate).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.sys.isActive()) this.#draw();
+    });
   }
 
   #openUnlocks(data: UnlocksSceneData = {}): void {

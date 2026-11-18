@@ -6,6 +6,7 @@
  */
 
 import { detectPlatform } from "./platform.js";
+import { readSteamInstallAgain } from "./steam-install.js";
 
 export interface SteamAdd {
   readonly canAdd: boolean;
@@ -32,10 +33,15 @@ export function steamAdd(): Promise<SteamAdd | null> {
 /** The answer if it has been read: for Settings, which is drawn after Title and can't wait on it. */
 export const knownSteamAdd = (): SteamAdd | null => answer;
 
-/** Once the game is in Steam there is nothing more to offer this launch. */
+/**
+ * Once the game is in Steam there is nothing more to offer this launch; and the script's install record now names this
+ * game, so the Steam script's update takes over from here (`steam-install.ts`). Once per add, however often it's called.
+ */
 export function steamAddDone(): void {
+  if (answer === null && known !== null) return;
   answer = null;
   known = Promise.resolve(null);
+  void readSteamInstallAgain();
 }
 
 /** Starts adding the game to Steam in `language`'s cards, or carries on with the run already going. */
