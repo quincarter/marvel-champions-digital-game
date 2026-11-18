@@ -55,16 +55,6 @@ If the generator names it something else, reply in the same chat:
 Rename this track. Its title is exactly "<the title>". Use that as the name and file name.
 ```
 
-# Wave 10: Civil War
-
-## Captain Marvel (Registration)
-
-Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **Clear Skies Again** (heroes win).
-
-```text
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-```
-
 # Synthezoid Smackdown
 
 ## She-Hulk (Registration)
@@ -94,7 +84,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 Every scenario and campaign listed here is playable, so each track goes straight into `music/scenarios/<scenarioId>/` or
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
-- Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
 
@@ -483,6 +472,14 @@ Tracks: **The Bio-Fanatic** (battle), **A Mind That Cannot Die** (villain wins),
 
 ```text
 A mad bio-engineer whose mind lives in a machine, his face on a screen in his chest, in a laboratory full of mutated test subjects. Eerie and grotesque: retro electronic beeps and sequencers, detuned organ, crawling low strings, bubbling synths, sudden monstrous brass and pounding drums when the experiments break loose. About 114 BPM, E-flat minor.
+```
+
+## Captain Marvel (Registration)
+
+Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **Clear Skies Again** (heroes win).
+
+```text
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
 ```
 
 </details>

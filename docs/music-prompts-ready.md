@@ -12,31 +12,9 @@ Tracks already delivered are folded into the collapsed section at the bottom, **
 
 **What's left** (updated 2026-11-18):
 
-**New tracks (9):** Captain Marvel (Registration), She-Hulk (Registration) and Vision (Resistance), three each.
+**New tracks (6):** She-Hulk (Registration) and Vision (Resistance), three each.
 
 **Remakes of tracks already in the game (24, optional):** The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
-
-# Wave 10: Civil War
-
-The four ready-made Civil War scenarios, one set of three per leader. A custom scenario plays its leader's music. Iron Man, Captain America and Spider-Woman are done and folded into **Already in the game** below.
-
-## Captain Marvel (Registration)
-
-Folder: `music/scenarios/registration-captain-marvel/`
-
-### Clear Skies Again (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
-
-Title: "Clear Skies Again"
-```
 
 # Synthezoid Smackdown
 
@@ -492,10 +470,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 99 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 100 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 99 prompts already used</summary>
+<summary>Show the 100 prompts already used</summary>
 
 ## Black Widow
 
@@ -1921,6 +1899,20 @@ Use the same main melody and instruments as the battle track I just generated.
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
 
 Title: "Grounded by Order"
+```
+
+### Clear Skies Again (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+
+Title: "Clear Skies Again"
 ```
 
 </details>
