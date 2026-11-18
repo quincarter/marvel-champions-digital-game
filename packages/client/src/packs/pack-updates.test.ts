@@ -294,4 +294,35 @@ describe("checkPackUpdates", () => {
     await check;
     expect(packUpdateCount()).toBe(1);
   });
+
+  it("reads the installed list again for each store change during a check", async () => {
+    const newer = {
+      ...indexOf(buildPack({ id: "fan-newer", version: "1.2.0" }).entry),
+      generated: "2026-11-18T06:00:00Z",
+    };
+    let packs = [installed("fan-newer", "1.0.0")];
+    const pending: (() => void)[] = [];
+    const live = {
+      list: () =>
+        new Promise<InstalledPack[]>((resolve) => {
+          const snapshot = [...packs];
+          pending.push(() => resolve(snapshot));
+        }),
+    };
+    const check = checkPackUpdates({ store: live, fetch: json(newer), storage: null });
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+    pending[0]!();
+    // First store change, during the fetch: the check reads the list again.
+    packs = [installed("fan-newer", "1.1.0")];
+    notePackUpdates(newer, packs);
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    // Second change, during that read: the pack is now up to date, and the stale read must not win.
+    packs = [installed("fan-newer", "1.2.0")];
+    notePackUpdates(newer, packs);
+    pending[1]!();
+    await vi.waitFor(() => expect(pending).toHaveLength(3));
+    pending[2]!();
+    await check;
+    expect(packUpdateCount()).toBe(0);
+  });
 });

@@ -169,7 +169,11 @@ async function runCheck(deps: CheckDeps): Promise<number> {
   }
   // The Mod Store installed, updated or removed a pack while this check waited: count against today's list, and from
   // the newest catalog either of us holds.
-  if (noted !== started) {
+  // Read again until a read finishes with no store change behind it; after a few tries the store's own count stands.
+  let seen = started;
+  for (let tries = 0; noted !== seen; tries += 1) {
+    if (tries === 3) return count;
+    seen = noted;
     try {
       installed = await (deps.store ?? sharedPackStore()).list();
     } catch {
