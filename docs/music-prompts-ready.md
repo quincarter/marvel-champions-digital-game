@@ -10,6 +10,12 @@ Rename this track. Its title is exactly "<the title>". Use that as the name and 
 
 Tracks already delivered are folded into the collapsed section at the bottom, **Already in the game**, so only what is left shows here.
 
+## What's left (2026-11-18)
+
+**New tracks (9):** Captain Marvel (Registration), She-Hulk (Registration) and Vision (Resistance), three each.
+
+**Remakes of tracks already in the game (25, optional):** Crossbones' heroes win; The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
+
 # Wave 10: Civil War
 
 The four ready-made Civil War scenarios, one set of three per leader. A custom scenario plays its leader's music. Iron Man, Captain America and Spider-Woman are done and folded into **Already in the game** below.
