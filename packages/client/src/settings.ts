@@ -179,6 +179,11 @@ export interface Settings {
    * Draws the cards large whether or not Large schemes is on (Quin, 2026-11-18). Defaults off.
    */
   readonly schemeStack: boolean;
+  /**
+   * How solid the paper behind the scheme fan's cards is, in percent (`scenes/scheme-fan.ts`): 0 leaves the cards over
+   * the dimmed table with nothing behind them, 100 is a solid sheet (Quin, 2026-11-18). Defaults to 0.
+   */
+  readonly schemeFanBackground: SchemeFanBackground;
   /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
   readonly playAreaOrder: PlayAreaOrder;
   /**
@@ -358,6 +363,14 @@ export function resolutionPixelsOf(
 export type CampaignFadeColor = "grey" | "blue" | "red" | "purple" | "green";
 export const CAMPAIGN_FADE_COLOR_VALUES: readonly CampaignFadeColor[] = ["grey", "blue", "red", "purple", "green"];
 
+export type SchemeFanBackground = "0" | "25" | "50" | "75" | "100";
+export const SCHEME_FAN_BACKGROUND_VALUES: readonly SchemeFanBackground[] = ["0", "25", "50", "75", "100"];
+
+/** The scheme fan's paper as an alpha, 0 to 1. */
+export function schemeFanBackgroundAlpha(value: SchemeFanBackground): number {
+  return Number(value) / 100;
+}
+
 /** How your play area is drawn on the table (a view preference only; the engine keeps the order cards entered play). */
 export type PlayAreaOrder = "played" | "type" | "cost" | "name";
 export const PLAY_AREA_ORDER_VALUES: readonly PlayAreaOrder[] = ["played", "type", "cost", "name"];
@@ -529,6 +542,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     cardSize: "standard",
     largeSchemes: false,
     schemeStack: false,
+    schemeFanBackground: "0",
     playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,

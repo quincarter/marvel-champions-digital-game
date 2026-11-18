@@ -12,6 +12,7 @@ import Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
+import { schemeFanBackgroundAlpha } from "../settings.js";
 import { ink, surface, typeRole } from "../tokens.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { HoverPreview, isMousePointer, resetHoverCards } from "../ui/card-hover-preview.js";
@@ -182,11 +183,16 @@ export class SchemeFanOverlay extends Phaser.Scene {
     onTap(shield, () => this.#close());
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.82).fillRect(0, 0, width, height);
+    // The paper behind the cards is the player's choice, from none (the cards over the dimmed table) to solid.
+    const paper = schemeFanBackgroundAlpha(appSession().settings.schemeFanBackground);
     const ground = this.add.graphics();
-    ground.fillStyle(surface.paper.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
+    if (paper > 0) {
+      ground.fillStyle(surface.paper.hex, paper).fillRect(panel.x, panel.y, panel.width, panel.height);
+      ground.lineStyle(4, surface.ink.hex, paper).strokeRect(panel.x, panel.y, panel.width, panel.height);
+    }
     ground.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(panel.x, panel.y, panel.width, panel.height);
-    this.add.zone(panel.x, panel.y, panel.width, panel.height).setOrigin(0, 0).setInteractive();
+    // A paper sheet takes a press that lands on it; with none, a tap anywhere off a card closes the fan.
+    if (paper > 0) this.add.zone(panel.x, panel.y, panel.width, panel.height).setOrigin(0, 0).setInteractive();
     const heading = this.add
       .text(
         title.x,
@@ -242,8 +248,9 @@ export class SchemeFanOverlay extends Phaser.Scene {
         meterRect.y + meterRect.height + 3,
         scheme.subtitle,
         typeRole.label,
-        surface.ink.hex,
-        ink.label,
+        // Over little or no paper the caption sits on the dark scrim, so it reads light there.
+        paper >= 0.5 ? surface.ink.hex : surface.paper.hex,
+        paper >= 0.5 ? ink.label : 0.9,
       );
       fitText(note, slot.caption.width, typeRole.label.size);
       // The tap target is the upright card, so a tilted corner is never a dead spot that closes the fan.

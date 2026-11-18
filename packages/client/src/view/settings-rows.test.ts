@@ -15,6 +15,8 @@ import {
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
   playAreaOrderRowInfoOf,
+  schemeFanBackgroundRowInfoOf,
+  nextSettingsAfterSchemeFanBackground,
   deckListOnOpenRowInfoOf,
   extraModularSetsRowInfoOf,
   nextSettingsAfterDeckListOnOpen,
@@ -87,6 +89,7 @@ const BASE: Settings = {
   cardSize: "standard",
   largeSchemes: false,
   schemeStack: false,
+  schemeFanBackground: "0",
   playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -152,6 +155,7 @@ describe("settingsRowInfoOf", () => {
       cardSize: "standard",
       largeSchemes: false,
       schemeStack: false,
+      schemeFanBackground: "0",
       playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -208,6 +212,14 @@ describe("settingsRowInfoOf", () => {
     expect(on.largeSchemes).toBe(true);
     expect(settingsRowInfoOf(on).find((r) => r.id === "large-schemes")?.on).toBe(true);
     expect(nextSettingsAfterToggle(on, "large-schemes", 1).largeSchemes).toBe(false);
+  });
+
+  test("the scheme fan's background starts at none and takes only its five values", () => {
+    const info = schemeFanBackgroundRowInfoOf(BASE);
+    expect(info.selected).toBe("0");
+    expect(info.options.map((option) => option.label)).toEqual(["None", "25%", "50%", "75%", "Solid"]);
+    expect(nextSettingsAfterSchemeFanBackground(BASE, "75").schemeFanBackground).toBe("75");
+    expect(nextSettingsAfterSchemeFanBackground(BASE, "33" as never)).toBe(BASE);
   });
 
   test("Stack schemes is off by default and toggles on its own", () => {

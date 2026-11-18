@@ -44,6 +44,8 @@ import {
   INSPECT_CARD_VALUES,
   type CardSize,
   PLAY_AREA_ORDER_VALUES,
+  SCHEME_FAN_BACKGROUND_VALUES,
+  type SchemeFanBackground,
   DECK_LIST_ON_OPEN_VALUES,
   type DeckListOnOpen,
   type PlayAreaOrder,
@@ -850,6 +852,30 @@ export const PLAY_AREA_ORDER_LABELS: Readonly<Record<PlayAreaOrder, string>> = {
   cost: "By cost",
   name: "By name",
 };
+
+const SCHEME_FAN_BACKGROUND_LABELS: Readonly<Record<SchemeFanBackground, string>> = {
+  "0": "None",
+  "25": "25%",
+  "50": "50%",
+  "75": "75%",
+  "100": "Solid",
+};
+
+/** "Fan background" under Cards: how solid the paper behind the scheme fan's cards is. Settings only, like Card size. */
+export function schemeFanBackgroundRowInfoOf(settings: Settings): AchievementPopupRowInfo<SchemeFanBackground> {
+  return {
+    title: "Scheme fan background",
+    detail:
+      "What's behind the schemes when Stack schemes fans them out. None leaves the cards over the dimmed table; the others lay a paper sheet behind them, up to solid.",
+    options: SCHEME_FAN_BACKGROUND_VALUES.map((value) => ({ value, label: SCHEME_FAN_BACKGROUND_LABELS[value] })),
+    selected: settings.schemeFanBackground,
+  };
+}
+
+/** `settings` with the scheme fan's background set; a value that is not one of the five changes nothing. */
+export function nextSettingsAfterSchemeFanBackground(settings: Settings, value: SchemeFanBackground): Settings {
+  return SCHEME_FAN_BACKGROUND_VALUES.includes(value) ? { ...settings, schemeFanBackground: value } : settings;
+}
 
 export interface PlayAreaOrderRowInfo {
   readonly title: string;
