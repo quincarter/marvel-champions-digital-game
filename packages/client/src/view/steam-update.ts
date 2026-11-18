@@ -20,7 +20,7 @@ export interface SteamUpdateStatus {
  * again to Steam, or the game's own updater, which starts the game again itself. `installer-admin` is the per-machine
  * .msi or a Linux .deb or .rpm, which the system asks an administrator's permission to install.
  */
-export type UpdateMode = "steam" | "installer" | "installer-admin";
+export type UpdateMode = "steam" | "installer" | "installer-admin" | "add-steam";
 
 export type SteamUpdatePhase = "ask" | "working" | "ready" | "current" | "done" | "failed";
 
@@ -95,6 +95,7 @@ export function steamUpdateViewOf(
   version: string | null,
   mode: UpdateMode = "steam",
 ): SteamUpdateView {
+  if (mode === "add-steam") return addSteamViewOf(status, started);
   const installer = mode !== "steam";
   if (!started || status === null)
     return installer ? installerAskView(version, mode === "installer-admin") : askView(version);
@@ -170,4 +171,31 @@ export function readyVersionOf(status: SteamUpdateStatus | null): string | null 
 export function updateFailedAfterQuit(status: SteamUpdateStatus | null): boolean {
   if (status === null || status.running) return false;
   return lastReport(status.log)?.state === "failed";
+}
+
+/**
+ * Add to Steam (issue #844, `platform/steam-add.ts`): the Install for Steam script run on the game as it is. It ends
+ * with `MC_UPDATE added <version>` (scripts/<os>/install-for-steam.*).
+ */
+function addSteamViewOf(status: SteamUpdateStatus | null, started: boolean): SteamUpdateView {
+  if (!started || status === null) {
+    return { phase: "ask", heading: t("steamAdd.row.title"), body: t("steamAdd.ask.body"), percent: null };
+  }
+  if (lastReport(status.log)?.state === "added") {
+    return { phase: "done", heading: t("steamAdd.done.heading"), body: t("steamAdd.done.body"), percent: null };
+  }
+  if (status.running) {
+    return {
+      phase: "working",
+      heading: t("steamAdd.working.heading"),
+      body: t("steamAdd.working.body"),
+      percent: null,
+    };
+  }
+  return {
+    phase: "failed",
+    heading: t("steamAdd.failed.heading"),
+    body: `${failureOf(status.log)} Steam is unchanged. The script's output is in ${LOG_PATH}.`,
+    percent: null,
+  };
 }

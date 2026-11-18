@@ -110,3 +110,23 @@ describe("an update that didn't install after the game quit", () => {
     expect(updateFailedAfterQuit(null)).toBe(false);
   });
 });
+
+describe("Add to Steam (#844)", () => {
+  it("asks, works, and says the game is in Steam once the script reports it added", () => {
+    expect(steamUpdateViewOf(null, false, null, "add-steam")).toMatchObject({ phase: "ask", heading: "Add to Steam" });
+    expect(steamUpdateViewOf(running("Closing Steam...\n"), true, null, "add-steam")).toMatchObject({
+      phase: "working",
+      percent: null,
+    });
+    expect(steamUpdateViewOf(exited(0, "Done.\nMC_UPDATE added 0.50.0\n"), true, null, "add-steam")).toMatchObject({
+      phase: "done",
+      heading: "Added to Steam",
+    });
+  });
+
+  it("says why it stopped", () => {
+    const view = steamUpdateViewOf(exited(1, "Error: Steam didn't close within a minute.\n"), true, null, "add-steam");
+    expect(view).toMatchObject({ phase: "failed", heading: "The game wasn't added" });
+    expect(view.body).toContain("Steam didn't close within a minute.");
+  });
+});

@@ -17,6 +17,8 @@
 #   --language <xx>  the card language to install, en or es (default: what's installed, else the AppImage on disk, else en)
 #   --update         update the game only: leave Steam alone, so it can run while Steam and the game are open
 #   --wait-pid <n>   with --update, download first, then wait for this process to end before replacing the game
+#   --keep-game <v>  add the AppImage named, version <v>, as it is: no looking up or downloading the latest release (the
+#                    game's own Add to Steam button runs the script this way, src-tauri/src/steam_add.rs)
 #   --yes            close Steam without asking when it is running
 #   --uninstall      remove the Steam entry, its art, the installed AppImage and ~/.marvel-champions
 #   -h, --help       this text
@@ -47,6 +49,7 @@ assume_yes=0
 uninstall=0
 update=0
 wait_pid=""
+keep_game=""
 language=""
 appimage=""
 
@@ -69,6 +72,10 @@ while [ $# -gt 0 ]; do
       wait_pid="${2:?--wait-pid needs a process id}"
       shift
       ;;
+    --keep-game)
+      keep_game="${2:?--keep-game needs a version}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -84,6 +91,8 @@ done
 [ "$(uname -s)" = "Linux" ] || die "this script is for Linux; on Windows and macOS use the installer from the release."
 case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
 case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
+case "$keep_game" in '' | [0-9]*.[0-9]*.[0-9]*) ;; *) die "--keep-game takes the game's version, like 1.2.3." ;; esac
+[ -z "$keep_game" ] || [ -n "$appimage" ] || die "--keep-game needs the AppImage to add."
 command -v python3 > /dev/null || die "python3 is needed to edit Steam's shortcut list. Install it with your package manager (Arch: sudo pacman -S python) and run this again."
 
 # A field of the install record, or nothing when there is no record.
@@ -450,7 +459,7 @@ if [ -z "$appimage" ]; then
     die "couldn't find the latest release on GitHub, and there's no AppImage next to this script or in ~/Downloads."
   fi
 else
-  version="$(version_of "$appimage")"
+  version="${keep_game:-$(version_of "$appimage")}"
 fi
 
 [ -f "$appimage" ] || die "$appimage doesn't exist."
@@ -563,3 +572,5 @@ if [ "$steam_deck" = 1 ]; then
 else
   say "Done. Start Steam: $APP_NAME is in your library."
 fi
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if [ -n "$keep_game" ]; then say "MC_UPDATE added $version"; fi

@@ -58,6 +58,8 @@ async function openAsSteamInstall(
           if (command === "installer_kind") return "nsis";
           if (command === "steam_install_info") return shell.install;
           if (command === "self_update_info") return shell.selfUpdate;
+          // Add to Steam (#844) is offered only where a test sets `__steamAdd`.
+          if (command === "steam_add_info") return (window as unknown as { __steamAdd?: unknown }).__steamAdd ?? null;
           if (command === "steam_update_status") return shell.status;
           return null;
         },
@@ -380,4 +382,49 @@ test.describe("an install from the release's installers (#843)", () => {
     await shoot(page, "installer-failed");
     expect(errors).toEqual([]);
   });
+});
+
+test("Settings ▸ More's Add to Steam runs the Steam script on the game, then says it is in Steam (#844)", async ({
+  page,
+}) => {
+  const errors = trackPageErrors(page);
+  await page.addInitScript(() => {
+    (window as unknown as { __steamAdd: unknown }).__steamAdd = { canAdd: true };
+  });
+  await openAsSteamInstall(page, null);
+  await waitForText(page, "Update available", { sceneKey: "Title" });
+  await pressStop(page, "Title", "settings");
+  await pressStop(page, "SettingsOverlay", "tab:more");
+  const row = await waitFor(
+    async () => (await routeStops(page, "SettingsOverlay"))?.stops.find((s) => s.key === "row:steam-add") ?? null,
+    "the Add to Steam row",
+  );
+  await shoot(page, "steam-add-row");
+  await page.mouse.click(row.rect.x + row.rect.width - 30, row.rect.y + row.rect.height / 2);
+  await waitForPhase(page, "ask");
+  await waitForText(page, "Steam closes while the game is added", { sceneKey: "SteamUpdateOverlay" });
+  await shoot(page, "steam-add-ask");
+  await setStatus(page, { running: true, exitCode: null, log: "Closing Steam...\n" });
+  await pressStop(page, "SteamUpdateOverlay", "start");
+  await waitForPhase(page, "working");
+  expect(await shellCalls(page)).toContain('steam_add_start {"language":"en"}');
+  await setStatus(page, { running: false, exitCode: 0, log: "Done.\nMC_UPDATE added 0.49.0\n" });
+  await waitForPhase(page, "done");
+  await waitForText(page, "Added to Steam", { sceneKey: "SteamUpdateOverlay" });
+  await shoot(page, "steam-add-done");
+  expect(await stopKeys(page, "SteamUpdateOverlay")).toEqual(["close"]);
+  expect(errors).toEqual([]);
+});
+
+test("a game that is in Steam already has no Add to Steam row", async ({ page }) => {
+  await openAsSteamInstall(page, null);
+  await waitForText(page, "Update available", { sceneKey: "Title" });
+  await pressStop(page, "Title", "settings");
+  await pressStop(page, "SettingsOverlay", "tab:more");
+  await waitFor(
+    async () => (await routeStops(page, "SettingsOverlay"))?.stops.some((s) => s.key === "row:rules") ?? false,
+    "the More tab",
+  );
+  const keys = ((await routeStops(page, "SettingsOverlay"))?.stops ?? []).map((s) => s.key);
+  expect(keys).not.toContain("row:steam-add");
 });

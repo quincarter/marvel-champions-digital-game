@@ -8,6 +8,7 @@ mod native_audio;
 mod native_audio_engine;
 mod save_file;
 mod self_update;
+mod steam_add;
 mod steam_install;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -90,6 +91,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       steam_install::steam_update_quit,
       self_update::self_update_info,
       self_update::self_update_start,
+      steam_add::steam_add_info,
+      steam_add::steam_add_start,
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
       gamepad_bridge::gamepad_bridge_status,

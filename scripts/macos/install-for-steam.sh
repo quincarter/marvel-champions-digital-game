@@ -17,6 +17,8 @@
 #   --language <xx>     the card language to install, en or es (default: what the last run installed, else en)
 #   --update            update the game only: leave Steam alone, so it can run while Steam and the game are open
 #   --wait-pid <n>      with --update, download first, then wait for this process to end before replacing the game
+#   --keep-game <v>     add the --app named, version <v>, as it is: no looking up or downloading the latest release
+#                       (the game's own Add to Steam button runs the script this way, src-tauri/src/steam_add.rs)
 #   --yes               close Steam without asking when it is running
 #   --uninstall         remove the Steam entry, its art and ~/.marvel-champions (the game itself stays installed)
 #   -h, --help          this text
@@ -44,6 +46,7 @@ assume_yes=0
 uninstall=0
 update=0
 wait_pid=""
+keep_game=""
 language=""
 
 usage() { sed -n '2,/^set -euo/p' "$SELF" | sed '$d; s/^# \{0,1\}//'; }
@@ -72,6 +75,10 @@ while [ $# -gt 0 ]; do
       wait_pid="${2:?--wait-pid needs a process id}"
       shift
       ;;
+    --keep-game)
+      keep_game="${2:?--keep-game needs a version}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -85,6 +92,8 @@ done
 
 case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
 case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
+case "$keep_game" in '' | [0-9]*.[0-9]*.[0-9]*) ;; *) die "--keep-game takes the game's version, like 1.2.3." ;; esac
+[ -z "$keep_game" ] || [ -n "$app" ] || die "--keep-game needs --app."
 command -v perl > /dev/null || die "perl is needed to edit Steam's shortcut list."
 
 # A field of the install record, or nothing when there is no record.
@@ -264,7 +273,13 @@ fi
 find_app
 [ -n "$app" ] || [ "$uninstall" = 0 ] || app="/Applications/$APP_NAME.app"
 version=""
-if [ "$uninstall" = 0 ]; then
+if [ "$uninstall" = 0 ] && [ -n "$keep_game" ]; then
+  # From the running game: it stays as it is, since replacing it would pull it out from under itself.
+  [ -d "$app" ] || die "the game isn't at $app."
+  version="$keep_game"
+  app="$(cd "$app" && pwd)"
+  say "Game: $app"
+elif [ "$uninstall" = 0 ]; then
   say "Looking up the latest release..."
   if lookup_latest; then
     version="$latest_version"
@@ -436,3 +451,5 @@ write_marker "$version"
 
 say ""
 say "Done. Start Steam: $SHORTCUT_NAME is in your library."
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if [ -n "$keep_game" ]; then say "MC_UPDATE added $version"; fi

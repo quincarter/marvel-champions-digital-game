@@ -52,6 +52,7 @@ import {
   oldSaveNoticeWanted,
 } from "../platform/old-save-notice.js";
 import { quitForSteamUpdate, steamInstall, type SteamInstall } from "../platform/steam-install.js";
+import { steamAdd } from "../platform/steam-add.js";
 import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
 import { STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
@@ -375,6 +376,8 @@ export class TitleScene extends Phaser.Scene {
         }),
     );
     holdScreenFor(this, this.#refreshSaves());
+    // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens.
+    void steamAdd();
     void steamInstall().then((install) => {
       if (!install || !this.sys.isActive()) return;
       this.#steam = install;

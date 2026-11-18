@@ -28,6 +28,9 @@ The card language to install, en or es (default: what the last run installed, el
 Update the game only: leave Steam alone, so it can run while Steam and the game are open.
 .PARAMETER WaitPid
 With -Update, download first, then wait for this process to end before running the installer.
+.PARAMETER KeepGame
+Add the game at -Path to Steam as it is, at this version, without looking up or installing the latest release. The
+game's own Add to Steam button runs the script this way (src-tauri/src/steam_add.rs).
 .PARAMETER Yes
 Close Steam without asking when it is running.
 .PARAMETER Uninstall
@@ -39,6 +42,7 @@ param(
   [string]$Language = "",
   [switch]$Update,
   [int]$WaitPid = 0,
+  [string]$KeepGame = "",
   [switch]$Yes,
   [switch]$Uninstall
 )
@@ -398,6 +402,13 @@ if ($Path -eq "") { $Path = Find-Game }
 $version = ""
 if ($Uninstall) {
   if (-not $Path) { $Path = "$env:LOCALAPPDATA\$AppName\$ExeName" }
+} elseif ($KeepGame -ne "") {
+  # From the running game: it stays as it is, since an installer would close it.
+  if ($KeepGame -notmatch '^\d+\.\d+\.\d+$') { Fail "-KeepGame takes the game's version, like 1.2.3." }
+  $version = $KeepGame
+  if (-not $Path -or -not (Test-Path $Path)) { Fail "the game isn't at $Path." }
+  $Path = (Resolve-Path $Path).Path
+  Write-Host "Game: $Path"
 } else {
   Write-Host "Looking up the latest release..."
   $kind = Get-InstallKind $Path
@@ -510,3 +521,5 @@ Write-Marker $version
 
 Write-Host ""
 Write-Host "Done. Start Steam: $ShortcutName is in your library."
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if ($KeepGame -ne "") { Write-Host "MC_UPDATE added $version" }

@@ -12,6 +12,7 @@ import Phaser from "phaser";
 import { cardLanguage } from "../art/card-language.js";
 import { openExternal } from "../platform/platform.js";
 import { startSelfUpdate } from "../platform/self-update.js";
+import { startSteamAdd, steamAddDone } from "../platform/steam-add.js";
 import { quitForSteamUpdate, startSteamUpdate, steamUpdateStatus } from "../platform/steam-install.js";
 import { t } from "../i18n/translate.js";
 import { hit, signal, surface, typeRole } from "../tokens.js";
@@ -134,6 +135,7 @@ export class SteamUpdateOverlay extends Phaser.Scene {
       // The shell starts a new log before it answers, so no poll can read the last run's as this one's.
       const { mode = "steam", installerUrl, installerDigest, version } = this.#data;
       if (mode === "steam") await startSteamUpdate(cardLanguage());
+      else if (mode === "add-steam") await startSteamAdd(cardLanguage());
       else if (installerUrl !== undefined && installerDigest !== undefined && version !== null) {
         await startSelfUpdate(installerUrl, version, installerDigest);
       } else throw new Error("There's no installer to download for this update.");
@@ -253,7 +255,24 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   ): readonly { readonly id: string; readonly label: string; readonly onClick: () => void }[] {
     const close = { id: "close", label: "Close", onClick: () => this.#close() };
     const quit = { id: "quit", label: "Quit and install", onClick: () => void quitForSteamUpdate() };
-    const installer = (this.#data.mode ?? "steam") !== "steam";
+    const mode = this.#data.mode ?? "steam";
+    const installer = mode !== "steam";
+    if (mode === "add-steam") {
+      if (phase === "ask") {
+        return [
+          { id: "start", label: t("steamAdd.ask.start"), onClick: () => void this.#start() },
+          { ...close, label: t("update.ask.notNow") },
+        ];
+      }
+      if (phase === "done") steamAddDone();
+      if (phase === "failed") {
+        return [
+          { id: "download", label: "Go to the download ↗", onClick: () => openExternal(this.#data.fallbackUrl) },
+          close,
+        ];
+      }
+      return [close];
+    }
     switch (phase) {
       case "ask":
         return [
