@@ -401,6 +401,14 @@ PY
 }
 
 if [ "$uninstall" = 1 ]; then
+  # Add to Steam from the game (--keep-game) records an AppImage the player keeps somewhere else: its entry is the one
+  # to remove, and that AppImage, like anything in the default folder, is not this script's to delete.
+  recorded="$(marker_value game)"
+  owned=1
+  if [ -n "$recorded" ] && [ "$recorded" != "$INSTALLED" ]; then
+    INSTALLED="$recorded"
+    owned=0
+  fi
   for user in "${users[@]}"; do
     config="$steam_root/userdata/$user/config"
     [ -f "$config/shortcuts.vdf" ] || continue
@@ -409,8 +417,13 @@ if [ "$uninstall" = 1 ]; then
         "$config/grid/${id}_logo.png" "$config/grid/${id}_icon.png"
     done
   done
-  rm -rf "$INSTALL_DIR" "$STATE_DIR"
-  say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR and $STATE_DIR. Start Steam again to see the change."
+  if [ "$owned" = 1 ]; then
+    rm -rf "$INSTALL_DIR" "$STATE_DIR"
+    say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR and $STATE_DIR. Start Steam again to see the change."
+  else
+    rm -rf "$STATE_DIR"
+    say "Removed $APP_NAME from Steam and deleted $STATE_DIR; $INSTALLED stays where it is. Start Steam again to see the change."
+  fi
   exit 0
 fi
 
