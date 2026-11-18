@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { steamUpdateViewOf, type SteamUpdateStatus } from "./steam-update.js";
+import { readyVersionOf, steamUpdateViewOf, type SteamUpdateStatus } from "./steam-update.js";
 
 const running = (log: string): SteamUpdateStatus => ({ running: true, exitCode: null, log });
 const exited = (exitCode: number, log: string): SteamUpdateStatus => ({ running: false, exitCode, log });
@@ -56,5 +56,41 @@ describe("the update panel", () => {
     expect(steamUpdateViewOf({ running: false, exitCode: null, log: "" }, true, null).body).toContain(
       "The script stopped before it finished.",
     );
+  });
+
+  describe("for an install from the release's installers (#843)", () => {
+    it("asks, downloads, then says the game has been updated and to restart", () => {
+      expect(steamUpdateViewOf(null, false, "1.1.0", "installer")).toMatchObject({
+        phase: "ask",
+        heading: "Update the game",
+      });
+      expect(steamUpdateViewOf(null, false, "1.1.0", "installer").body).toContain("version 1.1.0");
+      expect(steamUpdateViewOf(null, false, "1.1.0", "installer-msi").body).toContain("administrator");
+      expect(steamUpdateViewOf(running("###  30.0%"), true, "1.1.0", "installer")).toMatchObject({
+        phase: "working",
+        heading: "Downloading version 1.1.0",
+        percent: 30,
+      });
+      expect(steamUpdateViewOf(running("MC_UPDATE ready 1.1.0\n"), true, "1.1.0", "installer")).toMatchObject({
+        phase: "ready",
+        heading: "The game has been updated",
+        body: "Restart to apply version 1.1.0. The game closes, installs it and starts again.",
+      });
+    });
+
+    it("fails the way the script's update does", () => {
+      const view = steamUpdateViewOf(exited(1, "Error: the download failed.\n"), true, "1.1.0", "installer");
+      expect(view.phase).toBe("failed");
+      expect(view.body).toContain("The download failed.");
+    });
+  });
+});
+
+describe("a finished download waiting to install", () => {
+  it("is the version the running update is ready with", () => {
+    expect(readyVersionOf(running("###  100.0%\nMC_UPDATE ready 1.1.0\n"))).toBe("1.1.0");
+    expect(readyVersionOf(running("###  50.0%"))).toBeNull();
+    expect(readyVersionOf({ running: false, exitCode: null, log: "MC_UPDATE ready 1.1.0\n" })).toBeNull();
+    expect(readyVersionOf(null)).toBeNull();
   });
 });

@@ -24,7 +24,7 @@ use tauri::{AppHandle, Manager};
 
 const STATE_FOLDER: &str = ".marvel-champions";
 const MARKER_FILE: &str = "install.json";
-const LOG_FILE: &str = "update.log";
+pub(crate) const LOG_FILE: &str = "update.log";
 const METHOD: &str = "steam-script";
 #[cfg(windows)]
 const SCRIPT_FILE: &str = "install-for-steam.ps1";
@@ -39,7 +39,7 @@ const LOG_TAIL_BYTES: u64 = 4096;
 const INSTALLING_MAX: Duration = Duration::from_secs(180);
 
 /// The running update, kept to ask whether it has finished.
-static UPDATE: Mutex<Option<Child>> = Mutex::new(None);
+pub(crate) static UPDATE: Mutex<Option<Child>> = Mutex::new(None);
 
 #[derive(Deserialize)]
 struct Marker {
@@ -84,13 +84,13 @@ fn parse_marker(text: &str) -> Option<Marker> {
     .filter(|marker| marker.method == METHOD)
 }
 
-fn state_dir(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn state_dir(app: &AppHandle) -> Result<PathBuf, String> {
   Ok(app.path().home_dir().map_err(|e| e.to_string())?.join(STATE_FOLDER))
 }
 
 /// The AppImage the player launched, which `current_exe` isn't: that is a path
 /// inside the AppImage's own mount.
-fn running_game() -> Option<String> {
+pub(crate) fn running_game() -> Option<String> {
   if let Some(appimage) = std::env::var_os("APPIMAGE") {
     return Some(appimage.to_string_lossy().into_owned());
   }
@@ -171,26 +171,34 @@ pub fn steam_update_start(app: AppHandle, language: String) -> Result<(), String
   if language.len() != 2 || !language.bytes().all(|b| b.is_ascii_lowercase()) {
     return Err(format!("not a language: {language}"));
   }
+  let dir = state_dir(&app)?;
+  let script = dir.join(SCRIPT_FILE);
+  if !script.is_file() {
+    return Err(format!("{} is missing", script.display()));
+  }
+  spawn_update(&dir, || script_command(&script, &language))
+}
+
+/// Runs an update in the background with its output in `update.log`, or does
+/// nothing while one is already running. Shared with the game's own updater
+/// (self_update.rs), which the same panel and status call follow.
+pub(crate) fn spawn_update(dir: &Path, command: impl FnOnce() -> Command) -> Result<(), String> {
   let mut update = UPDATE.lock().map_err(|e| e.to_string())?;
   if let Some(child) = update.as_mut() {
     if matches!(child.try_wait(), Ok(None)) {
       return Ok(());
     }
   }
-  let dir = state_dir(&app)?;
-  let script = dir.join(SCRIPT_FILE);
-  if !script.is_file() {
-    return Err(format!("{} is missing", script.display()));
-  }
+  std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
   // An update from an earlier run of the game may still be writing to the last log. It stops by itself when its
   // download ends (the game it was waiting for has gone), and doesn't belong in this one.
   #[cfg(not(windows))]
   let _ = std::fs::remove_file(dir.join(LOG_FILE));
   let log = File::create(dir.join(LOG_FILE)).map_err(|e| e.to_string())?;
   let errors = log.try_clone().map_err(|e| e.to_string())?;
-  let child = script_command(&script, &language)
+  let child = command()
     // Not the AppImage's mount, which has to go away when the game exits.
-    .current_dir(&dir)
+    .current_dir(dir)
     .stdin(Stdio::null())
     .stdout(log)
     .stderr(errors)

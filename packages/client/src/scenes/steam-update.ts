@@ -3,11 +3,17 @@
  * (`platform/steam-install.ts`) with its progress on screen, because a Steam Deck in Game Mode has no terminal. Opened
  * from the Title's update banner and from Settings ▸ More. Closing it mid-download leaves the script running: it
  * finishes whenever the player quits, and opening the panel again picks it back up.
+ *
+ * It also runs the game's own updater for an install from the release's installers (issue #843,
+ * `platform/self-update.ts`): the same steps, except that once the download is ready the player restarts, and the game
+ * comes back up on the new version by itself.
  */
 import Phaser from "phaser";
 import { cardLanguage } from "../art/card-language.js";
 import { openExternal } from "../platform/platform.js";
+import { startSelfUpdate } from "../platform/self-update.js";
 import { quitForSteamUpdate, startSteamUpdate, steamUpdateStatus } from "../platform/steam-install.js";
+import { t } from "../i18n/translate.js";
 import { hit, signal, surface, typeRole } from "../tokens.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -20,6 +26,7 @@ import {
   type SteamUpdatePhase,
   type SteamUpdateStatus,
   type SteamUpdateView,
+  type UpdateMode,
 } from "../view/steam-update.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { PressGuard } from "./press-guard.js";
@@ -36,6 +43,9 @@ export interface SteamUpdateSceneData {
   readonly version: string | null;
   /** Where a failed update can send the player instead. */
   readonly fallbackUrl: string;
+  /** Who updates: the Steam script (the default) or the game's own updater, which downloads `installerUrl`. */
+  readonly mode?: UpdateMode;
+  readonly installerUrl?: string;
 }
 
 export class SteamUpdateOverlay extends Phaser.Scene {
@@ -110,7 +120,7 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     if (this.#startError !== null) {
       return { phase: "failed", heading: "The update didn't start", body: this.#startError, percent: null };
     }
-    return steamUpdateViewOf(this.#status, this.#started, this.#data.version);
+    return steamUpdateViewOf(this.#status, this.#started, this.#data.version, this.#data.mode ?? "steam");
   }
 
   async #start(): Promise<void> {
@@ -118,7 +128,10 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     this.#starting = true;
     try {
       // The shell starts a new log before it answers, so no poll can read the last run's as this one's.
-      await startSteamUpdate(cardLanguage());
+      const { mode = "steam", installerUrl, version } = this.#data;
+      if (mode === "steam") await startSteamUpdate(cardLanguage());
+      else if (installerUrl !== undefined && version !== null) await startSelfUpdate(installerUrl, version);
+      else throw new Error("There's no installer to download for this update.");
       this.#started = true;
       await this.#poll();
     } catch (error) {
@@ -235,13 +248,21 @@ export class SteamUpdateOverlay extends Phaser.Scene {
   ): readonly { readonly id: string; readonly label: string; readonly onClick: () => void }[] {
     const close = { id: "close", label: "Close", onClick: () => this.#close() };
     const quit = { id: "quit", label: "Quit and install", onClick: () => void quitForSteamUpdate() };
+    const installer = (this.#data.mode ?? "steam") !== "steam";
     switch (phase) {
       case "ask":
         return [
-          { id: "start", label: "Update now", onClick: () => void this.#start() },
-          { ...close, label: "Not now" },
+          { id: "start", label: installer ? t("update.ask.start") : "Update now", onClick: () => void this.#start() },
+          { ...close, label: installer ? t("update.ask.notNow") : "Not now" },
         ];
       case "ready":
+        // The game's own updater starts the game again once it has installed (`self_update.rs`).
+        if (installer) {
+          return [
+            { ...quit, label: t("update.ready.restart") },
+            { ...close, label: t("update.ready.later") },
+          ];
+        }
         return [quit, { ...close, label: "Keep playing" }];
       case "done":
         return [{ ...quit, label: "Quit" }, close];

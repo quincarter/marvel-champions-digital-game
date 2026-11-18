@@ -7,6 +7,7 @@ mod native_audio;
 #[cfg(any(target_os = "linux", test))]
 mod native_audio_engine;
 mod save_file;
+mod self_update;
 mod steam_install;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -20,6 +21,11 @@ mod steam_install;
 /// tell, and the notice then links the release page only.
 #[tauri::command]
 fn installer_kind() -> &'static str {
+  detect_installer_kind()
+}
+
+/// `installer_kind`'s answer, for the game's own updater (self_update.rs) too.
+pub(crate) fn detect_installer_kind() -> &'static str {
   if cfg!(target_os = "windows") {
     // The .msi installs per machine under Program Files; the NSIS setup.exe
     // installs per user under AppData.
@@ -89,6 +95,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       steam_install::steam_update_start,
       steam_install::steam_update_status,
       steam_install::steam_update_quit,
+      self_update::self_update_info,
+      self_update::self_update_start,
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
       gamepad_bridge::gamepad_bridge_status,
