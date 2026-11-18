@@ -9,6 +9,7 @@ import { CARDS_BY_ID } from "../content/pool.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { cardTextDisplayEs } from "./card-text-display.js";
 import {
+  bringInCardText,
   loadCardText,
   localizedFaceOf,
   localizedLabelOf,
@@ -54,6 +55,38 @@ describe("the Spanish text table", () => {
   it("retries a failed load", async () => {
     expect(await loadCardText("es", () => Promise.reject(new Error("offline")))).toBe(false);
     expect(await loadSpanish()).toBe(true);
+  });
+});
+
+describe("bringing the table in", () => {
+  it("redraws once it loads, and retries a failed load on its own", async () => {
+    let calls = 0;
+    const importer = (): Promise<typeof TABLE> =>
+      ++calls === 1 ? Promise.reject(new Error("offline")) : Promise.resolve(TABLE);
+    const announced: string[] = [];
+    const retries: number[] = [];
+    let retry: (() => void) | null = null;
+    bringInCardText("es", {
+      importer,
+      announce: () => announced.push("es"),
+      schedule: (again, ms) => {
+        retries.push(ms);
+        retry = again;
+      },
+    });
+    await new Promise((done) => setTimeout(done, 0));
+    expect(announced).toEqual([]);
+    expect(retries).toEqual([2_000]);
+    (retry as unknown as () => void)();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(announced).toEqual(["es"]);
+    expect(localizedFaceOf("01003", "es")?.n).toBe("Voltereta hacia atrás");
+  });
+
+  it("does nothing for English", () => {
+    const announced: string[] = [];
+    bringInCardText("en", { announce: () => announced.push("en") });
+    expect(announced).toEqual([]);
   });
 });
 

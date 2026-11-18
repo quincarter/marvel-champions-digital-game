@@ -8,6 +8,7 @@
 import type { AnyCard } from "@mc/content";
 import { uniqueLabel } from "@mc/engine";
 import { BASE_CARD_LANGUAGE, type CardLanguage } from "../art/card-language.js";
+import { announceLanguageChange } from "../language-change.js";
 
 /** One printed face's text in a language: `n` the name, `t` the rules text, `f` the flavor text, each when translated. */
 export interface LocalizedFace {
@@ -51,6 +52,34 @@ export function loadCardText(lang: CardLanguage, importer: TextImporter = import
     loading.set(lang, pending);
   }
   return pending;
+}
+
+/** How long `bringInCardText` waits before each retry of a failed load. */
+const RETRY_DELAYS_MS: readonly number[] = [2_000, 10_000, 30_000, 60_000];
+
+/**
+ * Loads the language's text in the background and, once it is in, announces a language change so every screen built
+ * meanwhile with the English fallback (an open Inspect sheet, a deck list) redraws in the language. A failed load retries
+ * on its own, after each of `RETRY_DELAYS_MS`. The session calls this at boot and on every change of card language.
+ */
+export function bringInCardText(
+  lang: CardLanguage,
+  opts: {
+    readonly importer?: TextImporter;
+    readonly announce?: () => void;
+    readonly schedule?: (retry: () => void, ms: number) => void;
+  } = {},
+): void {
+  if (cardTextReady(lang)) return;
+  const announce = opts.announce ?? announceLanguageChange;
+  const schedule = opts.schedule ?? ((retry, ms) => void setTimeout(retry, ms));
+  const attempt = (tries: number): void => {
+    void loadCardText(lang, opts.importer).then((ok) => {
+      if (ok) announce();
+      else if (tries < RETRY_DELAYS_MS.length) schedule(() => attempt(tries + 1), RETRY_DELAYS_MS[tries]!);
+    });
+  };
+  attempt(0);
 }
 
 /** The printed face's text in `lang` (by its MarvelCDB code) when the table is loaded and has it, else null. */
