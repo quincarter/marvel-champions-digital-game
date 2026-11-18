@@ -165,6 +165,16 @@ describe("the English fingerprint", () => {
 });
 
 describe("Spanish icon words", () => {
+  it("names each icon of a run, so none runs into the next (Seduced, 21179)", () => {
+    expect(cardTextDisplayEs("gasta recursos [energy][mental] → descarta esta carta.")).toBe(
+      "gasta recursos energía y mental → descarta esta carta.",
+    );
+    expect(cardTextDisplayEs("gasta recursos [energy][mental][physical]")).toBe(
+      "gasta recursos energía, mental y físico",
+    );
+    expect(cardTextDisplayEs("[star][boost]")).toBe("★ icono de Aumento");
+  });
+
   it("words each token, and drops the brackets of one it has no word for", () => {
     expect(cardTextDisplayEs("Coloca 1[per_hero] de Amenaza. Gasta un recurso [energy] [star] ([rasgos])")).toBe(
       "Coloca 1 por héroe de Amenaza. Gasta un recurso de energía ★ (rasgos)",
