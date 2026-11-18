@@ -85,14 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Earlier boxes: scenarios with no music
 
-## Kang
-
-Tracks: **Conqueror of All Tomorrows** (battle), **History Belongs to Kang** (villain wins), **Time Runs Out** (heroes win).
-
-```text
-A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
-```
-
 ## Absorbing Man
 
 Tracks: **Whatever He Touches** (battle), **Ball and Chain** (villain wins), **Nothing Left to Absorb** (heroes win).
@@ -123,7 +115,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Kang: `scenarios/kang/`
 - Absorbing Man: `scenarios/absorbing-man/`
 - Zola: `scenarios/zola/`
 
@@ -488,6 +479,14 @@ Tracks: **Four Against the World** (battle), **Wrecked** (villain wins), **Back 
 
 ```text
 Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
+```
+
+## Kang
+
+Tracks: **Conqueror of All Tomorrows** (battle), **History Belongs to Kang** (villain wins), **Time Runs Out** (heroes win).
+
+```text
+A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
 ```
 
 </details>
