@@ -32,7 +32,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 
 ---
 
-## [v0.49.0] - 2026-11-17
+## [v0.49.0] - 2026-11-18
 
 ### Added
 
