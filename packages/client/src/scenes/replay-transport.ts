@@ -76,6 +76,7 @@ const OWNS_INPUT = [
   SCENES.inspect,
   SCENES.pileView,
   SCENES.deckLeft,
+  SCENES.schemeFan,
   SCENES.teamUpInfo,
   SCENES.evidence,
   SCENES.saveData,

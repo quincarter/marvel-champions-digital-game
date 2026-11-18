@@ -39,6 +39,9 @@ describe("villain phase settings", () => {
     expect(settings.villainDockTable).toBe(true);
     expect(settings.cardHoverScale).toBe("2.5x");
     expect(settings.cardSize).toBe("standard");
+    expect(settings.largeSchemes).toBe(false);
+    expect(settings.schemeStack).toBe(false);
+    expect(settings.schemeFanBackground).toBe("0");
     expect(settings.playAreaOrder).toBe("played");
     expect(settings.allowExtraModularSets).toBe(false);
     expect(settings.deckListOnOpen).toBe("all");

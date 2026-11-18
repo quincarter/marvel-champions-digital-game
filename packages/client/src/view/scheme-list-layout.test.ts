@@ -2,7 +2,14 @@ import { describe, expect, test } from "vitest";
 import { boardLayout, formFactorFor, PHONE_TABS, type FormFactor, type Rect, type ZoneName } from "./layout.js";
 import {
   fullyVisible,
+  LARGE_TEXT_MIN_WIDTH,
+  largeSchemeListLayout,
   MAIN_COMPACT_HEIGHT,
+  SCHEME_CARD_ASPECT,
+  schemeRowGeometry,
+  schemeStackLayout,
+  STACK_PEEK,
+  stackOrder,
   schemeListLayout,
   SIDE_SCHEME_HEIGHT,
   visibleSlice,
@@ -198,5 +205,116 @@ describe("board panels never overlap", () => {
         }
       }
     });
+  });
+});
+
+describe("Large schemes: every scheme a large card, scrolling only inside its panel", () => {
+  describe.each(VIEWPORTS)("$name", ({ width, height }) => {
+    const viewport: Rect = { x: 0, y: 0, width, height };
+    const layout = boardLayout(viewport, { playerCount: 2, activeTab: "threat" });
+    const panel = layout.zones.threat!;
+
+    test.each([1, 2, 3, 5])(
+      "%i schemes: one whole row fits, and every row is in the panel or its viewport",
+      (total) => {
+        const list = largeSchemeListLayout(panel, { mains: 1, sides: total - 1 });
+        expect(list.rows).toHaveLength(total);
+        const { cardWidth, mode } = list.shape;
+        expect(cardWidth).toBeGreaterThan(0);
+        for (const row of list.rows) {
+          const box = list.viewport ?? panel;
+          // A row is never taller than what shows it, so scrolling can always bring one whole scheme into view.
+          expect(row.rect.height).toBeLessThanOrEqual(box.height + 0.01);
+          expect(row.rect.x).toBeGreaterThanOrEqual(panel.x);
+          expect(row.rect.x + row.rect.width).toBeLessThanOrEqual(panel.x + panel.width + 0.01);
+          const { art, text } = schemeRowGeometry(row.rect, 0, list.shape);
+          expect(art).not.toBeNull();
+          expect(inside(art!, row.rect)).toBe(true);
+          expect(inside(text, row.rect)).toBe(true);
+          expect(intersects(art!, text)).toBe(false);
+          expect(Math.abs(art!.height - cardWidth * SCHEME_CARD_ASPECT)).toBeLessThan(1.01);
+          if (mode === "beside") expect(text.width).toBeGreaterThanOrEqual(LARGE_TEXT_MIN_WIDTH - 0.01);
+        }
+        if (list.viewport) {
+          expect(inside(list.viewport, panel)).toBe(true);
+          expect(list.rows.every((row) => !row.pinned)).toBe(true);
+          expect(list.heights).toHaveLength(total);
+        } else {
+          for (const row of list.rows) expect(inside(row.rect, panel)).toBe(true);
+        }
+      },
+    );
+  });
+
+  test("a 1920x1080 desktop's scheme card is several times the size of the usual row's", () => {
+    const panel = boardLayout({ x: 0, y: 0, width: 1920, height: 1080 }, { playerCount: 1 }).zones.threat!;
+    const usual = schemeListLayout(panel, { mains: 1, sides: 0, tabbed: false }).rows[0]!.rect.height;
+    const large = largeSchemeListLayout(panel, { mains: 1, sides: 0 });
+    expect(large.shape.cardWidth * SCHEME_CARD_ASPECT).toBeGreaterThan(usual * 1.5);
+  });
+
+  test("without the setting a row's text column is where it always was", () => {
+    const row: Rect = { x: 10, y: 20, width: 400, height: 92 };
+    expect(schemeRowGeometry(row, 120, null)).toEqual({
+      art: { x: 13, y: 23, width: 120, height: 86 },
+      text: { x: 10 + 8 + 120 + 6, y: 20, width: 400 - 8 - (8 + 120 + 6), height: 92 },
+      above: false,
+    });
+    expect(schemeRowGeometry(row, 0, null).art).toBeNull();
+  });
+
+  test("a scheme's own lines get room under an 'above' card: the meter's strip grows by them", () => {
+    const panel: Rect = { x: 0, y: 0, width: 360, height: 900 };
+    const plain = largeSchemeListLayout(panel, { mains: 1, sides: 0 });
+    const lines = largeSchemeListLayout(panel, { mains: 1, sides: 0, infoExtra: 40 });
+    expect(plain.shape.mode).toBe("above");
+    const strip = (list: typeof plain) => schemeRowGeometry(list.rows[0]!.rect, 0, list.shape).text.height;
+    expect(strip(lines) - strip(plain)).toBeGreaterThanOrEqual(39);
+  });
+
+  test("a narrow panel puts the card above its text, a wide one beside it", () => {
+    expect(largeSchemeListLayout({ x: 0, y: 0, width: 360, height: 700 }, { mains: 1, sides: 0 }).shape.mode).toBe(
+      "above",
+    );
+    expect(largeSchemeListLayout({ x: 0, y: 0, width: 600, height: 300 }, { mains: 1, sides: 0 }).shape.mode).toBe(
+      "beside",
+    );
+  });
+});
+
+describe("Stack schemes: one large card at the front, the rest stacked behind it", () => {
+  describe.each(VIEWPORTS)("$name", ({ width, height }) => {
+    const layout = boardLayout({ x: 0, y: 0, width, height }, { playerCount: 2, activeTab: "threat" });
+    const panel = layout.zones.threat!;
+
+    test.each([2, 3, 4, 6])("%i schemes: the stack fits the panel, each card behind shows a name band", (count) => {
+      const stack = schemeStackLayout(panel, count);
+      expect(inside(stack.header, panel)).toBe(true);
+      expect(inside(stack.front.rect, panel)).toBe(true);
+      expect(stack.behind).toHaveLength(Math.min(3, count - 1));
+      const frontArt = schemeRowGeometry(stack.front.rect, 0, stack.front.shape).art!;
+      let above = frontArt;
+      for (const { card, peek } of stack.behind) {
+        expect(inside(peek, panel)).toBe(true);
+        // The band is the strip of the card that stands above the one in front, and below the header.
+        expect(peek.y + peek.height).toBeCloseTo(above.y, 5);
+        expect(peek.y).toBeGreaterThanOrEqual(stack.header.y + stack.header.height);
+        expect(card.width).toBeLessThan(above.width);
+        above = card;
+      }
+    });
+  });
+
+  test("the front card stays large: a 1920x1080 desktop's is still well over the usual row", () => {
+    const panel = boardLayout({ x: 0, y: 0, width: 1920, height: 1080 }, { playerCount: 1 }).zones.threat!;
+    const stack = schemeStackLayout(panel, 4);
+    expect(stack.front.shape.cardWidth).toBeGreaterThan(250);
+    expect(stack.behind[0]!.peek.height).toBe(STACK_PEEK);
+  });
+
+  test("the stack's order starts at the front scheme and wraps around", () => {
+    expect(stackOrder(["a", "b", "c", "d"], 2)).toEqual(["c", "d", "a", "b"]);
+    expect(stackOrder(["a", "b"], -1)).toEqual(["b", "a"]);
+    expect(stackOrder([], 3)).toEqual([]);
   });
 });

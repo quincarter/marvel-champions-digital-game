@@ -249,6 +249,12 @@ describe("parseSettingsOverrides", () => {
     expect(parseSettingsOverrides('{"inspectCard":true}')).toEqual({});
   });
 
+  test("schemeFanBackground: only the five known values are read", () => {
+    expect(parseSettingsOverrides('{"schemeFanBackground":"50"}')).toEqual({ schemeFanBackground: "50" });
+    expect(parseSettingsOverrides('{"schemeFanBackground":"40"}')).toEqual({});
+    expect(parseSettingsOverrides('{"schemeFanBackground":50}')).toEqual({});
+  });
+
   test("playAreaOrder: only the four known orders are read", () => {
     expect(parseSettingsOverrides('{"playAreaOrder":"cost"}')).toEqual({ playAreaOrder: "cost" });
     expect(parseSettingsOverrides('{"playAreaOrder":"name"}')).toEqual({ playAreaOrder: "name" });

@@ -17,6 +17,7 @@ import {
   ACHIEVEMENT_POPUP_TIME_VALUES,
   CARD_HOVER_SCALE_VALUES,
   PLAY_AREA_ORDER_VALUES,
+  SCHEME_FAN_BACKGROUND_VALUES,
   INSPECT_CARD_VALUES,
   CARD_SIZE_VALUES,
   DISPLAY_MODE_VALUES,
@@ -70,6 +71,8 @@ const BOOLEAN_FIELDS = [
   "villainDockTable",
   "hoverHeroCard",
   "hoverVillainCard",
+  "largeSchemes",
+  "schemeStack",
   "ultronDroneArt",
   "fadedCampaignArt",
   "promoArtOn",
@@ -110,6 +113,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (flipSpeedValue !== undefined) out.flipEncounterSpeed = flipSpeedValue;
   const hoverScaleValue = CARD_HOVER_SCALE_VALUES.find((value) => value === source["cardHoverScale"]);
   if (hoverScaleValue !== undefined) out.cardHoverScale = hoverScaleValue;
+  const fanBackground = SCHEME_FAN_BACKGROUND_VALUES.find((value) => value === source["schemeFanBackground"]);
+  if (fanBackground !== undefined) out.schemeFanBackground = fanBackground;
   const playAreaOrderValue = PLAY_AREA_ORDER_VALUES.find((value) => value === source["playAreaOrder"]);
   if (playAreaOrderValue !== undefined) out.playAreaOrder = playAreaOrderValue;
   const cardSizeValue = CARD_SIZE_VALUES.find((value) => value === source["cardSize"]);

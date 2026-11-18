@@ -4,7 +4,8 @@
  *
  * Where the rows go is `view/scheme-list-layout.ts`'s decision. When they do not all fit the panel the main scheme
  * stays pinned at the top and the side schemes scroll under it in a clipped region (wheel, drag or touch, and
- * keyboard focus brings a scheme into view), so a row is never drawn outside the panel.
+ * keyboard focus brings a scheme into view), so a row is never drawn outside the panel. Under the Large schemes
+ * setting (`largeSchemeListLayout`) every scheme is a large card and the whole list scrolls, mains included.
  */
 
 import { cardRectInRow } from "../../view/card-hover.js";
@@ -16,7 +17,15 @@ import { textStyle } from "../../ui/theme.js";
 import { fitWrapped, label, paintPanel, paintThreatMeter } from "../../ui/widgets.js";
 import { counterNote, scenarioAreaTag, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
-import { fullyVisible, schemeListLayout, visibleSlice, type SchemeListLayout } from "../../view/scheme-list-layout.js";
+import {
+  fullyVisible,
+  largeSchemeListLayout,
+  schemeListLayout,
+  schemeRowGeometry,
+  visibleSlice,
+  type LargeSchemeShape,
+  type SchemeListLayout,
+} from "../../view/scheme-list-layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { threatFromValue } from "../../view/threat-motion.js";
 import { drawFootStrip } from "./character-panel.js";
@@ -26,6 +35,10 @@ import { dimAlpha, focusKey, targetState } from "./selection.js";
 import { drawTuckedRow } from "./tucked-row.js";
 import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
+import type { RowDrag } from "../../view/hand-scroll.js";
+import { McButton, fitText } from "../../ui/widgets.js";
+import { schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
+import { StackSwipe, stackFlip, stackFrontAfter } from "../../view/scheme-stack.js";
 
 /**
  * The schemes column's scroll position and what it last scrolled to, kept by the scene across draws (a board redraw
@@ -37,6 +50,12 @@ export class SchemeScrollState {
   lastFocus: InstanceId | null = null;
   /** The open target list the last scrolling draw saw, as a key. */
   lastTargets: string | null = null;
+  /** Stack schemes: the scheme at the front of the stack (null: the main scheme). */
+  stackFront: InstanceId | null = null;
+  /** The open target list the stack last brought a target forward for, as a key. */
+  stackTargets: string | null = null;
+  /** The swipe on the stack's front card, kept across the redraw a flip makes mid-drag. */
+  readonly swipe = new StackSwipe();
 }
 
 export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
@@ -46,22 +65,165 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 
   // Tower Defense's own second main scheme is drawn like the first, pinned above the side schemes.
   const all = [model.mainScheme, ...model.extraMainSchemes, ...model.sideSchemes];
-  const list = schemeListLayout(rect, {
+  const counts = {
     mains: 1 + model.extraMainSchemes.length,
     sides: model.sideSchemes.length,
-    tabbed: ctx.tabbed,
-    scale: ctx.cardScale,
     // Room for the scenario area lines (`SchemeAreaNote`) between the subtitle and the meter.
     mainExtra: (model.mainScheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3),
-  });
+  };
+  // Stack schemes: one large card at the front, the rest behind it like a deck (a lone scheme is just the large card).
+  if (ctx.schemeStack && all.length > 1) {
+    drawSchemeStack(ctx, rect, all);
+    return;
+  }
+  // Large schemes: every scheme as a large card, scrolling inside this panel; the table's layout is the same either way.
+  const large =
+    ctx.largeSchemes || ctx.schemeStack
+      ? largeSchemeListLayout(rect, {
+          mains: counts.mains,
+          sides: counts.sides,
+          infoExtra: Math.max(...all.map((scheme) => largeInfoExtra(ctx, scheme))),
+        })
+      : null;
+  const list = large ?? schemeListLayout(rect, { ...counts, tabbed: ctx.tabbed, scale: ctx.cardScale });
+  const shape = large?.shape ?? null;
 
   const scrolling = list.rows.filter((row) => !row.pinned);
   if (!list.viewport || !list.scrolls || scrolling.length === 0) {
-    for (const row of list.rows) drawScheme(ctx, row.rect, all[row.index]!);
+    for (const row of list.rows) drawScheme(ctx, row.rect, all[row.index]!, shape);
     return;
   }
-  for (const row of list.rows) if (row.pinned) drawScheme(ctx, row.rect, all[row.index]!);
-  drawScrollingRows(ctx, list, list.viewport, all);
+  for (const row of list.rows) if (row.pinned) drawScheme(ctx, row.rect, all[row.index]!, shape);
+  drawScrollingRows(ctx, list, list.viewport, all, shape);
+}
+
+/**
+ * The lines a scheme draws between its subtitle and its meter (counters, area notes, tucked cards, a printed ability),
+ * as the room they take under a large card drawn above its text, so the setting never hides one of them.
+ */
+function largeInfoExtra(ctx: BoardDrawContext, scheme: SchemePanel): number {
+  let extra = 0;
+  if (counterNote(scheme.counters)) extra += 14;
+  extra += (scheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3);
+  if (scheme.tuckedCount > 0 && scheme.tuckedLabel) extra += (scheme.targetNote ? 14 : 0) + FOOT_STRIP_HEIGHT + 3;
+  if (ctx.controller.abilityLine(scheme.instanceId)) extra += FOOT_STRIP_HEIGHT + 2;
+  return extra;
+}
+
+/** Where in a sideways scheme scan its name band sits, as `drawArt`'s `focusY` for a band cut across the card. */
+const STACK_NAME_BAND = 0.1;
+
+/**
+ * Stack schemes (Quin, 2026-11-18): the schemes stacked like a deck. The front one is the large card, with its meter
+ * and lines; behind it up to three more show their printed name bands. A band is the scheme's own tap, focus, hover
+ * and target rect: tapped it comes to the front (or, in a target prompt, it is the target). The front card fans every
+ * scheme out (`scenes/scheme-fan.ts`), a sideways swipe on it flips through them, and the header's arrows do the same.
+ * A target prompt that opens with targets in the stack brings the first of them to the front (`view/scheme-stack.ts`);
+ * the other answers the table takes on a card (dividing power, picking a source) do not move the stack, and a band
+ * still answers them.
+ *
+ * A pad or keyboard reaches the same: A on a band brings it forward and A on the front card opens the fan, which lists
+ * every scheme, those past the three bands too (`BoardDrawContext.activateCard`). Inspect stays on its own button.
+ */
+function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly SchemePanel[]): void {
+  const { scene, schemeScroll: state } = ctx;
+  const ids = all.map((scheme) => scheme.instanceId);
+  const selection = ctx.controller.selection;
+  const decided = stackFrontAfter({
+    ids,
+    front: state.stackFront,
+    targets: selection.kind === "targeting" ? selection.action.targets : null,
+    lastTargetsKey: state.stackTargets,
+  });
+  state.stackFront = decided.front;
+  state.stackTargets = decided.targetsKey;
+  const frontIndex = Math.max(0, decided.front ? ids.indexOf(decided.front) : 0);
+  const order = stackOrder(all, frontIndex);
+  const bringForward = (id: InstanceId): void => {
+    state.stackFront = id;
+    ctx.requestDraw();
+  };
+  const flip = (step: 1 | -1): void => {
+    const next = stackFlip(ids, state.stackFront, step);
+    if (next) bringForward(next);
+  };
+  const fan = (): void => ctx.openSchemeFan(order, bringForward);
+
+  const infoExtra = Math.max(...all.map((scheme) => largeInfoExtra(ctx, scheme)));
+  const stack = schemeStackLayout(rect, all.length, infoExtra);
+
+  // The header: which card of how many is at the front, the arrows, and Fan out.
+  const { header } = stack;
+  const buttonType = { ...typeRole.label, size: 12 };
+  const arrowType = { ...typeRole.label, size: 18 };
+  const fanWidth = Math.min(96, Math.max(64, header.width * 0.28));
+  const arrow = 34;
+  const fanRect: Rect = {
+    x: header.x + header.width - fanWidth,
+    y: header.y + 2,
+    width: fanWidth,
+    height: header.height - 4,
+  };
+  const nextRect: Rect = { ...fanRect, x: fanRect.x - 6 - arrow, width: arrow };
+  const prevRect: Rect = { ...nextRect, x: nextRect.x - 4 - arrow };
+  const count = label(
+    scene,
+    header.x,
+    header.y + header.height / 2,
+    `SCHEMES · ${frontIndex + 1} OF ${all.length}`,
+    typeRole.label,
+    surface.ink.hex,
+    ink.label,
+  ).setOrigin(0, 0.5);
+  fitText(count, Math.max(20, prevRect.x - header.x - 6), typeRole.label.size);
+  ctx.frame.buttons.push(
+    new McButton(scene, { kind: "secondary", label: "◂", type: arrowType, rect: prevRect, onClick: () => flip(-1) }),
+    new McButton(scene, { kind: "secondary", label: "▸", type: arrowType, rect: nextRect, onClick: () => flip(1) }),
+    new McButton(scene, { kind: "secondary", label: "Fan out", type: buttonType, rect: fanRect, onClick: fan }),
+  );
+
+  // The cards behind, deepest first so each nearer one covers it.
+  const behind = stack.behind.map((slot, at) => ({ slot, scheme: order[at + 1]! }));
+  for (const { slot, scheme } of [...behind].reverse()) {
+    const dim = dimAlpha(selection, scheme.instanceId);
+    const frame = scene.add.graphics();
+    paintPanel(
+      frame,
+      { x: slot.card.x - 3, y: slot.card.y - 3, width: slot.card.width + 6, height: slot.card.height + 6 },
+      "card",
+      targetState(selection, scheme.instanceId),
+    );
+    frame.fillStyle(surface.parchment.hex, dim).fillRect(slot.card.x, slot.card.y, slot.card.width, slot.card.height);
+    // Only the band above the card in front shows, so the band is cut from the scan where a scheme prints its name.
+    drawArt(scene, ctx.art.request(scene, scheme.art), slot.peek, {
+      alpha: dim,
+      fit: "cover",
+      focusY: STACK_NAME_BAND,
+    });
+  }
+  // The front card, whole, over them. A swipe flips as soon as it has travelled far enough (`StackSwipe`), so a slow
+  // swipe that rests before it lifts still flips.
+  const front = order[0]!;
+  drawScheme(ctx, stack.front.rect, front, stack.front.shape, {
+    onTap: fan,
+    drag: {
+      onDrag: (deltaX) => {
+        const step = state.swipe.step(deltaX, scene.time.now);
+        if (step !== 0) flip(step);
+      },
+      onDragEnd: () => state.swipe.end(),
+    },
+  });
+  ctx.frame.cardActivate.set(front.instanceId, fan);
+  // The bands take their taps after the front card is wired, each above the card in front of it. A band's popover is
+  // the front card's size: the band is the same card, only further back.
+  const frontArt = ctx.frame.hoverSizeRects.get(front.instanceId);
+  for (const { slot, scheme } of behind) {
+    ctx.frame.hitRects.set(scheme.instanceId, slot.peek);
+    ctx.frame.hoverSizeRects.set(scheme.instanceId, frontArt ?? slot.card);
+    ctx.frame.cardActivate.set(scheme.instanceId, () => bringForward(scheme.instanceId));
+    ctx.makeTapTarget(slot.peek, scheme.instanceId, () => bringForward(scheme.instanceId));
+  }
 }
 
 /** The rows that scroll: drawn once at scroll 0 into a clipped region that moves them, with a hint at a cut edge. */
@@ -70,6 +232,7 @@ function drawScrollingRows(
   list: SchemeListLayout,
   viewport: Rect,
   all: readonly SchemePanel[],
+  shape: LargeSchemeShape | null,
 ): void {
   const { scene, schemeScroll: state } = ctx;
   const rows = list.rows.filter((row) => !row.pinned);
@@ -123,7 +286,7 @@ function drawScrollingRows(
   ctx.frame.regions.push(region);
   if (list.heights.reduce((sum, height) => sum + height, 0) > viewport.height) ctx.frame.innerScroll.push(viewport);
   const before = scene.children.list.length;
-  for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!);
+  for (const row of rows) drawScheme(ctx, row.rect, all[row.index]!, shape);
   region.content.add(scene.children.list.slice(before));
   hint = drawScrollHint(ctx, viewport, list.heights);
   region.syncInteractivity();
@@ -185,20 +348,19 @@ export function schemeArtWidth(rect: Rect, cardScale = 1): number {
   return Math.round(Math.min(Math.max(96, shaped), rect.width * (grown ? 0.5 : 0.3)));
 }
 
-export function schemeMeterRect(rect: Rect, cardScale = 1): Rect {
-  const artWidth = schemeArtWidth(rect, cardScale);
-  const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
-  const textWidth = rect.x + rect.width - 8 - textLeft;
+/** `large`: the Large schemes setting's card shape for this row (`largeSchemeListLayout`), null for the usual row. */
+export function schemeMeterRect(rect: Rect, cardScale = 1, large: LargeSchemeShape | null = null): Rect {
+  const { text } = schemeRowGeometry(rect, schemeArtWidth(rect, cardScale), large);
   // A short row (a side scheme at 52px) keeps a slimmer meter so its name and "SIDE SCHEME · WRECKER" stay above it.
-  if (schemeRowIsCompact(rect, cardScale)) {
+  if (!large && schemeRowIsCompact(rect, cardScale)) {
     return {
-      x: textLeft,
+      x: text.x,
       y: rect.y + rect.height - COMPACT_METER_HEIGHT - 4,
-      width: textWidth,
+      width: text.width,
       height: COMPACT_METER_HEIGHT,
     };
   }
-  return { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+  return { x: text.x, y: rect.y + rect.height - 26, width: text.width, height: 18 };
 }
 
 /** The slim meter of a compact row. */
@@ -214,7 +376,14 @@ export function schemeRowIsCompact(rect: Rect, cardScale = 1): boolean {
  * sits in a column on the left with a 3px rule beside it, which is how the
  * Long Table canvas frames a scheme. Returns the bottom edge it drew to.
  */
-export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): number {
+export function drawScheme(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  scheme: SchemePanel,
+  large: LargeSchemeShape | null = null,
+  /** The stack's front card: a tap fans the schemes out instead of opening Inspect, and a sideways swipe flips. */
+  tap?: { readonly onTap: () => void; readonly drag?: RowDrag },
+): number {
   const { scene } = ctx;
   const selection = ctx.controller.selection;
   ctx.frame.hitRects.set(scheme.instanceId, rect);
@@ -226,14 +395,20 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   // beside it. The old threshold was tuned for the long table and silently
   // dropped the main scheme's card on every narrower panel.
   // ...and the column widens with a taller row, so a grown row shows a bigger card, not the same 96px one.
+  // Large schemes sizes the card itself, beside the text or above it (`schemeRowGeometry`).
   const artWidth = schemeArtWidth(rect, ctx.cardScale);
-  ctx.frame.hoverSizeRects.set(scheme.instanceId, cardRectInRow(rect, artWidth));
-  if (artWidth > 0) {
-    const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
+  const geometry = schemeRowGeometry(rect, artWidth, large);
+  const { text } = geometry;
+  ctx.frame.hoverSizeRects.set(scheme.instanceId, large && geometry.art ? geometry.art : cardRectInRow(rect, artWidth));
+  if (large) ctx.frame.largeSchemeShapes.set(scheme.instanceId, large);
+  let artDrawn = false;
+  if (geometry.art) {
+    const column = geometry.art;
     const frame = scene.add.graphics();
     frame.fillStyle(surface.parchment.hex, dim).fillRect(column.x, column.y, column.width, column.height);
     const key = ctx.art.request(scene, scheme.art);
-    if (!drawArt(scene, key, column, { alpha: dim, focusY: 0.3 })) {
+    artDrawn = drawArt(scene, key, column, { alpha: dim, focusY: 0.3 }) !== null;
+    if (!artDrawn) {
       label(
         scene,
         column.x + column.width / 2,
@@ -245,21 +420,29 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
       ).setOrigin(0.5);
     }
     const rule = scene.add.graphics();
-    rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
+    // The 3px rule between the card and the text: beside it, or under it for a large card drawn above the text.
+    if (geometry.above)
+      rule.fillStyle(surface.ink.hex, dim).fillRect(rect.x + 3, column.y + column.height, rect.width - 6, 3);
+    else rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
   }
 
-  const textLeft = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
-  const textWidth = rect.x + rect.width - 8 - textLeft;
-  const meter = schemeMeterRect(rect, ctx.cardScale);
-  const compact = schemeRowIsCompact(rect, ctx.cardScale);
+  const textLeft = text.x;
+  const textWidth = text.width;
+  const meter = schemeMeterRect(rect, ctx.cardScale, large);
+  const compact = !large && schemeRowIsCompact(rect, ctx.cardScale);
   // The name and the subtitle (with whose game area it is in, Kang's per-player areas) stack above the meter: each wraps
   // whole words into the room that is left, and the subtitle starts under however many lines the name took, so a long
   // name never lands on "MAIN SCHEME 2" and the meter never covers "SIDE SCHEME · WRECKER".
   const nameText = scene.add
-    .text(textLeft, rect.y + (compact ? 3 : 6), scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+    .text(textLeft, text.y + (compact ? 3 : 6), scheme.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
     .setWordWrapWidth(textWidth);
-  fitWrapped(nameText, textWidth, rect.height >= 78 * Math.max(1, ctx.cardScale) ? 2 : 1, typeRole.rowTitle.size);
-  const subtitleTop = nameText.y + Math.ceil(nameText.height) + 1;
+  const nameLines = text.height >= 78 * (large ? 1 : Math.max(1, ctx.cardScale)) ? 2 : 1;
+  fitWrapped(nameText, textWidth, nameLines, typeRole.rowTitle.size);
+  // A large card drawn above its text already shows the name, once its scan is up; the subtitle starts the text under
+  // it instead. Until then (or with no scan at all) the name stays, and a line of the subtitle gives way to it.
+  const nameShown = !(geometry.above && artDrawn);
+  if (!nameShown) nameText.setVisible(false);
+  const subtitleTop = nameShown ? nameText.y + Math.ceil(nameText.height) + 1 : text.y + 6;
   const subtitleText = label(
     scene,
     textLeft,
@@ -270,6 +453,8 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
     ink.label * dim,
   );
   fitWrapped(subtitleText, textWidth, meter.y - 1 - subtitleTop >= 26 ? 2 : 1, typeRole.label.size);
+  // The name standing in for a scan not up yet takes the subtitle's line under a large card when both don't fit.
+  if (geometry.above && nameShown && subtitleTop + subtitleText.height > meter.y) subtitleText.setVisible(false);
 
   // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
   // (The Grand Collection's "discard 1 card from The Collection", the Milano's
@@ -279,9 +464,9 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
   const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
   // Counters the scheme itself holds (En Sabah Nur's Pyramid: "place 1 power counter here") get their own line, so
   // the tally that drives the scenario is on the table and not only in Inspect.
-  let abilityTop = Math.max(rect.y + 48, subtitleTop + Math.ceil(subtitleText.height) + 2);
+  let abilityTop = Math.max(text.y + (geometry.above ? 0 : 48), subtitleTop + Math.ceil(subtitleText.height) + 2);
   const counterText = counterNote(scheme.counters);
-  if (counterText && abilityTop + 14 <= schemeMeterRect(rect, ctx.cardScale).y - 2) {
+  if (counterText && abilityTop + 14 <= meter.y - 2) {
     label(scene, textLeft, abilityTop, counterText, typeRole.label, surface.ink.hex, ink.meta * dim);
     abilityTop += 14;
   }
@@ -369,7 +554,12 @@ export function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePane
     paintMeter(scheme.threat);
   }
 
-  ctx.makeTapTarget(rect, scheme.instanceId, () => ctx.controller.onCharacterTap(scheme.instanceId));
+  ctx.makeTapTarget(
+    rect,
+    scheme.instanceId,
+    tap?.onTap ?? (() => ctx.controller.onCharacterTap(scheme.instanceId)),
+    tap?.drag,
+  );
   tuckedTargets?.();
   for (const target of areaTargets) target();
   return rect.y + rect.height;

@@ -16,6 +16,8 @@ import {
   nextSettingsAfterToggle,
   cardHoverRowInfoOf,
   playAreaOrderRowInfoOf,
+  schemeFanBackgroundRowInfoOf,
+  nextSettingsAfterSchemeFanBackground,
   deckListOnOpenRowInfoOf,
   extraModularSetsRowInfoOf,
   nextSettingsAfterDeckListOnOpen,
@@ -86,6 +88,9 @@ const BASE: Settings = {
   cardHoverScale: "2.5x",
   inspectCard: "large",
   cardSize: "standard",
+  largeSchemes: false,
+  schemeStack: false,
+  schemeFanBackground: "0",
   playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -149,6 +154,9 @@ describe("settingsRowInfoOf", () => {
       cardHoverScale: "2.5x",
       inspectCard: "large",
       cardSize: "standard",
+      largeSchemes: false,
+      schemeStack: false,
+      schemeFanBackground: "0",
       playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -197,6 +205,29 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(true);
     expect(rows.find((r) => r.id === "not-offered-notices")?.on).toBe(true);
     expect(rows.find((r) => r.id === "same-name-conflict")?.on).toBe(true);
+  });
+
+  test("Large schemes is off by default and its toggle turns it on and back off", () => {
+    expect(settingsRowInfoOf(BASE).find((r) => r.id === "large-schemes")?.on).toBe(false);
+    const on = nextSettingsAfterToggle(BASE, "large-schemes", 1);
+    expect(on.largeSchemes).toBe(true);
+    expect(settingsRowInfoOf(on).find((r) => r.id === "large-schemes")?.on).toBe(true);
+    expect(nextSettingsAfterToggle(on, "large-schemes", 1).largeSchemes).toBe(false);
+  });
+
+  test("the scheme fan's background starts at none and takes only its five values", () => {
+    const info = schemeFanBackgroundRowInfoOf(BASE);
+    expect(info.selected).toBe("0");
+    expect(info.options.map((option) => option.label)).toEqual(["None", "25%", "50%", "75%", "Solid"]);
+    expect(nextSettingsAfterSchemeFanBackground(BASE, "75").schemeFanBackground).toBe("75");
+    expect(nextSettingsAfterSchemeFanBackground(BASE, "33" as never)).toBe(BASE);
+  });
+
+  test("Stack schemes is off by default and toggles on its own", () => {
+    expect(settingsRowInfoOf(BASE).find((r) => r.id === "scheme-stack")?.on).toBe(false);
+    const on = nextSettingsAfterToggle(BASE, "scheme-stack", 1);
+    expect(on.schemeStack).toBe(true);
+    expect(on.largeSchemes).toBe(false);
   });
 
   test("sound is available with no unavailable reason", () => {

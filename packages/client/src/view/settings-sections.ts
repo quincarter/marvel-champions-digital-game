@@ -11,6 +11,7 @@ export type SettingsItemId =
   | SettingsRowId
   | "card-size"
   | "play-area-order"
+  | "scheme-fan-background"
   | "card-hover"
   | "card-language"
   | "inspect-card"
@@ -134,6 +135,9 @@ export function settingsSectionsOf(input: {
       title: "Cards",
       items: [
         "card-size",
+        "large-schemes",
+        "scheme-stack",
+        "scheme-fan-background",
         "play-area-order",
         "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),

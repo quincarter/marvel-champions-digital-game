@@ -125,6 +125,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.evidence,
   SCENES.pileView,
   SCENES.deckLeft,
+  SCENES.schemeFan,
   SCENES.roundDebrief,
   SCENES.villainPhase,
   SCENES.reportIssue,

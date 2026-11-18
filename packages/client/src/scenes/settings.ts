@@ -38,6 +38,8 @@ import {
   nextSettingsAfterMusicVolume,
   cardSizeRowInfoOf,
   playAreaOrderRowInfoOf,
+  schemeFanBackgroundRowInfoOf,
+  nextSettingsAfterSchemeFanBackground,
   nextSettingsAfterPlayAreaOrder,
   cardLanguageRowInfoOf,
   nextSettingsAfterCardLanguage,
@@ -927,6 +929,10 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     segmented("card-language", cardLanguageRowInfoOf(settings), SPEED_CONTROL_WIDTH, (v) => this.#setCardLanguage(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));
+    segmented("scheme-fan-background", schemeFanBackgroundRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
+      appSession().settings = nextSettingsAfterSchemeFanBackground(appSession().settings, v);
+      this.#draw();
+    });
     segmented("play-area-order", playAreaOrderRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterPlayAreaOrder(appSession().settings, v);
       this.#draw();

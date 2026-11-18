@@ -151,6 +151,7 @@ const UNDER_STATS: readonly string[] = [
   SCENES.endTurnConfirm,
   SCENES.pileView,
   SCENES.deckLeft,
+  SCENES.schemeFan,
   SCENES.evidence,
   SCENES.campaignBeat,
   SCENES.teamUpInfo,

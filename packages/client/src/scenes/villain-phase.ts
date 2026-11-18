@@ -474,7 +474,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this.scene.isActive(SCENES.optionNotice) ||
         // Opened from the table docked beside this phase: the pile owns Escape and B while it is up.
         this.scene.isActive(SCENES.pileView) ||
-        this.scene.isActive(SCENES.deckLeft),
+        this.scene.isActive(SCENES.deckLeft) ||
+        this.scene.isActive(SCENES.schemeFan),
       // Esc / B on the START gate is Nevermind when End turn can still be taken back; otherwise it hides the phase.
       onCancel: () => {
         if (this.#logView) this.toggleLog();

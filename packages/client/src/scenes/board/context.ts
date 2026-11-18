@@ -20,6 +20,8 @@ import type { Rect } from "../../view/layout.js";
 import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
 import type { SchemeScrollState } from "./schemes.js";
+import type { LargeSchemeShape } from "../../view/scheme-list-layout.js";
+import type { SchemePanel } from "../../view/board-model.js";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import type { PlayAreaScroll } from "../../view/play-area-row.js";
 import type { BoardMotion } from "./motion.js";
@@ -39,6 +41,13 @@ export interface BoardFrame {
    * this, or a row as wide as a band of the table comes up larger than the card ever should (`hoverCardSize`).
    */
   readonly hoverSizeRects: Map<InstanceId, Rect>;
+  /**
+   * What A (or Enter) on an idle card does instead of opening Inspect, by card: the scheme stack's front card fans the
+   * schemes out and a band behind it comes forward (`schemes.ts`). A target or payment prompt still answers first.
+   */
+  readonly cardActivate: Map<InstanceId, () => void>;
+  /** The Large schemes setting's card shape per scheme drawn this draw (`schemes.ts`), so an overlay finds its meter. */
+  readonly largeSchemeShapes: Map<InstanceId, LargeSchemeShape>;
   /** Rects of everything focusable this draw, so the focus ring knows where to go. */
   readonly focusRects: Map<string, Rect>;
   /**
@@ -106,6 +115,8 @@ export interface BarStop {
 export const emptyFrame = (): BoardFrame => ({
   hitRects: new Map(),
   hoverSizeRects: new Map(),
+  cardActivate: new Map(),
+  largeSchemeShapes: new Map(),
   focusRects: new Map(),
   pileRects: new Map(),
   handStrip: [],
@@ -150,6 +161,17 @@ export interface BoardDrawContext {
   readonly tabbed: boolean;
   /** The Card size setting's factor this draw was laid out at (1 at Fit to screen); the scheme rows grow with it. */
   readonly cardScale: number;
+  /** The Large schemes setting: every scheme drawn as a large card, scrolling inside its own panel (`schemes.ts`). */
+  readonly largeSchemes: boolean;
+  /** The Stack schemes setting: the schemes stacked like a deck in their panel, fanned out on a tap (`schemes.ts`). */
+  readonly schemeStack: boolean;
+  /** Asks for the table to be drawn again on the next frame (the scheme stack brought another card forward). */
+  requestDraw(): void;
+  /**
+   * Fans the schemes out over the table (`scenes/scheme-fan.ts`), front of the stack first; `onPick` is told the one the
+   * player picks, to bring it to the front.
+   */
+  openSchemeFan(schemes: readonly SchemePanel[], onPick: (id: InstanceId) => void): void;
   readonly controller: BoardController;
   readonly hand: HandScroll;
   /** The schemes column's scroll position, kept across draws like the hand's (`schemes.ts`). */

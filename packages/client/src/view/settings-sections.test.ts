@@ -15,6 +15,7 @@ describe("settingsSectionsOf", () => {
       ...guideRowIds,
       "card-size",
       "play-area-order",
+      "scheme-fan-background",
       "hero-art",
       "card-hover",
       "music-volume",

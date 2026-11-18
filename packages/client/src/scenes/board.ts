@@ -48,7 +48,7 @@ import type { ReplayHost } from "../replay/replay-host.js";
 import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McSelectionRing, McTabs, fitText, paintDotGrid } from "../ui/widgets.js";
-import { boardModel, type BoardModel } from "../view/board-model.js";
+import { boardModel, type BoardModel, type SchemePanel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
 import { withAttackBarWording } from "../view/attack-bar.js";
 import { withForcedActions } from "../view/forced-actions.js";
@@ -169,6 +169,7 @@ import {
 } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
+import type { LargeSchemeShape } from "../view/scheme-list-layout.js";
 import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
@@ -179,6 +180,7 @@ import { setAsideFooterHeight, setAsideLines, splitSetAside } from "../view/enco
 import { TEAM_UP_ART, teamUpArtFor } from "../art/team-up-art.js";
 import { evidenceInputOf } from "../view/evidence-model.js";
 import type { PileViewData } from "./pile-view.js";
+import type { SchemeFanData } from "./scheme-fan.js";
 import type { DeckLeftData } from "./deck-left.js";
 import { deckLeftTabsOf, type DeckLeftTab } from "../view/deck-left-model.js";
 import type { TeamUpSplashData } from "./team-up-splash.js";
@@ -364,6 +366,7 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    cardActivate: (id) => this.#frame.cardActivate.get(id),
     hasTile: (id) => this.#frame.focusRects.has(focusKey({ kind: "card", instanceId: id })),
     tableCards: () => {
       if (!this.#model) return [];
@@ -712,6 +715,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.evidence) ||
         this.scene.isActive(SCENES.pileView) ||
         this.scene.isActive(SCENES.deckLeft) ||
+        this.scene.isActive(SCENES.schemeFan) ||
         // Device sync's "which copy?" question owns the keyboard and pad (`conflictPromptOwnsInput`).
         this.scene.isActive(SCENES.syncConflict) ||
         // "Hold on!" owns Escape (it dismisses with nothing sent); without this the board's own Escape opened Pause
@@ -809,6 +813,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.inspect,
         SCENES.pileView,
         SCENES.deckLeft,
+        SCENES.schemeFan,
         SCENES.villainPhase,
         SCENES.pause,
         SCENES.manualAdjust,
@@ -1134,6 +1139,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.inspect) ||
       this.scene.isActive(SCENES.pileView) ||
       this.scene.isActive(SCENES.deckLeft) ||
+      this.scene.isActive(SCENES.schemeFan) ||
       this.scene.isActive(SCENES.villainPhase) ||
       this.scene.isActive(SCENES.pause) ||
       this.scene.isActive(SCENES.rules) ||
@@ -1649,6 +1655,12 @@ export class BoardScene extends Phaser.Scene {
       marks: this.#controller.readOnly ? null : this.#marks,
       tabbed: layout.tabbed,
       cardScale,
+      largeSchemes: this.#drawnSettings.largeSchemes,
+      schemeStack: this.#drawnSettings.schemeStack,
+      requestDraw: () => {
+        this.#scrollDirty = true;
+      },
+      openSchemeFan: (schemes, onPick) => this.#openSchemeFan(schemes, onPick),
       controller: this.#controller,
       hand: this.#hand,
       schemeScroll: this.#schemeScroll,
@@ -2836,6 +2848,7 @@ export class BoardScene extends Phaser.Scene {
       this.scene.isActive(SCENES.evidence) ||
       this.scene.isActive(SCENES.pileView) ||
       this.scene.isActive(SCENES.deckLeft) ||
+      this.scene.isActive(SCENES.schemeFan) ||
       this.scene.isActive(SCENES.holdOn) ||
       this.scene.isActive(SCENES.optionNotice)
     );
@@ -3057,6 +3070,12 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.pileView, { from: SCENES.board, name, ids } satisfies PileViewData);
   }
 
+  #openSchemeFan(schemes: readonly SchemePanel[], onPick: (id: InstanceId) => void): void {
+    if (schemes.length === 0 || this.scene.isActive(SCENES.schemeFan)) return;
+    const origin = this.#frame.hoverSizeRects.get(schemes[0]!.instanceId) ?? null;
+    this.scene.launch(SCENES.schemeFan, { from: SCENES.board, schemes, origin, onPick } satisfies SchemeFanData);
+  }
+
   #openDeckLeft(tab: DeckLeftTab): void {
     const perspectiveId = this.#model?.perspectiveId;
     if (!perspectiveId || this.scene.isActive(SCENES.deckLeft)) return;
@@ -3095,12 +3114,14 @@ export class BoardScene extends Phaser.Scene {
   guideAnchorFrame(): {
     readonly hitRects: ReadonlyMap<InstanceId, Rect>;
     readonly focusRects: ReadonlyMap<string, Rect>;
+    readonly largeSchemeShapes: ReadonlyMap<InstanceId, LargeSchemeShape>;
     readonly mainSchemeInstanceId: InstanceId | null;
   } {
     const game = appSession().store.state.game;
     return {
       hitRects: this.#frame.hitRects,
       focusRects: this.#frame.focusRects,
+      largeSchemeShapes: this.#frame.largeSchemeShapes,
       mainSchemeInstanceId: game?.mainScheme.instanceId ?? null,
     };
   }

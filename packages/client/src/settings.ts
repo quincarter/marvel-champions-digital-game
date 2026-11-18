@@ -167,6 +167,23 @@ export interface Settings {
    * read them (2026-10-14). Defaults to standard, the size every screen was designed at.
    */
   readonly cardSize: CardSize;
+  /**
+   * Large schemes: the main scheme and every side scheme drawn as a large card on the table, the way the hover popover
+   * shows one, without hovering (a player's request, the owner 2026-11-17). Only the schemes panel scrolls when they do
+   * not all fit; the table keeps its layout. Defaults off.
+   */
+  readonly largeSchemes: boolean;
+  /**
+   * Stack schemes: the schemes as one large card with the rest stacked behind it like a deck, their name bands showing.
+   * Swipe, the arrows or a band bring another to the front; the front card fans them all out (`scenes/scheme-fan.ts`).
+   * Draws the cards large whether or not Large schemes is on (Quin, 2026-11-18). Defaults off.
+   */
+  readonly schemeStack: boolean;
+  /**
+   * How solid the paper behind the scheme fan's cards is, in percent (`scenes/scheme-fan.ts`): 0 leaves the cards over
+   * the dimmed table with nothing behind them, 100 is a solid sheet (Quin, 2026-11-18). Defaults to 0.
+   */
+  readonly schemeFanBackground: SchemeFanBackground;
   /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
   readonly playAreaOrder: PlayAreaOrder;
   /**
@@ -346,6 +363,14 @@ export function resolutionPixelsOf(
 export type CampaignFadeColor = "grey" | "blue" | "red" | "purple" | "green";
 export const CAMPAIGN_FADE_COLOR_VALUES: readonly CampaignFadeColor[] = ["grey", "blue", "red", "purple", "green"];
 
+export type SchemeFanBackground = "0" | "25" | "50" | "75" | "100";
+export const SCHEME_FAN_BACKGROUND_VALUES: readonly SchemeFanBackground[] = ["0", "25", "50", "75", "100"];
+
+/** The scheme fan's paper as an alpha, 0 to 1. */
+export function schemeFanBackgroundAlpha(value: SchemeFanBackground): number {
+  return Number(value) / 100;
+}
+
 /** How your play area is drawn on the table (a view preference only; the engine keeps the order cards entered play). */
 export type PlayAreaOrder = "played" | "type" | "cost" | "name";
 export const PLAY_AREA_ORDER_VALUES: readonly PlayAreaOrder[] = ["played", "type", "cost", "name"];
@@ -515,6 +540,9 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     villainDockTable: true,
     cardHoverScale: "2.5x",
     cardSize: "standard",
+    largeSchemes: false,
+    schemeStack: false,
+    schemeFanBackground: "0",
     playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,

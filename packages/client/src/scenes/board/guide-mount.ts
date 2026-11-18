@@ -1039,10 +1039,15 @@ export class BoardGuideMount {
     const current = scheme.threat;
     const projected = Math.max(0, current - thw);
     if (projected >= current || !scheme.meterMax || scheme.meterMax <= 0) return;
-    const rect = this.#scene.guideAnchorFrame().hitRects.get(scheme.instanceId);
+    const frame = this.#scene.guideAnchorFrame();
+    const rect = frame.hitRects.get(scheme.instanceId);
     if (!rect) return;
 
-    const meter = schemeMeterRect(rect, cardSizeFactor(appSession().settings.cardSize));
+    const meter = schemeMeterRect(
+      rect,
+      cardSizeFactor(appSession().settings.cardSize),
+      frame.largeSchemeShapes.get(scheme.instanceId) ?? null,
+    );
     const scene = this.#scene;
     const g = scene.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(meter.x, meter.y, meter.width, meter.height);
