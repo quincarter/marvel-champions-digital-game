@@ -1,3 +1,0 @@
-kind: Added
-body: The Spanish version shows each card's Spanish name, rules text and flavor text (from MarvelCDB) on the Inspect sheet and in deck lists, falling back to English for any card not yet translated (#391).
-time: 2026-11-18T08:22:40.3420081-05:00

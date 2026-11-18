@@ -1,3 +1,0 @@
-kind: Engine
-body: A new adjust command carries Manual adjust's table corrections through the game log, so saves, rewinds and replays keep them (#791).
-time: 2026-11-17T05:56:32.5667313-05:00

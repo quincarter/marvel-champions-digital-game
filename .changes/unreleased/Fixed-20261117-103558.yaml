@@ -1,3 +1,0 @@
-kind: Fixed
-body: One Way or Another no longer draws 3 cards when the search finds no side scheme in the encounter deck, and takes the side scheme it finds (#795).
-time: 2026-11-17T10:35:58.1476768-05:00

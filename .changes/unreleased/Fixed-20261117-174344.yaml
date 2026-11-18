@@ -1,3 +1,0 @@
-kind: Fixed
-body: An upgrade attached to another player's hero now logs who controls it instead of "follows the first player" (#814).
-time: 2026-11-17T17:43:44.8172734-05:00

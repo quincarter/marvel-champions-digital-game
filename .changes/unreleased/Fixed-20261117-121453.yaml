@@ -1,3 +1,0 @@
-kind: Fixed
-body: The release history e2e specs pick the newest release and report instead of v0.40.0, so a new release no longer breaks them (#802).
-time: 2026-11-17T12:14:53.1871925-05:00
