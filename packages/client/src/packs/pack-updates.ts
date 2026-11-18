@@ -12,7 +12,7 @@
 import type { PackIndex } from "@mc/content";
 import { packStateOf } from "./pack-state.js";
 import type { InstalledPack, PackStorage } from "./pack-store.js";
-import { cachedCatalog, loadCatalog, type CatalogDeps } from "./catalog.js";
+import { loadCatalog, type CatalogDeps } from "./catalog.js";
 import { sharedPackStore } from "./active-packs.js";
 import { SUPPORTED_DSL_FEATURES } from "./supported-features.js";
 import { CLIENT_VERSION } from "../version.js";
@@ -52,6 +52,8 @@ let count = 0;
 let lastIndex: PackIndex | undefined;
 let lastFetched = Number.NEGATIVE_INFINITY;
 let inFlight: Promise<number> | undefined;
+/** Bumped by each `notePackUpdates`: a check that started before it read an older installed list, and stands down. */
+let noted = 0;
 const listeners = new Set<(count: number) => void>();
 
 /** The last count worked out; 0 until a check has run. */
@@ -71,11 +73,19 @@ function setCount(next: number): void {
   for (const listener of [...listeners]) listener(count);
 }
 
-/** The Mod Store's own catalog and installed list, after it loads or changes a pack. */
-export function notePackUpdates(index: PackIndex | undefined, installed: readonly InstalledPack[]): void {
+/**
+ * The Mod Store's own catalog and installed list, after it loads or changes a pack. `offline` (the store showed its
+ * saved copy) keeps the next Title check reaching for the network.
+ */
+export function notePackUpdates(
+  index: PackIndex | undefined,
+  installed: readonly InstalledPack[],
+  offline = false,
+): void {
+  noted += 1;
   if (index) {
     lastIndex = index;
-    lastFetched = Date.now();
+    if (!offline) lastFetched = Date.now();
   }
   const known = index ?? lastIndex;
   if (known) setCount(packUpdateCountOf(known, installed));
@@ -101,6 +111,7 @@ export function checkPackUpdates(deps: CheckDeps = {}): Promise<number> {
 
 async function runCheck(deps: CheckDeps): Promise<number> {
   const now = deps.now ?? Date.now;
+  const started = noted;
   let installed: readonly InstalledPack[];
   try {
     installed = await (deps.store ?? sharedPackStore()).list();
@@ -109,20 +120,23 @@ async function runCheck(deps: CheckDeps): Promise<number> {
   }
   // Nothing installed: nothing to update, and no reason to reach the network.
   if (installed.length === 0) {
-    setCount(0);
+    if (noted === started) setCount(0);
     return count;
   }
   let index = lastIndex;
   if (deps.force || !index || now() - lastFetched >= CHECK_INTERVAL_MS) {
     try {
-      index = (await loadCatalog(deps)).index;
+      // An offline answer is the saved copy: counted from, but not fresh, so the next check tries the network again.
+      const catalog = await loadCatalog(deps);
+      index = catalog.index;
       lastIndex = index;
-      lastFetched = now();
+      if (!catalog.offline) lastFetched = now();
     } catch {
-      index ??= cachedCatalog(deps.storage);
+      // No network and no saved copy: nothing to count from.
     }
   }
-  if (index) setCount(packUpdateCountOf(index, installed));
+  // The Mod Store noted a newer installed list while this check waited: its count stands.
+  if (index && noted === started) setCount(packUpdateCountOf(index, installed));
   return count;
 }
 
@@ -132,5 +146,6 @@ export function resetPackUpdatesForTest(): void {
   lastIndex = undefined;
   lastFetched = Number.NEGATIVE_INFINITY;
   inFlight = undefined;
+  noted = 0;
   listeners.clear();
 }

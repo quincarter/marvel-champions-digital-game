@@ -94,4 +94,38 @@ describe("checkPackUpdates", () => {
     });
     expect(await checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch, storage: null })).toBe(0);
   });
+
+  it("counts from the saved copy offline, and tries the network again next time", async () => {
+    const saved = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => saved.get(k) ?? null,
+      setItem: (k: string, v: string) => void saved.set(k, v),
+    };
+    const deps = { store: store([installed("fan-newer", "1.0.0")]), storage };
+    await checkPackUpdates({ ...deps, fetch: json(index) });
+    resetPackUpdatesForTest();
+    const down = vi.fn(async () => {
+      throw new Error("offline");
+    });
+    expect(await checkPackUpdates({ ...deps, fetch: down })).toBe(1);
+    const back = json(index);
+    await checkPackUpdates({ ...deps, fetch: back });
+    expect(back).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a store update made during a slow check stand", async () => {
+    let release: (() => void) | undefined;
+    const slow = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = () => resolve(new Response(JSON.stringify(index), { status: 200 }));
+        }),
+    );
+    const check = checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: slow, storage: null });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    notePackUpdates(index, [installed("fan-newer", "1.1.0")]);
+    release!();
+    await check;
+    expect(packUpdateCount()).toBe(0);
+  });
 });

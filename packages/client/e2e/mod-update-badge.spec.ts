@@ -72,6 +72,8 @@ test("the Title counts installed mod packs with an update", async ({ page, baseU
     await settle(page);
   };
   await toTitle();
+  // Give the Title's check time to land: still no badge.
+  await page.waitForTimeout(3000);
   expect(await titleBadges(page)).toEqual({});
 
   // The store now lists a newer version: a fresh session's Title checks the catalog and counts it.
