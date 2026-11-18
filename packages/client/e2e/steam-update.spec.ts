@@ -335,6 +335,7 @@ test.describe("an install from the release's installers (#843)", () => {
     await openAsSteamInstall(page, null, "", { kind: "nsis" });
     await waitForText(page, "the last try didn't install", { sceneKey: "Title" });
     await waitForStop(page, "update-install");
+    await shoot(page, "installer-failed");
     expect(errors).toEqual([]);
   });
 });
