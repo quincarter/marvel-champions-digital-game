@@ -65,7 +65,7 @@ describe("the update panel", () => {
         heading: "Update the game",
       });
       expect(steamUpdateViewOf(null, false, "1.1.0", "installer").body).toContain("version 1.1.0");
-      expect(steamUpdateViewOf(null, false, "1.1.0", "installer-msi").body).toContain("administrator");
+      expect(steamUpdateViewOf(null, false, "1.1.0", "installer-admin").body).toContain("administrator");
       expect(steamUpdateViewOf(running("###  30.0%"), true, "1.1.0", "installer")).toMatchObject({
         phase: "working",
         heading: "Downloading version 1.1.0",

@@ -27,15 +27,9 @@ fn installer_kind() -> &'static str {
 /// `installer_kind`'s answer, for the game's own updater (self_update.rs) too.
 pub(crate) fn detect_installer_kind() -> &'static str {
   if cfg!(target_os = "windows") {
-    // The .msi installs per machine under Program Files; the NSIS setup.exe
-    // installs per user under AppData.
-    let exe = std::env::current_exe().ok();
-    let path = exe.as_deref().and_then(|p| p.to_str()).map(str::to_ascii_lowercase);
-    match path {
-      Some(p) if p.contains("\\program files") => "msi",
-      Some(_) => "nsis",
-      None => "",
-    }
+    // Read from what each installer leaves, not guessed from the folder: the
+    // game's own updater runs this installer (self_update.rs).
+    self_update::windows_installer_kind()
   } else if cfg!(target_os = "macos") {
     // The build's own architecture, so an Intel build under Rosetta keeps
     // getting the Intel .dmg it was installed from.

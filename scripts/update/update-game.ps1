@@ -16,6 +16,8 @@ param(
   [Parameter(Mandatory = $true)][string]$Url,
   [Parameter(Mandatory = $true)][ValidateSet("nsis", "msi")][string]$Kind,
   [Parameter(Mandatory = $true)][string]$Version,
+  # The installer's SHA-256 as the release lists it: a download that doesn't match is never run.
+  [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$Sha256,
   [Parameter(Mandatory = $true)][string]$Game,
   [Parameter(Mandatory = $true)][int]$WaitPid
 )
@@ -47,6 +49,9 @@ try {
   } else {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $installer
+  }
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash -ne $Sha256.ToUpperInvariant()) {
+    throw "the download doesn't match the release, so nothing changed."
   }
   if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
     throw "the game closed before the download finished, so nothing changed."
@@ -83,6 +88,8 @@ try {
 
 # The player quit to install, so the game starts again either way: updated, or as it was, with the reason in the log
 # for its Title to show (platform/self-update.ts).
+# The reason goes in the log before the game starts, so the game finds it there.
+if ($null -ne $failure) { Write-Host "Error: $failure" }
 if ($quit) { Start-Game }
-if ($null -ne $failure) { Fail $failure }
+if ($null -ne $failure) { exit 1 }
 exit 0

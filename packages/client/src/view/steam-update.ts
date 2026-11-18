@@ -17,10 +17,10 @@ export interface SteamUpdateStatus {
 
 /**
  * Who runs the update: the Install for Steam script, which installs once the player quits and leaves starting the game
- * again to Steam, or the game's own updater, which starts the game again itself. `installer-msi` is the per-machine
- * .msi, which Windows asks an administrator's permission to install.
+ * again to Steam, or the game's own updater, which starts the game again itself. `installer-admin` is the per-machine
+ * .msi or a Linux .deb or .rpm, which the system asks an administrator's permission to install.
  */
-export type UpdateMode = "steam" | "installer" | "installer-msi";
+export type UpdateMode = "steam" | "installer" | "installer-admin";
 
 export type SteamUpdatePhase = "ask" | "working" | "ready" | "current" | "done" | "failed";
 
@@ -56,7 +56,7 @@ function installerAskView(version: string | null, msi: boolean): SteamUpdateView
   return {
     phase: "ask",
     heading: t("update.ask.heading"),
-    body: t(msi ? "update.ask.bodyMsi" : "update.ask.body", { version: version ?? "" }),
+    body: t(msi ? "update.ask.bodyAdmin" : "update.ask.body", { version: version ?? "" }),
     percent: null,
   };
 }
@@ -91,7 +91,7 @@ export function steamUpdateViewOf(
 ): SteamUpdateView {
   const installer = mode !== "steam";
   if (!started || status === null)
-    return installer ? installerAskView(version, mode === "installer-msi") : askView(version);
+    return installer ? installerAskView(version, mode === "installer-admin") : askView(version);
   const report = lastReport(status.log);
   // Ready means the script is waiting; one that has gone since (killed, or stopped) is waiting for nothing.
   if (report?.state === "ready" && status.running) {

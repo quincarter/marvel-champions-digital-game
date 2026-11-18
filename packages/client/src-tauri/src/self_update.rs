@@ -11,9 +11,10 @@
 //!
 //! Which installs can: the per-user Setup.exe and the per-machine .msi (Windows
 //! asks for an administrator's permission to install that one), a .dmg's app
-//! in a folder the player can write to, and an AppImage in one. A .deb or .rpm
-//! is the system's package to replace, with an administrator's password, and
-//! the game keeps linking those downloads instead.
+//! in a folder the player can write to, an AppImage in one, and a .deb or .rpm
+//! where polkit's `pkexec` can ask for an administrator's password to install
+//! the package. The Android app's update stays a download: Android's own
+//! installer has to run it.
 
 use crate::steam_install::{running_game, spawn_update, state_dir};
 use serde::Serialize;
@@ -49,6 +50,8 @@ fn installer_suffix(kind: &str) -> Option<&'static str> {
     "dmg-aarch64" => Some("-macOS-AppleSilicon-arm64.dmg"),
     "dmg-x64" => Some("-macOS-Intel-x64.dmg"),
     "appimage" => Some("-Linux-x64.AppImage"),
+    "deb" => Some("-Linux-x64.deb"),
+    "rpm" => Some("-Linux-x64.rpm"),
     _ => None,
   }
 }
@@ -65,6 +68,90 @@ fn is_installer_url(url: &str, kind: &str) -> bool {
   };
   let plain = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b));
   plain(tag) && plain(file) && file.starts_with("MarvelChampions-") && file.ends_with(suffix)
+}
+
+/// The installer's SHA-256 as GitHub lists it for a release asset (`sha256:<hex>`, or the bare hex).
+fn sha256_of(digest: &str) -> Option<&str> {
+  let hex = digest.strip_prefix("sha256:").unwrap_or(digest);
+  (hex.len() == 64 && hex.bytes().all(|b| b.is_ascii_hexdigit())).then_some(hex)
+}
+
+/// The game's entry in Windows' list of installed programs, as `reg query
+/// <key>` prints it: where the .msi put the game, if this is the .msi's entry.
+fn msi_install_location(entry: &str) -> Option<String> {
+  let value = |name: &str| {
+    entry.lines().find_map(|line| {
+      let line = line.trim();
+      let rest = line.strip_prefix(name)?.trim_start();
+      let (_type, value) = rest.strip_prefix("REG_")?.split_once(char::is_whitespace)?;
+      Some(value.trim().to_owned())
+    })
+  };
+  let msi = value("WindowsInstaller").is_some_and(|v| v == "0x1");
+  let location = value("InstallLocation").filter(|v| !v.is_empty())?;
+  msi.then_some(location)
+}
+
+fn same_folder(a: &Path, b: &Path) -> bool {
+  let norm = |p: &Path| p.to_string_lossy().trim_end_matches(['\\', '/']).to_lowercase();
+  norm(a) == norm(b)
+}
+
+/// Which Windows installer put the running game where it is: the setup.exe
+/// leaves its `uninstall.exe` beside the game, and the .msi registers itself
+/// with Windows Installer, folder and all. "" when neither says so, and the
+/// game links the release page rather than guess which installer to run (a
+/// guess from the folder took an .msi in a custom folder for the setup.exe).
+pub(crate) fn windows_installer_kind() -> &'static str {
+  static KIND: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+  KIND.get_or_init(|| {
+    let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf)) else {
+      return "";
+    };
+    if dir.join("uninstall.exe").is_file() {
+      return "nsis";
+    }
+    let msi = msi_entries()
+      .iter()
+      .any(|entry| msi_install_location(entry).is_some_and(|at| same_folder(Path::new(&at), &dir)));
+    if msi {
+      "msi"
+    } else {
+      ""
+    }
+  })
+}
+
+/// Each "Marvel Champions" entry among the programs installed for every user,
+/// as `reg query` prints it.
+#[cfg(windows)]
+fn msi_entries() -> Vec<String> {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+  let reg = |args: &[&str]| {
+    Command::new("reg")
+      .args(args)
+      .creation_flags(CREATE_NO_WINDOW)
+      .output()
+      .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+      .unwrap_or_default()
+  };
+  let mut entries = Vec::new();
+  for root in [
+    r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+    r"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+  ] {
+    let found = reg(&["query", root, "/s", "/f", "Marvel Champions", "/d", "/e"]);
+    for key in found.lines().filter(|line| line.starts_with("HKEY_")) {
+      entries.push(reg(&["query", key.trim()]));
+    }
+  }
+  entries
+}
+
+#[cfg(not(windows))]
+fn msi_entries() -> Vec<String> {
+  Vec::new()
 }
 
 fn is_version(text: &str) -> bool {
@@ -85,9 +172,13 @@ fn game_path() -> Option<PathBuf> {
 /// Whether a file can be made beside `game`, where the new one goes. Windows'
 /// installers put the game back where they keep it, so only the other systems
 /// ask.
-fn can_replace(game: &Path) -> bool {
+fn can_replace(game: &Path, kind: &str) -> bool {
   if cfg!(windows) {
     return true;
+  }
+  // A system package goes where the package manager puts it, as root, through polkit's password prompt.
+  if kind == "deb" || kind == "rpm" {
+    return has_pkexec();
   }
   let Some(parent) = game.parent() else {
     return false;
@@ -98,8 +189,14 @@ fn can_replace(game: &Path) -> bool {
   made
 }
 
-/// The update this install can make itself, or `None`: run from a .deb or
-/// .rpm, from a folder it can't write to, or a build no installer made (dev).
+fn has_pkexec() -> bool {
+  std::env::var_os("PATH")
+    .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join("pkexec").is_file()))
+}
+
+/// The update this install can make itself, or `None`: run from a folder it
+/// can't write to, a .deb or .rpm with no `pkexec` to ask for the password, or
+/// a build no installer made (dev).
 #[tauri::command]
 pub fn self_update_info() -> Option<SelfUpdate> {
   let kind = crate::detect_installer_kind();
@@ -108,18 +205,18 @@ pub fn self_update_info() -> Option<SelfUpdate> {
     return None;
   }
   let game = game_path()?;
-  can_replace(&game).then_some(SelfUpdate { kind })
+  can_replace(&game, kind).then_some(SelfUpdate { kind })
 }
 
 #[cfg(windows)]
-fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, game: &Path) -> Command {
+fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, sha256: &str, game: &Path) -> Command {
   use std::os::windows::process::CommandExt;
   const CREATE_NO_WINDOW: u32 = 0x0800_0000;
   let mut command = Command::new("powershell.exe");
   command
     .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
     .arg(helper)
-    .args(["-Url", url, "-Kind", kind, "-Version", version, "-Game"])
+    .args(["-Url", url, "-Kind", kind, "-Version", version, "-Sha256", sha256, "-Game"])
     .arg(game)
     .arg("-WaitPid")
     .arg(std::process::id().to_string())
@@ -128,15 +225,16 @@ fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, game: &Pa
 }
 
 #[cfg(not(windows))]
-fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, game: &Path) -> Command {
+fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, sha256: &str, game: &Path) -> Command {
   use std::os::unix::process::CommandExt;
   let mut command = Command::new("bash");
-  let kind = if kind == "appimage" { "appimage" } else { "dmg" };
+  let kind = if kind.starts_with("dmg") { "dmg" } else { kind };
   command
     .arg(helper)
     .args([url, kind, version])
     .arg(game)
     .arg(std::process::id().to_string())
+    .arg(sha256)
     .process_group(0);
   // What the AppImage set up for the game would load the wrong libraries into the helper's curl.
   for name in ["LD_LIBRARY_PATH", "LD_PRELOAD", "PYTHONHOME", "PYTHONPATH", "PERLLIB", "PERL5LIB"] {
@@ -146,9 +244,10 @@ fn helper_command(helper: &Path, url: &str, kind: &str, version: &str, game: &Pa
 }
 
 /// Starts the update to `version` from `url`, this install's installer in that
-/// release, or carries on with the one already running.
+/// release, whose SHA-256 the release lists as `digest`; or carries on with the
+/// one already running. A download that doesn't match `digest` is never run.
 #[tauri::command]
-pub fn self_update_start(app: AppHandle, url: String, version: String) -> Result<(), String> {
+pub fn self_update_start(app: AppHandle, url: String, version: String, digest: String) -> Result<(), String> {
   let kind = self_update_info().ok_or("this install can't update itself")?.kind;
   if !is_installer_url(&url, kind) {
     return Err(format!("not this install's installer: {url}"));
@@ -156,12 +255,13 @@ pub fn self_update_start(app: AppHandle, url: String, version: String) -> Result
   if !is_version(&version) {
     return Err(format!("not a version: {version}"));
   }
+  let sha256 = sha256_of(&digest).ok_or("the release doesn't list a checksum for this installer")?.to_owned();
   let game = game_path().ok_or("couldn't find the game")?;
   let dir = state_dir(&app)?;
   std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
   let helper = dir.join(HELPER_FILE);
   std::fs::write(&helper, HELPER).map_err(|e| e.to_string())?;
-  spawn_update(&dir, || helper_command(&helper, &url, kind, &version, &game))
+  spawn_update(&dir, || helper_command(&helper, &url, kind, &version, &sha256, &game))
 }
 
 #[cfg(test)]
@@ -176,15 +276,45 @@ mod tests {
     assert!(is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-ES-Windows-x64-AllUsers.msi"), "msi"));
     assert!(is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Linux-x64.AppImage"), "appimage"));
     assert!(is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-macOS-AppleSilicon-arm64.dmg"), "dmg-aarch64"));
-    // Another kind's installer, a .deb, another repo, a path that climbs, or anything a shell would read.
+    assert!(is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Linux-x64.deb"), "deb"));
+    // Another kind's installer, an unknown kind, another repo, a path that climbs, or anything a shell would read.
     assert!(!is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Windows-x64-AllUsers.msi"), "nsis"));
-    assert!(!is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Linux-x64.deb"), "deb"));
+    assert!(!is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Linux-x64.deb"), "rpm"));
+    assert!(!is_installer_url(&format!("{BASE}MarvelChampions-1.2.3-EN-Android.apk"), "apk"));
     assert!(!is_installer_url(
       "https://github.com/someone/else/releases/download/v1/MarvelChampions-1-EN-Linux-x64.AppImage",
       "appimage"
     ));
     assert!(!is_installer_url(&format!("{BASE}../x/MarvelChampions-1.2.3-EN-Linux-x64.AppImage"), "appimage"));
     assert!(!is_installer_url(&format!("{BASE}MarvelChampions-$(x)-EN-Linux-x64.AppImage"), "appimage"));
+  }
+
+  #[test]
+  fn a_checksum_is_githubs_sha256_digest() {
+    let hex = "73f3fd8aa378f534052f96dbd005318f285c3d4174a50fb84ded22c67ea80f49";
+    assert_eq!(sha256_of(&format!("sha256:{hex}")), Some(hex));
+    assert_eq!(sha256_of(hex), Some(hex));
+    assert_eq!(sha256_of("sha256:abc"), None);
+    assert_eq!(sha256_of(&format!("sha1:{hex}")), None);
+    assert_eq!(sha256_of(&format!("sha256:{}; rm", &hex[..60])), None);
+  }
+
+  #[test]
+  fn the_msi_is_told_by_its_windows_installer_entry_and_folder() {
+    // As `reg query` printed the .msi's entry for a game installed to G:\MarvelChampions.
+    let entry = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{E89A58A2}
+    DisplayVersion    REG_SZ    0.49.0
+    InstallLocation    REG_SZ    G:\MarvelChampions\
+    WindowsInstaller    REG_DWORD    0x1
+    DisplayName    REG_SZ    Marvel Champions
+";
+    let at = msi_install_location(entry).unwrap();
+    assert_eq!(at, r"G:\MarvelChampions\");
+    assert!(same_folder(Path::new(&at), Path::new(r"g:\marvelchampions")));
+    assert!(!same_folder(Path::new(&at), Path::new(r"G:\Other")));
+    // Not a Windows Installer entry, or one with no folder.
+    assert!(msi_install_location(&entry.replace("0x1", "0x0")).is_none());
+    assert!(msi_install_location("    WindowsInstaller    REG_DWORD    0x1\n").is_none());
   }
 
   #[test]

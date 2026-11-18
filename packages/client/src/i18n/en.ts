@@ -25,8 +25,8 @@ export const en = {
   "update.ask.heading": "Update the game",
   "update.ask.body":
     "Downloads version {version} while you play. Then restart: the game closes, installs it and starts again. Your saves stay as they are.",
-  "update.ask.bodyMsi":
-    "Downloads version {version} while you play. Then restart: the game closes, installs it and starts again, after Windows asks for an administrator's permission. Your saves stay as they are.",
+  "update.ask.bodyAdmin":
+    "Downloads version {version} while you play. Then restart: the game closes, your computer asks for an administrator's permission, and the game installs it and starts again. Your saves stay as they are.",
   "update.ask.start": "Update now",
   "update.ask.notNow": "Not now",
   "update.working.heading": "Downloading version {version}",

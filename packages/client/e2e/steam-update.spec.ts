@@ -10,6 +10,7 @@ import { openApp } from "./wave6-helpers-b.js";
  */
 
 const REPO = "https://github.com/quincarter/marvel-champions-digital-game";
+const DIGEST = `sha256:${"ab".repeat(32)}`;
 /** For the PR's screenshots: a folder, and a `WIDTHxHEIGHT` to take them at. */
 const SHOTS = process.env.STEAM_UPDATE_SHOTS;
 const SHOT_SIZE = process.env.STEAM_UPDATE_SIZE?.split("x").map(Number);
@@ -75,6 +76,7 @@ async function openAsSteamInstall(
           {
             name: "MarvelChampions-999.0.0-EN-Windows-x64-Setup.exe",
             browser_download_url: `${REPO}/releases/download/v999.0.0/MarvelChampions-999.0.0-EN-Windows-x64-Setup.exe`,
+            digest: DIGEST,
           },
         ],
       },
@@ -284,7 +286,9 @@ test.describe("an install from the release's installers (#843)", () => {
     await setStatus(page, { running: true, exitCode: null, log: "Downloading version 999.0.0...\n\r####  42.0%" });
     await pressStop(page, "SteamUpdateOverlay", "start");
     await waitForPhase(page, "working");
-    expect(await shellCalls(page)).toContain(`self_update_start ${JSON.stringify({ url: SETUP, version: "999.0.0" })}`);
+    expect(await shellCalls(page)).toContain(
+      `self_update_start ${JSON.stringify({ url: SETUP, version: "999.0.0", digest: DIGEST })}`,
+    );
     expect((await shellCalls(page)).some((call) => call.startsWith("steam_update_start"))).toBe(false);
     await shoot(page, "installer-working");
 
@@ -305,6 +309,24 @@ test.describe("an install from the release's installers (#843)", () => {
       async () => (await shellCalls(page)).some((call) => call.startsWith("steam_update_quit")),
       "the game asked to quit",
     );
+    expect(errors).toEqual([]);
+  });
+
+  test("a download that finishes after the panel is closed turns the banner to restart on the Title", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    await openAsSteamInstall(page, null, "", { kind: "nsis" });
+    await pressStop(page, "Title", "update-install");
+    await waitForPhase(page, "ask");
+    await setStatus(page, { running: true, exitCode: null, log: "####  10.0%" });
+    await pressStop(page, "SteamUpdateOverlay", "start");
+    await waitForPhase(page, "working");
+    await pressStop(page, "SteamUpdateOverlay", "close");
+    await waitForPhase(page, null);
+    await setStatus(page, { running: true, exitCode: null, log: "####  100.0%\nMC_UPDATE ready 999.0.0\n" });
+    await waitForText(page, "THE GAME HAS BEEN UPDATED", { sceneKey: "Title" });
+    await waitForStop(page, "update-restart");
     expect(errors).toEqual([]);
   });
 

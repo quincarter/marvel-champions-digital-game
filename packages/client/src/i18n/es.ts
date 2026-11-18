@@ -27,8 +27,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "update.ask.heading": "Actualizar el juego",
   "update.ask.body":
     "Descarga la versión {version} mientras juegas. Después reinicia: el juego se cierra, la instala y vuelve a abrirse. Tus partidas guardadas no cambian.",
-  "update.ask.bodyMsi":
-    "Descarga la versión {version} mientras juegas. Después reinicia: el juego se cierra, la instala y vuelve a abrirse, cuando Windows pida permiso de administrador. Tus partidas guardadas no cambian.",
+  "update.ask.bodyAdmin":
+    "Descarga la versión {version} mientras juegas. Después reinicia: el juego se cierra, tu equipo pide permiso de administrador, y el juego la instala y vuelve a abrirse. Tus partidas guardadas no cambian.",
   "update.ask.start": "Actualizar ahora",
   "update.ask.notNow": "Ahora no",
   "update.working.heading": "Descargando la versión {version}",

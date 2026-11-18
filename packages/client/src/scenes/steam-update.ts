@@ -46,6 +46,8 @@ export interface SteamUpdateSceneData {
   /** Who updates: the Steam script (the default) or the game's own updater, which downloads `installerUrl`. */
   readonly mode?: UpdateMode;
   readonly installerUrl?: string;
+  /** The installer's checksum as the release lists it (`sha256:<hex>`). */
+  readonly installerDigest?: string;
 }
 
 export class SteamUpdateOverlay extends Phaser.Scene {
@@ -128,10 +130,11 @@ export class SteamUpdateOverlay extends Phaser.Scene {
     this.#starting = true;
     try {
       // The shell starts a new log before it answers, so no poll can read the last run's as this one's.
-      const { mode = "steam", installerUrl, version } = this.#data;
+      const { mode = "steam", installerUrl, installerDigest, version } = this.#data;
       if (mode === "steam") await startSteamUpdate(cardLanguage());
-      else if (installerUrl !== undefined && version !== null) await startSelfUpdate(installerUrl, version);
-      else throw new Error("There's no installer to download for this update.");
+      else if (installerUrl !== undefined && installerDigest !== undefined && version !== null) {
+        await startSelfUpdate(installerUrl, version, installerDigest);
+      } else throw new Error("There's no installer to download for this update.");
       this.#started = true;
       await this.#poll();
     } catch (error) {

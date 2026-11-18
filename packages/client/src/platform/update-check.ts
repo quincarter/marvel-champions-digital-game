@@ -35,6 +35,8 @@ export interface InstallTarget {
 export interface ReleaseAsset {
   readonly name: string;
   readonly url: string;
+  /** GitHub's checksum of the file (`sha256:<hex>`), where the release lists one. */
+  readonly digest?: string;
 }
 
 export interface LatestRelease {
@@ -49,6 +51,8 @@ export interface AvailableUpdate {
   readonly version: string;
   /** This install's own installer in the new release, or null when it isn't known or isn't there. */
   readonly downloadUrl: string | null;
+  /** That installer's checksum, which the game's own updater checks the download against (`platform/self-update.ts`). */
+  readonly downloadDigest: string | null;
   /** The release page: the changelog, and every download to pick from. */
   readonly notesUrl: string;
 }
@@ -125,8 +129,9 @@ export function parseLatestRelease(json: unknown): LatestRelease | null {
   if (typeof tag !== "string" || parseVersion(tag) === null || !isRepoUrl(url)) return null;
   const assets: ReleaseAsset[] = [];
   for (const entry of Array.isArray(release.assets) ? release.assets : []) {
-    const { name, browser_download_url: download } = (entry ?? {}) as Record<string, unknown>;
-    if (typeof name === "string" && isRepoUrl(download)) assets.push({ name, url: download });
+    const { name, browser_download_url: download, digest } = (entry ?? {}) as Record<string, unknown>;
+    if (typeof name !== "string" || !isRepoUrl(download)) continue;
+    assets.push(typeof digest === "string" ? { name, url: download, digest } : { name, url: download });
   }
   return { version: tag.trim().replace(/^v/, ""), url, assets };
 }
@@ -151,7 +156,12 @@ export function updateFor(
   if (!assets.some((asset) => OS_INSTALLERS[target.os].test(asset.name))) return null;
   const file = target.kind === null ? null : KIND_INSTALLER[target.kind].file;
   const installer = file === null ? undefined : assets.find((asset) => file.test(asset.name));
-  return { version: release.version, downloadUrl: installer?.url ?? null, notesUrl: release.url };
+  return {
+    version: release.version,
+    downloadUrl: installer?.url ?? null,
+    downloadDigest: installer?.digest ?? null,
+    notesUrl: release.url,
+  };
 }
 
 let answered: Promise<AvailableUpdate | null> | null = null;

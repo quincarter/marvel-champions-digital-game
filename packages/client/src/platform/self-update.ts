@@ -33,9 +33,12 @@ export function selfUpdateInfo(): Promise<SelfUpdate | null> {
   return known;
 }
 
-/** Starts downloading `url` (this install's installer in release `version`), or carries on with the one running. */
-export function startSelfUpdate(url: string, version: string): Promise<void> {
-  return invokeShell("self_update_start", { url, version });
+/**
+ * Starts downloading `url` (this install's installer in release `version`, whose checksum the release lists as
+ * `digest`), or carries on with the one running. A download that doesn't match `digest` is never installed.
+ */
+export function startSelfUpdate(url: string, version: string, digest: string): Promise<void> {
+  return invokeShell("self_update_start", { url, version, digest });
 }
 
 /**

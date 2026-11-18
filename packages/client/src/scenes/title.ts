@@ -382,6 +382,11 @@ export class TitleScene extends Phaser.Scene {
       this.#rebuild();
     });
     this.#checkReadyUpdate();
+    // A download left going in the background can finish while the player stays here: ask again now and then, so
+    // the banner turns to "restart to apply" without leaving the screen. (Phaser stops the timer with the scene.)
+    if (detectPlatform() === "tauri") {
+      this.time.addEvent({ delay: READY_CHECK_MS, loop: true, callback: () => this.#checkReadyUpdate() });
+    }
     void lastUpdateFailed().then((failed) => {
       if (!failed || !this.sys.isActive()) return;
       this.#updateFailed = true;
@@ -1086,7 +1091,9 @@ export class TitleScene extends Phaser.Scene {
     if (this.#readyVersion !== null && banner) return this.#drawReadyBanner(banner, this.#readyVersion);
     if (!update && this.#oldSave && banner) return this.#drawOldSaveBanner(banner);
     if (!update || !banner) return [];
-    const all = updateActions(update, this.#steam?.canUpdate === true, this.#selfUpdate !== null);
+    // The game's own updater checks the download against the release's checksum, so it needs one.
+    const selfUpdate = this.#selfUpdate !== null && update.downloadDigest !== null;
+    const all = updateActions(update, this.#steam?.canUpdate === true, selfUpdate);
     const actions = all.slice(all.length - updateBannerActionCount(banner, all.length));
     const parts = updateBannerParts(banner, actions.length);
     this.add
@@ -1213,10 +1220,12 @@ export class TitleScene extends Phaser.Scene {
     this.scene.launch(SCENES.steamUpdate, {
       version: update.version,
       fallbackUrl: update.downloadUrl ?? update.notesUrl,
-      ...(installer && update.downloadUrl !== null
+      ...(installer && update.downloadUrl !== null && update.downloadDigest !== null
         ? {
-            mode: this.#selfUpdate?.kind === "msi" ? "installer-msi" : "installer",
+            // These install for every user, so the system asks for an administrator's permission first.
+            mode: ["msi", "deb", "rpm"].includes(this.#selfUpdate?.kind ?? "") ? "installer-admin" : "installer",
             installerUrl: update.downloadUrl,
+            installerDigest: update.downloadDigest,
           }
         : {}),
     } satisfies SteamUpdateSceneData);
@@ -1474,6 +1483,9 @@ export class TitleScene extends Phaser.Scene {
     goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
   }
 }
+
+/** How often the Title asks whether a background update download has finished (`#checkReadyUpdate`). */
+const READY_CHECK_MS = 2000;
 
 /**
  * Depth ladder for the title picture: the ink ground and dot grid under it, the picture, then (phone only) the
