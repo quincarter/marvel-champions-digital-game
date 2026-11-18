@@ -29,6 +29,7 @@ import {
   isLooseVillainCard,
   isSeatlessIdentity,
   locateCard,
+  isMinion,
   mainSchemeStateOf,
   mainSchemeStates,
   mustCard,
@@ -385,7 +386,14 @@ export function discardStatusCards(
   const held = getInstance(ctx.state, id)?.statuses[status] ?? 0;
   if (held <= keep) return [];
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: keep } }));
-  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause });
+  // An enemy (a minion, even a converted ally, or the villain) schemes; a hero identity or ally thwarts.
+  const cancelled =
+    cause === "cancelledSchemeOrThwart"
+      ? isMinion(ctx.state, id) || mustCardOf(ctx.state, id).type === "villain"
+        ? ("scheme" as const)
+        : ("thwart" as const)
+      : undefined;
+  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: cause, ...(cancelled ? { cancelled } : {}) });
   return Array.from({ length: held - keep }, () => ({ kind: "statusDiscarded", instanceId: id, status, cause }));
 }
 

@@ -156,6 +156,25 @@ describe("wave 3 log lines", () => {
     expect(status(villain)!.text).toContain("scheme cancelled");
   });
 
+  test("a statusRemoved's recorded activity wins over the card's printed type", () => {
+    const identity = state.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const line = (cancelled: "thwart" | "scheme") =>
+      logLine(
+        {
+          type: "statusRemoved",
+          instanceId: identity,
+          status: "confused",
+          reason: "cancelledSchemeOrThwart",
+          cancelled,
+        },
+        state,
+        me,
+        POOL_DEPS,
+      )!.text;
+    expect(line("scheme")).toContain("scheme cancelled");
+    expect(line("thwart")).toContain("thwart cancelled");
+  });
+
   test("playCostReduced names both the reducing ability's card and the card it reduced", () => {
     const identity = state.players.find((p) => p.playerId === me)!.identity.instanceId;
     const villain = activeVillain(state).instanceId;

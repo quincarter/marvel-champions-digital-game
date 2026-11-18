@@ -964,6 +964,11 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly status: "stunned" | "confused" | "tough";
       readonly reason: StatusDiscardCause;
+      /**
+       * Which activity a `cancelledSchemeOrThwart` removal cancelled, read from the character's role when it happened
+       * (an ally treated as a minion schemes, so it cancels a scheme). Absent in older logs.
+       */
+      readonly cancelled?: "thwart" | "scheme";
     }
   | {
       readonly type: "threatPlaced";

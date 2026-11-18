@@ -801,7 +801,11 @@ function describe(
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":
       return {
-        text: statusRemovedText(event.reason, card(event.instanceId), isPlayerCharacter(state, event.instanceId)),
+        text: statusRemovedText(
+          event.reason,
+          card(event.instanceId),
+          event.cancelled ? event.cancelled === "thwart" : isPlayerCharacter(state, event.instanceId),
+        ),
         tags: [{ status: event.status, spent: true }],
         voice: event.reason === "cancelledAttack" || event.reason === "cancelledSchemeOrThwart" ? "villain" : "player",
       };
@@ -1934,7 +1938,7 @@ const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedSta
   }
 };
 
-/** A hero identity (either form) or ally: when its confused status is spent the cancelled activity is its thwart, not a scheme. */
+/** Fallback for logs saved before `statusRemoved.cancelled`: a hero identity (either form) or ally: when its confused status is spent the cancelled activity is its thwart, not a scheme. */
 const isPlayerCharacter = (state: GameState, id: InstanceId): boolean => {
   const type = cardOf(state, id)?.type;
   return type === "hero_identity" || type === "ally";
