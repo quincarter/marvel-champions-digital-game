@@ -126,8 +126,11 @@ function evaluateQuery(
 ): QueryValue {
   const context = contextFor(state, playerId, deps);
   switch (query.kind) {
-    case "cardsThatEnteredPlay":
-      return { kind: "cards", instanceIds: matching(state, enteredPlay(events), query.query, context) };
+    case "cardsThatEnteredPlay": {
+      const entered = enteredPlay(events);
+      const ids = query.distinct ? [...new Set(entered)] : entered;
+      return { kind: "cards", instanceIds: matching(state, ids, query.query, context) };
+    }
     case "cardsRemovedFromGame":
       return { kind: "cards", instanceIds: matching(state, removedFromGame(events), query.query, context) };
     case "cardsDefeated":

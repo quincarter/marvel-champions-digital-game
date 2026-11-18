@@ -131,8 +131,8 @@ describe("campaignDossierOverview / campaignDossierLog / campaignDossierHero", (
     expect(experimental).toBeDefined();
     expect(experimental.label).toBe("Stolen weapons");
     expect(experimental.when).toBe("Shuffled into every remaining issue.");
-    // 0: this fixture forces the outcome without actually playing the scenario, so nothing entered play.
-    expect(experimental.bigValue).toBe("0");
+    // 1: the weapon Attack on Mount Athena 1B's When Revealed attaches to Crossbones during setup (#805).
+    expect(experimental.bigValue).toBe("1");
     // A bookkeeping field the printed log sheet has no column for is never shown, even though it's `shared` scope.
     expect(overview.world.some((row) => row.id === "hydraPrison")).toBe(false);
   });

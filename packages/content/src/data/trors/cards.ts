@@ -1467,10 +1467,13 @@ export const TRORS_CARDS: readonly AnyCard[] = [
         targetThreat: { base: 0, perPlayer: 3 },
         acceleration: { base: 0, perPlayer: 1 },
         icons: [],
-        text: { printed: "", current: "" },
+        text: {
+          printed: "When Revealed: Reveal the top card of the Experimental Weapons deck.",
+          current: "When Revealed: Reveal the top card of the Experimental Weapons deck.",
+        },
         traits: [],
         keywords: [],
-        abilities: [],
+        abilities: [{ id: abilityId("04061b.when-revealed") }],
         image: imageRef("/bundles/cards/04061.png"),
         aSide: {
           text: {
