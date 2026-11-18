@@ -62,8 +62,13 @@ swap_paths() {
 # A disk that can't swap is found out now, before the game quits: replacing an app there takes two renames, and a crash
 # between them would leave no game, so the game keeps offering the download there instead.
 if [ "$kind" = dmg ]; then
+  # Each folder holds a file naming it, and both must have traded places: a volume whose swap reports success but only
+  # renames one over the other (seen on macFUSE) is caught here.
   mkdir "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
-  swap_paths "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b" ||
+  : > "$parent/.mc-swap-test.$$.a/a"
+  : > "$parent/.mc-swap-test.$$.b/b"
+  { swap_paths "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b" &&
+    [ -f "$parent/.mc-swap-test.$$.a/b" ] && [ -f "$parent/.mc-swap-test.$$.b/a" ]; } ||
     die "the disk the game is on can't replace an app in one step, so it can't update itself there. Download the update instead."
   rm -rf "$parent/.mc-swap-test.$$.a" "$parent/.mc-swap-test.$$.b"
 fi

@@ -204,19 +204,24 @@ fn can_swap_in(dir: &Path) -> bool {
   const RENAME_SWAP: u32 = 0x2;
   let a = dir.join(format!(".mc-swap-probe-{}.a", std::process::id()));
   let b = dir.join(format!(".mc-swap-probe-{}.b", std::process::id()));
+  // Each folder holds a file naming it, so a swap that reports success but only renames one over the other (a macFUSE
+  // volume has been seen to) is caught: both folders must still be there, each holding the other's file.
   let swap = || -> bool {
-    if std::fs::create_dir(&a).is_err() || std::fs::create_dir(&b).is_err() {
-      return false;
-    }
-    let (Ok(from), Ok(to)) = (CString::new(a.as_os_str().as_bytes()), CString::new(b.as_os_str().as_bytes())) else {
+    let made = std::fs::create_dir(&a).is_ok()
+      && std::fs::create_dir(&b).is_ok()
+      && std::fs::write(a.join("a"), b"a").is_ok()
+      && std::fs::write(b.join("b"), b"b").is_ok();
+    let (true, Ok(from), Ok(to)) = (made, CString::new(a.as_os_str().as_bytes()), CString::new(b.as_os_str().as_bytes()))
+    else {
       return false;
     };
     // SAFETY: both are NUL-terminated paths that live through the call.
-    unsafe { renamex_np(from.as_ptr(), to.as_ptr(), RENAME_SWAP) == 0 }
+    let ok = unsafe { renamex_np(from.as_ptr(), to.as_ptr(), RENAME_SWAP) == 0 };
+    ok && a.join("b").is_file() && b.join("a").is_file() && !a.join("a").exists() && !b.join("b").exists()
   };
   let swapped = swap();
-  let _ = std::fs::remove_dir(&a);
-  let _ = std::fs::remove_dir(&b);
+  let _ = std::fs::remove_dir_all(&a);
+  let _ = std::fs::remove_dir_all(&b);
   swapped
 }
 
