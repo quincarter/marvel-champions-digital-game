@@ -59,7 +59,6 @@
   "Now an event she returns to hand is <b>offered again off the same trigger</b>, so a second Turn the Tide deals another 3, and Wiggle Room can answer the same attack twice. A card in play that used its ability is still offered only once.": "Ahora un evento que devuelve a su mano <b>se ofrece otra vez con el mismo disparador</b>, así que un segundo Turn the Tide hace otros 3, y Wiggle Room puede responder dos veces al mismo ataque. Una carta en juego que ya usó su capacidad se sigue ofreciendo una sola vez.",
   "FFG ruling (Ms. Marvel): a returned Wiggle Room can be played again \"the same as if you had 2 copies\".": "Resolución de FFG (Ms. Marvel): un Wiggle Room devuelto puede jugarse otra vez, \"the same as if you had 2 copies\".",
   "Also in v0.49.0": "También en v0.49.0",
-  "Issue #829 · PR #830": "Issue #829 · PR #830",
   "Kingpin's <b>Public Support (High)</b> replaces a boost card only when it can remove the full 1 per hero support counters. FFG's rules specialist answered by email that the whole effect has to resolve, so with fewer counters Kingpin is given the boost card and the counters stay.": "<b>Public Support (High)</b> de Kingpin reemplaza una carta de potenciación solo cuando puede quitar todos los contadores de apoyo, 1 por héroe. El especialista en reglas de FFG respondió por correo que el efecto completo tiene que resolverse, así que con menos contadores Kingpin recibe la carta de potenciación y los contadores se quedan.",
   "Thank you!": "¡Gracias!",
   "Keep the ideas and reports coming from Pause ▸ Report a problem, a GitHub issue or the community Discord.": "Sigue enviando ideas y reportes desde Pause ▸ Report a problem, un issue en GitHub o el Discord de la comunidad.",
@@ -95,5 +94,7 @@
   "Manual adjust for Stephen Strange, exhausted: +1 damage, Give stunned, Give confused, Give tough, Ready, Draw 1 and Change to hero": "Manual adjust para Stephen Strange, agotado: +1 damage, Give stunned, Give confused, Give tough, Ready, Draw 1 y Change to hero",
   "This game won't count: Manual adjust changes the table by hand, and the game will no longer count toward your stats or achievements, with Cancel and Adjust anyway": "This game won't count: Manual adjust cambia la mesa a mano, y la partida dejará de contar para tus estadísticas o logros, con Cancel y Adjust anyway",
   "Pause after an adjustment: Adjusted: not counted toward stats above Manual adjust and Concede, and Manual adjust: +1 damage on Peter Parker in Jump to a moment": "Pause después de un ajuste: Adjusted: not counted toward stats sobre Manual adjust y Concede, y Manual adjust: +1 damage on Peter Parker en Jump to a moment",
-  "Code shipped since v0.48.0": "Código publicado desde v0.48.0"
+  "Code shipped since v0.48.0": "Código publicado desde v0.48.0",
+  "Issues #805, #829 · PRs #819, #830": "Issues #805, #829 · PRs #819, #830",
+  "<b>Crossbones starts with an Experimental Weapon</b>, revealed when Attack on Mount Athena 1B comes into play, and in The Rise of Red Skull campaign every Experimental Weapon recorded in the log is shuffled into scenarios 2 to 5.": "<b>Crossbones empieza con un Experimental Weapon</b>, revelado cuando Attack on Mount Athena 1B entra en juego, y en la campaña The Rise of Red Skull cada Experimental Weapon anotado en el registro se baraja en los escenarios 2 a 5."
 }

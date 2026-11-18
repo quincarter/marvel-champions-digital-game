@@ -1,8 +1,8 @@
 ## Take It Back, Set It Right
 
-A misclick or a bug no longer has to cost you the game. Undo now reaches past the start of your turn, a draw, a reveal and the villain phase, one move per press, and Settings ▸ Gameplay ▸ Undo past your turn picks Allow, Warn or Off. Pause ▸ Manual adjust corrects the table by hand: damage, threat, counters, statuses, exhausting and readying, discards, a draw and your hero's form. Both came from @sgaon42's request (#791, #793), and a game you change that way stops counting toward stats and achievements. Giant Strength now waits for Giant hero form, thanks to GarethMagis on Discord (#794), One Way or Another draws only when its search finds a side scheme, thanks to @javgoro's report (#795), and an event Ms. Marvel's Morphogenetics returns to hand can be played again off the same trigger, thanks to Gooffrey [KRBY] on Discord (#804). Kingpin's Public Support (High) now needs its full 1 per hero counters, as FFG ruled (#829). Thank you for playing!
+A misclick or a bug no longer has to cost you the game. Undo now reaches past the start of your turn, a draw, a reveal and the villain phase, one move per press, and Settings ▸ Gameplay ▸ Undo past your turn picks Allow, Warn or Off. Pause ▸ Manual adjust corrects the table by hand: damage, threat, counters, statuses, exhausting and readying, discards, a draw and your hero's form. Both came from @sgaon42's request (#791, #793), and a game you change that way stops counting toward stats and achievements. Giant Strength now waits for Giant hero form, thanks to GarethMagis on Discord (#794), One Way or Another draws only when its search finds a side scheme, thanks to @javgoro's report (#795), and an event Ms. Marvel's Morphogenetics returns to hand can be played again off the same trigger, thanks to Gooffrey [KRBY] on Discord (#804). Crossbones starts with an Experimental Weapon, and Red Skull campaign weapons carry over (#805). Kingpin's Public Support (High) now needs its full 1 per hero counters, as FFG ruled (#829). Thank you for playing!
 
-**[Read the full v0.49.0 report on the site ↗](https://champions-digital-game.com/releases/v0.49.0/)**: Undo past your turn and its three settings, Manual adjust, how adjusted games stay out of your stats, the fixes, Public Support's ruling and the thank-you wall.
+**[Read the full v0.49.0 report on the site ↗](https://champions-digital-game.com/releases/v0.49.0/)**: Undo past your turn and its three settings, Manual adjust, how adjusted games stay out of your stats, the fixes, Crossbones' weapon, Public Support's ruling and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.49.0/index.es.html)**
 
@@ -16,7 +16,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 
 ![You asked, we fixed: Giant Strength waits for Giant form, reported by GarethMagis, One Way or Another needs a side scheme, reported by @javgoro, and Morphogenetics replays Turn the Tide, reported by Gooffrey [KRBY]](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5caec17116838c2d43e1cd31f93e4d5d7a2a4248/docs/screenshots/releases/v0.49.0/v0-49-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.49.0: Public Support (High) needs its full 1 per hero counters, as FFG ruled](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5caec17116838c2d43e1cd31f93e4d5d7a2a4248/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-also-in-v0-49-0.jpg)
+![Also in v0.49.0: Crossbones starts with an Experimental Weapon and campaign weapons carry over, and Public Support (High) needs its full 1 per hero counters, as FFG ruled](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5caec17116838c2d43e1cd31f93e4d5d7a2a4248/docs/screenshots/releases/v0.49.0/v0-49-0-release-06-also-in-v0-49-0.jpg)
 
 ![Thank you to @sgaon42, GarethMagis, @javgoro and Gooffrey [KRBY]](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5caec17116838c2d43e1cd31f93e4d5d7a2a4248/docs/screenshots/releases/v0.49.0/v0-49-0-release-07-thank-you.jpg)
 
@@ -38,6 +38,7 @@ A misclick or a bug no longer has to cost you the game. Undo now reaches past th
 - Ant-Man's Giant Strength is only offered after changing to Giant hero form, and Ant-Man's Helmet only offers the response that matches the new form (#794).
 - One Way or Another no longer draws 3 cards when the search finds no side scheme in the encounter deck, and takes the side scheme it finds (#795).
 - The release history e2e specs pick the newest release and report instead of v0.40.0, so a new release no longer breaks them (#802).
+- Crossbones now starts with an Experimental Weapon from Attack on Mount Athena 1B, and in the Red Skull campaign every recorded Experimental Weapon is shuffled into scenarios 2 to 5 (#805).
 - Ms. Marvel's Morphogenetics: an event she returns to hand (Turn the Tide, Wiggle Room) can be played again off the same trigger, as FFG ruled (#804)
 - Kingpin's Public Support (High) now replaces a boost card only when it can remove the full 1 per hero support counters, as FFG ruled (#829).
 
