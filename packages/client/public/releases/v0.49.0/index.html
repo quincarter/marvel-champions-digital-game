@@ -625,9 +625,9 @@
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
           draw, a reveal and the villain phase, and Pause has a Manual adjust screen to correct the table by hand. Both
           came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Pause's
-          search now finds any setting, every search box forgives typos, and schemes can be drawn large.
-          @bluefireF5ran's ten reports fix Madame Web, Wolverine's Claws, Silk Sense and more, and Giant Strength, One
-          Way or Another and Morphogenetics are fixed too.
+          search now finds any setting, every search box forgives typos, schemes can be drawn large, and cards speak
+          Spanish. @bluefireF5ran's ten reports fix Madame Web, Wolverine's Claws, Silk Sense and more, and Giant
+          Strength, One Way or Another and Morphogenetics are fixed too.
         </p>
       </section>
 
@@ -979,6 +979,52 @@
         </div>
       </div>
 
+      <!-- ============ SPANISH ============ -->
+      <div class="band">
+        <h2>Cards that speak Spanish</h2>
+        <div class="lab">Issue #391 · PR #835</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Thor's Allspeak</span></div>
+      </div>
+      <p class="lead">
+        <b>With the game in Spanish, the Inspect sheet shows each card's Spanish name, rules text and flavor,</b> and
+        deck lists show Spanish titles and sort by them. The text comes from MarvelCDB's Spanish card database.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/spanish-inspect.webp"
+            alt="The Inspect sheet in Spanish: Voltereta hacia atrás, with its Spanish rules text and flavor under the card"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Inspect in Spanish: Voltereta hacia atrás (Backflip)</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/spanish-phone.webp"
+            alt="The Spanish Inspect sheet on a phone: ¡Por la justicia!, with its Spanish rules text and flavor"
+            width="412"
+            height="924"
+            loading="lazy"
+          />
+          <figcaption>On a phone: ¡Por la justicia! (For Justice!)</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>About <b>4,000 card faces</b> show Spanish text. Any card not translated yet stays in English.</li>
+          <li>
+            A face whose Spanish doesn't match its English, or a card with errata, keeps the English text, so what you
+            read is always what the game plays.
+          </li>
+          <li>English sessions never download the Spanish text.</li>
+        </ul>
+      </div>
+
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
@@ -1171,22 +1217,22 @@
       <section class="stats" aria-label="Code shipped since v0.48.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">19</div>
+          <div class="n">20</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">270</div>
+          <div class="n">350</div>
           <p>across the engine, the cards, the client and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">13,271</div>
-          <p>most of them Undo, Manual adjust and their tests.</p>
+          <div class="n c-green">271,471</div>
+          <p>most of them MarvelCDB's Spanish card data, cached in the repo.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">618</div>
+          <div class="n c-red">649</div>
           <p>code the new Undo and adjust paths replaced.</p>
         </div>
       </section>
