@@ -16,6 +16,8 @@ export interface LocalizedFace {
   readonly t?: string;
   /** Fingerprint of the English rules text `t` translates (`textFingerprint`); `t` shows only on a face that matches. */
   readonly e?: string;
+  /** For a face with no rules text: fingerprint of the English flavor `f` translates. */
+  readonly g?: string;
   readonly f?: string;
 }
 

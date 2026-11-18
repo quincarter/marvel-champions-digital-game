@@ -115,11 +115,14 @@ describe("the Inspect sheet in Spanish", () => {
     expect(sheet.printedText).toMatch(/return Mockingbird to her owner's hand/);
   });
 
-  it("keeps the English where a code's English is another face's (Rhino's scheme, whose Core scans are crossed)", async () => {
+  it("reads the setup side's own text where its scan is named for the other side (Rhino's scheme, Core's crossed scans)", async () => {
     useSpanish();
     await loadSpanish();
     const setup = cardInspectModel(card("01097a"), { kind: "mainSchemeStage", stageIndex: 0, side: "A" });
-    expect(setup.rulesText).toMatch(/^Contents: Rhino/);
+    // The A-side scan is 01097b.png, whose MarvelCDB text is the B side's loss condition; 01097a is the setup side.
+    expect(setup.rulesText).toMatch(/^Contenido: Rino/);
+    const loss = cardInspectModel(card("01097a"), { kind: "mainSchemeStage", stageIndex: 0, side: "B" });
+    expect(loss.rulesText).not.toMatch(/^Contenido/);
   });
 
   it("keeps the English where MarvelCDB's Spanish states other numbers (Honorary Avenger 03025, Vulture 27099)", async () => {
@@ -135,6 +138,22 @@ describe("the Inspect sheet in Spanish", () => {
       expect(spanish.rulesText).toBe(english.rulesText);
       expect(spanish.flavor).toBe(english.flavor);
     }
+  });
+
+  it("finds a face whose scan is not named by its MarvelCDB code (Vision's Intangible, 26002 scanned as 26002a)", async () => {
+    useSpanish();
+    await loadSpanish();
+    const front = cardInspectModel(card("26002"), defaultFaceFor(card("26002")));
+    expect(front.rulesText).toBe(cardTextDisplayEs(TABLE["26002"]!.t!));
+  });
+
+  it("shows a flavor only on the face whose English it translates", async () => {
+    useSpanish();
+    await loadCardText("es", () =>
+      Promise.resolve({ "01003": { f: "Otra cara", g: "no-coincide" }, "01004": { f: "Sin huella" } }),
+    );
+    expect(cardInspectModel(card("01003"), { kind: "front" }).flavor).not.toBe("Otra cara");
+    expect(cardInspectModel(card("01004"), { kind: "front" }).flavor).not.toBe("Sin huella");
   });
 
   it("falls back to English for a face the table lacks, and in an English session", async () => {

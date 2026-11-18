@@ -63,7 +63,7 @@ import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHist
 import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
 import { cardTextDisplay, cardTextDisplayEs } from "./card-text-display.js";
-import { localizedFaceOf, textFingerprint } from "./card-text.js";
+import { localizedFaceOf, textFingerprint, type LocalizedFace } from "./card-text.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { resourceLimitOf } from "./resource-limit.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
@@ -998,24 +998,35 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
  */
 function localizedSheet(sheet: InspectModel, card: AnyCard, face: CardFace): InspectModel {
   const lang = artLanguageNow();
-  const local = localizedFaceOf(printedFaceCodeOf(card, face), lang);
-  if (!local) return sheet;
-  const english = printedFaceNameOf(card, face);
-  // The Spanish rules text and flavor show only where they translate this face's own English: MarvelCDB's English
-  // for the code must fingerprint the same as the data's printing (Core's main schemes name their scans crossed, so a
-  // code can belong to the other side), and the face must carry no errata (Marked for Death 04028: MarvelCDB's Spanish
-  // translates the printing, not the correction). Anything else keeps the English text and its errata diff.
+  // The face's scan names its MarvelCDB code, mostly: Vision's Intangible scans as 26002a where MarvelCDB says 26002,
+  // so the code without its letter is tried too, then the card's own id.
+  const stem = printedFaceCodeOf(card, face);
+  if (stem === null) return sheet;
+  const codes = [...new Set([stem, stem.replace(/a$/, ""), card.id as string])];
+  // The Spanish rules text and flavor show only where they translate this face's own English: MarvelCDB's English for
+  // the code must fingerprint the same as the data's printing (`e`; or, for a face with no rules text, its flavor, `g`).
+  // Core's main schemes name their scans crossed, so a code can belong to the other side.
   const printing = textOf(card, face);
+  const englishFlavor = flavorOf(card, face);
+  const ownFace = (entry: LocalizedFace): boolean =>
+    entry.e !== undefined
+      ? entry.e === textFingerprint(printing.printed || printing.current)
+      : entry.g !== undefined && englishFlavor !== null && entry.g === textFingerprint(englishFlavor);
+  const entries = codes.map((code) => localizedFaceOf(code, lang));
+  const matched = entries.find((entry) => entry !== null && ownFace(entry)) ?? null;
+  const named = matched ?? entries[0] ?? entries[1] ?? null;
+  if (!named) return sheet;
+  const english = printedFaceNameOf(card, face);
+  // A face with errata keeps the English current text and its errata diff (Marked for Death 04028: MarvelCDB's Spanish
+  // translates the printing, not the correction), and so does a Balanced scan.
   const errata = printing.printed !== "" && printing.printed !== printing.current;
-  const matches = local.e !== undefined && local.e === textFingerprint(printing.printed || printing.current);
-  const ownFace = matches && !errata;
-  const text = local.t !== undefined && ownFace && balancedTextOf(artFor(card, face)) === null ? local.t : null;
+  const text = matched?.t !== undefined && !errata && balancedTextOf(artFor(card, face)) === null ? matched.t : null;
   return {
     ...sheet,
     name:
-      local.n !== undefined && sheet.name.startsWith(english) ? local.n + sheet.name.slice(english.length) : sheet.name,
+      named.n !== undefined && sheet.name.startsWith(english) ? named.n + sheet.name.slice(english.length) : sheet.name,
     ...(text === null ? {} : { rulesText: lang === "es" ? cardTextDisplayEs(text) : text, printedText: null }),
-    ...(local.f === undefined || (local.e !== undefined && !matches) ? {} : { flavor: local.f }),
+    ...(matched?.f === undefined ? {} : { flavor: matched.f }),
   };
 }
 
