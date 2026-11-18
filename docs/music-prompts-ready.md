@@ -10,11 +10,11 @@ Rename this track. Its title is exactly "<the title>". Use that as the name and 
 
 Tracks already delivered are folded into the collapsed section at the bottom, **Already in the game**, so only what is left shows here.
 
-## What's left (2026-11-18)
+**What's left** (updated 2026-11-18):
 
 **New tracks (9):** Captain Marvel (Registration), She-Hulk (Registration) and Vision (Resistance), three each.
 
-**Remakes of tracks already in the game (25, optional):** Crossbones' heroes win; The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
+**Remakes of tracks already in the game (24, optional):** The Galaxy's Most Wanted's five battle tracks, its box-wide villain-wins track and its campaign finale; Sinister Motives' five scenarios (three each) and its campaign interlude and finale.
 
 # Wave 10: Civil War
 
@@ -159,26 +159,6 @@ Title: "A Synthetic Heart"
 # Regenerating tracks that already exist
 
 These slots already have music. The blocks below remake them in the current style, under the titles they already carry, so a new file drops straight into the same slot and the jukebox entry does not change.
-
-# The Rise of Red Skull (existing tracks)
-
-## Crossbones
-
-Folder: `music/scenarios/crossbones/`
-
-### When the Siege Breaks (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
-
-Title: "When the Siege Breaks"
-```
 
 # The Galaxy's Most Wanted (existing tracks)
 
@@ -538,10 +518,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 96 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 97 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 96 prompts already used</summary>
+<summary>Show the 97 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1903,20 @@ Use the same main melody and instruments as the battle track I just generated.
 A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
 
 Title: "Calculated Finality"
+```
+
+### When the Siege Breaks (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A ruthless masked mercenary in body armor with a growing arsenal of experimental weapons, leading a paramilitary assault through city streets. Hard, modern and tactical: pounding kick-and-snare combat drums, low chugging strings, clipped brass stabs, gritty distorted synth bass, a short brutal four-note theme that keeps returning heavier each time. About 136 BPM, D minor, relentless and disciplined.
+
+Title: "When the Siege Breaks"
 ```
 
 </details>
