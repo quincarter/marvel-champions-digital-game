@@ -15,7 +15,7 @@
 //! game isn't in it yet, and on Linux the game is an AppImage (the script adds
 //! an AppImage; a .deb or .rpm install is the system's).
 
-use crate::steam_install::{running_game, spawn_update, state_dir, steam_install_present, STEAM_ADD_JOB};
+use crate::steam_install::{running_game, spawn_update, state_dir, STEAM_ADD_JOB};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -109,6 +109,11 @@ fn launched_by_steam() -> bool {
 /// What the script adds to Steam: the exe on Windows, the .app around it on
 /// macOS, the AppImage on Linux (none for a .deb or .rpm install).
 fn game_path() -> Option<PathBuf> {
+  // Windows: only a game one of the release's installers put there, which the script's updates know how to update
+  // (the same provenance check the game's own updater uses). A copied or portable exe keeps its download link.
+  if cfg!(windows) && crate::self_update::windows_installer_kind().is_empty() {
+    return None;
+  }
   if cfg!(all(unix, not(target_os = "macos"))) && std::env::var_os("APPIMAGE").is_none() {
     return None;
   }
@@ -142,7 +147,9 @@ fn folder_writable(file: &Path) -> bool {
 /// game is already in it, or this install can't be added.
 #[tauri::command]
 pub fn steam_add_info(app: AppHandle) -> Option<SteamAdd> {
-  if cfg!(debug_assertions) || launched_by_steam() || steam_install_present(&app) {
+  // Not the script's install record: a Steam account signed in since it was written, or a second Steam install, may
+  // still lack the game. Every signed-in user's shortcut list (below) is what says whether there is anything to add.
+  if cfg!(debug_assertions) || launched_by_steam() {
     return None;
   }
   let game = game_path()?;

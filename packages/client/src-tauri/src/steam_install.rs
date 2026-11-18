@@ -170,11 +170,6 @@ pub fn steam_install_info(app: AppHandle) -> Option<SteamInstall> {
   Some(SteamInstall { can_update: dir.join(SCRIPT_FILE).is_file() })
 }
 
-/// Whether the script's record names this game: it is in Steam already (steam_add.rs).
-pub(crate) fn steam_install_present(app: &AppHandle) -> bool {
-  steam_install_info(app.clone()).is_some()
-}
-
 #[cfg(windows)]
 fn script_command(script: &Path, language: &str) -> Command {
   use std::os::windows::process::CommandExt;
