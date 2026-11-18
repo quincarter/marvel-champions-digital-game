@@ -162,6 +162,8 @@ export const SCENES = {
   pileView: "PileViewOverlay",
   /** The cards left in your deck or the encounter deck, with counts and never in order (`scenes/deck-left.ts`). */
   deckLeft: "DeckLeftOverlay",
+  /** Every scheme in play fanned out from the table's scheme stack (`scenes/scheme-fan.ts`, Stack schemes). */
+  schemeFan: "SchemeFanOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
   /** "Report an issue" (#176, `scenes/report-issue.ts`): copy or download the log, a screenshot tip, a GitHub link. */

@@ -86,6 +86,7 @@ const BASE: Settings = {
   inspectCard: "large",
   cardSize: "standard",
   largeSchemes: false,
+  schemeStack: false,
   playAreaOrder: "played",
   hoverHeroCard: true,
   hoverVillainCard: true,
@@ -150,6 +151,7 @@ describe("settingsRowInfoOf", () => {
       inspectCard: "large",
       cardSize: "standard",
       largeSchemes: false,
+      schemeStack: false,
       playAreaOrder: "played",
       hoverHeroCard: true,
       hoverVillainCard: true,
@@ -206,6 +208,13 @@ describe("settingsRowInfoOf", () => {
     expect(on.largeSchemes).toBe(true);
     expect(settingsRowInfoOf(on).find((r) => r.id === "large-schemes")?.on).toBe(true);
     expect(nextSettingsAfterToggle(on, "large-schemes", 1).largeSchemes).toBe(false);
+  });
+
+  test("Stack schemes is off by default and toggles on its own", () => {
+    expect(settingsRowInfoOf(BASE).find((r) => r.id === "scheme-stack")?.on).toBe(false);
+    const on = nextSettingsAfterToggle(BASE, "scheme-stack", 1);
+    expect(on.schemeStack).toBe(true);
+    expect(on.largeSchemes).toBe(false);
   });
 
   test("sound is available with no unavailable reason", () => {

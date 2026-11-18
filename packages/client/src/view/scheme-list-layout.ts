@@ -294,6 +294,69 @@ export function largeSchemeListLayout(
   return { rows, viewport, heights, scrolls: sum(heights) > viewport.height, shape };
 }
 
+/** The Stack schemes header: the "1 of 3" count, the arrows and Fan out. */
+export const STACK_HEADER_HEIGHT = 30;
+/** How much of each card behind the front one shows above it: its printed name band. */
+export const STACK_PEEK = 22;
+/** At most this many cards show behind the front one; the count says how many more. */
+export const STACK_MAX_BEHIND = 3;
+/** Each card further back is this much narrower on each side, so the stack reads as a deck seen from the front. */
+const STACK_INSET_STEP = 8;
+
+export interface SchemeStackLayout {
+  /** The header strip across the top of the panel. */
+  readonly header: Rect;
+  /** The front card's row and its card shape, as `largeSchemeListLayout` places a single scheme. */
+  readonly front: { readonly rect: Rect; readonly shape: LargeSchemeShape };
+  /**
+   * The cards behind, nearest first: where each card is drawn (mostly hidden behind the one in front) and `peek`, the
+   * band of it that shows, which is its tap, focus and target rect.
+   */
+  readonly behind: readonly { readonly card: Rect; readonly peek: Rect }[];
+}
+
+/**
+ * The Stack schemes setting (Quin, 2026-11-18): every scheme in play stacked in the panel like a deck, the front one a
+ * large card (`largeSchemeListLayout`'s single row) and up to `STACK_MAX_BEHIND` more behind it, each showing its name
+ * band above the card in front. Nothing scrolls: the stack always fits the panel.
+ */
+export function schemeStackLayout(rect: Rect, count: number, infoExtra = 0): SchemeStackLayout {
+  const pad = SCHEME_PANEL_PADDING;
+  const header: Rect = {
+    x: rect.x + pad,
+    y: rect.y + pad - 4,
+    width: rect.width - pad * 2,
+    height: STACK_HEADER_HEIGHT,
+  };
+  const behindCount = Math.max(0, Math.min(STACK_MAX_BEHIND, count - 1));
+  const top = header.y + header.height + 2 + behindCount * STACK_PEEK;
+  // The front row is laid out as a lone large scheme in what is left under the header and the peeks.
+  const room: Rect = { x: rect.x, y: top - pad, width: rect.width, height: rect.y + rect.height - (top - pad) };
+  const single = largeSchemeListLayout(room, { mains: 1, sides: 0, infoExtra });
+  const frontRect = single.rows[0]!.rect;
+  const art = schemeRowGeometry(frontRect, 0, single.shape).art;
+  // A panel too small for any card keeps the front row alone.
+  const behind = Array.from({ length: art ? behindCount : 0 }, (_unused, at) => {
+    const depth = at + 1;
+    const inset = Math.min(depth * STACK_INSET_STEP, art!.width / 4);
+    const card: Rect = {
+      x: art!.x + inset,
+      y: art!.y - depth * STACK_PEEK,
+      width: art!.width - inset * 2,
+      height: art!.height,
+    };
+    return { card, peek: { ...card, height: STACK_PEEK } };
+  });
+  return { header, front: { rect: frontRect, shape: single.shape }, behind };
+}
+
+/** The order the stack draws in from the scheme at the front: that one, then the rest in play order, wrapping around. */
+export function stackOrder<T>(items: readonly T[], frontIndex: number): readonly T[] {
+  if (items.length === 0) return [];
+  const front = ((frontIndex % items.length) + items.length) % items.length;
+  return [...items.slice(front), ...items.slice(0, front)];
+}
+
 /**
  * Where a scheme row's card and its text go: the card in a column on the left (the usual row, and a large "beside"
  * row) or across the top (a large "above" row), and the text, the notes and the meter in what is left.

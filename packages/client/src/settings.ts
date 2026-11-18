@@ -173,6 +173,12 @@ export interface Settings {
    * not all fit; the table keeps its layout. Defaults off.
    */
   readonly largeSchemes: boolean;
+  /**
+   * Stack schemes: the schemes as one large card with the rest stacked behind it like a deck, their name bands showing.
+   * Swipe, the arrows or a band bring another to the front; the front card fans them all out (`scenes/scheme-fan.ts`).
+   * Draws the cards large whether or not Large schemes is on (Quin, 2026-11-18). Defaults off.
+   */
+  readonly schemeStack: boolean;
   /** The order the cards in each play area are drawn in (`view/play-area-order.ts`); the game's own order never changes. Defaults to as played. */
   readonly playAreaOrder: PlayAreaOrder;
   /**
@@ -522,6 +528,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     cardHoverScale: "2.5x",
     cardSize: "standard",
     largeSchemes: false,
+    schemeStack: false,
     playAreaOrder: "played",
     inspectCard: "large",
     hoverHeroCard: true,

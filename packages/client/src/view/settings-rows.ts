@@ -94,6 +94,7 @@ export type SettingsRowId =
   | "hover-hero"
   | "hover-villain"
   | "large-schemes"
+  | "scheme-stack"
   | "faded-campaign-art"
   | "discord-presence"
   | "custom-unlocked"
@@ -212,6 +213,13 @@ export function settingsRowInfoOf(settings: Settings, powerSaving = false): read
       detail:
         "Shows the main scheme and side schemes as large cards on the table, as the hover popover does. The schemes panel scrolls when they don't all fit.",
       on: settings.largeSchemes,
+    },
+    {
+      id: "scheme-stack",
+      title: "Stack schemes",
+      detail:
+        "Shows the schemes as one large card with the rest stacked behind it. Swipe or tap a card's name band to bring it forward; tap the front card to fan them all out.",
+      on: settings.schemeStack,
     },
   ];
 }
@@ -384,6 +392,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, hoverVillainCard: !settings.hoverVillainCard };
     case "large-schemes":
       return { ...settings, largeSchemes: !settings.largeSchemes };
+    case "scheme-stack":
+      return { ...settings, schemeStack: !settings.schemeStack };
     case "faded-campaign-art":
       return { ...settings, fadedCampaignArt: !settings.fadedCampaignArt };
     case "discord-presence":

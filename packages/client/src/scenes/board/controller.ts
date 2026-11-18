@@ -144,6 +144,8 @@ const intoOf = (entry: LegalAction): string | undefined =>
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
   model(): BoardModel | null;
+  /** What A on this idle card does instead of opening Inspect on this draw, if anything (`BoardFrame.cardActivate`). */
+  cardActivate?(instanceId: InstanceId): (() => void) | undefined;
   marks(): Highlights | null;
   /** Whether the last draw laid the board out as phone tabs. */
   tabbed(): boolean;
@@ -1358,6 +1360,12 @@ export class BoardController {
    * deliberate second tap on a button that names it, the same two steps a free hand card already takes.
    */
   onCharacterTap(instanceId: InstanceId): void {
+    // A card that takes A for something of its own on this draw (the scheme stack's cards) does that instead.
+    const own = this.#host.cardActivate?.(instanceId);
+    if (own) {
+      own();
+      return;
+    }
     this.#host.inspect(instanceId);
   }
 

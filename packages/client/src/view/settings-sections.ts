@@ -135,6 +135,7 @@ export function settingsSectionsOf(input: {
       items: [
         "card-size",
         "large-schemes",
+        "scheme-stack",
         "play-area-order",
         "hero-art",
         ...(input.cardLanguage ? (["card-language"] as const) : []),

@@ -7,6 +7,9 @@ import {
   MAIN_COMPACT_HEIGHT,
   SCHEME_CARD_ASPECT,
   schemeRowGeometry,
+  schemeStackLayout,
+  STACK_PEEK,
+  stackOrder,
   schemeListLayout,
   SIDE_SCHEME_HEIGHT,
   visibleSlice,
@@ -276,5 +279,42 @@ describe("Large schemes: every scheme a large card, scrolling only inside its pa
     expect(largeSchemeListLayout({ x: 0, y: 0, width: 600, height: 300 }, { mains: 1, sides: 0 }).shape.mode).toBe(
       "beside",
     );
+  });
+});
+
+describe("Stack schemes: one large card at the front, the rest stacked behind it", () => {
+  describe.each(VIEWPORTS)("$name", ({ width, height }) => {
+    const layout = boardLayout({ x: 0, y: 0, width, height }, { playerCount: 2, activeTab: "threat" });
+    const panel = layout.zones.threat!;
+
+    test.each([2, 3, 4, 6])("%i schemes: the stack fits the panel, each card behind shows a name band", (count) => {
+      const stack = schemeStackLayout(panel, count);
+      expect(inside(stack.header, panel)).toBe(true);
+      expect(inside(stack.front.rect, panel)).toBe(true);
+      expect(stack.behind).toHaveLength(Math.min(3, count - 1));
+      const frontArt = schemeRowGeometry(stack.front.rect, 0, stack.front.shape).art!;
+      let above = frontArt;
+      for (const { card, peek } of stack.behind) {
+        expect(inside(peek, panel)).toBe(true);
+        // The band is the strip of the card that stands above the one in front, and below the header.
+        expect(peek.y + peek.height).toBeCloseTo(above.y, 5);
+        expect(peek.y).toBeGreaterThanOrEqual(stack.header.y + stack.header.height);
+        expect(card.width).toBeLessThan(above.width);
+        above = card;
+      }
+    });
+  });
+
+  test("the front card stays large: a 1920x1080 desktop's is still well over the usual row", () => {
+    const panel = boardLayout({ x: 0, y: 0, width: 1920, height: 1080 }, { playerCount: 1 }).zones.threat!;
+    const stack = schemeStackLayout(panel, 4);
+    expect(stack.front.shape.cardWidth).toBeGreaterThan(250);
+    expect(stack.behind[0]!.peek.height).toBe(STACK_PEEK);
+  });
+
+  test("the stack's order starts at the front scheme and wraps around", () => {
+    expect(stackOrder(["a", "b", "c", "d"], 2)).toEqual(["c", "d", "a", "b"]);
+    expect(stackOrder(["a", "b"], -1)).toEqual(["b", "a"]);
+    expect(stackOrder([], 3)).toEqual([]);
   });
 });
