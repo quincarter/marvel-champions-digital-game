@@ -658,6 +658,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/stop-the-presses/villain-wins.mp3": "The Story Dies Tonight",
   "scenarios/stop-the-presses/villain-loses.mp3": "Extra! Extra!",
   "scenarios/kingpin/battle.mp3": "The King of Hell's Kitchen",
+  "scenarios/kingpin/villain-wins.mp3": "Long Live the Kingpin",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
