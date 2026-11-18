@@ -70,6 +70,8 @@ import {
 
 /** MC10 p. 5's Experimental Weapons deck: "EXPERIMENTAL. WEAPON." (04072–04075). */
 const EXPERIMENTAL = trait("EXPERIMENTAL");
+/** Laser Rifle, Energy Shield, Power Gauntlets, Exo-Suit: one copy each in the set. */
+const EXPERIMENTAL_WEAPON_IDS = ["04072", "04073", "04074", "04075"] as const;
 /** MC10 p. 10's Taskmaster-set allies: "CAPTIVE. HERO FOR HIRE." (04097–04100). */
 const CAPTIVE = trait("CAPTIVE");
 /** MC10 p. 5's four campaign upgrades: "TECH." (04155–04158). */
@@ -209,7 +211,14 @@ function experimentalSetup(prefix: string, citation: string): readonly CampaignI
       citation,
       step: {
         kind: "betweenGames",
-        ops: [{ kind: "setAsideCards", cards: [{ kind: "field", field: "experimental" }] }],
+        // One copy per weapon whatever the field holds: each is a single physical card, and a log saved before
+        // `cardsThatEnteredPlay` `distinct` can list a weapon that re-entered play twice. The in-game shuffle then
+        // finds no second instance for a repeated entry and skips it.
+        ops: EXPERIMENTAL_WEAPON_IDS.map((id): CampaignOp => ({
+          kind: "if",
+          when: { kind: "fieldContains", field: "experimental", value: id },
+          then: [{ kind: "setAsideCards", cards: [{ kind: "const", value: id }] }],
+        })),
       },
     },
     {
