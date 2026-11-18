@@ -68,8 +68,10 @@ fn steam_roots(home: &Path) -> Vec<PathBuf> {
   roots.push(home.join("Library/Application Support/Steam"));
   #[cfg(all(unix, not(target_os = "macos")))]
   {
-    roots.push(home.join(".steam/steam"));
+    // In the script's order (scripts/linux/install-for-steam.sh): native Steam first, then the Flatpak's.
     roots.push(home.join(".local/share/Steam"));
+    roots.push(home.join(".steam/steam"));
+    roots.push(home.join(".steam/root"));
     roots.push(home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"));
   }
   let _ = home;
@@ -154,11 +156,13 @@ pub fn steam_add_info(app: AppHandle) -> Option<SteamAdd> {
   }
   let game = game_path()?;
   let home = app.path().home_dir().ok()?;
+  // The one Steam the script will write to: like the script, the first of these with a signed-in user (on Linux, native
+  // Steam over the Flatpak's), so the row never asks for an add the script would make somewhere else.
   let lists: Vec<PathBuf> = steam_roots(&home)
     .iter()
-    .filter(|root| root.join("userdata").is_dir())
-    .flat_map(|root| shortcut_lists(root))
-    .collect();
+    .find(|root| root.join("userdata").is_dir())
+    .map(|root| shortcut_lists(root))
+    .unwrap_or_default();
   if lists.is_empty() {
     return None;
   }
