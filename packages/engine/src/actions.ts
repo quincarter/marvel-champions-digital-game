@@ -2733,7 +2733,8 @@ export interface SpentPayment {
   readonly countersRemoved?: readonly TriggerEvent[];
   /**
    * The frame-pushing cost steps of the resource abilities used, in the order they resolve: one resource ability's
-   * after the one paid before it in the payment (`payPayment`). Each is held for `announceResourcesSpent`, so it
+   * after the one paid before it in the payment (`payPayment`). Only these keep payment order: a counter cost
+   * (`countersRemoved` above) or an exhaust is applied when paid, before any of them. Each is held for `announceResourcesSpent`, so it
    * resolves in full (damage, a defeat, the interrupts and responses to it) before the card or ability paid for
    * commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before step 6; "Cost", p. 13–14). They are:
    * - the threat costs ("remove up to 2 threat from … → generate a resource for each threat you removed this way";
@@ -2786,7 +2787,10 @@ export function payPayment(
   const countersRemoved: TriggerEvent[] = [];
   const costSteps: ResourceCostStep[] = [];
   // One resource ability's held costs (`SpentPayment.costSteps`), added after those of the ability paid before it, so
-  // the costs of one payment resolve in payment order whatever kind each is.
+  // the held (frame-pushing) costs of one payment resolve in payment order. A state-change cost (exhaust, flip, a
+  // counter cost) is applied here at once, so it lands before every held cost of the payment, even one paid earlier:
+  // an engine choice, as RRG 1.8 "Cost" (p. 13) and "Initiating Abilities" (p. 24, steps 5-6) order a resource
+  // ability's cost only before its own effect and the card paid for (resource-cost-payment-order.test.ts; PR #821).
   const payHeldCost = (instanceId: InstanceId, spender: PlayerId, cost: AbilityCost | undefined, plan: CostPlan) => {
     const threats: ResourceThreatCost[] = [];
     const damages: ResourceDamageCost[] = [];
@@ -2971,8 +2975,9 @@ export function announceResourcesSpent(
   // The resource abilities' held costs (`SpentPayment.costSteps`): pushed last of all, so each resolves in full (a
   // threat removal, damage, a defeat, the interrupts and responses to it) before the ability's own effects, the "after
   // you spend" windows and the card or ability paid for commences (RRG 1.8 "Initiating Abilities", p. 24, step 5 before
-  // step 6; issue #813). Pushed in reverse, the first paid resolves first: one payment's costs keep its order whatever
-  // kind each is (Clarity of Purpose's damage after a threat cost paid before it).
+  // step 6; issue #813). Pushed in reverse, the first paid resolves first: one payment's held costs keep its order
+  // (Clarity of Purpose's damage after a threat cost paid before it). Counter and other state-change costs were applied
+  // when paid, ahead of all of these (`payPayment`).
   for (const step of [...(paid.costSteps ?? [])].reverse()) pushEffects(ctx, step);
 }
 
