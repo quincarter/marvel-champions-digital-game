@@ -610,9 +610,9 @@
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
           draw, a reveal and the villain phase, and Pause has a Manual adjust screen to correct the table by hand. Both
           came from @sgaon42's request, and a game you change that way simply stops counting toward your stats. Pause's
-          search now finds any setting, and every search box forgives typos. @bluefireF5ran's ten reports fix Madame
-          Web, Wolverine's Claws, Silk Sense and more, and Giant Strength, One Way or Another and Morphogenetics are
-          fixed too.
+          search now finds any setting, every search box forgives typos, and schemes can be drawn large.
+          @bluefireF5ran's ten reports fix Madame Web, Wolverine's Claws, Silk Sense and more, and Giant Strength, One
+          Way or Another and Morphogenetics are fixed too.
         </p>
       </section>
 
@@ -847,6 +847,76 @@
         </div>
       </div>
 
+      <!-- ============ SCHEMES ============ -->
+      <div class="band gold">
+        <h2>Schemes you can read</h2>
+        <div class="lab">Issue #808 · PR #831</div>
+      </div>
+      <p class="lead">
+        <b>A player on Discord found the scheme cards too small to read.</b> Two new settings in Settings ▸ Cards, both
+        off by default, draw the schemes large without making the table grow or scroll.
+      </p>
+      <div class="shots s2">
+        <figure>
+          <img
+            src="img/schemes-large.webp"
+            alt="Large schemes on desktop: Night of the Sentinels drawn as a large card in the schemes panel, with the next scheme peeking in below"
+            width="1280"
+            height="720"
+            loading="lazy"
+          />
+          <figcaption>Large schemes: every scheme a large card, the panel scrolls</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/schemes-stack.webp"
+            alt="Stack schemes on desktop: Night of the Sentinels at the front, with the names of three side schemes showing behind it, and Schemes 1 of 4 with arrows and Fan out"
+            width="1280"
+            height="720"
+            loading="lazy"
+          />
+          <figcaption>Stack schemes: one large card in front, the names behind</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/schemes-fan.webp"
+            alt="Fan out: the main scheme and three side schemes spread in a tilted row, each with its threat"
+            width="1280"
+            height="720"
+            loading="lazy"
+          />
+          <figcaption>Fan out spreads every scheme over the table (shot with a solid sheet)</figcaption>
+        </figure>
+        <figure>
+          <img
+            src="img/schemes-phone.webp"
+            alt="The scheme stack on a phone's Threat tab"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>The stack on a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Large schemes</h3>
+          <p>
+            The main scheme and every side scheme are drawn the way the hover shows them, <b>without hovering</b>. When
+            they don't all fit, only the schemes panel scrolls.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Stack schemes</h3>
+          <p>
+            Swipe, tap a name or use ◂ ▸ to bring a scheme forward, and tap the front card to <b>fan them all out</b>.
+            Scheme fan background sets the sheet behind the fan, from None to Solid.
+          </p>
+        </div>
+      </div>
+
       <!-- ============ YOU ASKED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
@@ -1027,22 +1097,22 @@
       <section class="stats" aria-label="Code shipped since v0.48.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">17</div>
+          <div class="n">18</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">240</div>
+          <div class="n">266</div>
           <p>across the engine, the cards, the client and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">11,369</div>
+          <div class="n c-green">12,957</div>
           <p>most of them Undo, Manual adjust and their tests.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">572</div>
+          <div class="n c-red">610</div>
           <p>code the new Undo and adjust paths replaced.</p>
         </div>
       </section>
