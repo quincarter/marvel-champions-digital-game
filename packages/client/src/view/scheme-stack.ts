@@ -65,3 +65,13 @@ export class StackSwipe {
     this.#at = -Infinity;
   }
 }
+
+/**
+ * Whether a prompt can be answered on the stack: every scheme it can pick (`eligible`) is the front card or one of the
+ * `shownBehind` bands behind it, in stack order from the front. When one is hidden further back, the panel lists every
+ * scheme for the prompt instead, so a pad or keyboard can reach each one (a tap could use the fan, a pad could not).
+ */
+export function stackShowsEligible<T>(order: readonly T[], eligible: readonly T[], shownBehind: number): boolean {
+  const shown = order.slice(0, 1 + Math.max(0, shownBehind));
+  return eligible.every((id) => shown.includes(id));
+}

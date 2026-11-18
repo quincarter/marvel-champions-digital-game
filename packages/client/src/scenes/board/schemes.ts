@@ -37,8 +37,8 @@ import { addTapTarget } from "./tap-target.js";
 import type { InstanceId } from "@mc/engine";
 import type { RowDrag } from "../../view/hand-scroll.js";
 import { McButton, fitText } from "../../ui/widgets.js";
-import { schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
-import { StackSwipe, stackFlip, stackFrontAfter } from "../../view/scheme-stack.js";
+import { STACK_MAX_BEHIND, schemeStackLayout, stackOrder } from "../../view/scheme-list-layout.js";
+import { StackSwipe, stackFlip, stackFrontAfter, stackShowsEligible } from "../../view/scheme-stack.js";
 
 /**
  * The schemes column's scroll position and what it last scrolled to, kept by the scene across draws (a board redraw
@@ -72,10 +72,8 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     mainExtra: (model.mainScheme.areaNotes?.length ?? 0) * (FOOT_STRIP_HEIGHT + 3),
   };
   // Stack schemes: one large card at the front, the rest behind it like a deck (a lone scheme is just the large card).
-  if (ctx.schemeStack && all.length > 1) {
-    drawSchemeStack(ctx, rect, all);
-    return;
-  }
+  // A prompt that can pick a scheme hidden past the stack's bands lists every scheme instead, for as long as it is up.
+  if (ctx.schemeStack && all.length > 1 && drawSchemeStack(ctx, rect, all)) return;
   // Large schemes: every scheme as a large card, scrolling inside this panel; the table's layout is the same either way.
   const large =
     ctx.largeSchemes || ctx.schemeStack
@@ -125,7 +123,7 @@ const STACK_NAME_BAND = 0.1;
  * A pad or keyboard reaches the same: A on a band brings it forward and A on the front card opens the fan, which lists
  * every scheme, those past the three bands too (`BoardDrawContext.activateCard`). Inspect stays on its own button.
  */
-function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly SchemePanel[]): void {
+function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly SchemePanel[]): boolean {
   const { scene, schemeScroll: state } = ctx;
   const ids = all.map((scheme) => scheme.instanceId);
   const selection = ctx.controller.selection;
@@ -139,6 +137,13 @@ function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly Scheme
   state.stackTargets = decided.targetsKey;
   const frontIndex = Math.max(0, decided.front ? ids.indexOf(decided.front) : 0);
   const order = stackOrder(all, frontIndex);
+  // A prompt (a target, divided power, a cost or a discard pick) that can pick a scheme the stack hides past its bands
+  // is answered on the full list instead (Codex review on PR #831): there every scheme is a focus stop.
+  if (selection.kind !== "idle") {
+    const eligible = ids.filter((id) => targetState(selection, id) !== "unavailable");
+    const orderIds = order.map((scheme) => scheme.instanceId);
+    if (!stackShowsEligible(orderIds, eligible, Math.min(STACK_MAX_BEHIND, all.length - 1))) return false;
+  }
   const bringForward = (id: InstanceId): void => {
     state.stackFront = id;
     ctx.requestDraw();
@@ -224,6 +229,7 @@ function drawSchemeStack(ctx: BoardDrawContext, rect: Rect, all: readonly Scheme
     ctx.frame.cardActivate.set(scheme.instanceId, () => bringForward(scheme.instanceId));
     ctx.makeTapTarget(slot.peek, scheme.instanceId, () => bringForward(scheme.instanceId));
   }
+  return true;
 }
 
 /** The rows that scroll: drawn once at scroll 0 into a clipped region that moves them, with a hint at a cut edge. */

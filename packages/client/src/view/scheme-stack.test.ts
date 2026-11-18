@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { STACK_SWIPE_IDLE_MS, STACK_SWIPE_PX, StackSwipe, stackFlip, stackFrontAfter } from "./scheme-stack.js";
+import {
+  STACK_SWIPE_IDLE_MS,
+  STACK_SWIPE_PX,
+  StackSwipe,
+  stackFlip,
+  stackFrontAfter,
+  stackShowsEligible,
+} from "./scheme-stack.js";
 
 describe("the scheme stack's front", () => {
   const ids = ["main", "side-a", "side-b", "side-c"];
@@ -66,5 +73,19 @@ describe("a swipe on the stack's front card", () => {
     expect(swipe.step(-10, STACK_SWIPE_IDLE_MS + 1)).toBe(0);
     swipe.end();
     expect(swipe.step(-(STACK_SWIPE_PX - 5), 1000)).toBe(0);
+  });
+});
+
+describe("a prompt on the stack", () => {
+  const order = ["main", "a", "b", "c", "d"];
+
+  test("is answered on the stack while every scheme it can pick is the front card or a band", () => {
+    expect(stackShowsEligible(order, ["main", "c"], 3)).toBe(true);
+    expect(stackShowsEligible(order, [], 3)).toBe(true);
+  });
+
+  test("lists every scheme when one it can pick is hidden past the bands (a fifth scheme)", () => {
+    expect(stackShowsEligible(order, ["a", "d"], 3)).toBe(false);
+    expect(stackShowsEligible(order, ["b"], 1)).toBe(false);
   });
 });
