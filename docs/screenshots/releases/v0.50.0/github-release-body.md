@@ -1,22 +1,24 @@
 ## Awesome Mix, Now Playing
 
-Every playable scenario now has its own music. Kingpin, all three Shadowland scenarios (Shadows in the Night, Shadow Labyrinth and Heart of Shadow), Breakout, Kang, Absorbing Man, Zola, and Civil War's Captain Marvel, She-Hulk and Vision get their own battle, victory and defeat music, Fear No Evil and Shadowland get a campaign interlude and finale, and Stop the Presses! and Crossbones get new takes: 43 tracks in all, 38 of them new (#848, #849, #852, #854). In the desktop app, Discord Rich Presence now shows a Mod Store pack's own villain and hero instead of only the game's logo, and its Get the game button opens the downloads on the website (#840, #841). On a computer, the website's top now offers the Steam script beside the download (#842, #846). Thank you to Patatasaurio, Neptune (Typhon00) and PermaKarma, whose Gwenpool, Mephisto, Carnage and The Punisher packs it was checked with, and to every Mod Store creator. Thank you for playing!
+Every playable scenario now has its own music. Kingpin, all three Shadowland scenarios (Shadows in the Night, Shadow Labyrinth and Heart of Shadow), Breakout, Kang, Absorbing Man, Zola, and Civil War's Captain Marvel, She-Hulk and Vision get their own battle, victory and defeat music, Fear No Evil and Shadowland get a campaign interlude and finale, and Stop the Presses! and Crossbones get new takes: 43 tracks in all, 38 of them new (#848, #849, #852, #854). The desktop game now updates itself from inside the game, whichever installer you used: Update downloads the new release in the background and Restart puts you on it, starting with the release after this one (#843, #847). Settings ▸ More ▸ Add to Steam puts the game in your Steam library with its art (#844, #850). In the desktop app, Discord Rich Presence now shows a Mod Store pack's own villain and hero instead of only the game's logo, and its Get the game button opens the downloads on the website (#840, #841), and the Title's Mod Store button counts the installed packs that have an update (#845, #855). On a computer, the website's top now offers the Steam script beside the download (#842, #846). Thank you to Patatasaurio, Neptune (Typhon00) and PermaKarma, whose Gwenpool, Mephisto, Carnage and The Punisher packs it was checked with, and to every Mod Store creator. Thank you for playing!
 
-**[Read the full v0.50.0 report on the site ↗](https://champions-digital-game.com/releases/v0.50.0/)**: the new music scenario by scenario, where you'll hear it, your mods on Discord, the new downloads link, the Steam script button on the website and the thank-you wall.
+**[Read the full v0.50.0 report on the site ↗](https://champions-digital-game.com/releases/v0.50.0/)**: the new music scenario by scenario, where you'll hear it, updates that install themselves, Add to Steam, your mods on Discord, the mod update badge, the new downloads link, the Steam script button on the website and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.50.0/index.es.html)**
 
-![The numbers: 43 tracks in this release, 221 songs in the jukebox and 13 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
+![The numbers: 43 tracks in this release, 221 songs in the jukebox and 13 scenarios scored](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-01-the-numbers.jpg)
 
-![Every scenario has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario, Civil War included](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-every-scenario-has-a-soundtrack.jpg)
+![Every scenario has a soundtrack: the jukebox playing Kingpin's battle track, on desktop and phone, and every new track by scenario, Civil War included](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-02-every-scenario-has-a-soundtrack.jpg)
 
-![Your mods, on Discord: Carnage vs The Punisher in Discord, the website's downloads that Get the game opens, and Gwenpool and Mephisto from the Mod Store](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-your-mods-on-discord.jpg)
+![Updates that install themselves: The game has been updated with Restart now, the Restart banner, how each installer updates, and Settings ▸ More ▸ Add to Steam](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-03-updates-that-install-themselves.jpg)
 
-![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-also-in-v0-50-0.jpg)
+![Your mods, on Discord and the Title: Carnage vs The Punisher in Discord, the website's downloads that Get the game opens, Gwenpool and Mephisto from the Mod Store, and the Mod Store button's update badge](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-04-your-mods-on-discord-and-the-title.jpg)
 
-![Thank you to Patatasaurio, Neptune (Typhon00), PermaKarma and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-thank-you.jpg)
+![Also in v0.50.0: Discord posts link to the website's downloads, and the website's Steam script button](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-05-also-in-v0-50-0.jpg)
 
-![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ce05bf75b04258c8956fc483d8ff42ea57848614/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-code-shipped.jpg)
+![Thank you to Patatasaurio, Neptune (Typhon00), PermaKarma and every Mod Store creator](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-06-thank-you.jpg)
+
+![Code shipped since v0.49.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.50.0/v0-50-0-release-07-code-shipped.jpg)
 
 ---
 
@@ -24,7 +26,10 @@ Every playable scenario now has its own music. Kingpin, all three Shadowland sce
 
 ### Added
 
+- The title screen's Mod Store button and storefront icon show how many installed mod packs have an update (#845).
 - The landing page's hero offers the Install for Steam script beside the download on a computer the release has one for, and the top bar does too on wide screens (#842).
+- A desktop game installed from the release's Windows .exe or .msi, Mac app or Linux AppImage updates itself from the update banner: it downloads in the background, says the game has been updated, and restarts into the new version (#843).
+- The desktop game has an Add to Steam button under Settings ▸ More: it runs the Install for Steam script on the game as it is and puts it in your Steam library with its art, and only shows when Steam is installed and the game isn't in it yet (#844).
 - The v0.50.0 release report has its own page on the site, at /releases/v0.50.0/
 
 ### Changed

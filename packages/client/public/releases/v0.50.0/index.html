@@ -658,8 +658,8 @@
           <b>Every playable scenario now has its own music.</b> Kingpin, all three Shadowland scenarios, Breakout, Kang,
           Absorbing Man, Zola, and Captain Marvel, She-Hulk and Vision from Civil War get their own battle, victory and
           defeat songs, Fear No Evil and Shadowland get an interlude and a finale, and Stop the Presses! and Crossbones
-          get new takes. In the desktop app, Discord now shows your mod's villain and hero instead of only the logo, and
-          its Get the game button opens the downloads on the website.
+          get new takes. The desktop game now updates itself from any installer and can add itself to Steam. Discord
+          shows your mod's villain and hero instead of only the logo, and the Title counts the mods that have an update.
         </p>
       </section>
 
@@ -796,10 +796,111 @@
         </div>
       </div>
 
+      <!-- ============ UPDATER ============ -->
+      <div class="band gold">
+        <h2>Updates that install themselves</h2>
+        <div class="lab">Issues #843, #844 · PRs #847, #850</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Quicksilver Delivery</span></div>
+      </div>
+      <p class="lead">
+        <b>The desktop game now updates itself, whichever installer you used.</b> When a new release is out, the Title's
+        update banner offers <b>Update</b>. The game downloads it in the background while you keep playing, tells you
+        when it's ready, and <b>Restart</b> puts you on the new version.
+      </p>
+      <div class="box">
+        <p>
+          <b>Heads up:</b> Update shows when a release newer than yours is out. v0.50.0 itself is still a download from
+          the website, and the release after it is the first one the game installs for you.
+        </p>
+      </div>
+      <div class="shots s2" style="margin-top: 24px">
+        <figure class="a">
+          <img
+            src="img/updater-ready.webp"
+            alt="The Title with The game has been updated: Restart to apply the new version, with Restart now and Later"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>The download is ready (999.0.0 is a test build's stand-in version)</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/updater-restart.webp"
+            alt="The Title's banner after Later: The game has been updated, Restart to apply the new version, with a Restart button"
+            width="1280"
+            height="800"
+            loading="lazy"
+          />
+          <figcaption>Pick Later and the Title keeps a Restart banner</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Each installer, its own way</h3>
+          <ul class="ck">
+            <li>
+              <b>Windows:</b> the Setup .exe installs quietly and starts the game again. The .msi asks for an
+              administrator's permission first.
+            </li>
+            <li>
+              <b>Mac:</b> the new app is swapped in for the old one in a single step, on disks that allow it (APFS).
+            </li>
+            <li>
+              <b>Linux:</b> the AppImage is replaced where you keep it. A .deb or .rpm asks for an administrator's
+              password.
+            </li>
+            <li>
+              Every download is checked against the checksum GitHub lists before the game closes. If the install fails,
+              your old game starts again and the Title says so.
+            </li>
+            <li>Android and Steam script installs update the way they did before.</li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>Add to Steam</h3>
+          <p>
+            <b>Settings ▸ More ▸ Add to Steam</b> puts the game you have in your Steam library with its art, to play
+            from Steam and Big Picture. It runs the Install for Steam script in the background, without downloading
+            anything.
+          </p>
+          <p>
+            Steam is closed while its library is updated, and the panel tells you first. The row only shows when Steam
+            is installed and the game isn't in it yet, and on Linux it's for the AppImage. After that, updates go
+            through the Steam script.
+          </p>
+        </div>
+      </div>
+      <div class="shots s2" style="margin-top: 24px; max-width: 760px">
+        <figure class="a">
+          <img
+            src="img/steam-add-row.webp"
+            alt="Settings, the More tab, with the Add to Steam row and its Add button"
+            width="644"
+            height="872"
+            loading="lazy"
+          />
+          <figcaption>Settings ▸ More</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/steam-add-done.webp"
+            alt="Added to Steam: Start Steam, Marvel Champions Digital Edition is in your library"
+            width="644"
+            height="872"
+            loading="lazy"
+          />
+          <figcaption>Added to Steam</figcaption>
+        </figure>
+      </div>
+
       <!-- ============ DISCORD ============ -->
       <div class="band">
-        <h2>Your mods, on Discord</h2>
-        <div class="lab">Issue #840 · PR #841</div>
+        <h2>Your mods, on Discord and the Title</h2>
+        <div class="lab">Issues #840, #845 · PRs #841, #855</div>
       </div>
       <div class="pill feat">
         <div class="star">★</div>
@@ -870,6 +971,28 @@
             />
           </div>
           <figcaption>Gwenpool and Mephisto, from the Mod Store</figcaption>
+        </figure>
+      </div>
+
+      <div class="cols" style="margin-top: 24px; align-items: center">
+        <div class="box">
+          <h3>Updates for your mods</h3>
+          <p>
+            When a pack you installed has a newer version in the Mod Store, the Title's <b>Mod Store</b> button and its
+            storefront icon show a red badge with how many packs have an update. Update them in the store and the badge
+            clears.
+          </p>
+          <p>Issue #845 · PR #855</p>
+        </div>
+        <figure class="a">
+          <img
+            src="img/mod-update-badge.webp"
+            alt="The Title with a red 2 on the Mod Store button and on the storefront icon in the top row"
+            width="1280"
+            height="996"
+            loading="lazy"
+          />
+          <figcaption>Two installed packs with an update</figcaption>
         </figure>
       </div>
 
@@ -946,22 +1069,22 @@
       <section class="stats" aria-label="Code shipped since v0.49.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">9</div>
+          <div class="n">12</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">75</div>
-          <p>across the client, the music and this report.</p>
+          <div class="n">121</div>
+          <p>across the client, the desktop app, the music and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">2,655</div>
-          <p>the Discord work, its tests, and this report.</p>
+          <div class="n c-green">5,890</div>
+          <p>the updater, Add to Steam, the Discord work, their tests and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">845</div>
+          <div class="n c-red">960</div>
           <p>across the same pull requests.</p>
         </div>
       </section>
