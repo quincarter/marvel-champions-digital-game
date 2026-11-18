@@ -450,8 +450,25 @@ fi
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the app's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+has_game_entry() {
+  [ -f "$1" ] || return 1
+  perl -e '
+my ($path, $app, @names) = @ARGV; open(my $fh, "<:raw", $path) or exit 1; local $/; my $data = lc(<$fh>);
+for my $name (@names) { exit 0 if index($data, "\x01appname\x00" . lc($name) . "\x00") >= 0 }
+exit(index($data, lc($app)) >= 0 ? 0 : 1);
+' "$1" "$app" "$SHORTCUT_NAME" "$APP_NAME"
+}
+
 for user in "${users[@]}"; do
   config="$steam_root/userdata/$user/config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if [ -n "$keep_game" ] && has_game_entry "$config/shortcuts.vdf"; then
+    say "Steam user $user has $SHORTCUT_NAME already; left as it is."
+    continue
+  fi
   grid="$config/grid"
   mkdir -p "$grid"
   # The shortcut's grid id, as vdf_tool works it out, to name the art before the entry that points at the icon.

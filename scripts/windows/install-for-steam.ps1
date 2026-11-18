@@ -503,8 +503,26 @@ if (-not $artDir -or -not (Test-Path (Join-Path $artDir "hero.jpg"))) {
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the exe's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+function Test-GameEntry([string]$file) {
+  if (-not (Test-Path $file)) { return $false }
+  # Latin-1 keeps every byte as one character, so the search runs over the file's own bytes.
+  $data = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($file)).ToLowerInvariant()
+  foreach ($name in @($ShortcutName, $AppName)) {
+    if ($data.Contains([string][char]1 + "appname" + [char]0 + $name.ToLowerInvariant() + [char]0)) { return $true }
+  }
+  return $data.Contains($Path.ToLowerInvariant())
+}
+
 foreach ($user in $users) {
   $config = Join-Path $user.FullName "config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if ($KeepGame -ne "" -and (Test-GameEntry (Join-Path $config "shortcuts.vdf"))) {
+    Write-Host "Steam user $($user.Name) has $ShortcutName already; left as it is."
+    continue
+  }
   $grid = Join-Path $config "grid"
   New-Item -ItemType Directory -Force -Path $grid | Out-Null
   # Steam's names for a shortcut's library art: <id>p portrait, <id> wide, <id>_hero, <id>_logo, <id>_icon.

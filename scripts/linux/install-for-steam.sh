@@ -593,8 +593,27 @@ fi
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the AppImage's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+has_game_entry() {
+  [ -f "$1" ] || return 1
+  python3 - "$1" "$APP_NAME" "$INSTALLED" << 'HAS'
+import sys
+data = open(sys.argv[1], "rb").read().lower()
+names = [sys.argv[2], "Marvel Champions"]
+found = any(b"\x01appname\x00" + n.lower().encode() + b"\x00" in data for n in names)
+sys.exit(0 if found or sys.argv[3].lower().encode() in data else 1)
+HAS
+}
+
 for user in "${users[@]}"; do
   config="$steam_root/userdata/$user/config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if [ -n "$keep_game" ] && has_game_entry "$config/shortcuts.vdf"; then
+    say "Steam user $user has $APP_NAME already; left as it is."
+    continue
+  fi
   icon=""
   [ -f "$ICON_DIR/icon.png" ] && icon="$ICON_DIR/icon.png"
   result="$(vdf_tool add "$config/shortcuts.vdf" "$INSTALLED" "$APP_NAME" "$INSTALL_DIR" "$icon" "$launch" "$drop")"
