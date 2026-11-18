@@ -208,6 +208,7 @@ import type { SaveDataSceneData } from "./save-data.js";
 import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
 import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { t } from "../i18n/translate.js";
+import { knownSteamAdd, steamAdd } from "../platform/steam-add.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
 
@@ -369,6 +370,13 @@ export class SettingsOverlay extends Phaser.Scene {
     const unsubscribePowerSaving = onPowerSavingChange(() => this.#redrawIfOpen());
     // The hardware check finishing changes the Screen rows' recommendation.
     const unsubscribeHardware = onHardwareChange(() => this.#redrawIfOpen());
+    // Add to Steam's check (#844) reads Steam's files and may still be going when Settings opens: once it says the
+    // game can be added, More gains the row.
+    if (knownSteamAdd() === null) {
+      void steamAdd().then((info) => {
+        if (info !== null) this.#redrawIfOpen();
+      });
+    }
     // The top-of-screen dark mode toggle (#459) flips the same setting as the Dark mode row: the row follows it.
     const unsubscribeScheme = onColorSchemeChange(() => this.#redrawIfOpen());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

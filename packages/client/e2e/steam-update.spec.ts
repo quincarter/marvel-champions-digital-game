@@ -58,8 +58,12 @@ async function openAsSteamInstall(
           if (command === "installer_kind") return "nsis";
           if (command === "steam_install_info") return shell.install;
           if (command === "self_update_info") return shell.selfUpdate;
-          // Add to Steam (#844) is offered only where a test sets `__steamAdd`.
-          if (command === "steam_add_info") return (window as unknown as { __steamAdd?: unknown }).__steamAdd ?? null;
+          // Add to Steam (#844) is offered only where a test sets `__steamAdd`, after `__steamAddDelay` ms if it sets that.
+          if (command === "steam_add_info") {
+            const test = window as unknown as { __steamAdd?: unknown; __steamAddDelay?: number };
+            if (test.__steamAddDelay) await new Promise((done) => setTimeout(done, test.__steamAddDelay));
+            return test.__steamAdd ?? null;
+          }
           if (command === "steam_update_status") return shell.status;
           return null;
         },
@@ -420,6 +424,45 @@ test("Settings ▸ More's Add to Steam runs the Steam script on the game, then s
     async () => !((await routeStops(page, "SettingsOverlay"))?.stops ?? []).some((s) => s.key === "row:steam-add"),
     "the Add to Steam row gone",
   );
+  expect(errors).toEqual([]);
+});
+
+test("Add to Steam's row arrives in an open Settings when Steam's check finishes late", async ({ page }) => {
+  const errors = trackPageErrors(page);
+  await page.addInitScript(() => {
+    const test = window as unknown as { __steamAdd: unknown; __steamAddDelay: number };
+    test.__steamAdd = { canAdd: true };
+    test.__steamAddDelay = 6000;
+  });
+  await openAsSteamInstall(page, null);
+  await pressStop(page, "Title", "settings");
+  await pressStop(page, "SettingsOverlay", "tab:more");
+  await waitFor(
+    async () => (await routeStops(page, "SettingsOverlay"))?.stops.some((s) => s.key === "row:steam-add") ?? false,
+    "the Add to Steam row once the check answers",
+  );
+  expect(errors).toEqual([]);
+});
+
+test("Add to Steam says another update is running rather than showing it as its own", async ({ page }) => {
+  const errors = trackPageErrors(page);
+  await page.addInitScript(() => {
+    const test = window as unknown as { __steamAdd: unknown; __initialStatus: unknown };
+    test.__steamAdd = { canAdd: true };
+    // The game's own update, downloading in the background.
+    test.__initialStatus = { running: true, job: "self-update", exitCode: null, log: "####  40.0%" };
+  });
+  await openAsSteamInstall(page, null);
+  await pressStop(page, "Title", "settings");
+  await pressStop(page, "SettingsOverlay", "tab:more");
+  const row = await waitFor(
+    async () => (await routeStops(page, "SettingsOverlay"))?.stops.find((s) => s.key === "row:steam-add") ?? null,
+    "the Add to Steam row",
+  );
+  await page.mouse.click(row.rect.x + row.rect.width - 30, row.rect.y + row.rect.height / 2);
+  await waitForPhase(page, "failed");
+  await waitForText(page, "Another update is still running", { sceneKey: "SteamUpdateOverlay" });
+  expect((await shellCalls(page)).some((call) => call.startsWith("steam_add_start"))).toBe(false);
   expect(errors).toEqual([]);
 });
 

@@ -35,6 +35,7 @@ export const en = {
   "update.ready.body": "Restart to apply version {version}. The game closes, installs it and starts again.",
   "update.ready.restart": "Restart now",
   "update.ready.later": "Later",
+  "update.busy": "Another update is still running. Wait for it to finish, then try again.",
   "steamAdd.row.title": "Add to Steam",
   "steamAdd.row.detail": "Puts the game in your Steam library with its art, to play from Steam and Big Picture.",
   "steamAdd.row.open": "Add",

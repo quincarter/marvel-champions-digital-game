@@ -59,6 +59,8 @@ pub struct SteamInstall {
 #[serde(rename_all = "camelCase")]
 pub struct SteamUpdateStatus {
   running: bool,
+  /// Which job the running (or last) child is (`spawn_update`), so a panel opened for another can tell it isn't its own.
+  job: Option<&'static str>,
   exit_code: Option<i32>,
   log: String,
 }
@@ -277,13 +279,14 @@ fn log_tail(path: &Path) -> String {
 #[tauri::command]
 pub fn steam_update_status(app: AppHandle) -> Result<SteamUpdateStatus, String> {
   let mut update = UPDATE.lock().map_err(|e| e.to_string())?;
+  let job = update.as_ref().map(|(_, job)| *job);
   let (running, exit_code) = match update.as_mut().map(|(child, _)| child.try_wait()) {
     Some(Ok(None)) => (true, None),
     Some(Ok(Some(status))) => (false, status.code()),
     Some(Err(e)) => return Err(e.to_string()),
     None => (false, None),
   };
-  Ok(SteamUpdateStatus { running, exit_code, log: log_tail(&state_dir(&app)?.join(LOG_FILE)) })
+  Ok(SteamUpdateStatus { running, job, exit_code, log: log_tail(&state_dir(&app)?.join(LOG_FILE)) })
 }
 
 /// The panel's Quit and update: the script is waiting for this process to end.

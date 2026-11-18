@@ -28,6 +28,7 @@ import {
   type SteamUpdateStatus,
   type SteamUpdateView,
   type UpdateMode,
+  jobOf,
   STEAM_UPDATE_CLOSED,
 } from "../view/steam-update.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -104,10 +105,17 @@ export class SteamUpdateOverlay extends Phaser.Scene {
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
     });
-    // An update left running in the background is picked back up instead of asking again.
+    // An update left running in the background is picked back up instead of asking again: only this panel's own job.
+    // Another one running (the game's own update while Add to Steam opens, say) is said to be busy, never shown as
+    // this one's progress.
     void steamUpdateStatus()
       .then((status) => {
         if (!this.sys.isActive() || !status.running) return;
+        if (status.job != null && status.job !== jobOf(this.#data.mode ?? "steam")) {
+          this.#startError = t("update.busy");
+          this.#draw();
+          return;
+        }
         this.#started = true;
         this.#status = status;
         this.#draw();

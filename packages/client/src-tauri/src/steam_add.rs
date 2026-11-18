@@ -119,7 +119,11 @@ fn game_path() -> Option<PathBuf> {
     return None;
   }
   if cfg!(target_os = "macos") {
-    return running.ancestors().find(|p| p.extension().is_some_and(|e| e == "app")).map(Path::to_path_buf);
+    // Likewise the .app: the script's updates trade it for the new one in one step, which needs a folder the player can
+    // write to on a disk that can swap (self_update.rs). Anywhere else it isn't offered.
+    let app = running.ancestors().find(|p| p.extension().is_some_and(|e| e == "app"))?.to_path_buf();
+    let replaceable = folder_writable(&app) && app.parent().is_some_and(crate::self_update::can_swap_in);
+    return replaceable.then_some(app);
   }
   Some(running)
 }

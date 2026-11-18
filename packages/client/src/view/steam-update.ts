@@ -9,6 +9,8 @@ import { t } from "../i18n/translate.js";
 /** The shell's answer (`src-tauri/src/steam_install.rs`). */
 export interface SteamUpdateStatus {
   readonly running: boolean;
+  /** Which job the shell's child is (`steam_install.rs`): "steam-update", "self-update" or "steam-add". */
+  readonly job?: string | null;
   /** Null while running, and when no update has run or the script was killed. */
   readonly exitCode: number | null;
   /** The end of the script's output. */
@@ -199,4 +201,11 @@ function addSteamViewOf(status: SteamUpdateStatus | null, started: boolean): Ste
     body: t("steamAdd.failed.body", { reason: failureOf(status.log), log: LOG_PATH }),
     percent: null,
   };
+}
+
+/** The shell's name for the job a panel `mode` runs (`steam_install.rs`'s `*_JOB`). */
+export function jobOf(mode: UpdateMode): string {
+  if (mode === "steam") return "steam-update";
+  if (mode === "add-steam") return "steam-add";
+  return "self-update";
 }

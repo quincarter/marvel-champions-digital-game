@@ -37,6 +37,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "update.ready.body": "Reinicia para aplicar la versión {version}. El juego se cierra, la instala y vuelve a abrirse.",
   "update.ready.restart": "Reiniciar ahora",
   "update.ready.later": "Más tarde",
+  "update.busy": "Otra actualización sigue en marcha. Espera a que termine y vuelve a probar.",
   "steamAdd.row.title": "Añadir a Steam",
   "steamAdd.row.detail": "Pone el juego en tu biblioteca de Steam con su arte, para jugar desde Steam y Big Picture.",
   "steamAdd.row.open": "Añadir",

@@ -159,22 +159,34 @@ fetch_app() {
   xattr -dr com.apple.quarantine "$staged" 2> /dev/null || true
 }
 
-# Puts $staged in $1's place. Where the disk can (APFS), the two trade places in one step (renameatx_np with
-# RENAME_SWAP, through perl; AT_FDCWD is -2 on macOS), so no crash leaves the game missing; elsewhere, two renames.
+# Trades two paths in one step (renameatx_np with RENAME_SWAP, through perl; AT_FDCWD is -2 on macOS). APFS can; HFS+
+# and exFAT can't, and macFUSE has been seen to report success while only renaming one over the other.
+swap_paths() { perl -e 'exit(syscall(488, -2, $ARGV[0], -2, $ARGV[1], 2) == 0 ? 0 : 1)' "$1" "$2" 2> /dev/null; }
+
+# Whether apps in $1 can be replaced in one step: two folders in a probe folder of this run's own must really trade
+# places. Checked before anything is downloaded, so an update there stops with the game as it was.
+can_swap_in() {
+  local probe ok=1
+  probe="$(mktemp -d "$1/.mc-swap-probe.XXXXXX")" || return 1
+  mkdir "$probe/a" "$probe/b" && : > "$probe/a/a" && : > "$probe/b/b" &&
+    swap_paths "$probe/a" "$probe/b" && [ -f "$probe/a/b" ] && [ -f "$probe/b/a" ] || ok=0
+  rm -rf "$probe"
+  [ "$ok" = 1 ]
+}
+
+# Puts $staged in $1's place. An app already there is replaced only by trading the two in one step, so no crash or
+# power cut can leave the game missing; a disk that can't do that stops here with the old app as it was.
 swap_app() {
-  if [ -d "$1" ] && perl -e 'exit(syscall(488, -2, $ARGV[0], -2, $ARGV[1], 2) == 0 ? 0 : 1)' "$staged" "$1" 2> /dev/null; then
-    rm -rf "$staged"
+  if [ ! -d "$1" ]; then
+    mv "$staged" "$1" || die "couldn't put the game in $1."
     staged=""
     return
   fi
-  rm -rf "$1.old"
-  [ ! -d "$1" ] || mv "$1" "$1.old" || die "couldn't replace $1."
-  if ! mv "$staged" "$1"; then
-    [ ! -d "$1.old" ] || mv "$1.old" "$1"
-    die "couldn't replace $1."
-  fi
+  swap_paths "$staged" "$1" && [ -d "$staged" ] ||
+    die "the disk $1 is on can't replace the app in one step, so the game is unchanged. Install the update from the release's .dmg instead."
+  # The old app is at the staged path now.
+  rm -rf "$staged"
   staged=""
-  rm -rf "$1.old"
 }
 
 # The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
@@ -235,6 +247,8 @@ if [ "$update" = 1 ]; then
     say "MC_UPDATE current $latest_version"
     exit 0
   fi
+  can_swap_in "$(dirname "$app")" ||
+    die "the disk the game is on can't replace the app in one step, so it can't update itself there. Install the update from the release's .dmg instead."
   fetch_app "$app"
   if [ -n "$wait_pid" ]; then
     # The game went while this downloaded. It may have been started again, so nothing here decides for that one.

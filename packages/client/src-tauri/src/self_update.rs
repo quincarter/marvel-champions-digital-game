@@ -195,7 +195,7 @@ fn can_replace(game: &Path, kind: &str) -> bool {
 /// Whether `dir`'s disk can swap two paths in one step, which the .app update needs so a crash can't leave the game
 /// missing (update-game.sh). APFS can; HFS+ and exFAT can't, and an app there keeps the download link.
 #[cfg(target_os = "macos")]
-fn can_swap_in(dir: &Path) -> bool {
+pub(crate) fn can_swap_in(dir: &Path) -> bool {
   use std::ffi::CString;
   use std::os::unix::ffi::OsStrExt;
   extern "C" {
@@ -226,7 +226,7 @@ fn can_swap_in(dir: &Path) -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn can_swap_in(_dir: &Path) -> bool {
+pub(crate) fn can_swap_in(_dir: &Path) -> bool {
   false
 }
 
