@@ -141,13 +141,20 @@ describe("PresenceTracker", () => {
           version: "1.2.0",
           languages: { base: "en", available: ["en"] },
           files: new Set(["cards/en/x.mephisto-nep.01.webp"]),
+          zipSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         },
       ],
-      new Map([["mephisto-nep@1.2.0", base]]),
+      new Map([
+        ["mephisto-nep@1.2.0", { base, zipSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }],
+      ]),
     );
     advance(PRESENCE_DEBOUNCE_MS);
     expect(sent[1]).toMatchObject({ largeImage: `${base}cards/en/x.mephisto-nep.01.webp`, largeText: "Mephisto" });
     expect(sent[1]?.buttons).toHaveLength(1);
+    // A refreshed catalog that withdrew the pack: back to the logo.
+    tracker.setPackArt([], new Map());
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[2]?.largeImage).toBe("logo");
   });
 
   test("a stored run names its campaign by the shelf's box name, else its own", async () => {

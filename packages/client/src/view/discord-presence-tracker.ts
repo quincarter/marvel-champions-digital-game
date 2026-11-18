@@ -41,6 +41,7 @@ export class PresenceTracker {
   readonly #runNames = new Map<string, string>();
   #packs: ReadonlyMap<string, PresencePack> = new Map();
   #packBases: PresencePackBases = new Map();
+  #trustUnrecorded = false;
 
   constructor(deps: PresenceTrackerDeps, enabled = true) {
     this.#deps = deps;
@@ -53,9 +54,10 @@ export class PresenceTracker {
   }
 
   /** The loaded packs and the store's base URLs, for a mod card's public picture (issue #840). */
-  setPackArt(packs: readonly PresencePack[], bases: PresencePackBases): void {
+  setPackArt(packs: readonly PresencePack[], bases: PresencePackBases, trustUnrecorded = false): void {
     this.#packs = new Map(packs.map((pack) => [pack.id, pack]));
     this.#packBases = bases;
+    this.#trustUnrecorded = trustUnrecorded;
     this.#schedule();
   }
 
@@ -139,8 +141,10 @@ export class PresenceTracker {
 
   /** A mod villain's or hero's picture, from the Mod Store's public copy when the game has no URL for it. */
   #withPackArt(game: PresenceGame): PresenceGame {
-    const villainArt = game.villainArt ?? publicPackArtUrl(game.villainArtCodes, this.#packs, this.#packBases);
-    const heroArt = game.heroArt ?? publicPackArtUrl(game.heroArtCodes, this.#packs, this.#packBases);
+    const villainArt =
+      game.villainArt ?? publicPackArtUrl(game.villainArtCodes, this.#packs, this.#packBases, this.#trustUnrecorded);
+    const heroArt =
+      game.heroArt ?? publicPackArtUrl(game.heroArtCodes, this.#packs, this.#packBases, this.#trustUnrecorded);
     return { ...game, villainArt, heroArt };
   }
 

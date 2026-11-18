@@ -61,7 +61,7 @@ worker.addEventListener("message", (event) => {
       setEnabled(message.on);
       return;
     case "packArt":
-      tracker.setPackArt(message.packs, packBasesOf(message.catalog));
+      tracker.setPackArt(message.packs, packBasesOf(message.catalog), message.trustUnrecorded);
       return;
     case "clear":
       tracker.clear();

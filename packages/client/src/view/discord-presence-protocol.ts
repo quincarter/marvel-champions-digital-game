@@ -17,9 +17,15 @@ export type PresenceIn =
   | { readonly kind: "enabled"; readonly on: boolean }
   /**
    * The loaded packs (`art/pack-art.ts`) and the cached store catalog's raw JSON, posted at start and whenever the
-   * loaded packs change: a mod card's public picture is looked up from them (issue #840).
+   * loaded packs change or the catalog is refreshed: a mod card's public picture is looked up from them (issue #840).
    */
-  | { readonly kind: "packArt"; readonly packs: readonly PresencePack[]; readonly catalog: string | null }
+  | {
+      readonly kind: "packArt";
+      readonly packs: readonly PresencePack[];
+      readonly catalog: string | null;
+      /** Whether an install with no recorded checksum counts as the store's (a release build: `publicPackArtUrl`). */
+      readonly trustUnrecorded: boolean;
+    }
   /** The page is going away: clear the activity now. */
   | { readonly kind: "clear" }
   /** The `invoke` for the last activity failed: forget it was sent. */

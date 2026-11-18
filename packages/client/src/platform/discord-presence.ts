@@ -12,7 +12,7 @@ import { appSession } from "../session.js";
 import { WorkerEngineHost } from "../engine/worker-host.js";
 import { presencePackTable } from "../art/pack-art.js";
 import { onActivePackStatuses } from "../packs/active-packs.js";
-import { CATALOG_CACHE_KEY } from "../packs/catalog.js";
+import { CATALOG_CACHE_KEY, onCatalogCached } from "../packs/catalog.js";
 import { campaignNameTable } from "../view/discord-campaign-name.js";
 import type { PresenceIn, PresenceOut } from "../view/discord-presence-protocol.js";
 import { watchScenes } from "./discord-scene-watch.js";
@@ -92,10 +92,12 @@ async function begin(game: Phaser.Game): Promise<void> {
     } catch {
       // No storage: mod cards keep the logo.
     }
-    send({ kind: "packArt", packs: presencePackTable(), catalog });
+    send({ kind: "packArt", packs: presencePackTable(), catalog, trustUnrecorded: !import.meta.env.DEV });
   };
   postPackArt();
   onActivePackStatuses(postPackArt);
+  // A Mod Store visit refreshes the catalog without reloading packs: a version it now lists, or one it withdrew.
+  onCatalogCached(postPackArt);
 
   // Scenes up already, then every start, wake, sleep and shutdown after.
   for (const scene of game.scene.getScenes(true)) {

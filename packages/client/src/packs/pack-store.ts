@@ -16,6 +16,16 @@ export interface InstalledPack {
   readonly installedAt: string;
   /** The store no longer offers it; it stays playable (§11.4). */
   readonly withdrawn: boolean;
+  /**
+   * Where the bytes came from: the catalog zip's checksum, checked at install. Discord presence shows the store's public
+   * copy of a picture only when this matches the catalog (issue #840). Absent on a record written before it existed.
+   */
+  readonly source?: PackSource;
+}
+
+/** The catalog zip an install was verified against. */
+export interface PackSource {
+  readonly zipSha256: string;
 }
 
 export type PackFileInput = Blob | Uint8Array;
@@ -24,7 +34,11 @@ export interface PackStorage {
   list(): Promise<InstalledPack[]>;
   get(id: string): Promise<InstalledPack | undefined>;
   /** Replaces any installed version of the pack. Rejects, leaving the old state, if anything fails. */
-  install(manifest: PackManifest, files: ReadonlyMap<string, PackFileInput>): Promise<InstalledPack>;
+  install(
+    manifest: PackManifest,
+    files: ReadonlyMap<string, PackFileInput>,
+    source?: PackSource,
+  ): Promise<InstalledPack>;
   remove(id: string): Promise<void>;
   fileBlob(id: string, path: string): Promise<Blob | undefined>;
   /** A cached `blob:` URL for the file, or undefined when it is not installed. */
@@ -124,7 +138,11 @@ export class IdbPackStore implements PackStorage {
     );
   }
 
-  async install(manifest: PackManifest, files: ReadonlyMap<string, PackFileInput>): Promise<InstalledPack> {
+  async install(
+    manifest: PackManifest,
+    files: ReadonlyMap<string, PackFileInput>,
+    source?: PackSource,
+  ): Promise<InstalledPack> {
     // Everything that can fail without the database fails first.
     const blobs = new Map<string, Blob>();
     for (const [path, value] of files) blobs.set(path, toBlob(value));
@@ -136,6 +154,7 @@ export class IdbPackStore implements PackStorage {
       manifest,
       installedAt: new Date().toISOString(),
       withdrawn: false,
+      ...(source ? { source } : {}),
     };
     const tx = db.transaction([MANIFESTS, FILES], "readwrite");
     const done = transactionDone(tx);

@@ -131,7 +131,9 @@ export async function installPack(
   report({ phase: "store" });
   let installed: InstalledPack;
   try {
-    installed = await deps.store.install(unpacked.manifest, unpacked.files);
+    installed = await deps.store.install(unpacked.manifest, unpacked.files, {
+      zipSha256: info.zipSha256.toLowerCase(),
+    });
   } catch (error) {
     throw new PackInstallError("store", `Could not save the pack (${error instanceof Error ? error.message : error})`);
   }
