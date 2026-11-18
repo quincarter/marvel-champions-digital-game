@@ -85,14 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Earlier boxes: scenarios with no music
 
-## The Wrecking Crew
-
-Tracks: **Four Against the World** (battle), **Wrecked** (villain wins), **Back Behind Bars** (heroes win).
-
-```text
-Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
-```
-
 ## Kang
 
 Tracks: **Conqueror of All Tomorrows** (battle), **History Belongs to Kang** (villain wins), **Time Runs Out** (heroes win).
@@ -131,7 +123,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- The Wrecking Crew: `scenarios/breakout/`
 - Kang: `scenarios/kang/`
 - Absorbing Man: `scenarios/absorbing-man/`
 - Zola: `scenarios/zola/`
@@ -489,6 +480,14 @@ Generate an instrumental music track. No vocals, no sung or spoken words. Style:
 Campaign finale, 2-3 minutes: the demon is beaten, the black fortress crumbles, and dawn breaks over the freed neighborhood. Starts quiet with solo flute and soft strings, a steady taiko pulse enters, then it grows into a broad, triumphant anthem for full orchestra with a shining choir-like pad. Relief turning to triumph, about 84 BPM, ending on a long warm major chord.
 
 Title: "The Shadow Lifts"
+```
+
+## The Wrecking Crew
+
+Tracks: **Four Against the World** (battle), **Wrecked** (villain wins), **Back Behind Bars** (heroes win).
+
+```text
+Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
 ```
 
 </details>

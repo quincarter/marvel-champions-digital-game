@@ -152,24 +152,6 @@ Title: "A Synthetic Heart"
 
 # Earlier boxes: scenarios with no music
 
-## The Wrecking Crew
-
-Folder: `music/scenarios/breakout/`
-
-### Back Behind Bars (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
-
-Title: "Back Behind Bars"
-```
-
 ## Kang
 
 Folder: `music/scenarios/kang/`
@@ -710,10 +692,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 84 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 85 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 84 prompts already used</summary>
+<summary>Show the 85 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1901,20 @@ Use the same main melody and instruments as the battle track I just generated.
 Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
 
 Title: "Wrecked"
+```
+
+### Back Behind Bars (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+Four super-strong brawlers with a wrecking ball, a crowbar and bare fists smashing their way out of prison, each taking a turn to hit. Loud, heavy and fun: a stomping blues-rock riff in low brass and distorted guitar, anvil and chain percussion, big tom drums, four short blunt motifs traded back and forth. About 112 BPM, E minor, swaggering.
+
+Title: "Back Behind Bars"
 ```
 
 </details>
