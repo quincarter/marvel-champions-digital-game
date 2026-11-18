@@ -13,6 +13,8 @@ import { detectPlatform } from "../platform/platform.js";
 import { canReadPowerSaving, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
 import { drawsAtScreenDensity, screenEnvironment } from "../platform/screen-density.js";
 import { knownSteamInstall } from "../platform/steam-install.js";
+import { knownSteamAdd } from "../platform/steam-add.js";
+import { t } from "../i18n/translate.js";
 import { couchBaseSize } from "../ui/render-resolution.js";
 import type { CouchSize } from "../view/couch-mode.js";
 import { formFactorFor } from "../view/layout.js";
@@ -139,6 +141,7 @@ export function settingsDeviceRowsFor(
   }
   add("steam-deck", { title: "Steam Deck", detail: STEAM_DECK_DETAIL });
   add("steam-install", { title: STEAM_INSTALL_ROW_TITLE, detail: STEAM_INSTALL_ROW_DETAIL });
+  add("steam-add", { title: t("steamAdd.row.title"), detail: t("steamAdd.row.detail") });
   add(UNLOCKS_ROW, { title: "Unlocks", detail: unlocksSummaryOf(unlocks()) });
   add(STATS_ROW, { title: "Your stats", detail: STATS_ROW_DETAIL });
   add(SAVE_DATA_ROW, { title: SAVE_DATA_ROW_TITLE, detail: SAVE_DATA_ROW_DETAIL });
@@ -167,6 +170,7 @@ export function settingsTabsFor(
     desktopWindow: hasDesktopWindow(),
     discord: hasDesktopWindow(),
     steamInstall: knownSteamInstall()?.canUpdate === true,
+    steamAdd: knownSteamAdd()?.canAdd === true,
     steamDeck: onHandheldLinux(),
     powerSaving:
       canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,

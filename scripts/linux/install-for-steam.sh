@@ -17,6 +17,8 @@
 #   --language <xx>  the card language to install, en or es (default: what's installed, else the AppImage on disk, else en)
 #   --update         update the game only: leave Steam alone, so it can run while Steam and the game are open
 #   --wait-pid <n>   with --update, download first, then wait for this process to end before replacing the game
+#   --keep-game <v>  add the AppImage named, version <v>, as it is: no looking up or downloading the latest release (the
+#                    game's own Add to Steam button runs the script this way, src-tauri/src/steam_add.rs)
 #   --yes            close Steam without asking when it is running
 #   --uninstall      remove the Steam entry, its art, the installed AppImage and ~/.marvel-champions
 #   -h, --help       this text
@@ -47,6 +49,7 @@ assume_yes=0
 uninstall=0
 update=0
 wait_pid=""
+keep_game=""
 language=""
 appimage=""
 
@@ -69,6 +72,10 @@ while [ $# -gt 0 ]; do
       wait_pid="${2:?--wait-pid needs a process id}"
       shift
       ;;
+    --keep-game)
+      keep_game="${2:?--keep-game needs a version}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -84,6 +91,8 @@ done
 [ "$(uname -s)" = "Linux" ] || die "this script is for Linux; on Windows and macOS use the installer from the release."
 case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
 case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
+case "$keep_game" in '' | [0-9]*.[0-9]*.[0-9]*) ;; *) die "--keep-game takes the game's version, like 1.2.3." ;; esac
+[ -z "$keep_game" ] || [ -n "$appimage" ] || die "--keep-game needs the AppImage to add."
 command -v python3 > /dev/null || die "python3 is needed to edit Steam's shortcut list. Install it with your package manager (Arch: sudo pacman -S python) and run this again."
 
 # A field of the install record, or nothing when there is no record.
@@ -96,6 +105,8 @@ marker_value() {
 # never a draft or a prerelease.
 latest_version=""
 latest_url=""
+# GitHub's SHA-256 of the AppImage, which the download is checked against before it replaces anything.
+latest_sha256=""
 lookup_latest() {
   command -v curl > /dev/null || return 1
   local answer
@@ -105,15 +116,35 @@ release = json.load(sys.stdin)
 images = [a for a in release.get("assets", []) if a["name"].endswith(".AppImage")]
 tag = f"-{sys.argv[1].upper()}-Linux-"
 image = next((a for a in images if tag in a["name"]), None)
-print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", sep="\t")
+digest = (image or {}).get("digest") or ""
+print(release["tag_name"].lstrip("v"), image["browser_download_url"] if image else "", digest[7:] if digest.startswith("sha256:") else digest, sep="\t")
 ' "${language:-en}" 2> /dev/null)" || return 1
-  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  IFS=$'\t' read -r latest_version latest_url latest_sha256 <<< "$answer"
   [ -n "$latest_url" ]
 }
 
 fetch_appimage() {
   say "Downloading version $latest_version..."
   curl -fL --progress-bar -o "$1" "$latest_url" || die "the download failed."
+  check_download "$1"
+}
+
+# Stops unless the file matches the release's checksum, so a cut-off or wrong download never replaces the game.
+check_download() {
+  local got
+  case "$latest_sha256" in
+    *[!0-9a-f]* | "") die "the release lists no checksum for the AppImage." ;;
+  esac
+  [ "${#latest_sha256}" = 64 ] || die "the release lists no checksum for the AppImage."
+  if command -v sha256sum > /dev/null; then
+    got="$(sha256sum < "$1" | cut -d' ' -f1)"
+  else
+    got="$(shasum -a 256 < "$1" | cut -d' ' -f1)"
+  fi
+  if [ "$got" != "$latest_sha256" ]; then
+    rm -f "$1"
+    die "the download doesn't match the release, so nothing changed."
+  fi
 }
 
 # The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
@@ -134,11 +165,16 @@ save_script() {
 # Records the install: <version> <Steam kind>.
 write_marker() {
   mkdir -p "$STATE_DIR"
-  python3 - "$MARKER" "$INSTALLED" "$1" "${language:-en}" "$2" << 'PY'
+  # "kept": the game was added where the player keeps it (--keep-game, or an update of such a game), not copied in by this
+  # script, so --uninstall never deletes it.
+  local kept="${keep_game:+1}"
+  [ -n "$kept" ] || [ "$update" != 1 ] || [ "$(marker_value kept)" != "True" ] || kept=1
+  python3 - "$MARKER" "$INSTALLED" "$1" "${language:-en}" "$2" "$kept" << 'PY'
 import datetime, json, os, sys
 
-path, game, version, language, steam = sys.argv[1:6]
+path, game, version, language, steam, kept = sys.argv[1:7]
 record = {
+    "kept": kept == "1",
     "method": "steam-script",
     "os": "linux",
     "game": game,
@@ -159,6 +195,12 @@ PY
 # The game shows these MC_UPDATE lines' meaning on screen (packages/client/src/view/steam-update.ts). Steam isn't
 # touched: the entry already points at the AppImage's path, and Steam may be what started the game.
 if [ "$update" = 1 ]; then
+  # The AppImage the record names: Add to Steam (--keep-game) records the game where the player keeps it.
+  recorded="$(marker_value game)"
+  if [ -n "$recorded" ]; then
+    INSTALLED="$recorded"
+    INSTALL_DIR="$(dirname "$recorded")"
+  fi
   [ -n "$language" ] || language="$(marker_value language)"
   lookup_latest || die "couldn't find the latest release on GitHub."
   if [ -x "$INSTALLED" ] && [ "$(marker_value version)" = "$latest_version" ] &&
@@ -386,6 +428,18 @@ PY
 }
 
 if [ "$uninstall" = 1 ]; then
+  # Add to Steam from the game (--keep-game) records an AppImage the player keeps somewhere else: its entry is the one
+  # to remove, and that AppImage, like anything in the default folder, is not this script's to delete.
+  # Only a game this script copied into the default folder is its to delete: the record says so ("kept" is false) and
+  # names that folder's AppImage. A record that says nothing about it (written before "kept") counts as the script's
+  # only at the default path, which is the only place those runs put the game.
+  recorded="$(marker_value game)"
+  owned=1
+  [ "$(marker_value kept)" != "True" ] || owned=0
+  if [ -n "$recorded" ] && [ "$recorded" != "$INSTALLED" ]; then
+    INSTALLED="$recorded"
+    owned=0
+  fi
   for user in "${users[@]}"; do
     config="$steam_root/userdata/$user/config"
     [ -f "$config/shortcuts.vdf" ] || continue
@@ -394,8 +448,13 @@ if [ "$uninstall" = 1 ]; then
         "$config/grid/${id}_logo.png" "$config/grid/${id}_icon.png"
     done
   done
-  rm -rf "$INSTALL_DIR" "$STATE_DIR"
-  say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR and $STATE_DIR. Start Steam again to see the change."
+  if [ "$owned" = 1 ]; then
+    rm -rf "$INSTALL_DIR" "$STATE_DIR"
+    say "Removed $APP_NAME from Steam and deleted $INSTALL_DIR and $STATE_DIR. Start Steam again to see the change."
+  else
+    rm -rf "$STATE_DIR"
+    say "Removed $APP_NAME from Steam and deleted $STATE_DIR; $INSTALLED stays where it is. Start Steam again to see the change."
+  fi
   exit 0
 fi
 
@@ -450,11 +509,20 @@ if [ -z "$appimage" ]; then
     die "couldn't find the latest release on GitHub, and there's no AppImage next to this script or in ~/Downloads."
   fi
 else
-  version="$(version_of "$appimage")"
+  version="${keep_game:-$(version_of "$appimage")}"
 fi
 
 [ -f "$appimage" ] || die "$appimage doesn't exist."
 appimage="$(cd "$(dirname "$appimage")" && pwd)/$(basename "$appimage")"
+# The library art's icon lives beside the game, so the shortcut keeps it if Steam's grid folder is cleared.
+ICON_DIR="$INSTALL_DIR"
+if [ -n "$keep_game" ]; then
+  # Add to Steam from the game: the entry points at the AppImage the player runs, where it is, rather than a copy that
+  # could replace (or downgrade) one installed here before. The icon goes in the state folder, not beside it.
+  INSTALLED="$appimage"
+  INSTALL_DIR="$(dirname "$appimage")"
+  ICON_DIR="$STATE_DIR"
+fi
 mkdir -p "$INSTALL_DIR"
 if [ "$appimage" != "$INSTALLED" ]; then
   say "Installing $(basename "$appimage") to $INSTALLED"
@@ -482,7 +550,8 @@ if [ "$art_dir" = "$tmp_dir/art" ]; then
   fi
 fi
 # The icon also lives beside the game, so the shortcut keeps it even if Steam's grid folder is cleared.
-[ -f "$art_dir/icon.png" ] && cp -f "$art_dir/icon.png" "$INSTALL_DIR/icon.png"
+mkdir -p "$ICON_DIR"
+[ -f "$art_dir/icon.png" ] && cp -f "$art_dir/icon.png" "$ICON_DIR/icon.png"
 
 # --- Launch options --------------------------------------------------------------------------------------------------
 
@@ -524,10 +593,29 @@ fi
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the AppImage's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+has_game_entry() {
+  [ -f "$1" ] || return 1
+  python3 - "$1" "$APP_NAME" "$INSTALLED" << 'HAS'
+import sys
+data = open(sys.argv[1], "rb").read().lower()
+names = [sys.argv[2], "Marvel Champions"]
+found = any(b"\x01appname\x00" + n.lower().encode() + b"\x00" in data for n in names)
+sys.exit(0 if found or sys.argv[3].lower().encode() in data else 1)
+HAS
+}
+
 for user in "${users[@]}"; do
   config="$steam_root/userdata/$user/config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if [ -n "$keep_game" ] && has_game_entry "$config/shortcuts.vdf"; then
+    say "Steam user $user has $APP_NAME already; left as it is."
+    continue
+  fi
   icon=""
-  [ -f "$INSTALL_DIR/icon.png" ] && icon="$INSTALL_DIR/icon.png"
+  [ -f "$ICON_DIR/icon.png" ] && icon="$ICON_DIR/icon.png"
   result="$(vdf_tool add "$config/shortcuts.vdf" "$INSTALLED" "$APP_NAME" "$INSTALL_DIR" "$icon" "$launch" "$drop")"
   IFS=$'\t' read -r id written replaced <<< "$result"
   grid="$config/grid"
@@ -563,3 +651,5 @@ if [ "$steam_deck" = 1 ]; then
 else
   say "Done. Start Steam: $APP_NAME is in your library."
 fi
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if [ -n "$keep_game" ]; then say "MC_UPDATE added $version"; fi

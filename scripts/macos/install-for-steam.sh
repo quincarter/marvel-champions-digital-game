@@ -17,6 +17,8 @@
 #   --language <xx>     the card language to install, en or es (default: what the last run installed, else en)
 #   --update            update the game only: leave Steam alone, so it can run while Steam and the game are open
 #   --wait-pid <n>      with --update, download first, then wait for this process to end before replacing the game
+#   --keep-game <v>     add the --app named, version <v>, as it is: no looking up or downloading the latest release
+#                       (the game's own Add to Steam button runs the script this way, src-tauri/src/steam_add.rs)
 #   --yes               close Steam without asking when it is running
 #   --uninstall         remove the Steam entry, its art and ~/.marvel-champions (the game itself stays installed)
 #   -h, --help          this text
@@ -44,6 +46,7 @@ assume_yes=0
 uninstall=0
 update=0
 wait_pid=""
+keep_game=""
 language=""
 
 usage() { sed -n '2,/^set -euo/p' "$SELF" | sed '$d; s/^# \{0,1\}//'; }
@@ -72,6 +75,10 @@ while [ $# -gt 0 ]; do
       wait_pid="${2:?--wait-pid needs a process id}"
       shift
       ;;
+    --keep-game)
+      keep_game="${2:?--keep-game needs a version}"
+      shift
+      ;;
     --yes | -y) assume_yes=1 ;;
     --uninstall) uninstall=1 ;;
     -h | --help)
@@ -85,6 +92,8 @@ done
 
 case "$language" in '' | [a-z][a-z]) ;; *) die "--language takes a two-letter language, en or es." ;; esac
 case "$wait_pid" in *[!0-9]*) die "--wait-pid takes a process id." ;; esac
+case "$keep_game" in '' | [0-9]*.[0-9]*.[0-9]*) ;; *) die "--keep-game takes the game's version, like 1.2.3." ;; esac
+[ -z "$keep_game" ] || [ -n "$app" ] || die "--keep-game needs --app."
 command -v perl > /dev/null || die "perl is needed to edit Steam's shortcut list."
 
 # A field of the install record, or nothing when there is no record.
@@ -108,6 +117,8 @@ is_latest() {
 # "latest" is never a draft or a prerelease.
 latest_version=""
 latest_url=""
+# GitHub's SHA-256 of the .dmg, which the download is checked against before anything is installed from it.
+latest_sha256=""
 lookup_latest() {
   local chip="Intel-x64" answer
   [ "$(sysctl -n hw.optional.arm64 2> /dev/null || true)" = 1 ] && chip="AppleSilicon-arm64"
@@ -116,9 +127,10 @@ my ($lang, $chip) = @ARGV; local $/;
 my $release = JSON::PP->new->utf8->decode(scalar <STDIN>);
 (my $version = $release->{tag_name}) =~ s/^v//;
 my ($dmg) = grep { $_->{name} =~ /-\U$lang\E-macOS-\Q$chip\E\.dmg$/ } @{ $release->{assets} };
-print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\n";
+my $digest = $dmg && $dmg->{digest} ? $dmg->{digest} : ""; $digest =~ s/^sha256://;
+print "$version\t", ($dmg ? $dmg->{browser_download_url} : ""), "\t$digest\n";
 ' "$language" "$chip")" || return 1
-  IFS=$'\t' read -r latest_version latest_url <<< "$answer"
+  IFS=$'\t' read -r latest_version latest_url latest_sha256 <<< "$answer"
   [ -n "$latest_url" ]
 }
 
@@ -133,6 +145,10 @@ fetch_app() {
   staged="$1.new.$$"
   say "Downloading version $latest_version..."
   curl -fL --progress-bar -o "$dmg" "$latest_url" || die "the download failed."
+  # A cut-off or wrong download is never installed.
+  [ "${#latest_sha256}" = 64 ] || die "the release lists no checksum for the .dmg."
+  [ "$(shasum -a 256 < "$dmg" | cut -d' ' -f1)" = "$latest_sha256" ] ||
+    die "the download doesn't match the release, so nothing changed."
   mkdir -p "$mount"
   hdiutil attach "$dmg" -nobrowse -quiet -mountpoint "$mount" || die "couldn't open the .dmg."
   found="$(find "$mount" -maxdepth 1 -name '*.app' | head -n 1)"
@@ -143,15 +159,34 @@ fetch_app() {
   xattr -dr com.apple.quarantine "$staged" 2> /dev/null || true
 }
 
+# Trades two paths in one step (renameatx_np with RENAME_SWAP, through perl; AT_FDCWD is -2 on macOS). APFS can; HFS+
+# and exFAT can't, and macFUSE has been seen to report success while only renaming one over the other.
+swap_paths() { perl -e 'exit(syscall(488, -2, $ARGV[0], -2, $ARGV[1], 2) == 0 ? 0 : 1)' "$1" "$2" 2> /dev/null; }
+
+# Whether apps in $1 can be replaced in one step: two folders in a probe folder of this run's own must really trade
+# places. Checked before anything is downloaded, so an update there stops with the game as it was.
+can_swap_in() {
+  local probe ok=1
+  probe="$(mktemp -d "$1/.mc-swap-probe.XXXXXX")" || return 1
+  mkdir "$probe/a" "$probe/b" && : > "$probe/a/a" && : > "$probe/b/b" &&
+    swap_paths "$probe/a" "$probe/b" && [ -f "$probe/a/b" ] && [ -f "$probe/b/a" ] || ok=0
+  rm -rf "$probe"
+  [ "$ok" = 1 ]
+}
+
+# Puts $staged in $1's place. An app already there is replaced only by trading the two in one step, so no crash or
+# power cut can leave the game missing; a disk that can't do that stops here with the old app as it was.
 swap_app() {
-  rm -rf "$1.old"
-  [ ! -d "$1" ] || mv "$1" "$1.old" || die "couldn't replace $1."
-  if ! mv "$staged" "$1"; then
-    [ ! -d "$1.old" ] || mv "$1.old" "$1"
-    die "couldn't replace $1."
+  if [ ! -d "$1" ]; then
+    mv "$staged" "$1" || die "couldn't put the game in $1."
+    staged=""
+    return
   fi
+  swap_paths "$staged" "$1" && [ -d "$staged" ] ||
+    die "the disk $1 is on can't replace the app in one step, so the game is unchanged. Install the update from the release's .dmg instead."
+  # The old app is at the staged path now.
+  rm -rf "$staged"
   staged=""
-  rm -rf "$1.old"
 }
 
 # The copy of this script the game runs. A copy run from a file is what the player chose; run from the saved copy or a
@@ -212,6 +247,8 @@ if [ "$update" = 1 ]; then
     say "MC_UPDATE current $latest_version"
     exit 0
   fi
+  can_swap_in "$(dirname "$app")" ||
+    die "the disk the game is on can't replace the app in one step, so it can't update itself there. Install the update from the release's .dmg instead."
   fetch_app "$app"
   if [ -n "$wait_pid" ]; then
     # The game went while this downloaded. It may have been started again, so nothing here decides for that one.
@@ -264,7 +301,13 @@ fi
 find_app
 [ -n "$app" ] || [ "$uninstall" = 0 ] || app="/Applications/$APP_NAME.app"
 version=""
-if [ "$uninstall" = 0 ]; then
+if [ "$uninstall" = 0 ] && [ -n "$keep_game" ]; then
+  # From the running game: it stays as it is, since replacing it would pull it out from under itself.
+  [ -d "$app" ] || die "the game isn't at $app."
+  version="$keep_game"
+  app="$(cd "$app" && pwd)"
+  say "Game: $app"
+elif [ "$uninstall" = 0 ]; then
   say "Looking up the latest release..."
   if lookup_latest; then
     version="$latest_version"
@@ -407,8 +450,25 @@ fi
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the app's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+has_game_entry() {
+  [ -f "$1" ] || return 1
+  perl -e '
+my ($path, $app, @names) = @ARGV; open(my $fh, "<:raw", $path) or exit 1; local $/; my $data = lc(<$fh>);
+for my $name (@names) { exit 0 if index($data, "\x01appname\x00" . lc($name) . "\x00") >= 0 }
+exit(index($data, lc($app)) >= 0 ? 0 : 1);
+' "$1" "$app" "$SHORTCUT_NAME" "$APP_NAME"
+}
+
 for user in "${users[@]}"; do
   config="$steam_root/userdata/$user/config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if [ -n "$keep_game" ] && has_game_entry "$config/shortcuts.vdf"; then
+    say "Steam user $user has $SHORTCUT_NAME already; left as it is."
+    continue
+  fi
   grid="$config/grid"
   mkdir -p "$grid"
   # The shortcut's grid id, as vdf_tool works it out, to name the art before the entry that points at the icon.
@@ -436,3 +496,5 @@ write_marker "$version"
 
 say ""
 say "Done. Start Steam: $SHORTCUT_NAME is in your library."
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if [ -n "$keep_game" ]; then say "MC_UPDATE added $version"; fi

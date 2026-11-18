@@ -28,6 +28,9 @@ The card language to install, en or es (default: what the last run installed, el
 Update the game only: leave Steam alone, so it can run while Steam and the game are open.
 .PARAMETER WaitPid
 With -Update, download first, then wait for this process to end before running the installer.
+.PARAMETER KeepGame
+Add the game at -Path to Steam as it is, at this version, without looking up or installing the latest release. The
+game's own Add to Steam button runs the script this way (src-tauri/src/steam_add.rs).
 .PARAMETER Yes
 Close Steam without asking when it is running.
 .PARAMETER Uninstall
@@ -39,6 +42,7 @@ param(
   [string]$Language = "",
   [switch]$Update,
   [int]$WaitPid = 0,
+  [string]$KeepGame = "",
   [switch]$Yes,
   [switch]$Uninstall
 )
@@ -84,10 +88,15 @@ function Get-LatestRelease([string]$kind) {
   $name = "-" + $Language.ToUpperInvariant() + $suffix
   $asset = @($release.assets | Where-Object { $_.name.EndsWith($name) }) | Select-Object -First 1
   if ($null -eq $asset) { return $null }
-  return @{ Version = $release.tag_name.TrimStart("v"); Url = $asset.browser_download_url; Name = $asset.name }
+  return @{
+    Version = $release.tag_name.TrimStart("v"); Url = $asset.browser_download_url; Name = $asset.name
+    # GitHub's SHA-256 of the file ("sha256:<hex>"), which the download is checked against before it is run.
+    Digest = [string]$asset.digest
+  }
 }
 
-function Save-Download([string]$url, [string]$file) {
+# Downloads $url to $file, and stops unless it matches the release's checksum, so a cut-off or wrong file is never run.
+function Save-Download([string]$url, [string]$file, [string]$digest) {
   # curl.exe ships with Windows and shows progress, which the game reads to fill its bar; Invoke-WebRequest doesn't.
   $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
   if ($null -ne $curl) {
@@ -95,6 +104,11 @@ function Save-Download([string]$url, [string]$file) {
     if ($LASTEXITCODE -ne 0) { Fail "the download failed." }
   } else {
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $file
+  }
+  if ($digest -notmatch '^sha256:([0-9a-fA-F]{64})$') { Fail "the release lists no checksum for $(Split-Path -Leaf $file)." }
+  if ((Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash -ne $Matches[1].ToUpperInvariant()) {
+    Remove-Item $file -ErrorAction SilentlyContinue
+    Fail "the download doesn't match the release, so nothing changed."
   }
 }
 
@@ -325,17 +339,22 @@ function Find-Game {
   return $null
 }
 
-# Which installer the game at $exe came from: the .msi registers itself with Windows Installer, the per-user setup
-# doesn't. A game that isn't installed yet gets the per-user setup, which needs no admin rights.
+# Which installer the game at $exe came from, read from what each leaves behind (as the game itself reads it,
+# src-tauri/src/self_update.rs): the per-user setup's uninstall.exe beside the game, or the .msi's Windows Installer
+# entry for the game's folder. A game that isn't installed yet gets the per-user setup, which needs no admin rights.
+# "unknown" when an installed game shows neither, rather than a guess that would run the other installer.
 function Get-InstallKind([string]$exe) {
+  if (-not $exe -or -not (Test-Path $exe)) { return "nsis" }
+  $dir = (Split-Path (Resolve-Path $exe).Path).TrimEnd("\")
+  if (Test-Path (Join-Path $dir "uninstall.exe")) { return "nsis" }
   $keys = @("HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
     "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
-  $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue |
-      Where-Object { $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 })
-  if ($msi.Count -gt 0 -and $exe -and -not $exe.StartsWith($env:LOCALAPPDATA, [System.StringComparison]::OrdinalIgnoreCase)) {
-    return "msi"
-  }
-  return "nsis"
+  $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object {
+      $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 -and $_.InstallLocation -and
+      ([string]$_.InstallLocation).TrimEnd("\") -ieq $dir
+    })
+  if ($msi.Count -gt 0) { return "msi" }
+  return "unknown"
 }
 
 # The version the installed game says it is, or "" when it can't be read.
@@ -365,6 +384,7 @@ if ($Update) {
   if ($Path -eq "") { $Path = Find-Game }
   if (-not $Path) { Fail "the game isn't installed where its installer puts it." }
   $kind = Get-InstallKind $Path
+  if ($kind -eq "unknown") { Fail "couldn't tell which installer put the game at $Path, so it can't update itself. Download the update from the release instead." }
   $latest = Get-LatestRelease $kind
   if ($null -eq $latest) { Fail "couldn't find the latest release on GitHub." }
   if (Test-Latest $Path $latest.Version) {
@@ -374,7 +394,7 @@ if ($Update) {
   $temp = New-TempFolder
   $installer = Join-Path $temp $latest.Name
   Write-Host "Downloading version $($latest.Version)..."
-  Save-Download $latest.Url $installer
+  Save-Download $latest.Url $installer $latest.Digest
   if ($WaitPid -gt 0) {
     # The game went while this downloaded. It may have been started again, and the installer would close it.
     if ($null -eq (Get-Process -Id $WaitPid -ErrorAction SilentlyContinue)) {
@@ -398,6 +418,13 @@ if ($Path -eq "") { $Path = Find-Game }
 $version = ""
 if ($Uninstall) {
   if (-not $Path) { $Path = "$env:LOCALAPPDATA\$AppName\$ExeName" }
+} elseif ($KeepGame -ne "") {
+  # From the running game: it stays as it is, since an installer would close it.
+  if ($KeepGame -notmatch '^\d+\.\d+\.\d+$') { Fail "-KeepGame takes the game's version, like 1.2.3." }
+  $version = $KeepGame
+  if (-not $Path -or -not (Test-Path $Path)) { Fail "the game isn't at $Path." }
+  $Path = (Resolve-Path $Path).Path
+  Write-Host "Game: $Path"
 } else {
   Write-Host "Looking up the latest release..."
   $kind = Get-InstallKind $Path
@@ -407,13 +434,14 @@ if ($Uninstall) {
     if (Test-Latest $Path $latest.Version) {
       Write-Host "Version $($latest.Version) is already installed."
     } else {
+      if ($kind -eq "unknown") { Fail "couldn't tell which installer put the game at $Path. Install the update from the release, then run this again." }
       if ($null -ne (Get-Process -Name marvel-champions -ErrorAction SilentlyContinue)) {
         Fail "the game is running. Close it and run this again."
       }
       $temp = New-TempFolder
       $installer = Join-Path $temp $latest.Name
       Write-Host "Downloading version $($latest.Version)..."
-      Save-Download $latest.Url $installer
+      Save-Download $latest.Url $installer $latest.Digest
       Write-Host "Installing..."
       Install-Game $installer $kind
       Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
@@ -475,8 +503,26 @@ if (-not $artDir -or -not (Test-Path (Join-Path $artDir "hero.jpg"))) {
 
 # --- The Steam entry -------------------------------------------------------------------------------------------------
 
+# Whether a shortcut list already has this game, by the script's names for it or the exe's path (as the game's own
+# check does, src-tauri/src/steam_add.rs).
+function Test-GameEntry([string]$file) {
+  if (-not (Test-Path $file)) { return $false }
+  # Latin-1 keeps every byte as one character, so the search runs over the file's own bytes.
+  $data = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($file)).ToLowerInvariant()
+  foreach ($name in @($ShortcutName, $AppName)) {
+    if ($data.Contains([string][char]1 + "appname" + [char]0 + $name.ToLowerInvariant() + [char]0)) { return $true }
+  }
+  return $data.Contains($Path.ToLowerInvariant())
+}
+
 foreach ($user in $users) {
   $config = Join-Path $user.FullName "config"
+  # Add to Steam from the game adds the game only where it's missing: an account that has it already keeps its entry,
+  # its target and its art as they are.
+  if ($KeepGame -ne "" -and (Test-GameEntry (Join-Path $config "shortcuts.vdf"))) {
+    Write-Host "Steam user $($user.Name) has $ShortcutName already; left as it is."
+    continue
+  }
   $grid = Join-Path $config "grid"
   New-Item -ItemType Directory -Force -Path $grid | Out-Null
   # Steam's names for a shortcut's library art: <id>p portrait, <id> wide, <id>_hero, <id>_logo, <id>_icon.
@@ -510,3 +556,5 @@ Write-Marker $version
 
 Write-Host ""
 Write-Host "Done. Start Steam: $ShortcutName is in your library."
+# The game's Add to Steam panel reads this (packages/client/src/view/steam-update.ts).
+if ($KeepGame -ne "") { Write-Host "MC_UPDATE added $version" }

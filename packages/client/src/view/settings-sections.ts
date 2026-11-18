@@ -40,6 +40,7 @@ export type SettingsItemId =
   | "unlocks"
   | "save-data"
   | "steam-install"
+  | "steam-add"
   | "stats"
   | "rules"
   | "controls"
@@ -103,6 +104,8 @@ export function settingsSectionsOf(input: {
   readonly discord?: boolean;
   /** A game the Install for Steam script can update: a row under More that opens its update. */
   readonly steamInstall?: boolean;
+  /** The desktop app with Steam installed and the game not in it yet: an Add to Steam row under More (#844). */
+  readonly steamAdd?: boolean;
 }): readonly SettingsSection[] {
   return [
     {
@@ -196,6 +199,7 @@ export function settingsSectionsOf(input: {
         ...(input.controls === false ? [] : (["controls"] as const)),
         ...(input.discord ? (["discord-presence"] as const) : []),
         ...(input.steamInstall ? (["steam-install"] as const) : []),
+        ...(input.steamAdd ? (["steam-add"] as const) : []),
         "rules",
       ],
     },

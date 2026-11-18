@@ -7,6 +7,8 @@ mod native_audio;
 #[cfg(any(target_os = "linux", test))]
 mod native_audio_engine;
 mod save_file;
+mod self_update;
+mod steam_add;
 mod steam_install;
 
 // The context (and with it all of dist/, embedded) is generated in main.rs, not
@@ -20,16 +22,15 @@ mod steam_install;
 /// tell, and the notice then links the release page only.
 #[tauri::command]
 fn installer_kind() -> &'static str {
+  detect_installer_kind()
+}
+
+/// `installer_kind`'s answer, for the game's own updater (self_update.rs) too.
+pub(crate) fn detect_installer_kind() -> &'static str {
   if cfg!(target_os = "windows") {
-    // The .msi installs per machine under Program Files; the NSIS setup.exe
-    // installs per user under AppData.
-    let exe = std::env::current_exe().ok();
-    let path = exe.as_deref().and_then(|p| p.to_str()).map(str::to_ascii_lowercase);
-    match path {
-      Some(p) if p.contains("\\program files") => "msi",
-      Some(_) => "nsis",
-      None => "",
-    }
+    // Read from what each installer leaves, not guessed from the folder: the
+    // game's own updater runs this installer (self_update.rs).
+    self_update::windows_installer_kind()
   } else if cfg!(target_os = "macos") {
     // The build's own architecture, so an Intel build under Rosetta keeps
     // getting the Intel .dmg it was installed from.
@@ -53,7 +54,6 @@ fn installer_kind() -> &'static str {
 }
 
 pub fn run(context: tauri::Context<tauri::Wry>) {
-  #[cfg(windows)]
   steam_install::leave_for_running_update();
   // The game's own app identity, set before WebView2 starts, so Windows can name the game's sound after it (#243).
   #[cfg(windows)]
@@ -89,6 +89,10 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       steam_install::steam_update_start,
       steam_install::steam_update_status,
       steam_install::steam_update_quit,
+      self_update::self_update_info,
+      self_update::self_update_start,
+      steam_add::steam_add_info,
+      steam_add::steam_add_start,
       discord_presence::discord_set_activity,
       discord_presence::discord_status,
       gamepad_bridge::gamepad_bridge_status,
