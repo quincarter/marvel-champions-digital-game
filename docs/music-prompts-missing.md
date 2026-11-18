@@ -57,14 +57,6 @@ Rename this track. Its title is exactly "<the title>". Use that as the name and 
 
 # Synthezoid Smackdown
 
-## She-Hulk (Registration)
-
-Tracks: **Objection Overruled** (battle), **Case Closed** (villain wins), **Verdict Reversed** (heroes win).
-
-```text
-A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
-```
-
 ## Vision (Resistance)
 
 Tracks: **Phase Shift** (battle), **Density Absolute** (villain wins), **A Synthetic Heart** (heroes win).
@@ -84,7 +76,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 Every scenario and campaign listed here is playable, so each track goes straight into `music/scenarios/<scenarioId>/` or
 `music/campaigns/<campaignId>/`, with its `TRACK_TITLES` entry and a copy under its title in `music/soundtrack/`.
 
-- She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
 
 # Already in the game
@@ -480,6 +471,14 @@ Tracks: **Chain of Command** (battle), **Grounded by Order** (villain wins), **C
 
 ```text
 A cosmic-powered air force pilot and government agent who believes heroes must follow orders, diving out of the sky with armored capture squads and soaking up energy until she blazes. Military and soaring at once: a strict snare cadence and marching low strings, bright heroic trumpets and horns climbing in wide leaps, glowing synth swells that build and build then burst, jet-like whooshes in the percussion. About 138 BPM, B-flat minor rising to major chords, disciplined and blazing.
+```
+
+## She-Hulk (Registration)
+
+Tracks: **Objection Overruled** (battle), **Case Closed** (villain wins), **Verdict Reversed** (heroes win).
+
+```text
+A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
 ```
 
 </details>
