@@ -190,6 +190,21 @@
         font-size: 21px;
         flex: none;
       }
+      .pill.feat {
+        display: inline-flex;
+        border-width: 2px;
+        padding: 10px 18px 10px 12px;
+        margin: 0 0 24px;
+        max-width: 100%;
+      }
+      .pill.feat .star {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+      }
+      .pill.feat span {
+        font-size: 18px;
+      }
       .pill small {
         display: block;
         font: 700 11px var(--b);
@@ -589,7 +604,7 @@
       <header class="top">
         <div>
           <div class="kick">Marvel Champions: Digital Edition · Release report</div>
-          <h1>Time Heist:<br /><span class="g">Take-Backs Allowed</span></h1>
+          <h1>Earth's Mightiest<br /><span class="g">Patch</span></h1>
         </div>
         <div class="meta">
           <span class="v">v0.49.0</span> · release PR
@@ -604,7 +619,7 @@
       <section class="intro">
         <div class="pill">
           <div class="star">★</div>
-          <div><small>Achievement unlocked</small><span>The Time Stone</span></div>
+          <div><small>Achievement unlocked</small><span>Avengers Assembled</span></div>
         </div>
         <p>
           <b>A misclick or a bug no longer has to cost you the game.</b> Undo now reaches past the start of your turn, a
@@ -638,6 +653,10 @@
       <div class="band gold">
         <h2>Undo past your turn</h2>
         <div class="lab">Issue #791 · PR #793</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>The Time Stone</span></div>
       </div>
       <p class="lead">
         <b>Undo used to stop at the start of your turn or the last card you drew or revealed.</b> Now, when the ordinary
@@ -687,6 +706,10 @@
       <div class="band">
         <h2>Manual adjust</h2>
         <div class="lab">Issue #791 · PR #793</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Reality Warper</span></div>
       </div>
       <p class="lead">
         <b>Pause ▸ Manual adjust corrects the table by hand.</b> Pick what to correct, a hero, the villain, a minion, a
@@ -761,6 +784,10 @@
         <h2>Fair stats, either way</h2>
         <div class="lab">Issue #791 · PR #793</div>
       </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>The Honor System</span></div>
+      </div>
       <p class="lead">
         <b>A game you adjust or undo past your turn is marked adjusted, and it stays marked.</b> Achievements, unlocks,
         Extras, your stats, deck insights and global stats leave it out, so a win there is still a game you played, just
@@ -791,6 +818,10 @@
       <div class="band">
         <h2>Find any setting from Pause</h2>
         <div class="lab">Issue #800 · PR #801</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Heimdall Sees All</span></div>
       </div>
       <p class="lead">
         <b>Type in Pause's search and the results take over the menu,</b> grouped Settings first, then Rules, Pause's
@@ -851,6 +882,10 @@
       <div class="band gold">
         <h2>Schemes you can read</h2>
         <div class="lab">Issue #808 · PR #831</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Giant-Size Schemes</span></div>
       </div>
       <p class="lead">
         <b>A player on Discord found the scheme cards too small to read.</b> Two new settings in Settings ▸ Cards, both
@@ -944,6 +979,10 @@
         <h2>You asked, we fixed</h2>
         <div class="lab">Issues #794, #795, #804, #806 · PRs #796, #797, #822, #824</div>
       </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Fan Service</span></div>
+      </div>
       <div class="cards">
         <div class="paper">
           <div class="eb">#794 · reported by GarethMagis on Discord</div>
@@ -999,6 +1038,10 @@
         <h2>Ten reports, ten fixes</h2>
         <div class="lab">Issues #809 to #818 · PRs #820, #821, #822, #825, #826</div>
       </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Kraven's Trophy Wall</span></div>
+      </div>
       <p class="lead">
         <b>@bluefireF5ran played Spider-Verse and Wolverine decks hard and sent ten precise reports.</b> Every one is
         fixed in this release.
@@ -1047,6 +1090,10 @@
       <div class="band">
         <h2>Also in v0.49.0</h2>
         <div class="lab">Issues #805, #807, #829 · PRs #819, #830, #832</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Read the Fine Print</span></div>
       </div>
       <div class="box">
         <ul class="ck">
@@ -1129,7 +1176,7 @@
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">12,983</div>
+          <div class="n c-green">13,038</div>
           <p>most of them Undo, Manual adjust and their tests.</p>
         </div>
         <div class="tile">
