@@ -151,13 +151,14 @@ async function runCheck(deps: CheckDeps): Promise<number> {
     }
     // The store noted its own catalog while this fetch waited: that one is newer, so it stays the remembered copy.
     if (fresh && noted === started) {
-      index = fresh;
-      lastIndex = fresh;
-      lastFetched = now();
-      // The store may have saved a newer catalog that it has not noted yet: an older answer never replaces it (the
-      // catalog's `generated` is an ISO time, so the strings compare in time order).
+      // The store may have saved a newer catalog that it has not noted yet, or a CDN may answer with an older one: the
+      // newer of the two is counted from and kept (`generated` is an ISO time, so the strings compare in time order).
       const saved = cachedCatalog(deps.storage);
-      if (!saved || saved.generated <= fresh.generated) saveCatalog(fresh, deps.storage);
+      const newest = saved && saved.generated > fresh.generated ? saved : fresh;
+      index = newest;
+      lastIndex = newest;
+      lastFetched = now();
+      if (newest === fresh) saveCatalog(fresh, deps.storage);
     }
   }
   // The Mod Store noted a newer installed list while this check waited: its count stands.

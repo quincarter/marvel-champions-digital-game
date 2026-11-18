@@ -181,7 +181,12 @@ describe("checkPackUpdates", () => {
       getItem: (k: string) => saved.get(k) ?? null,
       setItem: (k: string, v: string) => void saved.set(k, v),
     };
-    await checkPackUpdates({ store: store([installed("fan-newer", "1.0.0")]), fetch: json(index), storage });
+    // Installed at 1.1.0: the older answer (1.1.0) has no update for it, the saved catalog (1.2.0) does.
+    const deps = { store: store([installed("fan-newer", "1.1.0")]), storage };
+    expect(await checkPackUpdates({ ...deps, fetch: json(index) })).toBe(1);
     expect(JSON.parse(saved.get(CATALOG_CACHE_KEY)!).generated).toBe("2026-11-19T00:00:00Z");
+    const next = json(index);
+    expect(await checkPackUpdates({ ...deps, fetch: next })).toBe(1);
+    expect(next).not.toHaveBeenCalled();
   });
 });
