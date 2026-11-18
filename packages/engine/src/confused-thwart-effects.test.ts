@@ -15,6 +15,8 @@ import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { applyCommand, replay, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
+import { createCtx } from "./ctx.js";
+import { discardStatusCards } from "./effects.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec } from "./spec.js";
@@ -125,6 +127,46 @@ const expectReplay = (session: GameSession): void => {
   if (!replayed.ok) throw new Error(replayed.error.message);
   expect(replayed.state).toEqual(session.state);
 };
+
+describe("statusRemoved records the activity a confused card cancelled", () => {
+  const cancelledOf = (events: readonly GameEvent[], id: InstanceId) =>
+    events.find((e) => e.type === "statusRemoved" && e.instanceId === id && e.status === "confused");
+  it("a confused ally thwarting: thwart", () => {
+    const { state: bare, ally } = start();
+    const { events } = driveSession(startSession(confuse(bare, ally)), deps, [useLookout(ally)]);
+    expect(cancelledOf(events, ally)).toMatchObject({ reason: "cancelledSchemeOrThwart", cancelled: "thwart" });
+  });
+  it("the same ally treated as a minion (Converted, Beguiled): scheme", () => {
+    const { state: bare, ally } = start();
+    const treated: GameState = {
+      ...bare,
+      instances: {
+        ...bare.instances,
+        [ally]: {
+          ...mustInstance(bare, ally),
+          treatedAs: {
+            kind: "minion",
+            traits: [],
+            keepPrintedTraits: true,
+            schFromThw: true,
+            source: ally,
+            controllerBefore: P1,
+          },
+        },
+      },
+    };
+    const ctx = createCtx(confuse(treated, ally), deps);
+    discardStatusCards(ctx, ally, "confused", "cancelledSchemeOrThwart");
+    expect(cancelledOf(ctx.events, ally)).toMatchObject({ cancelled: "scheme" });
+  });
+  it("the villain: scheme", () => {
+    const { state: bare } = start();
+    const villain = bare.activeVillainId;
+    const ctx = createCtx(confuse(bare, villain), deps);
+    discardStatusCards(ctx, villain, "confused", "cancelledSchemeOrThwart");
+    expect(cancelledOf(ctx.events, villain)).toMatchObject({ cancelled: "scheme" });
+  });
+});
 
 describe("a confused character's thwart through an ability or effect is replaced by the confused card", () => {
   it("a confused ally thwarting through its own ability pays, loses the card, removes no threat, takes no consequential damage, triggers no 'after it thwarts'; replay deep-equal", () => {

@@ -69,7 +69,9 @@ describe("campaign-collection-picker-model, against MC27 node 9's real collectio
     expect(byAspect.every((row) => row.aspect === firstAspect)).toBe(true);
 
     const bySearch = filterCollectionPicker(rows, { text: "shield" });
-    expect(bySearch.every((row) => row.name.toLowerCase().includes("shield"))).toBe(true);
+    // Periods don't count, so S.H.I.E.L.D. cards are found by "shield" too.
+    expect(bySearch.length).toBeGreaterThan(0);
+    expect(bySearch.every((row) => row.name.toLowerCase().replace(/\./g, "").includes("shield"))).toBe(true);
   }, 30_000);
 
   test("search documents and a worker ranking narrow the list best first", async () => {

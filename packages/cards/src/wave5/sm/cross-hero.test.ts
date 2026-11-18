@@ -214,7 +214,7 @@ describe("Ghost-Spider's aspect/basic cards, from a Core hero's own deck", () =>
     // "Exhaust a Web-Warrior card you control →" comes before the arrow: a cost (RRG 1.8 "Cost", p. 13).
     expect(() =>
       playFromAnotherHerosDeck("27018", game, { coreHero: "core-black-panther-protection", setup: toHeroFirst }),
-    ).toThrow(/exhaust/);
+    ).toThrow(/exhaust|condition/); // this deck also has no Web-Warrior ally in its discard pile (the play condition)
   });
 
   it("27019.young-love-action: a Team-Up card for Gwen Stacy and Miles Morales — refused for any other identity's deck", () => {

@@ -1229,7 +1229,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             id !== attacker && inPlay.includes(id) && (categories.includes("enemy") || categories.includes("ally"))
           );
         });
-        if (attacker && character) addFrameSlots(ctx, activation, { damageTo: [character] });
+        if (attacker && character) {
+          // Only a player card moving the damage onto another enemy defeats as that card (Psychic Misdirection, FFG
+          // ruling January 24, 2025). An attack taken on an ally instead (Robert Kelly's interrupt) is still the
+          // attacker's damage, so a defeat it causes keeps the enemy as its source and credits no player.
+          const redirector =
+            frame.selfInstanceId &&
+            categoriesOf(ctx.state, character).includes("enemy") &&
+            isAPlayersCard(ctx.state, frame.selfInstanceId)
+              ? frame.selfInstanceId
+              : null;
+          addFrameSlots(ctx, activation, {
+            damageTo: [character],
+            ...(redirector ? { damageRedirector: [redirector] } : {}),
+          });
+        }
       }
       // "That attack removes threat from the main scheme instead of dealing damage" (`removesThreatFrom`): the scheme,
       // the card whose removal it is and, for a "(thwart)" ability, the thwarting identity, read at the attack's

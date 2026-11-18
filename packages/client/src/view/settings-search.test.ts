@@ -104,6 +104,10 @@ describe("matchRangesOf", () => {
     expect(marked("Cómo juega", "como")).toEqual(["Cómo"]);
   });
 
+  it("marks the whole word a shorthand with letters left out stands for", () => {
+    expect(marked("Card size", "crd siz")).toEqual(["Card", "siz"]);
+  });
+
   it("marks nothing for a query that does not match", () => {
     expect(matchRangesOf("Sound", "zzz")).toEqual([]);
     expect(matchRangesOf("Sound", "   ")).toEqual([]);

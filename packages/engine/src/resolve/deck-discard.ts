@@ -92,16 +92,34 @@ const eventOf = (discard: DeckDiscard): TriggerEvent => ({
 });
 
 /**
- * An encounter deck's discard as it stands when it is announced (docs/phase7-wave9.md §3.43 (b)). A later discard of
- * the same effect or cost may have emptied the deck, whose reset shuffled the discard pile, this card in it, into the
- * new deck (RRG 1.8 "Encounter Deck", p. 17): the card was discarded all the same, and it is answered where the reset
- * left it (`at: "deck"`), as the deck's last card is (docs/phase7-wave7.md §4.1 Q33). No response has resolved
- * between the discard and this look, so only the reset can have moved it. A player deck's discard is left as recorded.
+ * A deck discard as it stands when it is announced. A later discard of the same effect or cost may have emptied the
+ * deck, whose reset shuffled the discard pile, this card in it, into the new deck (RRG 1.8 "Encounter Deck", p. 17;
+ * "Player Deck", p. 33): the card was discarded all the same, and it is answered where the reset left it
+ * (`at: "deck"`), as the deck's last card is (docs/phase7-wave7.md §4.1 Q33). No response has resolved between the
+ * discard and this look, so only the reset can have moved it.
+ *
+ * An encounter deck's: docs/phase7-wave9.md §3.43 (b). A player deck's: FFG ruling, September 21, 2023, answers 2 and
+ * 4 (docs/rulings/post-rrg-1-5/05-september-2023.md): responses to a discard wait until the whole discard is complete,
+ * the deck emptied by it included, and the deck is shuffled before they resolve; White Fox discarded by Call for Aid
+ * answers once the discard ends (issue #810).
  */
 function whereResetLeft(ctx: Ctx, discard: DeckDiscard): DeckDiscard {
-  if (discard.encounterDeckId === undefined) return discard;
-  const at = encounterDeckDiscardAt(ctx.state, discard.encounterDeckId, discard.instanceId);
+  const at =
+    discard.encounterDeckId === undefined
+      ? playerDeckDiscardAt(ctx, discard)
+      : encounterDeckDiscardAt(ctx.state, discard.encounterDeckId, discard.instanceId);
   return at === null || at === discard.at ? discard : { ...discard, at };
+}
+
+/** Where a discard from the top of a player's deck left its card: their discard pile, their new deck, or neither. */
+function playerDeckDiscardAt(ctx: Ctx, discard: DeckDiscard): "discard" | "deck" | null {
+  const player = ctx.state.players.find((p) => p.playerId === discard.playerId);
+  if (!player) return null;
+  return player.discard.includes(discard.instanceId)
+    ? "discard"
+    : player.deck.includes(discard.instanceId)
+      ? "deck"
+      : null;
 }
 
 /**

@@ -7,6 +7,7 @@
  * `BuilderState` is deliberately just a `Deck` plus a `name`-in-progress and a
  * filter, so "save" is "hand the `Deck` to storage" with nothing to reconcile.
  */
+import { queryScoreOf } from "./deck-search.js";
 import {
   deckId,
   type AnyCard,
@@ -208,10 +209,9 @@ export function searchTermsOf(text: string | undefined): readonly string[] {
   return (text ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-const textMatch = (card: AnyCard, text: string): boolean => {
-  const haystack = [card.name, ...searchWordsOf(card)].join(" | ").toLowerCase();
-  return searchTermsOf(text).every((term) => haystack.includes(term));
-};
+// The shared fuzzy match (`queryScoreOf`): the name forgives a typo or a letter left out, as the search worker does.
+const textMatch = (card: AnyCard, text: string): boolean =>
+  queryScoreOf(text, { primary: [card.name], secondary: searchWordsOf(card) }) !== null;
 
 const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackInfo[]): boolean => {
   if (filter.type && card.type !== filter.type) return false;
@@ -308,7 +308,7 @@ function reprintKeyOf(card: AnyCard): string {
 function nameMatchRelevance(cards: readonly AnyCard[], text: string | undefined): ReadonlyMap<string, number> {
   const terms = searchTermsOf(text);
   if (terms.length === 0) return new Map();
-  const nameMatches = (card: AnyCard): boolean => terms.every((term) => card.name.toLowerCase().includes(term));
+  const nameMatches = (card: AnyCard): boolean => queryScoreOf(text ?? "", { primary: [card.name] }) !== null;
   return new Map(cards.map((card) => [card.id as string, nameMatches(card) ? 1 : 0]));
 }
 

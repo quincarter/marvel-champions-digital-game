@@ -141,7 +141,7 @@ export const NCRAWLER_ASPECT_BASIC: AbilityRegistry = defineAbilities({
   ),
 
   "48014.change-of-fortune-response": response(
-    { ...on.defeated(query("enemy"), { byYou: true }), sourceIs: { not: query("ally") } },
+    on.defeated(query("enemy"), { byYou: true }),
     { cost: exhaustThis, while: IN_VILLAIN_PHASE },
     draw(2),
   ),

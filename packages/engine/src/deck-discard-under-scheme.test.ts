@@ -339,14 +339,14 @@ describe("box-heroes B3.3: cards discarded from the top of any player's deck go 
     expect(resolved(run.events, VAULT_RESPONSE.ref.id)).toBe(0);
   });
 
-  it("the discard that empties the deck: the card that emptied it is taken from the new deck the reset made", () => {
+  it("the discard that empties the deck: every card it discarded is taken from the new deck the reset made", () => {
     const table = start(["energy", "mental", "double"], { rest: 0 });
     const run = play(table.state, MILL);
-    // The reset shuffled the discard pile into the new deck, the first two cards with it: a player deck's earlier
-    // discards are not answered there (docs/phase7-wave7.md §4.1 Q33 speaks of the deck's last card).
-    expect(under(run.state, table.scheme)).toEqual([table.top[2]]);
-    expect(mustPlayer(run.state, P1).deck).toEqual(expect.arrayContaining([table.top[0], table.top[1]]));
-    expect(mustPlayer(run.state, P1).deck).not.toContain(table.top[2]);
+    // The reset shuffled the discard pile, the three cards in it, into the new deck before the response resolves, and
+    // the response finds them there: FFG ruling, September 21, 2023, answers 2 and 4
+    // (docs/rulings/post-rrg-1-5/05-september-2023.md), docs/phase7-wave7.md §4.1 Q33 = A; issue #810.
+    expect(under(run.state, table.scheme)).toEqual(table.top);
+    for (const id of table.top) expect(mustPlayer(run.state, P1).deck).not.toContain(id);
     expect(counters(run.state, table.meter)).toEqual({ count: 3, energy: 3, types: 2 });
   });
 

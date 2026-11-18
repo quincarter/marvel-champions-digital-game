@@ -20,6 +20,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   playerOf,
   stackEncounterDeck,
@@ -281,6 +282,110 @@ describe("Wolverine / Logan (35001a/b)", () => {
       expect(damageOf(after)).toBe(2);
       // 4 damage through the tough card defeats the 3-hit-point minion; no overkill, so Rhino takes nothing.
       expect(cardsInPlay(after)).not.toContain(minion);
+      expect(inst(after, villainOf(after)).damage).toBe(0);
+    });
+
+    it("a repeated Berserker Barrage does not pierce: only the first attack gains it (#811)", () => {
+      // FFG ruling (docs/rulings/rrg-1-0-to-1-4/54-wolverine.md): "Berserker Barrage makes one attack initially, so that
+      // one gains piercing; if you repeat its ability, the new attack will not have piercing."
+      const { state: one, ids, minion } = staged("35008");
+      const barrage = ids[0]!;
+      const second = engageMinion(one, "01102", P1);
+      const other = second.id;
+      const state = patchInstance(second.state, other, {
+        statuses: { ...inst(second.state, other).statuses, tough: 1 },
+      });
+      let repeats = 0;
+      // Hits the Hydra Mercenary first, repeats once onto the other tough minion, then stops.
+      const pick: Picker = (s) => {
+        const options = s.pendingChoice?.options ?? [];
+        const repeat = options.find((o) => o.label.includes("Take 2 damage"));
+        if (repeat) return repeats++ === 0 ? [repeat.optionId] : [options.find((o) => o !== repeat)!.optionId];
+        if (options.some((o) => o.optionId === minion)) return [minion];
+        return at(other)(s);
+      };
+      const after = drive(state, pick, use(P1, clawsOf(state), CLAWS, [], { event: [barrage] }));
+      // The Claws' 2, then the repeat's 2.
+      expect(damageOf(after)).toBe(4);
+      expect(cardsInPlay(after)).not.toContain(minion);
+      // The repeat's 4 damage only discards the tough card: no piercing, and the minion stays engaged.
+      expect(cardsInPlay(after)).toContain(other);
+      expect(inst(after, other).statuses.tough).toBe(0);
+      expect(inst(after, other).damage).toBe(0);
+      expect(inst(after, other).engagedWith).toBe(P1);
+      expect(after.lastingEffects.filter((e) => e.kind === "ruleGrant")).toEqual([]);
+    });
+
+    it("the cost damage eliminates Wolverine with another player left: the chosen event is still played in full (#816)", () => {
+      // RRG 1.8 "Player Elimination" p. 34: eliminated partway through an ability -> resolve the entire ability; the
+      // "attack ends" bullet covers only an attack already underway (cf. Metal Shards ruling,
+      // rrg-1-0-to-1-4/48-mutant-genesis.md). Owner call (#816): the played event's attack resolves in full.
+      const base = withForm(wolverineGame("rhino", { extraPlayers: [{ starterDeckId: "core-spider-man-justice" }] }), {
+        heroForm: 0,
+      });
+      const engaged = engageMinion(base, "01101", P1);
+      const minion = engaged.id;
+      const toughened = patchInstance(engaged.state, minion, {
+        statuses: { ...inst(engaged.state, minion).statuses, tough: 1 },
+      });
+      // At 10 damage, Lunging Strike's printed cost (3) defeats him.
+      const hurt = patchInstance(toughened, identityOf(toughened, P1), { damage: 10 });
+      const given = moveToHand(hurt, P1, "35010");
+      const state = given.state;
+      const strike = given.ids[0]!;
+      const after = drive(state, at(minion), use(P1, clawsOf(state), CLAWS, [], { event: [strike] }));
+      expect(playerOf(after, P1).eliminated).toBe(true);
+      expect(after.outcome).toBeNull();
+      // Played through the Claws: 8 damage with piercing (the tough card is no shield) and overkill, 5 spilling to Rhino.
+      expect(cardsInPlay(after)).not.toContain(minion);
+      expect(inst(after, villainOf(after)).damage).toBe(5);
+      // The event went to the discard pile after resolving, and the rest of the hand was discarded with the elimination.
+      expect(playerOf(after, P1).discard).toContain(strike);
+      expect(playerOf(after, P1).hand).toEqual([]);
+      // The game goes on with the remaining player.
+      expect(after.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
+    });
+
+    it("Berserker Barrage's repeat damage eliminates Wolverine: the repeat still resolves (#816 review)", () => {
+      // Elimination by the repeat's 2 damage ends only the finished first attack; the repeat is a new attack and
+      // resolves: RRG 1.8 "Player Elimination" p.34 ("resolve the entire ability"); FFG Wolverine ruling (repeat = new
+      // attack, 54-wolverine.md); consistent with owner #816.
+      const base = withForm(wolverineGame("rhino", { extraPlayers: [{ starterDeckId: "core-spider-man-justice" }] }), {
+        heroForm: 0,
+      });
+      const first = engageMinion(base, "01101", P1);
+      const second = engageMinion(first.state, "01102", P1);
+      // At 7 damage he survives the Claws' 2 (the repeat is offered), and the repeat's 2 defeats him.
+      const hurt = patchInstance(second.state, identityOf(second.state, P1), { damage: 7 });
+      const given = moveToHand(hurt, P1, "35008");
+      const state = given.state;
+      let repeats = 0;
+      const pick: Picker = (s) => {
+        const options = s.pendingChoice?.options ?? [];
+        const repeat = options.find((o) => o.label.includes("Take 2 damage"));
+        if (repeat) return repeats++ === 0 ? [repeat.optionId] : [options.find((o) => o !== repeat)!.optionId];
+        if (options.some((o) => o.optionId === first.id)) return [first.id];
+        return at(second.id)(s);
+      };
+      const after = drive(state, pick, use(P1, clawsOf(state), CLAWS, [], { event: [given.ids[0]!] }));
+      expect(playerOf(after, P1).eliminated).toBe(true);
+      expect(after.outcome).toBeNull();
+      // The first attack (with piercing) defeated the Hydra Mercenary; the repeat's 4 damage defeated the other minion.
+      expect(cardsInPlay(after)).not.toContain(first.id);
+      expect(cardsInPlay(after)).not.toContain(second.id);
+      expect(inst(after, villainOf(after)).damage).toBe(0);
+    });
+
+    it("solo, the cost damage eliminates Wolverine: the game is lost and the chosen event is not played (#816)", () => {
+      const { state: staged0, ids, minion } = staged("35010");
+      const state = patchInstance(staged0, identityOf(staged0, P1), { damage: 10 });
+      const strike = ids[0]!;
+      const after = drive(state, at(minion), use(P1, clawsOf(state), CLAWS, [], { event: [strike] }));
+      expect(after.outcome).toMatchObject({ result: "loss" });
+      // Nothing resolves after the loss: the event went to the discard pile with the rest of the hand, unplayed.
+      expect(playerOf(after, P1).hand).toEqual([]);
+      expect(playerOf(after, P1).discard).toContain(strike);
+      expect(after.stack.some((f) => f.kind === "playCard")).toBe(false);
       expect(inst(after, villainOf(after)).damage).toBe(0);
     });
 

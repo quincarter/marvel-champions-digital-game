@@ -3,6 +3,7 @@ import {
   MAGNETO_CARDS,
   MAGNETO_STARTER_DECKS,
   WAVE7_CARDS,
+  WAVE5_CARDS,
   cardId,
   type AnyCard,
   type DeckContents,
@@ -14,6 +15,7 @@ import {
   cardsInPlay,
   characterProfile,
   createGame,
+  paymentFor,
   traitsOf,
   validateDeck,
   type Command,
@@ -104,6 +106,7 @@ const POOL: readonly AnyCard[] = [
   ...WAVE7_CARDS,
   ...MAGNETO_CARDS,
   ...CYCLOPS_CARDS.filter((c) => !WAVE7_CARDS.some((w) => w.id === c.id)),
+  ...WAVE5_CARDS.filter((c) => c.id === "31029"),
 ];
 const BY_ID = new Map(POOL.map((c) => [c.id as string, c]));
 
@@ -2101,5 +2104,106 @@ describe("the Linked allies' MUTANT or X-MEN condition follows the identity as i
     const { state } = driveEventsPicking(DEPS, base.state, firstLegal, play(P1, id, pay));
     expect(playerOf(state, P1).identity.form).toBe("alterEgo");
     expect(profile(state, id).thw).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Clarity of Purpose (31029) on the ally discarded as the cost (#827)
+// ---------------------------------------------------------------------------
+// Costs are paid simultaneously (RRG v1.8 "Cost" p.13). A 1-HP ally with Clarity of Purpose can be damaged for the
+// resource and discarded as Noble Sacrifice's cost in the same payment step, and the play resolves (FFG ruling April 8,
+// 2025, on "You Got This!", same "discard an ally you control" cost).
+describe('Clarity of Purpose on the ally Noble Sacrifice or "You Got This!" discards: both costs paid in one step (#827)', () => {
+  const CLARITY = "31029";
+  const CLARITY_RESOURCE = "31029.clarity-of-purpose-resource";
+  const clarityUse = (clarity: InstanceId) => ({
+    ability: { instanceId: clarity, abilityId: CLARITY_RESOURCE as never },
+  });
+  /** Phoenix (printed 3 hit points) in play with `damage` on her and Clarity of Purpose attached; `code` in hand. */
+  function withClarityOnPhoenix(code: string, damage: number) {
+    const base = allies(heroGame([CM("49014", CLARITY, code)], 1, false), ["49014"]);
+    const phoenix = base.ids[0]!;
+    const attached = playStaged(stage(base.state, [CLARITY]).state, CLARITY, 1, { attach: phoenix });
+    expect(inst(attached.state, attached.id).attachedTo).toBe(phoenix);
+    const hurt = patchInstance(withDamage(attached.state, identityOf(attached.state), 6), phoenix, { damage });
+    return { state: hurt, phoenix, clarity: attached.id };
+  }
+  /** Phoenix and Clarity each ended in the discard pile once (the ruling's outcome). */
+  function expectDiscardedOnce(state: GameState, events: readonly unknown[], phoenix: InstanceId, clarity: InstanceId) {
+    const discard = playerOf(state, P1).discard;
+    expect(discard.filter((id) => id === phoenix)).toHaveLength(1);
+    expect(discard.filter((id) => id === clarity)).toHaveLength(1);
+    expect(cardsInPlay(state)).not.toContain(phoenix);
+    const moves = events.filter(
+      (e): e is { type: "cardMoved"; instanceId: InstanceId; to: { kind: string } } =>
+        (e as { type: string }).type === "cardMoved" && (e as { instanceId: string }).instanceId === phoenix,
+    );
+    expect(moves.map((e) => e.to.kind)).toEqual(["discard"]);
+    // Clarity paid: its [wild] resource was generated.
+    expect(
+      events.some(
+        (e) =>
+          (e as { type: string }).type === "resourcesGenerated" &&
+          (e as { instanceId?: string }).instanceId === clarity,
+      ),
+    ).toBe(true);
+    // Not pinned: the damage/defeat triggers of the simultaneous cost. FFG's April 8, 2025 ruling only says the ally "is
+    // dealt damage/defeated in the same step as it is discarded" and the play is legal, so it does not settle them.
+  }
+
+  describe.each([
+    ["full hit points", 0],
+    ["1 hit point left", 2],
+  ])("Noble Sacrifice (49018), Phoenix at %s", (_label, damage) => {
+    it("Clarity is offered to pay, the play is legal, Phoenix is discarded, 3 is healed and the hero gets a tough card", () => {
+      const s = withClarityOnPhoenix("49018", damage);
+      const given = stage(s.state, ["49018"], 0);
+      const noble = given.ids[0]!;
+      const sources = paymentFor(given.state, P1, { kind: "playCard", instanceId: noble }, {}, DEPS)?.sources ?? [];
+      expect(sources.some((src) => src.kind === "resourceAbility" && JSON.stringify(src).includes(s.clarity))).toBe(
+        true,
+      );
+      const command = play(P1, noble, [], {
+        abilities: [clarityUse(s.clarity)],
+        costChoices: { discarded: [s.phoenix] },
+      });
+      expect(refusal(given.state, command)).toBe("");
+      const { state, events } = driveEventsPicking(DEPS, given.state, picker(take(s.phoenix)), command);
+      expect(playerOf(state, P1).discard).toContain(noble);
+      expectDiscardedOnce(state, events, s.phoenix, s.clarity);
+      expect(inst(state, identityOf(state)).damage).toBe(3);
+      expect(inst(state, identityOf(state)).statuses.tough).toBe(1);
+    });
+  });
+
+  describe.each([
+    ["full hit points", 0],
+    ["1 hit point left", 2],
+  ])('"You Got This!" (49019), Phoenix at %s', (_label, damage) => {
+    it("Clarity pays at the prompt, Phoenix is discarded, her ATK 1 is added (2 + 1 = 3) and the hero is ready", () => {
+      const s = withClarityOnPhoenix("49019", damage);
+      const given = stage(s.state, ["49019"], 0);
+      const got = given.ids[0]!;
+      const rhino = given.state.activeVillainId!;
+      const offered: string[] = [];
+      const payWithClarity: Rule = (st) => {
+        if (st.pendingChoice?.prompt.kind !== "payForCard") return undefined;
+        const ids = st.pendingChoice.options.map((o) => o.optionId);
+        offered.push(...ids);
+        const hit = ids.find((o) => o.startsWith(`ability:${s.clarity}:`));
+        return hit ? [hit] : undefined;
+      };
+      const { state, events } = driveEventsPicking(
+        DEPS,
+        given.state,
+        picker(accept(GOT_THIS), payWithClarity, take(s.phoenix)),
+        basicAttack(given.state, rhino),
+      );
+      expect(offered.some((o) => o.startsWith(`ability:${s.clarity}:`))).toBe(true);
+      expect(playerOf(state, P1).discard).toContain(got);
+      expectDiscardedOnce(state, events, s.phoenix, s.clarity);
+      expect(inst(state, rhino).damage).toBe(3);
+      expect(inst(state, identityOf(state)).exhausted).toBe(false);
+    });
   });
 });

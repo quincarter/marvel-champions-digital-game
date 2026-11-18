@@ -72,6 +72,109 @@ describe("wave 3 log lines", () => {
     expect(beat!.text.toLowerCase()).toContain("first player");
   });
 
+  /** The state with one of my cards attached to the other player's identity: an upgrade on another player's hero. */
+  const withUpgradeOnOpponent = () => {
+    const upgrade = state.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const host = state.players.find((p) => p.playerId === opponent)!.identity.instanceId;
+    const attached = {
+      ...state,
+      instances: { ...state.instances, [upgrade]: { ...state.instances[upgrade]!, attachedTo: host } },
+    };
+    return { upgrade, host, attached };
+  };
+
+  test("controllerChanged by attachment names the controller and the host hero, not the first player", () => {
+    const { upgrade, host, attached } = withUpgradeOnOpponent();
+    const beat = logLine(
+      {
+        type: "controllerChanged",
+        instanceId: upgrade,
+        from: me,
+        to: opponent,
+        reason: "attachedTo",
+        hostInstanceId: host,
+      },
+      attached,
+      me,
+      POOL_DEPS,
+    );
+    const hostName = logLine(
+      { type: "statusGiven", instanceId: host, status: "stunned" },
+      attached,
+      me,
+      POOL_DEPS,
+    )!.text.replace(/ is$/, "");
+    expect(beat!.text).toContain("now controls");
+    expect(beat!.text).toContain(`(attached to ${hostName})`);
+    expect(beat!.text.toLowerCase()).not.toContain("first player");
+  });
+
+  test("controllerChanged by attachment uses the host at emission, not where the upgrade is now; none for older logs", () => {
+    const { upgrade, host, attached } = withUpgradeOnOpponent();
+    const event = {
+      type: "controllerChanged",
+      instanceId: upgrade,
+      from: me,
+      to: opponent,
+      reason: "attachedTo",
+    } as const;
+    // The state now shows the upgrade unattached, but the line still names the host it was attached to.
+    const moved = {
+      ...attached,
+      instances: { ...attached.instances, [upgrade]: { ...attached.instances[upgrade]!, attachedTo: null } },
+    };
+    const named = logLine({ ...event, hostInstanceId: host }, moved, me, POOL_DEPS)!.text;
+    expect(named).toContain("(attached to ");
+    const bare = logLine(event, attached, me, POOL_DEPS)!.text;
+    expect(bare).not.toContain("attached to");
+    expect(bare).toContain("now controls");
+  });
+
+  test("controllerChanged by an effect says the player takes control", () => {
+    const { upgrade, attached } = withUpgradeOnOpponent();
+    const beat = logLine(
+      { type: "controllerChanged", instanceId: upgrade, from: null, to: opponent, reason: "effect" },
+      attached,
+      me,
+      POOL_DEPS,
+    );
+    expect(beat!.text).toContain("takes control of");
+    expect(beat!.text.toLowerCase()).not.toContain("first player");
+  });
+
+  test("a confused hero's cancelled thwart reads thwart, an enemy's reads scheme", () => {
+    const identity = state.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const villain = activeVillain(state).instanceId;
+    const status = (instanceId: typeof identity) =>
+      logLine(
+        { type: "statusRemoved", instanceId, status: "confused", reason: "cancelledSchemeOrThwart" },
+        state,
+        me,
+        POOL_DEPS,
+      );
+    expect(status(identity)!.text).toContain("thwart cancelled");
+    expect(status(villain)!.text).toContain("scheme cancelled");
+  });
+
+  test("a statusRemoved's recorded activity wins over the card's printed type", () => {
+    const identity = state.players.find((p) => p.playerId === me)!.identity.instanceId;
+    const line = (cancelled: "thwart" | "scheme") =>
+      logLine(
+        {
+          type: "statusRemoved",
+          instanceId: identity,
+          status: "confused",
+          reason: "cancelledSchemeOrThwart",
+          cancelled,
+        },
+        state,
+        me,
+        POOL_DEPS,
+      )!.text;
+    expect(line("scheme")).toContain("scheme cancelled");
+    expect(line("thwart")).toContain("thwart cancelled");
+  });
+
   test("playCostReduced names both the reducing ability's card and the card it reduced", () => {
     const identity = state.players.find((p) => p.playerId === me)!.identity.instanceId;
     const villain = activeVillain(state).instanceId;

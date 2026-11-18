@@ -10,6 +10,7 @@
  * Deliberately over `AnyCard` rather than `AftermathOption`: an aspect chip rail needs the card's own aspect, which
  * `AftermathOption` never carried (no other Aftermath choice needed it).
  */
+import { queryScoreOf } from "./deck-search.js";
 import type { AnyCard, CardId, CoreAspect } from "@mc/content";
 import type { SearchDocument } from "./deck-search.js";
 
@@ -105,11 +106,13 @@ export function filterCollectionPicker(
   rows: readonly CollectionPickerRow[],
   filter: CollectionPickerFilter,
 ): readonly CollectionPickerRow[] {
-  const text = filter.text?.trim().toLowerCase();
+  const text = filter.text?.trim() ?? "";
   const ranking = filter.ranking;
   const kept = rows
     .filter((row) => !filter.aspect || row.aspect === filter.aspect)
-    .filter((row) => (ranking ? ranking.has(row.cardId) : !text || row.name.toLowerCase().includes(text)));
+    .filter((row) =>
+      ranking ? ranking.has(row.cardId) : !text || queryScoreOf(text, { primary: [row.name] }) !== null,
+    );
   if (ranking) return kept.sort((a, b) => (ranking.get(b.cardId) ?? 0) - (ranking.get(a.cardId) ?? 0));
   return kept.sort((a, b) => a.name.localeCompare(b.name));
 }

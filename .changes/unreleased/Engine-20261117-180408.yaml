@@ -1,0 +1,3 @@
+kind: Engine
+body: "A player eliminated partway through an ability still resolves it in full: Wolverine's Claws plays its chosen event and its attack lands, and Berserker Barrage's repeat resolves, when the damage eliminates Wolverine; only an attack already under way ends (#816)."
+time: 2026-11-17T18:04:08.9321742-05:00

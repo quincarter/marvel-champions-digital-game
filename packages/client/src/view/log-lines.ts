@@ -801,7 +801,11 @@ function describe(
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":
       return {
-        text: statusRemovedText(event.reason, card(event.instanceId)),
+        text: statusRemovedText(
+          event.reason,
+          card(event.instanceId),
+          event.cancelled ? event.cancelled === "thwart" : isPlayerCharacter(state, event.instanceId),
+        ),
         tags: [{ status: event.status, spent: true }],
         voice: event.reason === "cancelledAttack" || event.reason === "cancelledSchemeOrThwart" ? "villain" : "player",
       };
@@ -1005,12 +1009,21 @@ function describe(
         text: `${card(event.instanceId)} starts on side ${event.to}${event.random ? " (drawn at random)" : ""}.`,
         voice: "villain",
       };
-    // A card the first player controls followed the token to a new seat (the Milano, docs/phase7-wave3.md §3.13) —
-    // otherwise silent, since nothing about the card's own state changes, only who may use its ability. The
-    // engine's own `reason` is always "firstPlayer" today, so the line states that plainly rather than branching
-    // on a value that has only ever had one shape.
-    case "controllerChanged":
-      return { text: `${card(event.instanceId)} now follows the first player, ${who(event.to)}.`, voice: "scenario" };
+    // Control of a card moved. "firstPlayer": it followed the token to a new seat (the Milano, docs/phase7-wave3.md
+    // §3.13). "attachedTo": an upgrade attached to another player's hero is controlled by that player (RRG 1.8
+    // "Upgrade", p. 44). "effect": a card took control of it. Otherwise silent, since nothing about the card's own
+    // state changes, only who may use its ability.
+    case "controllerChanged": {
+      // The host at emission: the upgrade may have moved or been discarded since (older logs carry none).
+      const host = event.hostInstanceId;
+      const text =
+        event.reason === "attachedTo"
+          ? `${who(event.to)} now controls ${card(event.instanceId)}${host ? ` (attached to ${card(host)})` : ""}.`
+          : event.reason === "effect"
+            ? `${who(event.to)} takes control of ${card(event.instanceId)}.`
+            : `${card(event.instanceId)} now follows the first player, ${who(event.to)}.`;
+      return { text, voice: "scenario" };
+    }
     case "mainSchemeAdvanced": {
       // The stage's printed number: its index is not that on a card holding several stages of one number, or when the
       // main scheme deck is chosen stages of the card (docs/phase7-wave10.md §3.2).
@@ -1925,12 +1938,18 @@ const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedSta
   }
 };
 
-const statusRemovedText = (reason: string, name: string): string => {
+/** Fallback for logs saved before `statusRemoved.cancelled`: a hero identity (either form) or ally: when its confused status is spent the cancelled activity is its thwart, not a scheme. */
+const isPlayerCharacter = (state: GameState, id: InstanceId): boolean => {
+  const type = cardOf(state, id)?.type;
+  return type === "hero_identity" || type === "ally";
+};
+
+const statusRemovedText = (reason: string, name: string, thwart: boolean): string => {
   switch (reason) {
     case "cancelledAttack":
       return `${name}'s attack cancelled —`;
     case "cancelledSchemeOrThwart":
-      return `${name}'s scheme cancelled —`;
+      return `${name}'s ${thwart ? "thwart" : "scheme"} cancelled —`;
     case "preventedDamage":
       return `${name} took 0 damage —`;
     case "piercing":

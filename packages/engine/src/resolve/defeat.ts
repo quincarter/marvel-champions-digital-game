@@ -1161,6 +1161,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
   // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
   updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
+  // "If a player is eliminated in the middle of an attack, that attack ends" (RRG 1.8 "Player Elimination", p. 34): each
+  // attack of theirs underway now is marked to end, at any step (`attackerEliminated`, `eliminated-attack.ts`).
+  markAttacksUnderway(ctx, identityId);
   // Step 4, "each card owned by the eliminated player": the ones in play outside their play area, a player side
   // scheme beside the main scheme or an upgrade on another player's or the villain's card. Each leaves play as any
   // card does, so its threat and tokens are cleared and what is attached to it is discarded.
@@ -1169,7 +1172,17 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     // Not with a host (`withHost` false): an upgrade held by "upgrades cannot be removed from [its host]" stays.
     leavePlayAtOnce(ctx, id, { kind: "discard", playerId }, "top");
   }
+  // RRG 1.8 "Player Elimination" p. 34: eliminated partway through an ability -> resolve the entire ability; the "attack
+  // ends" bullet covers only an attack already underway (cf. Metal Shards ruling, rrg-1-0-to-1-4/48-mutant-genesis.md).
+  // Owner call (#816): the played event's attack resolves in full.
+  // So a card in hand that an ability still resolving has chosen (Wolverine's Claws' cost picks the event it plays) stays
+  // there for that ability; `discardEliminatedHands` clears it once nothing is resolving, or as the game ends
+  // (`endGame`).
+  // With no other player left the game ends here and nothing more resolves, so nothing is held.
+  const othersRemain = ctx.state.players.some((p) => p.playerId !== playerId && !p.eliminated);
+  const held = othersRemain ? handCardsHeldByAbilities(ctx.state, playerId) : new Set<InstanceId>();
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {
+    if (held.has(id)) continue;
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
   for (const id of [...mustPlayer(ctx.state, playerId).deck]) {
@@ -1216,6 +1229,34 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   if (ctx.state.players.every((p) => p.eliminated)) {
     endGame(ctx, { result: "loss", reason: "allPlayersDefeated" });
   }
+}
+
+/** Marks every attack by `identityId` on the stack (`Frame<"event">.attackerEliminated`): it was underway. */
+function markAttacksUnderway(ctx: Ctx, identityId: InstanceId): void {
+  ctx.state = {
+    ...ctx.state,
+    stack: ctx.state.stack.map((frame) =>
+      frame.kind === "event" && frame.event.kind === "attack" && frame.event.attackerInstanceId === identityId
+        ? { ...frame, attackerEliminated: true as const }
+        : frame,
+    ),
+  };
+}
+
+/**
+ * The cards in `playerId`'s hand that an ability of theirs still on the stack has chosen: bound in its `ability` frame
+ * (what paying its cost chose, `chooseCard`) or in one of its `effects` frames. An elimination partway through that
+ * ability leaves them in hand so the ability resolves in full (RRG 1.8 "Player Elimination", p. 34; #816).
+ */
+function handCardsHeldByAbilities(state: GameState, playerId: PlayerId): ReadonlySet<InstanceId> {
+  const hand = new Set(mustPlayer(state, playerId).hand);
+  const held = new Set<InstanceId>();
+  if (hand.size === 0) return held;
+  for (const frame of state.stack) {
+    if ((frame.kind !== "ability" && frame.kind !== "effects") || frame.controllerId !== playerId) continue;
+    for (const ids of Object.values(frame.bindings)) for (const id of ids) if (hand.has(id)) held.add(id);
+  }
+  return held;
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   stepAfterVillainSetupAbilities,
 } from "./setup-steps.js";
 import {
+  discardEliminatedHands,
   drawCards,
   drawUpTo,
   releaseRefillEncounterCards,
@@ -145,6 +146,10 @@ export function runFlow(ctx: Ctx): void {
       executeFrame(ctx);
       continue;
     }
+    // Nothing is resolving: an eliminated player's hand cards an ability still held as they were eliminated go to
+    // their discard pile now, that ability having resolved in full (RRG 1.8 "Player Elimination", p. 34; #816).
+    // Not once the game has ended: no card moves are logged after `gameEnded` (`endGame` sweeps them first).
+    if (!ctx.state.outcome && discardEliminatedHands(ctx)) continue;
     // Nothing is resolving: what a shared event of the pod brought about is applied now (docs/phase7-wave9.md §3.66;
     // MC55 p. 20: "first finishing any actions or abilities that are currently resolving"). No pod, nothing done.
     if (settlePod(ctx)) continue;

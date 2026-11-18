@@ -49,9 +49,9 @@ const TUCK_CAP = () =>
  *
  * **52001a.silk-sense** (hero form only, printed on the hero face): "Response: After you defeat a minion or side
  * scheme, or resolve a treachery card, tuck that card under here from the encounter discard pile." An optional
- * response with three triggers ("you defeat": the defeating player, so an ally's defeat is the ally's controller's;
- * "resolve": a treachery this player revealed, not a boost card). The card is bound when the event happens and tucked
- * only if it is in the encounter discard pile when the response resolves: a minion with Victory X sits in the victory
+ * response with three triggers ("you defeat": Silk's identity, or an event she plays, not an ally she controls (RRG
+ * 1.8 "You, Your", p. 49); "resolve": a treachery this player revealed, not a boost
+ * card). The card is bound when the event happens and tucked only if it is in the encounter discard pile when the response resolves: a minion with Victory X sits in the victory
  * display, and a treachery that attached or was shuffled away is elsewhere, so nothing is tucked for them.
  *
  * **52001b.cindy-moon-action** (alter-ego face): "Action: Discard a card tucked here → draw 2 cards. (Limit once per
@@ -64,7 +64,7 @@ export const SILK_IDENTITY: AbilityRegistry = defineAbilities({
   "52001a.silk-sense": response(
     after.either(
       on.defeated(query("minion"), { byYou: true }),
-      { ...on.schemeDefeated(query("sideScheme")), playerIs: "controller" },
+      on.schemeDefeated(query("sideScheme"), { byYou: true }),
       on.youResolveTreachery(),
     ),
     bindTargets("tuck", eventTarget),

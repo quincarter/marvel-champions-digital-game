@@ -33,11 +33,12 @@ export function normalizeSearch(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-/** True when `query` (trimmed, normalized) is empty, or found in any of `haystacks`. */
+/**
+ * True when `query` is empty, or every word of it matches one of `haystacks` the shared fuzzy way
+ * (`view/deck-search.ts`'s `queryScoreOf`): accents and case ignored, a typo or a letter or two left out forgiven.
+ */
 export function matchesSearch(haystacks: readonly (string | null | undefined)[], query: string): boolean {
-  const q = normalizeSearch(query.trim());
-  if (q === "") return true;
-  return haystacks.some((h) => h != null && normalizeSearch(h).includes(q));
+  return queryScoreOf(query, { primary: haystacks }) !== null;
 }
 
 /** The roster filter's shape: the text search plus S8's quick-filter chips, one optional field each. */
@@ -60,6 +61,7 @@ export const EMPTY_ROSTER_FILTER: RosterFilter = { text: "" };
 // picker. Kept in this module rather than in `scenes/title.ts` so they're testable without a canvas and reusable
 // once W2 splits Title into its own Scenario select / Take your seats screens.
 // ---------------------------------------------------------------------------------------------------------------
+import { queryScoreOf } from "./deck-search.js";
 import type { AnyCard, CoreAspect, Deck, DeckSource, HeroIdentityCard, Scenario } from "@mc/content";
 import { CHOOSABLE_ASPECTS } from "@mc/engine";
 import { isCommunityDeckId } from "./community-deck-id.js";

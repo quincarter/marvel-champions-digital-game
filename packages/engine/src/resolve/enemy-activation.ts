@@ -1894,6 +1894,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // retaliate). The attacked character is still attacked, so it is announced as before, and takes nothing. If
       // the chosen enemy has left play by now the damage is replaced all the same and dealt to nobody.
       if (damageTo) {
+        const [redirector] = activationSlot(ctx, frame.eventFrameId, "damageRedirector");
         pushEventsJoiningResponses(
           ctx,
           [
@@ -1905,6 +1906,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
               fromAttack: true,
               parentFrameId: frame.eventFrameId,
               notAttacked: true,
+              ...(redirector ? { redirectedBy: redirector } : {}),
             },
             {
               kind: "characterAttacked",

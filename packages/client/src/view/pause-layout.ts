@@ -85,6 +85,8 @@ const MENU_GAP = 10;
 const RIGHT_PAD = 24;
 const RIGHT_HEADER_HEIGHT = 30;
 const GRID_TOP_GAP = 12;
+/** Between the right panel's search field and what sits under it. */
+const SEARCH_GAP = 12;
 const GRID_BOTTOM_GAP = 16;
 const JUMP_HEADER_HEIGHT = 24;
 const LOG_BOX_TOP_GAP = 8;
@@ -121,6 +123,10 @@ export interface PauseWideLayout {
   /** Where the confirm's "Yes, concede" / "Cancel" pair replace Concede's own slot — placed just above it, in the gap between the menu and the foot. */
   readonly concedeConfirmYes: Rect;
   readonly concedeConfirmCancel: Rect;
+  /** The search field, across the top of the right panel. */
+  readonly search: Rect;
+  /** With something typed in `search`: the results' own scroll region, the rest of the right panel. */
+  readonly searchResults: Rect;
   readonly rulesHeader: Rect;
   readonly keywordGrid: PauseKeywordGrid;
   readonly keywordEmpty: Rect;
@@ -228,7 +234,15 @@ function wideLayout(
     width: Math.max(0, right.width - RIGHT_PAD * 2),
     height: Math.max(0, right.height - RIGHT_PAD * 2),
   };
-  const rulesHeader: Rect = { x: rightInner.x, y: rightInner.y, width: rightInner.width, height: RIGHT_HEADER_HEIGHT };
+  const search: Rect = { x: rightInner.x, y: rightInner.y, width: rightInner.width, height: hit.target };
+  const belowSearch = search.y + search.height + SEARCH_GAP;
+  const searchResults: Rect = {
+    x: rightInner.x,
+    y: belowSearch,
+    width: rightInner.width,
+    height: Math.max(0, rightInner.y + rightInner.height - belowSearch),
+  };
+  const rulesHeader: Rect = { x: rightInner.x, y: belowSearch, width: rightInner.width, height: RIGHT_HEADER_HEIGHT };
   const gridTop = rulesHeader.y + rulesHeader.height + GRID_TOP_GAP;
   const gridRect: Rect = {
     x: rightInner.x,
@@ -281,6 +295,8 @@ function wideLayout(
     manualAdjust: concedeConfirmCancel,
     concedeConfirmYes,
     concedeConfirmCancel,
+    search,
+    searchResults,
     rulesHeader,
     keywordGrid,
     keywordEmpty,
@@ -371,6 +387,8 @@ export interface PausePhoneLayout {
   readonly blindSheet: Rect | null;
   readonly footer: Rect;
   readonly search: Rect;
+  /** With something typed in `search`: the results' own scroll region, everything between the field and the footer. */
+  readonly searchResults: Rect;
   /** "Reference", which opens and closes the rows under it: the first cell of the line the compact tail shares. */
   readonly quickReferenceToggle: Rect;
   /** Open, two columns: each pair shares the taller one's height. The compact tail comes last, always, on the toggle's line. */
@@ -513,6 +531,13 @@ function phoneLayout(
     height: Math.max(0, body.height - 12),
   };
   const search: Rect = { x: inset.x, y: inset.y, width: inset.width, height: hit.target };
+  const resultsTop = search.y + search.height + PHONE_TOGGLE_GAP;
+  const searchResults: Rect = {
+    x: inset.x,
+    y: resultsTop,
+    width: inset.width,
+    height: Math.max(0, inset.y + inset.height - resultsTop),
+  };
   const tail = Math.min(Math.max(0, compactTail), quickReferenceDetails.length);
   // The toggle's word and chevron take a third of the line; the compact cells share the rest.
   const toggleWidth = tail > 0 ? Math.round(inset.width * PHONE_TOGGLE_SHARE) : inset.width;
@@ -591,6 +616,7 @@ function phoneLayout(
     blindSheet,
     footer,
     search,
+    searchResults,
     quickReferenceToggle,
     quickReferenceRows,
     lowerViewport,

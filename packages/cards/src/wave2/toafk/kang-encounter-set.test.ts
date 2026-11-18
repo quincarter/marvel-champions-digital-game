@@ -342,6 +342,28 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     });
   });
 
+  // Issue #815, RRG 1.8 "Boost" p. 11: "this enemy" on a boost card is the enemy being boosted, not the boost card.
+  it("Deathunt 9000 (11041) boost: the boosted enemies (Kang, and an engaged minion) each get a tough status card", () => {
+    const start = kangVsHeroes();
+    const deckId = Object.keys(start.encounterDecks)[0]!;
+    const [villainBoost, , minionBoost] = start.encounterDecks[deckId]!.deck as InstanceId[];
+    const relabel = (id: InstanceId) => ({ ...start.instances[id]!, cardId: "11041" as never });
+    // Deck top 0 is Kang's own boost card (Deathunt 9000, which also gives him the card at 1 as another boost card) and
+    // 2 the boost card of Kang (Master of Time), an engaged minion that activates after him (also Deathunt 9000).
+    const minion = engageMinion(start, "11047", "kang-master");
+    const staged = {
+      ...minion,
+      instances: {
+        ...minion.instances,
+        [villainBoost!]: relabel(villainBoost!),
+        [minionBoost!]: relabel(minionBoost!),
+      },
+    };
+    const after = settle(runWave2(runWave2(staged, toHero()), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(after.instances[after.activeVillainId!]!.statuses.tough).toBe(1);
+    expect(after.instances["kang-master" as InstanceId]!.statuses.tough).toBe(1);
+  });
+
   describe("Depowered (11020)", () => {
     // Hawkeye's Bow (04002, cost 0, aspect "hero:04001a") is hero-specific for the Hawkeye precon; Earth's Mightiest
     // Heroes (04022, cost 0, aspect "basic") is not — the negative control that proves the query discriminates

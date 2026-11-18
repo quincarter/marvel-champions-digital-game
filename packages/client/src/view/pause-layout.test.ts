@@ -172,6 +172,23 @@ describe("pauseLayout", () => {
       return layout;
     };
 
+    test("search results take everything between the field and the footer", () => {
+      for (const [width, height] of [
+        [375, 667],
+        [390, 844],
+      ] as const) {
+        const layout = pauseLayout({ x: 0, y: 0, width, height }, input(0));
+        if (layout.kind !== "phone") throw new Error("expected phone");
+        const { search, searchResults, footer } = layout;
+        expect(searchResults.y).toBeGreaterThanOrEqual(search.y + search.height);
+        expect(searchResults.y + searchResults.height).toBeLessThanOrEqual(footer.y);
+        expect(searchResults.x).toBe(search.x);
+        expect(searchResults.width).toBe(search.width);
+        // Room for several results even on the smallest phone.
+        expect(searchResults.height).toBeGreaterThan(300);
+      }
+    });
+
     test("collapsed, Reference shares a line with the compact cells and the settings have the rest of the panel", () => {
       const layout = phoneAt({
         quickReferenceDetails: ["Music.", "Report.", "Controls."],
