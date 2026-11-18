@@ -106,18 +106,6 @@ Street-level noir in a rough New York neighborhood at night. The crime lord who 
 Title: "The Kingdom Falls"
 ```
 
-## Fear No Evil campaign finale
-
-### The Neighborhood Breathes Again (`music/campaigns/fne/finale.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Campaign finale, 2-3 minutes: the crime lord's empire is broken, his underlings are behind bars, and the heroes watch the sun come up over the neighborhood they saved. Starts quiet with solo muted trumpet and soft piano, a steady brushed snare enters, then it grows into a warm, proud street-level anthem for full orchestra with a hint of soulful guitar. Relief turning to quiet pride, about 84 BPM, ending on a long warm major chord.
-
-Title: "The Neighborhood Breathes Again"
-```
-
 # Synthezoid Smackdown
 
 The two Synthezoid leaders' scenarios, one set of three each, in the same shape as the four Civil War leaders above (a custom scenario plays its leader's music).
@@ -956,10 +944,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 67 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 68 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 67 prompts already used</summary>
+<summary>Show the 68 prompts already used</summary>
 
 ## Black Widow
 
@@ -1923,6 +1911,18 @@ Generate an instrumental music track. No vocals, no sung or spoken words. Style:
 Campaign interlude, about 2 minutes, loops: the heroes regroup in a law office and a private eye's cluttered back room between nights on the street, piecing together which underling the crime boss sends next. Quiet noir: a slow brushed snare, a lonely muted trumpet motif, soft upright bass, rain-on-the-window synth pads, a distant city hum. No big drums, no climax, steady so it can loop under menus. About 72 BPM, D minor with brief turns to F major.
 
 Title: "Hell's Kitchen After Dark"
+```
+
+## Fear No Evil campaign finale
+
+### The Neighborhood Breathes Again (`music/campaigns/fne/finale.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Campaign finale, 2-3 minutes: the crime lord's empire is broken, his underlings are behind bars, and the heroes watch the sun come up over the neighborhood they saved. Starts quiet with solo muted trumpet and soft piano, a steady brushed snare enters, then it grows into a warm, proud street-level anthem for full orchestra with a hint of soulful guitar. Relief turning to quiet pride, about 84 BPM, ending on a long warm major chord.
+
+Title: "The Neighborhood Breathes Again"
 ```
 
 </details>

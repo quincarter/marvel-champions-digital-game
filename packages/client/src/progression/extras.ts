@@ -610,6 +610,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "campaigns/aoa/interlude.mp3": "Apocalypse on the Horizon",
   "campaigns/aos/finale.mp3": "Agents Assembled",
   "campaigns/aos/interlude.mp3": "Briefing on the Helicarrier",
+  "campaigns/fne/finale.mp3": "The Neighborhood Breathes Again",
   "campaigns/fne/interlude.mp3": "Hell's Kitchen After Dark",
   "scenarios/black-widow/battle.mp3": "Red Room Protocol",
   "scenarios/black-widow/villain-loses.mp3": "Cover Blown",
