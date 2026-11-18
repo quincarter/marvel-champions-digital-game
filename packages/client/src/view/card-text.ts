@@ -14,7 +14,22 @@ import { announceLanguageChange } from "../language-change.js";
 export interface LocalizedFace {
   readonly n?: string;
   readonly t?: string;
+  /** Fingerprint of the English rules text `t` translates (`textFingerprint`); `t` shows only on a face that matches. */
+  readonly e?: string;
   readonly f?: string;
+}
+
+/**
+ * FNV-1a over the text's letters and digits, lowercased, in base 36: the generator's `fingerprint`
+ * (`packages/content/scripts/card-text-es.ts`), which a test pins to the same value.
+ */
+export function textFingerprint(text: string): string {
+  let hash = 0x811c9dc5;
+  for (const char of text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")) {
+    hash ^= char.codePointAt(0)!;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 type TextTable = Readonly<Record<string, LocalizedFace>>;

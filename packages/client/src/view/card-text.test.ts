@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
 import { printedFaceCodeOf } from "../art/art-source.js";
+import { CARD_TEXT_ES } from "../content/card-text-es.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { cardTextDisplayEs } from "./card-text-display.js";
@@ -14,28 +15,15 @@ import {
   localizedFaceOf,
   localizedLabelOf,
   resetCardTextForTest,
+  textFingerprint,
   type LocalizedFace,
 } from "./card-text.js";
 import { cardInspectModel } from "./inspect-model.js";
 
 const card = (id: string): AnyCard => CARDS_BY_ID.get(id as never)!;
 
-const TABLE: Readonly<Record<string, LocalizedFace>> = {
-  "01001a": {
-    n: "Spiderman",
-    t: "Sentido arácnido — Interrupción: cuando el Villano inicie un ataque contra ti, roba 1 carta.",
-  },
-  "01001b": { t: "Científico — Recurso: Genera un recurso [mental]. (Límite de una vez por ronda.)" },
-  "04028": {
-    n: "Marcado para morir",
-    t: "Cuando se muestre esta carta: ... devuelve a Sinsajo a la mano de su propietario.",
-  },
-  "01003": {
-    n: "Voltereta hacia atrás",
-    t: "Interrupción (defensa): cuando vayas a sufrir cualquier cantidad de Daño provocado por un ataque, evita todo ese Daño.",
-    f: '"¿Has estado entrenándote?"',
-  },
-};
+// The generated table itself, so the faces, codes and fingerprints under test are the ones a player gets.
+const TABLE: Readonly<Record<string, LocalizedFace>> = CARD_TEXT_ES;
 const loadSpanish = (): Promise<boolean> => loadCardText("es", () => Promise.resolve(TABLE));
 
 afterEach(() => {
@@ -106,7 +94,7 @@ describe("the Inspect sheet in Spanish", () => {
     const sheet = cardInspectModel(card("01003"), { kind: "front" });
     expect(sheet.name).toBe("Voltereta hacia atrás");
     expect(sheet.rulesText).toMatch(/^Interrupción \(defensa\)/);
-    expect(sheet.flavor).toBe('"¿Has estado entrenándote?"');
+    expect(sheet.flavor).toMatch(/^"¿Has estado entrenándote\?/);
   });
 
   it("keeps a hero's qualifier and words icons in Spanish", async () => {
@@ -122,16 +110,24 @@ describe("the Inspect sheet in Spanish", () => {
     useSpanish();
     await loadSpanish();
     const sheet = cardInspectModel(card("04028"), { kind: "front" });
-    expect(sheet.name).toBe("Marcado para morir");
+    expect(sheet.name).toBe(TABLE["04028"]!.n);
     expect(sheet.rulesText).toMatch(/return the tucked Mockingbird/);
     expect(sheet.printedText).toMatch(/return Mockingbird to her owner's hand/);
+  });
+
+  it("keeps the English where a code's English is another face's (Rhino's scheme, whose Core scans are crossed)", async () => {
+    useSpanish();
+    await loadSpanish();
+    const setup = cardInspectModel(card("01097a"), { kind: "mainSchemeStage", stageIndex: 0, side: "A" });
+    expect(setup.rulesText).toMatch(/^Contents: Rhino/);
   });
 
   it("falls back to English for a face the table lacks, and in an English session", async () => {
     await loadSpanish();
     expect(cardInspectModel(card("01003"), { kind: "front" }).name).toBe("Backflip");
     useSpanish();
-    expect(cardInspectModel(card("01004"), { kind: "front" }).name).toBe("Enhanced Spider-Sense");
+    const untranslated = [...CARDS_BY_ID.values()].find((c) => c.type === "event" && !TABLE[c.id as string])!;
+    expect(cardInspectModel(untranslated, { kind: "front" }).name).toBe(untranslated.name);
   });
 });
 
@@ -140,7 +136,16 @@ describe("deck list labels", () => {
     await loadSpanish();
     expect(localizedLabelOf(card("01003"), "es")).toBe("Voltereta hacia atrás");
     expect(localizedLabelOf(card("01003"), "en")).toBe("Backflip");
-    expect(localizedLabelOf(card("01004"), "es")).toBe("Enhanced Spider-Sense");
+    expect(localizedLabelOf(card("01001a"), "es")).toBe("Spiderman (Peter Parker)");
+  });
+});
+
+describe("the English fingerprint", () => {
+  it("matches the generator's for the same English (Backflip, 01003)", () => {
+    expect(textFingerprint((card("01003") as { readonly text: { readonly printed: string } }).text.printed)).toBe(
+      "1mx4vn8",
+    );
+    expect(TABLE["01003"]!.e).toBe("1mx4vn8");
   });
 });
 

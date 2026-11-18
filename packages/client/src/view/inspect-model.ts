@@ -63,7 +63,7 @@ import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHist
 import { cardName, faceUpName } from "./names.js";
 import { maskedStageInspect, type BlindReveal } from "./civil-war-blind.js";
 import { cardTextDisplay, cardTextDisplayEs } from "./card-text-display.js";
-import { localizedFaceOf } from "./card-text.js";
+import { localizedFaceOf, textFingerprint } from "./card-text.js";
 import { howThisWorksFor } from "./how-this-works.js";
 import { resourceLimitOf } from "./resource-limit.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
@@ -1001,17 +1001,21 @@ function localizedSheet(sheet: InspectModel, card: AnyCard, face: CardFace): Ins
   const local = localizedFaceOf(printedFaceCodeOf(card, face), lang);
   if (!local) return sheet;
   const english = printedFaceNameOf(card, face);
-  // A face with errata (the data's current wording differs from the printing, Marked for Death 04028) keeps the
-  // English current text and its errata diff: MarvelCDB's Spanish text translates the printing, not the correction.
+  // The Spanish rules text and flavor show only where they translate this face's own English: MarvelCDB's English
+  // for the code must fingerprint the same as the data's printing (Core's main schemes name their scans crossed, so a
+  // code can belong to the other side), and the face must carry no errata (Marked for Death 04028: MarvelCDB's Spanish
+  // translates the printing, not the correction). Anything else keeps the English text and its errata diff.
   const printing = textOf(card, face);
   const errata = printing.printed !== "" && printing.printed !== printing.current;
-  const text = local.t !== undefined && !errata && balancedTextOf(artFor(card, face)) === null ? local.t : null;
+  const matches = local.e !== undefined && local.e === textFingerprint(printing.printed || printing.current);
+  const ownFace = matches && !errata;
+  const text = local.t !== undefined && ownFace && balancedTextOf(artFor(card, face)) === null ? local.t : null;
   return {
     ...sheet,
     name:
       local.n !== undefined && sheet.name.startsWith(english) ? local.n + sheet.name.slice(english.length) : sheet.name,
     ...(text === null ? {} : { rulesText: lang === "es" ? cardTextDisplayEs(text) : text, printedText: null }),
-    ...(local.f === undefined ? {} : { flavor: local.f }),
+    ...(local.f === undefined || (local.e !== undefined && !matches) ? {} : { flavor: local.f }),
   };
 }
 
