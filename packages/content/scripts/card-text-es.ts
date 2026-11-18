@@ -88,6 +88,17 @@ const fingerprint = (text: string): string => {
   return hash.toString(36);
 };
 
+/**
+ * Whether a translation states the same numbers as the English it translates (each number, as often). A translation that
+ * does not is a different card's text or misses a correction (Vulture 27099 carries Electro's "discard 7"; Honorary
+ * Avenger 03025 lacks its errata's "max 1"), so the face keeps its English. Spanish writes some numbers as words, which
+ * this check also turns away: a face shows English rather than risk a wrong number.
+ */
+const sameNumbers = (spanish: string, english: string): boolean => {
+  const numbers = (text: string): string => (text.match(/\d+/g) ?? []).sort().join(",");
+  return numbers(spanish) === numbers(english);
+};
+
 const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 const es = readCards(path.join(RAW, "es"));
@@ -103,12 +114,14 @@ for (const [code, card] of es) {
   if (name && !same(name, english.name ?? "")) fields.n = name;
   const text = plain(card.text);
   const englishText = plain(english.real_text ?? english.text);
-  if (text && englishText && !same(text, plain(english.text))) {
+  // A translation whose numbers disagree may be another card's text, flavor and all: the face keeps only its name.
+  const wrong = text !== "" && englishText !== "" && !sameNumbers(text, englishText);
+  if (text && englishText && !same(text, plain(english.text)) && !wrong) {
     fields.t = text;
     fields.e = fingerprint(englishText);
   }
   const flavor = plain(card.flavor);
-  if (flavor && !same(flavor, plain(english.flavor))) fields.f = flavor;
+  if (flavor && !wrong && !same(flavor, plain(english.flavor))) fields.f = flavor;
   if (Object.keys(fields).length > 0) entries.push([code, fields]);
 }
 entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));

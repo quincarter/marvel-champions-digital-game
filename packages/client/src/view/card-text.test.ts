@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
-import { printedFaceCodeOf } from "../art/art-source.js";
+import { defaultFaceFor, printedFaceCodeOf } from "../art/art-source.js";
 import { CARD_TEXT_ES } from "../content/card-text-es.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
@@ -120,6 +120,21 @@ describe("the Inspect sheet in Spanish", () => {
     await loadSpanish();
     const setup = cardInspectModel(card("01097a"), { kind: "mainSchemeStage", stageIndex: 0, side: "A" });
     expect(setup.rulesText).toMatch(/^Contents: Rhino/);
+  });
+
+  it("keeps the English where MarvelCDB's Spanish states other numbers (Honorary Avenger 03025, Vulture 27099)", async () => {
+    useSpanish();
+    await loadSpanish();
+    for (const id of ["03025", "27099"]) {
+      const spanish = cardInspectModel(card(id), defaultFaceFor(card(id)));
+      useEnglish();
+      const english = cardInspectModel(card(id), defaultFaceFor(card(id)));
+      useSpanish();
+      expect(TABLE[id]!.t).toBeUndefined();
+      expect(spanish.name).toBe(TABLE[id]!.n);
+      expect(spanish.rulesText).toBe(english.rulesText);
+      expect(spanish.flavor).toBe(english.flavor);
+    }
   });
 
   it("falls back to English for a face the table lacks, and in an English session", async () => {
