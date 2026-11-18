@@ -152,24 +152,6 @@ Title: "A Synthetic Heart"
 
 # Earlier boxes: scenarios with no music
 
-## Absorbing Man
-
-Folder: `music/scenarios/absorbing-man/`
-
-### Nothing Left to Absorb (heroes win, `villain-loses.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
-
-Use the same main melody and instruments as the battle track I just generated.
-
-A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
-
-Title: "Nothing Left to Absorb"
-```
-
 ## Zola
 
 Folder: `music/scenarios/zola/`
@@ -622,10 +604,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 90 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 91 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 90 prompts already used</summary>
+<summary>Show the 91 prompts already used</summary>
 
 ## Black Widow
 
@@ -1919,6 +1901,20 @@ Use the same main melody and instruments as the battle track I just generated.
 A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
 
 Title: "Ball and Chain"
+```
+
+### Nothing Left to Absorb (heroes win, `villain-loses.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Heroes win: about 75 seconds, tension releasing into a warm major-key resolution with a clear final chord.
+
+Use the same main melody and instruments as the battle track I just generated.
+
+A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
+
+Title: "Nothing Left to Absorb"
 ```
 
 </details>

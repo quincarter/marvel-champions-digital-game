@@ -85,14 +85,6 @@ An android hero who can turn as dense as a diamond or as thin as a ghost, refusi
 
 # Earlier boxes: scenarios with no music
 
-## Absorbing Man
-
-Tracks: **Whatever He Touches** (battle), **Ball and Chain** (villain wins), **Nothing Left to Absorb** (heroes win).
-
-```text
-A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
-```
-
 ## Zola
 
 Tracks: **The Bio-Fanatic** (battle), **A Mind That Cannot Die** (villain wins), **The Screen Goes Dark** (heroes win).
@@ -115,7 +107,6 @@ Every scenario and campaign listed here is playable, so each track goes straight
 - Captain Marvel (Registration): `scenarios/registration-captain-marvel/`
 - She-Hulk (Registration): `scenarios/registration-she-hulk/`
 - Vision (Resistance): `scenarios/resistance-vision/`
-- Absorbing Man: `scenarios/absorbing-man/`
 - Zola: `scenarios/zola/`
 
 # Already in the game
@@ -487,6 +478,14 @@ Tracks: **Conqueror of All Tomorrows** (battle), **History Belongs to Kang** (vi
 
 ```text
 A conqueror from the far future who splits the heroes across different eras and fights each of them as a different version of himself. Grand and imperial across time: a commanding brass theme over ticking clock percussion and reversed swells, restated in turn with ancient war drums, with modern strings and with futuristic sequencers, tempo shifts between sections. About 126 BPM, C minor, vast and commanding.
+```
+
+## Absorbing Man
+
+Tracks: **Whatever He Touches** (battle), **Ball and Chain** (villain wins), **Nothing Left to Absorb** (heroes win).
+
+```text
+A brawler swinging a ball and chain who turns his body into whatever he touches: stone, steel, ice, wood, fire. One bruising low brass theme restated in changing textures: grinding stone-like percussion, ringing metal, glassy icy bells, crackling fiery strings, with chain rattles as rhythm throughout. About 104 BPM, F minor, heavy and stubborn.
 ```
 
 </details>
