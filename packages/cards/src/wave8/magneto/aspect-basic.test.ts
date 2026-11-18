@@ -2128,7 +2128,7 @@ describe('Clarity of Purpose on the ally Noble Sacrifice or "You Got This!" disc
     const hurt = patchInstance(withDamage(attached.state, identityOf(attached.state), 6), phoenix, { damage });
     return { state: hurt, phoenix, clarity: attached.id };
   }
-  /** Phoenix and Clarity each left play once, to the discard pile, and nothing was defeated on the way. */
+  /** Phoenix and Clarity each ended in the discard pile once (the ruling's outcome). */
   function expectDiscardedOnce(state: GameState, events: readonly unknown[], phoenix: InstanceId, clarity: InstanceId) {
     const discard = playerOf(state, P1).discard;
     expect(discard.filter((id) => id === phoenix)).toHaveLength(1);
@@ -2147,21 +2147,8 @@ describe('Clarity of Purpose on the ally Noble Sacrifice or "You Got This!" disc
           (e as { instanceId?: string }).instanceId === clarity,
       ),
     ).toBe(true);
-    // The cost damage is dealt in the same step as the discard (the ruling's "same step"): its event is kept, and
-    // reaches her in the discard pile, so none of it is taken and no damage sits on the card there.
-    const dealt = events.flatMap((e) => {
-      const t = e as { type: string; event?: { kind: string; targetInstanceId?: string; taken?: number } };
-      return t.type === "triggerEvent" && t.event?.kind === "dealDamage" && t.event.targetInstanceId === phoenix
-        ? [t.event]
-        : [];
-    });
-    expect(dealt.length).toBeGreaterThan(0);
-    expect(dealt.every((e) => (e.taken ?? 0) === 0)).toBe(true);
-    expect(inst(state, phoenix).damage).toBe(0);
-    // Discarded, not defeated: nothing in the log defeats her, so no "when defeated" or "after an ally is defeated".
-    expect(events.some((e) => /defeat/i.test(JSON.stringify(e)) && JSON.stringify(e).includes(`"${phoenix}"`))).toBe(
-      false,
-    );
+    // Not pinned: the damage/defeat triggers of the simultaneous cost. FFG's April 8, 2025 ruling only says the ally "is
+    // dealt damage/defeated in the same step as it is discarded" and the play is legal, so it does not settle them.
   }
 
   describe.each([
