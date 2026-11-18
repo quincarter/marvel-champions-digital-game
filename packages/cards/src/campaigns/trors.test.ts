@@ -191,12 +191,13 @@ function playNode(log: CampaignLog, opts: { readonly reenterWeapon?: boolean } =
  * copy of each recorded weapon in the whole game, in the encounter deck (or already drawn from it), and none of the
  * unrecorded weapons at all. Returns the config for further checks.
  */
-function expectWeaponsCarriedOnce(log: CampaignLog) {
+function expectWeaponsCarriedOnce(log: CampaignLog, nodeId = "absorbing-man") {
   const composed = settle(
     (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
     SCRIPT,
   );
   const start = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed.value);
+  expect(start.nodeId).toBe(nodeId);
   // Seated exactly as a client launches it: each seat's composed deck, grants and all — not the starter lists.
   const config = wave2Scenario(start.scenarioId as string, {
     players: start.input.seats.map((seat) => ({
@@ -246,11 +247,19 @@ describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
     expect(new Set(recorded).size).toBe(recorded.length);
     const config = expectWeaponsCarriedOnce(afterWin);
 
-    // A log saved before `distinct` can list a weapon twice; it still carries over as one copy.
-    expectWeaponsCarriedOnce({
-      ...afterWin,
-      shared: { ...afterWin.shared, experimental: { kind: "cardList", cardIds: [...recorded, recorded[0]!] } },
-    });
+    // Every later scenario lists the shuffle in its own setup (scenarios 2 to 4 through `repeatedSetup`, Red Skull
+    // separately), so each is checked, from a log that lists a weapon twice as one saved before `distinct` can: it
+    // still carries over as one copy.
+    for (const nodeId of ["absorbing-man", "taskmaster", "zola", "red-skull"]) {
+      expectWeaponsCarriedOnce(
+        {
+          ...afterWin,
+          position: { ...afterWin.position, nextNodeId: nodeId },
+          shared: { ...afterWin.shared, experimental: { kind: "cardList", cardIds: [...recorded, recorded[0]!] } },
+        },
+        nodeId,
+      );
+    }
 
     // The same deck is still refused outside the campaign: a granted card is legal only where it was granted.
     const standalone = createGame(config, WAVE2_DEPS);
