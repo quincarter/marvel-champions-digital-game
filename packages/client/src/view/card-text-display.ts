@@ -26,3 +26,33 @@ export function cardTextDisplay(text: string): string {
     .replace(/\b([A-Z][a-z]+)_([A-Z][a-z]+)\b/g, "$1 $2")
     .replace(/ {2,}/g, " ");
 }
+
+/** `ICON_WORDS` in Spanish, worded to read after the noun MarvelCDB's Spanish text puts first ("un recurso [energy]"). */
+const ICON_WORDS_ES: Readonly<Record<string, string>> = {
+  star: "★",
+  boost: "icono de Aumento",
+  wild: "comodín",
+  energy: "de energía",
+  mental: "mental",
+  physical: "físico",
+  crisis: "Crisis",
+  acceleration: "Aceleración",
+  amplify: "Amplificación",
+  hazard: "Riesgo",
+  unique: "único",
+  cost: "coste",
+  consequential: "derivado",
+};
+
+/**
+ * `cardTextDisplay` for Spanish card text (issue #391, from MarvelCDB's Spanish site): the same bracket tokens, worded in
+ * Spanish. A token with no word (MarvelCDB's Spanish text has a stray `[rasgos]`) loses its brackets rather than
+ * printing them.
+ */
+export function cardTextDisplayEs(text: string): string {
+  return text
+    .replace(/\[per_hero\]/g, " por héroe")
+    .replace(/\[per_group\]/g, " por grupo")
+    .replace(/\[([a-z_]+)\]/g, (_whole, key: string) => ICON_WORDS_ES[key] ?? key)
+    .replace(/ {2,}/g, " ");
+}

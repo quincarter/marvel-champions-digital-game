@@ -10,6 +10,7 @@
     "docs/design-renders/**",
     "packages/content/raw/**",
     "packages/content/src/data/*/**",
+    "packages/client/src/content/card-text-es.ts",
     "**/fixtures/marvelcdb-decklist-*.json",
     "**/src-tauri/target/**",
     "**/android/**",

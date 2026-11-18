@@ -228,6 +228,18 @@ export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | n
 }
 
 /**
+ * The MarvelCDB code of the printed face `face` shows: the stem of its scan (`01001b` for Spider-Man's alter-ego side,
+ * a stage's own lettered scan), which is how the localized text table is keyed (`view/card-text.ts`, issue #391). Null
+ * for a card back and for a custom card, whose pictures are its pack's own.
+ */
+export function printedFaceCodeOf(card: AnyCard | undefined, face: CardFace): string | null {
+  if (!card || face.kind === "back" || (card.id as string).startsWith("x.")) return null;
+  const ref = (localRefFor(card, face) as string | undefined) ?? (imageRefFor(card, face) as string | undefined);
+  if (!ref) return card.id as string;
+  return ref.slice(ref.lastIndexOf("/") + 1).replace(/\.\w+$/, "");
+}
+
+/**
  * The pack picture codes to try for a custom card's face, best first. A pack ships `cards/<lang>/<code>.webp` per printed
  * picture: the card's own code for its front (a hero identity's hero face), and the sibling `...b` code for the back
  * (the alter-ego face, a double-sided card's flip side). A card whose code does not end in `a` has no sibling, so every

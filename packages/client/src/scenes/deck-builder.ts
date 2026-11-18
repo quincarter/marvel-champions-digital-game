@@ -54,13 +54,7 @@ import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard, StarterDeck, Trait } from "@mc/content";
-import {
-  DECK_MIN_CARDS,
-  requiredIdentitySet,
-  uniqueLabel,
-  type CampaignDeckContext,
-  type CampaignGrant,
-} from "@mc/engine";
+import { DECK_MIN_CARDS, requiredIdentitySet, type CampaignDeckContext, type CampaignGrant } from "@mc/engine";
 import type { CardId } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
@@ -239,6 +233,7 @@ import type { SearchDocument } from "../view/deck-search.js";
 import type { CardLanguage } from "../art/card-language.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
+import { localizedLabelOf } from "../view/card-text.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
@@ -2960,7 +2955,7 @@ ${entry.detail}`,
       const name = this.add.text(
         cardRect.x + 6,
         captionY,
-        uniqueLabel(card),
+        localizedLabelOf(card, artLanguageNow()),
         textStyle(typeRole.rowTitle, surface.ink.hex),
       );
       fitText(name, cardRect.width - 12);
@@ -3395,7 +3390,12 @@ ${entry.detail}`,
     objects.push(thumb.object);
     const textX = row.x + 6 + this.#rows.cardThumbWidth + 10;
     const textWidth = row.x + row.width - POOL_ROW_CONTROLS_WIDTH - textX;
-    const name = this.add.text(textX, row.y + 6, uniqueLabel(card), textStyle(typeRole.rowTitle, surface.ink.hex));
+    const name = this.add.text(
+      textX,
+      row.y + 6,
+      localizedLabelOf(card, artLanguageNow()),
+      textStyle(typeRole.rowTitle, surface.ink.hex),
+    );
     fitText(name, textWidth);
     objects.push(name);
     const subtitleCut = subtitleCutFrom(card, name.text);
