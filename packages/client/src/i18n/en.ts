@@ -21,7 +21,7 @@ export const en = {
   "title.updateRestart": "Restart",
   "title.updateQuit": "Quit",
   "title.updateInstall": "Update",
-  "title.updateFailed": "Version {version} · the last try didn't install",
+  "title.updateFailed": "DIDN'T INSTALL",
   "update.ask.heading": "Update the game",
   "update.ask.body":
     "Downloads version {version} while you play. Then restart: the game closes, installs it and starts again. Your saves stay as they are.",

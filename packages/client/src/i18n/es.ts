@@ -23,7 +23,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "title.updateRestart": "Reiniciar",
   "title.updateQuit": "Salir",
   "title.updateInstall": "Actualizar",
-  "title.updateFailed": "Versión {version} · el último intento no se instaló",
+  "title.updateFailed": "NO SE INSTALÓ",
   "update.ask.heading": "Actualizar el juego",
   "update.ask.body":
     "Descarga la versión {version} mientras juegas. Después reinicia: el juego se cierra, la instala y vuelve a abrirse. Tus partidas guardadas no cambian.",

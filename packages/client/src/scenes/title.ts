@@ -1105,13 +1105,20 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setStrokeStyle(2, surface.inkOnHue.hex);
     const heading = this.add
-      .text(parts.text.x, parts.text.y, t("title.updateAvailable"), textStyle(typeRole.label, surface.inkOnHue.hex))
+      // The last try was downloaded but didn't install (the old game started again): said in the heading, which is short
+      // enough for a phone's banner, where the version line would be cut off.
+      .text(
+        parts.text.x,
+        parts.text.y,
+        t(this.#updateFailed ? "title.updateFailed" : "title.updateAvailable"),
+        textStyle(typeRole.label, surface.inkOnHue.hex),
+      )
       .setLetterSpacing(1);
     fitText(heading, parts.textWidth, typeRole.label.size); // a translation can run longer than the English
     const detail = this.add.text(
       parts.text.x,
       parts.text.y + 16,
-      this.#updateFailed ? t("title.updateFailed", { version: update.version }) : `Version ${update.version}`,
+      `Version ${update.version}`,
       textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
     );
     fitText(detail, parts.textWidth, typeRole.rowTitle.size);

@@ -371,7 +371,7 @@ test.describe("an install from the release's installers (#843)", () => {
       (window as unknown as { __initialStatus: unknown }).__initialStatus = failed;
     });
     await openAsSteamInstall(page, null, "", { kind: "nsis" });
-    await waitForText(page, "the last try didn't install", { sceneKey: "Title" });
+    await waitForText(page, "DIDN'T INSTALL", { sceneKey: "Title" });
     await waitForStop(page, "update-install");
     await shoot(page, "installer-failed");
     expect(errors).toEqual([]);
