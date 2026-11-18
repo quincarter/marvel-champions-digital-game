@@ -39,6 +39,14 @@ export const MTS_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "21183",
+      reason:
+        'MarvelCDB has no text for Shawarma and sends deck_limit 3, but the card prints "Max 1 per deck." (issue #807).',
+      evidence: "card scan (assets/card-art/bundles/cards/21183.png), read 2026-11-17",
+      textReplace: { find: "", replace: "Max 1 per deck." },
+      deckLimit: 1,
+    },
+    {
       code: "21104",
       reason:
         "Corvus's Glaive prints a +1 ATK stat box, which raw does not send, so the attached character got no bonus (found auditing attachments for issue #678).",
