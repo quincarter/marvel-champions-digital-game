@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { boardLayout, formFactorFor, PHONE_TABS, type FormFactor, type Rect, type ZoneName } from "./layout.js";
 import {
+  focusSliceOf,
+  OFFSCREEN_FOCUS_STRIP,
   fullyVisible,
   LARGE_TEXT_MIN_WIDTH,
   largeSchemeListLayout,
@@ -316,5 +318,25 @@ describe("Stack schemes: one large card at the front, the rest stacked behind it
     expect(stackOrder(["a", "b", "c", "d"], 2)).toEqual(["c", "d", "a", "b"]);
     expect(stackOrder(["a", "b"], -1)).toEqual(["b", "a"]);
     expect(stackOrder([], 3)).toEqual([]);
+  });
+});
+
+describe("a scrolling scheme row's focus stop", () => {
+  const viewport: Rect = { x: 0, y: 100, width: 300, height: 200 };
+  const row = (y: number): Rect => ({ x: 10, y, width: 280, height: 80 });
+
+  test("is the visible slice while any of the row shows", () => {
+    expect(focusSliceOf(row(120), 0, viewport)).toEqual(row(120));
+    expect(focusSliceOf(row(260), 0, viewport)).toEqual({ x: 10, y: 260, width: 280, height: 40 });
+  });
+
+  test("is a thin strip on the edge it is past once the row is wholly out of view, so the D-pad still reaches it", () => {
+    expect(focusSliceOf(row(400), 0, viewport)).toEqual({
+      x: 10,
+      y: 300 - OFFSCREEN_FOCUS_STRIP,
+      width: 280,
+      height: OFFSCREEN_FOCUS_STRIP,
+    });
+    expect(focusSliceOf(row(120), 200, viewport)).toEqual({ x: 10, y: 100, width: 280, height: OFFSCREEN_FOCUS_STRIP });
   });
 });

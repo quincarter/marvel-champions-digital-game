@@ -18,6 +18,7 @@ import { fitWrapped, label, paintPanel, paintThreatMeter } from "../../ui/widget
 import { counterNote, scenarioAreaTag, type BoardModel, type SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import {
+  focusSliceOf,
   fullyVisible,
   largeSchemeListLayout,
   schemeListLayout,
@@ -270,13 +271,11 @@ function drawScrollingRows(
       const id = ids[at]!;
       const slice = visibleSlice(row.rect, offset, viewport);
       const key = focusKey({ kind: "card", instanceId: id });
-      if (slice) {
-        ctx.frame.hitRects.set(id, slice);
-        ctx.frame.focusRects.set(key, slice);
-      } else {
-        ctx.frame.hitRects.delete(id);
-        ctx.frame.focusRects.delete(key);
-      }
+      // A row scrolled out of view keeps a focus strip at the viewport's edge, so the D-pad reaches it (focus there
+      // scrolls it in, above), but no tap rect (Codex review on PR #834).
+      ctx.frame.focusRects.set(key, focusSliceOf(row.rect, offset, viewport));
+      if (slice) ctx.frame.hitRects.set(id, slice);
+      else ctx.frame.hitRects.delete(id);
     });
     hint?.(offset);
     if (armed) ctx.onRegionScroll();

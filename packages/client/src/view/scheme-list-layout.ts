@@ -393,6 +393,22 @@ export function schemeRowGeometry(
   };
 }
 
+/** How tall the focus strip of a row scrolled wholly out of the schemes viewport is, at the edge it is past. */
+export const OFFSCREEN_FOCUS_STRIP = 4;
+
+/**
+ * Where a scrolling scheme row is a pad and keyboard focus stop: its visible slice, or, scrolled wholly out of view, a
+ * thin strip on the viewport's edge it lies past (`OFFSCREEN_FOCUS_STRIP`), so the D-pad can still move to it; focus
+ * landing there scrolls it into view (`schemes.ts`). A row's tap rect stays its visible slice only.
+ */
+export function focusSliceOf(rect: Rect, offset: number, viewport: Rect): Rect {
+  const slice = visibleSlice(rect, offset, viewport);
+  if (slice) return slice;
+  const below = rect.y - offset >= viewport.y + viewport.height;
+  const y = below ? viewport.y + viewport.height - OFFSCREEN_FOCUS_STRIP : viewport.y;
+  return { x: rect.x, y, width: rect.width, height: OFFSCREEN_FOCUS_STRIP };
+}
+
 /** `rect` as it is drawn with the list scrolled by `offset`, clipped to `viewport`; null when none of it shows. */
 export function visibleSlice(rect: Rect, offset: number, viewport: Rect): Rect | null {
   const top = Math.max(rect.y - offset, viewport.y);
