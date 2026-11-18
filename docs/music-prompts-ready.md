@@ -24,18 +24,6 @@ The two Synthezoid leaders' scenarios, one set of three each, in the same shape 
 
 Folder: `music/scenarios/resistance-vision/`
 
-### Phase Shift (battle, `battle.mp3`)
-
-```text
-Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
-
-Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
-
-An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
-
-Title: "Phase Shift"
-```
-
 ### Density Absolute (villain wins, `villain-wins.mp3`)
 
 ```text
@@ -426,10 +414,10 @@ Title: "Friendly Neighborhood Heroes"
 
 # Already in the game
 
-These 103 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
+These 104 tracks are done: generated, renamed to the title shown and slotted. Their prompts are kept here for reference.
 
 <details>
-<summary>Show the 103 prompts already used</summary>
+<summary>Show the 104 prompts already used</summary>
 
 ## Black Widow
 
@@ -1913,6 +1901,22 @@ Use the same main melody and instruments as the battle track I just generated.
 A brilliant lawyer who is also a towering green powerhouse, siding with the law that makes every superhero register, arguing her case and then smashing through anyone who resists. Confident courtroom muscle: a strutting funk bass and big-band brass, a stately legal-drama string theme that keeps getting knocked off its feet by thunderous drum hits, crowd-like brass swells. About 126 BPM, B-flat minor, bold and unstoppable.
 
 Title: "Verdict Reversed"
+```
+
+## Vision (Resistance)
+
+Folder: `music/scenarios/resistance-vision/`
+
+### Phase Shift (battle, `battle.mp3`)
+
+```text
+Generate an instrumental music track. No vocals, no sung or spoken words. Style: orchestral-hybrid film score (full orchestra plus synths and heavy percussion), in the mood of 1990s animated superhero shows and modern comic-book films. Original music only; do not imitate any existing theme. I will give you the exact title for this track at the end of this request. Use that title, word for word, as the track's name and as the file name. Do not invent, change or add to the title.
+
+Battle: about 3 minutes, steady high energy from the first bar, no quiet intro, ends so it can loop.
+
+An android hero who can turn as dense as a diamond or as thin as a ghost, refusing the registration law and phasing through walls to protect the resisting heroes. Synthetic and soulful: crystalline synth arpeggios that flicker in and out of phase, a heavy pulsing low end when he turns dense, a yearning string melody for the machine with a human heart, glassy chimes and reversed-sound swells. About 118 BPM, E minor, otherworldly and determined.
+
+Title: "Phase Shift"
 ```
 
 </details>

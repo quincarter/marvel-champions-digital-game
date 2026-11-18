@@ -689,6 +689,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/registration-she-hulk/battle.mp3": "Objection Overruled",
   "scenarios/registration-she-hulk/villain-wins.mp3": "Case Closed",
   "scenarios/registration-she-hulk/villain-loses.mp3": "Verdict Reversed",
+  "scenarios/resistance-vision/battle.mp3": "Phase Shift",
 };
 
 /** "music:scenarios/rhino/battle.mp3" → "scenarios/rhino/battle.mp3". */
