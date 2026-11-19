@@ -124,9 +124,19 @@ async function capacitorSource(): Promise<AppLinkSource> {
   };
 }
 
+/**
+ * Whether the Android or iOS app build has the App plugin (`@capacitor/app`): the native bridge lists its plugins
+ * (`Capacitor.PluginHeaders`) before any page script runs. An APK built before it has none, and then `@capacitor/core`
+ * is not loaded at launch for it (as `platform/power-saving.ts` does for its plugin).
+ */
+export function hasAppPlugin(global: object = globalThis): boolean {
+  const headers = (global as { Capacitor?: { PluginHeaders?: readonly { name?: string }[] } }).Capacitor?.PluginHeaders;
+  return headers?.some((header) => header.name === "App") ?? false;
+}
+
 function sourceFor(platform: Platform): Promise<AppLinkSource> | null {
   if (platform === "tauri") return tauriSource();
-  if (platform === "capacitor") return capacitorSource();
+  if (platform === "capacitor" && hasAppPlugin()) return capacitorSource();
   return null;
 }
 

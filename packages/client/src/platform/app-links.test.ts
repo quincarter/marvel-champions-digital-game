@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   appReplayLinkOf,
   gameFragmentOf,
+  hasAppPlugin,
   offersDesktopApp,
   reloadIsSafe,
   startAppLinks,
@@ -168,5 +169,13 @@ describe("reloadIsSafe (#862)", () => {
     expect(reloadIsSafe(["Board", "ReplayTransportOverlay"])).toBe(true);
     expect(reloadIsSafe(["DeckBuilder"])).toBe(false);
     expect(reloadIsSafe(["Title", "SettingsOverlay", "SaveDataOverlay"])).toBe(false);
+  });
+});
+
+describe("hasAppPlugin (#862)", () => {
+  it("reads the App plugin from the native bridge's list, and is false for a build without it", () => {
+    expect(hasAppPlugin({ Capacitor: { PluginHeaders: [{ name: "App" }, { name: "ExternalBrowser" }] } })).toBe(true);
+    expect(hasAppPlugin({ Capacitor: { PluginHeaders: [{ name: "ExternalBrowser" }] } })).toBe(false);
+    expect(hasAppPlugin({})).toBe(false);
   });
 });
