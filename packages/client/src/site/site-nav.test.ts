@@ -77,14 +77,17 @@ describe("withReleaseBar", () => {
   const report = `<html lang="es"><head><title>v1</title></head><body>\n<div class="wrap">Report</div></body></html>`;
   const languages = { current: "es", hrefs: { en: "index.html", es: "index.es.html" } } as const;
 
-  it("adds the stylesheet, a bar the release history strips from its copy of the report, and the bar's script", () => {
+  it("adds the stylesheet, art and a bar the release history strips from its copy of the report, and the script", () => {
     const html = withReleaseBar(report, { pinned: true, languages });
     expect(html).toContain(`<link rel="stylesheet" href="${SITE_NAV_STYLESHEET}" />`);
-    expect(html).toMatch(/<body>\s*<header class="site-bar pinned" data-history-link>/);
+    expect(html).toMatch(/<body class="has-backdrop">\s*<picture class="site-backdrop"[^>]*data-history-link>/);
+    expect(html).toMatch(/<\/picture>\s*<header class="site-bar pinned" data-history-link>/);
     expect(html).toContain('aria-current="page"');
     expect(html).toContain(`<script type="module" src="${SITE_BAR_SCRIPT}"></script>`);
     expect(html.indexOf("site-bar")).toBeLessThan(html.indexOf("Report"));
-    expect(html).not.toContain("site-backdrop");
+    // The art goes behind the report's top too; the history drops it with the bar from its copy of the report.
+    expect(html).toContain('<body class="has-backdrop">');
+    expect(html).toContain('<picture class="site-backdrop" aria-hidden="true" data-history-link>');
   });
 
   const history =

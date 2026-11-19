@@ -219,7 +219,7 @@ html[lang="es"] .site-nav [lang="es"] {
   }
 }
 
-/* ---- The art behind the top of the stats page and the release history, as on the landing page's first screen ---- */
+/* ---- The art behind the top of the stats page and the release pages, as on the landing page's first screen ---- */
 .site-backdrop {
   position: absolute;
   top: 0;
@@ -248,7 +248,8 @@ html[lang="es"] .site-nav [lang="es"] {
 }
 /* The page sits over the art. */
 .has-backdrop > main,
-.has-backdrop > .layout {
+.has-backdrop > .layout,
+.has-backdrop > .wrap {
   position: relative;
   z-index: 1;
 }

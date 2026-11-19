@@ -136,18 +136,21 @@ export function siteBar(page: SitePage | null, { pinned, languages }: SiteBarOpt
 export const SITE_NAV_STYLESHEET = "/site-nav.css";
 /** The script that shows the bar's Steam button on the release pages, built beside the landing page. */
 export const SITE_BAR_SCRIPT = "/site-bar.js";
-/** The art behind the top of the release history, written to the site's root by the landing build. */
+/** The art behind the top of the release pages, written to the site's root by the landing build. */
 export const SITE_BACKDROP = { wide: "/site-backdrop.webp", tall: "/site-backdrop-tall.webp" } as const;
 
 export interface ReleaseBarOptions extends SiteBarOptions {
-  /** The release history page itself: its own toggle moves into the bar, and the art goes behind its top. */
+  /** The release history page itself: its own toggle moves into the bar. */
   readonly history?: boolean;
 }
 
-/** The art behind the top of the release history: a picture faded into the page (site-nav.css, `.site-backdrop`). */
+/**
+ * The art behind the top of a release page: a picture faded into the page (site-nav.css, `.site-backdrop`). Like the
+ * bar, the release history drops it from a report it shows inside its own page, which has the art already.
+ */
 function backdrop(): string {
   return (
-    `<picture class="site-backdrop" aria-hidden="true">` +
+    `<picture class="site-backdrop" aria-hidden="true" data-history-link>` +
     `<source media="(max-aspect-ratio: 3/4)" srcset="${SITE_BACKDROP.tall}" />` +
     `<img src="${SITE_BACKDROP.wide}" alt="" fetchpriority="high" /></picture>`
   );
@@ -156,18 +159,16 @@ function backdrop(): string {
 /**
  * `html` (a release page) with the bar's stylesheet in its head, the bar at the top of its body, after a "skip to the
  * content" link if the page opens with one (the history page does), so that link stays the first stop for a keyboard,
- * and the script that shows the bar's Steam button at the end. On the history page the bar's toggle takes the place
+ * the art behind the page's top, and the script that shows the bar's Steam button at the end. On the history page the bar's toggle takes the place
  * of the one the page draws over its content (`history.js` finds it by its id). A page that has the bar already is
  * left as it is, so the step can run twice.
  */
 export function withReleaseBar(html: string, options: ReleaseBarOptions): string {
   if (html.includes('class="site-bar')) return html;
-  const page = options.history
-    ? html
-        .replace(/\s*<div class="language" id="language"[^>]*>[\s\S]*?<\/div>/, "")
-        .replace(/<body/, '<body class="has-backdrop"')
-    : html;
-  const top = `${options.history ? `${backdrop()}\n    ` : ""}${siteBar("releases", options)}`;
+  const page = (
+    options.history ? html.replace(/\s*<div class="language" id="language"[^>]*>[\s\S]*?<\/div>/, "") : html
+  ).replace(/<body/, '<body class="has-backdrop"');
+  const top = `${backdrop()}\n    ${siteBar("releases", options)}`;
   return page
     .replace(/<\/head>/, `<link rel="stylesheet" href="${SITE_NAV_STYLESHEET}" />\n  </head>`)
     .replace(/<body[^>]*>(\s*<a class="skip"[^>]*>[^<]*<\/a>)?/, (start) => `${start}\n    ${top}`)
