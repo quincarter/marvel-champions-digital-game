@@ -474,7 +474,9 @@ export class GameRoomLogic {
     const message = parseClientMessage(data);
     if (!message) return this.refuse(socket, "bad-message");
 
-    if (message.ch === "room") return this.hello(socket, message);
+    if (message.ch === "room") {
+      return message.kind === "hello" ? this.hello(socket, message) : this.refuse(socket, "not-allowed");
+    }
     if (!participant) return this.refuse(socket, "bad-message");
     if (!this.participants.has(participant.id)) {
       // An attachment the room does not know (a replaced host's socket still closing): not part of this room.
