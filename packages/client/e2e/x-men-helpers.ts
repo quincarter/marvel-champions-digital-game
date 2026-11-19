@@ -14,13 +14,15 @@ type DevGame =
   | "startUncannyDevGame"
   | "startPeacekeepersDevGame"
   | "startGiantWaspDevGame"
-  | "startStolenMemoriesDevGame";
+  | "startStolenMemoriesDevGame"
+  | "startPowerManChiDevGame";
 
 const MODULE: Record<DevGame, string> = {
   startUncannyDevGame: "/src/store/dev-uncanny-game.ts",
   startPeacekeepersDevGame: "/src/store/dev-in-play-cost-games.ts",
   startGiantWaspDevGame: "/src/store/dev-giant-wasp-game.ts",
   startStolenMemoriesDevGame: "/src/store/dev-stolen-memories-game.ts",
+  startPowerManChiDevGame: "/src/store/dev-power-man-chi-game.ts",
 };
 
 /** Starts one of the dev games through the store and jumps to the Board. */

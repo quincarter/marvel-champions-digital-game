@@ -1705,6 +1705,8 @@ export class BoardController {
       gameDeps(),
     );
     if (attempt.ok) await this.#send(attempt.command);
+    // Refused: the picker is already closed, so redraw rather than leave its bar on screen with buttons that do nothing.
+    else this.#host.redraw();
   }
 
   /** Tapping a card during payment spends it, if the engine listed it as spendable. */
