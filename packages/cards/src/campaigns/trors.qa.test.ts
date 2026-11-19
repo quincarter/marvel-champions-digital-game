@@ -46,6 +46,7 @@ import {
   characterProfile,
   createCampaignLog,
   createGame,
+  currentName,
   getInstance,
   replay,
   resolveBetweenGames,
@@ -804,15 +805,19 @@ describe("MC10 p. 12 — an upgrade replaced with its \u201CImproved\u201D side 
   });
 
   it("Red Skull: the Setup keyword puts the upgrade into play on its Improved side", () => {
-    const upgrade = upgradeIn(gameAfter("zola"), 0, BASIC_IDS[0]);
+    const state = gameAfter("zola");
+    const upgrade = upgradeIn(state, 0, BASIC_IDS[0]);
     expect(upgrade).toBeDefined();
     expect(upgrade?.flipped).toBe(true);
+    if (upgrade) expect(currentName(state, upgrade.instanceId)).toBe("Improved Thwart Upgrade");
   });
 
   it("before Zola the same upgrade still enters play on its Basic side", () => {
-    const upgrade = upgradeIn(gameAfter("taskmaster"), 0, BASIC_IDS[0]);
+    const state = gameAfter("taskmaster");
+    const upgrade = upgradeIn(state, 0, BASIC_IDS[0]);
     expect(upgrade).toBeDefined();
     expect(upgrade?.flipped).toBe(false);
+    if (upgrade) expect(currentName(state, upgrade.instanceId)).toBe("Basic Thwart Upgrade");
   });
 });
 

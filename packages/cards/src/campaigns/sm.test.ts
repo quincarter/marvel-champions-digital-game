@@ -989,3 +989,56 @@ describe('SM_CAMPAIGN_DEFINITION node 9\'s penalty: "Setup: In player order, eac
     );
   });
 });
+
+describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips their 'Campaign - S.H.I.E.L.D. Tech' upgrade to its Enhanced side\" (MC27 p. 22, #873)", () => {
+  const DARTS = "27182a";
+
+  /** Seat 1 holding Compact Darts as node 1's reward would leave it (granted, recorded, in the deck). */
+  const withDarts = (log: CampaignLog): CampaignLog => ({
+    ...log,
+    seats: log.seats.map((seat) =>
+      seat.seatNumber !== 1
+        ? seat
+        : {
+            ...seat,
+            fields: { ...seat.fields, shieldTech: { kind: "cardRef", cardId: DARTS as CardId } },
+            grants: [...seat.grants, { cardId: DARTS as CardId, permanence: "campaign", grantedAtNodeId: "sandman" }],
+            deck: { ...seat.deck, cards: [...seat.deck.cards, { cardId: DARTS as CardId, quantity: 1 }] },
+          },
+    ),
+  });
+
+  /** Sandman won; with `reputation` set, its 1 victory point marks node `reputation + 1`, without it no node. */
+  const afterSandman = (reputation?: number): CampaignLog => {
+    const fresh = withDarts(newLog(19));
+    const nearly: CampaignLog =
+      reputation === undefined
+        ? fresh
+        : { ...fresh, shared: { ...fresh.shared, reputation: { kind: "number", value: reputation } } };
+    const applied = applyCampaignResult(
+      SM_CAMPAIGN_DEFINITION,
+      composed(nearly),
+      won("sandman", reputation === undefined ? [] : [oneVictoryPoint]),
+      { at: 0, gameId: "sm-sandman" },
+      DEPS,
+    );
+    if (applied.kind !== "done") throw new Error(`unexpected choice ${applied.choice.slot}`);
+    return applied.value;
+  };
+
+  it("the next scenario's setup puts the card into play on its Enhanced side once node 13 is marked", () => {
+    const log = afterSandman(12);
+    expect(log.shared.reputation).toEqual({ kind: "number", value: 13 });
+    const state = realGame(log, "venom");
+    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
+    expect(darts).toHaveLength(1);
+    expect(darts[0]?.instance.flipped).toBe(true);
+  });
+
+  it("before node 13 it enters play on its front", () => {
+    const state = realGame(afterSandman(), "venom");
+    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
+    expect(darts).toHaveLength(1);
+    expect(darts[0]?.instance.flipped).toBe(false);
+  });
+});
