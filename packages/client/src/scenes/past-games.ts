@@ -79,6 +79,7 @@ import { appSession, deckStorage } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { introReplay } from "./replay-entry.js";
+import { drawOpenFileIcon } from "../ui/open-file-icon.js";
 import { SCENES } from "./keys.js";
 
 /** The widest the tabs, list and side panel run together. */
@@ -538,7 +539,7 @@ export class PastGamesScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     // The file button's room in the bar's right end, so the title stops short of it.
-    const fileWidth = phone ? 92 : 190;
+    const fileWidth = phone ? 128 : 220;
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : "◂ TITLE",
       onBack: () => this.#back(),
@@ -558,16 +559,28 @@ export class PastGamesScene extends Phaser.Scene {
       height: hit.target,
     };
     const openFile = (): void => void this.#openFile();
+    // A folder mark at its left, so the button reads as "open a file" at a glance (#858).
+    const iconSize = 18;
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: `${t(phone ? "pastGames.openFileShort" : "pastGames.openFile")} ▸`,
+        label: t(phone ? "pastGames.openFileShort" : "pastGames.openFile"),
         type: typeRole.label,
         rect: fileRect,
+        labelInset: iconSize + 14,
         enabled: this.#busy === null,
         onClick: openFile,
       }),
     );
+    const icon = this.add.graphics().setDepth(1);
+    drawOpenFileIcon(
+      icon,
+      fileRect.x + 12 + iconSize / 2,
+      fileRect.y + fileRect.height / 2,
+      iconSize,
+      surface.paper.hex,
+    );
+    if (this.#busy !== null) icon.setAlpha(0.4);
     stops.set("open-file", { rect: fileRect, activate: openFile });
     this.#obstacles.push(fileRect);
 

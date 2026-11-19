@@ -48,3 +48,39 @@ pub async fn save_text_file(
   std::fs::write(&path, contents).map_err(|e| e.to_string())?;
   Ok(Some(path.to_string_lossy().into_owned()))
 }
+
+/// Settings → Save data → Import and Past games' Open a replay file on the desktop: the system's own Open dialog,
+/// and the chosen file's bytes back (#858). The webview's `<input type="file">` only opens on a click or tap the page
+/// is told about, so a controller's A press (Steam Deck, Bazzite's Game Mode) opened nothing; this dialog opens on any
+/// call. Returns the file's bytes as an `ArrayBuffer`, empty when the player closed the dialog without choosing; fails
+/// with "too-large" for a file over `max_bytes`, which is refused before it is read.
+#[tauri::command]
+pub async fn open_file(
+  window: tauri::WebviewWindow,
+  title: Option<String>,
+  filter_name: Option<String>,
+  extensions: Vec<String>,
+  max_bytes: Option<u64>,
+) -> Result<tauri::ipc::Response, String> {
+  let mut dialog = window
+    .dialog()
+    .file()
+    .set_parent(&window)
+    .set_title(title.as_deref().unwrap_or("Open"));
+  if !extensions.is_empty() {
+    let extensions: Vec<&str> = extensions.iter().map(String::as_str).collect();
+    dialog = dialog.add_filter(filter_name.as_deref().unwrap_or("Files"), &extensions);
+  }
+  let Some(chosen) = dialog.blocking_pick_file() else {
+    return Ok(tauri::ipc::Response::new(Vec::<u8>::new()));
+  };
+  let path = chosen.into_path().map_err(|e| e.to_string())?;
+  if let Some(max) = max_bytes {
+    let size = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
+    if size > max {
+      return Err("too-large".to_string());
+    }
+  }
+  let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+  Ok(tauri::ipc::Response::new(bytes))
+}
