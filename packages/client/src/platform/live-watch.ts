@@ -13,6 +13,7 @@ import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
+import { takeLiveEnd } from "./live-presence-link.js";
 import { detectPlatform } from "./platform.js";
 
 let worker: Worker | null = null;
@@ -63,12 +64,14 @@ function spawn(): void {
   });
   const channel = new MessageChannel();
   host.attachLivePort(channel.port1);
+  const presencePort = takeLiveEnd();
   const init: LiveRoomIn = {
     kind: "init",
     enabled: appSession().settings.liveWatch,
     syncUrl: syncServiceUrl(),
     watchBase: watchBaseOf(detectPlatform() !== "web"),
     gamePort: channel.port2,
+    ...(presencePort ? { presencePort } : {}),
   };
-  next.postMessage(init, [channel.port2]);
+  next.postMessage(init, presencePort ? [channel.port2, presencePort] : [channel.port2]);
 }
