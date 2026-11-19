@@ -1,77 +1,58 @@
-/* The top nav every page on the landing site shares (src/site/site-nav.ts): Home, Download stats and Releases. The
-   landing and stats pages set it inside their own pinned bar (landing.css); the release pages get `.site-top`, a bar of
-   its own, from the landing build, which copies this file to the site's root for them. A release page brings its own
-   fonts and colors but not site.css, so every value here falls back to the house style's own. */
+/* The top bar every page on the landing site shares (src/site/site-nav.ts): the game's name, the nav (Home, Download
+   stats, Releases), the English/Español toggle, and Steam, Download and Play now. The landing and stats pages load
+   this file with their own stylesheets; the release pages get it from the landing build, which copies it to the
+   site's root for them. A release page brings its own fonts and colors but not site.css, so every value here falls
+   back to the house style's own, and every class is the bar's own, so a page's rules never reach into it. */
 
 /* Each label is written in every page language; the page's <html lang> picks the one that shows. English stands in
    for any page language without a label of its own. */
-.site-nav [lang],
-.site-brand [lang] {
+.site-bar [lang]:not(.site-lang > *),
+.site-nav [lang] {
   display: none;
 }
+html:not([lang="es"]) .site-bar [lang="en"]:not(.site-lang > *),
 html:not([lang="es"]) .site-nav [lang="en"],
-html:not([lang="es"]) .site-brand [lang="en"],
-html[lang="es"] .site-nav [lang="es"],
-html[lang="es"] .site-brand [lang="es"] {
+html[lang="es"] .site-bar [lang="es"]:not(.site-lang > *),
+html[lang="es"] .site-nav [lang="es"] {
   display: inline;
 }
 
-.site-nav {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-}
-.site-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 4px 10px;
-  border-bottom: 3px solid transparent;
-  font: 700 14px/1.2 var(--b, "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif);
-  color: var(--muted, #b9b0a2);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.site-nav a:hover {
-  color: var(--fg, #f2ede1);
-}
-.site-nav a[aria-current="page"] {
-  color: var(--fg, #f2ede1);
-  border-bottom-color: var(--gold, #f0b42a);
-}
-.site-nav a:focus-visible,
-.site-brand:focus-visible {
-  outline: 3px solid var(--gold, #f0b42a);
-  outline-offset: -3px;
-}
-
-/* ---- The release pages' bar ---- */
-.site-top {
+/* ---- The bar ---- */
+.site-bar {
   position: relative;
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 8px 18px;
-  padding: 6px max(16px, env(safe-area-inset-right, 0px)) 6px max(16px, env(safe-area-inset-left, 0px));
-  background: rgb(21 17 14 / 0.94);
+  gap: 10px 18px;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: rgb(21 17 14 / 0.86);
+  backdrop-filter: blur(10px);
   border-bottom: 2px solid var(--red, #c8102e);
   color: var(--fg, #f2ede1);
+  font: 400 17px/1.6 var(--b, "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif);
 }
-.site-top.pinned {
+.site-bar.pinned {
   position: sticky;
   top: 0;
-  backdrop-filter: blur(10px);
 }
+.site-bar a {
+  text-decoration: none;
+}
+.site-bar a:focus-visible,
+.site-bar button:focus-visible {
+  outline: 3px solid var(--gold, #f0b42a);
+  outline-offset: 2px;
+}
+
 .site-brand {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin-right: auto;
-  text-decoration: none;
   white-space: nowrap;
 }
 .site-brand b {
-  font: 400 26px/1 var(--d, "Bangers", Impact, "Arial Black", sans-serif);
+  font: 400 30px/1 var(--d, "Bangers", Impact, "Arial Black", sans-serif);
   letter-spacing: 0.02em;
   color: var(--fg, #f2ede1);
 }
@@ -81,21 +62,213 @@ html[lang="es"] .site-brand [lang="es"] {
   text-transform: uppercase;
   color: var(--gold, #f0b42a);
 }
-@media (max-width: 760px) {
-  .site-brand span {
-    display: none !important;
+
+/* ---- The nav ---- */
+.site-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin-right: 8px;
+}
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-bottom: 3px solid transparent;
+  font: 700 14px/1.2 var(--b, "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--muted, #b9b0a2);
+  white-space: nowrap;
+}
+.site-nav a:hover {
+  color: var(--fg, #f2ede1);
+}
+.site-nav a[aria-current="page"] {
+  color: var(--fg, #f2ede1);
+  border-bottom-color: var(--gold, #f0b42a);
+}
+.site-nav a:focus-visible {
+  outline-offset: -3px;
+}
+
+/* ---- The language toggle: buttons a script wires up, or a report's links to its other page ---- */
+.site-lang {
+  display: inline-flex;
+  flex: none;
+  border: 2px solid var(--gold, #f0b42a);
+  border-radius: 40px;
+  overflow: hidden;
+}
+.site-lang > * {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--fg, #f2ede1);
+  font: 700 13px var(--b, "Public Sans", system-ui, sans-serif);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.site-lang > [aria-pressed="true"],
+.site-lang > [aria-current="true"] {
+  background: var(--gold, #f0b42a);
+  color: var(--gold-ink, #15110e);
+}
+.site-lang > *:focus-visible {
+  outline-offset: -3px;
+}
+.site-lang .code {
+  display: none;
+}
+
+/* ---- Steam, Download and Play now ---- */
+.site-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 16px;
+  border: 3px solid #000;
+  font: 800 15px/1.2 var(--b, "Public Sans", system-ui, sans-serif);
+  white-space: nowrap;
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+.site-btn:hover {
+  transform: translate(-1px, -1px);
+}
+.site-btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 var(--line, #3a322b);
+}
+.site-btn.play {
+  background: var(--red, #c8102e);
+  color: var(--red-fg, #f2ede1);
+  box-shadow: 4px 4px 0 var(--gold, #f0b42a);
+}
+.site-btn.gold {
+  background: var(--gold, #f0b42a);
+  color: var(--gold-ink, #15110e);
+  box-shadow: 4px 4px 0 var(--red, #c8102e);
+}
+/* The Install for Steam script, beside Download on a computer the latest release has one for (site-bar.ts). */
+.site-btn.steam {
+  padding-inline: 12px 16px;
+  background: var(--bg, #15110e);
+  color: var(--fg, #f2ede1);
+  border-color: var(--fg, #f2ede1);
+  box-shadow: 4px 4px 0 var(--gold, #f0b42a);
+}
+.site-btn.steam[hidden] {
+  display: none;
+}
+.site-btn .steam-logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-btn {
+    transition: none;
   }
 }
-/* A phone has room for the three links or the name, not both: Home takes the reader back to the name's page. */
-@media (max-width: 560px) {
-  .site-top {
-    padding-block: 2px;
+
+/* ---- Narrow ---- */
+/* The bar holds the full name beside the toggle and the buttons: the nav goes to a row of its own first, then the
+   toggle shortens to EN and ES, then the name's subtitle and Download go (Play now stays). */
+@media (max-width: 1320px) {
+  .site-bar {
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
-  .site-top .site-brand {
+  .site-nav {
+    order: 10;
+    flex-basis: 100%;
+    justify-content: space-around;
+    margin: 0 0 -6px;
+    border-top: 1px solid var(--line, #3a322b);
+  }
+}
+@media (max-width: 900px) {
+  .site-bar .steam {
     display: none;
   }
-  .site-top .site-nav {
-    flex: 1;
-    justify-content: space-around;
+  .site-lang .name {
+    display: none;
+  }
+  .site-lang .code {
+    display: inline;
+  }
+}
+@media (max-width: 640px) {
+  .site-bar {
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .site-brand span,
+  .site-bar .gold {
+    display: none !important;
+  }
+  .site-brand b {
+    font-size: 20px;
+  }
+}
+
+/* ---- The art behind the top of the stats page and the release pages, as on the landing page's first screen ---- */
+.site-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 0;
+  height: min(86vh, 760px);
+  overflow: hidden;
+  pointer-events: none;
+}
+.site-backdrop img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+}
+/* Shaded toward the page's ink, darkest where the text sits and fading out at the bottom, so it stays readable. */
+.site-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(21 17 14 / 0.5) 0%, rgb(21 17 14 / 0.72) 55%, var(--bg, #15110e) 100%),
+    linear-gradient(90deg, rgb(21 17 14 / 0.75) 0%, rgb(21 17 14 / 0.2) 75%);
+}
+/* The page sits over the art. */
+.has-backdrop > main,
+.has-backdrop > .layout,
+.has-backdrop > .wrap {
+  position: relative;
+  z-index: 1;
+}
+/* The release history draws each report in a shadow root whose host takes the report's own ink (history.js turns its
+   `body` rule into `:host`); this page's rule wins over that, so the art shows behind the report's title too. */
+.has-backdrop #report {
+  background: transparent;
+}
+
+/* On a narrow screen the release history's rail becomes a sheet and its version bar pins to the top. The site's bar
+   pins above it there, so Home and the other pages stay in reach while a report scrolls, and the version bar and the
+   sheet sit just under it (`--site-bar-h` is the bar's height, kept current by site-bar.ts). */
+@media (max-width: 900px) {
+  .has-backdrop > .site-bar {
+    position: sticky;
+    top: 0;
+  }
+  .has-backdrop .layout .bar,
+  .has-backdrop .layout .rail {
+    top: var(--site-bar-h, 0px);
   }
 }

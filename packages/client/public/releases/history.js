@@ -162,6 +162,10 @@
   const closeButton = $("rail-close");
   const narrow = matchMedia("(max-width: 900px)");
   const languageGroup = $("language");
+  /** The landing site's shared top bar (site-nav.ts), where the landing build adds one; its links are stops too. */
+  const siteBar = document.querySelector(".site-bar");
+  /** Above the release: the shared bar's links and the language toggle, which a controller reaches by going up. */
+  const aboveRelease = (el) => !!el && (languageGroup.contains(el) || !!siteBar?.contains(el));
   /** The list shows this many; the rest live behind Show older releases. */
   const RECENT = 10;
   const OLDER = "older";
@@ -377,7 +381,7 @@
 
   /** Swaps the page. Focus on what was replaced would fall out of the page, so it holds on `main`. */
   function draw(html) {
-    const hadFocus = inMain(focusedEl()) && !languageGroup.contains(focusedEl());
+    const hadFocus = inMain(focusedEl()) && !aboveRelease(focusedEl());
     reportRoot = null;
     main.innerHTML = html;
     if (hadFocus) main.focus({ preventScroll: true });
@@ -553,14 +557,16 @@
     return [...rail.querySelectorAll("a, button")].filter(visible);
   }
   function mainStops() {
+    // In the bar's own order, its language toggle among them; `visible` drops what a narrow bar hides.
+    const bar = siteBar ? [...siteBar.querySelectorAll("a[href], button")] : [];
     const toggle = [...languageGroup.querySelectorAll("button")];
     const strip = [...main.querySelectorAll(".strip a")];
     const inReport = reportRoot ? [...reportRoot.querySelectorAll("a[href]")] : [];
     const below = [...main.querySelectorAll(".state a, .notes a[href], .notes summary, .page a[href], .pager a")];
-    return [...new Set([...toggle, ...strip, ...inReport, ...below])].filter(visible);
+    return [...new Set([...bar, ...toggle, ...strip, ...inReport, ...below])].filter(visible);
   }
   function inMain(el) {
-    return !!el && (el.getRootNode() === reportRoot || main.contains(el) || languageGroup.contains(el));
+    return !!el && (el.getRootNode() === reportRoot || main.contains(el) || aboveRelease(el));
   }
 
   function focusStop(el) {
@@ -573,15 +579,15 @@
     const active = focusedEl();
     const column = inMain(active) ? mainStops() : railStops();
     const at = column.indexOf(active);
-    const next = at === -1 ? column.find((el) => !languageGroup.contains(el)) : column[at + delta];
+    const next = at === -1 ? column.find((el) => !aboveRelease(el)) : column[at + delta];
     if (next) focusStop(next);
     // Past the last link there may still be page to read.
     else if (inMain(active)) window.scrollBy({ top: delta * innerHeight * 0.7 });
   }
 
   function intoMain() {
-    // The toggle is one Up above the page's first stop, so moving across lands on the release.
-    const stops = mainStops().filter((el) => !languageGroup.contains(el));
+    // The toggle (and the shared bar above it) is Up from the page's first stop, so moving across lands on the release.
+    const stops = mainStops().filter((el) => !aboveRelease(el));
     const first = stops.find((el) => el.getBoundingClientRect().top >= 0) ?? stops[0];
     if (first) focusStop(first);
   }

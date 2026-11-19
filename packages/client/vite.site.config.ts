@@ -3,7 +3,15 @@ import { dirname, extname, join, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import { writeReleaseHistory } from "./vite-release-history.js";
 import { pointRootLinksAt } from "./src/site/release-links.js";
-import { siteNavLinks, withReleaseBar, type SitePage } from "./src/site/site-nav.js";
+import {
+  SITE_BACKDROP,
+  SITE_BAR_SCRIPT,
+  siteBar,
+  STEAM_LOGO_PATH,
+  withReleaseBar,
+  type LanguageLinks,
+  type SitePage,
+} from "./src/site/site-nav.js";
 import {
   STATS_JSON_PATH,
   STATS_SINCE,
@@ -52,6 +60,8 @@ const PICTURE = /\.(png|jpe?g|webp|avif)$/i;
 const HERO_WALLPAPER = "wallpaper-1";
 const PORTRAIT_WALLPAPER = "wallpaper-portrait";
 const BAND_WALLPAPERS = ["wallpaper-2", "back-to-basics-back-cover", "spider-verse-team", "mutant-genesis-x-men"];
+/** The wallpaper behind the top of the release history (the download stats page takes the first band's). */
+const RELEASES_WALLPAPER = "spider-verse-team";
 /** The campaign comic pages the story section steps through, in order: `key` names their text in `landing-text.ts`. */
 const COMIC_PAGES = [
   { key: "mtsTitan", file: "campaigns/mts/pages/01-p1-titan" },
@@ -289,6 +299,31 @@ function siteWallpapersPlugin(): Plugin {
   };
 }
 
+/** A release report's page in each language: its Spanish copy where it has one, else the history in Spanish. */
+function reportLanguages(file: string, dir: string): LanguageLinks {
+  const version = file.split(/[\\/]/)[0]!;
+  const spanish = existsSync(join(dir, "index.es.html")) ? "index.es.html" : `../?lang=es#${version}`;
+  return { current: file.endsWith(".es.html") ? "es" : "en", hrefs: { en: "index.html", es: spanish } };
+}
+
+/**
+ * The art behind the top of the release history (`SITE_BACKDROP`), shrunk like the landing page's, at the site's root.
+ * Without `art/` there is none, and the page keeps its plain ink.
+ */
+async function writeBackdrop(outDir: string): Promise<void> {
+  const resize = await resizer();
+  const title = join(ART, "title");
+  for (const [base, width, path] of [
+    [RELEASES_WALLPAPER, 1920, SITE_BACKDROP.wide],
+    [PORTRAIT_WALLPAPER, 900, SITE_BACKDROP.tall],
+  ] as const) {
+    const file = pictureIn(title, base);
+    if (file) cpSync(await resize(file, width), join(outDir, path));
+  }
+}
+
+const STEAM_LOGO = join(CLIENT, "src/site/steam-logo.svg");
+
 /**
  * The release pages (`public/releases`: the history page, every report and its Spanish copy) and the fonts they load
  * (`../../fonts/`), copied beside the landing page so they live on the top-level domain too.
@@ -301,21 +336,27 @@ function releasePagesPlugin(): Plugin {
     configResolved: (config) => {
       outDir = config.build.outDir;
     },
-    closeBundle() {
+    async closeBundle() {
       for (const folder of ["releases", "fonts"]) {
         cpSync(join(CLIENT, "public", folder), join(outDir, folder), { recursive: true });
       }
       // Their Play links climb to the site's root, which here is the landing page: point them at the game. And each
-      // gets the site's top nav, so a reader who lands on a release can get back to the rest of the site; the history
-      // page's own rail and bar pin to the top, so its nav scrolls away instead of pinning too.
+      // gets the site's top bar, so a reader who lands on a release can get back to the rest of the site. The history
+      // page's own rail and bar pin to the top, so its bar scrolls away instead of pinning too, and its language
+      // toggle moves into the bar; a report's toggle links to its page in the other language.
       const releases = join(outDir, "releases");
       for (const file of readdirSync(releases, { recursive: true, encoding: "utf8" })) {
         if (!file.endsWith(".html")) continue;
         const path = join(releases, file);
-        const pinned = file !== "index.html";
-        writeFileSync(path, withReleaseBar(pointRootLinksAt(readFileSync(path, "utf8"), GAME_URL), pinned));
+        const options =
+          file === "index.html"
+            ? { pinned: false, history: true }
+            : { pinned: true, languages: reportLanguages(file, dirname(path)) };
+        writeFileSync(path, withReleaseBar(pointRootLinksAt(readFileSync(path, "utf8"), GAME_URL), options));
       }
       cpSync(join(CLIENT, "site/shared/site-nav.css"), join(outDir, "site-nav.css"));
+      cpSync(STEAM_LOGO, join(outDir, STEAM_LOGO_PATH));
+      await writeBackdrop(outDir);
       // The Worker's not-found page (wrangler.landing.jsonc, `404-page`). A release with no report of its own is a page
       // of the history, opened by its fragment: the old site sent `/releases/<version>` there (netlify.toml), so an old
       // link still lands on its release. Anything else goes to the top of the site.
@@ -331,14 +372,23 @@ function releasePagesPlugin(): Plugin {
 }
 
 /**
- * The site's top nav in each page's own bar: a page marks the spot with `<!-- site-nav:<page> -->` (the page it is),
- * and the nav comes from `src/site/site-nav.ts`, the same markup the release pages get.
+ * The site's top bar on the landing and stats pages: a page marks the spot with `<!-- site-bar:<page> -->` (the page
+ * it is), and the bar comes from `src/site/site-nav.ts`, the same markup the release pages get. The bar's Steam logo
+ * is served from the site's root, where the build copies it.
  */
-function siteNavPlugin(): Plugin {
+function siteBarPlugin(): Plugin {
   return {
-    name: "mc-site-nav",
+    name: "mc-site-bar",
     transformIndexHtml: (html) =>
-      html.replace(/<!--\s*site-nav:(home|stats|releases)\s*-->/g, (_, page: SitePage) => siteNavLinks(page)),
+      html.replace(/<!--\s*site-bar:(home|stats|releases)\s*-->/g, (_, page: SitePage) =>
+        siteBar(page, { pinned: true }),
+      ),
+    configureServer(server) {
+      server.middlewares.use(STEAM_LOGO_PATH, (_request, response) => {
+        response.setHeader("Content-Type", "image/svg+xml");
+        response.end(readFileSync(STEAM_LOGO));
+      });
+    },
   };
 }
 
@@ -491,20 +541,33 @@ export default defineConfig(({ mode }) => {
     publicDir: existsSync(resolve(CLIENT, "site", site, "public")) ? resolve(CLIENT, "site", site, "public") : false,
     plugins:
       site === "landing"
-        ? [siteReleasePlugin(), siteNavPlugin(), landingDataPlugin(), downloadStatsPlugin(), releasePagesPlugin()]
+        ? [
+            siteReleasePlugin(),
+            siteBarPlugin(),
+            siteWallpapersPlugin(),
+            landingDataPlugin(),
+            downloadStatsPlugin(),
+            releasePagesPlugin(),
+          ]
         : [siteReleasePlugin(), siteWallpapersPlugin()],
     server: { fs: { allow: [CLIENT] } },
     build: {
       target: "es2022",
       outDir: resolve(CLIENT, `dist-${site}`),
       emptyOutDir: true,
-      // The landing site's pages: the landing page itself and the download stats at /stats/.
+      // The landing site's pages: the landing page itself and the download stats at /stats/, and the release pages'
+      // script for the shared top bar, at the name they load it by (`SITE_BAR_SCRIPT`).
       rollupOptions:
         site === "landing"
           ? {
               input: {
                 main: resolve(CLIENT, "site/landing/index.html"),
                 stats: resolve(CLIENT, "site/landing/stats/index.html"),
+                siteBar: resolve(CLIENT, "src/site/site-bar-main.ts"),
+              },
+              output: {
+                entryFileNames: (chunk) =>
+                  chunk.name === "siteBar" ? SITE_BAR_SCRIPT.slice(1) : "assets/[name]-[hash].js",
               },
             }
           : undefined,
