@@ -103,6 +103,11 @@ interface Table {
   tailStored: boolean;
   /** When the tail row was last written (or this lifetime first saw the table), for the 60 s refresh while streaming. */
   tailAt: number | undefined;
+  /**
+   * Loaded from storage in this lifetime: the room does not know how far its watchers got (their last commands may have
+   * been in the lost tail), so the host's first accepted batch is preceded by a `rewind` to what the room holds.
+   */
+  rewindWatchers: boolean;
 }
 
 export async function sha256Hex(text: string): Promise<string> {
@@ -133,6 +138,7 @@ const newTable = (id: string): Table => ({
   loaded: false,
   tailStored: false,
   tailAt: undefined,
+  rewindWatchers: false,
 });
 
 const randomId = (): string =>
@@ -248,6 +254,7 @@ export class GameRoomLogic {
         tailKey(table.id),
       );
       table.tailAt = tail?.at ?? this.clock();
+      table.rewindWatchers = true;
       if (tail) {
         table.commands = [...table.commands, ...tail.commands];
         table.checksums = { ...table.checksums, ...tail.checksums };
@@ -566,8 +573,9 @@ export class GameRoomLogic {
     } else if (table.hasHeader) {
       this.sendLog(socket, table);
     }
-    // The room's tail (or the whole log) is unconfirmed since it woke or was made: the host sends what it lacks.
-    if (this.unverified) this.askResend(FIRST_TABLE, table.hasHeader ? table.commands.length : 0);
+    // The host's welcome already says what the room holds, so it is not asked here. A watcher joining while the host
+    // is connected and the room's tail is unconfirmed (it woke, or is new) makes the room ask the host for what it lacks.
+    if (!isHost && this.unverified) this.askResend(FIRST_TABLE, table.hasHeader ? table.commands.length : 0);
   }
 
   private async game(
@@ -633,6 +641,12 @@ export class GameRoomLogic {
         table.commands.push(...message.commands);
         table.checksums = { ...table.checksums, ...checksums };
         table.bytes += added;
+        if (table.rewindWatchers) {
+          // Watchers may hold commands the room lost with its tail: cut them back to what the room held, then the
+          // host's batch re-appends from there.
+          table.rewindWatchers = false;
+          this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.from }, host.id);
+        }
         await this.persistChunks(table);
         // A host that closes the app may never return to write the tail: refresh it while it streams, at most once a
         // minute, so an evicted room still has the commands past the last chunk.
@@ -656,7 +670,11 @@ export class GameRoomLogic {
         return;
       }
       case "rewind": {
-        if (!table.hasHeader || message.to > table.commands.length) return this.refuse(socket, "out-of-order");
+        if (!table.hasHeader || message.to > table.commands.length) {
+          this.refuse(socket, "out-of-order");
+          this.askResend(table.id, table.hasHeader ? table.commands.length : 0);
+          return;
+        }
         const cut = message.to < table.commands.length;
         const keep = Math.floor(message.to / ROOM_CHUNK_COMMANDS);
         if (cut) await this.dropTail(table);

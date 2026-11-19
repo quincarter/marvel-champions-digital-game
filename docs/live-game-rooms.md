@@ -31,14 +31,23 @@ authoritative, the room only orders and relays, and nobody else runs a different
   time the host's socket closes or is replaced, when the game ends, and while the host streams when a batch arrives
   over 60 s after the last write (at most 60 rows an hour; a close in a woken room that has not loaded the table writes
   nothing, so it cannot overwrite the stored tail; overwritten each time; deleted when a frozen chunk
-  supersedes it, a rewind cuts it or a `log` replaces the table), so a host who closes the app mid-game leaves watchers
-  the whole log. A woken room loads the header and chunks and
+  supersedes it, a rewind cuts it or a `log` replaces the table), so a host who closes the app mid-game leaves
+  watchers the log to within about a minute of its last command (a close that lands in a room that has just woken keeps
+  the last stored tail, which is at most a minute old; the host's later resend heals the rest). A woken room loads the header and chunks and
   asks the host for the tail with `resend { from: <stored count> }`, answered with an ordinary `commands` batch (or,
   when `from` is 0, a `log` with the header and first commands, then `commands` batches). That is about one row per 20
   commands (rows written are the scarcest free-plan quota, shared with sync and global stats); a rewind deletes the
   chunks past the cut. The meta row holds the host token hash, createdAt, a last-host stamp (written at most hourly,
   for the 12-hour idle rule) and, once, the end and outcome. The whole log is capped (`MAX_ROOM_LOG_BYTES`, 8 MiB of
-  commands): past it the room refuses `too-large` and ends the table for watchers. A joining watcher gets the log in
+  commands): past it the room refuses `too-large` and ends the table for watchers. A woken room does not know how far its
+  watchers got, so before it takes the host's first batch after loading it sends them `rewind { to: <what it holds> }`,
+  and the batch re-appends from there (a refused `rewind` past what it holds asks the host to resend like a refused
+  batch). The host is not sent `resend` on `hello` (its `welcome` already carries `hasHeader` and the command
+  count); it is sent for an out-of-order batch or rewind and for a watcher joining while the room is unverified.
+  Reads: a wake re-reads the header, every chunk and the tail (one row each), not once per watcher join: a 3,000-command
+  game is 150 chunks, so a wake costs about 150 rows read, and a game woken 300 times (a pause of over 10 s between
+  moves) about 45,000, which the 5 million a day read allowance covers for about 100 such games a day. A joining
+  watcher gets the log in
   parts of about 512 KiB (a `log`, then `commands` batches, then `end` when the table ended).
 - **WebSocket hibernation.** Incoming WebSocket messages are billed as 1/20 of a request and outgoing ones not at all,
   and a hibernated room costs no duration. A game of about 600 commands an hour costs about 30 Durable Object requests

@@ -88,12 +88,18 @@
 //     arrives over 60 seconds after the last write (at most 60 rows an hour, overwritten, deleted when a chunk
 //     supersedes it, a rewind cuts it or a log replaces it; a close in a woken room that has not loaded the table
 //     writes nothing, so it cannot overwrite the stored tail) and what a wake still lacks is re-asked from the host),
-//     so about 1 row per 20 commands plus up to 60 tail rows an hour: a 600-command hour is about 30 rows, and a long 3,000-command game about 150. The
+//     so about 1 row per 20 commands plus up to 60 tail rows an hour: a 600-command hour is about 30 chunk rows plus at
+//     most 60 tail rows, so up to about 90 rows an hour, and a long 3,000-command game about 150 chunk rows plus a
+//     tail row a minute while it streams. A host that leaves after a pause leaves watchers the log to within about a
+//     minute of its last command (the tail row is at most a minute old), not necessarily the whole of it. The
 //     host's last-message stamp is one meta row at most hourly. The idle alarm is set at creation and moved out only when
 //     it fires with the host still active (about once per 12 hours); the end of a game writes 2 rows (meta and the
 //     5-minute alarm), once; an Undo that reopens an ended game costs 2 more; a rewind deletes the chunks past its
-//     cut; closing deletes everything. A watcher joining reads the header and chunks (one read row each, 5 million a
-//     day allowed). One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
+//     cut; closing deletes everything. Reads: every wake of a room re-reads the header, all
+//     its chunks and the tail (ensureLoaded), one read row each, not once per watcher join; a 3,000-command game
+//     (150 chunks) woken 300 times costs about 45,000 rows read, so the 5 million a day allowance covers about 100 such
+//     games a day. The host is not sent resend on hello; a woken room rewinds its watchers to what it holds before it
+//     takes the host's first batch. One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
 //     day shared with sync and global stats, and a flood from many addresses is what ROOMS_ENABLED is for.
 //   - MAX_ROOM_LOG_BYTES (8 MiB) caps one table's commands; past it the room refuses "too-large" and ends the table
 //     for watchers. A joining watcher is sent the log in parts of about 512 KiB, so no message nears the 1 MiB cap.

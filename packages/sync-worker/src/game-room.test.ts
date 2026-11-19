@@ -354,19 +354,22 @@ describe("resend after waking empty", () => {
   it("asks a host once per gap, not again for each watcher who joins an empty table", async () => {
     const { host, hello } = await setup();
     const h = await host();
-    h.sent.length = 0;
-    await hello();
-    await hello();
     expect(h.sent.filter((m) => m.kind === "resend")).toHaveLength(0);
+    await hello();
+    await hello();
+    expect(h.sent.filter((m) => m.kind === "resend")).toEqual([
+      { v: 1, ch: "game", kind: "resend", table: "t1", from: 0 },
+    ]);
   });
 
-  it("asks a host that joins a room with no log, and stops once the log arrives", async () => {
+  it("does not send a host resend on its hello, and stops asking once the log arrives", async () => {
     const { host, hello, send } = await setup();
     const h = await host();
-    expect(h.sent.find((m) => m.kind === "resend")).toMatchObject({ table: "t1", from: 0 });
+    expect(h.sent.find((m) => m.kind === "resend")).toBeUndefined();
+    expect(h.last("welcome")!.tables[0]).toMatchObject({ hasHeader: false, commands: 0 });
     await send(h, { ch: "game", kind: "log", table: "t1", header: 1, commands: [] });
     const w = await hello();
-    expect(h.sent.filter((m) => m.kind === "resend")).toHaveLength(1);
+    expect(h.sent.filter((m) => m.kind === "resend")).toHaveLength(0);
     expect(w.last("log")).toBeDefined();
   });
 
@@ -738,10 +741,11 @@ describe("the tail row on host disconnect", () => {
     expect(w.last("welcome")!.tables[0]).toMatchObject({ commands: 45, hasHeader: true });
     expect(w.last("log")).toMatchObject({ checksums: { "42": "s42" } });
     expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(45);
-    // The host comes back and is asked from 45; its next batch continues the log.
+    // The host comes back: its welcome says 45, so it needs no resend, and its next batch continues the log.
     const back = new FakeSocket();
     await woken.message(back, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], token: TOKEN }));
-    expect(back.sent.find((m) => m.kind === "resend")).toMatchObject({ from: 45 });
+    expect(back.last("welcome")!.tables[0]).toMatchObject({ commands: 45, hasHeader: true });
+    expect(back.sent.find((m) => m.kind === "resend")).toBeUndefined();
     await woken.message(
       back,
       JSON.stringify({ v: 1, ch: "game", kind: "commands", table: "t1", from: 45, commands: [45] }),
@@ -833,5 +837,53 @@ describe("the tail row while the host streams, at the end, and after a wake", ()
     await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
     expect(w.last("welcome")!.tables[0]).toMatchObject({ commands: 26, hostConnected: false });
     expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(26);
+  });
+});
+
+describe("an Undo after a wake", () => {
+  type Msg = { kind: string; from?: number; to?: number; commands?: unknown[] };
+
+  /** What a watcher ends up holding: it follows log, rewind and commands the way the viewer does. */
+  function view(sent: ServerMessage[]): unknown[] {
+    let held: unknown[] = [];
+    for (const m of sent as unknown as Msg[]) {
+      if (m.kind === "log") held = [...(m.commands ?? [])];
+      else if (m.kind === "rewind") held.length = Math.min(held.length, m.to!);
+      else if (m.kind === "commands") {
+        if (m.from! !== held.length) throw new Error("gap or overlap: " + m.from + " vs " + held.length);
+        held.push(...m.commands!);
+      }
+    }
+    return held;
+  }
+
+  it("a woken room that missed the undone commands rewinds its watchers before the host's batch re-appends", async () => {
+    const { storage, clock, host, hello, start, commands } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 25; i++) await commands(h, i, [`c${i}`]);
+    const w = await hello();
+    expect(view(w.sent)).toHaveLength(25);
+    // The room hibernates with chunk 0 only stored (the tail of 5 was in memory); the sockets survive.
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    woken.restore(h);
+    woken.restore(w);
+    h.sent.length = 0;
+    const msg = (m: unknown) => JSON.stringify({ v: 1, ...(m as object) });
+    // Undo to 24: the room holds only 20, so the rewind is refused and the host is asked from 20.
+    await woken.message(h, msg({ ch: "game", kind: "rewind", table: "t1", to: 24 }));
+    expect(h.kinds()).toEqual(["room:refused", "game:resend"]);
+    expect(h.last("resend")).toMatchObject({ from: 20 });
+    // The host answers from 20 with c20..c23 and the new 25th command.
+    await woken.message(
+      h,
+      msg({ ch: "game", kind: "commands", table: "t1", from: 20, commands: ["c20", "c21", "c22", "c23", "c25b"] }),
+    );
+    expect(view(w.sent)).toEqual([...Array.from({ length: 24 }, (_, i) => `c${i}`), "c25b"]);
+    expect(woken.logLength()).toBe(25);
+    // Only the first batch after a load is preceded by a rewind.
+    const before = w.sent.length;
+    await woken.message(h, msg({ ch: "game", kind: "commands", table: "t1", from: 25, commands: ["c26"] }));
+    expect(w.sent.slice(before).map((m) => m.kind)).toEqual(["commands", "table"]);
   });
 });
