@@ -5,15 +5,20 @@
  */
 import Phaser from "phaser";
 import { t, type MessageKey } from "../i18n/translate.js";
-import { accent, dotGrid, hit, surface, typeRole } from "../tokens.js";
+import { accent, hit, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "./theme.js";
-import { McButton, paintDotGrid } from "./widgets.js";
+import { McButton } from "./widgets.js";
+import { TITLE_ART, coverFit, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
+import { ensurePictureLoaded } from "../art/pictures.js";
+import { drawnDensity } from "../platform/screen-settings.js";
 import { appSession } from "../session.js";
 import { FocusRoute } from "../scenes/focus-route.js";
 import { REPLAY_LINK_SPINNER_RADIUS, replayLinkBodyWidth, replayLinkScreenLayout } from "../view/replay-link-screen.js";
 
 const BUTTON_TYPE = { ...typeRole.label, size: 13 };
 const ACTION_ID = "replay-link-action";
+/** How strongly the title art shows through behind the panel. */
+const ART_ALPHA = 0.35;
 
 export class SharedReplayLoading {
   readonly #scene: Phaser.Scene;
@@ -29,12 +34,18 @@ export class SharedReplayLoading {
   #ready = false;
   /** Boot has shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
   #gone = false;
+  /** One of the title screen's pictures, drawn faded behind the panel once it has loaded. */
+  readonly #art: TitleArt | null;
 
   /** `toMenu` leaves for Title: Cancel while loading, Main menu after a failure. */
   constructor(scene: Phaser.Scene, toMenu: () => void) {
     this.#scene = scene;
     this.#toMenu = toMenu;
     this.#route = new FocusRoute(scene, { onCancel: () => this.#leave(), primary: () => ACTION_ID });
+    const { width, height } = scene.scale.gameSize;
+    this.#art = pickTitleArtFor(TITLE_ART, titleArtSizeOf, { width, height }, drawnDensity());
+    // Through the shared loader, as Title does: Title may load the same picture next.
+    if (this.#art) ensurePictureLoaded(scene, this.#art, () => this.draw());
     scene.scale.on("resize", this.draw, this);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#gone = true;
@@ -96,8 +107,20 @@ export class SharedReplayLoading {
     this.#clear();
     const { width, height } = scene.scale.gameSize;
     const failed = this.#failure !== null;
-    scene.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    this.#objects.push(paintDotGrid(scene, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper));
+    // The title screen's own art, faded into the dark behind the panel (a plain dark ground until it has loaded).
+    scene.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
+    const art = this.#art;
+    if (art && scene.textures.exists(art.key)) {
+      const frame = scene.textures.get(art.key).getSourceImage() as { width: number; height: number };
+      const fit = coverFit(frame, { width, height });
+      this.#objects.push(
+        scene.add
+          .image(width / 2, height / 2, art.key)
+          .setScale(fit.scale)
+          .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
+          .setAlpha(ART_ALPHA),
+      );
+    }
 
     const headingText = t(failed ? "replay.link.failedHeading" : "replay.link.heading");
     const heading = scene.add

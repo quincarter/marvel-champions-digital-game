@@ -12,7 +12,8 @@ import type { MessageKey } from "../i18n/translate.js";
 import { t } from "../i18n/translate.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { replayErrorKey } from "../replay/replay-files.js";
-import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
+import { heroFocusOf, heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
+import type { PictureFocus } from "../art/focus.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { appSession } from "../session.js";
@@ -35,6 +36,8 @@ export const VERSUS_HOLD_MS = 3000;
 
 /** Width over height of the hero and villain pictures (751 x 1063 and the like). */
 const PORTRAIT_ASPECT = 0.71;
+/** In a wide tile, at least this much of a picture's height stays in view, from its top (heads are mostly up there). */
+const MIN_VISIBLE_HEIGHT = 0.6;
 
 export interface ReplayVersusData {
   /** The opened replay. This screen owns it from here: the board takes it, or it is closed. */
@@ -125,6 +128,8 @@ export class ReplayVersusScene extends Phaser.Scene {
         signal.cost.hex,
         layout.heroNameLifts[index] ?? 0,
         layout.heroArtDrops[index] ?? 0,
+        0.15,
+        hero.cardId ? heroFocusOf(hero.cardId) : null,
       ),
     );
 
@@ -163,6 +168,7 @@ export class ReplayVersusScene extends Phaser.Scene {
     inset = 0,
     artDrop = 0,
     focusY = 0.15,
+    focus: PictureFocus | null = null,
   ): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const back = this.add.graphics();
@@ -171,15 +177,20 @@ export class ReplayVersusScene extends Phaser.Scene {
     if (url) {
       // A picture whose top would sit under VERSUS starts below it (`heroArtDrops`).
       const art: Rect = { ...rect, y: rect.y + artDrop, height: rect.height - artDrop };
-      if (art.width > art.height) {
-        // A wide tile would crop a tall picture to a band that can miss the hero's head (it isn't always at the top):
-        // show the whole picture, over a dimmed copy of itself that fills the tile.
+      if (focus) {
+        // The art says where the hero is (`focus.json`): fill the tile, centered there.
+        const thumb = renderLiveArtThumb(this, art, url, focusY, "cover", focus);
+        this.#thumbs.push(thumb);
+        objects.push(thumb.object);
+      } else if (art.width > art.height) {
+        // A wide tile would crop a tall picture to a thin band that can miss the hero's head (it isn't always at the
+        // top): zoom in only so far that most of the picture's height still shows (`MIN_VISIBLE_HEIGHT`), from its top,
+        // over a dimmed copy of itself that fills whatever the tile has left at the sides.
         const backdrop = renderLiveArtThumb(this, rect, url, focusY);
         (backdrop.object as Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.GameObject).setAlpha(0.3);
-        // Hero and villain art is portrait, near 5:7; a slot of that shape in the middle shows nearly all of it.
-        const wholeWidth = Math.min(art.width, Math.round(art.height * PORTRAIT_ASPECT));
+        const wholeWidth = Math.min(art.width, Math.round((art.height * PORTRAIT_ASPECT) / MIN_VISIBLE_HEIGHT));
         const slot: Rect = { ...art, x: Math.round(art.x + (art.width - wholeWidth) / 2), width: wholeWidth };
-        const whole = renderLiveArtThumb(this, slot, url, focusY);
+        const whole = renderLiveArtThumb(this, slot, url, 0.1);
         this.#thumbs.push(backdrop, whole);
         objects.push(backdrop.object, whole.object);
       } else {
@@ -195,7 +206,8 @@ export class ReplayVersusScene extends Phaser.Scene {
     shade.lineStyle(6, edge, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
     objects.push(shade);
     // Up to two lines (a long name such as "Spider-Man (Peter Parker)"), shrinking until they fit.
-    let size = Math.round(Math.max(18, Math.min(40, rect.width / 7)));
+    // Sized to the tile, so a phone's small tiles keep most of the picture clear of the name.
+    let size = Math.round(Math.max(12, Math.min(30, rect.width / 10, rect.height / 8)));
     const label = this.add
       .text(
         rect.x + rect.width / 2,
@@ -206,7 +218,7 @@ export class ReplayVersusScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setAlign("center")
       .setWordWrapWidth(rect.width - 16, true);
-    while (size > 14 && (label.height > size * 2.2 || label.width > rect.width - 16)) {
+    while (size > 11 && (label.height > size * 2.2 || label.width > rect.width - 16)) {
       size -= 2;
       label.setFontSize(size);
     }

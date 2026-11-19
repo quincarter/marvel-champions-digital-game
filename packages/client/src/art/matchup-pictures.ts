@@ -11,6 +11,7 @@ import { artFor } from "./art-source.js";
 import { HERO_ART, heroArtForIdentity } from "./hero-art.js";
 import { ART_CATALOG, villainArtFor } from "./scenario-art.js";
 import { cardInPacks } from "../view/game-label-names.js";
+import type { PictureFocus } from "./focus.js";
 
 /** Each hero's picture by identity, kept while the app runs (finding one walks the pool). */
 const heroPictures = new Map<string, string | null>();
@@ -28,6 +29,12 @@ export function heroPictureOf(identityCardId: string, packs: readonly PackRuntim
     heroPictures.set(identityCardId, art ?? artFor(CARDS_BY_ID.get(identityCardId), { kind: "front" })?.url ?? null);
   }
   return heroPictures.get(identityCardId) ?? null;
+}
+
+/** Where the hero is in its own artwork (its `focus.json`), when the art says. */
+export function heroFocusOf(identityCardId: string): PictureFocus | null {
+  if (isCustomCard(identityCardId)) return null;
+  return heroArtForIdentity(HERO_ART, identityCardId, POOL_CARDS, () => 0)?.focus ?? null;
 }
 
 /** A scenario's villain picture (`villainCardId` is the card that pictures it), or null when there is none. */

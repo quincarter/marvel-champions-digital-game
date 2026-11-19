@@ -449,15 +449,16 @@ export function renderLiveArtThumb(
   artUrl: string | null,
   focusY = 0.2,
   fit: "cover" | "contain" = "cover",
+  focus?: PictureFocus,
 ): LiveArtThumb {
-  const thumb = renderArtThumb(scene, rect, artUrl, focusY, undefined, fit);
+  const thumb = renderArtThumb(scene, rect, artUrl, focusY, focus, fit);
   if (thumb.type === "Image") return { object: thumb, refresh: () => undefined };
   const holder = scene.add.container(0, 0, [thumb]);
   let waiting = true;
   const refresh = (): void => {
     if (!waiting) return;
     const faces = cardFaces(scene);
-    const key = faces.request(artThumbSpec(rect, artUrl, focusY, fit));
+    const key = faces.request(artThumbSpec(rect, artUrl, focusY, fit, focus));
     if (!key) return;
     waiting = false;
     const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
