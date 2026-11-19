@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionConfig } from "../engine/host.js";
+import type { Rect } from "./layout.js";
 import type { PastGameNames } from "./past-games-model.js";
 import { VERSUS_GAP, replayMatchupOf, versusLayout } from "./replay-matchup.js";
 
@@ -67,14 +68,42 @@ describe("versusLayout (issue #858)", () => {
   });
 
   it("puts the villain on top and the heroes below on a tall screen", () => {
-    const layout = versusLayout(375, 667, 4);
+    const layout = versusLayout(375, 667, 2);
     expect(layout.wide).toBe(false);
     expect(layout.villain.width).toBe(375);
-    expect(layout.heroes).toHaveLength(4);
     for (const hero of layout.heroes) expect(hero.y).toBe(layout.villain.height + VERSUS_GAP);
-    const last = layout.heroes[3]!;
-    expect(last.x + last.width).toBe(375);
+    expect(layout.heroes[1]!.x + layout.heroes[1]!.width).toBe(375);
     expect(layout.versus.x).toBe(Math.round(375 / 2));
+  });
+
+  it("puts four heroes two to a row, filling the heroes' half", () => {
+    const layout = versusLayout(375, 667, 4);
+    const [a, b, c, d] = layout.heroes as [Rect, Rect, Rect, Rect];
+    expect(a.y).toBe(b.y);
+    expect(c.y).toBe(d.y);
+    expect(c.y).toBeGreaterThan(a.y + a.height);
+    expect(b.x + b.width).toBe(375);
+    expect(d.y + d.height).toBe(667);
+  });
+
+  it("stretches a third hero across the second row", () => {
+    const layout = versusLayout(1280, 720, 3);
+    const side = { x: layout.heroes[0]!.x, right: 1280 };
+    const third = layout.heroes[2]!;
+    expect(third.x).toBe(side.x);
+    expect(third.x + third.width).toBe(side.right);
+    expect(third.y + third.height).toBe(720);
+  });
+
+  it("lifts the names that would meet VERSUS on the seam", () => {
+    const tall = versusLayout(375, 667, 2);
+    expect(tall.villainNameLift).toBeGreaterThan(0);
+    expect(tall.heroNameLifts).toEqual([0, 0]);
+    const wide = versusLayout(1440, 980, 4);
+    expect(wide.villainNameLift).toBe(0);
+    expect(wide.heroNameLifts[0]).toBeGreaterThan(0);
+    expect(wide.heroNameLifts.slice(1)).toEqual([0, 0, 0]);
+    expect(versusLayout(1440, 980, 2).heroNameLifts).toEqual([0, 0]);
   });
 
   it("keeps the VERSUS mark readable on a phone and bounded on a big screen", () => {

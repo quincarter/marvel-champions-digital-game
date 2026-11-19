@@ -2,7 +2,7 @@
  * The shared replay's versus screen (issue #858): once a `#replay=` link's replay is fetched and open, before the
  * board, the villain on one side and the heroes on the other with VERSUS between them, like an old fighting game's
  * match intro. It holds for a moment (`VERSUS_HOLD_MS`) while the replay is put on the session, then the board comes
- * up; a tap, click, Enter, Space or A skips the rest of the hold once the replay is ready.
+ * up; a tap, click, Enter, Space or A ends the hold early (the board still waits for the replay to be ready).
  *
  * Reached only from Boot's loading screen (`ui/replay-link-loading.ts`). If the replay can't be put on the board,
  * Title comes up and says why.
@@ -22,7 +22,6 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { afterWallMs } from "../ui/wall-timer.js";
-import { fitText } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
 import { PAST_GAME_NAMES } from "../view/game-label-names.js";
 import { replayMatchupOf, versusLayout, type ReplayMatchup } from "../view/replay-matchup.js";
@@ -31,7 +30,7 @@ import { watchReplay } from "./replay-entry.js";
 import { SCENES } from "./keys.js";
 import type { TitleSceneData } from "./title.js";
 
-/** How long the matchup stays up at least (wall clock), unless skipped once the replay is ready. */
+/** How long the matchup stays up at least (wall clock), unless a press ends it early. */
 export const VERSUS_HOLD_MS = 3000;
 
 export interface ReplayVersusData {
@@ -54,7 +53,8 @@ export class ReplayVersusScene extends Phaser.Scene {
   create(data: ReplayVersusData = {}): void {
     const host = data.host;
     const config = host?.info?.config;
-    if (!host || !config) {
+    // A setup that names no hero this build knows has nothing to put on the heroes' side: say the replay is damaged.
+    if (!host || !config || replayMatchupOf(config, PAST_GAME_NAMES).heroes.length === 0) {
       host?.dispose();
       goToScreen(this, SCENES.title, { replayProblem: "replay.error.damaged" } satisfies TitleSceneData);
       return;
@@ -107,11 +107,21 @@ export class ReplayVersusScene extends Phaser.Scene {
     this.#intro = false;
 
     const villainUrl = villainPictureOf(matchup.scenarioId, matchup.villain.cardId, this.#packs);
-    // Stacked, the villain's name sits clear of VERSUS on the seam below it.
-    const villainInset = layout.wide ? 0 : Math.round(layout.versusSize * 0.6);
-    const villain = this.#side(layout.villain, villainUrl, matchup.villain.name, accent.heroRed.hex, villainInset);
+    const villain = this.#side(
+      layout.villain,
+      villainUrl,
+      matchup.villain.name,
+      accent.heroRed.hex,
+      layout.villainNameLift,
+    );
     const heroes = matchup.heroes.map((hero, index) =>
-      this.#side(layout.heroes[index]!, heroPictureOf(hero.cardId ?? "", this.#packs), hero.name, signal.cost.hex),
+      this.#side(
+        layout.heroes[index]!,
+        heroPictureOf(hero.cardId ?? "", this.#packs),
+        hero.name,
+        signal.cost.hex,
+        layout.heroNameLifts[index] ?? 0,
+      ),
     );
 
     const versus = this.add
@@ -157,7 +167,8 @@ export class ReplayVersusScene extends Phaser.Scene {
     shade.fillRect(rect.x, rect.y + rect.height - band, rect.width, band);
     shade.lineStyle(6, edge, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
     objects.push(shade);
-    const size = Math.round(Math.max(18, Math.min(40, rect.width / 7)));
+    // Up to two lines (a long name such as "Spider-Man (Peter Parker)"), shrinking until they fit.
+    let size = Math.round(Math.max(18, Math.min(40, rect.width / 7)));
     const label = this.add
       .text(
         rect.x + rect.width / 2,
@@ -166,8 +177,12 @@ export class ReplayVersusScene extends Phaser.Scene {
         textStyle(bangers(size), surface.paper.hex),
       )
       .setOrigin(0.5, 1)
-      .setAlign("center");
-    fitText(label, rect.width - 16, size);
+      .setAlign("center")
+      .setWordWrapWidth(rect.width - 16, true);
+    while (size > 14 && (label.height > size * 2.2 || label.width > rect.width - 16)) {
+      size -= 2;
+      label.setFontSize(size);
+    }
     objects.push(label);
     return objects;
   }

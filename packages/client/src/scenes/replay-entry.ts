@@ -8,7 +8,7 @@
  * host and store back (`leaveReplay`) before the screen the replay was opened from comes up.
  */
 import type Phaser from "phaser";
-import { activeReplay, enterReplay } from "../replay/replay-mode.js";
+import { activeReplay, enterReplay, leaveReplay } from "../replay/replay-mode.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { goToScreen } from "../ui/transitions.js";
 import { SCENES } from "./keys.js";
@@ -33,6 +33,11 @@ export async function watchReplay(
     throw cause;
   }
   await hold;
+  // `from` was taken down while the replay was going on (nothing does that today): don't leave the replay up unseen.
+  if (!from.sys.isActive()) {
+    leaveReplay();
+    return;
+  }
   returnTarget = returnTo;
   goToScreen(from, SCENES.board, {});
 }

@@ -50,11 +50,15 @@ export interface VersusLayout {
   readonly versus: { readonly x: number; readonly y: number };
   /** The VERSUS mark's font size. */
   readonly versusSize: number;
+  /** How far the villain's name is lifted off its picture's foot, to stay clear of VERSUS on the seam. */
+  readonly villainNameLift: number;
+  /** The same for each hero's name: the hero whose foot meets VERSUS (wide, two rows) lifts its name. */
+  readonly heroNameLifts: readonly number[];
 }
 
 /**
- * Where everything goes on a `width` x `height` screen with `heroCount` heroes. Wide: villain left, heroes right in a
- * column each. Tall: villain on top, heroes below in a row each.
+ * Where everything goes on a `width` x `height` screen with `heroCount` heroes. Wide: villain left, heroes right. Tall:
+ * villain on top, heroes below. One or two heroes sit side by side; three or four in two rows.
  */
 export function versusLayout(width: number, height: number, heroCount: number): VersusLayout {
   const wide = width >= height;
@@ -65,14 +69,29 @@ export function versusLayout(width: number, height: number, heroCount: number): 
   const side: Rect = wide
     ? { x: villain.width + VERSUS_GAP, y: 0, width: width - villain.width - VERSUS_GAP, height }
     : { x: 0, y: villain.height + VERSUS_GAP, width, height: height - villain.height - VERSUS_GAP };
-  const each = (side.width - VERSUS_GAP * (count - 1)) / count;
+  // One or two heroes share the side in a row; three or four go two to a row, the last row stretched to fill it.
+  const cols = count <= 2 ? count : 2;
+  const rows = Math.ceil(count / cols);
+  const rowHeight = (side.height - VERSUS_GAP * (rows - 1)) / rows;
   const heroes = Array.from({ length: count }, (_, index): Rect => {
-    const x = Math.round(side.x + index * (each + VERSUS_GAP));
-    return { x, y: side.y, width: Math.round(side.x + index * (each + VERSUS_GAP) + each) - x, height: side.height };
+    const row = Math.floor(index / cols);
+    const inRow = row === rows - 1 ? count - row * cols : cols;
+    const col = index - row * cols;
+    const each = (side.width - VERSUS_GAP * (inRow - 1)) / inRow;
+    const x = Math.round(side.x + col * (each + VERSUS_GAP));
+    const y = Math.round(side.y + row * (rowHeight + VERSUS_GAP));
+    return {
+      x,
+      y,
+      width: Math.round(side.x + col * (each + VERSUS_GAP) + each) - x,
+      height: Math.round(side.y + row * (rowHeight + VERSUS_GAP) + rowHeight) - y,
+    };
   });
   const versus = wide
     ? { x: villain.width + VERSUS_GAP / 2, y: Math.round(height / 2) }
     : { x: Math.round(width / 2), y: villain.height + VERSUS_GAP / 2 };
   const versusSize = Math.round(Math.max(44, Math.min(120, Math.min(width, height) * 0.16)));
-  return { wide, villain, heroes, versus, versusSize };
+  const lift = Math.round(versusSize * 0.6);
+  const heroNameLifts = heroes.map((_, index) => (wide && rows > 1 && index === 0 ? lift : 0));
+  return { wide, villain, heroes, versus, versusSize, villainNameLift: wide ? 0 : lift, heroNameLifts };
 }

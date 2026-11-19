@@ -134,8 +134,17 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     if (!result.ok) return screen.fail(result.message);
-    // On to the matchup, which puts the replay on the board (`scenes/replay-versus.ts`).
+    // On to the matchup, which puts the replay on the board (`scenes/replay-versus.ts`). Its code first: a chunk that
+    // didn't arrive would otherwise leave this screen up with no way off it.
     screen.lock();
+    try {
+      await sceneLoader()?.load(SCENES.replayVersus);
+    } catch {
+      result.host.dispose();
+      if (this.sys.isActive()) screen.fail("replay.link.offline");
+      return;
+    }
+    if (!this.sys.isActive()) return result.host.dispose();
     goToScreen(this, SCENES.replayVersus, { host: result.host } satisfies ReplayVersusData);
   }
 
