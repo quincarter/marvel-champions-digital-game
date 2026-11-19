@@ -3,6 +3,14 @@
 Owner: `multiplayer-netcode-engineer`. Started 2026-11-19 from Quin's ask for a "Watch this game" button on the
 Discord presence card, built on the same mechanism live multiplayer will use (PLAN.md Phase 5, "the live relay").
 
+## 0. Ground rule: single player stays offline-first (Quin, 2026-11-19)
+
+Nothing in this work may break single player, and the game must keep working fully offline (on a plane). Online
+features are opt-in and lazy: nothing is spawned, fetched or connected until the player picks one. Every online failure
+(no network, the Worker down, a room gone) degrades quietly or with a short message, and never blocks the title,
+setup, a game, saving or resuming. No single-player path waits on the network. Changes to shared paths keep a test
+with the network off.
+
 ## 1. The idea in one paragraph
 
 A **game room** is one Durable Object per live game on the sync Worker. The player whose device runs the engine is the
