@@ -1,5 +1,5 @@
 import { describe, expect, it, test } from "vitest";
-import { exportRouteFor, pickFile } from "./file-transfer.js";
+import { exportRouteFor, extensionsOf, pickFile } from "./file-transfer.js";
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 15; Pixel 8; wv) AppleWebKit/537.36 Chrome/131.0 Mobile Safari/537.36";
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148";
@@ -52,5 +52,13 @@ describe("pickFile", () => {
     } finally {
       globalThis.document = original;
     }
+  });
+});
+
+describe("extensionsOf (#858)", () => {
+  it("keeps an accept list's extensions for the desktop's Open dialog, not its MIME types", () => {
+    expect(extensionsOf(".mcreplay,.json,.txt,application/json,text/plain")).toEqual(["mcreplay", "json", "txt"]);
+    expect(extensionsOf("application/json,.JSON")).toEqual(["json"]);
+    expect(extensionsOf("")).toEqual([]);
   });
 });

@@ -1,0 +1,3 @@
+kind: Changed
+body: A shared replay link now opens on its own loading screen and shows a versus screen of the villain against the heroes before the board, skipping the title menu; an expired, invalid or unreachable replay says why there, with a Main menu button (#858).
+time: 2026-11-18T19:28:56.8319116-05:00

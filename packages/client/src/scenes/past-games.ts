@@ -20,15 +20,11 @@
  */
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
-import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
-import { packPictureFor } from "../art/pack-art.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
-import { isCustomCard } from "../view/custom-content.js";
 import { onArtChange } from "../language-change.js";
-import { artFor, artLanguageNow } from "../art/art-source.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
+import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
 import { accent, hit, signal, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -82,7 +78,8 @@ import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../rep
 import { appSession, deckStorage } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { watchReplay } from "./replay-entry.js";
+import { introReplay } from "./replay-entry.js";
+import { drawOpenFileIcon } from "../ui/open-file-icon.js";
 import { SCENES } from "./keys.js";
 
 /** The widest the tabs, list and side panel run together. */
@@ -112,33 +109,8 @@ interface Busy {
 /** Links shared this run, by game id: Share never uploads a game twice. */
 const sharedUrls = new Map<string, string>();
 
-/** Each hero's picture by identity, kept while the app runs (finding one walks the pool). */
-const heroPictures = new Map<string, string | null>();
-
-function heroPictureOf(identityCardId: string, row: PastGameRow): string | null {
-  // A pack's hero: its own picture, or its card's scan, from the pack installed now. Not cached: the picture arrives a
-  // moment after the pack loads, and a pack removed since the game was played has none (#758).
-  if (isCustomCard(identityCardId)) {
-    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, identityCardId);
-    return packPictureFor("hero", identityCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
-  }
-  if (!heroPictures.has(identityCardId)) {
-    const art = heroArtForIdentity(HERO_ART, identityCardId, POOL_CARDS, () => 0)?.url ?? null;
-    heroPictures.set(identityCardId, art ?? artFor(CARDS_BY_ID.get(identityCardId), { kind: "front" })?.url ?? null);
-  }
-  return heroPictures.get(identityCardId) ?? null;
-}
-
-function villainPictureOf(row: PastGameRow): string | null {
-  if (row.villainCardId && isCustomCard(row.villainCardId)) {
-    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, row.villainCardId);
-    return packPictureFor("villain", row.villainCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
-  }
-  return (
-    villainArtFor(ART_CATALOG, row.scenarioId, () => 0)?.url ??
-    (row.villainCardId ? (artFor(CARDS_BY_ID.get(row.villainCardId), { kind: "front" })?.url ?? null) : null)
-  );
-}
+const packsOf = (row: PastGameRow): readonly PackRuntime[] | undefined =>
+  row.save.config.packs as readonly PackRuntime[] | undefined;
 
 /** The cards a game's pictures stand for, villain first, for the hover. */
 const picturedCards = (row: PastGameRow): readonly (string | null)[] => [
@@ -153,8 +125,8 @@ const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[]
   );
 
 const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
-  villainPictureOf(row),
-  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, row)),
+  villainPictureOf(row.scenarioId, row.villainCardId, packsOf(row)),
+  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, packsOf(row))),
 ];
 
 /** The names to print on pictures that have no art (a custom hero or villain whose pack is gone), villain first. */
@@ -224,6 +196,8 @@ export class PastGamesScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Back from a replay, which played its scenario's music: the menus' music again (#858). A no-op when it already is.
+    appSession().music?.playTitle();
     this.#alive = true;
     this.#leaving = false;
     this.#visit += 1;
@@ -399,7 +373,7 @@ export class PastGamesScene extends Phaser.Scene {
       const host = await openReplay({ kind: "stored", gameId: row.id });
       if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
-      await watchReplay(this, host, SCENES.pastGames);
+      await introReplay(this, host, SCENES.pastGames);
     } catch (cause) {
       this.#setBusy(null, visit);
       this.#sayIn(visit, t(replayErrorKey(cause)));
@@ -525,7 +499,7 @@ export class PastGamesScene extends Phaser.Scene {
       const host = await openReplay({ kind: "file", bytes: picked });
       if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
-      await watchReplay(this, host, SCENES.pastGames);
+      await introReplay(this, host, SCENES.pastGames);
     } catch (cause) {
       this.#setBusy(null, visit);
       this.#sayIn(visit, t(replayErrorKey(cause)));
@@ -565,7 +539,7 @@ export class PastGamesScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     // The file button's room in the bar's right end, so the title stops short of it.
-    const fileWidth = phone ? 92 : 190;
+    const fileWidth = phone ? 128 : 220;
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : "◂ TITLE",
       onBack: () => this.#back(),
@@ -585,16 +559,28 @@ export class PastGamesScene extends Phaser.Scene {
       height: hit.target,
     };
     const openFile = (): void => void this.#openFile();
+    // A folder mark at its left, so the button reads as "open a file" at a glance (#858).
+    const iconSize = 18;
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: `${t(phone ? "pastGames.openFileShort" : "pastGames.openFile")} ▸`,
+        label: t(phone ? "pastGames.openFileShort" : "pastGames.openFile"),
         type: typeRole.label,
         rect: fileRect,
+        labelInset: iconSize + 14,
         enabled: this.#busy === null,
         onClick: openFile,
       }),
     );
+    const icon = this.add.graphics().setDepth(1);
+    drawOpenFileIcon(
+      icon,
+      fileRect.x + 12 + iconSize / 2,
+      fileRect.y + fileRect.height / 2,
+      iconSize,
+      surface.paper.hex,
+    );
+    if (this.#busy !== null) icon.setAlpha(0.4);
     stops.set("open-file", { rect: fileRect, activate: openFile });
     this.#obstacles.push(fileRect);
 

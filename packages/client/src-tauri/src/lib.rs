@@ -70,7 +70,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     // default browser: the webview ignores `window.open`. Also scoped in
     // capabilities/default.json.
     .plugin(tauri_plugin_opener::init())
-    // The Save dialog behind save_file::save_text_file. No dialog permission
+    // The Save and Open dialogs behind save_file::save_text_file and save_file::open_file. No dialog permission
     // in capabilities/default.json: the page only reaches it through that command.
     .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
@@ -85,6 +85,7 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       app_volume::start_app_volume_watch,
       app_volume::stop_app_volume_watch,
       save_file::save_text_file,
+      save_file::open_file,
       steam_install::steam_install_info,
       steam_install::steam_update_start,
       steam_install::steam_update_status,

@@ -99,6 +99,9 @@ export async function pickSaveFile(): Promise<ParseResult | null> {
  * chosen, "unreadable" when the file can't be read or is over `maxBytes`.
  */
 export function pickFile(accept: string, maxBytes?: number): Promise<Uint8Array | "unreadable" | null> {
+  // The desktop app opens the system's own dialog (`src-tauri/src/save_file.rs#open_file`): the webview's file input
+  // opens only on a click the page is told about, so a controller's A press opened nothing (Steam Deck, #858).
+  if (detectPlatform() === "tauri") return pickFileNatively(accept, maxBytes);
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
@@ -125,4 +128,26 @@ export function pickFile(accept: string, maxBytes?: number): Promise<Uint8Array 
     document.body.append(input);
     input.click();
   });
+}
+
+/** The extensions an `accept` list names (".json" → "json"); its MIME types are for the browser's picker only. */
+export function extensionsOf(accept: string): string[] {
+  return accept
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith(".") && part.length > 1)
+    .map((part) => part.slice(1).toLowerCase());
+}
+
+async function pickFileNatively(accept: string, maxBytes?: number): Promise<Uint8Array | "unreadable" | null> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    const bytes = await invoke<ArrayBuffer>("open_file", {
+      extensions: extensionsOf(accept),
+      maxBytes: maxBytes ?? null,
+    });
+    return bytes.byteLength === 0 ? null : new Uint8Array(bytes);
+  } catch {
+    return "unreadable";
+  }
 }

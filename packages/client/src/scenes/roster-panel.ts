@@ -414,9 +414,10 @@ export function renderArtThumb(
   artUrl: string | null,
   focusY = 0.2,
   focus?: PictureFocus,
+  fit: "cover" | "contain" = "cover",
 ): Phaser.GameObjects.GameObject {
   const faces = cardFaces(scene);
-  const spec = artThumbSpec(rect, artUrl, focusY, "cover", focus);
+  const spec = artThumbSpec(rect, artUrl, focusY, fit, focus);
   const key = faces.request(spec);
   if (key) {
     const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
@@ -442,15 +443,22 @@ export interface LiveArtThumb {
  * `renderArtThumb` for a row that stays drawn while its art bakes: the row calls `refresh` on
  * `cardFaces(scene).onBaked` (`McVirtualList#refreshRows`) rather than being redrawn around the new picture.
  */
-export function renderLiveArtThumb(scene: Phaser.Scene, rect: Rect, artUrl: string | null, focusY = 0.2): LiveArtThumb {
-  const thumb = renderArtThumb(scene, rect, artUrl, focusY);
+export function renderLiveArtThumb(
+  scene: Phaser.Scene,
+  rect: Rect,
+  artUrl: string | null,
+  focusY = 0.2,
+  fit: "cover" | "contain" = "cover",
+  focus?: PictureFocus,
+): LiveArtThumb {
+  const thumb = renderArtThumb(scene, rect, artUrl, focusY, focus, fit);
   if (thumb.type === "Image") return { object: thumb, refresh: () => undefined };
   const holder = scene.add.container(0, 0, [thumb]);
   let waiting = true;
   const refresh = (): void => {
     if (!waiting) return;
     const faces = cardFaces(scene);
-    const key = faces.request(artThumbSpec(rect, artUrl, focusY, "cover"));
+    const key = faces.request(artThumbSpec(rect, artUrl, focusY, fit, focus));
     if (!key) return;
     waiting = false;
     const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);

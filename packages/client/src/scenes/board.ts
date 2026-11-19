@@ -661,7 +661,8 @@ export class BoardScene extends Phaser.Scene {
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const config = store.state.config;
-    if (config?.scenarioId && !this.#replay) {
+    // A replay plays its scenario's music too, so it is in the mood of the game it shows (#858).
+    if (config?.scenarioId) {
       const scenario = gameScenarios().find((s) => s.id === config.scenarioId);
       appSession().music?.playBattle({ scenarioId: config.scenarioId, packCode: scenario?.packCode });
     }

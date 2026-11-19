@@ -15,6 +15,8 @@ export const SCENES = {
   setupDeal: "SetupDeal",
   scenarioIntro: "ScenarioIntro",
   board: "Board",
+  /** A shared replay's versus screen (`scenes/replay-versus.ts`, #858): villain against heroes, before the board. */
+  replayVersus: "ReplayVersus",
   gameOver: "GameOver",
   // PLAN.md Phase 9: precons, MarvelCDB import, and the in-app deck builder.
   decks: "Decks",

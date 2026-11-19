@@ -1,6 +1,6 @@
 /**
  * Sharing a replay by link (issue #693): the replay file goes up to the sync Worker (`POST /replay`, stored in R2) and
- * comes back as a short id; the link is the game's web address with `#replay=<id>`. Opening such a link (the Title
+ * comes back as a short id; the link is the game's web address with `#replay=<id>`. Opening such a link (Boot
  * reads it once, like `#receive=`) fetches the file (`GET /replay/:id`) and plays it. A fragment never reaches a server.
  *
  * In the desktop and phone apps the page's own address is the webview's, which nobody else can open, so their links

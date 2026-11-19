@@ -20,6 +20,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.setupDeal]: () => import("./setup-deal.js").then((m) => m.SetupDealScene),
   [SCENES.scenarioIntro]: () => import("./scenario-intro.js").then((m) => m.ScenarioIntroScene),
   [SCENES.board]: () => import("./board.js").then((m) => m.BoardScene),
+  [SCENES.replayVersus]: () => import("./replay-versus.js").then((m) => m.ReplayVersusScene),
   [SCENES.decks]: () => import("./decks.js").then((m) => m.DecksScene),
   [SCENES.deckBuilder]: () => import("./deck-builder.js").then((m) => m.DeckBuilderScene),
   [SCENES.deckCheck]: () => import("./deck-check.js").then((m) => m.DeckCheckScene),
