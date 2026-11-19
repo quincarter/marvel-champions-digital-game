@@ -764,6 +764,58 @@ describe("MC10 p. 10 / p. 12 — Hydra Prison's rescued allies are recorded and 
   });
 });
 
+describe("MC10 p. 12 — an upgrade replaced with its \u201CImproved\u201D side enters Red Skull's game on it (#873, synthetic)", () => {
+  /** The upgrade instance seat `seat` (0-based) has attached to its identity once setup is done. */
+  const upgradeIn = (state: GameState, seat: number, cardId: string) => {
+    const identity = state.players[seat]?.identity.instanceId;
+    const attached = identity ? (getInstance(state, identity)?.attachments ?? []) : [];
+    return attached.map((id) => getInstance(state, id)).find((instance) => instance?.cardId === cardId);
+  };
+
+  const gameAfter = (stopAfterNodeId: string): GameState => {
+    const log = synthWalkTo(STANDARD, RECORDS_STANDARD, stopAfterNodeId);
+    const composed = settle(
+      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, STANDARD, answers),
+      SCRIPT,
+    ).value;
+    const start = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed);
+    if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
+    // Seated as a client launches it, with each seat's composed deck: a starter list would not hold the upgrade.
+    const players = start.input.seats.map((seat) => ({
+      identityCardId: seat.identityCardId,
+      deck: seat.deck,
+      aspects: seat.aspects,
+    }));
+    const config = wave2Scenario(start.scenarioId, { players, seed: start.input.seed, modes: start.modes });
+    const created = createGame({ ...config, campaign: start.input }, WAVE2_DEPS);
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    return created.state;
+  };
+
+  it("hands the game the face the log recorded, for that seat only", () => {
+    const log = synthWalkTo(STANDARD, RECORDS_STANDARD, "zola");
+    const composed = settle(
+      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, STANDARD, answers),
+      SCRIPT,
+    ).value;
+    const input = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed).input;
+    expect(input.seats[0]?.grantFaces).toEqual([{ cardId: BASIC_IDS[0], face: "Improved Thwart Upgrade" }]);
+    expect(input.seats[1]?.grantFaces).toBeUndefined();
+  });
+
+  it("Red Skull: the Setup keyword puts the upgrade into play on its Improved side", () => {
+    const upgrade = upgradeIn(gameAfter("zola"), 0, BASIC_IDS[0]);
+    expect(upgrade).toBeDefined();
+    expect(upgrade?.flipped).toBe(true);
+  });
+
+  it("before Zola the same upgrade still enters play on its Basic side", () => {
+    const upgrade = upgradeIn(gameAfter("taskmaster"), 0, BASIC_IDS[0]);
+    expect(upgrade).toBeDefined();
+    expect(upgrade?.flipped).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------------------------------------------
 // 6. Campaign-specific legality (RRG p. 11) and the deck-size exemption (MC10 p. 3)
 // ---------------------------------------------------------------------------------------------------------------

@@ -28,6 +28,7 @@ import type {
   CampaignGameInput,
   CampaignGameResult,
   CampaignGrant,
+  CampaignGrantFace,
   CampaignHistoryEntry,
   CampaignInstruction,
   CampaignLog,
@@ -451,7 +452,17 @@ const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   // An optional grant the player left out is not in `deck`, so it is not named as a granted copy either.
   grantedCardIds: includedGrantsOf(seat.grants).map((grant) => grant.cardId),
   ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
+  ...(grantFacesOf(seat.grants).length > 0 ? { grantFaces: grantFacesOf(seat.grants) } : {}),
 });
+
+/**
+ * The included grants on another face (MC10 p. 12's "Improved" side), one entry per copy. Without this the log knew
+ * the face and the game never did: the upgrade entered the next scenario on its "Basic" side (issue #873).
+ */
+const grantFacesOf = (grants: readonly CampaignGrant[]): readonly CampaignGrantFace[] =>
+  includedGrantsOf(grants).flatMap((grant) =>
+    grant.face === undefined ? [] : [{ cardId: grant.cardId, face: grant.face }],
+  );
 
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);
 

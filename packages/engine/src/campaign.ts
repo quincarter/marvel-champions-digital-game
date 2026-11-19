@@ -1437,6 +1437,19 @@ export interface CampaignSeatInput {
    * when every grant is exempt, so an input composed before the field existed is unchanged.
    */
   readonly grantDeckSizes?: readonly GrantDeckSizeRule[];
+  /**
+   * The granted copies that are on another face (`CampaignGrant.face`): one entry per such copy in `deck`. MC10 p. 12
+   * replaces a "Basic" Condition upgrade "with its 'Improved' side", so that copy enters play on that face at setup
+   * (`putSetupCardsIntoPlay`); MC27 p. 22's Enhanced side the same way. Absent when no grant names a face, so every
+   * earlier game input is unchanged.
+   */
+  readonly grantFaces?: readonly CampaignGrantFace[];
+}
+
+/** One granted copy and the face the campaign log has it on (`CampaignSeatInput.grantFaces`). */
+export interface CampaignGrantFace {
+  readonly cardId: CardId;
+  readonly face: string;
 }
 
 /** An instruction the runner has already gated and ordered, ready for the engine to resolve at its window. */
