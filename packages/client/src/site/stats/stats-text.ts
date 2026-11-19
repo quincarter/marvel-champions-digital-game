@@ -19,7 +19,6 @@ const en = {
     "Every number is GitHub's own download count for a release's installers. A download is a file fetched, not a person: one player who updates five times counts five times, and checksums are left out. Playing in the browser isn't counted here at all.",
   "lead.text":
     "Since {since} the game has been downloaded <b>{total} times</b> across four platforms, about {perDay} a day.",
-  "lead.before": "That's {times}× the {before} downloads of every release before it put together.",
   "tile.total": "Installers downloaded",
   "tile.total.note": "From {since} to {latest}, every platform and language.",
   "tile.android.note": "APKs.",
@@ -77,7 +76,6 @@ const es: Catalog<StatsKey> = {
     "Cada número es el recuento de descargas de GitHub para los instaladores de una versión. Una descarga es un archivo descargado, no una persona: quien actualiza cinco veces cuenta cinco veces, y las sumas de comprobación no cuentan. Jugar en el navegador no se cuenta aquí.",
   "lead.text":
     "Desde {since} el juego se ha descargado <b>{total} veces</b> en cuatro plataformas, unas {perDay} al día.",
-  "lead.before": "Son {times}× las {before} descargas de todas las versiones anteriores juntas.",
   "tile.total": "Instaladores descargados",
   "tile.total.note": "De {since} a {latest}, en todas las plataformas e idiomas.",
   "tile.android.note": "APK.",
