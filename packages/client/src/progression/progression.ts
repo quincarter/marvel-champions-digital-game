@@ -3,7 +3,7 @@
  * unlock preferences, and the `?unlock=all` dev param.
  *
  * Screens read `unlocks()` synchronously while drawing and call `refreshUnlocks()` when they open; Boot awaits one
- * refresh before Title, so the first screen a player sees already knows what they have earned. A refresh returns
+ * refresh before Title (for up to six seconds, #871), so the first screen a player sees already knows what they have earned. A refresh returns
  * whether anything changed, so a screen redraws only when it has to.
  *
  * The preferences live in `localStorage` (`mc-unlocks`), not IndexedDB: a few bytes read once at startup. Where
@@ -97,8 +97,27 @@ let statusesCache: readonly AchievementStatus[] | null = null;
 /** Refreshes started, and the newest one whose result is in. */
 let refreshesStarted = 0;
 let refreshApplied = 0;
+/** Bumped by every refresh that changed the unlocks, so a refresh can tell whether another one changed them meanwhile. */
+let unlocksVersion = 0;
 /** Ids earned as of the last refresh, in definition order; null until a refresh has read the stores. */
 let earnedIds: readonly string[] | null = null;
+/** Told after each refresh whose result is applied (`onProgressRead`). */
+const readListeners = new Set<(changed: boolean) => void>();
+
+/**
+ * Calls `listener` after every refresh whose result is applied, with whether the unlocks changed. For a screen that
+ * may be up before the read it needs lands: Boot goes on to Title after a few seconds without it (#871), and its read
+ * can land after Title's own. Returns the unsubscribe.
+ */
+export function onProgressRead(listener: (changed: boolean) => void): () => void {
+  readListeners.add(listener);
+  return () => readListeners.delete(listener);
+}
+
+function progressRead(changed: boolean): boolean {
+  for (const listener of [...readListeners]) listener(changed);
+  return changed;
+}
 let achievementPoints = 0;
 let lifetimePoints = 0;
 let prefs: UnlockPrefs | null = null;
@@ -158,11 +177,13 @@ function modInstalls(): Promise<InstalledPack[]> {
 }
 
 /**
- * Re-reads progress from storage. True when the unlocks changed since the last read; Extras progress is refreshed by
- * the same read, and the Extras screen redraws after it regardless.
+ * Re-reads progress from storage. True when the unlocks changed since this refresh started, by this read or by another
+ * that landed meanwhile (#871: Boot's read can land while a screen's own is in flight, and that screen drew before
+ * either); Extras progress is refreshed by the same read, and the Extras screen redraws after it regardless.
  */
 export async function refreshUnlocks(): Promise<boolean> {
   const refresh = ++refreshesStarted;
+  const versionAtStart = unlocksVersion;
   const saves = (await appSession().store.listSaves()) as ProgressSaves;
   // Mods (docs/custom-content-packs.md section 11.12): every installed pack is noted once, for good, so removing a mod
   // never takes its install achievements back. The achievements of the packs loaded now come from the loaded runtimes.
@@ -197,7 +218,7 @@ export async function refreshUnlocks(): Promise<boolean> {
   // The campaign and deck reads and the math run in the progress worker (issue #722); here only where it can't.
   const result = (await progressOffMain(inputs, saves)) ?? (await progressOnMain(inputs, saves));
   // A refresh started earlier but finished later (two in flight: Title's and a pack change's) never rolls back a newer one.
-  if (refresh < refreshApplied) return false;
+  if (refresh < refreshApplied) return unlocksVersion !== versionAtStart;
   refreshApplied = refresh;
   progressInputs = inputs;
   measured = result.measured;
@@ -212,14 +233,16 @@ export async function refreshUnlocks(): Promise<boolean> {
   const nextAchievementPoints = result.achievementPoints;
   if (sameProgress(next, progress) && nextAchievementPoints === achievementPoints) {
     applyEarnedItems();
-    return false;
+    progressRead(false);
+    return unlocksVersion !== versionAtStart;
   }
   progress = next;
   achievementPoints = nextAchievementPoints;
   current = null;
   currentExtras = null;
+  unlocksVersion++;
   applyEarnedItems();
-  return true;
+  return progressRead(true);
 }
 
 /** The fallback: the same reads and math as the progress worker, on the main thread. */

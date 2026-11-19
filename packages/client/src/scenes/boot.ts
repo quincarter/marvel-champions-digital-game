@@ -25,6 +25,10 @@ import { appReplayLinkOf, launchAppLink, offersDesktopApp } from "../platform/ap
 import { SharedReplayLoading } from "../ui/replay-link-loading.js";
 import { sceneLoader } from "./scene-loader.js";
 import { needed } from "./scene-order.js";
+import { bootWaitingOn, settledWithin } from "../ui/startup-watchdog.js";
+
+/** How long Boot waits on the progress read before going on to Title without it (#871). */
+const BOOT_PROGRESS_WAIT_MS = 6000;
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title (`boot-dev-jump.ts`, which has the full list
@@ -66,8 +70,9 @@ export class BootScene extends Phaser.Scene {
     // The controller button pictures, so a pad's first hints are drawn as pictures rather than swapped in a moment later.
     ensurePadGlyphTextures(this.textures);
 
-    // Progress is read before Title so no screen draws a hero or scenario locked that the player has earned.
-    void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])
+    // Progress is read before Title (for up to six seconds, #871) so no screen draws a hero or scenario locked that the
+    // player has earned.
+    void Promise.all([this.#awaitFonts(), this.#awaitProgress()])
       .then(() => devScreenJump())
       .then((jump) => {
         // The Report button (#176), from here on: it draws in the top bar of each screen that leaves it a slot.
@@ -164,6 +169,20 @@ export class BootScene extends Phaser.Scene {
     const loader = sceneLoader();
     if (!loader) return;
     for (const key of [SCENES.replayVersus, ...needed(SCENES.board)]) void loader.load(key).catch(() => undefined);
+  }
+
+  /**
+   * Waits for the player's progress, but never for long (#871): on iOS an IndexedDB open can stay pending for good, with
+   * no error, right after the system killed and reloaded the tab, and Boot waiting on it left the player on LOADING.
+   * Title reads progress again itself (its wait is capped), so a late read still reaches the menu.
+   */
+  async #awaitProgress(): Promise<void> {
+    bootWaitingOn("saved progress");
+    await settledWithin(
+      refreshUnlocks().catch(() => false),
+      BOOT_PROGRESS_WAIT_MS,
+    );
+    bootWaitingOn(null);
   }
 
   /**

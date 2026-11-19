@@ -33,7 +33,7 @@ import {
   nowPlayingTitleOf,
 } from "../view/music-player.js";
 import { appSession } from "../session.js";
-import { extras } from "../progression/progression.js";
+import { earnedAchievementIds, extras } from "../progression/progression.js";
 import type { Extras } from "../progression/extras.js";
 import { extrasNewsHeadline, newExtrasOf, openExtrasOf } from "../view/extras-news.js";
 import type { AchievementToastScene } from "./achievement-toast.js";
@@ -174,7 +174,9 @@ export class MusicButtonScene extends Phaser.Scene {
       this.#pending = null;
     }
 
-    if (time - this.#lastExtrasCheck >= EXTRAS_CHECK_MS) {
+    // Not before progress has been read once: Boot can go on without it (#871), and a first look at the empty default
+    // would take everything already open as new when the read lands.
+    if (time - this.#lastExtrasCheck >= EXTRAS_CHECK_MS && earnedAchievementIds() !== null) {
       this.#lastExtrasCheck = time;
       this.extrasOpened(extras());
     }
