@@ -155,6 +155,8 @@ export interface Settings {
   readonly holdEncounterCards: boolean;
   /** Desktop app only: show what you are playing on your Discord profile while Discord is open (`platform/discord-presence.ts`). Defaults on. */
   readonly discordPresence: boolean;
+  /** Let people watch this game live from a link (`live/`, issue #876): streams the game to a room on the sync Worker. Defaults off; nothing connects while off. */
+  readonly liveWatch: boolean;
   /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
   readonly flipEncounterCards: boolean;
   /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
@@ -542,6 +544,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     villainAutoAdvance: "off",
     holdEncounterCards: true,
     discordPresence: true,
+    liveWatch: false,
     flipEncounterCards: true,
     flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",

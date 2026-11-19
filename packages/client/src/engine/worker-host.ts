@@ -147,6 +147,11 @@ export class WorkerEngineHost implements EngineHost {
     this.#worker.postMessage({ kind: "presencePort", id: 0, port } satisfies HostRequest, [port]);
   }
 
+  /** Hands the worker a port to stream the game to the live-room worker over (`live/live-room-protocol.ts`). */
+  attachLivePort(port: MessagePort): void {
+    this.#worker.postMessage({ kind: "livePort", id: 0, port } satisfies HostRequest, [port]);
+  }
+
   dispose(): void {
     this.#worker.removeEventListener("message", this.#onMessage);
     this.#worker.removeEventListener("error", this.#onError);

@@ -61,6 +61,9 @@ import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
 import type { PresenceGame } from "../view/discord-presence.js";
 import { presenceGameOf } from "../view/discord-presence-game.js";
+import { liveGameOf } from "../live/live-game.js";
+import type { LiveGame } from "../live/live-publisher.js";
+import { replayChecksum } from "../replay/replay-file.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
@@ -392,6 +395,8 @@ export class EngineSessionCore {
   #activeAt: number | null = null;
   /** `SaveMeta.adjusted`: a Manual adjust or an Undo past a reveal happened in this game (issue #791). Never cleared. */
   #adjusted = false;
+  /** When the current game was created (a resumed game's stored value), for the live stream's header. */
+  #createdAt = 0;
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -452,6 +457,7 @@ export class EngineSessionCore {
     this.#adjusted = false;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
+    this.#createdAt = startedAt;
 
     if (this.#storage) {
       const id = this.#newId();
@@ -587,6 +593,7 @@ export class EngineSessionCore {
     // nothing in the log, so for that the meta is the only record.
     this.#adjusted = stored.meta.adjusted === true || stored.commands.some((command) => command.type === "adjust");
     this.#activeAt = this.#now();
+    this.#createdAt = stored.meta.createdAt;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
   }
@@ -875,6 +882,33 @@ export class EngineSessionCore {
       game: presenceGameOf(state, config),
       gameKey: this.#gameId ?? `${config?.scenarioId}:${config?.seed}`,
     };
+  }
+
+  /** The game as the live room's header and log (`live/`): null with no game. */
+  liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
+    const session = this.#session;
+    const config = this.#config;
+    if (!session || !config) return null;
+    return {
+      gameKey: this.#gameId ?? `${config.scenarioId}:${config.seed}`,
+      game: liveGameOf({
+        writer: {
+          appVersion: this.#writer.appVersion,
+          contentVersion: this.#writer.contentVersion,
+          ...(this.#writer.build ? { build: this.#writer.build } : {}),
+        },
+        config,
+        createdAt: this.#createdAt,
+        initialState: stripPool(session.log.initialState),
+        commands: session.log.commands,
+        outcome: session.state.outcome,
+      }),
+    };
+  }
+
+  /** `replayChecksum` of the current state: the live stream sends one every `CHECKSUM_EVERY` commands. */
+  liveChecksum(): string {
+    return replayChecksum(this.#require().state);
   }
 
   #require(): GameSession {
