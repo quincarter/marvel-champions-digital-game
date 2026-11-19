@@ -91,18 +91,11 @@ function drawHead(stats: DownloadStats): void {
   const days = oldest?.date
     ? Math.max(1, (Date.parse(stats.countedAt) - Date.parse(oldest.date)) / 86_400_000)
     : stats.releases.length;
-  const lead = [
-    t("lead.text", {
-      since: stats.since,
-      total: number(stats.installers),
-      perDay: number(Math.round(stats.installers / days)),
-    }),
-  ];
-  // Only worth saying once it's at least twice as many.
-  if (stats.before > 0 && stats.installers >= stats.before * 2) {
-    lead.push(t("lead.before", { times: Math.round(stats.installers / stats.before), before: number(stats.before) }));
-  }
-  $("lead").innerHTML = lead.join(" ");
+  $("lead").innerHTML = t("lead.text", {
+    since: stats.since,
+    total: number(stats.installers),
+    perDay: number(Math.round(stats.installers / days)),
+  });
 }
 
 function drawTiles(stats: DownloadStats): void {
