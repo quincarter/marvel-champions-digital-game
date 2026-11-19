@@ -46,10 +46,17 @@ export async function nativeGet(
   return platform === "tauri" ? tauriGet(url, maxBytes) : capacitorGet(url, as, maxBytes);
 }
 
-async function tauriGet(url: string, maxBytes: number): Promise<NativeResponse> {
-  // Scoped to MarvelCDB and the Mod Store pack hosts by src-tauri/capabilities/default.json.
+/**
+ * A GET through Tauri's HTTP plugin, with its body still streaming (the Mod Store reads it chunk by chunk to show
+ * download progress). Scoped to MarvelCDB and the Mod Store pack hosts by src-tauri/capabilities/default.json.
+ */
+export async function tauriFetch(url: string): Promise<Response> {
   const { fetch } = await import("@tauri-apps/plugin-http");
-  const response = await fetch(url);
+  return fetch(url);
+}
+
+async function tauriGet(url: string, maxBytes: number): Promise<NativeResponse> {
+  const response = await tauriFetch(url);
   if (Number(response.headers.get("content-length")) > maxBytes) {
     void response.body?.cancel();
     throw new NativeTooLargeError(maxBytes);

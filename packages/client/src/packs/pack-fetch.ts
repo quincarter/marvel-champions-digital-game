@@ -5,7 +5,8 @@
  *
  * Every response is size-capped: the caller's `maxBytes` (an install passes the catalog's `zipBytes`), never above
  * `HARD_CAP_BYTES`. An oversized `content-length` is refused before the body is read; on the web a body without a
- * length is cut at the cap as it streams. See `nativeGet` for what each native transport can enforce.
+ * length is cut at the cap as it streams. The desktop app (Tauri) streams the same way, so an install shows download
+ * progress; Capacitor cannot stream, see `nativeGet`.
  */
 import { detectPlatform, type Platform } from "../platform/platform.js";
 import type { FetchLike } from "./catalog.js";
@@ -51,6 +52,15 @@ export function packFetchFor(platform: Platform = detectPlatform()): FetchLike {
     return async (url, init) => {
       const { maxBytes, ...rest } = init ?? {};
       return capResponse(await fetch(url, rest), capOf(maxBytes));
+    };
+  }
+  if (platform === "tauri") {
+    // The plugin's response streams, so it is handed on as it is: an install reports download progress as bytes
+    // arrive. Reading it whole first (`nativeGet`) held the bar at its start for the whole download, which on Linux,
+    // where WebKitGTK pulls the body one IPC call per network chunk, looked like a freeze (#860).
+    return async (url, init) => {
+      const { tauriFetch } = await import("../platform/native-http.js");
+      return capResponse(await tauriFetch(url), capOf(init?.maxBytes));
     };
   }
   return async (url, init) => {
