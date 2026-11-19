@@ -215,6 +215,23 @@ describe("campaignSagaRows wired to the unlock path (issue #869)", () => {
     expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
   });
 
+  test("an adjusted Expert-only win gets the ADJUSTED stamp but no note about the next volume", () => {
+    const expert = { campaign: { campaignId: TRORS_CAMPAIGN_DEFINITION.campaignId, expertCampaign: true as const } };
+    const rows = shelf([wonTrors({ adjusted: true, modes: expert })]);
+    expect(rows[0]).toMatchObject({
+      status: "done",
+      wonAdjustedOnly: true,
+      wonStandardAdjustedOnly: false,
+      adjustedWinKeepsNextSealed: false,
+    });
+    expect(rows[1]).toMatchObject({ status: "sealed", previousWonAdjustedOnly: false });
+  });
+
+  test("a volume with one clean win has no ADJUSTED stamp", () => {
+    const rows = shelf([wonTrors({ id: "a", adjusted: true }), wonTrors({ id: "b", updatedAt: 9 })]);
+    expect(rows[0]).toMatchObject({ wonAdjustedOnly: false });
+  });
+
   test("Settings ▸ Unlocks still opens a volume sealed behind an adjusted win", () => {
     const runs = [wonTrors({ adjusted: true })];
     const progress = progressOf([rhinoWin], runs);

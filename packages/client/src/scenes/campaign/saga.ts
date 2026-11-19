@@ -368,7 +368,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       title: tileRow.volume.custom ? CUSTOM_BADGE : `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
-      ...(tileRow.status === "done" && tileRow.wonStandardAdjustedOnly ? { flag: "Adjusted" } : {}),
+      ...(tileRow.status === "done" && tileRow.wonAdjustedOnly ? { flag: "Adjusted" } : {}),
       status: tileRow.status,
       art: volumeArtOf(tileRow.volume),
       onArtReady: this.#onArt,
@@ -559,7 +559,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     chipLabel.setPosition(chipRect.x + 6, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
     objects.push(chipBg, chipLabel);
     // A volume won only by adjusted runs (issue #869): an amber "ADJUSTED" chip just before the "✓ COMPLETE" one.
-    if (row.status === "done" && row.wonStandardAdjustedOnly) {
+    if (row.status === "done" && row.wonAdjustedOnly) {
       const flagLabel = this.add
         .text(0, 0, "ADJUSTED", textStyle(typeRole.label, surface.inkOnHue.hex, 1))
         .setLetterSpacing(0.6)
@@ -640,7 +640,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       );
       stampContainer.setRotation(0.14);
       // A volume complete only by adjusted runs (issue #869) gets a second stamp under the first, in caution amber.
-      if (row.wonStandardAdjustedOnly) {
+      if (row.wonAdjustedOnly) {
         const adjusted = this.add
           .text(0, 0, "ADJUSTED", textStyle(bangers(phone ? 15 : 21, 1), surface.inkOnHue.hex))
           .setOrigin(0.5, 0.5);
@@ -746,11 +746,14 @@ export class CampaignSagaScene extends Phaser.Scene {
       });
       y += altHeight + 6;
       if (copy.foot) {
-        this.add.text(footerRect.x + pad, y, copy.foot, {
+        const foot = this.add.text(footerRect.x + pad, y, copy.foot, {
           ...textStyle(typeRole.label, surface.paper.hex, ink.meta),
           fontSize: phone ? "9.5px" : "10.5px",
           wordWrap: { width: footerRect.width - pad * 2, useAdvancedWrap: true },
         });
+        // The footnote is the one optional line: where the card is too short for it (an iPhone SE, a two-line box name),
+        // it goes rather than running through the card's border.
+        if (foot.y + foot.height > footerRect.y + footerRect.height - 4) foot.destroy();
       }
     }
   }

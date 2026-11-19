@@ -47,6 +47,11 @@ export interface SagaVolumeRow {
    * Won on Standard, but only by adjusted runs (issue #869): the volume is complete, yet it doesn't open the next one.
    */
   readonly wonStandardAdjustedOnly: boolean;
+  /**
+   * Every won run of this volume, Standard or Expert, was adjusted: the shelf's ADJUSTED stamp and chip. Wider than
+   * `wonStandardAdjustedOnly`, which only says why the next volume is sealed.
+   */
+  readonly wonAdjustedOnly: boolean;
   /** `wonStandardAdjustedOnly`, and the next volume is sealed for that reason (it has `previousWonAdjustedOnly`). */
   readonly adjustedWinKeepsNextSealed: boolean;
   /**
@@ -223,6 +228,7 @@ export function campaignSagaRows(
       wonStandard,
       wonExpert,
       wonStandardAdjustedOnly: wonStandard && !wonStandardByRules,
+      wonAdjustedOnly: wonRows.length > 0 && wonRows.every((r) => r.adjusted),
       adjustedWinKeepsNextSealed: false,
       previousWonAdjustedOnly: status === "sealed" && !unlocked && previousWonAdjustedOnly,
       canResume: activeRow?.canResume ?? false,
