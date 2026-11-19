@@ -621,6 +621,28 @@ export class CampaignSagaScene extends Phaser.Scene {
         [stampBg, stamp],
       );
       stampContainer.setRotation(0.14);
+      // A volume complete only by adjusted runs (issue #869) gets a second stamp under the first, in caution amber.
+      if (row.wonStandardAdjustedOnly) {
+        const adjusted = this.add
+          .text(0, 0, "ADJUSTED", textStyle(bangers(phone ? 15 : 21, 1), surface.inkOnHue.hex))
+          .setOrigin(0.5, 0.5);
+        const adjustedBg = this.add.graphics();
+        adjustedBg
+          .fillStyle(signal.caution.hex, 1)
+          .fillRoundedRect(
+            -adjusted.width / 2 - 8,
+            -adjusted.height / 2 - 3,
+            adjusted.width + 16,
+            adjusted.height + 6,
+            4,
+          );
+        this.add
+          .container(stampContainer.x + 6, stampContainer.y + stamp.height / 2 + adjusted.height / 2 + 16, [
+            adjustedBg,
+            adjusted,
+          ])
+          .setRotation(0.14);
+      }
     }
 
     const footerBg = this.add.graphics();
