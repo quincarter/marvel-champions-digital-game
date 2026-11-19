@@ -30,6 +30,8 @@ export class SharedReplayLoading {
   #left = false;
   /** The replay is open and going onto the board: leaving now would race that. */
   #locked = false;
+  /** Waiting on the installed mod packs (`loadingMods`). */
+  #mods = false;
   /** Boot has the fonts and the player's progress: Title can start, so the button can show. */
   #ready = false;
   /** Boot has shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
@@ -63,6 +65,13 @@ export class SharedReplayLoading {
   /** Boot is ready for Title to start (fonts in, progress read): the button shows from here. */
   ready(): void {
     this.#ready = true;
+    this.draw();
+  }
+
+  /** The file is in and the installed mod packs are still loading: the line says so (#858). */
+  loadingMods(): void {
+    if (this.#failure !== null || this.#locked) return;
+    this.#mods = true;
     this.draw();
   }
 
@@ -132,7 +141,10 @@ export class SharedReplayLoading {
       .text(
         0,
         0,
-        t(this.#failure ?? (this.#locked ? "replay.link.opening" : "replay.link.loading")),
+        t(
+          this.#failure ??
+            (this.#locked ? "replay.link.opening" : this.#mods ? "replay.link.mods" : "replay.link.loading"),
+        ),
         textStyle(typeRole.body, surface.paper.hex, 0.9),
       )
       .setFontSize(14)

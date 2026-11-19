@@ -46,7 +46,7 @@ export class BootScene extends Phaser.Scene {
     // link shows its own loading screen and goes straight to the board instead of passing through the title menu.
     const replayLink = takeReplayLink();
     const replayScreen = replayLink ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title)) : null;
-    const replay = replayLink ? loadSharedReplay(replayLink) : null;
+    const replay = replayLink ? loadSharedReplay(replayLink, undefined, () => replayScreen?.loadingMods()) : null;
     if (replayLink && replayLink !== "invalid") this.#preloadBoard();
     if (!replayScreen) {
       this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);

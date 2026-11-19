@@ -154,6 +154,7 @@ export const en = {
   "replay.link.cancel": "Cancel",
   "replay.link.mainMenu": "Main menu",
   "replay.link.opening": "Opening the replay…",
+  "replay.link.mods": "Loading mods to replay the game…",
   "replay.versus": "Versus",
   // Guide chooser (scenes/guide-chooser.ts)
   "guide.title": "NEW TO THE FIGHT?",

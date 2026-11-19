@@ -10,6 +10,8 @@ function deps(overrides: Partial<SharedReplayDeps> = {}): SharedReplayDeps {
   return {
     fetch: async () => ({ ok: true, value: bytes }),
     open: async () => host,
+    packsPending: () => false,
+    packsLoaded: async () => undefined,
     ...overrides,
   };
 }
@@ -56,6 +58,35 @@ describe("loadSharedReplay (issue #858)", () => {
       ok: false,
       message: "replay.error.newerFormat",
     });
+  });
+
+  it("says it is loading mods, and waits for them, before opening the file", async () => {
+    let finish: () => void = () => undefined;
+    const order: string[] = [];
+    const open = vi.fn(async () => {
+      order.push("open");
+      return host;
+    });
+    const loading = loadSharedReplay(
+      "abc123",
+      deps({
+        open,
+        packsPending: () => true,
+        packsLoaded: () => new Promise<void>((resolve) => (finish = resolve)),
+      }),
+      () => order.push("mods"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(order).toEqual(["mods"]);
+    finish();
+    await expect(loading).resolves.toEqual({ ok: true, host });
+    expect(order).toEqual(["mods", "open"]);
+  });
+
+  it("doesn't mention mods once they have loaded", async () => {
+    const onMods = vi.fn();
+    await loadSharedReplay("abc123", deps(), onMods);
+    expect(onMods).not.toHaveBeenCalled();
   });
 
   it("words each fetch failure", () => {

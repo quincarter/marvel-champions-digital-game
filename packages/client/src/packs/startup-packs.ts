@@ -5,10 +5,21 @@
  * load has settled, and a slow device still gets there (the loading screen stays up with Cancel meanwhile).
  */
 let firstLoad: Promise<unknown> = Promise.resolve();
+let settled = true;
 
 /** `main.ts`: the first `refreshActivePacks()`. */
 export function setStartupPacksLoad(load: Promise<unknown>): void {
-  firstLoad = load.catch(() => undefined);
+  settled = false;
+  firstLoad = load
+    .catch(() => undefined)
+    .finally(() => {
+      settled = true;
+    });
+}
+
+/** True while the first load is still running. */
+export function startupPacksPending(): boolean {
+  return !settled;
 }
 
 /** Settles once the installed packs have loaded, or failed to. */

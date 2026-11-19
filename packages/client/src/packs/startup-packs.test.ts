@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setStartupPacksLoad, startupPacksLoaded } from "./startup-packs.js";
+import { setStartupPacksLoad, startupPacksLoaded, startupPacksPending } from "./startup-packs.js";
 
 describe("startupPacksLoaded (#858)", () => {
   it("waits for the startup pack load", async () => {
@@ -9,9 +9,11 @@ describe("startupPacksLoaded (#858)", () => {
     const waiting = startupPacksLoaded().then(() => (done = true));
     await Promise.resolve();
     expect(done).toBe(false);
+    expect(startupPacksPending()).toBe(true);
     finish();
     await waiting;
     expect(done).toBe(true);
+    expect(startupPacksPending()).toBe(false);
   });
 
   it("settles when the load fails", async () => {
