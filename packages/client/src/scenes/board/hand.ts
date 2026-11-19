@@ -38,7 +38,7 @@ import {
   drawSourceBar,
   drawThwartStatBar,
 } from "./controller-bar.js";
-import { COST_HELP_NOTE_ROW, drawCostChoiceBar, drawCostHelpBar } from "./cost-choice-bar.js";
+import { COST_HELP_NOTE_ROW, costChoiceBarHeight, drawCostChoiceBar, drawCostHelpBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { drawMyPiles } from "./piles.js";
@@ -127,8 +127,10 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     drawCostHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, costHelp);
     top = rect.y + height + 4;
   } else if (costChoice) {
-    drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, costChoice);
-    top = rect.y + BAR_HEIGHT + 4;
+    // Taller when its counts stack under the question or wrap onto more rows (a narrow phone, many counters).
+    const height = costChoiceBarHeight(rect.width, costChoice);
+    drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, costChoice);
+    top = rect.y + height + 4;
   } else if (payment) {
     drawPaymentBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: BAR_HEIGHT }, payment);
     top = rect.y + BAR_HEIGHT + 4;

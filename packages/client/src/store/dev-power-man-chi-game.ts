@@ -1,0 +1,246 @@
+/**
+ * Issue #856's game: Captain America (Leadership) against Klaw, played forward from the reporter's shared replay to
+ * round 6, where Power Man (21012) has just come into play with his 2 chi counters. His Action ("Discard any number of
+ * chi counters") asks how many through the cost-choice bar (`scenes/board/cost-choice-bar.ts`). The commands are the
+ * engine's own, replayed through the store, never a state edit.
+ */
+import type { Command } from "@mc/engine";
+import type { SessionConfig } from "../engine/host.js";
+import type { SessionStore } from "./session-store.js";
+
+export const POWER_MAN_CHI_CONFIG = {
+  scenarioId: "klaw",
+  difficulty: "standard",
+  players: [
+    {
+      identityCardId: "03001a",
+      deck: [
+        "03002",
+        "03003",
+        "03003",
+        "03004",
+        "03004",
+        "03004",
+        "03005",
+        "03005",
+        "03006",
+        "03006",
+        "03007",
+        "03008",
+        "03009",
+        "03010",
+        "03010",
+        "17012",
+        "23012",
+        "12012",
+        "04013",
+        "21012",
+        "01068",
+        "01069",
+        "01069",
+        "01069",
+        "49018",
+        "49018",
+        "49018",
+        "23018",
+        "23018",
+        "23018",
+        "23017",
+        "23017",
+        "23017",
+        "49017",
+        "49017",
+        "49017",
+        "01072",
+        "01072",
+        "21015",
+        "01088",
+        "01089",
+        "01090",
+        "08023",
+        "05023",
+      ],
+      aspects: ["leadership"],
+    },
+  ],
+  seed: 24339,
+  tableRules: { sameNameHeroAllyConflict: true },
+} as unknown as SessionConfig;
+
+/** The reporter's commands, first to last: the game stops on the turn Power Man entered play. */
+const COMMANDS = [
+  { type: "resolveChoice", playerId: "p1", choiceId: "c1", selectedOptionIds: [] },
+  { type: "playCard", playerId: "p1", cardInstanceId: "i18", payment: [{ fromHand: "i45" }], attachToInstanceId: null },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i16",
+    payment: [{ ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } }],
+    attachToInstanceId: null,
+  },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i24",
+    payment: [{ fromHand: "i33" }, { fromHand: "i29" }, { fromHand: "i6" }],
+    attachToInstanceId: null,
+  },
+  { type: "changeForm", playerId: "p1" },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i24", targetInstanceId: "i57" },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i3", targetInstanceId: "i57" },
+  { type: "endTurn", playerId: "p1" },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c2", selectedOptionIds: ["i3"] },
+  { type: "playCard", playerId: "p1", cardInstanceId: "i26", payment: [], attachToInstanceId: null },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c3", selectedOptionIds: ["i24"] },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i21",
+    payment: [
+      { fromHand: "i41" },
+      { fromHand: "i40" },
+      { ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } },
+    ],
+    attachToInstanceId: null,
+  },
+  {
+    type: "useAbility",
+    playerId: "p1",
+    cardInstanceId: "i24",
+    abilityId: "01068.vision-action",
+    payment: [{ fromHand: "i47" }],
+  },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c4", selectedOptionIds: ["0"] },
+  { type: "basicThwart", playerId: "p1", thwarterInstanceId: "i24", schemeInstanceId: "i67" },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i21", targetInstanceId: "i1" },
+  { type: "endTurn", playerId: "p1" },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c5", selectedOptionIds: ["i24"] },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i42",
+    payment: [
+      { ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } },
+      { fromHand: "i19" },
+      { fromHand: "i7" },
+    ],
+    attachToInstanceId: null,
+  },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i21", targetInstanceId: "i71" },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i3", targetInstanceId: "i71" },
+  {
+    type: "useAbility",
+    playerId: "p1",
+    cardInstanceId: "i3",
+    abilityId: "03001a.i-can-do-this-all-day",
+    payment: [],
+    costChoices: { discard: ["i15"] },
+  },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i3", targetInstanceId: "i59" },
+  { type: "changeForm", playerId: "p1" },
+  { type: "endTurn", playerId: "p1" },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c6", selectedOptionIds: [] },
+  {
+    type: "resolveChoice",
+    playerId: "p1",
+    choiceId: "c7",
+    selectedOptionIds: ["ability:i18:03010.super-soldier-serum-resource"],
+  },
+  { type: "playCard", playerId: "p1", cardInstanceId: "i17", payment: [{ fromHand: "i44" }], attachToInstanceId: null },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i14",
+    payment: [{ ability: { instanceId: "i17", abilityId: "03010.super-soldier-serum-resource" } }],
+    attachToInstanceId: null,
+  },
+  {
+    type: "useAbility",
+    playerId: "p1",
+    cardInstanceId: "i14",
+    abilityId: "03007.steves-apartment-action",
+    payment: [],
+  },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i4",
+    payment: [{ ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } }, { fromHand: "i38" }],
+    attachToInstanceId: null,
+  },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i4", targetInstanceId: "i58" },
+  { type: "endTurn", playerId: "p1" },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c8", selectedOptionIds: [] },
+  {
+    type: "useAbility",
+    playerId: "p1",
+    cardInstanceId: "i14",
+    abilityId: "03007.steves-apartment-action",
+    payment: [],
+  },
+  { type: "changeForm", playerId: "p1" },
+  { type: "playCard", playerId: "p1", cardInstanceId: "i5", payment: [], attachToInstanceId: null },
+  { type: "basicThwart", playerId: "p1", thwarterInstanceId: "i4", schemeInstanceId: "i70" },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i8",
+    payment: [{ ability: { instanceId: "i17", abilityId: "03010.super-soldier-serum-resource" } }, { fromHand: "i43" }],
+    attachToInstanceId: null,
+  },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c9", selectedOptionIds: ["i73"] },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i30",
+    payment: [{ ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } }],
+    attachToInstanceId: null,
+    costChoices: { discarded: ["i4"] },
+  },
+  { type: "basicAttack", playerId: "p1", attackerInstanceId: "i21", targetInstanceId: "i58" },
+  { type: "basicThwart", playerId: "p1", thwarterInstanceId: "i3", schemeInstanceId: "i2" },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i46",
+    payment: [{ fromHand: "i34" }, { fromHand: "i9" }, { fromHand: "i35" }],
+    attachToInstanceId: null,
+  },
+  { type: "endTurn", playerId: "p1" },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c10", selectedOptionIds: ["decline"] },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c11", selectedOptionIds: ["0"] },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c12", selectedOptionIds: ["0"] },
+  {
+    type: "useAbility",
+    playerId: "p1",
+    cardInstanceId: "i14",
+    abilityId: "03007.steves-apartment-action",
+    payment: [],
+  },
+  {
+    type: "playCard",
+    playerId: "p1",
+    cardInstanceId: "i20",
+    payment: [
+      { ability: { instanceId: "i46", abilityId: "08023.quincarrier-resource" } },
+      { ability: { instanceId: "i18", abilityId: "03010.super-soldier-serum-resource" } },
+      { ability: { instanceId: "i17", abilityId: "03010.super-soldier-serum-resource" } },
+    ],
+    attachToInstanceId: null,
+  },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c13", selectedOptionIds: ["i20:23012.black-panther-response"] },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c14", selectedOptionIds: ["i34"] },
+  { type: "changeForm", playerId: "p1" },
+  { type: "playCard", playerId: "p1", cardInstanceId: "i34", payment: [{ fromHand: "i36" }], attachToInstanceId: null },
+  { type: "resolveChoice", playerId: "p1", choiceId: "c15", selectedOptionIds: ["i23"] },
+] as unknown as readonly Command[];
+
+/** Power Man's instance in this game. */
+export const POWER_MAN_CHI_INSTANCE = "i23";
+
+export async function startPowerManChiDevGame(store: SessionStore): Promise<void> {
+  await store.start(POWER_MAN_CHI_CONFIG);
+  for (const command of COMMANDS) {
+    if (!(await store.dispatch(command))) throw new Error(`the #856 game refused ${command.type}`);
+  }
+}
