@@ -21,6 +21,7 @@ import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
 import type { ReplayVersusData } from "./replay-versus.js";
+import { appReplayLinkOf, launchAppLink, offersDesktopApp } from "../platform/app-links.js";
 import { SharedReplayLoading } from "../ui/replay-link-loading.js";
 import { sceneLoader } from "./scene-loader.js";
 import { needed } from "./scene-order.js";
@@ -45,7 +46,14 @@ export class BootScene extends Phaser.Scene {
     // Opened from a shared replay's link (issues #693, #858): read (and cleared) once, here rather than on Title, so the
     // link shows its own loading screen and goes straight to the board instead of passing through the title menu.
     const replayLink = takeReplayLink();
-    const replayScreen = replayLink ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title)) : null;
+    // On the web version on a desktop, the replay can open in the installed app instead (#862).
+    const openInApp =
+      replayLink && replayLink !== "invalid" && offersDesktopApp()
+        ? () => launchAppLink(appReplayLinkOf(replayLink))
+        : null;
+    const replayScreen = replayLink
+      ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title), openInApp)
+      : null;
     const replay = replayLink ? loadSharedReplay(replayLink, undefined, () => replayScreen?.loadingMods()) : null;
     if (replayLink && replayLink !== "invalid") this.#preloadBoard();
     if (!replayScreen) {
@@ -134,6 +142,9 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     if (!result.ok) return screen.fail(result.message);
+    // On the web version on a desktop, "Open in the desktop app" gets its moment even when the replay loaded fast.
+    await screen.appOfferShown();
+    if (screen.left || !this.sys.isActive()) return result.host.dispose();
     // On to the matchup, which puts the replay on the board (`scenes/replay-versus.ts`). Its code first: a chunk that
     // didn't arrive would otherwise leave this screen up with no way off it.
     screen.lock();

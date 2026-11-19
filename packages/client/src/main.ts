@@ -29,6 +29,7 @@ import { backfillProgress, runStatsBackfill } from "./progression/stats-backfill
 import { refreshUnlocks } from "./progression/progression.js";
 import { startBackfillToastWatch } from "./scenes/backfill-toast-watch.js";
 import { SCENES } from "./scenes/keys.js";
+import { reloadIsSafe, startAppLinks } from "./platform/app-links.js";
 import { setStartupPacksLoad } from "./packs/startup-packs.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
@@ -115,6 +116,11 @@ const audioContext = linuxAudioContext(inTauri, navigator.userAgent);
 // The Linux app plays its music and effects natively (`audio/native-audio.ts`); the 48 kHz context above is what Phaser
 // falls back to if the shell cannot reach the audio server.
 void startNativeAudio(inTauri, navigator.userAgent);
+
+// The installed app's links (#862): a link it was started with goes on the address first, where Boot reads it.
+await startAppLinks(undefined, undefined, undefined, undefined, undefined, () =>
+  reloadIsSafe(game.scene.getScenes(true).map((scene) => scene.sys.settings.key)),
+);
 
 const game = new Phaser.Game({
   // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).

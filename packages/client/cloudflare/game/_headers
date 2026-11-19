@@ -12,3 +12,8 @@
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# App Links (#862): Android checks this file to let the installed app open the game's address.
+/.well-known/assetlinks.json
+  Content-Type: application/json
+  Access-Control-Allow-Origin: *
