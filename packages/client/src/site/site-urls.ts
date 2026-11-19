@@ -38,3 +38,11 @@ export const HOMEBREW_DISCORD_ES_URL = "https://discord.com/invite/FcX5NkhAVW";
 export const PROXY_NEXUS_URL = "https://proxynexus.net";
 export const MARVELCDB_URL = "https://marvelcdb.com";
 export const HALL_OF_HEROES_URL = "https://hallofheroeslcg.com";
+
+/** The step-by-step iPhone and iPad install guide (issue #874), in each page language. */
+export const IOS_GUIDE_URLS = {
+  en: `${REPO_URL}/blob/main/docs/project/ios-install.md`,
+  es: `${REPO_URL}/blob/main/docs/project/ios-install.es.md`,
+} as const;
+/** SideStore's own install guide, which its one-time setup follows. */
+export const SIDESTORE_DOCS_URL = "https://docs.sidestore.io";

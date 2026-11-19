@@ -51,13 +51,14 @@ export type DownloadId =
   | "linux-deb"
   | "linux-rpm"
   | "android-apk"
+  | "ios-ipa"
   | "steam-windows"
   | "steam-mac"
   | "steam-linux";
 
 export interface Download {
   readonly id: DownloadId;
-  readonly device: Exclude<DeviceKind, "ios" | "other">;
+  readonly device: Exclude<DeviceKind, "other">;
   readonly url: string;
   readonly fileName: string;
   /** The card language the build carries, or `null` for the language-free Steam scripts. */
@@ -86,6 +87,8 @@ const PATTERNS: readonly { readonly id: DownloadId; readonly device: Download["d
   { id: "linux-deb", device: "linux", match: /-Linux-x64\.deb$/ },
   { id: "linux-rpm", device: "linux", match: /-Linux-x64\.rpm$/ },
   { id: "android-apk", device: "android", match: /-Android\.apk$/ },
+  // Sideloaded with the player's own Apple ID (issue #874): the pages link it from their iOS install steps.
+  { id: "ios-ipa", device: "ios", match: /-iOS-unsigned\.ipa$/ },
   { id: "steam-windows", device: "windows", match: /^MarvelChampions-Windows-Install-for-Steam\.cmd$/ },
   { id: "steam-mac", device: "mac", match: /^MarvelChampions-macOS-Install-for-Steam\.sh$/ },
   { id: "steam-linux", device: "linux", match: /^MarvelChampions-Linux-Install-for-Steam\.sh$/ },
