@@ -14,9 +14,12 @@ latest version and link straight to its installers; they move to a release once 
 - **Linux**: `.deb`, `.rpm` or `.AppImage` (x64). See [Linux launch options](#linux-launch-options) for the
   environment variables the app sets and how to add your own.
 - **Android**: `-Android.apk`.
+- **iPhone and iPad**: `-iOS-unsigned.ipa`, sideloaded with a free Apple ID through SideStore, AltStore or
+  Sideloadly. Step by step: [Install the game on an iPhone or iPad](ios-install.md) ([en español](ios-install.es.md)).
 
-The desktop and Android apps check GitHub for a newer release on launch and show an "Update available" banner on the
-Title screen when one exists. The web app always runs the latest version.
+The desktop, Android and iOS apps check GitHub for a newer release on launch and show an "Update available" banner on
+the Title screen when one exists (on iOS it links the release page: a sideloaded app is updated with the tool that
+installed it). The web app always runs the latest version.
 
 ## Play it from Steam
 
