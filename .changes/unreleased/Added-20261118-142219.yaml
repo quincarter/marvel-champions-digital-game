@@ -1,3 +1,0 @@
-kind: Added
-body: 'The desktop game has an Add to Steam button under Settings ▸ More: it runs the Install for Steam script on the game as it is and puts it in your Steam library with its art, and only shows when Steam is installed and the game isn''t in it yet (#844).'
-time: 2026-11-18T14:22:19.3251972-05:00

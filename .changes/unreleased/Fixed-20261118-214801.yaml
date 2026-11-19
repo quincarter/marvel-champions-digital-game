@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Opening a replay file: Extras no longer has the button (it lives in Past games, now with a folder icon and a clearer label), and in the desktop app it opens the system''s own Open dialog, so a controller''s A press works on Steam Deck and Bazzite (#858).'
-time: 2026-11-18T21:48:01.8636024-05:00
