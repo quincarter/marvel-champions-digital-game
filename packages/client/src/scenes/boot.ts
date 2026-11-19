@@ -20,9 +20,8 @@ import type { SetCardsData } from "./set-cards.js";
 import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
-import { replayErrorKey } from "../replay/replay-files.js";
+import type { ReplayVersusData } from "./replay-versus.js";
 import { SharedReplayLoading } from "../ui/replay-link-loading.js";
-import { watchReplay } from "./replay-entry.js";
 import { sceneLoader } from "./scene-loader.js";
 import { needed } from "./scene-order.js";
 
@@ -78,8 +77,8 @@ export class BootScene extends Phaser.Scene {
         // Device sync's watcher (`scenes/sync-prompt.ts`): the conflict prompt and "Checking your other devices…".
         this.scene.launch(SCENES.syncPrompt);
         if (replay && replayScreen && !jump) {
-          // Drawn again now that the fonts are in.
-          replayScreen.draw();
+          // Drawn again now that the fonts are in, with its button: Title can start from here.
+          replayScreen.ready();
           void this.#openSharedReplay(replay, replayScreen);
           return;
         }
@@ -135,19 +134,16 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     if (!result.ok) return screen.fail(result.message);
+    // On to the matchup, which puts the replay on the board (`scenes/replay-versus.ts`).
     screen.lock();
-    try {
-      await watchReplay(this, result.host, SCENES.title);
-    } catch (cause) {
-      if (this.sys.isActive()) screen.fail(replayErrorKey(cause));
-    }
+    goToScreen(this, SCENES.replayVersus, { host: result.host } satisfies ReplayVersusData);
   }
 
-  /** The Board's code, fetched while the replay is, so the board comes up as soon as the replay is open. */
+  /** The versus screen's and the Board's code, fetched while the replay is, so neither waits on a download after. */
   #preloadBoard(): void {
     const loader = sceneLoader();
     if (!loader) return;
-    for (const key of needed(SCENES.board)) void loader.load(key).catch(() => undefined);
+    for (const key of [SCENES.replayVersus, ...needed(SCENES.board)]) void loader.load(key).catch(() => undefined);
   }
 
   /**

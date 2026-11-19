@@ -25,6 +25,10 @@ export class SharedReplayLoading {
   #left = false;
   /** The replay is open and going onto the board: leaving now would race that. */
   #locked = false;
+  /** Boot has the fonts and the player's progress: Title can start, so the button can show. */
+  #ready = false;
+  /** Boot has shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
+  #gone = false;
 
   /** `toMenu` leaves for Title: Cancel while loading, Main menu after a failure. */
   constructor(scene: Phaser.Scene, toMenu: () => void) {
@@ -33,6 +37,7 @@ export class SharedReplayLoading {
     this.#route = new FocusRoute(scene, { onCancel: () => this.#leave(), primary: () => ACTION_ID });
     scene.scale.on("resize", this.draw, this);
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#gone = true;
       scene.scale.off("resize", this.draw, this);
       this.#clear();
     });
@@ -44,9 +49,16 @@ export class SharedReplayLoading {
     return this.#left;
   }
 
-  /** The replay is open and on its way to the board: Cancel does nothing from here (unless it then fails). */
+  /** Boot is ready for Title to start (fonts in, progress read): the button shows from here. */
+  ready(): void {
+    this.#ready = true;
+    this.draw();
+  }
+
+  /** The replay is open and on its way to the board: Cancel goes, and the line says it is opening. */
   lock(): void {
     this.#locked = true;
+    this.draw();
   }
 
   /** The replay couldn't be opened: say why, in place of the spinner. */
@@ -57,7 +69,7 @@ export class SharedReplayLoading {
   }
 
   #leave(): void {
-    if (this.#left || this.#locked) return;
+    if (this.#left || this.#locked || !this.#ready) return;
     this.#left = true;
     this.#toMenu();
   }
@@ -72,10 +84,15 @@ export class SharedReplayLoading {
     this.#objects.length = 0;
   }
 
+  /** Cancel while loading (once Boot is ready), Main menu after a failure; none while the replay is opening. */
+  get #hasButton(): boolean {
+    return this.#ready && (this.#failure !== null || !this.#locked);
+  }
+
   /** Draws the screen for the current state and size (again after a resize, or once the fonts have arrived). */
   draw(): void {
     const scene = this.#scene;
-    if (!scene.sys.isActive()) return;
+    if (this.#gone) return;
     this.#clear();
     const { width, height } = scene.scale.gameSize;
     const failed = this.#failure !== null;
@@ -89,7 +106,12 @@ export class SharedReplayLoading {
       .setAlign("center")
       .setWordWrapWidth(replayLinkBodyWidth(width));
     const body = scene.add
-      .text(0, 0, t(this.#failure ?? "replay.link.loading"), textStyle(typeRole.body, surface.paper.hex, 0.9))
+      .text(
+        0,
+        0,
+        t(this.#failure ?? (this.#locked ? "replay.link.opening" : "replay.link.loading")),
+        textStyle(typeRole.body, surface.paper.hex, 0.9),
+      )
       .setFontSize(14)
       .setLineSpacing(3)
       .setOrigin(0.5, 0)
@@ -101,7 +123,7 @@ export class SharedReplayLoading {
       spinner: !failed,
       headingHeight: heading.height,
       bodyHeight: body.height,
-      buttonHeight: hit.primary,
+      buttonHeight: this.#hasButton ? hit.primary : 0,
     });
 
     const ground = scene.add.graphics();
@@ -128,6 +150,10 @@ export class SharedReplayLoading {
       }
     }
 
+    if (!this.#hasButton) {
+      this.#route.set([], new Map());
+      return;
+    }
     const rect = layout.button;
     const activate = (): void => this.#leave();
     this.#button = new McButton(scene, {

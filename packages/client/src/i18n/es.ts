@@ -157,6 +157,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "replay.link.failedHeading": "No se pudo abrir esta repetición",
   "replay.link.cancel": "Cancelar",
   "replay.link.mainMenu": "Menú principal",
+  "replay.link.opening": "Abriendo la repetición…",
+  "replay.versus": "Contra",
   "guide.title": "¿NUEVO EN LA LUCHA?",
   "guide.subtitle": "Elige cuánta ayuda quieres. Puedes cambiarlo cuando quieras desde el menú.",
   "guide.back": "Atrás",

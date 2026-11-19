@@ -19,6 +19,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.setup,
   SCENES.setupDeal,
   SCENES.scenarioIntro,
+  SCENES.replayVersus,
   SCENES.board,
   SCENES.decks,
   SCENES.deckBuilder,

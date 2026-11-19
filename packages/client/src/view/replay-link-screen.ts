@@ -1,7 +1,7 @@
 /**
  * The shared replay loading screen's layout (issue #858, `ui/replay-link-loading.ts`): one ink panel in the middle of
  * the screen, with a spinner while the replay loads, a heading, a line of text and one button (Cancel while loading,
- * Main menu once it failed).
+ * Main menu once it failed; none while the opened replay goes onto the board).
  */
 import type { Rect } from "./layout.js";
 
@@ -44,7 +44,12 @@ export function replayLinkScreenLayout(input: ReplayLinkScreenInput): ReplayLink
   const panelWidth = panelWidthOf(input.width);
   const spinnerHeight = input.spinner ? REPLAY_LINK_SPINNER_RADIUS * 2 + GAP : 0;
   const panelHeight =
-    REPLAY_LINK_PAD * 2 + spinnerHeight + input.headingHeight + 8 + input.bodyHeight + GAP + input.buttonHeight;
+    REPLAY_LINK_PAD * 2 +
+    spinnerHeight +
+    input.headingHeight +
+    8 +
+    input.bodyHeight +
+    (input.buttonHeight > 0 ? GAP + input.buttonHeight : 0);
   const panel: Rect = {
     x: Math.round((input.width - panelWidth) / 2),
     y: Math.max(REPLAY_LINK_MARGIN, Math.round((input.height - panelHeight) / 2)),

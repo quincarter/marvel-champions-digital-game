@@ -20,15 +20,11 @@
  */
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
-import { CARDS_BY_ID, POOL_CARDS } from "../content/pool.js";
-import { packPictureFor } from "../art/pack-art.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
-import { isCustomCard } from "../view/custom-content.js";
 import { onArtChange } from "../language-change.js";
-import { artFor, artLanguageNow } from "../art/art-source.js";
+import { artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
+import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
 import { accent, hit, signal, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -112,33 +108,8 @@ interface Busy {
 /** Links shared this run, by game id: Share never uploads a game twice. */
 const sharedUrls = new Map<string, string>();
 
-/** Each hero's picture by identity, kept while the app runs (finding one walks the pool). */
-const heroPictures = new Map<string, string | null>();
-
-function heroPictureOf(identityCardId: string, row: PastGameRow): string | null {
-  // A pack's hero: its own picture, or its card's scan, from the pack installed now. Not cached: the picture arrives a
-  // moment after the pack loads, and a pack removed since the game was played has none (#758).
-  if (isCustomCard(identityCardId)) {
-    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, identityCardId);
-    return packPictureFor("hero", identityCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
-  }
-  if (!heroPictures.has(identityCardId)) {
-    const art = heroArtForIdentity(HERO_ART, identityCardId, POOL_CARDS, () => 0)?.url ?? null;
-    heroPictures.set(identityCardId, art ?? artFor(CARDS_BY_ID.get(identityCardId), { kind: "front" })?.url ?? null);
-  }
-  return heroPictures.get(identityCardId) ?? null;
-}
-
-function villainPictureOf(row: PastGameRow): string | null {
-  if (row.villainCardId && isCustomCard(row.villainCardId)) {
-    const card = cardInPacks(row.save.config.packs as readonly PackRuntime[] | undefined, row.villainCardId);
-    return packPictureFor("villain", row.villainCardId)?.url ?? artFor(card, { kind: "front" })?.url ?? null;
-  }
-  return (
-    villainArtFor(ART_CATALOG, row.scenarioId, () => 0)?.url ??
-    (row.villainCardId ? (artFor(CARDS_BY_ID.get(row.villainCardId), { kind: "front" })?.url ?? null) : null)
-  );
-}
+const packsOf = (row: PastGameRow): readonly PackRuntime[] | undefined =>
+  row.save.config.packs as readonly PackRuntime[] | undefined;
 
 /** The cards a game's pictures stand for, villain first, for the hover. */
 const picturedCards = (row: PastGameRow): readonly (string | null)[] => [
@@ -153,8 +124,8 @@ const picturedCardRecords = (row: PastGameRow): readonly (AnyCard | undefined)[]
   );
 
 const picturedUrls = (row: PastGameRow): readonly (string | null)[] => [
-  villainPictureOf(row),
-  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, row)),
+  villainPictureOf(row.scenarioId, row.villainCardId, packsOf(row)),
+  ...row.seats.map((seat) => heroPictureOf(seat.identityCardId, packsOf(row))),
 ];
 
 /** The names to print on pictures that have no art (a custom hero or villain whose pack is gone), villain first. */

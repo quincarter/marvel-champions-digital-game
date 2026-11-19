@@ -109,7 +109,7 @@ import { GlyphHints, specsForShortcuts } from "../ui/glyph-hints.js";
 import { hasDesktopWindow, quitToDesktop } from "../platform/desktop-window.js";
 import { onSyncApplied } from "../sync/sync-events.js";
 import { onLanguageChange } from "../language-change.js";
-import { t } from "../i18n/translate.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { watchReplay } from "./replay-entry.js";
@@ -152,6 +152,8 @@ export interface TitleSceneData {
   readonly initialSeatDeckId?: string;
   /** The deck itself; ignored if its `id` doesn't match `initialSeatDeckId`. */
   readonly initialSeatDeck?: Deck;
+  /** Why a shared replay's link didn't open after all (`scenes/replay-versus.ts`, #858): said at the top for a moment. */
+  readonly replayProblem?: MessageKey;
 }
 
 /**
@@ -234,13 +236,13 @@ export class TitleScene extends Phaser.Scene {
     }
   }
 
-  /** Says why a shared replay didn't open, at the top of the screen, for a few seconds. */
+  /** Says why a replay didn't open, at the top of the screen, for a few seconds. */
   #replayProblem(text: string): void {
     const line = this.#replayNote(text, signal.caution.hex);
     this.time.delayedCall(6000, () => line.destroy());
   }
 
-  /** A line about a shared replay at the top of the screen, on an ink ground so it reads over the title art. */
+  /** A line about a replay at the top of the screen, on an ink ground so it reads over the title art. */
   #replayNote(text: string, color: number): Phaser.GameObjects.Text {
     const { width } = this.scale.gameSize;
     return this.add
@@ -350,6 +352,7 @@ export class TitleScene extends Phaser.Scene {
     holdScreenFor(this, this.#artLoaded());
     this.time.delayedCall(NEXT_ART_PRELOAD_MS, () => this.#preloadNextArt());
     // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
+    if (data.replayProblem) this.#replayProblem(t(data.replayProblem));
     const receive = takeReceiveLink();
     if (receive) this.scene.launch(SCENES.settings, { receive });
     // Opened from a device-sync link's QR code: Save data, Sync across devices, asking to join (read and cleared once).

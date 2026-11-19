@@ -1,0 +1,174 @@
+/**
+ * The shared replay's versus screen (issue #858): once a `#replay=` link's replay is fetched and open, before the
+ * board, the villain on one side and the heroes on the other with VERSUS between them, like an old fighting game's
+ * match intro. It holds for a moment (`VERSUS_HOLD_MS`) while the replay is put on the session, then the board comes
+ * up; a tap, click, Enter, Space or A skips the rest of the hold once the replay is ready.
+ *
+ * Reached only from Boot's loading screen (`ui/replay-link-loading.ts`). If the replay can't be put on the board,
+ * Title comes up and says why.
+ */
+import Phaser from "phaser";
+import type { MessageKey } from "../i18n/translate.js";
+import { t } from "../i18n/translate.js";
+import type { ReplayHost } from "../replay/replay-host.js";
+import { replayErrorKey } from "../replay/replay-files.js";
+import { heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
+import { appSession } from "../session.js";
+import { accent, signal, surface } from "../tokens.js";
+import { bangers } from "../ui/campaign-chrome.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { cssOf, textStyle } from "../ui/theme.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { afterWallMs } from "../ui/wall-timer.js";
+import { fitText } from "../ui/widgets.js";
+import type { Rect } from "../view/layout.js";
+import { PAST_GAME_NAMES } from "../view/game-label-names.js";
+import { replayMatchupOf, versusLayout, type ReplayMatchup } from "../view/replay-matchup.js";
+import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
+import { watchReplay } from "./replay-entry.js";
+import { SCENES } from "./keys.js";
+import type { TitleSceneData } from "./title.js";
+
+/** How long the matchup stays up at least (wall clock), unless skipped once the replay is ready. */
+export const VERSUS_HOLD_MS = 3000;
+
+export interface ReplayVersusData {
+  /** The opened replay. This screen owns it from here: the board takes it, or it is closed. */
+  readonly host?: ReplayHost;
+}
+
+export class ReplayVersusScene extends Phaser.Scene {
+  #matchup: ReplayMatchup | null = null;
+  #packs: readonly PackRuntime[] | undefined = undefined;
+  #thumbs: LiveArtThumb[] = [];
+  #intro = true;
+  /** Shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
+  #gone = false;
+
+  constructor() {
+    super(SCENES.replayVersus);
+  }
+
+  create(data: ReplayVersusData = {}): void {
+    const host = data.host;
+    const config = host?.info?.config;
+    if (!host || !config) {
+      host?.dispose();
+      goToScreen(this, SCENES.title, { replayProblem: "replay.error.damaged" } satisfies TitleSceneData);
+      return;
+    }
+    this.#gone = false;
+    this.#matchup = replayMatchupOf(config, PAST_GAME_NAMES);
+    this.#packs = config.packs as readonly PackRuntime[] | undefined;
+    this.#intro = !appSession().settings.reducedMotion;
+    this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
+    this.scale.on("resize", this.#draw, this);
+    const offBaked = cardFaces(this).onBaked(() => {
+      for (const thumb of this.#thumbs) thumb.refresh();
+    });
+    let skip: () => void = () => undefined;
+    const hold = new Promise<void>((resolve) => {
+      const cancel = afterWallMs(VERSUS_HOLD_MS, resolve);
+      skip = () => {
+        cancel();
+        resolve();
+      };
+    });
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, () => skip());
+    for (const key of ["keydown-ENTER", "keydown-SPACE", "keydown-ESC"]) this.input.keyboard?.on(key, () => skip());
+    this.input.gamepad?.on("down", () => skip());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#gone = true;
+      this.scale.off("resize", this.#draw, this);
+      offBaked();
+      skip();
+      this.#thumbs = [];
+    });
+    this.#draw();
+    fadeScreenIn(this);
+    void watchReplay(this, host, SCENES.title, hold).catch((cause: unknown) => {
+      if (!this.sys.isActive()) return;
+      const replayProblem: MessageKey = replayErrorKey(cause);
+      goToScreen(this, SCENES.title, { replayProblem } satisfies TitleSceneData);
+    });
+  }
+
+  #draw(): void {
+    const matchup = this.#matchup;
+    if (!matchup || this.#gone) return;
+    this.tweens.killAll();
+    destroyChildren(this);
+    this.#thumbs = [];
+    const { width, height } = this.scale.gameSize;
+    const layout = versusLayout(width, height, matchup.heroes.length);
+    const intro = this.#intro;
+    this.#intro = false;
+
+    const villainUrl = villainPictureOf(matchup.scenarioId, matchup.villain.cardId, this.#packs);
+    // Stacked, the villain's name sits clear of VERSUS on the seam below it.
+    const villainInset = layout.wide ? 0 : Math.round(layout.versusSize * 0.6);
+    const villain = this.#side(layout.villain, villainUrl, matchup.villain.name, accent.heroRed.hex, villainInset);
+    const heroes = matchup.heroes.map((hero, index) =>
+      this.#side(layout.heroes[index]!, heroPictureOf(hero.cardId ?? "", this.#packs), hero.name, signal.cost.hex),
+    );
+
+    const versus = this.add
+      .text(layout.versus.x, layout.versus.y, t("replay.versus"), {
+        ...textStyle(bangers(layout.versusSize), signal.caution.hex),
+        stroke: cssOf(surface.ink.hex),
+        strokeThickness: Math.max(6, Math.round(layout.versusSize / 9)),
+      })
+      .setOrigin(0.5)
+      .setAngle(-8)
+      .setDepth(10);
+
+    if (!intro) return;
+    // The two sides slide in from their own edges, then VERSUS lands on the seam.
+    const from = (objects: readonly Phaser.GameObjects.GameObject[], dx: number, dy: number): void => {
+      for (const object of objects as (Phaser.GameObjects.GameObject & { x: number; y: number })[]) {
+        const { x, y } = object;
+        object.x = x + dx;
+        object.y = y + dy;
+        this.tweens.add({ targets: object, x, y, duration: 420, ease: "Cubic.easeOut" });
+      }
+    };
+    from(villain, layout.wide ? -width / 2 : 0, layout.wide ? 0 : -height / 2);
+    from(heroes.flat(), layout.wide ? width / 2 : 0, layout.wide ? 0 : height / 2);
+    versus.setScale(3).setAlpha(0);
+    this.tweens.add({ targets: versus, scale: 1, alpha: 1, delay: 380, duration: 260, ease: "Back.easeOut" });
+  }
+
+  /** One side's picture, darkened at the foot under its name, with a colored edge. Returns what it drew. */
+  #side(rect: Rect, url: string | null, name: string, edge: number, inset = 0): Phaser.GameObjects.GameObject[] {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const back = this.add.graphics();
+    back.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    objects.push(back);
+    if (url) {
+      const thumb = renderLiveArtThumb(this, rect, url, 0.2);
+      this.#thumbs.push(thumb);
+      objects.push(thumb.object);
+    }
+    const shade = this.add.graphics();
+    const band = Math.min(120 + inset, rect.height * 0.45);
+    shade.fillGradientStyle(surface.ink.hex, surface.ink.hex, surface.ink.hex, surface.ink.hex, 0, 0, 0.9, 0.9);
+    shade.fillRect(rect.x, rect.y + rect.height - band, rect.width, band);
+    shade.lineStyle(6, edge, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
+    objects.push(shade);
+    const size = Math.round(Math.max(18, Math.min(40, rect.width / 7)));
+    const label = this.add
+      .text(
+        rect.x + rect.width / 2,
+        rect.y + rect.height - 14 - inset,
+        name.toUpperCase(),
+        textStyle(bangers(size), surface.paper.hex),
+      )
+      .setOrigin(0.5, 1)
+      .setAlign("center");
+    fitText(label, rect.width - 16, size);
+    objects.push(label);
+    return objects;
+  }
+}

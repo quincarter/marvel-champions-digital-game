@@ -46,3 +46,10 @@ describe("replayLinkScreenLayout (issue #858)", () => {
     expect(layout.panel.y).toBe(REPLAY_LINK_MARGIN);
   });
 });
+
+describe("replayLinkScreenLayout without a button (issue #858)", () => {
+  it("ends the panel at the body when there is no button", () => {
+    const layout = replayLinkScreenLayout({ ...input, buttonHeight: 0, width: 1024, height: 768 });
+    expect(layout.panel.y + layout.panel.height).toBe(layout.body.y + input.bodyHeight + 24);
+  });
+});

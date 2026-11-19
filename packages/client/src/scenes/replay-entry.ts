@@ -16,14 +16,23 @@ import { SCENES } from "./keys.js";
 /** The screen Exit goes back to. */
 let returnTarget: string = SCENES.title;
 
-/** Opens `host` on the board, from `from`. Exit returns to `returnTo` (a scene key). The host is closed if it can't be entered. */
-export async function watchReplay(from: Phaser.Scene, host: ReplayHost, returnTo: string): Promise<void> {
+/**
+ * Opens `host` on the board, from `from`. Exit returns to `returnTo` (a scene key). The host is closed if it can't be
+ * entered. `hold` keeps `from` up until it settles too (the shared replay's versus screen, #858).
+ */
+export async function watchReplay(
+  from: Phaser.Scene,
+  host: ReplayHost,
+  returnTo: string,
+  hold?: Promise<unknown>,
+): Promise<void> {
   try {
     await enterReplay(host);
   } catch (cause) {
     host.dispose();
     throw cause;
   }
+  await hold;
   returnTarget = returnTo;
   goToScreen(from, SCENES.board, {});
 }

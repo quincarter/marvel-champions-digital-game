@@ -154,6 +154,8 @@ export const en = {
   "replay.link.failedHeading": "Couldn't open this replay",
   "replay.link.cancel": "Cancel",
   "replay.link.mainMenu": "Main menu",
+  "replay.link.opening": "Opening the replay…",
+  "replay.versus": "Versus",
   // Guide chooser (scenes/guide-chooser.ts)
   "guide.title": "NEW TO THE FIGHT?",
   "guide.subtitle": "Pick how much help you want. You can change this any time from the menu.",
