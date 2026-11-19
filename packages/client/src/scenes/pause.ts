@@ -1415,7 +1415,9 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.scene.isActive(key)) return;
     this.input.enabled = false;
     this.scene.launch(key, data);
-    this.scene.bringToTop(key);
+    // Just above Pause, not on top of everything: on top, Settings drew over the sheets it opens itself (Controls,
+    // Unlocks, Save data), which launch in their own place in the draw order (#858).
+    this.scene.moveAbove(this.scene.key, key);
     this.scene.get(key).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.enabled = true;
       if (!this.sys.isActive()) return;
