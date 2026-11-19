@@ -31,53 +31,51 @@ authoritative, the room only orders and relays, and nobody else runs a different
   and a hibernated room costs no duration. A game of about 600 commands an hour costs about 30 Durable Object requests
   an hour, plus a handful per watcher joining.
 
-## 3. Protocol (`packages/sync-worker/src/room-protocol.ts`, shared with the client)
+## 3. Where this is going (Quin, 2026-11-19)
 
-Versioned JSON messages (`v: 1`). All messages are size-capped by the room.
+Watching is step one. The next steps are **chat**, then **true multiplayer: several seats at a table and several tables
+in one room** (Epic Multiplayer pods, [epic-multiplayer-plan.md](epic-multiplayer-plan.md) option B: one engine per
+group plus a pod coordinator). The room is shaped for all of it now so none of it means a new server:
+
+| Step               | Room                                                                      | What it adds                                                                                        |
+| ------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1. Watch (this PR) | one table, its host, watchers                                             | the room, the `room` and `game` channels, live viewer, Discord button and count                     |
+| 2. Chat            | same                                                                      | `chat` channel (`say`/`said`), display names, per-participant rate limit, a short in-memory backlog |
+| 3. Seats           | one table, host plus up to 3 seats, watchers                              | seat tokens bound to a `playerId`, `propose` to the host, `refused`; build match required; no undo  |
+| 4. Tables and pods | several tables, a host each, seats, watchers                              | `tables` capability; a pod coordinator's shared state as its own channel, owned by one host         |
+| Later              | host migration, lobby/matchmaking, reconnect by seat token across devices |
+
+Rules that keep the growth path open:
+
+- **Participants, not sockets.** Everyone in a room is a participant with an id, a role (`host`, `seat`, `watcher`), a
+  table (for host and seat) and later a name. The roster is broadcast; the watcher count Discord shows is read from it.
+- **Channels.** Every message is `{ v, ch, kind, ... }` on `room`, `game` or `chat`. Each side ignores what it does not
+  know; `hello`/`welcome` swap capability lists (`watch`, `chat`, `seats`, `tables`).
+- **Every game message names its table** (`t1` until step 4), so tables are a matter of the room holding a map.
+- **Authority stays with each table's host.** The room orders and relays; it never runs or judges a game. A seat's
+  `propose` goes to its host, which dispatches it only when the engine's legal actions belong to that seat's player.
+- **Tokens, not trust.** The room issues the host token (and later seat tokens) and keeps their hashes; a role comes
+  only from a token.
+
+## 4. Protocol (`packages/sync-worker/src/room-protocol.ts`, shared with the client)
 
 HTTP:
 
-- `POST /room` (host): creates a room. Rate limited per IP (20 a day) and globally (kill switch `ROOMS_ENABLED`).
-  Answers `{ roomId, hostToken }`. `roomId` is 72 random bits, like replay ids; `hostToken` is a secret only the host
-  holds (the room keeps its SHA-256).
-- `GET /room/:id/ws` (upgrade): joins. `?role=host&token=…` for the host, otherwise a watcher. The room refuses a
-  second host connection only after the first one closed, so a reconnecting host takes its seat back.
+- `POST /room`: creates a room with its first table and answers `{ roomId, hostToken, table }`. Rate limited per IP
+  (`DEFAULT_ROOMS_PER_IP_PER_DAY`, 20) behind the kill switch `ROOMS_ENABLED`; Turnstile when `TURNSTILE_SECRET` is set.
+- `GET /room/:id/ws`: the WebSocket upgrade (origin-checked like every route). The first message is `hello`; a valid
+  `hostToken` makes the sender the table's host (a reconnecting host takes its place back and the old socket is closed),
+  otherwise a watcher.
 
-Host to room:
+Messages (full shapes in the file): client to room `hello`, `start`, `commands`, `rewind`, `log`, `end` (reserved:
+`propose`, `say`); room to client `welcome`, `roster`, `table`, `closed`, `refused`, `resend`, `log`, `commands`,
+`rewind`, `end` (reserved: `proposal`, `said`). Only a table's host may send its `game` messages.
 
-- `start { header }`: `header` is the replay file's header fields (writer, config without deck names, pack refs,
-  createdAt) and `initialState`. Sent on connect, and again when the room asks.
-- `commands { from, commands, checksums? }`: commands `from..from+n-1`; the room drops a batch that does not continue
-  its log and asks for a resend.
-- `rewind { to }`: a single-player Undo or Back out truncated the log (never in a multiplayer room, PLAN.md: no undo in
-  a live game).
-- `end { outcome }`: the game is over; the room tells watchers and closes after a grace period.
+Limits (vars in `wrangler.jsonc`, documented like the others): `MAX_ROOM_PARTICIPANTS` 25, `MAX_ROOM_MESSAGE_BYTES`
+64 KiB (a `start` or `log` up to just under 1 MiB, the WebSocket cap), a room closes 12 hours after its last host
+message, or 5 minutes after every table ended.
 
-Room to watchers (and later seats):
-
-- `log { header, commands, checksums }` on join: the whole log so far.
-- `commands`, `rewind`, `end` as the host sent them, in order.
-- `presence { watchers }` whenever the count changes.
-- `host-away` / `host-back` when the host's socket drops or returns.
-
-Room to host:
-
-- `presence { watchers }`.
-- `resend` when the room's memory is empty or a batch did not line up.
-
-Multiplayer, later (not built in this PR, reserved in the protocol):
-
-- `POST /room/:id/seat` with the host's approval gives a seat token bound to a `playerId`.
-- Seat to room: `propose { command }`; room to host: `proposal { seat, command }`; the host dispatches it only when the
-  engine's legal actions are addressed to that seat's player, then streams it out as a normal `commands`. A refused
-  proposal goes back to that seat alone as `refused { reason }`.
-- Every seat must match the host's `writer.contentVersion` and build; a mismatch is refused at join (watchers are let in
-  and told when the game plays out differently here, as a replay is).
-
-Limits (env vars, documented in `wrangler.jsonc` like the others): `MAX_ROOM_WATCHERS` 25, `MAX_ROOM_MESSAGE_BYTES` 64 KiB
-(the first `start`/`log` may be up to 1 MiB, WebSocket's own cap), a room expires 12 hours after its host last sent.
-
-## 4. Client pieces
+## 5. Client pieces
 
 1. **Setting:** "Let people watch my games" (Settings, online section), off by default. Nothing connects while it is
    off.
@@ -95,7 +93,7 @@ Limits (env vars, documented in `wrangler.jsonc` like the others): `MAX_ROOM_WAT
 5. **Discord:** while the room is open the presence card gets a second button, "Watch live", and the state line ends in
    "· N watching" when N > 0. (Discord hides your own buttons from you; checking it needs a second account.)
 
-## 5. Not in this first step
+## 6. Not in this first step
 
-Seats and proposals, host migration, version-pinned viewers (the web build always being the newest), Turnstile on room
+Chat, seats and proposals, multiple tables, host migration, version-pinned viewers (the web build always being the newest), Turnstile on room
 creation (shared follow-up with transfer and sync), and a lobby screen.
