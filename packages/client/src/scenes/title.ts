@@ -219,6 +219,9 @@ export class TitleScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   /** The top row's Discord icon (tablet/desktop), for its focus label; rebuilt with the screen. */
   #discordIcon: DiscordIconButton | null = null;
+  /** Why a replay didn't open, and until when it is said (`#replayProblem`). */
+  #problem: { readonly text: string; readonly until: number } | null = null;
+  #problemLine: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super(SCENES.title);
@@ -236,10 +239,22 @@ export class TitleScene extends Phaser.Scene {
     }
   }
 
-  /** Says why a replay didn't open, at the top of the screen, for a few seconds. */
+  /** Says why a replay didn't open, at the top of the screen, for a few seconds (drawn again by every `#rebuild`). */
   #replayProblem(text: string): void {
-    const line = this.#replayNote(text, signal.caution.hex);
-    this.time.delayedCall(6000, () => line.destroy());
+    this.#problem = { text, until: this.time.now + REPLAY_PROBLEM_MS };
+    this.#drawProblem();
+    this.time.delayedCall(REPLAY_PROBLEM_MS, () => {
+      this.#problem = null;
+      this.#problemLine?.destroy();
+      this.#problemLine = null;
+    });
+  }
+
+  #drawProblem(): void {
+    this.#problemLine?.destroy();
+    this.#problemLine = null;
+    if (!this.#problem || this.time.now >= this.#problem.until) return;
+    this.#problemLine = this.#replayNote(this.#problem.text, signal.caution.hex);
   }
 
   /** A line about a replay at the top of the screen, on an ink ground so it reads over the title art. */
@@ -254,6 +269,8 @@ export class TitleScene extends Phaser.Scene {
 
   create(data: TitleSceneData = {}): void {
     this.#readyDismissed = null;
+    this.#problem = null;
+    this.#problemLine = null;
     if (data.initialSeatDeckId) {
       const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
       const seedDecks =
@@ -1053,6 +1070,9 @@ export class TitleScene extends Phaser.Scene {
       this.#stops,
     );
     this.#drawArt();
+    // `destroyChildren` above took the replay problem's line too.
+    this.#problemLine = null;
+    this.#drawProblem();
   }
 
   /** The "In-progress games" panel in the art panel (split screens): heading, then the list or the remove question. */
@@ -1535,6 +1555,8 @@ const RANK_UP_MS = 5000;
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;
 /** The picture the next visit shows, picked and loaded during this one (`#preloadNextArt`). */
+/** How long a replay problem stays at the top of Title. */
+const REPLAY_PROBLEM_MS = 6000;
 let nextTitleArt: TitleArt | null = null;
 /** How long after Title opens the next visit's picture starts loading: after this visit's own screen has settled. */
 const NEXT_ART_PRELOAD_MS = 1500;

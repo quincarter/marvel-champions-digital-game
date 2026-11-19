@@ -7,6 +7,7 @@ import type { MessageKey } from "../i18n/translate.js";
 import { fetchReplay, type ReplayLinkFailure, type ReplayLinkResult } from "./replay-link.js";
 import { openReplay, replayErrorKey } from "./replay-files.js";
 import type { ReplayHost } from "./replay-host.js";
+import { startupPacksLoaded } from "../packs/startup-packs.js";
 
 export type SharedReplayResult =
   | { readonly ok: true; readonly host: ReplayHost }
@@ -19,7 +20,11 @@ export interface SharedReplayDeps {
 
 const defaultDeps: SharedReplayDeps = {
   fetch: (id) => fetchReplay(id),
-  open: (bytes) => openReplay({ kind: "file", bytes }),
+  // The installed packs first: a replay that uses one is refused as missing it until it has loaded.
+  open: async (bytes) => {
+    await startupPacksLoaded();
+    return openReplay({ kind: "file", bytes });
+  },
 };
 
 /** What to tell the player when a shared replay couldn't be fetched. */

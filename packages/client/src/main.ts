@@ -29,6 +29,7 @@ import { backfillProgress, runStatsBackfill } from "./progression/stats-backfill
 import { refreshUnlocks } from "./progression/progression.js";
 import { startBackfillToastWatch } from "./scenes/backfill-toast-watch.js";
 import { SCENES } from "./scenes/keys.js";
+import { setStartupPacksLoad } from "./packs/startup-packs.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
 import { startDiscordPresence } from "./platform/discord-presence.js";
@@ -174,7 +175,8 @@ installColorScheme(game);
 const sceneLoader = installSceneLoader(game, Phaser.Scenes.ScenePlugin);
 // Installed custom packs join the card pool and a new game's engine deps (`packs/active-packs.ts`). Not awaited: the
 // base game is playable at once, and a pack is validated in a worker. A dynamic import keeps the validator out of the first load.
-void import("./packs/active-packs.js").then((m) => m.refreshActivePacks()).catch(() => undefined);
+// A shared replay's link waits on this first load before opening its file (`packs/startup-packs.ts`).
+setStartupPacksLoad(import("./packs/active-packs.js").then((m) => m.refreshActivePacks()));
 /** After Title's first frame, how long the stats backfill waits, so the first screens load first. */
 const BACKFILL_DELAY_MS = 8000;
 const preloadAfterTitle = (): void => {

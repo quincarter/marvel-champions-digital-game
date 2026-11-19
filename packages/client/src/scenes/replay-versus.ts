@@ -29,6 +29,8 @@ import { replayMatchupOf, versusLayout, type ReplayMatchup } from "../view/repla
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { watchReplay } from "./replay-entry.js";
 import { SCENES } from "./keys.js";
+import { sceneLoader } from "./scene-loader.js";
+import { needed } from "./scene-order.js";
 import type { TitleSceneData } from "./title.js";
 
 /** How long the matchup stays up at least (wall clock), unless a press ends it early. */
@@ -94,11 +96,31 @@ export class ReplayVersusScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void watchReplay(this, host, SCENES.title, hold).catch((cause: unknown) => {
+    void this.#toBoard(host, hold);
+  }
+
+  /**
+   * The board's code first (its chunk and companions): if it can't load, the replay never goes on the session and
+   * Title says why, rather than this screen fading into a board that never starts. Then the replay, then the board.
+   */
+  async #toBoard(host: ReplayHost, hold: Promise<void>): Promise<void> {
+    const loader = sceneLoader();
+    try {
+      if (loader) await Promise.all(needed(SCENES.board).map((key) => loader.load(key)));
+    } catch {
+      host.dispose();
+      if (this.sys.isActive())
+        goToScreen(this, SCENES.title, { replayProblem: "replay.link.offline" } satisfies TitleSceneData);
+      return;
+    }
+    if (!this.sys.isActive()) return host.dispose();
+    try {
+      await watchReplay(this, host, SCENES.title, hold);
+    } catch (cause) {
       if (!this.sys.isActive()) return;
       const replayProblem: MessageKey = replayErrorKey(cause);
       goToScreen(this, SCENES.title, { replayProblem } satisfies TitleSceneData);
-    });
+    }
   }
 
   #draw(): void {
