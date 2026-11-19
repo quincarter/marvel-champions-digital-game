@@ -219,6 +219,23 @@ export class SessionStore {
     }
   }
 
+  /**
+   * Continue's game and the in-progress list in one read, and whether storage failed (#871): Title says the saves
+   * didn't load rather than showing a player with no games, which is what `latestSave` and `activeSaves` answer then.
+   */
+  async titleSaves(): Promise<{
+    readonly latest: SaveMeta | null;
+    readonly games: readonly SaveMeta[];
+    readonly failed: boolean;
+  }> {
+    try {
+      const [latest, games] = await Promise.all([this.#host.latestSave(), this.#host.activeSaves()]);
+      return { latest, games, failed: false };
+    } catch {
+      return { latest: null, games: [], failed: true };
+    }
+  }
+
   /** Every resumable game in progress, newest first, without guided lesson saves (the title's list). A storage failure is "none". */
   async activeSaves(): Promise<readonly SaveMeta[]> {
     try {

@@ -1,5 +1,35 @@
-import { describe, expect, test } from "vitest";
-import { startupReportText } from "./startup-watchdog.js";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { bootWaitingOn, settledWithin, startupReportText } from "./startup-watchdog.js";
+
+describe("a startup read that never settles (issue #871)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test("is given up on after its time, so Boot still reaches Title", async () => {
+    vi.useFakeTimers();
+    const never = new Promise<void>(() => undefined);
+    const outcome = settledWithin(never, 6000);
+    await vi.advanceTimersByTimeAsync(6000);
+    await expect(outcome).resolves.toBe(false);
+  });
+
+  test("is waited for when it settles in time, a failed read included", async () => {
+    vi.useFakeTimers();
+    await expect(settledWithin(Promise.resolve(true), 6000)).resolves.toBe(true);
+    await expect(settledWithin(Promise.reject(new Error("no database")), 6000)).resolves.toBe(true);
+  });
+
+  test("names the step Boot is waiting on for the last-resort panel", () => {
+    const boot: { stage: string; waiting?: string | null } = { stage: "frame" };
+    vi.stubGlobal("__mcBoot", boot);
+    bootWaitingOn("saved progress");
+    expect(boot.waiting).toBe("saved progress");
+    bootWaitingOn(null);
+    expect(boot.waiting).toBeNull();
+  });
+});
 
 describe("the failed-start panel's text (issue #157)", () => {
   test("names the reason, each error and the device's WebGL details", () => {

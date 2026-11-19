@@ -90,7 +90,13 @@ import {
   enterBuilder,
   setBuilderOrigin,
 } from "../view/civil-war-entry.js";
-import { lifetimeChampionPoints, refreshUnlocks, unlocks } from "../progression/progression.js";
+import {
+  earnedAchievementIds,
+  lifetimeChampionPoints,
+  onProgressRead,
+  refreshUnlocks,
+  unlocks,
+} from "../progression/progression.js";
 import { lastRankSeen, rememberRankSeen } from "../platform/rank-seen.js";
 import { rankUpAnnouncementOf, titleRankBadgeOf } from "../view/title-rank-badge.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
@@ -194,6 +200,13 @@ export class TitleScene extends Phaser.Scene {
   #update: AvailableUpdate | null = null;
   /** The web game's "Looking for your old save?" banner (`platform/old-save-notice.ts`), until it is closed. */
   #oldSave = false;
+  /**
+   * The saved games could not be read: the read failed, or is still pending `SAVES_STUCK_MS` in (iOS can leave an
+   * IndexedDB open pending for good after it reloads a killed tab, #871). Shown as a Reload banner, not an empty menu.
+   */
+  #savesStuck = false;
+  /** Saves reads started, across visits: only the newest one's answer is used (`#refreshSaves`). */
+  #savesRead = 0;
   /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
   #steam: SteamInstall | null = null;
   /** Whether this install updates itself (`platform/self-update.ts`), once the shell has said. */
@@ -358,6 +371,7 @@ export class TitleScene extends Phaser.Scene {
     this.#gamesScroll = new VariableListScroll();
     this.#starting = false;
     this.#rankUp = null;
+    this.#savesStuck = false;
     // The picture the last visit already loaded for this one, so it is there when the screen fades in.
     this.#art = nextTitleArt ?? this.#pickArt();
     lastTitleArtKey = this.#art?.key ?? null;
@@ -380,15 +394,17 @@ export class TitleScene extends Phaser.Scene {
     else if (!receive) void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     // Both reads land before the screen fades in (`holdScreenFor`), so the menu is not seen redrawing for them.
+    // Any read that lands redraws the menu and checks the rank (`onProgressRead`), Boot's own included: Boot goes on
+    // without it after a few seconds (#871), so it can land after this screen is up, and after this read.
+    const unsubscribeProgress = onProgressRead(() => {
+      if (!this.sys.isActive()) return;
+      this.#checkRankUp();
+      this.#rebuild();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribeProgress);
     holdScreenFor(
       this,
-      refreshUnlocks()
-        .catch(() => false)
-        .then(() => {
-          if (!this.sys.isActive()) return;
-          this.#checkRankUp();
-          this.#rebuild();
-        }),
+      refreshUnlocks().catch(() => false),
     );
     holdScreenFor(this, this.#refreshSaves());
     // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens; once it has added the game, the Title
@@ -435,6 +451,8 @@ export class TitleScene extends Phaser.Scene {
    * remembered at once, so a second check (after the refresh) or a redraw never repeats it.
    */
   #checkRankUp(): void {
+    // Not on points nobody has read yet: Boot can reach Title before the first progress read lands (#871).
+    if (earnedAchievementIds() === null) return;
     const result = rankUpAnnouncementOf(lastRankSeen(), lifetimeChampionPoints());
     rememberRankSeen(result.remember);
     if (!result.announce) return;
@@ -457,13 +475,26 @@ export class TitleScene extends Phaser.Scene {
       : [];
   }
 
-  /** Reads the newest game (Continue) and every game in progress (the list) again, then redraws. */
+  /**
+   * Reads the newest game (Continue) and every game in progress (the list) again, then redraws. Only the newest read
+   * counts (`#savesRead`): an older one that lands late, or one from an earlier visit, changes nothing. A read that
+   * fails, or is still the newest and pending after `SAVES_STUCK_MS`, puts up the Reload banner (#871) rather than a
+   * menu with no games on it that looks normal; a read that works takes it down.
+   */
   async #refreshSaves(): Promise<void> {
-    const { store } = appSession();
-    const [latest, games] = await Promise.all([store.latestSave(), store.activeSaves()]);
-    if (!this.sys.isActive()) return;
+    const read = ++this.#savesRead;
+    let settled = false;
+    this.time.delayedCall(SAVES_STUCK_MS, () => {
+      if (settled || read !== this.#savesRead || this.#savesStuck || !this.sys.isActive()) return;
+      this.#savesStuck = true;
+      this.#rebuild();
+    });
+    const { latest, games, failed } = await appSession().store.titleSaves();
+    settled = true;
+    if (read !== this.#savesRead || !this.sys.isActive()) return;
     this.#continuable = latest;
     this.#games = games;
+    this.#savesStuck = failed;
     // A game asked about that has since gone (synced away, removed on another screen): drop the question.
     if (this.#removing !== null && !games.some((save) => save.id === this.#removing)) this.#removing = null;
     this.#rebuild();
@@ -532,7 +563,7 @@ export class TitleScene extends Phaser.Scene {
       continuable: this.#continuable !== null,
       games: this.#listedGames().length,
       // The native apps' update banner and the web game's old-save banner share the slot; a build only ever has one.
-      update: this.#update !== null || this.#oldSave || this.#readyVersion !== null,
+      update: this.#update !== null || this.#oldSave || this.#readyVersion !== null || this.#savesStuck,
       civilWar: civilWar !== null,
       quit: hasDesktopWindow(),
       noticeBar: RELEASE_NOTICE_ON,
@@ -1124,6 +1155,8 @@ export class TitleScene extends Phaser.Scene {
    */
   #drawUpdateBanner(banner: Rect | null): readonly string[] {
     const update = this.#update;
+    // Saves that can't be read come first: nothing else on this screen works as it should until they can.
+    if (this.#savesStuck && banner) return this.#drawSavesStuckBanner(banner);
     if (this.#readyVersion !== null && banner) return this.#drawReadyBanner(banner, this.#readyVersion);
     if (!update && this.#oldSave && banner) return this.#drawOldSaveBanner(banner);
     if (!update || !banner) return [];
@@ -1167,6 +1200,38 @@ export class TitleScene extends Phaser.Scene {
       this.#rebuild();
     });
     return actions.map((action) => action.id);
+  }
+
+  /**
+   * "Your saves haven't loaded" (#871), in the update banner's slot and colors: the saved games could not be read, so
+   * Continue and the games list are missing for a reason the player can't see. One button reloads the page, which is
+   * what brings a stuck IndexedDB back on iOS; the close button hides it for this visit. Returns its focus stops.
+   */
+  #drawSavesStuckBanner(banner: Rect): readonly string[] {
+    const parts = updateBannerParts(banner, 1);
+    this.add
+      .rectangle(banner.x, banner.y, banner.width, banner.height, signal.caution.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.inkOnHue.hex);
+    const heading = this.add
+      .text(parts.text.x, parts.text.y, t("title.savesStuck"), textStyle(typeRole.label, surface.inkOnHue.hex))
+      .setLetterSpacing(1);
+    fitText(heading, parts.textWidth, typeRole.label.size);
+    const detail = this.add.text(
+      parts.text.x,
+      parts.text.y + 16,
+      t("title.savesStuckDetail"),
+      textStyle(typeRole.rowTitle, surface.inkOnHue.hex),
+    );
+    fitText(detail, parts.textWidth, typeRole.rowTitle.size);
+    this.#bannerButton(SAVES_RELOAD_ID, "primary", t("title.savesStuckReload"), parts.buttons[0]!, () =>
+      window.location.reload(),
+    );
+    this.#bannerButton(UPDATE_DISMISS_ID, "secondary", "×", parts.dismiss, () => {
+      this.#savesStuck = false;
+      this.#rebuild();
+    });
+    return [SAVES_RELOAD_ID];
   }
 
   /**
@@ -1560,6 +1625,10 @@ const REPLAY_PROBLEM_MS = 6000;
 let nextTitleArt: TitleArt | null = null;
 /** How long after Title opens the next visit's picture starts loading: after this visit's own screen has settled. */
 const NEXT_ART_PRELOAD_MS = 1500;
+/** How long the saves read may take before Title says it hasn't loaded (#871). A slow phone reads well inside it. */
+const SAVES_STUCK_MS = 8000;
+/** The saves-stuck banner's Reload button (#871). */
+const SAVES_RELOAD_ID = "saves-reload";
 
 /** "Continue — Rhino · Spider-Man · round 4". See `view/continue-label.ts`. */
 function continueLabel(save: SaveMeta): string {

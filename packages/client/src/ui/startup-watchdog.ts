@@ -90,10 +90,42 @@ export function probeWebgl(doc: Document = document): WebglInfo | null {
 
 type BootStage = "module" | "game" | "frame" | "screen";
 
+/** The `index.html` watchdog's record of the start (`window.__mcBoot`). */
+interface BootRecord {
+  stage: string;
+  waiting?: string | null;
+}
+
+const bootRecord = (): BootRecord | undefined => (globalThis as { __mcBoot?: BootRecord }).__mcBoot;
+
 /** Moves the `index.html` watchdog's stage along. */
 function reach(stage: BootStage): void {
-  const boot = (window as { __mcBoot?: { stage: string } }).__mcBoot;
+  const boot = bootRecord();
   if (boot) boot.stage = stage;
+}
+
+/**
+ * Names what Boot is waiting on, so the `index.html` panel can say ("Waiting on: saved progress", #871); null once it
+ * is not waiting on anything.
+ */
+export function bootWaitingOn(step: string | null): void {
+  const boot = bootRecord();
+  if (boot) boot.waiting = step;
+}
+
+/**
+ * True once `promise` settles (either way), false if `ms` pass first. For a startup read that must never hold the game
+ * back: on iOS an IndexedDB open can stay pending forever with no error (#871).
+ */
+export function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms);
+    const settle = (): void => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    promise.then(settle, settle);
+  });
 }
 
 /** The centre pixel of the frame just drawn, as WebGL holds it ("rgba(14,12,10,255)"); null under Canvas. */

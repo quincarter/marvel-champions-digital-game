@@ -21,9 +21,10 @@ import { canvasOf } from "./bitmap-canvas.js";
 import { ArtBitmaps, bakeCardFace } from "./card-face-bake.js";
 import { cardFaceKey, type CardFaceSpec } from "./card-face.js";
 import type { CardFaceRequest, CardFaceResponse, FontSource } from "./card-face-protocol.js";
+import { faceBudgetBytes } from "./memory-budget.js";
 
-/** Decoded bytes of baked faces allowed resident. A desktop card at 2× is ~1.2 MB, so this holds about eighty. */
-const FACE_BUDGET_BYTES = 96 * 1024 * 1024;
+/** Decoded bytes of baked faces allowed resident: 96 MB, half that on iOS (`memory-budget.ts`, #871). */
+const FACE_BUDGET_BYTES = faceBudgetBytes();
 /** How long to wait for the worker to load its fonts before painting on the main thread instead. */
 const READY_TIMEOUT_MS = 5000;
 /** The font families a card face draws with; only their `@font-face` rules are sent to the worker. */
