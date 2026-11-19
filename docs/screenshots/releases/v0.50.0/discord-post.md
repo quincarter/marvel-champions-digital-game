@@ -9,10 +9,10 @@ Every playable scenario now has its own music.
 🚂 **Add to Steam**: Settings ▸ More ▸ Add to Steam puts the game in your Steam library with its art.
 🎮 **Your mods on Discord**: in the desktop app, a Mod Store pack now shows its own villain and hero on your Discord profile instead of only the logo.
 🔴 **Mod updates**: the Title's Mod Store button shows how many of your mods have an update.
-🔗 **Get the game**: the button on your Discord profile now opens the downloads on the website.
-🌐 **Steam script on the website**: on a computer, the website's top offers the Steam script right beside the download.
+🦾 **Power Man's chi**: removing chi counters asks a clear question with buttons you can see.
+🔗 **The website**: Get the game on your Discord profile opens the website's downloads, and on a computer the website offers the Steam script beside the download.
 
-Thank you, Patatasaurio, Neptune (Typhon00) and PermaKarma, whose Gwenpool, Mephisto, Carnage and The Punisher packs the Discord fix was checked with, and every Mod Store creator!
+Thank you, Merman-Helville, for the Power Man report, and Patatasaurio, Neptune (Typhon00) and PermaKarma, whose packs the Discord fix was checked with!
 
 Full report: https://champions-digital-game.com/releases/v0.50.0/
 Downloads: https://champions-digital-game.com/#download
@@ -28,10 +28,10 @@ Cada escenario jugable tiene ahora su propia música.
 🚂 **Add to Steam**: Settings ▸ More ▸ Add to Steam pone el juego en tu biblioteca de Steam con su arte.
 🎮 **Tus mods en Discord**: en la app de escritorio, un paquete de la Mod Store muestra ahora su propio villano y su propio héroe en tu perfil de Discord en vez de solo el logo.
 🔴 **Actualizaciones de mods**: el botón Mod Store del Title muestra cuántos de tus mods tienen una actualización.
-🔗 **Get the game**: el botón de tu perfil de Discord abre ahora las descargas en el sitio web.
-🌐 **Script de Steam en el sitio web**: en una computadora, la parte superior del sitio web ofrece el script de Steam justo al lado de la descarga.
+🦾 **El chi de Power Man**: quitar contadores de chi hace una pregunta clara con botones que se ven.
+🔗 **El sitio web**: Get the game en tu perfil de Discord abre las descargas del sitio web, y en una computadora el sitio ofrece el script de Steam junto a la descarga.
 
-¡Gracias, Patatasaurio, Neptune (Typhon00) y PermaKarma, con cuyos paquetes de Gwenpool, Mephisto, Carnage y The Punisher se comprobó la corrección de Discord, y a cada creador de la Mod Store!
+¡Gracias, Merman-Helville, por el reporte de Power Man, y Patatasaurio, Neptune (Typhon00) y PermaKarma, con cuyos paquetes se comprobó la corrección de Discord!
 
 Informe completo: https://champions-digital-game.com/releases/v0.50.0/index.es.html
 Descargas: https://champions-digital-game.com/#download
