@@ -142,6 +142,9 @@ export class BootScene extends Phaser.Scene {
       return;
     }
     if (!result.ok) return screen.fail(result.message);
+    // On the web version on a desktop, "Open in the desktop app" gets its moment even when the replay loaded fast.
+    await screen.appOfferShown();
+    if (screen.left || !this.sys.isActive()) return result.host.dispose();
     // On to the matchup, which puts the replay on the board (`scenes/replay-versus.ts`). Its code first: a chunk that
     // didn't arrive would otherwise leave this screen up with no way off it.
     screen.lock();

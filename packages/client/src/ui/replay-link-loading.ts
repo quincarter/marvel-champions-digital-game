@@ -19,6 +19,8 @@ const BUTTON_TYPE = { ...typeRole.label, size: 13 };
 const ACTION_ID = "replay-link-action";
 const APP_ID = "replay-link-open-in-app";
 const APP_BUTTON_GAP = 8;
+/** How long "Open in the desktop app" stays up at least before the replay moves on to the versus screen. */
+export const APP_OFFER_MS = 3000;
 /** How strongly the title art shows through behind the panel. */
 const ART_ALPHA = 0.35;
 
@@ -39,6 +41,8 @@ export class SharedReplayLoading {
   #mods = false;
   /** Boot has the fonts and the player's progress: Title can start, so the button can show. */
   #ready = false;
+  /** When `ready` showed the buttons (wall clock). */
+  #readyAt: number | null = null;
   /** Boot has shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
   #gone = false;
   /** One of the title screen's pictures, drawn faded behind the panel once it has loaded. */
@@ -74,7 +78,18 @@ export class SharedReplayLoading {
   /** Boot is ready for Title to start (fonts in, progress read): the button shows from here. */
   ready(): void {
     this.#ready = true;
+    this.#readyAt = Date.now();
     this.draw();
+  }
+
+  /**
+   * Settles once "Open in the desktop app" has been up long enough to be pressed (`APP_OFFER_MS` after `ready`), at
+   * once when there is no such button: a replay that loads fast would otherwise move on before it was seen.
+   */
+  appOfferShown(): Promise<void> {
+    if (!this.#openInApp || this.#readyAt === null) return Promise.resolve();
+    const left = this.#readyAt + APP_OFFER_MS - Date.now();
+    return left > 0 ? new Promise((resolve) => setTimeout(resolve, left)) : Promise.resolve();
   }
 
   /** The file is in and the installed mod packs are still loading: the line says so (#858). */

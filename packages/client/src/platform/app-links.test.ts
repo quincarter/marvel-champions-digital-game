@@ -46,6 +46,10 @@ describe("offersDesktopApp (#862)", () => {
     expect(offersDesktopApp("capacitor", desktop)).toBe(false);
     expect(offersDesktopApp("web", "Mozilla/5.0 (Linux; Android 15; Pixel 10) Mobile Safari")).toBe(false);
     expect(offersDesktopApp("web", "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)")).toBe(false);
+    // iPadOS Safari's default desktop-style agent: a Mac with a touch screen.
+    const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15";
+    expect(offersDesktopApp("web", mac, 5)).toBe(false);
+    expect(offersDesktopApp("web", mac, 0)).toBe(true);
   });
 });
 
@@ -108,6 +112,23 @@ describe("startAppLinks (#862)", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(f.location.hash).toBe("#replay=xqfaQSjheyfI");
     expect(f.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't bring back a launch link a newer link replaced, after the reload", async () => {
+    const f = fakes([]);
+    let answer: (links: string[]) => void = () => undefined;
+    const source: AppLinkSource = { ...f.source, launchLinks: () => new Promise((resolve) => (answer = resolve)) };
+    const starting = startAppLinks(Promise.resolve(source), f.location, f.history, 50, f.memory);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    f.send("marvelchampions://replay/newernewerXX");
+    answer(["marvelchampions://replay/xqfaQSjheyfI"]);
+    await starting;
+    // The reload: the shell answers the same launch link again.
+    const after = fakes(["marvelchampions://replay/xqfaQSjheyfI"]);
+    after.location.hash = "#replay=newernewerXX";
+    await startAppLinks(Promise.resolve(after.source), after.location, after.history, 50, f.memory);
+    expect(after.history.replaceState).not.toHaveBeenCalled();
+    expect(after.location.hash).toBe("#replay=newernewerXX");
   });
 
   it("keeps a newer link over the launch link", async () => {

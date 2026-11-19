@@ -66,8 +66,12 @@ export function launchAppLink(link: string, doc: Document = document): void {
 export function offersDesktopApp(
   platform: Platform = detectPlatform(),
   userAgent: string = globalThis.navigator?.userAgent ?? "",
+  touchPoints: number = globalThis.navigator?.maxTouchPoints ?? 0,
 ): boolean {
-  return platform === "web" && !/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+  if (platform !== "web" || /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent)) return false;
+  // iPadOS Safari reads as a Mac by default ("Macintosh … Safari"); no Mac has a touch screen.
+  if (/Macintosh/i.test(userAgent) && touchPoints > 1) return false;
+  return true;
 }
 
 /**
@@ -210,9 +214,10 @@ export async function startAppLinks(
       if (fragment) open(fragment);
     });
     const launch = (await shell.launchLinks()).find((link) => gameFragmentOf(link) !== null);
-    // A link that arrived since is newer than the one the app started with.
-    if (!launch || placed || memory.get() === launch) return;
+    if (!launch || memory.get() === launch) return;
+    // Opened, or passed over for a newer link that arrived since: either way not again after a reload.
     memory.set(launch);
+    if (placed) return;
     // Late (a slow shell answered after the game started): it still opens, as a later link does.
     open(gameFragmentOf(launch)!);
   })().catch(() => undefined);
