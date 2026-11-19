@@ -25,6 +25,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links (#862): the game's own address opens the installed app. Verified by
+                 https://marvel.champions-digital-game.com/.well-known/assetlinks.json (public/.well-known/). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="marvel.champions-digital-game.com" />
+            </intent-filter>
+
         </activity>
 
         <provider

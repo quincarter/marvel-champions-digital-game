@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.quincarter.marvelchampions",
+      "sha256_cert_fingerprints": [
+        "7E:F5:F8:C8:C5:32:3C:EC:28:98:B7:18:53:BA:64:2F:E3:3D:4E:5A:72:62:0A:95:17:D6:48:CC:AA:D7:2C:06"
+      ]
+    }
+  }
+]
