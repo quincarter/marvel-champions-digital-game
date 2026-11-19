@@ -101,6 +101,9 @@
 //     games a day. The host is not sent resend on hello; a woken room rewinds its watchers to what it holds before it
 //     takes the host's first batch. One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
 //     day shared with sync and global stats, and a flood from many addresses is what ROOMS_ENABLED is for.
+//   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
+//     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
+//     secret alone must not stop rooms.
 //   - MAX_ROOM_LOG_BYTES (8 MiB) caps one table's commands; past it the room refuses "too-large" and ends the table
 //     for watchers. A joining watcher is sent the log in parts of about 512 KiB, so no message nears the 1 MiB cap.
 //   - MAX_ROOM_PARTICIPANTS (25) caps watchers in one room (a valid host token is always let in); MAX_ROOM_MESSAGE_BYTES (64 KiB) caps a message,
@@ -109,7 +112,7 @@
 //     503 (a live room's open sockets stay until they close; deploy with the switch off and they end on their own).
 //
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
-// var, so it is not listed below; when it is set, a transfer upload, a replay upload, a room creation and a sync space creation must
+// var, so it is not listed below; when it is set, a transfer upload, a replay upload and a sync space creation must
 // carry a valid CF-Turnstile-Response header.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -150,6 +153,7 @@
     "MAX_ROOM_PARTICIPANTS": "25",
     "MAX_ROOM_MESSAGE_BYTES": "65536",
     "MAX_ROOM_LOG_BYTES": "8388608",
+    "ROOMS_TURNSTILE": "false",
     // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
     // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
     "ALLOWED_ORIGINS": "https://marvel.champions-digital-game.com,https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
@@ -190,6 +194,7 @@
         "MAX_ROOM_PARTICIPANTS": "25",
         "MAX_ROOM_MESSAGE_BYTES": "65536",
         "MAX_ROOM_LOG_BYTES": "8388608",
+        "ROOMS_TURNSTILE": "false",
         "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
       },
     },

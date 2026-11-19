@@ -306,7 +306,7 @@ export class GameRoomLogic {
       const checksums: Record<string, string> = {};
       for (const [key, sum] of Object.entries(table.checksums)) {
         const at = Number(key);
-        if (at > first && at <= first + ROOM_CHUNK_COMMANDS) checksums[key] = sum;
+        if ((first === 0 ? at >= 0 : at > first) && at <= first + ROOM_CHUNK_COMMANDS) checksums[key] = sum;
       }
       entries[chunkKey(table.id, n)] = { commands, checksums, bytes: sizeOfAll(commands) };
       table.persisted += 1;
@@ -393,7 +393,8 @@ export class GameRoomLogic {
     const out: Record<string, string> = {};
     for (const [key, sum] of Object.entries(table.checksums)) {
       const at = Number(key);
-      if (at > after && at <= upTo) out[key] = sum;
+      // A range starting at 0 includes the baseline checksum keyed "0"; later ranges start after their boundary.
+      if ((after <= 0 ? at >= 0 : at > after) && at <= upTo) out[key] = sum;
     }
     return out;
   }
@@ -685,6 +686,8 @@ export class GameRoomLogic {
         table.commands.length = message.to;
         for (const key of Object.keys(table.checksums)) if (Number(key) > message.to) delete table.checksums[key];
         table.bytes = sizeOfAll(table.commands);
+        // What remains of the cut chunk is the new tail: store it, or an evicted room would serve only the frozen chunks.
+        if (cut) await this.writeTail(table);
         // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
         if (cut && table.ended) await this.reopen(table);
         this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to }, host.id);

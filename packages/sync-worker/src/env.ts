@@ -107,4 +107,6 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   /** A secret, not a var. When set, uploads must carry a valid Turnstile token. */
   TURNSTILE_SECRET?: string;
+  /** "true" makes POST /room require the Turnstile token too (with TURNSTILE_SECRET set); off by default. */
+  ROOMS_TURNSTILE?: string;
 }

@@ -79,12 +79,22 @@ describe("POST /room", () => {
   });
 
   it("requires a Turnstile token when TURNSTILE_SECRET is set, and checks it", async () => {
-    const { call } = setup({ TURNSTILE_SECRET: "secret" }, async (_url, init) =>
+    const { call } = setup({ TURNSTILE_SECRET: "secret", ROOMS_TURNSTILE: "true" }, async (_url, init) =>
       Response.json({ success: (init!.body as URLSearchParams).get("response") === "good" }),
     );
     expect((await call(post())).status).toBe(403);
     expect((await call(post({ "CF-Turnstile-Response": "bad" }))).status).toBe(403);
     expect((await call(post({ "CF-Turnstile-Response": "good" }))).status).toBe(201);
+  });
+
+  it("ignores the shared TURNSTILE_SECRET while ROOMS_TURNSTILE is off", async () => {
+    let checks = 0;
+    const { call } = setup({ TURNSTILE_SECRET: "secret" }, async () => {
+      checks += 1;
+      return Response.json({ success: false });
+    });
+    expect((await call(post())).status).toBe(201);
+    expect(checks).toBe(0);
   });
 
   it("refuses an origin that is not allowed and answers preflight", async () => {

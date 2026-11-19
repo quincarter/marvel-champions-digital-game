@@ -93,7 +93,9 @@ export async function handleRoom(
 
 async function create(request: Request, env: Env, deps: HandlerDeps, cors: Record<string, string>): Promise<Response> {
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  if (env.TURNSTILE_SECRET) {
+  // The secret is shared with transfers, replays and sync, so rooms check it only when ROOMS_TURNSTILE opts in (the
+  // game's room client sends no token yet).
+  if (env.ROOMS_TURNSTILE === "true" && env.TURNSTILE_SECRET) {
     const token = request.headers.get(TURNSTILE_HEADER) ?? "";
     if (!token || !(await turnstileOk(env.TURNSTILE_SECRET, token, ip, deps.fetch))) return fail("turnstile", cors);
   }

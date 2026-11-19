@@ -767,12 +767,15 @@ describe("the tail row on host disconnect", () => {
     expect(storage.map.has("t1:c:000002")).toBe(true);
   });
 
-  it("is deleted by a rewind that cuts it and by a log that replaces the table", async () => {
+  it("is rewritten by a rewind that leaves some of it, deleted by one that leaves none, and by a log that replaces the table", async () => {
     const { room, h, storage, host, send } = await playedTo(45);
     await room.close(h);
     const back = await host();
     await send(back, { ch: "game", kind: "rewind", table: "t1", to: 43 });
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toHaveLength(3);
+    await send(back, { ch: "game", kind: "rewind", table: "t1", to: 40 });
     expect(storage.map.has("t1:tail")).toBe(false);
+    await send(back, { ch: "game", kind: "commands", table: "t1", from: 40, commands: [1] });
     await room.close(back);
     expect(storage.map.has("t1:tail")).toBe(true);
     const again = await host();
@@ -885,5 +888,51 @@ describe("an Undo after a wake", () => {
     const before = w.sent.length;
     await woken.message(h, msg({ ch: "game", kind: "commands", table: "t1", from: 25, commands: ["c26"] }));
     expect(w.sent.slice(before).map((m) => m.kind)).toEqual(["commands", "table"]);
+  });
+});
+
+describe("a rewind across a chunk boundary, and the baseline checksum", () => {
+  it("stores what remains of the cut chunk as the new tail, so an evicted room serves it", async () => {
+    const { host, start, commands, send, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 39; i++) await commands(h, i, [i], i === 21 ? { "22": "s22" } : undefined);
+    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 25 });
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:c:000000"]);
+    const tail = storage.map.get("t1:tail") as { commands: unknown[]; checksums: Record<string, string> };
+    expect(tail.commands).toEqual([20, 21, 22, 23, 24]);
+    expect(tail.checksums).toEqual({ "22": "s22" });
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect(w.last("welcome")!.tables[0]).toMatchObject({ commands: 25 });
+    const log = w.last("log") as unknown as { commands: unknown[]; checksums: Record<string, string> };
+    expect(log.commands).toHaveLength(25);
+    expect(log.checksums).toEqual({ "22": "s22" });
+  });
+
+  it("sends and stores the baseline checksum keyed 0 with the first commands", async () => {
+    const { host, hello, start, commands, storage } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(
+      h,
+      0,
+      Array.from({ length: 12 }, (_, i) => i),
+      { "0": "base", "10": "s10" },
+    );
+    const w = await hello();
+    expect(w.last("log")).toMatchObject({ checksums: { "0": "base", "10": "s10" } });
+    await commands(
+      h,
+      12,
+      Array.from({ length: 10 }, (_, i) => i),
+    );
+    expect((storage.map.get("t1:c:000000") as { checksums: Record<string, string> }).checksums).toEqual({
+      "0": "base",
+      "10": "s10",
+    });
+    const late = await hello();
+    expect(late.last("log")).toMatchObject({ checksums: { "0": "base", "10": "s10" } });
   });
 });
