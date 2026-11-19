@@ -217,6 +217,22 @@ describe("createRoom", () => {
       ok: false,
       failure: "unavailable",
     });
+    expect(await createRoom({ baseUrl: "https://s", fetch: respond(404, { reason: "not-found" }) })).toEqual({
+      ok: false,
+      failure: "rejected",
+    });
+    expect(await createRoom({ baseUrl: "https://s", fetch: respond(403, { reason: "origin" }) })).toEqual({
+      ok: false,
+      failure: "rejected",
+    });
+    expect(await createRoom({ baseUrl: "https://s", fetch: respond(408, {}) })).toEqual({
+      ok: false,
+      failure: "unavailable",
+    });
+    expect(await createRoom({ baseUrl: "https://s", fetch: respond(500, { reason: "server" }) })).toEqual({
+      ok: false,
+      failure: "unavailable",
+    });
     const boom = (async () => {
       throw new Error("offline");
     }) as typeof fetch;

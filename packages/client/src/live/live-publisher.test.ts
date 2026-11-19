@@ -156,11 +156,28 @@ describe("live publisher", () => {
     expect(sent[0]).toMatchObject({ kind: "commands", from: 2, commands: [cmd(3), cmd(4)] });
   });
 
-  it("ignores the brand-new room's resend that follows the welcome it already answered", () => {
-    const { publisher, sent } = fresh();
-    sent.length = 0;
-    publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+  it("reconciles from the welcome alone: a room holding the header and 1 of 1 commands gets nothing", () => {
+    const { publisher, sent } = setup({ commands: [cmd(1)] });
+    publisher.onWelcome(room(1));
     expect(sent).toEqual([]);
+  });
+
+  it("reconciles from the welcome alone: a woken room with the header but no tail gets the commands", () => {
+    const { publisher, sent } = setup({ commands: [cmd(1), cmd(2)] });
+    publisher.onWelcome(room(0));
+    expect(sent.map((m) => m.kind)).toEqual(["commands"]);
+    expect(sent[0]).toMatchObject({ from: 0, commands: [cmd(1), cmd(2)] });
+  });
+
+  it("answers a resend from 0 once the log has commands, and ignores it for an empty log", () => {
+    const { publisher, sent } = setup({ commands: [cmd(1)] });
+    publisher.onWelcome(room(1));
+    publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+    expect(sent.map((m) => m.kind)).toEqual(["log"]);
+    const empty = fresh();
+    empty.sent.length = 0;
+    empty.publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+    expect(empty.sent).toEqual([]);
   });
 
   it("sends end again after a resend of an ended game, and a log's prefix stays under the cap", () => {

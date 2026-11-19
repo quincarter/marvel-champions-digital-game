@@ -269,6 +269,13 @@ describe("live room controller", () => {
     expect(createRoom).toHaveBeenCalledTimes(2);
     expect(FakeSocket.all).toHaveLength(1);
 
+    const rejected = setup([{ ok: false, failure: "rejected" }]);
+    rejected.controller.onGameMessage(gameMessage("g1"));
+    rejected.controller.onGameMessage(command("g1", 1));
+    await settle();
+    expect(rejected.timers).toHaveLength(0);
+    expect(rejected.createRoom).toHaveBeenCalledTimes(1);
+
     const limited = setup([{ ok: false, failure: "rate-limited" }]);
     limited.controller.onGameMessage(gameMessage("g1"));
     limited.controller.onGameMessage(command("g1", 1));

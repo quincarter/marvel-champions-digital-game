@@ -239,7 +239,8 @@ export class RoomSocket {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-export type CreateRoomFailure = "unavailable" | "rate-limited" | "disabled";
+/** `rejected`: a 4xx the service will answer the same way again (no /room, origin or Turnstile refused): not retried. */
+export type CreateRoomFailure = "unavailable" | "rate-limited" | "disabled" | "rejected";
 
 export type CreateRoomResult =
   | { readonly ok: true; readonly room: RoomCreated }
@@ -274,6 +275,10 @@ export async function createRoom(deps: CreateRoomDeps): Promise<CreateRoomResult
     }
     if (response.status === 429 || reason === "rate-limited") return { ok: false, failure: "rate-limited" };
     if (reason === "disabled") return { ok: false, failure: "disabled" };
+    // A 4xx other than a timeout or a rate limit is final; a 5xx (or no answer) is worth another try.
+    if (response.status >= 400 && response.status < 500 && response.status !== 408) {
+      return { ok: false, failure: "rejected" };
+    }
     return { ok: false, failure: "unavailable" };
   }
   try {

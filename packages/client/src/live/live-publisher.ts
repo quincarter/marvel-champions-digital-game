@@ -251,8 +251,8 @@ export class LivePublisher {
   #resend(from: number): void {
     if (!this.#connected || this.#gaveUp) return;
     if (from === 0) {
-      // A brand-new room asks right after the welcome, which `onWelcome` already answered with `start`.
-      if (this.#roomHeader && this.#roomCount === 0) return;
+      // Nothing to send but a header the room already holds.
+      if (this.#roomHeader && this.#commands.length === 0) return;
       const end = this.#take(0, Math.max(0, LOG_BYTES - sizeOf(this.#header)), false);
       const ok = this.#sendMessage({
         ch: "game",
