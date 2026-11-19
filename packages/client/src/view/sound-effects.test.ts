@@ -6,6 +6,7 @@ import {
   madeBasicAttack,
   madeBasicThwart,
   refilledHand,
+  SOUND_EFFECT_VOLUME,
   tableSoundsOf,
   type CardSoundInfo,
 } from "./sound-effects.js";
@@ -94,5 +95,12 @@ describe("a card's own sound", () => {
       (command.cardInstanceId as string) === "i9" ? "Cloak of Levitation" : null;
     expect(tableSoundsOf([{ command: use, events: [] }], traitsOf, cloak)).toEqual(["cloak-of-levitation"]);
     expect(tableSoundsOf([{ command: use, events: [] }], traitsOf)).toEqual([]);
+  });
+});
+
+describe("the versus screen's whoosh (#858)", () => {
+  test("plays under the music, like the other effects", () => {
+    expect(SOUND_EFFECT_VOLUME["versus-whoosh"]).toBeGreaterThan(0);
+    expect(SOUND_EFFECT_VOLUME["versus-whoosh"]).toBeLessThanOrEqual(0.7);
   });
 });

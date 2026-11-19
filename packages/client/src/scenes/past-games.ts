@@ -78,7 +78,7 @@ import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../rep
 import { appSession, deckStorage } from "../session.js";
 import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { watchReplay } from "./replay-entry.js";
+import { introReplay } from "./replay-entry.js";
 import { SCENES } from "./keys.js";
 
 /** The widest the tabs, list and side panel run together. */
@@ -370,7 +370,7 @@ export class PastGamesScene extends Phaser.Scene {
       const host = await openReplay({ kind: "stored", gameId: row.id });
       if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
-      await watchReplay(this, host, SCENES.pastGames);
+      await introReplay(this, host, SCENES.pastGames);
     } catch (cause) {
       this.#setBusy(null, visit);
       this.#sayIn(visit, t(replayErrorKey(cause)));
@@ -496,7 +496,7 @@ export class PastGamesScene extends Phaser.Scene {
       const host = await openReplay({ kind: "file", bytes: picked });
       if (!this.#current(visit)) return host.dispose();
       this.scale.off("resize", this.#draw, this);
-      await watchReplay(this, host, SCENES.pastGames);
+      await introReplay(this, host, SCENES.pastGames);
     } catch (cause) {
       this.#setBusy(null, visit);
       this.#sayIn(visit, t(replayErrorKey(cause)));

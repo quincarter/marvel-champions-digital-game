@@ -112,7 +112,7 @@ import { onLanguageChange } from "../language-change.js";
 import { t, type MessageKey } from "../i18n/translate.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
-import { watchReplay } from "./replay-entry.js";
+import { introReplay } from "./replay-entry.js";
 import { maybeAskGlobalStats } from "./global-ask-launch.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
@@ -233,7 +233,7 @@ export class TitleScene extends Phaser.Scene {
     try {
       const host = await openReplay({ kind: "stored", gameId: save.id });
       if (!this.sys.isActive()) return host.dispose();
-      await watchReplay(this, host, SCENES.title);
+      await introReplay(this, host, SCENES.title);
     } catch (cause) {
       if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
     }

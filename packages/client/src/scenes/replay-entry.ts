@@ -12,6 +12,8 @@ import { activeReplay, enterReplay, leaveReplay } from "../replay/replay-mode.js
 import type { ReplayHost } from "../replay/replay-host.js";
 import { goToScreen } from "../ui/transitions.js";
 import { SCENES } from "./keys.js";
+import { sceneLoader } from "./scene-loader.js";
+import type { ReplayVersusData } from "./replay-versus.js";
 
 /** The screen Exit goes back to. */
 let returnTarget: string = SCENES.title;
@@ -40,6 +42,22 @@ export async function watchReplay(
   }
   returnTarget = returnTo;
   goToScreen(from, SCENES.board, {});
+}
+
+/**
+ * Opens `host` the way every replay starts (#858): the versus screen of villain against heroes, which then puts it on
+ * the board (`watchReplay`). Exit returns to `returnTo`. The versus screen's code is loaded first; if it can't be, the
+ * host is closed and the error passed on for the caller to report.
+ */
+export async function introReplay(from: Phaser.Scene, host: ReplayHost, returnTo: string): Promise<void> {
+  try {
+    await sceneLoader()?.load(SCENES.replayVersus);
+  } catch (cause) {
+    host.dispose();
+    throw cause;
+  }
+  if (!from.sys.isActive()) return host.dispose();
+  goToScreen(from, SCENES.replayVersus, { host, returnTo } satisfies ReplayVersusData);
 }
 
 /** Leaves the replay being watched for the screen it was opened from. A no-op when none is up. */

@@ -44,6 +44,7 @@ import cardPlayedUrl from "./sfx/card-played.mp3?url";
 import spellCastUrl from "./sfx/spell-cast.mp3?url";
 import cloakOfLevitationUrl from "./sfx/cloak-of-levitation.mp3?url";
 import shieldTossUrl from "./sfx/shield-toss.mp3?url";
+import versusWhooshUrl from "./sfx/versus-whoosh.mp3?url";
 
 /** A sound that is playing: Phaser's Web Audio one, or the Linux app's native one (`native-audio.ts`). */
 type Voice = Phaser.Sound.BaseSound | NativeSound;
@@ -61,6 +62,7 @@ const SOUND_EFFECT_URLS: Readonly<Record<SoundEffect, string>> = {
   "spell-cast": spellCastUrl,
   "cloak-of-levitation": cloakOfLevitationUrl,
   "shield-toss": shieldTossUrl,
+  "versus-whoosh": versusWhooshUrl,
 };
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */

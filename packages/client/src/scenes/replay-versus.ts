@@ -1,11 +1,12 @@
 /**
- * The shared replay's versus screen (issue #858): once a `#replay=` link's replay is fetched and open, before the
- * board, the villain on one side and the heroes on the other with VERSUS between them, like an old fighting game's
- * match intro. It holds for a moment (`VERSUS_HOLD_MS`) while the replay is put on the session, then the board comes
+ * The versus screen every replay opens on (issue #858): before the board, the villain on one side and the heroes on
+ * the other with VERSUS between them, like an old fighting game's match intro, so a replay reads as a replay and not a
+ * table in play. It holds for a moment (`VERSUS_HOLD_MS`) while the replay is put on the session, then the board comes
  * up; a tap, click, Enter, Space or A ends the hold early (the board still waits for the replay to be ready).
  *
- * Reached only from Boot's loading screen (`ui/replay-link-loading.ts`). If the replay can't be put on the board,
- * Title comes up and says why.
+ * Reached from Boot's loading screen for a shared replay's link (`ui/replay-link-loading.ts`), and from every other
+ * Watch through `introReplay` (`scenes/replay-entry.ts`). If the replay can't be put on the board, the screen it was
+ * opened from comes back (Title says why).
  */
 import Phaser from "phaser";
 import type { MessageKey } from "../i18n/translate.js";
@@ -44,6 +45,8 @@ const MIN_VISIBLE_HEIGHT = 0.6;
 export interface ReplayVersusData {
   /** The opened replay. This screen owns it from here: the board takes it, or it is closed. */
   readonly host?: ReplayHost;
+  /** The screen the replay's Exit (and a failure here) goes back to. Title when left out (a shared replay's link). */
+  readonly returnTo?: string;
 }
 
 export class ReplayVersusScene extends Phaser.Scene {
@@ -64,7 +67,7 @@ export class ReplayVersusScene extends Phaser.Scene {
     // A setup that names no hero this build knows has nothing to put on the heroes' side: say the replay is damaged.
     if (!host || !config || replayMatchupOf(config, PAST_GAME_NAMES).heroes.length === 0) {
       host?.dispose();
-      goToScreen(this, SCENES.title, { replayProblem: "replay.error.damaged" } satisfies TitleSceneData);
+      this.#fail(data.returnTo ?? SCENES.title, "replay.error.damaged");
       return;
     }
     this.#gone = false;
@@ -96,31 +99,38 @@ export class ReplayVersusScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void this.#toBoard(host, hold);
+    // The whoosh peaks as the two sides arrive.
+    appSession().music?.playEffect("versus-whoosh");
+    void this.#toBoard(host, hold, data.returnTo ?? SCENES.title);
   }
 
   /**
    * The board's code first (its chunk and companions): if it can't load, the replay never goes on the session and
    * Title says why, rather than this screen fading into a board that never starts. Then the replay, then the board.
    */
-  async #toBoard(host: ReplayHost, hold: Promise<void>): Promise<void> {
+  async #toBoard(host: ReplayHost, hold: Promise<void>, returnTo: string): Promise<void> {
     const loader = sceneLoader();
     try {
       if (loader) await Promise.all(needed(SCENES.board).map((key) => loader.load(key)));
     } catch {
       host.dispose();
-      if (this.sys.isActive())
-        goToScreen(this, SCENES.title, { replayProblem: "replay.link.offline" } satisfies TitleSceneData);
+      if (this.sys.isActive()) this.#fail(returnTo, "replay.link.offline");
       return;
     }
     if (!this.sys.isActive()) return host.dispose();
     try {
-      await watchReplay(this, host, SCENES.title, hold);
+      await watchReplay(this, host, returnTo, hold);
     } catch (cause) {
       if (!this.sys.isActive()) return;
       const replayProblem: MessageKey = replayErrorKey(cause);
-      goToScreen(this, SCENES.title, { replayProblem } satisfies TitleSceneData);
+      this.#fail(returnTo, replayProblem);
     }
+  }
+
+  /** Back where the replay was opened from. Title says why; the other screens get no word (rare: the file opened). */
+  #fail(returnTo: string, replayProblem: MessageKey): void {
+    if (returnTo === SCENES.title) goToScreen(this, SCENES.title, { replayProblem } satisfies TitleSceneData);
+    else goToScreen(this, returnTo, {});
   }
 
   #draw(): void {

@@ -54,7 +54,7 @@ import type { ExtrasReaderData } from "./extras-reader.js";
 import type { SideStoryReaderData } from "./side-story-reader.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, pickReplayFile, replayErrorKey } from "../replay/replay-files.js";
-import { watchReplay } from "./replay-entry.js";
+import { introReplay } from "./replay-entry.js";
 import { isPictureSettled, onPictureLoadFailed } from "../art/pictures.js";
 import { PictureWait } from "../ui/picture-wait.js";
 import { markRenderDirty } from "../ui/idle-render.js";
@@ -213,7 +213,7 @@ export class ExtrasScene extends Phaser.Scene {
       const host = await openReplay({ kind: "file", bytes: picked });
       if (!this.sys.isActive()) return host.dispose();
       this.scale.off("resize", this.#draw, this);
-      await watchReplay(this, host, SCENES.extras);
+      await introReplay(this, host, SCENES.extras);
     } catch (cause) {
       if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
     } finally {

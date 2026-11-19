@@ -57,7 +57,7 @@ import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
-import { watchReplay } from "./replay-entry.js";
+import { introReplay } from "./replay-entry.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -668,7 +668,7 @@ export class GameOverScene extends Phaser.Scene {
         log: { config, initialState: baseline, commands, createdAt: Date.now(), outcome, round },
       });
       if (!this.sys.isActive()) return host.dispose();
-      await watchReplay(this, host, SCENES.gameOver);
+      await introReplay(this, host, SCENES.gameOver);
     } catch (cause) {
       this.#status?.setText(t(replayErrorKey(cause)));
     } finally {

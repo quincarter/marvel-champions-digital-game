@@ -15,7 +15,8 @@ export type SoundEffect =
   | "card-played"
   | "spell-cast"
   | "cloak-of-levitation"
-  | "shield-toss";
+  | "shield-toss"
+  | "versus-whoosh";
 
 /** How loud each one plays, under the music's own level. */
 export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
@@ -28,6 +29,7 @@ export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
   "spell-cast": 0.7,
   "cloak-of-levitation": 0.7,
   "shield-toss": 0.7,
+  "versus-whoosh": 0.7,
 };
 
 /**
