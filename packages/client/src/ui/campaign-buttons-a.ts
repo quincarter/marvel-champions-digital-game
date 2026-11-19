@@ -118,6 +118,8 @@ export interface CampaignTileOptions {
   readonly title: string;
   readonly subtitle?: string;
   readonly chip: string;
+  /** A second chip beside the first, in caution amber ("ADJUSTED" on a volume won only by adjusted runs, issue #869). */
+  readonly flag?: string;
   readonly status: CampaignTileStatus;
   /** A dimmed thumbnail behind the text, when this volume has villain art. */
   readonly art?: Picture | null;
@@ -181,6 +183,15 @@ export function campaignTile(
     .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
   const chipHeight = Math.max(19, chipLabel.height + 7);
   const chipY = rect.y + rect.height - 10 - chipHeight;
+  // The flag (issue #869) sits just after the chip on its line, or on a line of its own above it in a narrow tile.
+  const flagLabel = options.flag
+    ? scene.add
+        .text(0, 0, options.flag.toUpperCase(), textStyle(typeRole.label, surface.inkOnHue.hex, 1))
+        .setLetterSpacing(0.9)
+    : null;
+  const flagBeside =
+    flagLabel !== null && rect.x + 11 + chipLabel.width + 14 + 6 + flagLabel.width + 14 <= rect.x + rect.width - 11;
+  const flagY = flagLabel === null || flagBeside ? chipY : chipY - chipHeight - 4;
   const titleSize = Math.min(46, rect.width * 0.24, rect.height * 0.24);
 
   // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
@@ -191,13 +202,13 @@ export function campaignTile(
       ...textStyle(bangers(Math.min(20, rect.width * 0.1), 1), surface.paper.hex),
       wordWrap: { width: rect.width - 22, useAdvancedWrap: true },
     });
-    subtitle.setY(chipY - 14 - subtitle.height);
+    subtitle.setY(flagY - 14 - subtitle.height);
     objects.push(subtitle);
   }
   const title = scene.add.text(rect.x + 11, 0, options.title.toUpperCase(), {
     ...textStyle(bangers(titleSize, 1), surface.paper.hex),
   });
-  title.setY((subtitle ? subtitle.y : chipY - 6) - 2 - title.height);
+  title.setY((subtitle ? subtitle.y : flagY - 6) - 2 - title.height);
   objects.push(title);
 
   const chipRect: Rect = { x: rect.x + 11, y: chipY, width: chipLabel.width + 14, height: chipHeight };
@@ -209,6 +220,19 @@ export function campaignTile(
       .strokeRect(chipRect.x + 0.75, chipRect.y + 0.75, chipRect.width - 1.5, chipRect.height - 1.5);
   chipLabel.setPosition(chipRect.x + 7, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
   objects.push(chipBg, chipLabel);
+  if (flagLabel) {
+    const flagBg = scene.add.graphics();
+    const flagRect: Rect = {
+      x: flagBeside ? chipRect.x + chipRect.width + 6 : chipRect.x,
+      y: flagY,
+      width: flagLabel.width + 14,
+      height: chipRect.height,
+    };
+    flagBg.fillStyle(signal.caution.hex, 1).fillRect(flagRect.x, flagRect.y, flagRect.width, flagRect.height);
+    flagLabel.setPosition(flagRect.x + 7, flagRect.y + flagRect.height / 2).setOrigin(0, 0.5);
+    scene.children.bringToTop(flagLabel); // made before its fill, which would otherwise cover it
+    objects.push(flagBg, flagLabel);
+  }
 
   if (options.status === "sealed") {
     const dim = scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex, 0.4).setOrigin(0, 0);

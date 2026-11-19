@@ -368,6 +368,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       title: tileRow.volume.custom ? CUSTOM_BADGE : `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
+      ...(tileRow.status === "done" && tileRow.wonStandardAdjustedOnly ? { flag: "Adjusted" } : {}),
       status: tileRow.status,
       art: volumeArtOf(tileRow.volume),
       onArtReady: this.#onArt,
@@ -557,6 +558,23 @@ export class CampaignSagaScene extends Phaser.Scene {
         .strokeRect(chipRect.x + 0.75, chipRect.y + 0.75, chipRect.width - 1.5, chipRect.height - 1.5);
     chipLabel.setPosition(chipRect.x + 6, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
     objects.push(chipBg, chipLabel);
+    // A volume won only by adjusted runs (issue #869): an amber "ADJUSTED" chip just before the "✓ COMPLETE" one.
+    if (row.status === "done" && row.wonStandardAdjustedOnly) {
+      const flagLabel = this.add
+        .text(0, 0, "ADJUSTED", textStyle(typeRole.label, surface.inkOnHue.hex, 1))
+        .setLetterSpacing(0.6)
+        .setFontSize(9);
+      const flagRect: Rect = {
+        x: chipRect.x - 6 - flagLabel.width - 12,
+        y: chipRect.y,
+        width: flagLabel.width + 12,
+        height: chipRect.height,
+      };
+      const flagBg = this.add.graphics();
+      flagBg.fillStyle(signal.caution.hex, 1).fillRect(flagRect.x, flagRect.y, flagRect.width, flagRect.height);
+      flagLabel.setPosition(flagRect.x + 6, flagRect.y + flagRect.height / 2).setOrigin(0, 0.5);
+      objects.push(flagBg, flagLabel);
+    }
 
     if (row.status === "sealed") {
       const dim = this.add
