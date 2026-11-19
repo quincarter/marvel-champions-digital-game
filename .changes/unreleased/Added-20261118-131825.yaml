@@ -1,3 +1,0 @@
-kind: Added
-body: 'A desktop game installed from the release''s Windows .exe or .msi, Mac app or Linux AppImage updates itself from the update banner: it downloads in the background, says the game has been updated, and restarts into the new version (#843).'
-time: 2026-11-18T13:18:25.4692576-05:00
