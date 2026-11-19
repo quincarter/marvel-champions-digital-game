@@ -91,8 +91,9 @@ A `rewind` that cuts an ended table reopens it. `TableInfo` carries `hasHeader` 
 
 ## 5. Client pieces
 
-1. **Setting:** "Let people watch my games" (Settings, online section), off by default. Nothing connects while it is
-   off.
+1. **Per game, chosen in setup (Quin, 2026-11-19):** "Let people watch this game" in table setup and on the campaign
+   Briefing sets `SessionConfig.watchable`; only a watchable game streams, and nothing is spawned or connected until
+   one begins. The setting "Always allow watchers" (Settings, More), off by default, only pre-ticks that toggle.
 2. **Live publisher:** a `live-room` worker owns the WebSocket (main thread only posts events, per the offload rule).
    The engine worker sends it the header at game start and each command as it is applied, over a `MessagePort`, the way
    it feeds the presence worker. It creates the room on the first command of a game, reconnects with backoff, and
