@@ -30,4 +30,20 @@ describe("a progress read that lands after Boot went on without it (issue #871)"
     expect(heard).toHaveLength(1);
     stop();
   });
+
+  test("still reports a change to a screen whose own read found the progress already applied", async () => {
+    reads.length = 0;
+    const won = [{ id: "g1", status: "won", config: { scenarioId: "rhino", players: [] } }];
+    // Boot's read is still out when a screen (scenario select, say) draws and starts its own.
+    const boot = refreshUnlocks();
+    const screen = refreshUnlocks();
+    await flush();
+    expect(reads).toHaveLength(2);
+    // Boot's lands first and applies the win; the screen's then finds nothing new of its own.
+    reads[0]!(won);
+    await expect(boot).resolves.toBe(true);
+    reads[1]!(won);
+    // The screen drew before either landed, so it must still be told to redraw.
+    await expect(screen).resolves.toBe(true);
+  });
 });
