@@ -15,17 +15,11 @@
     <link rel="stylesheet" href="../landing.css" />
     <link rel="stylesheet" href="./stats.css" />
   </head>
-  <body>
-    <!-- ============ PINNED BAR: the landing page's own ============ -->
-    <header class="bar">
-      <a class="brand" href="/" aria-label="Marvel Champions: Digital Edition"
-        ><b>Marvel Champions</b><span data-t="bar.brand"></span
-      ></a>
-      <!-- site-nav:stats -->
-      <div class="lang" id="language"></div>
-      <a class="btn gold small" href="/#download"><span data-t="bar.download"></span></a>
-      <a class="btn primary small" data-href="game"><span data-t="bar.play"></span></a>
-    </header>
+  <body class="has-backdrop">
+    <!-- ============ PINNED BAR: the site's shared top bar (src/site/site-nav.ts) ============ -->
+    <!-- site-bar:stats -->
+    <!-- The art behind the top of the page (stats.ts draws it). -->
+    <picture class="site-backdrop" id="site-backdrop" aria-hidden="true"></picture>
 
     <main id="stats-page">
       <!-- ============ HEADLINE ============ -->

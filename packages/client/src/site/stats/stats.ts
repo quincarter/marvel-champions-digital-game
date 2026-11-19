@@ -5,7 +5,9 @@
  * page asks nothing of GitHub when it opens.
  */
 import { DOWNLOAD_STATS, RELEASE_TITLES } from "virtual:download-stats";
+import { WALLPAPERS } from "virtual:site-wallpapers";
 import { browserLanguage, LANGUAGE_NAMES, PAGE_LANGUAGES, type PageLanguage } from "../page-language.js";
+import { mountSteamButton } from "../site-bar.js";
 import { applyText, element, mountLanguageToggle, translator, type Translate } from "../site-dom.js";
 import { SHARED_TEXT } from "../site-text.js";
 import { GAME_URL, ISSUES_URL, RELEASES_URL, REPO_URL } from "../site-urls.js";
@@ -344,4 +346,12 @@ function draw(): void {
   $("foot-counted").textContent = t("foot.counted", { date: day(stats.countedAt, true) });
 }
 
+/** The art behind the top of the page, as on the landing page's first screen (site-nav.css, `.site-backdrop`). */
+function drawBackdrop(): void {
+  const src = WALLPAPERS.bands[0] ?? WALLPAPERS.wide;
+  if (src) $("site-backdrop").replaceChildren(element("img", { src, alt: "", fetchpriority: "high" }));
+}
+
+drawBackdrop();
 draw();
+mountSteamButton();

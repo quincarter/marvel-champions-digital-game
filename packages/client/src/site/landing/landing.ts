@@ -30,6 +30,7 @@ import {
 } from "../downloads.js";
 import { browserLanguage, type PageLanguage } from "../page-language.js";
 import { applyText, element, mountLanguageToggle, renderDownloads, translator, type Translate } from "../site-dom.js";
+import { showSteamButton } from "../site-bar.js";
 import { fileKey, SHARED_TEXT } from "../site-text.js";
 import steamLogo from "../steam-logo.svg";
 import {
@@ -196,12 +197,7 @@ function drawHeroDownload(): void {
       ),
     );
   }
-  const bar = $<HTMLAnchorElement>("bar-steam");
-  bar.hidden = !steam;
-  if (steam) {
-    bar.href = steam.url;
-    bar.setAttribute("aria-label", t(fileKey(steam.id)));
-  }
+  showSteamButton(known, language);
 }
 
 function drawStats(): void {

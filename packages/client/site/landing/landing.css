@@ -4,7 +4,7 @@
 html {
   scroll-padding-top: 72px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1320px) {
   html {
     scroll-padding-top: 120px;
   }
@@ -13,71 +13,7 @@ body {
   overflow-x: clip;
 }
 
-/* ---- Pinned bar ---- */
-.bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px 18px;
-  padding: 10px max(16px, env(safe-area-inset-left, 0px));
-  background: rgb(21 17 14 / 0.86);
-  backdrop-filter: blur(10px);
-  border-bottom: 2px solid var(--red);
-}
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  text-decoration: none;
-  margin-right: auto;
-  white-space: nowrap;
-}
-.brand b {
-  font: 400 30px/1 var(--d);
-  letter-spacing: 0.02em;
-  color: var(--fg);
-}
-.brand span {
-  font: 700 11px var(--b);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--gold);
-}
-/* The site's nav (site-nav.css) sits beside the name; where the bar runs out of room it takes a row of its own. */
-.bar .site-nav {
-  margin-right: 8px;
-}
-.btn.small {
-  min-height: 40px;
-  padding: 6px 16px;
-  font-size: 15px;
-  box-shadow: 4px 4px 0 var(--shadow);
-}
-.btn.small.primary {
-  box-shadow: 4px 4px 0 var(--gold);
-}
-.btn.small.gold {
-  box-shadow: 4px 4px 0 var(--red);
-}
-/* The Install for Steam script, beside Download on a computer the release has one for (landing.ts). */
-.bar .btn.small.steam {
-  gap: 8px;
-  padding-inline: 12px 16px;
-  box-shadow: 4px 4px 0 var(--gold);
-}
-.bar .btn.steam[hidden] {
-  display: none;
-}
-.bar .steam-logo {
-  width: 22px;
-  height: 22px;
-}
-.bar .lang button {
-  min-height: 32px;
-  padding: 4px 10px;
-}
+/* The pinned bar is the site's shared top bar: shared/site-nav.css. */
 
 /* ---- Hero ---- */
 .hero {
@@ -804,36 +740,6 @@ body {
 }
 
 /* ---- Narrow ---- */
-/* The bar holds the full name, Marvel Champions, beside the language toggle and both buttons: the section links go
-   first, then the toggle shortens to EN and ES, before anything wraps. */
-.bar .btn.small {
-  white-space: nowrap;
-}
-@media (max-width: 1100px) {
-  .bar {
-    flex-wrap: wrap;
-    row-gap: 4px;
-  }
-  .bar .site-nav {
-    order: 10;
-    flex-basis: 100%;
-    justify-content: space-around;
-    margin: 0 0 -6px;
-    border-top: 1px solid var(--line);
-  }
-}
-@media (max-width: 900px) {
-  /* The hero offers the Steam script on its own; the bar keeps one row for Download and Play. */
-  .bar .steam {
-    display: none;
-  }
-  .bar .lang .name {
-    display: none;
-  }
-  .bar .lang .code {
-    display: inline;
-  }
-}
 @media (max-width: 1000px) {
   .scrolly-in {
     grid-template-columns: minmax(0, 1fr);
@@ -881,27 +787,6 @@ body {
   }
 }
 @media (max-width: 640px) {
-  .bar {
-    gap: 8px;
-    padding-block: 8px;
-  }
-  .brand span,
-  .bar .gold,
-  .bar .lang .name {
-    display: none;
-  }
-  .bar .lang .code {
-    display: inline;
-  }
-  .brand b {
-    font-size: 20px;
-  }
-  .bar .btn.small {
-    white-space: nowrap;
-  }
-  .bar .btn.small {
-    width: auto;
-  }
   .hero {
     min-height: 88svh;
   }
