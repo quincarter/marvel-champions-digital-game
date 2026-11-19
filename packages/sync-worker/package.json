@@ -10,7 +10,8 @@
     "./sync-protocol": "./src/sync-protocol.ts",
     "./global-protocol": "./src/global-protocol.ts",
     "./global-allowlist": "./src/global-allowlist.ts",
-    "./replay-protocol": "./src/replay-protocol.ts"
+    "./replay-protocol": "./src/replay-protocol.ts",
+    "./room-protocol": "./src/room-protocol.ts"
   },
   "scripts": {
     "dev": "wrangler dev",
