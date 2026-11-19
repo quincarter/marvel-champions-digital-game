@@ -6,8 +6,9 @@
  * are never "latest", so a release still building is not offered) and offers it only when it is newer than this
  * build *and* carries an installer for the platform it is running on. Where the install can tell which installer it
  * came from (the desktop shell's `installer_kind` command, `src-tauri/src/lib.rs`), the offer links straight to that
- * file; the release page, with its notes and every download, is always the other link. The web app is redeployed on
- * every merge and never asks.
+ * file; the release page, with its notes and every download, is always the other link. The iOS app is sideloaded
+ * (issue #874, docs/project/ios-install.md): it can't install an .ipa itself, so its offer is only ever the release
+ * page, whose download table links the install guide. The web app is redeployed on every merge and never asks.
  *
  * The API sends `access-control-allow-origin: *`, so this is the webview's own `fetch` in both shells, with no native
  * HTTP scope to widen. Unauthenticated calls are limited to 60 an hour per IP; one per launch is far inside that.
@@ -20,8 +21,8 @@ import { CLIENT_VERSION } from "../version.js";
 const REPO_URL = "https://github.com/quincarter/marvel-champions-digital-game";
 const LATEST_RELEASE_API = "https://api.github.com/repos/quincarter/marvel-champions-digital-game/releases/latest";
 
-/** The platforms a release ships installers for. iOS is absent: no release ships an iOS build. */
-export type InstallOs = "android" | "windows" | "macos" | "linux";
+/** The platforms a release ships installers for. */
+export type InstallOs = "android" | "ios" | "windows" | "macos" | "linux";
 
 /** One installer file of a release: what this install was itself installed from. */
 export type InstallerKind = "apk" | "nsis" | "msi" | "dmg-aarch64" | "dmg-x64" | "appimage" | "deb" | "rpm";
@@ -63,6 +64,7 @@ export interface AvailableUpdate {
  */
 const OS_INSTALLERS: Record<InstallOs, RegExp> = {
   android: /\.apk$/i,
+  ios: /\.ipa$/i,
   windows: /(-setup\.exe|\.msi)$/i,
   macos: /\.dmg$/i,
   linux: /\.(AppImage|deb|rpm)$/i,
@@ -82,7 +84,7 @@ const KIND_INSTALLER: Record<InstallerKind, { readonly os: InstallOs; readonly f
 };
 
 export function installOs(platform: Platform, userAgent: string): InstallOs | null {
-  if (platform === "capacitor") return /android/i.test(userAgent) ? "android" : null;
+  if (platform === "capacitor") return /android/i.test(userAgent) ? "android" : "ios";
   if (platform !== "tauri") return null;
   if (/windows/i.test(userAgent)) return "windows";
   if (/mac os x|macintosh/i.test(userAgent)) return "macos";
@@ -91,11 +93,13 @@ export function installOs(platform: Platform, userAgent: string): InstallOs | nu
 }
 
 /**
- * Android has one installer. On desktop the shell reports its own (`reported`); anything it reports that isn't an
+ * Android has one installer. iOS has none the app can use: an .ipa has to go through a sideloading tool, so the offer
+ * is the release page alone. On desktop the shell reports its own (`reported`); anything it reports that isn't an
  * installer for `os` is ignored, leaving the release page as the only link.
  */
 export function installTargetOf(os: InstallOs, reported: unknown): InstallTarget {
   if (os === "android") return { os, kind: "apk" };
+  if (os === "ios") return { os, kind: null };
   const kind =
     typeof reported === "string" && Object.hasOwn(KIND_INSTALLER, reported) ? (reported as InstallerKind) : null;
   return { os, kind: kind !== null && KIND_INSTALLER[kind].os === os ? kind : null };
