@@ -155,6 +155,7 @@ export const en = {
   "replay.link.mainMenu": "Main menu",
   "replay.link.opening": "Opening the replay…",
   "replay.link.mods": "Loading mods to replay the game…",
+  "replay.link.openInApp": "Open in the desktop app",
   "replay.versus": "Versus",
   // Guide chooser (scenes/guide-chooser.ts)
   "guide.title": "NEW TO THE FIGHT?",

@@ -63,6 +63,16 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
     ));
   }
   tauri::Builder::default()
+    // First, so a second launch exits before any other plugin starts (#862): it hands its `marvelchampions://` link
+    // to the running game, whose deep-link plugin passes it to the page (src/platform/app-links.ts), and the running
+    // game's window comes to the front.
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+      }
+    }))
+    .plugin(tauri_plugin_deep_link::init())
     // Native HTTP for MarvelCDB deck import, which the page can't make
     // cross-origin; scoped in capabilities/default.json.
     .plugin(tauri_plugin_http::init())
@@ -127,6 +137,13 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
             .level(log::LevelFilter::Info)
             .build(),
         )?;
+      }
+      // `marvelchampions://` (tauri.conf.json): the installers register it, but the AppImage and a Steam install run
+      // from a folder nothing registered, so the game registers it itself each start (#862).
+      #[cfg(any(windows, target_os = "linux"))]
+      {
+        use tauri_plugin_deep_link::DeepLinkExt;
+        let _ = app.deep_link().register_all();
       }
       // Linux: reloads the page if WebKit's web process hangs for good (hang_watchdog.rs).
       hang_watchdog::start(app.handle());

@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The game window: core APIs, native HTTP to MarvelCDB (card art and deck import; see src/platform/native-http.ts) and to the Mod Store's pack host and its GitHub release fallback (src/packs/pack-fetch.ts), opening this repo's GitHub pages, MarvelCDB and the Gideon's Gaming article credited on the Balanced campaign prompt in the default browser (src/platform/platform.ts openExternal), the window mode and size Settings sets, and the Title screen's Quit to desktop (src/platform/desktop-window.ts).",
+  "description": "The game window: core APIs, native HTTP to MarvelCDB (card art and deck import; see src/platform/native-http.ts) and to the Mod Store's pack host and its GitHub release fallback (src/packs/pack-fetch.ts), opening this repo's GitHub pages, MarvelCDB and the Gideon's Gaming article credited on the Balanced campaign prompt in the default browser (src/platform/platform.ts openExternal), the window mode and size Settings sets, the Title screen's Quit to desktop (src/platform/desktop-window.ts), and the marvelchampions:// link the game was opened with or is sent (src/platform/app-links.ts).",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "deep-link:default",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-decorations",
     "core:window:allow-set-size",

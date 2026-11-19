@@ -36,6 +36,10 @@ tauri-plugin-http = "2.9.0"
 tauri-plugin-opener = "2"
 # The desktop Save dialog for exporting save data (src/save_file.rs).
 tauri-plugin-dialog = "2"
+# `marvelchampions://` links open the installed game (#862, src/lib.rs), and a second launch (a link clicked while the
+# game runs) hands its link to the running game instead of opening another window.
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # Discord Rich Presence over the local IPC socket (src/discord_presence.rs).
 discord-rich-presence = "1.1"
 

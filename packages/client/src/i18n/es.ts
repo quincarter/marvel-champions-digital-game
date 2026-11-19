@@ -158,6 +158,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "replay.link.mainMenu": "Menú principal",
   "replay.link.opening": "Abriendo la repetición…",
   "replay.link.mods": "Cargando mods para repetir la partida…",
+  "replay.link.openInApp": "Abrir en la app de escritorio",
   "replay.versus": "Contra",
   "guide.title": "¿NUEVO EN LA LUCHA?",
   "guide.subtitle": "Elige cuánta ayuda quieres. Puedes cambiarlo cuando quieras desde el menú.",

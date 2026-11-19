@@ -26,6 +26,11 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["marvelchampions"] }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

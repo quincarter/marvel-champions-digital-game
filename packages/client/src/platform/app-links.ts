@@ -1,0 +1,165 @@
+/**
+ * Game links opening the installed app (issue #862). The desktop app registers `marvelchampions://` links
+ * (`marvelchampions://replay/<id>`, Tauri's deep-link plugin, `src-tauri/`); the Android app claims the game's own
+ * address through App Links (`https://marvel.champions-digital-game.com/#replay=<id>`, `public/.well-known/`). Either
+ * way the link is turned into the game's own fragment (`#replay=`, `#receive=`, `#link=`), which Boot and Title already
+ * read once at startup (`replay/replay-link.ts`, `save-data/receive-link.ts`).
+ *
+ * A link the app was started with is put on the address before the game starts (`takeLaunchLink`, `main.ts`). A link
+ * that arrives while it runs (the desktop's single instance forwards it, Android hands it to the open app) reloads the
+ * page with it: games in progress are saved as they go, and Boot is the one place that knows how to open a link.
+ */
+import { detectPlatform, type Platform } from "./platform.js";
+import { GAME_URL } from "../site/site-urls.js";
+
+/** The desktop app's link scheme (`src-tauri/tauri.conf.json`, `plugins.deep-link`). */
+export const APP_LINK_SCHEME = "marvelchampions";
+
+const FRAGMENT = /^#(replay|receive|link)=[^#\s]+$/;
+const GAME_HOST = new URL(GAME_URL).host;
+
+/**
+ * The game fragment a link carries (`#replay=<id>`), or null for a link that names nothing the game opens:
+ *  - `marvelchampions://replay/<id>` (and `receive`, `link`), or `marvelchampions://open#replay=<id>`;
+ *  - the game's own address with a game fragment (`https://marvel.champions-digital-game.com/#replay=<id>`).
+ */
+export function gameFragmentOf(link: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol === `${APP_LINK_SCHEME}:`) {
+    if (FRAGMENT.test(url.hash)) return url.hash;
+    // `marvelchampions://replay/<id>`: the kind is the host, the value the first path part.
+    const kind = url.host;
+    const value = url.pathname.replace(/^\/+/, "").split("/")[0] ?? "";
+    const fragment = `#${kind}=${value}`;
+    return value && FRAGMENT.test(fragment) ? fragment : null;
+  }
+  if (url.protocol === "https:" && url.host === GAME_HOST && FRAGMENT.test(url.hash)) return url.hash;
+  return null;
+}
+
+/** The desktop app's link for a shared replay, for the web version's "Open in the desktop app". */
+export function appReplayLinkOf(id: string): string {
+  return `${APP_LINK_SCHEME}://replay/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Whether to offer "Open in the desktop app": the web version on a desktop browser. Not in an app (it is the app), and
+ * not on a phone or tablet, which has no desktop app to open.
+ */
+export function offersDesktopApp(
+  platform: Platform = detectPlatform(),
+  userAgent: string = globalThis.navigator?.userAgent ?? "",
+): boolean {
+  return platform === "web" && !/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+}
+
+/** What the shells answer: the link the app started with, and a way to hear the ones that come later. */
+export interface AppLinkSource {
+  readonly launchLinks: () => Promise<readonly string[]>;
+  readonly listen: (onLink: (link: string) => void) => void;
+}
+
+async function tauriSource(): Promise<AppLinkSource> {
+  const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+  return {
+    launchLinks: async () => (await getCurrent()) ?? [],
+    listen: (onLink) => void onOpenUrl((urls) => urls.forEach(onLink)),
+  };
+}
+
+async function capacitorSource(): Promise<AppLinkSource> {
+  const { App } = await import("@capacitor/app");
+  return {
+    launchLinks: async () => {
+      const launch = await App.getLaunchUrl();
+      return launch?.url ? [launch.url] : [];
+    },
+    listen: (onLink) => void App.addListener("appUrlOpen", (event) => onLink(event.url)),
+  };
+}
+
+function sourceFor(platform: Platform): Promise<AppLinkSource> | null {
+  if (platform === "tauri") return tauriSource();
+  if (platform === "capacitor") return capacitorSource();
+  return null;
+}
+
+export interface AppLinkLocation {
+  readonly hash: string;
+  readonly pathname: string;
+  readonly search: string;
+  reload(): void;
+}
+
+/** Where the launch link already opened is kept for this run of the app (session storage). */
+export interface LaunchLinkMemory {
+  get(): string | null;
+  set(link: string): void;
+}
+
+const LAUNCH_LINK_KEY = "mc-app-launch-link";
+
+const sessionMemory: LaunchLinkMemory = {
+  get: () => {
+    try {
+      return globalThis.sessionStorage?.getItem(LAUNCH_LINK_KEY) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  set: (link) => {
+    try {
+      globalThis.sessionStorage?.setItem(LAUNCH_LINK_KEY, link);
+    } catch {
+      // Without storage a reload may open the launch link again; nothing worse.
+    }
+  },
+};
+
+export interface AppLinkHistory {
+  readonly state: unknown;
+  replaceState(data: unknown, unused: string, url: string): void;
+}
+
+/** Puts `fragment` on the address, where Boot and Title read it. */
+function putOnAddress(fragment: string, location: AppLinkLocation, history: AppLinkHistory): void {
+  history.replaceState(history.state, "", `${location.pathname}${location.search}${fragment}`);
+}
+
+/**
+ * The installed app's link handling, started before the game (`main.ts`): resolves once a link the app was started
+ * with is on the address (or at once, on the web or with none), never later than `maxWaitMs`, so a slow shell never
+ * holds the game back. Later links reload the page with theirs. The shells keep answering the launch link for as long
+ * as the app runs, so it is opened once (`memory`), not again on every reload.
+ */
+export async function startAppLinks(
+  source: Promise<AppLinkSource> | null = sourceFor(detectPlatform()),
+  location: AppLinkLocation = globalThis.location,
+  history: AppLinkHistory = globalThis.history,
+  maxWaitMs = 600,
+  memory: LaunchLinkMemory = sessionMemory,
+): Promise<void> {
+  if (!source) return;
+  let started = false;
+  const atLaunch = (async () => {
+    const shell = await source;
+    shell.listen((link) => {
+      const fragment = gameFragmentOf(link);
+      if (!fragment) return;
+      putOnAddress(fragment, location, history);
+      // Before the game has started, the address is all it takes; after, the page starts again to open it.
+      if (started) location.reload();
+    });
+    const launch = (await shell.launchLinks()).find((link) => gameFragmentOf(link) !== null);
+    if (!launch || started || memory.get() === launch) return;
+    memory.set(launch);
+    putOnAddress(gameFragmentOf(launch)!, location, history);
+  })().catch(() => undefined);
+  await Promise.race([atLaunch, new Promise((resolve) => setTimeout(resolve, maxWaitMs))]);
+  started = true;
+}
