@@ -309,6 +309,14 @@ export interface TargetQuery {
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
+   * Showing the other face of a double-sided card (`flipSide`; `CardInstance.flipped`), or its front (false). For a
+   * card whose two faces print the same title, where `name` cannot tell them apart: MC27 p. 22's "**Setup:** Each
+   * player flips their 'Campaign - S.H.I.E.L.D. Tech' upgrade to its Enhanced side" flips only a copy still on its
+   * front, since `flipCard` turns a card over whichever face is up. Always false for a villain, a main scheme stage or
+   * an `otherFaceId` card, whose face is kept elsewhere: do not use it to tell their sides apart.
+   */
+  readonly flipped?: boolean;
+  /**
    * The card's boost area prints a star icon (★), or does not: "If that card has a star icon (★) in the boost area,
    * defeat the attacked minion" (Longshot 35033, `wolv`) is `{ starIcon: true }` over the discarded card.
    *

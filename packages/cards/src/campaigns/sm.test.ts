@@ -1026,19 +1026,96 @@ describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips th
     return applied.value;
   };
 
-  it("the next scenario's setup puts the card into play on its Enhanced side once node 13 is marked", () => {
+  const NODE13 = "sm.rep.node13.reward";
+  const ENHANCED = (
+    SM_CARDS.find((card) => (card.id as string) === DARTS) as
+      | { readonly flipSide?: { readonly name: string } }
+      | undefined
+  )?.flipSide?.name;
+
+  it("once node 13 is marked, the log keeps the Enhanced face as a Setup face and queues the node 13 Setup flip", () => {
     const log = afterSandman(12);
     expect(log.shared.reputation).toEqual({ kind: "number", value: 13 });
-    const state = realGame(log, "venom");
-    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
-    expect(darts).toHaveLength(1);
-    expect(darts[0]?.instance.flipped).toBe(true);
+    expect(ENHANCED).toBeDefined();
+    const grant = log.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(grant).toMatchObject({ face: ENHANCED, faceAtSetup: true });
+    expect(log.shared.reputationSetups).toEqual({ kind: "instructionList", ids: expect.arrayContaining([NODE13]) });
+    const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(log));
+    // Left out of grantFaces, so the copy enters play on its front for the Setup flip to turn.
+    for (const seat of start.input.seats) expect(seat.grantFaces ?? []).toEqual([]);
   });
 
-  it("before node 13 it enters play on its front", () => {
+  it("in the game it enters play on its front (step 11) and the node 13 Setup flip turns it (step 13)", () => {
+    const ready = composed(afterSandman(12));
+    const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, ready);
+    const config: GameSetupConfig = wave5Scenario(start.scenarioId!, {
+      players: start.input.seats.map((seat) => ({
+        identityCardId: seat.identityCardId,
+        deck: seat.deck,
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+      modes: ready.modes,
+    });
+    const created = createGame(
+      {
+        ...config,
+        encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.deck)],
+        setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.setAside)],
+        campaign: start.input,
+      },
+      WAVE5_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const darts = instancesOf(created.state, DARTS).find((copy) => copy.inPlay)?.instance;
+    if (!darts) throw new Error("Compact Darts is not in play");
+    const resolved = created.events.findIndex(
+      (event) => event.type === "campaignInstructionResolved" && event.instructionId === NODE13,
+    );
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    // Entering play carried no flip: the only turn of this card is the Setup flip, inside the node 13 window.
+    const flips = created.events.flatMap((event, index) =>
+      (event.type === "cardFlipped" || event.type === "cardFlippedToOtherFace") &&
+      JSON.stringify(event).includes(darts.instanceId)
+        ? [index]
+        : [],
+    );
+    expect(flips).toHaveLength(1);
+    // The flip follows node 13's instruction (resolveCampaignWindow emits the event before pushing its effects).
+    expect(flips[0]).toBeGreaterThan(resolved);
+    // It did not enter on its other face through grantFaces.
+    expect(
+      created.events.some((event) => event.type === "cardEnteredOnOtherFace" && event.instanceId === darts.instanceId),
+    ).toBe(false);
+    expect(darts.flipped).toBe(true);
+  });
+
+  it("before node 13 it enters play on its front and stays there", () => {
     const state = realGame(afterSandman(), "venom");
     const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
     expect(darts).toHaveLength(1);
     expect(darts[0]?.instance.flipped).toBe(false);
+  });
+
+  it("an older log (face set without a Setup marker, no node 13 entry) enters on the Enhanced side and stays turned once", () => {
+    const log = afterSandman(12);
+    // A real pre-change log keeps the earlier nodes' Setup entries; only node 13's did not exist yet.
+    const setups = log.shared.reputationSetups;
+    const earlier = setups?.kind === "instructionList" ? setups.ids.filter((id) => id !== NODE13) : [];
+    const old: CampaignLog = {
+      ...log,
+      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: earlier } },
+      seats: log.seats.map((seat) => ({
+        ...seat,
+        grants: seat.grants.map(({ faceAtSetup: _marker, ...grant }) => grant),
+      })),
+    };
+    const grant = old.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(grant?.face).toBe(ENHANCED);
+    expect(grant).not.toHaveProperty("faceAtSetup");
+    const state = realGame(old, "venom");
+    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
+    expect(darts).toHaveLength(1);
+    expect(darts[0]?.instance.flipped).toBe(true);
   });
 });

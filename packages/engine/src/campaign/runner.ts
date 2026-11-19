@@ -457,11 +457,13 @@ const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
 
 /**
  * The included grants on another face (MC10 p. 12's "Improved" side), one entry per copy. Without this the log knew
- * the face and the game never did: the upgrade entered the next scenario on its "Basic" side (issue #873).
+ * the face and the game never did: the upgrade entered the next scenario on its "Basic" side (issue #873). A grant
+ * whose face is reached by a Setup flip each game (`faceAtSetup`; MC27 p. 22, RRG v1.8 p. 51 step 13) is left out:
+ * the copy enters play on its front, or the Setup flip would turn it back.
  */
 const grantFacesOf = (grants: readonly CampaignGrant[]): readonly CampaignGrantFace[] =>
   includedGrantsOf(grants).flatMap((grant) =>
-    grant.face === undefined ? [] : [{ cardId: grant.cardId, face: grant.face }],
+    grant.face === undefined || grant.faceAtSetup === true ? [] : [{ cardId: grant.cardId, face: grant.face }],
   );
 
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);

@@ -87,6 +87,7 @@ import {
   encounterSetAside,
   engage,
   firstPlayer,
+  flipCard,
   forEachPlayer,
   giveBoostCard,
   grantAdditionalMulligans,
@@ -616,8 +617,9 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
             { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node9.penalty") },
           ],
         },
-        // Node 13's reward flips each seat's own S.H.I.E.L.D. Tech to Enhanced immediately; its penalty is another
-        // immediate random Osborn Tech (no "Setup:" label on this box, unlike node 1's).
+        // Node 13's reward is a "Setup:" box (MC27 p. 22): each seat's own S.H.I.E.L.D. Tech is recorded as Enhanced
+        // but enters play on its front (`atSetup`), and `sm.rep.node13.reward` flips it at campaign setup. Its penalty
+        // is another immediate random Osborn Tech.
         {
           kind: "if",
           when: crossed(13),
@@ -627,9 +629,10 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
               ops: SHIELD_TECH.map(({ id, name }): CampaignOp => ({
                 kind: "if",
                 when: { kind: "fieldContains", field: "shieldTech", value: id, seat: "self" },
-                then: [{ kind: "setGrantFace", card: constant(id), face: name }],
+                then: [{ kind: "setGrantFace", card: constant(id), face: name, atSetup: true }],
               })),
             },
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node13.reward") },
             { kind: "random", slot: "osborn13", from: { kind: "campaignSet", encounterSetId: OSBORN_TECH_SET } },
             { kind: "appendToList", field: "osbornTech", value: { kind: "choice", slot: "osborn13" } },
           ],
@@ -735,6 +738,21 @@ const CONDITIONAL_INSTRUCTIONS: Readonly<Record<string, CampaignInstruction>> = 
           ]),
         ]),
       ],
+    },
+  },
+  // MC27 p. 22 node 13 + p. 5: a pink-box "Setup:" instruction triggers at the start of each remaining scenario. It
+  // resolves at RRG v1.8 p. 51 setup step 13 (Campaign Setup), after step 11 put the front (the side with the Setup
+  // keyword) into play; the flip stays on the same card type, so its attachments and tokens stay (RRG p. 20 Flip).
+  // `flipped: false` because `flipCard` toggles: a copy already on its Enhanced side (an older log whose face entered
+  // play through `grantFaces`, with no node 13 setup entry) is left alone.
+  "sm.rep.node13.reward": {
+    id: "sm.rep.node13.reward",
+    text: 'Setup: Each player flips their "Campaign - S.H.I.E.L.D. Tech" upgrade to its Enhanced side.',
+    citation: "MC27 p. 22",
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: SHIELD_TECH.map(({ id }) => flipCard(each(query([], { printedId: id, flipped: false })))),
     },
   },
   "sm.rep.node17.reward": {

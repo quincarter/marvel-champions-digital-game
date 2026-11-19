@@ -732,7 +732,19 @@ export type CampaignOp =
       readonly byTitle?: true;
     }
   /** MC10 p. 12 ("replace their 'Basic' Condition upgrade with its 'Improved' side"); MC27 p. 22's Enhanced side. */
-  | { readonly kind: "setGrantFace"; readonly card: CampaignValue; readonly face: string }
+  | {
+      readonly kind: "setGrantFace";
+      readonly card: CampaignValue;
+      readonly face: string;
+      /**
+       * The face is reached by a campaign Setup flip each game, not by a permanent swap: the copy enters play on its
+       * front and the node's own `inGame` Setup instruction turns it (MC27 p. 22, "**Setup:** Each player flips their
+       * … upgrade to its Enhanced side", resolved at RRG v1.8 p. 51 setup step 13, after step 11's Setup keyword put
+       * the front into play). Recorded on the grant as `CampaignGrant.faceAtSetup`, so the log still says which face
+       * the card is on. Absent: the face is permanent and the copy enters play already on it (MC10 p. 12).
+       */
+      readonly atSetup?: true;
+    }
   // --- choices and randomness --------------------------------------------------------------------------------
   /** MC10 p. 5's Tech upgrade choice; MC27 p. 22's "chooses an aspect card in their collection"; MC60 p. 9 step 4. */
   | {
@@ -1188,6 +1200,12 @@ export interface CampaignGrant {
   readonly leftOut?: true;
   /** Which face the grant is on: MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. */
   readonly face?: string;
+  /**
+   * `face` is reached by a campaign Setup flip each game (`setGrantFace`'s `atSetup`; MC27 p. 22, RRG v1.8 p. 51 step
+   * 13), so the copy enters play on its front and is not in `CampaignSeatInput.grantFaces`. Absent: the copy enters
+   * play already on `face` (MC10 p. 12). Only ever set alongside `face`.
+   */
+  readonly faceAtSetup?: true;
   /** The node that granted it, for the sheet and for `LossPolicy.retryBaseline`. */
   readonly grantedAtNodeId: string;
 }
