@@ -90,7 +90,7 @@ import {
   enterBuilder,
   setBuilderOrigin,
 } from "../view/civil-war-entry.js";
-import { lifetimeChampionPoints, refreshUnlocks, unlocks } from "../progression/progression.js";
+import { earnedAchievementIds, lifetimeChampionPoints, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { lastRankSeen, rememberRankSeen } from "../platform/rank-seen.js";
 import { rankUpAnnouncementOf, titleRankBadgeOf } from "../view/title-rank-badge.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
@@ -435,6 +435,8 @@ export class TitleScene extends Phaser.Scene {
    * remembered at once, so a second check (after the refresh) or a redraw never repeats it.
    */
   #checkRankUp(): void {
+    // Not on points nobody has read yet: Boot can reach Title before the first progress read lands (#871).
+    if (earnedAchievementIds() === null) return;
     const result = rankUpAnnouncementOf(lastRankSeen(), lifetimeChampionPoints());
     rememberRankSeen(result.remember);
     if (!result.announce) return;

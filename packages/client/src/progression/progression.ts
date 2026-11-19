@@ -3,7 +3,7 @@
  * unlock preferences, and the `?unlock=all` dev param.
  *
  * Screens read `unlocks()` synchronously while drawing and call `refreshUnlocks()` when they open; Boot awaits one
- * refresh before Title, so the first screen a player sees already knows what they have earned. A refresh returns
+ * refresh before Title (for up to six seconds, #871), so the first screen a player sees already knows what they have earned. A refresh returns
  * whether anything changed, so a screen redraws only when it has to.
  *
  * The preferences live in `localStorage` (`mc-unlocks`), not IndexedDB: a few bytes read once at startup. Where
