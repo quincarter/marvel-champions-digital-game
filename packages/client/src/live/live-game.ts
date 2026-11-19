@@ -16,10 +16,11 @@ export interface LiveGameParts {
   readonly initialState: StateWithoutPool;
   readonly commands: readonly Command[];
   readonly outcome: GameOutcome | null;
+  readonly checksums?: Readonly<Record<string, string>>;
 }
 
 export function liveGameOf(parts: LiveGameParts): LiveGame {
-  const { packs, ...rest } = parts.config;
+  const { packs, watchable: _watchable, ...rest } = parts.config;
   const refs: readonly ReplayPackRef[] = (packs ?? []).map(({ id, version }) => ({ id, version }));
   return {
     writer: parts.writer,
@@ -29,5 +30,6 @@ export function liveGameOf(parts: LiveGameParts): LiveGame {
     initialState: parts.initialState,
     commands: parts.commands,
     outcome: parts.outcome,
+    ...(parts.checksums ? { checksums: parts.checksums } : {}),
   };
 }

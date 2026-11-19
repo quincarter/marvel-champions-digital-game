@@ -5,7 +5,7 @@
  */
 import { LiveRoomController } from "../live/live-room-controller.js";
 import type {
-  LiveEnabledMessage,
+  LiveControlMessage,
   LiveGameMessage,
   LiveRoomIn,
   LiveRoomOut,
@@ -33,7 +33,8 @@ worker.addEventListener("message", (event) => {
         presencePort?.postMessage({ kind: "live", status } satisfies LiveStatusMessage);
       },
       // Tells the engine worker whether to stream at all (nothing is read or sent while off).
-      onEnabledChange: (on) => gamePort.postMessage({ kind: "enabled", on } satisfies LiveEnabledMessage),
+      onEnabledChange: (on) => gamePort.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
+      onResync: () => gamePort.postMessage({ kind: "resync" } satisfies LiveControlMessage),
     });
     gamePort.addEventListener("message", (e: MessageEvent<LiveGameMessage>) => controller?.onGameMessage(e.data));
     gamePort.start();

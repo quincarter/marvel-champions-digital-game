@@ -1,11 +1,12 @@
 /**
- * "Let people watch my games" (issue #876, docs/live-game-rooms.md): the main thread's whole part. Nothing starts
- * while the `liveWatch` setting is off. Once it is on, one `live-room` worker is spawned (it owns the room's socket and
- * the publisher; the engine worker streams the game to it over a port, like Discord presence), and from then on main
- * only posts the setting to it and keeps the last status the worker posts back.
+ * "Let people watch this game" (issue #876, docs/live-game-rooms.md): the main thread's whole part. A game streams only
+ * when its setup says so (`SessionConfig.watchable`, chosen in setup; the `liveWatch` setting only pre-ticks that
+ * choice, `liveWatchDefault()`). The worker host tells us each game it starts or resumes; for a watchable one the single
+ * `live-room` worker is spawned (it owns the room's socket and the publisher, and the engine worker streams the game to
+ * it over a port, like Discord presence). From then on main only keeps the last status the worker posts back.
  *
  * Hook points for the UI: `liveStatus()` / `onLiveStatus(listener)` (the watch link, the watcher count, whether the
- * host's socket is up), and `syncLiveWatch(on)` for the Settings toggle.
+ * host's socket is up), and `liveWatchDefault()` for the setup toggle.
  */
 import { appSession } from "../session.js";
 import { WorkerEngineHost } from "../engine/worker-host.js";
@@ -36,16 +37,21 @@ export function onLiveStatus(listener: (status: LiveStatus) => void): () => void
   return () => listeners.delete(listener);
 }
 
-/** At start: spawns the worker only when the setting is already on. */
+/** What the setup's "Let people watch this game" toggle starts as: the "Always allow people to watch my games" setting. */
+export const liveWatchDefault = (): boolean => appSession().settings.liveWatch;
+
+/** At start: watches for a watchable game. Nothing is spawned or connected until one begins. */
 export function startLiveWatch(): void {
-  if (appSession().settings.liveWatch) spawn();
+  const host = appSession().host;
+  if (host instanceof WorkerEngineHost) {
+    host.onGameBegun((config) => {
+      if (config?.watchable) spawn();
+    });
+  }
 }
 
-/** The Settings toggle: spawns the worker on first on, then posts the setting to it. */
-export function syncLiveWatch(on: boolean): void {
-  if (on) spawn();
-  worker?.postMessage({ kind: "enabled", on } satisfies LiveRoomIn);
-}
+/** Kept for the Settings screen's old call: the setting no longer starts or stops anything (it only sets a default). */
+export function syncLiveWatch(_on: boolean): void {}
 
 function spawn(): void {
   if (worker) return;
@@ -67,11 +73,19 @@ function spawn(): void {
   const presencePort = takeLiveEnd();
   const init: LiveRoomIn = {
     kind: "init",
-    enabled: appSession().settings.liveWatch,
+    enabled: true,
     syncUrl: syncServiceUrl(),
     watchBase: watchBaseOf(detectPlatform() !== "web"),
     gamePort: channel.port2,
     ...(presencePort ? { presencePort } : {}),
   };
   next.postMessage(init, presencePort ? [channel.port2, presencePort] : [channel.port2]);
+}
+
+/** Dev builds only: `__mcLiveStatus({ watchUrl, watchers, connected })` fakes the room's status for screenshots. */
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __mcLiveStatus: (next: LiveStatus) => void }).__mcLiveStatus = (next) => {
+    status = next;
+    for (const listener of listeners) listener(status);
+  };
 }

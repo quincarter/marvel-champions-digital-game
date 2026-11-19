@@ -19,7 +19,7 @@ import { POOL_VERSION } from "../content/pool.js";
 import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { isChecksumPosition } from "../replay/replay-file.js";
-import type { LiveEnabledMessage, LiveGameMessage } from "../live/live-room-protocol.js";
+import type { LiveControlMessage, LiveGameMessage } from "../live/live-room-protocol.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
 // The app and card-pool versions are compile-time facts of this bundle, so the worker stamps them itself (device sync
@@ -76,7 +76,7 @@ function publishPresence(): void {
 }
 
 let livePort: MessagePort | null = null;
-/** Off until the live-room worker says the setting is on: while off nothing is read or sent. */
+/** Off until the live-room worker says it is up; only a `watchable` game is ever read or sent (`core.liveGameKey`). */
 let liveOn = false;
 
 const liveSend = (message: LiveGameMessage): void => {
@@ -98,7 +98,7 @@ function publishLiveGame(): void {
 /** The command just applied, with a checksum when one is due and the outcome when it ended the game. */
 function publishLiveCommand(command: Command, count: number, outcome: GameOutcome | null): void {
   if (!livePort || !liveOn) return;
-  const gameKey = core.liveGame()?.gameKey;
+  const gameKey = core.liveGameKey();
   if (!gameKey) return;
   const checksum = outcome || isChecksumPosition(count) ? core.liveChecksum() : undefined;
   liveSend({
@@ -132,9 +132,9 @@ async function handle(request: HostRequest): Promise<void> {
         livePort = request.port;
         liveOn = false;
         // The live-room worker answers over this port with the setting; the game follows once it is on.
-        livePort.addEventListener("message", (e: MessageEvent<LiveEnabledMessage>) => {
-          if (e.data.kind !== "enabled") return;
-          liveOn = e.data.on;
+        livePort.addEventListener("message", (e: MessageEvent<LiveControlMessage>) => {
+          // `enabled`: the live-room worker is up (the game follows if it is watchable); `resync`: its log has a gap.
+          if (e.data.kind === "enabled") liveOn = e.data.on;
           publishLiveGame();
         });
         livePort.start();
@@ -174,7 +174,7 @@ async function handle(request: HostRequest): Promise<void> {
         announceSaved("game");
         publishPresence();
         {
-          const gameKey = liveOn ? core.liveGame()?.gameKey : undefined;
+          const gameKey = liveOn ? core.liveGameKey() : null;
           if (gameKey) liveSend({ kind: "rewind", gameKey, to: request.commandCount });
         }
         return;

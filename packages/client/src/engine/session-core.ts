@@ -63,7 +63,7 @@ import type { PresenceGame } from "../view/discord-presence.js";
 import { presenceGameOf } from "../view/discord-presence-game.js";
 import { liveGameOf } from "../live/live-game.js";
 import type { LiveGame } from "../live/live-publisher.js";
-import { replayChecksum } from "../replay/replay-file.js";
+import { isChecksumPosition, replayChecksum } from "../replay/replay-file.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
@@ -397,6 +397,8 @@ export class EngineSessionCore {
   #adjusted = false;
   /** When the current game was created (a resumed game's stored value), for the live stream's header. */
   #createdAt = 0;
+  /** The live room's key for this game when no save id exists: the scenario, the seed and when it began. */
+  #liveNonce = "";
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -458,6 +460,7 @@ export class EngineSessionCore {
     const startedAt = this.#now();
     this.#activeAt = startedAt;
     this.#createdAt = startedAt;
+    this.#liveNonce = `${config.scenarioId}:${config.seed}:${startedAt}`;
 
     if (this.#storage) {
       const id = this.#newId();
@@ -884,13 +887,23 @@ export class EngineSessionCore {
     };
   }
 
-  /** The game as the live room's header and log (`live/`): null with no game. */
+  /**
+   * The live room's key for this game, or null when nothing is to be streamed (no game, or it is not `watchable`).
+   * Stable across a resume (the save's id), so the same game keeps its room.
+   */
+  liveGameKey(): string | null {
+    if (!this.#session || !this.#config?.watchable) return null;
+    return this.#gameId ?? this.#liveNonce;
+  }
+
+  /** The game as the live room's header and log (`live/`): null with no game or when it is not `watchable`. */
   liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
     const session = this.#session;
     const config = this.#config;
-    if (!session || !config) return null;
+    const gameKey = this.liveGameKey();
+    if (!session || !config || !gameKey) return null;
     return {
-      gameKey: this.#gameId ?? `${config.scenarioId}:${config.seed}`,
+      gameKey,
       game: liveGameOf({
         writer: {
           appVersion: this.#writer.appVersion,
@@ -902,8 +915,22 @@ export class EngineSessionCore {
         initialState: stripPool(session.log.initialState),
         commands: session.log.commands,
         outcome: session.state.outcome,
+        checksums: this.#liveChecksums(session),
       }),
     };
+  }
+
+  /** The replay checksums of the log so far (`"0"` the starting state), taken by replaying it from its baseline. */
+  #liveChecksums(session: GameSession): Record<string, string> {
+    const out: Record<string, string> = { "0": replayChecksum(session.log.initialState) };
+    let state = session.log.initialState;
+    for (const [index, command] of session.log.commands.entries()) {
+      const result = applyCommand(state, command, depsOf(this.#config));
+      if (!result.ok) break;
+      state = result.state;
+      if (isChecksumPosition(index + 1)) out[String(index + 1)] = replayChecksum(state);
+    }
+    return out;
   }
 
   /** `replayChecksum` of the current state: the live stream sends one every `CHECKSUM_EVERY` commands. */

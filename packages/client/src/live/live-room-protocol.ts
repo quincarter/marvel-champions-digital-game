@@ -49,8 +49,8 @@ export type LiveGameMessage =
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number };
 
-/** The live-room worker to the engine worker, over the same port: whether to stream at all. */
-export interface LiveEnabledMessage {
-  readonly kind: "enabled";
-  readonly on: boolean;
-}
+/**
+ * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
+ * posts the current game if it is watchable), `resync` asks for the whole game again after a gap in its log.
+ */
+export type LiveControlMessage = { readonly kind: "enabled"; readonly on: boolean } | { readonly kind: "resync" };
