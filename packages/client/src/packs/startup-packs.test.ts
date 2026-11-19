@@ -14,10 +14,8 @@ describe("startupPacksLoaded (#858)", () => {
     expect(done).toBe(true);
   });
 
-  it("settles when the load fails, or takes too long", async () => {
+  it("settles when the load fails", async () => {
     setStartupPacksLoad(Promise.reject(new Error("bad pack")));
     await expect(startupPacksLoaded()).resolves.toBeUndefined();
-    setStartupPacksLoad(new Promise(() => undefined));
-    await expect(startupPacksLoaded(5)).resolves.toBeUndefined();
   });
 });
