@@ -101,6 +101,18 @@
 //     games a day. The host is not sent resend on hello; a woken room rewinds its watchers to what it holds before it
 //     takes the host's first batch. One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
 //     day shared with sync and global stats, and a flood from many addresses is what ROOMS_ENABLED is for.
+//   - Lobby rooms (POST /room with { "lobby": true }, docs/live-game-rooms.md section 8) add, to the room's own rows:
+//     one RoomCode request that writes 2 rows (the code's mapping and its alarm) when the room is made, and 1 extra
+//     request per code collision (none written; 31^6 is about 887 million codes). The code's expiry is the room's own: the
+//     room moves it with its idle alarm (one RoomCode request, 2 rows, about every 12 hours) and deletes it when it
+//     closes (one request, its rows deleted); an alarm there drops a mapping whose room never came back. A code lookup
+//     (GET /room/code/:code) is one Worker request, one RateLimiter request and one RoomCode request, and writes no row:
+//     the per-IP allowance (60 lookups an hour, ROOM_LOOKUPS_PER_IP_PER_HOUR) is counted in memory. The lobby is one
+//     `lobby` row (settings, seats, seat-token hashes) in the room, written when the host sets it up or changes it, when
+//     a seat is requested, given, released or denied, when a requester disconnects, and once when the host's build is
+//     first stamped: a few dozen rows for a whole session, never one per message. Chat writes nothing: the last 50 lines
+//     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
+//     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
 //     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
 //     secret alone must not stop rooms.
@@ -128,6 +140,7 @@
       { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
       { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
       { "name": "GAME_ROOM", "class_name": "GameRoom" },
+      { "name": "ROOM_CODE", "class_name": "RoomCode" },
     ],
   },
   "migrations": [
@@ -136,6 +149,7 @@
     { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
     { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
     { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
+    { "tag": "v6", "new_sqlite_classes": ["RoomCode"] },
   ],
 
   "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays" }],
@@ -171,6 +185,7 @@
           { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
           { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
           { "name": "GAME_ROOM", "class_name": "GameRoom" },
+          { "name": "ROOM_CODE", "class_name": "RoomCode" },
         ],
       },
       "migrations": [
@@ -179,6 +194,7 @@
         { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
         { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
         { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
+        { "tag": "v6", "new_sqlite_classes": ["RoomCode"] },
       ],
       "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays-staging" }],
       "vars": {

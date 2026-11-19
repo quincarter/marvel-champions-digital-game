@@ -11,25 +11,41 @@
  * supersedes it, a rewind cuts it or a `log` replaces the table; a woken room loads the chunks and asks the host for the tail with
  * `resend { from }`. About one row per 20 commands.
  *
+ * A lobby room (created with a code, docs/live-game-rooms.md section 8) adds one `lobby` row: the host's settings, the
+ * seats (holders, requests) and the seat-token hashes, rewritten only when the host, a requester or a seat changes, never
+ * for a chat line (chat lives in memory: a 50-line backlog and per-participant rate buckets).
+ *
  * A socket's participant lives in the socket's own attachment, so it survives hibernation; the logic keys everything
  * by participant id and takes the newest socket object it is handed for that id.
  */
 
 import type { KeyValueStorage } from "./env.js";
+import { REPLAY_ID_ALPHABET } from "./replay-protocol.js";
 import {
+  CHAT_BACKLOG_LINES,
+  CHAT_BURST,
   DEFAULT_MAX_ROOM_LOG_BYTES,
   DEFAULT_MAX_ROOM_MESSAGE_BYTES,
   DEFAULT_MAX_ROOM_PARTICIPANTS,
   FIRST_TABLE,
   LOG_PART_BYTES,
+  MAX_CHAT_LENGTH,
   MAX_LOG_BYTES,
+  MAX_NAME_LENGTH,
   MAX_ROOM_REFUSALS,
   ROOM_CHUNK_COMMANDS,
   ROOM_END_GRACE_MS,
   ROOM_IDLE_MS,
   parseClientMessage,
+  type ChatLine,
   type ClientMessage,
+  type LobbySeat,
+  type LobbySeatSpec,
+  type LobbySettings,
+  type LobbyState,
   type Participant,
+  type RefusalReason,
+  type RoomBuild,
   type RoomCapability,
   type ServerMessage,
   type TableChecksums,
@@ -59,8 +75,27 @@ export const DEFAULT_GAME_ROOM_LIMITS: GameRoomLimits = {
   maxLogBytes: DEFAULT_MAX_ROOM_LOG_BYTES,
 };
 
-/** What the room advertises; `chat`, `seats` and `tables` join this list as they are built. */
+/** What a watch room advertises. */
 export const ROOM_CAPS: readonly RoomCapability[] = ["watch"];
+/** What a lobby room advertises; `tables` is not built. */
+export const LOBBY_ROOM_CAPS: readonly RoomCapability[] = ["watch", "chat", "seats"];
+
+/** The room's calls to its code's directory entry (`RoomCode`), made when it moves its expiry or closes. */
+export interface RoomCodeHooks {
+  refresh(code: string, roomId: string, expiresAt: number): Promise<void>;
+  release(code: string, roomId: string): Promise<void>;
+}
+
+/** A new lobby's settings: Strict, no house rules, no mods, one seat each, chat on. The versions are the host's. */
+export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
+  playMode: "strict",
+  tableRules: {},
+  mods: [],
+  multiSeat: false,
+  chat: true,
+  contentVersion: "",
+  appVersion: "",
+};
 
 /** While the host streams, the tail row is refreshed when it was last written this long ago. */
 const TAIL_REFRESH_MS = 60 * 1000;
@@ -71,12 +106,28 @@ const STAMP_EVERY_MS = 60 * 60 * 1000;
 interface RoomMeta {
   readonly hostTokenHash: string;
   readonly createdAt: number;
+  /** Lobby rooms only: the 6-character code that opens the room, and the room's id (for the code's directory entry). */
+  readonly code?: string;
+  readonly roomId?: string;
   lastHostAt?: number;
   ended?: boolean;
   outcome?: unknown;
   endedAt?: number;
   /** The table reached the log cap and was ended by the room. */
   overflow?: boolean;
+}
+
+/** A seat as stored: the public `LobbySeat` plus the hash of the token that restores it. */
+interface StoredSeat extends LobbySeatSpec {
+  holder?: string;
+  holderName?: string;
+  requested?: string[];
+  tokenHash?: string;
+}
+
+interface LobbyRow {
+  settings: LobbySettings;
+  seats: StoredSeat[];
 }
 
 interface StoredChunk {
@@ -160,7 +211,24 @@ function cleanChecksums(value: unknown): Record<string, string> | null {
   return out;
 }
 
-type Refusal = "bad-message" | "too-large" | "not-allowed" | "out-of-order" | "full";
+type Refusal = RefusalReason;
+
+/** Refusals that count toward closing a noisy socket; the lobby's soft refusals (a taken seat, chat too fast) do not. */
+const HARD_REFUSALS: ReadonlySet<Refusal> = new Set(["bad-message", "too-large", "not-allowed"]);
+
+/** A new seat token: 32 characters of the URL-safe alphabet (64 symbols divide 256), 192 random bits. */
+function newSeatToken(): string {
+  let token = "";
+  for (const byte of crypto.getRandomValues(new Uint8Array(32))) token += REPLAY_ID_ALPHABET[byte & 63];
+  return token;
+}
+
+/** A name or chat text with control characters (newlines included) turned into spaces and the ends trimmed. */
+const cleanText = (text: string): string =>
+  [...text]
+    .map((ch) => (ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f ? " " : ch))
+    .join("")
+    .trim();
 
 export class GameRoomLogic {
   private meta: RoomMeta | null | undefined;
@@ -174,11 +242,18 @@ export class GameRoomLogic {
   private unverified = true;
   private lastHostMessageAt: number | undefined;
   private readonly refusals = new WeakMap<RoomSocket, number>();
+  /** The lobby row, loaded on first use; null for a room without a code. */
+  private lobby: LobbyRow | null | undefined;
+  /** The last chat lines, oldest first. Memory only: a woken room starts with none. */
+  private backlog: ChatLine[] = [];
+  /** Chat rate: a token bucket per participant (1 a second, burst `CHAT_BURST`). Memory only. */
+  private readonly chatBuckets = new Map<string, { tokens: number; at: number }>();
 
   constructor(
     private readonly storage: KeyValueStorage,
     private readonly limits: GameRoomLimits = DEFAULT_GAME_ROOM_LIMITS,
     private readonly clock: () => number = () => Date.now(),
+    private readonly codeHooks?: RoomCodeHooks,
   ) {}
 
   // ----------------------------------------------------------------------------------------------------------
@@ -195,14 +270,48 @@ export class GameRoomLogic {
     await this.storage.put("meta", this.meta);
   }
 
+  /** The lobby row (defaults until the host changes something), or null for a room without a code. */
+  private async loadLobby(): Promise<LobbyRow | null> {
+    if (this.lobby !== undefined) return this.lobby;
+    const meta = await this.loadMeta();
+    if (!meta?.code) return (this.lobby = null);
+    const stored = await this.storage.get<LobbyRow>("lobby");
+    // Another message may have loaded it while this one waited.
+    this.lobby ??= stored ?? { settings: { ...DEFAULT_LOBBY_SETTINGS }, seats: [] };
+    return this.lobby;
+  }
+
+  private async saveLobby(): Promise<void> {
+    if (this.lobby) await this.storage.put("lobby", this.lobby);
+  }
+
+  private lobbyState(lobby: LobbyRow): LobbyState {
+    const seats: LobbySeat[] = lobby.seats.map(({ tokenHash: _hash, requested, ...seat }) => ({
+      ...seat,
+      ...(requested && requested.length > 0 ? { requested: [...requested] } : {}),
+    }));
+    return { code: this.meta?.code ?? "", settings: lobby.settings, seats };
+  }
+
+  private broadcastLobby(lobby: LobbyRow): void {
+    this.broadcast({ v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
+  }
+
   async exists(): Promise<boolean> {
     return (await this.loadMeta()) !== null;
   }
 
-  /** Makes the room: false when it already exists (the caller draws another id). One row, plus the idle alarm. */
-  async create(hostTokenHash: string, now: number): Promise<boolean> {
+  /**
+   * Makes the room: false when it already exists (the caller draws another id). One row, plus the idle alarm. A lobby
+   * room also takes its `code` and its own id (the lobby row is written lazily, when the host first changes something).
+   */
+  async create(hostTokenHash: string, now: number, lobby?: { code: string; roomId: string }): Promise<boolean> {
     if (await this.loadMeta()) return false;
-    const meta: RoomMeta = { hostTokenHash, createdAt: now };
+    const meta: RoomMeta = {
+      hostTokenHash,
+      createdAt: now,
+      ...(lobby ? { code: lobby.code, roomId: lobby.roomId } : {}),
+    };
     await this.storage.put("meta", meta);
     this.meta = meta;
     this.lastHostMessageAt = now;
@@ -474,9 +583,7 @@ export class GameRoomLogic {
     const message = parseClientMessage(data);
     if (!message) return this.refuse(socket, "bad-message");
 
-    if (message.ch === "room") {
-      return message.kind === "hello" ? this.hello(socket, message) : this.refuse(socket, "not-allowed");
-    }
+    if (message.ch === "room" && message.kind === "hello") return this.hello(socket, message);
     if (!participant) return this.refuse(socket, "bad-message");
     if (!this.participants.has(participant.id)) {
       // An attachment the room does not know (a replaced host's socket still closing): not part of this room.
@@ -486,7 +593,9 @@ export class GameRoomLogic {
     }
     this.sockets.set(participant.id, socket);
 
-    if (message.ch === "chat" || message.kind === "propose") return this.refuse(socket, "not-allowed");
+    if (message.ch === "chat") return this.say(socket, participant, message.text);
+    if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
+    if (message.kind === "propose") return this.refuse(socket, "not-allowed");
     const table = this.tableOf(message.table);
     if (participant.role !== "host" || participant.table !== message.table || !table) {
       return this.refuse(socket, "not-allowed");
@@ -500,7 +609,7 @@ export class GameRoomLogic {
 
   private refuse(socket: RoomSocket, reason: Refusal): void {
     this.sendSocket(socket, { v: 1, ch: "room", kind: "refused", reason });
-    if (reason === "out-of-order") return;
+    if (!HARD_REFUSALS.has(reason)) return;
     const count = (this.refusals.get(socket) ?? 0) + 1;
     this.refusals.set(socket, count);
     if (count >= MAX_ROOM_REFUSALS) {
@@ -525,6 +634,15 @@ export class GameRoomLogic {
     const meta = await this.loadMeta();
     if (!meta) return socket.close(1011, "no such room");
     const isHost = message.token !== undefined && (await sha256Hex(message.token)) === meta.hostTokenHash;
+    // A lobby room needs a name from everyone; any other room ignores `hello.name`, as watching always did.
+    const lobbyRoom = meta.code !== undefined;
+    const name = lobbyRoom ? cleanText(message.name ?? "").slice(0, MAX_NAME_LENGTH) : "";
+    if (lobbyRoom && !name) {
+      this.refuse(socket, "name-required");
+      socket.close(1008, "name required");
+      return;
+    }
+    const seatHashes = lobbyRoom ? await Promise.all((message.seatTokens ?? []).map(sha256Hex)) : [];
     const table = this.tables.get(FIRST_TABLE)!;
     await this.ensureLoaded(table);
 
@@ -549,11 +667,11 @@ export class GameRoomLogic {
       return;
     }
 
-    // `hello.name` is ignored until chat exists.
     const you: Participant = {
       id: randomId(),
       role: isHost ? "host" : "watcher",
       ...(isHost ? { table: FIRST_TABLE } : {}),
+      ...(lobbyRoom ? { name, ...(message.build ? { build: message.build } : {}) } : {}),
     };
     socket.setParticipant(you);
     this.sockets.set(you.id, socket);
@@ -564,11 +682,12 @@ export class GameRoomLogic {
       ch: "room",
       kind: "welcome",
       you,
-      caps: ROOM_CAPS,
+      caps: lobbyRoom ? LOBBY_ROOM_CAPS : ROOM_CAPS,
       participants: this.rosterList(),
       tables: [...this.tables.values()].map((t) => this.info(t)),
     });
     this.broadcastRoster();
+    if (lobbyRoom) await this.joinLobby(socket, you, seatHashes);
     if (isHost) {
       await this.touchHost();
       this.resendAsked.delete(FIRST_TABLE);
@@ -732,6 +851,216 @@ export class GameRoomLogic {
   }
 
   // ----------------------------------------------------------------------------------------------------------
+  // Lobby: settings, seats and chat (docs/live-game-rooms.md section 8)
+
+  private sameBuild(build: RoomBuild | undefined, settings: LobbySettings): boolean {
+    // A host that sent no build leaves the versions empty, which nobody matches: seats stay closed.
+    return (
+      build !== undefined &&
+      settings.appVersion !== "" &&
+      build.appVersion === settings.appVersion &&
+      build.contentVersion === settings.contentVersion
+    );
+  }
+
+  private seatsHeldBy(lobby: LobbyRow, id: string): number {
+    return lobby.seats.filter((seat) => seat.holder === id).length;
+  }
+
+  /**
+   * Gives the seat to the participant: a new token (only its hash is stored) goes to that participant alone. The caller
+   * has checked everything; this changes memory only, so the caller saves and broadcasts.
+   */
+  private async grant(seat: StoredSeat, who: Participant): Promise<void> {
+    const token = newSeatToken();
+    seat.tokenHash = await sha256Hex(token);
+    seat.holder = who.id;
+    seat.holderName = who.name ?? "";
+    seat.requested = (seat.requested ?? []).filter((id) => id !== who.id);
+    this.sendTo(who.id, { v: 1, ch: "room", kind: "seat-token", seat: seat.id, token });
+  }
+
+  /**
+   * A participant has joined a lobby room: stamps the host's build into the settings, puts the participant back in the
+   * seats its tokens open, then sends the lobby (everyone when it changed, else just the joiner) and the chat backlog.
+   */
+  private async joinLobby(socket: RoomSocket, you: Participant, seatHashes: readonly string[]): Promise<void> {
+    const lobby = await this.loadLobby();
+    if (!lobby) return;
+    let changed = false;
+    if (you.role === "host" && you.build) {
+      const { appVersion, contentVersion } = you.build;
+      if (lobby.settings.appVersion !== appVersion || lobby.settings.contentVersion !== contentVersion) {
+        lobby.settings = { ...lobby.settings, appVersion, contentVersion };
+        changed = true;
+      }
+    }
+    for (const seat of lobby.seats) {
+      if (!seat.tokenHash || !seatHashes.includes(seat.tokenHash)) continue;
+      // The token is the credential: it takes the seat over from the id the same player held before.
+      seat.holder = you.id;
+      seat.holderName = you.name ?? "";
+      changed = true;
+    }
+    if (changed) {
+      await this.saveLobby();
+      this.broadcastLobby(lobby);
+    } else {
+      this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
+    }
+    if (lobby.settings.chat && this.backlog.length > 0) {
+      this.sendSocket(socket, { v: 1, ch: "chat", kind: "backlog", lines: [...this.backlog] });
+    }
+  }
+
+  /** A participant left: whatever seats it asked for are no longer asked for. Its held seats stay, for a token rejoin. */
+  private async withdrawRequests(id: string): Promise<void> {
+    const lobby = await this.loadLobby();
+    if (!lobby) return;
+    let changed = false;
+    for (const seat of lobby.seats) {
+      if (!seat.requested?.includes(id)) continue;
+      seat.requested = seat.requested.filter((r) => r !== id);
+      changed = true;
+    }
+    if (!changed) return;
+    await this.saveLobby();
+    this.broadcastLobby(lobby);
+  }
+
+  private async lobbyMessage(
+    socket: RoomSocket,
+    who: Participant,
+    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" }>,
+  ): Promise<void> {
+    const lobby = await this.loadLobby();
+    if (!lobby) return this.refuse(socket, "not-allowed");
+    const isHost = who.role === "host";
+    // A host's lobby edits count as host activity, like a game message does.
+    if (isHost) await this.touchHost();
+    const { settings } = lobby;
+    const seatOf = (id: string) => lobby.seats.find((seat) => seat.id === id);
+
+    switch (message.kind) {
+      case "lobby-set": {
+        if (!isHost) return this.refuse(socket, "not-allowed");
+        const next: LobbySettings = {
+          ...settings,
+          ...(message.settings?.playMode !== undefined ? { playMode: message.settings.playMode } : {}),
+          ...(message.settings?.tableRules !== undefined ? { tableRules: message.settings.tableRules } : {}),
+          ...(message.settings?.mods !== undefined ? { mods: message.settings.mods.map((m) => ({ ...m })) } : {}),
+          ...(message.settings?.multiSeat !== undefined ? { multiSeat: message.settings.multiSeat } : {}),
+          ...(message.settings?.chat !== undefined ? { chat: message.settings.chat } : {}),
+        };
+        let seats = lobby.seats;
+        if (message.seats) {
+          const ids = new Set(message.seats.map((s) => s.id));
+          if (ids.size !== message.seats.length) return this.refuse(socket, "bad-message");
+          // A seat id that stays keeps its holder, requests and token; its label may change; a removed one is gone.
+          seats = message.seats.map((spec) => {
+            const kept = lobby.seats.find((s) => s.id === spec.id);
+            return kept ? { ...kept, label: spec.label } : { id: spec.id, label: spec.label };
+          });
+        }
+        if (!next.multiSeat) {
+          // Turning multi-seat off cannot quietly take a seat from someone who holds two.
+          const counts = new Map<string, number>();
+          for (const seat of seats) if (seat.holder) counts.set(seat.holder, (counts.get(seat.holder) ?? 0) + 1);
+          if ([...counts.values()].some((n) => n > 1)) return this.refuse(socket, "multi-seat");
+        }
+        lobby.settings = next;
+        lobby.seats = seats;
+        break;
+      }
+      case "seat-request": {
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (!isHost && !this.sameBuild(who.build, settings)) return this.refuse(socket, "build-mismatch");
+        if (seat.holder === who.id) return; // Already theirs.
+        if (seat.holder) return this.refuse(socket, "seat-taken");
+        if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
+        if (isHost) {
+          // The host approves their own request.
+          await this.grant(seat, who);
+        } else if (!seat.requested?.includes(who.id)) {
+          seat.requested = [...(seat.requested ?? []), who.id];
+        } else {
+          return;
+        }
+        break;
+      }
+      case "seat-release": {
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (seat.holder === who.id) {
+          delete seat.holder;
+          delete seat.holderName;
+          delete seat.tokenHash;
+        } else if (seat.requested?.includes(who.id)) {
+          seat.requested = seat.requested.filter((id) => id !== who.id);
+        } else {
+          return this.refuse(socket, "not-allowed");
+        }
+        break;
+      }
+      case "seat-assign": {
+        if (!isHost) return this.refuse(socket, "not-allowed");
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        const target = this.participants.get(message.participant);
+        if (!target) return this.refuse(socket, "no-such-participant");
+        if (target.role !== "host" && !this.sameBuild(target.build, settings)) {
+          return this.refuse(socket, "build-mismatch");
+        }
+        if (seat.holder && seat.holder !== target.id) return this.refuse(socket, "seat-taken");
+        if (seat.holder === target.id) return;
+        if (!settings.multiSeat && this.seatsHeldBy(lobby, target.id) > 0) return this.refuse(socket, "multi-seat");
+        await this.grant(seat, target);
+        break;
+      }
+      case "seat-deny": {
+        if (!isHost) return this.refuse(socket, "not-allowed");
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (seat.requested?.includes(message.participant)) {
+          seat.requested = seat.requested.filter((id) => id !== message.participant);
+        } else if (seat.holder === message.participant) {
+          delete seat.holder;
+          delete seat.holderName;
+          delete seat.tokenHash;
+        } else {
+          return this.refuse(socket, "no-such-participant");
+        }
+        break;
+      }
+    }
+    await this.saveLobby();
+    this.broadcastLobby(lobby);
+  }
+
+  /** One line of chat: lobby rooms with chat on, at most 280 characters, 1 a second with a burst of 5 per participant. */
+  private async say(socket: RoomSocket, who: Participant, raw: string): Promise<void> {
+    const lobby = await this.loadLobby();
+    if (!lobby || !lobby.settings.chat) return this.refuse(socket, "not-allowed");
+    const text = cleanText(raw);
+    if (text.length === 0 || text.length > MAX_CHAT_LENGTH) return this.refuse(socket, "bad-message");
+    const now = this.clock();
+    const bucket = this.chatBuckets.get(who.id) ?? { tokens: CHAT_BURST, at: now };
+    bucket.tokens = Math.min(CHAT_BURST, bucket.tokens + (now - bucket.at) / 1000);
+    bucket.at = now;
+    if (bucket.tokens < 1) {
+      this.chatBuckets.set(who.id, bucket);
+      return this.refuse(socket, "rate-limited");
+    }
+    bucket.tokens -= 1;
+    this.chatBuckets.set(who.id, bucket);
+    const line: ChatLine = { from: who.id, ...(who.name ? { name: who.name } : {}), text, at: now };
+    this.backlog.push(line);
+    if (this.backlog.length > CHAT_BACKLOG_LINES) this.backlog.splice(0, this.backlog.length - CHAT_BACKLOG_LINES);
+    this.broadcast({ v: 1, ch: "chat", kind: "said", ...line });
+  }
+
+  // ----------------------------------------------------------------------------------------------------------
   // Leaving and closing
 
   /** A socket closed or errored. A host replaced by a newer one is already gone and changes nothing. */
@@ -740,6 +1069,7 @@ export class GameRoomLogic {
     if (!participant || !this.participants.has(participant.id)) return;
     this.participants.delete(participant.id);
     this.sockets.delete(participant.id);
+    this.chatBuckets.delete(participant.id);
     this.broadcastRoster();
     if (participant.role === "host" && participant.table) {
       const table = this.tableOf(participant.table);
@@ -749,6 +1079,7 @@ export class GameRoomLogic {
         await this.writeTail(table);
       }
     }
+    await this.withdrawRequests(participant.id);
   }
 
   /**
@@ -765,6 +1096,7 @@ export class GameRoomLogic {
         return "closed";
       }
       await this.storage.setAlarm(closeAt);
+      await this.refreshCode(meta, closeAt);
       return "rescheduled";
     }
     const last = Math.max(this.lastHostMessageAt ?? 0, meta.lastHostAt ?? meta.createdAt);
@@ -774,7 +1106,18 @@ export class GameRoomLogic {
       return "closed";
     }
     await this.storage.setAlarm(due);
+    await this.refreshCode(meta, due);
     return "rescheduled";
+  }
+
+  /** Moves the lobby code's expiry to the room's own, so the two match. A failed call leaves the old expiry. */
+  private async refreshCode(meta: RoomMeta, expiresAt: number): Promise<void> {
+    if (!meta.code || !meta.roomId) return;
+    try {
+      await this.codeHooks?.refresh(meta.code, meta.roomId, expiresAt);
+    } catch {
+      // The directory entry expires on its own alarm.
+    }
   }
 
   /** Closes the room for good: tells everyone, closes the sockets, and forgets the room so its id is a 404 again. */
@@ -789,9 +1132,20 @@ export class GameRoomLogic {
     }
     this.sockets.clear();
     this.participants.clear();
+    const meta = await this.loadMeta();
+    if (meta?.code && meta.roomId) {
+      try {
+        await this.codeHooks?.release(meta.code, meta.roomId);
+      } catch {
+        // The directory entry expires on its own alarm.
+      }
+    }
     await this.storage.deleteAlarm();
     await this.storage.deleteAll();
     this.meta = null;
+    this.lobby = null;
+    this.backlog = [];
+    this.chatBuckets.clear();
   }
 
   // Test and handler views.

@@ -159,16 +159,44 @@ What a player sees:
 - **Start:** the host presses Start when every seat is held. The game starts on the host's device as a watchable
   game; in this PR seated players follow it as watchers with their seats marked (playing it is #881).
 
-Room and protocol (extending `room-protocol.ts`, capability `chat` and `seats`):
+Room and protocol (built, `packages/sync-worker`; extends `room-protocol.ts`, and a room created without `lobby` behaves
+exactly as watching did):
 
-- `POST /room` takes `{ lobby: true }` and also returns a 6-character `code` (the room-code alphabet). A small
-  `RoomCode` Durable Object per code maps it to the room id; `GET /room/code/:code` resolves it. Codes expire with
-  the room.
-- `hello` carries `name` and the client's build (`appVersion`, `contentVersion`); the room keeps names in the roster.
-- Room-channel lobby messages: the host's `settings` and `seats` (stored in one meta row, rewritten only when the host
-  changes them); `seat-request` / `seat-release` from participants; `seat-assign` / `seat-deny` from the host; the
-  room answers a seated participant with a private `seat-token` (stored hashed) used to rejoin the seat later. A seat
-  requires a matching build and content version.
-- Chat: `say` (at most 280 characters, 1 a second with a burst of 5 per participant, refused when chat is off) and
-  `said` broadcast with the sender's id and name; the last 50 lines are kept in memory for joiners. No chat is stored.
+- `POST /room` takes `{ lobby: true }` and also returns a 6-character `code` (the transfer room-code alphabet). A small
+  `RoomCode` Durable Object per code (`room-code-store.ts`, migration `v6`) maps it to the room id. `GET /room/code/:code`
+  (any case, dashes and spaces ignored) answers `{ roomId }` or 404; it is limited to 60 lookups an hour per IP, counted in
+  memory (no row). A code collision draws another code (8 tries); the directory entry expires with the room: it is created
+  with the room's 12-hour idle time, the room moves it out whenever its own idle alarm moves out, and the room deletes it
+  when it closes (an alarm in the directory drops an entry whose room never came back to say so). Only the room a code
+  belongs to may refresh or release it.
+- `hello` carries `name` (trimmed, at most 24 characters, required in a lobby room: otherwise `refused name-required` and
+  the socket closes; other rooms ignore it), `build { appVersion, contentVersion }` and `seatTokens`. Roster participants
+  carry their `name` and `build`. A lobby room advertises caps `watch`, `chat`, `seats`.
+- The room sends `lobby { code, settings, seats }` after `welcome` to a joiner and to everyone after each change.
+  `settings` is `{ playMode: "strict" | "host", tableRules, mods: [{ id, version }], multiSeat, chat, appVersion,
+  contentVersion }`; the two versions are the host's build, stamped by the room from the host's `hello` (never taken from a
+  `lobby-set`). `seats` is `[{ id, label, holder?, holderName?, requested? }]`, at most 4.
+- Host only: `lobby-set { settings?, seats? }` (a kept seat id keeps its holder, requests and token; turning `multiSeat`
+  off is refused `multi-seat` while someone holds two), `seat-assign { seat, participant }` (a connected participant; the
+  host may also `seat-request` a seat for themselves and it is granted at once), `seat-deny { seat, participant }` (turns
+  down a request, or takes the seat from its holder). Participants: `seat-request { seat }`, `seat-release { seat }` (gives
+  up a seat or withdraws a request). A request or assignment is refused `build-mismatch` unless the participant's `build`
+  equals the host's in both versions (a missing build never matches), `multi-seat` for a second seat while `multiSeat` is
+  off, `seat-taken`, `no-such-seat`, `no-such-participant`. Only `bad-message`, `too-large` and `not-allowed` count toward
+  the room closing a noisy socket.
+- An assignment sends that participant alone `seat-token { seat, token }` (192 random bits; only its SHA-256 is stored).
+  A reconnect is a new participant id: `hello { seatTokens: [...] }` puts the sender back in the seats those tokens open
+  (the token is the credential, so it also takes the seat from the id the same player held before), and the same token
+  keeps working. A disconnected holder keeps the seat (shown with `holderName` and no roster entry) until released or taken
+  back by the host; a disconnect withdraws that participant's pending requests.
+- Chat: `say { text }` (control characters become spaces, 1 to 280 characters, 1 a second with a burst of 5 per
+  participant, `rate-limited` over it, `not-allowed` when chat is off or the room has no lobby) and `said { from, name,
+  text, at }` to everyone including the sender. The last 50 lines are kept in memory and sent to a joiner in a
+  `chat { kind: "backlog", lines }` message after `welcome` (not when empty or chat is off). No chat is stored, so a room
+  that hibernates forgets the backlog.
+- Storage: the existing `meta` row gains `code` and `roomId` (lobby rooms only); settings, seats (holders, requests) and the
+  seat-token hashes are one separate `lobby` row, not part of `meta` (which also carries the end outcome and the hourly
+  host stamp), written only when the host sets or changes the lobby, a seat is requested, assigned, released or denied,
+  a requester disconnects, or the host's build is first stamped or changes. Nothing is written per chat line, join or
+  leave. The cost notes are in `packages/sync-worker/wrangler.jsonc`.
 - The room's limits and kill switch are the ones #878 set up.

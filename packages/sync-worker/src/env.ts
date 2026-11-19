@@ -77,6 +77,8 @@ export interface Env {
   GLOBAL_STATS: DurableObjectNamespaceLike;
   /** One instance per live game room, named by the room id. */
   GAME_ROOM: DurableObjectNamespaceLike;
+  /** One instance per lobby room code, named by the code: it maps the code to the room id. */
+  ROOM_CODE: DurableObjectNamespaceLike;
   /** The R2 bucket replay share links are stored in. */
   REPLAYS: R2BucketLike;
   /** One instance, "replays": the account-wide daily cap on replay uploads. */
