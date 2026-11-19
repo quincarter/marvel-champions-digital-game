@@ -579,7 +579,9 @@ export class CampaignSagaScene extends Phaser.Scene {
     border.lineStyle(6, 0xc8102e, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
     const copy = this.#featuredCopy(row);
-    const footerHeight = Math.min(rect.height * 0.5, phone ? 210 : 270);
+    // The adjusted-run note (issue #869) adds a line under the roster: the art gives up that much, not the buttons.
+    const noteHeight = row.status === "done" && row.adjustedWinKeepsNextSealed ? (phone ? 15 : 17) : 0;
+    const footerHeight = Math.min(rect.height * 0.5, phone ? 210 : 270) + noteHeight;
     const artRect: Rect = {
       x: rect.x + 3,
       y: rect.y + 3,
@@ -749,7 +751,10 @@ export class CampaignSagaScene extends Phaser.Scene {
         return {
           status: "Complete",
           right: `Standard ${row.wonStandard ? "✓" : "○"} · Expert ${row.wonExpert ? "✓" : "○"}`,
-          sub: `${row.rosterNames.join(" · ")} · ${row.totalIssues} issues`,
+          // An adjusted win finishes the volume but opens nothing (issue #869): say why the next one is still sealed.
+          sub:
+            `${row.rosterNames.join(" · ")} · ${row.totalIssues} issues` +
+            (row.adjustedWinKeepsNextSealed ? `\nAdjusted run: it doesn't open Vol. ${n + 1}.` : ""),
           hasPips: true,
           hasAlt: true,
           alt: this.#altActionsFor(row),
@@ -788,9 +793,11 @@ export class CampaignSagaScene extends Phaser.Scene {
             ? row.unlocked
               ? `This build doesn't ship Vol. ${n} yet.`
               : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`
-            : row.lockReason
-              ? `${row.lockReason}, or unlock it now with champion points.`
-              : `Win Vol. ${n - 1} on Standard to open it, or unlock it now with champion points.`,
+            : row.previousWonAdjustedOnly
+              ? `Your Vol. ${n - 1} win was adjusted, so it doesn't open this one. Win Vol. ${n - 1} again by the rules, or unlock it now with champion points.`
+              : row.lockReason
+                ? `${row.lockReason}, or unlock it now with champion points.`
+                : `Win Vol. ${n - 1} on Standard to open it, or unlock it now with champion points.`,
           hasPips: false,
           hasAlt: false,
           alt: [],

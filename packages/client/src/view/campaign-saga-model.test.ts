@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CAMPAIGN_LOG_SCHEMA, type CampaignDefinition } from "@mc/engine";
 import { campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import type { CampaignSummary } from "../engine/campaign-storage.js";
+import { DEFAULT_UNLOCK_PREFS, progressOf, Unlocks } from "../progression/unlocks.js";
 import { campaignSagaRows, defaultFeaturedVolume, doneVolumeCount, openVolumeCount } from "./campaign-saga-model.js";
 
 const trorsSummary = (overrides: Partial<CampaignSummary> = {}): CampaignSummary => ({
@@ -150,5 +151,82 @@ describe("campaignSagaRows with a campaign opened by hand", () => {
     });
     expect(rows[0]).toMatchObject({ status: "sealed", unlocked: false });
     expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
+  });
+});
+
+// Issue #869: a finished Rise of Red Skull left Galaxy's Most Wanted sealed. The shelf is wired to the unlock path the
+// way `scenes/campaign/saga.ts` wires it: progress from the stored runs, then `Unlocks.campaignLock` per volume.
+describe("campaignSagaRows wired to the unlock path (issue #869)", () => {
+  const wonTrors = (overrides: Partial<CampaignSummary> = {}): CampaignSummary =>
+    trorsSummary({
+      id: "won",
+      status: "won",
+      position: { nextNodeId: null, resolved: {}, progress: {} },
+      ...overrides,
+    });
+  const rhinoWin = { status: "won", config: { scenarioId: "rhino", difficulty: "standard" } };
+  const shelf = (runs: readonly CampaignSummary[]) => {
+    const unlocked = new Unlocks({ progress: progressOf([rhinoWin], runs), prefs: DEFAULT_UNLOCK_PREFS });
+    return campaignSagaRows(runs, {
+      definitionOf: campaignDefinitionOf,
+      identityNameOf: nameOf,
+      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId, "en"),
+      openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
+    });
+  };
+
+  test("a Rise of Red Skull run won on Standard opens Galaxy's Most Wanted", () => {
+    const rows = shelf([wonTrors()]);
+    expect(rows[0]).toMatchObject({ status: "done", wonStandard: true, wonStandardAdjustedOnly: false });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true, previousWonAdjustedOnly: false });
+  });
+
+  test("an adjusted win completes the volume but opens nothing, and both volumes say why", () => {
+    const rows = shelf([wonTrors({ adjusted: true })]);
+    expect(rows[0]).toMatchObject({
+      status: "done",
+      wonStandard: true,
+      wonStandardAdjustedOnly: true,
+      adjustedWinKeepsNextSealed: true,
+    });
+    expect(rows[1]).toMatchObject({ status: "sealed", unlocked: false, previousWonAdjustedOnly: true });
+    // Nothing further down blames the adjusted run: Vol. 3 is sealed by Vol. 2, not by Vol. 1.
+    expect(rows[2]).toMatchObject({ status: "sealed", previousWonAdjustedOnly: false });
+  });
+
+  test("the shelf's own order follows the same rule even when the wave is open by other means", () => {
+    const rows = campaignSagaRows([wonTrors({ adjusted: true })], {
+      definitionOf: campaignDefinitionOf,
+      identityNameOf: nameOf,
+    });
+    expect(rows[1]).toMatchObject({ status: "sealed", unlocked: false, previousWonAdjustedOnly: true });
+  });
+
+  test("one run won by the rules opens the next volume, whatever other runs were adjusted", () => {
+    const rows = shelf([wonTrors({ id: "a", adjusted: true }), wonTrors({ id: "b", updatedAt: 9 })]);
+    expect(rows[0]).toMatchObject({ wonStandardAdjustedOnly: false });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true, previousWonAdjustedOnly: false });
+  });
+
+  test("an adjusted Standard win and an Expert win by the rules open the next volume, as the wave does", () => {
+    const expert = { campaign: { campaignId: TRORS_CAMPAIGN_DEFINITION.campaignId, expertCampaign: true as const } };
+    const rows = shelf([wonTrors({ id: "a", adjusted: true }), wonTrors({ id: "b", modes: expert })]);
+    expect(rows[0]).toMatchObject({ wonStandardAdjustedOnly: false, adjustedWinKeepsNextSealed: false });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
+  });
+
+  test("Settings ▸ Unlocks still opens a volume sealed behind an adjusted win", () => {
+    const runs = [wonTrors({ adjusted: true })];
+    const progress = progressOf([rhinoWin], runs);
+    const unlocked = new Unlocks({ progress, prefs: { ...DEFAULT_UNLOCK_PREFS, campaignIds: ["gmw"] } });
+    const rows = campaignSagaRows(runs, {
+      definitionOf: campaignDefinitionOf,
+      identityNameOf: nameOf,
+      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId, "en"),
+      openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
+    });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true, previousWonAdjustedOnly: false });
+    // Vol. 1 is still adjusted, but the card doesn't claim Vol. 2 is sealed by it.
+    expect(rows[0]).toMatchObject({ wonStandardAdjustedOnly: true, adjustedWinKeepsNextSealed: false });
   });
 });

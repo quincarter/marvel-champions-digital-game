@@ -17,7 +17,7 @@
 import { campaignDefinitionOf } from "@mc/cards";
 import type { PlayModes } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, type CampaignDefinition, type CampaignStatus } from "@mc/engine";
-import type { CampaignSummary } from "../engine/campaign-storage.js";
+import { isAdjustedCampaign, type CampaignSummary } from "../engine/campaign-storage.js";
 
 export interface CampaignListRow {
   readonly id: string;
@@ -34,6 +34,8 @@ export interface CampaignListRow {
   readonly canAbandon: boolean;
   /** Why `canResume` is false when the campaign is still `active` — null otherwise (finished, or fully compatible). */
   readonly incompatibleReason: string | null;
+  /** An adjusted game was folded into this run (`CampaignRecord.adjusted`, issue #791): its win earns nothing. */
+  readonly adjusted: boolean;
 }
 
 function positionLabelOf(summary: CampaignSummary, definition: CampaignDefinition | undefined): string {
@@ -86,6 +88,7 @@ export function campaignListRows(
       canResume: summary.status === "active" && incompatibleReason === null,
       canAbandon: summary.status === "active",
       incompatibleReason,
+      adjusted: isAdjustedCampaign(summary),
     };
   });
 }

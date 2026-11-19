@@ -17,6 +17,10 @@
  * with that wave's own reason ("Beat Rhino to unlock The Rise of Red Skull"), and
  * a volume opened by hand (Settings ▸ Unlocks: one campaign, or "Unlock everything") opens regardless of the
  * Standard-win order.
+ *
+ * **Adjusted wins** (issue #869): a run an adjusted game was folded into (`CampaignSummary.adjusted`, issue #791) still
+ * finishes its volume and still counts for that box's own Expert Campaign (MC10 p. 17), but it opens nothing: the
+ * unlock path (`progressOf`) leaves it out, so the shelf does too, and says so on both volumes.
  */
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CardId } from "@mc/content";
@@ -39,6 +43,17 @@ export interface SagaVolumeRow {
   readonly runId: string | null;
   readonly wonStandard: boolean;
   readonly wonExpert: boolean;
+  /**
+   * Won on Standard, but only by adjusted runs (issue #869): the volume is complete, yet it doesn't open the next one.
+   */
+  readonly wonStandardAdjustedOnly: boolean;
+  /** `wonStandardAdjustedOnly`, and the next volume is sealed for that reason (it has `previousWonAdjustedOnly`). */
+  readonly adjustedWinKeepsNextSealed: boolean;
+  /**
+   * For a sealed volume: the volume before it is complete on Standard only by an adjusted run, which is why this one is
+   * still sealed. False otherwise.
+   */
+  readonly previousWonAdjustedOnly: boolean;
   readonly canResume: boolean;
   readonly incompatibleReason: string | null;
   /** 1-based, from the run's own position — only set for "live". */
@@ -120,6 +135,7 @@ export function campaignSagaRows(
   }
 
   let previousWonStandard = true;
+  let previousWonAdjustedOnly = false;
   const out: SagaVolumeRow[] = [];
   for (const volume of [...SAGA_VOLUMES, ...customVolumes.map((custom) => custom.volume)]) {
     const custom = volume.custom !== undefined;
@@ -127,6 +143,9 @@ export function campaignSagaRows(
     const activeRow = ownRows.find((r) => r.status === "active") ?? null;
     const wonRows = ownRows.filter((r) => r.status === "won");
     const wonStandard = wonRows.some((r) => r.modes.campaign?.expertCampaign !== true);
+    // An adjusted run opens nothing (issue #869), as `progressOf` leaves it out of the waves: the volume opens the next
+    // once it is won on Standard and some win of it (Standard or Expert) was played by the rules.
+    const wonStandardByRules = wonStandard && wonRows.some((r) => !r.adjusted);
     const wonExpert = wonRows.some((r) => r.modes.campaign?.expertCampaign === true);
     const byHand = !custom && openedByHandOf(volume.campaignId);
     const waveLock = byHand || custom ? null : waveLockOf(volume.campaignId);
@@ -203,6 +222,9 @@ export function campaignSagaRows(
       runId: featuredRow?.id ?? null,
       wonStandard,
       wonExpert,
+      wonStandardAdjustedOnly: wonStandard && !wonStandardByRules,
+      adjustedWinKeepsNextSealed: false,
+      previousWonAdjustedOnly: status === "sealed" && !unlocked && previousWonAdjustedOnly,
       canResume: activeRow?.canResume ?? false,
       incompatibleReason: activeRow?.incompatibleReason ?? null,
       issueNumber,
@@ -214,9 +236,17 @@ export function campaignSagaRows(
       packNote,
     });
 
-    if (!custom) previousWonStandard = wonStandard;
+    if (!custom) {
+      previousWonStandard = wonStandardByRules;
+      previousWonAdjustedOnly = wonStandard && !wonStandardByRules;
+    }
   }
-  return out;
+  // Only now is the next volume known: the Complete card says "doesn't open Vol. N+1" only when that is what happened.
+  return out.map((row, index) =>
+    out[index + 1]?.previousWonAdjustedOnly === true && !row.volume.custom
+      ? { ...row, adjustedWinKeepsNextSealed: true }
+      : row,
+  );
 }
 
 /** The volume shown featured by default: the live one, else the first fresh one, else Vol. 1. */
