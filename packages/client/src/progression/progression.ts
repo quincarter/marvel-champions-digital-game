@@ -99,6 +99,23 @@ let refreshesStarted = 0;
 let refreshApplied = 0;
 /** Ids earned as of the last refresh, in definition order; null until a refresh has read the stores. */
 let earnedIds: readonly string[] | null = null;
+/** Told after each refresh whose result is applied (`onProgressRead`). */
+const readListeners = new Set<(changed: boolean) => void>();
+
+/**
+ * Calls `listener` after every refresh whose result is applied, with whether the unlocks changed. For a screen that
+ * may be up before the read it needs lands: Boot goes on to Title after a few seconds without it (#871), and its read
+ * can land after Title's own. Returns the unsubscribe.
+ */
+export function onProgressRead(listener: (changed: boolean) => void): () => void {
+  readListeners.add(listener);
+  return () => readListeners.delete(listener);
+}
+
+function progressRead(changed: boolean): boolean {
+  for (const listener of [...readListeners]) listener(changed);
+  return changed;
+}
 let achievementPoints = 0;
 let lifetimePoints = 0;
 let prefs: UnlockPrefs | null = null;
@@ -212,14 +229,14 @@ export async function refreshUnlocks(): Promise<boolean> {
   const nextAchievementPoints = result.achievementPoints;
   if (sameProgress(next, progress) && nextAchievementPoints === achievementPoints) {
     applyEarnedItems();
-    return false;
+    return progressRead(false);
   }
   progress = next;
   achievementPoints = nextAchievementPoints;
   current = null;
   currentExtras = null;
   applyEarnedItems();
-  return true;
+  return progressRead(true);
 }
 
 /** The fallback: the same reads and math as the progress worker, on the main thread. */
