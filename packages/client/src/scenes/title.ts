@@ -476,9 +476,9 @@ export class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * The first saves read of this visit: a read that fails, or is still pending after `SAVES_STUCK_MS`, puts up the
-   * Reload banner (#871) rather than leaving a menu with no games on it that looks normal; a read that lands takes the
-   * banner down again.
+   * The first saves read of this visit: still pending after `SAVES_STUCK_MS`, it puts up the Reload banner (#871)
+   * rather than leaving a menu with no games on it that looks normal. A read that lands sets the banner from whether it
+   * failed (`#refreshSaves`).
    */
   #watchSavesRead(read: Promise<void>): void {
     let settled = false;
@@ -487,10 +487,10 @@ export class TitleScene extends Phaser.Scene {
       this.#savesStuck = value;
       this.#rebuild();
     };
+    // A read that lands sets the banner itself, from whether storage failed (`#refreshSaves`).
     read.then(
       () => {
         settled = true;
-        stuck(false);
       },
       () => {
         settled = true;
@@ -504,11 +504,12 @@ export class TitleScene extends Phaser.Scene {
 
   /** Reads the newest game (Continue) and every game in progress (the list) again, then redraws. */
   async #refreshSaves(): Promise<void> {
-    const { store } = appSession();
-    const [latest, games] = await Promise.all([store.latestSave(), store.activeSaves()]);
+    const { latest, games, failed } = await appSession().store.titleSaves();
     if (!this.sys.isActive()) return;
     this.#continuable = latest;
     this.#games = games;
+    // A read that failed shows the Reload banner, not a player with no games (#871); one that worked takes it down.
+    this.#savesStuck = failed;
     // A game asked about that has since gone (synced away, removed on another screen): drop the question.
     if (this.#removing !== null && !games.some((save) => save.id === this.#removing)) this.#removing = null;
     this.#rebuild();
