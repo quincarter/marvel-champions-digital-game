@@ -39,6 +39,10 @@ export type WebSocketConstructor = new (url: string) => WebSocketLike;
 const OPEN = 1;
 /** The room closes a host's old socket with this code when the same host reconnects elsewhere. */
 export const REPLACED_CLOSE_CODE = 4000;
+/** The room answers a socket for a room it does not have with this close code. */
+export const NO_SUCH_ROOM_CLOSE_CODE = 1011;
+/** Connections in a row that never got a welcome (about six minutes of backoff) before the room is taken as gone. */
+export const MAX_FAILED_ATTEMPTS = 12;
 
 export interface RoomSocketDeps {
   readonly WebSocket: WebSocketConstructor;
@@ -100,6 +104,11 @@ export interface RoomSocketOptions {
   readonly onClosed?: (reason: "ended" | "idle" | "disabled") => void;
   /** Another socket took this one's place as the host (close code 4000 "replaced"): no reconnect follows. */
   readonly onReplaced?: () => void;
+  /**
+   * The room is gone (close code 1011 "no such room", or `MAX_FAILED_ATTEMPTS` connections in a row that never got a
+   * welcome): no reconnect follows, and the caller makes a new room.
+   */
+  readonly onGone?: () => void;
   readonly deps?: RoomSocketDeps;
 }
 
@@ -157,25 +166,28 @@ export class RoomSocket {
     };
     const dropped = (event?: unknown): void => {
       if (this.#socket !== socket) return;
-      const replaced = (event as { code?: number } | undefined)?.code === REPLACED_CLOSE_CODE;
-      if (replaced) this.#stopped = true;
+      const code = (event as { code?: number } | undefined)?.code;
+      const replaced = code === REPLACED_CLOSE_CODE;
+      const gone = code === NO_SUCH_ROOM_CLOSE_CODE && !this.#welcomed;
+      if (replaced || gone) this.#stopped = true;
       this.#socket = null;
       if (this.#welcomed) {
         this.#welcomed = false;
         this.#options.onConnection(false);
       }
       if (replaced) this.#options.onReplaced?.();
+      else if (gone) this.#options.onGone?.();
       else this.#scheduleReconnect();
     };
     socket.onclose = dropped;
     socket.onerror = () => {
-      // An error is always followed by a close; closing here makes sure of it.
+      // An error is always followed by a close, which carries the code (4000, 1011) that `dropped` reads: closing
+      // here makes sure of it, and the close does the rest.
       try {
         socket.close();
       } catch {
         // already closed
       }
-      dropped();
     };
   }
 
@@ -212,6 +224,11 @@ export class RoomSocket {
 
   #scheduleReconnect(): void {
     if (this.#stopped || this.#timer !== null) return;
+    if (this.#attempt >= MAX_FAILED_ATTEMPTS) {
+      this.#stopped = true;
+      this.#options.onGone?.();
+      return;
+    }
     const delay = reconnectDelay(this.#attempt++, this.#deps.random);
     this.#timer = this.#deps.setTimer(() => {
       this.#timer = null;

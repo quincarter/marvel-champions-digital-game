@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  MAX_FAILED_ATTEMPTS,
   RECONNECT_CAP_MS,
   RoomSocket,
   createRoom,
@@ -33,6 +34,10 @@ class FakeSocket implements WebSocketLike {
   }
   receive(message: unknown): void {
     this.onmessage?.({ data: typeof message === "string" ? message : JSON.stringify(message) });
+  }
+  closeWithCode(code: number): void {
+    this.readyState = 3;
+    this.onclose?.({ code });
   }
   drop(): void {
     this.readyState = 3;
@@ -216,5 +221,76 @@ describe("createRoom", () => {
       throw new Error("offline");
     }) as typeof fetch;
     expect(await createRoom({ baseUrl: "https://s", fetch: boom })).toEqual({ ok: false, failure: "unavailable" });
+  });
+});
+
+describe("room socket, a room that is gone or replaced", () => {
+  it("treats close code 1011 before any welcome as a gone room, with no reconnect", () => {
+    const { timers } = setup();
+    const onGone = vi.fn();
+    const socket = new RoomSocket({
+      baseUrl: "https://sync.example",
+      roomId: "abcdefghijkl",
+      onConnection: () => {},
+      onMessage: () => {},
+      onGone,
+      deps: {
+        WebSocket: FakeSocket,
+        setTimer: () => {
+          throw new Error("no timer expected");
+        },
+        clearTimer: () => {},
+        random: () => 0,
+      },
+    });
+    socket.connect();
+    FakeSocket.all.at(-1)!.closeWithCode(1011);
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(timers).toHaveLength(0);
+  });
+
+  it("gives up after MAX_FAILED_ATTEMPTS connections in a row that never got a welcome", () => {
+    const onGone = vi.fn();
+    const timers: (() => void)[] = [];
+    const socket = new RoomSocket({
+      baseUrl: "https://sync.example",
+      roomId: "abcdefghijkl",
+      onConnection: () => {},
+      onMessage: () => {},
+      onGone,
+      deps: {
+        WebSocket: FakeSocket,
+        setTimer: (run) => {
+          timers.push(run);
+          return run;
+        },
+        clearTimer: () => {},
+        random: () => 0,
+      },
+    });
+    socket.connect();
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
+      FakeSocket.all.at(-1)!.closeWithCode(1006);
+      timers.pop()!();
+    }
+    FakeSocket.all.at(-1)!.closeWithCode(1006);
+    expect(onGone).toHaveBeenCalledTimes(1);
+  });
+
+  it("an error followed by a 4000 close still counts as replaced", () => {
+    const onReplaced = vi.fn();
+    const socket = new RoomSocket({
+      baseUrl: "https://sync.example",
+      roomId: "abcdefghijkl",
+      onConnection: () => {},
+      onMessage: () => {},
+      onReplaced,
+      deps: { WebSocket: FakeSocket, setTimer: () => 0, clearTimer: () => {}, random: () => 0 },
+    });
+    socket.connect();
+    const ws = FakeSocket.all.at(-1)!;
+    ws.onerror?.({});
+    ws.closeWithCode(4000);
+    expect(onReplaced).toHaveBeenCalledTimes(1);
   });
 });
