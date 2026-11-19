@@ -36,6 +36,20 @@ export interface DurableObjectStateLike {
   readonly storage: KeyValueStorage;
 }
 
+/** The slice of a server-side WebSocket the game room uses (Hibernation API). */
+export interface WebSocketLike {
+  send(message: string): void;
+  close(code?: number, reason?: string): void;
+  serializeAttachment(value: unknown): void;
+  deserializeAttachment(): unknown;
+}
+
+/** What the game room's constructor receives: the usual state plus the WebSocket Hibernation API. */
+export interface GameRoomStateLike extends DurableObjectStateLike {
+  acceptWebSocket(ws: WebSocketLike): void;
+  getWebSockets(): WebSocketLike[];
+}
+
 /** The slice of an R2 object read back that the replay routes use. */
 export interface R2ObjectBodyLike {
   readonly body: ReadableStream<Uint8Array>;
@@ -61,6 +75,8 @@ export interface Env {
   RATE_LIMITER: DurableObjectNamespaceLike;
   SYNC_SPACE: DurableObjectNamespaceLike;
   GLOBAL_STATS: DurableObjectNamespaceLike;
+  /** One instance per live game room, named by the room id. */
+  GAME_ROOM: DurableObjectNamespaceLike;
   /** The R2 bucket replay share links are stored in. */
   REPLAYS: R2BucketLike;
   /** One instance, "replays": the account-wide daily cap on replay uploads. */
@@ -80,6 +96,12 @@ export interface Env {
   MAX_REPLAY_BYTES?: string;
   /** Replay uploads the whole account takes per UTC day; defaults to DEFAULT_MAX_REPLAYS_PER_DAY. */
   MAX_REPLAYS_PER_DAY?: string;
+  /** Anything other than "true" turns every /room route off. */
+  ROOMS_ENABLED?: string;
+  /** Participants (host and watchers) one room holds; defaults to DEFAULT_MAX_ROOM_PARTICIPANTS. */
+  MAX_ROOM_PARTICIPANTS?: string;
+  /** Bytes in one room message other than a start or log; defaults to DEFAULT_MAX_ROOM_MESSAGE_BYTES. */
+  MAX_ROOM_MESSAGE_BYTES?: string;
   ALLOWED_ORIGINS?: string;
   /** A secret, not a var. When set, uploads must carry a valid Turnstile token. */
   TURNSTILE_SECRET?: string;

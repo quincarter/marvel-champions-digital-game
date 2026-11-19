@@ -5,10 +5,12 @@
  * clock reaches the object; a missing header falls back to the real time.
  */
 
-import type { DurableObjectStateLike } from "./env.js";
+import type { DurableObjectStateLike, Env, GameRoomStateLike, WebSocketLike } from "./env.js";
+import { DEFAULT_GAME_ROOM_LIMITS, GameRoomLogic, type RoomSocket } from "./game-room.js";
 import { parseGlobalResult } from "./global-protocol.js";
 import { GlobalStatsLogic } from "./global-stats.js";
 import { PROOF_HEADER } from "./protocol.js";
+import type { Participant } from "./room-protocol.js";
 import { RateLimiterLogic } from "./rate-limiter.js";
 import { ReplayQuotaLogic } from "./replay-quota.js";
 import { RoomLogic } from "./room.js";
@@ -91,6 +93,10 @@ export class RateLimiter {
     }
     if (pathname === "/replay-upload") {
       const result = await this.limiter.takeReplayUpload(now);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
+    if (pathname === "/room-create") {
+      const result = await this.limiter.takeRoomCreate(now);
       return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
     }
     if (pathname === "/refund") {
@@ -216,5 +222,84 @@ export class ReplayQuota {
       return Response.json({ ok: true });
     }
     return new Response(null, { status: 404 });
+  }
+}
+
+const positive = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+/**
+ * One live game room (docs/live-game-rooms.md), named by its room id. The Worker's `/create` call makes it; `/ws`
+ * takes a WebSocket through the Hibernation API, so an idle room costs no duration. Each socket's participant rides
+ * in its attachment, which is what lets a woken room know who is connected.
+ */
+export class GameRoom {
+  private readonly room: GameRoomLogic;
+  private readonly state: GameRoomStateLike;
+  private readonly adapted = new WeakMap<WebSocketLike, RoomSocket>();
+
+  constructor(state: GameRoomStateLike, env?: Env) {
+    this.state = state;
+    this.room = new GameRoomLogic(state.storage, {
+      maxParticipants: positive(env?.MAX_ROOM_PARTICIPANTS, DEFAULT_GAME_ROOM_LIMITS.maxParticipants),
+      maxMessageBytes: positive(env?.MAX_ROOM_MESSAGE_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxMessageBytes),
+    });
+    for (const ws of state.getWebSockets()) this.room.restore(this.socketOf(ws));
+  }
+
+  private socketOf(ws: WebSocketLike): RoomSocket {
+    let socket = this.adapted.get(ws);
+    if (!socket) {
+      socket = {
+        send: (text) => ws.send(text),
+        close: (code, reason) => ws.close(code, reason),
+        getParticipant: () => (ws.deserializeAttachment() as Participant | null) ?? null,
+        setParticipant: (participant) => ws.serializeAttachment(participant),
+      };
+      this.adapted.set(ws, socket);
+    }
+    return socket;
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    if (pathname === "/create" && request.method === "POST") {
+      const created = await this.room.create(request.headers.get("X-Host-Hash") ?? "", nowOf(request));
+      return new Response(null, { status: created ? 201 : 409 });
+    }
+    if (pathname.endsWith("/ws")) {
+      if (!(await this.room.exists())) return new Response(null, { status: 404 });
+      if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response(null, { status: 426 });
+      const { WebSocketPair } = globalThis as unknown as {
+        WebSocketPair: new () => { 0: WebSocketLike; 1: WebSocketLike };
+      };
+      const pair = new WebSocketPair();
+      this.state.acceptWebSocket(pair[1]);
+      return new Response(null, { status: 101, webSocket: pair[0] } as ResponseInit);
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  async webSocketMessage(ws: WebSocketLike, message: string | ArrayBuffer): Promise<void> {
+    await this.room.message(this.socketOf(ws), message);
+  }
+
+  webSocketClose(ws: WebSocketLike, code?: number, reason?: string): void {
+    this.room.close(this.socketOf(ws));
+    try {
+      ws.close(code && code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000, reason);
+    } catch {
+      // Already closed.
+    }
+  }
+
+  webSocketError(ws: WebSocketLike): void {
+    this.room.close(this.socketOf(ws));
+  }
+
+  async alarm(): Promise<void> {
+    await this.room.alarm(Date.now());
   }
 }

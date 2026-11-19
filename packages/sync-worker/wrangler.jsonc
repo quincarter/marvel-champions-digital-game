@@ -73,8 +73,26 @@
 //   wrangler r2 bucket create mc-replays-staging
 //   wrangler r2 bucket lifecycle add mc-replays-staging expire-replays --expire-days 180 --force
 //
+// Live game rooms (/room, one GameRoom Durable Object per room, GitHub issue #876, docs/live-game-rooms.md). A room is a
+// relay: the host's device runs the engine and streams its log in, the room fans it out to watchers over WebSockets
+// (Hibernation API). The log is held in memory only, so a command writes no row:
+//   - Creating a room costs one Worker request, one RateLimiter request (at most 2 rows: its state, and its alarm when
+//     the window is new) and one GameRoom request that writes 2 rows (meta, and the idle alarm). Per IP: 20 rooms a day
+//     (DEFAULT_ROOMS_PER_IP_PER_DAY in room-protocol.ts), so one address writes at most 80 rows a day to open rooms.
+//   - A connection is one Worker request and one Durable Object request. Each incoming WebSocket message counts as 1/20
+//     of a request; outgoing messages are free. A game of 600 commands an hour sent one per message is about 30 requests
+//     an hour, plus each watcher's join and its few messages. A hibernated room costs no duration.
+//   - Rows: none per command. The idle alarm is set once at creation and moved out only when it fires with the host
+//     still active (about once per 12 hours); the end of a game writes 2 rows (endedAt and the 5-minute alarm); closing
+//     deletes the room's rows. So a room writes about 4 to 8 rows in its whole life, 20 rooms a day from one IP is under
+//     200 rows, and a flood from many addresses is what ROOMS_ENABLED is for.
+//   - MAX_ROOM_PARTICIPANTS (25) caps host and watchers in one room; MAX_ROOM_MESSAGE_BYTES (64 KiB) caps a message,
+//     except a start or log, which may be up to about 1 MiB. A room closes 12 hours after the host's last message and
+//     5 minutes after every table has ended. ROOMS_ENABLED set to anything but "true" makes every /room route answer
+//     503 (a live room's open sockets stay until they close; deploy with the switch off and they end on their own).
+//
 // Optional bot check: `wrangler secret put TURNSTILE_SECRET` (add `--env staging` for staging). It is a secret, not a
-// var, so it is not listed below; when it is set, a transfer upload, a replay upload and a sync space creation must
+// var, so it is not listed below; when it is set, a transfer upload, a replay upload, a room creation and a sync space creation must
 // carry a valid CF-Turnstile-Response header.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -89,6 +107,7 @@
       { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
       { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
       { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
+      { "name": "GAME_ROOM", "class_name": "GameRoom" },
     ],
   },
   "migrations": [
@@ -96,6 +115,7 @@
     { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
     { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
     { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
+    { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
   ],
 
   "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays" }],
@@ -109,6 +129,9 @@
     "REPLAYS_ENABLED": "true",
     "MAX_REPLAY_BYTES": "262144",
     "MAX_REPLAYS_PER_DAY": "200",
+    "ROOMS_ENABLED": "true",
+    "MAX_ROOM_PARTICIPANTS": "25",
+    "MAX_ROOM_MESSAGE_BYTES": "65536",
     // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
     // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
     "ALLOWED_ORIGINS": "https://marvel.champions-digital-game.com,https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
@@ -125,6 +148,7 @@
           { "name": "SYNC_SPACE", "class_name": "SyncSpace" },
           { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
           { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
+          { "name": "GAME_ROOM", "class_name": "GameRoom" },
         ],
       },
       "migrations": [
@@ -132,6 +156,7 @@
         { "tag": "v2", "new_sqlite_classes": ["SyncSpace"] },
         { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
         { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
+        { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
       ],
       "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays-staging" }],
       "vars": {
@@ -143,6 +168,9 @@
         "REPLAYS_ENABLED": "true",
         "MAX_REPLAY_BYTES": "262144",
         "MAX_REPLAYS_PER_DAY": "200",
+        "ROOMS_ENABLED": "true",
+        "MAX_ROOM_PARTICIPANTS": "25",
+        "MAX_ROOM_MESSAGE_BYTES": "65536",
         "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
       },
     },
