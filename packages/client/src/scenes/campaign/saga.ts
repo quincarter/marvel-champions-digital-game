@@ -604,9 +604,11 @@ export class CampaignSagaScene extends Phaser.Scene {
     tab.setPosition(artRect.x + 10, artRect.y + 6);
     this.children.bringToTop(tab);
     if (row.status === "done") {
+      // Centered on the container and not rotated itself: the container tilts the text and its box together. (The
+      // text used to carry its own tilt on top of the container's, so it slid out of the box's corner.)
       const stamp = this.add
         .text(0, 0, "COMPLETE", textStyle(bangers(phone ? 18 : 26, 1), signal.heal.hex))
-        .setRotation(0.14);
+        .setOrigin(0.5, 0.5);
       const stampBg = this.add.graphics();
       stampBg
         .fillStyle(surface.card.hex, 0.94)
@@ -614,10 +616,13 @@ export class CampaignSagaScene extends Phaser.Scene {
       stampBg
         .lineStyle(4, signal.heal.hex, 1)
         .strokeRoundedRect(-stamp.width / 2 - 10, -stamp.height / 2 - 4, stamp.width + 20, stamp.height + 8, 4);
-      const stampContainer = this.add.container(artRect.x + artRect.width - 60, artRect.y + 34, [stampBg, stamp]);
+      // Inset by the box's own half-width (plus room for the tilt), so the stamp never runs off the card's edge.
+      const stampContainer = this.add.container(
+        artRect.x + artRect.width - stamp.width / 2 - 24,
+        artRect.y + stamp.height / 2 + 20,
+        [stampBg, stamp],
+      );
       stampContainer.setRotation(0.14);
-      stamp.setPosition(-stamp.width / 2, -stamp.height / 2);
-      stampBg.setPosition(0, 0);
     }
 
     const footerBg = this.add.graphics();
