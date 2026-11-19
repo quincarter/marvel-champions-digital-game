@@ -205,6 +205,8 @@ export class TitleScene extends Phaser.Scene {
    * IndexedDB open pending for good after it reloads a killed tab, #871). Shown as a Reload banner, not an empty menu.
    */
   #savesStuck = false;
+  /** Saves reads started, across visits: only the newest one's answer is used (`#refreshSaves`). */
+  #savesRead = 0;
   /** The Install for Steam script's record of this install, once read (`platform/steam-install.ts`). */
   #steam: SteamInstall | null = null;
   /** Whether this install updates itself (`platform/self-update.ts`), once the shell has said. */
@@ -404,9 +406,7 @@ export class TitleScene extends Phaser.Scene {
       this,
       refreshUnlocks().catch(() => false),
     );
-    const saves = this.#refreshSaves();
-    holdScreenFor(this, saves);
-    this.#watchSavesRead(saves);
+    holdScreenFor(this, this.#refreshSaves());
     // Read now so Settings ▸ More can offer Add to Steam (#844) when it opens; once it has added the game, the Title
     // takes the Steam script's update and says so, without a relaunch.
     void steamAdd();
@@ -476,39 +476,24 @@ export class TitleScene extends Phaser.Scene {
   }
 
   /**
-   * The first saves read of this visit: still pending after `SAVES_STUCK_MS`, it puts up the Reload banner (#871)
-   * rather than leaving a menu with no games on it that looks normal. A read that lands sets the banner from whether it
-   * failed (`#refreshSaves`).
+   * Reads the newest game (Continue) and every game in progress (the list) again, then redraws. Only the newest read
+   * counts (`#savesRead`): an older one that lands late, or one from an earlier visit, changes nothing. A read that
+   * fails, or is still the newest and pending after `SAVES_STUCK_MS`, puts up the Reload banner (#871) rather than a
+   * menu with no games on it that looks normal; a read that works takes it down.
    */
-  #watchSavesRead(read: Promise<void>): void {
-    let settled = false;
-    const stuck = (value: boolean): void => {
-      if (this.#savesStuck === value || !this.sys.isActive()) return;
-      this.#savesStuck = value;
-      this.#rebuild();
-    };
-    // A read that lands sets the banner itself, from whether storage failed (`#refreshSaves`).
-    read.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-        stuck(true);
-      },
-    );
-    this.time.delayedCall(SAVES_STUCK_MS, () => {
-      if (!settled) stuck(true);
-    });
-  }
-
-  /** Reads the newest game (Continue) and every game in progress (the list) again, then redraws. */
   async #refreshSaves(): Promise<void> {
+    const read = ++this.#savesRead;
+    let settled = false;
+    this.time.delayedCall(SAVES_STUCK_MS, () => {
+      if (settled || read !== this.#savesRead || this.#savesStuck || !this.sys.isActive()) return;
+      this.#savesStuck = true;
+      this.#rebuild();
+    });
     const { latest, games, failed } = await appSession().store.titleSaves();
-    if (!this.sys.isActive()) return;
+    settled = true;
+    if (read !== this.#savesRead || !this.sys.isActive()) return;
     this.#continuable = latest;
     this.#games = games;
-    // A read that failed shows the Reload banner, not a player with no games (#871); one that worked takes it down.
     this.#savesStuck = failed;
     // A game asked about that has since gone (synced away, removed on another screen): drop the question.
     if (this.#removing !== null && !games.some((save) => save.id === this.#removing)) this.#removing = null;
