@@ -695,3 +695,85 @@ describe("the log cap and parts", () => {
     expect(next).toBe(40);
   });
 });
+
+describe("the tail row on host disconnect", () => {
+  async function playedTo(count: number) {
+    const ctx = await setup();
+    const h = await ctx.host();
+    await ctx.start(h, { h: 1 });
+    for (let i = 0; i < count; i++) await ctx.commands(h, i, [{ c: i }], i === 41 ? { "42": "s42" } : undefined);
+    return { ...ctx, h };
+  }
+
+  it("writes the unfinished tail with its checksums in one row per disconnect, overwritten each time", async () => {
+    const { room, h, storage, host } = await playedTo(45);
+    const rows = storage.rowsWritten;
+    await room.close(h);
+    expect(storage.rowsWritten - rows).toBe(1);
+    const tail = storage.map.get("t1:tail") as { commands: unknown[]; checksums: Record<string, string> };
+    expect(tail.commands).toHaveLength(5);
+    expect(tail.checksums).toEqual({ "42": "s42" });
+    // A replaced host writes it too, and a later disconnect overwrites the same row.
+    const again = await host();
+    const second = await host();
+    expect(again.closed?.reason).toBe("replaced");
+    expect(storage.map.get("t1:tail")).toEqual(tail);
+    await room.close(second);
+    expect([...storage.map.keys()].filter((k) => k.endsWith(":tail"))).toEqual(["t1:tail"]);
+  });
+
+  it("writes nothing when the log ends exactly on a chunk, and a stale tail row is dropped", async () => {
+    const { room, h, storage } = await playedTo(40);
+    const rows = storage.rowsWritten;
+    await room.close(h);
+    expect(storage.rowsWritten).toBe(rows);
+    expect(storage.map.has("t1:tail")).toBe(false);
+  });
+
+  it("a woken room loads the tail with the chunks, so a watcher gets the whole log, and asks from the full count", async () => {
+    const { room, h, storage, clock } = await playedTo(45);
+    await room.close(h);
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect(w.last("welcome")!.tables[0]).toMatchObject({ commands: 45, hasHeader: true });
+    expect(w.last("log")).toMatchObject({ checksums: { "42": "s42" } });
+    expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(45);
+    // The host comes back and is asked from 45; its next batch continues the log.
+    const back = new FakeSocket();
+    await woken.message(back, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], token: TOKEN }));
+    expect(back.sent.find((m) => m.kind === "resend")).toMatchObject({ from: 45 });
+    await woken.message(
+      back,
+      JSON.stringify({ v: 1, ch: "game", kind: "commands", table: "t1", from: 45, commands: [45] }),
+    );
+    expect(woken.logLength()).toBe(46);
+  });
+
+  it("is deleted when a frozen chunk supersedes it", async () => {
+    const { room, h, storage, host, commands } = await playedTo(45);
+    await room.close(h);
+    expect(storage.map.has("t1:tail")).toBe(true);
+    const back = await host();
+    await commands(
+      back,
+      45,
+      Array.from({ length: 15 }, (_, i) => i),
+    );
+    expect(storage.map.has("t1:tail")).toBe(false);
+    expect(storage.map.has("t1:c:000002")).toBe(true);
+  });
+
+  it("is deleted by a rewind that cuts it and by a log that replaces the table", async () => {
+    const { room, h, storage, host, send } = await playedTo(45);
+    await room.close(h);
+    const back = await host();
+    await send(back, { ch: "game", kind: "rewind", table: "t1", to: 43 });
+    expect(storage.map.has("t1:tail")).toBe(false);
+    await room.close(back);
+    expect(storage.map.has("t1:tail")).toBe(true);
+    const again = await host();
+    await send(again, { ch: "game", kind: "log", table: "t1", header: 2, commands: [1, 2] });
+    expect(storage.map.has("t1:tail")).toBe(false);
+  });
+});

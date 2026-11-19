@@ -83,7 +83,9 @@
 //     of a request; outgoing messages are free. A game of 600 commands an hour sent one per message is about 30 requests
 //     an hour, plus each watcher's join and its few messages. A hibernated room costs no duration.
 //   - Rows: one header row at the game's start, and one row per completed chunk of 20 commands (written once when the
-//     chunk fills, never rewritten; the unfinished tail stays in memory and is re-asked from the host after a wake), so
+//     chunk fills, never rewritten; the unfinished tail stays in memory, is written to one t1:tail row each time the
+//     host's socket closes or is replaced (one row per disconnect, overwritten, deleted when a chunk supersedes it, a
+//     rewind cuts it or a log replaces it) and what a wake still lacks is re-asked from the host), so
 //     about 1 row per 20 commands: a 600-command hour is about 30 rows, and a long 3,000-command game about 150. The
 //     host's last-message stamp is one meta row at most hourly. The idle alarm is set at creation and moved out only when
 //     it fires with the host still active (about once per 12 hours); the end of a game writes 2 rows (meta and the

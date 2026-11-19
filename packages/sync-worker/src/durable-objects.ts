@@ -310,8 +310,8 @@ export class GameRoom {
     await this.room.message(this.socketOf(ws), message);
   }
 
-  webSocketClose(ws: WebSocketLike, code?: number, reason?: string): void {
-    this.room.close(this.socketOf(ws));
+  async webSocketClose(ws: WebSocketLike, code?: number, reason?: string): Promise<void> {
+    await this.room.close(this.socketOf(ws));
     try {
       ws.close(code && code >= 1000 && code < 5000 && code !== 1005 && code !== 1006 ? code : 1000, reason);
     } catch {
@@ -319,8 +319,8 @@ export class GameRoom {
     }
   }
 
-  webSocketError(ws: WebSocketLike): void {
-    this.room.close(this.socketOf(ws));
+  async webSocketError(ws: WebSocketLike): Promise<void> {
+    await this.room.close(this.socketOf(ws));
   }
 
   async alarm(): Promise<void> {

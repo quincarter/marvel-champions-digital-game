@@ -6,7 +6,9 @@
  * `meta` (host token hash, createdAt, a last-host stamp written at most hourly, and the end/outcome once), one
  * `<table>:header` row at `start`/`log`, and one `<table>:c:<n>` row per completed chunk of `ROOM_CHUNK_COMMANDS`
  * commands with the checksums that fall in it, written once when the chunk fills and never rewritten. The unfinished
- * tail of up to a chunk lives in memory only; a woken room loads the chunks and asks the host for the tail with
+ * tail of up to a chunk lives in memory, and is written to one `<table>:tail` row when the host disconnects (so a host
+ * who closes the app mid-game leaves watchers the whole log), overwritten each time and dropped when a frozen chunk
+ * supersedes it, a rewind cuts it or a `log` replaces the table; a woken room loads the chunks and asks the host for the tail with
  * `resend { from }`. About one row per 20 commands.
  *
  * A socket's participant lives in the socket's own attachment, so it survives hibernation; the logic keys everything
@@ -94,6 +96,8 @@ interface Table {
   outcome: unknown;
   overflow: boolean;
   loaded: boolean;
+  /** A `<table>:tail` row exists in storage. */
+  tailStored: boolean;
 }
 
 export async function sha256Hex(text: string): Promise<string> {
@@ -122,6 +126,7 @@ const newTable = (id: string): Table => ({
   outcome: null,
   overflow: false,
   loaded: false,
+  tailStored: false,
 });
 
 const randomId = (): string =>
@@ -129,6 +134,7 @@ const randomId = (): string =>
 
 const headerKey = (table: string) => `${table}:header`;
 const chunkKey = (table: string, n: number) => `${table}:c:${String(n).padStart(6, "0")}`;
+const tailKey = (table: string) => `${table}:tail`;
 
 /** The checksums of a message as a plain record, or null when a key is not a command count or a value not a string. */
 function cleanChecksums(value: unknown): Record<string, string> | null {
@@ -232,6 +238,15 @@ export class GameRoomLogic {
       table.checksums = checksums;
       table.bytes = bytes;
       table.persisted = persisted;
+      const tail = await this.storage.get<{ commands: unknown[]; checksums: Record<string, string> }>(
+        tailKey(table.id),
+      );
+      if (tail) {
+        table.commands = [...table.commands, ...tail.commands];
+        table.checksums = { ...table.checksums, ...tail.checksums };
+        table.bytes += sizeOfAll(tail.commands);
+        table.tailStored = true;
+      }
     }
     table.ended = meta?.ended ?? false;
     table.outcome = meta?.outcome ?? null;
@@ -243,6 +258,25 @@ export class GameRoomLogic {
     const keys: string[] = [];
     for (let n = from; n < to; n++) keys.push(chunkKey(tableId, n));
     for (let i = 0; i < keys.length; i += 128) await this.storage.delete(keys.slice(i, i + 128));
+  }
+
+  /** Deletes the stored tail row, if there is one. */
+  private async dropTail(table: Table): Promise<void> {
+    if (!table.tailStored) return;
+    table.tailStored = false;
+    await this.storage.delete(tailKey(table.id));
+  }
+
+  /** Writes the unfinished tail (commands past the last frozen chunk, with their checksums), overwriting the last. */
+  private async writeTail(table: Table): Promise<void> {
+    const first = table.persisted * ROOM_CHUNK_COMMANDS;
+    if (!table.loaded || !table.hasHeader) return;
+    if (table.commands.length <= first) return this.dropTail(table);
+    await this.storage.put(tailKey(table.id), {
+      commands: table.commands.slice(first),
+      checksums: this.checksumsIn(table, first, table.commands.length),
+    });
+    table.tailStored = true;
   }
 
   /** Writes every chunk that has filled since the last write, each once. */
@@ -267,7 +301,10 @@ export class GameRoomLogic {
         count = 0;
       }
     }
-    if (count > 0) await this.storage.put(entries);
+    if (count > 0) {
+      await this.storage.put(entries);
+      await this.dropTail(table);
+    }
   }
 
   private tableOf(id: string): Table | undefined {
@@ -485,6 +522,7 @@ export class GameRoomLogic {
         } catch {
           // Already gone.
         }
+        await this.writeTail(table);
       }
     } else if (this.participants.size >= this.limits.maxParticipants) {
       this.refuse(socket, "full");
@@ -532,6 +570,7 @@ export class GameRoomLogic {
     switch (message.kind) {
       case "start": {
         if (table.ended) return this.refuse(socket, "not-allowed");
+        await this.dropTail(table);
         await this.deleteChunks(table.id, 0, table.persisted);
         await this.storage.put(headerKey(table.id), { h: message.header });
         Object.assign(table, newTable(table.id), { header: message.header, hasHeader: true, loaded: true });
@@ -551,6 +590,7 @@ export class GameRoomLogic {
           await this.endTable(table, null, true);
           return;
         }
+        await this.dropTail(table);
         await this.deleteChunks(table.id, 0, table.persisted);
         table.header = message.header;
         table.hasHeader = true;
@@ -606,6 +646,7 @@ export class GameRoomLogic {
         if (!table.hasHeader || message.to > table.commands.length) return this.refuse(socket, "out-of-order");
         const cut = message.to < table.commands.length;
         const keep = Math.floor(message.to / ROOM_CHUNK_COMMANDS);
+        if (cut) await this.dropTail(table);
         if (keep < table.persisted) {
           await this.deleteChunks(table.id, keep, table.persisted);
           table.persisted = keep;
@@ -656,7 +697,7 @@ export class GameRoomLogic {
   // Leaving and closing
 
   /** A socket closed or errored. A host replaced by a newer one is already gone and changes nothing. */
-  close(socket: RoomSocket): void {
+  async close(socket: RoomSocket): Promise<void> {
     const participant = socket.getParticipant();
     if (!participant || !this.participants.has(participant.id)) return;
     this.participants.delete(participant.id);
@@ -665,7 +706,10 @@ export class GameRoomLogic {
     if (participant.role === "host" && participant.table) {
       const table = this.tableOf(participant.table);
       this.resendAsked.delete(participant.table);
-      if (table) this.broadcastTable(table);
+      if (table) {
+        this.broadcastTable(table);
+        await this.writeTail(table);
+      }
     }
   }
 

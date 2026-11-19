@@ -27,7 +27,10 @@ authoritative, the room only orders and relays, and nobody else runs a different
   between moves, so a memory-only log would mean a full re-upload after most pauses, and a log past the 1 MiB WebSocket
   message would never fit one resend. The room stores one row for the header (at `start`/`log`) and one row per
   completed chunk of 20 commands, with the checksums that fall in it, written once when the chunk fills and never
-  rewritten. The unfinished tail (under 20 commands) lives in memory only. A woken room loads the header and chunks and
+  rewritten. The unfinished tail (under 20 commands) lives in memory and is written to one `t1:tail` row, with its checksums, each
+  time the host's socket closes or is replaced (one row per disconnect, overwritten; deleted when a frozen chunk
+  supersedes it, a rewind cuts it or a `log` replaces the table), so a host who closes the app mid-game leaves watchers
+  the whole log. A woken room loads the header and chunks and
   asks the host for the tail with `resend { from: <stored count> }`, answered with an ordinary `commands` batch (or,
   when `from` is 0, a `log` with the header and first commands, then `commands` batches). That is about one row per 20
   commands (rows written are the scarcest free-plan quota, shared with sync and global stats); a rewind deletes the
