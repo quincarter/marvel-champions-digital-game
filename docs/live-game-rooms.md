@@ -28,7 +28,9 @@ authoritative, the room only orders and relays, and nobody else runs a different
   message would never fit one resend. The room stores one row for the header (at `start`/`log`) and one row per
   completed chunk of 20 commands, with the checksums that fall in it, written once when the chunk fills and never
   rewritten. The unfinished tail (under 20 commands) lives in memory and is written to one `t1:tail` row, with its checksums, each
-  time the host's socket closes or is replaced (one row per disconnect, overwritten; deleted when a frozen chunk
+  time the host's socket closes or is replaced, when the game ends, and while the host streams when a batch arrives
+  over 60 s after the last write (at most 60 rows an hour; a close in a woken room that has not loaded the table writes
+  nothing, so it cannot overwrite the stored tail; overwritten each time; deleted when a frozen chunk
   supersedes it, a rewind cuts it or a `log` replaces the table), so a host who closes the app mid-game leaves watchers
   the whole log. A woken room loads the header and chunks and
   asks the host for the tail with `resend { from: <stored count> }`, answered with an ordinary `commands` batch (or,

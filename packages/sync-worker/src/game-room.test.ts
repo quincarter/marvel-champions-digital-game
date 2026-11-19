@@ -427,12 +427,11 @@ describe("closing", () => {
     const { host, start, commands, storage, clock } = await setup();
     const h = await host();
     await start(h);
-    const rows = storage.rowsWritten;
     for (let i = 0; i < 10; i++) {
       clock.now += 60_000;
       await commands(h, i, [i]);
     }
-    expect(storage.rowsWritten).toBe(rows);
+    expect((storage.map.get("meta") as { lastHostAt?: number }).lastHostAt).toBeUndefined();
     clock.now += 60 * 60 * 1000;
     await commands(h, 10, [10]);
     const stamp = (storage.map.get("meta") as { lastHostAt: number }).lastHostAt;
@@ -775,5 +774,64 @@ describe("the tail row on host disconnect", () => {
     const again = await host();
     await send(again, { ch: "game", kind: "log", table: "t1", header: 2, commands: [1, 2] });
     expect(storage.map.has("t1:tail")).toBe(false);
+  });
+});
+
+describe("the tail row while the host streams, at the end, and after a wake", () => {
+  it("refreshes the tail row when a batch arrives more than 60 s after it was last written, not before", async () => {
+    const { host, start, commands, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(h, 0, [0, 1, 2]);
+    expect(storage.map.has("t1:tail")).toBe(false);
+    clock.now += 59_000;
+    await commands(h, 3, [3]);
+    expect(storage.map.has("t1:tail")).toBe(false);
+    clock.now += 2_000;
+    await commands(h, 4, [4]);
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([0, 1, 2, 3, 4]);
+    const rows = storage.rowsWritten;
+    clock.now += 30_000;
+    await commands(h, 5, [5]);
+    expect(storage.rowsWritten).toBe(rows);
+    clock.now += 31_000;
+    await commands(h, 6, [6]);
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toHaveLength(7);
+  });
+
+  it("writes the tail with the end, so a game whose host never returns is whole", async () => {
+    const { host, start, commands, send, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(h, 0, [0, 1, 2]);
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: { won: true } });
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([0, 1, 2]);
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(3);
+    expect(w.last("end")).toMatchObject({ outcome: { won: true } });
+  });
+
+  it("a host close as the first event of a woken room does not overwrite the stored tail", async () => {
+    const { host, start, commands, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 25; i++) await commands(h, i, [i]);
+    clock.now += 61_000;
+    await commands(h, 25, [25]);
+    const stored = structuredClone(storage.map.get("t1:tail"));
+    expect((stored as { commands: unknown[] }).commands).toHaveLength(6);
+    // The room hibernates and is rebuilt; the host's close is the first thing it sees.
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    woken.restore(h);
+    const rows = storage.rowsWritten;
+    await woken.close(h);
+    expect(storage.rowsWritten).toBe(rows);
+    expect(storage.map.get("t1:tail")).toEqual(stored);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect(w.last("welcome")!.tables[0]).toMatchObject({ commands: 26, hostConnected: false });
+    expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(26);
   });
 });

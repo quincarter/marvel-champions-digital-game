@@ -62,6 +62,9 @@ export const DEFAULT_GAME_ROOM_LIMITS: GameRoomLimits = {
 /** What the room advertises; `chat`, `seats` and `tables` join this list as they are built. */
 export const ROOM_CAPS: readonly RoomCapability[] = ["watch"];
 
+/** While the host streams, the tail row is refreshed when it was last written this long ago. */
+const TAIL_REFRESH_MS = 60 * 1000;
+
 /** The host's last-message stamp is stored at most this often. */
 const STAMP_EVERY_MS = 60 * 60 * 1000;
 
@@ -98,6 +101,8 @@ interface Table {
   loaded: boolean;
   /** A `<table>:tail` row exists in storage. */
   tailStored: boolean;
+  /** When the tail row was last written (or this lifetime first saw the table), for the 60 s refresh while streaming. */
+  tailAt: number | undefined;
 }
 
 export async function sha256Hex(text: string): Promise<string> {
@@ -127,6 +132,7 @@ const newTable = (id: string): Table => ({
   overflow: false,
   loaded: false,
   tailStored: false,
+  tailAt: undefined,
 });
 
 const randomId = (): string =>
@@ -238,9 +244,10 @@ export class GameRoomLogic {
       table.checksums = checksums;
       table.bytes = bytes;
       table.persisted = persisted;
-      const tail = await this.storage.get<{ commands: unknown[]; checksums: Record<string, string> }>(
+      const tail = await this.storage.get<{ commands: unknown[]; checksums: Record<string, string>; at?: number }>(
         tailKey(table.id),
       );
+      table.tailAt = tail?.at ?? this.clock();
       if (tail) {
         table.commands = [...table.commands, ...tail.commands];
         table.checksums = { ...table.checksums, ...tail.checksums };
@@ -275,8 +282,10 @@ export class GameRoomLogic {
     await this.storage.put(tailKey(table.id), {
       commands: table.commands.slice(first),
       checksums: this.checksumsIn(table, first, table.commands.length),
+      at: this.clock(),
     });
     table.tailStored = true;
+    table.tailAt = this.clock();
   }
 
   /** Writes every chunk that has filled since the last write, each once. */
@@ -625,6 +634,10 @@ export class GameRoomLogic {
         table.checksums = { ...table.checksums, ...checksums };
         table.bytes += added;
         await this.persistChunks(table);
+        // A host that closes the app may never return to write the tail: refresh it while it streams, at most once a
+        // minute, so an evicted room still has the commands past the last chunk.
+        table.tailAt ??= this.clock();
+        if (this.clock() - table.tailAt >= TAIL_REFRESH_MS) await this.writeTail(table);
         this.unverified = false;
         this.resendAsked.delete(table.id);
         this.broadcast(
@@ -689,6 +702,8 @@ export class GameRoomLogic {
     this.broadcast({ v: 1, ch: "game", kind: "end", table: table.id, outcome });
     this.broadcastTable(table);
     const now = this.clock();
+    // The game is over and the host may never come back: store the tail with the end.
+    await this.writeTail(table);
     await this.saveMeta({ ended: true, outcome, endedAt: now, ...(overflow ? { overflow: true } : {}) });
     if ([...this.tables.values()].every((t) => t.ended)) await this.storage.setAlarm(now + ROOM_END_GRACE_MS);
   }
