@@ -1,8 +1,8 @@
 /**
  * Game links opening the installed app (issue #862). The desktop app registers `marvelchampions://` links
- * (`marvelchampions://replay/<id>`, Tauri's deep-link plugin, `src-tauri/`); the Android app claims the game's own
+ * (`marvelchampions://replay/<id>` and `watch/<id>`, Tauri's deep-link plugin, `src-tauri/`); the Android app claims the game's own
  * address through App Links (`https://marvel.champions-digital-game.com/#replay=<id>`, `public/.well-known/`). Either
- * way the link is turned into the game's own fragment (`#replay=`, `#receive=`, `#link=`), which Boot and Title already
+ * way the link is turned into the game's own fragment (`#replay=`, `#watch=`, `#receive=`, `#link=`), which Boot and Title already
  * read once at startup (`replay/replay-link.ts`, `save-data/receive-link.ts`).
  *
  * A link the app was started with is put on the address before the game starts (`takeLaunchLink`, `main.ts`). A link
@@ -15,12 +15,12 @@ import { GAME_URL } from "../site/site-urls.js";
 /** The desktop app's link scheme (`src-tauri/tauri.conf.json`, `plugins.deep-link`). */
 export const APP_LINK_SCHEME = "marvelchampions";
 
-const FRAGMENT = /^#(replay|receive|link)=[^#\s]+$/;
+const FRAGMENT = /^#(replay|watch|receive|link)=[^#\s]+$/;
 const GAME_HOST = new URL(GAME_URL).host;
 
 /**
  * The game fragment a link carries (`#replay=<id>`), or null for a link that names nothing the game opens:
- *  - `marvelchampions://replay/<id>` (and `receive`, `link`), or `marvelchampions://open#replay=<id>`;
+ *  - `marvelchampions://replay/<id>` (and `watch`, `receive`, `link`), or `marvelchampions://open#replay=<id>`;
  *  - the game's own address with a game fragment (`https://marvel.champions-digital-game.com/#replay=<id>`).
  */
 export function gameFragmentOf(link: string): string | null {
@@ -40,6 +40,11 @@ export function gameFragmentOf(link: string): string | null {
   }
   if (url.protocol === "https:" && url.host === GAME_HOST && FRAGMENT.test(url.hash)) return url.hash;
   return null;
+}
+
+/** The desktop app's link for a live game (issue #876). */
+export function appWatchLinkOf(roomId: string): string {
+  return `${APP_LINK_SCHEME}://watch/${encodeURIComponent(roomId)}`;
 }
 
 /** The desktop app's link for a shared replay, for the web version's "Open in the desktop app". */

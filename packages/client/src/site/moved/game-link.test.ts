@@ -5,6 +5,7 @@ const GAME = "https://marvel.champions-digital-game.com/";
 describe("gameLinkOf", () => {
   it.each([
     ["#replay=abc123", "replay"],
+    ["#watch=abcdefghijkl", "watch"],
     ["#receive=ROOM.KEY", "receive"],
     ["#link=ROOM.LONGKEY", "link"],
   ] as const)("forwards %s to the new address with its fragment", (hash, kind) => {

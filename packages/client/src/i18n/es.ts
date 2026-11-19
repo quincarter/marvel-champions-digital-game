@@ -310,4 +310,12 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.credits.packs_one": "{count} paquete",
   "modStore.credits.packs_other": "{count} paquetes",
   "modStore.credits.intro": "Quienes crean los paquetes de la tienda. Elige un nombre para ver lo que ha hecho.",
+  "watch.live": "EN VIVO",
+  "watch.hostAway": "Anfitrión ausente",
+  "watch.goLive": "Volver al directo",
+  "watch.goLiveTip": "Saltar a la última jugada",
+  "watch.link.heading": "Partida en directo",
+  "watch.link.loading": "Uniéndose a la partida en directo…",
+  "watch.link.opening": "Abriendo la partida en directo…",
+  "watch.link.gone": "Esa partida en directo ya no está abierta, o el enlace no es correcto.",
 };

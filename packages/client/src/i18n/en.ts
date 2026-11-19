@@ -310,4 +310,12 @@ export const en = {
   "modStore.credits.packs_one": "{count} pack",
   "modStore.credits.packs_other": "{count} packs",
   "modStore.credits.intro": "The people who make the store's packs. Pick a name to see what they made.",
+  "watch.live": "LIVE",
+  "watch.hostAway": "Host away",
+  "watch.goLive": "Back to live",
+  "watch.goLiveTip": "Jump to the newest move",
+  "watch.link.heading": "Live game",
+  "watch.link.loading": "Joining the live game…",
+  "watch.link.opening": "Opening the live game…",
+  "watch.link.gone": "That live game isn't open any more, or the link is wrong.",
 } as const;

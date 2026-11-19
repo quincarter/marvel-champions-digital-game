@@ -35,6 +35,8 @@ export class SharedReplayLoading {
   readonly #openInApp: (() => void) | null;
   #failure: MessageKey | null = null;
   #left = false;
+  /** A live game's link (issue #876): the words say "live game" where a replay's say "shared replay". */
+  readonly #live: boolean;
   /** The replay is open and going onto the board: leaving now would race that. */
   #locked = false;
   /** Waiting on the installed mod packs (`loadingMods`). */
@@ -52,8 +54,9 @@ export class SharedReplayLoading {
    * `toMenu` leaves for Title: Cancel while loading, Main menu after a failure. `openInApp`, when given, adds "Open in
    * the desktop app" over Cancel while the replay loads.
    */
-  constructor(scene: Phaser.Scene, toMenu: () => void, openInApp: (() => void) | null = null) {
+  constructor(scene: Phaser.Scene, toMenu: () => void, openInApp: (() => void) | null = null, live = false) {
     this.#scene = scene;
+    this.#live = live;
     this.#toMenu = toMenu;
     this.#openInApp = openInApp;
     this.#route = new FocusRoute(scene, { onCancel: () => this.#leave(), primary: () => ACTION_ID });
@@ -162,7 +165,9 @@ export class SharedReplayLoading {
       );
     }
 
-    const headingText = t(failed ? "replay.link.failedHeading" : "replay.link.heading");
+    const headingText = t(
+      failed ? "replay.link.failedHeading" : this.#live ? "watch.link.heading" : "replay.link.heading",
+    );
     const heading = scene.add
       .text(0, 0, caseOf(typeRole.barTitle, headingText), textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0.5, 0)
@@ -174,7 +179,15 @@ export class SharedReplayLoading {
         0,
         t(
           this.#failure ??
-            (this.#locked ? "replay.link.opening" : this.#mods ? "replay.link.mods" : "replay.link.loading"),
+            (this.#locked
+              ? this.#live
+                ? "watch.link.opening"
+                : "replay.link.opening"
+              : this.#mods
+                ? "replay.link.mods"
+                : this.#live
+                  ? "watch.link.loading"
+                  : "replay.link.loading"),
         ),
         textStyle(typeRole.body, surface.paper.hex, 0.9),
       )
