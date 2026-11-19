@@ -4,6 +4,9 @@
  */
 import type { GameStorage, LastPlayedOn } from "../engine/game-storage.js";
 import type { CardPool, StateWithoutPool } from "../engine/host.js";
+import type { Command, GameOutcome } from "@mc/engine";
+import { parseLiveHeader } from "../live/watch-header.js";
+import { REPLAY_FORMAT, REPLAY_VERSION } from "./replay-file.js";
 import { freshBaseline, type Snapshot } from "../engine/session-core.js";
 import {
   decodeReplay,
@@ -21,7 +24,19 @@ export type ReplayOpenSource =
   /** `packs`: the viewer's installed packs, which a file's game is played with when it names them. */
   | { readonly kind: "file"; readonly bytes: Uint8Array; readonly packs?: readonly PackRuntime[] }
   | { readonly kind: "stored"; readonly gameId: string }
-  | { readonly kind: "log"; readonly log: ReplayLog };
+  | { readonly kind: "log"; readonly log: ReplayLog }
+  /**
+   * A game being played right now (issue #876): the live table's header as the room carries it (opaque until read), the
+   * log so far and the host's checksums by command count. Followed with `liveAppend`, `liveRewind` and `liveEnd`.
+   */
+  | {
+      readonly kind: "live";
+      readonly header: unknown;
+      readonly commands: readonly Command[];
+      readonly checksums: Readonly<Record<string, string>>;
+      readonly outcome: GameOutcome | null;
+      readonly packs?: readonly PackRuntime[];
+    };
 
 /** Why a replay could not be opened: the file's own reasons, a saved game that is gone, or a scenario that can't be set up. */
 export type ReplayOpenErrorCode = ReplayParseError | "missing" | "setup" | "missingPacks";
@@ -134,6 +149,28 @@ export class ReplayCore {
     return { cardPool: session.cardPool, info: session.info };
   }
 
+  /** Live watching (issue #876): the host's next commands. Answers the replay's new info. */
+  liveAppend(commands: readonly Command[], checksums?: Readonly<Record<string, string>>): ReplayInfo {
+    const session = this.#require();
+    if (session.info.total + commands.length > MAX_REPLAY_COMMANDS) throw new ReplayOpenError("damaged");
+    session.liveAppend(commands, checksums);
+    return session.info;
+  }
+
+  /** The host cut its log to the first `to` commands. */
+  liveRewind(to: number): ReplayInfo {
+    const session = this.#require();
+    session.liveRewind(to);
+    return session.info;
+  }
+
+  /** The game ended. */
+  liveEnd(outcome: GameOutcome): ReplayInfo {
+    const session = this.#require();
+    session.liveEnd(outcome);
+    return session.info;
+  }
+
   snapshot(n: number, played: boolean): Snapshot {
     return this.#require().snapshotAt(n, played);
   }
@@ -158,6 +195,41 @@ export class ReplayCore {
         const parsed = await decodeReplay(source.bytes);
         if (!parsed.ok) throw new ReplayOpenError(parsed.error);
         return { kind: "file", file: trustedFile(parsed.file, source.packs ?? []) };
+      }
+      case "live": {
+        const header = parseLiveHeader(source.header);
+        if (!header) throw new ReplayOpenError("damaged");
+        // The header is built into a file's shape so it is vetted and set up the way a file is (`trustedFile`).
+        const file = trustedFile(
+          {
+            format: REPLAY_FORMAT,
+            version: REPLAY_VERSION,
+            exportedAt: this.#now(),
+            writer: header.writer,
+            config: header.config,
+            ...(header.packs ? { packs: header.packs } : {}),
+            createdAt: header.createdAt,
+            outcome: source.outcome,
+            round: 0,
+            initialState: header.initialState,
+            commands: source.commands,
+            checksums: [],
+          },
+          source.packs ?? [],
+        );
+        return {
+          kind: "live",
+          checksums: source.checksums,
+          log: {
+            config: file.config,
+            initialState: file.initialState,
+            commands: file.commands,
+            createdAt: file.createdAt,
+            outcome: source.outcome,
+            round: 0,
+            playedOn: header.writer,
+          },
+        };
       }
       case "stored": {
         const stored = this.#storage ? await this.#storage.load(source.gameId) : null;

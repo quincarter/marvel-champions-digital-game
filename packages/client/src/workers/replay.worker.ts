@@ -8,6 +8,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { ReplayCore, ReplayOpenError } from "../replay/replay-core.js";
 import type { ReplayRequest, ReplayResponse } from "../replay/replay-protocol.js";
+import { LiveWatcher } from "../live/watch-controller.js";
 
 /** The client compiles with the DOM lib, so this names the members of the worker global actually used. */
 interface WorkerGlobal {
@@ -23,11 +24,27 @@ const core = new ReplayCore(
   typeof indexedDB !== "undefined" ? new IdbGameStorage(indexedDB) : null,
 );
 
+let watcher: LiveWatcher | null = null;
+
 async function handle(request: ReplayRequest): Promise<void> {
   try {
     switch (request.kind) {
       case "open": {
         const { cardPool, info } = await core.open(request.source);
+        worker.postMessage({ kind: "opened", id: request.id, cardPool, info });
+        return;
+      }
+      case "watch": {
+        watcher?.dispose();
+        // The socket lives here, in the worker that rebuilds the game: the main thread only gets the events.
+        watcher = new LiveWatcher({
+          core,
+          baseUrl: request.syncUrl,
+          roomId: request.roomId,
+          packs: request.packs,
+          emit: (event) => worker.postMessage({ kind: "live", event }),
+        });
+        const { cardPool, info } = await watcher.open();
         worker.postMessage({ kind: "opened", id: request.id, cardPool, info });
         return;
       }

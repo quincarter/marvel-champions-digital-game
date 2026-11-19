@@ -22,6 +22,9 @@ import type {
   UpdateListener,
 } from "../engine/host.js";
 import type { Snapshot } from "../engine/session-core.js";
+import { INITIAL_LIVE_STATE, type LiveState, type LiveWatchEvent } from "../live/watch-events.js";
+import { followPlan, isFollowing } from "../live/watch-follow.js";
+import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
 import {
@@ -42,14 +45,27 @@ export interface ReplayBackend {
   exportFile(): Promise<ReplayExport>;
   exportLog(): Promise<ReplayLogExport>;
   dispose(): void;
+  /** Follows a live game room (issue #876). Absent on a backend that cannot (it then refuses a watch). */
+  watch?(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayOpened>;
+  /** Hears the live game's changes while one is followed. */
+  onLive?(listener: (event: LiveWatchEvent) => void): void;
 }
 
 /** The replay rebuilt on the calling thread: the tests' backend, over the same `ReplayCore` the worker runs. */
 export class LocalReplayBackend implements ReplayBackend {
   readonly #core: ReplayCore;
 
-  constructor(core: ReplayCore) {
+  readonly #watch: ((roomId: string, syncUrl: string) => Promise<ReplayOpened>) | null;
+
+  /** `watch`: what a live watch opens with, in tests (the worker's socket is not there). */
+  constructor(core: ReplayCore, watch: ((roomId: string, syncUrl: string) => Promise<ReplayOpened>) | null = null) {
     this.#core = core;
+    this.#watch = watch;
+  }
+
+  watch(roomId: string, syncUrl: string): Promise<ReplayOpened> {
+    if (!this.#watch) return Promise.reject(new Error("no live watch here"));
+    return this.#watch(roomId, syncUrl);
   }
 
   open(source: ReplayOpenSource): Promise<ReplayOpened> {
@@ -58,6 +74,17 @@ export class LocalReplayBackend implements ReplayBackend {
 
   async snapshot(n: number, played: boolean): Promise<Snapshot> {
     return this.#core.snapshot(n, played);
+  }
+
+  #liveListener: ((event: LiveWatchEvent) => void) | null = null;
+
+  /** The tests' stand-in for the worker's socket: they hand the host the events a watch would have posted. */
+  onLive(listener: (event: LiveWatchEvent) => void): void {
+    this.#liveListener = listener;
+  }
+
+  emitLive(event: LiveWatchEvent): void {
+    this.#liveListener?.(event);
   }
 
   exportFile(): Promise<ReplayExport> {
@@ -82,6 +109,7 @@ export class WorkerReplayBackend implements ReplayBackend {
   readonly #worker: Worker;
   readonly #pending = new Map<number, Pending>();
   #nextId = 1;
+  #liveListener: ((event: LiveWatchEvent) => void) | null = null;
 
   constructor(
     factory: () => Worker = () =>
@@ -92,6 +120,10 @@ export class WorkerReplayBackend implements ReplayBackend {
   ) {
     this.#worker = factory();
     this.#worker.addEventListener("message", (event: MessageEvent<ReplayResponse>) => {
+      if (event.data.kind === "live") {
+        this.#liveListener?.(event.data.event);
+        return;
+      }
       const pending = this.#pending.get(event.data.id);
       if (!pending) return;
       this.#pending.delete(event.data.id);
@@ -113,6 +145,16 @@ export class WorkerReplayBackend implements ReplayBackend {
     const response = await this.#request({ kind: "open", id: this.#nextId++, source });
     if (response.kind !== "opened") throw new Error(`unexpected reply ${response.kind}`);
     return { cardPool: response.cardPool, info: response.info };
+  }
+
+  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayOpened> {
+    const response = await this.#request({ kind: "watch", id: this.#nextId++, roomId, syncUrl, packs });
+    if (response.kind !== "opened") throw new Error(`unexpected reply ${response.kind}`);
+    return { cardPool: response.cardPool, info: response.info };
+  }
+
+  onLive(listener: (event: LiveWatchEvent) => void): void {
+    this.#liveListener = listener;
   }
 
   async snapshot(n: number, played: boolean): Promise<Snapshot> {
@@ -194,9 +236,85 @@ export class ReplayHost implements EngineHost {
   #target = 0;
   #busy: Promise<void> | null = null;
   #disposed = false;
+  /** Set while a live game is followed (issue #876); null for an ordinary replay. */
+  #live: LiveState | null = null;
+  readonly #liveListeners = new Set<(state: LiveState | null) => void>();
 
   constructor(backend: ReplayBackend) {
     this.#backend = backend;
+  }
+
+  /** Follows a live game room (issue #876): the replay is the game so far, at its newest position, and keeps up. */
+  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayInfo> {
+    const watch = this.#backend.watch;
+    if (!watch || !this.#backend.onLive) throw new ReplayOpenError("setup", "this backend cannot follow a live game");
+    this.#live = INITIAL_LIVE_STATE;
+    this.#backend.onLive((event) => this.#onLive(event));
+    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs);
+    this.#cardPool = cardPool;
+    this.#info = info;
+    this.#position = info.length;
+    this.#target = info.length;
+    if (info.outcome) this.#live = { ...this.#live, over: true };
+    return info;
+  }
+
+  /** The live game's state, or null when this is an ordinary replay. */
+  get live(): LiveState | null {
+    return this.#live;
+  }
+
+  /** Whether the viewer is at the newest position of a live game (a step back leaves it, `goLive` returns). */
+  get following(): boolean {
+    return this.#info !== null && isFollowing(this.#target, this.#info.length);
+  }
+
+  /** The transport's feed of the live game's state. Delivers the current state at once. */
+  onLiveState(listener: (state: LiveState | null) => void): () => void {
+    this.#liveListeners.add(listener);
+    listener(this.#live);
+    return () => this.#liveListeners.delete(listener);
+  }
+
+  /** Jumps to the newest position of a live game (the "Live" control), without animating the way there. */
+  goLive(): Promise<void> {
+    return this.seek(this.#require().length);
+  }
+
+  #setLive(state: LiveState): void {
+    this.#live = state;
+    for (const listener of [...this.#liveListeners]) listener(state);
+  }
+
+  #onLive(event: LiveWatchEvent): void {
+    if (this.#disposed || !this.#live) return;
+    if (event.type === "presence") {
+      this.#setLive({ ...this.#live, hostConnected: event.hostConnected, watchers: event.watchers });
+      return;
+    }
+    if (event.type === "closed") {
+      this.#setLive({ ...this.#live, over: true, hostConnected: false });
+      return;
+    }
+    const old = this.#info;
+    if (!old) return;
+    this.#info = event.info;
+    const plan = followPlan({
+      change: event.change,
+      target: this.#target,
+      oldLength: old.length,
+      newLength: event.info.length,
+      added: event.added,
+    });
+    if (event.change === "end" || event.change === "reset" || event.change === "rewind") {
+      this.#setLive({ ...this.#live, over: event.info.outcome !== null });
+    }
+    // The bar learns the new length at once; a step or seek then publishes the table and the bar again.
+    const info = event.info;
+    for (const listener of [...this.#positionListeners]) listener({ position: this.#position, info });
+    // A failed fetch of the new position leaves the viewer where they were: the next event moves them again.
+    if (plan.kind === "step") void this.step().catch(() => undefined);
+    else if (plan.kind === "seek") void this.seek(plan.to).catch(() => undefined);
   }
 
   /** Rebuilds the replay. Rejects with a `ReplayOpenError` when it can't be watched at all. */
@@ -323,6 +441,7 @@ export class ReplayHost implements EngineHost {
 
   dispose(): void {
     this.#disposed = true;
+    this.#liveListeners.clear();
     this.#listeners.clear();
     this.#positionListeners.clear();
     this.#backend.dispose();

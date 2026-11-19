@@ -1,0 +1,124 @@
+/**
+ * The watcher's side of a live game room as plain logic with no socket in it (docs/live-game-rooms.md section 5,
+ * item 4): it reads the room's messages for the one table being followed and says what to do to the replay, in order.
+ *
+ * The room may send a joining watcher the log in parts (a `log`, then `commands` that continue it), and a reconnect
+ * brings a whole `log` again, so a `log` while a replay is already open is a `reset` and a `commands` batch is judged
+ * by where it starts: right at the end of what is held (an append), partly behind it (only the new tail is used),
+ * past it (a gap: the feed asks for a `resync`, which the controller answers by reconnecting for a fresh `log`).
+ */
+import { FIRST_TABLE, type ServerMessage, type TableChecksums } from "@mc/sync-worker/room-protocol";
+import type { Command } from "@mc/engine";
+
+export type WatchAction =
+  /** The first `log`: the replay can be opened. */
+  | {
+      readonly kind: "open" | "reset";
+      readonly header: unknown;
+      readonly commands: readonly Command[];
+      readonly checksums: TableChecksums;
+      readonly outcome: unknown;
+    }
+  | {
+      readonly kind: "append";
+      readonly commands: readonly Command[];
+      readonly checksums: TableChecksums | undefined;
+    }
+  | { readonly kind: "rewind"; readonly to: number }
+  | { readonly kind: "end"; readonly outcome: unknown }
+  | { readonly kind: "resync" }
+  | { readonly kind: "presence"; readonly hostConnected: boolean; readonly watchers: number }
+  | { readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" };
+
+export class WatchFeed {
+  readonly #table: string;
+  #opened = false;
+  #count = 0;
+  #hostConnected = false;
+  #watchers = 0;
+
+  constructor(table: string = FIRST_TABLE) {
+    this.#table = table;
+  }
+
+  /** Commands held so far. */
+  get count(): number {
+    return this.#count;
+  }
+
+  get opened(): boolean {
+    return this.#opened;
+  }
+
+  /** What a room message means for the replay. A reconnect brings its own `log`, which resets what is held. */
+  onMessage(message: ServerMessage): readonly WatchAction[] {
+    if (message.ch === "room") return this.#room(message);
+    if (message.ch !== "game" || !("table" in message) || message.table !== this.#table) return [];
+    switch (message.kind) {
+      case "log": {
+        const kind = this.#opened ? "reset" : "open";
+        this.#opened = true;
+        this.#count = message.commands.length;
+        return [
+          {
+            kind,
+            header: message.header,
+            commands: message.commands as readonly Command[],
+            checksums: message.checksums ?? {},
+            outcome: message.outcome,
+          },
+        ];
+      }
+      case "commands": {
+        if (!this.#opened) return [];
+        const from = message.from;
+        const end = from + message.commands.length;
+        if (from > this.#count) return [{ kind: "resync" }];
+        if (end <= this.#count) return [];
+        const fresh = message.commands.slice(this.#count - from) as readonly Command[];
+        this.#count = end;
+        return [{ kind: "append", commands: fresh, checksums: message.checksums }];
+      }
+      case "rewind":
+        if (!this.#opened || message.to >= this.#count) return [];
+        this.#count = message.to;
+        return [{ kind: "rewind", to: message.to }];
+      case "end":
+        return this.#opened ? [{ kind: "end", outcome: message.outcome }] : [];
+      default:
+        return [];
+    }
+  }
+
+  #room(message: Extract<ServerMessage, { ch: "room" }>): readonly WatchAction[] {
+    switch (message.kind) {
+      case "welcome": {
+        const table = message.tables.find((t) => t.id === this.#table);
+        this.#watchers = message.participants.filter((p) => p.role === "watcher").length;
+        this.#hostConnected = table?.hostConnected ?? false;
+        return this.#presence();
+      }
+      case "roster":
+        this.#watchers = message.watchers;
+        return this.#presence();
+      case "table":
+        if (message.table.id !== this.#table) return [];
+        this.#hostConnected = message.table.hostConnected;
+        return this.#presence();
+      case "closed":
+        return [{ kind: "closed", reason: message.reason }];
+      default:
+        return [];
+    }
+  }
+
+  /** The socket is down: the host is not known to be there. */
+  onDisconnected(): readonly WatchAction[] {
+    this.#hostConnected = false;
+    return this.#presence();
+  }
+
+  #presence(): readonly WatchAction[] {
+    return [{ kind: "presence", hostConnected: this.#hostConnected, watchers: this.#watchers }];
+  }
+}

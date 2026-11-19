@@ -123,6 +123,40 @@ export class ChecksumCheck {
   }
 }
 
+/**
+ * Checks a live game's checksums, which arrive keyed by command count as the host takes them (every `CHECKSUM_EVERY`
+ * commands, and on the game's last), against the states a watcher rebuilds (issue #876).
+ */
+export class LiveChecksumCheck {
+  readonly #expected = new Map<number, string>();
+  #divergedAt: number | null = null;
+
+  /** Adds the host's checksums (by command count, as strings). */
+  add(checksums: Readonly<Record<string, string>> | undefined): void {
+    for (const [key, value] of Object.entries(checksums ?? {})) {
+      const count = Number(key);
+      if (Number.isInteger(count) && count >= 0 && typeof value === "string") this.#expected.set(count, value);
+    }
+  }
+
+  /** Checks one rebuilt position; the first mismatch is kept. A checksum that has not arrived yet is checked when it does. */
+  observe(index: number, state: GameState): void {
+    if (this.#divergedAt !== null) return;
+    const expected = this.#expected.get(index);
+    if (expected !== undefined && expected !== replayChecksum(state)) this.#divergedAt = index;
+  }
+
+  /** The host cut its log to `to`: checksums and a divergence past it no longer count. */
+  truncateTo(to: number): void {
+    for (const key of [...this.#expected.keys()]) if (key > to) this.#expected.delete(key);
+    if (this.#divergedAt !== null && this.#divergedAt > to) this.#divergedAt = null;
+  }
+
+  get divergedAt(): number | null {
+    return this.#divergedAt;
+  }
+}
+
 /** Collects the checksums a writer stores (`observe` each position in order). */
 export class ChecksumWriter {
   readonly #values: string[] = [];
@@ -135,6 +169,12 @@ export class ChecksumWriter {
 
   get values(): readonly string[] {
     return this.#values;
+  }
+
+  /** Forgets every position after `index` (a live game's Undo cut the log there); the last one kept becomes the end. */
+  truncateTo(index: number, state: GameState): void {
+    this.#values.length = Math.min(this.#values.length, Math.floor(index / CHECKSUM_EVERY) + 1);
+    this.#last = { index, state };
   }
 
   /** The last position's checksum when the regular ones miss it: so the game's last commands are checked too. */

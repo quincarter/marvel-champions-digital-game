@@ -114,15 +114,31 @@ export interface ReplayBuildOptions {
   readonly lenient?: boolean;
 }
 
+/** The moments a command that took the game from `before` to `after` (at `index` commands) made: round and phase changes. */
+function momentsOf(before: GameState, after: GameState, index: number): ReplayMoment[] {
+  const moments: ReplayMoment[] = [];
+  if (after.round !== before.round) {
+    moments.push({ commandIndex: index, round: after.round, label: `Round ${after.round} begins`, kind: "round" });
+  }
+  if (after.step.phase !== before.step.phase) {
+    if (after.step.phase === "villain") {
+      moments.push({ commandIndex: index, round: after.round, label: "Villain Phase", kind: "villainPhase" });
+    } else if (after.step.phase === "player") {
+      moments.push({ commandIndex: index, round: after.round, label: "Player Phase", kind: "playerPhase" });
+    }
+  }
+  return moments;
+}
+
 export class ReplayCursor {
-  readonly #commands: readonly Command[];
+  readonly #commands: Command[];
   readonly #deps: EngineDeps;
   readonly #checkpoints: Map<number, Checkpoint>;
-  readonly #moments: readonly ReplayMoment[];
+  #moments: readonly ReplayMoment[];
   /** Setup's own events, then each command's, in order: what the log shows up to any position (`historyTo`). */
   readonly #setupEvents: readonly GameEvent[];
-  readonly #events: readonly (readonly GameEvent[])[];
-  readonly #failure: ReplayFailure | null;
+  readonly #events: (readonly GameEvent[])[];
+  #failure: ReplayFailure | null;
   #index = 0;
   /**
    * Test-only diagnostic: how many times this cursor has actually asked the
@@ -132,11 +148,11 @@ export class ReplayCursor {
   applyCount = 0;
 
   private constructor(
-    commands: readonly Command[],
+    commands: Command[],
     checkpoints: Map<number, Checkpoint>,
     moments: readonly ReplayMoment[],
     deps: EngineDeps,
-    history: { readonly setup: readonly GameEvent[]; readonly perCommand: readonly (readonly GameEvent[])[] },
+    history: { readonly setup: readonly GameEvent[]; readonly perCommand: (readonly GameEvent[])[] },
     failure: ReplayFailure | null,
   ) {
     this.#commands = commands;
@@ -281,6 +297,45 @@ export class ReplayCursor {
   /** The events command `n` (0-based) produced. */
   eventsOf(n: number): readonly GameEvent[] {
     return this.#events[n] ?? [];
+  }
+
+  /**
+   * Live watching (issue #876): continues the log with `commands`, applying each on the end state. Stops at the first
+   * one that no longer applies (the cursor then carries a `failure`, as a lenient build does). Answers how many were
+   * applied. `observe` sees each new position as the build's does.
+   */
+  append(commands: readonly Command[], observe?: ReplayBuildOptions["observe"]): number {
+    if (this.#failure) return 0;
+    let state = this.#resolve(this.#commands.length).state;
+    let applied = 0;
+    for (const command of structuredClone(commands) as Command[]) {
+      const result = applyCommand(state, command, this.#deps);
+      if (!result.ok) {
+        this.#failure = { commandIndex: this.#commands.length, message: result.error.message };
+        break;
+      }
+      const index = this.#commands.length + 1;
+      this.#commands.push(command);
+      this.#events.push(result.events);
+      this.#moments = [...this.#moments, ...momentsOf(state, result.state, index)];
+      state = result.state;
+      this.#checkpoints.set(index, { state, events: result.events });
+      applied += 1;
+      observe?.(index, state, result.events);
+    }
+    return applied;
+  }
+
+  /** Live watching: the host cut its log to the first `to` commands (an Undo). A `to` at or past the end does nothing. */
+  truncate(to: number): void {
+    const target = Math.max(0, Math.floor(to));
+    if (target >= this.#commands.length) return;
+    this.#failure = null;
+    this.#commands.length = target;
+    this.#events.length = Math.min(this.#events.length, target);
+    for (const key of [...this.#checkpoints.keys()]) if (key > target) this.#checkpoints.delete(key);
+    this.#moments = this.#moments.filter((moment) => moment.commandIndex <= target);
+    this.#index = Math.min(this.#index, target);
   }
 
   /** The index the cursor currently sits at. */
