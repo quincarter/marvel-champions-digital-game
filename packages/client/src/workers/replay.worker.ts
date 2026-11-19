@@ -30,6 +30,9 @@ async function handle(request: ReplayRequest): Promise<void> {
   try {
     switch (request.kind) {
       case "open": {
+        // An ordinary open ends any live follow: nothing from a room may reach the replay now on show.
+        watcher?.dispose();
+        watcher = null;
         const { cardPool, info } = await core.open(request.source);
         worker.postMessage({ kind: "opened", id: request.id, cardPool, info });
         return;

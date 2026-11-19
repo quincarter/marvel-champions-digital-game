@@ -1,6 +1,7 @@
 /**
- * Links into the game that still name the old address: a shared replay (`#replay=`, `replay/replay-link.ts`), a live game (`#watch=`, `live/watch-link.ts`), a save
- * transfer (`#receive=`) or a device-sync link (`#link=`, `save-data/receive-link.ts`). Installed apps and old QR codes
+ * Links into the game that still name the old address: a shared replay (`#replay=`, `replay/replay-link.ts`), a live
+ * game (`#watch=`, `live/watch-link.ts`), a save transfer (`#receive=`) or a device-sync link (`#link=`,
+ * `save-data/receive-link.ts`). Installed apps and old QR codes
  * keep making them until they update, and once the old address serves the moved page they land there. The moved page
  * offers to carry the link on to the game's new address with its fragment intact, rather than dropping the replay or
  * the transfer the player came for.

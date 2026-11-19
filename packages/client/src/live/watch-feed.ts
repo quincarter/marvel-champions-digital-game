@@ -27,6 +27,10 @@ export type WatchAction =
   | { readonly kind: "rewind"; readonly to: number }
   | { readonly kind: "end"; readonly outcome: unknown }
   | { readonly kind: "resync" }
+  /** The room has no game for this table yet (the host has not started it): keep waiting. */
+  | { readonly kind: "waiting" }
+  /** The room turned this watcher away: it is full. */
+  | { readonly kind: "refused" }
   | { readonly kind: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   | { readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" };
 
@@ -35,6 +39,8 @@ export class WatchFeed {
   #opened = false;
   #count = 0;
   #hostConnected = false;
+  /** A resync was asked for and its fresh `log` has not come: further gaps wait for it rather than ask again. */
+  #resyncing = false;
   #watchers = 0;
 
   constructor(table: string = FIRST_TABLE) {
@@ -58,6 +64,7 @@ export class WatchFeed {
       case "log": {
         const kind = this.#opened ? "reset" : "open";
         this.#opened = true;
+        this.#resyncing = false;
         this.#count = message.commands.length;
         return [
           {
@@ -73,7 +80,11 @@ export class WatchFeed {
         if (!this.#opened) return [];
         const from = message.from;
         const end = from + message.commands.length;
-        if (from > this.#count) return [{ kind: "resync" }];
+        if (from > this.#count) {
+          if (this.#resyncing) return [];
+          this.#resyncing = true;
+          return [{ kind: "resync" }];
+        }
         if (end <= this.#count) return [];
         const fresh = message.commands.slice(this.#count - from) as readonly Command[];
         this.#count = end;
@@ -96,7 +107,7 @@ export class WatchFeed {
         const table = message.tables.find((t) => t.id === this.#table);
         this.#watchers = message.participants.filter((p) => p.role === "watcher").length;
         this.#hostConnected = table?.hostConnected ?? false;
-        return this.#presence();
+        return table?.hasHeader ? this.#presence() : [{ kind: "waiting" }, ...this.#presence()];
       }
       case "roster":
         this.#watchers = message.watchers;
@@ -107,6 +118,8 @@ export class WatchFeed {
         return this.#presence();
       case "closed":
         return [{ kind: "closed", reason: message.reason }];
+      case "refused":
+        return message.reason === "full" ? [{ kind: "refused" }] : [];
       default:
         return [];
     }

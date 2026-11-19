@@ -197,6 +197,76 @@ describe("LiveWatcher", () => {
     await expect(opening).rejects.toMatchObject({ code: "damaged" });
   });
 
+  test("a reset that cannot be opened, or an append the core refuses, stops following and says so", async () => {
+    for (const breakIt of ["open", "append"] as const) {
+      const { w, events, socket } = watcher();
+      const real = fakeCore().core;
+      let opens = 0;
+      const core: LiveWatchCore = {
+        ...real,
+        open: async (source) => {
+          if (breakIt === "open" && ++opens === 2) throw new Error("damaged");
+          return real.open(source);
+        },
+        liveAppend: (commands, checksums) => {
+          if (breakIt === "append") throw new Error("too many commands");
+          return real.liveAppend(commands, checksums);
+        },
+      };
+      const wrapped = new LiveWatcher({
+        core,
+        baseUrl: "http://sync",
+        roomId: "A".repeat(12),
+        packs: [],
+        emit: (event) => events.push(event),
+        deps: { WebSocket: FakeSocket as never, setTimer: () => 0, clearTimer: () => undefined, random: () => 0.5 },
+      });
+      void w;
+      void socket;
+      const opening = wrapped.open();
+      const s = FakeSocket.all.at(-1)!;
+      s.onopen?.({});
+      s.say(welcome);
+      s.say(log([1, 2]));
+      await opening;
+      s.say(
+        breakIt === "open" ? log([1, 2, 3]) : { ch: "game", kind: "commands", table: "t1", from: 2, commands: [3] },
+      );
+      await flush();
+      expect(events.at(-1)).toEqual({ type: "failed" });
+      // Stopped: nothing after it is applied.
+      s.say({ ch: "game", kind: "commands", table: "t1", from: 3, commands: [4] });
+      await flush();
+      expect(events.filter((e) => e.type === "failed")).toHaveLength(1);
+    }
+  });
+
+  test("a full room is its own failure, and a room with no game started is waited for longer", async () => {
+    const full = watcher();
+    const a = full.w.open();
+    full.socket().onopen?.({});
+    full.socket().say({ ch: "room", kind: "refused", reason: "full" });
+    await expect(a).rejects.toMatchObject({ code: "full" });
+
+    const waiting = watcher();
+    const b = waiting.w.open();
+    waiting.socket().onopen?.({});
+    waiting.socket().say({ ...welcome, tables: [{ ...welcome.tables[0], hasHeader: false, commands: 0 }] });
+    await flush();
+    // The clock was restarted, so the first (short) timer's callback is no longer the live one.
+    expect(waiting.timers.length).toBe(2);
+    waiting.socket().say(log([1]));
+    await expect(b).resolves.toBeDefined();
+    waiting.w.dispose();
+  });
+
+  test("disposing a watcher that is still opening settles its open", async () => {
+    const { w } = watcher();
+    const opening = w.open();
+    w.dispose();
+    await expect(opening).rejects.toMatchObject({ code: "missing" });
+  });
+
   test("tells the host the room closed once the game is open", async () => {
     const { w, events, socket } = watcher();
     const opening = w.open();

@@ -7,7 +7,7 @@ import { LIVE_HEADER_FORMAT, LIVE_HEADER_VERSION } from "../live/live-publisher.
 import { INITIAL_LIVE_STATE, type LiveWatchEvent } from "../live/watch-events.js";
 import { ReplayCore, ReplayOpenError, type ReplayOpened } from "./replay-core.js";
 import { LocalReplayBackend, ReplayHost } from "./replay-host.js";
-import { CHECKSUM_EVERY, replayChecksum } from "./replay-file.js";
+import { CHECKSUM_EVERY, decodeReplay, replayChecksum } from "./replay-file.js";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -159,6 +159,48 @@ describe("a live replay source", () => {
     expect(info.failure?.commandIndex).toBe(8);
   });
 
+  test("a failure clears when the host cuts back to the failed command, and what it plays next applies", async () => {
+    const game = await hostedGame(12);
+    const core = new ReplayCore(HERE, null);
+    await openLive(core, game, 8);
+    const bogus = { type: "endTurn", playerId: "nobody" } as unknown as Command;
+    expect(core.liveAppend([bogus]).failure?.commandIndex).toBe(8);
+    // Stuck: more commands are not applied while the failure stands.
+    expect(core.liveAppend([game.commands[8]!]).length).toBe(8);
+    const cut = core.liveRewind(8);
+    expect(cut.failure).toBeNull();
+    expect(core.liveAppend([game.commands[8]!]).length).toBe(9);
+  });
+
+  test("appending one command at a time keeps every position right, and stepping to the newest has its events", async () => {
+    const game = await hostedGame(30);
+    const core = new ReplayCore(HERE, null);
+    await openLive(core, game, 0);
+    for (let i = 0; i < 30; i++) core.liveAppend([game.commands[i]!], game.checksums);
+    const full = new ReplayCore(HERE, null);
+    await openLive(full, game, 30);
+    for (const n of [0, 7, 20, 29, 30]) {
+      expect(replayChecksum(core.snapshot(n, false).state)).toBe(replayChecksum(full.snapshot(n, false).state));
+    }
+    expect(core.snapshot(30, true).events.length).toBeGreaterThan(0);
+    expect(core.liveAppend([]).divergedAt).toBeNull();
+  });
+
+  test("never writes the host's watchable setting into an exported file", async () => {
+    const game = await hostedGame(5);
+    const core = new ReplayCore(HERE, null);
+    await core.open({
+      kind: "live",
+      header: { ...game.header, config: { ...game.header.config, watchable: true } },
+      commands: game.commands,
+      checksums: game.checksums,
+      outcome: null,
+    });
+    const { bytes } = await core.exportFile();
+    const decoded = await decodeReplay(bytes);
+    expect(decoded.ok && "watchable" in decoded.file.config).toBe(false);
+  });
+
   test("refuses a header it cannot read", async () => {
     const core = new ReplayCore(HERE, null);
     await expect(
@@ -224,13 +266,27 @@ describe("a live replay in the host", () => {
     const seen: (boolean | undefined)[] = [];
     host.onLiveState((state) => seen.push(state?.hostConnected));
     push({ type: "presence", hostConnected: true, watchers: 3 });
-    expect(host.live).toEqual({ hostConnected: true, watchers: 3, over: false });
+    expect(host.live).toEqual({ hostConnected: true, watchers: 3, over: false, failed: false });
     push({ type: "info", info: core.liveEnd({ result: "defeat" } as never), change: "end", added: 0 });
     expect(host.live?.over).toBe(true);
     push({ type: "presence", hostConnected: false, watchers: 3 });
-    expect(host.live).toEqual({ hostConnected: false, watchers: 3, over: true });
+    expect(host.live).toEqual({ hostConnected: false, watchers: 3, over: true, failed: false });
     push({ type: "closed", reason: "ended" });
     expect(host.live?.over).toBe(true);
     expect(seen).toEqual([false, true, true, false, false]);
+  });
+
+  test("any end ends it, even with no outcome, and a rewind un-ends it", async () => {
+    const { host, core, push } = await liveHost(8);
+    push({ type: "info", info: core.liveEnd(null), change: "end", added: 0 });
+    expect(host.live?.over).toBe(true);
+    push({ type: "info", info: core.liveRewind(6), change: "rewind", added: 0 });
+    expect(host.live?.over).toBe(false);
+  });
+
+  test("a failed feed marks the live game over and failed", async () => {
+    const { host, push } = await liveHost(5);
+    push({ type: "failed" });
+    expect(host.live).toMatchObject({ over: true, failed: true });
   });
 });

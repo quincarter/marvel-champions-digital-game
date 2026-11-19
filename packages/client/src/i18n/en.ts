@@ -318,4 +318,6 @@ export const en = {
   "watch.link.loading": "Joining the live game…",
   "watch.link.opening": "Opening the live game…",
   "watch.link.gone": "That live game isn't open any more, or the link is wrong.",
+  "watch.link.full": "That live game already has as many watchers as it allows. Try again in a moment.",
+  "watch.failed": "Live feed lost",
 } as const;

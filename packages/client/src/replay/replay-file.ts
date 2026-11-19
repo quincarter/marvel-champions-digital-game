@@ -139,7 +139,10 @@ export class LiveChecksumCheck {
     }
   }
 
-  /** Checks one rebuilt position; the first mismatch is kept. A checksum that has not arrived yet is checked when it does. */
+  /**
+   * Checks one rebuilt position; the first mismatch is kept. A batch's checksums are added before its commands are
+   * applied, so every position's checksum is known by the time it is observed.
+   */
   observe(index: number, state: GameState): void {
     if (this.#divergedAt !== null) return;
     const expected = this.#expected.get(index);

@@ -317,20 +317,27 @@ export class ReplayCursor {
       const index = this.#commands.length + 1;
       this.#commands.push(command);
       this.#events.push(result.events);
-      this.#moments = [...this.#moments, ...momentsOf(state, result.state, index)];
+      const moments = momentsOf(state, result.state, index);
+      // A moment is rare (a round or phase change), so the list is only copied when one is made.
+      if (moments.length > 0) this.#moments = [...this.#moments, ...moments];
       state = result.state;
       this.#checkpoints.set(index, { state, events: result.events });
+      // Every interval and the newest are kept: the previous newest goes unless it is on the interval.
+      if ((index - 1) % CHECKPOINT_INTERVAL !== 0) this.#checkpoints.delete(index - 1);
       applied += 1;
       observe?.(index, state, result.events);
     }
     return applied;
   }
 
-  /** Live watching: the host cut its log to the first `to` commands (an Undo). A `to` at or past the end does nothing. */
+  /**
+   * Live watching: the host cut its log to the first `to` commands (an Undo). A `to` past the end does nothing, but a
+   * cut to the command that failed to apply, or before it, clears the failure: what the host plays next replaces it.
+   */
   truncate(to: number): void {
     const target = Math.max(0, Math.floor(to));
+    if (this.#failure && target <= this.#failure.commandIndex) this.#failure = null;
     if (target >= this.#commands.length) return;
-    this.#failure = null;
     this.#commands.length = target;
     this.#events.length = Math.min(this.#events.length, target);
     for (const key of [...this.#checkpoints.keys()]) if (key > target) this.#checkpoints.delete(key);

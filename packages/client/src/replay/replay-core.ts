@@ -39,7 +39,7 @@ export type ReplayOpenSource =
     };
 
 /** Why a replay could not be opened: the file's own reasons, a saved game that is gone, or a scenario that can't be set up. */
-export type ReplayOpenErrorCode = ReplayParseError | "missing" | "setup" | "missingPacks";
+export type ReplayOpenErrorCode = ReplayParseError | "missing" | "setup" | "missingPacks" | "full";
 
 export class ReplayOpenError extends Error {
   readonly code: ReplayOpenErrorCode;
@@ -137,7 +137,8 @@ export class ReplayCore {
   }
 
   async open(source: ReplayOpenSource): Promise<ReplayOpened> {
-    this.#session = null;
+    // A followed game keeps its session if its next open (a reset) fails, so what was shown can still be browsed.
+    if (source.kind !== "live") this.#session = null;
     const resolved = await this.#resolve(source);
     let session: ReplaySession;
     try {
@@ -165,7 +166,7 @@ export class ReplayCore {
   }
 
   /** The game ended. */
-  liveEnd(outcome: GameOutcome): ReplayInfo {
+  liveEnd(outcome: GameOutcome | null): ReplayInfo {
     const session = this.#require();
     session.liveEnd(outcome);
     return session.info;

@@ -82,8 +82,9 @@ export interface ReplayInfo {
 
 /** A setup without its packs' data, which a replay file never carries (`ReplayFile.config`). */
 export function withoutPacks(config: SessionConfig): SessionConfig {
-  if (config.packs === undefined) return config;
-  const { packs: _packs, ...rest } = config;
+  // `watchable` is the host's own setting for the game being streamed, not part of the game: never written to a file.
+  if (config.packs === undefined && config.watchable === undefined) return config;
+  const { packs: _packs, watchable: _watchable, ...rest } = config;
   return rest;
 }
 
@@ -215,7 +216,10 @@ export class ReplaySession {
       this.#records.set(index, live.record);
       live.round = state.round;
     });
-    live.commands.push(...commands.slice(0, applied));
+    const taken = commands.slice(0, applied);
+    live.commands.push(...taken);
+    // Only what arrived is scanned, never the whole log.
+    if (taken.some((command) => command.type === "adjust")) this.#info = { ...this.#info, adjusted: true };
     this.#refresh(total);
     return applied;
   }
@@ -238,7 +242,7 @@ export class ReplaySession {
   }
 
   /** The game ended: from here the replay is an ordinary one. */
-  liveEnd(outcome: GameOutcome): void {
+  liveEnd(outcome: GameOutcome | null): void {
     this.#requireLive();
     this.#info = { ...this.#info, outcome };
   }
@@ -259,7 +263,6 @@ export class ReplaySession {
       divergedAt: live?.check.divergedAt ?? this.#info.divergedAt,
       failure: this.#cursor.failure,
       round: live?.round ?? this.#info.round,
-      adjusted: this.#info.adjusted || this.#source.commands.some((command) => command.type === "adjust"),
     };
   }
 

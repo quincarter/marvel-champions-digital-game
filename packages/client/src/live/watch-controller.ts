@@ -17,7 +17,7 @@ export interface LiveWatchCore {
   open(source: ReplayOpenSource): Promise<ReplayOpened>;
   liveAppend(commands: readonly Command[], checksums?: Readonly<Record<string, string>>): ReplayInfo;
   liveRewind(to: number): ReplayInfo;
-  liveEnd(outcome: GameOutcome): ReplayInfo;
+  liveEnd(outcome: GameOutcome | null): ReplayInfo;
 }
 
 export interface LiveWatcherOptions {
@@ -29,10 +29,14 @@ export interface LiveWatcherOptions {
   readonly deps?: RoomSocketDeps;
   /** How long to wait for the room to answer with the game before calling it gone. */
   readonly openTimeoutMs?: number;
+  /** How long to wait for a host that has not started the game yet. */
+  readonly waitTimeoutMs?: number;
 }
 
 /** A room that has not sent its game by then is closed, unknown, or unreachable. */
 export const WATCH_OPEN_TIMEOUT_MS = 15_000;
+/** A room that exists but whose host has not started the game yet is waited for this long instead. */
+export const WATCH_WAIT_TIMEOUT_MS = 45_000;
 const CAPS: readonly RoomCapability[] = ["watch"];
 
 export class LiveWatcher {
@@ -55,11 +59,7 @@ export class LiveWatcher {
   open(): Promise<ReplayOpened> {
     return new Promise((resolve, reject) => {
       this.#opening = { resolve, reject };
-      const setTimer = this.#o.deps?.setTimer ?? ((run, ms) => setTimeout(run, ms));
-      this.#timer = setTimer(
-        () => this.#failOpening(new ReplayOpenError("missing")),
-        this.#o.openTimeoutMs ?? WATCH_OPEN_TIMEOUT_MS,
-      );
+      this.#arm(this.#o.openTimeoutMs ?? WATCH_OPEN_TIMEOUT_MS);
       this.#connect();
     });
   }
@@ -69,6 +69,17 @@ export class LiveWatcher {
     this.#socket?.close();
     this.#socket = null;
     this.#clearTimer();
+    // A watcher closed while still opening settles its open, so nothing waits on it.
+    const opening = this.#opening;
+    this.#opening = null;
+    opening?.reject(new ReplayOpenError("missing"));
+  }
+
+  /** (Re)starts the clock after which an open that has no game is called gone. */
+  #arm(ms: number): void {
+    this.#clearTimer();
+    const setTimer = this.#o.deps?.setTimer ?? ((run, ms) => setTimeout(run, ms));
+    this.#timer = setTimer(() => this.#failOpening(new ReplayOpenError("missing")), ms);
   }
 
   #connect(): void {
@@ -95,7 +106,9 @@ export class LiveWatcher {
         try {
           await this.#apply(action);
         } catch (cause) {
-          this.#failOpening(cause instanceof Error ? cause : new Error(String(cause)));
+          const error = cause instanceof Error ? cause : new Error(String(cause));
+          if (this.#opening) this.#failOpening(error);
+          else this.#failFollowing();
         }
       }
     });
@@ -137,12 +150,19 @@ export class LiveWatcher {
         return;
       case "end":
         if (!this.#info) return;
-        this.#info = core.liveEnd(action.outcome as GameOutcome);
+        this.#info = core.liveEnd((action.outcome ?? null) as GameOutcome | null);
         emit({ type: "info", info: this.#info, change: "end", added: 0 });
         return;
       case "resync":
         // A gap in the log: reconnecting makes the room send the whole log again.
         this.#connect();
+        return;
+      case "waiting":
+        // The room is there but the host has not started the game: wait longer before calling it gone.
+        if (this.#opening) this.#arm(this.#o.waitTimeoutMs ?? WATCH_WAIT_TIMEOUT_MS);
+        return;
+      case "refused":
+        if (this.#opening) this.#failOpening(new ReplayOpenError("full"));
         return;
       case "presence":
         this.#presence = { type: "presence", hostConnected: action.hostConnected, watchers: action.watchers };
@@ -153,6 +173,13 @@ export class LiveWatcher {
         emit({ type: "closed", reason: action.reason });
         return;
     }
+  }
+
+  /** Following broke after the game was open (a reset that could not be read, a log past the cap): say so and stop. */
+  #failFollowing(): void {
+    if (this.#disposed) return;
+    this.dispose();
+    this.#o.emit({ type: "failed" });
   }
 
   #failOpening(error: Error): void {

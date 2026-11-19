@@ -12,7 +12,9 @@ export type LiveWatchEvent =
   /** Whether the host is in the room (and this side is connected to it), and how many are watching. */
   | { readonly type: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   /** The room closed: the game is an ordinary replay from here. */
-  | { readonly type: "closed"; readonly reason: "ended" | "idle" | "disabled" };
+  | { readonly type: "closed"; readonly reason: "ended" | "idle" | "disabled" }
+  /** Following stopped for good: the game could not be applied or read (a bad reset, too long a log). */
+  | { readonly type: "failed" };
 
 /** What the transport shows of a live game. */
 export interface LiveState {
@@ -20,6 +22,8 @@ export interface LiveState {
   readonly watchers: number;
   /** The game ended (its outcome is known) or the room closed: no more commands come. */
   readonly over: boolean;
+  /** Following stopped because the live feed could not be read: the strip says so. */
+  readonly failed: boolean;
 }
 
-export const INITIAL_LIVE_STATE: LiveState = { hostConnected: false, watchers: 0, over: false };
+export const INITIAL_LIVE_STATE: LiveState = { hostConnected: false, watchers: 0, over: false, failed: false };

@@ -1067,7 +1067,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
    */
   #drawLive(layout: TransportLayout, banner: Rect | null, onTop: boolean, state: ReplayPositionState): void {
     const live = this.#live;
-    if (!live || live.over) return;
+    if (!live || (live.over && !live.failed)) return;
     const home = layout.banner;
     const height = LIVE_STRIP_HEIGHT;
     const y = onTop
@@ -1077,6 +1077,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       : (banner ? banner.y : home.y + home.height) - height;
     const strip: Rect = { x: home.x, y, width: home.width, height };
     const away = !live.hostConnected;
+    const words = live.failed ? t("watch.failed") : t(away ? "watch.hostAway" : "watch.live");
     const g = this.add.graphics();
     g.fillStyle(away ? signal.caution.hex : accent.heroRed.hex, 1).fillRect(
       strip.x,
@@ -1089,13 +1090,13 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       .text(
         strip.x + 12,
         strip.y + strip.height / 2,
-        `${away ? "\u25cb" : "\u25cf"} ${t(away ? "watch.hostAway" : "watch.live")}`,
+        `${away ? "\u25cb" : "\u25cf"} ${words}`,
         textStyle({ ...typeRole.menuButton, size: 15 }, ink),
       )
       .setOrigin(0, 0.5);
     this.#swallow(strip);
     // Behind the newest move: one press goes back to it, and the table follows from there.
-    if (state.position >= state.info.length) return;
+    if (live.over || state.position >= state.info.length) return;
     const width = Math.min(180, strip.width - 120);
     const rect: Rect = {
       x: strip.x + strip.width - width - 8,

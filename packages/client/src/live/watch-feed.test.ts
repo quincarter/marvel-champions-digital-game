@@ -46,6 +46,33 @@ describe("WatchFeed", () => {
     expect(feed.count).toBe(2);
   });
 
+  test("asks to resync once while the fresh log is awaited, and again only after it came", () => {
+    const feed = new WatchFeed();
+    feed.onMessage(log([1, 2]));
+    expect(feed.onMessage(commands(5, [6]))).toEqual([{ kind: "resync" }]);
+    expect(feed.onMessage(commands(6, [7]))).toEqual([]);
+    feed.onMessage(log([1, 2, 3]));
+    expect(feed.onMessage(commands(9, [10]))).toEqual([{ kind: "resync" }]);
+  });
+
+  test("waits on a table the host has not started, and reports a full room", () => {
+    const feed = new WatchFeed();
+    const you = { id: "w", role: "watcher" as const };
+    const welcome = (hasHeader: boolean): ServerMessage => ({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you,
+      caps: ["watch"],
+      participants: [you],
+      tables: [{ id: T, hostConnected: false, commands: 0, ended: false, hasHeader }],
+    });
+    expect(feed.onMessage(welcome(false))[0]).toEqual({ kind: "waiting" });
+    expect(feed.onMessage(welcome(true))[0]).toMatchObject({ kind: "presence" });
+    expect(feed.onMessage({ v: 1, ch: "room", kind: "refused", reason: "full" })).toEqual([{ kind: "refused" }]);
+    expect(feed.onMessage({ v: 1, ch: "room", kind: "refused", reason: "too-large" })).toEqual([]);
+  });
+
   test("a rewind cuts the count; one at or past the end is ignored", () => {
     const feed = new WatchFeed();
     feed.onMessage(log([1, 2, 3, 4]));

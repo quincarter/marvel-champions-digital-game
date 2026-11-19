@@ -38,7 +38,9 @@ const defaultDeps: WatchOpenDeps = {
 
 /** What to tell the player when a live game could not be opened. */
 export function watchFailureKey(cause: unknown): MessageKey {
-  return cause instanceof ReplayOpenError && cause.code === "missing" ? "watch.link.gone" : replayErrorKey(cause);
+  if (cause instanceof ReplayOpenError && cause.code === "missing") return "watch.link.gone";
+  if (cause instanceof ReplayOpenError && cause.code === "full") return "watch.link.full";
+  return replayErrorKey(cause);
 }
 
 /**

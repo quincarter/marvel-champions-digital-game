@@ -1,9 +1,9 @@
 /**
  * Game links opening the installed app (issue #862). The desktop app registers `marvelchampions://` links
- * (`marvelchampions://replay/<id>` and `watch/<id>`, Tauri's deep-link plugin, `src-tauri/`); the Android app claims the game's own
- * address through App Links (`https://marvel.champions-digital-game.com/#replay=<id>`, `public/.well-known/`). Either
- * way the link is turned into the game's own fragment (`#replay=`, `#watch=`, `#receive=`, `#link=`), which Boot and Title already
- * read once at startup (`replay/replay-link.ts`, `save-data/receive-link.ts`).
+ * (`marvelchampions://replay/<id>` and `watch/<id>`, Tauri's deep-link plugin, `src-tauri/`); the Android app claims
+ * the game's own address through App Links (`https://marvel.champions-digital-game.com/#replay=<id>`,
+ * `public/.well-known/`). Either way the link is turned into the game's own fragment (`#replay=`, `#watch=`,
+ * `#receive=`, `#link=`), which Boot and Title already read once at startup (`replay/replay-link.ts`, `save-data/receive-link.ts`).
  *
  * A link the app was started with is put on the address before the game starts (`takeLaunchLink`, `main.ts`). A link
  * that arrives while it runs (the desktop's single instance forwards it, Android hands it to the open app) reloads the

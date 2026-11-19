@@ -193,7 +193,7 @@ export class WorkerReplayBackend implements ReplayBackend {
           for (const pending of this.#pending.values()) pending.reject(error);
           this.#pending.clear();
         },
-        request.kind === "open" ? OPEN_DEADLINE_MS : STEP_DEADLINE_MS,
+        request.kind === "open" || request.kind === "watch" ? OPEN_DEADLINE_MS : STEP_DEADLINE_MS,
       );
       this.#pending.set(request.id, {
         resolve: (response) => {
@@ -296,6 +296,10 @@ export class ReplayHost implements EngineHost {
       this.#setLive({ ...this.#live, over: true, hostConnected: false });
       return;
     }
+    if (event.type === "failed") {
+      this.#setLive({ ...this.#live, over: true, failed: true, hostConnected: false });
+      return;
+    }
     const old = this.#info;
     if (!old) return;
     this.#info = event.info;
@@ -306,9 +310,10 @@ export class ReplayHost implements EngineHost {
       newLength: event.info.length,
       added: event.added,
     });
-    if (event.change === "end" || event.change === "reset" || event.change === "rewind") {
-      this.#setLive({ ...this.#live, over: event.info.outcome !== null });
-    }
+    // Any `end` ends it (the room ends a capped table with no outcome); a rewind un-ends it; a reset reads the log's own.
+    if (event.change === "end") this.#setLive({ ...this.#live, over: true });
+    else if (event.change === "rewind") this.#setLive({ ...this.#live, over: false });
+    else if (event.change === "reset") this.#setLive({ ...this.#live, over: event.info.outcome !== null });
     // The bar learns the new length at once; a step or seek then publishes the table and the bar again.
     const info = event.info;
     for (const listener of [...this.#positionListeners]) listener({ position: this.#position, info });

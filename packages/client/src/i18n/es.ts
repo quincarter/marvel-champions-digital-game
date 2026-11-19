@@ -318,4 +318,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "watch.link.loading": "Uniéndose a la partida en directo…",
   "watch.link.opening": "Abriendo la partida en directo…",
   "watch.link.gone": "Esa partida en directo ya no está abierta, o el enlace no es correcto.",
+  "watch.link.full": "Esa partida en directo ya tiene todos los espectadores que admite. Inténtalo de nuevo en un momento.",
+  "watch.failed": "Se perdió la conexión en directo",
 };
