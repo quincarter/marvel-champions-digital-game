@@ -106,6 +106,15 @@ describe("versusLayout (issue #858)", () => {
     expect(versusLayout(1440, 980, 2).heroNameLifts).toEqual([0, 0]);
   });
 
+  it("starts a hero's picture below VERSUS where the tile's top meets it", () => {
+    const tall = versusLayout(820, 1180, 1);
+    expect(tall.heroArtDrops[0]).toBeGreaterThan(0);
+    const wide = versusLayout(1440, 980, 4);
+    expect(wide.heroArtDrops).toEqual([0, 0, wide.heroArtDrops[2], 0]);
+    expect(wide.heroArtDrops[2]).toBeGreaterThan(0);
+    expect(versusLayout(1440, 980, 2).heroArtDrops).toEqual([0, 0]);
+  });
+
   it("keeps the VERSUS mark readable on a phone and bounded on a big screen", () => {
     expect(versusLayout(375, 667, 1).versusSize).toBeGreaterThanOrEqual(44);
     expect(versusLayout(3840, 2160, 1).versusSize).toBeLessThanOrEqual(120);

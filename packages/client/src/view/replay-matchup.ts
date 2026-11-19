@@ -54,6 +54,11 @@ export interface VersusLayout {
   readonly villainNameLift: number;
   /** The same for each hero's name: the hero whose foot meets VERSUS (wide, two rows) lifts its name. */
   readonly heroNameLifts: readonly number[];
+  /**
+   * How far down each hero's picture starts inside its tile: a tile whose top edge meets VERSUS starts its picture
+   * below the mark, so the top of the picture (where a hero's head usually is) isn't under it.
+   */
+  readonly heroArtDrops: readonly number[];
 }
 
 /**
@@ -93,5 +98,12 @@ export function versusLayout(width: number, height: number, heroCount: number): 
   const versusSize = Math.round(Math.max(44, Math.min(120, Math.min(width, height) * 0.16)));
   const lift = Math.round(versusSize * 0.6);
   const heroNameLifts = heroes.map((_, index) => (wide && rows > 1 && index === 0 ? lift : 0));
-  return { wide, villain, heroes, versus, versusSize, villainNameLift: wide ? 0 : lift, heroNameLifts };
+  // VERSUS is about four times as wide as it is tall, centered on `versus`.
+  const reach = versusSize * 2.2;
+  const heroArtDrops = heroes.map((hero) =>
+    Math.abs(hero.y - versus.y) < versusSize && hero.x < versus.x + reach && hero.x + hero.width > versus.x - reach
+      ? Math.round(versusSize * 0.7)
+      : 0,
+  );
+  return { wide, villain, heroes, versus, versusSize, villainNameLift: wide ? 0 : lift, heroNameLifts, heroArtDrops };
 }

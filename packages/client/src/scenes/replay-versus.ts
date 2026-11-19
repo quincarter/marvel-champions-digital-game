@@ -33,6 +33,9 @@ import type { TitleSceneData } from "./title.js";
 /** How long the matchup stays up at least (wall clock), unless a press ends it early. */
 export const VERSUS_HOLD_MS = 3000;
 
+/** Width over height of the hero and villain pictures (751 x 1063 and the like). */
+const PORTRAIT_ASPECT = 0.71;
+
 export interface ReplayVersusData {
   /** The opened replay. This screen owns it from here: the board takes it, or it is closed. */
   readonly host?: ReplayHost;
@@ -121,6 +124,7 @@ export class ReplayVersusScene extends Phaser.Scene {
         hero.name,
         signal.cost.hex,
         layout.heroNameLifts[index] ?? 0,
+        layout.heroArtDrops[index] ?? 0,
       ),
     );
 
@@ -151,15 +155,38 @@ export class ReplayVersusScene extends Phaser.Scene {
   }
 
   /** One side's picture, darkened at the foot under its name, with a colored edge. Returns what it drew. */
-  #side(rect: Rect, url: string | null, name: string, edge: number, inset = 0): Phaser.GameObjects.GameObject[] {
+  #side(
+    rect: Rect,
+    url: string | null,
+    name: string,
+    edge: number,
+    inset = 0,
+    artDrop = 0,
+    focusY = 0.15,
+  ): Phaser.GameObjects.GameObject[] {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const back = this.add.graphics();
     back.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(back);
     if (url) {
-      const thumb = renderLiveArtThumb(this, rect, url, 0.2);
-      this.#thumbs.push(thumb);
-      objects.push(thumb.object);
+      // A picture whose top would sit under VERSUS starts below it (`heroArtDrops`).
+      const art: Rect = { ...rect, y: rect.y + artDrop, height: rect.height - artDrop };
+      if (art.width > art.height) {
+        // A wide tile would crop a tall picture to a band that can miss the hero's head (it isn't always at the top):
+        // show the whole picture, over a dimmed copy of itself that fills the tile.
+        const backdrop = renderLiveArtThumb(this, rect, url, focusY);
+        (backdrop.object as Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.GameObject).setAlpha(0.3);
+        // Hero and villain art is portrait, near 5:7; a slot of that shape in the middle shows nearly all of it.
+        const wholeWidth = Math.min(art.width, Math.round(art.height * PORTRAIT_ASPECT));
+        const slot: Rect = { ...art, x: Math.round(art.x + (art.width - wholeWidth) / 2), width: wholeWidth };
+        const whole = renderLiveArtThumb(this, slot, url, focusY);
+        this.#thumbs.push(backdrop, whole);
+        objects.push(backdrop.object, whole.object);
+      } else {
+        const thumb = renderLiveArtThumb(this, art, url, focusY);
+        this.#thumbs.push(thumb);
+        objects.push(thumb.object);
+      }
     }
     const shade = this.add.graphics();
     const band = Math.min(120 + inset, rect.height * 0.45);
