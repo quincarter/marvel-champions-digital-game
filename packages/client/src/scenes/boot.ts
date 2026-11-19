@@ -18,6 +18,13 @@ import { goToScreen } from "../ui/transitions.js";
 import type { SeatsData } from "./seats.js";
 import type { SetCardsData } from "./set-cards.js";
 import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
+import { takeReplayLink } from "../replay/replay-link.js";
+import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
+import { replayErrorKey } from "../replay/replay-files.js";
+import { SharedReplayLoading } from "../ui/replay-link-loading.js";
+import { watchReplay } from "./replay-entry.js";
+import { sceneLoader } from "./scene-loader.js";
+import { needed } from "./scene-order.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title (`boot-dev-jump.ts`, which has the full list
@@ -36,7 +43,15 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     const { width, height } = this.scale.gameSize;
-    this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);
+    // Opened from a shared replay's link (issues #693, #858): read (and cleared) once, here rather than on Title, so the
+    // link shows its own loading screen and goes straight to the board instead of passing through the title menu.
+    const replayLink = takeReplayLink();
+    const replayScreen = replayLink ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title)) : null;
+    const replay = replayLink ? loadSharedReplay(replayLink) : null;
+    if (replayLink && replayLink !== "invalid") this.#preloadBoard();
+    if (!replayScreen) {
+      this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);
+    }
 
     this.scene.launch(SCENES.music);
     // The first player token's art, rasterized now so Set the table and the board have it on first draw.
@@ -62,6 +77,14 @@ export class BootScene extends Phaser.Scene {
         this.scene.launch(SCENES.achievementToast);
         // Device sync's watcher (`scenes/sync-prompt.ts`): the conflict prompt and "Checking your other devices…".
         this.scene.launch(SCENES.syncPrompt);
+        if (replay && replayScreen && !jump) {
+          // Drawn again now that the fonts are in.
+          replayScreen.draw();
+          void this.#openSharedReplay(replay, replayScreen);
+          return;
+        }
+        // A `?screen=` dev jump wins over a replay link: close the replay if it opens.
+        void replay?.then((result) => (result.ok ? result.host.dispose() : undefined));
         if (!jump) {
           // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry
@@ -102,6 +125,29 @@ export class BootScene extends Phaser.Scene {
           this.scene.launch(SCENES.guideSpotlightDemo);
         }
       });
+  }
+
+  /** The shared replay, onto the board once it is open; the loading screen says why when it can't be. */
+  async #openSharedReplay(replay: Promise<SharedReplayResult>, screen: SharedReplayLoading): Promise<void> {
+    const result = await replay;
+    if (screen.left || !this.sys.isActive()) {
+      if (result.ok) result.host.dispose();
+      return;
+    }
+    if (!result.ok) return screen.fail(result.message);
+    screen.lock();
+    try {
+      await watchReplay(this, result.host, SCENES.title);
+    } catch (cause) {
+      if (this.sys.isActive()) screen.fail(replayErrorKey(cause));
+    }
+  }
+
+  /** The Board's code, fetched while the replay is, so the board comes up as soon as the replay is open. */
+  #preloadBoard(): void {
+    const loader = sceneLoader();
+    if (!loader) return;
+    for (const key of needed(SCENES.board)) void loader.load(key).catch(() => undefined);
   }
 
   /**

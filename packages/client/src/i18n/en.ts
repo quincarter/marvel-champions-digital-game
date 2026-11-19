@@ -150,6 +150,10 @@ export const en = {
   "replay.link.full": "Today's shared replays are used up. Try again tomorrow, or export the file.",
   "replay.link.invalid": "That replay link isn't valid.",
   "replay.link.loading": "Loading the shared replay…",
+  "replay.link.heading": "Shared replay",
+  "replay.link.failedHeading": "Couldn't open this replay",
+  "replay.link.cancel": "Cancel",
+  "replay.link.mainMenu": "Main menu",
   // Guide chooser (scenes/guide-chooser.ts)
   "guide.title": "NEW TO THE FIGHT?",
   "guide.subtitle": "Pick how much help you want. You can change this any time from the menu.",

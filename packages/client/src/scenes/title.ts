@@ -111,7 +111,6 @@ import { onSyncApplied } from "../sync/sync-events.js";
 import { onLanguageChange } from "../language-change.js";
 import { t } from "../i18n/translate.js";
 import { takeReceiveLink, takeSyncLink } from "../save-data/receive-link.js";
-import { fetchReplay, takeReplayLink } from "../replay/replay-link.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { watchReplay } from "./replay-entry.js";
 import { maybeAskGlobalStats } from "./global-ask-launch.js";
@@ -235,29 +234,6 @@ export class TitleScene extends Phaser.Scene {
     }
   }
 
-  /** A `#replay=` link: fetches the shared replay and opens it on the board; Exit comes back here. */
-  async #watchSharedReplay(id: string): Promise<void> {
-    const loading = this.#replayNote(t("replay.link.loading"), surface.paper.hex);
-    let fetched: Awaited<ReturnType<typeof fetchReplay>>;
-    try {
-      fetched = await fetchReplay(id);
-    } catch {
-      fetched = { ok: false, failure: "unavailable" };
-    } finally {
-      loading.destroy();
-    }
-    if (!this.sys.isActive()) return;
-    if (!fetched.ok)
-      return this.#replayProblem(t(fetched.failure === "not-found" ? "replay.link.gone" : "replay.link.offline"));
-    try {
-      const host = await openReplay({ kind: "file", bytes: fetched.value });
-      if (!this.sys.isActive()) return host.dispose();
-      await watchReplay(this, host, SCENES.title);
-    } catch (cause) {
-      if (this.sys.isActive()) this.#replayProblem(t(replayErrorKey(cause)));
-    }
-  }
-
   /** Says why a shared replay didn't open, at the top of the screen, for a few seconds. */
   #replayProblem(text: string): void {
     const line = this.#replayNote(text, signal.caution.hex);
@@ -373,10 +349,6 @@ export class TitleScene extends Phaser.Scene {
     fadeScreenIn(this);
     holdScreenFor(this, this.#artLoaded());
     this.time.delayedCall(NEXT_ART_PRELOAD_MS, () => this.#preloadNextArt());
-    // Opened from a shared replay's link (issue #693): fetch it and watch it (read and cleared once).
-    const replayId = takeReplayLink();
-    if (replayId === "invalid") this.#replayProblem(t("replay.link.invalid"));
-    else if (replayId) void this.#watchSharedReplay(replayId);
     // Opened from a Send screen's QR code: straight to Settings, Save data, Receive (read and cleared once).
     const receive = takeReceiveLink();
     if (receive) this.scene.launch(SCENES.settings, { receive });
@@ -385,9 +357,7 @@ export class TitleScene extends Phaser.Scene {
     if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
     // The one-time "Set up cross-device sync?" question; it decides for itself and stays out of a link's way.
     // The global win rates question comes only once that one has been decided, and never in the same visit.
-    // A shared replay's link is for watching it: no first-visit question comes up over it.
-    else if (!receive && !replayId)
-      void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
+    else if (!receive) void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     // Both reads land before the screen fades in (`holdScreenFor`), so the menu is not seen redrawing for them.
     holdScreenFor(
