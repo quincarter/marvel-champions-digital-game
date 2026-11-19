@@ -98,6 +98,9 @@ export class LiveRoomController {
         live.publisher.command(message.command, message.count, message.checksum, message.outcome);
         return;
       }
+      case "none":
+        this.#leave();
+        return;
       case "rewind": {
         if (!this.#live && this.#pending?.gameKey === message.gameKey) {
           // Not streamed yet: the held game just needs its log cut.

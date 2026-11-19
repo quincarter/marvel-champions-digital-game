@@ -205,6 +205,20 @@ describe("live room controller", () => {
     expect(FakeSocket.all).toHaveLength(1);
   });
 
+  it("a non-watchable game on the table ends the old room and clears the status", async () => {
+    const { controller, statuses } = setup();
+    controller.onGameMessage(gameMessage("g1"));
+    controller.onGameMessage(command("g1", 1));
+    await settle();
+    FakeSocket.all[0]!.welcome("host");
+    controller.onGameMessage({ kind: "none" });
+    expect(FakeSocket.all[0]!.sent.at(-1)).toMatchObject({ kind: "end", outcome: null });
+    expect(statuses.at(-1)).toEqual({ watchUrl: null, watchers: 0, connected: false });
+    controller.onGameMessage(command("g1", 2));
+    await settle();
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
   it("a different game key ends the old room and gets its own", async () => {
     const { controller, createRoom } = setup();
     controller.onGameMessage(gameMessage("g1"));

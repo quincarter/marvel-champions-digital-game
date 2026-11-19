@@ -92,7 +92,8 @@ const liveSend = (message: LiveGameMessage): void => {
 function publishLiveGame(): void {
   if (!livePort || !liveOn) return;
   const live = core.liveGame();
-  if (live) liveSend({ kind: "game", ...live });
+  // A game that is not watchable says so, so the live worker leaves the room of the game that was on the table before.
+  liveSend(live ? { kind: "game", ...live } : { kind: "none" });
 }
 
 /** The command just applied, with a checksum when one is due and the outcome when it ended the game. */

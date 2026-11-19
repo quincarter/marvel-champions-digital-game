@@ -47,7 +47,9 @@ export type LiveGameMessage =
       readonly checksum?: string;
       readonly outcome?: GameOutcome;
     }
-  | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number };
+  | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
+  /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
+  | { readonly kind: "none" };
 
 /**
  * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
