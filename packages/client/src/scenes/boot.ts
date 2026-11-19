@@ -21,7 +21,7 @@ import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
 import type { ReplayVersusData } from "./replay-versus.js";
-import { appReplayLinkOf, offersDesktopApp } from "../platform/app-links.js";
+import { appReplayLinkOf, launchAppLink, offersDesktopApp } from "../platform/app-links.js";
 import { SharedReplayLoading } from "../ui/replay-link-loading.js";
 import { sceneLoader } from "./scene-loader.js";
 import { needed } from "./scene-order.js";
@@ -49,7 +49,7 @@ export class BootScene extends Phaser.Scene {
     // On the web version on a desktop, the replay can open in the installed app instead (#862).
     const openInApp =
       replayLink && replayLink !== "invalid" && offersDesktopApp()
-        ? () => window.location.assign(appReplayLinkOf(replayLink))
+        ? () => launchAppLink(appReplayLinkOf(replayLink))
         : null;
     const replayScreen = replayLink
       ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title), openInApp)

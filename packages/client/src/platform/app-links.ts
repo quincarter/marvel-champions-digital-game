@@ -48,6 +48,18 @@ export function appReplayLinkOf(id: string): string {
 }
 
 /**
+ * Hands `link` to the system from the web version without leaving the page: through a hidden frame, so a browser with
+ * no app for the scheme (Firefox shows an error page for one) leaves the game, and the replay loading in it, alone.
+ */
+export function launchAppLink(link: string, doc: Document = document): void {
+  const frame = doc.createElement("iframe");
+  frame.style.display = "none";
+  frame.src = link;
+  doc.body.append(frame);
+  setTimeout(() => frame.remove(), 3000);
+}
+
+/**
  * Whether to offer "Open in the desktop app": the web version on a desktop browser. Not in an app (it is the app), and
  * not on a phone or tablet, which has no desktop app to open.
  */
@@ -56,6 +68,31 @@ export function offersDesktopApp(
   userAgent: string = globalThis.navigator?.userAgent ?? "",
 ): boolean {
   return platform === "web" && !/Android|iPhone|iPad|iPod|Mobile/i.test(userAgent);
+}
+
+/**
+ * Screens where starting the page again would lose something the player has not saved yet: a deck being built, a
+ * game or campaign being set up, save data being moved. A link that arrives on one waits until the player leaves it.
+ */
+export const RELOAD_UNSAFE_SCENES: readonly string[] = [
+  "DeckBuilder",
+  "Decks",
+  "ScenarioSelect",
+  "Seats",
+  "Setup",
+  "SetupDeal",
+  "CampaignRoster",
+  "CampaignMarket",
+  "CampaignDeckEdit",
+  "CampaignFrozenDeck",
+  "CivilWarBuilder",
+  "SaveDataOverlay",
+  "SyncDataOverlay",
+];
+
+/** Whether none of `activeKeys` is a screen that a reload would lose work on. */
+export function reloadIsSafe(activeKeys: readonly string[]): boolean {
+  return !activeKeys.some((key) => RELOAD_UNSAFE_SCENES.includes(key));
 }
 
 /** What the shells answer: the link the app started with, and a way to hear the ones that come later. */
@@ -134,7 +171,8 @@ function putOnAddress(fragment: string, location: AppLinkLocation, history: AppL
 /**
  * The installed app's link handling, started before the game (`main.ts`): resolves once a link the app was started
  * with is on the address (or at once, on the web or with none), never later than `maxWaitMs`, so a slow shell never
- * holds the game back. Later links reload the page with theirs. The shells keep answering the launch link for as long
+ * holds the game back (a launch link that comes later still opens). Later links reload the page with theirs, once the
+ * screen is one that loses nothing by it (`canReload`). The shells keep answering the launch link for as long
  * as the app runs, so it is opened once (`memory`), not again on every reload.
  */
 export async function startAppLinks(
@@ -143,22 +181,40 @@ export async function startAppLinks(
   history: AppLinkHistory = globalThis.history,
   maxWaitMs = 600,
   memory: LaunchLinkMemory = sessionMemory,
+  canReload: () => boolean = () => true,
 ): Promise<void> {
   if (!source) return;
   let started = false;
+  let placed = false;
+  let waiting: ReturnType<typeof setInterval> | null = null;
+  // After the game has started, the page starts again to open a link, but only on a screen that loses nothing by it
+  // (`canReload`: not the deck builder or a setup half filled in); until then the link waits on the address.
+  const reloadWhenSafe = (): void => {
+    if (canReload()) return location.reload();
+    if (waiting !== null) return;
+    waiting = setInterval(() => {
+      if (!canReload()) return;
+      if (waiting !== null) clearInterval(waiting);
+      location.reload();
+    }, 1000);
+  };
+  const open = (fragment: string): void => {
+    putOnAddress(fragment, location, history);
+    placed = true;
+    if (started) reloadWhenSafe();
+  };
   const atLaunch = (async () => {
     const shell = await source;
     shell.listen((link) => {
       const fragment = gameFragmentOf(link);
-      if (!fragment) return;
-      putOnAddress(fragment, location, history);
-      // Before the game has started, the address is all it takes; after, the page starts again to open it.
-      if (started) location.reload();
+      if (fragment) open(fragment);
     });
     const launch = (await shell.launchLinks()).find((link) => gameFragmentOf(link) !== null);
-    if (!launch || started || memory.get() === launch) return;
+    // A link that arrived since is newer than the one the app started with.
+    if (!launch || placed || memory.get() === launch) return;
     memory.set(launch);
-    putOnAddress(gameFragmentOf(launch)!, location, history);
+    // Late (a slow shell answered after the game started): it still opens, as a later link does.
+    open(gameFragmentOf(launch)!);
   })().catch(() => undefined);
   await Promise.race([atLaunch, new Promise((resolve) => setTimeout(resolve, maxWaitMs))]);
   started = true;

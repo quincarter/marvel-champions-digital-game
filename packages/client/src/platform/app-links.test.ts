@@ -3,6 +3,7 @@ import {
   appReplayLinkOf,
   gameFragmentOf,
   offersDesktopApp,
+  reloadIsSafe,
   startAppLinks,
   type AppLinkSource,
   type LaunchLinkMemory,
@@ -96,5 +97,55 @@ describe("startAppLinks (#862)", () => {
     const started = Date.now();
     await startAppLinks(Promise.resolve(slow), f.location, f.history, 20, f.memory);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it("still opens a launch link the shell answers after the game started", async () => {
+    const f = fakes([]);
+    let answer: (links: string[]) => void = () => undefined;
+    const late: AppLinkSource = { ...f.source, launchLinks: () => new Promise((resolve) => (answer = resolve)) };
+    await startAppLinks(Promise.resolve(late), f.location, f.history, 10, f.memory);
+    answer(["marvelchampions://replay/xqfaQSjheyfI"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(f.location.hash).toBe("#replay=xqfaQSjheyfI");
+    expect(f.location.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a newer link over the launch link", async () => {
+    const f = fakes([]);
+    let answer: (links: string[]) => void = () => undefined;
+    const source: AppLinkSource = { ...f.source, launchLinks: () => new Promise((resolve) => (answer = resolve)) };
+    const starting = startAppLinks(Promise.resolve(source), f.location, f.history, 50, f.memory);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    f.send("marvelchampions://replay/newernewerXX");
+    answer(["marvelchampions://replay/xqfaQSjheyfI"]);
+    await starting;
+    expect(f.location.hash).toBe("#replay=newernewerXX");
+  });
+
+  it("waits to reload until the screen loses nothing by it", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fakes([]);
+      let safe = false;
+      const starting = startAppLinks(Promise.resolve(f.source), f.location, f.history, 10, f.memory, () => safe);
+      await vi.advanceTimersByTimeAsync(20);
+      await starting;
+      f.send("marvelchampions://replay/xqfaQSjheyfI");
+      expect(f.location.reload).not.toHaveBeenCalled();
+      safe = true;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.location.reload).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("reloadIsSafe (#862)", () => {
+  it("holds a link back on screens with unsaved work", () => {
+    expect(reloadIsSafe(["Title", "MusicButton"])).toBe(true);
+    expect(reloadIsSafe(["Board", "ReplayTransportOverlay"])).toBe(true);
+    expect(reloadIsSafe(["DeckBuilder"])).toBe(false);
+    expect(reloadIsSafe(["Title", "SettingsOverlay", "SaveDataOverlay"])).toBe(false);
   });
 });
