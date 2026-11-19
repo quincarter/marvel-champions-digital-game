@@ -4,7 +4,9 @@
  * attribute), so the static HTML carries no copy of its own and a language switch redraws in place.
  */
 import {
+  downloadHref,
   downloadsOf,
+  IOS_SECTION_ID,
   primaryButtons,
   steamButtonFor,
   versionOf,
@@ -95,11 +97,6 @@ export function mountLanguageToggle(
 
 const DEVICE_ORDER: readonly Download["device"][] = ["windows", "mac", "linux", "android", "ios"];
 
-/**
- * The iPhone and iPad install section's id. The .ipa can't simply be opened on the phone: it is sideloaded (issue
- * #874), so every link to it on the panel leads to that section's steps, which carry the download itself.
- */
-export const IOS_SECTION_ID = "ios-install";
 const IOS_HREF = `#${IOS_SECTION_ID}`;
 
 function languageName(code: string | null): string | null {
@@ -130,7 +127,7 @@ function fileLink(download: Download, t: Translate): HTMLAnchorElement {
   const ios = download.id === "ios-ipa";
   return element(
     "a",
-    ios ? { class: "file", href: IOS_HREF } : { class: "file", href: download.url, rel: "noopener" },
+    ios ? { class: "file", href: downloadHref(download) } : { class: "file", href: download.url, rel: "noopener" },
     element("span", { class: "file-name" }, t(fileKey(download.id))),
     element(
       "span",
@@ -211,7 +208,7 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
           "a",
           // The iOS app's button leads to its install steps, where the download is (`iosSection`).
           download.id === "ios-ipa"
-            ? { class: "btn primary", href: IOS_HREF }
+            ? { class: "btn primary", href: downloadHref(download) }
             : { class: i === 0 ? "btn primary" : "btn", href: download.url, rel: "noopener" },
           element("span", {}, t("dl.forDevice", { device: t(labelKey) })),
           element("small", {}, t(fileKey(download.id))),

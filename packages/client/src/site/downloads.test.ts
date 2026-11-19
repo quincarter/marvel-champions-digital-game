@@ -1,5 +1,7 @@
 import {
   detectDevice,
+  downloadHref,
+  IOS_SECTION_ID,
   downloadsOf,
   primaryButtons,
   primaryDownload,
@@ -190,4 +192,17 @@ describe("sameRelease", () => {
 
 it("versionOf drops the tag's v", () => {
   expect(versionOf(RELEASE)).toBe("0.44.0");
+});
+
+describe("downloadHref", () => {
+  it("sends the iOS app's buttons to its install steps, and every other download to its file (#874)", () => {
+    const withIpa: LatestRelease = {
+      ...RELEASE,
+      assets: [...RELEASE.assets, asset("MarvelChampions-0.44.0-EN-iOS-unsigned.ipa")],
+    };
+    const downloads = downloadsOf(withIpa, "en");
+    expect(downloadHref(primaryDownload(downloads, "ios")!)).toBe(`#${IOS_SECTION_ID}`);
+    const apk = primaryDownload(downloads, "android")!;
+    expect(downloadHref(apk)).toBe(apk.url);
+  });
 });

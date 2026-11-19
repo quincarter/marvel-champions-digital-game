@@ -124,6 +124,17 @@ export function downloadsOf(release: LatestRelease, language: PageLanguage): Dow
   return downloads;
 }
 
+/**
+ * The download panel's iPhone and iPad install section (issue #874). The .ipa is sideloaded, not opened, so every
+ * button and link for it leads to that section's steps, which carry the download itself.
+ */
+export const IOS_SECTION_ID = "ios-install";
+
+/** Where a button for `download` points: the install steps for the iOS app, the file itself for everything else. */
+export function downloadHref(download: Download): string {
+  return download.id === "ios-ipa" ? `#${IOS_SECTION_ID}` : download.url;
+}
+
 /** The download to put on the big button for `device`: its first installer, or none for a phone without one. */
 export function primaryDownload(downloads: readonly Download[], device: DeviceKind): Download | undefined {
   return downloads.find((download) => download.device === device && !download.id.startsWith("steam-"));
