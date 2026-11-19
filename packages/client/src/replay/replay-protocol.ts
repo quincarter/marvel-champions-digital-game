@@ -15,6 +15,8 @@ export type ReplayRequest =
       readonly roomId: string;
       readonly syncUrl: string;
       readonly packs: readonly PackRuntime[];
+      /** A guest of a lobby room (issue #880): the room worker's end of a `MessagePort`, followed instead of a socket. */
+      readonly feed?: MessagePort;
     }
   | { readonly kind: "snapshot"; readonly id: number; readonly n: number; readonly played: boolean }
   | { readonly kind: "export"; readonly id: number }

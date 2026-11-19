@@ -20,8 +20,12 @@ import {
   type RoomSocketDeps,
 } from "./room-socket.js";
 import { LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
-import type { LiveGameMessage } from "./live-room-protocol.js";
-import { recordFresh, type LiveRoomStore } from "./live-room-store.js";
+import type { RoomBuild } from "@mc/sync-worker/room-protocol";
+import type { LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
+import { recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
+import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";
+import type { SeatTokenStore } from "./room-seat-store.js";
+import { NO_ROOM, type RoomState } from "./room-state.js";
 
 type GameMessage = Extract<LiveGameMessage, { kind: "game" }>;
 
@@ -40,6 +44,14 @@ export interface LiveRoomControllerDeps {
   readonly fetch?: typeof fetch;
   /** The socket's and the retry timer's clock and WebSocket (tests). */
   readonly socket?: RoomSocketDeps;
+  /** Rooms and the lobby (issue #880). Absent: the room commands do nothing. */
+  readonly room?: {
+    readonly build: RoomBuild;
+    readonly seatStore: SeatTokenStore;
+    readonly onState: (state: RoomState) => void;
+    readonly createRoom?: RoomSessionDeps["createRoom"];
+    readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
+  };
 }
 
 /** Rooms one game may use up (the first, and one replacement for a gone room or a refused token). */
@@ -49,6 +61,8 @@ interface Live {
   readonly gameKey: string;
   readonly publisher: LivePublisher;
   socket: RoomSocket | null;
+  /** The lobby's room, when this game streams into the room the host made (its socket is the room session's). */
+  room: RoomSession | null;
   rooms: number;
   createAttempts: number;
   retry: unknown;
@@ -63,6 +77,8 @@ export class LiveRoomController {
   #pending: GameMessage | null = null;
   #live: Live | null = null;
   #status: LiveStatus = NO_LIVE_STATUS;
+  #session: RoomSession | null = null;
+  #roomState: RoomState = NO_ROOM;
 
   constructor(deps: LiveRoomControllerDeps) {
     this.#deps = deps;
@@ -124,13 +140,100 @@ export class LiveRoomController {
     }
   }
 
+  // -- rooms and the lobby (issue #880) ---------------------------------------------------------------------------
+
+  /** One call of `platform/room.ts`. Ignored where the worker was not given room dependencies. */
+  onRoomCommand(message: LiveRoomIn): void {
+    if (!this.#deps.room) return;
+    switch (message.kind) {
+      case "room-host": {
+        const session = this.#newSession("host", message.name);
+        if (message.name.trim() === "") session.failWith("no-name");
+        else void session.startHost();
+        return;
+      }
+      case "room-join": {
+        const session = this.#newSession("guest", message.name);
+        if (message.name.trim() === "") session.failWith("no-name");
+        else void session.startGuest(message.target);
+        return;
+      }
+      case "room-leave":
+        this.#closeSession();
+        return;
+      case "room-lobby":
+        this.#session?.lobbySet(message);
+        return;
+      case "room-seat":
+        this.#session?.seat(message.op, message.seat, message.participant);
+        return;
+      case "room-say":
+        this.#session?.chat(message.text);
+        return;
+      case "room-follow": {
+        const port = message.port as unknown as FeedPort;
+        if (this.#session?.role === "guest") this.#session.follow(port);
+        else port.close();
+        return;
+      }
+      case "room-unfollow":
+        this.#session?.unfollow();
+        return;
+      default:
+        return;
+    }
+  }
+
+  /** The state the room last reported (the engine-less tests read it). */
+  get roomState(): RoomState {
+    return this.#roomState;
+  }
+
+  /** Starts a session in place of any earlier one (a host leaving its room ends its game's stream first). */
+  #newSession(role: "host" | "guest", name: string): RoomSession {
+    this.#closeSession();
+    const room = this.#deps.room;
+    if (!room) throw new Error("rooms are not set up in this worker");
+    const session: RoomSession = new RoomSession(role, name, {
+      syncUrl: this.#deps.syncUrl,
+      linkBase: this.#deps.watchBase,
+      build: room.build,
+      seatStore: room.seatStore,
+      onState: (state) => {
+        if (this.#session === session) this.#postRoom(state);
+      },
+      ...(this.#deps.now ? { now: this.#deps.now } : {}),
+      ...(this.#deps.fetch ? { fetch: this.#deps.fetch } : {}),
+      ...(room.createRoom ? { createRoom: room.createRoom } : {}),
+      ...(room.resolveRoomCode ? { resolveRoomCode: room.resolveRoomCode } : {}),
+      ...(this.#deps.socket ? { socket: this.#deps.socket } : {}),
+    });
+    this.#session = session;
+    return session;
+  }
+
+  #closeSession(): void {
+    const session = this.#session;
+    if (!session) return;
+    // The game streaming into the room is over with it: the room is told, then the socket closes.
+    if (this.#live?.room === session) this.#leave();
+    this.#session = null;
+    session.close();
+    this.#postRoom(NO_ROOM);
+  }
+
+  #postRoom(state: RoomState): void {
+    this.#roomState = state;
+    this.#deps.room?.onState(state);
+  }
+
   #open(game: GameMessage): void {
     const live: Live = {
       gameKey: game.gameKey,
       publisher: new LivePublisher({
         game: game.game,
         watchBase: this.#deps.watchBase,
-        send: (m) => live.socket?.send(m) ?? false,
+        send: (m) => (live.room ? live.room.send(m) : (live.socket?.send(m) ?? false)),
         onStatus: (status) => {
           if (this.#live === live) this.#report(status);
         },
@@ -141,6 +244,7 @@ export class LiveRoomController {
         },
       }),
       socket: null,
+      room: null,
       rooms: 0,
       createAttempts: 0,
       retry: null,
@@ -163,6 +267,19 @@ export class LiveRoomController {
       }
     }
     if (this.#live !== live) return;
+    const session = this.#session;
+    if (session?.role === "host" && session.roomId && session.hostToken && !session.ended) {
+      this.#attachRoom(live, session);
+      return;
+    }
+    if (record?.code && record.gameKey === live.gameKey && recordFresh(record, now) && this.#deps.room) {
+      // A lobby room's host after a reload: back into the same room, lobby and game.
+      const resumed = this.#newSession("host", record.name ?? "");
+      resumed.resumeHost(record.roomId, record.hostToken, record.code);
+      this.#session = resumed;
+      this.#attachRoom(live, resumed);
+      return;
+    }
     if (record && record.gameKey === live.gameKey && recordFresh(record, now)) {
       live.rooms++;
       this.#connect(live, record.roomId, record.hostToken);
@@ -170,6 +287,31 @@ export class LiveRoomController {
     }
     if (record) void store?.clear(live.gameKey).catch(() => {});
     await this.#create(live);
+  }
+
+  /** The game streams into the lobby's room, over the lobby's own socket. */
+  #attachRoom(live: Live, room: RoomSession): void {
+    live.rooms++;
+    live.room = room;
+    if (room.roomId) live.publisher.roomOpened(room.roomId);
+    if (room.roomId && room.hostToken && room.code) {
+      const record: LiveRoomRecord = {
+        gameKey: live.gameKey,
+        roomId: room.roomId,
+        hostToken: room.hostToken,
+        createdAt: (this.#deps.now ?? Date.now)(),
+        code: room.code,
+        name: room.name,
+      };
+      void this.#deps.store?.save(record).catch(() => {});
+    }
+    const hooks: GameHooks = {
+      onWelcome: (table) => live.publisher.onWelcome(table),
+      onDisconnected: () => live.publisher.onDisconnected(),
+      onMessage: (message) => live.publisher.onMessage(message),
+      onEnded: () => this.#end(live),
+    };
+    room.attachGame(hooks);
   }
 
   async #create(live: Live): Promise<void> {
@@ -265,6 +407,10 @@ export class LiveRoomController {
     if (live.retry !== null) this.#timers.clearTimer(live.retry);
     live.socket?.close();
     live.socket = null;
+    if (live.room) {
+      live.room.detachGame();
+      live.room = null;
+    }
     if (this.#live !== live) return;
     this.#live = null;
     this.#pending = null;

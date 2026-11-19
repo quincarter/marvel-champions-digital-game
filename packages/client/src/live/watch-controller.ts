@@ -8,6 +8,7 @@ import type { RoomCapability, ServerMessage } from "@mc/sync-worker/room-protoco
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { ReplayOpenError, type ReplayOpened, type ReplayOpenSource } from "../replay/replay-core.js";
 import type { ReplayInfo } from "../replay/replay-session.js";
+import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
 import { RoomSocket, type RoomSocketDeps } from "./room-socket.js";
 import type { LiveWatchEvent } from "./watch-events.js";
 import { WatchFeed, type WatchAction } from "./watch-feed.js";
@@ -20,10 +21,24 @@ export interface LiveWatchCore {
   liveEnd(outcome: GameOutcome | null): ReplayInfo;
 }
 
+/**
+ * A guest's feed from the room worker (issue #880), in place of a socket of its own: the same room messages, relayed
+ * over a `MessagePort`. The worker answers `{ kind: "resync" }` with the whole game again.
+ */
+export interface LiveFeedPort {
+  onmessage: ((event: { readonly data: unknown }) => void) | null;
+  postMessage(message: RoomFeedIn): void;
+  start?(): void;
+  close(): void;
+}
+
 export interface LiveWatcherOptions {
   readonly core: LiveWatchCore;
+  /** The room's socket address and id, for a watcher that opens its own socket (a `#watch=` link). */
   readonly baseUrl: string;
   readonly roomId: string;
+  /** Set for a guest of a lobby room: the room worker's feed is used and no socket is opened. */
+  readonly feed?: LiveFeedPort;
   readonly packs: readonly PackRuntime[];
   readonly emit: (event: LiveWatchEvent) => void;
   readonly deps?: RoomSocketDeps;
@@ -66,6 +81,10 @@ export class LiveWatcher {
 
   dispose(): void {
     this.#disposed = true;
+    if (this.#o.feed) {
+      this.#o.feed.onmessage = null;
+      this.#o.feed.close();
+    }
     this.#socket?.close();
     this.#socket = null;
     this.#clearTimer();
@@ -83,6 +102,21 @@ export class LiveWatcher {
   }
 
   #connect(): void {
+    const feed = this.#o.feed;
+    if (feed) {
+      // Already listening on a resync: the worker sends the game again over the same port.
+      if (feed.onmessage) {
+        feed.postMessage({ kind: "resync" });
+        return;
+      }
+      feed.onmessage = (event) => {
+        const data = event.data as RoomFeedOut;
+        if (data.kind === "server") this.#queue(this.#feed.onMessage(data.message));
+        else if (!data.connected) this.#queue(this.#feed.onDisconnected());
+      };
+      feed.start?.();
+      return;
+    }
     this.#socket?.close();
     const socket = new RoomSocket({
       baseUrl: this.#o.baseUrl,

@@ -76,6 +76,8 @@ export interface RoomSeat {
   readonly holderName: string | null;
   /** False when the holder is not in the room now: the seat is theirs until released or taken back by the host. */
   readonly holderConnected: boolean;
+  /** The holder runs another build than the host's: shown, but they cannot play. */
+  readonly mismatch: boolean;
   /** I hold it. */
   readonly mine: boolean;
   /** Who asked for it and awaits the host (what the host's approve and deny buttons act on). */

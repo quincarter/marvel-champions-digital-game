@@ -4,7 +4,9 @@
  * streams the game over a port, as it does for Discord presence.
  */
 import type { Command, GameOutcome } from "@mc/engine";
+import type { RoomBuild, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
+import type { LobbySeatSpec, LobbySettingsPatch, RoomState } from "./room-state.js";
 
 /** Main thread to the live-room worker. */
 export type LiveRoomIn =
@@ -15,18 +17,43 @@ export type LiveRoomIn =
       readonly syncUrl: string | null;
       /** The web version's address a watch link hangs off (the page's own, or the web version in the apps). */
       readonly watchBase: string;
-      /** The engine worker's end of the channel; the game arrives on it. */
-      readonly gamePort: MessagePort;
+      /** The engine worker's end of the channel; the game arrives on it. Absent where there is no engine worker. */
+      readonly gamePort?: MessagePort;
+      /** This build, as rooms compare it (`hello.build`): `CLIENT_VERSION` and `POOL_VERSION`, read on main. */
+      readonly build?: RoomBuild;
       /** The presence worker's end, to post status to (Discord's "Watch live" button, a later task). */
       readonly presencePort?: MessagePort;
     }
-  | { readonly kind: "enabled"; readonly on: boolean };
+  | { readonly kind: "enabled"; readonly on: boolean }
+  // Rooms and the lobby (issue #880). Each is one call of `platform/room.ts`; the answer is a `room` state.
+  | { readonly kind: "room-host"; readonly name: string }
+  /** `target` is a room code or a room id. */
+  | { readonly kind: "room-join"; readonly target: string; readonly name: string }
+  | { readonly kind: "room-leave" }
+  | { readonly kind: "room-lobby"; readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }
+  | {
+      readonly kind: "room-seat";
+      readonly op: "request" | "release" | "assign" | "deny";
+      readonly seat: string;
+      readonly participant?: string;
+    }
+  | { readonly kind: "room-say"; readonly text: string }
+  /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
+  | { readonly kind: "room-follow"; readonly port: MessagePort }
+  | { readonly kind: "room-unfollow" };
 
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
-export interface LiveRoomOut {
-  readonly kind: "status";
-  readonly status: LiveStatus;
-}
+export type LiveRoomOut =
+  | { readonly kind: "status"; readonly status: LiveStatus }
+  | { readonly kind: "room"; readonly state: RoomState };
+
+/** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
+export type RoomFeedOut =
+  | { readonly kind: "server"; readonly message: ServerMessage }
+  | { readonly kind: "connection"; readonly connected: boolean };
+
+/** A guest's watcher to the room worker: the log had a gap, send the game again. */
+export type RoomFeedIn = { readonly kind: "resync" };
 
 /** The status as the presence worker receives it over its port. */
 export interface LiveStatusMessage {
