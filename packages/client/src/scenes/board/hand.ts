@@ -128,7 +128,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     top = rect.y + height + 4;
   } else if (costChoice) {
     // Taller when its counts stack under the question or wrap onto more rows (a narrow phone, many counters).
-    const height = costChoiceBarHeight(rect.width, BAR_HEIGHT, costChoice);
+    const height = costChoiceBarHeight(rect.width, costChoice);
     drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, costChoice);
     top = rect.y + height + 4;
   } else if (payment) {

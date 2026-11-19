@@ -44,6 +44,14 @@ describe("costCountsLayout", () => {
     expect(layout.height).toBeGreaterThan(ROW);
   });
 
+  test("We Are Groot's 4 counts stay on one row beside the question on 375, 390 and 412 px phones", () => {
+    for (const width of [375, 390, 412]) {
+      const layout = costCountsLayout(width, ROW, 4);
+      expect(layout.question.stacked, `${width} px`).toBe(false);
+      expect(layout.height).toBe(ROW);
+    }
+  });
+
   test("ten counts on a phone wrap onto more rows rather than shrinking", () => {
     const layout = costCountsLayout(375, ROW, 10);
     const rows = new Set(layout.counts.map((box) => box.y)).size;

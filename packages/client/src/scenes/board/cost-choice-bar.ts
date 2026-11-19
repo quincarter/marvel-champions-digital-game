@@ -26,13 +26,11 @@ export function drawCostChoiceBar(ctx: BoardDrawContext, rect: Rect, prompt: Cos
 }
 
 /**
- * The bar's height for this prompt over a hand `width` wide whose usual bar is `rowHeight` tall: taller when the counts
+ * The bar's height for this prompt over a hand `width` wide: one usual bar row (`BAR_ROW`), taller when the counts
  * stack under their question or wrap (`costCountsLayout`).
  */
-export function costChoiceBarHeight(width: number, rowHeight: number, prompt: CostChoicePrompt): number {
-  return prompt.kind === "counters"
-    ? costCountsLayout(width, rowHeight, prompt.max - prompt.min + 1).height
-    : rowHeight;
+export function costChoiceBarHeight(width: number, prompt: CostChoicePrompt): number {
+  return prompt.kind === "counters" ? costCountsLayout(width, BAR_ROW, prompt.max - prompt.min + 1).height : BAR_ROW;
 }
 
 function drawBranches(ctx: BoardDrawContext, rect: Rect, prompt: Extract<CostChoicePrompt, { kind: "branch" }>): void {

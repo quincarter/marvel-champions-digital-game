@@ -12,7 +12,7 @@ export const MIN_COUNT_WIDTH = 40;
 export const MAX_COUNT_WIDTH = 56;
 export const COUNT_GAP = 6;
 /** The question's own line, when it sits above the counts. */
-export const QUESTION_ROW = 24;
+export const QUESTION_ROW = 30;
 
 export interface BarBox {
   readonly x: number;
@@ -39,10 +39,13 @@ export function costCountsLayout(barWidth: number, rowHeight: number, count: num
   const cancelX = barWidth - cancelWidth - 10;
   const need = (columns: number, width: number): number => columns * width + COUNT_GAP * (columns - 1);
 
-  // Wide: the question takes up to 380 px (42% of the bar), and never less than a branch title's 220 px / 28%.
-  const wideTitle = Math.max(Math.min(220, barWidth * 0.28), Math.min(380, barWidth * 0.42));
-  const wideRoom = cancelX - COUNT_GAP - wideTitle;
-  const fitsBeside = need(n, MIN_COUNT_WIDTH) <= wideRoom;
+  // Beside the counts the question takes up to 380 px (42% of the bar), giving way to the counts down to a branch
+  // title's 220 px / 28%; only when the counts still do not fit at that does it stack on its own line.
+  const leastTitle = Math.min(220, barWidth * 0.28);
+  const mostTitle = Math.max(leastTitle, Math.min(380, barWidth * 0.42));
+  const besideTitle = Math.min(mostTitle, cancelX - COUNT_GAP - need(n, MIN_COUNT_WIDTH));
+  const fitsBeside = besideTitle >= leastTitle;
+  const wideTitle = fitsBeside ? besideTitle : 0;
 
   const left = fitsBeside ? wideTitle : 10;
   const room = cancelX - COUNT_GAP - left;
