@@ -169,6 +169,9 @@ const KNOWN_ENCOUNTER_SET_IDS: ReadonlySet<string> = new Set(ENCOUNTER_SET_NAMES
 /** The stops Start (and A with nothing focused) takes, best first: a confirm, or the issue's Open button. */
 const FORWARD_STOPS: readonly string[] = ["rb-confirm", "role-confirm", "call-confirm", "open"];
 
+/** The phone's watch toggle strip above the action bar. */
+const WATCH_STRIP_HEIGHT = 40;
+
 export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
   #record: CampaignRecord | null = null;
@@ -536,7 +539,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (top.back && top.backRect) stops.set("back", { rect: top.backRect, activate: back });
 
     const actionBar = drawActionBar(this);
-    const contentBottom = actionBar.y - 16;
+    // A phone's "Let people watch this game" strip sits above the action bar, so every scrolling region stops short
+    // of it: no control lies over a scrolling region (#227).
+    const watchStripHeight = phone ? WATCH_STRIP_HEIGHT : 0;
+    const scrollBottom = actionBar.y - watchStripHeight;
+    const contentBottom = scrollBottom - 16;
 
     const campaignStory = storyFor(record.campaignId as string);
     const firstPlayerSeat = record.seats.find((seat) => seat.seatNumber === 1) ?? record.seats[0];
@@ -598,7 +605,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const scrollHeights: number[] = [1_000_000];
     const region = scrolled
       ? new McScrollRegion(this, {
-          rect: { x: 0, y: top.height, width, height: actionBar.y - top.height },
+          rect: { x: 0, y: top.height, width, height: scrollBottom - top.height },
           heights: scrollHeights,
           scroll: this.#briefingScroll,
           clipInteractive: true,
@@ -752,7 +759,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       drawCampaignPaneGround(
         this,
         record.campaignId as string,
-        { x: paneX, y: top.height, width: width - paneX, height: actionBar.y - top.height },
+        { x: paneX, y: top.height, width: width - paneX, height: scrollBottom - top.height },
         this.#redrawPane,
       );
       const paperAt = (bottom: number, slot: number): void =>
@@ -861,7 +868,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
         stops,
         stopsBefore,
         top.height,
-        actionBar.y,
+        scrollBottom,
         undefined,
         undefined,
         stackPaneBottom ?? undefined,
@@ -961,9 +968,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
       }
     }
     // Right where the problem and hint lines go, so only one of them shows at a time: a problem outranks the toggle.
-    if (!blocked && !hint && !this.#seatPicker) {
+    // Not for an issue already on the table: its save keeps the choice it was dealt with, so the toggle would be ignored.
+    if (!blocked && !hint && !this.#seatPicker && !this.#inProgress) {
       const bar: Rect = phone
-        ? { x: 0, y: actionBar.y - 40, width, height: 40 }
+        ? { x: 0, y: actionBar.y - WATCH_STRIP_HEIGHT, width, height: WATCH_STRIP_HEIGHT }
         : { x: gutter, y: editRect.y, width: Math.min(380, editRect.x - gutter - 16), height: editRect.height };
       if (bar.width >= 160) this.#drawWatchToggle(bar, phone, stops);
     }

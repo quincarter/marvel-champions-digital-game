@@ -37,6 +37,8 @@ export interface ChromeOptions {
   readonly watchers?: WatchBadge | null;
   /** Pressing the watch control copies or shares the link (#876). */
   readonly onWatch?: () => void;
+  /** Hears where the control was drawn, for the keyboard and pad focus route. */
+  readonly onWatchRect?: (rect: Rect) => void;
   /** The line shown under the control right after a press ("Watch link copied"). */
   readonly watchToast?: string | null;
   /** Opens the Pause overlay (docs/phase4-screen-gaps.md §3 "W4"). Every board layout gets this button. */
@@ -281,6 +283,7 @@ function drawWatchBadge(
   g.fillStyle(surface.paper.hex, 1).fillCircle(cx, middle, 3);
   // A hit zone so a hover or long press names it: "3 watching".
   const left = cx - eyeWidth / 2;
+  options.onWatchRect?.({ x: left - 4, y: bar.y, width: right - left + 8, height: bar.height });
   const zone = scene.add.zone(left - 4, bar.y, right - left + 8, bar.height).setOrigin(0, 0);
   zone.setName(badge.label);
   if (options.onWatch) {

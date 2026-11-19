@@ -41,6 +41,8 @@ export type FocusTarget =
   | { readonly kind: "victoryDisplay" }
   /** The top bar's dark mode button (#735): Enter flips the theme. Just before the music note on the idle route. */
   | { readonly kind: "theme" }
+  /** The top bar's watch eye (#876): Enter copies or shares the watch link. Just before the dark mode button. */
+  | { readonly kind: "watch" }
   /** The top bar's music note: Enter opens the music player. The last stop on the idle route. */
   | { readonly kind: "music" };
 
@@ -54,6 +56,8 @@ export type FocusMode =
       readonly music?: true;
       /** True while the top bar's dark mode button is drawn: the stop before the note. */
       readonly theme?: true;
+      /** True while the top bar's watch eye is drawn (a live room is open): the stop before the dark mode button. */
+      readonly watch?: true;
       /** True while the discard pile has a card to open: a stop just after the hand, where the table draws it. */
       readonly discard?: true;
       /** True while the victory display has a pile on the table: a stop after the table's cards. */
@@ -134,6 +138,7 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
     ...(mode.victoryDisplay ? [{ kind: "victoryDisplay" as const }] : []),
     ...basics,
     ...teamUps,
+    ...(mode.watch ? [{ kind: "watch" as const }] : []),
     ...(mode.theme ? [{ kind: "theme" as const }] : []),
     ...(mode.music ? [{ kind: "music" as const }] : []),
   ];

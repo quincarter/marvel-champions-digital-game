@@ -383,6 +383,8 @@ export class BoardScene extends Phaser.Scene {
     barStops: () => ({ count: this.#frame.barStops.length, cancel: this.#frame.focusRects.has("cancel") }),
     hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+    hasWatchStop: () => this.#frame.focusRects.has(focusKey({ kind: "watch" })),
+    shareWatchLink: () => this.#shareWatchLink(),
     hasThemeStop: () => this.#frame.focusRects.has(focusKey({ kind: "theme" })),
     toggleTheme: () => (this.scene.manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
@@ -1726,6 +1728,7 @@ export class BoardScene extends Phaser.Scene {
               watchers: watchBadgeOf(liveStatus()),
               onWatch: () => this.#shareWatchLink(),
               watchToast: this.#watchToast,
+              onWatchRect: (rect: Rect) => this.#frame.focusRects.set(focusKey({ kind: "watch" }), rect),
             }),
         onMenu: () => this.#openPause(),
         ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
@@ -2642,7 +2645,6 @@ export class BoardScene extends Phaser.Scene {
     this.#controller.activate(target);
   }
 
-  /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
   /**
    * The top bar's watch control (#876): a phone with a share sheet offers it, anywhere else the link is copied; a
    * toast says so. A browser that refuses both shows the link itself to copy by hand.
@@ -2669,6 +2671,7 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
+  /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
   #openPause(): void {
     // A replay has no game to save, concede or rewind: its menu is Settings alone.
     if (this.#replay) {
