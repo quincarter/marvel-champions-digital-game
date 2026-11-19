@@ -310,9 +310,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.credits.packs_one": "{count} paquete",
   "modStore.credits.packs_other": "{count} paquetes",
   "modStore.credits.intro": "Quienes crean los paquetes de la tienda. Elige un nombre para ver lo que ha hecho.",
-  "live.setting.title": "Permitir siempre que otros vean mis partidas",
+  "live.setting.title": "Permitir siempre espectadores",
   "live.setting.detail":
-    "Cada partida nueva empieza abierta a espectadores; puedes desactivarlo en cada partida al prepararla. Cualquiera con el enlace puede verla en directo, y el enlace va en tu tarjeta de Discord.",
+    "Permitir siempre que otros vean mis partidas: cada partida nueva empieza abierta y puedes desactivarlo al prepararla. Cualquiera con el enlace puede verla.",
   "live.setup.title": "Dejar que otros vean esta partida",
   "live.setup.on": "Cualquiera con el enlace puede verla en directo",
   "live.setup.off": "Solo tú verás esta partida",

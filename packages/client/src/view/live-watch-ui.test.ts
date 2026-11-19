@@ -47,7 +47,7 @@ describe("Copy watch link", () => {
 describe("the Settings row", () => {
   test("is off by default, says who can watch, and toggles the setting", () => {
     const row = liveWatchRowInfoOf(defaultSettings());
-    expect(row).toMatchObject({ id: "live-watch", title: "Always allow people to watch my games", on: false });
+    expect(row).toMatchObject({ id: "live-watch", title: "Always allow watchers", on: false });
     expect(row.detail).toContain("Anyone with the link");
     const next = nextSettingsAfterToggle(defaultSettings(), "live-watch", 1);
     expect(next.liveWatch).toBe(true);

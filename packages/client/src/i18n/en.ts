@@ -310,9 +310,9 @@ export const en = {
   "modStore.credits.packs_one": "{count} pack",
   "modStore.credits.packs_other": "{count} packs",
   "modStore.credits.intro": "The people who make the store's packs. Pick a name to see what they made.",
-  "live.setting.title": "Always allow people to watch my games",
+  "live.setting.title": "Always allow watchers",
   "live.setting.detail":
-    "Each new game starts open to watchers; you can still turn it off per game when you set it up. Anyone with the link can watch live, and the link goes on your Discord card.",
+    "Always allow people to watch my games: each new game starts open to watchers, and you can turn it off when you set one up. Anyone with the link can watch.",
   "live.setup.title": "Let people watch this game",
   "live.setup.on": "Anyone with the link can watch live",
   "live.setup.off": "Only you will see this game",
