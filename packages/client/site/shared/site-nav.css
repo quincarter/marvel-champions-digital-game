@@ -257,3 +257,17 @@ html[lang="es"] .site-nav [lang="es"] {
 .has-backdrop #report {
   background: transparent;
 }
+
+/* On a narrow screen the release history's rail becomes a sheet and its version bar pins to the top. The site's bar
+   pins above it there, so Home and the other pages stay in reach while a report scrolls, and the version bar and the
+   sheet sit just under it (`--site-bar-h` is the bar's height, kept current by site-bar.ts). */
+@media (max-width: 900px) {
+  .has-backdrop > .site-bar {
+    position: sticky;
+    top: 0;
+  }
+  .has-backdrop .layout .bar,
+  .has-backdrop .layout .rail {
+    top: var(--site-bar-h, 0px);
+  }
+}

@@ -37,3 +37,15 @@ export function mountSteamButton(): void {
     if (latest) showSteamButton(latest);
   });
 }
+
+/**
+ * Keeps `--site-bar-h` on the page at the bar's height, for what pins under it (site-nav.css: the release history's
+ * version bar and its sheet on a narrow screen). The bar's height changes as it wraps to two rows.
+ */
+export function trackBarHeight(): void {
+  const bar = document.querySelector<HTMLElement>(".site-bar");
+  if (!bar) return;
+  const set = () => document.documentElement.style.setProperty("--site-bar-h", `${bar.offsetHeight}px`);
+  set();
+  new ResizeObserver(set).observe(bar);
+}
