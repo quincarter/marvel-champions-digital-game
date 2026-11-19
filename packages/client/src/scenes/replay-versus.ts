@@ -206,9 +206,25 @@ export class ReplayVersusScene extends Phaser.Scene {
     const back = this.add.graphics();
     back.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(back);
+    // The name sits on its own plate under the picture, never over it. Up to two lines (a long name such as
+    // "Spider-Man (Peter Parker)"), sized to the tile and shrinking until it fits.
+    let size = Math.round(Math.max(12, Math.min(28, rect.width / 10, rect.height / 9)));
+    const label = this.add
+      .text(0, 0, name.toUpperCase(), textStyle(bangers(size), surface.paper.hex))
+      .setOrigin(0.5, 1)
+      .setAlign("center")
+      .setWordWrapWidth(rect.width - 16, true);
+    while (size > 11 && (label.height > size * 2.2 || label.width > rect.width - 16)) {
+      size -= 2;
+      label.setFontSize(size);
+    }
+    const plateHeight = Math.round(label.height + 12);
+    // `inset` lifts the plate clear of VERSUS on the seam below it; that strip stays dark.
+    const plateTop = rect.y + rect.height - inset - plateHeight;
+    label.setPosition(rect.x + rect.width / 2, plateTop + plateHeight - 6);
     if (url) {
-      // A picture whose top would sit under VERSUS starts below it (`heroArtDrops`).
-      const art: Rect = { ...rect, y: rect.y + artDrop, height: rect.height - artDrop };
+      // A picture whose top would sit under VERSUS starts below it (`heroArtDrops`), and it ends at the plate.
+      const art: Rect = { ...rect, y: rect.y + artDrop, height: plateTop - rect.y - artDrop };
       if (focus) {
         // The art says where the hero is (`focus.json`): fill the tile, centered there.
         const thumb = renderLiveArtThumb(this, art, url, focusY, "cover", focus);
@@ -218,7 +234,7 @@ export class ReplayVersusScene extends Phaser.Scene {
         // A wide tile would crop a tall picture to a thin band that can miss the hero's head (it isn't always at the
         // top): zoom in only so far that most of the picture's height still shows (`MIN_VISIBLE_HEIGHT`), from its top,
         // over a dimmed copy of itself that fills whatever the tile has left at the sides.
-        const backdrop = renderLiveArtThumb(this, rect, url, focusY);
+        const backdrop = renderLiveArtThumb(this, art, url, focusY);
         (backdrop.object as Phaser.GameObjects.Components.Alpha & Phaser.GameObjects.GameObject).setAlpha(0.3);
         const wholeWidth = Math.min(art.width, Math.round((art.height * PORTRAIT_ASPECT) / MIN_VISIBLE_HEIGHT));
         const slot: Rect = { ...art, x: Math.round(art.x + (art.width - wholeWidth) / 2), width: wholeWidth };
@@ -231,29 +247,12 @@ export class ReplayVersusScene extends Phaser.Scene {
         objects.push(thumb.object);
       }
     }
-    const shade = this.add.graphics();
-    const band = Math.min(120 + inset, rect.height * 0.45);
-    shade.fillGradientStyle(surface.ink.hex, surface.ink.hex, surface.ink.hex, surface.ink.hex, 0, 0, 0.9, 0.9);
-    shade.fillRect(rect.x, rect.y + rect.height - band, rect.width, band);
-    shade.lineStyle(6, edge, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
-    objects.push(shade);
-    // Up to two lines (a long name such as "Spider-Man (Peter Parker)"), shrinking until they fit.
-    // Sized to the tile, so a phone's small tiles keep most of the picture clear of the name.
-    let size = Math.round(Math.max(12, Math.min(30, rect.width / 10, rect.height / 8)));
-    const label = this.add
-      .text(
-        rect.x + rect.width / 2,
-        rect.y + rect.height - 14 - inset,
-        name.toUpperCase(),
-        textStyle(bangers(size), surface.paper.hex),
-      )
-      .setOrigin(0.5, 1)
-      .setAlign("center")
-      .setWordWrapWidth(rect.width - 16, true);
-    while (size > 11 && (label.height > size * 2.2 || label.width > rect.width - 16)) {
-      size -= 2;
-      label.setFontSize(size);
-    }
+    const plate = this.add.graphics();
+    plate.fillStyle(surface.ink.hex, 1).fillRect(rect.x, plateTop, rect.width, rect.y + rect.height - plateTop);
+    plate.lineStyle(6, edge, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
+    objects.push(plate);
+    // Above the picture, which was added after it.
+    this.children.bringToTop(label);
     objects.push(label);
     return objects;
   }
