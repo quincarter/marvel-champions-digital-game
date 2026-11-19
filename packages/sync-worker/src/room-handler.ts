@@ -19,6 +19,7 @@ import {
   FIRST_TABLE,
   LOBBY_CODE_LENGTH,
   ROOM_ID_PATTERN,
+  ROOM_CODE_MARGIN_MS,
   ROOM_IDLE_MS,
   type RoomCodeResolved,
   type RoomCreated,
@@ -175,7 +176,11 @@ async function claimCode(env: Env, deps: HandlerDeps, roomId: string, now: numbe
     const res = await env.ROOM_CODE.get(env.ROOM_CODE.idFromName(code)).fetch(
       new Request("https://code/claim", {
         method: "POST",
-        headers: { "X-Now": String(now), "X-Room-Id": roomId, "X-Expires": String(now + ROOM_IDLE_MS) },
+        headers: {
+          "X-Now": String(now),
+          "X-Room-Id": roomId,
+          "X-Expires": String(now + ROOM_IDLE_MS + ROOM_CODE_MARGIN_MS),
+        },
       }),
     );
     if (res.status === 201) return code;

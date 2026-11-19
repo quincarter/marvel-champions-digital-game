@@ -279,13 +279,19 @@ const positive = (value: string | undefined, fallback: number): number => {
 function codeHooks(env: Env | undefined): RoomCodeHooks | undefined {
   const ns = env?.ROOM_CODE;
   if (!ns) return undefined;
+  // A failed call (an error status, not a 404 for a code that is not ours) is tried once more, then thrown for the
+  // room to ignore: the directory entry has a margin past the room's expiry, so a miss costs nothing at once.
   const call = async (path: string, code: string, roomId: string, expiresAt?: number) => {
-    await ns.get(ns.idFromName(code)).fetch(
-      new Request(`https://code${path}`, {
-        method: "POST",
-        headers: { "X-Room-Id": roomId, ...(expiresAt === undefined ? {} : { "X-Expires": String(expiresAt) }) },
-      }),
-    );
+    for (let attempt = 0; ; attempt++) {
+      const res = await ns.get(ns.idFromName(code)).fetch(
+        new Request(`https://code${path}`, {
+          method: "POST",
+          headers: { "X-Room-Id": roomId, ...(expiresAt === undefined ? {} : { "X-Expires": String(expiresAt) }) },
+        }),
+      );
+      if (res.ok || res.status === 404) return;
+      if (attempt === 1) throw new Error(`room code ${path} failed: ${res.status}`);
+    }
   };
   return {
     refresh: (code, roomId, expiresAt) => call("/refresh", code, roomId, expiresAt),

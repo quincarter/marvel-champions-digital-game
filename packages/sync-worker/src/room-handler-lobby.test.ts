@@ -9,6 +9,7 @@ import {
   DEFAULT_ROOMS_PER_IP_PER_DAY,
   LOBBY_CODE_LENGTH,
   ROOM_END_GRACE_MS,
+  ROOM_CODE_MARGIN_MS,
   ROOM_IDLE_MS,
   type RoomCreated,
 } from "./room-protocol.js";
@@ -97,7 +98,7 @@ describe("POST /room { lobby: true }", () => {
     });
     expect(env.ROOM_CODE.instances.get(room.code!)!.storage.map.get("code")).toEqual({
       roomId: room.roomId,
-      expiresAt: clock.now + ROOM_IDLE_MS,
+      expiresAt: clock.now + ROOM_IDLE_MS + ROOM_CODE_MARGIN_MS,
     });
   });
 
@@ -182,7 +183,7 @@ describe("GET /room/code/:code", () => {
   it("is a 404 once the room's time is up with no refresh, and 200 a moment before", async () => {
     const { call, clock } = setup();
     const room = await created(await call(postLobby()));
-    clock.now += ROOM_IDLE_MS - 1;
+    clock.now += ROOM_IDLE_MS + ROOM_CODE_MARGIN_MS - 1;
     expect((await call(lookup(room.code!))).status).toBe(200);
     clock.now += 1;
     expect((await call(lookup(room.code!))).status).toBe(404);
@@ -203,8 +204,8 @@ describe("GET /room/code/:code", () => {
     expect(await logic.alarm(clock.now)).toBe("rescheduled");
     const alarm = env.GAME_ROOM.instances.get(room.roomId)!.storage.alarm;
     const entry = env.ROOM_CODE.instances.get(room.code!)!.storage;
-    expect((entry.map.get("code") as { expiresAt: number }).expiresAt).toBe(alarm);
-    clock.now = alarm! - 1;
+    expect((entry.map.get("code") as { expiresAt: number }).expiresAt).toBe(alarm! + ROOM_CODE_MARGIN_MS);
+    clock.now = alarm! + ROOM_CODE_MARGIN_MS - 1;
     expect((await call(lookup(room.code!))).status).toBe(200);
   });
 
@@ -228,7 +229,7 @@ describe("GET /room/code/:code", () => {
   it("a closing room cannot delete a code that now belongs to another room", async () => {
     const { call, env, clock } = setup();
     const room = await created(await call(postLobby()));
-    clock.now += ROOM_IDLE_MS;
+    clock.now += ROOM_IDLE_MS + ROOM_CODE_MARGIN_MS;
     // The code lapsed and another room took it before this one (which never heard) closes.
     const storage = env.ROOM_CODE.instances.get(room.code!)!.storage;
     await new RoomCodeLogic(storage).claim("BBBBBBBBBBBB", clock.now + ROOM_IDLE_MS, clock.now);

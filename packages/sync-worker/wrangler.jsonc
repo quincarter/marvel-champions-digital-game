@@ -107,10 +107,15 @@
 //     room moves it with its idle alarm (one RoomCode request, 2 rows, about every 12 hours) and deletes it when it
 //     closes (one request, its rows deleted); an alarm there drops a mapping whose room never came back. A code lookup
 //     (GET /room/code/:code) is one Worker request, one RateLimiter request and one RoomCode request, and writes no row:
-//     the per-IP allowance (60 lookups an hour, ROOM_LOOKUPS_PER_IP_PER_HOUR) is counted in memory. The lobby is one
-//     `lobby` row (settings, seats, seat-token hashes) in the room, written when the host sets it up or changes it, when
-//     a seat is requested, given, released or denied, when a requester disconnects, and once when the host's build is
-//     first stamped: a few dozen rows for a whole session, never one per message. Chat writes nothing: the last 50 lines
+//     the per-IP allowance (60 lookups an hour, ROOM_LOOKUPS_PER_IP_PER_HOUR) is a soft limit: it is counted in memory, so
+//     it resets when the limiter object is evicted, and the real defence against guessing is the 31^6 code space. The
+//     code's expiry is the room's own plus an hour (ROOM_CODE_MARGIN_MS), so the two alarms never race, and a refresh
+//     writes a missing entry back for the same room. The lobby is one `lobby` row (settings, seats, seat-token hashes)
+//     in the room, written only when the host sets or changes it, when a seat's holder changes (assigned, released, taken
+//     back, or a token restores it) and once when the host's build is first stamped or changes: a few dozen rows for a
+//     whole session. Seat requests and their withdrawal are memory only, and a participant's lobby messages are held to
+//     a burst of 10 then 2 a second, so no loop of them writes a row. A socket that piles up 50 soft refusals in 10
+//     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
 //     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
 //     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is

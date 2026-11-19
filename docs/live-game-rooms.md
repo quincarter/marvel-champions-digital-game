@@ -164,12 +164,13 @@ exactly as watching did):
 
 - `POST /room` takes `{ lobby: true }` and also returns a 6-character `code` (the transfer room-code alphabet). A small
   `RoomCode` Durable Object per code (`room-code-store.ts`, migration `v6`) maps it to the room id. `GET /room/code/:code`
-  (any case, dashes and spaces ignored) answers `{ roomId }` or 404; it is limited to 60 lookups an hour per IP, counted in
-  memory (no row). A code collision draws another code (8 tries); the directory entry expires with the room: it is created
-  with the room's 12-hour idle time, the room moves it out whenever its own idle alarm moves out, and the room deletes it
-  when it closes (an alarm in the directory drops an entry whose room never came back to say so). Only the room a code
-  belongs to may refresh or release it.
-- `hello` carries `name` (trimmed, at most 24 characters, required in a lobby room: otherwise `refused name-required` and
+  (any case, dashes and spaces ignored) answers `{ roomId }` or 404; it is limited to 60 lookups an hour per IP, a soft limit
+  counted in memory (no row; it resets when the limiter object is evicted, and the 31^6 code space is the real defence). A code collision draws another code (8 tries); the directory entry expires with the room: it is created
+  with the room's 12-hour idle time plus an hour of margin (so the two alarms never race), the room moves it out whenever its own idle alarm moves out, and the room deletes it
+  when it closes (an alarm in the directory drops an entry whose room never came back to say so; a refresh writes a missing entry back for
+  the same room). Only the room a code belongs to may refresh or release it. A failing directory call is tried twice and
+  then ignored.
+- `hello` carries `name` (trimmed, at most 24 code points in a lobby room (a watch room's `hello` may carry up to 32 and ignores it), required in a lobby room: otherwise `refused name-required` and
   the socket closes; other rooms ignore it), `build { appVersion, contentVersion }` and `seatTokens`. Roster participants
   carry their `name` and `build`. A lobby room advertises caps `watch`, `chat`, `seats`.
 - The room sends `lobby { code, settings, seats }` after `welcome` to a joiner and to everyone after each change.
@@ -180,10 +181,17 @@ exactly as watching did):
   off is refused `multi-seat` while someone holds two), `seat-assign { seat, participant }` (a connected participant; the
   host may also `seat-request` a seat for themselves and it is granted at once), `seat-deny { seat, participant }` (turns
   down a request, or takes the seat from its holder). Participants: `seat-request { seat }`, `seat-release { seat }` (gives
-  up a seat or withdraws a request). A request or assignment is refused `build-mismatch` unless the participant's `build`
+  up a seat or withdraws a request). `LobbySeat` gets a `table` field when several tables arrive (step 4). A request or assignment is refused `build-mismatch` unless the participant's `build`
   equals the host's in both versions (a missing build never matches), `multi-seat` for a second seat while `multiSeat` is
   off, `seat-taken`, `no-such-seat`, `no-such-participant`. Only `bad-message`, `too-large` and `not-allowed` count toward
   the room closing a noisy socket.
+- A seat whose connected holder runs a build that is not the host's (restored by token after an update, or the host changed
+  build) stays held and is sent with `mismatch: true`; its holder may not act for it until the builds match (the later play
+  step enforces that). Restoring by token also obeys `multiSeat`: an extra seat is refused `multi-seat` and stays with its
+  old holder.
+- Names and chat lines are NFC-normalized, format characters (zero-width, bidi) are removed, controls and line separators
+  become spaces, and they are cut by code points; a name needs at least one visible character; an over-long chat line is
+  cut to 280, not refused.
 - An assignment sends that participant alone `seat-token { seat, token }` (192 random bits; only its SHA-256 is stored).
   A reconnect is a new participant id: `hello { seatTokens: [...] }` puts the sender back in the seats those tokens open
   (the token is the credential, so it also takes the seat from the id the same player held before), and the same token
@@ -196,7 +204,9 @@ exactly as watching did):
   that hibernates forgets the backlog.
 - Storage: the existing `meta` row gains `code` and `roomId` (lobby rooms only); settings, seats (holders, requests) and the
   seat-token hashes are one separate `lobby` row, not part of `meta` (which also carries the end outcome and the hourly
-  host stamp), written only when the host sets or changes the lobby, a seat is requested, assigned, released or denied,
-  a requester disconnects, or the host's build is first stamped or changes. Nothing is written per chat line, join or
-  leave. The cost notes are in `packages/sync-worker/wrangler.jsonc`.
+  host stamp), written only when the host sets or changes the lobby, a seat's holder changes (assigned, released, taken back, or
+  restored by token) or the host's build is first stamped or changes. Pending seat requests are memory only (a woken room
+  starts with none; the client asks again), and a participant's lobby messages are rate limited (burst 10, then 2 a second),
+  so no loop of requests writes a row. Nothing is written per chat line, join or leave. A socket with 50 soft refusals in
+  10 seconds is closed. The cost notes are in `packages/sync-worker/wrangler.jsonc`.
 - The room's limits and kill switch are the ones #878 set up.

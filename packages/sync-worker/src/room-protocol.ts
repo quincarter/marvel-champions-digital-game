@@ -50,6 +50,12 @@ export const DEFAULT_ROOMS_PER_IP_PER_DAY = 20;
  * other room ignores `hello.name`, so watching works as it did.
  */
 export const MAX_NAME_LENGTH = 24;
+/** What `hello` may carry as a name (watch rooms ignore it); a lobby room cuts it to `MAX_NAME_LENGTH` code points. */
+export const MAX_HELLO_NAME_CHARS = 32;
+/** A room code's directory entry outlives the room's own expiry by this much, so the two alarms never race. */
+export const ROOM_CODE_MARGIN_MS = 60 * 60 * 1000;
+/** Seat and lobby messages per participant: a burst of this many, then 2 a second. */
+export const LOBBY_MESSAGE_BURST = 10;
 /** The most characters one chat line may have (`say`). */
 export const MAX_CHAT_LENGTH = 280;
 /** Chat rate per participant: one line a second on average, with a burst of this many. */
@@ -180,7 +186,13 @@ export interface LobbySeat extends LobbySeatSpec {
   readonly holder?: string;
   /** The holder's name, kept while they are disconnected. */
   readonly holderName?: string;
-  /** Participants who asked for the seat and await the host's answer. */
+  /**
+   * The connected holder runs a build that is not the host's (a seat restored by token after an update, or the host
+   * changed build). The seat stays held; its holder may not act for it until the builds match again.
+   * (A later multi-table step adds a `table` field here.)
+   */
+  readonly mismatch?: boolean;
+  /** Participants who asked for the seat and await the host's answer. Memory only: a woken room starts with none. */
   readonly requested?: readonly string[];
 }
 
@@ -450,7 +462,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
       return ok(
         Array.isArray(m.caps) &&
           (m.token === undefined || typeof m.token === "string") &&
-          (m.name === undefined || (typeof m.name === "string" && m.name.trim().length <= MAX_NAME_LENGTH)) &&
+          (m.name === undefined || (typeof m.name === "string" && m.name.trim().length <= MAX_HELLO_NAME_CHARS)) &&
           (m.build === undefined || isBuild(m.build)) &&
           (m.seatTokens === undefined ||
             (Array.isArray(m.seatTokens) &&

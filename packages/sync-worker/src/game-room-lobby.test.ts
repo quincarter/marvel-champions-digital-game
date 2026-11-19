@@ -10,15 +10,18 @@ import {
 import {
   CHAT_BACKLOG_LINES,
   CHAT_BURST,
+  LOBBY_MESSAGE_BURST,
   MAX_CHAT_LENGTH,
   MAX_NAME_LENGTH,
   ROOM_END_GRACE_MS,
+  ROOM_CODE_MARGIN_MS,
   ROOM_IDLE_MS,
   parseClientMessage,
   type Participant,
   type RoomBuild,
   type ServerMessage,
 } from "./room-protocol.js";
+import { RoomCodeLogic } from "./room-code-store.js";
 import { MemoryStorage } from "./test-support.js";
 
 const TOKEN = "T".repeat(32);
@@ -127,9 +130,12 @@ describe("a lobby room: names, build and the lobby message", () => {
     expect(room.participantCount).toBe(1);
     const edge = await join(room, { name: "x".repeat(MAX_NAME_LENGTH) });
     expect(edge.last("welcome")!.you.name).toHaveLength(24);
+    // A watch room's hello may carry up to 32; a lobby room cuts a longer name to 24 code points.
     expect(
-      parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], name: "x".repeat(25) })),
+      parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], name: "x".repeat(33) })),
     ).toBeNull();
+    const cut = await join(room, { name: "y".repeat(30) });
+    expect(cut.last("welcome")!.you.name).toBe("y".repeat(24));
     expect(
       parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], name: ` ${"x".repeat(24)} ` })),
     ).not.toBeNull();
@@ -541,14 +547,15 @@ describe("chat", () => {
       });
   });
 
-  it("limits a line to 280 characters and refuses an empty one", async () => {
+  it("cuts a line to 280 characters (a soft outcome, not a refusal) and refuses an empty one", async () => {
     const { room, join } = await setup();
     const a = await join(room);
     await say(room, a, "x".repeat(MAX_CHAT_LENGTH));
     expect(a.of("said")).toHaveLength(1);
-    await say(room, a, "x".repeat(MAX_CHAT_LENGTH + 1));
+    await say(room, a, "x".repeat(MAX_CHAT_LENGTH + 50));
+    expect(a.last("said")!.text).toBe("x".repeat(MAX_CHAT_LENGTH));
     await say(room, a, "   ");
-    expect(a.refusals).toEqual(["bad-message", "bad-message"]);
+    expect(a.refusals).toEqual(["bad-message"]);
   });
 
   it("flattens control characters so a line cannot forge a second one", async () => {
@@ -659,7 +666,7 @@ describe("the room code's lifetime", () => {
     await send(room, h, { ch: "game", kind: "start", table: "t1", header: {} });
     clock.now += 1000;
     expect(await room.alarm(clock.now)).toBe("rescheduled");
-    expect(calls).toEqual([`refresh ${CODE} ${ROOM_ID} ${storage.alarm}`]);
+    expect(calls).toEqual([`refresh ${CODE} ${ROOM_ID} ${storage.alarm! + ROOM_CODE_MARGIN_MS}`]);
   });
 
   it("releases the code when the room closes, idle or after the game ended", async () => {
@@ -706,5 +713,308 @@ describe("watching is unchanged for a room without a lobby", () => {
     await send(room, w, { ch: "chat", kind: "say", text: "hi" });
     expect(w.refusals).toEqual(["not-allowed", "not-allowed"]);
     expect(w.sent.map((m) => m.kind)).not.toContain("lobby");
+  });
+});
+
+describe("seat requests write nothing", () => {
+  async function withSeat() {
+    const ctx = await setup();
+    const h = await ctx.host();
+    await ctx.lobbySet(h, { seats: ctx.seats("s1", "s2") });
+    const a = await ctx.join(ctx.room, { name: "Ann" });
+    let puts = 0;
+    const put = ctx.storage.put.bind(ctx.storage);
+    ctx.storage.put = ((...args: Parameters<typeof put>) => {
+      puts += 1;
+      return put(...args);
+    }) as typeof ctx.storage.put;
+    return { ...ctx, h, a, puts: () => puts };
+  }
+
+  it("a loop of request and release rows nothing, however long it runs", async () => {
+    const { room, send, a, h, clock, puts } = await withSeat();
+    for (let i = 0; i < 200; i++) {
+      clock.now += 500; // Slow enough for the lobby message rate limit, so every one is handled.
+      await send(room, a, { ch: "room", kind: i % 2 === 0 ? "seat-request" : "seat-release", seat: "s1" });
+    }
+    expect(a.refusals).toEqual([]);
+    expect(puts()).toBe(0);
+    // The requests were still seen live.
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]!.requested).toEqual([a.id]);
+    expect(puts()).toBe(0);
+  });
+
+  it("rate limits a participant's lobby messages: a burst of 10, then 2 a second", async () => {
+    const { room, send, a, h, clock, puts } = await withSeat();
+    for (let i = 0; i < LOBBY_MESSAGE_BURST; i++) {
+      await send(room, a, { ch: "room", kind: i % 2 === 0 ? "seat-request" : "seat-release", seat: "s1" });
+    }
+    expect(a.refusals).toEqual([]);
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(a.refusals).toEqual(["rate-limited"]);
+    clock.now += 500;
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(a.refusals).toEqual(["rate-limited"]);
+    expect(h.last("lobby")!.seats[0]!.requested).toEqual([a.id]);
+    expect(puts()).toBe(0);
+  });
+
+  it("closes a socket that piles up soft refusals: 50 within 10 seconds", async () => {
+    const { room, send, a } = await withSeat();
+    for (let i = 0; i < 49; i++) await send(room, a, { ch: "room", kind: "seat-request", seat: "nope" });
+    expect(a.closed).toBeNull();
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "nope" });
+    expect(a.closed).not.toBeNull();
+    // Spread over more than the window, the same refusals never add up.
+    const b = await withSeat();
+    for (let i = 0; i < 120; i++) {
+      b.clock.now += 1_000;
+      await b.send(b.room, b.a, { ch: "room", kind: "seat-request", seat: "nope" });
+    }
+    expect(b.a.closed).toBeNull();
+  });
+
+  it("writes the lobby row only when a seat's holder changes", async () => {
+    const { room, send, a, h, puts } = await withSeat();
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    await room.close(a);
+    expect(puts()).toBe(0);
+    const b = await withSeat();
+    await b.send(b.room, b.h, { ch: "room", kind: "seat-assign", seat: "s1", participant: b.a.id });
+    expect(b.puts()).toBe(1);
+    await b.send(b.room, b.a, { ch: "room", kind: "seat-release", seat: "s1" });
+    expect(b.puts()).toBe(2);
+    await b.send(b.room, b.h, { ch: "room", kind: "seat-assign", seat: "s1", participant: b.a.id });
+    await b.send(b.room, b.h, { ch: "room", kind: "seat-deny", seat: "s1", participant: b.a.id });
+    expect(b.puts()).toBe(4);
+  });
+
+  it("a woken room has no pending requests (they were never stored)", async () => {
+    const { make, room, send, a, h } = await withSeat();
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]!.requested).toEqual([a.id]);
+    const woken = make();
+    woken.restore(h);
+    const late = await (async () => {
+      const s = new FakeSocket();
+      await woken.message(s, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], name: "Late", build: BUILD }));
+      return s;
+    })();
+    expect(late.last("lobby")!.seats[0]!.requested).toBeUndefined();
+  });
+});
+
+describe("restoring a seat by token still obeys the build and multi-seat rules", () => {
+  it("keeps a seat held but marks it mismatch when the holder returns on another build, and clears it on a match", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1") });
+    const a = await join(room, { name: "Ann" });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    const token = a.last("seat-token")!.token;
+    await room.close(a);
+    const back = await join(room, {
+      name: "Ann",
+      build: { appVersion: "2.0.0", contentVersion: "c9" },
+      seatTokens: [token],
+    });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ holder: back.id, mismatch: true });
+    expect(back.last("lobby")!.seats[0]!.mismatch).toBe(true);
+    // Back on the host's build, the mark goes.
+    await room.close(back);
+    const fixed = await join(room, { name: "Ann", seatTokens: [token] });
+    expect(h.last("lobby")!.seats[0]!.holder).toBe(fixed.id);
+    expect(h.last("lobby")!.seats[0]!.mismatch).toBeUndefined();
+  });
+
+  it("marks a held seat mismatch when the host reconnects on a new build, and unmarks it when the holder follows", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1") });
+    const a = await join(room, { name: "Ann" });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    const h2 = await join(room, { token: TOKEN, name: "Hosty", build: { appVersion: "1.2.4", contentVersion: "c9" } });
+    expect(h2.last("lobby")!.seats[0]).toMatchObject({ holder: a.id, mismatch: true });
+    const token = a.last("seat-token")!.token;
+    await room.close(a);
+    const a2 = await join(room, {
+      name: "Ann",
+      build: { appVersion: "1.2.4", contentVersion: "c9" },
+      seatTokens: [token],
+    });
+    expect(h2.last("lobby")!.seats[0]).toMatchObject({ holder: a2.id });
+    expect(h2.last("lobby")!.seats[0]!.mismatch).toBeUndefined();
+  });
+
+  it("refuses a second seat restored by token while multi-seat is off, leaving it with its old holder", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    const a = await join(room, { name: "Ann" });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    const t1 = a.last("seat-token")!.token;
+    await room.close(a);
+    // The same person comes back without the token and is given the other seat (they hold none by this id).
+    const a2 = await join(room, { name: "Ann" });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s2", participant: a2.id });
+    const t2 = a2.last("seat-token")!.token;
+    await room.close(a2);
+    const a3 = await join(room, { name: "Ann", seatTokens: [t1, t2] });
+    expect(a3.refusals).toEqual(["multi-seat"]);
+    const held = h.last("lobby")!.seats.filter((s) => s.holder === a3.id);
+    expect(held).toHaveLength(1);
+    expect(held[0]!.id).toBe("s1");
+    expect(h.last("lobby")!.seats[1]!.holder).toBe(a2.id);
+  });
+
+  it("restores both seats when multi-seat is on", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2"), settings: { multiSeat: true } });
+    const a = await join(room, { name: "Ann" });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s2", participant: a.id });
+    const tokens = a.of("seat-token").map((m) => m.token);
+    await room.close(a);
+    const back = await join(room, { name: "Ann", seatTokens: tokens });
+    expect(back.refusals).toEqual([]);
+    expect(h.last("lobby")!.seats.map((s) => s.holder)).toEqual([back.id, back.id]);
+  });
+});
+
+describe("names and chat text are cleaned", () => {
+  it("refuses names with nothing visible: zero-width, bidi marks, spaces, bare combining marks", async () => {
+    const { room, join } = await setup();
+    for (const name of ["​​", "‮⁦⁩", " ‍ ", "  ", "́", "­﻿"]) {
+      const s = await join(room, { name });
+      expect(s.refusals, JSON.stringify(name)).toEqual(["name-required"]);
+    }
+  });
+
+  it("strips bidi overrides and zero-width characters, normalizes to NFC and turns line separators into spaces", async () => {
+    const { room, join } = await setup();
+    const evil = await join(room, { name: "‮evil​" });
+    expect(evil.last("welcome")!.you.name).toBe("evil");
+    const nfc = await join(room, { name: "Amélie" });
+    expect(nfc.last("welcome")!.you.name).toBe("Amélie");
+    const sep = await join(room, { name: "A B C\nD" });
+    expect(sep.last("welcome")!.you.name).toBe("A B C D");
+    const a = await join(room, { name: "Ann" });
+    await room.message(a, JSON.stringify({ v: 1, ch: "chat", kind: "say", text: "hi‮ there​ now" }));
+    expect(a.last("said")!.text).toBe("hi there now");
+  });
+
+  it("cuts a name by code points: an emoji is never split at 24", async () => {
+    const { room, join } = await setup();
+    // 23 letters and 2 emoji: 27 UTF-16 units (under the hello cap) but 25 code points, so the cut keeps one emoji whole.
+    const emoji = String.fromCodePoint(0x1f600);
+    const s = await join(room, { name: `${"a".repeat(23)}${emoji}${emoji}` });
+    const name = s.last("welcome")!.you.name!;
+    expect([...name]).toHaveLength(24);
+    expect(name).toBe(`${"a".repeat(23)}${emoji}`);
+    expect(name.isWellFormed()).toBe(true);
+    // Chat is cut by code points too.
+    const a = await join(room, { name: "Ann" });
+    await room.message(
+      a,
+      JSON.stringify({ v: 1, ch: "chat", kind: "say", text: "\u{1F600}".repeat(MAX_CHAT_LENGTH + 10) }),
+    );
+    expect([...a.last("said")!.text]).toHaveLength(MAX_CHAT_LENGTH);
+    expect(a.last("said")!.text.isWellFormed()).toBe(true);
+  });
+
+  it("a line of only invisible characters is refused", async () => {
+    const { room, join } = await setup();
+    const a = await join(room);
+    await room.message(a, JSON.stringify({ v: 1, ch: "chat", kind: "say", text: "​‮" }));
+    expect(a.refusals).toEqual(["bad-message"]);
+  });
+});
+
+describe("the code directory and the room's alarm never race", () => {
+  function hooksTo(logicFor: () => { refresh(r: string, at: number): Promise<boolean> }) {
+    const calls: number[] = [];
+    const hooks: RoomCodeHooks = {
+      refresh: async (_c, roomId, at) => {
+        calls.push(at);
+        await logicFor().refresh(roomId, at);
+      },
+      release: async () => undefined,
+    };
+    return { calls, hooks };
+  }
+
+  it("the room's alarm first: the entry is moved out and outlives the room's own expiry by the margin", async () => {
+    const dirStorage = new MemoryStorage();
+    const dir = new RoomCodeLogic(dirStorage);
+    const { hooks } = hooksTo(() => dir);
+    const ctx = await setup({ hooks });
+    await dir.claim(ROOM_ID, 1_000 + ROOM_IDLE_MS + ROOM_CODE_MARGIN_MS, 1_000);
+    ctx.clock.now = 1_000 + ROOM_IDLE_MS;
+    const h = await ctx.host();
+    await ctx.send(ctx.room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    ctx.clock.now += 1;
+    expect(await ctx.room.alarm(ctx.clock.now)).toBe("rescheduled");
+    const due = ctx.storage.alarm!;
+    expect(await dir.resolve(due + ROOM_CODE_MARGIN_MS - 1)).toBe(ROOM_ID);
+    expect(await dir.resolve(due + ROOM_CODE_MARGIN_MS)).toBeNull();
+  });
+
+  it("the directory's alarm first: the room's next refresh writes the missing entry back", async () => {
+    const dirStorage = new MemoryStorage();
+    const dir = new RoomCodeLogic(dirStorage);
+    const { hooks } = hooksTo(() => dir);
+    const ctx = await setup({ hooks });
+    await dir.claim(ROOM_ID, 5_000, 1_000);
+    await dir.expire(5_000); // The directory's alarm runs before the room's.
+    expect(await dir.resolve(5_001)).toBeNull();
+    const h = await ctx.host();
+    await ctx.send(ctx.room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    ctx.clock.now += ROOM_IDLE_MS - 1;
+    await ctx.send(ctx.room, h, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1] });
+    ctx.clock.now += 1;
+    expect(await ctx.room.alarm(ctx.clock.now)).toBe("rescheduled");
+    expect(await dir.resolve(ctx.clock.now)).toBe(ROOM_ID);
+    expect(dirStorage.alarm).toBe(ctx.storage.alarm! + ROOM_CODE_MARGIN_MS);
+  });
+
+  it("a refresh for a code another room now holds is refused and changes nothing", async () => {
+    const dir = new RoomCodeLogic(new MemoryStorage());
+    await dir.claim("other", 9_000, 1_000);
+    expect(await dir.refresh(ROOM_ID, 99_000)).toBe(false);
+    expect(await dir.resolve(2_000)).toBe("other");
+  });
+
+  it("the Durable Object tries a failing directory call twice, then gives up quietly so the room still closes", async () => {
+    const { GameRoom } = await import("./durable-objects.js");
+    let fetches = 0;
+    const env = {
+      ROOM_CODE: {
+        idFromName: (n: string) => ({ n }),
+        get: () => ({
+          fetch: async () => {
+            fetches += 1;
+            return new Response(null, { status: 500 });
+          },
+        }),
+      },
+    };
+    const storage = new MemoryStorage();
+    const room = new GameRoom({ storage, acceptWebSocket() {}, getWebSockets: () => [] }, env as never);
+    await room.fetch(
+      new Request("https://room/create", {
+        method: "POST",
+        headers: { "X-Now": "1000", "X-Host-Hash": "h", "X-Code": CODE, "X-Room-Id": ROOM_ID },
+      }),
+    );
+    const meta = storage.map.get("meta") as { createdAt: number };
+    // Shut down through the alarm path: the release call fails twice and is swallowed.
+    const logic = (room as unknown as { room: GameRoomLogic }).room;
+    await logic.alarm(meta.createdAt + ROOM_IDLE_MS);
+    expect(fetches).toBe(2);
+    expect(await logic.exists()).toBe(false);
   });
 });

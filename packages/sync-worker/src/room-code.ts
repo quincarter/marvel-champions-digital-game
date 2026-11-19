@@ -1,6 +1,7 @@
 /**
  * Room-code generation. The alphabet has 31 symbols, which does not divide 256, so a plain `byte % 31` would favor
- * the first 8 symbols. `length` defaults to the transfer room code's 8; a lobby code is 6. Bytes at or above 248 (the largest multiple of 31 that fits) are thrown away instead.
+ * the first 8 symbols. Bytes at or above 248 (the largest multiple of 31 that fits) are thrown away instead.
+ * `length` defaults to the transfer room code's 8; a lobby code is 6.
  */
 
 import { CODE_ALPHABET, ROOM_CODE_LENGTH } from "./protocol.js";

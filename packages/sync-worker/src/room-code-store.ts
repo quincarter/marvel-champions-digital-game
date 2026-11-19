@@ -40,10 +40,13 @@ export class RoomCodeLogic {
     return held.roomId;
   }
 
-  /** The room moves its mapping's expiry. Only the room the code belongs to may; false otherwise. */
+  /**
+   * The room moves its mapping's expiry. Only the room the code belongs to may; false when another room holds it. A
+   * mapping that is gone (the directory's alarm ran first) is written again for the same room.
+   */
   async refresh(roomId: string, expiresAt: number): Promise<boolean> {
     const held = await this.row();
-    if (held?.roomId !== roomId) return false;
+    if (held && held.roomId !== roomId) return false;
     await this.storage.put("code", { roomId, expiresAt } satisfies CodeRow);
     await this.storage.setAlarm(expiresAt);
     return true;
