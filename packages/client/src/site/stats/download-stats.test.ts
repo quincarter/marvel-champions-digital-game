@@ -89,7 +89,6 @@ describe("summarizeDownloads", () => {
   it("counts published releases from the first counted one on, newest first", () => {
     expect(stats.releases.map((release) => release.version)).toEqual(["v0.39.0", "v0.19.0"]);
     expect(stats.installers).toBe(38 + 21 + 50 + 24 + 6);
-    expect(stats.before).toBe(40);
   });
 
   it("splits installers by platform and format, per release and in all", () => {

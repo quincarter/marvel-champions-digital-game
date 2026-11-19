@@ -104,8 +104,6 @@ export interface DownloadStats {
    * `null` before any release had one.
    */
   readonly languages: { readonly since: string; readonly counts: Readonly<Record<string, number>> } | null;
-  /** Installers downloaded from every release before `since`, for comparison. */
-  readonly before: number;
   /** The `TOP_RELEASES` releases with the most installer downloads, most first. */
   readonly top: readonly ReleaseDownloads[];
 }
@@ -149,19 +147,15 @@ export function summarizeDownloads(
   let steamSince: string | null = null;
   const languageCounts: Record<string, number> = {};
   let languageSince: string | null = null;
-  let before = 0;
   const counted: ReleaseDownloads[] = [];
 
   for (const release of published) {
+    if (compareVersions(release.tag_name, since) < 0) continue;
     const kinds = release.assets.map((asset) => ({ asset, kind: classifyAsset(asset.name) }));
     const installers = kinds.flatMap(({ asset, kind }) =>
       kind?.type === "installer" ? [{ count: asset.download_count, kind }] : [],
     );
     const total = installers.reduce((sum, { count }) => sum + count, 0);
-    if (compareVersions(release.tag_name, since) < 0) {
-      before += total;
-      continue;
-    }
     const own = zeroPlatforms();
     for (const { count, kind } of installers) {
       own[kind.platform] += count;
@@ -206,7 +200,6 @@ export function summarizeDownloads(
     files,
     steam: { total: steam.linux + steam.windows + steam.mac, since: steamSince, ...steam },
     languages: languageSince === null ? null : { since: languageSince, counts: languageCounts },
-    before,
     top,
   };
 }
@@ -216,7 +209,10 @@ export function percent(part: number, whole: number): number {
   return whole === 0 ? 0 : Math.round((part / whole) * 100);
 }
 
-/** The first release the stats page counts: the first one built by the release workflow the game ships with now. */
+/**
+ * The first release the stats page counts: the one the game was first shared with the community on, and the first built
+ * by the release workflow the game ships with now.
+ */
 export const STATS_SINCE = "v0.19.0";
 
 /** Where the landing build publishes the stats it counted, so a later run can tell whether anything has changed. */
