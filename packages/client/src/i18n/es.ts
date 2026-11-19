@@ -326,7 +326,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "live.watchBadge": "Enlace para ver",
   "watch.live": "EN VIVO",
   "watch.hostAway": "Anfitrión ausente",
-  "watch.goLive": "Volver al directo",
+  "watch.liveButton": "Directo",
   "watch.goLiveTip": "Saltar a la última jugada",
   "watch.link.heading": "Partida en directo",
   "watch.link.loading": "Uniéndose a la partida en directo…",
@@ -334,5 +334,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "watch.link.gone": "Esa partida en directo ya no está abierta, o el enlace no es correcto.",
   "watch.link.full":
     "Esa partida en directo ya tiene todos los espectadores que admite. Inténtalo de nuevo en un momento.",
-  "watch.failed": "Se perdió la conexión en directo",
+  "watch.failed": "Conexión perdida",
 };

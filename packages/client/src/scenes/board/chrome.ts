@@ -14,6 +14,8 @@ import type { LogTicker } from "../../view/log-dock.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
 import type { WatchBadge } from "../../view/live-watch-ui.js";
+import type { LivePill } from "../../view/live-pill.js";
+import { appSession } from "../../session.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
 import { languageSlotBeside } from "../../view/language-button.js";
@@ -35,6 +37,11 @@ export interface ChromeOptions {
   readonly notSaving?: boolean;
   /** The watcher badge (#876): an eye and the count, while anyone is watching this game live. */
   readonly watchers?: WatchBadge | null;
+  /**
+   * A watcher's live marker (#876), in the log line's label in place of "LOG": a pulsing red "● LIVE", a muted "○ HOST
+   * AWAY", or "FEED LOST". Null (an ordinary replay, a game that ended) leaves "LOG".
+   */
+  readonly live?: LivePill | null;
   /** Pressing the watch control copies or shares the link (#876). */
   readonly onWatch?: () => void;
   /** Hears where the control was drawn, for the keyboard and pad focus route. */
@@ -303,6 +310,26 @@ function drawWatchBadge(
   return right - left;
 }
 
+/**
+ * A live game's label for the log line (#876), words and a glyph so colour never carries it alone: a red "● LIVE" whose
+ * dot pulses (steady under reduced motion), a muted "○ HOST AWAY", a caution-coloured "FEED LOST". Returns the object
+ * that ends the label, so the line starts after it.
+ */
+function drawLiveWord(scene: Phaser.Scene, live: LivePill, x: number, middle: number): Phaser.GameObjects.Text {
+  const colour =
+    live.tone === "live" ? accent.heroRed.hex : live.tone === "failed" ? signal.caution.hex : surface.paper.hex;
+  const alpha = live.tone === "away" ? ink.meta : 1;
+  let at = x;
+  if (live.glyph) {
+    const dot = scene.add.text(at, middle, live.glyph, textStyle(TICKER_WORD, colour, alpha)).setOrigin(0, 0.5);
+    if (live.tone === "live" && !appSession().settings.reducedMotion) {
+      scene.tweens.add({ targets: dot, alpha: 0.25, duration: 700, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    }
+    at += dot.width + 4;
+  }
+  return scene.add.text(at, middle, live.word, textStyle(TICKER_WORD, colour, alpha)).setOrigin(0, 0.5);
+}
+
 /** The log's line: LOG, the newest thing that happened cut with an ellipsis, and a press that opens the log. */
 function drawLogTicker(scene: Phaser.Scene, rect: Rect, options: ChromeOptions): void {
   const { log, hints } = options;
@@ -312,9 +339,11 @@ function drawLogTicker(scene: Phaser.Scene, rect: Rect, options: ChromeOptions):
   if (log.open) g.fillStyle(surface.paper.hex, 0.14).fillRect(rect.x, rect.y, rect.width, rect.height);
   const middle = rect.y + rect.height / 2;
   const alpha = log.enabled ? ink.body : ink.meta;
-  const word = scene.add
-    .text(rect.x + 8, middle, `${log.open ? "▾" : "▸"} LOG`, textStyle(TICKER_WORD, signal.caution.hex, alpha))
-    .setOrigin(0, 0.5);
+  const word = options.live
+    ? drawLiveWord(scene, options.live, rect.x + 8, middle)
+    : scene.add
+        .text(rect.x + 8, middle, `${log.open ? "▾" : "▸"} LOG`, textStyle(TICKER_WORD, signal.caution.hex, alpha))
+        .setOrigin(0, 0.5);
   const textX = word.x + word.width + 8;
   const glyphRoom = hints && rect.width > 360 ? TICKER_GLYPH_ROOM : 0;
   const line = scene.add

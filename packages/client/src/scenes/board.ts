@@ -137,6 +137,7 @@ import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { liveStatus, onLiveStatus } from "../platform/live-watch.js";
 import { watchBadgeOf, watchToastOf, type WatchShareOutcome } from "../view/live-watch-ui.js";
+import { livePillKey, livePillOf } from "../view/live-pill.js";
 import { deliverReplayLink } from "../replay/replay-share.js";
 import { t } from "../i18n/translate.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
@@ -714,6 +715,17 @@ export class BoardScene extends Phaser.Scene {
       if (this.#model && !this.#replay) this.#draw();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
+    // A watcher's pill (#876): drawn again only when its words change (the host leaving, the feed failing, the end).
+    if (this.#replay) {
+      let pillShown = livePillKey(livePillOf(this.#replay.live));
+      const pillOff = this.#replay.onLiveState((state) => {
+        const key = livePillKey(livePillOf(state));
+        if (key === pillShown) return;
+        pillShown = key;
+        if (this.#model) this.#draw();
+      });
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, pillOff);
+    }
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
@@ -1723,7 +1735,7 @@ export class BoardScene extends Phaser.Scene {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
         ...(this.#replay
-          ? {}
+          ? { live: livePillOf(this.#replay.live) }
           : {
               watchers: watchBadgeOf(liveStatus()),
               onWatch: () => this.#shareWatchLink(),

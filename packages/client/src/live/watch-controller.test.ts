@@ -260,6 +260,32 @@ describe("LiveWatcher", () => {
     waiting.w.dispose();
   });
 
+  test("being turned away as full, or finding the room gone, after the game opened says the feed is lost", async () => {
+    const full = watcher();
+    const a = full.w.open();
+    const s = full.socket();
+    s.onopen?.({});
+    s.say(welcome);
+    s.say(log([1]));
+    await a;
+    s.say({ ch: "room", kind: "refused", reason: "full" });
+    await flush();
+    expect(full.events.at(-1)).toEqual({ type: "failed" });
+
+    const gone = watcher();
+    const b = gone.w.open();
+    const first = gone.socket();
+    first.onopen?.({});
+    first.say(welcome);
+    first.say(log([1]));
+    await b;
+    first.onclose?.({ code: 1006 });
+    gone.timers.at(-1)!();
+    gone.socket().onclose?.({ code: 1011 });
+    await flush();
+    expect(gone.events.at(-1)).toEqual({ type: "failed" });
+  });
+
   test("disposing a watcher that is still opening settles its open", async () => {
     const { w } = watcher();
     const opening = w.open();

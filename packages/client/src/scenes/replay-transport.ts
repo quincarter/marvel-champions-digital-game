@@ -32,7 +32,7 @@ import {
 } from "../replay/replay-inspect.js";
 import { onLanguageChange } from "../language-change.js";
 import { t } from "../i18n/translate.js";
-import { accent, signal, surface, typeRole } from "../tokens.js";
+import { accent, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints, type CustomSpecs } from "../ui/glyph-hints.js";
 import { onTap, tapId } from "../ui/tap.js";
@@ -67,10 +67,6 @@ import {
 import type { BoardScene } from "./board.js";
 import { exitReplay } from "./replay-entry.js";
 import { SCENES } from "./keys.js";
-
-/** A live game's strip above the bar (issue #876) and the button in it. */
-const LIVE_STRIP_HEIGHT = 44;
-const LIVE_BUTTON_HEIGHT = 34;
 
 /** The overlays that own the keyboard and the pad while they are up. */
 const OWNS_INPUT = [
@@ -126,6 +122,7 @@ const KEYS: Readonly<Partial<Record<TransportControl, string>>> = {
   move: "M",
   share: "L",
   inspect: "↓",
+  live: "End",
 };
 
 const PAD_OF: Readonly<Record<TransportControl, number>> = {
@@ -143,6 +140,7 @@ const PAD_OF: Readonly<Record<TransportControl, number>> = {
   move: PAD.move,
   share: PAD.share,
   inspect: PAD.inspect,
+  live: PAD.end,
 };
 
 const GLYPH_HEIGHT = 12;
@@ -557,6 +555,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         this.#settle(this.#seek(0));
         break;
       case "end":
+      case "live":
         this.#stop();
         if (state) this.#settle(this.#seek(state.info.length));
         break;
@@ -853,6 +852,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       titleBar,
       onTop,
       ...(onTop ? { bannerHeight: REPLAY_BANNER_HEIGHT } : {}),
+      ...(this.#live && !this.#live.over ? { live: true } : {}),
     });
     this.#layout = layout;
     this.#track = layout.track;
@@ -875,7 +875,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     // Nothing under the bar is tapped through its ink, its gaps or its banner.
     this.#swallow(whole);
 
-    this.#drawLive(layout, this.#drawBanner(layout, info, onTop), onTop, state);
+    this.#drawBanner(layout, info, onTop);
     this.#drawSeek(layout, state);
 
     const shown = this.#drag?.position ?? state.position;
@@ -948,6 +948,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const narrow = layout.kind !== "row" || layout.shortLabel;
     word("share", this.#sharing ? t("replay.link.sharing") : t("replay.share"), "onInk", true);
     word("exportLog", t("replay.exportLog"), "onInk", true);
+    this.#drawLiveButton(layout, state);
     word("export", narrow ? t("replay.exportShort") : t("replay.export"), "onInk", true);
     word("exit", t("replay.exit"));
   }
@@ -1000,6 +1001,29 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     if (note.height > bar.height - 4) note.setFontSize(11);
   }
 
+  /**
+   * A live game's way back to the newest move (#876), in Export log's place on the bar: lit while the viewer is behind
+   * it, greyed while they are at it. Words (and the bar's own seek position), so nothing rests on colour.
+   */
+  #drawLiveButton(layout: TransportLayout, state: ReplayPositionState): void {
+    const rect = layout.controls.get("live");
+    if (!rect) return;
+    const behind = state.position < state.info.length;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: behind ? "primary" : "onInk",
+        label: t("watch.liveButton"),
+        type: { ...typeRole.label, size: 12 },
+        rect,
+        wrap: true,
+        enabled: behind,
+        onClick: () => this.#act("live"),
+        onHover: (over: boolean) => this.#showTip(over ? rect : null, t("watch.goLiveTip")),
+      }),
+    );
+    this.#hint("live", rect, true);
+  }
+
   /** What an icon control is called: its tooltip on a desktop, where a pointer hovers. */
   #nameOf(control: TransportControl): string {
     switch (control) {
@@ -1027,6 +1051,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         return t("replay.export");
       case "exportLog":
         return t("replay.exportLog");
+      case "live":
+        return t("watch.goLiveTip");
       case "exit":
         return t("replay.exit");
       case "inspect":
@@ -1060,63 +1086,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
   }
 
-  /**
-   * A live game's strip (issue #876), beside the banner: "LIVE" while the host is there, "Host away" while not (words,
-   * so it is never colour alone), and "Back to live" once the viewer has stepped back from the newest move. Gone when the
-   * game ends or the room closes: it is an ordinary replay then.
-   */
-  #drawLive(layout: TransportLayout, banner: Rect | null, onTop: boolean, state: ReplayPositionState): void {
-    const live = this.#live;
-    if (!live || (live.over && !live.failed)) return;
-    const home = layout.banner;
-    const height = LIVE_STRIP_HEIGHT;
-    const y = onTop
-      ? banner
-        ? banner.y + banner.height
-        : home.y
-      : (banner ? banner.y : home.y + home.height) - height;
-    const strip: Rect = { x: home.x, y, width: home.width, height };
-    const away = !live.hostConnected;
-    const words = live.failed ? t("watch.failed") : t(away ? "watch.hostAway" : "watch.live");
-    const g = this.add.graphics();
-    g.fillStyle(away ? signal.caution.hex : accent.heroRed.hex, 1).fillRect(
-      strip.x,
-      strip.y,
-      strip.width,
-      strip.height,
-    );
-    const ink = away ? surface.ink.hex : surface.paper.hex;
-    this.add
-      .text(
-        strip.x + 12,
-        strip.y + strip.height / 2,
-        `${away ? "\u25cb" : "\u25cf"} ${words}`,
-        textStyle({ ...typeRole.menuButton, size: 15 }, ink),
-      )
-      .setOrigin(0, 0.5);
-    this.#swallow(strip);
-    // Behind the newest move: one press goes back to it, and the table follows from there.
-    if (live.over || state.position >= state.info.length) return;
-    const width = Math.min(180, strip.width - 120);
-    const rect: Rect = {
-      x: strip.x + strip.width - width - 8,
-      y: strip.y + Math.floor((strip.height - LIVE_BUTTON_HEIGHT) / 2),
-      width,
-      height: LIVE_BUTTON_HEIGHT,
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: t("watch.goLive"),
-        type: { ...typeRole.label, size: 12 },
-        rect,
-        onClick: () => this.#act("end"),
-        onHover: (over: boolean) => this.#showTip(over ? rect : null, t("watch.goLiveTip")),
-      }),
-    );
-  }
-
-  #drawBanner(layout: TransportLayout, info: ReplayPositionState["info"], onTop: boolean): Rect | null {
+  #drawBanner(layout: TransportLayout, info: ReplayPositionState["info"], onTop: boolean): void {
     const banner = bannerOf(info);
     const message = this.#flash
       ? this.#flash
@@ -1132,7 +1102,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
             { n: banner.n },
           )
         : null;
-    if (!message) return null;
+    if (!message) return;
     const rect = layout.banner;
     // Two lines on a narrow screen, so the strip is as tall as it needs to be, growing upward from the bar.
     const wide = rect.width >= 640;
@@ -1151,7 +1121,6 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.children.moveTo(g, this.children.getIndex(label));
     label.setY(strip.y + strip.height / 2);
     this.#swallow(strip);
-    return strip;
   }
 
   #drawSeek(layout: TransportLayout, state: ReplayPositionState): void {

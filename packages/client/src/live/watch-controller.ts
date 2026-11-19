@@ -89,6 +89,11 @@ export class LiveWatcher {
       roomId: this.#o.roomId,
       caps: CAPS,
       ...(this.#o.deps ? { deps: this.#o.deps } : {}),
+      onGone: () => {
+        // The room cannot be reached for good: before the game opened that is "gone", after it the feed is lost.
+        if (this.#opening) this.#failOpening(new ReplayOpenError("missing"));
+        else this.#failFollowing();
+      },
       onConnection: (connected) => {
         if (!connected) this.#queue(this.#feed.onDisconnected());
       },
@@ -163,6 +168,7 @@ export class LiveWatcher {
         return;
       case "refused":
         if (this.#opening) this.#failOpening(new ReplayOpenError("full"));
+        else this.#failFollowing();
         return;
       case "presence":
         this.#presence = { type: "presence", hostConnected: action.hostConnected, watchers: action.watchers };

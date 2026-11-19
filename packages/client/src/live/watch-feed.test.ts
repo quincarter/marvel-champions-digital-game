@@ -31,11 +31,25 @@ describe("WatchFeed", () => {
     expect(new WatchFeed().onMessage(commands(0, [1]))).toEqual([]);
   });
 
-  test("uses only the new tail of a batch that overlaps what it holds, and nothing of one it already has", () => {
+  test("a batch that starts inside what is held is authoritative: cut back to its start, then append it all", () => {
     const feed = new WatchFeed();
     feed.onMessage(log([1, 2, 3]));
-    expect(feed.onMessage(commands(2, [3, 4]))).toMatchObject([{ kind: "append", commands: [4] }]);
-    expect(feed.onMessage(commands(0, [1, 2]))).toEqual([]);
+    expect(feed.onMessage(commands(2, [9, 4]))).toMatchObject([
+      { kind: "rewind", to: 2 },
+      { kind: "append", commands: [9, 4] },
+    ]);
+    expect(feed.count).toBe(4);
+    expect(feed.onMessage(commands(0, [1, 2]))).toMatchObject([{ kind: "rewind", to: 0 }, { kind: "append" }]);
+    expect(feed.count).toBe(2);
+  });
+
+  test("after a wake the room rewinds, then sends from there; a rewind above what is held is ignored", () => {
+    const feed = new WatchFeed();
+    feed.onMessage(log([1, 2, 3, 4, 5]));
+    expect(feed.onMessage(rewind(3))).toEqual([{ kind: "rewind", to: 3 }]);
+    expect(feed.onMessage(commands(3, [7]))).toMatchObject([{ kind: "append", commands: [7] }]);
+    expect(feed.count).toBe(4);
+    expect(feed.onMessage(rewind(9))).toEqual([]);
     expect(feed.count).toBe(4);
   });
 

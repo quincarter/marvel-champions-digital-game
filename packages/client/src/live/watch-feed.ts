@@ -4,8 +4,8 @@
  *
  * The room may send a joining watcher the log in parts (a `log`, then `commands` that continue it), and a reconnect
  * brings a whole `log` again, so a `log` while a replay is already open is a `reset` and a `commands` batch is judged
- * by where it starts: right at the end of what is held (an append), partly behind it (only the new tail is used),
- * past it (a gap: the feed asks for a `resync`, which the controller answers by reconnecting for a fresh `log`).
+ * by where it starts: right at the end of what is held (an append), behind it (authoritative: a rewind to its start,
+ * then an append), past it (a gap: the feed asks for a `resync`, which the controller answers by reconnecting for a fresh `log`).
  */
 import { FIRST_TABLE, type ServerMessage, type TableChecksums } from "@mc/sync-worker/room-protocol";
 import type { Command } from "@mc/engine";
@@ -85,10 +85,14 @@ export class WatchFeed {
           this.#resyncing = true;
           return [{ kind: "resync" }];
         }
-        if (end <= this.#count) return [];
-        const fresh = message.commands.slice(this.#count - from) as readonly Command[];
+        // A batch that starts inside what is held is authoritative (an Undo while the room slept): cut back to where it
+        // starts and take it, rather than assume the overlap is the same game.
+        const behind = from < this.#count;
         this.#count = end;
-        return [{ kind: "append", commands: fresh, checksums: message.checksums }];
+        return [
+          ...(behind ? ([{ kind: "rewind", to: from }] as const) : []),
+          { kind: "append", commands: message.commands as readonly Command[], checksums: message.checksums },
+        ];
       }
       case "rewind":
         if (!this.#opened || message.to >= this.#count) return [];
