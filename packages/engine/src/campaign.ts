@@ -60,6 +60,26 @@ export interface CampaignDefinition {
    */
   readonly conditionalInstructions?: Readonly<Record<string, CampaignInstruction>>;
   /**
+   * Brings a log saved by an older build up to the shape the current definition writes, when what a log *means*
+   * changed without any id changing (so `version` stays put and the log still loads). `resolveBetweenGames` runs these
+   * on the log first, before anything else reads it, every time it composes a game; its returned log carries the
+   * result, so the upgrade is persisted with the composed game (and a `nodeStart` retry restores to it).
+   *
+   * Engine bookkeeping, not printed rules: they are not traced as steps of the attempt. They may only rewrite log data
+   * (fields, grants, decks, removals). The runner throws on an upgrade that:
+   * - is not a `betweenGames` step;
+   * - asks for a choice (`choose`, or a `random` the players may decline);
+   * - draws from the campaign RNG (`random`);
+   * - sets cards aside or composes a villain or encounter sets (those feed a game, and the upgrade's run is thrown
+   *   away);
+   * - moves the campaign's position or status (`markNode`, `progressNode`, `endCampaign`, or anything else that
+   *   changes the next node, a node's mark or progress, or the status).
+   * The mod SDK holds them to the same pack limits as every other instruction. Each must also be idempotent, so a log
+   * already in the current shape, or one upgraded before, is left as it is. Absent: no upgrade.
+   * Issue #873: a Sinister Motives log saved before MC27 p. 22 node 13's flip moved to Setup.
+   */
+  readonly logUpgrades?: readonly CampaignInstruction[];
+  /**
    * What happens to a player eliminated from a game the rest of the table goes on to win (§4.6b). Absent means
    * nothing does: the eliminated seat takes part in the Victory steps like any other seat, which is what a standard
    * campaign does in every box (none prints the rule outside its expert campaign rules).

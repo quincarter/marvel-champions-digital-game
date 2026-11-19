@@ -141,6 +141,7 @@ function checkLimits(at: string, definition: CampaignDefinition, add: (path: str
     definition.everyNodeSetup,
     definition.everyNodeVictory,
     definition.conditionalInstructions,
+    definition.logUpgrades,
     definition.loss,
     graph.nodes,
   ];
@@ -190,7 +191,13 @@ function checkRecord(
     }
     const own = new Set(sets as string[]);
     for (const source of opsOfKind(
-      [definition.everyNodeSetup, definition.everyNodeVictory, definition.conditionalInstructions, definition.graph],
+      [
+        definition.everyNodeSetup,
+        definition.everyNodeVictory,
+        definition.conditionalInstructions,
+        definition.logUpgrades,
+        definition.graph,
+      ],
       "campaignSet",
     )) {
       if (!own.has(String(source.encounterSetId)))

@@ -78,6 +78,7 @@ export function campaignInstructionsOf(definition: CampaignDefinition): readonly
   return [
     ...objList(input.everyNodeSetup),
     ...objList(input.everyNodeVictory),
+    ...objList(input.logUpgrades),
     ...objList(loss.everyNodeDefeat),
     ...conditional.filter(isObj),
     ...(graph.kind === "choice" ? objList(graph.beforeChoice) : []),
@@ -164,6 +165,12 @@ function definitionProblems(definition: CampaignDefinition, context: CampaignChe
   listShape("logFields", input.logFields, problems);
   listShape("everyNodeSetup", input.everyNodeSetup, problems);
   listShape("everyNodeVictory", input.everyNodeVictory, problems);
+  listShape("logUpgrades", input.logUpgrades, problems);
+  // The runner refuses anything else (`CampaignDefinition.logUpgrades`): say so before a game is composed.
+  for (const upgrade of objList(input.logUpgrades)) {
+    if (!isObj(upgrade.step) || upgrade.step.kind !== "betweenGames")
+      problems.push(`log upgrade "${String(upgrade.id)}" must be a betweenGames step`);
+  }
   if (isObj(loss)) listShape("loss.everyNodeDefeat", loss.everyNodeDefeat, problems);
   const conditional = input.conditionalInstructions;
   if (conditional !== undefined && !isObj(conditional))

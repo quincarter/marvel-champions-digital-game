@@ -59,6 +59,7 @@ import {
   campaignChoiceKey,
   evaluateCampaignPredicate,
   mixWithAttempt,
+  runCampaignInstruction,
   runCampaignInstructions,
   type CampaignChoiceAnswer,
   type CampaignDeps,
@@ -469,6 +470,47 @@ const grantFacesOf = (grants: readonly CampaignGrant[]): readonly CampaignGrantF
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);
 
 /**
+ * `CampaignDefinition.logUpgrades`, run on the working log in place. A throwaway run of its own, so nothing it does
+ * is traced into the attempt's steps: an upgrade is the engine reading an older save, not a printed instruction.
+ *
+ * It may only rewrite log data (fields, grants, decks, removals). Whatever else an op can do would be lost with the
+ * throwaway run (cards set aside, a composed villain or encounter sets) or would move the campaign itself (the next
+ * node, a node's mark or progress, the campaign's status), so each is refused rather than dropped or applied quietly.
+ */
+function applyLogUpgrades(
+  definition: CampaignDefinition,
+  deps: CampaignDeps,
+  modes: PlayModes,
+  working: CampaignWorkingLog,
+): void {
+  const upgrades = definition.logUpgrades ?? [];
+  if (upgrades.length === 0) return;
+  const refuse = (what: string): never => {
+    throw new EngineInvariantError(`campaign ${definition.campaignId} log upgrades ${what}`);
+  };
+  const rngBefore = working.rng;
+  const positionOf = (): string =>
+    JSON.stringify([working.nextNodeId, working.resolved, working.progress, working.status]);
+  const positionBefore = positionOf();
+  const run = newRun(definition, deps, modes, [], "beforeGame", working, "", []);
+  for (const upgrade of upgrades) {
+    if (upgrade.step.kind !== "betweenGames") {
+      refuse(`must be betweenGames steps (${upgrade.id} is ${upgrade.step.kind})`);
+    }
+    runCampaignInstruction(run, upgrade);
+    if (run.pending) refuse(`must not ask for a choice (${upgrade.id} does)`);
+  }
+  if (run.setAsideCards.length > 0) refuse("must not set cards aside");
+  if (run.composedVillain !== null) refuse("must not compose a villain");
+  if (run.composedEncounterSets.deck.length > 0 || run.composedEncounterSets.setAside.length > 0)
+    refuse("must not compose encounter sets");
+  if (positionOf() !== positionBefore) refuse("must not move the campaign's position or status");
+  if (working.rng.value !== rngBefore.value || working.rng.draws !== rngBefore.draws) {
+    refuse("must not draw from the campaign RNG");
+  }
+}
+
+/**
  * Composes the next game.
  *
  * For a `choice` graph the order is the printed one (MC60 p. 9): the graph's `beforeChoice` block first, then the
@@ -495,6 +537,7 @@ export function resolveBetweenGames(
   const working = workingOf(log);
   // A log saved before removals left decks on their own still holds them; the game must never deal one.
   working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
+  applyLogUpgrades(definition, deps, modes, working);
   // The deck lists a client edited between games must agree with the grants it marked (`CampaignGrant.leftOut`).
   assertGrantInclusion(log.id, working.seats);
   const logBefore = snapshotOf(working, log.definitionVersion);

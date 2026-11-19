@@ -861,7 +861,16 @@ describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player mu
 
   it("marking node 17 appends the penalty (with the reward) to every remaining scenario's setup", () => {
     const fresh = newLog(17);
-    const nearly = { ...fresh, shared: { ...fresh.shared, reputation: { kind: "number" as const, value: 16 } } };
+    // At 16, node 13 is already marked, so the log holds its Setup entry, as node 13 writes it (the log upgrade then
+    // has nothing to add). This log grants no S.H.I.E.L.D. Tech, so there is no grant face to mark.
+    const nearly: CampaignLog = {
+      ...fresh,
+      shared: {
+        ...fresh.shared,
+        reputation: { kind: "number", value: 16 },
+        reputationSetups: { kind: "instructionList", ids: ["sm.rep.node13.reward"] },
+      },
+    };
     const answers: CampaignChoiceAnswer[] = [];
     for (let guard = 0; guard < 5; guard++) {
       const applied = applyCampaignResult(
@@ -875,7 +884,11 @@ describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player mu
       if (applied.kind === "done") {
         expect(applied.value.shared.reputation).toEqual({ kind: "number", value: 17 });
         const setups = applied.value.shared.reputationSetups;
-        expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual(["sm.rep.node17.reward", PENALTY]);
+        expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual([
+          "sm.rep.node13.reward",
+          "sm.rep.node17.reward",
+          PENALTY,
+        ]);
         return;
       }
       expect(applied.choice.slot).toBe("planningAhead");
@@ -1045,8 +1058,13 @@ describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips th
     for (const seat of start.input.seats) expect(seat.grantFaces ?? []).toEqual([]);
   });
 
-  it("in the game it enters play on its front (step 11) and the node 13 Setup flip turns it (step 13)", () => {
-    const ready = composed(afterSandman(12));
+  /**
+   * Composes and creates the next game from `log`, and reads off how Compact Darts got onto its face: the index of
+   * node 13's `campaignInstructionResolved`, the indexes of every flip event naming the copy in play, and whether it
+   * entered play already on its other face (`grantFaces`).
+   */
+  const nextGame = (log: CampaignLog) => {
+    const ready = composed(log);
     const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, ready);
     const config: GameSetupConfig = wave5Scenario(start.scenarioId!, {
       players: start.input.seats.map((seat) => ({
@@ -1072,21 +1090,27 @@ describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips th
     const resolved = created.events.findIndex(
       (event) => event.type === "campaignInstructionResolved" && event.instructionId === NODE13,
     );
-    expect(resolved).toBeGreaterThanOrEqual(0);
-    // Entering play carried no flip: the only turn of this card is the Setup flip, inside the node 13 window.
     const flips = created.events.flatMap((event, index) =>
       (event.type === "cardFlipped" || event.type === "cardFlippedToOtherFace") &&
       JSON.stringify(event).includes(darts.instanceId)
         ? [index]
         : [],
     );
+    const enteredFlipped = created.events.some(
+      (event) => event.type === "cardEnteredOnOtherFace" && event.instanceId === darts.instanceId,
+    );
+    return { ready, darts, resolved, flips, enteredFlipped };
+  };
+
+  it("in the game it enters play on its front (step 11) and the node 13 Setup flip turns it (step 13)", () => {
+    const { darts, resolved, flips, enteredFlipped } = nextGame(afterSandman(12));
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    // Entering play carried no flip: the only turn of this card is the Setup flip, inside the node 13 window.
     expect(flips).toHaveLength(1);
     // The flip follows node 13's instruction (resolveCampaignWindow emits the event before pushing its effects).
     expect(flips[0]).toBeGreaterThan(resolved);
     // It did not enter on its other face through grantFaces.
-    expect(
-      created.events.some((event) => event.type === "cardEnteredOnOtherFace" && event.instanceId === darts.instanceId),
-    ).toBe(false);
+    expect(enteredFlipped).toBe(false);
     expect(darts.flipped).toBe(true);
   });
 
@@ -1097,25 +1121,84 @@ describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips th
     expect(darts[0]?.instance.flipped).toBe(false);
   });
 
-  it("an older log (face set without a Setup marker, no node 13 entry) enters on the Enhanced side and stays turned once", () => {
+  /**
+   * Setup entries earlier nodes leave in `reputationSetups` before node 13 is marked (MC27 p. 22). Node 9's penalty is
+   * left out only because its minion search asks the player a choice ahead of node 13's flip, and these games stop at
+   * the end of setup.
+   */
+  const EARLIER_SETUPS = ["sm.rep.node1.penalty", "sm.rep.node5.reward", "sm.rep.node5.penalty"];
+
+  /** `afterSandman(12)` as a campaign that marked earlier nodes in earlier scenarios would hold it. */
+  const newLog13 = (): CampaignLog => {
     const log = afterSandman(12);
-    // A real pre-change log keeps the earlier nodes' Setup entries; only node 13's did not exist yet.
     const setups = log.shared.reputationSetups;
-    const earlier = setups?.kind === "instructionList" ? setups.ids.filter((id) => id !== NODE13) : [];
-    const old: CampaignLog = {
+    const ids = setups?.kind === "instructionList" ? setups.ids : [];
+    return {
       ...log,
-      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: earlier } },
+      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: [...EARLIER_SETUPS, ...ids] } },
+    };
+  };
+
+  /**
+   * A log saved before node 13's flip moved to Setup: the grant has the Enhanced face but no `faceAtSetup`, and
+   * `reputationSetups` has no node 13 entry. A real pre-change log keeps the earlier nodes' Setup entries.
+   */
+  const olderLog = (): CampaignLog => {
+    const log = newLog13();
+    return {
+      ...log,
+      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: EARLIER_SETUPS } },
       seats: log.seats.map((seat) => ({
         ...seat,
         grants: seat.grants.map(({ faceAtSetup: _marker, ...grant }) => grant),
       })),
     };
+  };
+
+  const setupIds = (log: CampaignLog): readonly string[] => {
+    const value = log.shared.reputationSetups;
+    return value?.kind === "instructionList" ? value.ids : [];
+  };
+
+  it("an older log (face set without a Setup marker, no node 13 entry) enters on its front and node 13's Setup flip turns it once (#873)", () => {
+    const old = olderLog();
     const grant = old.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
     expect(grant?.face).toBe(ENHANCED);
     expect(grant).not.toHaveProperty("faceAtSetup");
-    const state = realGame(old, "venom");
-    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
-    expect(darts).toHaveLength(1);
-    expect(darts[0]?.instance.flipped).toBe(true);
+    expect(setupIds(old)).not.toContain(NODE13);
+    expect(setupIds(old)).toContain("sm.rep.node1.penalty");
+
+    const { ready, darts, resolved, flips, enteredFlipped } = nextGame(old);
+    // The composed log carries the upgrade, and the deck editor still reads the Enhanced face off the grant.
+    const upgraded = ready.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(upgraded).toMatchObject({ face: ENHANCED, faceAtSetup: true });
+    expect(setupIds(ready).filter((id) => id === NODE13)).toHaveLength(1);
+    // Entered on its front, then exactly one flip, after node 13's Setup instruction resolved.
+    expect(enteredFlipped).toBe(false);
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    expect(flips).toHaveLength(1);
+    expect(flips[0]).toBeGreaterThan(resolved);
+    expect(darts.flipped).toBe(true);
+  });
+
+  it("the log upgrade leaves a new log as it is, and changes nothing the second time", () => {
+    const withoutAttempt = ({ attempt: _attempt, ...rest }: CampaignLog): CampaignLog => rest;
+    // A new log: composing it keeps node 13's grant and Setup list exactly as node 13 wrote them.
+    const fresh = newLog13();
+    const freshNext = composed(fresh);
+    expect(freshNext.seats.map((seat) => seat.grants)).toEqual(fresh.seats.map((seat) => seat.grants));
+    expect(freshNext.shared.reputationSetups).toEqual(fresh.shared.reputationSetups);
+
+    // An older log: upgraded once, it reads as the new log does, and composing the upgraded log changes nothing more.
+    const once = composed(olderLog());
+    expect(once.seats.map((seat) => seat.grants)).toEqual(freshNext.seats.map((seat) => seat.grants));
+    expect(setupIds(once)).toEqual([...EARLIER_SETUPS, NODE13]);
+    const twice = composed(withoutAttempt(once));
+    expect(twice.seats).toEqual(once.seats);
+    expect(twice.shared).toEqual(once.shared);
+    // Bookkeeping, not a printed step: the attempt's trace is the new log's.
+    expect(once.attempt?.steps.map((step) => step.instructionId)).toEqual(
+      freshNext.attempt?.steps.map((step) => step.instructionId),
+    );
   });
 });
