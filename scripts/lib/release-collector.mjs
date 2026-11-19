@@ -66,6 +66,14 @@ export function androidApkName(version, lang) {
   return `${assetStem(version, lang)}-Android.apk`;
 }
 
+/**
+ * The iOS app, built without a signature (scripts/build-ios.mjs): SideStore, AltStore or Sideloadly signs it with the
+ * player's own Apple ID when they install it (docs/project/ios-install.md). "unsigned" in the name says so.
+ */
+export function iosIpaName(version, lang) {
+  return `${assetStem(version, lang)}-iOS-unsigned.ipa`;
+}
+
 const DESKTOP_EXTENSIONS = [".app.tar.gz", ".dmg", ".msi", ".exe", ".deb", ".rpm", ".AppImage"];
 
 /**
