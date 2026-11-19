@@ -374,6 +374,8 @@ export type PauseFocusInput =
       readonly confirmingConcede: boolean;
       /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" to the menu. */
       readonly guidedRunActive?: boolean;
+      /** A live room is open (#876): "Copy watch link" follows the menu rows. */
+      readonly watchLink?: boolean;
       /** With something typed in the search: the results' stops, in draw order, in place of the cards and the log. */
       readonly searchResultIds?: readonly string[];
     }
@@ -410,6 +412,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "music",
       "report",
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
+      ...(input.watchLink ? ["watch-link"] : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["manual-adjust", "concede"]),
       "search",
       ...(input.searchResultIds ?? [
@@ -652,6 +655,7 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
     "seed",
     "reroll",
+    "watch",
     "deal-it-out",
   ];
 }

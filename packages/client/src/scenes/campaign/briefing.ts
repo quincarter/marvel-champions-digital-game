@@ -139,6 +139,8 @@ import {
   type RoleTileView,
   type SeatHeaderView,
 } from "../../view/campaign-role-call-model.js";
+import { t } from "../../i18n/translate.js";
+import { liveWatchDefault } from "../../platform/live-watch.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import { createHints, forwardHint } from "./pad-hints.js";
@@ -212,6 +214,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #roleBuildView: RoleBuildView | null = null;
   #composing = false;
   #starting = false;
+  /** "Let people watch this game" (#876): starts from the Always allow setting; sent on the config at Open issue. */
+  #watchable = liveWatchDefault();
   /** The easier-start toggle is being saved: Open waits, so the issue never opens on the pre-toggle record. */
   #toggling = false;
   #startError: string | null = null;
@@ -472,7 +476,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const composed = campaignService().launchConfig(record);
     const replaySeed = this.#data.replaySeed;
     const config = replaySeed === undefined ? composed : { ...composed, seed: replaySeed };
-    await store.start(config);
+    await store.start(this.#watchable ? { ...config, watchable: true } : config);
     if (!this.sys.isActive()) return;
     if (store.state.status === "failed") {
       this.#starting = false;
@@ -956,6 +960,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
         text.setY(actionBar.y + (actionBar.height - text.height) / 2);
       }
     }
+    // Right where the problem and hint lines go, so only one of them shows at a time: a problem outranks the toggle.
+    if (!blocked && !hint && !this.#seatPicker) {
+      const bar: Rect = phone
+        ? { x: 0, y: actionBar.y - 40, width, height: 40 }
+        : { x: gutter, y: editRect.y, width: Math.min(380, editRect.x - gutter - 16), height: editRect.height };
+      if (bar.width >= 160) this.#drawWatchToggle(bar, phone, stops);
+    }
     if (this.#startError) {
       label(this, gutter, actionBar.y - 20, this.#startError, typeRole.label, accent.heroRed.hex, 1);
     }
@@ -981,6 +992,39 @@ export class CampaignBriefingScene extends Phaser.Scene {
         primary: () => (this.#seatPicker ? null : (FORWARD_STOPS.find((key) => this.#stopsNow.has(key)) ?? null)),
       });
     this.#route.set([...stops.keys()], stops);
+  }
+
+  /** "Let people watch this game" (#876): a checkbox line by the action bar; a phone's sits on a strip above it. */
+  #drawWatchToggle(rect: Rect, strip: boolean, stops: Map<string, FocusStop>): void {
+    if (strip)
+      this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.paper.hex).setOrigin(0, 0).setDepth(5);
+    const toggle = (): void => {
+      this.#watchable = !this.#watchable;
+      this.#draw();
+    };
+    const hit: Rect = strip ? { x: 8, y: rect.y, width: rect.width - 16, height: rect.height } : rect;
+    this.#buttons.push(
+      new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: hit, onClick: toggle }),
+    );
+    stops.set("watch", { rect: hit, activate: toggle });
+    const size = 22;
+    const bx = hit.x + 10;
+    const by = hit.y + (hit.height - size) / 2;
+    const g = this.add.graphics().setDepth(6);
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(bx, by, size, size);
+    if (this.#watchable) {
+      g.lineStyle(3, surface.ink.hex, 1);
+      g.beginPath();
+      g.moveTo(bx + 4, by + size / 2);
+      g.lineTo(bx + size / 2 - 1, by + size - 5);
+      g.lineTo(bx + size - 4, by + 5);
+      g.strokePath();
+    }
+    const words = this.add
+      .text(bx + size + 10, hit.y + hit.height / 2, t("live.setup.title"), textStyle(typeRole.label, surface.ink.hex))
+      .setOrigin(0, 0.5)
+      .setDepth(6);
+    fitText(words, hit.width - size - 30, typeRole.label.size);
   }
 
   /** The easier-start toggle for the composed issue (`view/campaign-easier-start-model.ts`): null when the issue does not offer it. */

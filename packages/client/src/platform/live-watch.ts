@@ -50,9 +50,6 @@ export function startLiveWatch(): void {
   }
 }
 
-/** Kept for the Settings screen's old call: the setting no longer starts or stops anything (it only sets a default). */
-export function syncLiveWatch(_on: boolean): void {}
-
 function spawn(): void {
   if (worker) return;
   const host = appSession().host;

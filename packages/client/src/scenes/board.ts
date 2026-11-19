@@ -135,6 +135,10 @@ import { drawCharacter } from "./board/character-panel.js";
 import { drawDealtPile } from "./board/dealt-pile.js";
 import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
+import { liveStatus, onLiveStatus } from "../platform/live-watch.js";
+import { watchBadgeOf, watchToastOf, type WatchShareOutcome } from "../view/live-watch-ui.js";
+import { deliverReplayLink } from "../replay/replay-share.js";
+import { t } from "../i18n/translate.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
@@ -464,6 +468,8 @@ export class BoardScene extends Phaser.Scene {
 
   /** The replay being watched (#693), or null for a game: the table is then read-only and the transport runs over it. */
   #replay: ReplayHost | null = null;
+  /** The line the top bar's watch control shows for a moment after a press (#876). */
+  #watchToast: string | null = null;
   #replayBarTop = false;
 
   constructor() {
@@ -693,6 +699,19 @@ export class BoardScene extends Phaser.Scene {
     // (#738).
     const artSourcesOff = onArtChange(() => this.#refreshArtSources());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, artSourcesOff);
+    // The watcher badge on the top bar (#876): drawn again only when its count changes, not on every status post.
+    const badgeKey = (status: ReturnType<typeof liveStatus>): string => {
+      const badge = watchBadgeOf(status);
+      return badge ? String(badge.count) : "";
+    };
+    let badgeShown = badgeKey(liveStatus());
+    const liveOff = onLiveStatus((status) => {
+      const key = badgeKey(status);
+      if (key === badgeShown) return;
+      badgeShown = key;
+      if (this.#model && !this.#replay) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
@@ -1701,6 +1720,13 @@ export class BoardScene extends Phaser.Scene {
     const drawTopBand = (): void => {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
+        ...(this.#replay
+          ? {}
+          : {
+              watchers: watchBadgeOf(liveStatus()),
+              onWatch: () => this.#shareWatchLink(),
+              watchToast: this.#watchToast,
+            }),
         onMenu: () => this.#openPause(),
         ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
         buttons: this.#frame.buttons,
@@ -2617,6 +2643,32 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
+  /**
+   * The top bar's watch control (#876): a phone with a share sheet offers it, anywhere else the link is copied; a
+   * toast says so. A browser that refuses both shows the link itself to copy by hand.
+   */
+  #shareWatchLink(): void {
+    const url = liveStatus().watchUrl;
+    if (!url) return;
+    const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches === true;
+    const share =
+      coarse && typeof navigator.share === "function" ? { share: (data: ShareData) => navigator.share(data) } : {};
+    void deliverReplayLink(url, t("live.shareTitle"), {
+      ...share,
+      copy: (text) => navigator.clipboard.writeText(text),
+    }).then((outcome: WatchShareOutcome) => {
+      const toast = watchToastOf(outcome, url);
+      if (!toast || !this.sys.isActive()) return;
+      this.#watchToast = toast;
+      this.#draw();
+      this.time.delayedCall(outcome === "manual" ? 8000 : 2500, () => {
+        if (this.#watchToast !== toast) return;
+        this.#watchToast = null;
+        if (this.sys.isActive()) this.#draw();
+      });
+    });
+  }
+
   #openPause(): void {
     // A replay has no game to save, concede or rewind: its menu is Settings alone.
     if (this.#replay) {
