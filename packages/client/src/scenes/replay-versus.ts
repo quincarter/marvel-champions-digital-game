@@ -56,6 +56,15 @@ export class ReplayVersusScene extends Phaser.Scene {
   #intro = true;
   /** Shut down: nothing more to draw. (`sys.isActive()` is still false while `create` runs.) */
   #gone = false;
+  /** What #draw put up last, for the exit: the villain's side, the heroes', VERSUS, and which way they split. */
+  #shown: {
+    readonly villain: readonly Phaser.GameObjects.GameObject[];
+    readonly heroes: readonly Phaser.GameObjects.GameObject[];
+    readonly versus: Phaser.GameObjects.Text;
+    readonly wide: boolean;
+  } | null = null;
+  /** The exit is playing: no redraw. */
+  #leaving = false;
 
   constructor() {
     super(SCENES.replayVersus);
@@ -71,6 +80,8 @@ export class ReplayVersusScene extends Phaser.Scene {
       return;
     }
     this.#gone = false;
+    this.#leaving = false;
+    this.#shown = null;
     this.#matchup = replayMatchupOf(config, PAST_GAME_NAMES);
     this.#packs = config.packs as readonly PackRuntime[] | undefined;
     this.#intro = !appSession().settings.reducedMotion;
@@ -119,12 +130,49 @@ export class ReplayVersusScene extends Phaser.Scene {
     }
     if (!this.sys.isActive()) return host.dispose();
     try {
-      await watchReplay(this, host, returnTo, hold);
+      await watchReplay(this, host, returnTo, hold, () => this.#reveal());
     } catch (cause) {
       if (!this.sys.isActive()) return;
       const replayProblem: MessageKey = replayErrorKey(cause);
       this.#fail(returnTo, replayProblem);
     }
+  }
+
+  /**
+   * The way out is the way in, reversed: the board starts underneath, the two sides spread apart off their own edges,
+   * VERSUS flies up and away, and the whoosh plays again. Under reduced motion the board just replaces it.
+   */
+  #reveal(): void {
+    const shown = this.#shown;
+    this.#leaving = true;
+    this.scene.launch(SCENES.board, {});
+    // Over the board and the replay bar it brings, until it has gone.
+    this.scene.bringToTop();
+    this.input.enabled = false;
+    this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
+    if (!shown || appSession().settings.reducedMotion) {
+      this.scene.stop();
+      return;
+    }
+    appSession().music?.playEffect("versus-whoosh");
+    const { width, height } = this.scale.gameSize;
+    const away = (objects: readonly Phaser.GameObjects.GameObject[], dx: number, dy: number): void => {
+      for (const object of objects as (Phaser.GameObjects.GameObject & { x: number; y: number })[]) {
+        this.tweens.add({ targets: object, x: object.x + dx, y: object.y + dy, duration: 480, ease: "Cubic.easeIn" });
+      }
+    };
+    away(shown.villain, shown.wide ? -width : 0, shown.wide ? 0 : -height);
+    away(shown.heroes, shown.wide ? width : 0, shown.wide ? 0 : height);
+    this.tweens.add({
+      targets: shown.versus,
+      y: -shown.versus.height,
+      alpha: 0,
+      duration: 420,
+      ease: "Back.easeIn",
+    });
+    afterWallMs(520, () => {
+      if (!this.#gone) this.scene.stop();
+    });
   }
 
   /** Back where the replay was opened from. Title says why; the other screens get no word (rare: the file opened). */
@@ -135,7 +183,7 @@ export class ReplayVersusScene extends Phaser.Scene {
 
   #draw(): void {
     const matchup = this.#matchup;
-    if (!matchup || this.#gone) return;
+    if (!matchup || this.#gone || this.#leaving) return;
     this.tweens.killAll();
     destroyChildren(this);
     this.#thumbs = [];
@@ -174,6 +222,7 @@ export class ReplayVersusScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setAngle(-8)
       .setDepth(10);
+    this.#shown = { villain, heroes: heroes.flat(), versus, wide: layout.wide };
 
     if (!intro) return;
     // The two sides slide in from their own edges, then VERSUS lands on the seam.

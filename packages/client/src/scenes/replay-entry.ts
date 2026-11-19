@@ -20,13 +20,15 @@ let returnTarget: string = SCENES.title;
 
 /**
  * Opens `host` on the board, from `from`. Exit returns to `returnTo` (a scene key). The host is closed if it can't be
- * entered. `hold` keeps `from` up until it settles too (the shared replay's versus screen, #858).
+ * entered. `hold` keeps `from` up until it settles too, and `reveal` takes the place of the fade to the board (the
+ * versus screen starts the board under itself and splits apart over it, #858).
  */
 export async function watchReplay(
   from: Phaser.Scene,
   host: ReplayHost,
   returnTo: string,
   hold?: Promise<unknown>,
+  reveal?: () => void,
 ): Promise<void> {
   try {
     await enterReplay(host);
@@ -41,7 +43,8 @@ export async function watchReplay(
     return;
   }
   returnTarget = returnTo;
-  goToScreen(from, SCENES.board, {});
+  if (reveal) reveal();
+  else goToScreen(from, SCENES.board, {});
 }
 
 /**
