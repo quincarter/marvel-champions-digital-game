@@ -33,6 +33,7 @@ import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
 import { releasePackArt } from "./pack-art.js";
+import { artBudgetBytes } from "./memory-budget.js";
 
 /**
  * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
@@ -65,9 +66,9 @@ const caches = new WeakMap<Phaser.Game, CardArt>();
  * they're the rare oversized ones) while keeping a long or repeated session
  * from climbing toward the gigabytes that crashed a real game. Tune here if
  * play reveals it's too tight (visible re-fetch stutter) or too loose
- * (memory still climbing).
+ * (memory still climbing). Half that on iOS (`memory-budget.ts`, #871).
  */
-const RESIDENT_BUDGET_BYTES = 256 * 1024 * 1024;
+const RESIDENT_BUDGET_BYTES = artBudgetBytes();
 
 /**
  * The three card backs are requested constantly (every hidden card in every

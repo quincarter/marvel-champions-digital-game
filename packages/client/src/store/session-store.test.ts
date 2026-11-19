@@ -416,3 +416,16 @@ describe("SessionStore", () => {
     expect(store.state.commandTrail[0]).toEqual(afterOne);
   });
 });
+
+describe("Title's saves read (issue #871)", () => {
+  test("says when storage failed, rather than answering a player with no games", async () => {
+    const failing = new LocalEngineHost(new MemoryGameStorage());
+    failing.latestSave = () => Promise.reject(new Error("IndexedDB open failed"));
+    await expect(new SessionStore(failing).titleSaves()).resolves.toEqual({ latest: null, games: [], failed: true });
+  });
+
+  test("answers the games, and no failure, when storage reads", async () => {
+    const reads = await new SessionStore(new LocalEngineHost(new MemoryGameStorage())).titleSaves();
+    expect(reads).toEqual({ latest: null, games: [], failed: false });
+  });
+});
