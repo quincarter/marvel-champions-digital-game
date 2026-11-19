@@ -134,3 +134,41 @@ For the stacked PRs after this one (2: rooms and lobby, 3: play together):
   host control (the host may allow Manual adjust, Undo and other changes, decide on requests to modify something),
   which rules and house rules are on, and which mods (custom packs) are allowed. A request to change something is the
   host's call. These live on the room as host-only settings, shown to everyone in the lobby.
+
+## 8. Rooms and the lobby (issue #880, stacked on #878)
+
+What a player sees:
+
+- **Title → Play online:** "Host a room" or "Join a room". Joining takes a 6-character code (typed, case-insensitive)
+  or a link `https://marvel.champions-digital-game.com/#join=<code>` (and `marvelchampions://join/<code>`).
+- **Your name:** asked the first time you host or join (a setting, "Online name", changeable later), at most 24
+  characters, shown on your seats and in chat.
+- **Lobby:** the code and a Copy link button; everyone in the room with their name and role; the seats (one per hero
+  the host sets up) with who holds each; chat; the host's settings, read-only for everyone else.
+- **Seats:** the host sets the table up with the existing setup flow (scenario, heroes, decks) in room mode; each hero
+  is a seat. A participant asks for a seat and the host approves it, or the host gives one out. A participant may hold
+  more than one seat only when the host allows it. The host may hold seats too.
+- **Host controls** (room settings, host-only, broadcast to all):
+  - Play mode: **Strict** (the game as written: no Undo, no Back out, no Manual adjust, no rule changes mid-game) or
+    **Host control** (the host may allow Undo/Manual adjust and decides any change request).
+  - House rules: the table rules the game already has (`TableRules`), chosen by the host.
+  - Mods: which of the host's installed custom packs the game may use; a joiner who lacks one sees which and where to
+    get it, and cannot take a seat until they have it at the same version.
+  - Several seats per person: on or off.
+  - Chat: on or off.
+- **Start:** the host presses Start when every seat is held. The game starts on the host's device as a watchable
+  game; in this PR seated players follow it as watchers with their seats marked (playing it is #881).
+
+Room and protocol (extending `room-protocol.ts`, capability `chat` and `seats`):
+
+- `POST /room` takes `{ lobby: true }` and also returns a 6-character `code` (the room-code alphabet). A small
+  `RoomCode` Durable Object per code maps it to the room id; `GET /room/code/:code` resolves it. Codes expire with
+  the room.
+- `hello` carries `name` and the client's build (`appVersion`, `contentVersion`); the room keeps names in the roster.
+- Room-channel lobby messages: the host's `settings` and `seats` (stored in one meta row, rewritten only when the host
+  changes them); `seat-request` / `seat-release` from participants; `seat-assign` / `seat-deny` from the host; the
+  room answers a seated participant with a private `seat-token` (stored hashed) used to rejoin the seat later. A seat
+  requires a matching build and content version.
+- Chat: `say` (at most 280 characters, 1 a second with a burst of 5 per participant, refused when chat is off) and
+  `said` broadcast with the sender's id and name; the last 50 lines are kept in memory for joiners. No chat is stored.
+- The room's limits and kill switch are the ones #878 set up.
