@@ -195,6 +195,8 @@ export class PastGamesScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Back from a replay, which played its scenario's music: the menus' music again (#858). A no-op when it already is.
+    appSession().music?.playTitle();
     this.#alive = true;
     this.#leaving = false;
     this.#visit += 1;
