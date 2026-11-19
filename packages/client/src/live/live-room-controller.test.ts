@@ -6,6 +6,7 @@ import { LiveRoomController } from "./live-room-controller.js";
 import type { LiveGameMessage } from "./live-room-protocol.js";
 import type { CreateRoomResult, RoomSocketDeps, WebSocketLike } from "./room-socket.js";
 import type { LiveStatus } from "./live-publisher.js";
+import { MemoryRoomStore } from "./live-room-store.js";
 
 class FakeSocket implements WebSocketLike {
   static all: FakeSocket[] = [];
@@ -77,7 +78,7 @@ const roomOf = (): CreateRoomResult => {
   return { ok: true, room: { roomId: id, hostToken: "h".repeat(32), table: "t1" } };
 };
 
-function setup(createResults: CreateRoomResult[] = []) {
+function setup(createResults: CreateRoomResult[] = [], store?: MemoryRoomStore, now = () => 1_000) {
   FakeSocket.all = [];
   const statuses: LiveStatus[] = [];
   const timers: { run: () => void; live: boolean }[] = [];
@@ -105,6 +106,7 @@ function setup(createResults: CreateRoomResult[] = []) {
     onResync,
     createRoom,
     socket,
+    ...(store ? { store, now } : {}),
   });
   controller.setEnabled(true);
   return { controller, statuses, timers, createRoom, onEnabledChange, onResync };
@@ -282,5 +284,87 @@ describe("live room controller", () => {
     await settle();
     expect(limited.timers).toHaveLength(0);
     expect(limited.createRoom).toHaveBeenCalledTimes(1);
+  });
+
+  describe("after an app reload", () => {
+    const record = { gameKey: "g1", roomId: "oldroom00001", hostToken: "k".repeat(32), createdAt: 1_000 };
+
+    it("a fresh controller resuming the same game returns to its room as host, with watchers kept", async () => {
+      const store = new MemoryRoomStore();
+      await store.save(record);
+      const { controller, createRoom, statuses } = setup([], store);
+      controller.onGameMessage(gameMessage("g1", [cmd(1), cmd(2)]));
+      controller.onGameMessage(command("g1", 3));
+      await settle();
+      expect(createRoom).not.toHaveBeenCalled();
+      expect(FakeSocket.all[0]!.url).toContain("/room/oldroom00001/ws");
+      FakeSocket.all[0]!.welcome("host", { commands: 2, ended: false, hasHeader: true });
+      // The room already holds the first two commands: only the new one goes out.
+      expect(FakeSocket.all[0]!.gameKinds).toEqual(["commands"]);
+      expect(FakeSocket.all[0]!.sent.find((m) => m.kind === "commands")).toMatchObject({
+        from: 2,
+        commands: [{ n: 3 }],
+      });
+      FakeSocket.all[0]!.receive({ v: 1, ch: "room", kind: "roster", participants: [], watchers: 2 });
+      expect(statuses.at(-1)).toMatchObject({ watchUrl: expect.stringContaining("#watch=oldroom00001"), watchers: 2 });
+    });
+
+    it("falls back to a new room, overwriting the record, when the old room no longer honours the token", async () => {
+      const store = new MemoryRoomStore();
+      await store.save(record);
+      const { controller, createRoom } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      await settle();
+      FakeSocket.all[0]!.welcome("watcher");
+      await settle();
+      expect(createRoom).toHaveBeenCalledTimes(1);
+      expect((await store.load("g1"))?.roomId).not.toBe("oldroom00001");
+    });
+
+    it("falls back to a new room when the old room is gone (1011)", async () => {
+      const store = new MemoryRoomStore();
+      await store.save(record);
+      const { controller, createRoom } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      await settle();
+      FakeSocket.all[0]!.closeWith(1011);
+      await settle();
+      expect(createRoom).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores and clears a record older than the room's idle limit", async () => {
+      const store = new MemoryRoomStore();
+      await store.save(record);
+      const { controller, createRoom } = setup([], store, () => 1_000 + 13 * 60 * 60 * 1000);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      await settle();
+      expect(createRoom).toHaveBeenCalledTimes(1);
+      expect((await store.load("g1"))?.roomId).not.toBe("oldroom00001");
+    });
+
+    it("saves a new room's record, and clears it when the game is left or the room closes", async () => {
+      const store = new MemoryRoomStore();
+      const { controller } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      await settle();
+      expect((await store.load("g1"))?.hostToken).toHaveLength(32);
+      FakeSocket.all[0]!.welcome("host");
+      controller.onGameMessage({ kind: "none" });
+      await settle();
+      expect(await store.load("g1")).toBeNull();
+
+      controller.onGameMessage(gameMessage("g2"));
+      controller.onGameMessage(command("g2", 1));
+      await settle();
+      expect(await store.load("g2")).not.toBeNull();
+      FakeSocket.all.at(-1)!.welcome("host");
+      FakeSocket.all.at(-1)!.receive({ v: 1, ch: "room", kind: "closed", reason: "ended" });
+      await settle();
+      expect(await store.load("g2")).toBeNull();
+    });
   });
 });

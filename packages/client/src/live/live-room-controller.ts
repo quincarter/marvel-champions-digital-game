@@ -21,6 +21,7 @@ import {
 } from "./room-socket.js";
 import { LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
 import type { LiveGameMessage } from "./live-room-protocol.js";
+import { recordFresh, type LiveRoomStore } from "./live-room-store.js";
 
 type GameMessage = Extract<LiveGameMessage, { kind: "game" }>;
 
@@ -32,6 +33,9 @@ export interface LiveRoomControllerDeps {
   readonly onEnabledChange?: (on: boolean) => void;
   /** Asks the engine worker for the whole game again (a gap in the log). */
   readonly onResync?: () => void;
+  /** Remembers each game's room, so a resumed game returns to it as the host. Absent: every game gets a new room. */
+  readonly store?: LiveRoomStore;
+  readonly now?: () => number;
   readonly createRoom?: (deps: CreateRoomDeps) => Promise<CreateRoomResult>;
   readonly fetch?: typeof fetch;
   /** The socket's and the retry timer's clock and WebSocket (tests). */
@@ -143,7 +147,29 @@ export class LiveRoomController {
       failed: false,
     };
     this.#live = live;
-    void this.#create(live);
+    void this.#begin(live);
+  }
+
+  /** A resumed game goes back to the room it had (as host); otherwise, or when that room is no use, a new one. */
+  async #begin(live: Live): Promise<void> {
+    const store = this.#deps.store;
+    const now = (this.#deps.now ?? Date.now)();
+    let record = null;
+    if (store) {
+      try {
+        record = await store.load(live.gameKey);
+      } catch {
+        record = null;
+      }
+    }
+    if (this.#live !== live) return;
+    if (record && record.gameKey === live.gameKey && recordFresh(record, now)) {
+      live.rooms++;
+      this.#connect(live, record.roomId, record.hostToken);
+      return;
+    }
+    if (record) void store?.clear(live.gameKey).catch(() => {});
+    await this.#create(live);
   }
 
   async #create(live: Live): Promise<void> {
@@ -169,6 +195,14 @@ export class LiveRoomController {
     }
     live.createAttempts = 0;
     live.rooms++;
+    void this.#deps.store
+      ?.save({
+        gameKey: live.gameKey,
+        roomId: result.room.roomId,
+        hostToken: result.room.hostToken,
+        createdAt: (this.#deps.now ?? Date.now)(),
+      })
+      .catch(() => {});
     this.#connect(live, result.room.roomId, result.room.hostToken);
   }
 
@@ -220,12 +254,14 @@ export class LiveRoomController {
     live.socket = null;
     live.publisher.onDisconnected();
     if (this.#live !== live) return;
+    void this.#deps.store?.clear(live.gameKey).catch(() => {});
     if (live.rooms < MAX_ROOMS_PER_GAME) void this.#create(live);
     else live.failed = true;
   }
 
   /** This game's stream is over (the room closed, was taken over, or refused the log): the next game starts clean. */
   #end(live: Live): void {
+    void this.#deps.store?.clear(live.gameKey).catch(() => {});
     if (live.retry !== null) this.#timers.clearTimer(live.retry);
     live.socket?.close();
     live.socket = null;

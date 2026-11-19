@@ -3,6 +3,7 @@
  * The engine worker streams the game to it over a port; the main thread only posts events (`init`, `enabled`) and
  * reads the status the worker posts back. Nothing here touches rendering.
  */
+import { IdbRoomStore } from "../live/live-room-store.js";
 import { LiveRoomController } from "../live/live-room-controller.js";
 import type {
   LiveControlMessage,
@@ -28,6 +29,7 @@ worker.addEventListener("message", (event) => {
     controller = new LiveRoomController({
       syncUrl: message.syncUrl,
       watchBase: message.watchBase,
+      store: new IdbRoomStore(),
       onStatus: (status) => {
         worker.postMessage({ kind: "status", status });
         presencePort?.postMessage({ kind: "live", status } satisfies LiveStatusMessage);
