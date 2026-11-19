@@ -158,6 +158,7 @@ export default defineConfig({
         "live-host.spec.ts",
         "live-watch.spec.ts",
         "live-setup.spec.ts",
+        "briefing-watch-toggle.spec.ts",
         "player-stats.spec.ts",
         "global-stats.spec.ts",
         "roster-picker-drag.spec.ts",
