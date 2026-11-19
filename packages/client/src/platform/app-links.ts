@@ -80,6 +80,9 @@ export function offersDesktopApp(
  */
 export const RELOAD_UNSAFE_SCENES: readonly string[] = [
   "DeckBuilder",
+  // Deck check stops the screen it was opened from and carries its work: an unsaved deck from the deck builder, or a
+  // Take your seats setup in progress.
+  "DeckCheck",
   "Decks",
   "ScenarioSelect",
   "Seats",

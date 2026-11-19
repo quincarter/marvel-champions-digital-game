@@ -168,6 +168,8 @@ describe("reloadIsSafe (#862)", () => {
     expect(reloadIsSafe(["Title", "MusicButton"])).toBe(true);
     expect(reloadIsSafe(["Board", "ReplayTransportOverlay"])).toBe(true);
     expect(reloadIsSafe(["DeckBuilder"])).toBe(false);
+    // Opened from the deck builder or Take your seats, Deck check is the only screen up, holding their work.
+    expect(reloadIsSafe(["DeckCheck", "MusicButton"])).toBe(false);
     expect(reloadIsSafe(["Title", "SettingsOverlay", "SaveDataOverlay"])).toBe(false);
   });
 });
