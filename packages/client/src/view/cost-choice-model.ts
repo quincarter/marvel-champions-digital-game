@@ -28,6 +28,16 @@ export type CostChoicePrompt =
   | { readonly kind: "counters"; readonly min: number; readonly max: number; readonly label: string };
 
 /**
+ * The question the cost-choice bar asks. A counter count says what the number is for ("Remove how many chi counters?"):
+ * "How many chi?" alone read as a caption, and the numbers beside it went unpressed (issue #856).
+ */
+export function costChoiceTitle(prompt: CostChoicePrompt): string {
+  if (prompt.kind === "branch") return "Choose how to pay";
+  const noun = prompt.label === "counters" ? "counters" : `${prompt.label} counters`;
+  return `Remove how many ${noun}?`;
+}
+
+/**
  * The `AbilityCost` an action's `useAbility`/action-triggered `playCard` would pay, mirroring
  * `discard-choice-model.ts`'s own lookup — resolved with `costAsDetermined` so a `conditional` cost (Navigation
  * Column, 16172) shows the branch the board actually has, not the printed template.

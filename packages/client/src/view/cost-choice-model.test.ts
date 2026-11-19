@@ -14,7 +14,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_DEPS } from "../content/pool.js";
-import { costChoicePromptFor, describeCost } from "./cost-choice-model.js";
+import { costChoicePromptFor, costChoiceTitle, describeCost } from "./cost-choice-model.js";
 
 const ROCKET_VS_BADOON: SessionConfig = {
   scenarioId: "infiltrate-the-museum",
@@ -113,6 +113,13 @@ describe("cost-choice mode: an 'up to N' counter cost (We Are Groot)", () => {
     };
     const prompt = costChoicePromptFor(state, POOL_DEPS, groot);
     expect(prompt).toEqual({ kind: "counters", min: 1, max: 4, label: "growth" });
+  });
+
+  // Issue #856: "How many chi?" read as a caption over Power Man's (`mts` 21012) count, and the player never pressed one.
+  test("the bar asks what the number is for", () => {
+    expect(costChoiceTitle({ kind: "counters", min: 1, max: 2, label: "chi" })).toBe("Remove how many chi counters?");
+    expect(costChoiceTitle({ kind: "counters", min: 1, max: 4, label: "counters" })).toBe("Remove how many counters?");
+    expect(costChoiceTitle({ kind: "branch", options: [] })).toBe("Choose how to pay");
   });
 
   test("a fixed count (min === max) is not a real choice, and prompts nothing", () => {

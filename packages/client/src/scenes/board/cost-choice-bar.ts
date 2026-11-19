@@ -7,8 +7,8 @@
 
 import { accent, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
-import { fitText } from "../../ui/widgets.js";
-import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
+import { fitText, fitWrapped } from "../../ui/widgets.js";
+import { costChoiceTitle, type CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { CostHelpPrompt } from "../../view/cost-help-model.js";
 import type { Rect } from "../../view/layout.js";
 import { addBarButton, addBarCancel } from "./bar-stops.js";
@@ -21,16 +21,26 @@ export function drawCostChoiceBar(ctx: BoardDrawContext, rect: Rect, prompt: Cos
   g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
 
-  const titleText = prompt.kind === "branch" ? "Choose how to pay" : `How many ${prompt.label}?`;
-  const titleWidth = Math.min(220, rect.width * 0.28);
+  const titleText = costChoiceTitle(prompt);
+  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
+  const gap = 6;
+  const branchTitleWidth = Math.min(220, rect.width * 0.28);
+  // The counter question is a full sentence, so it takes what the number buttons (40 px at least each) leave of the bar,
+  // up to 380 px, and never less than a branch title gets.
+  const counts = prompt.kind === "counters" ? prompt.max - prompt.min + 1 : 0;
+  const countsNeed = counts * 40 + gap * Math.max(0, counts - 1);
+  const titleWidth =
+    prompt.kind === "branch"
+      ? branchTitleWidth
+      : Math.max(branchTitleWidth, Math.min(380, rect.width * 0.42, rect.width - cancelWidth - 10 - gap - countsNeed));
   const title = scene.add
     .text(rect.x + 12, rect.y + rect.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
-  fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  // On a narrow bar the question takes two lines rather than shrinking past reading size.
+  if (prompt.kind === "branch") fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  else fitWrapped(title, titleWidth - 16, 2, typeRole.barTitle.size);
 
-  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
-  const gap = 6;
   const left = rect.x + titleWidth;
   const right = rect.x + rect.width - cancelWidth - 10 - gap;
 
@@ -51,10 +61,13 @@ export function drawCostChoiceBar(ctx: BoardDrawContext, rect: Rect, prompt: Cos
     const count = Math.max(1, values.length);
     const width = Math.max(40, Math.min(56, (right - left - gap * (count - 1)) / count));
     values.forEach((value, index) => {
+      // Every count is a paper button, as on every other red bar: a "primary" button is Hero Red, so the most-counters
+      // choice drew red on red and read as plain text (issue #856). No count is the bar's forward stop: Start does not
+      // pick one for the player.
       addBarButton(ctx, {
-        kind: value === prompt.max ? "primary" : "secondary",
+        kind: "secondary",
         label: String(value),
-        type: typeRole.label,
+        type: typeRole.barTitle,
         rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
         onClick: () => void controller.chooseCostCounters(value),
       });
