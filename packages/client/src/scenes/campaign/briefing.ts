@@ -237,6 +237,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   }
 
   init(data: CampaignBriefingData): void {
+    // The scene is reused: the toggle starts from the setting every time, not from the last visit's tick.
+    this.#watchable = liveWatchDefault();
     this.#data = data;
     this.#record = null;
     this.#story = null;

@@ -344,6 +344,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   init(data: TableSetupData): void {
+    // The scene is reused: the toggle starts from the setting every time, not from the last visit's tick.
+    this.#watchable = liveWatchDefault();
     this.#draft = data.draft;
     this.#seedText = String(data.draft.seed);
   }
