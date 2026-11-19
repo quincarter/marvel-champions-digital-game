@@ -658,8 +658,9 @@
           <b>Every playable scenario now has its own music.</b> Kingpin, all three Shadowland scenarios, Breakout, Kang,
           Absorbing Man, Zola, and Captain Marvel, She-Hulk and Vision from Civil War get their own battle, victory and
           defeat songs, Fear No Evil and Shadowland get an interlude and a finale, and Stop the Presses! and Crossbones
-          get new takes. The desktop game now updates itself from any installer and can add itself to Steam. Discord
-          shows your mod's villain and hero instead of only the logo, and the Title counts the mods that have an update.
+          get new takes. The desktop game now updates itself from any installer and can add itself to Steam, and shared
+          replays open on a versus screen. Discord shows your mod's villain and hero instead of only the logo, and the
+          Title counts the mods that have an update.
         </p>
       </section>
 
@@ -897,6 +898,69 @@
         </figure>
       </div>
 
+      <!-- ============ REPLAYS ============ -->
+      <div class="band">
+        <h2>Replays that enter like a boss fight</h2>
+        <div class="lab">Issue #858 · PR #859</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>The Watcher Is Watching</span></div>
+      </div>
+      <p class="lead">
+        <b>A shared replay link no longer lands on the title menu first.</b> It opens on its own loading screen, then a
+        versus screen of the villain against the heroes slides in with a whoosh, and the board comes up underneath.
+        Every replay opens this way now, from Past games, Game over and the Title too.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/replay-versus.webp"
+            alt="The versus screen: Klaw on the left, Captain America on the right, VERSUS on the seam between them"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Klaw versus Captain America</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/replay-versus-phone.webp"
+            alt="The same versus screen on an iPhone SE, the villain above the hero"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>Stacked on a phone</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <figure class="a">
+          <img
+            src="img/replay-loading.webp"
+            alt="Shared replay: Loading the shared replay, with a Cancel button, over a faded title picture"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The loading screen a link opens on</figcaption>
+        </figure>
+        <div class="box">
+          <h3>Also with replays</h3>
+          <ul class="ck">
+            <li>
+              An expired, invalid or unreachable link says why on the loading screen, with a <b>Main menu</b> button.
+            </li>
+            <li>
+              Opening a replay file lives in <b>Past games</b>, with a folder icon. In the desktop app it opens your
+              system's own Open dialog, so a controller's A press works on Steam Deck and Bazzite.
+            </li>
+            <li>A replay plays its scenario's battle music.</li>
+            <li>Settings opened from Pause no longer draws over the sheets it opens, such as Controls.</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- ============ DISCORD ============ -->
       <div class="band">
         <h2>Your mods, on Discord and the Title</h2>
@@ -1115,22 +1179,22 @@
       <section class="stats" aria-label="Code shipped since v0.49.0">
         <div class="tile">
           <h4>Pull requests</h4>
-          <div class="n">14</div>
+          <div class="n">15</div>
           <p>merged into main.</p>
         </div>
         <div class="tile">
           <h4>Files changed</h4>
-          <div class="n">141</div>
+          <div class="n">184</div>
           <p>across the client, the desktop app, the music and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines added</h4>
-          <div class="n c-green">6,651</div>
-          <p>the updater, Add to Steam, the Discord work, their tests and this report.</p>
+          <div class="n c-green">8,346</div>
+          <p>the updater, Add to Steam, the replay screens, their tests and this report.</p>
         </div>
         <div class="tile">
           <h4>Lines removed</h4>
-          <div class="n c-red">1,005</div>
+          <div class="n c-red">1,172</div>
           <p>across the same pull requests.</p>
         </div>
       </section>
