@@ -1,9 +1,13 @@
 /**
  * The live game room's logic (docs/live-game-rooms.md), over a small socket interface so Vitest drives it without
- * workerd. The room orders and relays and never reads a game: headers, commands and outcomes are opaque. It keeps each
- * table's log in memory only (a woken room with an empty log asks the table's host to send it again), so a command
- * writes no storage row. Storage holds one `meta` row from creation (the host token's hash and when the room was made),
- * and one `endedAt` row once every table has ended.
+ * workerd. The room orders and relays and never reads a game: headers, commands and outcomes are opaque.
+ *
+ * Storage. A hibernated room is evicted from memory after seconds of quiet, so the log is persisted in frozen chunks:
+ * `meta` (host token hash, createdAt, a last-host stamp written at most hourly, and the end/outcome once), one
+ * `<table>:header` row at `start`/`log`, and one `<table>:c:<n>` row per completed chunk of `ROOM_CHUNK_COMMANDS`
+ * commands with the checksums that fall in it, written once when the chunk fills and never rewritten. The unfinished
+ * tail of up to a chunk lives in memory only; a woken room loads the chunks and asks the host for the tail with
+ * `resend { from }`. About one row per 20 commands.
  *
  * A socket's participant lives in the socket's own attachment, so it survives hibernation; the logic keys everything
  * by participant id and takes the newest socket object it is handed for that id.
@@ -11,10 +15,14 @@
 
 import type { KeyValueStorage } from "./env.js";
 import {
+  DEFAULT_MAX_ROOM_LOG_BYTES,
   DEFAULT_MAX_ROOM_MESSAGE_BYTES,
   DEFAULT_MAX_ROOM_PARTICIPANTS,
   FIRST_TABLE,
+  LOG_PART_BYTES,
   MAX_LOG_BYTES,
+  MAX_ROOM_REFUSALS,
+  ROOM_CHUNK_COMMANDS,
   ROOM_END_GRACE_MS,
   ROOM_IDLE_MS,
   parseClientMessage,
@@ -30,27 +38,46 @@ import {
 export interface RoomSocket {
   send(text: string): void;
   close(code?: number, reason?: string): void;
-  /** The participant saved on the socket by `setParticipant`, or null before its `hello`. */
+  /** The participant saved on the socket by `setParticipant`, or null before its `hello` (or after `clearParticipant`). */
   getParticipant(): Participant | null;
   setParticipant(participant: Participant): void;
+  /** Forgets the participant on the socket, so a wake does not bring a replaced host back. */
+  clearParticipant(): void;
 }
 
 export interface GameRoomLimits {
   readonly maxParticipants: number;
   readonly maxMessageBytes: number;
+  readonly maxLogBytes: number;
 }
 
 export const DEFAULT_GAME_ROOM_LIMITS: GameRoomLimits = {
   maxParticipants: DEFAULT_MAX_ROOM_PARTICIPANTS,
   maxMessageBytes: DEFAULT_MAX_ROOM_MESSAGE_BYTES,
+  maxLogBytes: DEFAULT_MAX_ROOM_LOG_BYTES,
 };
 
 /** What the room advertises; `chat`, `seats` and `tables` join this list as they are built. */
 export const ROOM_CAPS: readonly RoomCapability[] = ["watch"];
 
+/** The host's last-message stamp is stored at most this often. */
+const STAMP_EVERY_MS = 60 * 60 * 1000;
+
 interface RoomMeta {
   readonly hostTokenHash: string;
   readonly createdAt: number;
+  lastHostAt?: number;
+  ended?: boolean;
+  outcome?: unknown;
+  endedAt?: number;
+  /** The table reached the log cap and was ended by the room. */
+  overflow?: boolean;
+}
+
+interface StoredChunk {
+  commands: unknown[];
+  checksums: Record<string, string>;
+  bytes: number;
 }
 
 interface Table {
@@ -59,8 +86,14 @@ interface Table {
   hasHeader: boolean;
   commands: unknown[];
   checksums: Record<string, string>;
-  outcome: unknown;
+  /** Chunks written to storage: commands `[0, persisted * ROOM_CHUNK_COMMANDS)` are stored, the rest is the tail. */
+  persisted: number;
+  /** JSON bytes of the commands held. */
+  bytes: number;
   ended: boolean;
+  outcome: unknown;
+  overflow: boolean;
+  loaded: boolean;
 }
 
 export async function sha256Hex(text: string): Promise<string> {
@@ -70,28 +103,59 @@ export async function sha256Hex(text: string): Promise<string> {
 
 const encoder = new TextEncoder();
 
+const sizeOf = (value: unknown): number => JSON.stringify(value)?.length ?? 0;
+const sizeOfAll = (values: readonly unknown[]): number => {
+  let total = 0;
+  for (const v of values) total += sizeOf(v);
+  return total;
+};
+
 const newTable = (id: string): Table => ({
   id,
   header: undefined,
   hasHeader: false,
   commands: [],
   checksums: {},
-  outcome: undefined,
+  persisted: 0,
+  bytes: 0,
   ended: false,
+  outcome: null,
+  overflow: false,
+  loaded: false,
 });
 
 const randomId = (): string =>
   [...crypto.getRandomValues(new Uint8Array(5))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
+const headerKey = (table: string) => `${table}:header`;
+const chunkKey = (table: string, n: number) => `${table}:c:${String(n).padStart(6, "0")}`;
+
+/** The checksums of a message as a plain record, or null when a key is not a command count or a value not a string. */
+function cleanChecksums(value: unknown): Record<string, string> | null {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const out: Record<string, string> = {};
+  for (const [key, sum] of Object.entries(value)) {
+    if (!/^\d{1,9}$/.test(key) || typeof sum !== "string" || sum.length > 128) return null;
+    out[key] = sum;
+  }
+  return out;
+}
+
+type Refusal = "bad-message" | "too-large" | "not-allowed" | "out-of-order" | "full";
+
 export class GameRoomLogic {
   private meta: RoomMeta | null | undefined;
-  private endedAt: number | null | undefined;
   private readonly sockets = new Map<string, RoomSocket>();
   private readonly participants = new Map<string, Participant>();
   private readonly tables = new Map<string, Table>([[FIRST_TABLE, newTable(FIRST_TABLE)]]);
+  private readonly loading = new Map<string, Promise<void>>();
   /** Tables whose host has been asked for a log that has not come yet, so one gap is asked once. */
   private readonly resendAsked = new Set<string>();
+  /** True until the host's `start`, `log` or an in-order batch confirms the room's tail in this lifetime. */
+  private unverified = true;
   private lastHostMessageAt: number | undefined;
+  private readonly refusals = new WeakMap<RoomSocket, number>();
 
   constructor(
     private readonly storage: KeyValueStorage,
@@ -100,11 +164,17 @@ export class GameRoomLogic {
   ) {}
 
   // ----------------------------------------------------------------------------------------------------------
-  // Lifecycle
+  // Lifecycle and storage
 
   private async loadMeta(): Promise<RoomMeta | null> {
     if (this.meta === undefined) this.meta = (await this.storage.get<RoomMeta>("meta")) ?? null;
     return this.meta;
+  }
+
+  private async saveMeta(patch: Partial<RoomMeta>): Promise<void> {
+    if (!this.meta) return;
+    this.meta = { ...this.meta, ...patch };
+    await this.storage.put("meta", this.meta);
   }
 
   async exists(): Promise<boolean> {
@@ -130,6 +200,76 @@ export class GameRoomLogic {
     this.participants.set(participant.id, participant);
   }
 
+  /** Loads a table's header and stored chunks once per lifetime. */
+  private ensureLoaded(table: Table): Promise<void> {
+    if (table.loaded) return Promise.resolve();
+    let pending = this.loading.get(table.id);
+    if (!pending) {
+      pending = this.load(table).finally(() => this.loading.delete(table.id));
+      this.loading.set(table.id, pending);
+    }
+    return pending;
+  }
+
+  private async load(table: Table): Promise<void> {
+    const meta = await this.loadMeta();
+    const header = await this.storage.get<{ h: unknown }>(headerKey(table.id));
+    if (header) {
+      const rows = await this.storage.list<StoredChunk>({ prefix: `${table.id}:c:` });
+      const commands: unknown[] = [];
+      const checksums: Record<string, string> = {};
+      let bytes = 0;
+      let persisted = 0;
+      for (const chunk of rows.values()) {
+        commands.push(...chunk.commands);
+        Object.assign(checksums, chunk.checksums);
+        bytes += chunk.bytes;
+        persisted += 1;
+      }
+      table.header = header.h;
+      table.hasHeader = true;
+      table.commands = commands;
+      table.checksums = checksums;
+      table.bytes = bytes;
+      table.persisted = persisted;
+    }
+    table.ended = meta?.ended ?? false;
+    table.outcome = meta?.outcome ?? null;
+    table.overflow = meta?.overflow ?? false;
+    table.loaded = true;
+  }
+
+  private async deleteChunks(tableId: string, from: number, to: number): Promise<void> {
+    const keys: string[] = [];
+    for (let n = from; n < to; n++) keys.push(chunkKey(tableId, n));
+    for (let i = 0; i < keys.length; i += 128) await this.storage.delete(keys.slice(i, i + 128));
+  }
+
+  /** Writes every chunk that has filled since the last write, each once. */
+  private async persistChunks(table: Table): Promise<void> {
+    let entries: Record<string, StoredChunk> = {};
+    let count = 0;
+    while (table.commands.length >= (table.persisted + 1) * ROOM_CHUNK_COMMANDS) {
+      const n = table.persisted;
+      const first = n * ROOM_CHUNK_COMMANDS;
+      const commands = table.commands.slice(first, first + ROOM_CHUNK_COMMANDS);
+      const checksums: Record<string, string> = {};
+      for (const [key, sum] of Object.entries(table.checksums)) {
+        const at = Number(key);
+        if (at > first && at <= first + ROOM_CHUNK_COMMANDS) checksums[key] = sum;
+      }
+      entries[chunkKey(table.id, n)] = { commands, checksums, bytes: sizeOfAll(commands) };
+      table.persisted += 1;
+      count += 1;
+      if (count === 100) {
+        await this.storage.put(entries);
+        entries = {};
+        count = 0;
+      }
+    }
+    if (count > 0) await this.storage.put(entries);
+  }
+
   private tableOf(id: string): Table | undefined {
     return this.tables.get(id);
   }
@@ -145,6 +285,7 @@ export class GameRoomLogic {
       hostConnected: this.hostOf(table.id) !== undefined,
       commands: table.commands.length,
       ended: table.ended,
+      hasHeader: table.hasHeader,
     };
   }
 
@@ -156,18 +297,15 @@ export class GameRoomLogic {
   // Sending
 
   private sendTo(id: string, message: ServerMessage): void {
-    try {
-      this.sockets.get(id)?.send(JSON.stringify(message));
-    } catch {
-      // A socket that cannot take a message is closing; its close event removes it.
-    }
+    const socket = this.sockets.get(id);
+    if (socket) this.sendSocket(socket, message);
   }
 
   private sendSocket(socket: RoomSocket, message: ServerMessage): void {
     try {
       socket.send(JSON.stringify(message));
     } catch {
-      // As above.
+      // A socket that cannot take a message is closing; its close event removes it.
     }
   }
 
@@ -198,25 +336,74 @@ export class GameRoomLogic {
     this.broadcast({ v: 1, ch: "room", kind: "table", table: this.info(table) });
   }
 
-  private logMessage(table: Table): ServerMessage {
-    return {
-      v: 1,
-      ch: "game",
-      kind: "log",
-      table: table.id,
-      header: table.header,
-      commands: table.commands,
-      checksums: table.checksums,
-      ...(table.ended ? { outcome: table.outcome } : {}),
-    };
+  private checksumsIn(table: Table, after: number, upTo: number): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [key, sum] of Object.entries(table.checksums)) {
+      const at = Number(key);
+      if (at > after && at <= upTo) out[key] = sum;
+    }
+    return out;
   }
 
-  /** Asks the table's host for the whole log, once per gap. */
-  private askResend(tableId: string): void {
+  /**
+   * The table's log to one socket in parts: a `log` with the header and the first commands up to about
+   * `LOG_PART_BYTES`, `commands` batches for the rest, then `end` if the table ended. No part nears the WebSocket cap.
+   */
+  private sendLog(socket: RoomSocket, table: Table): void {
+    const commands = table.commands;
+    let used = sizeOf(table.header);
+    let index = 0;
+    let first = true;
+    do {
+      const from = index;
+      const part: unknown[] = [];
+      while (index < commands.length) {
+        const size = sizeOf(commands[index]);
+        if (part.length > 0 && used + size > LOG_PART_BYTES) break;
+        part.push(commands[index]);
+        used += size;
+        index += 1;
+      }
+      const checksums = this.checksumsIn(table, from, index);
+      if (first) {
+        this.sendSocket(socket, {
+          v: 1,
+          ch: "game",
+          kind: "log",
+          table: table.id,
+          header: table.header,
+          commands: part,
+          checksums,
+        });
+        first = false;
+      } else {
+        this.sendSocket(socket, {
+          v: 1,
+          ch: "game",
+          kind: "commands",
+          table: table.id,
+          from,
+          commands: part,
+          ...(Object.keys(checksums).length > 0 ? { checksums } : {}),
+        });
+      }
+      used = 0;
+    } while (index < commands.length);
+    if (table.ended)
+      this.sendSocket(socket, { v: 1, ch: "game", kind: "end", table: table.id, outcome: table.outcome });
+  }
+
+  /** The log to everyone but the table's host. */
+  private broadcastLog(table: Table, hostId: string): void {
+    for (const [id, socket] of this.sockets) if (id !== hostId) this.sendLog(socket, table);
+  }
+
+  /** Asks the table's host for what the room lacks from `from`, once per gap. */
+  private askResend(tableId: string, from: number): void {
     const host = this.hostOf(tableId);
     if (!host || this.resendAsked.has(tableId)) return;
     this.resendAsked.add(tableId);
-    this.sendTo(host.id, { v: 1, ch: "game", kind: "resend", table: tableId });
+    this.sendTo(host.id, { v: 1, ch: "game", kind: "resend", table: tableId, from });
   }
 
   // ----------------------------------------------------------------------------------------------------------
@@ -225,44 +412,67 @@ export class GameRoomLogic {
   /** One text frame from a socket. Never throws on a bad frame; it answers `refused`. */
   async message(socket: RoomSocket, data: string | ArrayBuffer): Promise<void> {
     if (typeof data !== "string") return this.refuse(socket, "bad-message");
+    const participant = socket.getParticipant();
     const bytes = encoder.encode(data).byteLength;
     if (bytes > MAX_LOG_BYTES) return this.refuse(socket, "too-large");
+    // Only a host may send a start or log, so everyone else is held to the ordinary cap before anything is parsed.
+    if (participant?.role !== "host" && bytes > this.limits.maxMessageBytes) return this.refuse(socket, "too-large");
     const message = parseClientMessage(data);
     if (!message) return this.refuse(socket, "bad-message");
-    const isLog = message.ch === "game" && (message.kind === "start" || message.kind === "log");
-    if (bytes > this.limits.maxMessageBytes && !isLog) return this.refuse(socket, "too-large");
 
     if (message.ch === "room") return this.hello(socket, message);
-    const participant = socket.getParticipant();
     if (!participant) return this.refuse(socket, "bad-message");
-    if (!this.participants.has(participant.id)) this.restore(socket);
-    else this.sockets.set(participant.id, socket);
+    if (!this.participants.has(participant.id)) {
+      // An attachment the room does not know (a replaced host's socket still closing): not part of this room.
+      this.refuse(socket, "not-allowed");
+      socket.close(1008, "not in the room");
+      return;
+    }
+    this.sockets.set(participant.id, socket);
 
     if (message.ch === "chat" || message.kind === "propose") return this.refuse(socket, "not-allowed");
     const table = this.tableOf(message.table);
     if (participant.role !== "host" || participant.table !== message.table || !table) {
       return this.refuse(socket, "not-allowed");
     }
-    this.lastHostMessageAt = this.clock();
+    const isLog = message.kind === "start" || message.kind === "log";
+    if (bytes > this.limits.maxMessageBytes && !isLog) return this.refuse(socket, "too-large");
+    await this.ensureLoaded(table);
+    await this.touchHost();
     await this.game(socket, participant, table, message);
   }
 
-  private refuse(
-    socket: RoomSocket,
-    reason: "bad-message" | "too-large" | "not-allowed" | "out-of-order" | "full",
-  ): void {
+  private refuse(socket: RoomSocket, reason: Refusal): void {
     this.sendSocket(socket, { v: 1, ch: "room", kind: "refused", reason });
+    if (reason === "out-of-order") return;
+    const count = (this.refusals.get(socket) ?? 0) + 1;
+    this.refusals.set(socket, count);
+    if (count >= MAX_ROOM_REFUSALS) {
+      try {
+        socket.close(1008, "too many refusals");
+      } catch {
+        // Already gone.
+      }
+    }
+  }
+
+  /** Notes a host message; the stamp is stored at most once an hour, so a command writes nothing. */
+  private async touchHost(): Promise<void> {
+    const now = this.clock();
+    this.lastHostMessageAt = now;
+    const meta = this.meta;
+    if (meta && now - (meta.lastHostAt ?? meta.createdAt) >= STAMP_EVERY_MS) await this.saveMeta({ lastHostAt: now });
   }
 
   private async hello(socket: RoomSocket, message: Extract<ClientMessage, { kind: "hello" }>): Promise<void> {
-    if (message.ch !== "room" || message.kind !== "hello" || socket.getParticipant()) {
-      return this.refuse(socket, "bad-message");
-    }
+    if (socket.getParticipant()) return this.refuse(socket, "bad-message");
     const meta = await this.loadMeta();
     if (!meta) return socket.close(1011, "no such room");
     const isHost = message.token !== undefined && (await sha256Hex(message.token)) === meta.hostTokenHash;
+    const table = this.tables.get(FIRST_TABLE)!;
+    await this.ensureLoaded(table);
 
-    // A host reconnecting takes its place back: the old host socket is dropped first, so a full room still lets it in.
+    // A valid host token is always let in, whatever the room holds, and takes the old host socket's place.
     if (isHost) {
       const old = this.hostOf(FIRST_TABLE);
       if (old) {
@@ -270,31 +480,27 @@ export class GameRoomLogic {
         this.participants.delete(old.id);
         this.sockets.delete(old.id);
         try {
+          oldSocket?.clearParticipant();
           oldSocket?.close(4000, "replaced");
         } catch {
           // Already gone.
         }
       }
-    }
-    if (this.participants.size >= this.limits.maxParticipants) {
+    } else if (this.participants.size >= this.limits.maxParticipants) {
       this.refuse(socket, "full");
       socket.close(1013, "full");
       return;
     }
 
+    // `hello.name` is ignored until chat exists.
     const you: Participant = {
       id: randomId(),
       role: isHost ? "host" : "watcher",
       ...(isHost ? { table: FIRST_TABLE } : {}),
-      ...(message.name ? { name: message.name } : {}),
     };
     socket.setParticipant(you);
     this.sockets.set(you.id, socket);
     this.participants.set(you.id, you);
-    if (isHost) {
-      this.lastHostMessageAt = this.clock();
-      this.resendAsked.delete(FIRST_TABLE);
-    }
 
     this.sendSocket(socket, {
       v: 1,
@@ -306,14 +512,15 @@ export class GameRoomLogic {
       tables: [...this.tables.values()].map((t) => this.info(t)),
     });
     this.broadcastRoster();
-    const table = this.tables.get(FIRST_TABLE)!;
-    if (isHost) this.broadcastTable(table);
-    if (table.hasHeader) {
-      if (!isHost) this.sendSocket(socket, this.logMessage(table));
-    } else if (isHost || this.hostOf(FIRST_TABLE)) {
-      // The room has no log (it woke empty, or is new): the host sends it again, or starts.
-      this.askResend(FIRST_TABLE);
+    if (isHost) {
+      await this.touchHost();
+      this.resendAsked.delete(FIRST_TABLE);
+      this.broadcastTable(table);
+    } else if (table.hasHeader) {
+      this.sendLog(socket, table);
     }
+    // The room's tail (or the whole log) is unconfirmed since it woke or was made: the host sends what it lacks.
+    if (this.unverified) this.askResend(FIRST_TABLE, table.hasHeader ? table.commands.length : 0);
   }
 
   private async game(
@@ -324,31 +531,62 @@ export class GameRoomLogic {
   ): Promise<void> {
     switch (message.kind) {
       case "start": {
-        Object.assign(table, newTable(table.id), { header: message.header, hasHeader: true });
+        if (table.ended) return this.refuse(socket, "not-allowed");
+        await this.deleteChunks(table.id, 0, table.persisted);
+        await this.storage.put(headerKey(table.id), { h: message.header });
+        Object.assign(table, newTable(table.id), { header: message.header, hasHeader: true, loaded: true });
+        this.unverified = false;
         this.resendAsked.delete(table.id);
-        this.broadcast(this.logMessage(table), host.id);
+        this.broadcastLog(table, host.id);
         this.broadcastTable(table);
         return;
       }
       case "log": {
+        const checksums = cleanChecksums(message.checksums);
+        if (!checksums) return this.refuse(socket, "bad-message");
+        if (table.overflow) return this.refuse(socket, "too-large");
+        const bytes = sizeOfAll(message.commands);
+        if (bytes > this.limits.maxLogBytes) {
+          this.refuse(socket, "too-large");
+          await this.endTable(table, null, true);
+          return;
+        }
+        await this.deleteChunks(table.id, 0, table.persisted);
         table.header = message.header;
         table.hasHeader = true;
         table.commands = [...message.commands];
-        table.checksums = { ...message.checksums };
+        table.checksums = { ...checksums };
+        table.persisted = 0;
+        table.bytes = bytes;
+        await this.storage.put(headerKey(table.id), { h: message.header });
+        await this.persistChunks(table);
+        this.unverified = false;
         this.resendAsked.delete(table.id);
-        this.broadcast(this.logMessage(table), host.id);
+        this.broadcastLog(table, host.id);
         this.broadcastTable(table);
         return;
       }
       case "commands": {
+        const checksums = cleanChecksums(message.checksums);
+        if (!checksums) return this.refuse(socket, "bad-message");
+        if (table.overflow) return this.refuse(socket, "too-large");
         if (!table.hasHeader || message.from !== table.commands.length) {
           this.refuse(socket, "out-of-order");
-          this.resendAsked.delete(table.id);
-          this.askResend(table.id);
+          this.askResend(table.id, table.hasHeader ? table.commands.length : 0);
+          return;
+        }
+        const added = sizeOfAll(message.commands);
+        if (table.bytes + added > this.limits.maxLogBytes) {
+          this.refuse(socket, "too-large");
+          await this.endTable(table, null, true);
           return;
         }
         table.commands.push(...message.commands);
-        if (message.checksums) Object.assign(table.checksums, message.checksums);
+        table.checksums = { ...table.checksums, ...checksums };
+        table.bytes += added;
+        await this.persistChunks(table);
+        this.unverified = false;
+        this.resendAsked.delete(table.id);
         this.broadcast(
           {
             v: 1,
@@ -357,7 +595,7 @@ export class GameRoomLogic {
             table: table.id,
             from: message.from,
             commands: message.commands,
-            ...(message.checksums ? { checksums: message.checksums } : {}),
+            ...(Object.keys(checksums).length > 0 ? { checksums } : {}),
           },
           host.id,
         );
@@ -366,26 +604,52 @@ export class GameRoomLogic {
       }
       case "rewind": {
         if (!table.hasHeader || message.to > table.commands.length) return this.refuse(socket, "out-of-order");
+        const cut = message.to < table.commands.length;
+        const keep = Math.floor(message.to / ROOM_CHUNK_COMMANDS);
+        if (keep < table.persisted) {
+          await this.deleteChunks(table.id, keep, table.persisted);
+          table.persisted = keep;
+        }
         table.commands.length = message.to;
         for (const key of Object.keys(table.checksums)) if (Number(key) > message.to) delete table.checksums[key];
+        table.bytes = sizeOfAll(table.commands);
+        // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
+        if (cut && table.ended) await this.reopen(table);
         this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to }, host.id);
         this.broadcastTable(table);
         return;
       }
       case "end": {
-        table.ended = true;
-        table.outcome = message.outcome;
-        this.broadcast({ v: 1, ch: "game", kind: "end", table: table.id, outcome: message.outcome }, host.id);
-        this.broadcastTable(table);
-        if ([...this.tables.values()].every((t) => t.ended)) {
-          const now = this.clock();
-          this.endedAt = now;
-          await this.storage.put("endedAt", now);
-          await this.storage.setAlarm(now + ROOM_END_GRACE_MS);
-        }
+        await this.endTable(table, message.outcome ?? null, false);
         return;
       }
     }
+  }
+
+  private async reopen(table: Table): Promise<void> {
+    table.ended = false;
+    table.outcome = null;
+    table.overflow = false;
+    if (this.meta) {
+      const { endedAt: _endedAt, ...rest } = this.meta;
+      this.meta = { ...rest, ended: false, outcome: null, overflow: false };
+      await this.storage.put("meta", this.meta);
+      const last = Math.max(this.lastHostMessageAt ?? 0, this.meta.lastHostAt ?? this.meta.createdAt);
+      await this.storage.setAlarm(last + ROOM_IDLE_MS);
+    }
+  }
+
+  /** Ends a table once: a second `end` writes and changes nothing. */
+  private async endTable(table: Table, outcome: unknown, overflow: boolean): Promise<void> {
+    if (table.ended) return;
+    table.ended = true;
+    table.outcome = outcome;
+    if (overflow) table.overflow = true;
+    this.broadcast({ v: 1, ch: "game", kind: "end", table: table.id, outcome });
+    this.broadcastTable(table);
+    const now = this.clock();
+    await this.saveMeta({ ended: true, outcome, endedAt: now, ...(overflow ? { overflow: true } : {}) });
+    if ([...this.tables.values()].every((t) => t.ended)) await this.storage.setAlarm(now + ROOM_END_GRACE_MS);
   }
 
   // ----------------------------------------------------------------------------------------------------------
@@ -406,23 +670,23 @@ export class GameRoomLogic {
   }
 
   /**
-   * The alarm: the room closes 12 hours after the last host message, or 5 minutes after every table ended. When the
-   * time has not come (the last message is newer than the alarm that woke us) the alarm moves out, one row.
+   * The alarm: the room closes 12 hours after the last host message (the stored hourly stamp, or the newer one in
+   * memory), or 5 minutes after every table ended. When the time has not come the alarm moves out, one row.
    */
   async alarm(now: number): Promise<"closed" | "rescheduled" | "gone"> {
     const meta = await this.loadMeta();
     if (!meta) return "gone";
-    if (this.endedAt === undefined) this.endedAt = (await this.storage.get<number>("endedAt")) ?? null;
-    if (this.endedAt !== null && now >= this.endedAt + ROOM_END_GRACE_MS) {
-      await this.shutdown("ended");
-      return "closed";
+    if (meta.ended && meta.endedAt !== undefined) {
+      const closeAt = meta.endedAt + ROOM_END_GRACE_MS;
+      if (now >= closeAt) {
+        await this.shutdown("ended");
+        return "closed";
+      }
+      await this.storage.setAlarm(closeAt);
+      return "rescheduled";
     }
-    // After hibernation the memory of the last host message is gone: count the wake as one, once, so a host that is
-    // still connected keeps the room and one that has left lets it expire at the next alarm.
-    if (this.lastHostMessageAt === undefined) {
-      this.lastHostMessageAt = this.hostOf(FIRST_TABLE) ? now : meta.createdAt;
-    }
-    const due = this.lastHostMessageAt + ROOM_IDLE_MS;
+    const last = Math.max(this.lastHostMessageAt ?? 0, meta.lastHostAt ?? meta.createdAt);
+    const due = last + ROOM_IDLE_MS;
     if (now >= due) {
       await this.shutdown("idle");
       return "closed";
@@ -446,7 +710,6 @@ export class GameRoomLogic {
     await this.storage.deleteAlarm();
     await this.storage.deleteAll();
     this.meta = null;
-    this.endedAt = null;
   }
 
   // Test and handler views.

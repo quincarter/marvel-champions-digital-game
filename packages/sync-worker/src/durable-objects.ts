@@ -238,13 +238,18 @@ const positive = (value: string | undefined, fallback: number): number => {
 export class GameRoom {
   private readonly room: GameRoomLogic;
   private readonly state: GameRoomStateLike;
+  private readonly maxSockets: number;
   private readonly adapted = new WeakMap<WebSocketLike, RoomSocket>();
 
   constructor(state: GameRoomStateLike, env?: Env) {
     this.state = state;
+    const maxParticipants = positive(env?.MAX_ROOM_PARTICIPANTS, DEFAULT_GAME_ROOM_LIMITS.maxParticipants);
+    // Sockets that have not said hello yet are not participants; this bounds them.
+    this.maxSockets = maxParticipants + 5;
     this.room = new GameRoomLogic(state.storage, {
-      maxParticipants: positive(env?.MAX_ROOM_PARTICIPANTS, DEFAULT_GAME_ROOM_LIMITS.maxParticipants),
+      maxParticipants,
       maxMessageBytes: positive(env?.MAX_ROOM_MESSAGE_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxMessageBytes),
+      maxLogBytes: positive(env?.MAX_ROOM_LOG_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxLogBytes),
     });
     for (const ws of state.getWebSockets()) this.room.restore(this.socketOf(ws));
   }
@@ -257,6 +262,7 @@ export class GameRoom {
         close: (code, reason) => ws.close(code, reason),
         getParticipant: () => (ws.deserializeAttachment() as Participant | null) ?? null,
         setParticipant: (participant) => ws.serializeAttachment(participant),
+        clearParticipant: () => ws.serializeAttachment(null),
       };
       this.adapted.set(ws, socket);
     }
@@ -272,6 +278,7 @@ export class GameRoom {
     if (pathname.endsWith("/ws")) {
       if (!(await this.room.exists())) return new Response(null, { status: 404 });
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response(null, { status: 426 });
+      if (!this.makeRoomForSocket()) return new Response(null, { status: 503 });
       const { WebSocketPair } = globalThis as unknown as {
         WebSocketPair: new () => { 0: WebSocketLike; 1: WebSocketLike };
       };
@@ -280,6 +287,23 @@ export class GameRoom {
       return new Response(null, { status: 101, webSocket: pair[0] } as ResponseInit);
     }
     return new Response(null, { status: 404 });
+  }
+
+  /**
+   * At the socket cap, drops one socket that never said hello to make room (so idle strangers cannot lock the host
+   * out); false when every socket is a participant.
+   */
+  private makeRoomForSocket(): boolean {
+    const open = this.state.getWebSockets();
+    if (open.length < this.maxSockets) return true;
+    const stranger = open.find((ws) => !ws.deserializeAttachment());
+    if (!stranger) return false;
+    try {
+      stranger.close(1013, "busy");
+    } catch {
+      // Already closing.
+    }
+    return true;
   }
 
   async webSocketMessage(ws: WebSocketLike, message: string | ArrayBuffer): Promise<void> {

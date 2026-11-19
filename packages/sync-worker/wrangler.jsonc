@@ -75,18 +75,25 @@
 //
 // Live game rooms (/room, one GameRoom Durable Object per room, GitHub issue #876, docs/live-game-rooms.md). A room is a
 // relay: the host's device runs the engine and streams its log in, the room fans it out to watchers over WebSockets
-// (Hibernation API). The log is held in memory only, so a command writes no row:
+// (Hibernation API). A hibernated room is evicted after seconds of quiet, so the log is stored in frozen chunks:
 //   - Creating a room costs one Worker request, one RateLimiter request (at most 2 rows: its state, and its alarm when
 //     the window is new) and one GameRoom request that writes 2 rows (meta, and the idle alarm). Per IP: 20 rooms a day
 //     (DEFAULT_ROOMS_PER_IP_PER_DAY in room-protocol.ts), so one address writes at most 80 rows a day to open rooms.
 //   - A connection is one Worker request and one Durable Object request. Each incoming WebSocket message counts as 1/20
 //     of a request; outgoing messages are free. A game of 600 commands an hour sent one per message is about 30 requests
 //     an hour, plus each watcher's join and its few messages. A hibernated room costs no duration.
-//   - Rows: none per command. The idle alarm is set once at creation and moved out only when it fires with the host
-//     still active (about once per 12 hours); the end of a game writes 2 rows (endedAt and the 5-minute alarm); closing
-//     deletes the room's rows. So a room writes about 4 to 8 rows in its whole life, 20 rooms a day from one IP is under
-//     200 rows, and a flood from many addresses is what ROOMS_ENABLED is for.
-//   - MAX_ROOM_PARTICIPANTS (25) caps host and watchers in one room; MAX_ROOM_MESSAGE_BYTES (64 KiB) caps a message,
+//   - Rows: one header row at the game's start, and one row per completed chunk of 20 commands (written once when the
+//     chunk fills, never rewritten; the unfinished tail stays in memory and is re-asked from the host after a wake), so
+//     about 1 row per 20 commands: a 600-command hour is about 30 rows, and a long 3,000-command game about 150. The
+//     host's last-message stamp is one meta row at most hourly. The idle alarm is set at creation and moved out only when
+//     it fires with the host still active (about once per 12 hours); the end of a game writes 2 rows (meta and the
+//     5-minute alarm), once; an Undo that reopens an ended game costs 2 more; a rewind deletes the chunks past its
+//     cut; closing deletes everything. A watcher joining reads the header and chunks (one read row each, 5 million a
+//     day allowed). One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
+//     day shared with sync and global stats, and a flood from many addresses is what ROOMS_ENABLED is for.
+//   - MAX_ROOM_LOG_BYTES (8 MiB) caps one table's commands; past it the room refuses "too-large" and ends the table
+//     for watchers. A joining watcher is sent the log in parts of about 512 KiB, so no message nears the 1 MiB cap.
+//   - MAX_ROOM_PARTICIPANTS (25) caps watchers in one room (a valid host token is always let in); MAX_ROOM_MESSAGE_BYTES (64 KiB) caps a message,
 //     except a start or log, which may be up to about 1 MiB. A room closes 12 hours after the host's last message and
 //     5 minutes after every table has ended. ROOMS_ENABLED set to anything but "true" makes every /room route answer
 //     503 (a live room's open sockets stay until they close; deploy with the switch off and they end on their own).
@@ -132,6 +139,7 @@
     "ROOMS_ENABLED": "true",
     "MAX_ROOM_PARTICIPANTS": "25",
     "MAX_ROOM_MESSAGE_BYTES": "65536",
+    "MAX_ROOM_LOG_BYTES": "8388608",
     // Comma list; a `*` in the host matches a name (or, after a colon, a port). Only these origins get CORS headers.
     // Netlify previews and aliases, local dev servers, and the Capacitor and Tauri webviews.
     "ALLOWED_ORIGINS": "https://marvel.champions-digital-game.com,https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
@@ -171,6 +179,7 @@
         "ROOMS_ENABLED": "true",
         "MAX_ROOM_PARTICIPANTS": "25",
         "MAX_ROOM_MESSAGE_BYTES": "65536",
+        "MAX_ROOM_LOG_BYTES": "8388608",
         "ALLOWED_ORIGINS": "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*,http://127.0.0.1:*,https://localhost,capacitor://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost",
       },
     },

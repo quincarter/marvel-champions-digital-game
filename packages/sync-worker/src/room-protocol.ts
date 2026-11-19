@@ -14,8 +14,9 @@
  * features one of them lacks.
  *
  * The room never reads a game: headers, starting states, commands and outcomes are opaque JSON to it. It checks that
- * each batch continues its table's log, counts sizes, and keeps logs in memory only (a woken room with an empty log asks
- * the table's host to send it again), so it writes no storage row per command.
+ * each batch continues its table's log and counts sizes. It keeps the log in frozen chunks of `ROOM_CHUNK_COMMANDS`
+ * commands (one storage row per completed chunk, plus one for the header), with only the unfinished tail in memory; a
+ * room that wakes from hibernation loads the chunks and asks the host for the tail with `resend { from }`.
  */
 
 export const ROOM_PROTOCOL_VERSION = 1;
@@ -33,10 +34,18 @@ export const FIRST_TABLE = "t1";
 export const DEFAULT_MAX_ROOM_PARTICIPANTS = 25;
 /** Cap on one message, except a `start` or `log`, which may be up to `MAX_LOG_BYTES`. */
 export const DEFAULT_MAX_ROOM_MESSAGE_BYTES = 64 * 1024;
-/** A starting state and header, or a full-log resend: under the WebSocket's own 1 MiB message cap. */
+/** Commands in one stored chunk of a table's log: a row is written when a chunk fills, never rewritten. */
+export const ROOM_CHUNK_COMMANDS = 20;
+/** The whole command log of one table, in JSON bytes; past it the room refuses `too-large` and ends the table. */
+export const DEFAULT_MAX_ROOM_LOG_BYTES = 8 * 1024 * 1024;
+/** The room sends a joining watcher the log in parts of about this many bytes (a `log`, then `commands`). */
+export const LOG_PART_BYTES = 512 * 1024;
+/** After this many refusals (not counting `out-of-order`) the room closes the socket. */
+export const MAX_ROOM_REFUSALS = 5;
+/** A starting state and header (or the first part of a log): under the WebSocket's own 1 MiB message cap. */
 export const MAX_LOG_BYTES = 1024 * 1024 - 1024;
 export const DEFAULT_ROOMS_PER_IP_PER_DAY = 20;
-/** A display name's length cap (names arrive with chat; until then a participant may be nameless). */
+/** A display name's length cap. Names are reserved for chat: the room ignores `hello.name` until then. */
 export const MAX_NAME_LENGTH = 32;
 /** A room closes this long after any host last sent anything. */
 export const ROOM_IDLE_MS = 12 * 60 * 60 * 1000;
@@ -93,6 +102,8 @@ export interface TableInfo {
   readonly hostConnected: boolean;
   readonly commands: number;
   readonly ended: boolean;
+  /** The room holds this table's header: false means it needs the host's `start` or `log`. */
+  readonly hasHeader: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -121,7 +132,10 @@ export type ClientMessage =
     }
   /** A single-player Undo or Back out cut the log to its first `to` commands (never at a table with seats). */
   | { readonly v: 1; readonly ch: "game"; readonly kind: "rewind"; readonly table: string; readonly to: number }
-  /** The table's whole log, answering `resend`. */
+  /**
+   * The table's log from its start, answering `resend { from: 0 }`. It may carry only the first commands: the rest
+   * follows as ordinary `commands` batches, each under the message cap.
+   */
   | {
       readonly v: 1;
       readonly ch: "game";
@@ -174,9 +188,17 @@ export type ServerMessage =
       readonly kind: "refused";
       readonly reason: "bad-message" | "too-large" | "not-allowed" | "out-of-order" | "full";
     }
-  /** To a table's host: the room has no log for the table (it woke empty, or a batch did not line up). Send `log`. */
-  | { readonly v: 1; readonly ch: "game"; readonly kind: "resend"; readonly table: string }
-  /** On join (one per table that has started) and after a resend: the table's whole log so far. */
+  /**
+   * To a table's host: the room holds `from` commands of the table (its stored chunks after a wake, or the point a
+   * refused batch did not line up with). Answer with ordinary `commands` batches from there, or, when `from` is 0,
+   * with a `log` (the header and the first commands) and then `commands` batches.
+   */
+  | { readonly v: 1; readonly ch: "game"; readonly kind: "resend"; readonly table: string; readonly from: number }
+  /**
+   * To a watcher on join, and to everyone but the host when the host starts or replaces the table: the header and the
+   * first commands (about `LOG_PART_BYTES`), followed by `commands` batches for the rest, then `end` when the table
+   * ended. `outcome` is not used by the room now (`end` carries it).
+   */
   | {
       readonly v: 1;
       readonly ch: "game";

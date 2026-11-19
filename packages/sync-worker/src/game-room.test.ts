@@ -27,6 +27,9 @@ class FakeSocket implements RoomSocket {
   setParticipant(p: Participant) {
     this.attachment = p;
   }
+  clearParticipant() {
+    this.attachment = null;
+  }
   kinds() {
     return this.sent.map((m) => `${m.ch}:${m.kind}`);
   }
@@ -40,7 +43,7 @@ async function setup(limits?: Partial<GameRoomLimits>) {
   const clock = { now: 1_000 };
   const room = new GameRoomLogic(
     storage,
-    { maxParticipants: 25, maxMessageBytes: 64 * 1024, ...limits },
+    { maxParticipants: 25, maxMessageBytes: 64 * 1024, maxLogBytes: 8 * 1024 * 1024, ...limits },
     () => clock.now,
   );
   await room.create(await sha256Hex(TOKEN), clock.now);
@@ -85,9 +88,10 @@ describe("creating and joining", () => {
     expect(welcome.caps).toEqual(ROOM_CAPS);
     expect(welcome.caps).toEqual(["watch"]);
     expect(welcome.you).toMatchObject({ role: "host", table: "t1" });
-    expect(welcome.tables).toEqual([{ id: "t1", hostConnected: true, commands: 0, ended: false }]);
+    expect(welcome.tables).toEqual([{ id: "t1", hostConnected: true, commands: 0, ended: false, hasHeader: false }]);
     const w = await hello(undefined, "Ann");
-    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher", name: "Ann" });
+    expect(w.last("welcome")!.you).toMatchObject({ role: "watcher" });
+    expect(w.last("welcome")!.you.name).toBeUndefined();
     expect(w.last("welcome")!.you.table).toBeUndefined();
   });
 
@@ -266,17 +270,30 @@ describe("the table log", () => {
     await send(h, { ch: "game", kind: "end", table: "t1", outcome: { won: true } });
     expect(w.last("end")).toMatchObject({ table: "t1", outcome: { won: true } });
     expect(w.last("table")!.table.ended).toBe(true);
-    expect((await hello()).last("log")).toMatchObject({ outcome: { won: true } });
+    const late = await hello();
+    expect(late.kinds().slice(-2)).toEqual(["game:log", "game:end"]);
+    expect(late.last("end")).toMatchObject({ outcome: { won: true } });
     expect(storage.alarm).toBe(clock.now + ROOM_END_GRACE_MS);
   });
 
-  it("writes no storage row per command", async () => {
+  it("writes about one row per 20 commands: a frozen chunk when it fills, never rewritten", async () => {
     const { host, start, commands, storage } = await setup();
     const h = await host();
     await start(h);
     const before = storage.rowsWritten;
-    for (let i = 0; i < 20; i++) await commands(h, i, [{ c: i }]);
+    for (let i = 0; i < 19; i++) await commands(h, i, [{ c: i }]);
     expect(storage.rowsWritten).toBe(before);
+    for (let i = 19; i < 100; i++) await commands(h, i, [{ c: i }], i === 39 ? { "40": "sum" } : undefined);
+    expect(storage.rowsWritten - before).toBe(5);
+    expect([...storage.map.keys()].sort()).toEqual([
+      "meta",
+      "t1:c:000000",
+      "t1:c:000001",
+      "t1:c:000002",
+      "t1:c:000003",
+      "t1:c:000004",
+      "t1:header",
+    ]);
   });
 });
 
@@ -346,7 +363,7 @@ describe("resend after waking empty", () => {
   it("asks a host that joins a room with no log, and stops once the log arrives", async () => {
     const { host, hello, send } = await setup();
     const h = await host();
-    expect(h.kinds()).toContain("game:resend");
+    expect(h.sent.find((m) => m.kind === "resend")).toMatchObject({ table: "t1", from: 0 });
     await send(h, { ch: "game", kind: "log", table: "t1", header: 1, commands: [] });
     const w = await hello();
     expect(h.sent.filter((m) => m.kind === "resend")).toHaveLength(1);
@@ -399,21 +416,282 @@ describe("closing", () => {
     const w = await hello();
     await start(h);
     await send(h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
-    expect(storage.map.get("endedAt")).toBe(clock.now);
+    expect((storage.map.get("meta") as { endedAt: number }).endedAt).toBe(clock.now);
     clock.now += ROOM_END_GRACE_MS;
     expect(await room.alarm(clock.now)).toBe("closed");
     expect(w.last("closed")).toMatchObject({ reason: "ended" });
     expect(w.closed).not.toBeNull();
   });
 
-  it("after waking, counts a connected host as active and lets a hostless room expire", async () => {
-    const { host, storage, clock } = await setup();
+  it("after waking, goes by the stored host stamp, written at most once an hour", async () => {
+    const { host, start, commands, storage, clock } = await setup();
     const h = await host();
-    clock.now += ROOM_IDLE_MS;
+    await start(h);
+    const rows = storage.rowsWritten;
+    for (let i = 0; i < 10; i++) {
+      clock.now += 60_000;
+      await commands(h, i, [i]);
+    }
+    expect(storage.rowsWritten).toBe(rows);
+    clock.now += 60 * 60 * 1000;
+    await commands(h, 10, [10]);
+    const stamp = (storage.map.get("meta") as { lastHostAt: number }).lastHostAt;
+    expect(stamp).toBe(clock.now);
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    clock.now = stamp + ROOM_IDLE_MS - 1;
+    expect(await woken.alarm(clock.now)).toBe("rescheduled");
+    expect(storage.alarm).toBe(stamp + ROOM_IDLE_MS);
+    clock.now = stamp + ROOM_IDLE_MS;
+    expect(await woken.alarm(clock.now)).toBe("closed");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Review fixes: ended once, replaced sockets, host admission, stored chunks, caps, parts.
+
+const raw = (s: RoomSocket, room: GameRoomLogic, m: unknown) =>
+  room.message(s, JSON.stringify({ v: 1, ...(m as object) }));
+
+describe("ending", () => {
+  it("writes the end once: a repeated end changes no row and leaves the alarm", async () => {
+    const { host, start, send, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
+    const rows = storage.rowsWritten;
+    const alarms = storage.alarmsSet;
+    const alarm = storage.alarm;
+    clock.now += 60_000;
+    for (let i = 0; i < 3; i++) await send(h, { ch: "game", kind: "end", table: "t1", outcome: 2 });
+    expect(storage.rowsWritten).toBe(rows);
+    expect(storage.alarmsSet).toBe(alarms);
+    expect(storage.alarm).toBe(alarm);
+    expect((storage.map.get("meta") as { outcome: unknown }).outcome).toBe(1);
+  });
+
+  it("refuses a start on an ended table", async () => {
+    const { host, start, send } = await setup();
+    const h = await host();
+    await start(h);
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
+    await start(h, { again: true });
+    expect(h.last("refused")!.reason).toBe("not-allowed");
+  });
+
+  it("a rewind that cuts the log reopens an ended table: ended cleared, end alarm replaced by the idle one", async () => {
+    const { host, hello, start, commands, send, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(h, 0, [1, 2, 3]);
+    const w = await hello();
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
+    expect(storage.alarm).toBe(clock.now + ROOM_END_GRACE_MS);
+    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 3 });
+    expect(w.last("table")!.table.ended).toBe(true);
+    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 2 });
+    expect(w.last("table")!.table.ended).toBe(false);
+    const meta = storage.map.get("meta") as { ended: boolean; endedAt?: number };
+    expect(meta.ended).toBe(false);
+    expect(meta.endedAt).toBeUndefined();
+    expect(storage.alarm).toBeGreaterThan(clock.now + ROOM_END_GRACE_MS);
+    const late = await hello();
+    expect(late.kinds()).not.toContain("game:end");
+  });
+
+  it("reports hasHeader in welcome and table updates", async () => {
+    const { host, hello, start } = await setup();
+    const h = await host();
+    expect(h.last("welcome")!.tables[0]!.hasHeader).toBe(false);
+    const w = await hello();
+    await start(h);
+    expect(w.last("table")!.table.hasHeader).toBe(true);
+    expect((await hello()).last("welcome")!.tables[0]!.hasHeader).toBe(true);
+  });
+});
+
+describe("sockets and admission", () => {
+  it("refuses and closes a socket whose participant the room does not know (a replaced host still closing)", async () => {
+    const { host, room } = await setup();
+    const first = await host();
+    const stale = new FakeSocket();
+    stale.attachment = first.attachment;
+    await host();
+    await raw(stale, room, { ch: "game", kind: "start", table: "t1", header: 1 });
+    expect(stale.last("refused")!.reason).toBe("not-allowed");
+    expect(stale.closed).not.toBeNull();
+    expect(room.logLength()).toBe(0);
+    // The replaced socket's attachment was cleared, so a wake would not restore it as a second host.
+    expect(first.attachment).toBeNull();
+  });
+
+  it("always admits a valid host token even when the room is full of watchers", async () => {
+    const { hello, host } = await setup({ maxParticipants: 3 });
+    await hello();
+    await hello();
+    await hello();
+    const h = await host();
+    expect(h.last("welcome")!.you.role).toBe("host");
+  });
+
+  it("holds non-hosts to the ordinary size cap before parsing, and closes after a few refusals", async () => {
+    const { hello, room } = await setup({ maxMessageBytes: 100 });
+    const w = await hello();
+    for (let i = 0; i < 5; i++) await room.message(w, "{" + "x".repeat(500));
+    expect(w.sent.filter((m) => m.kind === "refused" && m.reason === "too-large")).toHaveLength(5);
+    expect(w.closed).toEqual({ code: 1008, reason: "too many refusals" });
+  });
+
+  it("does not count out-of-order against a host", async () => {
+    const { host, start, commands } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 8; i++) await commands(h, 50, [1]);
+    expect(h.closed).toBeNull();
+  });
+
+  it("rejects checksums whose keys are not command counts", async () => {
+    const { host, start, room } = await setup();
+    const h = await host();
+    await start(h);
+    await room.message(
+      h,
+      '{"v":1,"ch":"game","kind":"commands","table":"t1","from":0,"commands":[1],"checksums":{"__proto__":"x"}}',
+    );
+    expect(h.last("refused")!.reason).toBe("bad-message");
+    expect(room.logLength()).toBe(0);
+  });
+});
+
+describe("stored log and waking", () => {
+  it("a woken room loads header and chunks, asks for the tail from the stored count, and takes it", async () => {
+    const { storage, clock, host, hello, start, commands } = await setup();
+    const h = await host();
+    await start(h, { h: 1 });
+    for (let i = 0; i < 45; i++) await commands(h, i, [{ c: i }], i === 29 ? { "30": "s30" } : undefined);
+    const w = await hello();
+    // Evicted: a new object over the same storage, its live sockets restored from their attachments.
     const woken = new GameRoomLogic(storage, undefined, () => clock.now);
     woken.restore(h);
-    expect(await woken.alarm(clock.now)).toBe("rescheduled");
-    const empty = new GameRoomLogic(storage, undefined, () => clock.now);
-    expect(await empty.alarm(clock.now)).toBe("closed");
+    woken.restore(w);
+    h.sent.length = 0;
+    const w2 = new FakeSocket();
+    await woken.message(w2, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect(w2.last("welcome")!.tables[0]).toMatchObject({ commands: 40, hasHeader: true });
+    expect(w2.last("log")).toMatchObject({ header: { h: 1 }, checksums: { "30": "s30" } });
+    expect((w2.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(40);
+    expect(h.sent.filter((m) => m.kind === "resend")).toEqual([
+      { v: 1, ch: "game", kind: "resend", table: "t1", from: 40 },
+    ]);
+    // The host answers with the tail as an ordinary batch.
+    await woken.message(
+      h,
+      JSON.stringify({ v: 1, ch: "game", kind: "commands", table: "t1", from: 40, commands: [40, 41, 42, 43, 44] }),
+    );
+    expect(woken.logLength()).toBe(45);
+    expect(h.last("refused")).toBeUndefined();
+    expect(w2.last("commands")).toMatchObject({ from: 40 });
+  });
+
+  it("a woken room whose host sends the next batch out of line refuses and asks from the stored count", async () => {
+    const { storage, clock, host, start, commands } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 25; i++) await commands(h, i, [i]);
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    woken.restore(h);
+    h.sent.length = 0;
+    await woken.message(
+      h,
+      JSON.stringify({ v: 1, ch: "game", kind: "commands", table: "t1", from: 25, commands: [25] }),
+    );
+    expect(h.kinds()).toEqual(["room:refused", "game:resend"]);
+    expect(h.last("resend")).toMatchObject({ from: 20 });
+  });
+
+  it("a rewind deletes the chunks past the cut", async () => {
+    const { host, start, commands, send, storage, room } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 70; i++) await commands(h, i, [i], i === 59 ? { "60": "s" } : undefined);
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toHaveLength(3);
+    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 45 });
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:")).sort()).toEqual(["t1:c:000000", "t1:c:000001"]);
+    expect(room.logLength()).toBe(45);
+    expect(room.checksums()).toEqual({});
+    await commands(
+      h,
+      45,
+      Array.from({ length: 15 }, (_, i) => i),
+    );
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toHaveLength(3);
+  });
+
+  it("a log replaces the stored chunks", async () => {
+    const { host, start, commands, send, storage } = await setup();
+    const h = await host();
+    await start(h);
+    for (let i = 0; i < 60; i++) await commands(h, i, [i]);
+    await send(h, {
+      ch: "game",
+      kind: "log",
+      table: "t1",
+      header: 2,
+      commands: Array.from({ length: 21 }, (_, i) => i),
+    });
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:c:000000"]);
+    expect(storage.map.get("t1:header")).toEqual({ h: 2 });
+  });
+
+  it("keeps ended and the outcome across a wake", async () => {
+    const { storage, clock, host, start, send } = await setup();
+    const h = await host();
+    await start(h);
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: { won: true } });
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect(w.last("welcome")!.tables[0]).toMatchObject({ ended: true });
+    expect(w.last("end")).toMatchObject({ outcome: { won: true } });
+  });
+});
+
+describe("the log cap and parts", () => {
+  it("refuses commands past the cap with too-large and ends the table for watchers", async () => {
+    const { host, hello, start, commands, room } = await setup({ maxLogBytes: 1000 });
+    const h = await host();
+    await start(h);
+    const w = await hello();
+    await commands(h, 0, ["a".repeat(600)]);
+    await commands(h, 1, ["b".repeat(600)]);
+    expect(h.last("refused")!.reason).toBe("too-large");
+    expect(room.logLength()).toBe(1);
+    expect(w.last("end")).toBeDefined();
+    expect(w.last("table")!.table.ended).toBe(true);
+    await commands(h, 1, ["c"]);
+    expect(h.last("refused")!.reason).toBe("too-large");
+  });
+
+  it("sends a joining watcher a log of about 512 KiB, then commands batches, so no message nears 1 MiB", async () => {
+    const { host, hello, start, commands } = await setup({ maxLogBytes: 100 * 1024 * 1024 });
+    const h = await host();
+    await start(h, { small: true });
+    const big = "x".repeat(40 * 1024);
+    for (let i = 0; i < 40; i++) await commands(h, i, [big]);
+    const w = await hello();
+    const parts = w.sent.filter((m) => m.ch === "game") as unknown as {
+      kind: string;
+      from?: number;
+      commands: unknown[];
+    }[];
+    expect(parts[0]!.kind).toBe("log");
+    expect(parts.slice(1).every((m) => m.kind === "commands")).toBe(true);
+    expect(parts.length).toBeGreaterThan(2);
+    let next = 0;
+    for (const m of parts) {
+      if (m.kind === "commands") expect(m.from).toBe(next);
+      next += m.commands.length;
+      expect(JSON.stringify(m).length).toBeLessThan(600 * 1024);
+    }
+    expect(next).toBe(40);
   });
 });

@@ -23,10 +23,18 @@ authoritative, the room only orders and relays, and nobody else runs a different
 - **The log, not snapshots.** A command is a few hundred bytes; a state is hundreds of KB. Watchers and seats rebuild
   from the log the same way a resumed save and a replay do. A divergence (another build's card scripts) is caught by
   the replay checksums (`replay-file.ts`, every `CHECKSUM_EVERY` commands), which the host sends along.
-- **No durable log in the room.** The host always holds the full log, so the room keeps it in memory only and, when it
-  wakes from hibernation with an empty memory (or a watcher joins while it is empty), asks the host to send it again.
-  That keeps the room at zero storage rows per command (rows written are the scarcest free-plan quota, shared with sync
-  and global stats). The room stores one meta row when it is created (host token hash, expiry) and nothing else.
+- **The log in frozen chunks.** Hibernation evicts a room from memory after about 10 s of quiet, which is common
+  between moves, so a memory-only log would mean a full re-upload after most pauses, and a log past the 1 MiB WebSocket
+  message would never fit one resend. The room stores one row for the header (at `start`/`log`) and one row per
+  completed chunk of 20 commands, with the checksums that fall in it, written once when the chunk fills and never
+  rewritten. The unfinished tail (under 20 commands) lives in memory only. A woken room loads the header and chunks and
+  asks the host for the tail with `resend { from: <stored count> }`, answered with an ordinary `commands` batch (or,
+  when `from` is 0, a `log` with the header and first commands, then `commands` batches). That is about one row per 20
+  commands (rows written are the scarcest free-plan quota, shared with sync and global stats); a rewind deletes the
+  chunks past the cut. The meta row holds the host token hash, createdAt, a last-host stamp (written at most hourly,
+  for the 12-hour idle rule) and, once, the end and outcome. The whole log is capped (`MAX_ROOM_LOG_BYTES`, 8 MiB of
+  commands): past it the room refuses `too-large` and ends the table for watchers. A joining watcher gets the log in
+  parts of about 512 KiB (a `log`, then `commands` batches, then `end` when the table ended).
 - **WebSocket hibernation.** Incoming WebSocket messages are billed as 1/20 of a request and outgoing ones not at all,
   and a hibernated room costs no duration. A game of about 600 commands an hour costs about 30 Durable Object requests
   an hour, plus a handful per watcher joining.
@@ -68,12 +76,13 @@ HTTP:
   otherwise a watcher.
 
 Messages (full shapes in the file): client to room `hello`, `start`, `commands`, `rewind`, `log`, `end` (reserved:
-`propose`, `say`); room to client `welcome`, `roster`, `table`, `closed`, `refused`, `resend`, `log`, `commands`,
+`propose`, `say`); room to client `welcome`, `roster`, `table`, `closed`, `refused`, `resend { from }`, `log`, `commands`,
 `rewind`, `end` (reserved: `proposal`, `said`). Only a table's host may send its `game` messages.
 
 Limits (vars in `wrangler.jsonc`, documented like the others): `MAX_ROOM_PARTICIPANTS` 25, `MAX_ROOM_MESSAGE_BYTES`
 64 KiB (a `start` or `log` up to just under 1 MiB, the WebSocket cap), a room closes 12 hours after its last host
-message, or 5 minutes after every table ended.
+message, or 5 minutes after every table ended; `MAX_ROOM_LOG_BYTES` 8 MiB per table. `hello.name` is ignored until chat.
+A `rewind` that cuts an ended table reopens it. `TableInfo` carries `hasHeader` (the room needs `start`/`log` when false).
 
 ## 5. Client pieces
 

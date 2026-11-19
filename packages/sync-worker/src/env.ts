@@ -102,6 +102,8 @@ export interface Env {
   MAX_ROOM_PARTICIPANTS?: string;
   /** Bytes in one room message other than a start or log; defaults to DEFAULT_MAX_ROOM_MESSAGE_BYTES. */
   MAX_ROOM_MESSAGE_BYTES?: string;
+  /** Bytes of commands one room table may hold; defaults to DEFAULT_MAX_ROOM_LOG_BYTES. */
+  MAX_ROOM_LOG_BYTES?: string;
   ALLOWED_ORIGINS?: string;
   /** A secret, not a var. When set, uploads must carry a valid Turnstile token. */
   TURNSTILE_SECRET?: string;
