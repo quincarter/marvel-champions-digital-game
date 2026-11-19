@@ -121,3 +121,16 @@ A `rewind` that cuts an ended table reopens it. `TableInfo` carries `hasHeader` 
 
 Chat, seats and proposals, multiple tables, host migration, version-pinned viewers (the web build always being the newest), Turnstile on room
 creation (shared follow-up with transfer and sync), and a lobby screen.
+
+## 7. Rooms and playing together: Quin's requirements (2026-11-19)
+
+For the stacked PRs after this one (2: rooms and lobby, 3: play together):
+
+- **Whose turn it is.** Every seated player and watcher sees, in one fixed place, whether it is their own turn (or
+  their own decision) or someone else's, and whose.
+- **Names.** Joining a room asks for a display name, shown on the seat and the hero it controls.
+- **More than one hero per person.** A participant may control several heroes (seats) if the host allows it.
+- **Host controls.** The host decides how the game is played: strict rules (the game as written, no adjustments) or
+  host control (the host may allow Manual adjust, Undo and other changes, decide on requests to modify something),
+  which rules and house rules are on, and which mods (custom packs) are allowed. A request to change something is the
+  host's call. These live on the room as host-only settings, shown to everyone in the lobby.
