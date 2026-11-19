@@ -120,6 +120,8 @@ export interface CampaignTileOptions {
   readonly chip: string;
   /** A second chip beside the first, in caution amber ("ADJUSTED" on a volume won only by adjusted runs, issue #869). */
   readonly flag?: string;
+  /** The chip's short form ("✓" for "✓ Complete"), used when the chip and `flag` don't fit side by side in full. */
+  readonly compactChip?: string;
   readonly status: CampaignTileStatus;
   /** A dimmed thumbnail behind the text, when this volume has villain art. */
   readonly art?: Picture | null;
@@ -176,22 +178,23 @@ export function campaignTile(
   // The chip's words wrap inside the tile ("NOT IN THIS BUILD" is wider than a narrow tile) and the chip grows a line.
   // Added before the label, so the fill is drawn under it.
   const chipBg = scene.add.graphics();
-  const chipLabel = scene.add
-    .text(0, 0, options.chip.toUpperCase(), textStyle(typeRole.label, chipColor.text, 1))
-    .setLetterSpacing(0.9)
-    .setAlign("left")
-    .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
-  const chipHeight = Math.max(19, chipLabel.height + 7);
-  const chipY = rect.y + rect.height - 10 - chipHeight;
-  // The flag (issue #869) sits just after the chip on its line, or on a line of its own above it in a narrow tile.
+  // The flag (issue #869) always sits just after the chip on its line, so the tile's layout never changes height. In a
+  // narrow tile (a phone's two-column Grid View, a landscape tablet) the chip gives way to its short form to make room.
   const flagLabel = options.flag
     ? scene.add
         .text(0, 0, options.flag.toUpperCase(), textStyle(typeRole.label, surface.inkOnHue.hex, 1))
         .setLetterSpacing(0.9)
     : null;
-  const flagBeside =
-    flagLabel !== null && rect.x + 11 + chipLabel.width + 14 + 6 + flagLabel.width + 14 <= rect.x + rect.width - 11;
-  const flagY = flagLabel === null || flagBeside ? chipY : chipY - chipHeight - 4;
+  const fitsBeside = (chipWidth: number): boolean =>
+    flagLabel === null || 11 + chipWidth + 14 + 6 + flagLabel.width + 14 <= rect.width - 11;
+  const chipLabel = scene.add
+    .text(0, 0, options.chip.toUpperCase(), textStyle(typeRole.label, chipColor.text, 1))
+    .setLetterSpacing(0.9)
+    .setAlign("left")
+    .setWordWrapWidth(Math.max(40, rect.width - 22 - 14 - 8));
+  if (!fitsBeside(chipLabel.width) && options.compactChip) chipLabel.setText(options.compactChip.toUpperCase());
+  const chipHeight = Math.max(19, chipLabel.height + 7);
+  const chipY = rect.y + rect.height - 10 - chipHeight;
   const titleSize = Math.min(46, rect.width * 0.24, rect.height * 0.24);
 
   // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
@@ -202,13 +205,13 @@ export function campaignTile(
       ...textStyle(bangers(Math.min(20, rect.width * 0.1), 1), surface.paper.hex),
       wordWrap: { width: rect.width - 22, useAdvancedWrap: true },
     });
-    subtitle.setY(flagY - 14 - subtitle.height);
+    subtitle.setY(chipY - 14 - subtitle.height);
     objects.push(subtitle);
   }
   const title = scene.add.text(rect.x + 11, 0, options.title.toUpperCase(), {
     ...textStyle(bangers(titleSize, 1), surface.paper.hex),
   });
-  title.setY((subtitle ? subtitle.y : flagY - 6) - 2 - title.height);
+  title.setY((subtitle ? subtitle.y : chipY - 6) - 2 - title.height);
   objects.push(title);
 
   const chipRect: Rect = { x: rect.x + 11, y: chipY, width: chipLabel.width + 14, height: chipHeight };
@@ -223,8 +226,8 @@ export function campaignTile(
   if (flagLabel) {
     const flagBg = scene.add.graphics();
     const flagRect: Rect = {
-      x: flagBeside ? chipRect.x + chipRect.width + 6 : chipRect.x,
-      y: flagY,
+      x: chipRect.x + chipRect.width + 6,
+      y: chipRect.y,
       width: flagLabel.width + 14,
       height: chipRect.height,
     };

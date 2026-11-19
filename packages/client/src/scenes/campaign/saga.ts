@@ -368,7 +368,7 @@ export class CampaignSagaScene extends Phaser.Scene {
       title: tileRow.volume.custom ? CUSTOM_BADGE : `Vol. ${tileRow.volume.number}`,
       subtitle: tileRow.volume.name,
       chip: this.#gridChip(tileRow),
-      ...(tileRow.status === "done" && tileRow.wonAdjustedOnly ? { flag: "Adjusted" } : {}),
+      ...(tileRow.status === "done" && tileRow.wonAdjustedOnly ? { flag: "Adjusted", compactChip: "✓" } : {}),
       status: tileRow.status,
       art: volumeArtOf(tileRow.volume),
       onArtReady: this.#onArt,
