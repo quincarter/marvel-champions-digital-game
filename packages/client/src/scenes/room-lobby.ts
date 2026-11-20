@@ -132,6 +132,9 @@ export class RoomLobbyScene extends Phaser.Scene {
   #preview = false;
   /** The seat whose "give to" list is open. */
   #picking: string | null = null;
+  /** The next draw brings the opened "give to" list into view (set by the press, kept until it is drawn). */
+  #revealPicker = false;
+  #reveal: Rect | null = null;
   #hover: HoverPreview | null = null;
   #hoverFaces: { readonly cardId: string; readonly rect: Rect; readonly view: Rect; readonly scroll: ScrollKey }[] = [];
   #tab: LobbyPanelId = "seats";
@@ -665,6 +668,14 @@ export class RoomLobbyScene extends Phaser.Scene {
     const added = this.children.list.slice(before).filter((node) => node !== region.root);
     if (added.length > 0) region.content.add(added);
     region.refresh();
+    // A "give to" list just opened lies in view (a phone's list would otherwise open below the fold).
+    const reveal = this.#reveal;
+    if (reveal) {
+      this.#reveal = null;
+      const top = reveal.y - inner.y - scroll.offsetPx;
+      const over = top + reveal.height - inner.height;
+      if (over > 0) region.scrollByPx(Math.min(over, top));
+    }
     return region;
   }
 
@@ -857,6 +868,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       };
       const toggle = (): void => {
         this.#picking = picking ? null : row.id;
+        this.#revealPicker = this.#picking !== null;
         this.#draw();
       };
       this.#button({
@@ -872,6 +884,10 @@ export class RoomLobbyScene extends Phaser.Scene {
       guard.stop(`give:${row.id}`, giveRect, toggle);
       if (picking) {
         let py = y + topEnd + 6;
+        if (this.#revealPicker) {
+          this.#revealPicker = false;
+          this.#reveal = { x, y: y + topEnd, width: w, height: pickHeight };
+        }
         if (row.candidates.length === 0)
           this.#text(x + pad, py + 4, t("room.seat.giveNobody"), 12, w - pad * 2, { alpha: 0.85 });
         for (const person of row.candidates) {
