@@ -117,17 +117,15 @@ describe("heroSharingLeaderTitle", () => {
   const cards = new Map<string, AnyCard>(
     [...CW_CARDS, ...SYNTHEZOID_CARDS, ...CORE_CARDS].map((c) => [c.id as string, c]),
   );
-  test("finds a hero named like the team own leader from a real seat label", () => {
-    // Real labels are "Hero - Deck|cardId" (seatLabelOf): Iron Man 01029a.
-    expect(heroSharingLeaderTitle(["Iron Man - My deck|01029a"], "Iron Man", cards)).toBe("Iron Man");
-    expect(
-      heroSharingLeaderTitle(["Spider-Man (Justice) - Core Set starter deck|01001a"], "Iron Man", cards),
-    ).toBeNull();
-    expect(heroSharingLeaderTitle(["?"], "Iron Man", cards)).toBeNull();
+  test("finds a hero named like the team's own leader from the seats' deck identities", () => {
+    // Iron Man is 01029a.
+    expect(heroSharingLeaderTitle(["01029a"], "Iron Man", cards)).toBe("Iron Man");
+    expect(heroSharingLeaderTitle(["01001a"], "Iron Man", cards)).toBeNull();
+    expect(heroSharingLeaderTitle([null], "Iron Man", cards)).toBeNull();
   });
 
   test("also matches the alter-ego title, as the engine does", () => {
     // Tony Stark is the alter-ego face of the Iron Man hero identity.
-    expect(heroSharingLeaderTitle(["Iron Man - My deck|01029a"], "Tony Stark", cards)).toBe("Iron Man");
+    expect(heroSharingLeaderTitle(["01029a"], "Tony Stark", cards)).toBe("Iron Man");
   });
 });

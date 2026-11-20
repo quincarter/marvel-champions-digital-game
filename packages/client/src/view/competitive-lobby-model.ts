@@ -5,7 +5,6 @@
  * room only reports `submitted` and `ready` per team, and the other team's scenario is never read here.
  */
 import type { LobbySeatSpec } from "@mc/sync-worker/room-protocol";
-import { HERO_UNSET, parseSeatLabel } from "./seat-label.js";
 import type { MessageKey } from "../i18n/translate.js";
 import type { RoomState, TeamId } from "../live/room-state.js";
 import type { Words } from "./room-lobby-model.js";
@@ -21,14 +20,14 @@ export const sideKey = (team: TeamId): MessageKey =>
 /** The other team: the one this team builds a scenario for, and whose leader it fights. */
 export const otherTeam = (team: TeamId): TeamId => (team === "registration" ? "resistance" : "registration");
 
-/** One seat of the plan the host edits: a hero label (HERO_UNSET until chosen) and the side it plays. */
-export type CompetitivePlan = readonly (LobbySeatSpec & { readonly label: string; readonly team: TeamId })[];
+/** One seat of the plan the host edits: its id, optional label and the side it plays (the hero is the seat's deck). */
+export type CompetitivePlan = readonly (LobbySeatSpec & { readonly team: TeamId })[];
 
 /** 1 v 1 or 2 v 2 (plan Q14 A): registration's seats first, then resistance's. */
 export function newCompetitivePlan(perTeam: 1 | 2 = 1): CompetitivePlan {
-  const seats: (LobbySeatSpec & { label: string; team: TeamId })[] = [];
+  const seats: (LobbySeatSpec & { team: TeamId })[] = [];
   for (const team of TEAMS) {
-    for (let i = 0; i < perTeam; i++) seats.push({ id: `s${seats.length + 1}`, label: HERO_UNSET, team });
+    for (let i = 0; i < perTeam; i++) seats.push({ id: `s${seats.length + 1}`, team });
   }
   return seats;
 }
@@ -37,7 +36,7 @@ export function newCompetitivePlan(perTeam: 1 | 2 = 1): CompetitivePlan {
 export function planOf(state: RoomState): CompetitivePlan {
   return state.seats.map((seat) => ({
     id: seat.id,
-    label: seat.label,
+    ...(seat.label === "" ? {} : { label: seat.label }),
     team: seat.team ?? "registration",
   }));
 }
@@ -48,12 +47,9 @@ export function withTeamSize(plan: CompetitivePlan, perTeam: 1 | 2): Competitive
   const seen: Record<TeamId, number> = { registration: 0, resistance: 0 };
   return next.map((seat) => {
     const old = plan.filter((s) => s.team === seat.team)[seen[seat.team]++];
-    return old ? { ...seat, label: old.label } : seat;
+    return old?.label === undefined ? seat : { ...seat, label: old.label };
   });
 }
-
-export const withSeatHero = (plan: CompetitivePlan, seatId: string, label: string): CompetitivePlan =>
-  plan.map((s) => (s.id === seatId ? { ...s, label } : s));
 
 /** Seats a side has in the plan: 2 for a 2 v 2, else 1. */
 export const perTeamOf = (plan: CompetitivePlan): 1 | 2 =>
@@ -61,7 +57,7 @@ export const perTeamOf = (plan: CompetitivePlan): 1 | 2 =>
 
 export interface TeamSeatView {
   readonly id: string;
-  /** The hero's words, or null while the host has not chosen one. */
+  /** The hero's name from the seat's deck summary, or null while the seat has no deck. */
   readonly hero: string | null;
   readonly cardId: string | null;
   readonly holderName: string | null;
@@ -97,13 +93,11 @@ export function teamViews(state: RoomState, speaking: TeamId | null): readonly T
     const seats = info.seats.flatMap((id) => {
       const seat = state.seats.find((s) => s.id === id);
       if (!seat) return [];
-      const parsed = parseSeatLabel(seat.label);
-      const unset = seat.label === HERO_UNSET;
       return [
         {
           id,
-          hero: unset ? null : parsed.text,
-          cardId: unset ? null : parsed.cardId,
+          hero: seat.deck?.heroName ?? null,
+          cardId: seat.deck?.hero ?? null,
           holderName: seat.holderName,
           mine: seat.mine,
           canSwitch: state.role === "host" || seat.mine,
@@ -111,7 +105,7 @@ export function teamViews(state: RoomState, speaking: TeamId | null): readonly T
       ];
     });
     const mine = speaking === team;
-    const heroMissing = seats.some((s) => s.hero === null);
+    const deckMissing = seats.some((s) => s.hero === null);
     return {
       team,
       nameKey: sideKey(team),
@@ -124,8 +118,8 @@ export function teamViews(state: RoomState, speaking: TeamId | null): readonly T
         ? "comp.block.notYourSide"
         : !info.submitted
           ? "comp.block.sealFirst"
-          : heroMissing
-            ? "comp.block.heroFirst"
+          : deckMissing
+            ? "comp.block.deckFirst"
             : null,
     };
   });
@@ -145,15 +139,10 @@ export function expertPatch(state: RoomState): { readonly tableRules: Record<str
   return { tableRules: rules };
 }
 
-export interface CompetitiveStartContext {
-  /** Heroes (seat labels) this device has no deck for. */
-  readonly missingDecks: readonly string[];
-}
-
 const sideWords = (team: TeamId): string => (team === "registration" ? "Registration" : "Resistance");
 
 /** Why Start is off, or null when the host may press it (the room answers the same at the reveal). */
-export function competitiveStartBlock(state: RoomState, ctx: CompetitiveStartContext): Words | null {
+export function competitiveStartBlock(state: RoomState): Words | null {
   const competitive = state.competitive;
   if (state.role !== "host") return { key: "room.start.hostOnly" };
   if (state.connection !== "connected") return { key: "room.start.notConnected" };
@@ -161,7 +150,9 @@ export function competitiveStartBlock(state: RoomState, ctx: CompetitiveStartCon
   if (!competitive || !competitive.sized) return { key: "comp.start.sizes" };
   const open = state.seats.filter((s) => s.holder === null).length;
   if (open > 0) return { key: "room.start.openSeats", params: { count: open } };
-  if (state.seats.some((s) => s.label === HERO_UNSET)) return { key: "comp.start.noHero" };
+  if (state.seats.some((s) => s.deck === null)) return { key: "comp.start.noDeck" };
+  const mismatched = state.seats.find((s) => s.mismatch);
+  if (mismatched) return { key: "room.start.versionMismatch", params: { name: mismatched.holderName ?? "" } };
   const away = state.seats.find((s) => !s.holderConnected);
   if (away) return { key: "room.start.holderAway", params: { name: away.holderName ?? "" } };
   for (const team of TEAMS) {
@@ -169,6 +160,5 @@ export function competitiveStartBlock(state: RoomState, ctx: CompetitiveStartCon
     if (!info.submitted) return { key: "comp.start.notSealed", params: { side: sideWords(team) } };
     if (!info.ready) return { key: "comp.start.notReady", params: { side: sideWords(team) } };
   }
-  if (ctx.missingDecks.length > 0) return { key: "comp.start.noDeck", params: { hero: ctx.missingDecks[0]! } };
   return competitive.canStart ? null : { key: "comp.start.sizes" };
 }

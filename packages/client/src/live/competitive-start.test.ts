@@ -121,3 +121,41 @@ describe("seat order", () => {
     expect(localPlayersOf(room)).toEqual(["p2"]);
   });
 });
+
+import { CORE_CARDS, type AnyCard } from "@mc/content";
+import { leaderClashRefusals, titleSharedWithLeader } from "./competitive-start.js";
+
+describe("leaderClashRefusals", () => {
+  const cards = new Map<string, AnyCard>(CORE_CARDS.map((c) => [c.id as string, c]));
+  const input = (heroes: [string, string][]) => ({
+    teams: { registration: ["s1"], resistance: ["s2"] },
+    heroes: new Map(heroes),
+    sealed: { registration, resistance },
+    leaderName: (id: string) => (id === "registration-iron-man" ? "Iron Man" : "Captain America"),
+    card: (id: string) => cards.get(id),
+  });
+
+  it("refuses the seat whose hero shares a title with its own team's leader, naming that seat alone", () => {
+    // Iron Man 01029a on the registration team, whose leader is Iron Man; Spider-Man 01001a on resistance is fine.
+    const refusals = leaderClashRefusals(
+      input([
+        ["s1", "01029a"],
+        ["s2", "01001a"],
+      ]),
+    );
+    expect(refusals.map((r) => r.seat)).toEqual(["s1"]);
+    expect(refusals[0]!.reason).toMatch(/shares a title with your team's leader Iron Man/);
+  });
+
+  it("lets the other team field that hero, and matches an alter-ego title", () => {
+    expect(
+      leaderClashRefusals(
+        input([
+          ["s1", "01001a"],
+          ["s2", "01029a"],
+        ]),
+      ),
+    ).toEqual([]);
+    expect(titleSharedWithLeader(cards.get("01029a"), "Tony Stark")).toBe("Iron Man");
+  });
+});

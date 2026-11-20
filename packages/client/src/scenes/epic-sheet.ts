@@ -14,7 +14,6 @@
  */
 import Phaser from "phaser";
 import { gameCardsById } from "../content/game-deps.js";
-import { currentDeps, currentPool, POOL_VERSION } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { t } from "../i18n/translate.js";
@@ -29,7 +28,7 @@ import {
   type RoomState,
 } from "../platform/room.js";
 import { activeReplay } from "../replay/replay-mode.js";
-import { appSession, deckStorage } from "../session.js";
+import { appSession } from "../session.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -41,16 +40,7 @@ import { cardOf } from "@mc/engine";
 import { difficultyOf, planOf, statusKey, withTableName, type EpicPlan } from "../view/epic-lobby-model.js";
 import { reachRows, remotePowerCommand } from "../view/epic-reach.js";
 import type { Rect } from "../view/layout.js";
-import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
-import { seatLabelOf, seatSpecWithHero } from "../view/seat-label.js";
-import type { DeckOption } from "../view/deck-list-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import { setCompetitive } from "../platform/room.js";
-import {
-  tieBreaksOn,
-  withSeatHero as withTeamSeatHero,
-  type CompetitivePlan,
-} from "../view/competitive-lobby-model.js";
 import type { BoardScene } from "./board.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -60,14 +50,7 @@ import { bindTextFieldEscape } from "./text-field-escape.js";
 export type EpicSheetData =
   | { readonly kind: "tables"; readonly preview?: RoomState }
   | { readonly kind: "rename"; readonly table: string; readonly preview?: RoomState }
-  | { readonly kind: "host"; readonly table: string; readonly preview?: RoomState }
-  /** Civil War Competitive (#883): the host picks a seat's hero; `plan` is the seats as the lobby shows them. */
-  | {
-      readonly kind: "teamHero";
-      readonly seat: string;
-      readonly plan: CompetitivePlan;
-      readonly preview?: RoomState;
-    };
+  | { readonly kind: "host"; readonly table: string; readonly preview?: RoomState };
 
 const INK = surface.ink.hex;
 const PAPER = surface.paper.hex;
@@ -88,7 +71,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #hover: HoverPreview | null = null;
   #faces: { readonly cardId: string; readonly rect: Rect; readonly view: Rect }[] = [];
   #input: McTextInput | null = null;
-  #decks: readonly DeckOption[] | null = null;
   #value = "";
   #note: string | null = null;
   #order: string[] = [];
@@ -146,15 +128,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
       this.#input?.destroy();
       this.#input = null;
     });
-    if (this.#data.kind === "teamHero") {
-      void deckStorage()
-        .list()
-        .then((decks) => {
-          if (!this.sys.isActive()) return;
-          this.#decks = seatableDeckOptionsOf(decks, currentPool(), POOL_VERSION, currentDeps());
-          this.#draw();
-        });
-    }
     this.#draw();
     this.#input?.focus();
   }
@@ -266,8 +239,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
         const id = this.#data.table;
         return t("epic.table.hostPickTitle", { table: epic?.tables.find((x) => x.id === id)?.name ?? id });
       }
-      case "teamHero":
-        return t("comp.hero.title");
     }
   }
 
@@ -358,18 +329,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
         row(name, () => this.#hostIs(data.table, id), table?.host === id ? "primary" : "secondary");
       }
       if (table?.host) row(t("epic.table.hostTake"), () => this.#hostIs(data.table, null));
-      return y - top;
-    }
-    if (data.kind === "teamHero") {
-      const decks = this.#decks;
-      if (!decks) return 30;
-      if (decks.length === 0) y += this.#text(x, y, t("comp.hero.none"), 13, w).height;
-      for (const option of decks.filter((o) => o.seatable)) {
-        const label = seatLabelOf(option.identityName, option.deck.name);
-        const cardId = option.deck.identityCardId as string;
-        const full = seatSpecWithHero(data.seat, label, cardId).label as string;
-        row(label, () => this.#teamHeroIs(data.plan, data.seat, full));
-      }
       return y - top;
     }
     if (data.kind !== "tables" || !epic) return 0;
@@ -473,13 +432,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #hostIs(table: string, participant: string | null): void {
     if (this.#preview) record(`assignTableHost(${table},${participant})`);
     else assignTableHost(table, participant);
-    this.scene.stop();
-  }
-
-  #teamHeroIs(plan: CompetitivePlan, seat: string, label: string): void {
-    const next = withTeamSeatHero(plan, seat, label);
-    if (this.#preview) record(`setCompetitive(hero ${seat})`);
-    else setCompetitive(next, tieBreaksOn(this.#state));
     this.scene.stop();
   }
 

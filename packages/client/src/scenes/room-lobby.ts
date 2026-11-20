@@ -10,7 +10,7 @@
  * fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
-import { currentCardsById, currentDeps, currentPool, currentScenarios, POOL_VERSION } from "../content/pool.js";
+import { currentCardsById, currentScenarios } from "../content/pool.js";
 import { t, tPlural } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { withLoadedPacks } from "../packs/game-packs.js";
@@ -46,7 +46,6 @@ import {
   type CompetitivePlan,
   type TeamView,
 } from "../view/competitive-lobby-model.js";
-import { competitiveSetupOf, missingCompetitiveDecks } from "../view/competitive-config.js";
 import { startSealing } from "../view/competitive-seal.js";
 import { civilWarSidesOffer } from "@mc/cards";
 import { openBuilderOn } from "../view/civil-war-builder-model.js";
@@ -114,9 +113,7 @@ import {
   roomDraft,
   seatSpecsOf,
 } from "../view/room-table-setup.js";
-import { appSession, deckStorage } from "../session.js";
-import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
-import type { DeckOption } from "../view/deck-list-model.js";
+import { appSession } from "../session.js";
 import { setSeatNote } from "../view/room-seat-note.js";
 import { tableRulesOf, type Settings } from "../settings.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -248,8 +245,6 @@ export class RoomLobbyScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #alive = false;
-  /** This device's decks, for a Competitive room's heroes and its start (#883); other rooms take each seat's own deck. */
-  #decks: readonly DeckOption[] | null = null;
   #off: (() => void) | null = null;
   #confirmLeave = false;
   #refusalSeen = 0;
@@ -347,13 +342,6 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void deckStorage()
-      .list()
-      .then((decks) => {
-        if (!this.#alive) return;
-        this.#decks = seatableDeckOptionsOf(decks, currentPool(), POOL_VERSION, currentDeps());
-        this.#draw();
-      });
     if (!this.#preview) this.#off = onRoomState((state) => this.#onState(state));
   }
 
@@ -470,10 +458,7 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   #startWords(): Words | null {
     if (this.#state.epic) return epicStartBlock(this.#state);
-    if (this.#state.competitive) {
-      const missing = this.#decks ? missingCompetitiveDecks(this.#state, this.#decks) : [];
-      return competitiveStartBlock(this.#state, { missingDecks: missing });
-    }
+    if (this.#state.competitive) return competitiveStartBlock(this.#state);
     const base = this.#base();
     return startBlock(this.#state, { tableReady: base !== null, packsUsed: this.#packsUsed(base) });
   }
@@ -559,25 +544,40 @@ export class RoomLobbyScene extends Phaser.Scene {
     goToScreen(this, SCENES.setupDeal);
   }
 
-  /** Competitive: the host's device builds the two-team game from both sealed scenarios and its decks (#883). */
+  /**
+   * Competitive: the host's device deals each seat's own deck through the same check as any room (a refusal is told to
+   * that seat's holder alone), then builds the two-team game from both sealed scenarios (#883).
+   */
   async #startCompetitive(): Promise<void> {
-    if (!this.#decks) return;
     if (this.#preview) {
       this.#record("startCompetitive()");
       return;
     }
-    const made = competitiveSetupOf(this.#state, this.#decks, Math.floor(Math.random() * 2 ** 31));
-    if (!made.ok) {
-      this.#say(t("comp.start.noDeck", { hero: made.missing[0] ?? "" }));
-      this.#draw();
-      return;
-    }
     this.#starting = true;
     this.#draw();
+    const keys = new Map(this.#state.seats.map((seat) => [seat.id, deckKeyOf(seat.deck)] as const));
     let failure: string | null = null;
     try {
-      const result = await startCompetitive(made.setup);
-      if (!result.ok) failure = result.reason;
+      const result = await startCompetitive({
+        seed: Math.floor(Math.random() * 2 ** 31),
+        expert: expertOn(this.#state),
+      });
+      if (!result.ok) {
+        if (result.reason === "room") {
+          this.#refused =
+            result.result.reason === "decks"
+              ? result.result.refused.map((r) => ({
+                  seat: r.seat,
+                  code: r.code,
+                  reason: r.reason,
+                  deckKey: keys.get(r.seat) ?? "",
+                }))
+              : [];
+          this.#startResult = startResultWords(result.result, this.#state);
+          if (this.#startResult) this.#tab = "seats";
+          failure = "";
+        } else failure = result.reason;
+      }
     } catch (cause) {
       failure = cause instanceof Error ? cause.message : String(cause);
     }
@@ -586,7 +586,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (failure === null && store.state.status === "failed") failure = store.state.error ?? t("room.refusal.generic");
     if (failure !== null) {
       this.#starting = false;
-      this.#say(t("comp.start.failed", { why: failure }));
+      if (failure !== "") this.#say(t("comp.start.failed", { why: failure }));
       this.#draw();
       return;
     }
@@ -1546,6 +1546,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#scrollPanel("seats", inner, (x, top, w, guard) => {
       let y = top + 2;
       y += this.#text(x, y, t("comp.mode.detail"), 13, w, { alpha: 0.85 }).height + 8;
+      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
       if (host && !state.started) {
         y = this.#panelPair(
           x,
@@ -1568,7 +1569,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       }
       const speaking = speakingFor(state, this.#hostPick ?? "registration");
       for (const view of teamViews(state, speaking)) {
-        y = this.#drawTeam(view, plan, x, y, w, guard) + 12;
+        y = this.#drawTeam(view, x, y, w, guard) + 12;
       }
       y = this.#heading(x, y, w, t("room.people"));
       for (const person of participantRows(state)) {
@@ -1581,7 +1582,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   /** One side's card: its seats and heroes, whether a scenario is sealed for the other side, and Ready. Never the scenario. */
-  #drawTeam(view: TeamView, plan: CompetitivePlan, x: number, y0: number, w: number, guard: PanelGuard): number {
+  #drawTeam(view: TeamView, x: number, y0: number, w: number, guard: PanelGuard): number {
     const state = this.#state;
     const host = this.#isHost();
     const pad = 10;
@@ -1603,19 +1604,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     for (const seat of view.seats) {
       const row = rows.get(seat.id);
       if (!row) continue;
-      const hero = seat.hero ?? t("comp.seat.noHero");
-      y += this.#drawSeatRow({ ...row, name: hero }, x + pad, y, inW, guard);
-      if (host && !state.started) {
-        y = this.#panelButton(
-          x + pad,
-          y + 4,
-          inW,
-          t(seat.hero === null ? "comp.seat.chooseHero" : "comp.seat.changeHero"),
-          () => this.#epicSheet({ kind: "teamHero", seat: seat.id, plan }),
-          guard,
-          `hero:${seat.id}`,
-        );
-      } else y += 6;
+      y += this.#drawSeatRow(row, x + pad, y, inW, guard) + 6;
       if (seat.canSwitch && !state.started) {
         const to = otherTeam(view.team);
         y = this.#panelButton(

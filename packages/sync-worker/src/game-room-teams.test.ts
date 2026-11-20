@@ -210,6 +210,33 @@ describe("Competitive lobby: teams", () => {
     expect(h.a.refusals).toEqual(["out-of-order"]);
     expect(h.a.last("lobby")!.settings.mode).toBe("competitive");
   });
+
+  it("refuses a host lobby-set that moves a seat to the other team while a game runs, and keeps the stored teams", async () => {
+    const h = await setup();
+    await h.readyBoth();
+    await h.reveal(h.host);
+    await h.start();
+    const teamsOf = () => h.a.last("lobby")!.seats.map((x: { id: string; team?: string }) => [x.id, x.team]);
+    const before = teamsOf();
+    await h.send(h.host, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "Hero s1", player: "s1", team: "resistance" },
+        { id: "s2", label: "Hero s2", player: "s2", team: "registration" },
+        { id: "s3", label: "Hero s3", player: "s3", team: "registration" },
+        { id: "s4", label: "Hero s4", player: "s4", team: "resistance" },
+      ],
+    });
+    expect(h.host.refusals).toEqual(["out-of-order"]);
+    expect(teamsOf()).toEqual(before);
+    expect(before).toEqual([
+      ["s1", "registration"],
+      ["s2", "registration"],
+      ["s3", "resistance"],
+      ["s4", "resistance"],
+    ]);
+  });
 });
 
 describe("Competitive lobby: sealed scenarios", () => {

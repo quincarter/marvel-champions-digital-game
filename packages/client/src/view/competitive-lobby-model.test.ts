@@ -9,7 +9,6 @@ import {
   speakingFor,
   teamViews,
   tieBreaksOn,
-  withSeatHero,
   withTeamSize,
 } from "./competitive-lobby-model.js";
 import { NO_ROOM, type RoomSeat, type RoomState } from "../live/room-state.js";
@@ -17,7 +16,9 @@ import { NO_ROOM, type RoomSeat, type RoomState } from "../live/room-state.js";
 const seat = (id: string, team: "registration" | "resistance", over: Partial<RoomSeat> = {}): RoomSeat =>
   ({
     id,
-    label: "Iron Man - Justice|01029",
+    label: "",
+    deck: { hero: "01029a", heroName: "Iron Man", aspects: ["Justice"], name: "My deck", cards: 40, mods: [] },
+    deckProblem: null,
     holder: "u" + id,
     holderName: "Player " + id,
     holderConnected: true,
@@ -68,17 +69,33 @@ describe("the plan", () => {
     ]);
   });
 
-  it("keeps each side's heroes when the size changes", () => {
-    let plan = newCompetitivePlan(1);
-    plan = withSeatHero(plan, "s2", "Cap|1");
+  it("keeps each side's seat labels when the size changes", () => {
+    const plan = newCompetitivePlan(1).map((s) => (s.id === "s2" ? { ...s, label: "Cap" } : s));
     const bigger = withTeamSize(plan, 2);
     expect(perTeamOf(bigger)).toBe(2);
-    expect(bigger.find((s) => s.team === "resistance")!.label).toBe("Cap|1");
+    expect(bigger.find((s) => s.team === "resistance")!.label).toBe("Cap");
     expect(withTeamSize(bigger, 1)).toHaveLength(2);
   });
 
   it("reads the room's seats back", () => {
     expect(planOf(room()).map((s) => s.team)).toEqual(["registration", "resistance"]);
+  });
+
+  it("shows each seat's hero from its own deck, and asks for a deck before a side can be readied", () => {
+    const sealed = {
+      registration: { team: "registration" as const, seats: ["s1"], submitted: true, ready: false },
+      resistance: { team: "resistance" as const, seats: ["s2"], submitted: true, ready: false },
+    };
+    const views = teamViews(room({}, { teams: sealed }), "registration");
+    expect(views[0]!.seats[0]).toMatchObject({ hero: "Iron Man", cardId: "01029a" });
+    expect(views[0]!.readyBlock).toBeNull();
+    const noDeck = room(
+      { seats: [seat("s1", "registration", { mine: true, deck: null }), seat("s2", "resistance")] },
+      { teams: sealed },
+    );
+    const [first] = teamViews(noDeck, "registration");
+    expect(first!.seats[0]!.hero).toBeNull();
+    expect(first!.readyBlock).toBe("comp.block.deckFirst");
   });
 });
 
@@ -133,17 +150,14 @@ describe("options", () => {
 });
 
 describe("competitiveStartBlock", () => {
-  const ctx = { missingDecks: [] as string[] };
   it("walks the reasons in order", () => {
-    expect(competitiveStartBlock(room({ role: "guest" }), ctx)!.key).toBe("room.start.hostOnly");
-    expect(competitiveStartBlock(room({}, { sized: false }), ctx)!.key).toBe("comp.start.sizes");
+    expect(competitiveStartBlock(room({ role: "guest" }))!.key).toBe("room.start.hostOnly");
+    expect(competitiveStartBlock(room({}, { sized: false }))!.key).toBe("comp.start.sizes");
     expect(
-      competitiveStartBlock(
-        room({ seats: [seat("s1", "registration", { label: "?" }), seat("s2", "resistance")] }),
-        ctx,
-      )!.key,
-    ).toBe("comp.start.noHero");
-    expect(competitiveStartBlock(room(), ctx)).toMatchObject({
+      competitiveStartBlock(room({ seats: [seat("s1", "registration", { deck: null }), seat("s2", "resistance")] }))!
+        .key,
+    ).toBe("comp.start.noDeck");
+    expect(competitiveStartBlock(room())).toMatchObject({
       key: "comp.start.notSealed",
       params: { side: "Registration" },
     });
@@ -151,14 +165,11 @@ describe("competitiveStartBlock", () => {
       registration: { team: "registration" as const, seats: ["s1"], submitted: true, ready: true },
       resistance: { team: "resistance" as const, seats: ["s2"], submitted: true, ready: false },
     };
-    expect(competitiveStartBlock(room({}, { teams: sealed }), ctx)).toMatchObject({
+    expect(competitiveStartBlock(room({}, { teams: sealed }))).toMatchObject({
       key: "comp.start.notReady",
       params: { side: "Resistance" },
     });
     const both = { ...sealed, resistance: { ...sealed.resistance, ready: true } };
-    expect(competitiveStartBlock(room({}, { teams: both, canStart: true }), { missingDecks: ["Iron Man"] })!.key).toBe(
-      "comp.start.noDeck",
-    );
-    expect(competitiveStartBlock(room({}, { teams: both, canStart: true }), ctx)).toBeNull();
+    expect(competitiveStartBlock(room({}, { teams: both, canStart: true }))).toBeNull();
   });
 });

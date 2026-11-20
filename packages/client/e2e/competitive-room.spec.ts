@@ -11,6 +11,9 @@ import { test } from "./live-room-helpers.js";
  * the host's Start builds the two-team game, and both boards open with the whose-turn line naming the active side: the
  * registration side's line says it is their turn, the resistance side's says its side is inactive.
  *
+ * Each player picks their own deck on their own device (the dev jumps choose a precon for their seat, as the deck picker
+ * does); the host's Start judges both decks like any room's before building the two-team game.
+ *
  * Written for the PR's local gate; not run by CI.
  */
 

@@ -526,6 +526,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     };
     (globalThis as { __mcRoomState?: unknown }).__mcRoomState = room.roomState;
     const name = params.get("name") ?? (screen === "room-competitive-host" ? "Mara" : "Ava");
+    // Each player picks their own deck on their own device (a precon here): the host's Start judges them.
+    const precon = (starterDeckId: string) => {
+      const option = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS).find(
+        (o) => o.deck.source.kind === "precon" && (o.deck.source.starterDeckId as string) === starterDeckId,
+      );
+      if (!option) throw new Error(`competitive room dev jump: no precon ${starterDeckId}`);
+      return option;
+    };
     const sealed = (leader: string, sets: readonly string[]) => ({
       leaderScenarioId: leader,
       modularSetIds: sets,
@@ -536,6 +544,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
       room.requestSeat("s2");
       await until(() => room.roomState().mySeats.length > 0, "a seat");
+      const chosen = await room.chooseDeck("s2", precon("core-captain-marvel-leadership"));
+      if (!chosen.ok) throw new Error(`competitive room dev jump: deck ${chosen.reason}`);
       room.submitScenario(sealed("resistance-captain-america", ["new_avengers", "namor_modular", "secret_avengers"]));
       await until(() => room.roomState().competitive?.teams.resistance.submitted === true, "the sealed scenario");
       room.setTeamReady(true);
@@ -546,8 +556,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode = room.roomState().code;
     room.setCompetitive(
       [
-        { id: "s1", label: "Spider-Man (Justice)|01001a", team: "registration" },
-        { id: "s2", label: "Captain Marvel (Leadership)|01010a", team: "resistance" },
+        { id: "s1", team: "registration" },
+        { id: "s2", team: "resistance" },
       ],
       true,
     );
@@ -559,18 +569,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
     if (asker) room.assignSeat("s2", asker.participant);
     await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+    const chosen = await room.chooseDeck("s1", precon("core-spider-man-justice"));
+    if (!chosen.ok) throw new Error(`competitive room dev jump: deck ${chosen.reason}`);
+    await until(() => room.roomState().seats.every((s) => s.deck !== null), "both decks");
     room.submitScenario(sealed("registration-iron-man", ["martial_law", "mighty_avengers", "paladin"]));
     await until(() => room.roomState().competitive?.teams.registration.submitted === true, "the sealed scenario");
     room.setTeamReady(true);
     await until(() => room.roomState().competitive?.canStart === true, "both sides ready");
-    const result = await room.startCompetitive({
-      seed: intParam(params.get("seed"), 7),
-      seats: [
-        { seat: "s1", player: { starterDeckId: "core-spider-man-justice" } },
-        { seat: "s2", player: { starterDeckId: "core-captain-marvel-leadership" } },
-      ],
-    });
-    if (!result.ok) throw new Error(`competitive room dev jump: ${result.reason}`);
+    const result = await room.startCompetitive({ seed: intParam(params.get("seed"), 7) });
+    if (!result.ok) {
+      throw new Error(
+        `competitive room dev jump: ${result.reason === "room" ? JSON.stringify(result.result) : result.reason}`,
+      );
+    }
     return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
   // Epic Multiplayer, a real two-host pod (issue #882, dev only; `e2e/epic-pod.spec.ts`):

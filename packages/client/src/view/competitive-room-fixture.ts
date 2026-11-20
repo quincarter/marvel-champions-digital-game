@@ -21,11 +21,26 @@ export interface CompetitiveRoomFixtureOptions {
   readonly side?: TeamId;
 }
 
-const HEROES: Readonly<Record<string, string>> = {
-  s1: "Spider-Man (Justice)|01001a",
-  s2: "Captain Marvel (Protection)|01010a",
-  s3: "She-Hulk (Aggression)|01019a",
-  s4: "Black Panther (Protection)|01036a",
+/** Each seat's own deck, as the room shows it to everyone (hero card id, hero, aspect, deck name). */
+const DECKS: Readonly<Record<string, NonNullable<RoomSeat["deck"]>>> = {
+  s1: { hero: "01001a", heroName: "Spider-Man", aspects: ["justice"], name: "Spider-Man starter", cards: 40, mods: [] },
+  s2: {
+    hero: "01010a",
+    heroName: "Captain Marvel",
+    aspects: ["protection"],
+    name: "Captain Marvel starter",
+    cards: 40,
+    mods: [],
+  },
+  s3: { hero: "01019a", heroName: "She-Hulk", aspects: ["aggression"], name: "She-Hulk starter", cards: 40, mods: [] },
+  s4: {
+    hero: "01036a",
+    heroName: "Black Panther",
+    aspects: ["protection"],
+    name: "Black Panther starter",
+    cards: 40,
+    mods: [],
+  },
 };
 
 export function competitiveRoomFixture(options: CompetitiveRoomFixtureOptions): RoomState {
@@ -38,7 +53,7 @@ export function competitiveRoomFixture(options: CompetitiveRoomFixtureOptions): 
   const mineIndex = seatIds.findIndex((_, i) => teamOf(i) === side);
   const seats: RoomSeat[] = seatIds.map((id, i) => ({
     id,
-    label: HEROES[id] ?? "?",
+    label: "",
     holder: `p${i + 1}`,
     holderName: names[i] ?? `Player ${i + 1}`,
     holderConnected: true,
@@ -49,7 +64,7 @@ export function competitiveRoomFixture(options: CompetitiveRoomFixtureOptions): 
     away: false,
     requests: [],
     requestedByMe: false,
-    deck: null,
+    deck: DECKS[id] ?? null,
     deckProblem: null,
     team: teamOf(i),
   })) as RoomSeat[];

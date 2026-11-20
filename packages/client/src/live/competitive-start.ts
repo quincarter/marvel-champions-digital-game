@@ -9,7 +9,9 @@
  * consecutive players.
  */
 import type { CorePlayer } from "@mc/cards";
+import type { AnyCard } from "@mc/content";
 import type { SessionConfig } from "../engine/host.js";
+import type { SeatDeckRefusal } from "./room-start.js";
 import type { RoomState, TeamId } from "./room-state.js";
 
 /** What a team builds for the other team and seals in the room: its leader, modular sets and main scheme stages. */
@@ -44,7 +46,7 @@ export function parseSealedScenario(raw: unknown): SealedScenario | null {
   };
 }
 
-/** One seat's player (hero and deck) as the host's device chose it for the seat. */
+/** One seat's player (hero and deck) as the seat's own deck gave it (`playerOfRoomDeck`). */
 export interface CompetitiveSeatSetup {
   readonly seat: string;
   readonly player: CorePlayer;
@@ -130,4 +132,50 @@ export function localPlayersOf(state: Pick<RoomState, "seats">): readonly string
   return competitiveSeatOrder(state).flatMap((id, index) =>
     state.seats.find((s) => s.id === id)?.mine ? [`p${index + 1}`] : [],
   );
+}
+
+/**
+ * The title an identity shares with `leaderName` (the identity's name or either face's name, as the engine's
+ * `civilWarCompetitive` compares them), or null. A team cannot field such an identity (MC56 pp. 14, 16).
+ */
+export function titleSharedWithLeader(identity: AnyCard | undefined, leaderName: string): string | null {
+  if (identity?.type !== "hero_identity") return null;
+  const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName];
+  return titles.includes(leaderName) ? identity.name : null;
+}
+
+export interface LeaderClashInput {
+  readonly teams: Readonly<Record<TeamId, readonly string[]>>;
+  /** Each seat's hero (the deck's identity card id) as the host's engine saw it. */
+  readonly heroes: ReadonlyMap<string, string>;
+  /** Both sealed scenarios: `<team>` names that team's own leader. */
+  readonly sealed: SealedScenarios;
+  /** The leader's card name for a scenario id, or undefined when it is unknown here. */
+  readonly leaderName: (scenarioId: string) => string | undefined;
+  readonly card: (cardId: string) => AnyCard | undefined;
+}
+
+/**
+ * The seats whose hero shares a title with their own team's leader, each as a refusal for that seat's holder alone (the
+ * engine's `civilWarCompetitive` refuses the same at creation, without saying whose it is).
+ */
+export function leaderClashRefusals(input: LeaderClashInput): readonly SeatDeckRefusal[] {
+  const refusals: SeatDeckRefusal[] = [];
+  for (const team of ["registration", "resistance"] as const) {
+    const sealed = parseSealedScenario(input.sealed[team]);
+    const leader = sealed ? input.leaderName(sealed.leaderScenarioId) : undefined;
+    if (leader === undefined) continue;
+    for (const seat of input.teams[team]) {
+      const hero = input.heroes.get(seat);
+      const clash = hero === undefined ? null : titleSharedWithLeader(input.card(hero), leader);
+      if (clash) {
+        refusals.push({
+          seat,
+          code: "illegal",
+          reason: `${clash} shares a title with your team's leader ${leader}: a team cannot field it (MC56 pp. 14, 16).`,
+        });
+      }
+    }
+  }
+  return refusals;
 }

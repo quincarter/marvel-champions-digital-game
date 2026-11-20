@@ -263,10 +263,10 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     // A team cannot field a hero that shares a title with its own leader (MC56 pp. 14, 16): say so before sealing.
     const room = roomState();
     const mine = room.competitive?.teams[team].seats ?? [];
-    const labels = room.seats.filter((seat) => mine.includes(seat.id)).map((seat) => seat.label);
+    const heroes = room.seats.filter((seat) => mine.includes(seat.id)).map((seat) => seat.deck?.hero ?? null);
     const leaderCard = builderViewOf(this.#draft, this.#context())?.summaryArt.leader.cardId ?? "";
     const leader = CARDS_BY_ID.get(leaderCard)?.name ?? "";
-    const clash = heroSharingLeaderTitle(labels, leader, CARDS_BY_ID);
+    const clash = heroSharingLeaderTitle(heroes, leader, CARDS_BY_ID);
     if (clash) {
       this.#status = t("comp.builder.clash", { hero: clash, leader });
       this.#rebuild();

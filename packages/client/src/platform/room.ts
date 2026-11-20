@@ -41,14 +41,15 @@ import {
   type RoomStartDeps,
   type RoomStartResult,
 } from "../live/room-start.js";
+import { currentCardsById, POOL_SCENARIOS } from "../content/pool.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener, setSealedListener } from "./live-watch.js";
 import {
   buildCompetitiveConfig,
+  leaderClashRefusals,
   competitiveSeatOrder,
   localPlayersOf,
   roomTeamsOf,
-  type CompetitiveSetup,
   type SealedScenarios,
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
@@ -571,10 +572,12 @@ export type StartCompetitiveResult =
       readonly ok: false;
       /**
        * `not-host`, `not-ready` (see `RoomState.competitive.canStart`), `unavailable` (no room worker, or the room did not
-       * answer the reveal in time), or `invalid` (a sealed scenario does not read, or a team has no player for a seat).
+       * answer the reveal in time), or `room` (the seats' decks, as for any room: `result` says what stopped it, in the
+       * words `startResultWords` gives).
        */
-      readonly reason: "not-host" | "not-ready" | "unavailable" | "invalid";
-    };
+      readonly reason: "not-host" | "not-ready" | "unavailable";
+    }
+  | { readonly ok: false; readonly reason: "room"; readonly result: Exclude<RoomStartResult, { readonly ok: true }> };
 
 /** How long the host waits for the room to answer a reveal. */
 const REVEAL_TIMEOUT_MS = 10_000;
@@ -609,43 +612,78 @@ function askForSealed(): Promise<SealedScenarios | null> {
   });
 }
 
+/** What the host picks for a Competitive game besides the seats' decks. */
+export interface CompetitiveStartOptions {
+  readonly seed: number;
+  /** The table agreed on expert leaders (Q13 A). */
+  readonly expert?: boolean;
+}
+
 /**
  * Host only: starts the two-team game once both teams are ready (`RoomState.competitive.canStart`). The room checks the
- * team sizes and readiness again and hands this device both sealed scenarios, which only now leave the room, to the
- * two-team `SessionConfig` (`live/competitive-start.ts`); every other seat proposes to this engine, as in a standard room.
- * Resolves with why it could not start, or `{ ok: true }` once the engine's `start` is done.
+ * team sizes and readiness again and hands this device both sealed scenarios, which only now leave the room. Each
+ * seat's own deck then goes through the same path as any room (`startRoomGame`: fetched from the room, judged in a
+ * worker, a refusal told to that seat's holder alone), plus the Competitive rule that a hero may not share a title with
+ * its own team's leader (MC56 pp. 14, 16), and the decks become the two-team `SessionConfig`
+ * (`live/competitive-start.ts`); every other seat proposes to this engine, as in a standard room.
  */
-export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCompetitiveResult> {
+export async function startCompetitive(options: CompetitiveStartOptions): Promise<StartCompetitiveResult> {
   const competitive = state.competitive;
   if (state.role !== "host") return { ok: false, reason: "not-host" };
   if (!competitive?.canStart) return { ok: false, reason: "not-ready" };
   const sealed = await revealSealed();
   if (!sealed) return { ok: false, reason: "unavailable" };
-  const config = buildCompetitiveConfig({
-    setup,
-    sealed,
-    teams: { registration: competitive.teams.registration.seats, resistance: competitive.teams.resistance.seats },
-    tieBreaks: competitive.tieBreaks,
-  });
-  if (!config) return { ok: false, reason: "invalid" };
   // Seats play engine players in team order (registration first, `competitiveSeatOrder`); the proposal judge reads the teams.
   // Every seat is on a team by now (`canStart` says so); a seat with none gets no player rather than another seat's.
   const order = competitiveSeatOrder(state);
-  setLobby({
-    seats: state.seats.map((s) => ({
-      id: s.id,
-      label: s.label,
-      ...(order.includes(s.id) ? { player: `p${order.indexOf(s.id) + 1}` } : {}),
-    })),
-  });
-  const playMode = state.settings?.playMode;
-  await appSession().store.start({
-    ...config,
-    watchable: true,
-    ...(state.roomId ? { room: state.roomId } : {}),
-    ...(playMode ? { roomPlayMode: playMode } : {}),
-    roomTeams: roomTeamsOf(state),
-    localSeats: localPlayersOf(state),
-  });
-  return { ok: true };
+  const teams = { registration: competitive.teams.registration.seats, resistance: competitive.teams.resistance.seats };
+  const begin = async (config: SessionConfig): Promise<void> => {
+    const built = buildCompetitiveConfig({
+      setup: {
+        seed: options.seed,
+        ...(options.expert ? { expert: true } : {}),
+        seats: order.map((seat, index) => ({ seat, player: config.players[index]! })),
+      },
+      sealed,
+      teams,
+      tieBreaks: competitive.tieBreaks,
+    });
+    if (!built) throw new Error("a sealed scenario does not read, or a team has no player for a seat");
+    setLobby({
+      seats: state.seats.map((s) => ({
+        id: s.id,
+        label: s.label,
+        ...(order.includes(s.id) ? { player: `p${order.indexOf(s.id) + 1}` } : {}),
+      })),
+    });
+    const playMode = state.settings?.playMode;
+    await appSession().store.start({
+      ...built,
+      watchable: true,
+      ...(state.roomId ? { room: state.roomId } : {}),
+      ...(playMode ? { roomPlayMode: playMode } : {}),
+      roomTeams: roomTeamsOf(state),
+      localSeats: localPlayersOf(state),
+    });
+  };
+  const cards = currentCardsById();
+  const result = await runRoomStart(
+    { scenarioId: "", difficulty: "standard", seed: options.seed },
+    {
+      ...roomStartDeps(begin),
+      seatIds: order,
+      extraCheck: (decks) =>
+        leaderClashRefusals({
+          teams,
+          heroes: new Map([...decks].map(([seat, deck]) => [seat, deck.hero] as const)),
+          sealed,
+          leaderName: (id) => {
+            const villain = POOL_SCENARIOS.find((s) => s.id === id)?.villainCardId;
+            return villain === undefined ? undefined : cards.get(villain as string)?.name;
+          },
+          card: (id) => cards.get(id),
+        }),
+    },
+  );
+  return result.ok ? { ok: true } : { ok: false, reason: "room", result };
 }
