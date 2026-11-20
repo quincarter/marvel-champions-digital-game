@@ -594,7 +594,16 @@ export class RoomLobbyScene extends Phaser.Scene {
     // a wide screen, under them on a phone).
     const needsButton = this.#isHost() || state.connection === "ended" || this.#confirmLeave;
     const footerHeight = !needsButton ? 52 : width >= 600 ? 76 : 86;
-    const layout = lobbyLayout(width, height, bar.height, this.#tab, gutter, undefined, footerHeight);
+    const layout = lobbyLayout(
+      width,
+      height,
+      bar.height,
+      this.#tab,
+      gutter,
+      undefined,
+      footerHeight,
+      state.epic ? 0.7 : 0.42,
+    );
     this.#drawHeader(layout.header, phone);
 
     if (layout.tabs) {

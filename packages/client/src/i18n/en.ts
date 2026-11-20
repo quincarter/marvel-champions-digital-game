@@ -665,4 +665,5 @@ export const en = {
   "epic.stuck.go": "Continue",
   "epic.undo.no": "Not on Epic tables: the pod has already heard your moves.",
   "epic.badge.in": "In {table}",
+  "epic.group.title": "Choose a table in your pod",
 } as const;

@@ -121,3 +121,12 @@ describe("wrapping a long line", () => {
     expect(banner.map((l) => l.text).join(" ")).toContain("Loki flipped!");
   });
 });
+
+describe("the compact strip on a short screen", () => {
+  it("is the one shared line, keeps alerts, and leaves the tables and reach to the sheet", () => {
+    const room = epicRoomFixture({ as: "player", phase: "playing", flipped: true, mangog: true });
+    const strip = podStripOf({ ...input({ room, flipBanner: true }), compact: true }, 80)!;
+    expect(strip.lines.map((l) => l.kind)).toEqual(["shared", "banner"]);
+    expect(strip.targets).toBe(1);
+  });
+});

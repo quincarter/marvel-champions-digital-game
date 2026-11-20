@@ -1918,7 +1918,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
   return {
     instanceId: id,
     name: card?.name ?? "Side scheme",
-    subtitle: `Side scheme${crisis ? " · Crisis" : ""}${villainName ? ` · ${villainName}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
+    subtitle: `Side scheme${crisis ? " · Crisis" : ""}${villainName ? ` · ${villainName}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${remoteStandInLabel(state, id) ? ` · ${remoteStandInLabel(state, id)}` : ""}`,
     threat: instance.threat,
     // A side scheme has no threshold: it is defeated when thwarted to 0.
     target: null,

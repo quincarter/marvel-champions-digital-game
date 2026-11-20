@@ -91,7 +91,8 @@ import type { Rect } from "../view/layout.js";
 import { CHOICE_MIN_CARD_HEIGHT, choiceCardLayout, choiceRowLayout } from "../view/choice-options-layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed, type FormFactor } from "../view/layout.js";
 import { authorityTagOf, decisionLabel, enemyTeamNoticeOf } from "../view/villain-walkthrough.js";
-import { groupOptionLabel } from "../view/epic-lobby-model.js";
+import { groupOptionLabel, isGroupChoice } from "../view/epic-lobby-model.js";
+import { t } from "../i18n/translate.js";
 import { roomState } from "../platform/room.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
@@ -820,7 +821,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, gameDeps(), choice, state.game);
+        : choice.prompt.kind === "chooseOption" &&
+            isGroupChoice(
+              roomState().epic,
+              choice.options.map((option) => option.label),
+            )
+          ? t("epic.group.title")
+          : promptTitleOf(choice.prompt, gameDeps(), choice, state.game);
     const header = choiceHeaderOf(state.game, choice, gameDeps(), genericTitle);
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : header.subtitle ? 52 : 38 };
     const barG = this.add.graphics();

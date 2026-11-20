@@ -2841,6 +2841,7 @@ export class BoardScene extends Phaser.Scene {
         now: Date.now(),
         flipBanner: this.time.now < this.#flipUntil,
         nameOf: (id) => epicCardsById().get(id)?.name ?? id,
+        compact: this.scale.gameSize.width > this.scale.gameSize.height && this.scale.gameSize.height <= 820,
       },
       Math.max(24, Math.floor((width - 120) / 6.5)),
     );

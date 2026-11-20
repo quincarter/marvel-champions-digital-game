@@ -671,4 +671,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "epic.stuck.go": "Continuar",
   "epic.undo.no": "No en mesas Épicas: el grupo de mesas ya conoce tus movimientos.",
   "epic.badge.in": "En {table}",
+  "epic.group.title": "Elige una mesa de tu grupo de mesas",
 };

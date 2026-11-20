@@ -42,6 +42,11 @@ export interface PodStripInput {
   readonly flipBanner: boolean;
   /** A card's printed name, for the targets line. */
   readonly nameOf: (cardId: string) => string;
+  /**
+   * A short screen (a landscape tablet or phone): one line plus any alert. The tables and what the pod can reach go to
+   * the sheet, and the button's count says there are targets.
+   */
+  readonly compact?: boolean;
 }
 
 /** The pod strip, or null when the game has not started (the lobby shows the tables itself). */
@@ -84,12 +89,14 @@ export function podStripOf(input: PodStripInput, maxChars: number): PodStrip | n
     lines.push({ kind: "time", text: clock, tone: clock === t("epic.strip.timeUp") ? "alert" : "plain" });
   }
 
-  for (const text of tableLines(epic.tables, epic.myTable, maxChars)) {
-    lines.push({ kind: "tables", text, tone: "plain" });
+  if (!input.compact) {
+    for (const text of tableLines(epic.tables, epic.myTable, maxChars)) {
+      lines.push({ kind: "tables", text, tone: "plain" });
+    }
   }
 
   const targets = epic.remoteTargets;
-  if (targets.length > 0) {
+  if (targets.length > 0 && !input.compact) {
     const named = targets.map((target) => {
       const card = target.card;
       const left = card.remainingHitPoints !== undefined ? card.remainingHitPoints : card.threat;

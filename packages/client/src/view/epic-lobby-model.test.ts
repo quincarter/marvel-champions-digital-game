@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   HERO_UNSET,
+  groupOptionLabel,
+  isGroupChoice,
   epicStartBlock,
   epicTableViews,
   minutesText,
@@ -185,5 +187,16 @@ describe("the table cards", () => {
     for (const status of ["lobby", "setup", "player", "villain", "halted", "waiting", "dropped", "over"] as const) {
       expect(statusKey(status)).toBe(`epic.status.${status}`);
     }
+  });
+});
+
+describe("a group choice", () => {
+  it("is recognised when every option is a table of the game, and labelled by table name", () => {
+    const epic = epicRoomFixture({ as: "player", phase: "playing" }).epic!;
+    expect(isGroupChoice(epic, ["t1", "t2"])).toBe(true);
+    expect(isGroupChoice(epic, ["t1", "yes"])).toBe(false);
+    expect(isGroupChoice(epic, ["t1"])).toBe(false);
+    expect(isGroupChoice(null, ["t1", "t2"])).toBe(false);
+    expect(groupOptionLabel(epic, "t2")).toBe("South Table");
   });
 });

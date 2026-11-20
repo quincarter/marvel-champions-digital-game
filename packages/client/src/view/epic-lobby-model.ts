@@ -317,6 +317,13 @@ export function minutesText(minutes: number): string {
  * "Choose a group in your pod": the engine offers each group by its id (a table's id). The table's name is what the
  * player knows it by; the id is kept for any label that is not a table of this game.
  */
+export function isGroupChoice(
+  epic: Pick<NonNullable<RoomState["epic"]>, "tables"> | null,
+  labels: readonly string[],
+): boolean {
+  return epic !== null && labels.length > 1 && labels.every((label) => epic.tables.some((table) => table.id === label));
+}
+
 export function groupOptionLabel(epic: Pick<RoomState["epic"] & object, "tables"> | null, label: string): string {
   return epic?.tables.find((table) => table.id === label)?.name ?? label;
 }
