@@ -3317,6 +3317,15 @@ export interface AbilityCost {
    */
   readonly damageSelf?: number | ValueSpec | DamageSelfChoice;
   /**
+   * "...and take 2 unpreventable damage" as part of a cost (Sentinel's "destroy" a Component, the `sentinel-tw`
+   * community pack; #890 item 11): the `damageSelf` damage is dealt `unpreventable` (the MC62 insert's "cannot be
+   * reduced or prevented", `EffectSpec dealDamage.unpreventable`), so neither a tough status card, a "prevent all
+   * damage" constant nor a reduction stops the cost from being paid; the tough card stays. A "cannot take damage" rule
+   * or a cap on the damage taken still does (RRG 1.8 "Cannot", p. 13): the cost is paid only if all of it is taken
+   * (RRG 1.8 "Cost", p. 14). Only with a fixed or computed `damageSelf`, not a chosen one.
+   */
+  readonly damageSelfUnpreventable?: true;
+  /**
    * "Discard the top card of the encounter deck →", "choose a number from 1 to 5, discard that many cards from the top
    * of the encounter deck →" (`EncounterDeckDiscardCost`, docs/phase7-wave9.md §3.43 (a)).
    */
@@ -3578,6 +3587,16 @@ export interface AbilityCost {
    */
   readonly damageCards?: DamageCostPick;
   /**
+   * "Flip [a card you control] →" (Sentinel's Components, the `sentinel-tw` community pack: "exhaust or destroy Arms
+   * (Intact) →", where destroying flips the Component to its Destroyed side; #890 item 11): the picked cards in play,
+   * each a double-sided card (`flipSide`) the payer controls, turn to their other face as the cost, keeping their state as
+   * any same-type flip does (RRG 1.8 "Flip", p. 20), and each flip is announced (`cardFlipped`). The `flipSelf` of
+   * another card: a candidate must have another face that no `cannotFlip` rule names (RRG 1.8 "Cost", p. 13: paid in
+   * full or not at all). An exhausted card can still be flipped. A list is several picks paid together, as for
+   * `exhaustCards`.
+   */
+  readonly flipCards?: InPlayCostPick | readonly InPlayCostPick[];
+  /**
    * "Find Touched and attach it to a character other than Rogue … →" (Energy Transfer, `rogue` 38007, erratum RRG 1.8
    * p. 69; docs/phase7-wave6.md §3.49): as the cost, a card is attached to a host the payer picks. See `AttachCost`.
    */
@@ -3817,7 +3836,7 @@ export const tuckedPickOf = (pick: InPlayCostPick): TuckedCostPick | null =>
   "under" in pick ? (pick as TuckedCostPick) : null;
 
 /** How an `InPlayCostPick` spends its cards. */
-export type InPlayCostMode = "exhaust" | "ready" | "return" | "discard" | "damage";
+export type InPlayCostMode = "exhaust" | "ready" | "return" | "discard" | "damage" | "flip";
 
 /**
  * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the ready pick, the return
@@ -3837,6 +3856,7 @@ export function inPlayPicksOf(
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
     ...(cost.discardTucked ? [{ mode: "discard" as const, pick: cost.discardTucked }] : []),
     ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
+    ...listOf(cost.flipCards).map((pick) => ({ mode: "flip" as const, pick })),
   ];
 }
 

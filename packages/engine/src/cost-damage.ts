@@ -21,7 +21,7 @@ import { type Ctx, emit, setFrame } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { characterProfile, getInstance, getPlayer } from "./query.js";
 import { addFrameVars, type Frame } from "./resolve/frames.js";
-import { cannotTakeDamage, damagePreventerOf, damageTakenAfterConstants } from "./rules.js";
+import { cannotTakeDamage, damagePreventerOf, damageTakenAfterConstants, damageTakenAllowance } from "./rules.js";
 import { type EffectContext, isAlly, resolveValue } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -89,10 +89,17 @@ export function canTakeCostDamage(
   id: InstanceId,
   sourceId: InstanceId | null,
   amount: number,
+  unpreventable = false,
 ): boolean {
   const instance = getInstance(state, id);
   if (!instance || characterProfile(state, id, deps) === undefined) return false;
   if (cannotTakeDamage(state, deps, id, [sourceId])) return false;
+  // Unpreventable damage (`AbilityCost.damageSelfUnpreventable`) passes every prevention, reduction and tough status
+  // card; only a cap on the damage taken, a "cannot", still holds it back.
+  if (unpreventable) {
+    const allowance = damageTakenAllowance(state, deps, id);
+    return allowance === null || allowance >= amount;
+  }
   if (damagePreventerOf(state, deps, id) !== null) return false;
   if (instance.statuses.tough > 0) return false;
   return damageTakenAfterConstants(state, deps, id, amount, false, undefined, { card: sourceId }) >= amount;
@@ -142,6 +149,7 @@ export function pickedCostDamageEffects(slot: string, amount: number): EffectSpe
 export function selfCostDamageEffects(
   amount: number,
   paidFor: Frame<"ability"> | Frame<"playCard"> | null,
+  unpreventable = false,
 ): EffectSpec[] {
   const bind = "costDamage";
   return [
@@ -150,6 +158,7 @@ export function selfCostDamageEffects(
       target: { kind: "identityOf", player: { kind: "controller" } },
       amount: { kind: "const", value: amount },
       taken: true,
+      ...(unpreventable ? { unpreventable: true } : {}),
       bind,
     },
     { kind: "settleCostDamage", amount, bind, paidFor: paidFor?.frameId ?? null },

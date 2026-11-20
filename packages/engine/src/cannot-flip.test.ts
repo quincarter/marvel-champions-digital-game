@@ -147,7 +147,25 @@ const TO_EDGE = event("to-edge", [
 ]);
 
 const EVENTS = [FLIP_ALL, FLIP_ONE, MAY_FLIP, PICK_ONE, MAY_PICK, DROP_LOCK, DROP_SWITCH, TO_EDGE];
-const deps: EngineDeps = depsOf(FLIP_SELF, FLIP_COST, LOCK_RULE, SWITCHED_RULE, ...EVENTS.map((e) => e.ability));
+/**
+ * "Action: Flip 1 Energy upgrade you control → place 1 paid counter here." (`AbilityCost.flipCards`, #890 item 11: the
+ * flip as the cost of another card, Sentinel's "destroy a Component →".)
+ */
+const FLIPPER_ACTION = stubAbility("flipper.action", {
+  trigger: { kind: "action" },
+  cost: { flipCards: { slot: "flipped", query: yourEnergy, min: 1, max: 1 } } satisfies AbilityCost,
+  effects: [{ kind: "addCounters", target: self, counterType: "paid", amount: one }],
+});
+const FLIPPER = stubSupport({ id: "flipper", cost: 0, abilities: [FLIPPER_ACTION.ref] });
+
+const deps: EngineDeps = depsOf(
+  FLIP_SELF,
+  FLIP_COST,
+  FLIPPER_ACTION,
+  LOCK_RULE,
+  SWITCHED_RULE,
+  ...EVENTS.map((e) => e.ability),
+);
 const CARDS: readonly AnyCard[] = [
   PBLADE,
   BLADE,
@@ -156,6 +174,7 @@ const CARDS: readonly AnyCard[] = [
   SWITCHED_LOCK,
   SWITCH,
   TRACKER,
+  FLIPPER,
   ...EVENTS.map((e) => e.card),
 ];
 
@@ -176,7 +195,7 @@ function table(...inPlay: readonly string[]): Table {
       ...copiesOf(PBLADE.id, 3),
       ...copiesOf(BLADE.id, 3),
       ...copiesOf(GADGET.id, 3),
-      ...[LOCK, SWITCHED_LOCK, SWITCH, TRACKER].map((card) => card.id),
+      ...[LOCK, SWITCHED_LOCK, SWITCH, TRACKER, FLIPPER].map((card) => card.id),
       ...EVENTS.flatMap((e) => copiesOf(e.card.id, 3)),
     ],
   });
@@ -551,5 +570,46 @@ describe("§3.64 'flip each to its Edge side and exhaust it' (Q43 = A)", () => {
     // Neither can be flipped back while the rule lasts.
     expect(offered(state, edge, FLIP_SELF.ref.id)).toBe(false);
     expect(offered(state, blade, FLIP_SELF.ref.id)).toBe(false);
+  });
+});
+
+describe("#890 item 11 flipping another card you control as a cost (AbilityCost.flipCards)", () => {
+  const useFlipper = (flipper: InstanceId, card: InstanceId): Command => ({
+    type: "useAbility",
+    playerId: P1,
+    cardInstanceId: flipper,
+    abilityId: FLIPPER_ACTION.ref.id,
+    payment: [],
+    costChoices: { flipped: [card] },
+  });
+
+  it("flips the picked card, announces it, and resolves the effect", () => {
+    const { state, ids } = table("flipper", "blade");
+    const [flipper, blade] = ids as [InstanceId, InstanceId];
+    expect(offered(state, flipper, FLIPPER_ACTION.ref.id)).toBe(true);
+    const paid = ok(state, useFlipper(flipper, blade));
+    expect(flipped(paid.state, blade)).toBe(true);
+    expect(counters(paid.state, flipper, "paid")).toBe(1);
+    expect(ofType(paid.events, "cardFlipped")).toEqual([{ type: "cardFlipped", instanceId: blade, flipped: true }]);
+  });
+
+  it("an exhausted card can still be flipped to pay", () => {
+    const { state: start, ids } = table("flipper", "blade");
+    const [flipper, blade] = ids as [InstanceId, InstanceId];
+    const state: GameState = {
+      ...start,
+      instances: { ...start.instances, [blade]: { ...mustInstance(start, blade), exhausted: true } },
+    };
+    const paid = ok(state, useFlipper(flipper, blade));
+    expect(flipped(paid.state, blade)).toBe(true);
+    expect(exhausted(paid.state, blade)).toBe(true);
+  });
+
+  it("a card a cannotFlip rule names cannot pay it, and with no other candidate the ability is not offered", () => {
+    const { state, ids } = table("lock", "flipper", "pblade:edge");
+    const [, flipper, edge] = ids as [InstanceId, InstanceId, InstanceId];
+    expect(offered(state, flipper, FLIPPER_ACTION.ref.id)).toBe(false);
+    const refused = applyCommand(state, useFlipper(flipper, edge), deps);
+    expect(refused.ok).toBe(false);
   });
 });

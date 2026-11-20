@@ -356,6 +356,31 @@ function encounterDiscardRange(
   return range ? { ...range, inDeck: activeEncounterDeck(state).deck.length } : undefined;
 }
 
+/**
+ * The cost choices a variant on `branch` of an either/or cost sends: the shared ones with that branch's own default
+ * picks among cards in play (`defaultInPlayPicks`), so each branch is judged with cards it can pay with. Sentinel's
+ * "exhaust Arms (Intact) or destroy it" with two Arms in play: no pick is forced, and the exhaust branch's default (a
+ * ready Arms) need not be the destroy branch's (#890 item 11).
+ */
+function onBranch(
+  state: GameState,
+  deps: EngineDeps,
+  source: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+  costChoices: CostChoices | undefined,
+  branch: number | undefined,
+): CostChoices | undefined {
+  if (branch === undefined || !cost?.either) return costChoices;
+  const { either, ...common } = cost;
+  const branchCost = either[branch];
+  if (!branchCost) return costChoices;
+  const own = defaultInPlayPicks(state, deps, source, playerId, { ...common, ...branchCost });
+  return Object.keys(own).length > 0 ? { ...costChoices, ...own } : costChoices;
+}
+const withChoices = (costChoices: CostChoices | undefined): { readonly costChoices?: CostChoices } =>
+  costChoices ? { costChoices } : {};
+
 const withBranch = (branch: number | undefined, paidBy?: CostPartPayers): { readonly costSelection?: CostSelection } =>
   branch === undefined && !paidBy
     ? {}
@@ -1251,7 +1276,7 @@ function evaluatePlayOf(
                 cardInstanceId: id,
                 payment,
                 attachToInstanceId: host,
-                ...(costChoices ? { costChoices } : {}),
+                ...withChoices(onBranch(state, deps, id, playerId, cost, costChoices, branch)),
                 ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
                 ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
                 ...withBranch(branch, paidByOf(playerId, partPayers)),
@@ -1427,7 +1452,7 @@ function evaluateAbility(
             abilityId,
             // A hand card a `chooseCard` cost picks cannot also pay (RRG 1.8 "Cost", p. 13: one card, one cost).
             payment: cost?.chooseCard ? payment.filter((p) => !("fromHand" in p && p.fromHand === target)) : payment,
-            ...(costChoices ? { costChoices } : {}),
+            ...withChoices(onBranch(state, deps, instanceId, playerId, cost, costChoices, branch)),
             ...withBranch(branch, paidByOf(playerId, partPayers)),
           }),
         })),

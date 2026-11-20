@@ -2669,6 +2669,8 @@ export interface ResourceDamageCost {
   readonly instanceId: InstanceId;
   readonly spender: PlayerId;
   readonly amount: number;
+  /** The damage is unpreventable (`AbilityCost.damageSelfUnpreventable`). */
+  readonly unpreventable?: true;
 }
 
 /**
@@ -2700,9 +2702,15 @@ const threatCostStep = ({ instanceId, spender, fromId, amount }: ResourceThreatC
  * generated from it; damage an interrupt prevents as it is dealt is logged unpaid (`costDamageSettled`) and has no
  * frame to report that to. None for an amount of 0.
  */
-const damageCostStep = ({ instanceId, spender, amount }: ResourceDamageCost): ResourceCostStep[] =>
+const damageCostStep = ({ instanceId, spender, amount, unpreventable }: ResourceDamageCost): ResourceCostStep[] =>
   amount > 0
-    ? [{ effects: selfCostDamageEffects(amount, null), selfInstanceId: instanceId, controllerId: spender }]
+    ? [
+        {
+          effects: selfCostDamageEffects(amount, null, unpreventable === true),
+          selfInstanceId: instanceId,
+          controllerId: spender,
+        },
+      ]
     : [];
 
 /** Resources one player generated in a payment (docs/phase7-wave5.md §3.25). */
@@ -3823,7 +3831,17 @@ export function planCost(
   // just to remove She-Hulk's tough status card"), nor one that cannot take damage or a constant would reduce it. (Not
   // so for `damageCards`, a cost of *dealing* damage, paid whatever is prevented.) An interrupt that prevents it is found out as it is paid (`settleCostDamage`).
   const damageSelf = costDamageSelf(cost, vars);
-  if (damageSelf > 0 && !canTakeCostDamage(state, deps, damaged.identity.instanceId, sourceId, damageSelf)) {
+  if (
+    damageSelf > 0 &&
+    !canTakeCostDamage(
+      state,
+      deps,
+      damaged.identity.instanceId,
+      sourceId,
+      damageSelf,
+      cost.damageSelfUnpreventable === true,
+    )
+  ) {
     return {
       code: "insufficient_resources",
       message: `${whose(payers, "damageSelf")} identity cannot take all ${damageSelf} damage this cost needs`,
@@ -4028,6 +4046,20 @@ export function defaultInPlayPicks(
   playerId: PlayerId,
   cost: AbilityCost | undefined,
 ): CostChoices {
+  // An either/or cost (`AbilityCost.either`) picks on whichever branch is paid: each branch's own defaults, the first
+  // branch's kept where two name the same slot, so every payable branch has a pick to be judged with (Sentinel's
+  // "exhaust Arms (Intact) or destroy it" with two Arms in play, #890 item 11).
+  if (cost?.either) {
+    const { either, ...common } = cost;
+    const merged: Record<string, readonly InstanceId[]> = {};
+    for (const branch of either) {
+      for (const [slot, ids] of Object.entries(
+        defaultInPlayPicks(state, deps, sourceId, playerId, { ...common, ...branch }),
+      ))
+        if (ids && !(slot in merged)) merged[slot] = ids;
+    }
+    return merged;
+  }
   const picks: Record<string, readonly InstanceId[]> = {};
   const taken = new Set<InstanceId>();
   for (const { mode, pick } of inPlayPicksOf(cost)) {
@@ -4163,6 +4195,13 @@ function canPayInPlayPick(
   if (mode === "exhaust") return !instance.exhausted;
   if (mode === "ready") return canPayReadyCost(state, deps, id, sourceId);
   if (mode === "damage") return canBeDealtCostDamage(state, deps, id, sourceId);
+  if (mode === "flip") {
+    // "Flip [a card you control] →" (`flipCards`): a double-sided card no `cannotFlip` rule names, exhausted or not.
+    const card = cardOf(state, id);
+    return (
+      !!(card && "flipSide" in card && card.flipSide) && !cannotFlip(state, deps, id, instance.controllerId ?? null)
+    );
+  }
   const sourceCardId = getInstance(state, sourceId)?.cardId;
   // "Cannot be discarded" (docs/phase7-wave8.md §3.35) stops the discard cost only; a return to hand is not one.
   if (cannotLeavePlay(state, deps, id, sourceCardId, mode === "discard")) return false;
@@ -4190,7 +4229,9 @@ function planInPlayPick(
           ? "discard"
           : mode === "damage"
             ? "deal damage to"
-            : "return to hand";
+            : mode === "flip"
+              ? "flip"
+              : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick, mode);
   const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode, pick));
   const tucked = tuckedPickOf(pick) !== null;
@@ -4208,7 +4249,9 @@ function planInPlayPick(
           ? { code: "no_valid_target", message: `${id} is already ready, or cannot ready` }
           : mode === "damage"
             ? { code: "no_valid_target", message: `${id} cannot take damage from this card` }
-            : { code: "no_valid_target", message: `${id} cannot leave play` };
+            : mode === "flip"
+              ? { code: "no_valid_target", message: `${id} has no other face, or cannot be flipped` }
+              : { code: "no_valid_target", message: `${id} cannot leave play` };
   if (pick.each) {
     // "Exhaust … each support you control →" (`InPlayCostPick.each`): every matching card, or the cost is not paid.
     const blocked = eligible.find((id) => !candidates.includes(id));
@@ -4597,10 +4640,15 @@ export function payCost(
   // not all of it is taken, that frame's effects don't (RRG 1.8 "Cost", p. 14).
   const damageSelf = costDamageSelf(cost, plan.vars);
   if (damageSelf > 0 && collectDamageCosts) {
-    collectDamageCosts.push({ instanceId: sourceId, spender: playerId, amount: damageSelf });
+    collectDamageCosts.push({
+      instanceId: sourceId,
+      spender: playerId,
+      amount: damageSelf,
+      ...(cost.damageSelfUnpreventable ? { unpreventable: true as const } : {}),
+    });
   } else if (damageSelf > 0) {
     pushEffects(ctx, {
-      effects: selfCostDamageEffects(damageSelf, paidFor),
+      effects: selfCostDamageEffects(damageSelf, paidFor, cost.damageSelfUnpreventable === true),
       selfInstanceId: sourceId,
       controllerId: payerOf("damageSelf"),
     });
@@ -4756,6 +4804,14 @@ export function payCost(
           controllerId: playerId,
           bindings: { [pick.slot]: ids },
         });
+      }
+    } else if (mode === "flip") {
+      // "Flip [a card you control] →" (`flipCards`): as `flipSelf` pays for its own card.
+      for (const id of ids) {
+        if (!getInstance(ctx.state, id)) continue;
+        turnToFlipSide(ctx, id);
+        pushEvents(ctx, [cardFlippedEvent(id, playerId)]);
+        checkRestrictedAfterFlip(ctx, id);
       }
     } else if (tuckedPickOf(pick)) {
       // "Discard a card tucked here →" (`TuckedCostPick`): the move an effect's discard of a tucked card makes
@@ -6037,6 +6093,7 @@ export type PlayFromZone =
   | "hand"
   | "setAside"
   | "deck"
+  | "discard"
   | DeckAsIfInHandPlayFrom
   | { readonly tuckedUnder: readonly InstanceId[] }
   | SeparateDeckPlayFrom;
@@ -6079,6 +6136,8 @@ export function playOriginOf(asIfInHand: AsIfInHandPermission | null, from: Play
   if (from === "hand") return { from: "hand" };
   if (from === "deck") return { from: "deck" };
   if (from === "setAside") return { from: "setAside", countsAsFrom: "hand" };
+  // A play from the discard pile (Warzone, `punisher-msp`) is not printed "as if it were in your hand".
+  if (from === "discard") return { from: "discard" };
   if (isDeckAsIfInHandPlayFrom(from)) return { from: "deck", countsAsFrom: "hand" };
   if (isSeparateDeckPlayFrom(from))
     return { from: "separateDeck", ...(from.asIfInHand ? { countsAsFrom: "hand" as const } : {}) };
@@ -6148,6 +6207,7 @@ function playFromZoneFault(
   if (isSeparateDeckPlayFrom(from)) return from.position === "top" ? "not the top of that deck" : "not in that deck";
   if (isDeckAsIfInHandPlayFrom(from)) return "not in deck";
   if (typeof from === "object") return "not tucked there";
+  if (from === "discard") return "not in discard pile";
   return from === "hand" ? "not in hand" : from === "deck" ? "not in deck" : "not set aside";
 }
 

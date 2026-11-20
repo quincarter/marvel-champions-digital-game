@@ -13,6 +13,8 @@
 import {
   activeAbilityRefs,
   costAsDetermined,
+  inPlayPicksOf,
+  playCostWith,
   resolveValue,
   type AbilityCost,
   type EngineDeps,
@@ -52,13 +54,61 @@ export function actionAbilityCost(
     return costAsDetermined(state, deps, action.instanceId, playerId, deps.abilities[action.abilityId]?.cost);
   }
   if (action.kind !== "playCard") return undefined;
-  for (const ref of activeAbilityRefs(state, action.instanceId)) {
+  // The whole cost of the play, as the engine prices and pays it (`playCostWith`): the event's Action cost with the
+  // card's additional cost to play ("As an additional cost to play this event, exhaust Arms (Intact) or destroy it").
+  return playCostWith(
+    state,
+    deps,
+    action.instanceId,
+    playerId,
+    eventActionCost(state, deps, playerId, action.instanceId),
+  );
+}
+
+/** The cost of the Action ability a card in hand resolves when played, as determined; none when it has no Action. */
+function eventActionCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  instanceId: InstanceId,
+): AbilityCost | undefined {
+  for (const ref of activeAbilityRefs(state, instanceId)) {
     const definition = deps.abilities[ref.id];
     if (definition?.trigger.kind === "action") {
-      return costAsDetermined(state, deps, action.instanceId, playerId, definition.cost);
+      return costAsDetermined(state, deps, instanceId, playerId, definition.cost);
     }
   }
   return undefined;
+}
+
+const IN_PLAY_VERB = {
+  exhaust: "exhaust",
+  ready: "ready",
+  return: "return",
+  discard: "discard",
+  damage: "deal 1 damage to",
+  flip: "flip",
+} as const;
+
+/**
+ * "exhaust Arms (Intact)", "discard 2 Gadget cards": a cost paid with cards in play (`exhaustCards`, `flipCards`, …),
+ * named by the title its query asks for when it names one, else by how many cards it takes.
+ */
+function inPlayPickPhrase(cost: AbilityCost): readonly string[] {
+  return inPlayPicksOf(cost).map(({ mode, pick }) => {
+    const count =
+      pick.max === undefined
+        ? pick.min <= 1
+          ? "any number of"
+          : `${pick.min} or more`
+        : pick.min === pick.max
+          ? `${pick.min}`
+          : `${pick.min}-${pick.max}`;
+    const named = typeof pick.query.name === "string" ? pick.query.name : null;
+    const what = named ?? (count === "1" ? "a card" : `${count} cards`);
+    const subject = named && count !== "1" ? `${count} ${named}` : what;
+    return `${IN_PLAY_VERB[mode]} ${subject}`;
+  });
 }
 
 /**
@@ -144,7 +194,9 @@ export function describeCost(
   if (cost.discardFromDeck !== undefined) {
     parts.push(`discard ${discardFromDeckPhrase(cost.discardFromDeck, resolveContext)} of your deck`);
   }
-  if (cost.damageSelf) parts.push(`take ${cost.damageSelf} damage`);
+  parts.push(...inPlayPickPhrase(cost));
+  if (cost.damageSelf)
+    parts.push(`take ${cost.damageSelf}${cost.damageSelfUnpreventable ? " unpreventable" : ""} damage`);
   if (cost.healIdentity) parts.push(`heal ${cost.healIdentity} damage from your identity`);
   if (cost.healCharacter) parts.push(`heal ${cost.healCharacter.amount} damage from a character you choose`);
   if (cost.discardSelf) parts.push("discard this card");
