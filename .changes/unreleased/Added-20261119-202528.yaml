@@ -1,3 +1,0 @@
-kind: Added
-body: A pull request that changes the game posts its unsigned .ipa as a preview pre-release and links it in a PR comment, as the Android APK does; it's deleted when the pull request closes.
-time: 2026-11-19T20:25:28.2662488-05:00

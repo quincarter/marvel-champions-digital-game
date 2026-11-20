@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Mod SDK importer: a double-sided card''s nested back face of another type (an environment that flips to an attachment) is marked as its hidden flip side too, so the normalizer emits both faces as cards naming each other in otherFaceId, as it does Chief Medical Officer / Medical Officer''s Aid (#890 item 17).'
-time: 2026-11-20T13:38:43.839362+01:00

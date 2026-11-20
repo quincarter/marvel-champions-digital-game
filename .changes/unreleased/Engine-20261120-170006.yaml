@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK (PR #903 review 3): useActionAbility judges an Action with every subset of resource abilities up to its cost, asks the cost''s hand discard and its other choices as a regular use would (Captain America''s Action), keeps an "including this card" pick''s own card (The Elephant''s Trunk), and asks the resources again should the engine refuse them.'
-time: 2026-11-20T17:00:06.1976675+01:00
