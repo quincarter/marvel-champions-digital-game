@@ -759,6 +759,7 @@ export class EngineSessionCore {
       players,
       command,
       strict: config.roomPlayMode === "strict",
+      ...(config.roomTeams ? { teamOf: (id: string) => config.roomTeams?.[id] } : {}),
     });
     if (!verdict.ok) return verdict;
     const before = this.#version;

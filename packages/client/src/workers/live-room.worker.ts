@@ -53,6 +53,7 @@ worker.addEventListener("message", (event) => {
               epicStore: new IdbEpicLogStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
+              onSealed: (sealed) => worker.postMessage({ kind: "sealed", ...sealed } satisfies LiveRoomOut),
             },
           }
         : {}),

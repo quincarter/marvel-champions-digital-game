@@ -95,6 +95,7 @@ const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
     "table-host-token",
     "seat-decks",
     "deck-refused",
+    "sealed",
   ]),
   pod: new Set(["event", "inbound", "state"]),
   game: new Set([

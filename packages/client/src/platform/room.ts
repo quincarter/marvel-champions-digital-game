@@ -30,6 +30,7 @@ import {
   type RoomState,
   type SeatDeckEntry,
   type SeatOfPlayer,
+  type TeamId,
 } from "../live/room-state.js";
 import { epicTableConfig } from "../live/epic-start.js";
 import { RoomDeckWorker } from "../live/room-deck-check-client.js";
@@ -41,11 +42,20 @@ import {
   type RoomStartResult,
 } from "../live/room-start.js";
 import type { DeckOption } from "../view/deck-list-model.js";
-import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
+import { postRoomCommand, setRoomDecksListener, setRoomStateListener, setSealedListener } from "./live-watch.js";
+import {
+  buildCompetitiveConfig,
+  roomTeamsOf,
+  type CompetitiveSetup,
+  type SealedScenarios,
+} from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
+  CompetitiveState,
+  CompetitiveTeam,
+  TeamId,
   EpicPod,
   EpicShared,
   EpicStart,
@@ -61,6 +71,7 @@ export type {
   RoomState,
   SeatOfPlayer,
 } from "../live/room-state.js";
+export type { CompetitiveSetup, SealedScenarios } from "../live/competitive-start.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -511,4 +522,109 @@ export function releasePod(): void {
 /** What I may attack or thwart in other tables of my pod right now (`RoomState.epic.remoteTargets`). */
 export function reachableRemoteTargets(): readonly RemoteTarget[] {
   return state.epic?.remoteTargets ?? [];
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Civil War Competitive (issue #883, docs/live-game-rooms.md section 11). The state is `RoomState.competitive` and each
+// seat's `team`. One table, two teams (1v1 or 2v2); each team builds a scenario for the other and seals it in the room.
+
+/** Host only: Competitive mode with these seats (each naming its `team`) and, optionally, the tie-break option. */
+export function setCompetitive(seats: readonly LobbySeatSpec[], tieBreaks?: boolean): void {
+  postRoomCommand({ kind: "room-competitive", seats, ...(tieBreaks === undefined ? {} : { tieBreaks }) });
+}
+
+/** Puts a seat on a team: the host may for any seat, a participant for a seat they hold. Locked once the game runs. */
+export function setTeam(seat: string, team: TeamId): void {
+  postRoomCommand({ kind: "room-team", seat, team });
+}
+
+/**
+ * Seals the scenario my team built for the other team in the room (`team` defaults to my team; a host who holds no
+ * seat names it). The scenario goes to the room worker and the room's private storage and is never put in
+ * `RoomState`, echoed to any other device, or kept on the main thread: only the host's `startCompetitive` ever receives
+ * both, at Start. A new submission takes the team's ready back.
+ */
+export function submitScenario(
+  submission: unknown,
+  team: TeamId | undefined = state.competitive?.myTeam ?? undefined,
+): void {
+  if (team === undefined) return;
+  postRoomCommand({ kind: "room-scenario", team, scenario: submission });
+}
+
+/** A team says it is ready (it needs a sealed scenario) or takes it back; `team` defaults to mine. */
+export function setTeamReady(ready: boolean, team: TeamId | undefined = state.competitive?.myTeam ?? undefined): void {
+  if (team === undefined) return;
+  postRoomCommand({ kind: "room-team-ready", team, ready });
+}
+
+/** Host only: the tie-break option (default on, plan Q9 C): when both teams win in the window, apply the printed order, or call a tie. */
+export function setTieBreaks(on: boolean): void {
+  postRoomCommand({ kind: "room-tiebreaks", on });
+}
+
+export type StartCompetitiveResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      /**
+       * `not-host`, `not-ready` (see `RoomState.competitive.canStart`), `unavailable` (no room worker, or the room did not
+       * answer the reveal in time), or `engine-pending` (the two-team engine's setup API is not wired in yet).
+       */
+      readonly reason: "not-host" | "not-ready" | "unavailable" | "engine-pending";
+    };
+
+/** How long the host waits for the room to answer a reveal. */
+const REVEAL_TIMEOUT_MS = 10_000;
+
+/** Asks the room for both sealed scenarios, once; the room answers the host's worker, which posts them here. */
+function revealSealed(): Promise<SealedScenarios | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      setSealedListener(null);
+      resolve(null);
+    }, REVEAL_TIMEOUT_MS);
+    setSealedListener((sealed) => {
+      clearTimeout(timer);
+      setSealedListener(null);
+      resolve(sealed);
+    });
+    if (!postRoomCommand({ kind: "room-reveal" })) {
+      clearTimeout(timer);
+      setSealedListener(null);
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Host only: starts the two-team game once both teams are ready (`RoomState.competitive.canStart`). The room checks the
+ * team sizes and readiness again and hands this device both sealed scenarios, which only now leave the room, to the
+ * two-team `SessionConfig` (`live/competitive-start.ts`); every other seat proposes to this engine, as in a standard room.
+ * Resolves with why it could not start, or `{ ok: true }` once the engine's `start` is done.
+ */
+export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCompetitiveResult> {
+  const competitive = state.competitive;
+  if (state.role !== "host") return { ok: false, reason: "not-host" };
+  if (!competitive?.canStart) return { ok: false, reason: "not-ready" };
+  const sealed = await revealSealed();
+  if (!sealed) return { ok: false, reason: "unavailable" };
+  const config = buildCompetitiveConfig({
+    setup,
+    sealed,
+    teams: { registration: competitive.teams.registration.seats, resistance: competitive.teams.resistance.seats },
+    tieBreaks: competitive.tieBreaks,
+  });
+  if (!config) return { ok: false, reason: "engine-pending" };
+  // Seat n plays engine player p<n>, as in a standard room; the proposal judge also reads the teams.
+  setLobby({ seats: state.seats.map((s, index) => ({ id: s.id, label: s.label, player: `p${index + 1}` })) });
+  const playMode = state.settings?.playMode;
+  await appSession().store.start({
+    ...config,
+    watchable: true,
+    ...(state.roomId ? { room: state.roomId } : {}),
+    ...(playMode ? { roomPlayMode: playMode } : {}),
+    roomTeams: roomTeamsOf(state),
+  });
+  return { ok: true };
 }

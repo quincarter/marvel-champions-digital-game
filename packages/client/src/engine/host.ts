@@ -116,6 +116,13 @@ export interface SessionConfig {
    * unavailable in the room's game. The live header and replay files leave it out (the header carries `adjusted`).
    */
   readonly roomCheats?: boolean;
+  /**
+   * A Competitive lobby room's game (issue #883): the team of each engine player (`p1`..), from the lobby. The host's
+   * proposal judge reads it so a seat of the team whose phase it is not cannot take off-turn actions (a choice addressed
+   * to that seat is still answered). Like `room` it never reaches the rules and headers and replay files leave it out;
+   * the engine's own two-team setup is what carries teams into the game.
+   */
+  readonly roomTeams?: Readonly<Record<string, "registration" | "resistance">>;
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

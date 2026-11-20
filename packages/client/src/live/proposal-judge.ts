@@ -52,6 +52,13 @@ export interface ProposalCheck {
   readonly players: readonly string[];
   /** The proposal, as it came off the wire (anything). */
   readonly command: unknown;
+  /**
+   * Competitive rooms (issue #883): the team of an engine player, from the lobby. Absent in every other room. With it, a
+   * seat of the team that is not on turn may not take an off-turn Action (the cooperative rule that any hero may act in
+   * the hero phase would otherwise let the other team move): only the active player's own team acts, and a choice
+   * addressed to a seat's player is still its answer to give (a card's "enemy team" choice, a triggered ability).
+   */
+  readonly teamOf?: (playerId: string) => string | undefined;
   /** The room's mode: a Manual adjust is never a proposal (it is a request the host performs). */
   readonly strict: boolean;
 }
@@ -89,6 +96,11 @@ export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   }
   if (command.playerId === (acting as PlayerId)) return { ok: true, command };
   // A seat the table is not waiting on: only an off-turn Action in a player turn can be legal, and the engine judges it.
-  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn") return { ok: true, command };
+  // In a Competitive room only the active player's own team may: the other team has no actions this phase (Q11 A).
+  const mineTeam = check.teamOf?.(command.playerId);
+  const sameSide = check.teamOf === undefined || (mineTeam !== undefined && mineTeam === check.teamOf(acting));
+  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn" && sameSide) {
+    return { ok: true, command };
+  }
   return { ok: false, reason: "not-your-turn" };
 }

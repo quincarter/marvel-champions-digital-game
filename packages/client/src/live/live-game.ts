@@ -27,6 +27,7 @@ export function liveGameOf(parts: LiveGameParts): LiveGame {
     roomPlayMode: _roomPlayMode,
     roomUndo: _roomUndo,
     roomCheats: _roomCheats,
+    roomTeams: _roomTeams,
     ...rest
   } = parts.config;
   const refs: readonly ReplayPackRef[] = (packs ?? []).map(({ id, version }) => ({ id, version }));
