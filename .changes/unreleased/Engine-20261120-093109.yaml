@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Live game rooms: the host''s engine judges each seat''s moves against the table the player saw, a seat''s Concede leaves the seat, and the host can turn seat handover off (#881)'
+time: 2026-11-20T09:31:09.8081622-05:00
