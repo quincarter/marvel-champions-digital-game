@@ -370,15 +370,16 @@ const wouldKindsOf = (deps: EngineDeps): ReadonlySet<string> => {
 };
 
 /**
- * Whether some `would` interrupt's event kind can hear `event` (`patternHearsKind`): its own kind, or an enemy attacking
- * an enemy, heard by "when [this] would be attacked" (an `attack` pattern) and, for a leader attacking the other leader,
- * by "when [enemy] would attack" (`enemyAttack`: Webbed Up 01009 on the attacking leader; `leaderAttacksLeader`).
+ * Whether some `would` interrupt's event kind can hear `event` (`patternHearsKind`): its own kind, or, for a leader
+ * attacking the other leader in competitive play only (`leaderAttacksLeader`), "when [enemy] would attack"
+ * (`enemyAttack`: Webbed Up 01009 on the attacking leader) and "when [this] would be attacked" (`attack`). Every other
+ * enemy attacking an enemy keeps the window it always had.
  */
 const wouldKindHears = (ctx: Ctx, event: TriggerEvent): boolean => {
   const kinds = wouldKindsOf(ctx.deps);
   if (kinds.has(event.kind)) return true;
-  if (event.kind !== "enemyAttacksEnemy") return false;
-  return kinds.has("attack") || (kinds.has("enemyAttack") && leaderAttacksLeader(ctx.state, event));
+  if (!leaderAttacksLeader(ctx.state, event)) return false;
+  return kinds.has("enemyAttack") || kinds.has("attack");
 };
 
 /** Whether a `would` interrupt answers this event now, so its window has the earlier tier to run. */

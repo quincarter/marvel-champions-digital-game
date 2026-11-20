@@ -13,7 +13,13 @@
  * unfinished, or one from before summaries) says only what its save knows.
  */
 import { hit } from "../tokens.js";
-import { isCurrentSchema, isLessonSave, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
+import {
+  isCompetitiveSave,
+  isCurrentSchema,
+  isLessonSave,
+  writtenByNewerApp,
+  type SaveMeta,
+} from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { CLIENT_VERSION } from "../version.js";
 import { aspectName } from "./aspect-stamp.js";
@@ -109,8 +115,13 @@ export function resultOf(save: Pick<SaveMeta, "status" | "outcome">): PastGameRe
       return "lost";
     case "tie":
       return "tie";
-    case "abandoned":
-      return (save.outcome as { readonly result?: string } | null)?.result === "conceded" ? "conceded" : "unfinished";
+    case "abandoned": {
+      // A competitive team's forfeit seen from both sides (hot seat, `seatResultOf`) is a concession too (issue #883).
+      const outcome = save.outcome as { readonly result?: string; readonly reason?: string } | null;
+      const conceded =
+        outcome?.result === "conceded" || (outcome?.result === "teams" && outcome.reason === "teamConceded");
+      return conceded ? "conceded" : "unfinished";
+    }
     default:
       return null;
   }
@@ -250,7 +261,7 @@ export function pastGameRowsOf(
 ): readonly PastGameRow[] {
   return saves
     .filter((save) => isPastGame(save, appVersion))
-    .filter((save) => filter === "all" || resultOf(save) === filter)
+    .filter((save) => inTab(save, filter))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((save) => {
       const result = resultOf(save)!;
@@ -281,9 +292,18 @@ export function pastGameCounts(
   const past = saves.filter((save) => isPastGame(save, appVersion));
   return {
     all: past.length,
-    won: past.filter((save) => save.status === "won").length,
-    lost: past.filter((save) => save.status === "lost").length,
+    won: past.filter((save) => inTab(save, "won")).length,
+    lost: past.filter((save) => inTab(save, "lost")).length,
   };
+}
+
+/**
+ * Whether a save belongs under a filter tab. A competitive game counts as played only (the owner, 2026-11-20; issue
+ * #883): it is listed under All, never under Won or Lost, whatever its team's result.
+ */
+function inTab(save: SaveMeta, filter: PastGameFilter): boolean {
+  if (filter === "all") return true;
+  return !isCompetitiveSave(save) && resultOf(save) === filter;
 }
 
 /** Whole minutes played, at least one: "42". Null when the save didn't count the time. */

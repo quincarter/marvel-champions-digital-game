@@ -16,11 +16,13 @@ import { modFactsOf } from "../progression/mod-achievements.js";
 import { progressOf } from "../progression/unlocks.js";
 import { deckInsightsOf } from "../view/deck-insights.js";
 import { playerStatsOf } from "../view/player-stats-model.js";
+import { pastGameCounts, resultOf } from "../view/past-games-model.js";
 import { resultsHistoryOf } from "../view/results-history.js";
 import { isCompetitiveSave, type SaveMeta } from "./game-storage.js";
 import { emptyRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
 import { lastFinishedResult } from "./previous-game-facts.js";
+import { needsBackfill } from "./summary-backfill.js";
 
 const TEAMS_OUTCOME = {
   result: "teams",
@@ -149,5 +151,31 @@ describe("the summary keeps the competitive result apart (#909)", () => {
     });
     // Plain data: it stores and structured-clones as is.
     expect(structuredClone(summary.competitive)).toEqual(summary.competitive);
+  });
+});
+
+describe("Past games and the backfill read a competitive save as an ended game", () => {
+  test("a team's forfeit saved from a hot-seat device (status abandoned) shows Conceded, not Unfinished", () => {
+    const forfeit = { status: "abandoned", outcome: { result: "teams", reason: "teamConceded" } } as never;
+    expect(resultOf(forfeit)).toBe("conceded");
+    const ended = { status: "abandoned", outcome: { result: "teams", reason: "competitiveEnded" } } as never;
+    expect(resultOf(ended)).toBe("unfinished");
+  });
+
+  test("a competitive win or loss is listed under All, never counted under Won or Lost", () => {
+    const counts = pastGameCounts([competitiveWin(), competitiveLoss(), meta({ status: "won" })], "999.0.0");
+    expect(counts).toEqual({ all: 3, won: 1, lost: 0 });
+  });
+
+  test("a competitive tie still gets its summary backfilled; a cooperative save never is a tie", () => {
+    const tie = competitiveWin({ status: "tie", summary: null });
+    expect(needsBackfill(tie, { appVersion: "999.0.0", contentVersion: "x", build: "x" })).toBe(true);
+    const { roomTeams: _teams, ...coopConfig } = tie.config;
+    expect(
+      needsBackfill(
+        { ...tie, config: coopConfig, outcome: null },
+        { appVersion: "999.0.0", contentVersion: "x", build: "x" },
+      ),
+    ).toBe(false);
   });
 });

@@ -15,6 +15,7 @@
  */
 import type { GameState } from "@mc/engine";
 import {
+  isCompetitiveSave,
   isCurrentSchema,
   writtenByNewerApp,
   type GameStorage,
@@ -29,7 +30,10 @@ export const BACKFILL_BUSY = -1;
 
 /** Whether a saved game needs its card numbers filled in. */
 export function needsBackfill(meta: SaveMeta, writer: WriterStamp): boolean {
-  if (meta.status !== "won" && meta.status !== "lost") return false;
+  // A competitive game's save may be a tie (`seatResultOf`, issue #883): still a finished game with a summary to fill.
+  const finished =
+    meta.status === "won" || meta.status === "lost" || (meta.status === "tie" && isCompetitiveSave(meta));
+  if (!finished) return false;
   if (meta.guided) return false;
   // Card numbers kept, and every number this build's summary has (`SUMMARY_VERSION`).
   if (meta.summary?.seats !== undefined && (meta.summary.version ?? 1) >= SUMMARY_VERSION) return false;
