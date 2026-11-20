@@ -20,21 +20,23 @@ test("Random seats a hero in the active seat and leaves the other seats alone", 
   await waitFor(async () => ((await seats(page)).length === 2 ? true : null), "two seats drawn", 30_000);
   await settle(page);
 
-  const active = await activeSeat(page);
-  const before = await seats(page);
-  const other = before[1 - active]!;
-
   const unseatable = (await hook<string[]>(page, "__mcSeatsDebug", "unseatable")) ?? [];
   const seen = new Set<string>();
+  // Seating a hero moves the active seat on to the next empty one, as a tile tap does, so each press reads the seat it
+  // fills first. The presses fill seats 3 and 4, then reroll seat 4.
   for (let press = 0; press < 6; press++) {
-    const was = (await seats(page))[active]!;
+    const active = await activeSeat(page);
+    const before = await seats(page);
+    const was = before[active];
     await pressHookStop(page, "__mcSeatsDebug", "hero-random");
     await waitFor(async () => ((await seats(page))[active] !== was ? true : null), "a hero seated by Random", 15_000);
     const now = await seats(page);
-    expect(now).toHaveLength(2);
     expect(now[active]).toBeTruthy();
     expect(now[active]).not.toBe(was);
-    expect(now[1 - active]).toBe(other);
+    // Every other seat is as it was.
+    before.forEach((deck, seat) => {
+      if (seat !== active) expect(now[seat]).toBe(deck);
+    });
     // Whatever the roster marks not seatable (a not-ready pack's hero, an illegal deck) is never the pick.
     expect(unseatable).not.toContain(now[active]);
     seen.add(now[active]!);
