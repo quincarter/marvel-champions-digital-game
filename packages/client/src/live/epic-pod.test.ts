@@ -1,0 +1,386 @@
+/**
+ * The pod channel end to end without a socket (Epic Multiplayer, issue #882): `PodLink`s of table hosts and the
+ * organizer's `EpicCoordinator`, joined by a fake room that relays `pod:event` to the organizer, `pod:inbound` to one
+ * table and `pod:state` to everyone, the way `GameRoom` does. The engine's own pod tests cover the reducer; these cover
+ * the wire: sync, acks, gaps, reconnects, drops, the organizer's reload and a remote power's round trip.
+ */
+import { groupId, instanceId, playerId, type PodInboundEvent, type PodOutbound, type SharedPodState } from "@mc/engine";
+import type { ClientMessage, ServerMessage } from "@mc/sync-worker/room-protocol";
+import { describe, expect, it } from "vitest";
+import { EpicCoordinator, MemoryEpicLogStore, type EpicCoordinatorOptions } from "./epic-coordinator.js";
+import { PodLink } from "./pod-link.js";
+import type { PodStateWire } from "./pod-wire.js";
+
+const SHARED: SharedPodState = {
+  villainHp: 120,
+  villainDamage: 0,
+  villainFlipAtRemaining: 60,
+  villainFlipped: false,
+  schemeThreat: 0,
+  schemeTarget: 6,
+  status: "playing",
+};
+
+const GROUPS: EpicCoordinatorOptions["groups"] = [
+  { groupId: groupId("t1"), podId: "a", players: 2 },
+  { groupId: groupId("t2"), podId: "a", players: 1 },
+  { groupId: groupId("t3"), podId: "b", players: 1 },
+];
+
+interface Table {
+  readonly link: PodLink;
+  readonly applied: { readonly seq: number; readonly event: PodInboundEvent }[];
+  connected: boolean;
+  states: PodStateWire[];
+  /** What this group's engine has emitted so far. */
+  out: number;
+}
+
+/** A fake room with an organizer (t1, local) and two table hosts. */
+class Hub {
+  readonly store = new MemoryEpicLogStore();
+  readonly timers: (() => void)[] = [];
+  readonly tables = new Map<string, Table>();
+  coordinator!: EpicCoordinator;
+  organizerUp = true;
+  clock = 1_000_000;
+  /** Every message the organizer put on the socket. */
+  sent: ClientMessage[] = [];
+
+  static async make(): Promise<Hub> {
+    const hub = new Hub();
+    await hub.startCoordinator();
+    for (const id of ["t1", "t2", "t3"]) hub.addTable(id);
+    return hub;
+  }
+
+  async startCoordinator(): Promise<void> {
+    this.coordinator?.dispose();
+    this.coordinator = await EpicCoordinator.restore({
+      roomId: "room",
+      groups: GROUPS,
+      store: this.store,
+      send: (message) => this.fromOrganizer(message),
+      local: { table: "t1", deliver: (seq, event) => this.deliverTo("t1", seq, event) },
+      now: () => this.clock,
+      setTimer: (run) => this.timers.push(run),
+      clearTimer: () => {},
+    });
+  }
+
+  addTable(id: string): Table {
+    const table: Table = {
+      applied: [],
+      connected: false,
+      states: [],
+      out: 0,
+      link: new PodLink({
+        table: id,
+        send: (message) => this.toOrganizer(id, message),
+        apply: (seq, event) => table.applied.push({ seq, event }),
+        onState: (state) => table.states.push(state),
+      }),
+    };
+    this.tables.set(id, table);
+    return table;
+  }
+
+  table(id: string): Table {
+    return this.tables.get(id) as Table;
+  }
+
+  /** The table's socket is welcomed. */
+  connect(id: string, inboundSeq = 0): void {
+    const table = this.table(id);
+    table.connected = true;
+    table.link.game({ inboundSeq: Math.max(inboundSeq, table.link.applied), shared: SHARED });
+    table.link.onWelcome();
+  }
+
+  disconnect(id: string): void {
+    this.table(id).connected = false;
+    this.table(id).link.onDisconnected();
+  }
+
+  /** What an engine does after a command: emit these events. */
+  emit(id: string, ...events: PodOutbound["event"][]): void {
+    const table = this.table(id);
+    const numbered = events.map((event) => ({ seq: ++table.out, event }));
+    table.link.outbound(numbered, table.link.applied);
+  }
+
+  private toOrganizer(id: string, message: ClientMessage): boolean {
+    if (message.ch !== "pod" || message.kind !== "event") return true;
+    // The organizer's own table is a loopback; a host's event goes through the room only while both are connected.
+    if (id === "t1" || (this.organizerUp && this.table(id).connected)) {
+      this.coordinator.receive(message.table, message.seq, message.event);
+    }
+    return true;
+  }
+
+  private fromOrganizer(message: ClientMessage): boolean {
+    this.sent.push(message);
+    if (message.ch !== "pod") return true;
+    if (message.kind === "inbound") {
+      if (this.table(message.table).connected) this.deliverTo(message.table, message.seq, message.event);
+    } else if (message.kind === "state") {
+      for (const table of this.tables.values()) {
+        if (table.connected) table.link.onMessage({ v: 1, ch: "pod", kind: "state", state: message.state });
+      }
+    }
+    return true;
+  }
+
+  deliverTo(id: string, seq: number, event: unknown): void {
+    this.table(id).link.onMessage({ v: 1, ch: "pod", kind: "inbound", table: id, seq, event } as ServerMessage);
+  }
+}
+
+const damaged = (group: string, amount: number) => ({
+  type: "sharedVillainDamaged" as const,
+  groupId: groupId(group),
+  amount,
+});
+const kinds = (table: Table): string[] => table.applied.map((a) => a.event.kind);
+
+describe("the pod channel", () => {
+  it("a table's shared event comes back as the shared state for everyone and an ack for the sender, in order", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 10));
+    expect(kinds(hub.table("t2"))).toEqual(["sharedStateChanged", "sharedAck"]);
+    expect(hub.table("t2").applied.map((a) => a.seq)).toEqual([1, 2]);
+    // The ack is last: the sender has heard everything its event brought about (`PodState.awaiting`).
+    expect(hub.table("t2").applied.at(-1)?.event).toEqual({ kind: "sharedAck", seq: 1 });
+    // The organizer's own table is reached directly, other hosts through the room.
+    expect(kinds(hub.table("t1"))).toEqual(["sharedStateChanged"]);
+    expect(kinds(hub.table("t3"))).toEqual(["sharedStateChanged"]);
+    const shared = hub.coordinator.state?.shared;
+    expect(shared?.villainDamage).toBe(10);
+    // Every device's pod strip: the broadcast carries the shared record and every table's standing.
+    const state = hub.table("t3").states.at(-1);
+    expect(state?.shared.villainDamage).toBe(10);
+    expect(state?.groups.map((g) => g.groupId)).toEqual(["t1", "t2", "t3"]);
+  });
+
+  it("a flip goes to every table, a table of another pod included, once", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t3", damaged("t3", 60));
+    for (const id of ["t1", "t2", "t3"]) {
+      expect(kinds(hub.table(id))).toContain("sharedVillainFlipped");
+      expect(kinds(hub.table(id)).filter((k) => k === "sharedVillainFlipped")).toHaveLength(1);
+    }
+  });
+
+  it("applies an event once: a re-sent number changes nothing and delivers nothing", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 10));
+    const before = hub.table("t2").applied.length;
+    hub.coordinator.receive("t2", 1, damaged("t2", 10));
+    expect(hub.table("t2").applied).toHaveLength(before);
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(10);
+  });
+
+  it("holds a table's events until the organizer has answered its sync", async () => {
+    const hub = await Hub.make();
+    hub.emit("t2", damaged("t2", 5));
+    hub.connect("t2");
+    // The sync came first, the event after the ack: the coordinator made itself from the sync's shared record.
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(5);
+    expect(hub.table("t2").link.unacked).toBe(0);
+  });
+
+  it("re-sends only the events the coordinator lacks after a reconnect", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 5));
+    hub.disconnect("t2");
+    // Offline: three more events, none of which the organizer hears.
+    hub.emit("t2", damaged("t2", 1), damaged("t2", 1), damaged("t2", 1));
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(1);
+    expect(hub.table("t2").link.unacked).toBe(3);
+    hub.connect("t2");
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(4);
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(8);
+    expect(hub.table("t2").link.unacked).toBe(0);
+    // Nothing is applied twice: a second sync changes nothing.
+    hub.connect("t2");
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(8);
+  });
+
+  it("re-sends the inbound events a table missed while it was away, and the ack that ends its pause", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.disconnect("t3");
+    hub.emit("t2", damaged("t2", 7));
+    expect(hub.table("t3").applied).toHaveLength(0);
+    hub.connect("t3");
+    expect(kinds(hub.table("t3"))).toEqual(["sharedStateChanged"]);
+    // A table whose own event's ack was lost gets it on its next sync.
+    hub.emit("t3", damaged("t3", 1));
+    hub.disconnect("t3");
+    hub.connect("t3");
+    expect(kinds(hub.table("t3"))).toEqual(["sharedStateChanged", "sharedStateChanged", "sharedAck"]);
+    expect(hub.table("t3").applied.map((a) => a.seq)).toEqual([1, 2, 3]);
+  });
+
+  it("asks for a gap again: an inbound event past the next is held, and the sync fills it", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    // The organizer's first two answers to t3 never arrive; the third does.
+    hub.table("t3").connected = false;
+    hub.emit("t2", damaged("t2", 1), damaged("t2", 1));
+    hub.table("t3").connected = true;
+    hub.emit("t2", damaged("t2", 1));
+    // The third `sharedStateChanged` was held; the sync it caused brought the missing two, then it was released.
+    expect(hub.table("t3").applied.map((a) => a.seq)).toEqual([1, 2, 3]);
+    expect(hub.table("t3").link.applied).toBe(3);
+  });
+
+  it("refuses a gap in a table's own events with an ack that makes it re-send from the first missing one", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.coordinator.receive("t2", 3, damaged("t2", 1));
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(0);
+    const ack = hub.sent.filter((m) => m.ch === "pod" && m.kind === "inbound" && m.seq === 0).at(-1);
+    expect(ack).toMatchObject({ table: "t2", event: { kind: "podSyncAck", received: 0 } });
+  });
+
+  it("a dropped table no longer holds up the stop rule, and the game is lost when the rest have halted", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    const status = (group: string, halted: boolean) => ({
+      type: "groupStatus" as const,
+      groupId: groupId(group),
+      status: { phase: "player" as const, round: 2, halted },
+    });
+    hub.emit("t1", { type: "sharedSchemeThreatPlaced", groupId: groupId("t1"), amount: 6, cause: "schemeCompleted" });
+    expect(kinds(hub.table("t2"))).toContain("stopAfterPhase");
+    hub.emit("t1", status("t1", true));
+    hub.emit("t2", status("t2", true));
+    // t3 is away and has not halted: the game waits for it.
+    hub.disconnect("t3");
+    expect(hub.coordinator.state?.outcome).toBe("playing");
+    hub.coordinator.dropTable("t3");
+    expect(hub.coordinator.state?.groups[2]?.dropped).toBe(true);
+    expect(hub.coordinator.state?.outcome).toBe("lost");
+    expect(kinds(hub.table("t2"))).toContain("gameLost");
+    expect(kinds(hub.table("t1"))).toContain("gameLost");
+    expect(hub.coordinator.wire?.groups[2]?.dropped).toBe(true);
+    // Dropping twice changes nothing.
+    const length = hub.coordinator.state?.log.length;
+    hub.coordinator.dropTable("t3");
+    expect(hub.coordinator.state?.log.length).toBe(length);
+  });
+
+  it("an organizer that reloaded rebuilds the coordinator from its saved log, and the tables sync again", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 9));
+    hub.coordinator.dropTable("t3");
+    await hub.coordinator.flushed();
+    const before = hub.coordinator.state;
+    const oldEpoch = hub.coordinator.epoch;
+
+    // The organizer's worker restarts: new coordinator, same store; tables 2 and 3 are still up with their engines.
+    hub.organizerUp = false;
+    await hub.startCoordinator();
+    expect(hub.coordinator.state?.shared).toEqual(before?.shared);
+    expect(hub.coordinator.state?.log).toEqual(before?.log);
+    expect(hub.coordinator.epoch).not.toBe(oldEpoch);
+    // Meanwhile t2 played on, unheard.
+    hub.emit("t2", damaged("t2", 1));
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(9);
+    hub.organizerUp = true;
+    // The organizer is back: its state broadcast carries a new epoch, so each table syncs and its unacked event goes out.
+    hub.coordinator.broadcast();
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(10);
+    expect(hub.table("t2").link.unacked).toBe(0);
+    expect(hub.coordinator.state?.groups[2]?.dropped).toBe(true);
+  });
+
+  it("starts fresh when the saved log belongs to other groups", async () => {
+    const hub = await Hub.make();
+    hub.connect("t1");
+    await hub.coordinator.flushed();
+    hub.store.records.set("room", {
+      roomId: "room",
+      setup: { groups: [{ groupId: groupId("x1"), podId: "a", players: 1 }], shared: SHARED },
+      log: [],
+      savedAt: Date.now(),
+    });
+    await hub.startCoordinator();
+    expect(hub.coordinator.state).toBeNull();
+    expect(hub.store.records.has("room")).toBe(false);
+  });
+
+  it("routes a remote power to the owning table and its result back, only inside the pod", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    const target = instanceId("mangog-1");
+    const used = (to: string) => ({
+      type: "remotePowerUsed" as const,
+      groupId: groupId("t1"),
+      playerId: playerId("p1"),
+      toGroupId: groupId(to),
+      targetInstanceId: target,
+      power: "attack" as const,
+      amount: 6,
+      overkill: true,
+    });
+    // t1's player attacks The Mangog in t2 (same pod): t2's engine is told.
+    hub.emit("t1", used("t2"));
+    const power = hub.table("t2").applied.find((a) => a.event.kind === "remotePower");
+    expect(power?.event).toMatchObject({
+      kind: "remotePower",
+      fromGroupId: "t1",
+      playerId: "p1",
+      targetInstanceId: target,
+      amount: 6,
+      overkill: true,
+    });
+    // t2's engine resolves it and says so; t1 hears the result, with Overkill's excess.
+    hub.emit("t2", {
+      type: "remotePowerResolved",
+      groupId: groupId("t2"),
+      toGroupId: groupId("t1"),
+      playerId: playerId("p1"),
+      targetInstanceId: target,
+      power: "attack",
+      excess: 2,
+    });
+    expect(hub.table("t1").applied.at(-1)?.event).toMatchObject({
+      kind: "remotePowerResolved",
+      fromGroupId: "t2",
+      excess: 2,
+    });
+    // Another pod's card is refused, and the attacker is told.
+    hub.emit("t1", used("t3"));
+    expect(hub.table("t1").applied.at(-1)?.event).toMatchObject({
+      kind: "remotePowerResolved",
+      fromGroupId: "t3",
+      refused: "that group is not in your pod",
+    });
+    expect(kinds(hub.table("t3")).includes("remotePower")).toBe(false);
+  });
+
+  it("paces a long burst of messages under the room's pod limit", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    for (let n = 0; n < 40; n++) hub.emit("t2", damaged("t2", 1));
+    // Past the burst, answers wait for the timer; running it sends them, in order.
+    expect(hub.timers.length).toBeGreaterThan(0);
+    const early = hub.table("t2").applied.length;
+    expect(early).toBeLessThan(80);
+    let guard = 0;
+    while (hub.timers.length > 0 && guard++ < 200) {
+      hub.clock += 300;
+      hub.timers.shift()?.();
+    }
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(40);
+    expect(hub.table("t2").applied).toHaveLength(80);
+    expect(hub.table("t2").applied.map((a) => a.seq)).toEqual(Array.from({ length: 80 }, (_, i) => i + 1));
+  });
+});
