@@ -15,7 +15,7 @@ import { GAME_URL } from "../site/site-urls.js";
 /** The desktop app's link scheme (`src-tauri/tauri.conf.json`, `plugins.deep-link`). */
 export const APP_LINK_SCHEME = "marvelchampions";
 
-const FRAGMENT = /^#(replay|watch|receive|link)=[^#\s]+$/;
+const FRAGMENT = /^#(replay|watch|join|receive|link)=[^#\s]+$/;
 const GAME_HOST = new URL(GAME_URL).host;
 
 /**
@@ -45,6 +45,11 @@ export function gameFragmentOf(link: string): string | null {
 /** The desktop app's link for a live game (issue #876). */
 export function appWatchLinkOf(roomId: string): string {
   return `${APP_LINK_SCHEME}://watch/${encodeURIComponent(roomId)}`;
+}
+
+/** The desktop app's link for a room (#880). */
+export function appJoinLinkOf(code: string): string {
+  return `${APP_LINK_SCHEME}://join/${encodeURIComponent(code)}`;
 }
 
 /** The desktop app's link for a shared replay, for the web version's "Open in the desktop app". */
@@ -91,6 +96,9 @@ export const RELOAD_UNSAFE_SCENES: readonly string[] = [
   "Decks",
   "ScenarioSelect",
   "Seats",
+  // A room's screens hold a live connection and the host's table: a link that arrives waits.
+  "Online",
+  "RoomLobby",
   "Setup",
   "SetupDeal",
   "CampaignRoster",
