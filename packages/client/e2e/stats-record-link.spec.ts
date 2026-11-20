@@ -98,6 +98,15 @@ test("a record from one game opens that game in Past games, and Back returns to 
   await waitForScene(page, STATS, 30_000);
   await settle(page);
 
+  // The mouse above and below the short Records list asks about no row that isn't there (Codex on #917: an index of -1
+  // or past the end used to throw on every move).
+  if (info.project.name !== "phone") {
+    const size = page.viewportSize()!;
+    for (const y of [4, 70, size.height - 6, size.height / 2]) await page.mouse.move(size.width / 2, y, { steps: 3 });
+    await settle(page);
+    expect(errors, "no error moving over and around the list").toEqual([]);
+  }
+
   // A record that adds up games is not a link: pressing it stays on Stats.
   await press(page, await stopRect(page, STATS, "row:fun:rounds"));
   await settle(page);

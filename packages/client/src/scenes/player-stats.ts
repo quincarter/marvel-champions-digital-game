@@ -1342,8 +1342,8 @@ export class PlayerStatsScene extends Phaser.Scene {
       },
       // The hand cursor only over a record that links to its game (a shelf row never had one).
       rowPressableAt: (index: number) => {
-        const row = rows[index]!;
-        return row.kind === "stat" && this.#gameLinkOf(row.row);
+        const row = rows[index];
+        return row?.kind === "stat" && this.#gameLinkOf(row.row);
       },
     });
     this.#list = list;
