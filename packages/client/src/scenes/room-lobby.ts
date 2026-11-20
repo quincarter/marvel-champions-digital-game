@@ -40,6 +40,9 @@ import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import type { ScenarioIntroData } from "./scenario-intro.js";
+import { scenarioIntroFor } from "../campaign/scenario-intros.js";
+import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import type { ModStoreSceneData } from "./mod-store.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -98,15 +101,17 @@ interface RoomApi {
 const REAL_API: RoomApi = { requestSeat, releaseSeat, assignSeat, denySeat, say, setLobby };
 
 /** The dev preview's API: nothing is sent; each call is appended to `globalThis.__mcRoomCalls` for the e2e specs to read. */
-const PREVIEW_API: RoomApi = Object.fromEntries(
-  Object.keys(REAL_API).map((name) => [
-    name,
-    (...args: unknown[]) => {
-      const calls = ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []);
-      calls.push(`${name}(${args.join(",")})`);
-    },
-  ]),
-) as unknown as RoomApi;
+const PREVIEW_API: RoomApi | null = import.meta.env.DEV
+  ? (Object.fromEntries(
+      Object.keys(REAL_API).map((name) => [
+        name,
+        (...args: unknown[]) => {
+          const calls = ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []);
+          calls.push(`${name}(${args.join(",")})`);
+        },
+      ]),
+    ) as unknown as RoomApi)
+  : null;
 
 export interface RoomLobbyData {
   /** Dev only: a made-up room to draw (`view/room-lobby-fixture.ts`) instead of the live one. */
@@ -152,6 +157,9 @@ export class RoomLobbyScene extends Phaser.Scene {
   #decks: readonly DeckOption[] | null = null;
   #starting = false;
   #opening = false;
+  /** After a failed open of the room's game: no new try before this time (ms on the scene clock), and the next wait. */
+  #openAfter = 0;
+  #openBackoff = 3000;
   #stops = new Map<string, FocusStop>();
   #order: string[] = [];
 
@@ -167,6 +175,8 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#note = null;
     this.#starting = false;
     this.#opening = false;
+    this.#openAfter = 0;
+    this.#openBackoff = 3000;
     this.#chatCount = this.#state.chat.length;
     this.#refusalSeen = this.#state.refusal?.seq ?? 0;
   }
@@ -247,7 +257,9 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#chatCount = state.chat.length;
       this.#chatToEnd = true;
     }
-    if (state.role === "guest" && state.started && !this.#opening) void this.#openGame();
+    if (state.role === "guest" && state.started && !this.#opening && this.time.now >= this.#openAfter) {
+      void this.#openGame();
+    }
     this.#draw();
   }
 
@@ -267,7 +279,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   get #api(): RoomApi {
-    return this.#preview ? PREVIEW_API : REAL_API;
+    return this.#preview && PREVIEW_API ? PREVIEW_API : REAL_API;
   }
 
   #isHost(): boolean {
@@ -285,6 +297,37 @@ export class RoomLobbyScene extends Phaser.Scene {
     const draft = roomDraft();
     const decks = this.#decks;
     if (!draft || !decks) return null;
+    // Built again only when the draft, the decks, the loaded packs or the house rule change (every draw asks).
+    const rule = this.#state.settings?.tableRules.sameNameHeroAllyConflict === true;
+    const packs = loadedPacks()
+      .map((p) => `${p.id}@${p.version}`)
+      .join(",");
+    // The draft is compared by value: Table setup may edit the kept object in place.
+    const draftKey = JSON.stringify(draft);
+    const cached = this.#configCache;
+    if (
+      cached &&
+      cached.draft === draftKey &&
+      cached.decks === decks &&
+      cached.rule === rule &&
+      cached.packs === packs
+    ) {
+      return cached.config;
+    }
+    const config = this.#buildConfig(draft, decks);
+    this.#configCache = { draft: draftKey, decks, rule, packs, config };
+    return config;
+  }
+
+  #configCache: {
+    readonly draft: string;
+    readonly decks: unknown;
+    readonly rule: boolean;
+    readonly packs: string;
+    readonly config: SessionConfig | null;
+  } | null = null;
+
+  #buildConfig(draft: NonNullable<ReturnType<typeof roomDraft>>, decks: readonly DeckOption[]): SessionConfig | null {
     const options = draft.seats.map((id) => decks.find((o) => (o.deck.id as string) === id));
     if (options.length === 0 || options.some((o) => o === undefined)) return null;
     const players = (options as DeckOption[]).map((o) => corePlayerForSeat(o, draft.deckSwaps));
@@ -337,6 +380,12 @@ export class RoomLobbyScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
+    // As Table setup does: a scenario with a one-off intro and its artboard reads that first.
+    const scenarioId = roomDraft()?.scenarioId;
+    if (scenarioId && scenarioIntroFor(scenarioId) && introArtFor(ART_CATALOG, scenarioId)) {
+      goToScreen(this, SCENES.scenarioIntro, { scenarioId } satisfies ScenarioIntroData);
+      return;
+    }
     goToScreen(this, SCENES.setupDeal);
   }
 
@@ -352,6 +401,13 @@ export class RoomLobbyScene extends Phaser.Scene {
     }
     if (!result.ok) {
       this.#opening = false;
+      // Back off rather than ask again on every lobby update, and try once more when the wait is over.
+      this.#openAfter = this.time.now + this.#openBackoff;
+      this.time.delayedCall(this.#openBackoff + 50, () => {
+        const state = this.#state;
+        if (this.#alive && state.role === "guest" && state.started && !this.#opening) void this.#openGame();
+      });
+      this.#openBackoff = Math.min(this.#openBackoff * 2, 30_000);
       this.#say(t(result.message));
       this.#draw();
       return;
@@ -514,7 +570,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       height: hit.target,
     };
     const copy = (): void => {
-      if (!state.link) return;
+      if (!state.link || state.connection === "ended") return;
       void copyText(state.link).then((ok) => {
         if (!ok || !this.#alive) return;
         this.#linkCopied = true;
@@ -530,7 +586,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       label: this.#linkCopied ? t("room.linkCopied") : t("room.copyLink"),
       type: typeRole.label,
       rect: copyRect,
-      enabled: state.link !== null,
+      enabled: state.link !== null && state.connection !== "ended",
       onClick: copy,
     });
     this.#addStop("copy", copyRect, copy);
@@ -1030,7 +1086,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #sendChat(): void {
     const input = this.#chatInput;
     const text = input?.value.trim() ?? "";
-    if (!input || text === "") return;
+    // A room that has ended hears nothing: Send is off and Enter does nothing.
+    if (!input || text === "" || this.#state.connection === "ended") return;
     this.#api.say(text);
     input.setValue("");
   }
@@ -1112,6 +1169,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       label: t("room.chat.send"),
       type: typeRole.label,
       rect: sendRect,
+      enabled: this.#state.connection !== "ended",
       onClick: () => this.#sendChat(),
     });
     this.#addStop("chat-field", fieldRect, () => this.#chatInput?.focus());
