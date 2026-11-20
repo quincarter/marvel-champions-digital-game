@@ -332,6 +332,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       difficulty: "standard",
       players: [{ starterDeckId: "core-spider-man-justice" }],
       seed: 2026,
+      // One group of a 3-group, 5-player pod: the game then takes the pod's shared record from a coordinator.
+      epic: { groupId: "t1", groupIdsInPod: ["t1", "t2"], groupsInGame: 3, playersInGame: 5 },
     });
     // Keep the first mulligan and setup choices out of the way: the table is what is being looked at.
     for (let i = 0; i < 6; i++) {
@@ -348,7 +350,29 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     const first = store.state.game?.firstPlayerId;
     if (first && store.state.game?.step.phase === "player")
       await store.dispatch({ type: "changeForm", playerId: first });
-    await injectEpicRoom(params);
+    // The coordinator's record, as the pod would send it: the game's own panels and the strip read the same numbers.
+    const base = store.state.game?.pod?.shared;
+    let sharedOf: ((flipped: boolean) => unknown) | undefined;
+    if (base && first) {
+      const flipping = params.get("flip") === "1";
+      sharedOf = (flipped) => {
+        const left = flipped ? Math.max(1, (base.villainFlipAtRemaining ?? 10) - 2) : Math.round(base.villainHp * 0.7);
+        return {
+          ...base,
+          villainDamage: base.villainHp - left,
+          villainFlipped: flipped,
+          schemeThreat: 3,
+          status: "playing",
+        };
+      };
+      await store.dispatch({
+        type: "externalEvent",
+        playerId: first,
+        sequence: (store.state.game?.pod?.inboundSeq ?? 0) + 1,
+        event: { kind: "sharedStateChanged", shared: sharedOf(flipping) as never },
+      });
+    }
+    await injectEpicRoom(params, sharedOf as never);
     return { key: SCENES.board, data: {} };
   }
   // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
@@ -1534,7 +1558,10 @@ async function startDevSetupGame(): Promise<void> {
 }
 
 /** Dev only: puts a made-up Epic room (`view/epic-room-fixture.ts`) in front of the screens, as the room worker would. */
-async function injectEpicRoom(params: URLSearchParams): Promise<void> {
+async function injectEpicRoom(
+  params: URLSearchParams,
+  sharedOf?: (flipped: boolean) => import("@mc/engine").SharedPodState,
+): Promise<void> {
   const [{ epicRoomFixture }, room] = await Promise.all([
     import("../view/epic-room-fixture.js"),
     import("../platform/room.js"),
@@ -1548,6 +1575,7 @@ async function injectEpicRoom(params: URLSearchParams): Promise<void> {
     flipped: false,
     hostAway: params.get("away") === "1",
     mangog: params.get("mangog") === "1",
+    ...(sharedOf ? { sharedOf } : {}),
   });
   const withStuck =
     params.get("stuck") === "1" && fixture.epic ? { ...fixture, epic: { ...fixture.epic, podStuck: true } } : fixture;
@@ -1559,6 +1587,7 @@ async function injectEpicRoom(params: URLSearchParams): Promise<void> {
       flipped: true,
       hostAway: params.get("away") === "1",
       mangog: params.get("mangog") === "1",
+      ...(sharedOf ? { sharedOf } : {}),
     });
     setTimeout(() => room.previewRoomState(flipped), 4000);
   }

@@ -4,6 +4,7 @@
  * hosts, a pending request, and, once playing, the coordinator's shared record and a Mangog in another table of the pod.
  * Dev and tests only: a production build never loads it.
  */
+import type { SharedPodState } from "@mc/engine";
 import {
   NO_ROOM,
   type EpicState,
@@ -40,6 +41,11 @@ export interface EpicFixtureOptions {
   readonly hostAway?: boolean;
   /** Hand the viewer's table a Mangog in the second table of its pod. */
   readonly mangog?: boolean;
+  /**
+   * The shared record to show (so a board fixture's strip says what its game's own neutral panels say). Absent: made-up
+   * numbers, for the lobby and the unit tests.
+   */
+  readonly sharedOf?: (flipped: boolean) => SharedPodState;
 }
 
 export function epicRoomFixture(options: EpicFixtureOptions): RoomState {
@@ -111,7 +117,7 @@ export function epicRoomFixture(options: EpicFixtureOptions): RoomState {
     timeLimitMinutes: 180,
     pod: playing
       ? {
-          shared: {
+          shared: options.sharedOf?.(flipped) ?? {
             villainHp: 25 * 2,
             villainDamage: flipped ? 33 : 11,
             villainFlipAtRemaining: 10,
