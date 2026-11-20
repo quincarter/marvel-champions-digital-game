@@ -38,30 +38,43 @@ const P1 = "p1" as PlayerId;
 const P2 = "p2" as PlayerId;
 const NOW_ITS_PERSONAL = "56128b";
 const ACTION = "56128b.now-its-personal-action";
+/** The resistance printing of the Standard PvP set (Q15: identical in play). */
+const NOW_ITS_PERSONAL_RESISTANCE = "56206b";
+const ACTION_RESISTANCE = "56206b.now-its-personal-action";
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
-const REAL = ["56128a", NOW_ITS_PERSONAL].map((code) => WAVE10_CARDS.find((card) => (card.id as string) === code)!);
-const deck = (): CardId[] => [cardId("56128a"), ...Array.from({ length: 12 }, () => FILLER.id)];
+const REAL = ["56128a", NOW_ITS_PERSONAL, "56206a", NOW_ITS_PERSONAL_RESISTANCE].map((code) =>
+  WAVE10_CARDS.find((card) => (card.id as string) === code)!,
+);
+const deck = (): CardId[] => [cardId("56128a"), cardId("56206a"), ...Array.from({ length: 12 }, () => FILLER.id)];
 
-/** The fixture with Now It's Personal in p1's play area, under p1's control (surgery: flipped Choosing Sides). */
-function withNowItsPersonal(sizes: readonly [number, number]): { state: GameState; id: InstanceId } {
+/**
+ * The fixture with Now It's Personal (`code`, flipped from its Choosing Sides) in `holder`'s play area, under their
+ * control (surgery), taken from the encounter deck of `holder`'s area.
+ */
+function withNowItsPersonal(
+  sizes: readonly [number, number],
+  code: string = NOW_ITS_PERSONAL,
+  holder: PlayerId = P1,
+): { state: GameState; id: InstanceId } {
   const state = competitiveGame({
     sizes,
     deps: WAVE10_DEPS,
     extraCards: [FILLER, ...REAL],
     encounterDecks: [deck(), deck()],
   });
-  const deckId = state.villains[0]!.encounterDeckId;
+  const front = code.replace(/b$/, "a");
+  const deckId = state.villains[holder === P1 ? 0 : 1]!.encounterDeckId;
   const piles = state.encounterDecks[deckId]!;
-  const id = piles.deck.find((i) => state.instances[i]!.cardId === cardId("56128a"))!;
+  const id = piles.deck.find((i) => state.instances[i]!.cardId === cardId(front))!;
   return {
     id,
     state: {
       ...state,
       encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== id) } },
-      players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, id] } : p)),
+      players: state.players.map((p) => (p.playerId === holder ? { ...p, playArea: [...p.playArea, id] } : p)),
       instances: {
         ...state.instances,
-        [id]: { ...state.instances[id]!, cardId: cardId(NOW_ITS_PERSONAL), controllerId: P1, faceup: true },
+        [id]: { ...state.instances[id]!, cardId: cardId(code), controllerId: holder, faceup: true },
       },
     },
   };
@@ -115,5 +128,45 @@ describe("Now It's Personal in 1v1: the one player chooses 2, and the other 2 st
   it("the resistance team's own leader cards are never offered", () => {
     const theirs = state.teams![1]!.leaderCardIds!;
     expect(theirs.every((card) => state.encounterSetAside.includes(card))).toBe(true);
+  });
+});
+
+describe("Now It's Personal, resistance printing (56206b), in 1v1: the resistance leader's own cards (Q12 A, Q15)", () => {
+  const { state: start, id } = withNowItsPersonal([1, 1], NOW_ITS_PERSONAL_RESISTANCE, P2);
+  const theirs = start.teams![1]!.leaderCardIds!;
+  // Into the resistance team's hero phase (MC56 p. 16: the other side is inactive until then).
+  const theirPhase = driveEventsPicking(WAVE10_DEPS, start, firstLegal, { type: "endTurn", playerId: P1 }).state;
+  const { state } = driveEventsPicking(WAVE10_DEPS, theirPhase, firstLegal, use(P2, id, ACTION_RESISTANCE));
+  const hand = state.players.find((p) => p.playerId === P2)!.hand;
+
+  it("p2 takes two of the resistance leader's cards; two stay set aside", () => {
+    const taken = theirs.filter((card) => hand.includes(card));
+    expect(taken).toHaveLength(2);
+    expect(taken.every((card) => nameOf(state, card).startsWith("resistance-card-"))).toBe(true);
+    expect(state.encounterSetAside.filter((card) => theirs.includes(card))).toHaveLength(2);
+    expect(state.removedFromGame).toContain(id);
+  });
+
+  it("the registration team's leader cards are never offered", () => {
+    expect(leaderCards(state).every((card) => state.encounterSetAside.includes(card))).toBe(true);
+  });
+});
+
+describe("Now It's Personal in 2v2 with the teammate eliminated: only the player still in the game chooses", () => {
+  // RRG v1.8 "Player Elimination" p. 34: an eliminated player is out of the game, so not one of "each player on your
+  // team"; MC56 p. 20 (2v2: the remaining teammate plays on).
+  const { state: built, id } = withNowItsPersonal([2, 2]);
+  const start: GameState = {
+    ...built,
+    players: built.players.map((p) => (p.playerId === P2 ? { ...p, eliminated: true } : p)),
+  };
+  const four = leaderCards(start);
+  const { state } = driveEventsPicking(WAVE10_DEPS, start, firstLegal, use(P1, id, ACTION));
+
+  it("p1 takes two, p2 none, and the other two stay set aside", () => {
+    const handOf = (player: PlayerId) => state.players.find((p) => p.playerId === player)!.hand;
+    expect(four.filter((card) => handOf(P1).includes(card))).toHaveLength(2);
+    expect(four.filter((card) => handOf(P2).includes(card))).toEqual([]);
+    expect(state.encounterSetAside.filter((card) => four.includes(card))).toHaveLength(2);
   });
 });

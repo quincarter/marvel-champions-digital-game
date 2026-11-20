@@ -438,6 +438,31 @@ describe.each([
   });
 });
 
+describe.each([
+  ["Venom (56087)", VENOM],
+  ["Iron Fist (56190)", IRON_FIST],
+])("%s with your leader defeated but kept in play (Q10 A): it still attacks your leader", (_name, code) => {
+  // MC56 p. 17: a leader defeated in its opponents' hero phase "does not leave play immediately … so it can still be
+  // targeted"; Q10 A per owner decision 2026-11-20: it stays a card in play, so "your leader" names it.
+  const fresh = forms(game({ deckOne: [NO_BOOST.id, code] }), true);
+  const kept = leaders(fresh).two;
+  const start: GameState = {
+    ...fresh,
+    villains: fresh.villains.map((v) => (v.instanceId === kept ? { ...v, defeated: true, defeatedInPlay: true } : v)),
+  };
+  const { events } = round(start);
+  const minion = Object.values(start.instances).find((i) => i.cardId === cardId(code))!.instanceId;
+
+  it("attacks leader two, and does not activate against p1", () => {
+    expect(
+      events.some(
+        (e) => e.type === "enemyAttackedEnemy" && e.attackerInstanceId === minion && e.targetInstanceId === kept,
+      ),
+    ).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === minion)).toBe(false);
+  });
+});
+
 describe("Taskmaster (57022) under Mimicked Move (57025): a villainous minion's attack on your leader gets one boost card", () => {
   // Boost cards for leader one's and Taskmaster's schemes, Mimicked Move dealt to p1, then the attack's boost card.
   const start = forms(game({ deckOne: [NO_BOOST.id, NO_BOOST.id, MIMICKED_MOVE, BIG_BOOST.id, TASKMASTER] }), true);
