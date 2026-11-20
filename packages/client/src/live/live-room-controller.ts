@@ -246,6 +246,17 @@ export class LiveRoomController {
       case "room-unfollow":
         this.#session?.unfollow(message.feedId);
         return;
+      case "room-dev-shared-damage": {
+        const live = this.#live;
+        if (import.meta.env.DEV && live?.pod) {
+          live.pod.injectOutbound({
+            type: "sharedVillainDamaged",
+            groupId: live.pod.table as never,
+            amount: message.amount,
+          });
+        }
+        return;
+      }
       case "room-watch-table":
         this.#session?.watchTable(message.table);
         return;

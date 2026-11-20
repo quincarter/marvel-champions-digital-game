@@ -70,6 +70,8 @@ export type LiveRoomIn =
   | { readonly kind: "room-follow"; readonly port: MessagePort; readonly feedId?: number }
   /** `feedId` names the feed to close: a closed old watch never closes the one that replaced it. */
   | { readonly kind: "room-unfollow"; readonly feedId?: number }
+  /** Dev builds only: damage to the shared villain from this table's group, as if its engine had emitted it. */
+  | { readonly kind: "room-dev-shared-damage"; readonly amount: number }
   /** Epic: watch `table` in place of the one watched now (the watch view then opens its feed again). */
   | { readonly kind: "room-watch-table"; readonly table: string };
 

@@ -144,6 +144,15 @@ export class PodLink {
     }
   }
 
+  /**
+   * Dev jumps only: queues an outbound event as if the engine had emitted it, numbered after the last one. The engine does
+   * not know of it, so a real event it emits next takes the same number and is dropped as a duplicate: for an end to end
+   * run that needs a shared event (damage to Loki) without playing a whole game to it.
+   */
+  injectOutbound(event: PodOutbound["event"]): void {
+    this.outbound([{ seq: this.#queued + 1, event }], this.#applied, this.#awaiting);
+  }
+
   /** The room welcomed this socket (again): sync, then the events the coordinator lacks. */
   onWelcome(): void {
     this.#connected = true;

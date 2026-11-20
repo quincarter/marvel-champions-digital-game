@@ -1131,3 +1131,25 @@ describe("a guest at any table, and watching another", () => {
     expect(host.sock.of("room", "follow")).toHaveLength(hostBefore);
   });
 });
+
+describe("the dev command that damages Loki from a table", () => {
+  it("sends a shared event numbered after the engine's, once the organizer has answered the sync", async () => {
+    const t = await tableHost();
+    t.sock.receive({
+      v: 1,
+      ch: "pod",
+      kind: "inbound",
+      table: "t2",
+      seq: 0,
+      event: { kind: "podSyncAck", received: 0 },
+    });
+    t.controller.onRoomCommand({ kind: "room-dev-shared-damage", amount: 7 });
+    expect(t.sock.of("pod", "event").at(-1)).toMatchObject({
+      table: "t2",
+      seq: 1,
+      event: { type: "sharedVillainDamaged", groupId: "t2", amount: 7 },
+    });
+    t.controller.onRoomCommand({ kind: "room-dev-shared-damage", amount: 1 });
+    expect(t.sock.of("pod", "event").at(-1)).toMatchObject({ seq: 2 });
+  });
+});

@@ -416,6 +416,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
     return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
+  // Epic Multiplayer, a real two-host pod (issue #882, dev only; `e2e/epic-pod.spec.ts`):
+  // `?screen=room-epic-host&table=t1[&name=Olga]` makes the room (its code is `__mcRoomCode`), sets up two tables (t1 North,
+  // t2 South, one pod, one seat each), hosts t1 and starts the game; `&table=t2&code=ABC234[&name=Theo]` joins that room, takes
+  // t2's seat, becomes its host and starts t2 when the organizer starts. Both land on the board of their own group.
+  // `?screen=room-epic-watch&code=ABC234[&table=t1]` joins as a watcher of one table and opens it as a live watch.
+  // `__mcEpicDamageLoki(n)` damages Loki from this table's group; `__mcWatchTable(id)` swaps the watched table.
+  if ((screen === "room-epic-host" || screen === "room-epic-watch") && import.meta.env.DEV) {
+    return epicRoomJump(screen, params);
+  }
   // `?screen=online`: Play online.
   if (screen === "online") return { key: SCENES.online, data: {} };
   // `?screen=credits`: Art & Credits.
@@ -1096,6 +1105,114 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 }
 
 /** A whole-number query parameter, or `fallback` when it is absent or not a number (`?corruption=abc`). */
+/** The two-host Epic pod jumps (`room-epic-host`, `room-epic-watch`), driven through the real room worker. */
+async function epicRoomJump(screen: string, params: URLSearchParams): Promise<{ key: string; data: object }> {
+  const [room, live] = await Promise.all([import("../platform/room.js"), import("../platform/live-watch.js")]);
+  const until = async (done: () => boolean, label: string, ms = 120_000): Promise<void> => {
+    const end = Date.now() + ms;
+    while (!done()) {
+      if (Date.now() > end) throw new Error(`epic room jump: timed out waiting for ${label}`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  };
+  const g = globalThis as Record<string, unknown>;
+  g.__mcRoomState = room.roomState;
+  g.__mcDispatch = (command: Command) => appSession().store.dispatch(command);
+  g.__mcEpicDamageLoki = (amount: number) => live.postRoomCommand({ kind: "room-dev-shared-damage", amount });
+  const code = params.get("code") ?? "";
+
+  if (screen === "room-epic-watch") {
+    const { enterReplay, leaveReplay } = await import("../replay/replay-mode.js");
+    await room.joinRoom(code, params.get("name") ?? "Wes");
+    await until(
+      () => room.roomState().connection === "connected" && (room.roomState().epic?.tables.length ?? 0) > 0,
+      "the lobby",
+    );
+    const watch = async (table: string): Promise<boolean> => {
+      const opened = await room.watchTable(table);
+      if (!opened.ok) return false;
+      leaveReplay();
+      await enterReplay(opened.host);
+      g.__mcWatching = table;
+      return true;
+    };
+    g.__mcWatchTable = watch;
+    // The table's game must exist before it can be opened.
+    const first = params.get("table") ?? "t1";
+    await until(() => room.roomState().epic?.tables.find((t) => t.id === first)?.started === true, "the table's game");
+    if (!(await watch(first))) throw new Error("epic room jump: the watch did not open");
+    return { key: SCENES.board, data: {} };
+  }
+
+  const table = params.get("table") === "t2" ? "t2" : "t1";
+  const settle = async (): Promise<void> => {
+    // The first mulligan and setup choices, out of the way: the table is what is being looked at.
+    const { store } = appSession();
+    for (let i = 0; i < 6; i++) {
+      const choice = store.state.game?.pendingChoice;
+      if (!choice) break;
+      await store.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [],
+      });
+    }
+  };
+  const config = (deck: string) => ({
+    scenarioId: "god-of-lies",
+    difficulty: "standard" as const,
+    players: [{ starterDeckId: deck }],
+    seed: 0,
+  });
+
+  if (table === "t2") {
+    await room.joinRoom(code, params.get("name") ?? "Theo");
+    await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
+    room.requestSeat("s2");
+    await until(() => room.roomState().mySeats.length > 0, "its seat");
+    await until(() => room.roomState().epic?.hostsTable === "t2", "being made the table's host");
+    await until(() => room.roomState().epic?.start != null, "the organizer's start");
+    await room.startEpicTable(config("core-captain-marvel-leadership"));
+    await settle();
+    return { key: SCENES.board, data: {} };
+  }
+
+  await room.hostRoom(params.get("name") ?? "Olga");
+  await until(() => room.roomState().connection === "connected", "the room");
+  g.__mcRoomCode = room.roomState().code;
+  room.setEpic(
+    [
+      { id: "t1", name: "North Table", pod: "a" },
+      { id: "t2", name: "South Table", pod: "a" },
+    ],
+    [{ id: "a", name: "Pod A" }],
+    [
+      { id: "s1", label: "Spider-Man (Justice) - Core Set starter deck", table: "t1" },
+      { id: "s2", label: "Captain Marvel (Leadership) - Core Set starter deck", table: "t2" },
+    ],
+  );
+  await until(() => room.roomState().epic?.tables.length === 2, "the tables");
+  room.requestSeat("s1");
+  await until(() => room.roomState().mySeats.length > 0, "its seat");
+  await until(
+    () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
+    "the other host asking for s2",
+  );
+  const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+  if (asker) room.assignSeat("s2", asker.participant);
+  await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+  const me = room.roomState().me?.id;
+  if (me) room.assignTableHost("t1", me);
+  if (asker) room.assignTableHost("t2", asker.participant);
+  await until(() => room.roomState().epic?.tables.every((t) => t.host !== null) === true, "both tables' hosts");
+  room.startEpicGame();
+  await until(() => room.roomState().epic?.start != null, "the start");
+  await room.startEpicTable(config("core-spider-man-justice"));
+  await settle();
+  return { key: SCENES.board, data: {} };
+}
+
 function intParam(value: string | null, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) ? parsed : fallback;
