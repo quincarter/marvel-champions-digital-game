@@ -104,6 +104,11 @@ export interface TableInfo {
   readonly ended: boolean;
   /** The room holds this table's header: false means it needs the host's `start` or `log`. */
   readonly hasHeader: boolean;
+  /**
+   * The latest checksum the room holds at or below its command count (`null`: none), so a host that resumes can prove
+   * its saved log is the room's before it appends; absent from an older room.
+   */
+  readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
