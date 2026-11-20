@@ -222,6 +222,18 @@ describe("Concussive Bombs (27137)", () => {
     const after = throughVillainPhase(seeded);
     expect(inst(after, attached.id).counters["bomb"]).toBe(1);
   });
+
+  // The Uses keyword is granted by the card's constant ability (the printed "Uses (2 bomb counters.)" misparses), so
+  // the keyword's own discard has to reach it too (RRG 1.8 "Uses", p. 46; checked with issue #897's sweep).
+  it("is discarded when its last bomb counter is removed", () => {
+    const state = game();
+    const villain = activeVillain(state).instanceId;
+    const attached = attachToHost(state, "27137", villain);
+    const seeded = patchInstance(attached.state, attached.id, { counters: { bomb: 1 } });
+    const after = throughVillainPhase(seeded);
+    expect(inst(after, villain).attachments).not.toContain(attached.id);
+    expect(inst(after, attached.id).attachedTo).toBeNull();
+  });
 });
 
 describe("Incendiary Bombs (27138)", () => {
