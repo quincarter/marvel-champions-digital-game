@@ -12,7 +12,7 @@
   "Reports and ideas": "Reportes e ideas",
   "5 reports and 4 suggestions from @bluefireF5ran.": "5 reportes y 4 sugerencias de @bluefireF5ran.",
   "The game on iPhone and iPad": "El juego en iPhone y iPad",
-  "Issues #874, #906 · PRs #875, #907": "Issues #874, #906 · PRs #875, #907",
+  "Issue #874 · PR #875": "Issue #874 · PR #875",
   "<small>Achievement unlocked</small><span>Stark Tech, Pocket Size</span>": "<small>Logro desbloqueado</small><span>Tecnología Stark de bolsillo</span>",
   "<b>Every release now has an iPhone and iPad app.</b> It isn't on the App Store: you install it yourself with a free tool and your own Apple ID, no jailbreak, in about 15 minutes the first time. On an iPhone or iPad, the website's Download button leads straight to the steps and the app's download.": "<b>Cada versión tiene ahora una app para iPhone y iPad.</b> No está en la App Store: la instalas tú mismo con una herramienta gratuita y tu propio Apple ID, sin jailbreak, en unos 15 minutos la primera vez. En un iPhone o iPad, el botón Download del sitio web lleva directo a los pasos y a la descarga de la app.",
   "The website's install section (shot before this release, so the file says 0.50.0)": "La sección de instalación del sitio web (capturada antes de esta versión, por eso el archivo dice 0.50.0)",
@@ -126,6 +126,5 @@
   "Ant-Man's nemesis attachment came in with no size counters, so it never left the enemy it was attached to. It now comes in with 3, loses one each time that enemy activates, and is discarded with the last.": "La vinculada de némesis de Ant-Man entraba sin contadores de tamaño, así que nunca dejaba al enemigo al que estaba vinculada. Ahora entra con 3, pierde uno cada vez que ese enemigo se activa y se descarta con el último.",
   "Issue #897 from @MegaJesup · PR #898": "Issue #897 de @MegaJesup · PR #898",
   "@MegaJesup": "@MegaJesup",
-  "Reported Ant-Man's Size Increase staying on Rhino for good, <b>#897</b>.": "Reportó que Size Increase de Ant-Man se quedaba para siempre en Rhino, <b>#897</b>.",
-  "Every way needs a computer once. The guide warns against sites that offer to install the game from Safari with no computer (#906).": "Todas las formas necesitan una computadora una vez. La guía advierte contra los sitios que ofrecen instalar el juego desde Safari sin computadora (#906)."
+  "Reported Ant-Man's Size Increase staying on Rhino for good, <b>#897</b>.": "Reportó que Size Increase de Ant-Man se quedaba para siempre en Rhino, <b>#897</b>."
 }
