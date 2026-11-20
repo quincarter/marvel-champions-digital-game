@@ -5581,6 +5581,7 @@ export function commitPlay(
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
   const played = mustCardOf(ctx.state, cardInstanceId);
   const byPlayer = `${playerId}:${played.type}`;
+  const inArea = `${areaOfPlayer(ctx.state, playerId)?.areaId ?? ""}:${played.type}`;
   ctx.state = {
     ...ctx.state,
     playedThisRound: { ...ctx.state.playedThisRound, [played.name]: (ctx.state.playedThisRound[played.name] ?? 0) + 1 },
@@ -5588,6 +5589,10 @@ export function commitPlay(
     playedByPlayerThisRound: {
       ...ctx.state.playedByPlayerThisRound,
       [byPlayer]: (ctx.state.playedByPlayerThisRound[byPlayer] ?? 0) + 1,
+    },
+    playedInAreaThisRound: {
+      ...ctx.state.playedInAreaThisRound,
+      [inArea]: (ctx.state.playedInAreaThisRound?.[inArea] ?? 0) + 1,
     },
     // "…if you have played another card this phase" (`Predicate playedThisPhase`): this player's plays, in any phase.
     playedByPlayerThisPhase: {

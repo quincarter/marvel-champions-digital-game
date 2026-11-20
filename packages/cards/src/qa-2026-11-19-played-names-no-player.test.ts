@@ -5,7 +5,7 @@
  * p. 59; FAQ 1.2, Caleb: "If you are Captain America when the first ally is played, then nobody gets a discount that
  * round"). Compare Helicarrier's "that player plays", which stays per player.
  */
-import { playCostOf } from "@mc/engine";
+import { playCostOf, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { PLAYABLE_DEPS } from "./playable/index.js";
 import { endTurn, moveToHand, P1, P2, payWith, play, playerOf } from "./testing/harness.js";
@@ -59,5 +59,50 @@ describe("#888: a discount for the card 'played' is for any player", () => {
     const mine = moveToHand(out, P1, "03013"); // Squirrel Girl (2)
     const [squirrelGirl] = mine.ids as [never];
     expect(playCostOf(mine.state, P1, squirrelGirl, WAVE1_DEPS)).toMatchObject({ printed: 2, current: 2 });
+  });
+
+  describe("in The Once and Future Kang's split game areas (docs/phase7-wave2.md §3.1)", () => {
+    const split = (state: GameState): GameState => ({
+      ...state,
+      gameAreas: [P1, P2].map((player, n) => ({
+        areaId: `area-${n + 1}` as never,
+        playerIds: [player],
+        mainScheme: null,
+        villainIds: [],
+        activeVillainId: null,
+        sideSchemeIds: [],
+        formerSchemeIds: [],
+      })),
+      nextGameAreaSeq: 3,
+    });
+    const start = () =>
+      runWave1(
+        startWave1Game(
+          wave1Scenario("rhino", {
+            players: [{ starterDeckId: "cap-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+            seed: 11,
+          }),
+        ),
+        endTurn(P1),
+      );
+    const squirrelGirlCost = (state: GameState) => {
+      const mine = moveToHand(state, P1, "03013"); // Squirrel Girl (2)
+      return playCostOf(mine.state, P1, mine.ids[0]!, WAVE1_DEPS);
+    };
+
+    it("an ally played before the split is still the round's first after its player ends up in the other area", () => {
+      const given = moveToHand(start(), P2, "01002"); // Black Cat (2)
+      const [blackCat] = given.ids as [never];
+      const played = runWave1(given.state, play(P2, blackCat, payWith(given.state, P2, 1, [blackCat])));
+      expect(squirrelGirlCost(split(played))).toMatchObject({ printed: 2, current: 2 });
+    });
+
+    it("an ally played in the other area after the split leaves Steve Rogers' area its first ally", () => {
+      const given = moveToHand(split(start()), P2, "01002");
+      const [blackCat] = given.ids as [never];
+      const played = runWave1(given.state, play(P2, blackCat, payWith(given.state, P2, 2, [blackCat])));
+      expect(playerOf(played, P2).playArea).toContain(blackCat);
+      expect(squirrelGirlCost(played)).toMatchObject({ printed: 2, current: 1 });
+    });
   });
 });
