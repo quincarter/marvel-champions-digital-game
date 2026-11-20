@@ -239,12 +239,15 @@ export class LiveRoomController {
         return;
       case "room-follow": {
         const port = message.port as unknown as FeedPort;
-        if (this.#session?.role === "guest") this.#session.follow(port);
+        if (this.#session?.canWatch) this.#session.follow(port, message.feedId);
         else port.close();
         return;
       }
       case "room-unfollow":
-        this.#session?.unfollow();
+        this.#session?.unfollow(message.feedId);
+        return;
+      case "room-watch-table":
+        this.#session?.watchTable(message.table);
         return;
       default:
         return;

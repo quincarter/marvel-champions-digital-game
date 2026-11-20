@@ -67,8 +67,11 @@ export type LiveRoomIn =
   /** Guest only: dismisses the answer to the last request. */
   | { readonly kind: "room-ask-clear" }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
-  | { readonly kind: "room-follow"; readonly port: MessagePort }
-  | { readonly kind: "room-unfollow" };
+  | { readonly kind: "room-follow"; readonly port: MessagePort; readonly feedId?: number }
+  /** `feedId` names the feed to close: a closed old watch never closes the one that replaced it. */
+  | { readonly kind: "room-unfollow"; readonly feedId?: number }
+  /** Epic: watch `table` in place of the one watched now (the watch view then opens its feed again). */
+  | { readonly kind: "room-watch-table"; readonly table: string };
 
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
 export type LiveRoomOut =

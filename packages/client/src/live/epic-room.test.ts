@@ -945,3 +945,189 @@ describe("a standard room", () => {
     expect(t.last().mode).toBe("standard");
   });
 });
+
+describe("a guest at any table, and watching another", () => {
+  const log = (table: string, header: object = { table }) => ({
+    v: 1,
+    ch: "game",
+    kind: "log",
+    table,
+    header,
+    commands: [],
+    checksums: {},
+  });
+  const lobbyWith = (holder: string | null, tables = TABLES) =>
+    lobbyEpic({
+      tables: tables.map((x) => ({ ...x, host: x.id === "t1" ? "org" : undefined })),
+      seats: SEATS.map(({ holder: _h, ...seat }) => (holder && seat.id === "s4" ? { ...seat, holder } : seat)),
+    });
+
+  type Raw = { onmessage: ((e: { data: unknown }) => void) | null };
+  function feed() {
+    const posted: RoomFeedOut[] = [];
+    const raw: Raw & { postMessage: (m: RoomFeedOut) => void; start: () => void; close: () => void } = {
+      onmessage: null,
+      postMessage: (m) => posted.push(m),
+      start: () => undefined,
+      close: () => undefined,
+    };
+    return { port: raw as unknown as MessagePort, posted, raw };
+  }
+  type GameMsg = { table: string; header?: { table: string; again?: boolean } };
+  const games = (posted: RoomFeedOut[]): GameMsg[] =>
+    posted
+      .filter((m) => m.kind === "server" && m.message.ch === "game")
+      .map((m) => (m as unknown as { message: GameMsg }).message);
+
+  async function guestAt(holder: string | null) {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "Me" });
+    await flush();
+    const sock = FakeSocket.all[0]!;
+    sock.open();
+    sock.receive({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: me,
+      caps: [],
+      participants: [org, me],
+      tables: TABLES.map((x) => info(x.id)),
+    });
+    sock.receive(lobbyWith(holder));
+    return { ...t, sock };
+  }
+
+  it("a seat at the third table gets that table's log as the only one, proposes and asks there", async () => {
+    const t = await guestAt("me");
+    expect(t.sock.of("room", "follow").at(-1)).toMatchObject({ tables: [] });
+    const { port, posted, raw } = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port });
+    t.sock.receive(log("t2"));
+    t.sock.receive(log("t3"));
+    expect(games(posted)).toEqual([expect.objectContaining({ table: "t1", header: { table: "t3" } })]);
+    raw.onmessage?.({ data: { kind: "propose", command: { type: "endTurn", playerId: "p1" }, base: 0, stamp: "s" } });
+    expect(t.sock.of("game", "propose").at(-1)).toMatchObject({ table: "t3" });
+    t.controller.onRoomCommand({ kind: "room-ask", what: "adjust", note: "" });
+    expect(t.sock.of("game", "request").at(-1)).toMatchObject({ table: "t3" });
+  });
+
+  it("keeps its table across a reconnect, even when the log arrives before the lobby", async () => {
+    const t = await guestAt("me");
+    const { port, posted } = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port });
+    t.sock.receive(log("t3"));
+    t.sock.closeWith(1006);
+    for (const timer of t.timers.splice(0)) if (timer.live) timer.run();
+    const second = FakeSocket.all[1]!;
+    second.open();
+    // A new participant id; the room sends the log right after the welcome and the lobby only then.
+    const me2 = { ...me, id: "me2" };
+    second.receive({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: me2,
+      caps: [],
+      participants: [org, me2],
+      tables: TABLES.map((x) => info(x.id)),
+    });
+    second.receive(log("t3", { table: "t3", again: true }));
+    second.receive(lobbyWith("me2"));
+    expect(games(posted).at(-1)).toMatchObject({ table: "t1", header: { table: "t3", again: true } });
+    expect(second.of("room", "follow").at(-1)).toMatchObject({ tables: [] });
+    // Another table's log is still not this seat's game.
+    second.receive(log("t2"));
+    expect(games(posted).at(-1)?.header?.table).toBe("t3");
+  });
+
+  it("a log that arrives before the lobby is not lost", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "Me" });
+    await flush();
+    const sock = FakeSocket.all[0]!;
+    sock.open();
+    sock.receive({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: me,
+      caps: [],
+      participants: [org, me],
+      tables: TABLES.map((x) => info(x.id)),
+    });
+    sock.receive(log("t3"));
+    sock.receive(lobbyWith("me"));
+    const { port, posted } = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port });
+    expect(games(posted)).toEqual([expect.objectContaining({ table: "t1", header: { table: "t3" } })]);
+  });
+
+  it("a watcher switches tables in place: the old feed closes, the new table's game arrives as the first", async () => {
+    const t = await guestAt(null);
+    expect(t.sock.of("room", "follow").at(-1)).toMatchObject({ tables: "all" });
+    const first = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port: first.port, feedId: 1 });
+    t.sock.receive(log("t1"));
+    t.sock.receive(log("t3"));
+    expect(games(first.posted).map((m) => m.header?.table)).toEqual(["t1"]);
+    t.controller.onRoomCommand({ kind: "room-watch-table", table: "t3" });
+    expect(first.posted.at(-1)).toEqual({ kind: "gone" });
+    expect(t.sock.of("room", "follow").at(-1)).toMatchObject({ tables: ["t3"] });
+    expect(t.last().epic?.following).toEqual(["t3"]);
+    // The watch view opens a new feed: it starts from what arrived of t3.
+    const second = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port: second.port, feedId: 2 });
+    expect(games(second.posted)).toEqual([expect.objectContaining({ table: "t1", header: { table: "t3" } })]);
+    // Disposing the old watch afterwards does not close the new one.
+    t.controller.onRoomCommand({ kind: "room-unfollow", feedId: 1 });
+    expect(second.posted.at(-1)).not.toEqual({ kind: "gone" });
+    t.sock.receive({ v: 1, ch: "game", kind: "commands", table: "t3", from: 0, commands: [{ type: "x" }] });
+    expect(second.posted.at(-1)).toMatchObject({ message: { kind: "commands", table: "t1" } });
+    // Back to the first table.
+    t.controller.onRoomCommand({ kind: "room-watch-table", table: "t1" });
+    expect(second.posted.at(-1)).toEqual({ kind: "gone" });
+  });
+
+  it("an organizer who runs no table may watch any table the same way", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Olga" });
+    await flush();
+    const sock = FakeSocket.all[0]!;
+    sock.open();
+    const orgNoTable = { id: "org", role: "host", organizer: true, name: "Olga", build: BUILD };
+    sock.receive({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: orgNoTable,
+      caps: [],
+      participants: [orgNoTable],
+      tables: TABLES.map((x) => info(x.id)),
+    });
+    sock.receive(
+      lobbyEpic({
+        tables: TABLES.map((x) => ({ ...x, host: undefined })),
+        seats: SEATS.map(({ holder: _h, ...seat }) => seat),
+      }),
+    );
+    expect(t.last().epic?.hostsTable).toBeNull();
+    t.controller.onRoomCommand({ kind: "room-watch-table", table: "t2" });
+    expect(sock.of("room", "follow").at(-1)).toMatchObject({ tables: ["t2"] });
+    sock.receive(log("t2"));
+    const { port, posted } = feed();
+    t.controller.onRoomCommand({ kind: "room-follow", port });
+    expect(games(posted)).toEqual([expect.objectContaining({ table: "t1", header: { table: "t2" } })]);
+  });
+
+  it("a seat holder and a table host watch their own table: watchTable changes nothing for them", async () => {
+    const seated = await guestAt("me");
+    const before = seated.sock.of("room", "follow").length;
+    seated.controller.onRoomCommand({ kind: "room-watch-table", table: "t1" });
+    expect(seated.sock.of("room", "follow")).toHaveLength(before);
+    const host = await tableHost({ game: false });
+    const hostBefore = host.sock.of("room", "follow").length;
+    host.controller.onRoomCommand({ kind: "room-watch-table", table: "t3" });
+    expect(host.sock.of("room", "follow")).toHaveLength(hostBefore);
+  });
+});

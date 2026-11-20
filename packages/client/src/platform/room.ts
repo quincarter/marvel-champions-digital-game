@@ -238,6 +238,9 @@ export async function startGame(config: SessionConfig): Promise<void> {
   });
 }
 
+/** Names each watch feed, so closing an old one never closes the feed that replaced it. */
+let lastFeedId = 0;
+
 const followDeps: WatchOpenDeps = {
   syncUrl: syncServiceUrl(),
   packsPending: startupPacksPending,
@@ -245,7 +248,8 @@ const followDeps: WatchOpenDeps = {
   open: async (roomId, syncUrl) => {
     const host = new ReplayHostClass(new WorkerReplayBackend());
     const channel = new MessageChannel();
-    if (!postRoomCommand({ kind: "room-follow", port: channel.port1 }, [channel.port1])) {
+    const feedId = ++lastFeedId;
+    if (!postRoomCommand({ kind: "room-follow", port: channel.port1, feedId }, [channel.port1])) {
       host.dispose();
       throw new Error("no room worker");
     }
@@ -254,13 +258,13 @@ const followDeps: WatchOpenDeps = {
       // Closing the watch lets the room worker drop the feed (a message port has no close event of its own).
       const dispose = host.dispose.bind(host);
       host.dispose = () => {
-        postRoomCommand({ kind: "room-unfollow" });
+        postRoomCommand({ kind: "room-unfollow", feedId });
         dispose();
       };
       return host;
     } catch (cause) {
       host.dispose();
-      postRoomCommand({ kind: "room-unfollow" });
+      postRoomCommand({ kind: "room-unfollow", feedId });
       throw cause;
     }
   },
@@ -274,8 +278,27 @@ export async function watchRoomGame(): Promise<
   { readonly ok: true; readonly host: ReplayHost } | { readonly ok: false; readonly message: MessageKey }
 > {
   const id = state.roomId;
-  if (state.role !== "guest" || !id) return { ok: false, message: "watch.link.gone" };
+  // A guest, or an Epic organizer who runs no table: it watches a table without playing at one.
+  const watcher = state.role === "guest" || (state.role === "host" && state.epic !== null && !state.epic.hostsTable);
+  if (!watcher || !id) return { ok: false, message: "watch.link.gone" };
   return loadLiveWatch(id, followDeps);
+}
+
+/**
+ * Epic: swaps the watched table in place, without leaving the room. Follows only `table`, then opens its game as a live
+ * watch the way `watchRoomGame` does; the caller swaps the returned host into its watch view and disposes the old one
+ * (closing it does not close this feed). `ok: false` for a seat holder or table host (they watch their own table), an
+ * unknown table, or a room that is not Epic. An organizer who hosts no table may watch any table this way.
+ */
+export async function watchTable(
+  table: string,
+): Promise<{ readonly ok: true; readonly host: ReplayHost } | { readonly ok: false; readonly message: MessageKey }> {
+  const epic = state.epic;
+  if (!epic || epic.hostsTable || epic.myTable || !epic.tables.some((t) => t.id === table)) {
+    return { ok: false, message: "watch.link.gone" };
+  }
+  postRoomCommand({ kind: "room-watch-table", table });
+  return watchRoomGame();
 }
 
 // ---------------------------------------------------------------------------------------------------------------

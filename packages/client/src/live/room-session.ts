@@ -116,7 +116,16 @@ export class RoomSession {
   #hostToken: string | null = null;
   #tokens: Record<string, string> = {};
   #hooks: GameHooks | null = null;
-  #mirror = new GameMirror();
+  /**
+   * The game of every table this device receives, by table: a seat holder's own table, the tables it follows. Kept for
+   * all of them, so a log that arrives before the lobby says which table is "mine" is not lost, and switching the
+   * watched table (`watchTable`) shows what has already arrived.
+   */
+  readonly #mirrors = new Map<string, GameMirror>();
+  /** A watcher's explicit choice of table (`watchTable`), for a device with no seat and no table of its own. */
+  #watchOverride: string | null = null;
+  /** After a (re)connect and until the lobby arrives, the lobby we hold is of the old connection: keep the view. */
+  #awaitingLobby = false;
   /** Epic Multiplayer: the organizer's pod coordinator (made when the first table speaks) and its start. */
   #coordinator: EpicCoordinator | null = null;
   #coordinatorStart: Promise<EpicCoordinator | null> | null = null;
@@ -127,6 +136,7 @@ export class RoomSession {
   /** The follow last sent, so a lobby message does not repeat it. Cleared on a new connection. */
   #followSent = "";
   #feed: FeedPort | null = null;
+  #feedId: number | undefined;
   #closed = false;
   /** Resolves when the room is made (or failed): a game that starts meanwhile waits for it. */
   #ready: Promise<void> = Promise.resolve();
@@ -278,7 +288,7 @@ export class RoomSession {
     this.#hooks = null;
     this.#coordinator?.dispose();
     this.unfollow();
-    this.#mirror.clear();
+    for (const mirror of this.#mirrors.values()) mirror.clear();
     this.#model.ended(this.#model.state().problem ?? "closed-ended");
   }
 
@@ -478,10 +488,30 @@ export class RoomSession {
     return coordinator;
   }
 
+  /** This device's game is another table's to watch: it has no seat and runs no table (an organizer with none, a guest). */
+  get canWatch(): boolean {
+    return this.role === "guest" || (this.hostedTable === null && this.#epic());
+  }
+
+  /**
+   * Epic: watch `table` in place of whatever this device watches now. Only a device with no seat and no table of its
+   * own may (a seat holder watches its own table). Follows just that table and shows what has arrived of it; an open
+   * feed is closed, and its owner opens the new table's (`platform/room.ts` `watchTable`). False when it cannot.
+   */
+  watchTable(table: string): boolean {
+    const lobby = this.#model.lobby;
+    if (!this.canWatch || !lobby?.tables?.some((t) => t.id === table)) return false;
+    if (this.#model.state().mySeats.length > 0 || this.#model.hostedTable !== null) return false;
+    this.#watchOverride = table;
+    this.followTables([table]);
+    this.#syncView();
+    return true;
+  }
+
   /** Tells the room which tables this device follows: its choice, else only its own table once it has one. */
   #syncFollow(): void {
     if (!this.#epic()) return;
-    const own = this.hosting || this.#model.state().mySeats.length > 0;
+    const own = this.hostedTable !== null || this.#model.state().mySeats.length > 0;
     const follow = this.#followChosen ?? (own ? [] : "all");
     this.#model.setFollow(follow);
     const key = JSON.stringify(follow);
@@ -503,15 +533,25 @@ export class RoomSession {
         this.#model.hostedTable ??
         seat?.table ??
         (seat ? FIRST_TABLE : undefined) ??
+        this.#watchOverride ??
         (Array.isArray(follow) ? follow[0] : undefined) ??
         lobby.tables?.[0]?.id ??
         FIRST_TABLE;
     }
     if (view === this.#model.view) return;
     this.#model.setView(view);
-    this.#mirror = new GameMirror(view);
     // A game feed already open was following another table: it is closed, and its owner opens the new one.
     this.unfollow();
+    this.#publish();
+  }
+
+  #mirrorOf(table: string): GameMirror {
+    let mirror = this.#mirrors.get(table);
+    if (!mirror) {
+      mirror = new GameMirror(table);
+      this.#mirrors.set(table, mirror);
+    }
+    return mirror;
   }
 
   seat(
@@ -582,9 +622,10 @@ export class RoomSession {
   // -- a guest's feed ---------------------------------------------------------------------------------------------
 
   /** Guest: the watcher takes the room's game over `port`: first what has arrived, then everything as it comes. */
-  follow(port: FeedPort): void {
+  follow(port: FeedPort, feedId?: number): void {
     this.unfollow();
     this.#feed = port;
+    this.#feedId = feedId;
     port.onmessage = (event) => {
       if ((event.data as RoomFeedIn | undefined)?.kind === "resync") this.#sendSnapshot();
       else this.#sendSeatMessage(event.data);
@@ -601,7 +642,9 @@ export class RoomSession {
     if (message) this.#say({ ...message, table: this.#model.view });
   }
 
-  unfollow(): void {
+  /** Closes the feed (`feedId`, when given, must be the open one: a closed old watch must not close its successor). */
+  unfollow(feedId?: number): void {
+    if (feedId !== undefined && feedId !== this.#feedId) return;
     const port = this.#feed;
     this.#feed = null;
     if (!port) return;
@@ -807,6 +850,7 @@ export class RoomSession {
     }
     const changed = this.#model.onMessage(message);
     if (message.ch === "room" && message.kind === "lobby") {
+      this.#awaitingLobby = false;
       this.#pruneTokens();
       this.#syncView();
       this.#syncFollow();
@@ -827,11 +871,14 @@ export class RoomSession {
     }
     if (message.ch === "room" && (message.kind === "welcome" || message.kind === "roster")) {
       // Who runs which table can change with the roster (a promotion to table host): the view and follow follow it.
-      if (message.kind === "welcome") this.#followSent = "";
-      this.#syncView();
+      if (message.kind === "welcome") {
+        this.#followSent = "";
+        this.#awaitingLobby = true;
+      }
+      if (!this.#awaitingLobby) this.#syncView();
       this.#syncFollow();
     }
-    if (this.role === "guest") this.#guestMessage(message);
+    if (this.canWatch) this.#guestMessage(message);
     if (this.hosting && message.ch === "room" && message.kind === "welcome") this.#hooks?.onWelcome(this.#tableInfo());
     this.#hooks?.onMessage(message);
     if (message.ch === "room" && message.kind === "closed") {
@@ -871,8 +918,8 @@ export class RoomSession {
       // A reconnect: the room sends the whole log again, which resets the mirror.
       this.#feed?.postMessage({ kind: "connection", connected: true });
     }
-    if (message.ch === "game" && "table" in message && message.table === this.#model.view) {
-      const result = this.#mirror.apply(message);
+    if (message.ch === "game" && "table" in message) {
+      const result = this.#mirrorOf(message.table).apply(message);
       if (result === "gap") {
         // Not a log this side can follow: the room sends a fresh one on the next connection.
         this.#reconnect();
@@ -894,7 +941,7 @@ export class RoomSession {
     const roomId = this.#model.roomId;
     this.#socket?.close();
     this.#socket = null;
-    this.#mirror.clear();
+    for (const mirror of this.#mirrors.values()) mirror.clear();
     this.#model.dropped();
     this.#publish();
     this.#feed?.postMessage({ kind: "connection", connected: false });
@@ -925,7 +972,7 @@ export class RoomSession {
     const welcome = this.#model.welcomeFor();
     const aliasedWelcome = welcome ? aliasTable(welcome, this.#model.view, FIRST_TABLE) : null;
     if (aliasedWelcome) feed.postMessage({ kind: "server", message: aliasedWelcome });
-    for (const message of this.#mirror.snapshot()) {
+    for (const message of this.#mirrorOf(this.#model.view).snapshot()) {
       const aliased = aliasTable(message, this.#model.view, FIRST_TABLE);
       if (aliased) feed.postMessage({ kind: "server", message: aliased });
     }
