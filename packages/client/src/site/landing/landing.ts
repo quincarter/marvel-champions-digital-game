@@ -106,8 +106,8 @@ const BATCHES: readonly ModBatch[] = [
   {
     number: 1,
     poster: batchOneArt,
-    // Throg (throg-ptt) was on batch 1's poster but never listed in the store; it ships with batch 2 as its precon, so
-    // it stays out of this list and takes batch 2's Throg slot when the store lists it.
+    // Throg (throg-ptt) never listed in the store with batch 1; it ships with batch 2 as its precon, so it stays out
+    // of this list and takes batch 2's Throg slot when the store lists it.
     ids: [
       "carnage-nep",
       "gmw-fixes-gg",
