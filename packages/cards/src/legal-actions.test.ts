@@ -67,11 +67,14 @@ function covers(entry: LegalAction, command: Command): boolean {
     case "changeForm":
     case "endTurn":
       return action.kind === command.type;
-    // None is a turn action `legalActions` lists: a choice is answered, conceding is always available, and a Manual
-    // adjust (issue #791) is a correction from the Pause menu, not a move.
+    // None is a turn action `legalActions` lists: a choice is answered, conceding is always available, a Manual
+    // adjust (issue #791) is a correction from the Pause menu, not a move, an inbound pod event comes from a group's
+    // authority only, and a remote power names a card of another group's game (Epic Multiplayer, issue #882).
     case "resolveChoice":
     case "concede":
     case "adjust":
+    case "externalEvent":
+    case "remotePower":
       return false;
   }
 }

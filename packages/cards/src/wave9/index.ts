@@ -48,5 +48,5 @@ export const WAVE9_DEPS: EngineDeps = { abilities: WAVE9_ABILITIES };
 
 export { WAVE9_CARDS } from "./cards.js";
 export { CARD_GROUPS } from "./card-groups.js";
-export { wave9Scenario, wave9StarterDeckSetup } from "./setup.js";
+export { epicGroupScenario, wave9Scenario, wave9StarterDeckSetup, type EpicGroupPlacement } from "./setup.js";
 export type { Wave9Difficulty, Wave9ScenarioOptions } from "./setup.js";

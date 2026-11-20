@@ -12,7 +12,7 @@ import {
   type EncounterSet,
   type Scenario,
 } from "@mc/content";
-import { SINGLE_GROUP, type GameSetupConfig, type PlayerSetup, type PodSetup } from "@mc/engine";
+import { SINGLE_GROUP, type GameSetupConfig, type GroupId, type PlayerSetup, type PodSetup } from "@mc/engine";
 import {
   checkScenarioSetupOptions,
   encounterCardsOf,
@@ -260,4 +260,44 @@ export function wave9Scenario(scenarioId: string, options: Wave9ScenarioOptions)
   const record = WAVE9_SCENARIOS.find((s) => s.id === scenarioId);
   if (!record) throw new Error(`no wave 9 scenario ${scenarioId}`);
   return buildScenario(record, options);
+}
+
+/** Where one group sits in an Epic Multiplayer game (docs/epic-multiplayer-plan.md §1.2, §4 item 4). */
+export interface EpicGroupPlacement {
+  readonly groupId: GroupId;
+  /** Every group of this group's pod, it included, in the pod's order (what "choose a group in your pod" offers). */
+  readonly groupIdsInPod: readonly GroupId[];
+  /** Every group of the game, all pods. */
+  readonly groupsInGame: number;
+  /** Every player of the game, all groups. */
+  readonly playersInGame: number;
+}
+
+/**
+ * One group's `GameSetupConfig` in Epic Multiplayer Mode: a scenario with neutral cards (`god-of-lies`) set up as a
+ * group of a pod whose coordinator is outside this engine (`coordinator: "remote"`; plan §2 option B). MC55 p. 11 and
+ * 55028b: one Loki, God of Lies and one Worlds Collide per game; pods only scope "your pod" abilities (MC55 pp. 4, 13).
+ * So the shared record every group builds counts the whole game (Loki's hit points and flip per player in the game,
+ * Worlds Collide's target per group in the game; Q3), and a per group icon in a group's area counts its pod: Epic
+ * Multiplayer Reminder card: groups that began the scenario in that pod (cf. RRG Per Player Icon p. 32).
+ */
+export function epicGroupScenario(
+  scenarioId: string,
+  options: Wave9ScenarioOptions,
+  placement: EpicGroupPlacement,
+): GameSetupConfig {
+  const config = wave9Scenario(scenarioId, options);
+  if (!config.pod) throw new Error(`${scenarioId} has no neutral cards: it has no Epic Multiplayer Mode`);
+  return {
+    ...config,
+    pod: {
+      ...config.pod,
+      groupId: placement.groupId,
+      coordinator: "remote",
+      groupsInPod: placement.groupIdsInPod.length,
+      groupsInGame: placement.groupsInGame,
+      playersInGame: placement.playersInGame,
+      groupIdsInPod: placement.groupIdsInPod,
+    },
+  };
 }
