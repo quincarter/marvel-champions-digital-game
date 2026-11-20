@@ -1663,6 +1663,13 @@ export type RuleSpec =
   | {
       readonly kind: "attacksDealExtraDamage";
       readonly amount: number;
+      /**
+       * `amount` for each counter of this type on the attacked character: "When a character with one or more Exposed
+       * status cards is attacked, … that attack deals 1 additional damage for each" (Sentinel's Expose insert, the
+       * `sentinel-tw` community pack; #890 item 10) is `{ amount: 1, perCounterOnTarget: "exposed" }`, the counters
+       * then removed by the pack's own response to the attack. 0 counters: no additional damage.
+       */
+      readonly perCounterOnTarget?: string;
       readonly target: TargetQuery;
       readonly attacker?: TargetQuery;
       readonly while?: Predicate;
@@ -4098,6 +4105,11 @@ export interface AbilityDefinition {
    * that leaves another way strands it under the RRG. Card text over the Rules Reference (RRG 1.8 "The Golden Rules",
    * p. 4). Not inferred from the trigger: another card that only answers its host leaving ("draw 1 card") is still
    * removed from the game (owner, 2026-10-18).
+   *
+   * Also on a player card that is not permanent and attaches itself by its own effect (Juston Seyfert, a support the
+   * `sentinel-tw` community pack moves onto a side scheme: "After attached side scheme is defeated, put Juston Seyfert
+   * in play under your control"; #890 item 12): it comes back unattached to its controller's play area instead of being
+   * discarded with its host (`discardWithLeavingHost`).
    */
   readonly staysWhenHostLeaves?: "leaves" | "defeated";
   /**
@@ -4128,6 +4140,14 @@ export interface AbilityDefinition {
   readonly generates?: ResourceGeneration;
   /** Resource abilities only: "generate a [wild] resource for an event" — usable only while paying for a matching card. */
   readonly generatesFor?: TargetQuery;
+  /**
+   * Resource abilities only: "generate a [wild] resource **for an upgrade ability**" (With Great Firepower, the
+   * `spider-punisher-tw` community pack; #890 item 3): usable only while paying an ability's cost, the ability's card
+   * matching `generatesFor` (an ability's payment is for its own card, docs/phase7-wave6.md §3.30), never to play a
+   * card. A play payment (`isPlayPayment`: a card being played, and the card paid for) is refused, and so is a payment
+   * for no card.
+   */
+  readonly generatesForAbility?: true;
   /**
    * Resource abilities only: "Resource: Generate a [energy] resource **to overpay for a card**. (Limit once per card.)"
    * (Mr. Hollywood, `wonder_man` 58009; docs/phase7-wave10-hero-packs.md H3.14). What the ability generates may join a

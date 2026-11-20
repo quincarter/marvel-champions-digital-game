@@ -84,6 +84,11 @@ export const status = {
   stunned: token(0x6e9b2f),
   confused: token(0x8e5aa0),
   tough: token(0xd9741f),
+  /**
+   * Exposed (Sentinel's Expose insert, the `sentinel-tw` community pack; #890 item 10): the red of its status card, its
+   * text in ink as the card prints it. Carried as `exposed` counters, shown as a status (`statusPips`).
+   */
+  exposed: token(0xe8343a),
 } as const;
 
 /** The control each status disables (section 06, "status owns a button"). */
@@ -91,6 +96,7 @@ export const STATUS_DISABLES = {
   stunned: "attack",
   confused: "thwart",
   tough: null,
+  exposed: null,
 } as const satisfies Record<keyof typeof status, "attack" | "thwart" | null>;
 
 /**

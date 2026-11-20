@@ -410,6 +410,13 @@ describe("promptTitleOf, an any-player-control card's controller", () => {
     expect(promptTitleOf(prompt, POOL_DEPS, undefined, state)).toBe(`Who controls ${cardName(state, villain)}?`);
   });
 
+  test("who pays a part of a cost any player may help pay (useActionAbility, PR #903 review 7), even with its card named", async () => {
+    const state = await realState();
+    const villain = activeVillain(state).instanceId;
+    const prompt = { kind: "choosePlayer", slot: "costPart.damageSelf", cardInstanceId: villain } as ChoicePrompt;
+    expect(promptTitleOf(prompt, POOL_DEPS, undefined, state)).toBe("Who takes the cost's damage?");
+  });
+
   test("any other player choice keeps the generic title", async () => {
     const state = await realState();
     expect(promptTitleOf({ kind: "choosePlayer", slot: "x" } as ChoicePrompt, POOL_DEPS, undefined, state)).toBe(
