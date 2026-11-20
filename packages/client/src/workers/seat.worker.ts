@@ -33,7 +33,7 @@ async function handle(request: SeatRequest): Promise<void> {
         return;
       }
       case "propose":
-        need().propose(request.command, request.base);
+        need().propose(request.command, request.base, request.pid);
         return;
       case "players":
         worker.postMessage({ kind: "players", id: request.id, snapshot: await need().setPlayers(request.players) });

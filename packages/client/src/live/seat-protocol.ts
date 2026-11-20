@@ -21,6 +21,8 @@ export interface SeatFeedPropose {
   readonly kind: "propose";
   readonly command: Command;
   readonly base: number;
+  /** This proposal's id, echoed in every refusal of it so a seat fails the right one. */
+  readonly pid?: number;
   /** The table's identity at `base` (`SeatCore.stampAt`): the host dispatches only onto the table it names. */
   readonly stamp?: string;
 }
@@ -37,6 +39,7 @@ export function seatFeedMessage(data: unknown): Omit<Extract<ClientMessage, { ki
     table: FIRST_TABLE,
     command: m.command,
     base: m.base,
+    ...(typeof m.pid === "number" && Number.isInteger(m.pid) && m.pid >= 0 ? { pid: m.pid } : {}),
     ...(typeof m.stamp === "string" && m.stamp !== "" ? { stamp: m.stamp } : {}),
   };
 }
@@ -49,7 +52,7 @@ export type SeatEvent =
   /** The table changed. `divergedAt`: the first command count whose state differs from the host's checksum. */
   | { readonly type: "update"; readonly snapshot: SeatSnapshot; readonly divergedAt: number | null }
   /** The host turned the proposal built on `base` down. */
-  | { readonly type: "refused"; readonly base: number; readonly reason: SeatRefusal }
+  | { readonly type: "refused"; readonly base: number; readonly reason: SeatRefusal; readonly pid?: number }
   | { readonly type: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   /** The game ended (its outcome came, or the room closed): no more commands. */
   | { readonly type: "over"; readonly reason: "ended" | "closed" }
@@ -61,7 +64,7 @@ export interface SeatBackend {
   /** Waits for the room's game and settles once it is open: the card pool and the table. Rejects when it cannot be. */
   open(): Promise<{ readonly cardPool: CardPool; readonly snapshot: SeatSnapshot }>;
   /** Sends a proposal for the host to judge. The answer is a later event (the log's next command, or `refused`). */
-  propose(command: Command, base: number): void;
+  propose(command: Command, base: number, pid: number): void;
   /** The heroes this device holds; answers the table again with `legal` for them. */
   setPlayers(players: readonly SeatPlayer[]): Promise<SeatSnapshot>;
   legalActions(playerId: PlayerId): Promise<LegalActions>;
@@ -79,7 +82,13 @@ export type SeatRequest =
       readonly feed: MessagePort;
       readonly device?: RoomDevice;
     }
-  | { readonly kind: "propose"; readonly id: number; readonly command: Command; readonly base: number }
+  | {
+      readonly kind: "propose";
+      readonly id: number;
+      readonly command: Command;
+      readonly base: number;
+      readonly pid: number;
+    }
   | { readonly kind: "players"; readonly id: number; readonly players: readonly SeatPlayer[] }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
   | { readonly kind: "judgePayment"; readonly id: number; readonly playerId: PlayerId; readonly payment: PaymentState };

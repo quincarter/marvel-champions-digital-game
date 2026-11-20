@@ -189,6 +189,44 @@ describe("play together: who may propose", () => {
   });
 });
 
+describe("play together: proposal and request ids", () => {
+  it("echoes the proposal id in the room's refusal of it and in what it relays to the host and back", async () => {
+    const { host, send, join, seated, propose, request } = await setup();
+    const wes = await join("Wes");
+    await propose(wes, { pid: 7 });
+    await request(wes, { rid: 3 });
+    expect(wes.of("refused")).toEqual([
+      { v: 1, ch: "room", kind: "refused", reason: "not-seated", pid: 7 },
+      { v: 1, ch: "room", kind: "refused", reason: "not-seated", rid: 3 },
+    ]);
+    const ann = await seated("Ann", "s1");
+    await propose(ann, { pid: 9 });
+    await request(ann, { rid: 4 });
+    expect(host.last("proposal")).toMatchObject({ from: ann.id, pid: 9 });
+    expect(host.last("request")).toMatchObject({ from: ann.id, rid: 4 });
+    await send(host, {
+      ch: "game",
+      kind: "proposal-refused",
+      table: "t1",
+      to: ann.id,
+      reason: "stale",
+      base: 3,
+      pid: 9,
+    });
+    await send(host, { ch: "game", kind: "request-answer", table: "t1", to: ann.id, accepted: true, rid: 4 });
+    expect(ann.last("proposal-refused")).toMatchObject({ pid: 9, base: 3 });
+    expect(ann.last("request-answer")).toMatchObject({ rid: 4, accepted: true });
+  });
+
+  it("refuses a proposal id that is not a count", async () => {
+    const { seated, propose } = await setup();
+    const ann = await seated("Ann", "s1");
+    await propose(ann, { pid: -1 });
+    await propose(ann, { pid: "x" });
+    expect(ann.refusals).toEqual(["bad-message", "bad-message"]);
+  });
+});
+
 describe("play together: rate limits and size", () => {
   it("allows a burst of proposals, then refuses rate-limited, softly, and refills over time", async () => {
     const { clock, seated, host, propose } = await setup();

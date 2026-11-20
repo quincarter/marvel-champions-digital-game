@@ -88,6 +88,8 @@ export interface SeatHostOptions {
 }
 
 interface Pending {
+  /** The id the proposal went out with: a refusal that names it fails this proposal and no other. */
+  readonly pid: number;
   readonly base: number;
   readonly command: Command;
   readonly resolve: (result: DispatchResult) => void;
@@ -104,6 +106,7 @@ export class SeatEngineHost implements EngineHost {
   #current: EngineUpdate | null = null;
   #status: SeatStatus = INITIAL_SEAT_STATUS;
   #disposed = false;
+  #nextPid = 1;
 
   constructor(backend: SeatBackend, options: SeatHostOptions = {}) {
     this.#backend = backend;
@@ -165,6 +168,7 @@ export class SeatEngineHost implements EngineHost {
     return new Promise<DispatchResult>((resolve) => {
       const setTimer = this.#o.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
       const pending: Pending = {
+        pid: this.#nextPid++,
         base,
         command,
         resolve,
@@ -173,7 +177,7 @@ export class SeatEngineHost implements EngineHost {
         }, this.#o.proposalTimeoutMs ?? PROPOSAL_TIMEOUT_MS),
       };
       this.#pending.push(pending);
-      this.#backend.propose(command, base);
+      this.#backend.propose(command, base, pending.pid);
     });
   }
 
@@ -233,8 +237,11 @@ export class SeatEngineHost implements EngineHost {
         this.#onUpdate(event.snapshot, event.divergedAt);
         return;
       case "refused": {
-        // The host answers each proposal once, in the order they were sent: the oldest one built on that log length.
-        const pending = this.#pending.find((p) => p.base === event.base);
+        // A refusal names its proposal; one without an id (an older host) is the oldest built on that log length.
+        const pending =
+          event.pid === undefined
+            ? this.#pending.find((p) => p.base === event.base)
+            : this.#pending.find((p) => p.pid === event.pid);
         if (pending) this.#settle(pending, this.#failed(pending.command, refusalMessage(event.reason), event.reason));
         return;
       }
@@ -258,11 +265,16 @@ export class SeatEngineHost implements EngineHost {
     // lost the position to someone else's command (the host will refuse it as stale; no need to wait for that).
     const landed: { pending: Pending; result: "ok" | "taken" }[] = [];
     if (change.type === "append") {
+      // One appended command is one proposal's echo: of several identical proposals built on the same log length only
+      // the oldest is acknowledged (the host takes the first and refuses the rest as stale).
+      const claimed = new Set<number>();
       for (const pending of this.#pending) {
         const at = pending.base - change.from;
         const command = change.commands[at];
         if (at < 0 || command === undefined) continue;
-        landed.push({ pending, result: sameCommand(command, pending.command) ? "ok" : "taken" });
+        const echo = sameCommand(command, pending.command) && !claimed.has(at);
+        if (echo) claimed.add(at);
+        landed.push({ pending, result: echo ? "ok" : "taken" });
       }
     }
     const single = change.type === "append" && change.commands.length === 1 ? change.commands[0] : undefined;
@@ -396,8 +408,8 @@ export class WorkerSeatBackend implements SeatBackend {
     return { cardPool: response.cardPool, snapshot: response.snapshot };
   }
 
-  propose(command: Command, base: number): void {
-    this.#worker.postMessage({ kind: "propose", id: this.#nextId++, command, base } satisfies SeatRequest);
+  propose(command: Command, base: number, pid: number): void {
+    this.#worker.postMessage({ kind: "propose", id: this.#nextId++, command, base, pid } satisfies SeatRequest);
   }
 
   async setPlayers(players: readonly SeatPlayer[]): Promise<SeatSnapshot> {

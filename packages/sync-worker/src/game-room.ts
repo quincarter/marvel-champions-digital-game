@@ -749,8 +749,19 @@ export class GameRoomLogic {
     await this.game(socket, participant, table, message);
   }
 
-  private refuse(socket: RoomSocket, reason: Refusal): void {
-    this.sendSocket(socket, { v: 1, ch: "room", kind: "refused", reason });
+  private refuse(
+    socket: RoomSocket,
+    reason: Refusal,
+    ask: { pid?: number | undefined; rid?: number | undefined } = {},
+  ): void {
+    this.sendSocket(socket, {
+      v: 1,
+      ch: "room",
+      kind: "refused",
+      reason,
+      ...(ask.pid === undefined ? {} : { pid: ask.pid }),
+      ...(ask.rid === undefined ? {} : { rid: ask.rid }),
+    });
     if (!HARD_REFUSALS.has(reason)) {
       const now = this.clock();
       const seen = this.softRefusals.get(socket);
@@ -1396,14 +1407,15 @@ export class GameRoomLogic {
     who: Participant,
     message: Extract<ClientMessage, { kind: "propose" | "request" }>,
   ): Promise<void> {
+    const askId = message.kind === "propose" ? { pid: message.pid } : { rid: message.rid };
     const lobby = await this.loadLobby();
-    if (!lobby) return this.refuse(socket, "not-allowed");
+    if (!lobby) return this.refuse(socket, "not-allowed", askId);
     const table = this.tableOf(message.table);
-    if (!table) return this.refuse(socket, "not-allowed");
-    if (who.role === "host") return this.refuse(socket, "not-seated");
+    if (!table) return this.refuse(socket, "not-allowed", askId);
+    if (who.role === "host") return this.refuse(socket, "not-seated", askId);
     const { ids, held } = this.actingSeats(lobby, who);
-    if (ids.length === 0) return this.refuse(socket, held ? "build-mismatch" : "not-seated");
-    if (message.kind === "request" && lobby.settings.playMode === "strict") return this.refuse(socket, "strict");
+    if (ids.length === 0) return this.refuse(socket, held ? "build-mismatch" : "not-seated", askId);
+    if (message.kind === "request" && lobby.settings.playMode === "strict") return this.refuse(socket, "strict", askId);
     const propose = message.kind === "propose";
     const taken = takeToken(
       propose ? this.proposalBuckets : this.lobbyBuckets,
@@ -1412,11 +1424,11 @@ export class GameRoomLogic {
       propose ? PROPOSAL_PER_SECOND : 2,
       this.clock(),
     );
-    if (!taken) return this.refuse(socket, "rate-limited");
+    if (!taken) return this.refuse(socket, "rate-limited", askId);
     await this.ensureLoaded(table);
-    if (!table.hasHeader || table.ended) return this.refuse(socket, "out-of-order");
+    if (!table.hasHeader || table.ended) return this.refuse(socket, "out-of-order", askId);
     const host = this.hostOf(table.id);
-    if (!host) return this.refuse(socket, "no-such-participant");
+    if (!host) return this.refuse(socket, "no-such-participant", askId);
     if (message.kind === "propose") {
       this.sendTo(host.id, {
         v: 1,
@@ -1427,6 +1439,7 @@ export class GameRoomLogic {
         seats: ids,
         command: message.command,
         base: message.base,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
         ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
       });
       return;
@@ -1440,6 +1453,7 @@ export class GameRoomLogic {
       from: who.id,
       what: message.what,
       note,
+      ...(message.rid === undefined ? {} : { rid: message.rid }),
     });
   }
 
@@ -1460,6 +1474,7 @@ export class GameRoomLogic {
         table: table.id,
         reason: message.reason,
         base: message.base,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
       });
     } else {
       this.sendTo(message.to, {
@@ -1468,6 +1483,7 @@ export class GameRoomLogic {
         kind: "request-answer",
         table: table.id,
         accepted: message.accepted,
+        ...(message.rid === undefined ? {} : { rid: message.rid }),
       });
     }
   }

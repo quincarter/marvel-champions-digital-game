@@ -110,8 +110,10 @@ export class RoomModel {
   }
 
   /** Guest: a request to the host went out; its answer fills the status in. */
-  noteAsk(what: "undo" | "adjust"): void {
-    this.#ask = { what, status: "waiting", seq: ++this.#askSeq };
+  noteAsk(what: "undo" | "adjust"): number {
+    const seq = ++this.#askSeq;
+    this.#ask = { what, status: "waiting", seq };
+    return seq;
   }
 
   /** Guest: forgets the last request's answer (the player has read it). */
@@ -227,12 +229,21 @@ export class RoomModel {
         const name = this.#participants.find((p) => p.id === message.from)?.name ?? "";
         this.#requests = [
           ...kept,
-          { id: `r${++this.#requestSeq}`, from: message.from, name, what: message.what, note: message.note },
+          {
+            id: `r${++this.#requestSeq}`,
+            from: message.from,
+            name,
+            what: message.what,
+            note: message.note,
+            ...(message.rid === undefined ? {} : { rid: message.rid }),
+          },
         ];
         return true;
       }
       if (message.kind === "request-answer" && message.table === FIRST_TABLE) {
         if (this.#ask?.status !== "waiting") return false;
+        // An answer to an earlier ask (I have asked again since) is not an answer to this one.
+        if (message.rid !== undefined && message.rid !== this.#ask.seq) return false;
         this.#ask = { ...this.#ask, status: message.accepted ? "accepted" : "declined" };
         return true;
       }
@@ -280,7 +291,12 @@ export class RoomModel {
         const seat = SEAT_REFUSALS.has(message.reason) ? this.#lastSeat : undefined;
         if (seat) this.#wanted.delete(seat);
         // A turned-down request (a Strict room, no seat) is no longer waiting: the refusal says why.
-        if (this.#ask?.status === "waiting" && (message.reason === "strict" || message.reason === "not-seated")) {
+        const mine = message.rid === undefined || message.rid === this.#ask?.seq;
+        if (
+          mine &&
+          this.#ask?.status === "waiting" &&
+          (message.reason === "strict" || message.reason === "not-seated")
+        ) {
           this.#ask = null;
         }
         this.#refusal = { reason: message.reason, ...(seat ? { seat } : {}), seq: ++this.#refusalSeq };

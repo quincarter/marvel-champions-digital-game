@@ -115,6 +115,7 @@ export type LiveGameMessage =
       readonly to: string;
       readonly reason: ProposalRefusal;
       readonly base: number;
+      readonly pid?: number;
     }
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
@@ -137,6 +138,8 @@ export type LiveControlMessage =
       readonly players: readonly string[];
       readonly command: unknown;
       readonly base: number;
+      /** The proposer's id for the proposal, echoed in a refusal of it. */
+      readonly pid?: number;
       /** The proposer's state identity at `base` (`replayChecksum`); absent means the proposal cannot be judged current. */
       readonly stamp?: string;
     };
