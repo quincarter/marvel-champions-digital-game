@@ -51,12 +51,30 @@ export const SEAT_LABEL_MAX = 80;
 /** Seat ids the room takes are `s1`..`s4`. */
 const seatIdOf = (index: number): string => `s${index + 1}`;
 
-/** One seat per hero in the draft: the hero and deck as the label. `names[i]` is seat i's label, already worded. */
-export function seatSpecsOf(names: readonly string[]): readonly LobbySeatSpec[] {
-  return names.map((name, index) => ({
-    id: seatIdOf(index),
-    label: name.trim().slice(0, SEAT_LABEL_MAX) || seatIdOf(index),
-  }));
+/** The room keeps a seat's label as opaque text; the hero's identity card id rides after this separator. */
+const CARD_SEPARATOR = "|";
+
+export interface SeatItem {
+  readonly label: string;
+  /** The hero's identity card, for the seat's picture on every device. */
+  readonly cardId: string | null;
+}
+
+/** One seat per hero in the draft: the label (hero and deck) with its identity card id after it, within the room's cap. */
+export function seatSpecsOf(items: readonly SeatItem[]): readonly LobbySeatSpec[] {
+  return items.map((item, index) => {
+    const tail = item.cardId ? CARD_SEPARATOR + item.cardId : "";
+    const text = item.label.trim().slice(0, Math.max(1, SEAT_LABEL_MAX - tail.length)) || seatIdOf(index);
+    return { id: seatIdOf(index), label: text + tail };
+  });
+}
+
+/** A seat label from the room, split into its words and its identity card id (none when it carries none). */
+export function parseSeatLabel(label: string): { readonly text: string; readonly cardId: string | null } {
+  const at = label.lastIndexOf(CARD_SEPARATOR);
+  if (at < 0) return { text: label, cardId: null };
+  const cardId = label.slice(at + 1).trim();
+  return { text: label.slice(0, at), cardId: cardId === "" ? null : cardId };
 }
 
 /**

@@ -113,6 +113,28 @@ describe("seatRows", () => {
   });
 });
 
+describe("seat pictures and giving a seat", () => {
+  it("splits the identity card from the label", () => {
+    const state = room({ seats: [seat({ label: "Spider-Man|01001a" })] });
+    expect(seatRows(state, { installed: [] })[0]).toMatchObject({ label: "Spider-Man", cardId: "01001a" });
+  });
+  it("lists who the host could give an open seat to", () => {
+    const host = room({
+      role: "host",
+      participants: [
+        { id: "h", name: "Host", role: "host", me: true, buildMatches: true, seats: [] },
+        { id: "a", name: "A", role: "watcher", me: false, buildMatches: true, seats: [] },
+        { id: "b", name: "B", role: "watcher", me: false, buildMatches: true, seats: ["s9"] },
+        { id: "c", name: "C", role: "watcher", me: false, buildMatches: false, seats: [] },
+      ],
+    });
+    expect(seatRows(host, { installed: [] })[0]?.candidates.map((p) => p.id)).toEqual(["a"]);
+    const multi = { ...host, settings: { ...settings, multiSeat: true } };
+    expect(seatRows(multi, { installed: [] })[0]?.candidates.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(seatRows(room(), { installed: [] })[0]?.candidates).toEqual([]);
+  });
+});
+
 describe("startBlock", () => {
   const ready = { tableReady: true, packsUsed: [] };
   const held = seat({ holder: "g", holderName: "Guest", holderConnected: true });

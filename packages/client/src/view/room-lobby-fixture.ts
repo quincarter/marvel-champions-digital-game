@@ -23,7 +23,7 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
   const seats: RoomSeat[] = [
     {
       id: "s1",
-      label: "Spider-Man (Justice) — Core Set starter deck",
+      label: "Spider-Man (Justice) — Core Set starter deck|01001a",
       holder: "p1",
       holderName: "Ava",
       holderConnected: true,
@@ -34,7 +34,7 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
     },
     {
       id: "s2",
-      label: "She-Hulk (Aggression) — Core Set starter deck",
+      label: "She-Hulk (Aggression) — Core Set starter deck|01019a",
       holder: null,
       holderName: null,
       holderConnected: false,
@@ -48,7 +48,7 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
     },
     {
       id: "s3",
-      label: "Captain Marvel (Leadership) — Core Set starter deck",
+      label: "Captain Marvel (Leadership) — Core Set starter deck|01010a",
       holder: "gone",
       holderName: "Cleo",
       holderConnected: false,
@@ -59,7 +59,7 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
     },
     {
       id: "s4",
-      label: "Iron Man (Aggression) — Core Set starter deck",
+      label: "Iron Man (Aggression) — Core Set starter deck|01029a",
       holder: "p5",
       holderName: "Esi",
       holderConnected: true,

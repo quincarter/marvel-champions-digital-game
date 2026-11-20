@@ -3125,7 +3125,10 @@ export class TableSetupScene extends Phaser.Scene {
     const options = this.#deckOptions();
     const labels = this.#draft.seats.map((deckId) => {
       const option = options.find((o) => (o.deck.id as string) === deckId);
-      return seatLabelOf(option?.identityName ?? null, option?.deck.name ?? null);
+      return {
+        label: seatLabelOf(option?.identityName ?? null, option?.deck.name ?? null),
+        cardId: option ? (option.deck.identityCardId as string) : null,
+      };
     });
     keepRoomDraft(this.#draft);
     // Loaded only now: a single-player setup never pulls the room code in.

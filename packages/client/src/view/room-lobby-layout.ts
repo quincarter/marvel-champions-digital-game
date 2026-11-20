@@ -38,13 +38,14 @@ export function lobbyLayout(
   active: LobbyPanelId,
   gutter: number,
   headerHeight: number = LOBBY_HEADER_HEIGHT,
+  footerHeight: number = LOBBY_FOOTER_HEIGHT,
 ): LobbyLayout {
   const header: Rect = { x: gutter, y: topBar + GAP, width: width - gutter * 2, height: headerHeight };
   const footer: Rect = {
     x: gutter,
-    y: height - LOBBY_FOOTER_HEIGHT - GAP / 2,
+    y: height - footerHeight - GAP / 2,
     width: width - gutter * 2,
-    height: LOBBY_FOOTER_HEIGHT,
+    height: footerHeight,
   };
   const bodyTop = header.y + header.height + GAP;
   const bodyBottom = footer.y - GAP;

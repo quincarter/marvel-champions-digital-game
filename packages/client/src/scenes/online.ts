@@ -199,7 +199,7 @@ export class OnlineScene extends Phaser.Scene {
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : `◂ ${t("online.back")}`,
       onBack: () => this.#back(),
-      hints: this.#hints,
+      hints: phone ? null : this.#hints,
       title: t("online.title"),
     });
     if (bar.back) this.#buttons.push(bar.back);

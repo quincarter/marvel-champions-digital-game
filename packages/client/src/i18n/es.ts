@@ -469,4 +469,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "online.playingAs": "Jugando como {name}",
   "online.change": "Cambiar nombre",
   "room.setupDone": "Volver a la sala",
+  "room.seat.give": "Dar a…",
+  "room.seat.giveNobody": "Nadie puede tomarlo: no hay nadie más, o ya tienen un asiento.",
 };

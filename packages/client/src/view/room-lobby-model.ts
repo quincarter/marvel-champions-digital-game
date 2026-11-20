@@ -4,6 +4,7 @@
  * only words what the room reports and turns the buttons off, with the reason, where the room would refuse anyway.
  */
 import type { LobbyMod } from "@mc/sync-worker/room-protocol";
+import { parseSeatLabel } from "./room-table-setup.js";
 import { en } from "../i18n/en.js";
 import { t, tPlural, type MessageKey, type PluralBase } from "../i18n/translate.js";
 import type {
@@ -69,7 +70,7 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
 export function refusalWords(refusal: RoomRefusal | null, state: RoomState): Words | null {
   if (!refusal) return null;
   const seat = refusal.seat ? state.seats.find((s) => s.id === refusal.seat) : undefined;
-  return { key: REFUSAL_KEYS[refusal.reason], params: { seat: seat?.label ?? "" } };
+  return { key: REFUSAL_KEYS[refusal.reason], params: { seat: seat ? parseSeatLabel(seat.label).text : "" } };
 }
 
 export type RoleKind = "host" | "player" | "watcher";
@@ -95,7 +96,10 @@ export function participantRows(state: RoomState): readonly ParticipantRow[] {
       me: p.me,
       role,
       roleKey: role === "host" ? "room.role.host" : role === "player" ? "room.role.player" : "room.role.watcher",
-      seats: p.seats.map((id) => state.seats.find((s) => s.id === id)?.label ?? id),
+      seats: p.seats.map((id) => {
+        const label = state.seats.find((s) => s.id === id)?.label;
+        return label === undefined ? id : parseSeatLabel(label).text;
+      }),
       differentVersion: !p.buildMatches,
     };
   });
@@ -122,7 +126,12 @@ export interface RequestRow {
 
 export interface SeatRowView {
   readonly id: string;
+  /** The seat's words (hero and deck), without the identity card id the room carries after them. */
   readonly label: string;
+  /** The hero's identity card, for the seat's picture; null when the host's label carried none. */
+  readonly cardId: string | null;
+  /** The host may give this open seat to someone: the people who could take it (empty: nobody now). */
+  readonly candidates: readonly { readonly id: string; readonly name: string }[];
   /** Null: open. */
   readonly holderName: string | null;
   readonly holderConnected: boolean;
@@ -162,12 +171,22 @@ function seatAction(state: RoomState, seat: RoomSeat, ctx: SeatContext): SeatAct
   return { kind, labelKey, enabled: reason === undefined, ...(reason ? { reason } : {}) };
 }
 
+/** Who the host could give a seat to: connected people (not the host, who takes seats directly) on the host's build, with no seat yet unless several seats each are allowed. */
+export function assignCandidates(state: RoomState): readonly { readonly id: string; readonly name: string }[] {
+  const multi = state.settings?.multiSeat ?? false;
+  return state.participants
+    .filter((p) => p.role !== "host" && p.buildMatches && (multi || p.seats.length === 0))
+    .map((p) => ({ id: p.id, name: p.name }));
+}
+
 export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowView[] {
   const isHost = state.role === "host";
   const multi = state.settings?.multiSeat ?? false;
   return state.seats.map((seat) => ({
     id: seat.id,
-    label: seat.label,
+    label: parseSeatLabel(seat.label).text,
+    cardId: parseSeatLabel(seat.label).cardId,
+    candidates: isHost && seat.holder === null ? assignCandidates(state) : [],
     holderName: seat.holder === null ? null : (seat.holderName ?? seat.holder),
     holderConnected: seat.holderConnected,
     mine: seat.mine,

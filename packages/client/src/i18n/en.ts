@@ -466,4 +466,6 @@ export const en = {
   "online.playingAs": "Playing as {name}",
   "online.change": "Change name",
   "room.setupDone": "Back to the lobby",
+  "room.seat.give": "Give to…",
+  "room.seat.giveNobody": "Nobody is free to take it: no one else is here, or they hold a seat already.",
 } as const;

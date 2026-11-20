@@ -5,6 +5,7 @@ import {
   keepRoomDraft,
   roomDraft,
   roomSetupActive,
+  parseSeatLabel,
   seatLabelOf,
   seatSpecsOf,
 } from "./room-table-setup.js";
@@ -24,10 +25,18 @@ describe("room table setup", () => {
     expect(roomDraft()).toBeNull();
   });
   it("makes one seat per hero, labelled with hero and deck", () => {
-    expect(seatSpecsOf(["Spider-Man - Justice", "Ms. Marvel"])).toEqual([
-      { id: "s1", label: "Spider-Man - Justice" },
+    expect(
+      seatSpecsOf([
+        { label: "Spider-Man - Justice", cardId: "01001a" },
+        { label: "Ms. Marvel", cardId: null },
+      ]),
+    ).toEqual([
+      { id: "s1", label: "Spider-Man - Justice|01001a" },
       { id: "s2", label: "Ms. Marvel" },
     ]);
+    expect(parseSeatLabel("Spider-Man - Justice|01001a")).toEqual({ text: "Spider-Man - Justice", cardId: "01001a" });
+    expect(parseSeatLabel("Ms. Marvel")).toEqual({ text: "Ms. Marvel", cardId: null });
+    expect(seatSpecsOf([{ label: "x".repeat(200), cardId: "01001a" }])[0]!.label).toHaveLength(80);
     expect(seatLabelOf("Iron Man", "Aggression")).toBe("Iron Man - Aggression");
     expect(seatLabelOf("Iron Man", null)).toBe("Iron Man");
     expect(seatLabelOf("Spider-Man (Peter Parker)", "Spider-Man (Justice) — Core Set starter deck")).toBe(

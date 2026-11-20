@@ -10,7 +10,7 @@
  * fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
-import { currentPool, currentScenarios, currentDeps, POOL_VERSION } from "../content/pool.js";
+import { currentCardsById, currentPool, currentScenarios, currentDeps, POOL_VERSION } from "../content/pool.js";
 import { t } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { withLoadedPacks } from "../packs/game-packs.js";
@@ -37,6 +37,9 @@ import { GlyphHints } from "../ui/glyph-hints.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
+import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
+import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
+import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { DeckOption } from "../view/deck-list-model.js";
@@ -119,6 +122,10 @@ interface Note {
 export class RoomLobbyScene extends Phaser.Scene {
   #state: RoomState = roomState();
   #preview = false;
+  /** The seat whose "give to" list is open. */
+  #picking: string | null = null;
+  #hover: HoverPreview | null = null;
+  #hoverFaces: { readonly cardId: string; readonly rect: Rect; readonly view: Rect; readonly scroll: ScrollKey }[] = [];
   #tab: LobbyPanelId = "seats";
   #buttons: McButton[] = [];
   #regions: McScrollRegion[] = [];
@@ -179,12 +186,22 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
     bindTextFieldEscape(this, () => this.#chatInput);
     this.scale.on("resize", this.#draw, this);
+    // The desktop hover popover over a seat's hero picture, as Table setup and the set sheets show it.
+    this.#hover = new HoverPreview(this, {
+      cardIds: () => this.#hoverCardIds(),
+      area: (pointer) => screenHoverArea(this, pointer),
+    });
+    // A hero picture that was still loading arrives: draw again to show it.
+    this.events.on(SEAT_AVATAR_READY, this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.#off?.();
       this.#off = null;
       this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
+      this.events.off(SEAT_AVATAR_READY, this.#draw, this);
+      this.#hover?.destroy();
+      this.#hover = null;
       this.#clearWidgets();
       this.#chatInput?.destroy();
       this.#chatInput = null;
@@ -199,6 +216,16 @@ export class RoomLobbyScene extends Phaser.Scene {
         this.#draw();
       });
     if (!this.#preview) this.#off = onRoomState((state) => this.#onState(state));
+  }
+
+  /** The hero pictures on screen now, each clipped to the scrolled list it sits in. */
+  #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
+    const found = new Map<string, HoverCardIdRect>();
+    this.#hoverFaces.forEach(({ cardId, rect, view, scroll }, index) => {
+      const shown = clipHoverRect({ ...rect, y: rect.y - this.#scrolls[scroll].offsetPx }, view);
+      if (shown) found.set(hoverSlotOf(cardId, `seat${index}`), { ...shown, cardId, through: true });
+    });
+    return found;
   }
 
   // ---- State --------------------------------------------------------------------------------------------------
@@ -398,6 +425,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
     this.#hints.reset();
+    this.#hoverFaces = [];
     this.#stops = new Map();
     this.#order = [];
 
@@ -408,7 +436,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const bar = drawTopBar(this, {
       backLabel: phone ? "◂" : `◂ ${t("room.leave").toUpperCase()}`,
       onBack: () => this.#leave(),
-      hints: this.#hints,
+      hints: phone ? null : this.#hints,
       title: t("room.title"),
       right: t(participantRows(state).find((p) => p.me)?.roleKey ?? "room.role.watcher"),
       reserveRight: phone ? 80 : 0,
@@ -417,7 +445,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (bar.backRect) this.#addStop("back", bar.backRect, () => this.#leave());
 
     if (this.#tab === "chat" && !chatOn(state)) this.#tab = "seats";
-    const layout = lobbyLayout(width, height, bar.height, this.#tab, gutter);
+    // The footer is only as tall as it needs: a guest's is one line of words, the host's holds Start (beside the words on
+    // a wide screen, under them on a phone).
+    const needsButton = this.#isHost() || state.connection === "ended" || this.#confirmLeave;
+    const footerHeight = !needsButton ? 52 : width >= 600 ? 76 : 86;
+    const layout = lobbyLayout(width, height, bar.height, this.#tab, gutter, undefined, footerHeight);
     this.#drawHeader(layout.header, phone);
 
     if (layout.tabs) {
@@ -656,18 +688,25 @@ export class RoomLobbyScene extends Phaser.Scene {
   ): number {
     const pad = 10;
     const buttonWidth = 104;
-    const textWidth = w - pad * 2 - (row.action ? buttonWidth + 8 : 0);
+    // The hero's picture (the identity card's art, as Take your seats shows it) at the left.
+    const artSize = row.cardId ? 56 : 0;
+    const tx = x + pad + (artSize > 0 ? artSize + 10 : 0);
+    const textWidth = w - (tx - x) - pad - (row.action ? buttonWidth + 8 : 0);
     // The label wraps (never shrinks to nothing on a narrow screen), up to two lines.
     const label = this.add
-      .text(x + pad, y + 10, row.label, textStyle(typeRole.rowTitle, INK))
+      .text(tx, y + 10, row.label, textStyle(typeRole.rowTitle, INK))
       .setFontSize(15)
       .setWordWrapWidth(textWidth, true);
     if (label.height > 15 * 2.6) fitText(label, textWidth, 13);
     const holderY = y + 10 + label.height + 16;
     const topHeight = holderY + 14 - y + (row.requestedByMe ? 18 : 0) + (row.mismatch ? 26 : 0);
     const requestHeight = 78;
-    const topEnd = Math.max(topHeight, 10 + hit.target + 10);
-    const height = topEnd + row.requests.length * requestHeight;
+    const canGive = row.candidates.length > 0 || (this.#isHost() && row.holderName === null);
+    const picking = canGive && this.#picking === row.id;
+    const pickHeight = picking ? (row.candidates.length > 0 ? row.candidates.length * (hit.target + 6) + 6 : 30) : 0;
+    const buttonsHeight = 10 + hit.target + (canGive ? 6 + hit.target : 0) + 10;
+    const topEnd = Math.max(topHeight, artSize > 0 ? 10 + artSize + 10 : 0, buttonsHeight);
+    const height = topEnd + pickHeight + row.requests.length * requestHeight;
     const g = this.add.graphics();
     this.children.moveTo(g, this.children.getIndex(label));
     g.fillStyle(PAPER, 1).fillRect(x, y, w, height);
@@ -676,25 +715,30 @@ export class RoomLobbyScene extends Phaser.Scene {
     const dotY = holderY;
     const held = row.holderName !== null;
     g.lineStyle(2, INK, 1);
-    if (held && row.holderConnected) g.fillStyle(INK, 1).fillCircle(x + pad + 6, dotY, 6);
-    else g.strokeCircle(x + pad + 6, dotY, 6);
+    if (held && row.holderConnected) g.fillStyle(INK, 1).fillCircle(tx + 6, dotY, 6);
+    else g.strokeCircle(tx + 6, dotY, 6);
     const who = held
       ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}`
       : t("room.seat.open");
     const holder = this.add
-      .text(x + pad + 20, dotY, who, textStyle(typeRole.body, INK, held ? 1 : 0.7))
+      .text(tx + 20, dotY, who, textStyle(typeRole.body, INK, held ? 1 : 0.7))
       .setOrigin(0, 0.5)
       .setFontSize(14);
     fitText(holder, textWidth - 20, 14);
+    if (row.cardId) {
+      const rect: Rect = { x: x + pad, y: y + 10, width: artSize, height: artSize };
+      drawHeroAvatar(this, rect, currentCardsById().get(row.cardId), INK);
+      this.#hoverFaces.push({ cardId: row.cardId, rect, view: guard.clip(), scroll: "seats" });
+    }
     if (row.requestedByMe) {
-      this.#text(x + pad, dotY + 12, t("room.seat.requestedByMe"), 12, textWidth, { alpha: 0.85 });
+      this.#text(tx, dotY + 12, t("room.seat.requestedByMe"), 12, textWidth, { alpha: 0.85 });
     }
     if (row.mismatch) {
       const tag = this.add
-        .text(x + pad + 6, y + topHeight - 22, t("room.differentVersion").toUpperCase(), textStyle(typeRole.label, INK))
+        .text(tx + 6, y + topHeight - 22, t("room.differentVersion").toUpperCase(), textStyle(typeRole.label, INK))
         .setFontSize(11)
         .setLetterSpacing(1);
-      g.lineStyle(2, INK, 1).strokeRect(x + pad, y + topHeight - 26, tag.width + 12, 20);
+      g.lineStyle(2, INK, 1).strokeRect(tx, y + topHeight - 26, tag.width + 12, 20);
     }
     if (row.action) {
       const action = row.action;
@@ -725,9 +769,56 @@ export class RoomLobbyScene extends Phaser.Scene {
       });
       guard.stop(`seat:${row.id}`, rect, go);
     }
+    if (canGive) {
+      const giveRect: Rect = {
+        x: x + w - pad - buttonWidth,
+        y: y + 10 + hit.target + 6,
+        width: buttonWidth,
+        height: hit.target,
+      };
+      const toggle = (): void => {
+        this.#picking = picking ? null : row.id;
+        this.#draw();
+      };
+      this.#button({
+        kind: "secondary",
+        label: t("room.seat.give"),
+        type: { ...typeRole.label, size: 12 },
+        rect: giveRect,
+        selected: picking,
+        onClick: toggle,
+        clip: guard.clip,
+        suppressClick: guard.suppress,
+      });
+      guard.stop(`give:${row.id}`, giveRect, toggle);
+      if (picking) {
+        let py = y + topEnd + 6;
+        if (row.candidates.length === 0)
+          this.#text(x + pad, py + 4, t("room.seat.giveNobody"), 12, w - pad * 2, { alpha: 0.85 });
+        for (const person of row.candidates) {
+          const rect: Rect = { x: x + pad, y: py, width: w - pad * 2, height: hit.target };
+          const give = (): void => {
+            this.#picking = null;
+            this.#api.assignSeat(row.id, person.id);
+            this.#draw();
+          };
+          this.#button({
+            kind: "primary",
+            label: person.name,
+            type: { ...typeRole.label, size: 13 },
+            rect,
+            onClick: give,
+            clip: guard.clip,
+            suppressClick: guard.suppress,
+          });
+          guard.stop(`give:${row.id}:${person.id}`, rect, give);
+          py += hit.target + 6;
+        }
+      }
+    }
     // The host's Approve and Deny for each request.
     row.requests.forEach((request, index) => {
-      const top = y + topEnd + index * requestHeight;
+      const top = y + topEnd + pickHeight + index * requestHeight;
       g.lineStyle(1, INK, 0.5).lineBetween(x + pad, top, x + w - pad, top);
       const text = this.#text(x + pad, top + 8, t("room.seat.asks", { name: request.name }), 13, w - pad * 2, {
         bold: true,
@@ -1006,6 +1097,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, INK).setOrigin(0, 0);
     const pad = 10;
     const full = rect.width >= 600;
+    const hasButton = this.#isHost() || state.connection === "ended" || this.#confirmLeave;
     const buttonWidth = full ? 240 : rect.width - pad * 2;
     const buttonRect: Rect = full
       ? {
@@ -1017,7 +1109,12 @@ export class RoomLobbyScene extends Phaser.Scene {
       : { x: rect.x + pad, y: rect.y + rect.height - pad / 2 - hit.primary, width: buttonWidth, height: hit.primary };
     const textRect: Rect = full
       ? { x: rect.x + pad, y: rect.y + 6, width: rect.width - buttonWidth - pad * 3, height: rect.height - 12 }
-      : { x: rect.x + pad, y: rect.y + 4, width: rect.width - pad * 2, height: rect.height - hit.primary - 10 };
+      : {
+          x: rect.x + pad,
+          y: rect.y + 4,
+          width: rect.width - pad * 2,
+          height: hasButton ? rect.height - hit.primary - 10 : rect.height - 8,
+        };
     const say2 = (text: string, bold = false): void => {
       const line = this.add
         .text(
