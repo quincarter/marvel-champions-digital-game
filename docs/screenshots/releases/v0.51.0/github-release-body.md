@@ -1,44 +1,73 @@
 ## Straight to the App
 
-Game links now open the game you have installed. On Android, a link to marvel.champions-digital-game.com opens the app instead of the browser, and on a computer the web version's replay loading screen has Open in the desktop app, which opens the desktop game through its new marvelchampions:// links (#862, #863). The Saga shelf now stamps ADJUSTED beside COMPLETE when a campaign was won with an adjusted game, and the next volume says why that keeps it sealed, thanks to bktanner's report (#869, #870). On iPhone, the game no longer gets stuck loading after iOS reloads the tab, and keeps fewer card pictures in memory so that happens less often, thanks to GarethMagis's report (#871, #872). The website's home, download stats and releases pages share one top bar and open on hero art (#866, #867). Thank you for playing!
+Every release now has an iPhone and iPad app, to install yourself with a free Apple ID through SideStore, AltStore, Sideloadly or Scarlet, with step-by-step guides in English and Spanish and an install section on the website (#874, #875). Game links now open the game you have installed: on Android a link to marvel.champions-digital-game.com opens the app, and on a computer the web version's replay loading screen has Open in the desktop app (#862, #863). Undo past your turn is now off by default, Manual adjust waits behind Settings ▸ More ▸ Misc gameplay ▸ Allow manual adjust, both warn that a game where you use them stops counting, and the deck builder lists setup cards in their own group, all suggested by @bluefireF5ran (#893, #894, #895, #896). The Saga shelf stamps ADJUSTED when a campaign was won with an adjusted game and says why the next volume stays sealed (#869, #870), and Red Skull's Improved Condition now enters on its Improved side (#873, #877), both from bktanner's reports. On iPhone, the game no longer gets stuck loading after iOS reloads the tab, thanks to GarethMagis (#871, #872). Avengers Tower and other "played" discounts now work for any player, thanks to FirePenguin17 (#888, #889), and replays play through the villain phase with Reduced motion on (#892). For pack makers, @bluefireF5ran wrote the Mod SDK work for the next batch of packs (#890, #891). Thank you for playing!
 
-**[Read the full v0.51.0 report on the site ↗](https://champions-digital-game.com/releases/v0.51.0/)**: game links that open the app on Android and desktop, the Saga's ADJUSTED stamp and sealed-volume note, the iPhone loading fix, the website's shared top bar and the thank-you wall.
+**[Read the full v0.51.0 report on the site ↗](https://champions-digital-game.com/releases/v0.51.0/)**: the iPhone and iPad app and how to install it, game links that open the app, Undo and Manual adjust off by default, the deck builder's Setup group, the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades, shared discounts, the replay fix, the Mod SDK, the website's shared top bar and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.51.0/index.es.html)**
 
-![The numbers: game links open the app on 4 platforms, an iPhone's start waits at most 6 seconds on your saves, and 2 Discord reports fixed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
+![The numbers: an app on 5 platforms, an iPhone's start waits at most 6 seconds on your saves, and 8 reports and ideas](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
 
-![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-links-that-open-the-game.jpg)
+![The game on iPhone and iPad: the website's install section on desktop and iPhone SE, how to install with SideStore, AltStore, Sideloadly or Scarlet, and a call for iPhone players](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-the-game-on-iphone-and-ipad.jpg)
 
-![You asked, we fixed: the Saga's ADJUSTED stamp and the sealed volume's note, reported by bktanner, and the iPhone loading fix, reported by GarethMagis](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-you-asked-we-fixed.jpg)
+![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-links-that-open-the-game.jpg)
 
-![Also in v0.51.0: the website's shared top bar and hero art on the Releases and Download stats pages](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-also-in-v0-51-0.jpg)
+![Every game counts, unless you say so: the warnings before Undo past your turn and Allow manual adjust are turned on, and the deck builder's Setup group](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-every-game-counts-unless-you-say-so.jpg)
 
-![Thank you to bktanner and GarethMagis](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-thank-you.jpg)
+![You asked, we fixed: the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades that keep their side, discounts for any player, and replays through the villain phase](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-you-asked-we-fixed.jpg)
 
-![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/4b4bbac905b9779aa11f9a7ddac9603ec6cf3dde/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-code-shipped.jpg)
+![Also in v0.51.0: the website's shared top bar and hero art, and the Mod SDK for the next batch of packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-also-in-v0-51-0.jpg)
+
+![Thank you to @bluefireF5ran, bktanner, GarethMagis and FirePenguin17](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-07-thank-you.jpg)
+
+![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ef9432159c06b9451056a0ff7d0916a940da9646/docs/screenshots/releases/v0.51.0/v0-51-0-release-08-code-shipped.jpg)
 
 ---
 
-## [v0.51.0] - 2026-11-19
+## [v0.51.0] - 2026-11-20
 
 ### Added
 
 - Game links open the installed app: Android opens marvel.champions-digital-game.com links in the app (App Links), and the desktop app registers marvelchampions:// links, with "Open in the desktop app" on the web version's replay loading screen (#862).
+- An iPhone and iPad app with every release, to sideload with a free Apple ID through SideStore, AltStore or Sideloadly, with step-by-step install guides in English and Spanish; on iOS the update notice links the release page (#874).
+- The landing page's download section has an iPhone and iPad install section: on an iPhone or iPad the download button leads to the SideStore steps with the .ipa download beside them, and every other device lists it under Other devices (#874).
 - The v0.51.0 release report has its own page on the site, at /releases/v0.51.0/
+- A pull request that changes the game posts its unsigned .ipa as a preview pre-release and links it in a PR comment, as the Android APK does; it's deleted when the pull request closes.
+- Pull request previews also carry an iOS Simulator build, linked in the same comment, so the game can be checked on a Mac without an iPhone.
+- The deck builder lists cards that start the game outside the deck (Permanent and Setup cards, Valkyrie's Death-Glow, Rogue's Touched) in their own Setup group (#895). Suggested by @bluefireF5ran.
 
 ### Changed
 
 - The download stats page no longer compares its count with the releases before v0.19.0.
 - The landing site's home, download stats and releases pages share one top bar (nav, English/Español, Steam, Download, Play now), and the stats and releases pages open on hero art like the home page.
+- Undo past your turn now defaults to Off, and turning it on warns that games where you use it stop counting; Manual adjust leaves Pause until Settings > More > Misc gameplay > Allow manual adjust is on (#893, #894). Suggested by @bluefireF5ran.
 
 ### Fixed
 
 - The Saga shelf now stamps ADJUSTED beside COMPLETE and says when a finished campaign was won with an adjusted game (Manual adjust or an Undo past a reveal), which doesn't open the next volume, and the next volume says why it is still sealed (#869).
 - The Saga shelf's COMPLETE stamp is solid green with white text, sits on the card, and keeps its text inside the box.
 - On iPhone, the game no longer gets stuck on LOADING (and the 'The game did not start' screen) after iOS reloads the tab, and keeps fewer card pictures in memory so the tab is reloaded less often (#871).
+- Campaign upgrades now enter play on the side the campaign log records (#873). The Rise of Red Skull: a "Basic" Condition upgrade you replaced with its "Improved" side after Zola enters the Red Skull game on its Improved side. Sinister Motives: once reputation node 13 is marked, each later scenario's setup flips your S.H.I.E.L.D. Tech upgrade to its Enhanced side.
+- Avengers Tower, Sure Gamble, Welcome Aboard and Soup Kitchen discount the next matching card any player plays, and Steve Rogers' Living Legend discounts the first ally any player plays each round, not only their own controller's (#888).
+- Spider-Man (Peter Parker) ally can ready another player's Web-Warrior character after he attacks or thwarts, not only your own.
+- Replays play through the villain phase by themselves with Reduced motion on, instead of stopping on Start player phase (#892). Reported by @bluefireF5ran.
+
+### Engine
+
+- Mod SDK: a pack scenario may set modular sets aside with setAsideModularSetCount (the seat picks them, or they are drawn at random), for a scenario's own cards to call on, such as The Rose's mini-boss set (#890).
+- Mod SDK: a resource ability's generatesFor may name an aspect ("generate a [wild] resource for a 'Pool card"), so a pack card can use it (#890).
+- An effect can play a card from its player's discard pile, paying its costs (playFromHand from "discard", DSL playFromDiscard), for pack cards such as the Punisher's Warzone; it is not counted as played from the hand (#890).
+- Mod SDK: a cost may flip another card you control (AbilityCost.flipCards, DSL flipCardsCost), and an additional cost to play a card may be an either/or choice picked with the play's costSelection, for Sentinel's "exhaust or destroy a Component" (#890).
+- Mod SDK: a "take N damage" cost may be unpreventable (AbilityCost.damageSelfUnpreventable, takeDamageCost(n, { unpreventable: true })), so Sentinel's destroy cost is paid through tough, prevention and reduction; legalActions and the cost pickers judge and ask each branch of an either/or cost with that branch's own cards in play, and name an additional cost to play in the branch labels; a pack scenario's set-aside modular sets are checked as its modular picks are (#891 review).
+
+### Docs
+
+- The iPhone install guide and the landing page's iPhone section add Scarlet, a way to install with no computer, with its catch: a shared certificate Apple revokes now and then.
 
 ### Special thanks
 
-- bktanner reported #869 on Discord.
+- @bluefireF5ran reported #890.
+- @bluefireF5ran wrote #891.
+- bktanner reported #869 and #873 on Discord.
+- FirePenguin17 reported #888 on Discord.
 - GarethMagis reported #871 on Discord.
