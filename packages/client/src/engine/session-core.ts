@@ -62,6 +62,8 @@ import { sealForTable } from "../view/hidden-reverse.js";
 import type { PresenceGame } from "../view/discord-presence.js";
 import { presenceGameOf } from "../view/discord-presence-game.js";
 import { liveGameOf } from "../live/live-game.js";
+import { judgeProposal } from "../live/proposal-judge.js";
+import type { ProposalRefusal } from "@mc/sync-worker/room-protocol";
 import type { LiveGame } from "../live/live-publisher.js";
 import { isChecksumPosition, replayChecksum } from "../replay/replay-file.js";
 import type { PaymentState } from "../view/payment-model.js";
@@ -680,6 +682,38 @@ export class EngineSessionCore {
     this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
+  }
+
+  /**
+   * A seat holder's proposal in a lobby room's game (issue #881): dispatched only when it is built on the current
+   * command count, the table is waiting on a hero the proposer's seats play (`players`), and the command is that
+   * hero's; the engine's own validation still has the last word (a rejection is `illegal`). Accepted, it is applied
+   * exactly as a host's own command is, so it joins the same log and streams the same way.
+   */
+  dispatchProposal(
+    command: unknown,
+    base: number,
+    players: readonly string[],
+  ):
+    | { readonly ok: true; readonly command: Command; readonly snapshot: Snapshot }
+    | { readonly ok: false; readonly reason: ProposalRefusal } {
+    const session = this.#session;
+    const config = this.#config;
+    // Only a game that belongs to a room takes proposals; any other table has no seats to propose from.
+    if (!session || !config?.room) return { ok: false, reason: "stale" };
+    const verdict = judgeProposal({
+      state: session.state,
+      count: this.#version,
+      base,
+      players,
+      command,
+      strict: config.roomPlayMode === "strict",
+    });
+    if (!verdict.ok) return verdict;
+    const result = this.dispatch(command as Command);
+    return result.ok
+      ? { ok: true, command: command as Command, snapshot: result.snapshot }
+      : { ok: false, reason: "illegal" };
   }
 
   legalActions(playerId: PlayerId): LegalActions {

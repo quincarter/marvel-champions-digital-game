@@ -283,6 +283,11 @@ export interface EngineUpdate {
   /** The events of the command that produced this state; empty for a resumed game's first update. */
   readonly events: readonly GameEvent[];
   /**
+   * The command a seat holder proposed in a lobby room and the engine applied on its own (issue #881), when this update
+   * is that and not the reply to a dispatch this host made. The store adds it to its trail, which Undo reads.
+   */
+  readonly remote?: Command;
+  /**
    * Legal actions for the player who must act — the active player during a
    * turn, or the player a pending choice is addressed to. Null when nobody
    * needs input (the game is over, or the engine is mid-phase with no choice).
@@ -294,6 +299,11 @@ export interface EngineUpdate {
   readonly saveError: string | null;
   /** The game was adjusted by hand or undone past a reveal (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
   readonly adjusted?: true;
+  /**
+   * The log was cut back to `version` by someone else (the host of a room's game took a move back, issue #881): the
+   * store takes this update although its version is lower than the one it holds, as it does a rewind it asked for.
+   */
+  readonly rewound?: true;
   /** The setup this game came from, for a rematch. */
   readonly config: SessionConfig | null;
   /** The id this game is stored under, or null/absent when it isn't saved (device sync leaves the open game alone). */

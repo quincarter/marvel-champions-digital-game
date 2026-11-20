@@ -4,7 +4,7 @@
  * streams the game over a port, as it does for Discord presence.
  */
 import type { Command, GameOutcome } from "@mc/engine";
-import type { RoomBuild, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
+import type { ProposalRefusal, RoomBuild, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomState } from "./room-state.js";
 
@@ -37,11 +37,13 @@ export type LiveRoomIn =
   | { readonly kind: "room-lobby"; readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }
   | {
       readonly kind: "room-seat";
-      readonly op: "request" | "release" | "assign" | "deny";
+      readonly op: "request" | "release" | "assign" | "deny" | "take-over" | "give-back";
       readonly seat: string;
       readonly participant?: string;
     }
   | { readonly kind: "room-say"; readonly text: string }
+  /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
+  | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
   | { readonly kind: "room-follow"; readonly port: MessagePort }
   | { readonly kind: "room-unfollow" };
@@ -81,6 +83,14 @@ export type LiveGameMessage =
       readonly outcome?: GameOutcome;
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
+  /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
+  | {
+      readonly kind: "refuse";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly reason: ProposalRefusal;
+      readonly base: number;
+    }
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
 
@@ -88,4 +98,18 @@ export type LiveGameMessage =
  * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
  * posts the current game if it is watchable), `resync` asks for the whole game again after a gap in its log.
  */
-export type LiveControlMessage = { readonly kind: "enabled"; readonly on: boolean } | { readonly kind: "resync" };
+export type LiveControlMessage =
+  | { readonly kind: "enabled"; readonly on: boolean }
+  | { readonly kind: "resync" }
+  /**
+   * A seat holder's proposal for the engine worker to judge (issue #881). `players` are the engine players behind the
+   * seats the room says the proposer may act for; `command` is untrusted and `base` the log length it was built on.
+   */
+  | {
+      readonly kind: "proposal";
+      readonly gameKey: string;
+      readonly from: string;
+      readonly players: readonly string[];
+      readonly command: unknown;
+      readonly base: number;
+    };

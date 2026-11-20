@@ -17,6 +17,7 @@ import {
   type ClientMessage,
   type RoomBuild,
   type RoomDevice,
+  type ProposalRefusal,
   type ServerMessage,
   type TableInfo,
 } from "@mc/sync-worker/room-protocol";
@@ -35,6 +36,7 @@ import {
 } from "./room-socket.js";
 import { GameMirror } from "./room-game-mirror.js";
 import { RoomModel } from "./room-model.js";
+import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState } from "./room-state.js";
 import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
@@ -51,6 +53,16 @@ export interface GameHooks {
   readonly onMessage: (message: ServerMessage) => void;
   /** The room is over for this device (closed, replaced, gone): stop streaming. */
   readonly onEnded: () => void;
+  /**
+   * A seat holder's proposal, with the engine players behind the seats it may act for (issue #881). Absent: the session
+   * answers `stale` itself.
+   */
+  readonly onProposal?: (proposal: {
+    readonly from: string;
+    readonly players: readonly string[];
+    readonly command: unknown;
+    readonly base: number;
+  }) => void;
 }
 
 /** The slice of a `MessagePort` a feed uses. */
@@ -77,6 +89,8 @@ export interface RoomSessionDeps {
 }
 
 const CAPS = ["watch", "chat", "seats"] as const;
+/** A host also judges seat holders' proposals (issue #881). */
+const HOST_CAPS = ["watch", "chat", "seats", "play"] as const;
 
 const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed"]);
 const SEAT_REFUSED_TO_CLOSE = new Set(["name-required", "full"]);
@@ -258,11 +272,23 @@ export class RoomSession {
       ch: "room",
       kind: "lobby-set",
       ...(change.settings ? { settings: change.settings } : {}),
-      ...(change.seats ? { seats: change.seats } : {}),
+      // The room drops a seat's `player` unless every `lobby-set` repeats it: seat n plays engine player p<n> (the order
+      // setup built the game's players in), so a spec without one gets it from its position.
+      ...(change.seats
+        ? { seats: change.seats.map((spec, index) => ({ ...spec, player: spec.player ?? `p${index + 1}` })) }
+        : {}),
     });
   }
 
-  seat(op: "request" | "release" | "assign" | "deny", seat: string, participant?: string): void {
+  seat(
+    op: "request" | "release" | "assign" | "deny" | "take-over" | "give-back",
+    seat: string,
+    participant?: string,
+  ): void {
+    if (op === "take-over" || op === "give-back") {
+      if (this.role === "host") this.#say({ ch: "room", kind: op, seat });
+      return;
+    }
     if (op === "request") {
       this.#model.noteRequest(seat);
       this.#model.want(seat, true);
@@ -274,6 +300,24 @@ export class RoomSession {
       if (op === "assign") this.#model.noteRequest(seat);
       this.#say({ ch: "room", kind: op === "assign" ? "seat-assign" : "seat-deny", seat, participant });
     }
+  }
+
+  /**
+   * Host: answers a seat holder's request (`RoomState.requests`); the caller has already done what an accepted one asks.
+   * A request already gone (answered, or its asker left) is ignored.
+   */
+  answerRequest(id: string, accepted: boolean): void {
+    if (this.role !== "host") return;
+    const request = this.#model.takeRequest(id);
+    if (!request) return;
+    this.#say({ ch: "game", kind: "request-answer", table: FIRST_TABLE, to: request.from, accepted });
+    this.#publish();
+  }
+
+  /** Host: turns a proposal down (the engine worker's verdict); the room tells the proposer alone. */
+  refuseProposal(to: string, reason: ProposalRefusal, base: number): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "game", kind: "proposal-refused", table: FIRST_TABLE, to, reason, base });
   }
 
   chat(text: string): void {
@@ -289,10 +333,17 @@ export class RoomSession {
     this.#feed = port;
     port.onmessage = (event) => {
       if ((event.data as RoomFeedIn | undefined)?.kind === "resync") this.#sendSnapshot();
+      else this.#sendSeatMessage(event.data);
     };
     port.start?.();
     this.#sendSnapshot();
     if (this.#socket && !this.#socket.connected) port.postMessage({ kind: "connection", connected: false });
+  }
+
+  /** A seated guest's proposal over the feed (`live/seat-protocol.ts`): sent to the room for the table's host to judge. */
+  #sendSeatMessage(data: unknown): void {
+    const message = seatFeedMessage(data);
+    if (message) this.#say(message);
   }
 
   unfollow(): void {
@@ -360,7 +411,7 @@ export class RoomSession {
       baseUrl,
       roomId,
       ...(this.#hostToken ? { token: this.#hostToken } : {}),
-      caps: CAPS,
+      caps: this.role === "host" ? HOST_CAPS : CAPS,
       name: this.#name,
       build: this.#deps.build,
       ...(this.#deps.device ? { device: this.#deps.device } : {}),
@@ -400,6 +451,22 @@ export class RoomSession {
     hooks?.onEnded();
   }
 
+  /** A seat holder's proposal: the engine worker judges it, with the players behind the seats the room named. */
+  #onProposal(message: Extract<ServerMessage, { kind: "proposal" }>): void {
+    const onProposal = this.#hooks?.onProposal;
+    if (!onProposal) {
+      // No game attached to judge it (a reload, or the stream ended): the proposer keeps following the log.
+      this.refuseProposal(message.from, "stale", message.base);
+      return;
+    }
+    onProposal({
+      from: message.from,
+      players: this.#model.playersOfSeats(message.seats),
+      command: message.command,
+      base: message.base,
+    });
+  }
+
   #onMessage(message: ServerMessage): void {
     if (message.ch === "room" && message.kind === "welcome" && this.role === "host" && message.you.role !== "host") {
       // A token the room no longer honours silently joins as a watcher: this room is not ours to stream into.
@@ -416,6 +483,17 @@ export class RoomSession {
       this.#model.onMessage(message);
       this.#over(message.reason === "full" ? "full" : "no-name");
       return;
+    }
+    if (this.role === "host" && message.ch === "game" && message.kind === "proposal") {
+      this.#onProposal(message);
+      return;
+    }
+    if (this.role === "host" && message.ch === "game" && message.kind === "request") {
+      // The room refuses requests in a Strict room itself; one that slips through is declined, never listed.
+      if (this.#model.state().settings?.playMode !== "host") {
+        this.#say({ ch: "game", kind: "request-answer", table: FIRST_TABLE, to: message.from, accepted: false });
+        return;
+      }
     }
     const changed = this.#model.onMessage(message);
     if (message.ch === "room" && message.kind === "lobby") {

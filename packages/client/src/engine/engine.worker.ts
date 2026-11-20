@@ -19,6 +19,7 @@ import { POOL_VERSION } from "../content/pool.js";
 import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { isChecksumPosition } from "../replay/replay-file.js";
+import type { ProposalRefusal } from "@mc/sync-worker/room-protocol";
 import type { LiveControlMessage, LiveGameMessage } from "../live/live-room-protocol.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
@@ -75,6 +76,9 @@ function publishPresence(): void {
   }
 }
 
+/** Set while a start, resume or rewind is awaiting: a seat's proposal then has no settled table to be judged against. */
+let exclusive = 0;
+
 let livePort: MessagePort | null = null;
 /** Off until the live-room worker says it is up; only a `watchable` game is ever read or sent (`core.liveGameKey`). */
 let liveOn = false;
@@ -112,6 +116,34 @@ function publishLiveCommand(command: Command, count: number, outcome: GameOutcom
   });
 }
 
+/**
+ * A seat holder's proposal (issue #881): judged and, when it passes, applied by the engine exactly as a host command is
+ * (same log, same checksums, streamed to the room the same way), and the host's own table is told. Otherwise the
+ * proposer is told why, through the room. Nothing a seat sends is trusted: `core.dispatchProposal` checks it against
+ * the table and the engine's own validation has the last word.
+ */
+function handleProposal(proposal: Extract<LiveControlMessage, { kind: "proposal" }>): void {
+  const refuse = (reason: ProposalRefusal): void =>
+    liveSend({ kind: "refuse", gameKey: proposal.gameKey, to: proposal.from, reason, base: proposal.base });
+  if (exclusive > 0 || core.liveGameKey() !== proposal.gameKey) {
+    refuse("stale");
+    return;
+  }
+  try {
+    const result = core.dispatchProposal(proposal.command, proposal.base, proposal.players);
+    if (!result.ok) {
+      refuse(result.reason);
+      return;
+    }
+    reply({ kind: "remoteDispatched", id: 0, command: result.command, snapshot: result.snapshot });
+    announceSaved(saveReason(result.snapshot));
+    publishPresence();
+    publishLiveCommand(result.command, result.snapshot.version, result.snapshot.state.outcome);
+  } catch {
+    refuse("illegal");
+  }
+}
+
 async function handle(request: HostRequest): Promise<void> {
   try {
     switch (request.kind) {
@@ -134,6 +166,10 @@ async function handle(request: HostRequest): Promise<void> {
         liveOn = false;
         // The live-room worker answers over this port with the setting; the game follows once it is on.
         livePort.addEventListener("message", (e: MessageEvent<LiveControlMessage>) => {
+          if (e.data.kind === "proposal") {
+            handleProposal(e.data);
+            return;
+          }
           // `enabled`: the live-room worker is up (the game follows if it is watchable); `resync`: its log has a gap.
           if (e.data.kind === "enabled") liveOn = e.data.on;
           publishLiveGame();
@@ -142,7 +178,8 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "start": {
-        const { cardPool, snapshot } = await core.start(request.config);
+        exclusive++;
+        const { cardPool, snapshot } = await core.start(request.config).finally(() => exclusive--);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         announceSaved("game");
         publishPresence();
@@ -150,7 +187,8 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "resume": {
-        const { cardPool, snapshot } = await core.resume(request.gameId);
+        exclusive++;
+        const { cardPool, snapshot } = await core.resume(request.gameId).finally(() => exclusive--);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         publishPresence();
         publishLiveGame();
@@ -167,11 +205,9 @@ async function handle(request: HostRequest): Promise<void> {
         return;
       }
       case "rewindTo": {
-        reply({
-          kind: "rewound",
-          id: request.id,
-          snapshot: await core.rewindTo(request.commandCount, request.options),
-        });
+        exclusive++;
+        const rewound = await core.rewindTo(request.commandCount, request.options).finally(() => exclusive--);
+        reply({ kind: "rewound", id: request.id, snapshot: rewound });
         announceSaved("game");
         publishPresence();
         {

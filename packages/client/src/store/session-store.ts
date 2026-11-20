@@ -437,13 +437,35 @@ export class SessionStore {
     }
   }
 
+  /**
+   * A command a seat holder proposed and the engine applied (issue #881) never went through `dispatch`, so its trail
+   * entry is added here: `commandTrail.length === version` stays true, which Undo's target counts read.
+   */
+  #withRemote(
+    trail: readonly BackOutTrailEntry[],
+    update: EngineUpdate,
+    before: SessionState["game"],
+  ): readonly BackOutTrailEntry[] {
+    const command = update.remote;
+    if (!command) return trail;
+    return [
+      ...trail,
+      {
+        playerId: command.playerId,
+        command,
+        events: update.events,
+        ...(before ? { rngDraws: { before: before.rng.draws, after: update.state.rng.draws } } : {}),
+      },
+    ];
+  }
+
   #absorb(
     update: EngineUpdate,
     options: { readonly force?: boolean; readonly commandTrail?: readonly BackOutTrailEntry[] } = {},
   ): void {
     // An out-of-order reply for an older command must never overwrite newer state — except a forced absorb
     // (`rewindTo`'s own doc comment), whose entire point is going backwards.
-    if (!options.force && update.version < this.#state.version) return;
+    if (!options.force && !update.rewound && update.version < this.#state.version) return;
     const toAct = actingPlayer(update.state);
     this.#activeLegal = update.legal;
     this.#set({
@@ -468,7 +490,8 @@ export class SessionStore {
       gameId: update.gameId !== undefined ? update.gameId : this.#state.gameId,
       // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
       // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
-      commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,
+      commandTrail:
+        options.commandTrail ?? update.trail ?? this.#withRemote(this.#state.commandTrail, update, this.#state.game),
       adjusted: update.adjusted === true,
     });
     void this.#findOffTurnSeats(update);

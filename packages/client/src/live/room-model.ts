@@ -14,6 +14,7 @@ import {
   type RoomParticipant,
   type RoomProblem,
   type RoomRefusal,
+  type RoomRequest,
   type RoomRole,
   type RoomSeat,
   type RoomState,
@@ -58,6 +59,9 @@ export class RoomModel {
   #welcomed = false;
   /** Seats asked for and not yet answered: the room keeps requests in memory only, so they are sent again after a wake. */
   readonly #wanted = new Set<string>();
+  /** Host: requests from seat holders awaiting its answer (memory only, as the room's own are). */
+  #requests: RoomRequest[] = [];
+  #requestSeq = 0;
 
   constructor(options: RoomModelOptions) {
     this.#role = options.role;
@@ -83,6 +87,23 @@ export class RoomModel {
   /** The room's lobby seats, for the session's token upkeep. */
   get lobby(): LobbyState | null {
     return this.#lobby;
+  }
+
+  /** The engine players behind these seat ids (a seat without one yet is left out). */
+  playersOfSeats(seatIds: readonly string[]): string[] {
+    const out: string[] = [];
+    for (const id of seatIds) {
+      const player = this.#lobby?.seats.find((s) => s.id === id)?.player;
+      if (player !== undefined) out.push(playerIdOfSeat(player));
+    }
+    return out;
+  }
+
+  /** Removes and returns a pending request (the host answered it), or undefined when it is gone. */
+  takeRequest(id: string): RoomRequest | undefined {
+    const found = this.#requests.find((r) => r.id === id);
+    if (found) this.#requests = this.#requests.filter((r) => r !== found);
+    return found;
   }
 
   /** A `welcome` for a watcher that attaches late (the guest's feed): who is here and what the table holds. */
@@ -169,6 +190,16 @@ export class RoomModel {
       return true;
     }
     if (message.ch === "game") {
+      if (message.kind === "request" && this.#role === "host" && message.table === FIRST_TABLE) {
+        // One pending request of a kind per asker: asking again replaces the note rather than piling up.
+        const kept = this.#requests.filter((r) => !(r.from === message.from && r.what === message.what));
+        const name = this.#participants.find((p) => p.id === message.from)?.name ?? "";
+        this.#requests = [
+          ...kept,
+          { id: `r${++this.#requestSeq}`, from: message.from, name, what: message.what, note: message.note },
+        ];
+        return true;
+      }
       if (message.kind === "end" && message.table === FIRST_TABLE && this.#table) {
         this.#table = { ...this.#table, ended: true };
         return true;
@@ -177,6 +208,7 @@ export class RoomModel {
     }
     switch (message.kind) {
       case "welcome":
+        this.#requests = [];
         this.#welcomed = true;
         this.#me = { id: message.you.id, name: message.you.name ?? this.#name };
         this.#participants = message.participants;
@@ -186,6 +218,8 @@ export class RoomModel {
         return true;
       case "roster":
         this.#participants = message.participants;
+        // An asker who left cannot be answered (the room refuses a `to` that is not connected).
+        this.#requests = this.#requests.filter((r) => message.participants.some((p) => p.id === r.from));
         return true;
       case "table":
         if (message.table.id !== FIRST_TABLE) return false;
@@ -267,6 +301,7 @@ export class RoomModel {
       mySeats: seats.filter((s) => s.mine).map((s) => s.id),
       chat: this.#chat,
       refusal: this.#refusal,
+      requests: this.#role === "host" ? this.#requests : [],
       buildMatches: me ? buildMatches(me) : sameBuild(this.#build, hostBuild) || !hostBuild,
       started: this.#hostStarted || (this.#table?.hasHeader ?? false),
       gameOver: this.#table?.ended ?? false,
