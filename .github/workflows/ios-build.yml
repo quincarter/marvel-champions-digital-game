@@ -66,9 +66,11 @@ jobs:
 
       - name: Build the unsigned .ipa
         env:
-          # The production save-transfer Worker (save-data/transfer-config.ts); empty until the variable is set.
+          # The save-transfer Worker (save-data/transfer-config.ts): staging for a pull request's preview, as the Android
+          # preview uses, production for a release or manual run; empty until the variable is set.
           VITE_SYNC_URL: >-
-            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://mc-sync.{0}.workers.dev',
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://{0}.{1}.workers.dev',
+            github.event_name == 'pull_request' && 'mc-sync-staging' || 'mc-sync',
             (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
         run: pnpm ios:build
 
