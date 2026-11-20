@@ -287,6 +287,8 @@ describe("the inactive team (Q11 A)", () => {
     endTurnsUntil(driven, (current) => current.activeTeamId === TEAM_TWO);
     const now = driven.session.state;
     expect(now.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
+    // N2: whatever the first player decides now (the order of simultaneous triggers, in either area) is team two's.
+    expect(now.firstPlayerId).toBe(P2);
     expect(applyCommand(now, { type: "basicRecover", playerId: P1 }, deps)).toMatchObject({
       ok: false,
       error: { code: "inactive_team" },
