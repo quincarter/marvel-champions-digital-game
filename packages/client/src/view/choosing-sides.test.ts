@@ -45,12 +45,35 @@ describe("choosingSidesOf", () => {
 
   test("lists the team's own leader cards still set aside, with the leader's name", () => {
     const view = choosingSidesOf(withNowItsPersonal(state, 0), "p1")!;
-    expect(view.earned).toBe(true);
-    expect(view.heroes).toBe(1);
     // The registration team teamed up with Iron Man: its four basic cards, set aside at setup.
     expect(view.leaderName).toMatch(/Iron Man/);
     expect(view.remaining).toHaveLength(4);
     // The other team has not earned them.
     expect(choosingSidesOf(withNowItsPersonal(state, 0), "p2")).toBeNull();
+  });
+});
+
+describe("choosingSidesOf reads set-aside cards and any printing", () => {
+  test("a leader card taken into a hand is no longer listed", () => {
+    const played = withNowItsPersonal(state, 0);
+    const taken = played.teams![0]!.leaderCardIds![0]!;
+    const view = choosingSidesOf(
+      { ...played, encounterSetAside: played.encounterSetAside.filter((id) => id !== taken) },
+      "p1",
+    )!;
+    expect(view.remaining).toHaveLength(3);
+    expect(view.remaining.some((c) => c.instanceId === taken)).toBe(false);
+  });
+
+  test("the resistance printing counts too, found by the card's name", () => {
+    const owner = state.teams![1]!.playerIds[0]!;
+    const donor = Object.values(state.instances)[0]!;
+    const id = "nip-2" as InstanceId;
+    const resistance: GameState = {
+      ...state,
+      instances: { ...state.instances, [id]: { ...donor, instanceId: id, cardId: "56206b" as never } },
+      players: state.players.map((p) => (p.playerId === owner ? { ...p, playArea: [...p.playArea, id] } : p)),
+    };
+    expect(choosingSidesOf(resistance, owner)).not.toBeNull();
   });
 });

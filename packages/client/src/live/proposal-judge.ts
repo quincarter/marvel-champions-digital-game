@@ -77,9 +77,13 @@ const asCommand = (value: unknown): Command | null => {
 
 export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   const { state, count, base, players, strict } = check;
-  if (base !== count) return { ok: false, reason: "stale" };
-  if (check.stamp === undefined || check.stamp !== check.stampNow()) return { ok: false, reason: "stale" };
   const command = asCommand(check.command);
+  // A concession needs no fresh table: giving up holds whatever moved since the proposal was built (#883, N12 A).
+  const concession = command?.type === "concede" && check.teamOf !== undefined && players.includes(command.playerId);
+  if (!concession) {
+    if (base !== count) return { ok: false, reason: "stale" };
+    if (check.stamp === undefined || check.stamp !== check.stampNow()) return { ok: false, reason: "stale" };
+  }
   if (!command) return { ok: false, reason: "illegal" };
   // Adjusting the table is the host's own act, after it accepts a request: a seat never proposes one.
   if (command.type === "adjust") return { ok: false, reason: strict ? "strict" : "illegal" };

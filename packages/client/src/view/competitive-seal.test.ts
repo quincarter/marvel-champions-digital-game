@@ -13,6 +13,7 @@ import { applyBuilderAction, builderViewOf, openBuilderOn, type BuilderContext }
 import { sealedScenarioOf } from "./competitive-seal.js";
 import { effectiveSetIds as effectiveSetIdsOf } from "./civil-war-builder-model.js";
 import { setModularSetIds } from "./setup-draft.js";
+import { CORE_CARDS } from "@mc/content";
 import { initialSetupDraft } from "./setup-draft.js";
 import { offerOf } from "./setup-options.js";
 
@@ -113,11 +114,20 @@ describe("sealing refuses a neutral set (MC56 p. 5)", () => {
 import { heroSharingLeaderTitle } from "./competitive-seal.js";
 
 describe("heroSharingLeaderTitle", () => {
-  test("finds a hero named like the team's own leader", () => {
-    expect(heroSharingLeaderTitle(["Iron Man (Aggression)|01028a", "Spider-Man (Justice)|01001a"], "Iron Man")).toBe(
-      "Iron Man",
-    );
-    expect(heroSharingLeaderTitle(["Spider-Man (Justice)|01001a"], "Iron Man")).toBeNull();
-    expect(heroSharingLeaderTitle(["?"], "Iron Man")).toBeNull();
+  const cards = new Map<string, AnyCard>(
+    [...CW_CARDS, ...SYNTHEZOID_CARDS, ...CORE_CARDS].map((c) => [c.id as string, c]),
+  );
+  test("finds a hero named like the team own leader from a real seat label", () => {
+    // Real labels are "Hero - Deck|cardId" (seatLabelOf): Iron Man 01029a.
+    expect(heroSharingLeaderTitle(["Iron Man - My deck|01029a"], "Iron Man", cards)).toBe("Iron Man");
+    expect(
+      heroSharingLeaderTitle(["Spider-Man (Justice) - Core Set starter deck|01001a"], "Iron Man", cards),
+    ).toBeNull();
+    expect(heroSharingLeaderTitle(["?"], "Iron Man", cards)).toBeNull();
+  });
+
+  test("also matches the alter-ego title, as the engine does", () => {
+    // Tony Stark is the alter-ego face of the Iron Man hero identity.
+    expect(heroSharingLeaderTitle(["Iron Man - My deck|01029a"], "Tony Stark", cards)).toBe("Iron Man");
   });
 });

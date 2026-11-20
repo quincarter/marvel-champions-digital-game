@@ -823,7 +823,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.builder.clash":
     "{hero} comparte título con tu líder {leader}. Un equipo no puede usarlo: elige otro héroe o líder.",
   "comp.over.reopen": "Resultado y desempates",
-  "comp.reward.title": "Choosing Sides derrotado: cartas ganadas",
-  "comp.reward.body": "Now It's Personal está en juego. Tu equipo ganó las cartas básicas de {leader}, aún apartadas:",
-  "comp.reward.each": "Su Acción permite que cada héroe de tu equipo tome {count} de ellas a su mano.",
+  "comp.reward.title": "Escoger un bando derrotado: cartas ganadas",
+  "comp.reward.body": "Ahora es personal está en juego. Tu equipo ganó las cartas básicas de {leader}, aún apartadas:",
+  "comp.reward.each": "Su Acción permite que cada héroe de tu equipo las tome a su mano, como dice la carta.",
 };

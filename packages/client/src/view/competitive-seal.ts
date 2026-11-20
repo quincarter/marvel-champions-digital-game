@@ -10,6 +10,8 @@ import type { PlayableScenarioOffer } from "@mc/cards";
 import type { SealedScenario } from "../live/competitive-start.js";
 import type { TeamId } from "../live/room-state.js";
 import { effectiveSetIds } from "./civil-war-builder-model.js";
+import type { AnyCard } from "@mc/content";
+import { parseSeatLabel } from "./room-table-setup.js";
 import type { SetupDraft } from "./setup-draft.js";
 
 let sealing: TeamId | null = null;
@@ -44,11 +46,18 @@ export function sealedScenarioOf(draft: SetupDraft, offer: PlayableScenarioOffer
  * team's own leader, or null. A team cannot field an identity that shares a title with its own leader (MC56 pp. 14, 16);
  * the engine refuses it at Start, and this tells the team before it seals.
  */
-export function heroSharingLeaderTitle(labels: readonly string[], leaderName: string): string | null {
-  const title = leaderName.trim().toLowerCase();
+export function heroSharingLeaderTitle(
+  labels: readonly string[],
+  leaderName: string,
+  cards: ReadonlyMap<string, AnyCard>,
+): string | null {
   for (const label of labels) {
-    const hero = (label.split("|")[0] ?? "").split(" (")[0]!.trim();
-    if (hero !== "" && hero.toLowerCase() === title) return hero;
+    const { cardId } = parseSeatLabel(label);
+    const identity = cardId === null ? undefined : cards.get(cardId);
+    if (identity?.type !== "hero_identity") continue;
+    // As the engine compares (`civilWarCompetitive`): the card's name and both faces' names (MC56 pp. 14, 16).
+    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName];
+    if (titles.includes(leaderName)) return identity.name;
   }
   return null;
 }

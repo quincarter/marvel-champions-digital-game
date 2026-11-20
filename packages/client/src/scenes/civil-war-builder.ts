@@ -264,8 +264,9 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     const room = roomState();
     const mine = room.competitive?.teams[team].seats ?? [];
     const labels = room.seats.filter((seat) => mine.includes(seat.id)).map((seat) => seat.label);
-    const leader = builderViewOf(this.#draft, this.#context())?.summaryArt.leader.name ?? "";
-    const clash = heroSharingLeaderTitle(labels, leader);
+    const leaderCard = builderViewOf(this.#draft, this.#context())?.summaryArt.leader.cardId ?? "";
+    const leader = CARDS_BY_ID.get(leaderCard)?.name ?? "";
+    const clash = heroSharingLeaderTitle(labels, leader, CARDS_BY_ID);
     if (clash) {
       this.#status = t("comp.builder.clash", { hero: clash, leader });
       this.#rebuild();

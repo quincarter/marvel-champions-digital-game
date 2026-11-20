@@ -818,5 +818,5 @@ export const en = {
   "comp.over.reopen": "Result and tie-breaks",
   "comp.reward.title": "Choosing Sides defeated: cards earned",
   "comp.reward.body": "Now It's Personal is in play. Your team earned the basic cards of {leader}, still set aside:",
-  "comp.reward.each": "Its Action lets each hero on your team take {count} of them into their hand.",
+  "comp.reward.each": "Its Action lets each hero on your team take them into their hand, as the card says.",
 } as const;

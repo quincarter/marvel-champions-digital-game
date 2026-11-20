@@ -355,8 +355,6 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       data: {
         preview: {
           leaderName: "Iron Man",
-          earned: true,
-          heroes: 2,
           remaining: [
             { instanceId: "a", cardId: "56129", name: "Suit Up" },
             { instanceId: "b", cardId: "56130", name: "Target Lock" },

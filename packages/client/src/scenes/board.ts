@@ -265,6 +265,9 @@ function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
 
 const POD_LINE = 18;
 
+/** The games (and sides) the Choosing Sides reward sheet already opened for: once each, kept across a scene's reuse (#883). */
+const choosingSidesOpened = new Set<string>();
+
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
   #teamUps: readonly TeamUpPair[] = [];
@@ -2853,17 +2856,14 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
-  /** The game the Choosing Sides reward sheet already opened for, so it opens once (#883). */
-  #choosingSidesFor: string | null = null;
-
   /** Civil War Competitive (#883): when this seat's team earns the Choosing Sides reward, the sheet opens once. */
   #maybeShowChoosingSides(model: BoardModel): void {
     if (!model.competitive) return;
     const { game, perspectiveId, gameId } = appSession().store.state;
     if (!game || !perspectiveId || !choosingSidesOf(game, perspectiveId)) return;
     const key = `${gameId ?? "game"}:${model.competitive.mySide}`;
-    if (this.#choosingSidesFor === key || this.scene.isActive(SCENES.choosingSides)) return;
-    this.#choosingSidesFor = key;
+    if (choosingSidesOpened.has(key) || this.scene.isActive(SCENES.choosingSides)) return;
+    choosingSidesOpened.add(key);
     this.scene.launch(SCENES.choosingSides);
   }
 

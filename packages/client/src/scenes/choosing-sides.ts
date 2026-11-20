@@ -120,7 +120,7 @@ export class ChoosingSidesOverlay extends Phaser.Scene {
       this.add.text(x, y, t("comp.reward.title"), textStyle(typeRole.barTitle, INK)).setWordWrapWidth(w, true).height +
       8;
     y += this.#text(x, y, t("comp.reward.body", { leader: view.leaderName }), 14, w).height + 6;
-    y += this.#text(x, y, t("comp.reward.each", { count: 2 }), 14, w, true).height + 10;
+    y += this.#text(x, y, t("comp.reward.each"), 14, w, true).height + 10;
     const closeRect: Rect = { x, y: box.y + box.height - 12 - hit.target, width: w, height: hit.target };
     // The four cards fit one row where they can and two rows on a narrow sheet.
     const cards = view.remaining;

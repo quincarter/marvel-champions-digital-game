@@ -196,3 +196,24 @@ describe("a Competitive room's concede (plan N12 A)", () => {
     });
   });
 });
+
+describe("a competitive concede is not stale", () => {
+  const teamOf = (id: string): string | undefined => ({ p1: "registration", p2: "resistance" })[id];
+  it("passes however far the table moved since it was built, while another command is stale", () => {
+    const concede = { type: "concede", playerId: "p2" };
+    expect(judgeProposal(check({ teamOf, players: ["p2"], base: 1, stamp: "OLD", command: concede })).ok).toBe(true);
+    expect(
+      judgeProposal(
+        check({ teamOf, players: ["p2"], base: 1, stamp: "OLD", command: { type: "endTurn", playerId: "p2" } }),
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "stale",
+    });
+    // Still never for a seat the proposer does not hold.
+    expect(judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+  });
+});

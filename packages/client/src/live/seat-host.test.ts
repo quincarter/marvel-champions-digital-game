@@ -102,7 +102,7 @@ const appended = (from: number, commands: readonly Command[]) => ({
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function seatAt(count: number, options: { leaveSeats?: () => void } = {}) {
+async function seatAt(count: number, options: { leaveSeats?: () => void; proposesConcede?: () => boolean } = {}) {
   const game = await hostedGame();
   for (let i = 0; i < count; i++) game.next();
   const feed = new FakeFeed();
@@ -282,6 +282,27 @@ describe("SeatEngineHost", () => {
     await host.setPlayers([acting]);
     const done = await host.dispatch({ type: "concede", playerId: acting } as Command);
     expect(done.ok).toBe(true);
+    expect(leaveSeats).toHaveBeenCalledTimes(1);
+    expect(feed.sent).toEqual([]);
+  });
+
+  test("in a competitive room Concede is a proposal to the host, not leaving the seat", async () => {
+    const leaveSeats = vi.fn();
+    const { feed, host, first } = await seatAt(2, { leaveSeats, proposesConcede: () => true });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = { type: "concede", playerId: acting, alone: true } as Command;
+    void host.dispatch(command);
+    expect(leaveSeats).not.toHaveBeenCalled();
+    expect(feed.sent).toMatchObject([{ kind: "propose", command, base: 2 }]);
+  });
+
+  test("with proposesConcede false the old leave-the-seat Concede holds", async () => {
+    const leaveSeats = vi.fn();
+    const { feed, host, first } = await seatAt(2, { leaveSeats, proposesConcede: () => false });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    await host.dispatch({ type: "concede", playerId: acting } as Command);
     expect(leaveSeats).toHaveBeenCalledTimes(1);
     expect(feed.sent).toEqual([]);
   });

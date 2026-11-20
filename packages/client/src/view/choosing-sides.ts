@@ -7,8 +7,11 @@
  */
 import { cardOf, getInstance, yourLeaderOf, type GameState, type InstanceId } from "@mc/engine";
 
-/** Now It's Personal, both printings (56128b registration, 56206b resistance; Q15: identical in play). */
-const NOW_ITS_PERSONAL = new Set(["56128b", "56206b"]);
+/**
+ * Now It's Personal by its card data name, which is the same in every language and in every printing (56128b, 56206b and
+ * the Synthezoid Smackdown reprints 57039b, 57081b; Q15: identical in play), so a new printing needs no change here.
+ */
+const NOW_ITS_PERSONAL = "Now It's Personal";
 
 export interface EarnedCard {
   readonly instanceId: InstanceId;
@@ -21,15 +24,11 @@ export interface ChoosingSidesView {
   readonly leaderName: string;
   /** The leader's basic player cards still set aside, in the order set aside. */
   readonly remaining: readonly EarnedCard[];
-  /** Now It's Personal is in a hero's play area: the team earned them and can use its Action. */
-  readonly earned: boolean;
-  /** Heroes on the team that may take two each (not eliminated). */
-  readonly heroes: number;
 }
 
 /**
  * What to show `viewer` about the Choosing Sides reward, or null in a game without teams, for a team with no leader
- * cards set aside, and before the reward is earned (`earned: false` then lists nothing to show, so null).
+ * cards set aside, and before the reward is earned (nothing to show yet).
  */
 export function choosingSidesOf(state: GameState, viewer: string): ChoosingSidesView | null {
   const full = state;
@@ -37,21 +36,18 @@ export function choosingSidesOf(state: GameState, viewer: string): ChoosingSides
   const team = state.teams.find((candidate) => (candidate.playerIds as readonly string[]).includes(viewer));
   if (!team) return null;
   const mine = state.players.filter((player) => (team.playerIds as readonly string[]).includes(player.playerId));
-  const inPlay = mine.some((player) =>
-    player.playArea.some((id) => NOW_ITS_PERSONAL.has(getInstance(full, id)?.cardId as string)),
-  );
+  const inPlay = mine.some((player) => player.playArea.some((id) => cardOf(full, id)?.name === NOW_ITS_PERSONAL));
   if (!inPlay) return null;
-  const remaining = (team.leaderCardIds ?? []).flatMap((instanceId) => {
-    const instance = getInstance(full, instanceId);
-    const card = cardOf(full, instanceId);
-    return instance && card ? [{ instanceId, cardId: instance.cardId as string, name: card.name }] : [];
-  });
+  // Still set aside: the engine's set-aside area, which a card taken into a hand has left.
+  const setAside = new Set<InstanceId>(full.encounterSetAside);
+  const remaining = (team.leaderCardIds ?? [])
+    .filter((id) => setAside.has(id))
+    .flatMap((instanceId) => {
+      const instance = getInstance(full, instanceId);
+      const card = cardOf(full, instanceId);
+      return instance && card ? [{ instanceId, cardId: instance.cardId as string, name: card.name }] : [];
+    });
   const leaderId = yourLeaderOf(full, team.teamId);
   const leaderName = leaderId ? (cardOf(full, leaderId)?.name ?? "") : "";
-  return {
-    leaderName,
-    remaining,
-    earned: true,
-    heroes: mine.filter((player) => !player.eliminated).length,
-  };
+  return { leaderName, remaining };
 }

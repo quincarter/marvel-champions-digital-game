@@ -415,11 +415,10 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   const chosenIds = effectiveSetIds(draft, offer);
   const range = { min: offer.modularSetCount.min, max: offer.modularSetCount.max };
   const atMax = modularAtMaxReason(range, chosenIds.length);
-  const sealProblems = ctx.sealSide
-    ? chosenIds.flatMap((id) =>
-        offer.modularSets?.find((s) => s.id === id)?.side === null ? [t("comp.builder.neutral")] : [],
-      )
-    : [];
+  const sealProblems =
+    ctx.sealSide && chosenIds.some((id) => offer.modularSets?.find((s) => s.id === id)?.side === null)
+      ? [t("comp.builder.neutral")]
+      : [];
   const problems = [...problemsOf(draft, offer), ...sealProblems];
   const ready = isReadyMade(draft, offer);
 
