@@ -20,10 +20,34 @@ export function readEpicStart(tableRules: Readonly<Record<string, unknown>> | un
   if (typeof epic !== "object" || epic === null) return null;
   const start = (epic as { start?: unknown }).start;
   if (typeof start !== "object" || start === null) return null;
-  const { id, seed } = start as { id?: unknown; seed?: unknown };
+  const { id, seed, at } = start as { id?: unknown; seed?: unknown; at?: unknown };
   if (typeof id !== "string" || id === "" || id.length > 32) return null;
   if (typeof seed !== "number" || !Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) return null;
-  return { id, seed };
+  // The organizer's clock when it pressed Start: only the time-limit display reads it.
+  return typeof at === "number" && Number.isFinite(at) && at > 0 ? { id, seed, at } : { id, seed };
+}
+
+/** The key of `LobbySettings.tableRules` that holds the optional time limit in minutes (display only, plan Q-D). */
+export const EPIC_TIME_LIMIT_KEY = "epicTimeLimitMinutes";
+
+/** The longest time limit the lobby offers, in minutes. */
+export const EPIC_TIME_LIMIT_MAX = 600;
+
+/** The time limit in minutes from a lobby's `tableRules`, or null when none is set. */
+export function readEpicTimeLimit(tableRules: Readonly<Record<string, unknown>> | undefined): number | null {
+  const value = tableRules?.[EPIC_TIME_LIMIT_KEY];
+  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= EPIC_TIME_LIMIT_MAX
+    ? value
+    : null;
+}
+
+/** `tableRules` with the time limit set (every other rule kept); `null` clears it. */
+export function withEpicTimeLimit(
+  tableRules: Readonly<Record<string, unknown>> | undefined,
+  minutes: number | null,
+): Record<string, unknown> {
+  const { [EPIC_TIME_LIMIT_KEY]: _old, ...rest } = { ...tableRules };
+  return minutes === null ? rest : { ...rest, [EPIC_TIME_LIMIT_KEY]: minutes };
 }
 
 /** `tableRules` with the Epic start set (every other rule kept), for the organizer's `lobby-set`. */

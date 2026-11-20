@@ -24,9 +24,11 @@ const EPIC: EpicState = {
     { id: "b", name: "B", tables: ["t3"] },
   ],
   start: { id: "go", seed: 12345 },
+  timeLimitMinutes: null,
   pod: null,
   remoteTargets: [],
   following: [],
+  podStuck: false,
 };
 const CONFIG = { scenarioId: "god-of-lies", players: [{}, {}], seed: 1 } as unknown as SessionConfig;
 const withPlayers = (n: number): SessionConfig =>

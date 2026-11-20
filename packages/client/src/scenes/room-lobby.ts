@@ -29,6 +29,7 @@ import {
   giveBackSeat,
   type RoomState,
 } from "../platform/room.js";
+import { dropTable, setEpic, startEpicGame, startEpicTable } from "../platform/room.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { appSession, deckStorage } from "../session.js";
@@ -79,6 +80,27 @@ import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
 import { tableRulesOf, type Settings } from "../settings.js";
 import { toSessionConfig } from "../view/setup-draft.js";
 import type { SessionConfig } from "../engine/host.js";
+import { EPIC_SCENARIO_ID, epicTableSessionConfig, missingHeroes } from "../view/epic-table-config.js";
+import { withEpicTimeLimit } from "../live/epic-start.js";
+import {
+  HERO_UNSET,
+  MAX_EPIC_TABLES,
+  MIN_EPIC_TABLES,
+  epicStartBlock,
+  epicTableViews,
+  minutesText,
+  newEpicPlan,
+  nextTimeLimit,
+  planOf,
+  statusKey,
+  withNextDifficulty,
+  withNextPod,
+  withSeatCount,
+  withTableCount,
+  type EpicPlan,
+  type EpicTableView,
+} from "../view/epic-lobby-model.js";
+import type { EpicSheetData } from "./epic-sheet.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { introReplay } from "./replay-entry.js";
@@ -86,6 +108,16 @@ import { newGameDraft } from "./title.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
+
+/** The clip and drag guard a scrolling panel hands its controls (issue #227). */
+interface PanelGuard {
+  clip: () => Rect;
+  suppress: () => boolean;
+  stop: (key: string, rect: Rect, activate: () => void) => void;
+}
+
+/** Epic starts this device has already acted on (a table host starts its table once per start). */
+const epicStarted = new Set<string>();
 
 /** How long a note about what the room refused, or why a button is off, stays in the footer. */
 const NOTE_MS = 6000;
@@ -247,6 +279,7 @@ export class RoomLobbyScene extends Phaser.Scene {
         if (!this.#alive) return;
         this.#decks = seatableDeckOptionsOf(decks, currentPool(), POOL_VERSION, currentDeps());
         this.#draw();
+        void this.#maybeStartTable();
       });
     if (!this.#preview) this.#off = onRoomState((state) => this.#onState(state));
   }
@@ -276,6 +309,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#chatCount = state.chat.length;
       this.#chatToEnd = true;
     }
+    void this.#maybeStartTable();
     if (state.role === "guest" && state.started && !this.#opening && this.time.now >= this.#openAfter) {
       void this.#openGame();
     }
@@ -364,6 +398,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   #startWords(): Words | null {
+    if (this.#state.epic) return epicStartBlock(this.#state, { missingDecks: this.#missingOwnDecks() });
     const config = this.#config();
     return startBlock(this.#state, { tableReady: config !== null, packsUsed: this.#packsUsed(config) });
   }
@@ -383,6 +418,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (block) {
       this.#say(wordsText(block));
       this.#draw();
+      return;
+    }
+    if (this.#state.epic) {
+      if (this.#preview) ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []).push("startEpicGame()");
+      else startEpicGame();
       return;
     }
     const config = this.#config();
@@ -720,6 +760,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   // ---- People and seats ----------------------------------------------------------------------------------------
 
   #drawSeatsPanel(rect: Rect, titled: boolean): void {
+    if (this.#state.epic) return this.#drawEpicPanel(rect, titled);
     const inner = this.#frame(rect, titled ? t("room.seats") : null);
     const state = this.#state;
     this.#scrollPanel("seats", inner, (x, top, w, guard) => {
@@ -1033,6 +1074,322 @@ export class RoomLobbyScene extends Phaser.Scene {
     return height;
   }
 
+  // ---- Epic tables (issue #882) -----------------------------------------------------------------------------------
+
+  /** A full-width button inside a scrolling panel, with its focus stop; returns the next y. */
+  #panelButton(
+    x: number,
+    y: number,
+    w: number,
+    label: string,
+    run: () => void,
+    guard: PanelGuard,
+    key: string,
+    options: { kind?: "primary" | "secondary"; selected?: boolean; enabled?: boolean; reason?: string } = {},
+  ): number {
+    const rect: Rect = { x, y, width: w, height: hit.target };
+    const enabled = options.enabled ?? true;
+    const go = (): void => {
+      if (!enabled) {
+        if (options.reason) this.#say(options.reason);
+        this.#draw();
+        return;
+      }
+      run();
+    };
+    this.#button({
+      kind: options.kind ?? "secondary",
+      label,
+      type: { ...typeRole.label, size: 12 },
+      rect,
+      enabled,
+      ...(options.selected ? { selected: true } : {}),
+      ...(options.reason ? { reason: options.reason } : {}),
+      onUnavailablePress: go,
+      onClick: go,
+      clip: guard.clip,
+      suppressClick: guard.suppress,
+      wrap: true,
+    });
+    guard.stop(key, rect, go);
+    return y + hit.target + 6;
+  }
+
+  /** Two buttons side by side (a plus and a minus, a pair of choices). */
+  #panelPair(
+    x: number,
+    y: number,
+    w: number,
+    left: { label: string; run: () => void; enabled: boolean; key: string },
+    right: { label: string; run: () => void; enabled: boolean; key: string },
+    guard: PanelGuard,
+  ): number {
+    const half = (w - 8) / 2;
+    this.#panelButton(x, y, half, left.label, left.run, guard, left.key, { enabled: left.enabled });
+    this.#panelButton(x + half + 8, y, half, right.label, right.run, guard, right.key, { enabled: right.enabled });
+    return y + hit.target + 6;
+  }
+
+  #epicSheet(data: EpicSheetData): void {
+    const given = this.#preview ? ({ ...data, preview: this.#state } as EpicSheetData) : data;
+    if (!this.scene.isActive(SCENES.epicSheet)) this.scene.launch(SCENES.epicSheet, given);
+  }
+
+  #sendPlan(plan: EpicPlan): void {
+    if (this.#preview) {
+      ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []).push(`setEpic(${plan.tables.length}t)`);
+    } else setEpic(plan.tables, plan.pods, plan.seats);
+  }
+
+  #drawEpicPanel(rect: Rect, titled: boolean): void {
+    const inner = this.#frame(rect, titled ? t("epic.tables.title") : null);
+    const state = this.#state;
+    const epic = state.epic!;
+    const organizer = this.#isHost();
+    this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+      let y = top + 2;
+      const hint = this.#text(x, y, t(organizer ? "epic.hint.organizer" : "epic.hint.player"), 13, w, { alpha: 0.85 });
+      y += hint.height + 8;
+      const plan = planOf(state);
+      if (organizer && plan && !epic.start) {
+        y = this.#panelPair(
+          x,
+          y,
+          w,
+          {
+            label: t("epic.tables.fewer"),
+            run: () => this.#sendPlan(withTableCount(plan, plan.tables.length - 1)),
+            enabled: plan.tables.length > MIN_EPIC_TABLES,
+            key: "epic:fewer",
+          },
+          {
+            label: t("epic.tables.more"),
+            run: () => this.#sendPlan(withTableCount(plan, plan.tables.length + 1)),
+            enabled: plan.tables.length < MAX_EPIC_TABLES,
+            key: "epic:more",
+          },
+          guard,
+        );
+        const limit = epic.timeLimitMinutes;
+        const words = `${t("epic.timeLimit.title")}: ${limit === null ? t("epic.timeLimit.none") : minutesText(limit)}`;
+        y = this.#panelButton(
+          x,
+          y,
+          w,
+          words,
+          () =>
+            this.#api.setLobby({
+              settings: { tableRules: withEpicTimeLimit(state.settings?.tableRules, nextTimeLimit(limit)) },
+            }),
+          guard,
+          "epic:limit",
+        );
+        const note = this.#text(x + 4, y - 2, t("epic.timeLimit.note"), 12, w - 8, { alpha: 0.75 });
+        y += note.height + 8;
+      } else if (epic.timeLimitMinutes !== null) {
+        const line = this.#text(x, y, `${t("epic.timeLimit.title")}: ${minutesText(epic.timeLimitMinutes)}`, 13, w, {
+          bold: true,
+        });
+        y += line.height + 8;
+      }
+      for (const view of epicTableViews(state, { installed: this.#installed() })) {
+        y = this.#drawEpicTable(view, plan, x, y, w, guard) + 12;
+      }
+      y = this.#heading(x, y, w, t("room.people"));
+      for (const person of participantRows(state)) {
+        const seats = person.seats.length > 0 ? ` · ${person.seats.join(", ")}` : "";
+        const line = `${person.me ? `${person.name} (${t("room.you")})` : person.name} · ${t(person.roleKey)}${seats}`;
+        y += this.#text(x + 4, y, line, 13, w - 8).height + 6;
+      }
+      return y - top + 4;
+    });
+  }
+
+  /** One table's card: name, pod, difficulty and status in words, its host, the organizer's controls and its seats. */
+  #drawEpicTable(
+    view: EpicTableView,
+    plan: EpicPlan | null,
+    x: number,
+    y0: number,
+    w: number,
+    guard: PanelGuard,
+  ): number {
+    const organizer = this.#isHost();
+    const editable = organizer && plan !== null && !this.#state.epic?.start;
+    const pad = 10;
+    const inW = w - pad * 2;
+    let y = y0 + pad;
+    const g = this.add.graphics();
+    const name = this.add.text(x + pad, y, view.name, textStyle(typeRole.rowTitle, INK)).setFontSize(17);
+    fitText(name, inW, 17);
+    y += name.height + 4;
+    const facts = [
+      t("epic.table.pod", { pod: view.podName }),
+      t(`epic.difficulty.${view.difficulty}` as const),
+      t(statusKey(view.status)),
+    ].join(" · ");
+    y += this.#text(x + pad, y, facts, 13, inW, { alpha: 0.9 }).height + 2;
+    const hostLine = view.hostName
+      ? t(view.hostConnected ? "epic.table.host" : "epic.table.hostAway", { name: view.hostName })
+      : t("epic.table.hostNone");
+    y += this.#text(x + pad, y, view.mine ? t("epic.table.hostYou") : hostLine, 13, inW, { bold: true }).height + 8;
+    if (editable) {
+      const id = view.id;
+      const p = plan;
+      y = this.#panelPair(
+        x + pad,
+        y,
+        inW,
+        {
+          label: t("epic.table.rename"),
+          run: () => this.#epicSheet({ kind: "rename", table: id }),
+          enabled: true,
+          key: `rename:${id}`,
+        },
+        {
+          label: t("epic.table.podNext"),
+          run: () => this.#sendPlan(withNextPod(p, id)),
+          enabled: true,
+          key: `pod:${id}`,
+        },
+        guard,
+      );
+      y = this.#panelPair(
+        x + pad,
+        y,
+        inW,
+        {
+          label: t(`epic.difficulty.${view.difficulty === "expert" ? "standard" : "expert"}` as const),
+          run: () => this.#sendPlan(withNextDifficulty(p, id)),
+          enabled: true,
+          key: `diff:${id}`,
+        },
+        {
+          label: t("epic.table.hostPick"),
+          run: () => this.#epicSheet({ kind: "host", table: id }),
+          enabled: true,
+          key: `host:${id}`,
+        },
+        guard,
+      );
+      y = this.#panelPair(
+        x + pad,
+        y,
+        inW,
+        {
+          label: t("epic.table.seatLess"),
+          run: () => this.#sendPlan(withSeatCount(p, id, view.seatCount - 1)),
+          enabled: view.canRemoveSeat,
+          key: `less:${id}`,
+        },
+        {
+          label: t("epic.table.seatMore"),
+          run: () => this.#sendPlan(withSeatCount(p, id, view.seatCount + 1)),
+          enabled: view.canAddSeat,
+          key: `more:${id}`,
+        },
+        guard,
+      );
+    }
+    if (organizer && view.status === "waiting") {
+      y = this.#panelButton(
+        x + pad,
+        y,
+        inW,
+        t("epic.sheet.drop"),
+        () =>
+          askToConfirm(
+            this,
+            t("epic.sheet.dropTitle", { table: view.name }),
+            t("epic.sheet.dropBody", { table: view.name, name: view.hostName ?? "" }),
+            t("epic.sheet.dropConfirm"),
+            () => (this.#preview ? undefined : dropTable(view.id)),
+          ),
+        guard,
+        `drop:${view.id}`,
+      );
+    }
+    for (const seat of view.seats) {
+      const unset = seat.label === HERO_UNSET;
+      const row = { ...seat, label: unset ? t("epic.seat.noHero") : seat.label };
+      y += this.#drawSeatRow(row, x + pad, y, inW, guard);
+      if (editable) {
+        y = this.#panelButton(
+          x + pad,
+          y + 4,
+          inW,
+          t(unset ? "epic.seat.chooseHero" : "epic.seat.changeHero"),
+          () => this.#epicSheet({ kind: "hero", seat: seat.id }),
+          guard,
+          `hero:${seat.id}`,
+        );
+      } else y += 6;
+    }
+    const height = y - y0 + pad - 6;
+    g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
+    g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
+    // The card's ground goes under everything drawn for it.
+    this.children.sendToBack(g);
+    return y0 + height;
+  }
+
+  /**
+   * A table host, once the organizer has started: builds this table's game from the heroes the organizer chose, with
+   * decks of this device, and starts it, once per start (`epicStarted`).
+   */
+  async #maybeStartTable(): Promise<void> {
+    const epic = this.#state.epic;
+    if (this.#preview || !epic?.start || !epic.hostsTable || !this.#decks) return;
+    if (epicStarted.has(epic.start.id) || this.#starting) return;
+    const table = epic.tables.find((x) => x.id === epic.hostsTable);
+    if (!table) return;
+    const seats = table.seats.flatMap((id) => this.#state.seats.filter((s) => s.id === id));
+    const rules = this.#state.settings?.tableRules;
+    const result = epicTableSessionConfig({
+      seats,
+      difficulty: table.difficulty,
+      decks: this.#decks,
+      scenario: currentScenarios().find((s) => (s.id as string) === EPIC_SCENARIO_ID),
+      ...(rules?.sameNameHeroAllyConflict === true
+        ? { tableRules: tableRulesOf({ sameNameHeroAllyConflict: true }) }
+        : {}),
+    });
+    epicStarted.add(epic.start.id);
+    if (!result.ok) {
+      this.#say(t("epic.table.startFailed", { why: t("epic.start.noDeck", { hero: result.missing.join(", ") }) }));
+      this.#draw();
+      return;
+    }
+    this.#starting = true;
+    this.#draw();
+    try {
+      await startEpicTable(result.config);
+    } catch (cause) {
+      this.#starting = false;
+      this.#say(t("epic.table.startFailed", { why: cause instanceof Error ? cause.message : String(cause) }));
+      this.#draw();
+      return;
+    }
+    if (!this.#alive) return;
+    if (appSession().store.state.status === "failed") {
+      this.#starting = false;
+      this.#say(t("epic.table.startFailed", { why: appSession().store.state.error ?? t("room.refusal.generic") }));
+      this.#draw();
+      return;
+    }
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.setupDeal);
+  }
+
+  /** The heroes of the organizer's own table that none of its decks can play. */
+  #missingOwnDecks(): readonly string[] {
+    const epic = this.#state.epic;
+    if (!epic?.hostsTable || !this.#decks) return [];
+    const table = epic.tables.find((x) => x.id === epic.hostsTable);
+    const labels = (table?.seats ?? []).map((id) => this.#state.seats.find((s) => s.id === id)?.label ?? HERO_UNSET);
+    return missingHeroes(labels, this.#decks);
+  }
+
   // ---- Settings -------------------------------------------------------------------------------------------------
 
   #drawSettingsPanel(rect: Rect, titled: boolean): void {
@@ -1082,6 +1439,38 @@ export class RoomLobbyScene extends Phaser.Scene {
         }
         y += rowH + 8;
       };
+
+      // Standard or Epic (Trickster Takeover): the organizer's choice, everyone's to read.
+      y = this.#heading(x, y, w, t("epic.mode.title"));
+      const epicOn = this.#state.epic !== null;
+      if (host) {
+        const half = (w - 8) / 2;
+        const choose = (epic: boolean): void => {
+          if (epic === epicOn) return;
+          if (epic) this.#sendPlan(newEpicPlan());
+          else this.#api.setLobby({ settings: { mode: "standard" } });
+        };
+        for (const [i, epic] of [false, true].entries()) {
+          const btn: Rect = { x: x + i * (half + 8), y, width: half, height: hit.target };
+          this.#button({
+            kind: "secondary",
+            label: t(epic ? "epic.mode.epic" : "epic.mode.standard"),
+            type: typeRole.label,
+            rect: btn,
+            selected: epic === epicOn,
+            onClick: () => choose(epic),
+            clip: guard.clip,
+            suppressClick: guard.suppress,
+          });
+          guard.stop(`epicmode:${epic}`, btn, () => choose(epic));
+        }
+        y += hit.target + 6;
+        const info = this.#text(x + 4, y, t("epic.mode.epicDetail"), 12, w - 8, { alpha: 0.8 });
+        y += info.height + 10;
+      } else {
+        const line = this.#text(x, y, t(epicOn ? "epic.mode.epic" : "epic.mode.standard"), 15, w, { bold: true });
+        y += line.height + 8;
+      }
 
       // How it's played.
       y = this.#heading(x, y, w, t("room.mode.title"));

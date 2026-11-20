@@ -91,6 +91,8 @@ import type { Rect } from "../view/layout.js";
 import { CHOICE_MIN_CARD_HEIGHT, choiceCardLayout, choiceRowLayout } from "../view/choice-options-layout.js";
 import { cardChoiceSlots, formFactorFor, isTabbed, type FormFactor } from "../view/layout.js";
 import { authorityTagOf, decisionLabel, enemyTeamNoticeOf } from "../view/villain-walkthrough.js";
+import { groupOptionLabel } from "../view/epic-lobby-model.js";
+import { roomState } from "../platform/room.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
@@ -1172,7 +1174,9 @@ export class ChoiceOverlay extends Phaser.Scene {
         // The engine labels a seat by its id; the table knows it by its hero.
         option.ref.kind === "player" && state.game
           ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
-          : optionLabelOf(state.game, option),
+          : option.ref.kind === "none"
+            ? groupOptionLabel(roomState().epic, optionLabelOf(state.game, option))
+            : optionLabelOf(state.game, option),
       );
       const held = rowCounters.get(option.optionId);
       return held ? `${text}\n${held}` : text;

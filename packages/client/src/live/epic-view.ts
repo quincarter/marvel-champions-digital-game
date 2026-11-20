@@ -4,7 +4,7 @@
  * screens' view of a pod is tested without a socket.
  */
 import { FIRST_TABLE, type LobbyState, type Participant, type TableInfo } from "@mc/sync-worker/room-protocol";
-import { readEpicStart } from "./epic-start.js";
+import { readEpicStart, readEpicTimeLimit } from "./epic-start.js";
 import type { PodStateWire } from "./pod-wire.js";
 import type { EpicPod, EpicState, EpicTable, EpicTableRole, EpicTableStatus, RemoteTarget } from "./room-state.js";
 
@@ -18,8 +18,6 @@ export interface EpicViewInput {
   readonly podState: PodStateWire | null;
   /** What this device asked to follow (`follow`); a table it hosts or holds a seat at is always received. */
   readonly follow: "all" | readonly string[];
-  /** This table host's wait for the coordinator is stuck (`PodLink.onStuck`). */
-  readonly podStuck?: boolean;
   /** This table host's wait for the coordinator is stuck (`PodLink.onStuck`). */
   readonly podStuck?: boolean;
   /** Ids of the seats I hold. */
@@ -102,6 +100,7 @@ export function epicStateOf(input: EpicViewInput): EpicState | null {
     tables,
     pods,
     start: readEpicStart(lobby.settings.tableRules),
+    timeLimitMinutes: readEpicTimeLimit(lobby.settings.tableRules),
     pod: input.podState ? { shared: input.podState.shared, outcome: input.podState.outcome } : null,
     remoteTargets,
     following: input.follow,

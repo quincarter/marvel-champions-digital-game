@@ -79,6 +79,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.roomChat,
   SCENES.roomAsk,
   SCENES.roomGive,
+  SCENES.epicSheet,
   SCENES.heroDecks,
   SCENES.searchHelp,
   SCENES.saveData,

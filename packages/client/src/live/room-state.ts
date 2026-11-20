@@ -209,6 +209,8 @@ export interface EpicPod {
 export interface EpicStart {
   readonly id: string;
   readonly seed: number;
+  /** The organizer's clock (ms since the epoch) when it started the game; the time-limit clock counts from it. */
+  readonly at?: number;
 }
 
 /** A card of another table in my pod that I may attack or thwart as if it were in my game area (M6; 55041, 55046). */
@@ -238,6 +240,8 @@ export interface EpicState {
   readonly pods: readonly EpicPod[];
   /** Null until the organizer starts the game. A table host starts its table when this appears (`startEpicTable`). */
   readonly start: EpicStart | null;
+  /** The optional time limit in minutes (display only, plan Q-D); null when none is set. */
+  readonly timeLimitMinutes: number | null;
   /** Null until the first `pod:state` arrives (the organizer broadcasts after each change and on return). */
   readonly pod: EpicShared | null;
   /** What I may attack or thwart in other tables of my pod: from the pod state, empty before it or with no table. */

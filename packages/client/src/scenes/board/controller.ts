@@ -2052,6 +2052,10 @@ export class BoardController {
   undoOffer(): UndoOffer | null {
     const { game, perspectiveId, commandTrail, offTurnSeat, config } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
+    // An Epic table (#882): the pod has already heard its moves, so a rewind past them is refused. Greyed, with why.
+    if (config?.epic) {
+      return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: t("epic.undo.no") };
+    }
     // A seated guest never rewinds: in a Host control room Undo asks the host, in a Strict one it says who turned it off.
     // It is offered only while the acting hero is one this device holds (any other hero is not the guest's to undo).
     const seat = seatContext();

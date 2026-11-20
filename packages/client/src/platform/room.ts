@@ -61,6 +61,11 @@ function publish(next: RoomState): void {
 setRoomStateListener(publish);
 
 export const roomState = (): RoomState => state;
+
+/** Dev only (`scenes/boot-dev-jump.ts`): shows a made-up room to the screens, as if the room worker had sent it. */
+export function previewRoomState(next: RoomState): void {
+  if (import.meta.env.DEV) publish(next);
+}
 setSeatContextSource(() => state);
 
 /** Calls `listener` with the current state at once, then on every change. Returns the unsubscribe. */

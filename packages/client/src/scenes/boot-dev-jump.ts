@@ -314,6 +314,28 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=room-lobby&epic=organizer|player[&phase=playing]`: the Epic lobby over a made-up room (`view/epic-room-fixture.ts`).
+  if (screen === "room-lobby" && params.get("epic") !== null) {
+    const { epicRoomFixture } = await import("../view/epic-room-fixture.js");
+    const as = params.get("epic") === "player" ? "player" : "organizer";
+    return {
+      key: SCENES.roomLobby,
+      data: { preview: epicRoomFixture({ as, phase: params.get("phase") === "playing" ? "playing" : "lobby" }) },
+    };
+  }
+  // `?screen=board&fixture=epic[&as=player|watcher][&flip=1][&mangog=1][&away=1][&stuck=1]`: a real Loki game on the board with a
+  // made-up Epic room beside it (the pod strip, the flip banner, a Mangog in the next table). Dev only.
+  if (screen === "board" && params.get("fixture") === "epic" && import.meta.env.DEV) {
+    const { store } = appSession();
+    await store.start({
+      scenarioId: "god-of-lies",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    await injectEpicRoom(params);
+    return { key: SCENES.board, data: {} };
+  }
   // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
   if (screen === "room-lobby") {
     const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
@@ -461,6 +483,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=replay[&commands=N][&at=N][&other=1]` (issue #693): plays a short real game in the page, opens it as a replay and
   // shows it on the Board with the transport over it (`store/dev-replay-game.ts`). `at` starts it at that position.
   if (screen === "replay") {
+    if (params.get("epic") !== null) await injectEpicRoom(params);
     const [{ openDevReplay }, { enterReplay }] = await Promise.all([
       import("../store/dev-replay-game.js"),
       import("../replay/replay-mode.js"),
@@ -1376,4 +1399,24 @@ async function startDevSetupGame(): Promise<void> {
       tableRulesOf(appSession().settings),
     ),
   );
+}
+
+/** Dev only: puts a made-up Epic room (`view/epic-room-fixture.ts`) in front of the screens, as the room worker would. */
+async function injectEpicRoom(params: URLSearchParams): Promise<void> {
+  const [{ epicRoomFixture }, room] = await Promise.all([
+    import("../view/epic-room-fixture.js"),
+    import("../platform/room.js"),
+  ]);
+  const raw = params.get("as") ?? params.get("epic");
+  const as = raw === "watcher" ? "watcher" : raw === "organizer" ? "organizer" : "player";
+  const fixture = epicRoomFixture({
+    as,
+    phase: "playing",
+    flipped: params.get("flip") === "1",
+    hostAway: params.get("away") === "1",
+    mangog: params.get("mangog") === "1",
+  });
+  const withStuck =
+    params.get("stuck") === "1" && fixture.epic ? { ...fixture, epic: { ...fixture.epic, podStuck: true } } : fixture;
+  room.previewRoomState(withStuck);
 }
