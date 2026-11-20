@@ -353,10 +353,24 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): readonly 
     // A seat sitting the scenario out puts nothing into play: its set-aside cards were never part of this game.
     if (player.eliminated) continue;
     const setAsidePermanent = player.setAside.filter((id) => isPermanentCard(mustCardOf(ctx.state, id)));
+    const faces = [...(ctx.state.campaign?.seats[player.seatIndex]?.grantFaces ?? [])];
     for (const id of [...player.deck, ...setAsidePermanent]) {
+      // Found by its front's Setup keyword: MC27 p. 22's Enhanced faces print none, and setup still puts them in play.
       if (!hasKeyword(ctx.state, id, "setup")) continue;
       const card = mustCardOf(ctx.state, id);
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: player.playerId }));
+      // MC10 p. 12: a "Basic" Condition upgrade replaced "with its 'Improved' side" is that side from then on, so it
+      // enters play on it and everything its entry reads is that face's (`CampaignSeatInput.grantFaces`).
+      const faced = faces.findIndex(
+        (entry) => entry.cardId === card.id && "flipSide" in card && entry.face === card.flipSide?.name,
+      );
+      const flipped = faced >= 0;
+      if (flipped) faces.splice(faced, 1);
+      updateInstance(ctx, id, (i) => ({
+        ...i,
+        faceup: true,
+        controllerId: player.playerId,
+        ...(flipped ? { flipped } : {}),
+      }));
       if (card.type === "upgrade") {
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: player.identity.instanceId });
       } else {

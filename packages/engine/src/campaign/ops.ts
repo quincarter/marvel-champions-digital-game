@@ -1234,7 +1234,12 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
       const cardId = campaignString(run, op.card) as CardId;
       run.working.seats = run.working.seats.map((seat) => ({
         ...seat,
-        grants: seat.grants.map((grant) => (grant.cardId === cardId ? { ...grant, face: op.face } : grant)),
+        grants: seat.grants.map((grant) => {
+          if (grant.cardId !== cardId) return grant;
+          // `atSetup` (MC27 p. 22; RRG v1.8 p. 51 step 13): the game flips the copy at Setup, so it enters on its front.
+          const { faceAtSetup: _previous, ...rest } = grant;
+          return op.atSetup === true ? { ...rest, face: op.face, faceAtSetup: true } : { ...rest, face: op.face };
+        }),
       }));
       return;
     }

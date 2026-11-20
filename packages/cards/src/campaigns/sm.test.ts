@@ -861,7 +861,16 @@ describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player mu
 
   it("marking node 17 appends the penalty (with the reward) to every remaining scenario's setup", () => {
     const fresh = newLog(17);
-    const nearly = { ...fresh, shared: { ...fresh.shared, reputation: { kind: "number" as const, value: 16 } } };
+    // At 16, node 13 is already marked, so the log holds its Setup entry, as node 13 writes it (the log upgrade then
+    // has nothing to add). This log grants no S.H.I.E.L.D. Tech, so there is no grant face to mark.
+    const nearly: CampaignLog = {
+      ...fresh,
+      shared: {
+        ...fresh.shared,
+        reputation: { kind: "number", value: 16 },
+        reputationSetups: { kind: "instructionList", ids: ["sm.rep.node13.reward"] },
+      },
+    };
     const answers: CampaignChoiceAnswer[] = [];
     for (let guard = 0; guard < 5; guard++) {
       const applied = applyCampaignResult(
@@ -875,7 +884,11 @@ describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player mu
       if (applied.kind === "done") {
         expect(applied.value.shared.reputation).toEqual({ kind: "number", value: 17 });
         const setups = applied.value.shared.reputationSetups;
-        expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual(["sm.rep.node17.reward", PENALTY]);
+        expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual([
+          "sm.rep.node13.reward",
+          "sm.rep.node17.reward",
+          PENALTY,
+        ]);
         return;
       }
       expect(applied.choice.slot).toBe("planningAhead");
@@ -986,6 +999,206 @@ describe('SM_CAMPAIGN_DEFINITION node 9\'s penalty: "Setup: In player order, eac
     expect(searchableMinions(state)).toEqual([]);
     expect(state.players.map((player) => player.dealtEncounter.length)).toEqual(
       without.players.map((player) => player.dealtEncounter.length + 1),
+    );
+  });
+});
+
+describe("SM_CAMPAIGN_DEFINITION node 13's reward: \"Setup: Each player flips their 'Campaign - S.H.I.E.L.D. Tech' upgrade to its Enhanced side\" (MC27 p. 22, #873)", () => {
+  const DARTS = "27182a";
+
+  /** Seat 1 holding Compact Darts as node 1's reward would leave it (granted, recorded, in the deck). */
+  const withDarts = (log: CampaignLog): CampaignLog => ({
+    ...log,
+    seats: log.seats.map((seat) =>
+      seat.seatNumber !== 1
+        ? seat
+        : {
+            ...seat,
+            fields: { ...seat.fields, shieldTech: { kind: "cardRef", cardId: DARTS as CardId } },
+            grants: [...seat.grants, { cardId: DARTS as CardId, permanence: "campaign", grantedAtNodeId: "sandman" }],
+            deck: { ...seat.deck, cards: [...seat.deck.cards, { cardId: DARTS as CardId, quantity: 1 }] },
+          },
+    ),
+  });
+
+  /** Sandman won; with `reputation` set, its 1 victory point marks node `reputation + 1`, without it no node. */
+  const afterSandman = (reputation?: number): CampaignLog => {
+    const fresh = withDarts(newLog(19));
+    const nearly: CampaignLog =
+      reputation === undefined
+        ? fresh
+        : { ...fresh, shared: { ...fresh.shared, reputation: { kind: "number", value: reputation } } };
+    const applied = applyCampaignResult(
+      SM_CAMPAIGN_DEFINITION,
+      composed(nearly),
+      won("sandman", reputation === undefined ? [] : [oneVictoryPoint]),
+      { at: 0, gameId: "sm-sandman" },
+      DEPS,
+    );
+    if (applied.kind !== "done") throw new Error(`unexpected choice ${applied.choice.slot}`);
+    return applied.value;
+  };
+
+  const NODE13 = "sm.rep.node13.reward";
+  const ENHANCED = (
+    SM_CARDS.find((card) => (card.id as string) === DARTS) as
+      | { readonly flipSide?: { readonly name: string } }
+      | undefined
+  )?.flipSide?.name;
+
+  it("once node 13 is marked, the log keeps the Enhanced face as a Setup face and queues the node 13 Setup flip", () => {
+    const log = afterSandman(12);
+    expect(log.shared.reputation).toEqual({ kind: "number", value: 13 });
+    expect(ENHANCED).toBeDefined();
+    const grant = log.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(grant).toMatchObject({ face: ENHANCED, faceAtSetup: true });
+    expect(log.shared.reputationSetups).toEqual({ kind: "instructionList", ids: expect.arrayContaining([NODE13]) });
+    const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(log));
+    // Left out of grantFaces, so the copy enters play on its front for the Setup flip to turn.
+    for (const seat of start.input.seats) expect(seat.grantFaces ?? []).toEqual([]);
+  });
+
+  /**
+   * Composes and creates the next game from `log`, and reads off how Compact Darts got onto its face: the index of
+   * node 13's `campaignInstructionResolved`, the indexes of every flip event naming the copy in play, and whether it
+   * entered play already on its other face (`grantFaces`).
+   */
+  const nextGame = (log: CampaignLog) => {
+    const ready = composed(log);
+    const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, ready);
+    const config: GameSetupConfig = wave5Scenario(start.scenarioId!, {
+      players: start.input.seats.map((seat) => ({
+        identityCardId: seat.identityCardId,
+        deck: seat.deck,
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+      modes: ready.modes,
+    });
+    const created = createGame(
+      {
+        ...config,
+        encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.deck)],
+        setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.setAside)],
+        campaign: start.input,
+      },
+      WAVE5_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const darts = instancesOf(created.state, DARTS).find((copy) => copy.inPlay)?.instance;
+    if (!darts) throw new Error("Compact Darts is not in play");
+    const resolved = created.events.findIndex(
+      (event) => event.type === "campaignInstructionResolved" && event.instructionId === NODE13,
+    );
+    const flips = created.events.flatMap((event, index) =>
+      (event.type === "cardFlipped" || event.type === "cardFlippedToOtherFace") &&
+      JSON.stringify(event).includes(darts.instanceId)
+        ? [index]
+        : [],
+    );
+    const enteredFlipped = created.events.some(
+      (event) => event.type === "cardEnteredOnOtherFace" && event.instanceId === darts.instanceId,
+    );
+    return { ready, darts, resolved, flips, enteredFlipped };
+  };
+
+  it("in the game it enters play on its front (step 11) and the node 13 Setup flip turns it (step 13)", () => {
+    const { darts, resolved, flips, enteredFlipped } = nextGame(afterSandman(12));
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    // Entering play carried no flip: the only turn of this card is the Setup flip, inside the node 13 window.
+    expect(flips).toHaveLength(1);
+    // The flip follows node 13's instruction (resolveCampaignWindow emits the event before pushing its effects).
+    expect(flips[0]).toBeGreaterThan(resolved);
+    // It did not enter on its other face through grantFaces.
+    expect(enteredFlipped).toBe(false);
+    expect(darts.flipped).toBe(true);
+  });
+
+  it("before node 13 it enters play on its front and stays there", () => {
+    const state = realGame(afterSandman(), "venom");
+    const darts = instancesOf(state, DARTS).filter((copy) => copy.inPlay);
+    expect(darts).toHaveLength(1);
+    expect(darts[0]?.instance.flipped).toBe(false);
+  });
+
+  /**
+   * Setup entries earlier nodes leave in `reputationSetups` before node 13 is marked (MC27 p. 22). Node 9's penalty is
+   * left out only because its minion search asks the player a choice ahead of node 13's flip, and these games stop at
+   * the end of setup.
+   */
+  const EARLIER_SETUPS = ["sm.rep.node1.penalty", "sm.rep.node5.reward", "sm.rep.node5.penalty"];
+
+  /** `afterSandman(12)` as a campaign that marked earlier nodes in earlier scenarios would hold it. */
+  const newLog13 = (): CampaignLog => {
+    const log = afterSandman(12);
+    const setups = log.shared.reputationSetups;
+    const ids = setups?.kind === "instructionList" ? setups.ids : [];
+    return {
+      ...log,
+      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: [...EARLIER_SETUPS, ...ids] } },
+    };
+  };
+
+  /**
+   * A log saved before node 13's flip moved to Setup: the grant has the Enhanced face but no `faceAtSetup`, and
+   * `reputationSetups` has no node 13 entry. A real pre-change log keeps the earlier nodes' Setup entries.
+   */
+  const olderLog = (): CampaignLog => {
+    const log = newLog13();
+    return {
+      ...log,
+      shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: EARLIER_SETUPS } },
+      seats: log.seats.map((seat) => ({
+        ...seat,
+        grants: seat.grants.map(({ faceAtSetup: _marker, ...grant }) => grant),
+      })),
+    };
+  };
+
+  const setupIds = (log: CampaignLog): readonly string[] => {
+    const value = log.shared.reputationSetups;
+    return value?.kind === "instructionList" ? value.ids : [];
+  };
+
+  it("an older log (face set without a Setup marker, no node 13 entry) enters on its front and node 13's Setup flip turns it once (#873)", () => {
+    const old = olderLog();
+    const grant = old.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(grant?.face).toBe(ENHANCED);
+    expect(grant).not.toHaveProperty("faceAtSetup");
+    expect(setupIds(old)).not.toContain(NODE13);
+    expect(setupIds(old)).toContain("sm.rep.node1.penalty");
+
+    const { ready, darts, resolved, flips, enteredFlipped } = nextGame(old);
+    // The composed log carries the upgrade, and the deck editor still reads the Enhanced face off the grant.
+    const upgraded = ready.seats[0]?.grants.find((candidate) => (candidate.cardId as string) === DARTS);
+    expect(upgraded).toMatchObject({ face: ENHANCED, faceAtSetup: true });
+    expect(setupIds(ready).filter((id) => id === NODE13)).toHaveLength(1);
+    // Entered on its front, then exactly one flip, after node 13's Setup instruction resolved.
+    expect(enteredFlipped).toBe(false);
+    expect(resolved).toBeGreaterThanOrEqual(0);
+    expect(flips).toHaveLength(1);
+    expect(flips[0]).toBeGreaterThan(resolved);
+    expect(darts.flipped).toBe(true);
+  });
+
+  it("the log upgrade leaves a new log as it is, and changes nothing the second time", () => {
+    const withoutAttempt = ({ attempt: _attempt, ...rest }: CampaignLog): CampaignLog => rest;
+    // A new log: composing it keeps node 13's grant and Setup list exactly as node 13 wrote them.
+    const fresh = newLog13();
+    const freshNext = composed(fresh);
+    expect(freshNext.seats.map((seat) => seat.grants)).toEqual(fresh.seats.map((seat) => seat.grants));
+    expect(freshNext.shared.reputationSetups).toEqual(fresh.shared.reputationSetups);
+
+    // An older log: upgraded once, it reads as the new log does, and composing the upgraded log changes nothing more.
+    const once = composed(olderLog());
+    expect(once.seats.map((seat) => seat.grants)).toEqual(freshNext.seats.map((seat) => seat.grants));
+    expect(setupIds(once)).toEqual([...EARLIER_SETUPS, NODE13]);
+    const twice = composed(withoutAttempt(once));
+    expect(twice.seats).toEqual(once.seats);
+    expect(twice.shared).toEqual(once.shared);
+    // Bookkeeping, not a printed step: the attempt's trace is the new log's.
+    expect(once.attempt?.steps.map((step) => step.instructionId)).toEqual(
+      freshNext.attempt?.steps.map((step) => step.instructionId),
     );
   });
 });

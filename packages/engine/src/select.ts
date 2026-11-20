@@ -1379,6 +1379,8 @@ export type QueryExclusion =
   | "wrongName"
   | "wrongPrintedId"
   | "wrongFacedown"
+  /** Not on the face the query's `flipped` asks for. */
+  | "wrongFlipped"
   /** The card prints no form keyword of the query's `printedForm` type (docs/phase7-wave4.md §3.1). */
   | "wrongForm"
   /** No ability with one of the query's `abilityTiming` words (docs/phase7-wave4.md §3.33), or none printed with a `printsAbility` label. */
@@ -1544,6 +1546,7 @@ export function explainQuery(
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
+  if (query.flipped !== undefined && (instance.flipped === true) !== query.flipped) return "wrongFlipped";
   if (query.printedForm !== undefined && !printedFormTypes(state, id).includes(query.printedForm)) return "wrongForm";
   if (query.abilityTiming !== undefined) {
     const wanted = query.abilityTiming;
