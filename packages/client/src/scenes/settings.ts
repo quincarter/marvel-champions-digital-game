@@ -443,7 +443,9 @@ export class SettingsOverlay extends Phaser.Scene {
       this.scene.isActive(SCENES.playerStats) ||
       this.scene.isActive(SCENES.controls) ||
       this.scene.isActive(SCENES.steamUpdate) ||
-      this.scene.isActive(SCENES.rules)
+      this.scene.isActive(SCENES.rules) ||
+      // The warning before turning on Undo past your turn or Manual adjust (`#afterWarning`).
+      this.scene.isActive(SCENES.endTurnConfirm)
     );
   }
 

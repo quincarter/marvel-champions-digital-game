@@ -282,6 +282,12 @@ function identitySetupLines(identity: AnyCard | undefined): readonly string[] {
     .filter((line) => /\bSetup:/.test(line) && /\b(aside|into play)\b/i.test(line));
 }
 
+/** `loose` with punctuation as spaces, words single-spaced: "Wolverine's Claws." reads "wolverine s claws". */
+const words = (text: string): string =>
+  loose(text)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
 /** Lowercase, with dashes as spaces: "Death-Glow" reads as Valkyrie's "Death Glow". */
 const loose = (text: string): string =>
   text
@@ -300,8 +306,9 @@ const loose = (text: string): string =>
 export function isSetupCard(card: AnyCard, identity: AnyCard | undefined): boolean {
   if (!("keywords" in card) || !PLAYER_CARD_TYPES.has(card.type)) return false;
   if (card.keywords.some((k) => k.name === "permanent" || k.name === "setup")) return true;
-  const name = loose(card.name);
-  return identitySetupLines(identity).some((line) => loose(line).includes(name));
+  // Whole words only, so a short name never matches inside a longer word.
+  const name = ` ${words(card.name)} `;
+  return identitySetupLines(identity).some((line) => ` ${words(line)} `.includes(name));
 }
 
 const groupOf = (key: string, label: string, entries: readonly DeckListEntry[]): DeckListGroup => {
