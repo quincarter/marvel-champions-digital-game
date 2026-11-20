@@ -234,6 +234,38 @@ Questions marked **(now)** change how a cooperative card must be scripted in wav
   defeated or discarded minion returns to the discard pile of its origin (as the FAQ says for Drafted) and an ally
   stolen by Switching Sides goes to its owner's discard pile, not the thief's.
 
+### 1.10 Answers (rules expert and owner, 2026-11-20)
+
+Settled by the sources (rules expert): Q5 (the defending leader's team's first player is "you": MC56 p. 16 step 2; RRG
+"You, Your" p. 49), Q6 (mirrored: the area the attacker sits in), Q7 (p. 17 applies; the quick-reference "resistance
+leader" is the leader in registration's area, so there is no conflict; the game ends when both sides have played an
+equal number of phases), Q8 (A, any cause), Q12 (A), Q14 (1v1 or 2v2), Q15 (identical; each scenario holds its own
+copy), Q16 (A), Q17 (A, origin discard; RRG Ownership p. 31). Also settled: a team that wins keeps playing to the end of
+its current phase (p. 17); in 2v2 elimination hands minions and the token to the teammate (p. 16, p. 20); "the villain"
+for a moved minion is the leader in its new area (p. 20); High-Tech Suit 56131 "any player"; MC56 p. 17 overrides the
+RRG's game-end rules (Golden Rule, RRG p. 4); what each team sees: in-play and discards public, hands private, the
+searching player sees a searched deck, deck sizes may be counted (Jan 11, 2026 Ruling 1), the facing team doesn't see
+the opposing scenario's modular list.
+
+Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rulings):
+
+| Q   | Decision                                                                                                                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q3  | **B:** one shared round (registration hero, resistance hero, registration villain, resistance villain); "until the end of the round" ends after the fourth phase, for both teams at once |
+| Q4  | A: each area sets up on its own; registration first where one order is needed                                                                                                            |
+| Q9  | **C:** a lobby option, on by default; tie-breaks applied in printed order and the deciding condition reported; off reports a tie                                                         |
+| Q10 | A: a defeated leader that stays in play keeps its text active but never initiates activations; staying does not reverse its defeat                                                       |
+| Q11 | A: the inactive team's triggered abilities fire and it answers choices given to it; no actions                                                                                           |
+| Q13 | A: the whole table agrees on expert in the lobby, for both scenarios                                                                                                                     |
+| N1  | A: "the enemy team" choices go to their first player; an optional "any player may" offer goes round in player order                                                                      |
+| N2  | A: simultaneous triggers across areas are ordered by the active team's first player                                                                                                      |
+| N3  | A: a leader defeated by a leader-vs-leader attack counts for the team whose area holds it                                                                                                |
+| N4  | A: different win conditions met in the equal-phase window are a tie, decided by the Q9 policy; never by acting first                                                                     |
+| N5  | A: a moved minion's boost comes from the deck of the area it is in now (its discard still goes to its origin)                                                                            |
+| N6  | A: Synthezoid Smackdown leaders, main schemes and sided modular sets join the competitive pool, locked to their side                                                                     |
+
+Code comment for competitive rules: `// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); <Q#> per owner decision 2026-11-20`.
+
 ## 2. Inventory by card id
 
 Counts come from a text scan of `cw.json` (every face): 96 faces mention the competitive concepts. They split into the
