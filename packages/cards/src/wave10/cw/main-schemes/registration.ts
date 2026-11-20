@@ -3,7 +3,6 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   chooseCards,
   chosen,
-  competitiveOnly,
   constant,
   dealAsEncounterCard,
   defineAbilities,
@@ -55,20 +54,23 @@ const UNREGISTERED = trait("UNREGISTERED");
 /**
  * 1A Setup, on the stage 1 chosen (56063a, 56096a, 56121a, 56122a read the same): "In competitive mode, the enemy team
  * finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side
- * scheme and reveal it." The competitive sentence is a marker (it waits on competitive mode, which is not built). The
- * cooperative branch finds the one side scheme of the villain's own encounter set (the chosen leader's set, 10 cards,
+ * scheme and reveal it." In competitive mode the find reaches only this stage's own side of the table, so it takes the
+ * copy of Choosing Sides in the encounter deck this team faces (each scenario holds its own copy, Q15), and "your team"
+ * reveals it: the team's first player, who is the first player while its area sets up (`GameStep teamScenarioSetup`;
+ * MC56 pp. 14-16, scenario rules override RRG per Golden Rule, RRG p. 4; Q4 A per owner decision 2026-11-20). Which
+ * player of the enemy team "finds" a single named card changes nothing, so nobody is asked. The cooperative branch
+ * finds the one side scheme of the villain's own encounter set (the chosen leader's set, 10 cards,
  * docs/phase7-wave10.md section 1.5) in the encounter deck or its discard pile and the first player reveals it; the
  * decks searched are shuffled after.
  */
+/** The Standard PvP set's permanent side scheme (56128a, 56206a), by title: either printing (Q15). */
+const CHOOSING_SIDES = query("sideScheme", { titled: { names: ["Choosing Sides"] } });
+
 const registrationSetup = () =>
   setup(
     ifThen(
       inCompetitiveMode(),
-      [
-        competitiveOnly(
-          "In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it.",
-        ),
-      ],
+      [revealCard(find(CHOOSING_SIDES), firstPlayer)],
       [revealCard(find(query("sideScheme", encounterSetOf(theVillain))), firstPlayer)],
     ),
   );
