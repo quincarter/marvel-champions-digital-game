@@ -204,14 +204,14 @@ export function settingsSectionsOf(input: {
         "rules",
       ],
     },
-    // Rules escapes the owner wants out of the way (2026-11-19): off by default, each warning before it turns on.
-    { id: "misc", title: "Misc gameplay", items: ["manual-adjust"] },
     {
       id: "achievements",
       title: "Achievements",
       items: ["achievement-popup-time", "achievement-popup-place", "achievement-popup-size"],
     },
     { id: "custom", title: "Custom content", items: ["custom-placement", "custom-unlocked"] },
+    // Rules escapes the owner wants out of the way (2026-11-19): off by default, each warning before it turns on.
+    { id: "misc", title: "Misc gameplay", items: ["manual-adjust"] },
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
@@ -235,7 +235,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "misc", "achievements", "custom", "earned"] },
+  { id: "more", label: "More", sections: ["more", "achievements", "custom", "misc", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

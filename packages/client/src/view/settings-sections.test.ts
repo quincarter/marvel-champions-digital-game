@@ -51,7 +51,7 @@ describe("settingsSectionsOf", () => {
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Misc gameplay, Achievements, Custom content, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Custom content, Misc gameplay, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
       "Cards left",
@@ -61,9 +61,9 @@ describe("settingsSectionsOf", () => {
       "Sound",
       "Guide",
       "More",
-      "Misc gameplay",
       "Achievements",
       "Custom content",
+      "Misc gameplay",
       "Earned items",
     ]);
   });
@@ -72,9 +72,9 @@ describe("settingsSectionsOf", () => {
     const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
     expect(more.sections.map((s) => s.title)).toEqual([
       "More",
-      "Misc gameplay",
       "Achievements",
       "Custom content",
+      "Misc gameplay",
       "Earned items",
     ]);
     expect(more.sections[4]!.items).toContain("ultron-drone-art");
