@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import { COMPETITIVE_STANDARD_PVP } from "../../cw/competitive/standard-pvp.js";
 import { SYNTHEZOID_COMPETITIVE_STANDARD_PVP, SYNTHEZOID_COMPETITIVE_STANDARD_PVP_SKIPPED } from "./standard-pvp.js";
-import { SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED } from "./leader-cards.js";
+import { SYNTHEZOID_COMPETITIVE_LEADER_CARDS, SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED } from "./leader-cards.js";
 
 /** Reprint code to the Civil War code it repeats (docs/phase7-synthezoid.md section 1.6). */
 const REPRINTS: Readonly<Record<string, string>> = {
@@ -64,9 +64,25 @@ describe("Synthezoid Smackdown Standard PvP (reprints of Civil War's)", () => {
     }
   });
 
-  it("leaves the eight leader cards skipped for competitive mode", () => {
-    expect(Object.keys(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED)).toHaveLength(8);
-    for (const reason of Object.values(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED))
-      expect(reason).toBe("competitive mode not shipped");
+  it("leaves only Calculated Risk and Synthezoid Strike skipped, each with an engine-primitive reason", () => {
+    expect(Object.keys(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED).sort()).toEqual([
+      "57074.calculated-risk-action",
+      "57075.synthezoid-strike-action",
+    ]);
+    for (const reason of Object.values(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED)) expect(reason).toMatch(/^needs /);
+  });
+});
+
+describe("the six scripted Synthezoid leader cards (audited in cw/competitive/audit/synthezoid-leaders.test.ts)", () => {
+  it("register each ref", () => {
+    for (const ref of [
+      "57032.youre-out-of-order-interrupt",
+      "57033.she-hulk-smash-action",
+      "57034.make-me-angry-forced-response",
+      "57035.legal-counsel-response",
+      "57076.phased-out-action",
+      "57077.android-assistance-interrupt",
+    ])
+      expect(SYNTHEZOID_COMPETITIVE_LEADER_CARDS[ref], ref).toBeDefined();
   });
 });
