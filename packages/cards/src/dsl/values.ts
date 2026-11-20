@@ -52,6 +52,11 @@ import type {
 /** "You": the ability's controller; on encounter cards, the revealing/attacked/engaged player. */
 export const you: PlayerRef = { kind: "controller" };
 export const firstPlayer: PlayerRef = { kind: "firstPlayer" };
+/**
+ * "The first player on the enemy team": the other team's first player token holder (MC56 p. 16), not who answers the
+ * enemy team's choices (`enemyTeamChooses`). The first player in a cooperative game (MC56 p. 6).
+ */
+export const enemyTeamFirstPlayer: PlayerRef = { kind: "firstPlayer", of: "enemy" };
 export const eachPlayer: PlayerRef = { kind: "each" };
 /** "That player" inside `forEachPlayer`. */
 export const thatPlayer: PlayerRef = { kind: "scoped" };

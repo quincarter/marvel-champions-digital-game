@@ -1,14 +1,15 @@
 /**
  * Competitive card audit, group 4 (docs/competitive-card-audit.md): the Synthezoid Smackdown leader player cards, She-Hulk
- * 57032 to 57035 (played by the registration team, p1) and Vision 57076 and 57077 (played by the resistance team, p2),
- * each in a real two-team game (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader"
- * is leader one; for p2 the other way round. 57074 Calculated Risk and 57075 Synthezoid Strike are not scripted (they wait
- * on engine primitives; see the skipped list of `synthezoid/competitive/leader-cards.ts`).
+ * 57032 to 57035 (played by the registration team, p1) and Vision 57074, 57076 and 57077 (57076 and 57077 played by the
+ * resistance team, p2; 57074 by p1, which only changes whose leader's deck it reads), each in a real two-team game
+ * (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader" is leader one; for p2 the
+ * other way round. 57075 Synthezoid Strike is not scripted (its Intangible bullet reads two ways; see the skipped list of
+ * `synthezoid/competitive/leader-cards.ts`).
  *
  * Sources: the cards' printed text (data `synthezoid`), MC56 p. 16 (a leader attacking a leader: one boost card from the
  * deck of the area the attacker sits in, no defender), pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG
  * p. 4); owner decisions Q5, Q6, Q11, N11 of docs/competitive-mode-plan.md section 1.10; RRG v1.8 "Interrupt" p. 24,
- * "Response" p. 38, "Then" p. 44; Phased Out's current text from the errata of RRG v1.8 p. 70 and the March 19, 2026
+ * "Response" p. 38, "Then" p. 44, "Search" p. 39; Phased Out's current text from the errata of RRG v1.8 p. 70 and the March 19, 2026
  * ruling (Hero Action, not Hero Interrupt).
  */
 
@@ -41,6 +42,7 @@ const OUT_OF_ORDER = "57032";
 const SMASH = "57033";
 const MAKE_ME_ANGRY = "57034";
 const LEGAL_COUNSEL = "57035";
+const CALCULATED_RISK = "57074";
 const PHASED_OUT = "57076";
 const ANDROID_ASSISTANCE = "57077";
 const FIGHTING_DIRTY = "56208";
@@ -48,6 +50,9 @@ const DENSE = "57046a";
 
 const NO_BOOST = boost("no-boost", 0);
 const BIG_BOOST = boost("big-boost", 4);
+/** Encounter cards to pick out of a searched deck: one within the top 5, one below it. */
+const RISK_TOP = boost("risk-top", 0);
+const RISK_DEEP = boost("risk-deep", 0);
 const PHYSICAL = typedResource("res-physical", "physical");
 const ENERGY = typedResource("res-energy", "energy");
 const MENTAL = typedResource("res-mental", "mental");
@@ -58,6 +63,7 @@ const SEAT_CARDS = [
   SMASH,
   MAKE_ME_ANGRY,
   LEGAL_COUNSEL,
+  CALCULATED_RISK,
   PHASED_OUT,
   ANDROID_ASSISTANCE,
   FIGHTING_DIRTY,
@@ -70,6 +76,8 @@ function game(options: { deckOne?: readonly string[]; deckTwo?: readonly string[
     filler: NO_BOOST,
     extraCards: [
       BIG_BOOST,
+      RISK_TOP,
+      RISK_DEEP,
       PHYSICAL,
       ENERGY,
       MENTAL,
@@ -79,6 +87,7 @@ function game(options: { deckOne?: readonly string[]; deckTwo?: readonly string[
         SMASH,
         MAKE_ME_ANGRY,
         LEGAL_COUNSEL,
+        CALCULATED_RISK,
         PHASED_OUT,
         ANDROID_ASSISTANCE,
         FIGHTING_DIRTY,
@@ -235,6 +244,50 @@ describe("Legal Counsel (57035): after you spend it, move 1 threat from the main
   it("p1's main scheme (leader one's) loses 1 and leader two's main scheme, in p2's area, gains 1", () => {
     expect(inst(state, schemeOne).threat).toBe(4);
     expect(inst(state, schemeTwo).threat - inst(seeded, schemeTwo).threat).toBe(1);
+  });
+});
+
+describe("Calculated Risk (57074): search the top 5 of your leader's encounter deck, deal one to the enemy team's first player", () => {
+  const FILL = NO_BOOST.id as string;
+  const { state: start, deps } = game({
+    deckTwo: [FILL, FILL, RISK_TOP.id as string, FILL, FILL, FILL, RISK_DEEP.id as string],
+  });
+  const { deckOne, deckTwo } = leadersOf(start);
+  const marker = (code: string) => start.encounterDecks[deckTwo]!.deck.find((i) => inst(start, i).cardId === code)!;
+  const top = marker(RISK_TOP.id as string);
+  const deep = marker(RISK_DEEP.id as string);
+  let offered: readonly string[] = [];
+  const pickTop: Picker = (s) => {
+    const choice = s.pendingChoice!;
+    if (choice.prompt.kind === "chooseCards") {
+      offered = choice.options.map((o) => JSON.stringify(o.ref));
+      return [choice.options.find((o) => JSON.stringify(o.ref).includes(top as string))!.optionId as string];
+    }
+    return acceptAll(s);
+  };
+  const given = hand(start, P1, CALCULATED_RISK, ENERGY.id as string, 2);
+  const { state, events } = run(deps, given.state, pickTop, play(P1, given.id, given.paid));
+  const shuffledDecks = events.flatMap((e) =>
+    e.type === "deckShuffled" && e.zone.kind === "encounterDeck" ? [e.zone.deckId as string] : [],
+  );
+
+  it("p1 searches leader two's deck (in p2's area): exactly its top 5 are offered, not a card below them", () => {
+    expect(resolved(events, "57074.calculated-risk-action")).toBe(1);
+    expect(offered).toHaveLength(5);
+    expect(offered.some((ref) => ref.includes(top as string))).toBe(true);
+    expect(offered.some((ref) => ref.includes(deep as string))).toBe(false);
+  });
+
+  it("the card is dealt facedown to p2, the first player on the enemy team, and leaves that deck", () => {
+    expect(playerOf(state, P2).dealtEncounter).toContain(top);
+    expect(playerOf(state, P1).dealtEncounter).not.toContain(top);
+    expect(state.encounterDecks[deckTwo]!.deck).not.toContain(top);
+    expect(inst(state, top).faceup).toBe(false);
+  });
+
+  it("then leader two's deck is shuffled (RRG Search p. 39), and p1's own deck is not", () => {
+    expect(shuffledDecks).toContain(deckTwo as string);
+    expect(shuffledDecks).not.toContain(deckOne as string);
   });
 });
 

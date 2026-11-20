@@ -2,14 +2,18 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   andThen,
   action,
+  chooseCards,
   chooseTarget,
   chosen,
+  dealAsEncounterCard,
   defineAbilities,
   discard,
   each,
+  encounterCards,
   enemyAttack,
   enemyAttacksEnemy,
   enemyLeader,
+  enemyTeamFirstPlayer,
   eventSource,
   flipCard,
   forcedResponse,
@@ -25,6 +29,7 @@ import {
   query,
   refMatches,
   self,
+  shuffleEncounterDeck,
   stun,
   theMainScheme,
   when,
@@ -45,11 +50,10 @@ const LEADER_ATTACKS_ENEMY_LEADER = enemyAttacksEnemy(yourLeader, enemyLeader, {
  * mass form attachment (docs/phase7-synthezoid.md M2), named by its two face titles as `leaders/vision.ts` does. It sits
  * on "your Vision leader", in the other team's area, so the query reaches across areas (`anyGameArea`).
  */
-/** `anyGameArea` is repeated inside each alternative: an `anyOf` alternative checks the game area again on its own. */
 const YOUR_MASS_FORM = query("attachment", {
   anyOf: [
-    { name: "Dense", host: yourLeader, anyGameArea: true },
-    { name: "Intangible", host: yourLeader, anyGameArea: true },
+    { name: "Dense", host: yourLeader },
+    { name: "Intangible", host: yourLeader },
   ],
   anyGameArea: true,
 });
@@ -70,14 +74,14 @@ const YOUR_MASS_FORM = query("attachment", {
  * - 57035 Legal Counsel: after you spend it, move 1 threat from the main scheme to your leader's main scheme.
  *
  * Vision
- * - 57074 Calculated Risk: not scripted yet (an engine primitive is missing; see below).
- * - 57075 Synthezoid Strike: not scripted yet (an engine primitive is missing; see below).
+ * - 57074 Calculated Risk: search the top 5 of your leader's encounter deck (in the other team's area) for a card, deal
+ *   it facedown to the first player on the enemy team (that team's token holder), then shuffle that deck.
+ * - 57075 Synthezoid Strike: not scripted yet (a rules question is open; see below).
  * - 57076 Phased Out: discard an attachment on the enemy leader printing Hero Action or Hero Response (current text,
  *   errata RRG v1.8 p. 70 and the March 19, 2026 ruling: the printed "Hero Interrupt" is "Hero Action").
  * - 57077 Android Assistance: when you spend it, flip your leader's mass form attachment.
  *
- * Not scripted (see the skipped list): 57074 Calculated Risk and 57075 Synthezoid Strike, each needing an engine
- * primitive that does not exist yet.
+ * Not scripted (see the skipped list): 57075 Synthezoid Strike, whose Intangible bullet reads two ways.
  */
 export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   "57032.youre-out-of-order-interrupt": interrupt(when.threatPlaced(query("mainScheme")), preventThreat(3)),
@@ -107,6 +111,17 @@ export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilit
     moveThreat(theMainScheme, yourLeadersMainScheme, { amount: 1 }),
   ),
 
+  // "Search the top 5 cards of your leader's encounter deck for an encounter card": your leader's deck sits in the
+  // other team's area (MC56 p. 16), and you search it (the searching player sees it; plan section 1.10). Every card
+  // there is an encounter card, so one is found while the deck has any. RRG 1.8 "Search" (p. 39): that whole deck is
+  // shuffled once the ability is done. "The first player on the enemy team" is that team's token holder (MC56 p. 16),
+  // not `enemyTeamChooses`, and sits in the same area as the deck searched.
+  "57074.calculated-risk-action": action(
+    chooseCards("found", encounterCards(["deck"], undefined, 5, yourLeader), { min: 1, max: 1, search: true }),
+    dealAsEncounterCard(chosen("found"), enemyTeamFirstPlayer),
+    shuffleEncounterDeck(yourLeader),
+  ),
+
   "57076.phased-out-action": action(
     chooseTarget(
       "attachment",
@@ -126,8 +141,6 @@ export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilit
  * scripted.
  */
 export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED: Readonly<Record<string, string>> = {
-  "57074.calculated-risk-action":
-    "needs two engine primitives: shuffleEncounterDeck of another leader's deck (it shuffles the context area's deck) and a ref for the first player of the enemy team",
   "57075.synthezoid-strike-action":
-    "needs enemyAttacksEnemy to carry this-attack-only +1 ATK and piercing (it takes only boost); modifyStat endOfAttack is not scoped to the attack the effect initiates",
+    "needs a rules answer: whether an Intangible attachment flipped to Dense before the attack then gets the Dense bullet (+1 ATK, piercing); the engine primitives (enemyAttacksEnemy atkBonus and keywords) exist",
 };

@@ -64,22 +64,21 @@ describe("Synthezoid Smackdown Standard PvP (reprints of Civil War's)", () => {
     }
   });
 
-  it("leaves only Calculated Risk and Synthezoid Strike skipped, each with an engine-primitive reason", () => {
-    expect(Object.keys(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED).sort()).toEqual([
-      "57074.calculated-risk-action",
-      "57075.synthezoid-strike-action",
-    ]);
-    for (const reason of Object.values(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED)) expect(reason).toMatch(/^needs /);
+  it("leaves only Synthezoid Strike skipped, waiting on a rules answer", () => {
+    expect(Object.keys(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED).sort()).toEqual(["57075.synthezoid-strike-action"]);
+    for (const reason of Object.values(SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED))
+      expect(reason).toMatch(/^needs a rules answer/);
   });
 });
 
-describe("the six scripted Synthezoid leader cards (audited in cw/competitive/audit/synthezoid-leaders.test.ts)", () => {
+describe("the seven scripted Synthezoid leader cards (audited in cw/competitive/audit/synthezoid-leaders.test.ts)", () => {
   it("register each ref", () => {
     for (const ref of [
       "57032.youre-out-of-order-interrupt",
       "57033.she-hulk-smash-action",
       "57034.make-me-angry-forced-response",
       "57035.legal-counsel-response",
+      "57074.calculated-risk-action",
       "57076.phased-out-action",
       "57077.android-assistance-interrupt",
     ])

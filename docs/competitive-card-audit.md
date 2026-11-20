@@ -45,8 +45,8 @@ Group 2 (56207 to 56214, the resistance leaders): tests in `packages/cards/src/w
 | 57033 | She-Hulk Smash                                | Leader-vs-leader attack; with [physical] paid, stun the enemy leader                                                  | passed (two-team test, `synthezoid-leaders.test.ts`)                                                                                             |
 | 57034 | Make Me Angry                                 | Attach to your leader; Forced Response: after a hero or leader attacks her, she attacks that character, then discard  | passed (two-team test, `synthezoid-leaders.test.ts`), both a hero and a leader attacking her                                                     |
 | 57035 | Legal Counsel                                 | Hero Response: after you spend it, move 1 threat from the main scheme to your leader's main scheme                    | passed (two-team test, `synthezoid-leaders.test.ts`); moves across areas                                                                         |
-| 57074 | Calculated Risk (Vision, resistance)          | Search top 5 of your leader's encounter deck, deal a card facedown to the enemy team's first player                   | **blocked**: needs `shuffleEncounterDeck` of another leader's deck and a ref for the enemy team's first player                                   |
-| 57075 | Synthezoid Strike                             | Leader-vs-leader attack; mass form Dense: +1 ATK and piercing; Intangible: flip to Dense first                        | **blocked**: needs this-attack-only +1 ATK and piercing on `enemyAttacksEnemy`                                                                   |
+| 57074 | Calculated Risk (Vision, resistance)          | Search top 5 of your leader's encounter deck, deal a card facedown to the enemy team's first player                   | passed (two-team test, `synthezoid-leaders.test.ts`); searches the other area's deck, deals to p2, shuffles that deck only                       |
+| 57075 | Synthezoid Strike                             | Leader-vs-leader attack; mass form Dense: +1 ATK and piercing; Intangible: flip to Dense first                        | **unscripted**: primitives exist (`enemyAttacksEnemy` `atkBonus`, `keywords`); the Intangible bullet reads two ways (section 4, finding 3)       |
 | 57076 | Phased Out                                    | Discard a Hero Response/Interrupt attachment on the enemy leader                                                      | scripted with `printsAbility` (Hero Action or Hero Response, current text); the query is asserted, the fixture leaders carry no real attachments |
 | 57077 | Android Assistance                            | Hero Interrupt: when you spend it, flip your leader's mass form attachment                                            | passed (two-team test, `synthezoid-leaders.test.ts`); the Dense face on the leader in the other area flips                                       |
 
@@ -79,7 +79,14 @@ the two-team values) and `choosing-sides-reward.test.ts`; none of it is a card-b
    team's players may trigger it and the card's own controller may not. Reading to settle: either the controller always
    may in addition, or "any player" means every player of either team in competitive play (the settled list says "any
    player"). Needs the engine owner and the rules expert.
-3. **Synthezoid Smackdown leader cards:** six of eight scripted and audited; 57074 and 57075 wait on engine primitives (section 2). Anyone writing a query with `anyOf` must repeat `anyGameArea` inside each alternative (the area is checked again per alternative).
+3. **Synthezoid Smackdown leader cards:** seven of eight scripted and audited. 57074 Calculated Risk uses two new
+   primitives (`shuffleEncounterDeck` `deckOf`, and the `firstPlayer` ref with `of: "enemy"`, the enemy team's token
+   holder). 57075 Synthezoid Strike has its primitive (`enemyAttacksEnemy` `atkBonus` and `keywords`, this attack only)
+   but waits on a rules question: "If Vision's mass form attachment is: Dense, +1 ATK and piercing; Intangible, flip it
+   to Dense before resolving this attack." Read once, as the card resolves (an Intangible Vision flips and gets no
+   bonus), or after the flip (an Intangible Vision flips and then gets +1 ATK and piercing as Dense)?
+   An outer query's `anyGameArea` now carries into its `anyOf` alternatives and its `not` (engine `explainQuery`), so
+   it need not be repeated inside them.
 
 ## 5. Pool cards whose responses or interrupts can fire on the other team's turn
 

@@ -876,17 +876,25 @@ export const basicPowerBy = (
 /**
  * An enemy attacks another enemy (engine `EffectSpec enemyAttacksEnemy`). `boost: true` deals the attacker its boost card
  * (a villain or villainous minion only) and turns any already on it; `boost: "held"` deals none and turns only those
- * already on it ("do not give it a boost card", Excessive Force 56090).
+ * already on it ("do not give it a boost card", Excessive Force 56090). `atkBonus` and `keywords` are "+1 ATK for this
+ * attack and this attack gains piercing": carried by this attack only.
  */
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly boost?: true | "held" } = {},
+  opts: {
+    readonly bind?: string;
+    readonly boost?: true | "held";
+    readonly atkBonus?: Amount;
+    readonly keywords?: readonly AttackKeyword[];
+  } = {},
 ): EffectSpec => ({
   kind: "enemyAttacksEnemy",
   attacker,
   target,
   ...(opts.boost ? { boost: opts.boost } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
   ...withBind(opts.bind),
 });
 /**
@@ -2521,7 +2529,14 @@ export const revealSetAside = (filter: TargetQuery, player: PlayerRef = you, slo
   selectCards(slot, encounterSetAside(filter)),
   revealCard({ kind: "slot", slot }, player),
 ];
-export const shuffleEncounterDeck = (): EffectSpec => ({ kind: "shuffleEncounterDeck" });
+/**
+ * Shuffle "the encounter deck"; `deckOf` names another villain's deck where the card text does ("your leader's
+ * encounter deck", after searching it with `encounterCards(…, deckOf)`).
+ */
+export const shuffleEncounterDeck = (deckOf?: TargetRef): EffectSpec => ({
+  kind: "shuffleEncounterDeck",
+  ...(deckOf ? { deckOf } : {}),
+});
 export const discardEncounterUntil = (filter: TargetQuery, bind: string): EffectSpec => ({
   kind: "discardEncounterUntil",
   filter,
