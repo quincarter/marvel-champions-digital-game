@@ -410,7 +410,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       onBack: () => this.#leave(),
       hints: this.#hints,
       title: t("room.title"),
-      right: t(this.#isHost() ? "room.role.host" : "room.role.player"),
+      right: t(participantRows(state).find((p) => p.me)?.roleKey ?? "room.role.watcher"),
       reserveRight: phone ? 80 : 0,
     });
     if (bar.back) this.#buttons.push(bar.back);
