@@ -105,8 +105,13 @@ describe("replay mode", () => {
     await enterReplay(first.host);
     await enterReplay(second.host);
     expect(first.disposed()).toBe(1);
+    expect(second.disposed()).toBe(0);
     expect(activeReplay()).toBe(second.host);
+    expect(session.host).toBe(second.host);
+    // Closing the replaced one again (the board's old reference) never touches the new one.
     leaveReplay();
+    expect(second.disposed()).toBe(1);
+    expect(first.disposed()).toBe(1);
     expect(session.host).toBe(liveHost);
     expect(session.store).toBe(liveStore);
   });

@@ -29,7 +29,7 @@ import {
   giveBackSeat,
   type RoomState,
 } from "../platform/room.js";
-import { dropTable, setEpic, startEpicGame, startEpicTable } from "../platform/room.js";
+import { dropTable, setEpic, startEpicGame, startEpicTable, watchTable } from "../platform/room.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { appSession, deckStorage } from "../session.js";
@@ -1303,6 +1303,18 @@ export class RoomLobbyScene extends Phaser.Scene {
         guard,
       );
     }
+    // An organizer who hosts no table watches any table that has a game (no seat, no board of its own).
+    if (organizer && !this.#state.epic?.hostsTable && view.status !== "lobby" && !this.#preview) {
+      y = this.#panelButton(
+        x + pad,
+        y,
+        inW,
+        t("epic.sheet.watch"),
+        () => void this.#watchTableFromLobby(view.id),
+        guard,
+        `watch:${view.id}`,
+      );
+    }
     if (organizer && view.status === "waiting") {
       y = this.#panelButton(
         x + pad,
@@ -1389,6 +1401,27 @@ export class RoomLobbyScene extends Phaser.Scene {
     }
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.setupDeal);
+  }
+
+  async #watchTableFromLobby(table: string): Promise<void> {
+    const result = await watchTable(table);
+    if (!this.#alive) {
+      if (result.ok) result.host.dispose();
+      return;
+    }
+    if (!result.ok) {
+      this.#say(t(result.message));
+      this.#draw();
+      return;
+    }
+    this.scale.off("resize", this.#draw, this);
+    try {
+      await introReplay(this, result.host, SCENES.roomLobby);
+    } catch {
+      this.scale.on("resize", this.#draw, this);
+      this.#say(t("watch.link.gone"));
+      this.#draw();
+    }
   }
 
   /** The heroes of the organizer's own table that none of its decks can play. */

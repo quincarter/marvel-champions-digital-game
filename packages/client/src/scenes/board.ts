@@ -35,7 +35,7 @@ import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from 
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
 import { onArtChange } from "../language-change.js";
-import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
+import { activeReplay, enterReplay, leaveReplay } from "../replay/replay-mode.js";
 import {
   answerRequest,
   dismissAsk,
@@ -132,6 +132,7 @@ import { hoverArea } from "../view/card-hover.js";
 import { zoomCardOf } from "../view/inspect-hold.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
+import { replayReturnTarget } from "./replay-entry.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToAdjustGame, askToEndTurn } from "./end-turn-confirm.js";
 import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
@@ -2886,6 +2887,31 @@ export class BoardScene extends Phaser.Scene {
     if (this.#replay) return false;
     const acting = actingOf(state.game);
     return heldElsewhere(this.#room, acting?.playerId ?? null, activeSeat() !== null);
+  }
+
+  /**
+   * Epic (#882): a watcher moves to another table's game without leaving the board. The new replay host replaces the one
+   * under the board (`enterReplay` puts the device's own session back, closes the old host and takes the new one; its
+   * feed has its own id, so closing the old one does not close this one), then the board starts over on it. `#replay` is
+   * cleared first, so the board's shutdown does not leave the replay it is now showing. Resolves false (the new host
+   * disposed) when this board is not showing a replay or is being left.
+   */
+  async swapReplay(host: ReplayHost): Promise<boolean> {
+    if (!this.#replay || this.#leaving || !this.sys.isActive()) {
+      host.dispose();
+      return false;
+    }
+    this.#replay = null;
+    try {
+      await enterReplay(host);
+    } catch {
+      // `enterReplay` already put the device's own session back and closed the old replay: nothing is left to show.
+      host.dispose();
+      goToScreen(this, replayReturnTarget(), {});
+      return false;
+    }
+    this.scene.restart();
+    return true;
   }
 
   /** A guest's seat is being put away (#881): the table takes no more input, so nothing reaches the device's own store. */

@@ -1,7 +1,7 @@
 /**
  * Epic Multiplayer's sheet (issue #882, docs/live-game-rooms.md section 10): one overlay with the pickers the lobby and
  * the board need, over whichever screen opened it. Nothing is decided here: each press is a room call (`setEpic`,
- * `assignTableHost`, `followTables`, `dropTable`) or an ordinary command (`remotePower`), and the room or engine refuses
+ * `assignTableHost`, `watchTable`, `dropTable`) or an ordinary command (`remotePower`), and the room or engine refuses
  * what it will not allow.
  *
  * - `tables` (board): what my table may attack or thwart in other tables of its pod (card art, hover, one button per
@@ -21,10 +21,10 @@ import { t } from "../i18n/translate.js";
 import {
   assignTableHost,
   dropTable,
-  followTables,
   onRoomState,
   roomState,
   setEpic,
+  watchTable,
   type RemoteTarget,
   type RoomState,
 } from "../platform/room.js";
@@ -34,7 +34,6 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { textStyle } from "../ui/theme.js";
-import { goToScreen } from "../ui/transitions.js";
 import { McButton, McTextInput } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
@@ -53,6 +52,7 @@ import { seatLabelOf, seatSpecsOf } from "../view/room-table-setup.js";
 import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
+import type { BoardScene } from "./board.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -381,7 +381,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
         const following = Array.isArray(epic.following) && epic.following.includes(table.id);
         row(
           following ? t("epic.sheet.watching") : t("epic.sheet.watch"),
-          () => this.#watch(table.id),
+          () => void this.#watch(table.id),
           "secondary",
           !following,
         );
@@ -390,9 +390,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
         row(t("epic.sheet.drop"), () => this.#askDrop(table.id, table.name, table.hostName ?? ""), "secondary");
       }
       y += 4;
-    }
-    if (activeReplay() && epic.myTable === null && epic.following !== "all") {
-      row(t("epic.sheet.followAll"), () => this.#watch("all"));
     }
     if (this.#note) y += this.#text(x, y, this.#note, 13, w, true).height + 6;
     return y - top;
@@ -479,14 +476,18 @@ export class EpicSheetOverlay extends Phaser.Scene {
     this.scene.stop();
   }
 
-  #watch(table: string): void {
-    if (this.#preview) return record(`followTables(${table})`);
-    followTables(table === "all" ? "all" : [table]);
-    // The watch feed was following the old table: leave the board for the lobby, which opens the newly followed one.
-    const board = this.scene.get(SCENES.board);
+  /** Moves the watch to `table`: its game opens as a live watch and replaces the one under the board (no lobby trip). */
+  async #watch(table: string): Promise<void> {
+    if (this.#preview) return record(`watchTable(${table})`);
+    const result = await watchTable(table);
+    if (!result.ok) {
+      this.#note = t(result.message);
+      if (this.sys.isActive()) this.#draw();
+      return;
+    }
+    const board = this.scene.get(SCENES.board) as BoardScene;
     this.scene.stop();
-    this.scene.stop(SCENES.replayTransport);
-    goToScreen(board, SCENES.roomLobby, {});
+    await board.swapReplay(result.host);
   }
 
   #askDrop(table: string, name: string, host: string): void {
