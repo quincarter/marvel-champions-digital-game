@@ -59,7 +59,6 @@ function deps(
     requestDecks: async () => entries,
     refuse: (r) => refused.push(r),
     check,
-    loadedPacks: () => [],
     start: async (config) => {
       started.push(config);
       return null;
@@ -141,6 +140,28 @@ describe("the host's Start with the players' own decks", () => {
     const noCheck = deps(room([seat("s1", "a")]), [entry("s1", "A")], () => null);
     expect(await startRoomGame(BASE, noCheck.d)).toEqual({ ok: false, reason: "check-failed" });
     expect(noCheck.started).toHaveLength(0);
+  });
+
+  it("does not start on a check that skipped a seat, doubled one or named another, or passed a seat with no deck", async () => {
+    const seats = [seat("s1", "a"), seat("s2", "b")];
+    for (const bad of [
+      [{ seat: "s1", ok: true as const }],
+      [
+        { seat: "s1", ok: true as const },
+        { seat: "s1", ok: true as const },
+      ],
+      [
+        { seat: "s1", ok: true as const },
+        { seat: "sX", ok: true as const },
+      ],
+    ]) {
+      const t = deps(room(seats), [entry("s1", "A"), entry("s2", "B")], () => bad);
+      expect(await startRoomGame(BASE, t.d)).toEqual({ ok: false, reason: "check-failed" });
+      expect(t.started).toHaveLength(0);
+    }
+    // Every seat passes but one has no deck: a result, not a throw.
+    const missing = deps(room(seats), [entry("s1", "A")]);
+    expect(await startRoomGame(BASE, missing.d)).toEqual({ ok: false, reason: "check-failed" });
   });
 
   it("reports the engine's own words when it will not start", async () => {

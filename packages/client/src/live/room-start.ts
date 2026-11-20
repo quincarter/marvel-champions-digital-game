@@ -8,7 +8,6 @@
 import type { CorePlayer } from "@mc/cards";
 import type { DeckRefusalCode, LobbyMod } from "@mc/sync-worker/room-protocol";
 import type { SessionConfig } from "../engine/host.js";
-import type { PackRuntime } from "../packs/pack-runtime.js";
 import { playerOfRoomDeck, type RoomDeckCheckInput, type SeatDeckVerdict } from "./room-deck.js";
 import type { RoomState, SeatDeckEntry } from "./room-state.js";
 
@@ -41,8 +40,9 @@ export interface RoomStartDeps {
   /** Tells the seat's holder, and only them, why their deck was refused. */
   readonly refuse: (refusal: SeatDeckRefusal) => void;
   /** Judges the decks off the main thread; null when it could not. */
-  readonly check: (input: Omit<RoomDeckCheckInput, "basePool">) => Promise<readonly SeatDeckVerdict[] | null>;
-  readonly loadedPacks: () => readonly PackRuntime[];
+  readonly check: (
+    input: Omit<RoomDeckCheckInput, "basePool" | "loaded">,
+  ) => Promise<readonly SeatDeckVerdict[] | null>;
   /** Starts the game on this device (it carries the room, watching and play mode itself) and says why if it failed. */
   readonly start: (config: SessionConfig) => Promise<string | null>;
 }
@@ -64,9 +64,13 @@ export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Pr
   const verdicts = await deps.check({
     seats: state.seats.map((seat) => ({ seat: seat.id, deck: byseat.get(seat.id) ?? null })),
     allowed,
-    loaded: deps.loadedPacks(),
   });
-  if (!verdicts) return { ok: false, reason: "check-failed" };
+  // One verdict for every seat, by id: a short, doubled or foreign list is a check that did not do its job.
+  const judged =
+    verdicts !== null &&
+    verdicts.length === state.seats.length &&
+    state.seats.every((seat) => verdicts.filter((v) => v.seat === seat.id).length === 1);
+  if (!verdicts || !judged) return { ok: false, reason: "check-failed" };
 
   const refused: SeatDeckRefusal[] = [];
   for (const verdict of verdicts) {
@@ -77,11 +81,13 @@ export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Pr
     return { ok: false, reason: "decks", refused };
   }
 
-  const players: CorePlayer[] = state.seats.map((seat) => {
+  const players: CorePlayer[] = [];
+  for (const seat of state.seats) {
     const deck = byseat.get(seat.id);
-    if (!deck) throw new Error(`seat ${seat.id} passed the check without a deck`);
-    return playerOfRoomDeck(deck);
-  });
+    // A check that passed a seat with no deck is a broken check, not a game to start.
+    if (!deck) return { ok: false, reason: "check-failed" };
+    players.push(playerOfRoomDeck(deck));
+  }
   const error = await deps.start({ ...base, players });
   return error === null ? { ok: true } : { ok: false, reason: "start-failed", error };
 }

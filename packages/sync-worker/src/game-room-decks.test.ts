@@ -344,3 +344,58 @@ describe("lobby seats without labels", () => {
     expect(h.last("lobby")!.seats).toEqual([{ id: "s1" }, { id: "s2" }, { id: "s3" }]);
   });
 });
+
+describe("seat decks: presets and own decks together", () => {
+  it("brings a replaced preset back when the holder gives the seat up", async () => {
+    const { join, h, assign, setDeck, send } = await setup();
+    const a = await join("Ann");
+    await setDeck(h, "s1", deck({ name: "Preset" }));
+    await assign("s1", a);
+    await setDeck(a, "s1", deck({ name: "Mine" }));
+    await setDeck(a, "s1", deck({ name: "Mine again" }));
+    await send(a, { ch: "room", kind: "seat-release", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ deck: { name: "Preset", preset: true } });
+    expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
+    await send(h, { ch: "room", kind: "seat-decks-request" });
+    expect(h.last("seat-decks")!.decks).toEqual([{ seat: "s1", preset: true, deck: deck({ name: "Preset" }) }]);
+  });
+
+  it("refuses a host preset over the deck a holder chose, and allows it over a preset or an empty seat", async () => {
+    const { join, h, assign, setDeck } = await setup();
+    const a = await join("Ann");
+    await assign("s1", a);
+    await setDeck(a, "s1", deck({ name: "Mine" }));
+    await setDeck(h, "s1", deck({ name: "Preset" }));
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(h.last("lobby")!.seats[0]!.deck).toMatchObject({ name: "Mine" });
+    await assign("s2", a).catch(() => undefined);
+    // A held seat with no deck of its own takes a preset.
+    await setDeck(h, "s3", deck({ name: "P1" }));
+    await setDeck(h, "s3", deck({ name: "P2" }));
+    expect(h.last("lobby")!.seats[2]!.deck).toMatchObject({ name: "P2", preset: true });
+  });
+});
+
+describe("seat decks: the room-wide limit", () => {
+  it("stops a crowd of fresh participants that each stay under their own limit", async () => {
+    const { join, h, assign, setDeck, send } = await setup();
+    const results: string[] = [];
+    let holders: FakeSocket[] = [];
+    // Each round, every seat changes hands to a new participant (a new id, a new personal bucket) who sends 4 decks.
+    for (let round = 0; round < 3; round++) {
+      for (const [i, old] of holders.entries())
+        await send(old, { ch: "room", kind: "seat-release", seat: `s${i + 1}` });
+      holders = [];
+      for (let i = 0; i < 3; i++) {
+        const fresh = await join(`R${round}P${i}`);
+        await assign(`s${i + 1}`, fresh);
+        holders.push(fresh);
+        for (let k = 0; k < 4; k++) await setDeck(fresh, `s${i + 1}`, deck({ name: `${round}-${i}-${k}` }));
+        results.push(...fresh.refusals);
+      }
+    }
+    // 36 sent, the room allows a burst of 20 and then one every 2 seconds.
+    expect(results.filter((r) => r === "rate-limited").length).toBe(16);
+    void h;
+  });
+});

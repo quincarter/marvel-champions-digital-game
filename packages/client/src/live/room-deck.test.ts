@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { IDBFactory } from "fake-indexeddb";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { deckFromStarterDeck, type Deck, type PackManifest } from "@mc/content";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { WAVE2_STARTER_DECKS, deckFromStarterDeck, type Deck, type PackManifest } from "@mc/content";
 import { MAX_SEAT_DECK_BYTES, type RoomDeck } from "@mc/sync-worker/room-protocol";
 // Node only, and only here: the client itself never imports the SDK's build.
 import { buildPack } from "@mc/mod-sdk/build";
@@ -16,7 +16,12 @@ import type { PackRuntime } from "../packs/pack-runtime.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { checkRoomDecks, playerOfRoomDeck, roomDeckOf } from "./room-deck.js";
-import { checkRoomDecksInWorker, type CheckWorkerLike } from "./room-deck-check-client.js";
+import {
+  RoomDeckWorker,
+  type CheckWorkerLike,
+  type RoomDeckRequest,
+  type RoomDeckResponse,
+} from "./room-deck-check-client.js";
 
 const SAMPLE_DIR = fileURLToPath(new URL("../../../../content-packs/sample-hero", import.meta.url));
 
@@ -76,6 +81,23 @@ describe("a deck as the room carries it", () => {
 
   it("names the custom packs a deck's hero or cards come from, by id and version", () => {
     expect(modDeck().mods).toEqual([{ id: sample.id, version: sample.version }]);
+  });
+
+  it("keeps the deck's own line order, duplicates unmerged, and its attribution id", () => {
+    const deck = baseDeck();
+    const first = deck.cards[0]!;
+    const doubled: Deck = { ...deck, cards: [first, ...deck.cards.slice(1), first] };
+    const room = roomDeckOf(doubled, "H", [])!;
+    expect(room.cards.map((c) => c.cardId)).toEqual(doubled.cards.map((c) => c.cardId as string));
+    const asPlayer = playerOfRoomDeck(room);
+    expect("deck" in asPlayer && asPlayer.deck).toEqual(
+      doubled.cards.flatMap((c) => Array.from({ length: c.quantity }, () => c.cardId as string)),
+    );
+    // A precon carries its starter deck id; a saved deck its own id. The seat keeps it as deckId.
+    expect(room.deckId).toBe((deck.source as { starterDeckId: string }).starterDeckId);
+    const mine = roomDeckOf({ ...deck, source: { kind: "imported" } as never, id: "mine" as never }, "H", []);
+    expect(mine!.deckId).toBe("mine");
+    expect("deckId" in asPlayer && asPlayer.deckId).toBe(room.deckId);
   });
 
   it("becomes the same seat a saved deck does", () => {
@@ -151,41 +173,113 @@ describe("the host's judgment of every seat's deck", () => {
       ok: false,
       code: "mod-not-allowed",
     });
+    // Allowed by id but at another version than the one installed: not allowed.
+    const stale = [{ id: sample.id, version: "0.0.1-older" }];
+    expect(checkRoomDecks(input([deck], { allowed: stale, loaded: [sample] }))[0]).toMatchObject({
+      code: "mod-not-allowed",
+    });
   });
 });
 
-describe("the check in a worker", () => {
-  const fakeWorker = (reply: (id: number) => unknown): { worker: CheckWorkerLike; ended: () => boolean } => {
-    let ended = false;
+describe("the table-wide rules at Start", () => {
+  const starterRoomDeck = (identity: string): RoomDeck => {
+    const starter = WAVE2_STARTER_DECKS.find((d) => (d.identityCardId as string) === identity)!;
+    return {
+      name: starter.name,
+      hero: identity,
+      heroName: identity,
+      aspects: starter.aspects as string[],
+      cards: starter.cards.map((c) => ({ cardId: c.cardId as string, quantity: c.quantity })),
+      mods: [],
+    };
+  };
+
+  it("refuses a later seat whose hero matches an earlier one (Unique Icon), naming the hero, and keeps the first", () => {
+    const verdicts = checkRoomDecks(input([base(), base()]));
+    expect(verdicts[0]).toEqual({ seat: "s1", ok: true });
+    expect(verdicts[1]).toMatchObject({ seat: "s2", ok: false, code: "illegal" });
+    expect((verdicts[1] as { reason: string }).reason).toMatch(/is already at the table/);
+  });
+
+  it("lets two different heroes sit together", () => {
+    const other = preconDecks(POOL_VERSION).find((d) => d.identityCardId !== baseDeck().identityCardId)!;
+    expect(checkRoomDecks(input([base(), roomDeckOf(other, "Other", [])!])).map((v) => v.ok)).toEqual([true, true]);
+  });
+
+  it("judges a deck for this table: Team-Up stands in for a card that matches another seat's hero (RRG p. 50)", () => {
+    const quicksilver = starterRoomDeck("14001a");
+    // Order and Chaos (Team-Up: Quicksilver and Scarlet Witch) stays; the Scarlet Witch ally is replaced by a filler.
+    const filler = POOL_CARDS.find(
+      (c) => "aspect" in c && c.aspect === "basic" && !c.unique && !quicksilver.cards.some((l) => l.cardId === c.id),
+    )!;
+    const replaced: RoomDeck = {
+      ...quicksilver,
+      cards: [...quicksilver.cards.filter((l) => l.cardId !== "14002"), { cardId: filler.id as string, quantity: 1 }],
+    };
+    const witch = starterRoomDeck("15001a");
+    expect(checkRoomDecks(input([witch, replaced]))[1]).toEqual({ seat: "s2", ok: true });
+    // Without Scarlet Witch at the table the replacement is not allowed.
+    expect(checkRoomDecks(input([replaced]))[0]).toMatchObject({ ok: false, code: "illegal" });
+  });
+});
+
+describe("the deck worker", () => {
+  const fakeWorker = (answer: (m: RoomDeckRequest) => RoomDeckResponse | null) => {
+    const sent: RoomDeckRequest[] = [];
+    let ended = 0;
     const worker: CheckWorkerLike = {
       onmessage: null,
       onerror: null,
-      postMessage: (message) => queueMicrotask(() => worker.onmessage?.({ data: reply(message.id) as never })),
+      postMessage: (message) => {
+        sent.push(message);
+        const reply = answer(message);
+        if (reply) queueMicrotask(() => worker.onmessage?.({ data: reply }));
+      },
       terminate: () => {
-        ended = true;
+        ended++;
       },
     };
-    return { worker, ended: () => ended };
+    return { worker, sent, ended: () => ended };
   };
+  const echo = (m: RoomDeckRequest): RoomDeckResponse | null =>
+    m.op === "deck"
+      ? { id: m.id, op: "deck", deck: base() }
+      : m.op === "check"
+        ? { id: m.id, op: "check", verdicts: [{ seat: "s1", ok: true }] }
+        : null;
 
-  it("resolves the worker's verdicts and ends the worker", async () => {
-    const { worker, ended } = fakeWorker((id) => ({ id, verdicts: [{ seat: "s1", ok: true }] }));
-    expect(await checkRoomDecksInWorker({ seats: [], allowed: [], loaded: [] }, () => worker)).toEqual([
-      { seat: "s1", ok: true },
-    ]);
-    expect(ended()).toBe(true);
+  it("sends each pack once, builds decks and judges them in the worker, and ends after a quiet spell", async () => {
+    vi.useFakeTimers();
+    try {
+      const w = fakeWorker(echo);
+      const client = new RoomDeckWorker(() => w.worker, 1000);
+      expect(await client.deck(baseDeck(), "H", [sample])).toEqual({ ok: true, deck: base() });
+      await client.check({ seats: [], allowed: [] }, [sample], [sample]);
+      expect(w.sent.filter((m) => m.op === "packs")).toHaveLength(1);
+      vi.advanceTimersByTime(1500);
+      expect(w.ended()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("answers null, never a pass, when there is no worker or it fails", async () => {
-    expect(await checkRoomDecksInWorker({ seats: [], allowed: [], loaded: [] }, () => null)).toBeNull();
-    const { worker } = fakeWorker((id) => ({ id, verdicts: null }));
-    expect(await checkRoomDecksInWorker({ seats: [], allowed: [], loaded: [] }, () => worker)).toBeNull();
-    const broken: CheckWorkerLike = {
-      onmessage: null,
-      onerror: null,
-      postMessage: () => queueMicrotask(() => broken.onerror?.({})),
-      terminate: () => undefined,
-    };
-    expect(await checkRoomDecksInWorker({ seats: [], allowed: [], loaded: [] }, () => broken)).toBeNull();
+  it("answers a failure, never a pass, with no worker, a worker error, or a null answer", async () => {
+    expect(await new RoomDeckWorker(() => null).deck(baseDeck(), "H", [])).toEqual({ ok: false, reason: "failed" });
+    expect(await new RoomDeckWorker(() => null).check({ seats: [], allowed: [] }, [], [])).toBeNull();
+    const nulls = fakeWorker((m) => (m.op === "check" ? { id: m.id, op: "check", verdicts: null } : null));
+    expect(await new RoomDeckWorker(() => nulls.worker).check({ seats: [], allowed: [] }, [], [])).toBeNull();
+    const broken = fakeWorker(() => null);
+    const client = new RoomDeckWorker(() => broken.worker);
+    const pending = client.check({ seats: [], allowed: [] }, [], []);
+    broken.worker.onerror?.({});
+    expect(await pending).toBeNull();
+  });
+
+  it("says too-large when the worker finds the list over the cap", async () => {
+    const w = fakeWorker((m) => (m.op === "deck" ? { id: m.id, op: "deck", deck: null } : null));
+    expect(await new RoomDeckWorker(() => w.worker).deck(baseDeck(), "H", [])).toEqual({
+      ok: false,
+      reason: "too-large",
+    });
   });
 });

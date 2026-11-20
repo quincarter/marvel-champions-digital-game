@@ -23,8 +23,8 @@ import {
   type RoomState,
   type SeatDeckEntry,
 } from "../live/room-state.js";
-import { checkRoomDecksInWorker } from "../live/room-deck-check-client.js";
-import { roomDeckOf } from "../live/room-deck.js";
+import { RoomDeckWorker } from "../live/room-deck-check-client.js";
+import { withRequiredPacks } from "../packs/pack-runtime.js";
 import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult } from "../live/room-start.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
@@ -123,6 +123,7 @@ export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
 export function leaveRoom(): void {
   if (state.role === "none") return;
   postRoomCommand({ kind: "room-leave" });
+  deckWorker.destroy();
   publish(NO_ROOM);
 }
 
@@ -161,16 +162,23 @@ export function denySeat(seat: string, participant: string): void {
  */
 export type ChooseDeckResult =
   | { readonly ok: true }
-  | { readonly ok: false; readonly reason: "not-seatable" | "too-large" | "not-allowed" | "no-seat" };
+  | { readonly ok: false; readonly reason: "not-seatable" | "too-large" | "not-allowed" | "no-seat" | "no-worker" };
 
-function sendDeck(seat: string, option: DeckOption, preset: boolean): ChooseDeckResult {
+/** Builds decks and judges them off the main thread; lives while the room is used and ends after a quiet minute. */
+const deckWorker = new RoomDeckWorker();
+
+async function sendDeck(seat: string, option: DeckOption, preset: boolean): Promise<ChooseDeckResult> {
   const mine = state.seats.find((s) => s.id === seat);
   if (!mine) return { ok: false, reason: "no-seat" };
   if (preset ? state.role !== "host" : !mine.mine) return { ok: false, reason: "not-allowed" };
   if (!option.seatable) return { ok: false, reason: "not-seatable" };
-  const deck = roomDeckOf(option.deck, option.identityName ?? (option.deck.identityCardId as string), loadedPacks());
-  if (!deck) return { ok: false, reason: "too-large" };
-  postRoomCommand({ kind: "room-deck", seat, deck });
+  const built = await deckWorker.deck(
+    option.deck,
+    option.identityName ?? (option.deck.identityCardId as string),
+    loadedPacks(),
+  );
+  if (!built.ok) return { ok: false, reason: built.reason === "too-large" ? "too-large" : "no-worker" };
+  postRoomCommand({ kind: "room-deck", seat, deck: built.deck });
   return { ok: true };
 }
 
@@ -179,12 +187,12 @@ function sendDeck(seat: string, option: DeckOption, preset: boolean): ChooseDeck
  * Decks screen and Table setup list them). Everyone sees only a summary (hero, aspect, name, card count, mods); the full
  * list goes to the host alone. The room rate limits it; a refusal shows as `state.refusal`.
  */
-export function chooseDeck(seat: string, option: DeckOption): ChooseDeckResult {
+export function chooseDeck(seat: string, option: DeckOption): Promise<ChooseDeckResult> {
   return sendDeck(seat, option, false);
 }
 
 /** Host only: presets a deck for any seat; the holder may replace it with their own, and it stays through a change of holder. */
-export function presetDeck(seat: string, option: DeckOption): ChooseDeckResult {
+export function presetDeck(seat: string, option: DeckOption): Promise<ChooseDeckResult> {
   return sendDeck(seat, option, true);
 }
 
@@ -208,8 +216,11 @@ export function startRoomGame(base: RoomGameBase): Promise<RoomStartResult> {
     refuse: (refusal) => {
       postRoomCommand({ kind: "room-deck-refuse", ...refusal });
     },
-    check: (input) => checkRoomDecksInWorker(input),
-    loadedPacks,
+    check: (input) => {
+      const loaded = loadedPacks();
+      const allowedPacks = loaded.filter((p) => input.allowed.some((m) => m.id === p.id && m.version === p.version));
+      return deckWorker.check(input, loaded, withRequiredPacks(allowedPacks, loaded));
+    },
     start: async (config) => {
       await startGame(config);
       const { store } = appSession();

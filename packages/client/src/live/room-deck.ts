@@ -9,7 +9,7 @@
  */
 import { isNotReadyCard, type CorePlayer } from "@mc/cards";
 import { cardId, type AnyCard, type CoreAspect, type Deck, type DeckContents } from "@mc/content";
-import { validateDeck } from "@mc/engine";
+import { cardsMatch, validateDeck } from "@mc/engine";
 import type { DeckRefusalCode, LobbyMod, RoomDeck } from "@mc/sync-worker/room-protocol";
 import { MAX_SEAT_DECK_BYTES } from "@mc/sync-worker/room-protocol";
 import { poolWithPacks, withRequiredPacks, type PackRuntime } from "../packs/pack-runtime.js";
@@ -26,11 +26,11 @@ const clip = (text: string, max: number): string => {
  */
 export function roomDeckOf(deck: Deck, heroName: string, packs: readonly PackRuntime[]): RoomDeck | null {
   const identity = deck.identityCardId as string;
-  const lines = new Map<string, number>();
-  for (const { cardId, quantity } of deck.cards) {
-    lines.set(cardId as string, (lines.get(cardId as string) ?? 0) + quantity);
-  }
-  const used = new Set([identity, ...lines.keys()]);
+  // The deck's own line order, duplicates and all, so the host's shuffle matches what the local path would deal.
+  const cards = deck.cards
+    .filter((line) => line.quantity >= 1)
+    .map((line) => ({ cardId: line.cardId as string, quantity: line.quantity }));
+  const used = new Set([identity, ...cards.map((line) => line.cardId)]);
   const mods: LobbyMod[] = packs
     .filter((pack) => pack.cards.some((card) => used.has(card.id as string)))
     .map((pack) => ({ id: pack.id, version: pack.version }));
@@ -39,8 +39,10 @@ export function roomDeckOf(deck: Deck, heroName: string, packs: readonly PackRun
     hero: identity,
     heroName: clip(heroName, 80) || identity,
     aspects: deck.aspects.map((a) => a as string),
-    cards: [...lines].map(([cardId, quantity]) => ({ cardId, quantity })),
+    cards,
     mods,
+    // A precon keeps its starter deck id, the stable attribution key a local precon seat has; a custom deck its own id.
+    deckId: deck.source.kind === "precon" ? (deck.source.starterDeckId as string) : (deck.id as string),
   };
   return new TextEncoder().encode(JSON.stringify(result)).length > MAX_SEAT_DECK_BYTES ? null : result;
 }
@@ -52,6 +54,7 @@ export function playerOfRoomDeck(deck: RoomDeck): CorePlayer {
     deck: deck.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
     aspects: deck.aspects as readonly CoreAspect[],
     deckName: deck.name,
+    ...(deck.deckId ? { deckId: deck.deckId } : {}),
   };
 }
 
@@ -93,6 +96,11 @@ export function checkRoomDecks(input: RoomDeckCheckInput): readonly SeatDeckVerd
   }
   const known = pool ? new Set(pool.map((card) => card.id as string)) : new Set<string>();
 
+  const byId = new Map<string, AnyCard>();
+  if (pool) for (const card of pool) byId.set(card.id as string, card);
+  /** The heroes already accepted at the table, in seat order. */
+  const seated: AnyCard[] = [];
+
   return input.seats.map(({ seat, deck }): SeatDeckVerdict => {
     const refuse = (code: DeckRefusalCode, reason: string): SeatDeckVerdict => ({ seat, ok: false, code, reason });
     if (!deck) return refuse("no-deck", "No deck has been chosen for this seat.");
@@ -105,7 +113,7 @@ export function checkRoomDecks(input: RoomDeckCheckInput): readonly SeatDeckVerd
           `Your deck uses custom pack "${ref.id}" version ${ref.version}; the host has version ${installed.version}.`,
         );
       }
-      if (!allowed.some((m) => m.id === ref.id)) {
+      if (!allowed.some((m) => m.id === ref.id && m.version === ref.version)) {
         return refuse("mod-not-allowed", `The host has not allowed the custom pack "${ref.id}" for this table.`);
       }
     }
@@ -122,11 +130,20 @@ export function checkRoomDecks(input: RoomDeckCheckInput): readonly SeatDeckVerd
       aspects: deck.aspects as readonly CoreAspect[],
       cards: deck.cards.map((line) => ({ cardId: cardId(line.cardId), quantity: line.quantity })),
     };
-    const verdict = validateDeck(contents, pool);
+    // The other seats' heroes: Appendix I's Team-Up replacement (RRG 1.8 p. 50) is judged for this table.
+    const verdict = validateDeck(contents, pool, {
+      otherSeatIdentityIds: input.seats.filter((o) => o.seat !== seat).flatMap((o) => (o.deck ? [o.deck.hero] : [])),
+    });
     if (!verdict.ok) {
       const messages = verdict.problems.map((p) => p.message);
       return refuse("illegal", list(messages, 2));
     }
+    // Unique Icon (RRG 1.8 p. 45): two heroes at one table must not match (the same hero twice), judged by the engine's
+    // `cardsMatch` as the local seat picker does. Only a hero that has passed everything else holds its place.
+    const mine = byId.get(deck.hero);
+    const clash = mine ? seated.find((taken) => cardsMatch(taken, mine)) : undefined;
+    if (clash) return refuse("illegal", `${clash.name} is already at the table.`);
+    if (mine) seated.push(mine);
     return { seat, ok: true };
   });
 }

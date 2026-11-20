@@ -231,6 +231,11 @@ export interface RoomDeck {
   readonly cards: readonly RoomDeckLine[];
   /** The custom packs the deck's cards or hero come from; empty for a base-game deck. */
   readonly mods: readonly LobbyMod[];
+  /**
+   * Attribution only, never a rule input (like `CorePlayer.deckId`): the precon's starter deck id, or the player's own
+   * deck id on their device, so stats and Past games can name the deck a room game was played with.
+   */
+  readonly deckId?: string;
 }
 
 /**
@@ -583,7 +588,8 @@ function isDeck(v: unknown): v is RoomDeck {
         c.quantity >= 1 &&
         c.quantity <= 99,
     ) &&
-    isMods(v.mods)
+    isMods(v.mods) &&
+    (v.deckId === undefined || (shortString(v.deckId, 64) && v.deckId.length > 0))
   );
 }
 

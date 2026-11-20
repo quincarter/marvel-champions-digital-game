@@ -135,6 +135,8 @@ interface StoredSeat extends LobbySeatSpec {
   deck?: RoomDeck;
   /** The host chose `deck`: it stays through a change of holder. */
   deckPreset?: true;
+  /** A host preset the holder replaced with their own deck: it comes back when they give the seat up. */
+  presetDeck?: RoomDeck;
 }
 
 /** Whole-room cap on accepted deck changes (each rewrites the lobby row): a burst of this many, then one every 2 s. */
@@ -288,6 +290,7 @@ function cleanDeck(deck: RoomDeck): RoomDeck | null {
     aspects: deck.aspects.map((a) => text(a, 24)),
     cards: deck.cards.map((c) => ({ cardId: text(c.cardId, 64), quantity: c.quantity })),
     mods: deck.mods.map((m) => ({ id: text(m.id, 64), version: text(m.version, 32) })),
+    ...(deck.deckId ? { deckId: text(deck.deckId, 64) } : {}),
   };
 }
 
@@ -372,7 +375,7 @@ export class GameRoomLogic {
   }
 
   private lobbyState(lobby: LobbyRow): LobbyState {
-    const seats: LobbySeat[] = lobby.seats.map(({ tokenHash: _hash, deck, deckPreset, ...seat }) => {
+    const seats: LobbySeat[] = lobby.seats.map(({ tokenHash: _hash, deck, deckPreset, presetDeck: _held, ...seat }) => {
       const requested = this.requests.get(seat.id);
       const holder = seat.holder ? this.participants.get(seat.holder) : undefined;
       const mismatch = holder !== undefined && holder.role !== "host" && !this.sameBuild(holder.build, lobby.settings);
@@ -1074,8 +1077,16 @@ export class GameRoomLogic {
       delete seat.holder;
       delete seat.holderName;
       delete seat.tokenHash;
-      // The holder's own deck goes with them (the next holder brings theirs); the host's preset stays.
-      if (!seat.deckPreset) delete seat.deck;
+      // The holder's own deck goes with them (the next holder brings theirs); the host's preset stays, and one the
+      // holder had replaced comes back.
+      if (!seat.deckPreset) {
+        delete seat.deck;
+        if (seat.presetDeck) {
+          seat.deck = seat.presetDeck;
+          seat.deckPreset = true;
+        }
+        delete seat.presetDeck;
+      }
     };
     // Only a change of holder, or the host setting the lobby, is stored. A request or its withdrawal is memory only.
     let persist = false;
@@ -1167,6 +1178,8 @@ export class GameRoomLogic {
         // A holder sets their own seat's deck; the host may set any seat's, which is then a preset.
         if (seat.holder !== who.id && !isHost) return this.refuse(socket, "not-allowed");
         const preset = isHost && seat.holder !== who.id;
+        // A preset does not overwrite a deck its holder chose: take the seat back first.
+        if (preset && seat.holder && !seat.deckPreset && seat.deck) return this.refuse(socket, "not-allowed");
         const now = this.clock();
         if (
           !takeToken(this.deckBuckets, who.id, DECK_MESSAGE_BURST, 1 / DECK_REFILL_SECONDS, now) ||
@@ -1184,6 +1197,9 @@ export class GameRoomLogic {
         if (seat.deck && (seat.deckPreset === true) === preset && JSON.stringify(seat.deck) === JSON.stringify(deck)) {
           return;
         }
+        // A holder's own deck over the host's preset keeps the preset behind it, for when they give the seat up.
+        if (!preset && seat.deckPreset && seat.deck) seat.presetDeck = seat.deck;
+        if (preset) delete seat.presetDeck;
         seat.deck = deck;
         if (preset) seat.deckPreset = true;
         else delete seat.deckPreset;
