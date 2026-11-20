@@ -249,15 +249,19 @@ function toSourceCodes(curation: ImportCuration, finalToSource: ReadonlyMap<stri
 
 /**
  * MarvelCDB sends the back face of a double-sided card that is not an identity (a flip upgrade, a two-faced encounter
- * card) as a nested `linked_card` of the same `type_code` with `hidden: true`, and the normalizer reads that flag to
- * tell a flip side from a stray link. A community file that omits it gets it added here, and the report says so.
+ * card) as a nested `linked_card` with `hidden: true`, and the normalizer reads that flag to tell a flip side from a
+ * stray link. A community file that omits it gets it added here, and the report says so. That includes a back face of
+ * another type (#890 item 17: an environment that flips to an attachment, Twisted Allegiance in `the-rose-bf`), which
+ * the normalizer then emits as its own card, the two faces naming each other in `otherFaceId`, as it does Chief Medical
+ * Officer / Medical Officer's Aid (`aos` 50181a/b) and Enemy of My Enemy / Magneto (`mut_gen` 32172a/b).
  */
 function markFlipSides(records: readonly Obj[], notes: string[], codes: ReadonlyMap<string, string>): Obj[] {
+  const IDENTITY_TYPES: ReadonlySet<unknown> = new Set(["hero", "alter_ego", "villain", "main_scheme"]);
   return records.map((record) => {
     const back = record.linked_card;
     const type = record.type_code;
-    if (!isObj(back) || back.type_code !== type || back.hidden !== undefined) return record;
-    if (type === "hero" || type === "alter_ego" || type === "villain" || type === "main_scheme") return record;
+    if (!isObj(back) || back.hidden !== undefined) return record;
+    if (IDENTITY_TYPES.has(type) || IDENTITY_TYPES.has(back.type_code)) return record;
     const code = str(back.code) ?? "?";
     notes.push(
       `marked ${codes.get(code) ?? code} as the hidden flip side of ${str(record.name) ?? "?"}, as the API does`,

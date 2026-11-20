@@ -4,7 +4,7 @@
  * ship by `community-packs.test.ts`.
  */
 import { describe, expect, it } from "vitest";
-import type { AnyCard } from "@mc/content";
+import { PLAYABLE_CARDS, type AnyCard, type PlayerCard } from "@mc/content";
 import { assemblePack, type PackSource } from "./build.js";
 import { buildPreview } from "./preview.js";
 import { publishIssues, validatePack, type PackInput } from "./validate.js";
@@ -146,8 +146,35 @@ describe("house-rule packs", () => {
       ),
     );
     const issues = issuesOf(pack).join("\n");
-    expect(issues).toMatch(/a house-rule pack adds no cards/);
+    expect(issues).toMatch(/a house-rule pack adds only cards for an official hero that no deck must hold/);
     expect(issues).toMatch(/"99999a" is not a card of this pack/);
+  });
+
+  it("may add a card for an official hero that no deck must hold (optionalForIdentity, #890 item 13)", () => {
+    const base = PLAYABLE_CARDS.find(
+      (c) => c.type === "upgrade" && "aspect" in c && c.aspect === "basic",
+    ) as PlayerCard;
+    const card = {
+      ...base,
+      id: "x.test-rule.01",
+      setCode: "test-rule",
+      name: "House Card",
+      aspect: "hero:14001a",
+      optionalForIdentity: true,
+      abilities: [],
+    } as unknown as AnyCard;
+    const assets = new Map([
+      ["CREDITS.md", bytes("credits")],
+      ["PERMISSION.md", bytes("permission")],
+      ["cards/en/x.test-rule.01.webp", bytes("face")],
+    ]);
+    const ok = assemblePack(source({ houseRule: {} }, { cards: [card], assets }));
+    expect(issuesOf(ok)).toEqual([]);
+    const { optionalForIdentity: _optional, ...required } = card as unknown as Record<string, unknown>;
+    const refused = issuesOf(
+      assemblePack(source({ houseRule: {} }, { cards: [required as unknown as AnyCard], assets })),
+    );
+    expect(refused.join("\n")).toMatch(/adds only cards for an official hero/);
   });
 
   it("needs its houseRule, which must do something, and no other kind may carry one", () => {

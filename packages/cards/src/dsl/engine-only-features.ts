@@ -3,32 +3,38 @@ import { trait } from "@mc/content";
 import {
   action,
   activatesBeforeVillain,
+  after,
   agile,
+  attacksDealAdditionalDamage,
   boost,
   boostIconsCount,
   cannotBeAttachedUnlessInPlay,
   cannotHaveStatus,
   constant,
   costModifier,
-  heroAction,
   discardThis,
-  response,
   doubleStat,
-  forcedInterrupt,
-  forcedResponse,
-  heroInterrupt,
   eitherCost,
   exhaustCardsCost,
   exhaustThis,
   flipCardsCost,
+  forcedInterrupt,
+  forcedResponse,
+  gainsKeyword,
+  generatesAmount,
+  gets,
+  heroAction,
+  heroInterrupt,
+  heroResponse,
   ignoreBoostAbilities,
-  takeDamageCost,
   minDamageTaken,
   on,
   resource,
   resourcesGeneratedAsWild,
+  response,
   setAsideDestination,
   tagged,
+  takeDamageCost,
   upgradesCannotBeRemoved,
 } from "./abilities.js";
 import {
@@ -39,11 +45,13 @@ import {
   cancelBoostedActivation,
   cancelIt,
   cards,
+  chooseOne,
+  chooseTarget,
   dealDamage,
   discard,
   doubleNextCardSpent,
-  enemyActivates,
   draw,
+  enemyActivates,
   enemyAttacksEnemy,
   findCard,
   giveBasicPowerBoostCard,
@@ -52,25 +60,36 @@ import {
   loseTraitUntil,
   modifyAttack,
   moveCards,
+  option,
   putIntoPlayFacedown,
+  removeThreat,
+  repeatTimes,
   replaceNextVillainPhaseWithPlayerPhase,
   resolveOneTagged,
   resolveTagged,
   scenarioArea,
   selectCards,
   topOfDeck,
+  useActionAbility,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   attackInProgress,
   chosen,
+  countOf,
   each,
   eachPlayer,
   eventPlayer,
   eventTarget,
+  exists,
   hasTaggedAbility,
   lastPlayedThisRound,
+  min,
+  not,
+  overdefeated,
+  perHero,
   query,
+  scaled,
   self,
   statOf,
   taggedAbilitiesOn,
@@ -89,6 +108,15 @@ import {
  * Add an entry with each engine primitive that lands for custom content before any base card uses it; it can go once a
  * base card does.
  */
+/** "If it already has steady or stalwart", not counting what this card itself grants. */
+const ALREADY_STEADY_OR_STALWART = query("villain", {
+  hostOfSelf: true,
+  anyOf: [
+    { withKeyword: "steady", keywordNotFromSelf: true },
+    { withKeyword: "stalwart", keywordNotFromSelf: true },
+  ],
+});
+
 export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   // Agile X: "reduce damage taken from undefended villain and villainous attacks by X" (`reduceDamageTaken`'s
   // `onlyUndefended` and `onlyAttacker`).
@@ -184,6 +212,50 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
   ),
   // "Yaka Arrow cannot be attached to cards unless it is in play" (`attachedOnlyWhileInPlay`; community pack `yondu-dh`).
   "engine-only.attached-only-in-play": constant(cannotBeAttachedUnlessInPlay),
+  // "Attached villain gains steady. If it already has steady or stalwart, it gets +4[per_hero] hit points instead"
+  // (Rose's Greenhouse, `the-rose-bf`): `TargetQuery.keywordNotFromSelf` leaves this card's own grant out of the check.
+  "engine-only.keyword-not-from-self": constant(
+    gainsKeyword({ name: "steady" }, query("villain", { hostOfSelf: true }), {
+      while: not(exists(ALREADY_STEADY_OR_STALWART)),
+    }),
+    gets("hp", perHero(4), query("villain", { hostOfSelf: true }), { while: exists(ALREADY_STEADY_OR_STALWART) }),
+  ),
+  // "Response: After you ready your cards at the end of the player phase, for each 2 upgrades you readied this way,
+  // deal 1 damage to an enemy or remove 1 threat from a scheme (to a maximum of 3)" (Web-Sling, `spider-punisher-tw`):
+  // `TriggerEvent endPhaseCardsReadied`, its cards in slot `readied.cards`.
+  "engine-only.cards-readied-at-phase-end": response(
+    on.yourCardsReadiedAtPhaseEnd(),
+    repeatTimes(
+      min(scaled(countOf(query("upgrade", { inSlot: "readied.cards" })), { divide: { by: 2, round: "down" } }), 3),
+      chooseOne(
+        option("Deal 1 damage to an enemy", chooseTarget("enemy", query("enemy")), dealDamage(1, chosen("enemy"))),
+        option(
+          "Remove 1 threat from a scheme",
+          chooseTarget("scheme", query("scheme")),
+          removeThreat(1, chosen("scheme")),
+        ),
+      ),
+    ),
+  ),
+  // "Hero Response: After you defend against an attack, exhaust this card → … or resolve an 'Action' ability on a card
+  // you control" (War Machine Armor, `punisher-msp`): `EffectSpec useActionAbility`, its cost paid, out of turn.
+  "engine-only.use-action-ability": heroResponse(
+    after.defends(YOUR_IDENTITY),
+    { cost: exhaustThis },
+    useActionAbility(),
+  ),
+  // "When a character with one or more Exposed status cards is attacked, … that attack deals 1 additional damage for
+  // each" (Sentinel's Expose insert, `sentinel-tw`): Exposed as `exposed` counters (`perCounterOnTarget`).
+  "engine-only.extra-damage-per-counter": constant(
+    attacksDealAdditionalDamage(1, { target: query("enemy"), perCounterOnTarget: "exposed" }),
+  ),
+  // "Hero Response: After you overdefeat a side scheme (remove more threat from it than it had), discard this card"
+  // (Rose's Greenhouse, `the-rose-bf`): `ValueSpec defeatExcessThreat`, read by the DSL's `overdefeated`.
+  "engine-only.overdefeated": response(
+    on.schemeDefeated(query("sideScheme"), { byYou: true }),
+    { while: overdefeated },
+    discard(self),
+  ),
   // "After the Yaka Arrow upgrade is removed from an enemy, deal 1 damage to that enemy" (`TriggerEvent cardUnattached`).
   "engine-only.card-unattached": response(
     on.cardUnattached(query("upgrade", { name: "Yaka Arrow" }), { from: query("enemy") }),
@@ -246,6 +318,25 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
       ]),
     },
     draw(1),
+  ),
+  // "Resource: … generate a [wild] resource for an upgrade ability" (With Great Firepower, `spider-punisher-tw`):
+  // `AbilityDefinition.generatesForAbility`, only for an ability's cost on an upgrade, never to play one.
+  "engine-only.generates-for-ability": resource(
+    { wild: 1 },
+    { cost: exhaustThis, generatesFor: query("upgrade"), forAbility: true },
+  ),
+  // "You can exhaust any number of Weapon or Tech upgrades you control to generate that many [wild] resources while
+  // paying for this card" (Enhanced Combat Sense, `spider-punisher-tw`): a resource ability in hand (`activeIn: "hand"`)
+  // that pays for its own card alone; "for each upgrade you exhausted" reads `paid.ability.<its id>`.
+  "engine-only.hand-resource-for-itself": resource(
+    generatesAmount("wild", countOf(query("upgrade", { inSlot: "exhausted" }))),
+    {
+      inHand: true,
+      cost: exhaustCardsCost(query("upgrade", { controller: "you", anyTrait: [trait("Weapon"), trait("Tech")] }), {
+        min: 1,
+        slot: "exhausted",
+      }),
+    },
   ),
   "engine-only.generates-for-aspect": resource(
     { wild: 1 },

@@ -167,8 +167,14 @@ export function profileStatTiles(
   return tiles;
 }
 
+/**
+ * A status the board shows on a character: the three of the rules, and Exposed, a community pack's status card the
+ * engine carries as `exposed` counters ("EXPOSED ×N", #890 item 10).
+ */
+export type PipStatus = StatusName | "exposed";
+
 export interface StatusPip {
-  readonly status: StatusName;
+  readonly status: PipStatus;
   readonly count: number;
 }
 
@@ -1804,6 +1810,8 @@ function statusPips(instance: CardInstance): readonly StatusPip[] {
   if (instance.statuses.stunned > 0) pips.push({ status: "stunned", count: instance.statuses.stunned });
   if (instance.statuses.confused > 0) pips.push({ status: "confused", count: instance.statuses.confused });
   if (instance.statuses.tough > 0) pips.push({ status: "tough", count: instance.statuses.tough });
+  const exposed = instance.counters.exposed ?? 0;
+  if (exposed > 0) pips.push({ status: "exposed", count: exposed });
   return pips;
 }
 
@@ -2301,9 +2309,12 @@ export function countersOf(
   // A mission carries an internal "defeated" mark its back face reads ("if the mission was defeated"); it is bookkeeping,
   // not a counter a player places or removes, so it is hidden on a card in a scenario play area. "attempt" is shown.
   const inArea = scenarioPlayAreaOf(state, id) !== null;
-  return Object.entries(getInstance(state, id)?.counters ?? {})
-    .filter(([name, count]) => count > 0 && !(inArea && name === INTERNAL_AREA_COUNTER))
-    .map(([name, count]) => ({ name, count }));
+  return (
+    Object.entries(getInstance(state, id)?.counters ?? {})
+      // Exposed counters are shown as the Exposed status ("EXPOSED ×N", `statusPips`), not as a counter too.
+      .filter(([name, count]) => count > 0 && name !== "exposed" && !(inArea && name === INTERNAL_AREA_COUNTER))
+      .map(([name, count]) => ({ name, count }))
+  );
 }
 
 export function handCardView(state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): HandCardView {

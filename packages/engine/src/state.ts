@@ -925,7 +925,18 @@ export type GameStep =
    * `readied`: step 4's readies are done but put something on the stack (an additional cost to ready, a "would ready"
    * interrupt; docs/phase7-wave4.md §3.19), so step 5 waits for it to resolve.
    */
-  | { readonly phase: "player"; readonly kind: "endPhaseReady"; readonly readied?: true }
+  | {
+      readonly phase: "player";
+      readonly kind: "endPhaseReady";
+      readonly readied?: true;
+      /**
+       * The cards in play that were exhausted as the step began, read again once it has resolved to announce what it
+       * readied (`endPhaseCardsReadied`, #890 item 1). Only when an ability could hear that announcement.
+       */
+      readonly exhausted?: readonly InstanceId[];
+      /** The announcement was pushed: step 5 follows once it has resolved. */
+      readonly announced?: true;
+    }
   /** `placed`: step one's threat has been pushed; the step stays current until it (and its responses) resolve. */
   | { readonly phase: "villain"; readonly kind: "placeThreat"; readonly placed?: boolean }
   | {

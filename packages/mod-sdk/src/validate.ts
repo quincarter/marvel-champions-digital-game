@@ -418,9 +418,14 @@ function checkEncounterSets(
 
 /**
  * A `house-rule` pack (docs/custom-content-packs.md §11.11): its `houseRule` block, and nothing a house rule may not
- * carry. It adds no card, ability, deck, scenario, encounter set or campaign; each trait addition names an official
- * card face (`officialFaceOfCode`) once and only adds traits; and the rule does something (adds traits or enables a
- * mode). Any other kind of pack may not carry a `houseRule`.
+ * carry. It adds no scenario, encounter set or campaign; each trait addition names an official card face
+ * (`officialFaceOfCode`) once and only adds traits; and the rule does something (adds traits, enables a mode, or adds
+ * cards). Any other kind of pack may not carry a `houseRule`.
+ *
+ * Its cards (#890 item 13): only identity-specific cards for an official hero that no deck must hold
+ * (`PlayerCard.optionalForIdentity`, aspect `hero:<official identity id>`), such as "Don't Make Me Angry!" for Hulk
+ * (`hulk-angry-bf`, "Permanent. Setup."), with their abilities and the starter decks that use them. Official decks
+ * stay legal without them, and a deck takes them only by listing them.
  */
 function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyCard>, add: Add): void {
   const { manifest } = input;
@@ -438,11 +443,21 @@ function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyC
     if (key !== "traitAdditions" && key !== "enablesMode") add(at(`houseRule.${key}`), "is not a house rule field");
   }
   const lengthOf = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
-  if (lengthOf(input.cards) > 0) add("data/cards.json", "a house-rule pack adds no cards: it changes official ones");
-  if (Object.keys(isObj(input.abilities) ? input.abilities : {}).length > 0)
+  const cards: readonly unknown[] = Array.isArray(input.cards) ? input.cards : [];
+  for (const [index, card] of cards.entries()) {
+    const aspect = isObj(card) && typeof card.aspect === "string" ? card.aspect : "";
+    const identityId = aspect.startsWith("hero:") ? aspect.slice("hero:".length) : "";
+    const official = officialById.get(identityId);
+    if (!isObj(card) || card.optionalForIdentity !== true || official?.type !== "hero_identity")
+      add(
+        `data/cards.json[${index}]`,
+        "a house-rule pack adds only cards for an official hero that no deck must hold (optionalForIdentity, aspect hero:<official identity id>): it changes official ones otherwise",
+      );
+  }
+  if (cards.length === 0 && Object.keys(isObj(input.abilities) ? input.abilities : {}).length > 0)
     add("data/abilities.json", "a house-rule pack carries no abilities (its rules are data, or the game's own)");
+  if (cards.length === 0 && lengthOf(input.decks) > 0) add("data/decks.json", "a house-rule pack carries none");
   for (const [field, path] of [
-    ["decks", "data/decks.json"],
     ["scenarios", "data/scenarios.json"],
     ["encounterSets", "data/encounter-sets.json"],
     ["campaigns", "data/campaigns.json"],
@@ -463,8 +478,8 @@ function checkHouseRule(input: PackInput, officialById: ReadonlyMap<string, AnyC
     add(at("houseRule.traitAdditions"), "must be a list of { code, traits }");
     return;
   }
-  if (mode === undefined && lengthOf(additions) === 0)
-    add(at("houseRule"), "does nothing: give it traitAdditions or enablesMode");
+  if (mode === undefined && lengthOf(additions) === 0 && cards.length === 0)
+    add(at("houseRule"), "does nothing: give it traitAdditions, enablesMode or a card for an official hero");
   const seen = new Set<string>();
   for (const [index, addition] of (Array.isArray(additions) ? additions : []).entries()) {
     const where = at(`houseRule.traitAdditions[${index}]`);

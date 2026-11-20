@@ -213,13 +213,14 @@ function figuresOf(html: string, dir: string): Figure[] {
   return figures;
 }
 
-async function packCatalog(): Promise<unknown[]> {
+async function packCatalog(): Promise<{ live: unknown[]; withdrawn: unknown[] }> {
   try {
     const response = await fetch(PACK_CATALOG_URL, { signal: AbortSignal.timeout(10_000) });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = (await response.json()) as { packs?: Record<string, unknown>[] };
+    const packs = data.packs ?? [];
     // Only what the page shows: a pack's version list (URLs and checksums) is most of the catalog's weight.
-    return (data.packs ?? [])
+    const live = packs
       .filter((pack) => !pack.withdrawn)
       .map(({ id, kind, name, creator, summary, thumbnail, latest }) => ({
         id,
@@ -230,10 +231,13 @@ async function packCatalog(): Promise<unknown[]> {
         thumbnail,
         latest,
       }));
+    // A withdrawn pack's kind and name, so an announcement of it doesn't come back (`mod-batches.ts`).
+    const withdrawn = packs.filter((pack) => pack.withdrawn).map(({ id, kind, name }) => ({ id, kind, name }));
+    return { live, withdrawn };
   } catch (error) {
     // The page fetches the catalog itself too, so a build without the network still ships, with the list to come.
     console.warn(`[landing] the mod store catalog was out of reach (${String(error)}); the page will load it live.`);
-    return [];
+    return { live: [], withdrawn: [] };
   }
 }
 
@@ -489,7 +493,8 @@ function landingDataPlugin(): Plugin {
           );
         }
       }
-      const mods = (await packCatalog()) as { id: string; latest: string; thumbnail?: string }[];
+      const catalog = await packCatalog();
+      const mods = catalog.live as { id: string; latest: string; thumbnail?: string }[];
       // Each pack's cover, saved at build time so it ships with the page (and shows where the pack host's images
       // can't load); a cover that won't download keeps its URL on the pack host.
       const coverImports: string[] = [];
@@ -526,6 +531,7 @@ function landingDataPlugin(): Plugin {
         `export const RELEASES = ${JSON.stringify(releases)};`,
         `export const SCREENSHOTS = [${shots.join(",\n")}];`,
         `export const MODS = [${modCode.join(",\n")}];`,
+        `export const WITHDRAWN_MODS = ${JSON.stringify(catalog.withdrawn)};`,
         `export const BUILT_AT = ${JSON.stringify(new Date().toISOString())};`,
       ].join("\n");
     },

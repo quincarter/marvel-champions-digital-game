@@ -1,3 +1,0 @@
-kind: Fixed
-body: On iPhone, the game no longer gets stuck on LOADING (and the 'The game did not start' screen) after iOS reloads the tab, and keeps fewer card pictures in memory so the tab is reloaded less often (#871).
-time: 2026-11-19T13:09:47.7918256-05:00

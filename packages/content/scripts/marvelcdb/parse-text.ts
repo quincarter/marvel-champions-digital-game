@@ -1345,7 +1345,9 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // anything from the ability's own text — unlike a preamble attach rule, this sentence is also load-bearing
       // game text (the "Otherwise, this card gains surge." branch depends on it), so `ability-scripting-engineer`
       // still needs to see it verbatim.
-      if (!attachesTo) {
+      // Not on an Action: "Action: Attach to a side scheme." (Juston Seyfert, the `sentinel-tw` community pack; #890
+      // items 12 and 17) is an effect that moves the card, scripted as one, not the card's "attach to" rule.
+      if (!attachesTo && kind !== "action") {
         const firstSentence = splitSentences(body.slice(h.length).trim())[0];
         if (firstSentence) {
           const bodyAttach = parseAttach(

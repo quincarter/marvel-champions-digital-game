@@ -126,11 +126,16 @@ interface KeywordChanges {
 
 const NO_LOSSES: ReadonlySet<KeywordName> = new Set();
 
-function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
-  if (readingKeywordGrants) return scanGrantedKeywords(state, deps, id);
+function grantedKeywords(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  notFrom: InstanceId | null = null,
+): KeywordChanges {
+  if (readingKeywordGrants) return scanGrantedKeywords(state, deps, id, notFrom);
   readingKeywordGrants = true;
   try {
-    return scanGrantedKeywords(state, deps, id);
+    return scanGrantedKeywords(state, deps, id, notFrom);
   } finally {
     readingKeywordGrants = false;
   }
@@ -142,8 +147,16 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): Ke
  * `target`/`affects` asks about keywords cannot recurse — the same cut `traitsOf` makes for trait grants.
  */
 let readingKeywordGrants = false;
+/** Set while a `keywordNotFromSelf` query reads the other grants from inside a grant: a re-entrancy guard. */
+let readingNotFromScan = false;
 
-function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): KeywordChanges {
+/** `notFrom`: a card whose own constant grants are left out (`TargetQuery.keywordNotFromSelf`). */
+function scanGrantedKeywords(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  notFrom: InstanceId | null = null,
+): KeywordChanges {
   const granted: KeywordInstance[] = [];
   let lost: Set<KeywordName> | null = null;
   const changes = (): KeywordChanges => ({ granted, lost: lost ?? NO_LOSSES });
@@ -162,6 +175,7 @@ function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId)
   const ownText = !inPlay.includes(id) && playerCardOwnerOf(state, id) === null ? [id] : [];
   // `constantSources`: the cards in play, and a card in the victory display whose text works there (§3.50 of wave 7).
   for (const sourceId of [...constantSources(state, deps), ...ownText]) {
+    if (sourceId === notFrom) continue;
     for (const ref of constantAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
@@ -315,9 +329,10 @@ export function keywordsOf(
   state: GameState,
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
+  notFrom: InstanceId | null = null,
 ): readonly KeywordInstance[] {
   const printed = printedKeywordsOf(state, id, deps);
-  const { granted, lost } = grantedKeywords(state, deps, id);
+  const { granted, lost } = grantedKeywords(state, deps, id, notFrom);
   const all = granted.length === 0 ? printed : [...printed, ...granted];
   // RRG 1.8 "'Loses'" (p. 27): a lost keyword is gone whether printed or gained, and "cannot be regained while the
   // ability causing it to be lost is in effect, even if a new effect would cause the characteristic to be gained" —
@@ -330,7 +345,8 @@ export const hasKeyword = (
   id: InstanceId,
   name: KeywordName,
   deps: EngineDeps = DEFAULT_DEPS,
-): boolean => keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
+  notFrom: InstanceId | null = null,
+): boolean => keywordsOf(state, id, deps, notFrom).some((keyword) => keyword.name === name);
 
 /**
  * Permanent (RRG 1.8 "Permanent", p. 32): "Effects on cards not from this card's set cannot defeat this card, remove
@@ -357,12 +373,31 @@ function printsPermanent(state: GameState, id: InstanceId): boolean {
  * counts, docs/phase7-wave5.md §4.1 Q45). Inside a keyword-grant scan only printed keywords are read (see
  * `readingKeywordGrants`).
  */
-export function queryHasKeyword(state: GameState, id: InstanceId, name: KeywordName, deps: EngineDeps): boolean {
+export function queryHasKeyword(
+  state: GameState,
+  id: InstanceId,
+  name: KeywordName,
+  deps: EngineDeps,
+  notFrom: InstanceId | null = null,
+): boolean {
   if (readingKeywordGrants) {
     if (name === "permanent" && printsPermanent(state, id)) return true;
+    // "If it already has steady" asked from inside a keyword grant (`keywordNotFromSelf`): the card's own grants are left
+    // out, so one level of every other grant can be read without recursing into the asking one. A query that asks again
+    // from inside that level reads printed keywords only, as any other query inside a grant does.
+    if (notFrom !== null && !readingNotFromScan && name !== "permanent") {
+      readingNotFromScan = true;
+      try {
+        const { granted, lost } = scanGrantedKeywords(state, deps, id, notFrom);
+        if (lost.has(name)) return false;
+        return [...printedKeywordsOf(state, id, deps), ...granted].some((keyword) => keyword.name === name);
+      } finally {
+        readingNotFromScan = false;
+      }
+    }
     return printedKeywordsOf(state, id, deps).some((keyword) => keyword.name === name);
   }
-  return name === "permanent" ? isPermanent(state, id, deps) : hasKeyword(state, id, name, deps);
+  return name === "permanent" ? isPermanent(state, id, deps) : hasKeyword(state, id, name, deps, notFrom);
 }
 
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */

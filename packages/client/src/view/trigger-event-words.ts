@@ -81,6 +81,7 @@ export const TRIGGER_EVENT_WORDS: Readonly<Record<TriggerEventKind, string>> = {
   formChanged: "a form change",
   formChanging: "a form change",
   playerPhaseEnded: "the player phase ending",
+  endPhaseCardsReadied: "cards readying at the end of the player phase",
   villainPhaseEnded: "the villain phase ending",
   phaseBeginning: "a phase beginning",
   phaseEnding: "a phase ending",

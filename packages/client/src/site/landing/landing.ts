@@ -14,6 +14,7 @@ import {
   SCREENSHOTS,
   VILLAIN_ART,
   WALLPAPERS,
+  WITHDRAWN_MODS,
   type FeedRelease,
   type StoreMod,
 } from "virtual:landing-data";
@@ -48,6 +49,7 @@ import {
   REPO_URL,
 } from "../site-urls.js";
 import { creatorsOf } from "./creators.js";
+import { groupByBatch, type BatchMod, type ModBatch } from "./mod-batches.js";
 import { GAME_ROSTER } from "./game-roster.js";
 import { LANDING_TEXT } from "./landing-text.js";
 import { publishedOnly } from "./published.js";
@@ -56,7 +58,14 @@ import boardShot from "../../../site/landing/showcase/board-play.jpg";
 import scenarioShot from "../../../site/landing/showcase/scenario-select.jpg";
 import seatsShot from "../../../site/landing/showcase/seats.jpg";
 import setupShot from "../../../site/landing/showcase/setup-deal.jpg";
-import batchArt from "../../../site/landing/showcase/custom-content-batch-1.jpg";
+import batchOneArt from "../../../site/landing/showcase/custom-content-batch-1.jpg";
+import batchTwoArt from "../../../site/landing/showcase/custom-content-batch-2.jpg";
+import dontMakeMeAngryCover from "../../../site/landing/showcase/batch-2/dont-make-me-angry.webp";
+import punisherCover from "../../../site/landing/showcase/batch-2/punisher.webp";
+import sentinelCover from "../../../site/landing/showcase/batch-2/sentinel.webp";
+import spiderPunisherCover from "../../../site/landing/showcase/batch-2/spider-punisher.webp";
+import theRoseCover from "../../../site/landing/showcase/batch-2/the-rose.webp";
+import throgCover from "../../../site/landing/showcase/batch-2/throg.webp";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -90,6 +99,69 @@ let release: LatestRelease | null | "loading" = BUILT_RELEASE ?? "loading";
  */
 let latestTag: string | null = BUILT_RELEASE?.tag_name ?? null;
 let mods: readonly StoreMod[] = MODS;
+let withdrawnMods: readonly Pick<StoreMod, "id" | "kind" | "name">[] = WITHDRAWN_MODS;
+/**
+ * The store's batches, each with the owner's poster. Batch 2's packs wait on the v0.51.0 Mod SDK, so until the store
+ * lists them they show with the covers from the batch's announcement.
+ */
+const BATCHES: readonly ModBatch[] = [
+  {
+    number: 1,
+    poster: batchOneArt,
+    // Throg (throg-ptt) never listed in the store with batch 1; it ships with batch 2 as its precon, so it stays out
+    // of this list and takes batch 2's Throg slot when the store lists it.
+    ids: [
+      "carnage-nep",
+      "gmw-fixes-gg",
+      "gwenpool-ptt",
+      "lost-traits-bf",
+      "mephisto-nep",
+      "night-thrasher-dh",
+      "punisher-pk",
+      "yondu-dh",
+    ],
+    announced: [],
+  },
+  {
+    number: 2,
+    poster: batchTwoArt,
+    ids: [],
+    announced: [
+      {
+        id: "batch-2-punisher",
+        kind: "hero",
+        name: "The Punisher",
+        creator: "MissSugarPink",
+        thumbnail: punisherCover,
+      },
+      {
+        id: "batch-2-spider-punisher",
+        kind: "hero",
+        name: "Spider-Punisher",
+        creator: "T-Wrecks",
+        thumbnail: spiderPunisherCover,
+      },
+      { id: "batch-2-sentinel", kind: "hero", name: "Sentinel", creator: "T-Wrecks", thumbnail: sentinelCover },
+      { id: "batch-2-throg", kind: "hero", name: "Throg", creator: "PatataSaurio & Caurel", thumbnail: throgCover },
+      {
+        id: "batch-2-the-rose",
+        kind: "scenario",
+        name: "The Rose",
+        creator: "BigDarsh & Bluefire",
+        thumbnail: theRoseCover,
+      },
+      {
+        id: "batch-2-dont-make-me-angry",
+        kind: "house-rule",
+        name: "Don't Make Me Angry!",
+        creator: "Abis Mal & Bluefire",
+        thumbnail: dontMakeMeAngryCover,
+      },
+    ].map((mod) => ({ ...mod, soon: true })),
+  },
+];
+/** The batch whose poster shows: the newest until a tab picks another. */
+let shownBatch = Math.max(...BATCHES.map((batch) => batch.number));
 let aspect: AspectFilter = "all";
 let villainsOpen = false;
 const device = browserDevice();
@@ -406,43 +478,70 @@ function drawVillains(): void {
 }
 
 /** A mod's store cover, or a plain tile where it has none or it fails to load. */
-function coverOf(mod: StoreMod): HTMLElement {
+function coverOf(mod: BatchMod): HTMLElement {
   if (!mod.thumbnail) return element("div", { class: "blank" });
   const img = element("img", { src: mod.thumbnail, alt: "", loading: "lazy", decoding: "async" });
   img.addEventListener("error", () => img.replaceWith(element("div", { class: "blank" })), { once: true });
   return img;
 }
 
+function modTile(mod: BatchMod, i: number): HTMLElement {
+  return element(
+    "li",
+    { class: `mod reveal${mod.soon ? " soon" : ""}`, title: mod.summary ?? "", style: `--i: ${i % 4}` },
+    coverOf(mod),
+    element(
+      "div",
+      { class: "mod-plate" },
+      element("span", { class: "kind" }, t(`mods.kind.${mod.kind}`)),
+      element("b", {}, mod.name),
+      element("span", { class: "by" }, t("mods.by", { creator: mod.creator })),
+      ...(mod.soon ? [element("span", { class: "soon-tag" }, t("mods.soon"))] : []),
+    ),
+  );
+}
+
 function drawMods(): void {
-  // The store's first batch, as the owner's poster of it; opens full size.
-  const batch = $<HTMLAnchorElement>("batch-art");
-  batch.href = batchArt;
-  const poster = $<HTMLImageElement>("batch-img");
-  poster.src = batchArt;
-  poster.alt = t("mods.batchAlt");
-  const list = $("mod-list");
-  if (mods.length === 0) {
-    list.replaceChildren(element("li", { class: "empty" }, t("mods.empty")));
-  } else {
-    const sorted = [...mods].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
-    list.replaceChildren(
-      ...sorted.map((mod, i) =>
-        element(
-          "li",
-          { class: "mod reveal", title: mod.summary, style: `--i: ${i % 4}` },
-          coverOf(mod),
-          element(
-            "div",
-            { class: "mod-plate" },
-            element("span", { class: "kind" }, t(`mods.kind.${mod.kind}`)),
-            element("b", {}, mod.name),
-            element("span", { class: "by" }, t("mods.by", { creator: mod.creator })),
-          ),
-        ),
-      ),
-    );
+  const groups = groupByBatch(mods, BATCHES, withdrawnMods);
+  // The batches' posters as tabs, newest first; the poster opens full size.
+  const tabs = $("batch-tabs");
+  tabs.setAttribute("role", "group");
+  tabs.setAttribute("aria-label", t("mods.batches"));
+  tabs.replaceChildren(
+    ...groups.map(({ batch }, i) => {
+      const tab = element("button", { type: "button", class: "chip" }, t("mods.batch", { n: batch.number }));
+      tab.setAttribute("aria-pressed", String(batch.number === shownBatch));
+      tab.addEventListener("click", () => {
+        shownBatch = batch.number;
+        drawMods();
+        reveal();
+        tabs.querySelectorAll("button")[i]?.focus();
+      });
+      return tab;
+    }),
+  );
+  const shown = BATCHES.find((batch) => batch.number === shownBatch) ?? groups[0]?.batch;
+  if (shown) {
+    $<HTMLAnchorElement>("batch-art").href = shown.poster;
+    const poster = $<HTMLImageElement>("batch-img");
+    poster.src = shown.poster;
+    poster.alt = t(`mods.batchAlt.${shown.number}`);
   }
-  const creators = creatorsOf(mods.map((mod) => mod.creator));
+  // Every batch's packs below the posters, newest batch on top.
+  const sections = groups.filter((group) => group.mods.length > 0);
+  $("mod-batches").replaceChildren(
+    ...(sections.length === 0
+      ? [element("p", { class: "mods-empty" }, t("mods.empty"))]
+      : sections.map(({ batch, mods: batchMods }) =>
+          element(
+            "section",
+            { class: "batch" },
+            element("h3", { class: "batch-title" }, t("mods.batch", { n: batch.number })),
+            element("ul", { class: "mods" }, ...batchMods.map(modTile)),
+          ),
+        )),
+  );
+  const creators = creatorsOf(groups.flatMap((group) => group.mods.map((mod) => mod.creator)));
   $("credit-mods").replaceChildren(...creators.map((name) => element("li", {}, name)));
 }
 
@@ -563,9 +662,12 @@ void fetch(PACK_CATALOG_URL, { signal: AbortSignal.timeout(6000) })
   .then((data) => {
     const live = data?.packs?.filter((pack) => !pack.withdrawn);
     if (!live || live.length === 0) return;
-    const ids = (list: readonly StoreMod[]) => list.map((mod) => `${mod.id}@${mod.latest}`).join();
-    if (ids(live) === ids(mods)) return;
+    const gone = (data?.packs ?? []).filter((pack) => pack.withdrawn);
+    const ids = (list: readonly Pick<StoreMod, "id">[]) => list.map((mod) => mod.id).join();
+    const versions = (list: readonly StoreMod[]) => list.map((mod) => `${mod.id}@${mod.latest}`).join();
+    if (versions(live) === versions(mods) && ids(gone) === ids(withdrawnMods)) return;
     mods = live;
+    withdrawnMods = gone;
     drawMods();
     drawStats();
     reveal();

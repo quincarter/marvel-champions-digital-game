@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,6 +149,62 @@ describe("importMarvelCdbPack on the fixture", () => {
   it("leaves an existing abilities/index.ts alone on a second import", async () => {
     const again = await importMarvelCdbPack(FIXTURE, { packId: "ember-warden", outDir: out });
     expect(again.notes).toContain("abilities/index.ts already exists and was left alone");
+  });
+});
+
+describe("importMarvelCdbPack: a double-sided encounter card whose faces have different types (#890 item 17)", () => {
+  it("emits an environment and the attachment it flips to as two cards naming each other", async () => {
+    const src = tmp();
+    cpSync(FIXTURE, src, { recursive: true });
+    const file = join(src, "ember_test.json");
+    const data = readJson(file);
+    const minion = data.cards.find((c: { code: string }) => c.code === "ember_test_05");
+    const face = (code: string, type: string, name: string, text: string) => ({
+      ...minion,
+      code,
+      name,
+      real_name: name,
+      type_code: type,
+      text,
+      real_text: text,
+      traits: "Tech.",
+      real_traits: "Tech.",
+      position: 6,
+      scheme: undefined,
+      attack: undefined,
+      health: undefined,
+      imagesrc: `/bundles/cards/${code}.png`,
+    });
+    // No `hidden` on the nested back face, as a hand-made community file often has it.
+    data.cards.push({
+      ...face(
+        "ember_test_06a",
+        "environment",
+        "Ember Gate",
+        "<b>Forced Response</b>: After the villain phase ends, flip this card.",
+      ),
+      linked_card: face(
+        "ember_test_06b",
+        "attachment",
+        "Ember Brand",
+        "Attach to the villain. Attached villain gets +1 ATK.",
+      ),
+    });
+    writeFileSync(file, JSON.stringify(data, null, 2));
+    const out = tmp();
+    const report = await importMarvelCdbPack(src, { packId: "ember-warden", outDir: out });
+    expect(report.normalizerFailures).toEqual([]);
+    expect(report.normalized).toBe(true);
+    const cards = readdirSync(join(out, "cards"))
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => readJson(join(out, "cards", name)));
+    const gate = cards.find((c) => c.name === "Ember Gate");
+    const brand = cards.find((c) => c.name === "Ember Brand");
+    expect(gate?.type).toBe("environment");
+    expect(brand?.type).toBe("attachment");
+    expect(gate?.otherFaceId).toBe(brand?.id);
+    expect(brand?.otherFaceId).toBe(gate?.id);
+    expect(formatImportReport(report)).toMatch(/hidden flip side of Ember Gate/);
   });
 });
 

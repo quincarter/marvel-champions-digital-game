@@ -1277,7 +1277,8 @@ export function attackExtraDamageAgainst(
   for (const { rule, context } of activeRules(state, deps, "attacksDealExtraDamage")) {
     if (!matchesQuery(state, targetId, rule.target, context)) continue;
     if (rule.attacker && !matchesQuery(state, attackerId, rule.attacker, context)) continue;
-    extra += Math.max(0, rule.amount);
+    const times = rule.perCounterOnTarget ? (getInstance(state, targetId)?.counters[rule.perCounterOnTarget] ?? 0) : 1;
+    extra += Math.max(0, rule.amount) * times;
   }
   return extra;
 }

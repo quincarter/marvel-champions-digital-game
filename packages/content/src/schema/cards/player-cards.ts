@@ -133,6 +133,13 @@ interface PlayerCardCommon extends BaseCard {
    */
   readonly separateDeck?: string;
   /**
+   * An identity-specific card (`aspect: "hero:<identity id>"`) outside that identity's set (#890 item 13): a deck for
+   * that identity may include it, up to its `deckLimit`, and no deck must. A house-rule pack's card for an official
+   * hero ("Don't Make Me Angry!" for Hulk, `hulk-angry-bf`: "Permanent. Setup."), so the official precons and every
+   * other deck for that hero stay legal without it. Only on a card whose `aspect` names an identity.
+   */
+  readonly optionalForIdentity?: true;
+  /**
    * The aspect printed on an identity-specific card that also belongs to an aspect (wave 2). Spider-Woman's set holds
    * Venom Blast (Aggression), Pheromones (Leadership), Contaminant Immunity (Protection) and Inconspicuous (Justice):
    * MarvelCDB gives them the aspect's `faction_code` with `card_set_code: spider_woman`.

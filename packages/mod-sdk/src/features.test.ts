@@ -181,6 +181,20 @@ describe("dslFeatures", () => {
     expect(SUPPORTED_DSL_FEATURES).toContain("cost:flipCards");
     // ...and its 2 damage, unpreventable ("take 2 unpreventable damage", #890 item 11 review).
     expect(SUPPORTED_DSL_FEATURES).toContain("cost:damageSelfUnpreventable");
+    // "After a side scheme is overdefeated" (The Rose's Hero Resistance and Rose's Greenhouse, #890 item 8).
+    expect(SUPPORTED_DSL_FEATURES).toContain("expr:defeatExcessThreat");
+    // "If it already has steady or stalwart", not counting this card's own grant (Rose's Greenhouse, #890 item 9).
+    expect(SUPPORTED_DSL_FEATURES).toContain("query:keywordNotFromSelf");
+    // "After you ready your cards at the end of the player phase" (Web-Sling, #890 item 1).
+    expect(SUPPORTED_DSL_FEATURES).toContain("event:endPhaseCardsReadied");
+    // "Generate a [wild] resource for an upgrade ability" (With Great Firepower, #890 item 3).
+    expect(SUPPORTED_DSL_FEATURES).toContain("ability:generatesForAbility");
+    // "Resolve an 'Action' ability on a card you control", out of turn and paying its cost (War Machine Armor, item 6).
+    expect(SUPPORTED_DSL_FEATURES).toContain("effect:useActionAbility");
+    // A resource ability in hand that pays for its own card (Enhanced Combat Sense, #890 item 2).
+    expect(SUPPORTED_DSL_FEATURES).toContain("ability:activeIn");
+    // Exposed as counters: attacks deal 1 additional damage per counter on the attacked character (item 10).
+    expect(SUPPORTED_DSL_FEATURES).toContain("rule:attacksDealExtraDamage.perCounterOnTarget");
   });
 
   it("TARGET_QUERY_FIELDS is every field of the engine's TargetQuery interface", () => {
