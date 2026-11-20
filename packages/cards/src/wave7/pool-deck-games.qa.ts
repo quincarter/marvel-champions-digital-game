@@ -374,7 +374,7 @@ const LONG_PINS: readonly Pin[] = [
     seed: 6,
     defense: "hero-ready",
     explore: 0,
-    verdict: "loss:mainSchemeCompleted",
+    verdict: "loss:cardAbility",
     rounds: 11,
   },
   {
@@ -647,13 +647,15 @@ const PINS: readonly Pin[] = [
     rounds: 5,
   },
   {
+    // Re-pinned from the scan 2026-11-20 (#891): Inhibitor Collar's (40092) "exhaust a character you control" branch is
+    // offered with two ready characters now, so the scan found a win for this pairing.
     fixture: "spider-man-pool",
     scenario: "morlock-siege",
-    seed: 4,
+    seed: 3,
     defense: "hero-ready",
-    explore: 0,
-    verdict: "loss:mainSchemeCompleted",
-    rounds: 4,
+    explore: 3,
+    verdict: "win",
+    rounds: 7,
   },
   {
     fixture: "spider-man-pool",

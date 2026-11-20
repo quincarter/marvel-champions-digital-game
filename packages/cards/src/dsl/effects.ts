@@ -3369,6 +3369,25 @@ export const playSetAside = (filter?: TargetQuery, player: PlayerRef = you): Eff
   ...(filter ? { filter } : {}),
 });
 /**
+ * "Play an Attack event from your discard pile, paying its costs" (Warzone, `punisher-msp`; #890 item 5): a card from
+ * the player's own discard pile, played and paid for (`EffectSpec playFromHand.from: "discard"`). Not "as if it were in
+ * your hand": a "from your hand" response does not answer it. `optional`: "you may play …"; `ignoreActionTiming`: an
+ * event with an Action ability played outside the player's turn, as from a Response.
+ */
+export const playFromDiscard = (
+  filter?: TargetQuery,
+  player: PlayerRef = you,
+  opts: { readonly optional?: boolean; readonly ignoreActionTiming?: boolean } = {},
+): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  from: "discard",
+  costReduction: amount(0),
+  ...(filter ? { filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+  ...(opts.ignoreActionTiming ? { ignoreActionTiming: true as const } : {}),
+});
+/**
  * "Search their deck for a card and play that card, ignoring its resource cost. (Shuffle.)" (Fetch Quest, 39045,
  * erratum RRG 1.8 p. 69; docs/phase7-wave6.md §3.70): the whole deck is searched, only a card the player could legally
  * play now is offered (never a Requirement card), and the deck is shuffled once the played card has resolved, or at

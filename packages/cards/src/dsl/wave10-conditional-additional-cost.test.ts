@@ -34,18 +34,24 @@ describe("additionalCostToPlay with a costIf part", () => {
     expect(validateDefinition(beside)).toEqual([]);
   });
 
-  it("resources and an either/or choice stay refused, in a branch as outside one", () => {
-    const refusal = "an additional cost to play has no resources or either/or part";
+  it("resources stay refused, in a branch as outside one", () => {
+    const refusal = "an additional cost to play has no resources";
     expect(validateDefinition(additionalCostToPlay({ ...confuseYourself, resources: 1 }))).toContain(refusal);
-    expect(validateDefinition(additionalCostToPlay(eitherCost(confuseYourself, exhaustThis)))).toContain(refusal);
     expect(validateDefinition(additionalCostToPlay(costIf(youHaveTrait(ETERNAL), {}, { resources: 1 })))).toContain(
       refusal,
     );
+    expect(validateDefinition(additionalCostToPlay(eitherCost(confuseYourself, { resources: 1 })))).toContain(refusal);
+  });
+
+  // The player's pick, named in the play command's costSelection.branch ("exhaust or destroy Arms (Intact)",
+  // `sentinel-tw`; #890 item 11).
+  it("an either/or choice is accepted, in a branch as outside one", () => {
+    expect(validateDefinition(additionalCostToPlay(eitherCost(confuseYourself, exhaustThis)))).toEqual([]);
     expect(
       validateDefinition(
         additionalCostToPlay(costIf(youHaveTrait(ETERNAL), {}, eitherCost(confuseYourself, exhaustThis))),
       ),
-    ).toContain(refusal);
+    ).toEqual([]);
   });
 
   it("a branch cannot itself be conditional, as in any cost", () => {

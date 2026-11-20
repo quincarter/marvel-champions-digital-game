@@ -1572,7 +1572,7 @@ export class BoardController {
   ): boolean {
     const { game } = appSession().store.state;
     if (!game) return false;
-    const choice = beginInPlayCostChoice(game, gameDeps(), entry);
+    const choice = beginInPlayCostChoice(game, gameDeps(), entry, costSelection?.branch);
     if (!choice) return false;
     this.#selection = {
       kind: "choosingInPlayCost",
