@@ -22,7 +22,8 @@ describe("the pod strip", () => {
     const room = epicRoomFixture({ as: "player", phase: "playing" });
     const strip = podStripOf(input({ room }), 80)!;
     expect(strip.lines[0]).toMatchObject({ kind: "shared", tone: "plain" });
-    expect(strip.lines[0]?.text).toBe("Loki, God of Lies 39/50 HP · Worlds Collide 3/6");
+    expect(strip.lines[0]?.text.startsWith("Loki, God of Lies 39/50 HP · Worlds Collide 3/6 · ")).toBe(true);
+    expect(strip.lines[0]?.text.endsWith(" left")).toBe(true);
     expect(strip.flipped).toBe(false);
     const tables = strip.lines.filter((l) => l.kind === "tables").map((l) => l.text);
     expect(tables.join(" | ")).toContain("You: North Table · R3 · player phase");
@@ -104,5 +105,19 @@ describe("the time limit clock", () => {
   it("shows just the limit when the start has no clock, and nothing with no limit", () => {
     expect(timeLine({ timeLimitMinutes: 120, start: { id: "x", seed: 1 } }, 5)).toBe("Time limit 2 h");
     expect(timeLine({ timeLimitMinutes: null, start: null }, 5)).toBeNull();
+  });
+});
+
+describe("wrapping a long line", () => {
+  it("splits at spaces to the budget and keeps the line's kind and tone", () => {
+    const room = epicRoomFixture({ as: "player", phase: "playing", flipped: true });
+    const strip = podStripOf(input({ room, flipBanner: true }), 30)!;
+    const banner = strip.lines.filter((l) => l.kind === "banner");
+    expect(banner.length).toBeGreaterThan(1);
+    for (const line of banner) {
+      expect(line.tone).toBe("alert");
+      expect(line.text.length).toBeLessThanOrEqual(30);
+    }
+    expect(banner.map((l) => l.text).join(" ")).toContain("Loki flipped!");
   });
 });

@@ -602,7 +602,10 @@ export class RoomLobbyScene extends Phaser.Scene {
       const cell = layout.tabs.width / ids.length;
       this.#tabs = new McTabs(this, {
         rect: layout.tabs,
-        tabs: ids.map((id) => ({ id, label: t(`room.tab.${id}` as const) })),
+        tabs: ids.map((id) => ({
+          id,
+          label: id === "seats" && state.epic ? t("epic.tab.tables") : t(`room.tab.${id}` as const),
+        })),
         activeId: layout.mode === "stack" && this.#tab === "seats" ? "settings" : this.#tab,
         onSelect: (id) => {
           this.#tab = id as LobbyPanelId;
@@ -1328,8 +1331,6 @@ export class RoomLobbyScene extends Phaser.Scene {
     const height = y - y0 + pad - 6;
     g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
     g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
-    // The card's ground goes under everything drawn for it.
-    this.children.sendToBack(g);
     return y0 + height;
   }
 

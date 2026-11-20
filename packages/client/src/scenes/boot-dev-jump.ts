@@ -333,6 +333,21 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       players: [{ starterDeckId: "core-spider-man-justice" }],
       seed: 2026,
     });
+    // Keep the first mulligan and setup choices out of the way: the table is what is being looked at.
+    for (let i = 0; i < 6; i++) {
+      const choice = store.state.game?.pendingChoice;
+      if (!choice) break;
+      await store.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [],
+      });
+    }
+    // As the hero, so the basic attack is there for the remote target.
+    const first = store.state.game?.firstPlayerId;
+    if (first && store.state.game?.step.phase === "player")
+      await store.dispatch({ type: "changeForm", playerId: first });
     await injectEpicRoom(params);
     return { key: SCENES.board, data: {} };
   }
@@ -1412,11 +1427,22 @@ async function injectEpicRoom(params: URLSearchParams): Promise<void> {
   const fixture = epicRoomFixture({
     as,
     phase: "playing",
-    flipped: params.get("flip") === "1",
+    // A flip is shown as it happens: the room starts unflipped and flips a few seconds after the board opens.
+    flipped: false,
     hostAway: params.get("away") === "1",
     mangog: params.get("mangog") === "1",
   });
   const withStuck =
     params.get("stuck") === "1" && fixture.epic ? { ...fixture, epic: { ...fixture.epic, podStuck: true } } : fixture;
   room.previewRoomState(withStuck);
+  if (params.get("flip") === "1") {
+    const flipped = epicRoomFixture({
+      as,
+      phase: "playing",
+      flipped: true,
+      hostAway: params.get("away") === "1",
+      mangog: params.get("mangog") === "1",
+    });
+    setTimeout(() => room.previewRoomState(flipped), 4000);
+  }
 }

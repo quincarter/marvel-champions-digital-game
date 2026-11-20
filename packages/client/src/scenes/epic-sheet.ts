@@ -120,6 +120,10 @@ export class EpicSheetOverlay extends Phaser.Scene {
       area: (pointer) => screenHoverArea(this, pointer),
     });
     const redraw = (): void => this.#draw();
+    // A scan that was still loading arrives: draw again to show it.
+    const offArt = cardArt(this).onArrived(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.scale.on("resize", redraw, this);
     if (!this.#preview) {
       this.#off = onRoomState((state) => {
@@ -130,6 +134,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", redraw, this);
       this.#off?.();
+      offArt();
       this.#hover?.destroy();
       this.#hover = null;
       this.#clear();
@@ -304,8 +309,15 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #fill(x: number, top: number, w: number, guard: { clip: () => Rect; suppress: () => boolean }): number {
     let y = top + 2;
     const inner: Rect = guard.clip();
-    const row = (label: string, run: () => void, kind: "primary" | "secondary" = "secondary", enabled = true): void => {
-      const r: Rect = { x, y, width: w, height: hit.target };
+    const row = (
+      label: string,
+      run: () => void,
+      kind: "primary" | "secondary" = "secondary",
+      enabled = true,
+      at?: number,
+    ): number => {
+      const pos = at ?? y;
+      const r: Rect = { x, y: pos, width: w, height: hit.target };
       this.#button({
         kind,
         label,
@@ -320,7 +332,8 @@ export class EpicSheetOverlay extends Phaser.Scene {
       const key = `row${this.#order.length}`;
       this.#stops.set(key, { rect: () => ({ ...r, y: r.y - this.#scroll.offsetPx }), activate: run, view: inner });
       this.#order.push(key);
-      y += hit.target + 6;
+      if (at === undefined) y += hit.target + 6;
+      return pos + hit.target + 6;
     };
     const epic = this.#state.epic;
     const data = this.#data;
@@ -390,11 +403,11 @@ export class EpicSheetOverlay extends Phaser.Scene {
     y0: number,
     w: number,
     guard: { clip: () => Rect; suppress: () => boolean },
-    row: (label: string, run: () => void, kind?: "primary" | "secondary", enabled?: boolean) => void,
+    row: (label: string, run: () => void, kind?: "primary" | "secondary", enabled?: boolean, at?: number) => number,
   ): number {
     let y = y0;
     const epic = this.#state.epic;
-    if (!epic) return y;
+    if (!epic || epic.myTable === null) return y;
     const store = appSession().store.state;
     const game = store.game;
     const nameOfInstance = (id: string): string => (game ? (cardOf(game, id as never)?.name ?? id) : id);
@@ -412,7 +425,13 @@ export class EpicSheetOverlay extends Phaser.Scene {
       this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(art.x, art.y, art.width, art.height);
       const card = gameCardsById().get(r.cardId);
       const key = card ? cardArt(this).request(this, artFor(card, { kind: "front" })) : null;
-      drawArt(this, key, art, { fit: "contain" });
+      if (!drawArt(this, key, art, { fit: "contain" })) {
+        this.add
+          .text(art.x + art.width / 2, art.y + art.height / 2, r.name, textStyle(typeRole.label, INK))
+          .setOrigin(0.5)
+          .setWordWrapWidth(art.width - 6, true)
+          .setAlign("center");
+      }
       this.#faces.push({ cardId: r.cardId, rect: art, view: guard.clip() });
       const nameText = this.#text(x + 66, y, `${r.name} (${r.left})`, 15, w - 66, true);
       this.#text(x + 66, y + nameText.height + 2, r.tableName, 12, w - 66, false, 0.85);
@@ -424,7 +443,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
       }
       for (const character of r.characters) {
         const label = t(r.power === "attack" ? "epic.sheet.attack" : "epic.sheet.thwart", { hero: character.name });
-        row(label, () => void this.#remote(r, target, character.instanceId), "primary");
+        y = row(label, () => void this.#remote(r, target, character.instanceId), "primary", true, y);
       }
     }
     return y + 6;

@@ -76,7 +76,13 @@ export function podStripOf(input: PodStripInput, maxChars: number): PodStrip | n
   else if (pod?.awaiting !== undefined) lines.push({ kind: "wait", text: t("epic.strip.waitingPod"), tone: "alert" });
 
   const clock = timeLine(epic, input.now);
-  if (clock) lines.push({ kind: "time", text: clock, tone: clock === t("epic.strip.timeUp") ? "alert" : "plain" });
+  const sharedLine = lines[0];
+  if (clock && sharedLine && sharedLine.kind === "shared" && sharedLine.text.length + clock.length + 3 <= maxChars) {
+    // Room for it: the clock rides on the first line, saving a row of the board.
+    lines[0] = { ...sharedLine, text: `${sharedLine.text} · ${clock}` };
+  } else if (clock) {
+    lines.push({ kind: "time", text: clock, tone: clock === t("epic.strip.timeUp") ? "alert" : "plain" });
+  }
 
   for (const text of tableLines(epic.tables, epic.myTable, maxChars)) {
     lines.push({ kind: "tables", text, tone: "plain" });
@@ -91,7 +97,7 @@ export function podStripOf(input: PodStripInput, maxChars: number): PodStrip | n
     });
     lines.push({ kind: "targets", text: t("epic.strip.reach", { cards: named.join(" · ") }), tone: "mine" });
   }
-  return { lines, targets: targets.length, flipped };
+  return { lines: lines.flatMap((line) => wrapLine(line, maxChars)), targets: targets.length, flipped };
 }
 
 /** The clock line, or null with no limit. Display only: nothing ends when it runs out (plan Q-D). */
@@ -136,3 +142,19 @@ export const justFlipped = (before: boolean | null, now: boolean): boolean => be
 /** The strip's height: its lines (the first as tall as its button) and a little air. Zero for no strip. */
 export const podStripHeight = (strip: PodStrip | null, lineHeight: number, buttonHeight = 0): number =>
   strip ? Math.max(lineHeight, buttonHeight) + (strip.lines.length - 1) * lineHeight + 10 : 0;
+
+/** A line split at spaces into lines of at most `maxChars` (a word longer than that stays whole), each keeping its kind and tone. */
+export function wrapLine(line: PodStripLine, maxChars: number): PodStripLine[] {
+  if (line.kind === "tables" || line.text.length <= maxChars) return [line];
+  const out: string[] = [];
+  let current = "";
+  for (const word of line.text.split(" ")) {
+    const joined = current === "" ? word : `${current} ${word}`;
+    if (current !== "" && joined.length > maxChars) {
+      out.push(current);
+      current = word;
+    } else current = joined;
+  }
+  if (current !== "") out.push(current);
+  return out.map((text) => ({ ...line, text }));
+}
