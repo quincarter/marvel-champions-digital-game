@@ -59,6 +59,9 @@ import { centeredCard, fanRects, rectsNearViewport, type FaceRef } from "../view
 import { cardsRandomizer } from "../view/civil-war-random.js";
 import { handoffOf, lastBuilderOrigin, rememberBuild, type BuilderHandoff } from "../view/civil-war-entry.js";
 import { offerOf } from "../view/setup-options.js";
+import { sealedScenarioOf, sealingFor, stopSealing } from "../view/competitive-seal.js";
+import { submitScenario } from "../platform/room.js";
+import { t } from "../i18n/translate.js";
 import type { SetupDraft } from "../view/setup-draft.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -139,6 +142,8 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     this.#status = null;
     this.#otherSideExpanded = false;
     this.#pins = {};
+    const sealing = sealingFor();
+    if (sealing) this.#status = t("comp.builder.note", { side: t(`comp.side.${sealing}` as const) });
     this.#handoff = null;
     this.#sheet = null;
     this.#sheetScroll.reset();
@@ -196,8 +201,9 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       otherSideExpanded: this.#otherSideExpanded,
       status: this.#status,
       extraSets: 0,
-      pins: this.#pins,
+      pins: sealingFor() ? { ...this.#pins, side: true } : this.#pins,
       random: cardsRandomizer,
+      ...(sealingFor() ? { sealSide: sealingFor()! } : {}),
     };
   }
 
@@ -236,6 +242,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       this.#status = view?.startProblem ?? null;
       return false;
     }
+    if (sealingFor()) return this.#seal();
     rememberBuild(this.#draft);
     const handoff = handoffOf(this.#draft, new Set(POOL_SCENARIOS.map((s) => s.id as string)));
     this.#handoff = handoff;
@@ -248,7 +255,25 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     return true;
   }
 
+  /** Competitive: sends this side's scenario to the room, sealed, and goes back to the lobby. Never kept anywhere else. */
+  #seal(): boolean {
+    const team = sealingFor();
+    const sealed = team ? sealedScenarioOf(this.#draft, offerOf(this.#draft)) : null;
+    if (!team || !sealed) return false;
+    submitScenario(sealed, team);
+    stopSealing();
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.roomLobby);
+    return true;
+  }
+
   #leave(): void {
+    if (sealingFor()) {
+      stopSealing();
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     rememberBuild(this.#draft);
     this.scale.off("resize", this.#rebuild, this);
     if (lastBuilderOrigin() === "title") {
@@ -609,7 +634,12 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       this.#stops.set("civil:blind:show", { rect: show, activate: reveal });
     }
     const textWidth = Math.max(40, right - layout.title.x);
-    const title = layout.mode === "phone" ? `Step ${view.step} · ${view.steps[view.step - 1]!.title}` : view.title;
+    const title =
+      layout.mode === "phone"
+        ? `Step ${view.step} · ${view.steps[view.step - 1]!.title}`
+        : view.seal
+          ? t("comp.builder.title")
+          : view.title;
     const titleText = this.#text(layout.title.x, 6, title, typeRole.barTitle, { color: surface.paper.hex });
     fitText(titleText, textWidth, 20);
 
@@ -692,7 +722,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     button(layout.randomBlind, "Random and blind", "civil:random-blind", "secondary");
     button(
       layout.start,
-      "Continue to heroes ▸",
+      view.seal ? t("comp.builder.seal") : "Continue to heroes ▸",
       "civil:start",
       "primary",
       view.canStart,

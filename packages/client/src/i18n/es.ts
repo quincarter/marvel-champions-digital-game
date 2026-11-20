@@ -807,4 +807,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.measure.mainSchemeThreat": "Menos amenaza en tu plan principal",
   "comp.measure.identityHitPoints": "Más puntos de vida en tus identidades",
   "comp.measure.leaderAttachments": "Menos anexos en el líder de tu zona",
+  "comp.tab.teams": "Equipos",
+  "comp.side.speak": "Hablar por {side}",
 };

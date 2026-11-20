@@ -106,6 +106,12 @@ export interface BuilderContext {
   readonly extraSets?: number;
   /** Supplied by task C9; without it Random reports an effect and changes nothing. */
   readonly random?: CivilWarRandomizer;
+  /**
+   * Competitive rooms (issue #883): the builder makes the scenario this side seals for the other team. Only this side's
+   * leaders are offered, a set from another product is refused (MC56 p. 5: only registration or resistance sets are
+   * legal in competitive mode), and the difficulty and game mode are not asked here (the lobby agreed expert, Q13 A).
+   */
+  readonly sealSide?: "registration" | "resistance";
 }
 
 /** One difficulty choice: Table setup's own card (`difficultyCardsFor`: its name and description) with the action to take it. */
@@ -259,6 +265,8 @@ export interface BuilderView {
   /** Standard and Expert as Table setup words them; the draft's `difficulty` is the one state both screens share. */
   readonly difficultyChoices: readonly DifficultyChoice[];
   readonly blind: boolean;
+  /** Building for the other team in a Competitive room: the side sealing it; null in every ordinary builder. */
+  readonly seal: { readonly side: "registration" | "resistance" } | null;
   /** Keep side / Keep leader / the set count, as Random will read them. */
   readonly randomPins: readonly RandomPinView[];
   readonly isPreconstructed: boolean;
@@ -410,14 +418,16 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   const ready = isReadyMade(draft, offer);
 
   // Side (step 1) and leader (step 2) choices.
-  const sideChoices = offer.sides.map<SideChoice>((s) => ({
-    side: s.side,
-    name: s.name,
-    action: `civil:side:${s.side}`,
-    selected: s.side === mySide,
-    leaderNames: s.leaders.map((l) => l.name),
-    leaders: s.leaders.map((l) => ({ scenarioId: l.scenarioId, cardId: l.leaderCardId, name: l.name })),
-  }));
+  const sideChoices = offer.sides
+    .filter((s) => !ctx.sealSide || s.side === ctx.sealSide)
+    .map<SideChoice>((s) => ({
+      side: s.side,
+      name: s.name,
+      action: `civil:side:${s.side}`,
+      selected: s.side === mySide,
+      leaderNames: s.leaders.map((l) => l.name),
+      leaders: s.leaders.map((l) => ({ scenarioId: l.scenarioId, cardId: l.leaderCardId, name: l.name })),
+    }));
   const leaderChoices = (offer.sides.find((s) => s.side === mySide)?.leaders ?? []).map<LeaderChoice>((l) => {
     const rec = ctx.scenarios.find((x) => (x.id as string) === l.scenarioId);
     const own = rec ? ids(rec.encounterSetIds)[0] : undefined;
@@ -466,7 +476,15 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   const bySet = cardsBySet(ctx.cards);
   const tile = (s: ModularSetLegality): SetTileView => {
     const selected = chosenIds.includes(s.id);
-    const reason = !s.ok ? s.problem : !selected ? atMax : null;
+    // Competitive: a set from another product is cooperative-only (MC56 p. 5).
+    const neutralInCompetitive = ctx.sealSide !== undefined && s.side === null;
+    const reason = neutralInCompetitive
+      ? "Only registration and resistance sets are legal in competitive mode (MC56 p. 5)."
+      : !s.ok
+        ? s.problem
+        : !selected
+          ? atMax
+          : null;
     return {
       id: s.id,
       name: s.name,
@@ -518,8 +536,8 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   };
 
   // Review (step 5) and the rail's lines.
-  const modeOptions = gameModeOptionsView().rows;
-  const difficultyChoices = difficultyCardsFor(scenario)
+  const modeOptions = ctx.sealSide ? [] : gameModeOptionsView().rows;
+  const difficultyChoices = (ctx.sealSide ? [] : difficultyCardsFor(scenario))
     .filter((card): card is typeof card & { id: "standard" | "expert" } => card.id !== "extreme")
     .map<DifficultyChoice>((card) => ({
       id: card.id,
@@ -653,6 +671,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     difficulty: draft.difficulty,
     difficultyChoices,
     blind,
+    seal: ctx.sealSide ? { side: ctx.sealSide } : null,
     randomPins,
     isPreconstructed: ready,
     preconstructedEnabled: !ready,
@@ -757,7 +776,7 @@ function applyAction(draft: SetupDraft, action: string, ctx: BuilderContext): Bu
     case "start":
       return { draft, status: null, effect: { kind: "start" } };
     case "side": {
-      const target = offer.sides?.find((s) => s.side === first);
+      const target = offer.sides?.find((s) => s.side === first && (!ctx.sealSide || s.side === ctx.sealSide));
       if (!target || sideOfLeader(offer, draft.scenarioId) === first) return unchanged(draft);
       const leader = target.leaders[0];
       return leader ? changeLeader(draft, ctx, leader.scenarioId, `Changed to ${target.name}. `) : unchanged(draft);

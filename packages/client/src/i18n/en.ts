@@ -801,4 +801,6 @@ export const en = {
   "comp.measure.mainSchemeThreat": "Least threat on your main scheme",
   "comp.measure.identityHitPoints": "Most hit points left on your identities",
   "comp.measure.leaderAttachments": "Fewest attachments on the leader in your area",
+  "comp.tab.teams": "Teams",
+  "comp.side.speak": "Speak for {side}",
 } as const;
