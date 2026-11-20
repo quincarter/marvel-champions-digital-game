@@ -1,37 +1,31 @@
 # v0.51.0: Straight to the App 🔗
 
-The game now comes as an iPhone and iPad app, and game links open the game you have installed.
+An iPhone and iPad app, six new mod packs, and game links that open the game you have installed.
 
-🍎 **iPhone and iPad**: every release has an app you install yourself with a free Apple ID (SideStore, AltStore or Sideloadly). I don't have an iPhone, so if you try it, tell us how it went!
-📱 **Links open the app**: on Android, a link to the game, like a shared replay, opens the app. In a desktop browser, a shared replay offers **Open in the desktop app**. Links start opening the app once v0.51.0 is installed.
-✅ **Every game counts unless you say so**: Undo past your turn is now off by default, Manual adjust is off until you allow it, and both sit under Settings ▸ More ▸ Cheats. Both warn you before a game stops counting. The deck builder also lists setup cards in their own group.
-📚 **The Saga**: a campaign won with an adjusted game shows an ADJUSTED stamp, and the next volume says why it's still sealed. Red Skull's Improved Condition now enters on its Improved side.
-🍏 **iPhone in the browser**: the game no longer gets stuck loading after iOS reloads the tab.
-🏰 **Shared discounts**: Avengers Tower, Living Legend and other "played" discounts now work for any player.
-🎬 **Replays** play through the villain phase with Reduced motion on.
-🐜 **Size Increase** now loses its size counters and leaves.
-🧩 **Mod SDK**: new tools for the next batch of packs.
+🍎 **iPhone and iPad**: every release has an app you install with a free Apple ID (SideStore, AltStore or Sideloadly). I don't have an iPhone, so tell us how it goes!
+🧩 **Mod Store, batch 2**: The Punisher, Spider-Punisher, Sentinel, a Throg precon, The Rose scenario and the "Don't Make Me Angry!" house rule for Hulk. 113 cards in English and Spanish, coming to the Mod Store once v0.51.0 is out.
+📱 **Links open the app**: on Android a game link opens the app, and in a desktop browser a shared replay offers **Open in the desktop app**.
+✅ **Every game counts unless you say so**: Undo past your turn and Manual adjust are off until you turn them on, under Settings ▸ More ▸ Cheats. The deck builder lists setup cards in their own group.
+📚 **The Saga** stamps an adjusted win ADJUSTED and says why the next volume stays sealed. Red Skull's Improved Condition enters on its Improved side.
+🛠️ **Fixes**: iPhone no longer gets stuck loading, Avengers Tower and Living Legend discounts work for any player, replays get through the villain phase with Reduced motion on, and Size Increase loses its counters.
 
-Thank you, bluefireF5ran, for the suggestions and the Mod SDK work, bktanner for the Saga and Red Skull reports, GarethMagis for the iPhone report, FirePenguin17 for the Avengers Tower report, and MegaJesup for the Size Increase report!
+Thank you, bluefireF5ran for the ideas and the Mod SDK work, the batch 2 creators (MissSugarPink, T-Wrecks, PatataSaurio, Caurel, BigDarsh, Abis Mal), and bktanner, GarethMagis, FirePenguin17 and MegaJesup for the reports!
 
 Full report: https://champions-digital-game.com/releases/v0.51.0/
 Downloads: https://champions-digital-game.com/#download
 
 # v0.51.0: Directo a la app 🔗
 
-El juego ahora viene como app para iPhone y iPad, y los enlaces del juego abren el juego que tienes instalado.
+Una app para iPhone y iPad, seis paquetes de mods nuevos y enlaces que abren el juego que tienes instalado.
 
-🍎 **iPhone y iPad**: cada versión tiene una app que instalas tú mismo con un Apple ID gratuito (SideStore, AltStore o Sideloadly). No tengo iPhone, así que si la pruebas, ¡cuéntanos cómo te fue!
-📱 **Los enlaces abren la app**: en Android, un enlace al juego, como una repetición compartida, abre la app. En un navegador de escritorio, una repetición compartida ofrece **Open in the desktop app**. Los enlaces empiezan a abrir la app cuando tengas v0.51.0 instalada.
-✅ **Cada partida cuenta salvo que digas lo contrario**: Undo past your turn ahora viene desactivado por defecto, Manual adjust está desactivado hasta que lo permitas, y los dos están en Settings ▸ More ▸ Cheats. Los dos te avisan antes de que una partida deje de contar. El constructor de mazos también muestra las cartas de preparación en su propio grupo.
-📚 **La Saga**: una campaña ganada con una partida ajustada muestra el sello ADJUSTED, y el siguiente volumen dice por qué sigue sellado. La Condition Improved de Red Skull ahora entra por su cara Improved.
-🍏 **iPhone en el navegador**: el juego ya no se queda cargando después de que iOS recarga la pestaña.
-🏰 **Descuentos compartidos**: Avengers Tower, Living Legend y otros descuentos de cartas "jugadas" ahora funcionan para cualquier jugador.
-🎬 **Las repeticiones** pasan la fase de villano con Reduced motion activado.
-🐜 **Size Increase** ahora pierde sus contadores de tamaño y se va.
-🧩 **Mod SDK**: nuevas herramientas para el próximo lote de paquetes.
+🍎 **iPhone y iPad**: cada versión tiene una app que instalas con un Apple ID gratuito (SideStore, AltStore o Sideloadly). No tengo iPhone, así que ¡cuéntanos cómo te va!
+🧩 **Mod Store, lote 2**: The Punisher, Spider-Punisher, Sentinel, un mazo preconstruido de Throg, el escenario The Rose y la regla de la casa "Don't Make Me Angry!" para Hulk. 113 cartas en inglés y en español, que llegan a la Mod Store cuando salga v0.51.0.
+📱 **Los enlaces abren la app**: en Android un enlace al juego abre la app, y en un navegador de escritorio una repetición compartida ofrece **Open in the desktop app**.
+✅ **Cada partida cuenta salvo que digas lo contrario**: Undo past your turn y Manual adjust están desactivados hasta que los actives, en Settings ▸ More ▸ Cheats. El constructor de mazos muestra las cartas de preparación en su propio grupo.
+📚 **La Saga** pone el sello ADJUSTED a una victoria ajustada y dice por qué el siguiente volumen sigue sellado. La Condition Improved de Red Skull entra por su cara Improved.
+🛠️ **Correcciones**: el iPhone ya no se queda cargando, los descuentos de Avengers Tower y Living Legend funcionan para cualquier jugador, las repeticiones pasan la fase de villano con Reduced motion activado y Size Increase pierde sus contadores.
 
-¡Gracias a bluefireF5ran por las sugerencias y el trabajo en el Mod SDK, a bktanner por los reportes de la Saga y de Red Skull, a GarethMagis por el reporte del iPhone, a FirePenguin17 por el reporte de Avengers Tower y a MegaJesup por el reporte de Size Increase!
+¡Gracias a bluefireF5ran por las ideas y el trabajo en el Mod SDK, a quienes crearon el lote 2 (MissSugarPink, T-Wrecks, PatataSaurio, Caurel, BigDarsh, Abis Mal), y a bktanner, GarethMagis, FirePenguin17 y MegaJesup por los reportes!
 
 Informe completo: https://champions-digital-game.com/releases/v0.51.0/index.es.html
 Descargas: https://champions-digital-game.com/#download
