@@ -253,14 +253,8 @@ export function epicTableViews(state: RoomState, ctx: SeatContext): readonly Epi
   });
 }
 
-/** What Start needs besides the room's own state. */
-export interface EpicStartContext {
-  /** Heroes of the organizer's own table that none of its decks can play (empty: none, or it hosts no table). */
-  readonly missingDecks: readonly string[];
-}
-
 /** Why Start is off, or null when the organizer may press it: every table has a host and every seat a holder. */
-export function epicStartBlock(state: RoomState, ctx: EpicStartContext): Words | null {
+export function epicStartBlock(state: RoomState): Words | null {
   const epic = state.epic;
   if (!epic || state.role !== "host") return { key: "room.start.hostOnly" };
   if (state.connection !== "connected") return { key: "room.start.notConnected" };
@@ -287,7 +281,6 @@ export function epicStartBlock(state: RoomState, ctx: EpicStartContext): Words |
   }
   const away = state.seats.find((s) => !s.holderConnected);
   if (away) return { key: "room.start.holderAway", params: { name: away.holderName ?? "" } };
-  if (ctx.missingDecks.length > 0) return { key: "epic.start.noDeck", params: { hero: ctx.missingDecks.join(", ") } };
   return null;
 }
 

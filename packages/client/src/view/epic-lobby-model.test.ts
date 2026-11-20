@@ -109,23 +109,22 @@ describe("the time limit choices", () => {
 });
 
 describe("why Start is off", () => {
-  const ctx = { missingDecks: [] as string[] };
   const organizer = () => epicRoomFixture({ as: "organizer", phase: "lobby" });
 
   it("is organizer only", () => {
-    expect(epicStartBlock(epicRoomFixture({ as: "player", phase: "lobby" }), ctx)?.key).toBe("room.start.hostOnly");
+    expect(epicStartBlock(epicRoomFixture({ as: "player", phase: "lobby" }))?.key).toBe("room.start.hostOnly");
   });
 
-  it("names the first problem in order: open seats, then a host, then the host's deck", () => {
+  it("names the first problem in order: open seats, then a host", () => {
     const room = organizer();
-    expect(epicStartBlock(room, ctx)).toEqual({ key: "room.start.openSeats", params: { count: 2 } });
+    expect(epicStartBlock(room)).toEqual({ key: "room.start.openSeats", params: { count: 2 } });
     const seated = {
       ...room,
       seats: room.seats.map((s) =>
         s.holder === null ? { ...s, holder: "u4", holderName: "Dev", holderConnected: true } : s,
       ),
     };
-    expect(epicStartBlock(seated, ctx)).toBeNull();
+    expect(epicStartBlock(seated)).toBeNull();
     const noHost = {
       ...seated,
       epic: {
@@ -133,14 +132,13 @@ describe("why Start is off", () => {
         tables: seated.epic!.tables.map((t) => (t.id === "t2" ? { ...t, host: null, hostName: null } : t)),
       },
     };
-    expect(epicStartBlock(noHost, ctx)).toEqual({ key: "epic.start.noHost", params: { table: "South Table" } });
-    expect(epicStartBlock(seated, { missingDecks: ["Iron Man"] })?.key).toBe("epic.start.noDeck");
+    expect(epicStartBlock(noHost)).toEqual({ key: "epic.start.noHost", params: { table: "South Table" } });
   });
 
   it("wants a deck on every seat and refuses while its host is away", () => {
     const room = organizer();
     const unset = { ...room, seats: room.seats.map((s) => (s.id === "t2s1" ? { ...s, deck: null } : s)) };
-    expect(epicStartBlock(unset, ctx)).toEqual({ key: "epic.start.deckNotSet", params: { table: "South Table" } });
+    expect(epicStartBlock(unset)).toEqual({ key: "epic.start.deckNotSet", params: { table: "South Table" } });
     const seated = {
       ...room,
       seats: room.seats.map((s) =>
@@ -154,12 +152,12 @@ describe("why Start is off", () => {
         tables: seated.epic!.tables.map((t) => (t.id === "t1" ? { ...t, hostConnected: false } : t)),
       },
     };
-    expect(epicStartBlock(away, ctx)?.key).toBe("epic.start.hostAway");
+    expect(epicStartBlock(away)?.key).toBe("epic.start.hostAway");
   });
 
   it("says started once the organizer has started", () => {
     const playing = epicRoomFixture({ as: "organizer", phase: "playing" });
-    expect(epicStartBlock(playing, ctx)?.key).toBe("room.start.started");
+    expect(epicStartBlock(playing)?.key).toBe("room.start.started");
   });
 });
 

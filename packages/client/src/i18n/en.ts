@@ -637,7 +637,6 @@ export const en = {
   "epic.start.deckNotSet": "Every seat at {table} needs a deck: each player chooses theirs.",
   "epic.start.noHost": "{table} has no host yet.",
   "epic.start.hostAway": "{name}, host of {table}, is away.",
-  "epic.start.noDeck": "You have no deck for: {hero}.",
   "epic.sheet.title": "Tables",
   "epic.sheet.reach": "In your pod",
   "epic.sheet.reachNone": "Nothing in your pod can be attacked or thwarted from here.",

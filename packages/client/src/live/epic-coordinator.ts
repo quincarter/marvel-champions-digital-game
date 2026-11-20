@@ -12,6 +12,9 @@
  *   change and on request.
  * - Its log (`CoordinatorLogEntry[]`) is saved after each change (`EpicLogStore`) with the setup, so a reload rebuilds
  *   the coordinator with `replayCoordinator`; the new coordinator has a new epoch, which makes every table sync again.
+ *   Nothing the log explains is told to a table (or the organizer's screens) until a save that includes it has
+ *   committed. A rejected save is not swallowed: what depends on it is held in order, the save is retried with a
+ *   growing wait, and `onSaveStatus` says so (`stuck` after `SAVE_STUCK_AFTER` failures in a row).
  * - Messages to the room are paced (a burst, then a steady rate, below the room's pod limit) so a long re-send after a
  *   reconnect is not refused as `rate-limited`.
  */
@@ -132,7 +135,21 @@ export interface EpicCoordinatorOptions {
   readonly clearTimer?: (handle: unknown) => void;
   /** The shared state changed (the organizer's own screens read it; everyone else gets it as `pod:state`). */
   readonly onState?: (state: PodStateWire) => void;
+  /** The log's saving is failing (`failing`), or has failed `SAVE_STUCK_AFTER` times in a row (`stuck`), or recovered. */
+  readonly onSaveStatus?: (status: EpicSaveStatus) => void;
 }
+
+export interface EpicSaveStatus {
+  readonly failing: boolean;
+  readonly stuck: boolean;
+  /** Failed saves in a row; 0 once one commits. */
+  readonly failures: number;
+}
+
+/** Failed saves in a row before the organizer is told the pod is stuck. */
+export const SAVE_STUCK_AFTER = 3;
+const SAVE_RETRY_MS = 500;
+const SAVE_RETRY_MAX_MS = 15_000;
 
 const DRAIN_MS = Math.ceil(1000 / POD_PER_SECOND) + 10;
 /** Leaves room for the organizer's own `pod:state` broadcasts under the room's burst. */
@@ -148,7 +165,14 @@ export class EpicCoordinator {
   #budget = SEND_BURST;
   #refilledAt: number;
   #timer: unknown = null;
-  #saving: Promise<void> = Promise.resolve();
+  /** How many log entries are committed in the store: what may be told to others covers no more than this. */
+  #savedLength = 0;
+  /** What waits for a save: each item needs the log to be saved up to `needs` entries, and goes out in order. */
+  readonly #outbox: { readonly needs: number; readonly send: () => void }[] = [];
+  #writing: Promise<void> | null = null;
+  #retry: unknown = null;
+  #failures = 0;
+  #disposed = false;
 
   constructor(options: EpicCoordinatorOptions) {
     this.#options = options;
@@ -172,6 +196,7 @@ export class EpicCoordinator {
     try {
       coordinator.#state = replayCoordinator(record.setup, record.log);
       coordinator.#shared = record.setup.shared;
+      coordinator.#savedLength = record.log.length;
       coordinator.#epoch = Math.max(coordinator.#epoch, (record.epoch ?? 0) + 1000);
     } catch {
       void options.store?.clear(options.roomId).catch(() => {});
@@ -201,7 +226,7 @@ export class EpicCoordinator {
 
   /** Re-sends the shared state to everyone (the organizer's socket was welcomed again, or someone joined). */
   broadcast(): void {
-    this.#later(() => {
+    this.#later(this.#state?.log.length ?? 0, () => {
       const wire = this.wire;
       if (!wire) return;
       this.#options.onState?.(wire);
@@ -209,16 +234,40 @@ export class EpicCoordinator {
     });
   }
 
+  /** The log's saving as the organizer sees it. */
+  get saveStatus(): EpicSaveStatus {
+    return {
+      failing: this.#failures > 0,
+      stuck: this.#failures >= SAVE_STUCK_AFTER,
+      failures: this.#failures,
+    };
+  }
+
   /**
-   * Runs `send` once what the coordinator has decided is saved (with a store), in the order asked: nothing is told to a
+   * Runs `send` once the log is saved up to `needs` entries (with a store), in the order asked: nothing is told to a
    * table before the log that explains it is on disk, so a reload never rebuilds a state older than what tables heard.
+   * `needs` only grows, so an item that is ready has nothing waiting before it.
    */
-  #later(send: () => void): void {
-    if (!this.#options.store) {
-      send();
+  #later(needs: number, send: () => void): void {
+    if (!this.#options.store || needs <= this.#savedLength) {
+      this.#run(send);
       return;
     }
-    this.#saving = this.#saving.then(send).catch(() => {});
+    this.#outbox.push({ needs, send });
+  }
+
+  #run(send: () => void): void {
+    try {
+      send();
+    } catch {
+      // A send that throws (the socket, the organizer's own table) is dropped like an unsent message: syncs re-send.
+    }
+  }
+
+  #release(): void {
+    while (this.#outbox.length > 0 && (this.#outbox[0] as { needs: number }).needs <= this.#savedLength) {
+      this.#run((this.#outbox.shift() as { send: () => void }).send);
+    }
   }
 
   /** A table host's `pod:event`. Nothing here throws: a message it cannot use is dropped. */
@@ -252,17 +301,21 @@ export class EpicCoordinator {
   dispose(): void {
     if (this.#timer !== null) (this.#options.clearTimer ?? clearTimeout)(this.#timer as never);
     this.#timer = null;
+    if (this.#retry !== null) (this.#options.clearTimer ?? clearTimeout)(this.#retry as never);
+    this.#retry = null;
+    this.#disposed = true;
     this.#queue.length = 0;
+    this.#outbox.length = 0;
   }
 
-  /** Settles once the log written so far is saved. */
+  /** Settles once the save under way has finished (committed, or failed and waiting to retry: see `saveStatus`). */
   async flushed(): Promise<void> {
-    await this.#saving;
+    await this.#writing;
   }
 
   /** Forgets the saved log (the game is over or the room closed). */
   async clearSaved(): Promise<void> {
-    await this.#saving;
+    await this.#writing;
     await this.#options.store?.clear(this.#options.roomId).catch(() => {});
   }
 
@@ -278,24 +331,26 @@ export class EpicCoordinator {
     const state = this.#state;
     this.#ack(table, state);
     for (const entry of inboundSince(state, table as GroupId, inboundSeq))
-      this.#deliver(table, entry.sequence, entry.event);
+      this.#deliver(table, entry.sequence, entry.event, state.log.length);
     this.broadcast();
   }
 
   #ack(table: string, state: PodCoordinatorState): void {
     const received = state.groups.find((g) => g.groupId === table)?.received ?? 0;
-    this.#deliver(table, POD_LINK_SEQ, { kind: "podSyncAck", received });
+    this.#deliver(table, POD_LINK_SEQ, { kind: "podSyncAck", received }, state.log.length);
   }
 
   #apply(next: PodCoordinatorState, delivered: readonly PodDelivery[]): void {
     this.#state = next;
     this.#save();
-    for (const delivery of delivered) this.#deliver(delivery.groupId, delivery.sequence, delivery.event);
+    for (const delivery of delivered) {
+      this.#deliver(delivery.groupId, delivery.sequence, delivery.event, next.log.length);
+    }
     this.broadcast();
   }
 
-  #deliver(table: string, sequence: number, event: PodInboundEvent | PodSyncAck): void {
-    this.#later(() => {
+  #deliver(table: string, sequence: number, event: PodInboundEvent | PodSyncAck, needs: number): void {
+    this.#later(needs, () => {
       const local = this.#options.local;
       if (local && local.table === table) {
         local.deliver(sequence, event);
@@ -305,19 +360,53 @@ export class EpicCoordinator {
     });
   }
 
+  /** Starts writing the log if no write is under way and no retry is waiting; a write covers the newest log. */
   #save(): void {
+    if (!this.#options.store || this.#writing || this.#retry !== null || this.#disposed) return;
+    this.#writing = this.#write().finally(() => {
+      this.#writing = null;
+    });
+  }
+
+  async #write(): Promise<void> {
     const store = this.#options.store;
-    const state = this.#state;
-    const shared = this.#shared;
-    if (!store || !state || !shared) return;
-    const record: EpicLogRecord = {
-      roomId: this.#options.roomId,
-      setup: { ...this.#setup, shared },
-      log: state.log,
-      savedAt: (this.#options.now ?? Date.now)(),
-      epoch: this.#epoch,
-    };
-    this.#saving = this.#saving.then(() => store.save(record)).catch(() => {});
+    if (!store) return;
+    while (!this.#disposed) {
+      const state = this.#state;
+      const shared = this.#shared;
+      if (!state || !shared || state.log.length <= this.#savedLength) return;
+      const record: EpicLogRecord = {
+        roomId: this.#options.roomId,
+        setup: { ...this.#setup, shared },
+        log: state.log,
+        savedAt: (this.#options.now ?? Date.now)(),
+        epoch: this.#epoch,
+      };
+      try {
+        await store.save(record);
+      } catch {
+        this.#failures += 1;
+        this.#options.onSaveStatus?.(this.saveStatus);
+        this.#scheduleRetry();
+        return;
+      }
+      this.#savedLength = Math.max(this.#savedLength, record.log.length);
+      if (this.#failures > 0) {
+        this.#failures = 0;
+        this.#options.onSaveStatus?.(this.saveStatus);
+      }
+      this.#release();
+    }
+  }
+
+  #scheduleRetry(): void {
+    if (this.#disposed || this.#retry !== null) return;
+    const wait = Math.min(SAVE_RETRY_MAX_MS, SAVE_RETRY_MS * 2 ** Math.max(0, this.#failures - 1));
+    const setTimer = this.#options.setTimer ?? ((run, ms) => setTimeout(run, ms));
+    this.#retry = setTimer(() => {
+      this.#retry = null;
+      this.#save();
+    }, wait);
   }
 
   #emit(message: ClientMessage): void {

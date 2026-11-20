@@ -493,6 +493,8 @@ export class RoomSession {
       ...(this.#deps.now ? { now: this.#deps.now } : {}),
       setTimer: (run, ms) => this.#timers.setTimer(run, ms),
       clearTimer: (handle) => this.#timers.clearTimer(handle),
+      // The log will not save: what depends on it is held, and the pod shows as stuck until a save commits.
+      onSaveStatus: (status) => this.setPodStuck(status.stuck),
       onState: (state) => {
         this.#model.setPodState(state);
         // The organizer's own table's link reads the broadcast too (how many of its events the coordinator has).

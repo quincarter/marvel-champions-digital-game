@@ -1358,9 +1358,22 @@ export class GameRoomLogic {
       this.refuse(socket, reason);
       return false;
     };
-    // Whether a table has a game needs its header: read once, only when tables or the mode change.
-    if (message.tables !== undefined || message.pods !== undefined || epic !== wasEpic) {
+    // Whether a table has a game needs its header: read once, only when tables or the mode change, or in an Epic room
+    // (whose topology freezes once a table has started).
+    if (message.tables !== undefined || message.pods !== undefined || epic !== wasEpic || wasEpic) {
       for (const t of this.tables.values()) await this.ensureLoaded(t);
+    }
+    // An Epic game that has started is a fixed set of tables, pods, hosts, seats and players: the coordinator, each
+    // table's engine and every client's view were built from them, and a change would leave them disagreeing. Only
+    // cosmetic edits (a table's or pod's name, a seat's label) and the play settings below stay open.
+    const frozen = wasEpic && [...this.tables.values()].some((t) => t.hasHeader);
+    const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    if (frozen) {
+      if (next.mode !== settings.mode) return refuse("out-of-order");
+      if (patch?.mods !== undefined && !same(patch.mods, settings.mods)) return refuse("out-of-order");
+      if (patch?.tableRules !== undefined && !same(patch.tableRules, settings.tableRules)) {
+        return refuse("out-of-order");
+      }
     }
 
     let seats = lobby.seats;
@@ -1374,11 +1387,23 @@ export class GameRoomLogic {
       }
       // A seat id that stays keeps its holder, requests and token; its label may change; a removed one is gone. A seat
       // that moves to another table loses its holder (a participant plays at one table).
+      if (frozen) {
+        // The same seats at the same tables, each playing the same hero.
+        const same1 = message.seats.length === lobby.seats.length;
+        const unchanged = message.seats.every((spec) => {
+          const kept = lobby.seats.find((s) => s.id === spec.id);
+          if (!kept || (spec.table ?? FIRST_TABLE) !== this.seatTable(kept)) return false;
+          return spec.player === undefined || String(spec.player) === String(kept.player);
+        });
+        if (!same1 || !unchanged) return refuse("out-of-order");
+      }
       seats = message.seats.map((spec) => {
         const kept = lobby.seats.find((s) => s.id === spec.id);
         const table = epic ? (spec.table ?? FIRST_TABLE) : undefined;
-        const player = spec.player === undefined ? {} : { player: spec.player };
         const moved = kept !== undefined && epic && this.seatTable(kept) !== table;
+        // An Epic seat keeps its player when the spec leaves it out: the table's engine seated its heroes by it.
+        const keptPlayer = epic && kept && !moved && kept.player !== undefined ? { player: kept.player } : {};
+        const player = spec.player === undefined ? keptPlayer : { player: spec.player };
         const label = spec.label === undefined ? {} : { label: spec.label };
         const {
           label: _label,
@@ -1390,6 +1415,31 @@ export class GameRoomLogic {
       });
     } else if (!epic && seats.some((s) => this.seatTable(s) !== FIRST_TABLE)) {
       return refuse("bad-message");
+    }
+    // Epic: seat n of a table plays that table's engine player p<n> (setup built each group's players in seat order), so
+    // a seat with no player yet gets the next free one at its table. It is set here, once, so no client path can leave
+    // a table without it, and the freeze above keeps it from then on.
+    if (epic) {
+      const used = new Map<string, Set<string>>();
+      for (const seat of seats) {
+        if (seat.player === undefined) continue;
+        const at = this.seatTable(seat);
+        used.set(at, (used.get(at) ?? new Set()).add(String(seat.player)));
+      }
+      const counts = new Map<string, number>();
+      seats = seats.map((seat) => {
+        const at = this.seatTable(seat);
+        if (seat.player !== undefined) return seat;
+        const taken = used.get(at) ?? new Set<string>();
+        let n = counts.get(at) ?? 0;
+        let id: string;
+        do id = `p${++n}`;
+        while (taken.has(id));
+        counts.set(at, n);
+        taken.add(id);
+        used.set(at, taken);
+        return { ...seat, player: id };
+      });
     }
     if (!next.multiSeat) {
       // Turning multi-seat off cannot quietly take a seat from someone who holds two.
@@ -1424,6 +1474,19 @@ export class GameRoomLogic {
       const ids = new Set(specs.map((t) => t.id));
       if (ids.size !== specs.length || !ids.has(FIRST_TABLE)) return refuse("bad-message");
       for (const o of old) if (!ids.has(o.id) && this.tables.get(o.id)?.hasHeader) return refuse("out-of-order");
+      if (frozen) {
+        // The same tables, each in the same pod with the same difficulty; names may change.
+        if (specs.length !== old.length) return refuse("out-of-order");
+        for (const spec of specs) {
+          const was = old.find((t) => t.id === spec.id);
+          if (!was || was.pod !== spec.pod) return refuse("out-of-order");
+          if (spec.difficulty !== undefined && !same(spec.difficulty, was.difficulty)) return refuse("out-of-order");
+        }
+        const podIds = new Set((lobby.pods ?? []).map((p) => p.id));
+        if (message.pods && (message.pods.length !== podIds.size || message.pods.some((p) => !podIds.has(p.id)))) {
+          return refuse("out-of-order");
+        }
+      }
       // A removed table's host is a plain participant again.
       for (const o of old) if (!ids.has(o.id) && o.host !== undefined) demote.push(o.host);
       if (!wasEpic && [...this.tables.values()].some((t) => t.hasHeader)) return refuse("out-of-order");
@@ -1474,6 +1537,10 @@ export class GameRoomLogic {
           newHosts.push({ table: tableId, id: d, token, hash: await sha256Hex(token) });
         }
         if (was !== undefined && was !== d) demote.push(was);
+      }
+      // Nobody takes a table over, and no table changes hands, once it has started.
+      if (frozen && (newHosts.length > 0 || demote.length > 0 || organizerTable !== lobby.organizerTable)) {
+        return refuse("out-of-order");
       }
       tablesNext = [];
       for (const spec of specs) {

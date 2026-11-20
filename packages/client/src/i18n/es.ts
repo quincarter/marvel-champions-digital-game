@@ -643,7 +643,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "epic.start.deckNotSet": "Cada asiento de {table} necesita un mazo: cada jugador elige el suyo.",
   "epic.start.noHost": "{table} aún no tiene anfitrión.",
   "epic.start.hostAway": "{name}, anfitrión de {table}, está ausente.",
-  "epic.start.noDeck": "No tienes mazo para: {hero}.",
   "epic.sheet.title": "Mesas",
   "epic.sheet.reach": "En tu grupo de mesas",
   "epic.sheet.reachNone": "Desde aquí no se puede atacar ni frustrar nada de tu grupo de mesas.",

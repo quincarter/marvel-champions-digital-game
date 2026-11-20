@@ -391,9 +391,8 @@ describe("proposals and requests go to the host of the seat's table", () => {
   it("routes by table: t1 seat holders reach the organizer, t2's reach b1", async () => {
     const h = await setup();
     await h.assignHosts();
-    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
-    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
-    // t2 needs a seat holder who is not its host: a second seat there.
+    // t2 needs a seat holder who is not its host: a second seat there (set before the tables start: a started Epic
+    // game's seats are frozen).
     await h.send(h.org, {
       ch: "room",
       kind: "lobby-set",
@@ -404,6 +403,8 @@ describe("proposals and requests go to the host of the seat's table", () => {
         { id: "s4", label: "H4", table: "t2", player: "p2" },
       ],
     });
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
     const c1 = await h.join("C1");
     await h.send(h.org, { ch: "room", kind: "seat-assign", seat: "s4", participant: c1.id });
     await h.send(c1, { ch: "game", kind: "propose", table: "t2", command: { pass: 2 }, base: 0, stamp: "S" });
@@ -670,5 +671,145 @@ describe("review fixes", () => {
       event: { t: "é".repeat(MAX_POD_EVENT_BYTES / 2) },
     });
     expect(h.b1.refusals).toEqual(["too-large"]);
+  });
+});
+
+describe("a started Epic game's topology is frozen", () => {
+  async function live() {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
+    h.org.sent.length = 0;
+    return h;
+  }
+  const seatsOf = (h: Awaited<ReturnType<typeof live>>) => h.org.last("lobby")?.seats;
+
+  it("refuses moving a live table to another pod, moving a seat between tables or changing a seat's player", async () => {
+    const h = await live();
+    const before = JSON.stringify(h.org.last("lobby") ?? null);
+    const tables = h.tables({ t1: h.org.id, t2: h.b1.id });
+    await h.send(h.org, { ch: "room", kind: "lobby-set", tables: tables.map((t) => ({ ...t, pod: "pa" })) });
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "H1", table: "t1", player: "p1" },
+        { id: "s2", label: "H2", table: "t2", player: "p2" },
+        { id: "s3", label: "H3", table: "t2", player: "p1" },
+      ],
+    });
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "H1", table: "t1", player: "p2" },
+        { id: "s2", label: "H2", table: "t1", player: "p1" },
+        { id: "s3", label: "H3", table: "t2", player: "p1" },
+      ],
+    });
+    expect(h.org.refusals).toEqual(["out-of-order", "out-of-order", "out-of-order"]);
+    expect(JSON.stringify(h.org.last("lobby") ?? null)).toBe(before);
+  });
+
+  it("refuses adding or removing a seat, and taking a table's host away", async () => {
+    const h = await live();
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "H1", table: "t1", player: "p1" },
+        { id: "s2", label: "H2", table: "t1", player: "p2" },
+        { id: "s3", label: "H3", table: "t2", player: "p1" },
+        { id: "s4", label: "H4", table: "t2", player: "p2" },
+      ],
+    });
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "H1", table: "t1", player: "p1" },
+        { id: "s2", label: "H2", table: "t1", player: "p2" },
+      ],
+    });
+    await h.send(h.org, { ch: "room", kind: "lobby-set", tables: h.tables({ t1: null, t2: h.b1.id }) });
+    expect(h.org.refusals).toEqual(Array(3).fill("out-of-order"));
+    expect(seatsOf(h)).toBeUndefined();
+  });
+
+  it("refuses leaving Epic and changing the mods or table rules", async () => {
+    const h = await live();
+    await h.send(h.org, { ch: "room", kind: "lobby-set", settings: { mode: "standard" } });
+    await h.send(h.org, { ch: "room", kind: "lobby-set", settings: { tableRules: { house: true } } });
+    await h.send(h.org, { ch: "room", kind: "lobby-set", settings: { mods: [{ id: "x", version: "1" }] } });
+    expect(h.org.refusals).toEqual(Array(3).fill("out-of-order"));
+  });
+
+  it("still allows names, labels and the play settings, and repeating what is already set", async () => {
+    const h = await live();
+    const tables = h.tables({ t1: h.org.id, t2: h.b1.id }).map((t) => ({ ...t, name: `${t.name}!` }));
+    await h.send(h.org, { ch: "room", kind: "lobby-set", tables });
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      settings: { chat: false, playMode: "strict" },
+      seats: [
+        { id: "s1", label: "Renamed", table: "t1", player: "p1" },
+        { id: "s2", label: "H2", table: "t1" },
+        { id: "s3", label: "H3", table: "t2", player: "p1" },
+      ],
+    });
+    expect(h.org.refusals).toEqual([]);
+    const lobby = h.org.last("lobby")!;
+    expect(lobby.tables!.map((t) => t.name)).toEqual(["Table one!", "Table two!"]);
+    expect(lobby.seats.map((x) => [x.id, x.label, x.player])).toEqual([
+      ["s1", "Renamed", "p1"],
+      ["s2", "H2", "p2"],
+      ["s3", "H3", "p1"],
+    ]);
+  });
+});
+
+describe("Epic seats' players", () => {
+  it("are derived per table, in seat order within the table, when the lobby sets seats without them", async () => {
+    const h = await setup();
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "n1", label: "H1", table: "t1" },
+        { id: "n2", label: "H2", table: "t2" },
+        { id: "n3", label: "H3", table: "t2" },
+        { id: "n4", label: "H4", table: "t1" },
+      ],
+    });
+    expect(h.org.refusals).toEqual([]);
+    const players = Object.fromEntries(h.org.last("lobby")!.seats.map((x) => [x.id, x.player]));
+    expect(players).toEqual({ n1: "p1", n2: "p1", n3: "p2", n4: "p2" });
+  });
+
+  it("stay the same when a later lobby-set leaves them out, and a new seat takes the next free one", async () => {
+    const h = await setup();
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "H1", table: "t1" },
+        { id: "s2", label: "H2", table: "t1" },
+        { id: "s3", label: "H3", table: "t2" },
+      ],
+    });
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s3", label: "H3", table: "t2" },
+        { id: "s5", label: "H5", table: "t2" },
+        { id: "s1", label: "H1", table: "t1" },
+        { id: "s2", label: "H2", table: "t1" },
+      ],
+    });
+    const players = Object.fromEntries(h.org.last("lobby")!.seats.map((x) => [x.id, x.player]));
+    expect(players).toEqual({ s1: "p1", s2: "p2", s3: "p1", s5: "p2" });
   });
 });

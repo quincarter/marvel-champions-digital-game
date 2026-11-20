@@ -427,7 +427,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   #startWords(): Words | null {
-    if (this.#state.epic) return epicStartBlock(this.#state, { missingDecks: [] });
+    if (this.#state.epic) return epicStartBlock(this.#state);
     const base = this.#base();
     return startBlock(this.#state, { tableReady: base !== null, packsUsed: this.#packsUsed(base) });
   }

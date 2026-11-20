@@ -58,7 +58,7 @@ class Hub {
     return hub;
   }
 
-  async startCoordinator(): Promise<void> {
+  async startCoordinator(extra: Partial<EpicCoordinatorOptions> = {}): Promise<void> {
     this.coordinator?.dispose();
     this.coordinator = await EpicCoordinator.restore({
       roomId: "room",
@@ -69,6 +69,7 @@ class Hub {
       now: () => this.clock,
       setTimer: (run) => this.timers.push(run),
       clearTimer: () => {},
+      ...extra,
     });
   }
 
@@ -312,6 +313,89 @@ describe("the pod channel", () => {
     expect(hub.coordinator.state?.shared.villainDamage).toBe(10);
     expect(hub.table("t2").link.unacked).toBe(0);
     expect(hub.coordinator.state?.groups[2]?.dropped).toBe(true);
+  });
+
+  describe("a log that will not save", () => {
+    /** Makes the hub's store reject every save until `heal` puts the real one back. */
+    const breakStore = (hub: Hub): (() => void) => {
+      const real = hub.store.save.bind(hub.store);
+      hub.store.save = async () => {
+        throw new Error("QuotaExceededError");
+      };
+      return () => {
+        hub.store.save = real;
+      };
+    };
+    /** Runs the timers set so far (the coordinator's retry among them). */
+    const tick = async (hub: Hub): Promise<void> => {
+      for (const run of hub.timers.splice(0)) run();
+      await hub.coordinator.flushed();
+    };
+
+    it("is not acknowledged: nothing the lost entry explains is sent, the failure shows, and a retry releases it", async () => {
+      const hub = await Hub.make(true);
+      const statuses: boolean[] = [];
+      hub.coordinator.dispose();
+      await hub.startCoordinator({ onSaveStatus: (status) => statuses.push(status.stuck) });
+      for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+      await hub.coordinator.flushed();
+      const heal = breakStore(hub);
+      const sentBefore = hub.sent.length;
+      const appliedBefore = kinds(hub.table("t3")).length;
+
+      hub.emit("t2", damaged("t2", 9));
+      await hub.coordinator.flushed();
+      // The reducer moved, but the sender gets no ack and the other tables no shared state or broadcast.
+      expect(hub.coordinator.state?.shared.villainDamage).toBe(9);
+      expect(hub.sent.slice(sentBefore)).toEqual([]);
+      expect(kinds(hub.table("t3"))).toHaveLength(appliedBefore);
+      expect(hub.table("t2").link.unacked).toBe(1);
+      expect(hub.coordinator.saveStatus).toMatchObject({ failing: true, failures: 1, stuck: false });
+
+      // It retries with a growing wait and says so when it is stuck.
+      await tick(hub);
+      await tick(hub);
+      expect(hub.coordinator.saveStatus).toMatchObject({ failing: true, failures: 3, stuck: true });
+      expect(statuses).toEqual([false, false, true]);
+      expect(hub.sent.slice(sentBefore)).toEqual([]);
+
+      heal();
+      await tick(hub);
+      expect(hub.coordinator.saveStatus).toMatchObject({ failing: false, failures: 0 });
+      expect(statuses.at(-1)).toBe(false);
+      expect(hub.store.records.get("room")?.log.length).toBe(hub.coordinator.state?.log.length);
+      expect(hub.table("t2").link.unacked).toBe(0);
+      expect(kinds(hub.table("t3"))).toContain("sharedStateChanged");
+      expect(hub.table("t3").states.at(-1)?.shared.villainDamage).toBe(9);
+    });
+
+    it("leaves a reloaded organizer able to rebuild: the table still holds the event, and it is applied once", async () => {
+      const hub = await Hub.make(true);
+      for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+      await hub.coordinator.flushed();
+      const heal = breakStore(hub);
+      hub.emit("t2", damaged("t2", 9));
+      await hub.coordinator.flushed();
+      expect(hub.table("t2").link.unacked).toBe(1);
+
+      // The organizer reloads before anything saved: the store has no record of the event, and no table heard it decided.
+      heal();
+      hub.organizerUp = false;
+      await hub.startCoordinator();
+      expect(hub.coordinator.state?.log.length ?? 0).toBe(0);
+      hub.organizerUp = true;
+
+      // The tables sync again (a new coordinator, a new epoch); t2 re-sends the event it never saw acknowledged.
+      for (const id of ["t1", "t2", "t3"]) {
+        hub.disconnect(id);
+        hub.connect(id);
+      }
+      await hub.coordinator.flushed();
+      for (let i = 0; i < 4; i++) await hub.coordinator.flushed();
+      expect(hub.coordinator.state?.shared.villainDamage).toBe(9);
+      expect(hub.table("t2").link.unacked).toBe(0);
+      expect(hub.store.records.get("room")?.log.length).toBe(hub.coordinator.state?.log.length);
+    });
   });
 
   it("starts fresh when the saved log belongs to other groups", async () => {
