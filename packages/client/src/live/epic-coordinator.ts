@@ -141,7 +141,7 @@ export class EpicCoordinator {
   #state: PodCoordinatorState | null = null;
   readonly #setup: Omit<PodCoordinatorSetup, "shared">;
   #shared: SharedPodState | null = null;
-  readonly epoch: number;
+  #epoch: number;
   readonly #queue: ClientMessage[] = [];
   #budget = SEND_BURST;
   #refilledAt: number;
@@ -151,7 +151,7 @@ export class EpicCoordinator {
   constructor(options: EpicCoordinatorOptions) {
     this.#options = options;
     this.#setup = { groups: options.groups };
-    this.epoch = options.epoch ?? Math.floor(((options.now ?? Date.now)() % 1e9) * 1000 + Math.random() * 1000);
+    this.#epoch = options.epoch ?? Math.floor(((options.now ?? Date.now)() % 1e9) * 1000 + Math.random() * 1000);
     this.#refilledAt = (options.now ?? Date.now)();
   }
 
@@ -176,6 +176,16 @@ export class EpicCoordinator {
     return coordinator;
   }
 
+  /** Changes with each coordinator the organizer starts and each time it returns to the room: tables sync when it does. */
+  get epoch(): number {
+    return this.#epoch;
+  }
+
+  /** The organizer's socket is back: a new epoch, so every table host syncs again and re-sends what it lacks. */
+  renewEpoch(): void {
+    this.#epoch += 1;
+  }
+
   /** The coordinator's state, or null before the first table has told it the shared record. */
   get state(): PodCoordinatorState | null {
     return this.#state;
@@ -183,7 +193,7 @@ export class EpicCoordinator {
 
   /** The shared state as everyone is sent it, or null before there is one. */
   get wire(): PodStateWire | null {
-    return this.#state ? podStateWireOf(this.#state, this.epoch) : null;
+    return this.#state ? podStateWireOf(this.#state, this.#epoch) : null;
   }
 
   /** Re-sends the shared state to everyone (the organizer's socket was welcomed again, or someone joined). */

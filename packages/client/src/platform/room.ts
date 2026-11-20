@@ -29,6 +29,7 @@ import {
   type RoomState,
   type SeatOfPlayer,
 } from "../live/room-state.js";
+import { epicTableConfig } from "../live/epic-start.js";
 import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 
@@ -319,8 +320,10 @@ export function startEpicGame(): void {
  * (its id is the table id) and the room fields, then starts the engine. Resolves with the engine's `start`.
  */
 export async function startEpicTable(config: SessionConfig): Promise<void> {
-  void config;
-  throw new Error("startEpicTable: not built yet");
+  const playMode = state.settings?.playMode;
+  await appSession().store.start(
+    epicTableConfig(config, state.epic, { roomId: state.roomId, ...(playMode ? { playMode } : {}) }),
+  );
 }
 
 /**

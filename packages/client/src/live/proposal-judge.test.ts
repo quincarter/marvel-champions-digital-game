@@ -115,4 +115,17 @@ describe("judging a seat holder's proposal", () => {
     expect(judgeProposal(check({ command: adjust }))).toEqual({ ok: false, reason: "illegal" });
     expect(judgeProposal(check({ command: adjust, strict: true }))).toEqual({ ok: false, reason: "strict" });
   });
+
+  it("takes an Epic remote power from the acting hero like any action, and never an inbound pod event from a seat", () => {
+    const power = { type: "remotePower", playerId: "p1", toGroupId: "t2", power: "attack" };
+    expect(judgeProposal(check({ command: power }))).toMatchObject({ ok: true });
+    // Another seat's hero is not the proposer's to play.
+    expect(judgeProposal(check({ state: turn("p2"), players: ["p2"], command: power }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+    // The table host's own engine feeds the pod's words in: a seat proposing one is a forgery.
+    const inbound = { type: "externalEvent", playerId: "p1", sequence: 1, event: { kind: "gameWon" } };
+    expect(judgeProposal(check({ command: inbound }))).toEqual({ ok: false, reason: "illegal" });
+  });
 });

@@ -77,8 +77,24 @@ function tokensOf(read: (() => readonly string[]) | undefined): { readonly seatT
   return tokens.length > 0 ? { seatTokens: tokens } : {};
 }
 
+function tableTokensOf(read: (() => readonly string[]) | undefined): { readonly tableTokens?: readonly string[] } {
+  const tokens = read?.() ?? [];
+  return tokens.length > 0 ? { tableTokens: tokens } : {};
+}
+
 const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
-  room: new Set(["welcome", "roster", "table", "closed", "refused", "lobby", "seat-token", "seat-denied"]),
+  room: new Set([
+    "welcome",
+    "roster",
+    "table",
+    "closed",
+    "refused",
+    "lobby",
+    "seat-token",
+    "seat-denied",
+    "table-host-token",
+  ]),
+  pod: new Set(["event", "inbound", "state"]),
   game: new Set([
     "resend",
     "log",
@@ -122,6 +138,10 @@ export interface RoomSocketOptions {
   readonly device?: RoomDevice;
   /** Read at each (re)connect, so a token the room gave since the last hello is presented next time. */
   readonly seatTokens?: () => readonly string[];
+  /** Epic rooms: table host tokens (`table-host-token`), read at each (re)connect: they make this device its tables' host again. */
+  readonly tableTokens?: () => readonly string[];
+  /** Epic rooms: the tables whose logs to receive (`hello.follow`); absent means every table. */
+  readonly follow?: "all" | readonly string[];
   /** The `welcome` arrived (true: game messages may go out) or the socket dropped (false). */
   readonly onConnection: (connected: boolean) => void;
   readonly onMessage: (message: ServerMessage) => void;
@@ -175,6 +195,8 @@ export class RoomSocket {
         ...(this.#options.build ? { build: this.#options.build } : {}),
         ...(this.#options.device ? { device: this.#options.device } : {}),
         ...tokensOf(this.#options.seatTokens),
+        ...tableTokensOf(this.#options.tableTokens),
+        ...(this.#options.follow ? { follow: this.#options.follow } : {}),
         caps: this.#options.caps ?? ["watch"],
       };
       socket.send(JSON.stringify(hello));
