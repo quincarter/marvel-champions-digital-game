@@ -64,7 +64,15 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered, unofferedAbilities } from "./triggers.js";
+import {
+  candidatesFor,
+  hearerKey,
+  hearersOf,
+  leaderAttacksLeader,
+  stillAnswers,
+  stillOffered,
+  unofferedAbilities,
+} from "./triggers.js";
 import { damageConstantsBeforeWouldTake, toughEndsDamageWindow } from "./event.js";
 import { holdResponsesForReveal } from "./reveal-hold.js";
 import { holdResponsesForSentence } from "./sentence-hold.js";
@@ -361,9 +369,21 @@ const wouldKindsOf = (deps: EngineDeps): ReadonlySet<string> => {
   return kinds;
 };
 
+/**
+ * Whether some `would` interrupt's event kind can hear `event` (`patternHearsKind`): its own kind, or an enemy attacking
+ * an enemy, heard by "when [this] would be attacked" (an `attack` pattern) and, for a leader attacking the other leader,
+ * by "when [enemy] would attack" (`enemyAttack`: Webbed Up 01009 on the attacking leader; `leaderAttacksLeader`).
+ */
+const wouldKindHears = (ctx: Ctx, event: TriggerEvent): boolean => {
+  const kinds = wouldKindsOf(ctx.deps);
+  if (kinds.has(event.kind)) return true;
+  if (event.kind !== "enemyAttacksEnemy") return false;
+  return kinds.has("attack") || (kinds.has("enemyAttack") && leaderAttacksLeader(ctx.state, event));
+};
+
 /** Whether a `would` interrupt answers this event now, so its window has the earlier tier to run. */
 const hasWouldCandidates = (ctx: Ctx, event: TriggerEvent): boolean =>
-  wouldKindsOf(ctx.deps).has(event.kind) &&
+  wouldKindHears(ctx, event) &&
   [true, false].some((forced) =>
     candidatesFor(ctx.state, ctx.deps, event, "interrupt", forced).some((candidate) => isWould(ctx.deps, candidate)),
   );

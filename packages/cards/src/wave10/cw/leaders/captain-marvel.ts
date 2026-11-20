@@ -15,6 +15,7 @@ import {
   eachPlayer,
   encounterCards,
   enemyAttack,
+  enemyAttacksEnemy,
   enemyScheme,
   eventSource,
   firstPlayer,
@@ -29,6 +30,7 @@ import {
   placeThreat,
   query,
   reduceDamageTo,
+  refMatches,
   removeEachCounterFrom,
   revealCard,
   selectCards,
@@ -119,6 +121,8 @@ const cosmicFlight = () =>
  * gone: at 4 or more counters all of them are removed and Captain Marvel attacks that character, the attack gaining
  * overkill, whether or not the attacker is still in play. "A leader" is a villain attacker: in competitive play the
  * other leader (MC56 p. 20), and in a cooperative game no villain attacks her, so only a hero or an ally is heard.
+ * Her attack on a leader follows the leader-attacks-leader steps (MC56 p. 16): a boost card from the deck in her area,
+ * turned by the first player of the team there, no defender.
  *
  * **Captain Marvel's Helmet (56099)**: unique, and it matches the Core upgrade 01016, so a revealed copy is discarded
  * and the player is dealt a facedown card when 01016 is in play (RRG 1.8 "Unique Icon", pp. 45-46; the Captain Marvel
@@ -158,7 +162,15 @@ export const LEADERS_CAPTAIN_MARVEL: AbilityRegistry = defineAbilities({
     energyCounters(1),
     ifThen(valueAtLeast(ENERGY_ON_CHANNEL, 4), [
       removeEachCounterFrom(self, ENERGY),
-      enemyAttack(theVillain, { targetCharacter: eventSource, keywords: ["overkill"] }),
+      // MC56 FAQ p. 20 (Energy Channel vs a leader) + p. 16 leader-attacks-leader steps
+      // "That character" a leader: her attack on it is a leader attacking a leader, one boost card from the deck in
+      // her area turned by that team's first player, with no defender; caps on the attacked leader (Choosing Sides)
+      // still apply. Overkill is left out: an attack on a villain spills nowhere (RRG 1.8 "Overkill", p. 31).
+      ifThen(
+        refMatches(eventSource, query("villain", { anyGameArea: true })),
+        enemyAttacksEnemy(theVillain, eventSource, { boost: true }),
+        enemyAttack(theVillain, { targetCharacter: eventSource, keywords: ["overkill"] }),
+      ),
     ]),
   ),
 

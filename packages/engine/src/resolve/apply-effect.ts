@@ -1048,10 +1048,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // defending leader's team when a leader attacks a leader (MC56 p. 16 step 2; Q5, settled 2026-11-20). Whether a
       // card is dealt at all is the attacker's (`getsBoostCard`): RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a
       // villain or villainous minion gets a boost; MC56 p. 16 covers leader attacks only.
-      const boostPlayerId =
-        effect.boost && frame.controllerId
-          ? (firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId)
-          : null;
+      // An encounter card's effect has no controller (Energy Channel 56098 making Captain Marvel attack a leader): with
+      // two teams that first player still turns it; in any other game a controller is needed, as before.
+      const boostPlayerId = effect.boost
+        ? (firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId ?? null)
+        : null;
       const [pushed] = pushEvents(
         ctx,
         [

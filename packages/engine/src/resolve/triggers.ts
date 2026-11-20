@@ -32,7 +32,7 @@ import {
 } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
+import { areaOfCard, cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -311,8 +311,11 @@ function matchesOwnFields(
   controllerOverride?: PlayerId,
 ): boolean {
   // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`), and "when/after
-  // [enemy] attacks" hears a leader's attack on the other leader (`leaderAttacksLeader`).
-  if (!patternHearsKind(pattern, event.kind) && !hearsLeaderAttack(state, pattern, event)) return false;
+  // [enemy] attacks" hears a leader's attack on the other leader (`leaderAttacksLeader`), from its side only.
+  if (!patternHearsKind(pattern, event.kind)) {
+    if (!hearsLeaderAttack(state, pattern, event)) return false;
+    if (!onAttackingLeadersSide(state, event, selfId)) return false;
+  }
   if (
     (event.kind === "phaseBeginning" ||
       event.kind === "phaseEnding" ||
@@ -885,6 +888,19 @@ export function leaderAttacksLeader(state: GameState, event: TriggerEvent): bool
   if (event.kind !== "enemyAttacksEnemy" || state.teams === undefined) return false;
   const leaders = state.villains.map((villain) => villain.instanceId);
   return leaders.includes(event.attackerInstanceId) && leaders.includes(event.targetInstanceId);
+}
+
+/**
+ * Whether the card `selfId` is on the side of the table whose area holds the attacking leader of a leader-vs-leader
+ * attack: the team fighting that leader, whose own leader is the one attacked. Only that team hears it as "an enemy
+ * attacks"; the attacking team never does. A card in a hand or deck is on its player's side (`areaOfCard`).
+ */
+// MC56 p. 16: "enemy" = the leader you are fighting + minions on your side; only the team whose area holds the attacking leader hears "an enemy attacks" (N11: defense-labelled and "attacks you" excluded)
+function onAttackingLeadersSide(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
+  if (event.kind !== "enemyAttacksEnemy") return true;
+  const attackerArea = areaOfCard(state, event.attackerInstanceId);
+  const selfArea = areaOfCard(state, selfId);
+  return attackerArea !== null && selfArea !== null && attackerArea.areaId === selfArea.areaId;
 }
 
 /** An `enemyAttack` pattern hearing a leader's attack on the other leader (`leaderAttacksLeader`). */

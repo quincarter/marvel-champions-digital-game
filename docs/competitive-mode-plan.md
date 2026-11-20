@@ -245,7 +245,14 @@ its current phase (p. 17); in 2v2 elimination hands minions and the token to the
 for a moved minion is the leader in its new area (p. 20); High-Tech Suit 56131 "any player"; MC56 p. 17 overrides the
 RRG's game-end rules (Golden Rule, RRG p. 4); what each team sees: in-play and discards public, hands private, the
 searching player sees a searched deck, deck sizes may be counted (Jan 11, 2026 Ruling 1), the facing team doesn't see
-the opposing scenario's modular list.
+the opposing scenario's modular list. An encounter deck that empties reshuffles its discard pile at once and places
+one acceleration token on the main scheme of that team's area; with its deck and discard pile both empty, that team
+loses (the other team's `opponentsLost`), and the game still ends only once both sides have played an equal number of
+phases (RRG v1.8 "Encounter Deck" p. 17; MC56 adds no exception; MC56 p. 17). "An enemy" in a "when/after an enemy
+attacks" ability is the leader you are fighting or a minion on your side (MC56 p. 16), so a leader attacking the other
+leader is heard only by the team whose area holds the attacker (the attacked leader's team), never by the attacking
+team; defense-labelled and "attacks you" abilities stay excluded (N11). Energy Channel 56098 attacking a leader follows
+the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20).
 
 Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rulings):
 
