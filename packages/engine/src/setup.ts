@@ -1110,6 +1110,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     faceup: true,
   };
   // The second team's main scheme deck (MC56 pp. 14-15), beside the first team's and homed to its own leader's deck.
+  // It is the only extra main scheme of a competitive game: `pickedSchemes` (a main scheme per player) never exists
+  // alongside it, because `competitiveSetupFault` refuses `mainSchemeChoice`.
   let secondTeamScheme: MainSchemeState | null = null;
   if (competitive) {
     const faces = competitive.teams[1].faces;

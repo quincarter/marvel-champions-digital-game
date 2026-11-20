@@ -42,6 +42,8 @@ import {
   playerCardOwnerOf,
   villainOf,
   areaOfPlayer,
+  encounterDeckArea,
+  mainSchemeFor,
 } from "./query.js";
 import { hasPerPlayerMainSchemes } from "./per-player-main-schemes.js";
 import type { GameEvent, StatusDiscardCause } from "./events.js";
@@ -639,7 +641,11 @@ export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): bo
   };
   // The new deck's top card shows at once when the deck is kept faceup (docs/phase7-wave9.md §3.42).
   announceDeckTops(ctx);
-  addAccelerationToken(ctx);
+  // With two teams, on the main scheme of the area this deck is in: each half of the table has its own main scheme
+  // deck and encounter deck (MC56 p. 15; scenario rules override RRG per Golden Rule, RRG p. 4). Every other game: the
+  // main scheme, as before.
+  const deckArea = encounterDeckArea(ctx.state, deckId);
+  addAccelerationToken(ctx, deckArea ? mainSchemeFor(ctx.state, deckArea)?.instanceId : undefined);
   if (listensForDeckRunOut(ctx.deps)) {
     ctx.state = {
       ...ctx.state,

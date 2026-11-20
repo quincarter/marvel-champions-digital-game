@@ -752,7 +752,9 @@ export const areaOfPlayer = (state: GameState, playerId: PlayerId): GameAreaStat
 export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | null {
   if (state.gameAreas.length === 0) return null;
   // A team's main scheme is a shared stage tagged with its area (`MainSchemeState.gameAreaId`, two-team games only).
-  const tagged = sharedMainSchemes(state).find((scheme) => scheme.instanceId === id)?.gameAreaId;
+  const tagged = state.teams
+    ? sharedMainSchemes(state).find((scheme) => scheme.instanceId === id)?.gameAreaId
+    : undefined;
   if (tagged !== undefined) return areaById(state, tagged);
   for (const area of state.gameAreas) {
     if (

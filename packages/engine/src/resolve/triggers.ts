@@ -73,6 +73,7 @@ import { interruptBarredByUnpreventable } from "./unpreventable.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 import { enteredPlaySince } from "../entered-since.js";
+import { firstPlayerOfCard, onActiveSide } from "../team-phases.js";
 
 /**
  * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
@@ -271,6 +272,27 @@ function spillUnheard(pattern: EventPattern, event: TriggerEvent): boolean {
 }
 
 /** A pattern's own fields, without its `anyOf` alternatives. */
+/**
+ * Competitive: phase begin/end events are scoped to the active team's area (MC56 p. 16 "their entire hero phase",
+ * per-team first player token); round end is shared after phase 4 (plan §1.10 Q3). Owner decision pending, A
+ * recommended. So a card on the inactive side hears neither the other team's phases beginning nor their ending, but
+ * "when the round ends" (`"round"` among the phases a pattern hears) is heard on both sides at the round's one end.
+ * Every card hears every phase in a game with no active team.
+ */
+function hearsTeamPhase(
+  state: GameState,
+  pattern: EventPattern,
+  event: Extract<TriggerEvent, { kind: "phaseBeginning" | "phaseEnding" }>,
+  selfId: InstanceId,
+): boolean {
+  if (state.activeTeamId === undefined) return true;
+  const phases = pattern.eventIs?.phase;
+  const roundEnd =
+    event.kind === "phaseEnding" && event.phase !== "player" && !event.roundContinues && Array.isArray(phases);
+  if (roundEnd && phases.includes("round")) return true;
+  return onActiveSide(state, selfId);
+}
+
 function matchesOwnFields(
   state: GameState,
   pattern: EventPattern,
@@ -282,6 +304,11 @@ function matchesOwnFields(
 ): boolean {
   // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`).
   if (!patternHearsKind(pattern, event.kind)) return false;
+  if (
+    (event.kind === "phaseBeginning" || event.kind === "phaseEnding") &&
+    !hearsTeamPhase(state, pattern, event, selfId)
+  )
+    return false;
   // A card discarded from an encounter deck is heard only by a pattern that asks for one (docs/phase7-wave9.md §3.43
   // (b)), so "after you discard a card from the top of your deck" stays a player deck's.
   if (event.kind === "cardDiscardedFromDeck" && event.deck === "encounter" && !hearsEncounterDeckDiscard(pattern))
@@ -872,7 +899,7 @@ function gatherCandidates(
       const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
       if (named) {
         for (const playerId of named) {
-          if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+          if (trigger.firstPlayerOnly === true && playerId !== firstPlayerOfCard(state, id)) continue;
           if (triggeredAbilityForbidden(state, deps, id, trigger, playerId, noTriggers)) continue;
           if (offeredTo(state, deps, id, ref.id, definition, event, playerId)) {
             found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: playerId, definition }, forced));
@@ -886,13 +913,14 @@ function gatherCandidates(
       if (!forced && isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
-      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
+      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== firstPlayerOfCard(state, id))
+        continue;
       // An uncontrolled card whose "you" the rules name (an obligation, an attachment on a player card, an environment in
       // a player's play area: `uncontrolledYouOf`) resolves as that player.
       const acting =
         controllerId ??
         (trigger.firstPlayerOnly === true
-          ? state.firstPlayerId
+          ? firstPlayerOfCard(state, id)
           : (uncontrolledYouOf(state, id) ??
             (forced ? actingPlayerOf(event, trigger.on, timing) : offeredPlayerOf(state, event, trigger.on, timing))));
       if (acting !== null && triggeredAbilityForbidden(state, deps, id, trigger, acting, noTriggers)) continue;
@@ -902,7 +930,7 @@ function gatherCandidates(
       if (trigger.notWhileResolving === true && abilityResolving(state, id, ref.id)) continue;
       const limitPlayer =
         controllerId ??
-        (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on, timing));
+        (trigger.firstPlayerOnly === true ? firstPlayerOfCard(state, id) : actingPlayerOf(event, trigger.on, timing));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
@@ -1039,7 +1067,7 @@ export function unofferedAbilities(
       if (isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       if (controllerId === null) continue;
-      if (trigger.firstPlayerOnly === true && controllerId !== state.firstPlayerId) continue;
+      if (trigger.firstPlayerOnly === true && controllerId !== firstPlayerOfCard(state, id)) continue;
       noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
       if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;

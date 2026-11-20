@@ -63,7 +63,7 @@ import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
 import { teamFirstPlayerOf, teamOf } from "../team.js";
-import { nextClockwiseTeammate, setTeamFirstPlayer } from "../team-phases.js";
+import { firstPlayerOfCard, nextClockwiseTeammate, setTeamFirstPlayer } from "../team-phases.js";
 
 /** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
 const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
@@ -213,7 +213,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   });
   // Venom Goblin's main schemes turn to their environment face instead (docs/phase7-wave5.md §3.3).
   if (mainSchemeStageOf(ctx.state, scheme).onCompletion === "flipToOtherFace") {
-    const frames = flipMainSchemeStage(ctx, schemeId, true, ctx.state.firstPlayerId);
+    const frames = flipMainSchemeStage(ctx, schemeId, true, firstPlayerOfCard(ctx.state, schemeId));
     // Waiting for its attachments' "when this leaves play" interrupts; the flip, and its frames, come after (§4.1 Q32).
     if (frames === "waiting") return;
     if (frames !== false) {
@@ -227,7 +227,14 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     // RRG 1.8 "When Completed Abilities" (p. 48): "When a main scheme is complete, all 'When Completed' abilities on
     // the card resolve", as a forced interrupt to the completion, so a losing stage's resolve before the loss ("When
     // Completed: Defeat Robert Kelly", The Injured Senator 2B; docs/phase7-wave6.md §3.75). The loss waits beneath them.
-    const beforeLoss = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
+    const beforeLoss = gameAbilityFrames(
+      ctx,
+      schemeId,
+      ["whenCompleted"],
+      null,
+      undefined,
+      firstPlayerOfCard(ctx.state, schemeId),
+    );
     if (beforeLoss.length === 0) {
       endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
       return;
@@ -253,13 +260,20 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   if (next === "alternatives") {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     pushFrames(ctx, [
-      ...gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId),
+      ...gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, firstPlayerOfCard(ctx.state, schemeId)),
       eventFrame(ctx, { kind: "mainSchemeCompleted", schemeInstanceId: schemeId, stageIndex: scheme.stageIndex }),
     ]);
     return;
   }
   // RRG 1.8 "When Completed Abilities" (p. 48): a forced interrupt to the completion, so they resolve before the advance.
-  const whenCompleted = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
+  const whenCompleted = gameAbilityFrames(
+    ctx,
+    schemeId,
+    ["whenCompleted"],
+    null,
+    undefined,
+    firstPlayerOfCard(ctx.state, schemeId),
+  );
   if (whenCompleted.length === 0) {
     advanceMainScheme(ctx, schemeId, next, BY_COMPLETION);
     return;
@@ -512,7 +526,7 @@ export function advanceMainScheme(
   }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], ctx.state.firstPlayerId),
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId)),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).

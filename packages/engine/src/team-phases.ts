@@ -139,3 +139,13 @@ export function firstPlayerFacingDeck(state: GameState, deckId: EncounterDeckId)
   const team = area ? teamInArea(state, area) : null;
   return team ? teamFirstPlayerOf(state, team) : null;
 }
+
+/**
+ * "The first player" for a card's own text: the first player of the team whose game area holds the card, with two
+ * teams (each team has its own token, MC56 p. 16; a card on the inactive side resolves for its own side, Q11 A per
+ * owner decision 2026-11-20), and the table's first player otherwise. Used where an encounter card or a scheme has no
+ * controller and the rules hand its ability to the first player (RRG 1.8 "First Player", p. 19).
+ */
+export function firstPlayerOfCard(state: GameState, id: InstanceId): PlayerId {
+  return firstPlayerOfAreaHolding(state, id) ?? state.firstPlayerId;
+}

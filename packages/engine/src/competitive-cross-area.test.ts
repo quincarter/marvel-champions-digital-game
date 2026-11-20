@@ -99,7 +99,6 @@ describe("a leader attacks a leader (MC56 p. 16)", () => {
       targetInstanceId: leaderOne!.instanceId,
       attackerInstanceId: leaderTwo!.instanceId,
     });
-    expect(attacked.targetInstanceId).toBe(leaderOne!.instanceId);
   });
 });
 

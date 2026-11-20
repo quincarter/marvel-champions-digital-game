@@ -2976,10 +2976,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "skipNextVillainPhase":
+      // Not built for two teams (refused here, so a skip never lands on the other team's villain phase): which team's
+      // phase a skip or a replacement belongs to across the four phases of a competitive round is not settled
+      // (MC56 p. 16; flagged for the owner in the #883 handoff). No Civil War card makes either.
+      if (ctx.state.teams) return;
       // docs/phase7-wave11-hero-packs.md H3.7: read at the next player phase's end (`flow.ts` `finishPlayerPhase`).
       ctx.state = { ...ctx.state, villainPhasesToSkip: (ctx.state.villainPhasesToSkip ?? 0) + 1 };
       return;
     case "replaceNextVillainPhaseWithPlayerPhase":
+      // Refused with two teams, as `skipNextVillainPhase` above: it would hand the other team an extra hero phase.
+      if (ctx.state.teams) return;
       // Read where the villain phase would begin (`flow.ts` `finishPlayerPhase`, `playerPhaseInsteadNow`).
       ctx.state = {
         ...ctx.state,
