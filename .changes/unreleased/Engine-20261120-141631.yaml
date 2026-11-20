@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK: attacksDealExtraDamage.perCounterOnTarget (DSL attacksDealAdditionalDamage(n, { perCounterOnTarget })), n per counter of a type on the attacked character, for Sentinel''s Exposed carried as exposed counters; the board shows exposed counters as an Exposed status ("EXPOSED ×N", in its card''s red) (#890 item 10).'
-time: 2026-11-20T14:16:31.1166753+01:00
