@@ -6,21 +6,21 @@ Every release now has an iPhone and iPad app, to install yourself with a free Ap
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.51.0/index.es.html)**
 
-![The numbers: an app on 5 platforms, an iPhone's start waits at most 6 seconds on your saves, and 9 reports and ideas](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
+![The numbers: an app on 5 platforms, an iPhone's start waits at most 6 seconds on your saves, and 9 reports and ideas](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
 
-![The game on iPhone and iPad: the website's install section on desktop and iPhone SE, how to install with SideStore, AltStore or Sideloadly, and a call for iPhone players](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-the-game-on-iphone-and-ipad.jpg)
+![The game on iPhone and iPad: the website's install section on desktop and iPhone SE, how to install with SideStore, AltStore or Sideloadly, and a call for iPhone players](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-the-game-on-iphone-and-ipad.jpg)
 
-![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-links-that-open-the-game.jpg)
+![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-links-that-open-the-game.jpg)
 
-![Every game counts, unless you say so: the warning before Undo past your turn is turned on, the new Cheats section in Settings ▸ More, and the deck builder's Setup group](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-every-game-counts-unless-you-say-so.jpg)
+![Every game counts, unless you say so: the warning before Undo past your turn is turned on, the new Cheats section in Settings ▸ More, and the deck builder's Setup group](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-every-game-counts-unless-you-say-so.jpg)
 
-![You asked, we fixed: the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades that keep their side, discounts for any player, replays through the villain phase, and Size Increase's counters](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades that keep their side, discounts for any player, replays through the villain phase, and Size Increase's counters](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.51.0: the website's shared top bar and hero art, and the Mod SDK for the next batch of packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-also-in-v0-51-0.jpg)
+![Also in v0.51.0: the website's shared top bar and hero art, and the Mod SDK for the next batch of packs](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-also-in-v0-51-0.jpg)
 
-![Thank you to @bluefireF5ran, bktanner, GarethMagis, @MegaJesup and FirePenguin17](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-07-thank-you.jpg)
+![Thank you to @bluefireF5ran, bktanner, GarethMagis, @MegaJesup and FirePenguin17](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-07-thank-you.jpg)
 
-![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/f3977f323573a792e699a4a192d82b9e7d44a00d/docs/screenshots/releases/v0.51.0/v0-51-0-release-08-code-shipped.jpg)
+![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/97b2516cffd22d36076a1410a72fd4ca5f042738/docs/screenshots/releases/v0.51.0/v0-51-0-release-08-code-shipped.jpg)
 
 ---
 
@@ -53,6 +53,7 @@ Every release now has an iPhone and iPad app, to install yourself with a free Ap
 - Spider-Man (Peter Parker) ally can ready another player's Web-Warrior character after he attacks or thwarts, not only your own.
 - Replays play through the villain phase by themselves with Reduced motion on, instead of stopping on Start player phase (#892). Reported by @bluefireF5ran.
 - Ant-Man's nemesis attachment Size Increase now comes in with its 3 size counters, loses one each time the enemy it is attached to activates, and is discarded with the last (#897).
+- The iPhone install guide and the landing page no longer recommend Scarlet, whose site sent a player to an unrelated adult site; they warn against no-computer install sites instead (#906).
 
 ### Engine
 
