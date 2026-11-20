@@ -219,7 +219,7 @@ export interface SessionConfig {
    * is the rulebook's recommended pair, and absent on every other scenario and every older save (additive, like `modes`).
    */
   readonly mainSchemeStageIds?: readonly string[];
-  /** The game mode. Only `"cooperative"` is ever sent (competitive is shown as coming soon); absent is cooperative. */
+  /** The game mode. Only `"cooperative"` is sent here: a competitive game is a room game and carries `competitive` instead; absent is cooperative. */
   readonly gameMode?: "cooperative";
   /**
    * The Civil War builder's blind option: the sets and stages stay hidden until the game reveals them. A display

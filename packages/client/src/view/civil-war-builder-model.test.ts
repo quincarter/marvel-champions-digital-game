@@ -445,7 +445,7 @@ describe("10. game mode", () => {
     expect(r.draft).toBe(d);
     expect(r.status).toBe(COMPETITIVE_TAPPED_MESSAGE);
     expect(view(d, { status: r.status }).statusLine).toBe(
-      "Competitive mode is coming soon. Play this scenario cooperatively for now.",
+      "Competitive mode is played in an online room. Play this scenario cooperatively here.",
     );
     expect(act(d, "civil:mode:cooperative").status).toBeNull();
   });

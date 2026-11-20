@@ -33,7 +33,7 @@ export interface BoxDef {
 }
 
 /** The Civil War box's page line (owner, 2026-10-11, wave 10 question 27). */
-export const COMPETITIVE_NOTICE = "Competitive mode coming soon.";
+export const COMPETITIVE_NOTICE = "Competitive mode is in online rooms. Hot-seat is coming soon.";
 
 /** Every box a page can exist for, in release order. `new-in-box-model.test.ts` checks the names against the unlock path. */
 export const BOXES: readonly BoxDef[] = [

@@ -18,7 +18,8 @@ export interface GameModeOption {
 }
 
 /** The same sentence as the engine's `mode_unavailable` refusal, for the status line when a disabled option is tapped. */
-export const COMPETITIVE_TAPPED_MESSAGE = "Competitive mode is coming soon. Play this scenario cooperatively for now.";
+export const COMPETITIVE_TAPPED_MESSAGE =
+  "Competitive mode is played in an online room. Play this scenario cooperatively here.";
 
 export const GAME_MODE_OPTIONS: readonly GameModeOption[] = [
   { id: "cooperative", label: "Cooperative", enabled: true, note: "Co-op only for now" },
@@ -26,8 +27,9 @@ export const GAME_MODE_OPTIONS: readonly GameModeOption[] = [
     id: "competitive",
     label: "Competitive",
     enabled: false,
-    note: "Coming soon",
-    reason: "Two teams, each against the other's leader. Not available yet.",
+    note: "Online rooms",
+    reason:
+      "Two teams, each against the other's leader. Pick Competitive when you host an online room; hot-seat play is coming soon.",
   },
 ];
 

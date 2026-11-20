@@ -12,8 +12,9 @@ describe("game mode options", () => {
     expect(comp).toMatchObject({
       label: "Competitive",
       enabled: false,
-      note: "Coming soon",
-      reason: "Two teams, each against the other's leader. Not available yet.",
+      note: "Online rooms",
+      reason:
+        "Two teams, each against the other's leader. Pick Competitive when you host an online room; hot-seat play is coming soon.",
     });
   });
 
@@ -32,7 +33,7 @@ describe("game mode options", () => {
     expect(r.draft).toBe(draft);
     expect(r).toMatchObject({ message: COMPETITIVE_TAPPED_MESSAGE });
     expect(COMPETITIVE_TAPPED_MESSAGE).toBe(
-      "Competitive mode is coming soon. Play this scenario cooperatively for now.",
+      "Competitive mode is played in an online room. Play this scenario cooperatively here.",
     );
   });
 
