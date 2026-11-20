@@ -1,4 +1,4 @@
-# v0.51.0: Straight to the App 🔗
+# v0.51.0: J.A.R.V.I.S., Put It on My Phone 📱
 
 An iPhone and iPad app, six new mod packs, and game links that open the game you have installed.
 
@@ -14,7 +14,7 @@ Thank you, bluefireF5ran for the ideas and the Mod SDK work, the batch 2 creator
 Full report: https://champions-digital-game.com/releases/v0.51.0/
 Downloads: https://champions-digital-game.com/#download
 
-# v0.51.0: Directo a la app 🔗
+# v0.51.0: J.A.R.V.I.S., ponlo en mi teléfono 📱
 
 Una app para iPhone y iPad, seis paquetes de mods nuevos y enlaces que abren el juego que tienes instalado.
 
