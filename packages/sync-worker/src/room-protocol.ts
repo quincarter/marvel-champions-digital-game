@@ -907,7 +907,8 @@ export type ServerMessage =
  * `not-allowed` count toward the room closing a noisy socket. `other-table`: a seat at a second table (a participant plays
  * at one table). `bad-table-host`: a table host that is neither the organizer nor one of that table's seat holders, or a
  * participant already hosting another table. `team-size`: a Competitive reveal whose seats are not a 1v1 or a 2v2 (or a
- * `lobby-set` with more than 2 seats on a team). `not-ready`: a reveal before both teams have submitted and are ready, or
+ * `lobby-set` with more than 2 seats on a team). `other-team`: a seat on one team for a participant who holds a seat on the
+ * other (a Competitive player is on one team, or hidden hands would be shared). `not-ready`: a reveal before both teams have submitted and are ready, or
  * a `team-ready` without a submission. `no-such-table`: an unknown table in `follow` or `lobby-set`.
  */
 export type RefusalReason =
@@ -930,6 +931,7 @@ export type RefusalReason =
   | "no-such-table"
   | "no-such-seat"
   | "team-size"
+  | "other-team"
   | "not-ready"
   | "no-such-participant";
 
