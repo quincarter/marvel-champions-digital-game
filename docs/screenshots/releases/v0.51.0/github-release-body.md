@@ -6,23 +6,23 @@ Every release now has an iPhone and iPad app, to install yourself with a free Ap
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.51.0/index.es.html)**
 
-![The numbers: an app on 5 platforms, 113 new mod cards and 9 reports and ideas](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
+![The numbers: an app on 5 platforms, 113 new mod cards and 9 reports and ideas](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-01-the-numbers.jpg)
 
-![The game on iPhone and iPad: the website's install section on desktop and iPhone SE, how to install with SideStore, AltStore or Sideloadly, and a call for iPhone players](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-the-game-on-iphone-and-ipad.jpg)
+![The game on iPhone and iPad: the website's install section on desktop and iPhone SE, how to install with SideStore, AltStore or Sideloadly, and a call for iPhone players](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-02-the-game-on-iphone-and-ipad.jpg)
 
-![Batch 2 of the Mod Store: the batch 2 poster, its six packs and their creators, the Don't Make Me Angry! card for Hulk, and the Mod SDK work behind them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-batch-2-of-the-mod-store.jpg)
+![Batch 2 of the Mod Store: the batch 2 poster, its six packs and their creators, the Don't Make Me Angry! card for Hulk, and the Mod SDK work behind them](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-03-batch-2-of-the-mod-store.jpg)
 
-![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-links-that-open-the-game.jpg)
+![Links that open the game: a shared replay in a desktop browser with Open in the desktop app, and how links open the app on Android and on a computer](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-04-links-that-open-the-game.jpg)
 
-![Every game counts, unless you say so: the warning before Undo past your turn is turned on, the new Cheats section in Settings ▸ More, and the deck builder's Setup group](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-every-game-counts-unless-you-say-so.jpg)
+![Every game counts, unless you say so: the warning before Undo past your turn is turned on, the new Cheats section in Settings ▸ More, and the deck builder's Setup group](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-05-every-game-counts-unless-you-say-so.jpg)
 
-![You asked, we fixed: the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades that keep their side, discounts for any player, replays through the villain phase, and Size Increase's counters](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-you-asked-we-fixed.jpg)
+![You asked, we fixed: the Saga's ADJUSTED stamp, the iPhone loading fix, campaign upgrades that keep their side, discounts for any player, replays through the villain phase, and Size Increase's counters](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-06-you-asked-we-fixed.jpg)
 
-![Also in v0.51.0: the website's shared top bar and hero art, and its Mod Store section by batch](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-07-also-in-v0-51-0.jpg)
+![Also in v0.51.0: the website's shared top bar and hero art, and its Mod Store section by batch](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-07-also-in-v0-51-0.jpg)
 
-![Thank you to @bluefireF5ran, the batch 2 creators, bktanner, GarethMagis, @MegaJesup and FirePenguin17](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-08-thank-you.jpg)
+![Thank you to @bluefireF5ran, the batch 2 creators, bktanner, GarethMagis, @MegaJesup and FirePenguin17](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-08-thank-you.jpg)
 
-![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/6ab9ff116b902c41e0e33c2ff59ca7f1b5a034a4/docs/screenshots/releases/v0.51.0/v0-51-0-release-09-code-shipped.jpg)
+![Code shipped since v0.50.0](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/90f3b975a55528adf7471211c3d4e5847aeae69f/docs/screenshots/releases/v0.51.0/v0-51-0-release-09-code-shipped.jpg)
 
 ---
 
@@ -83,6 +83,10 @@ Every release now has an iPhone and iPad app, to install yourself with a free Ap
 - Mod SDK (PR #903 review 5): useActionAbility tries each way a hand card's "when spent" ability may be used (each damage amount Energy Siphon may take) when judging an Action, and asks which cards a combined-value hand discard takes (Advanced Glider), asking again when they fall short.
 - Mod SDK (PR #903 review 6): useActionAbility judges an Action with legalActions' own evaluation, as at the player's moment to act (abilityUsableAsTheirMoment), its branches and counter range included; a hand card the cost discards is offered to pay in none of its ways. The shared payment search gains a wallet with one resource ability per card, one with each chosen-amount resource at its largest, and an either/or branch's own hand discard, so Actions those make affordable are offered on the player's own turn too; resourcePickChoices builds its combinations lazily.
 - Mod SDK (PR #903 review 7): an optionalForIdentity card is held to the copy rules (three by title, its own deck limit) like any card outside the identity set's required cards, in validateDeck and copiesUpToLimit. useActionAbility on a card whose costs any player may help pay asks who pays each delegable part (CostSelection.paidBy; no question when one player can) and offers the other players' hand cards for a hand-discard cost, as a regular use does; the client titles that question by part.
+
+### Docs
+
+- The v0.51.0 release report's Code shipped counts include the release workflow fix.
 
 ### Special thanks
 
