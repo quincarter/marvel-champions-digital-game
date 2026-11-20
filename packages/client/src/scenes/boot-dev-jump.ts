@@ -314,6 +314,48 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=room-lobby&competitive=host|guest[&phase=building|sealed|ready][&size=2][&side=resistance]`: the Civil War Competitive
+  // lobby over a made-up room (`view/competitive-room-fixture.ts`, issue #883). Presses are recorded in `__mcRoomCalls`. Dev only.
+  if (screen === "room-lobby" && params.get("competitive") !== null && import.meta.env.DEV) {
+    const { competitiveRoomFixture } = await import("../view/competitive-room-fixture.js");
+    const phase = params.get("phase");
+    return {
+      key: SCENES.roomLobby,
+      data: {
+        preview: competitiveRoomFixture({
+          as: params.get("competitive") === "guest" ? "guest" : "host",
+          phase: phase === "sealed" || phase === "ready" ? phase : "building",
+          perTeam: params.get("size") === "2" ? 2 : 1,
+          side: params.get("side") === "resistance" ? "resistance" : "registration",
+        }),
+      },
+    };
+  }
+  // `?screen=board&fixture=competitive[&size=2][&inactive=1][&over=concede]`: a real Civil War Competitive game on the board
+  // (`store/dev-competitive-game.ts`); `inactive=1` looks at the resistance seat during registration's hero phase, and
+  // `over=concede` ends it with the registration team's concession and opens Game over (issue #883). Dev only.
+  if ((screen === "board" || screen === "gameover") && params.get("fixture") === "competitive" && import.meta.env.DEV) {
+    const { store } = appSession();
+    const { startDevCompetitiveGame } = await import("../store/dev-competitive-game.js");
+    await startDevCompetitiveGame(store, params.get("size") === "2" ? 2 : 1);
+    if (params.get("over") === "concede" && store.state.game) {
+      await store.dispatch({ type: "concede", playerId: store.state.game.firstPlayerId });
+      return { key: SCENES.gameOver, data: {} };
+    }
+    if (params.get("inactive") === "1") {
+      const other = store.state.game?.players.find((player) => player.playerId !== store.state.perspectiveId);
+      if (other) store.peekAtSeat(other.playerId);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+  // `?screen=competitive-over[&kind=tie|win|both]`: the result sheet over a made-up result, with the tie-break panel (issue #883).
+  if (screen === "competitive-over" && import.meta.env.DEV) {
+    const { competitiveOverFixture } = await import("../view/competitive-over-fixture.js");
+    return {
+      key: SCENES.competitiveOver,
+      data: { preview: competitiveOverFixture(params.get("kind") === "win" ? "win" : "tie") },
+    };
+  }
   // `?screen=room-lobby&epic=organizer|player[&phase=playing]`: the Epic lobby over a made-up room (`view/epic-room-fixture.ts`).
   if (screen === "room-lobby" && params.get("epic") !== null) {
     const { epicRoomFixture } = await import("../view/epic-room-fixture.js");
@@ -450,6 +492,68 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       seed: intParam(params.get("seed"), 7),
     });
     // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
+    return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
+  }
+  // `?screen=room-competitive-host&name=Mara` and `?screen=room-competitive-guest&code=ABC123&name=Ava` (issue #883, dev only;
+  // `e2e/competitive-room.spec.ts`): a real 1v1 Civil War Competitive room, the host Spider-Man on the registration side (s1)
+  // and the guest Captain Marvel on the resistance side (s2). Each side seals a scenario for the other and readies; the host
+  // starts the game once the room says both are ready (the room code is `__mcRoomCode`). Both land on their own board.
+  if ((screen === "room-competitive-host" || screen === "room-competitive-guest") && import.meta.env.DEV) {
+    const room = await import("../platform/room.js");
+    const until = async (done: () => boolean, label: string, ms = 120_000): Promise<void> => {
+      const end = Date.now() + ms;
+      while (!done()) {
+        if (Date.now() > end) throw new Error(`competitive room dev jump: timed out waiting for ${label}`);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+    (globalThis as { __mcRoomState?: unknown }).__mcRoomState = room.roomState;
+    const name = params.get("name") ?? (screen === "room-competitive-host" ? "Mara" : "Ava");
+    const sealed = (leader: string, sets: readonly string[]) => ({
+      leaderScenarioId: leader,
+      modularSetIds: sets,
+      mainSchemeStageIds: [],
+    });
+    if (screen === "room-competitive-guest") {
+      await room.joinRoom(params.get("code") ?? "", name);
+      await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
+      room.requestSeat("s2");
+      await until(() => room.roomState().mySeats.length > 0, "a seat");
+      room.submitScenario(sealed("resistance-captain-america", ["new_avengers", "namor_modular", "secret_avengers"]));
+      await until(() => room.roomState().competitive?.teams.resistance.submitted === true, "the sealed scenario");
+      room.setTeamReady(true);
+      return { key: SCENES.roomLobby, data: {} };
+    }
+    await room.hostRoom(name);
+    await until(() => room.roomState().connection === "connected", "the room");
+    (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode = room.roomState().code;
+    room.setCompetitive(
+      [
+        { id: "s1", label: "Spider-Man (Justice)|01001a", team: "registration" },
+        { id: "s2", label: "Captain Marvel (Leadership)|01010a", team: "resistance" },
+      ],
+      true,
+    );
+    room.requestSeat("s1");
+    await until(
+      () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
+      "a guest asking for s2",
+    );
+    const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+    if (asker) room.assignSeat("s2", asker.participant);
+    await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+    room.submitScenario(sealed("registration-iron-man", ["martial_law", "mighty_avengers", "paladin"]));
+    await until(() => room.roomState().competitive?.teams.registration.submitted === true, "the sealed scenario");
+    room.setTeamReady(true);
+    await until(() => room.roomState().competitive?.canStart === true, "both sides ready");
+    const result = await room.startCompetitive({
+      seed: intParam(params.get("seed"), 7),
+      seats: [
+        { seat: "s1", player: { starterDeckId: "core-spider-man-justice" } },
+        { seat: "s2", player: { starterDeckId: "core-captain-marvel-leadership" } },
+      ],
+    });
+    if (!result.ok) throw new Error(`competitive room dev jump: ${result.reason}`);
     return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
   // Epic Multiplayer, a real two-host pod (issue #882, dev only; `e2e/epic-pod.spec.ts`):
