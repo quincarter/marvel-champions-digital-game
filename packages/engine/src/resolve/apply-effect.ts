@@ -1033,6 +1033,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // A rule waiting on "this attack" (`applyRuleUntil` `attack: "initiated"`) ends with no attack made.
       const noAttack = (): void => settleAwaitingAttackEffects(ctx, frame.frameId, null);
       if (!attacker || !target) return noAttack();
+      // A defeated leader kept in play never initiates an activation, an attack included (Q10 A per owner decision
+      // 2026-11-20; MC56 p. 17).
+      if (villainOf(ctx.state, attacker)?.defeated) return noAttack();
       if (!categoriesOf(ctx.state, attacker).includes("enemy") || !categoriesOf(ctx.state, target).includes("enemy"))
         return noAttack();
       // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
@@ -3070,6 +3073,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const scheme of targets(effect.scheme)) completeMainScheme(ctx, scheme);
       return;
     case "endGame":
+      // Competitive: the result is the team's on whose side this card is (`endGame`'s `side`; MC56 p. 17).
       endGame(
         ctx,
         effect.result === "win"
@@ -3083,6 +3087,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                 sourceInstanceId: context.selfInstanceId ?? ctx.state.mainScheme.instanceId,
               }
             : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
+        { instanceId: context.selfInstanceId, playerId: context.selfInstanceId ? null : context.controllerId },
       );
       return;
     case "addVillain": {

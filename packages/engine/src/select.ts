@@ -1116,7 +1116,10 @@ export function isFacedownAttachment(state: GameState, id: InstanceId): boolean 
 /** The walk behind `cardsInPlay`, in table order; `withFacedownAttachments` keeps the out-of-play facedown attachments. */
 function cardsOnTable(state: GameState, withFacedownAttachments: boolean): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
-  const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
+  // A competitive leader defeated during its opponents' hero phase stays in play (MC56 p. 17; `defeatedInPlay`).
+  const villains = state.villains
+    .filter((villain) => !villain.defeated || villain.defeatedInPlay === true)
+    .map((villain) => villain.instanceId);
   const ids: InstanceId[] = [...villains, state.mainScheme.instanceId];
   // A card attached to an attachment is in play too, however deep (docs/phase7-wave5.md §4.1 Q50).
   const attachmentsOf = (id: InstanceId): void => {

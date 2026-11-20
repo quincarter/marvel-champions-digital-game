@@ -1,4 +1,5 @@
 import type { AbilityId, CardId, CoreAspect, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
+import type { CompetitiveClose, CompetitiveTrigger } from "./competitive-outcome.js";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
 import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId, TeamId } from "./ids.js";
@@ -2527,7 +2528,16 @@ export type GameEvent =
    * nothing in the rules answers it.
    */
   | { readonly type: "manualAdjustment"; readonly playerId: PlayerId; readonly adjustment: Adjustment }
-  | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
+  | { readonly type: "gameEnded"; readonly outcome: GameOutcome }
+  /**
+   * A competitive team met a win condition (MC56 p. 17; `competitive-outcome.ts`): the game goes on to the end of
+   * `closesAfter`, the phase that gives both sides the same number of phases, and then ends.
+   */
+  | {
+      readonly type: "teamResultRecorded";
+      readonly trigger: CompetitiveTrigger;
+      readonly closesAfter: CompetitiveClose;
+    };
 
 export type GameEventType = GameEvent["type"];
 

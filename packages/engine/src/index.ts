@@ -69,6 +69,19 @@ export {
   yourLeaderOf,
 } from "./team.js";
 export { nextClockwiseTeammate, onActiveSide, phasePlayerOrder } from "./team-phases.js";
+export {
+  competitiveOutcome,
+  tieBreakReport,
+  TIE_BREAK_ORDER,
+  type CompetitiveClose,
+  type CompetitiveCondition,
+  type CompetitiveOutcome,
+  type CompetitiveState,
+  type CompetitiveTeamResult,
+  type CompetitiveTrigger,
+  type TieBreakMeasure,
+  type TieBreakReport,
+} from "./competitive-outcome.js";
 export type { CompetitiveScenarioSetup, CompetitiveSetup, CompetitiveTeamSetup } from "./competitive-setup.js";
 
 export type { RngState } from "./rng.js";

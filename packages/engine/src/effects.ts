@@ -4,7 +4,16 @@ import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
 import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import { counterRoom } from "./counter-limit.js";
-import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, InstanceId, PlayerId, TeamId } from "./ids.js";
+import {
+  competitiveCloseDue,
+  competitiveOutcome,
+  hasTeamOutcome,
+  recordTeamCondition,
+  recordTeamLoss,
+  teamOfSide,
+  type ResultSide,
+} from "./competitive-outcome.js";
 import {
   emit,
   moveCard,
@@ -209,14 +218,56 @@ export function swapIdentity(ctx: Ctx, playerId: PlayerId): boolean {
   return true;
 }
 
-export function endGame(ctx: Ctx, outcome: GameOutcome): void {
+/**
+ * Ends the game with `outcome`. In a competitive game (stored teams) a win or loss belongs to one team (`side` names
+ * where it comes from: the defeated leader, the completed scheme, the eliminated player, the card whose text lost, the
+ * exhausted deck): it is recorded for that team instead, and the game goes on until both sides have played an equal
+ * number of phases (MC56 p. 17; `competitive-outcome.ts`), unless no seat is left to play one.
+ */
+export function endGame(ctx: Ctx, outcome: GameOutcome, side: ResultSide = {}): void {
   if (ctx.state.outcome) return;
+  if (hasTeamOutcome(ctx.state) && (outcome.result === "win" || outcome.result === "loss")) {
+    const team = teamOfSide(ctx.state, side);
+    if (team) {
+      if (outcome.result === "win")
+        recordTeamCondition(ctx, team.teamId, "enemyLeaderDefeated", side.instanceId ?? undefined);
+      else recordTeamLoss(ctx, team.teamId, TEAM_LOSS_CONDITION[outcome.reason], side.instanceId ?? undefined);
+      closeCompetitiveIfDue(ctx, null);
+      return;
+    }
+  }
   // Nothing more resolves, so a card an ability still held in an eliminated player's hand goes to their discard pile
   // now, before `gameEnded` is logged: no card moves are logged after it (#816 review).
   discardEliminatedHands(ctx);
   ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };
   setStep(ctx, { phase: "gameOver", kind: "gameOver" });
   emit(ctx, { type: "gameEnded", outcome });
+}
+
+/** A team's loss, by its reason, as the other team's win condition (MC56 p. 17). */
+const TEAM_LOSS_CONDITION: Readonly<
+  Record<
+    Extract<GameOutcome, { result: "loss" }>["reason"],
+    "leaderSchemeCompleted" | "opponentsDefeated" | "opponentsLost"
+  >
+> = {
+  mainSchemeCompleted: "leaderSchemeCompleted",
+  allPlayersDefeated: "opponentsDefeated",
+  cardAbility: "opponentsLost",
+  encounterDeckExhausted: "opponentsLost",
+};
+
+/**
+ * Ends a competitive game whose window has closed: after the phase `ended` (the last team's phase the first result
+ * named), or at once when every seat is eliminated (MC56 p. 17). Returns whether it ended.
+ */
+export function closeCompetitiveIfDue(
+  ctx: Ctx,
+  ended: { readonly teamId: TeamId; readonly phase: "player" | "villain"; readonly round: number } | null,
+): boolean {
+  if (ctx.state.outcome || !competitiveCloseDue(ctx.state, ended)) return false;
+  endGame(ctx, competitiveOutcome(ctx.state, ctx.deps));
+  return true;
 }
 
 /**
@@ -680,8 +731,8 @@ export function loseIfEncounterCardsExhausted(ctx: Ctx, deckId: EncounterDeckId)
   if (ctx.state.outcome || ctx.state.step.phase === "setup") return false;
   const piles = ctx.state.encounterDecks[deckId];
   if (!piles || piles.deck.length > 0 || piles.discard.length > 0) return false;
-  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" });
-  return true;
+  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" }, { deckId });
+  return !ctx.state.teams || ctx.state.outcome !== null;
 }
 
 /**
@@ -2431,12 +2482,16 @@ function leaveNow(
   // The outcome names the card whose text lost it, and the card that left when that is another card (Robert Kelly
   // under Stalked by Sabretooth; Odin's own rule names only Odin).
   if (losesBy !== null) {
-    endGame(ctx, {
-      result: "loss",
-      reason: "cardAbility",
-      sourceInstanceId: losesBy,
-      ...(losesBy !== id ? { causeInstanceId: id } : {}),
-    });
+    endGame(
+      ctx,
+      {
+        result: "loss",
+        reason: "cardAbility",
+        sourceInstanceId: losesBy,
+        ...(losesBy !== id ? { causeInstanceId: id } : {}),
+      },
+      { instanceId: losesBy },
+    );
   }
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });

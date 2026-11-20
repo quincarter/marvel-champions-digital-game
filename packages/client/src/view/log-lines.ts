@@ -316,6 +316,16 @@ function describe(
     case "roundStarted":
       return { text: `Round ${event.round} begins.`, voice: "scenario" };
     // Competitive play (MC56 p. 16): each team's phase in turn; during setup, each team's game area sets up in turn.
+    // Competitive play (MC56 p. 17): a team met a win condition; the game goes on until both sides have played as many
+    // phases. A generic line until the competitive screens word each condition.
+    case "teamResultRecorded": {
+      const side = state.teams?.find((team) => team.teamId === event.trigger.teamId)?.side;
+      const team = side ? `The ${side[0]!.toUpperCase()}${side.slice(1)} team` : "A team";
+      return {
+        text: `${team} has met a win condition. The game ends once both sides have played as many phases.`,
+        voice: "scenario",
+      };
+    }
     case "activeTeamChanged": {
       const side = state.teams?.find((team) => team.teamId === event.teamId)?.side;
       const team = side ? `The ${side[0]!.toUpperCase()}${side.slice(1)} team` : "The other team";
@@ -1193,7 +1203,12 @@ function describe(
         ),
         // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
         // the neutral voice rather than being colored as a loss.
-        voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
+        voice:
+          event.outcome.result === "win"
+            ? "win"
+            : event.outcome.result === "conceded" || event.outcome.result === "teams"
+              ? "scenario"
+              : "loss",
       };
     /**
      * The engine emits one of these for *every* resolved ability — a
@@ -1988,6 +2003,9 @@ const outcomeText = (
       return "The main scheme completed. You lose.";
     case "playerConceded":
       return "The game was conceded.";
+    // Competitive play (MC56 p. 17): a result per team. A generic line until the competitive game-over screen words it.
+    case "competitiveEnded":
+      return "The competitive game is over.";
     // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play). The engine names the card, and
     // the card that met its condition when that is another one; a log saved before it always did may name neither.
     case "cardAbility":

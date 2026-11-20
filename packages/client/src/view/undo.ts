@@ -263,6 +263,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   reversesHidden: [STOPS, "hidden reverses shuffled"],
   roundStarted: [STOPS, "a round boundary"],
   teamsFormed: [STOPS, "setup"],
+  teamResultRecorded: [STOPS, "a competitive result is in"],
   scenarioDeckClosed: [STOPS, "a scenario deck changed"],
   scenarioDeckReset: [STOPS, "a scenario deck shuffled"],
   scenarioDeckTopEnteredPlay: [STOPS, "a scenario deck top revealed"],

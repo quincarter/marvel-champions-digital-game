@@ -1918,7 +1918,7 @@ function competitiveTables(
   players: readonly PlayerState[],
   villains: readonly VillainState[],
   leaderCardIds: readonly (readonly InstanceId[])[],
-): Pick<GameState, "gameAreas" | "nextGameAreaSeq" | "teams" | "activeTeamId"> {
+): Pick<GameState, "gameAreas" | "nextGameAreaSeq" | "teams" | "activeTeamId" | "competitive"> {
   const gameAreas: GameAreaState[] = [];
   const teams: TeamState[] = [];
   for (const [index, team] of competitive.teams.entries()) {
@@ -1946,7 +1946,14 @@ function competitiveTables(
       ...(ids.length > 0 ? { leaderCardIds: ids } : {}),
     });
   }
-  return { gameAreas, nextGameAreaSeq: gameAreas.length + 1, teams, activeTeamId: teams[0]!.teamId };
+  return {
+    gameAreas,
+    nextGameAreaSeq: gameAreas.length + 1,
+    teams,
+    activeTeamId: teams[0]!.teamId,
+    // MC56 p. 17's tie-breaks are applied unless the table turned them off (Q9 C per owner decision 2026-11-20).
+    competitive: { tieBreaks: competitive.tieBreaks ?? true },
+  };
 }
 
 /** The `teamsFormed` log entry of a competitive game's state, as `createGame` built it. */

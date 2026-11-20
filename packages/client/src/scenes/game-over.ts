@@ -60,6 +60,13 @@ import { t } from "../i18n/translate.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { introReplay } from "./replay-entry.js";
 
+/**
+ * The result as the table's records read it: a competitive game's per-team result (`result: "teams"`, MC56 p. 17) counts
+ * as played but unresolved, like a concession, until the competitive game-over screen words it (plan M9).
+ */
+const tableResult = (outcome: GameOutcome): "win" | "loss" | "conceded" =>
+  outcome.result === "teams" ? "conceded" : outcome.result;
+
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
 /** How much of the ground color sits over the wide layout's backdrop picture: enough that the result still reads as red or green and paper text holds its contrast. */
@@ -116,7 +123,14 @@ export class GameOverScene extends Phaser.Scene {
     const seated = config ? config.players.map(identityOfSeat).filter((id): id is string => id !== null) : [];
     this.#outcomeArt =
       game?.outcome && config
-        ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result, Math.random, config.villainSetId, seated)
+        ? outcomeArtFor(
+            ART_CATALOG,
+            config.scenarioId,
+            tableResult(game.outcome),
+            Math.random,
+            config.villainSetId,
+            seated,
+          )
         : null;
     this.#news = null;
     this.#extrasNews = 0;
@@ -136,7 +150,7 @@ export class GameOverScene extends Phaser.Scene {
           ? before.progress
           : withEndedGame(before.progress, {
               scenarioId: config.scenarioId,
-              result: game.outcome.result,
+              result: tableResult(game.outcome),
               heroIds,
               gameId: appSession().store.state.gameId ?? null,
               deckCardIds: [...new Set(Object.values(game.instances).map((instance) => instance.cardId as string))],
@@ -174,7 +188,7 @@ export class GameOverScene extends Phaser.Scene {
     }
     if (game?.outcome && config) {
       const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;
-      appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
+      appSession().music?.playOutcome(config.scenarioId, tableResult(game.outcome), packCode);
     }
     this.#draw();
     fadeScreenIn(this);

@@ -131,7 +131,8 @@ export function enemyLeaderOf(state: GameState, id: TeamId): InstanceId | null {
   if (area === undefined) return null;
   const leaderId = area ? area.activeVillainId : state.activeVillainId;
   const leader = state.villains.find((villain) => villain.instanceId === leaderId);
-  return leader && !leader.defeated ? leader.instanceId : null;
+  // A leader defeated during its opponents' hero phase is still in play and can be targeted (MC56 p. 17; Q10 A).
+  return leader && (!leader.defeated || leader.defeatedInPlay === true) ? leader.instanceId : null;
 }
 
 /**

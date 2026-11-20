@@ -12,6 +12,7 @@ import type { EncounterDealSource, LeaveCauseSide, TriggerEvent } from "./trigge
 import type { PodState } from "./pod.js";
 import type { GameMode } from "./game-mode.js";
 import type { TeamState } from "./team.js";
+import type { CompetitiveOutcome, CompetitiveState } from "./competitive-outcome.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -429,6 +430,13 @@ export interface VillainState {
    * defeated villain is out of play. With several villains the game goes on until every one is defeated.
    */
   readonly defeated: boolean;
+  /**
+   * A competitive leader defeated during its opponents' hero phase, kept in play (MC56 p. 17: it "does not leave play
+   * immediately … so it can still be targeted by resistance player card effects"): `defeated` stays true (the defeat is
+   * not reversed), its text stays active, it never initiates an activation (Q10 A per owner decision 2026-11-20), and
+   * it is in play until the game ends (`cardsInPlay`). Absent in every other game.
+   */
+  readonly defeatedInPlay?: true;
   /** This villain's own encounter deck (every villain of a single-deck scenario shares the one deck). */
   readonly encounterDeckId: EncounterDeckId;
   /**
@@ -1055,7 +1063,14 @@ export type GameOutcome =
    * It carries a `reason` like every other outcome so `GameOutcome.reason` stays total for the readers that switch
    * on it, plus `byPlayerId` for the seat that gave up.
    */
-  | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
+  | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId }
+  /**
+   * A competitive game's end (MC56 p. 17; docs/competitive-mode-plan.md M5): a result per team, decided once both sides
+   * have played an equal number of phases. `decision` is "win" (one team won, by a win condition or by the tie-break),
+   * "tie" (nothing separated them, or the tie-breaks are off) or "bothLose" (both teams lost in the window). See
+   * `CompetitiveOutcome` (`competitive-outcome.ts`).
+   */
+  | CompetitiveOutcome;
 
 /** One reveal in `GameState.revealedThisRound`. `phase` is the phase it happened in (a round has one of each). */
 export interface RevealRecord {
@@ -1548,6 +1563,12 @@ export interface GameState {
    * hand-built two-team test state, whose phases then run for the whole table as before.
    */
   readonly activeTeamId?: TeamId;
+  /**
+   * A competitive game's end rules and its pending end (`competitive-outcome.ts`; MC56 p. 17): the tie-break policy (Q9
+   * C) and, once a team has won or lost, the triggers met so far and the phase the game closes after. Set by competitive
+   * setup only; absent in every other game.
+   */
+  readonly competitive?: CompetitiveState;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

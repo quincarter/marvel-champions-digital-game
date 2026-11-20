@@ -24,6 +24,7 @@ import {
   expireLastingEffects,
   expirePlayerTurnEffects,
   untilNextVillainPhase,
+  closeCompetitiveIfDue,
 } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
@@ -958,6 +959,10 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     setStep(ctx, { phase: "villain", kind: "teamHandover", teamId: nextTeam.teamId });
     return;
   }
+  // The last team's villain phase is over (MC56 p. 17: both sides have now played the same number of phases).
+  const lastTeam = activeTeamOf(ctx.state);
+  if (lastTeam && closeCompetitiveIfDue(ctx, { teamId: lastTeam.teamId, phase: "villain", round: ctx.state.round }))
+    return;
   for (const player of ctx.state.players) {
     updatePlayer(ctx, player.playerId, (p) => ({
       ...p,
@@ -1018,6 +1023,14 @@ function handoverAfterPlayerPhase(
  * per phase" are the acting team's phase (MC56 p. 16; Q3 B per owner decision 2026-11-20).
  */
 function executeTeamHandover(ctx: Ctx, step: Extract<GameStep, { kind: "teamHandover" }>): void {
+  // The ending team's phase is over: a competitive game whose result is in closes once both sides have played the same
+  // number of phases (MC56 p. 17). The handover after a hero phase names the next hero phase, or the first team's
+  // villain phase after the last team's hero phase; after a villain phase, the next team's villain phase.
+  const ending = activeTeamOf(ctx.state);
+  const [firstTeam] = teamsOf(ctx.state);
+  const endedPhase = step.phase === "player" || step.teamId === firstTeam?.teamId ? "player" : "villain";
+  if (ending && closeCompetitiveIfDue(ctx, { teamId: ending.teamId, phase: endedPhase, round: ctx.state.round }))
+    return;
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
   clearDamageTakenThisPhase(ctx);

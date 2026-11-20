@@ -57,6 +57,11 @@ export interface CompetitiveTeamSetup {
  */
 export interface CompetitiveSetup {
   readonly teams: readonly [CompetitiveTeamSetup, CompetitiveTeamSetup];
+  /**
+   * Apply MC56 p. 17's tie-breaks to a tie, in printed order, and report the deciding one (Q9 C per owner decision
+   * 2026-11-20: a lobby option, on by default). `false`: a tie is reported as a tie. Default true.
+   */
+  readonly tieBreaks?: boolean;
 }
 
 /** Why a competitive config is malformed, or null. Read before any card is created. */

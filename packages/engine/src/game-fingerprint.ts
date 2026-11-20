@@ -93,6 +93,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   gameMode: "game",
   teams: "game",
   activeTeamId: "game",
+  competitive: "game",
   campaign: "game",
   campaignWrites: "game",
   setupStack: "game",
