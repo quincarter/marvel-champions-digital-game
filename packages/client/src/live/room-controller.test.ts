@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Command } from "@mc/engine";
-import type { ServerMessage } from "@mc/sync-worker/room-protocol";
+import type { RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 import { liveGameOf } from "./live-game.js";
 import { MemoryRoomStore } from "./live-room-store.js";
@@ -100,6 +100,7 @@ function setup(
     createRoom?: (deps: CreateRoomDeps) => Promise<CreateRoomResult>;
     onlineName?: string;
     now?: () => number;
+    device?: RoomDevice;
   } = {},
 ) {
   FakeSocket.all = [];
@@ -136,6 +137,7 @@ function setup(
     ...(options.store ? { store: options.store } : {}),
     room: {
       build: BUILD,
+      ...(options.device ? { device: options.device } : {}),
       seatStore,
       ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
       onState: (s) => states.push(s),
@@ -146,6 +148,58 @@ function setup(
   controller.setEnabled(true);
   return { controller, states, createRoom, resolveRoomCode, seatStore, timers, last: () => states[states.length - 1]! };
 }
+
+describe("the device in a room", () => {
+  const PHONE: RoomDevice = { platform: "android", form: "phone" };
+
+  it("says it in the host's lobby hello, and omits it when this device could not be told", async () => {
+    const t = setup({ device: PHONE });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.open();
+    expect(FakeSocket.all[0]!.hello).toMatchObject({ device: PHONE });
+    const none = setup();
+    none.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.open();
+    expect(Object.keys(FakeSocket.all[0]!.hello)).not.toContain("device");
+  });
+
+  it("says it in a guest's hello", async () => {
+    const t = setup({ device: { platform: "ios", form: "tablet" } });
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "Guesty" });
+    await flush();
+    FakeSocket.all[0]!.open();
+    expect(FakeSocket.all[0]!.hello).toMatchObject({ device: { platform: "ios", form: "tablet" } });
+  });
+
+  it("puts each participant's device in the room state, and leaves it out for one that sent none", async () => {
+    const t = setup({ device: PHONE });
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "Guesty" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.open();
+    socket.receive({
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: { id: "me", role: "watcher", name: "Me", device: PHONE },
+      caps: ["watch", "chat", "seats"],
+      participants: [
+        { id: "host1", role: "host", name: "Hosty", build: BUILD, device: { platform: "windows", form: "desktop" } },
+        { id: "me", role: "watcher", name: "Me", build: BUILD, device: PHONE },
+        { id: "old", role: "watcher", name: "Old", build: BUILD },
+      ],
+      tables: [],
+    });
+    expect(t.last().participants.map((p) => [p.name, p.device])).toEqual([
+      ["Hosty", { platform: "windows", form: "desktop" }],
+      ["Me", PHONE],
+      ["Old", undefined],
+    ]);
+    expect("device" in t.last().participants[2]!).toBe(false);
+  });
+});
 
 describe("hosting a room", () => {
   it("makes a lobby room and says hello with the name, build and the host token", async () => {

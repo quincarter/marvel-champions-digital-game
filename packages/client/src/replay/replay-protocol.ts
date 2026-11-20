@@ -1,5 +1,6 @@
 /** The messages between the replay screen and the replay worker. Every request's `id` is echoed by its reply. */
 import type { CardPool } from "../engine/host.js";
+import type { RoomDevice } from "@mc/sync-worker/room-protocol";
 import type { Snapshot } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { LiveWatchEvent } from "../live/watch-events.js";

@@ -4,7 +4,7 @@
  * streams the game over a port, as it does for Discord presence.
  */
 import type { Command, GameOutcome } from "@mc/engine";
-import type { RoomBuild, ServerMessage } from "@mc/sync-worker/room-protocol";
+import type { RoomBuild, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomState } from "./room-state.js";
 

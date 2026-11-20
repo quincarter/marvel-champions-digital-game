@@ -242,6 +242,7 @@ export class RoomModel {
         role: p.role === "host" ? "host" : "watcher",
         me: p.id === meId,
         buildMatches: buildMatches(p),
+        ...(p.device ? { device: p.device } : {}),
         seats: seats.filter((s) => s.holder === p.id).map((s) => s.id),
       }));
     const me = this.#participants.find((p) => p.id === meId);

@@ -4,7 +4,7 @@
  * `LiveWatchEvent`s. A `WatchFeed` turns room messages into actions, applied here in order to a `ReplayCore`.
  */
 import type { Command, GameOutcome } from "@mc/engine";
-import type { RoomCapability, ServerMessage } from "@mc/sync-worker/room-protocol";
+import type { RoomCapability, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { ReplayOpenError, type ReplayOpened, type ReplayOpenSource } from "../replay/replay-core.js";
 import type { ReplayInfo } from "../replay/replay-session.js";

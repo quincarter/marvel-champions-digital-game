@@ -14,6 +14,7 @@ import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
+import { currentRoomDevice } from "./room-device.js";
 import { NO_ROOM, type RoomState } from "../live/room-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { POOL_VERSION } from "../content/pool.js";
@@ -104,6 +105,7 @@ function spawn(): boolean {
   const channel = new MessageChannel();
   host.attachLivePort(channel.port1);
   const presencePort = takeLiveEnd();
+  const device = currentRoomDevice();
   const init: LiveRoomIn = {
     kind: "init",
     enabled: true,
@@ -112,6 +114,7 @@ function spawn(): boolean {
     gamePort: channel.port2,
     build: { appVersion: CLIENT_VERSION, contentVersion: POOL_VERSION },
     onlineName: appSession().settings.onlineName,
+    ...(device ? { device } : {}),
     ...(presencePort ? { presencePort } : {}),
   };
   next.postMessage(init, presencePort ? [channel.port2, presencePort] : [channel.port2]);

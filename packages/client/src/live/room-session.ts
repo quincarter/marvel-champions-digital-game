@@ -16,6 +16,7 @@ import {
   ROOM_PROTOCOL_VERSION,
   type ClientMessage,
   type RoomBuild,
+  type RoomDevice,
   type ServerMessage,
   type TableInfo,
 } from "@mc/sync-worker/room-protocol";

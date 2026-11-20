@@ -20,7 +20,7 @@ import {
   type RoomSocketDeps,
 } from "./room-socket.js";
 import { LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
-import type { RoomBuild } from "@mc/sync-worker/room-protocol";
+import type { RoomBuild, RoomDevice } from "@mc/sync-worker/room-protocol";
 import type { LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
 import { recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
 import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";

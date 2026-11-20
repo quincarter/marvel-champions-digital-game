@@ -356,3 +356,36 @@ describe("LiveWatcher on a room worker's feed (issue #880)", () => {
     w.dispose();
   });
 });
+
+describe("LiveWatcher hello device", () => {
+  test("a watcher's own hello carries the device it was given, and none otherwise", () => {
+    for (const device of [{ platform: "web", form: "phone" } as const, undefined]) {
+      FakeSocket.all = [];
+      const { core } = fakeCore();
+      const w = new LiveWatcher({
+        core,
+        baseUrl: "http://sync",
+        roomId: "A".repeat(12),
+        packs: [],
+        emit: () => undefined,
+        ...(device ? { device } : {}),
+        deps: {
+          WebSocket: FakeSocket as never,
+          setTimer: () => undefined,
+          clearTimer: () => undefined,
+          random: () => 0.5,
+        },
+      });
+      void w.open().catch(() => undefined);
+      FakeSocket.all.at(-1)!.onopen?.({});
+      expect(FakeSocket.all.at(-1)!.sent[0]).toEqual({
+        v: 1,
+        ch: "room",
+        kind: "hello",
+        caps: ["watch"],
+        ...(device ? { device } : {}),
+      });
+      w.dispose();
+    }
+  });
+});

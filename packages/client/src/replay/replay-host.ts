@@ -22,6 +22,7 @@ import type {
   UpdateListener,
 } from "../engine/host.js";
 import type { Snapshot } from "../engine/session-core.js";
+import { currentRoomDevice } from "../platform/room-device.js";
 import { INITIAL_LIVE_STATE, type LiveState, type LiveWatchEvent } from "../live/watch-events.js";
 import { followPlan, isFollowing } from "../live/watch-follow.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -153,8 +154,17 @@ export class WorkerReplayBackend implements ReplayBackend {
     packs: readonly PackRuntime[],
     feed?: MessagePort,
   ): Promise<ReplayOpened> {
+    const device = currentRoomDevice();
     const response = await this.#request(
-      { kind: "watch", id: this.#nextId++, roomId, syncUrl, packs, ...(feed ? { feed } : {}) },
+      {
+        kind: "watch",
+        id: this.#nextId++,
+        roomId,
+        syncUrl,
+        packs,
+        ...(feed ? { feed } : {}),
+        ...(device ? { device } : {}),
+      },
       feed ? [feed] : [],
     );
     if (response.kind !== "opened") throw new Error(`unexpected reply ${response.kind}`);

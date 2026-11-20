@@ -12,9 +12,10 @@ import type {
   LobbySettingsPatch,
   RefusalReason,
   RoomBuild,
+  RoomDevice,
 } from "@mc/sync-worker/room-protocol";
 
-export type { ChatLine, LobbySeatSpec, LobbySettings, LobbySettingsPatch, RefusalReason, RoomBuild };
+export type { ChatLine, LobbySeatSpec, LobbySettings, LobbySettingsPatch, RefusalReason, RoomBuild, RoomDevice };
 
 /** `none`: not in a room. `host`: made it, runs the game. `guest`: joined someone else's. */
 export type RoomRole = "none" | "host" | "guest";
@@ -58,6 +59,8 @@ export interface RoomParticipant {
   readonly me: boolean;
   /** Runs the same build as the host (both versions); false means it cannot take a seat. Always true for the host. */
   readonly buildMatches: boolean;
+  /** Where they play: platform and form (absent when their client sent none). Show it as an icon or a short label. */
+  readonly device?: RoomDevice;
   /** Ids of the seats this participant holds. */
   readonly seats: readonly string[];
 }
