@@ -209,6 +209,7 @@ export async function sha256Hex(text: string): Promise<string> {
 const encoder = new TextEncoder();
 
 const sizeOf = (value: unknown): number => JSON.stringify(value)?.length ?? 0;
+const byteSize = (value: unknown): number => encoder.encode(JSON.stringify(value) ?? "").byteLength;
 const sizeOfAll = (values: readonly unknown[]): number => {
   let total = 0;
   for (const v of values) total += sizeOf(v);
@@ -668,7 +669,9 @@ export class GameRoomLogic {
   /** Whether the participant receives a table's log: a `follow` list names the tables, none means all. */
   private follows(id: string, tableId: string): boolean {
     const follow = this.participants.get(id)?.follow;
-    return follow === undefined || follow.includes(tableId);
+    if (follow === undefined || follow.includes(tableId)) return true;
+    // A seat holder always gets its own table, so it cannot drop out of its own game by unfollowing.
+    return this.lobby?.seats.some((seat) => seat.holder === id && this.seatTable(seat) === tableId) ?? false;
   }
 
   /** A game message to everyone following the table, except one participant (the table's host, which sent it). */
@@ -801,7 +804,9 @@ export class GameRoomLogic {
     }
     const isLog = message.kind === "start" || message.kind === "log";
     if (bytes > this.limits.maxMessageBytes && !isLog) return this.refuse(socket, "too-large");
-    await this.ensureLoaded(table);
+    // Several tables: the room's end needs every table's state, so a message-driven wake loads them all.
+    if (this.tables.size > 1) for (const t of this.tables.values()) await this.ensureLoaded(t);
+    else await this.ensureLoaded(table);
     await this.touchHost();
     await this.game(socket, who, table, message);
   }
@@ -858,6 +863,11 @@ export class GameRoomLogic {
     if (table) await this.writeTail(table);
   }
 
+  /** Whether a presented seat token opens a held seat: such a player is let in even when the room is full. */
+  private async holdsSeatToken(lobby: LobbyRow | null, hashes: readonly string[]): Promise<boolean> {
+    return lobby?.seats.some((seat) => seat.tokenHash !== undefined && hashes.includes(seat.tokenHash)) ?? false;
+  }
+
   private async hello(socket: RoomSocket, message: Extract<ClientMessage, { kind: "hello" }>): Promise<void> {
     if (socket.getParticipant()) return this.refuse(socket, "bad-message");
     const meta = await this.loadMeta();
@@ -886,7 +896,7 @@ export class GameRoomLogic {
     // socket's place.
     if (isRoomToken) await this.replaceHost(this.organizerOf());
     else if (tokenTable !== undefined) await this.replaceHost(this.hostOf(tokenTable));
-    else if (this.participants.size >= this.limits.maxParticipants) {
+    else if (this.participants.size >= this.limits.maxParticipants && !(await this.holdsSeatToken(lobby, seatHashes))) {
       this.refuse(socket, "full");
       socket.close(1013, "full");
       return;
@@ -1261,7 +1271,8 @@ export class GameRoomLogic {
     let seats = lobby.seats;
     if (message.seats) {
       const ids = new Set(message.seats.map((s) => s.id));
-      const cap = epic ? MAX_LOBBY_SEATS * MAX_LOBBY_TABLES : MAX_LOBBY_SEATS;
+      // Every seat holder must fit in the room, so the seats are capped by the participant limit too.
+      const cap = Math.min(epic ? MAX_LOBBY_SEATS * MAX_LOBBY_TABLES : MAX_LOBBY_SEATS, this.limits.maxParticipants);
       if (ids.size !== message.seats.length || message.seats.length > cap) return refuse("bad-message");
       if (!epic && message.seats.some((s) => s.table !== undefined && s.table !== FIRST_TABLE)) {
         return refuse("bad-message");
@@ -1296,7 +1307,8 @@ export class GameRoomLogic {
     if (!epic) {
       if (message.tables !== undefined || message.pods !== undefined) return refuse("bad-message");
       if (wasEpic) {
-        if ([...this.tables.values()].some((t) => t.id !== FIRST_TABLE && t.hasHeader)) return refuse("out-of-order");
+        // Any table with a log (t1 too: its end would move between rows) keeps the room Epic.
+        if ([...this.tables.values()].some((t) => t.hasHeader)) return refuse("out-of-order");
         if (old.some((t) => t.host !== undefined)) return refuse("bad-table-host");
       }
     } else {
@@ -1311,6 +1323,8 @@ export class GameRoomLogic {
       const ids = new Set(specs.map((t) => t.id));
       if (ids.size !== specs.length || !ids.has(FIRST_TABLE)) return refuse("bad-message");
       for (const o of old) if (!ids.has(o.id) && this.tables.get(o.id)?.hasHeader) return refuse("out-of-order");
+      // A removed table's host is a plain participant again.
+      for (const o of old) if (!ids.has(o.id) && o.host !== undefined) demote.push(o.host);
       if (!wasEpic && [...this.tables.values()].some((t) => t.hasHeader)) return refuse("out-of-order");
       // Pods: as given, else named by the tables' own pod ids (keeping any name already set).
       const podNames = new Map((lobby.pods ?? []).map((p) => [p.id, p.name]));
@@ -1393,6 +1407,7 @@ export class GameRoomLogic {
       delete lobby.organizerTable;
     }
     this.syncTables(lobby);
+    if (wasEpic && !epic) this.podState = undefined;
     for (const id of [...this.requests.keys()]) if (!seats.some((seat) => seat.id === id)) this.requests.delete(id);
     // The people: a replaced host is a plain participant again; the organizer hosts its table (or none); a new host is
     // promoted and told its token privately.
@@ -1490,7 +1505,7 @@ export class GameRoomLogic {
         if (!seat) return this.refuse(socket, "no-such-seat");
         const target = this.participants.get(message.participant);
         if (!target) return this.refuse(socket, "no-such-participant");
-        if (target.role !== "host" && !this.sameBuild(target.build, settings)) {
+        if (!this.isOrganizer(target) && !this.sameBuild(target.build, settings)) {
           return this.refuse(socket, "build-mismatch");
         }
         if (seat.holder && seat.holder !== target.id) {
@@ -1691,7 +1706,7 @@ export class GameRoomLogic {
     const organizer = this.isOrganizer(who);
     if (message.kind === "state") {
       if (!organizer) return this.refuse(socket, "not-allowed");
-      if (sizeOf(message.state) > MAX_POD_STATE_BYTES) return this.refuse(socket, "too-large");
+      if (byteSize(message.state) > MAX_POD_STATE_BYTES) return this.refuse(socket, "too-large");
       if (!takeToken(this.podBuckets, who.id, POD_BURST, POD_PER_SECOND, this.clock())) {
         return this.refuse(socket, "rate-limited");
       }
@@ -1699,7 +1714,7 @@ export class GameRoomLogic {
       this.broadcast({ v: 1, ch: "pod", kind: "state", state: message.state }, who.id);
       return;
     }
-    if (sizeOf(message.event) > MAX_POD_EVENT_BYTES) return this.refuse(socket, "too-large");
+    if (byteSize(message.event) > MAX_POD_EVENT_BYTES) return this.refuse(socket, "too-large");
     if (!this.tables.has(message.table)) return this.refuse(socket, "no-such-table");
     if (message.kind === "event") {
       // From a table's own host; the organizer's own table needs no relay (the coordinator is on its device).

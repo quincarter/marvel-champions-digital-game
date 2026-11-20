@@ -351,6 +351,9 @@ lobby advertises the `tables` capability in every lobby room.
   a participant receives (absent means all); `Participant.follow` shows in the roster, newly followed tables send their log
   at once, and `roster.watching` counts the watchers (seat holders excluded) per table. `table` info messages go to
   everyone. A host is not sent its own table's log, but gets the others.
+- A `follow` naming an unknown table is refused `no-such-table` and changes nothing. A seat holder always receives the
+  tables where it holds a seat, whatever it follows. Switching back to `standard` is refused (`out-of-order`) once any
+  table has a log, or while a table host is assigned; leaving Epic clears the kept pod state. Pod size caps are in bytes.
 - **Proposals and requests** go to the host of the table named in the message, and only a holder of a seat at that
   table (not mismatched, not taken over) may send them. A cross-table `remote` proposal (the Mangog, Door Between Worlds)
   is not built: it will be a `remote` marker on `propose`, judged by the owning table's engine (see the open owner
@@ -366,4 +369,4 @@ lobby advertises the `tables` capability in every lobby room.
   (a header row, one chunk row per 20 commands, one tail row at most once a minute while streaming); the lobby row is
   written only when the lobby, a seat holder or a table host changes; a table's end is one row and the room's end one
   meta write. A woken room reads every table once when someone joins (about one row per 20 commands per table, plus 3 per
-  table). Epic rooms need `MAX_ROOM_PARTICIPANTS` above 25 for 4 tables of 4 plus watchers.
+  table). Seats are capped by `MAX_ROOM_PARTICIPANTS` (25: 16 players in 4 tables plus 9 watchers fit, 8 tables of 4 do not, so raise the var for those); the organizer, table hosts and anyone presenting a valid seat token are let in even when the room is full.

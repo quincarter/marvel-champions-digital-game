@@ -583,3 +583,92 @@ describe("the room ends when every table has", () => {
     expect(h.w.last("table")!.table).toMatchObject({ id: "t2", ended: false, commands: 1 });
   });
 });
+
+describe("review fixes", () => {
+  it("a message-driven wake loads every table, so the room still ends when all have", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
+    await h.send(h.org, { ch: "game", kind: "end", table: "t1", outcome: "won" });
+    // The room is evicted; both hosts' sockets survive hibernation and speak first to the new object.
+    const woken = new GameRoomLogic(h.storage, undefined, () => h.clock.now);
+    woken.restore(h.org);
+    woken.restore(h.b1);
+    await h.send(h.b1, { ch: "game", kind: "end", table: "t2", outcome: "won" }, woken);
+    expect(await h.storage.getAlarm()).toBe(h.clock.now + ROOM_END_GRACE_MS);
+    expect(await woken.alarm(h.clock.now + ROOM_END_GRACE_MS)).toBe("closed");
+  });
+
+  it("removing a table demotes its host", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, {
+      ch: "room",
+      kind: "lobby-set",
+      tables: [
+        { id: "t1", name: "One", pod: "pa" },
+        { id: "t3", name: "Three", pod: "pb" },
+      ],
+      seats: [{ id: "s1", label: "H1", table: "t1" }],
+    });
+    expect(h.b1.attachment).toMatchObject({ role: "watcher" });
+    expect(h.b1.attachment!.table).toBeUndefined();
+    expect(h.room.logLength("t2")).toBe(0);
+  });
+
+  it("a seat holder keeps receiving its own table whatever it follows", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.a1, { ch: "room", kind: "follow", tables: ["t2"] });
+    await h.send(h.org, { ch: "game", kind: "commands", table: "t1", from: 0, commands: ["a"] });
+    expect(h.a1.games("commands", "t1")).toHaveLength(1);
+  });
+
+  it("a seat token gets a player into a full room; others are turned away", async () => {
+    const h = await setup();
+    const token = h.a1.last("seat-token")!.token;
+    for (let i = 0; i < 25; i++) await h.join(`W${i}`);
+    const late = await h.join("Late");
+    expect(late.refusals).toContain("full");
+    const back = await h.join("A1", { seatTokens: [token] });
+    expect(back.attachment).not.toBeNull();
+    expect(back.refusals).toEqual([]);
+  });
+
+  it("refuses going back to standard once a table has a log, and clears the pod state on leaving Epic", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "pod", kind: "state", state: { loki: 1 } });
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    const standard = {
+      ch: "room",
+      kind: "lobby-set",
+      settings: { mode: "standard" },
+      seats: [{ id: "s1", label: "H1" }],
+    };
+    await h.send(h.org, standard);
+    expect(h.org.refusals).toEqual(["out-of-order"]);
+    const fresh = await setup();
+    await fresh.send(fresh.org, { ch: "pod", kind: "state", state: { loki: 1 } });
+    await fresh.send(fresh.org, standard);
+    expect(fresh.org.last("lobby")!.settings.mode).toBe("standard");
+    const late = await fresh.join("Late");
+    expect(late.of("state")).toHaveLength(0);
+  });
+
+  it("measures pod sizes in bytes", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    // Multi-byte text: few characters, many bytes.
+    await h.send(h.b1, {
+      ch: "pod",
+      kind: "event",
+      table: "t2",
+      seq: 1,
+      event: { t: "é".repeat(MAX_POD_EVENT_BYTES / 2) },
+    });
+    expect(h.b1.refusals).toEqual(["too-large"]);
+  });
+});

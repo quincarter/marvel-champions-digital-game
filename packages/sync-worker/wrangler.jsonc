@@ -127,8 +127,9 @@
 //     in memory, each message capped at 16 KiB (state 32 KiB) and limited to 30 then 10 a second per participant, and
 //     the last pod state is kept in memory for joiners. A joining participant makes a woken room read every table once
 //     (header, chunks, tail, end: about one row per 20 commands per table, plus 3 per table), which is the same
-//     once-per-wake cost as a one-table room times the table count. Epic rooms of 4 tables x 4 players plus watchers
-//     need MAX_ROOM_PARTICIPANTS above 25 (table hosts and the organizer always get in).
+//     once-per-wake cost as a one-table room times the table count. Seats are capped by MAX_ROOM_PARTICIPANTS, and the organizer, table
+//     hosts and anyone with a valid seat token always get in; 16 players plus 9 watchers fit in the default 25, but
+//     8 tables of 4 do not (raise the var for them).
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
 //     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
 //     secret alone must not stop rooms.
