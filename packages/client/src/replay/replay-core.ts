@@ -106,7 +106,7 @@ function plausibleSetup(file: ReplayFile): boolean {
  * matches), and its packs are the viewer's own installed copies, by id and version, never pack data from the file
  * (a precon of a billion cards).
  */
-function trustedFile(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
+export function trustedFile(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
   if (!plausibleSetup(file)) throw new ReplayOpenError("damaged");
   let config = withoutPacks(file.config);
   const refs = file.packs ?? [];
