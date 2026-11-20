@@ -118,6 +118,14 @@
 //     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
 //     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
 //     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
+//     Seat decks (`seat-deck`, each player brings their own hero and deck, 2026-11-20) are stored in the same `lobby` row,
+//     with their seat: an accepted, changed deck rewrites that one row (the same deck again writes nothing), a change of
+//     holder that clears a holder's own deck is already a row write for the holder change, and a `deck-refused` or a
+//     `seat-decks-request` writes nothing. A deck is at most 16 KiB (MAX_SEAT_DECK_BYTES) so four decks and the rest of the
+//     row stay far under a storage value's 128 KiB. Each participant may send a burst of 4 decks, then one every 3 seconds,
+//     and the whole room a burst of 20 then one every 2 seconds, so no loop of decks writes more than about 1,800 rows an
+//     hour; a normal lobby writes a handful. The lobby broadcast carries only a summary of each deck (hero, aspects, name,
+//     card count, mods), the full lists go to the host alone, on request.
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
 //     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
 //     secret alone must not stop rooms.

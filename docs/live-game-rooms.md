@@ -153,8 +153,13 @@ What a player sees:
   characters, shown on your seats and in chat.
 - **Lobby:** the code and a Copy link button; everyone in the room with their name and role; the seats (one per hero
   the host sets up) with who holds each; chat; the host's settings, read-only for everyone else.
-- **Seats:** the host sets the table up with the existing setup flow (scenario, heroes, decks) in room mode; each hero
-  is a seat. A participant asks for a seat and the host approves it, or the host gives one out. A participant may hold
+- **Seats (Quin, 2026-11-20: players bring their own hero and deck):** the host sets the table up (scenario, seat count,
+  difficulty, rules, allowed mods) and the lobby holds that many open seats. Each player picks THEIR OWN hero and deck on
+  their own device (saved, imported, custom and precon decks) and sends it with their seat; the host may preset a deck for
+  a seat, which the holder can replace. The lobby shows each seat's deck as a summary only (hero, aspect, deck name, card
+  count, mods); the full list goes to the host alone. At Start the host's engine judges every deck (legal under
+  `validateDeck`, every card known in the host's pool, mod cards only from allowed mods at the same version) and tells
+  only that seat's holder why theirs fails (`deck-refused`). A participant asks for a seat and the host approves it, or the host gives one out. A participant may hold
   more than one seat only when the host allows it. The host may hold seats too.
 - **Host controls** (room settings, host-only, broadcast to all):
   - Play mode: **Strict** (the game as written: no Undo, no Back out, no Manual adjust, no rule changes mid-game) or
@@ -200,6 +205,15 @@ exactly as watching did):
   equals the host's in both versions (a missing build never matches), `multi-seat` for a second seat while `multiSeat` is
   off, `seat-taken`, `no-such-seat`, `no-such-participant`. Only `bad-message`, `too-large` and `not-allowed` count toward
   the room closing a noisy socket.
+- **Seat decks** (`room-protocol.ts` `RoomDeck`: name, identity card id, hero name, aspects, `{ cardId, quantity }`
+  lines, mod refs `{ id, version }`; at most 16 KiB of JSON, 120 lines): a seat's holder sends `seat-deck { seat, deck }`; the host
+  may send one for any seat it does not hold, which is a **preset**. The room stores the deck in the seat's entry of the
+  `lobby` row (rewritten only when it changes) and broadcasts only `seat.deck`, a `RoomDeckSummary`, in `lobby`. The host
+  asks `seat-decks-request` and gets `seat-decks` with every full list, to itself alone. A change of holder (release, the
+  host taking the seat back) clears a holder's own deck and keeps a preset; a seat the host removes loses its deck. At
+  Start the host sends `deck-refused { seat, code, reason }` for each failing seat, which the room relays to that seat's
+  holder alone. `seat-deck` is rate limited per participant (burst 4, then one every 3 s) and for the room (burst 20, then
+  one every 2 s); a refused one is `rate-limited`, `too-large` or `not-allowed`. `LobbySeatSpec.label` is now optional.
 - A seat whose connected holder runs a build that is not the host's (restored by token after an update, or the host changed
   build) stays held and is sent with `mismatch: true`; its holder may not act for it until the builds match (the later play
   step enforces that). Restoring by token also obeys `multiSeat`: an extra seat is refused `multi-seat` and stays with its

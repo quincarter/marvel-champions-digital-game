@@ -225,7 +225,7 @@ export class RoomModel {
     const nameOf = (id: string): string => this.#participants.find((p) => p.id === id)?.name ?? "";
     const seats: RoomSeat[] = (lobby?.seats ?? []).map((seat) => ({
       id: seat.id,
-      label: seat.label,
+      label: seat.label ?? "",
       holder: seat.holder ?? null,
       holderName: seat.holder ? nameOf(seat.holder) || seat.holderName || null : null,
       mismatch: seat.mismatch === true,
