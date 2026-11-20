@@ -184,7 +184,7 @@ export class LiveRoomController {
         return;
       }
       case "room-leave":
-        this.#closeSession();
+        this.#closeSession(message.closeRoom === true);
         return;
       case "room-lobby":
         this.#session?.lobbySet(message);
@@ -260,13 +260,13 @@ export class LiveRoomController {
     return session;
   }
 
-  #closeSession(): void {
+  #closeSession(closeRoom = false): void {
     const session = this.#session;
     if (!session) return;
     // The game streaming into the room is over with it: the room is told, then the socket closes.
     if (this.#live?.room === session) this.#leave();
     this.#session = null;
-    session.close();
+    session.close({ closeRoom });
     this.#postRoom(NO_ROOM);
   }
 
@@ -458,7 +458,14 @@ export class LiveRoomController {
           }
           const info = message.tables.find((t) => t.id === "t1");
           live.publisher.onWelcome(
-            info ? { commands: info.commands, ended: info.ended, hasHeader: info.hasHeader } : undefined,
+            info
+              ? {
+                  commands: info.commands,
+                  ended: info.ended,
+                  hasHeader: info.hasHeader,
+                  ...(info.checkpoint !== undefined ? { checkpoint: info.checkpoint } : {}),
+                }
+              : undefined,
           );
         }
         live.publisher.onMessage(message);

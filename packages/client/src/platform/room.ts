@@ -153,9 +153,9 @@ export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
 }
 
 /** Leaves the room (a host closes its lobby for everyone). Seat tokens are kept, so joining again restores the seats. */
-export function leaveRoom(): void {
+export function leaveRoom(options: { readonly closeRoom?: boolean } = {}): void {
   if (state.role === "none") return;
-  postRoomCommand({ kind: "room-leave" });
+  postRoomCommand({ kind: "room-leave", ...(options.closeRoom ? { closeRoom: true } : {}) });
   deckWorker.destroy();
   publish(NO_ROOM);
 }

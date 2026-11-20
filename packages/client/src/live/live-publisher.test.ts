@@ -263,6 +263,47 @@ describe("live publisher", () => {
     expect(sent).toEqual([{ v: 1, ch: "game", kind: "rewind", table: "t1", to: 1 }]);
   });
 
+  describe("a resumed host proves the room's prefix", () => {
+    const four = [cmd(1), cmd(2), cmd(3), cmd(4)];
+
+    it("equal-count divergence (the room's checksum differs from the save's) replaces the table from the save", () => {
+      const { publisher, sent } = setup({ commands: four, checksums: { "0": "z", "4": "mine" } });
+      publisher.onWelcome(room(4, { checkpoint: { count: 4, sum: "theirs" } }));
+      expect(sent.map((m) => m.kind)).toEqual(["start", "commands"]);
+      expect(sent[1]).toMatchObject({ from: 0, commands: four });
+    });
+
+    it("an ended room that does not match is reopened first, then replaced", () => {
+      const { publisher, sent } = setup({ commands: four, checksums: { "0": "z" } });
+      publisher.onWelcome(room(4, { ended: true, checkpoint: { count: 0, sum: "other" } }));
+      expect(sent.map((m) => m.kind)).toEqual(["rewind", "start", "commands"]);
+      expect(sent[0]).toMatchObject({ to: 4 });
+    });
+
+    it("a room with commands and no checksum at all is replaced", () => {
+      const { publisher, sent } = setup({ commands: four, checksums: { "0": "z" } });
+      publisher.onWelcome(room(4, { checkpoint: null }));
+      expect(sent.map((m) => m.kind)).toEqual(["start", "commands"]);
+    });
+
+    it("a matching checkpoint is trusted up to it, and the commands past it are cut back and resent", () => {
+      const { publisher, sent } = setup({ commands: four, checksums: { "0": "z", "2": "two" } });
+      publisher.onWelcome(room(4, { checkpoint: { count: 2, sum: "two" } }));
+      expect(sent.map((m) => m.kind)).toEqual(["rewind", "commands"]);
+      expect(sent[0]).toMatchObject({ to: 2 });
+      expect(sent[1]).toMatchObject({ from: 2, commands: [cmd(3), cmd(4)] });
+    });
+
+    it("a matching checkpoint at the room's count sends nothing, and a later welcome is not re-verified", () => {
+      const { publisher, sent } = setup({ commands: four, checksums: { "0": "z", "4": "four" } });
+      publisher.onWelcome(room(4, { checkpoint: { count: 4, sum: "four" } }));
+      expect(sent).toEqual([]);
+      publisher.onDisconnected();
+      publisher.onWelcome(room(4, { checkpoint: { count: 4, sum: "different" } }));
+      expect(sent).toEqual([]);
+    });
+  });
+
   it("asks for a resync on a gap and ignores the command", () => {
     const { publisher, sent, onResync } = fresh();
     publisher.command(cmd(5), 5);

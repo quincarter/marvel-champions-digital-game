@@ -88,7 +88,9 @@ describe("creating and joining", () => {
     expect(welcome.caps).toEqual(ROOM_CAPS);
     expect(welcome.caps).toEqual(["watch"]);
     expect(welcome.you).toMatchObject({ role: "host", table: "t1" });
-    expect(welcome.tables).toEqual([{ id: "t1", hostConnected: true, commands: 0, ended: false, hasHeader: false }]);
+    expect(welcome.tables).toEqual([
+      { id: "t1", hostConnected: true, commands: 0, ended: false, hasHeader: false, checkpoint: null },
+    ]);
     const w = await hello(undefined, "Ann");
     expect(w.last("welcome")!.you).toMatchObject({ role: "watcher" });
     expect(w.last("welcome")!.you.name).toBeUndefined();
@@ -282,9 +284,11 @@ describe("the table log", () => {
     await start(h);
     const before = storage.rowsWritten;
     for (let i = 0; i < 19; i++) await commands(h, i, [{ c: i }]);
-    expect(storage.rowsWritten).toBe(before);
+    // The first batch of a table writes the tail row (one row); the rest of the first 19 write nothing more.
+    expect(storage.rowsWritten).toBe(before + 1);
     for (let i = 19; i < 100; i++) await commands(h, i, [{ c: i }], i === 39 ? { "40": "sum" } : undefined);
-    expect(storage.rowsWritten - before).toBe(5);
+    // 5 chunks, the first batch's tail row, and the delete that drops the tail when the first chunk supersedes it.
+    expect(storage.rowsWritten - before).toBe(7);
     expect([...storage.map.keys()].sort()).toEqual([
       "meta",
       "t1:c:000000",
@@ -488,8 +492,6 @@ describe("ending", () => {
     const w = await hello();
     await send(h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
     expect(storage.alarm).toBe(clock.now + ROOM_END_GRACE_MS);
-    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 3 });
-    expect(w.last("table")!.table.ended).toBe(true);
     await send(h, { ch: "game", kind: "rewind", table: "t1", to: 2 });
     expect(w.last("table")!.table.ended).toBe(false);
     const meta = storage.map.get("meta") as { ended: boolean; endedAt?: number };
@@ -498,6 +500,25 @@ describe("ending", () => {
     expect(storage.alarm).toBeGreaterThan(clock.now + ROOM_END_GRACE_MS);
     const late = await hello();
     expect(late.kinds()).not.toContain("game:end");
+  });
+
+  it("a rewind to the current count reopens an ended table (a resumed host), clearing ended and the end alarm", async () => {
+    const { host, hello, start, commands, send, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(h, 0, [1, 2, 3]);
+    const w = await hello();
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: null });
+    expect(w.last("table")!.table.ended).toBe(true);
+    await send(h, { ch: "game", kind: "rewind", table: "t1", to: 3 });
+    expect(w.last("table")!.table.ended).toBe(false);
+    const meta = storage.map.get("meta") as { ended: boolean; endedAt?: number };
+    expect(meta.ended).toBe(false);
+    expect(meta.endedAt).toBeUndefined();
+    expect(storage.alarm).toBeGreaterThan(clock.now + ROOM_END_GRACE_MS);
+    await commands(h, 3, [4]);
+    expect(w.last("commands")).toMatchObject({ from: 3 });
+    expect((await hello()).last("welcome")!.tables[0]).toMatchObject({ ended: false, commands: 4 });
   });
 
   it("reports hasHeader in welcome and table updates", async () => {
@@ -790,10 +811,11 @@ describe("the tail row while the host streams, at the end, and after a wake", ()
     const h = await host();
     await start(h);
     await commands(h, 0, [0, 1, 2]);
-    expect(storage.map.has("t1:tail")).toBe(false);
+    // The first batch of a table writes the tail at once.
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([0, 1, 2]);
     clock.now += 59_000;
     await commands(h, 3, [3]);
-    expect(storage.map.has("t1:tail")).toBe(false);
+    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([0, 1, 2]);
     clock.now += 2_000;
     await commands(h, 4, [4]);
     expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([0, 1, 2, 3, 4]);
@@ -818,6 +840,21 @@ describe("the tail row while the host streams, at the end, and after a wake", ()
     await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
     expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(3);
     expect(w.last("end")).toMatchObject({ outcome: { won: true } });
+  });
+
+  it("commands in the first minute, then hibernation, then a host close: watchers still get the first batch", async () => {
+    const { host, start, commands, storage, clock } = await setup();
+    const h = await host();
+    await start(h);
+    await commands(h, 0, [0, 1, 2]);
+    clock.now += 5_000;
+    // The room hibernates and is rebuilt; the host's close is the first thing it sees.
+    const woken = new GameRoomLogic(storage, undefined, () => clock.now);
+    woken.restore(h);
+    await woken.close(h);
+    const w = new FakeSocket();
+    await woken.message(w, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [] }));
+    expect((w.last("log") as unknown as { commands: unknown[] }).commands).toHaveLength(3);
   });
 
   it("a host close as the first event of a woken room does not overwrite the stored tail", async () => {

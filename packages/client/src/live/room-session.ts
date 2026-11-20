@@ -208,11 +208,14 @@ export class RoomSession {
 
   /** Host: goes back to a room it made earlier (a resumed game after a reload). */
   resumeHost(roomId: string, hostToken: string, code?: string): void {
-    this.#generation++;
+    const generation = ++this.#generation;
     this.#hostToken = hostToken;
     this.#model.setRoom(roomId, code);
     this.#publish();
-    this.#connect(roomId);
+    // The host's own seat tokens go on the hello, or the room still holds its seat for the old connection.
+    void this.#loadTokens(roomId).then(() => {
+      if (generation === this.#generation) this.#connect(roomId);
+    });
   }
 
   /** Guest: `target` is a room code (looked up) or a room id (a link's own). */
@@ -238,8 +241,12 @@ export class RoomSession {
     this.#connect(roomId);
   }
 
-  /** Leaves the room: the socket closes, the seat tokens stay (joining again restores the seats). */
-  close(): void {
+  /**
+   * Leaves the room: the socket closes, the seat tokens stay (joining again restores the seats). A host with
+   * `closeRoom` first asks the room to close for everyone (guests are told, the code is released, the room is gone).
+   */
+  close(options: { readonly closeRoom?: boolean } = {}): void {
+    if (options.closeRoom && this.role === "host" && !this.#closed) this.#say({ ch: "room", kind: "room-close" });
     this.#generation++;
     this.#closed = true;
     this.#clearGapTimer();

@@ -284,7 +284,8 @@ describe("seat requests and assignments", () => {
     await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
     expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
     await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
-    expect(h.refusals).toEqual(["no-such-participant"]);
+    // Nothing left to deny: the host gets the current lobby, not a dead-end refusal.
+    expect(h.refusals).toEqual([]);
   });
 
   it("takes a seat from its holder without a seat-denied notice (only a pending request gets one)", async () => {
@@ -826,6 +827,61 @@ describe("seat requests write nothing", () => {
       return s;
     })();
     expect(late.last("lobby")!.seats[0]!.requested).toBeUndefined();
+  });
+});
+
+describe("a woken room with its sockets still open (#901 review)", () => {
+  it("sends everyone a fresh lobby on the first message, and a deny of a lost request answers with the lobby", async () => {
+    const { make, room, send, join, host, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1") });
+    const a = await join(room, { name: "Ann" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]!.requested).toEqual([a.id]);
+    const woken = make();
+    woken.restore(h);
+    woken.restore(a);
+    const hLobbies = h.of("lobby").length;
+    const aLobbies = a.of("lobby").length;
+    // The host denies the request the new object never heard of: no dead-end refusal, and the lobby is refreshed.
+    await send(woken, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
+    expect(h.refusals).toEqual([]);
+    expect(h.of("lobby").length).toBeGreaterThan(hLobbies);
+    expect(a.of("lobby").length).toBe(aLobbies + 1);
+    expect(h.last("lobby")!.seats[0]!.requested).toBeUndefined();
+    // The requester asks again on the lobby it got, and the host's approval works.
+    await send(woken, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]!.requested).toEqual([a.id]);
+    await send(woken, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    expect(a.of("seat-token")).toHaveLength(1);
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ holder: a.id });
+  });
+});
+
+describe("the host closes the room for everyone", () => {
+  it("tells every socket, closes them, releases the code and forgets the room; a guest cannot", async () => {
+    const calls: string[] = [];
+    const hooks: RoomCodeHooks = {
+      refresh: async () => {},
+      release: async (code, roomId) => void calls.push(`release ${code} ${roomId}`),
+    };
+    const { room, send, join, host, storage } = await setup({ hooks });
+    const h = await host();
+    const a = await join(room, { name: "Ann" });
+    const b = await join(room, { name: "Bo" });
+    await send(room, a, { ch: "room", kind: "room-close" });
+    expect(a.refusals).toEqual(["not-allowed"]);
+    expect(room.participantCount).toBe(3);
+    expect(calls).toEqual([]);
+    await send(room, h, { ch: "room", kind: "room-close" });
+    for (const s of [h, a, b]) {
+      expect(s.last("closed")).toMatchObject({ reason: "host" });
+      expect(s.closed).not.toBeNull();
+    }
+    expect(calls).toEqual([`release ${CODE} ${ROOM_ID}`]);
+    expect(room.participantCount).toBe(0);
+    expect(await room.exists()).toBe(false);
+    expect([...(await storage.list({})).keys()]).toEqual([]);
   });
 });
 
