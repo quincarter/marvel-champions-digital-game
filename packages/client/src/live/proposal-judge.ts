@@ -28,6 +28,9 @@ const COMMAND_TYPES: Readonly<Record<Command["type"], true>> = {
   concede: true,
   adjust: true,
   resolveChoice: true,
+  // Never from a seat (judged below): the table host's own engine feeds the pod's words in (Epic Multiplayer).
+  externalEvent: true,
+  remotePower: true,
 };
 
 export interface ProposalCheck {
@@ -74,6 +77,8 @@ export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   if (command.type === "adjust") return { ok: false, reason: strict ? "strict" : "illegal" };
   // Giving the game up ends it for the whole table: a seat asks the host for it (a `concede` request), never proposes it.
   if (command.type === "concede") return { ok: false, reason: "illegal" };
+  // An inbound pod event is the table host's own command (`isAuthorityCommand`), never a seat's proposal.
+  if (command.type === "externalEvent") return { ok: false, reason: "illegal" };
   const acting = actingPlayer(state);
   if (acting === null || players.length === 0) return { ok: false, reason: "not-your-turn" };
   const mine = (id: string): boolean => players.includes(id);
