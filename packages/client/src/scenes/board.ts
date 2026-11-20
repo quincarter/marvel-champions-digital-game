@@ -1285,6 +1285,7 @@ export class BoardScene extends Phaser.Scene {
         gameDeps(),
         mine,
         appSession().settings.playAreaOrder,
+        appSession().store.state.config?.localSeats ?? null,
       ),
     );
   }
@@ -1636,7 +1637,14 @@ export class BoardScene extends Phaser.Scene {
     const state = appSession().store.state;
     if (state.game && state.perspectiveId) {
       this.#model = this.#withDebugSideSchemes(
-        boardModel(state.game, shownSeat(state)!, gameDeps(), null, appSession().settings.playAreaOrder),
+        boardModel(
+          state.game,
+          shownSeat(state)!,
+          gameDeps(),
+          null,
+          appSession().settings.playAreaOrder,
+          appSession().store.state.config?.localSeats ?? null,
+        ),
       );
     }
     this.#draw();
@@ -3676,6 +3684,7 @@ export class BoardScene extends Phaser.Scene {
         gameDeps(),
         null,
         appSession().settings.playAreaOrder,
+        appSession().store.state.config?.localSeats ?? null,
       ),
     );
     this.#heldModelCache = { base: live, game, key, model };
