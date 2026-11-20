@@ -23,7 +23,8 @@ import { P1, firstLegal, identityOf, inst, patchInstance, type Picker } from "..
 import { PodSim } from "../../testing/pod-sim.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
 import { epicGroupScenario, wave9Scenario } from "../setup.js";
-import { IRON_MAN, SHE_HULK, SPIDER_MAN, codeOf, heroForm, onlyDeck } from "../testing.js";
+import { BLACK_CAT, IRON_MAN, SHE_HULK, SPIDER_MAN, codeOf, heroForm, onlyDeck } from "../testing.js";
+import { playFromHand } from "../../testing/staging.js";
 import { TT_ASPECT_BASIC } from "./aspect-basic.js";
 import { GOD_OF_LIES } from "./god-of-lies.js";
 import { TRICKSTER_MAGIC } from "./trickster-magic.js";
@@ -273,38 +274,89 @@ describe("Loki, God of Lies is defeated: all players in all groups win (55027b; 
   });
 });
 
-describe("The Mangog and Door Between Worlds from another group of the pod (55041, 55046; MC55 p. 16; M6)", () => {
-  it("g1 attacks g2's Mangog; pod B cannot; the Mangog falls to a remote attack and both groups of pod A get its line", () => {
+// ---------------------------------------------------------------------------------------------------------------
+// The Mangog and Door Between Worlds from another group of the pod. 55041/55046 "as if it were in their game area": a
+// real attack/thwart by the remote character (MC55 insert p.12 exception; RRG Attack (Player Ability Type) p.10, Thwart
+// p.44), made in the attacker's group against a stand-in and dealt in the owning group.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The Mangog revealed in g2's villain phase; g1 and g3 ready. Returns its id in g2. */
+function mangogInG2(sim: PodSim): InstanceId {
+  ready(sim, G1, G3);
+  readyWith(sim, G2, ["55041"]);
+  sim.act(G2, { type: "endTurn", playerId: P1 }, firstLegal);
+  sim.answer(G2, firstLegal);
+  return onTable(sim.state(G2), "55041")!;
+}
+
+/** Door Between Worlds revealed in g1's villain phase; g2 ready. Returns its id in g1. */
+function doorInG1(sim: PodSim): InstanceId {
+  ready(sim, G2);
+  readyWith(sim, G1, ["55046"]);
+  sim.act(G1, { type: "endTurn", playerId: P1 }, firstLegal);
+  sim.answer(G1, firstLegal);
+  return onTable(sim.state(G1), "55046")!;
+}
+
+const standIns = (s: GameState): InstanceId[] => s.villainArea.filter((id) => s.instances[id]?.remoteOf);
+const sent = (sim: PodSim, g: GroupId, type: string) =>
+  typesOf(sim.group(g).events, "podEventEmitted").filter((e) => (e as { event: { type: string } }).event.type === type);
+/** Takes the optional ability on the card `code` whenever it is offered; the first legal answer otherwise. */
+const taking =
+  (code: string): Picker =>
+  (s) => {
+    const option = s.pendingChoice?.options.find(
+      (o) => (o.ref.kind === "card" || o.ref.kind === "ability") && codeOf(s, o.ref.instanceId) === code,
+    );
+    return option ? [option.optionId] : firstLegal(s);
+  };
+
+describe("a remote attack on The Mangog (55041; MC55 p. 16; M6)", () => {
+  it("is a real basic attack in g1, dealt in g2; pod B and a thwart are refused before anything is paid", () => {
     const sim = pods();
-    ready(sim, G1, G3);
-    // The Mangog is revealed in g2's villain phase (under the one boost card its activation takes).
-    readyWith(sim, G2, ["55041"]);
-    sim.act(G2, { type: "endTurn", playerId: P1 }, firstLegal);
-    sim.answer(G2, firstLegal);
-    const mangog = onTable(sim.state(G2), "55041")!;
+    const mangog = mangogInG2(sim);
     expect(maxHp(sim.state(G2), mangog)).toBe(20);
     expect(sim.coordinator.groups[1]!.reachable).toEqual([
       { instanceId: mangog, cardId: "55041", by: "attack", remainingHitPoints: 20 },
     ]);
+    // g1 holds a copy of g2's report (the coordinator relays it to the pod); g3 in pod B does not.
+    expect(podOf(sim.state(G1)).reachable?.[G2]).toHaveLength(1);
+    expect(podOf(sim.state(G3)).reachable).toBeUndefined();
 
-    // g1's hero attacks it "as if it were in their game area": paid and measured in g1, dealt in g2.
     const atk = characterProfile(sim.state(G1), hero(sim, G1), DEPS)!.atk;
+    sim.clearEvents();
     sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
     expect(inst(sim.state(G2), mangog).damage).toBe(atk);
     expect(inst(sim.state(G1), hero(sim, G1)).exhausted).toBe(true);
+    // The attack was made in g1 (its attack event, against the stand-in), and the stand-in is gone again.
+    expect(typesOf(sim.group(G1).events, "remoteStandIn").map((e) => (e as { placed: boolean }).placed)).toEqual([
+      true,
+      false,
+    ]);
+    expect(standIns(sim.state(G1))).toEqual([]);
+    expect(sent(sim, G1, "remotePowerUsed")).toHaveLength(1);
     expect(sim.coordinator.groups[1]!.reachable[0]).toMatchObject({ remainingHitPoints: 20 - atk });
-    // Pod B is not "your pod": g3's engine refuses it before anything is paid.
+
+    // Pod B is not "your pod", and The Mangog is attacked, not thwarted: refused before anything is paid.
     expect(sim.tryApply(G3, remote(sim, G3, "attack", G2, mangog))).toMatch(/^no_valid_target/);
     expect(inst(sim.state(G3), hero(sim, G3)).exhausted).toBe(false);
-    // Only attack and thwart reach another area: a thwart of The Mangog is refused where it is.
     sim.edit(G1, (s) => patchInstance(s, identityOf(s, P1), { exhausted: false }));
-    sim.clearEvents();
-    sim.act(G1, remote(sim, G1, "thwart", G2, mangog), firstLegal);
-    expect(typesOf(sim.group(G2).events, "podEventEmitted").map((e) => (e as { event: unknown }).event)).toContainEqual(
-      expect.objectContaining({ type: "remotePowerResolved", refused: expect.stringContaining("cannot be thwarted") }),
-    );
+    expect(sim.tryApply(G1, remote(sim, G1, "thwart", G2, mangog))).toMatch(/^no_valid_target/);
+    expect(inst(sim.state(G1), hero(sim, G1)).exhausted).toBe(false);
+    expect(sim.replayFault()).toBeNull();
+  });
 
-    // The Mangog one point from falling; g1 finishes it. Its When Defeated runs in g2 and, for g1, in g1 (M2).
+  it("g1's Domineering Force applies to its remote attack (+4), and the Mangog's defeat runs in both groups of pod A", () => {
+    const sim = pods();
+    const mangog = mangogInG2(sim);
+    // One synergy counter on g1's Domineering Force (55052): "When a friendly character attacks ... +4 damage".
+    sim.edit(G1, (s) => patchInstance(s, onTable(s, "55052")!, { counters: { synergy: 1 } }));
+    const atk = characterProfile(sim.state(G1), hero(sim, G1), DEPS)!.atk;
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), taking("55052"));
+    expect(synergyOn(sim.state(G1), "55052")).toBe(0);
+    expect(inst(sim.state(G2), mangog).damage).toBe(atk + 4);
+
+    // One point from falling; g1 finishes it. Its When Defeated runs in g2 and, for g1, in g1 (M2); not in pod B.
     sim.edit(G2, (s) => patchInstance(s, mangog, { damage: maxHp(s, mangog) - 1 }));
     sim.edit(G1, (s) => patchInstance(s, identityOf(s, P1), { exhausted: false }));
     const shatter = [G1, G2, G3].map((g) => shatterOn(sim.state(g)));
@@ -319,16 +371,73 @@ describe("The Mangog and Door Between Worlds from another group of the pod (5504
     expect([G1, G2, G3].map((g) => shatterOn(sim.state(g)))).toEqual([shatter[0]! + 3, shatter[1]! + 3, shatter[2]]);
     expect([G1, G2, G3].map(synergy)).toEqual([before[0]! + 1, before[1]! + 1, before[2]]);
     expect(sim.coordinator.groups[1]!.reachable).toEqual([]);
+    expect(podOf(sim.state(G1)).reachable?.[G2]).toEqual([]);
     expect(sim.replayFault()).toBeNull();
   });
 
-  it("g2 thwarts Door Between Worlds in g1's area (14 threat in a pod of two groups)", () => {
+  it("a stunned attacker only discards its stun and stays exhausted; nothing reaches g2 (RRG 1.8 p. 41)", () => {
     const sim = pods();
-    ready(sim, G2);
-    readyWith(sim, G1, ["55046"]);
-    sim.act(G1, { type: "endTurn", playerId: P1 }, firstLegal);
-    sim.answer(G1, firstLegal);
-    const door = onTable(sim.state(G1), "55046")!;
+    const mangog = mangogInG2(sim);
+    sim.edit(G1, (s) =>
+      patchInstance(s, identityOf(s, P1), { statuses: { ...inst(s, identityOf(s, P1)).statuses, stunned: 1 } }),
+    );
+    sim.clearEvents();
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
+    const s1 = sim.state(G1);
+    expect(inst(s1, hero(sim, G1))).toMatchObject({ exhausted: true, statuses: { stunned: 0 } });
+    expect(inst(sim.state(G2), mangog).damage).toBe(0);
+    expect(sent(sim, G1, "remotePowerUsed")).toEqual([]);
+    expect(standIns(s1)).toEqual([]);
+    expect(podOf(s1).inFlight).toBeUndefined();
+    expect(sim.replayFault()).toBeNull();
+  });
+});
+
+describe("an ally's remote power, and a target gone before the owning group accepts it", () => {
+  it("Black Cat thwarts g2's Door with her consequential damage; if the Door left play first, everything is refunded", () => {
+    const sim = pods();
+    ready(sim, G1, G3);
+    readyWith(sim, G2, ["55046"]);
+    sim.act(G2, { type: "endTurn", playerId: P1 }, firstLegal);
+    sim.answer(G2, firstLegal);
+    const door = onTable(sim.state(G2), "55046")!;
+    let ally: InstanceId | undefined;
+    sim.edit(G1, (s) => {
+      const played = playFromHand(DEPS, s, BLACK_CAT, 2);
+      ally = played.id;
+      return played.state;
+    });
+    const thw = characterProfile(sim.state(G1), ally!, DEPS)!.thw;
+    const allyRemote = (): Command => ({ ...remote(sim, G1, "thwart", G2, door), characterInstanceId: ally! });
+    const threat = inst(sim.state(G2), door).threat;
+    sim.act(G1, allyRemote(), firstLegal);
+    expect(inst(sim.state(G2), door).threat).toBe(threat - thw);
+    // Black Cat: thwart consequential damage 1 (RRG 1.8 "Consequential Damage", p. 13), taken in her own area.
+    expect(inst(sim.state(G1), ally!)).toMatchObject({ exhausted: true, damage: 1 });
+
+    // Surgery in g2: the Door left play, and g2 has not told anyone yet. g1 thwarts from its stale copy.
+    sim.edit(G1, (s) => patchInstance(s, ally!, { exhausted: false, damage: 0 }));
+    sim.edit(G2, (s) => ({
+      ...s,
+      villainArea: s.villainArea.filter((id) => id !== door),
+      victoryDisplay: [...s.victoryDisplay, door],
+    }));
+    sim.clearEvents();
+    sim.act(G1, allyRemote(), firstLegal);
+    // Not initiated (RRG 1.8 "Initiating Abilities", p. 24 step 2): the exhaust and the consequential damage are refunded.
+    expect(inst(sim.state(G1), ally!)).toMatchObject({ exhausted: false, damage: 0 });
+    expect(podOf(sim.state(G1)).inFlight).toBeUndefined();
+    expect(
+      sent(sim, G2, "remotePowerResolved").map((e) => (e as { event: { refused?: string } }).event.refused),
+    ).toEqual([expect.stringContaining("not in play")]);
+    expect(sim.replayFault()).toBeNull();
+  });
+});
+
+describe("a remote thwart of Door Between Worlds (55046; MC55 p. 16; M6)", () => {
+  it("g2 thwarts it in g1's area (14 threat in a pod of two groups); a confused thwarter only discards its status", () => {
+    const sim = pods();
+    const door = doorInG1(sim);
     expect(inst(sim.state(G1), door).threat).toBe(14);
     const thw = characterProfile(sim.state(G2), hero(sim, G2), DEPS)!.thw;
     sim.act(G2, remote(sim, G2, "thwart", G1, door), firstLegal);
@@ -336,19 +445,27 @@ describe("The Mangog and Door Between Worlds from another group of the pod (5504
     expect(sim.coordinator.groups[0]!.reachable).toEqual([
       { instanceId: door, cardId: "55046", by: "thwart", threat: 14 - thw },
     ]);
+    // Confused: the status is discarded, the exhaust stands, the Door keeps its threat.
+    sim.edit(G2, (s) =>
+      patchInstance(s, identityOf(s, P1), {
+        exhausted: false,
+        statuses: { ...inst(s, identityOf(s, P1)).statuses, confused: 1 },
+      }),
+    );
+    sim.act(G2, remote(sim, G2, "thwart", G1, door), firstLegal);
+    expect(inst(sim.state(G2), hero(sim, G2))).toMatchObject({ exhausted: true, statuses: { confused: 0 } });
+    expect(inst(sim.state(G1), door).threat).toBe(14 - thw);
     expect(sim.replayFault()).toBeNull();
   });
+});
 
-  it("Overkill on another group's Mangog: the excess goes to the attacker's own Avatar (owner question 2, option A)", () => {
+describe("Overkill on another group's Mangog (owner question 2, option A)", () => {
+  it("the excess, measured after the damage resolves in g2, goes to the attacker's own Avatar in g1", () => {
     const sim = pods();
-    ready(sim, G1);
-    readyWith(sim, G2, ["55041"]);
-    sim.act(G2, { type: "endTurn", playerId: P1 }, firstLegal);
-    sim.answer(G2, firstLegal);
-    const mangog = onTable(sim.state(G2), "55041")!;
+    const mangog = mangogInG2(sim);
     const avatarDamage = inst(sim.state(G1), sim.state(G1).activeVillainId).damage;
-    // As g1's coordinator would deliver an attack of 23 with Overkill (none of the three heroes has it): g2's 20
-    // hit points take it and 3 is owed back to g1.
+    // As the coordinator delivers an attack of 23 with Overkill from g1 (none of the three heroes has it): g2's 20 hit
+    // points take it, and 3 is owed back to g1 at the defeat.
     const g2 = sim.state(G2);
     expect(
       sim.tryApply(
@@ -358,9 +475,11 @@ describe("The Mangog and Door Between Worlds from another group of the pod (5504
           fromGroupId: G1,
           playerId: P1,
           targetInstanceId: mangog,
+          ref: mangog,
           power: "attack",
           amount: 23,
           overkill: true,
+          piercing: false,
         }),
       ),
     ).toBeNull();
@@ -371,10 +490,19 @@ describe("The Mangog and Door Between Worlds from another group of the pod (5504
     const s1 = sim.state(G1);
     expect(inst(s1, s1.activeVillainId).damage).toBe(avatarDamage + 3);
   });
+
+  it("a tough Mangog prevents a remote attack without piercing, and its excess is none", () => {
+    const sim = pods();
+    const mangog = mangogInG2(sim);
+    sim.edit(G2, (s) => patchInstance(s, mangog, { statuses: { ...inst(s, mangog).statuses, tough: 1 } }));
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
+    expect(inst(sim.state(G2), mangog)).toMatchObject({ damage: 0, statuses: { tough: 0 } });
+    expect(sim.replayFault()).toBeNull();
+  });
 });
 
-describe("Command externalEvent and remotePower: who may send them (docs/phase7-wave9.md §3.68)", () => {
-  it("a one-group game refuses both; a remote group refuses an inbound out of order; no seat is offered either", () => {
+describe("Command externalEvent, remotePower and podRelease: who may send them (docs/phase7-wave9.md §3.68)", () => {
+  it("a one-group game refuses them; a remote group tells a re-send from a gap; no seat is offered them", () => {
     const created = createGame(wave9Scenario("god-of-lies", { players: [SPIDER_MAN], seed: 1 }), DEPS);
     if (!created.ok) throw new Error(created.error.message);
     const single = created.state;
@@ -387,11 +515,10 @@ describe("Command externalEvent and remotePower: who may send them (docs/phase7-
     const ahead = applyCommand(s, inboundCommand(s, podOf(s).inboundSeq + 2, { kind: "gameWon" }), DEPS);
     expect(!ahead.ok && ahead.error.code).toBe("external_event_out_of_order");
     const again = applyCommand(s, inboundCommand(s, podOf(s).inboundSeq, { kind: "gameWon" }), DEPS);
-    expect(!again.ok && again.error.code).toBe("external_event_out_of_order");
+    expect(!again.ok && again.error.code).toBe("external_event_already_applied");
     const offered = legalActions(s, P1, DEPS);
     const commands = "legal" in offered ? offered.legal.map((a) => (a as { command?: Command }).command?.type) : [];
-    expect(commands).not.toContain("externalEvent");
-    expect(commands).not.toContain("remotePower");
+    for (const type of ["externalEvent", "remotePower", "podRelease"]) expect(commands).not.toContain(type);
     expect(sim.replayFault()).toBeNull();
   });
 });

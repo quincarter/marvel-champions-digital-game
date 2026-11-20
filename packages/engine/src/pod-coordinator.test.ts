@@ -235,54 +235,112 @@ describe("PodCoordinator: 'your pod' routing (M2, M6)", () => {
     expect(r.delivered).toEqual([]);
   });
 
-  it("routes a remote attack to the owning group and its result back; another pod's card is refused", () => {
+  it("relays a group's reachable cards to the rest of its pod, and routes a remote attack only to a reported card", () => {
     const [g1, g2] = [new FakeGroup(G1), new FakeGroup(G2)];
     const target = instanceId("i-mangog");
+    const ref = instanceId("i-standin");
+    const mangog = { instanceId: target, cardId: cardId("55041"), by: "attack" as const, remainingHitPoints: 20 };
     const used = {
       type: "remotePowerUsed" as const,
       groupId: G1,
       playerId: playerId("p1"),
       targetInstanceId: target,
+      ref,
       power: "attack" as const,
       amount: 5,
       overkill: true,
+      piercing: false,
     };
     let state = createPodCoordinator(SETUP);
+    // Not reported yet: refused back to g1, before g2 hears of it.
     let r = send(state, g1, { ...used, toGroupId: G2 });
-    expect(kinds(r.delivered)).toEqual(["g2:remotePower"]);
+    expect(r.delivered).toEqual([
+      {
+        groupId: G1,
+        sequence: 1,
+        event: {
+          kind: "remotePowerResolved",
+          fromGroupId: G2,
+          ref,
+          targetInstanceId: target,
+          power: "attack",
+          retaliate: 0,
+          refused: "that card is no longer reachable from your pod",
+        },
+      },
+    ]);
+    state = r.state;
+    // g2 reports it: g1 (same pod) gets a copy, g3 and g4 (pod B) do not.
+    r = send(state, g2, { type: "reachableCards", groupId: G2, cards: [mangog] });
+    expect(r.delivered).toEqual([
+      { groupId: G1, sequence: 2, event: { kind: "podReachable", groupId: G2, cards: [mangog] } },
+    ]);
+    state = r.state;
+    r = send(state, g1, { ...used, toGroupId: G2 });
+    expect(r.delivered).toEqual([
+      {
+        groupId: G2,
+        sequence: 1,
+        event: {
+          kind: "remotePower",
+          fromGroupId: G1,
+          playerId: playerId("p1"),
+          targetInstanceId: target,
+          ref,
+          power: "attack",
+          amount: 5,
+          overkill: true,
+          piercing: false,
+        },
+      },
+    ]);
     state = r.state;
     r = send(state, g2, {
       type: "remotePowerResolved",
       groupId: G2,
       toGroupId: G1,
-      playerId: playerId("p1"),
+      ref,
       targetInstanceId: target,
       power: "attack",
-      excess: 2,
+      retaliate: 1,
     });
+    expect(kinds(r.delivered)).toEqual(["g1:remotePowerResolved"]);
+    state = r.state;
+    r = send(state, g2, { type: "overkillExcess", groupId: G2, toGroupId: G1, ref, amount: 3 });
     expect(r.delivered).toEqual([
-      {
-        groupId: G1,
-        sequence: 1,
-        event: { kind: "remotePowerResolved", fromGroupId: G2, targetInstanceId: target, power: "attack", excess: 2 },
-      },
+      { groupId: G1, sequence: 4, event: { kind: "overkillExcess", fromGroupId: G2, ref, amount: 3 } },
     ]);
     state = r.state;
+    // Another pod's card is refused.
     r = send(state, g1, { ...used, toGroupId: G3 });
-    expect(r.delivered).toEqual([
-      {
-        groupId: G1,
-        sequence: 2,
-        event: {
-          kind: "remotePowerResolved",
-          fromGroupId: G3,
-          targetInstanceId: target,
-          power: "attack",
-          excess: 0,
-          refused: "that group is not in your pod",
-        },
-      },
+    expect(r.delivered[0]?.event).toMatchObject({
+      kind: "remotePowerResolved",
+      refused: "that group is not in your pod",
+    });
+  });
+
+  it("re-sends what a reconnecting group missed (inboundSince)", () => {
+    const [g1, g2] = [new FakeGroup(G1), new FakeGroup(G2)];
+    let state = createPodCoordinator(SETUP);
+    state = send(state, g1, damage(g1, 4)).state;
+    state = send(state, g2, damage(g2, 4)).state;
+    // g3 applied its first event only: the other two come again, in order.
+    const missed = inboundSince(state, G3, 1);
+    expect(missed.map((m) => m.sequence)).toEqual([2]);
+    expect(missed[0]?.event).toMatchObject({ kind: "sharedStateChanged", shared: { villainDamage: 8 } });
+    expect(inboundSince(state, G1, 0).map((m) => m.event.kind)).toEqual([
+      "sharedStateChanged",
+      "sharedAck",
+      "sharedStateChanged",
     ]);
+  });
+
+  it("starts a group from the status its setup reported", () => {
+    const state = createPodCoordinator({
+      ...SETUP,
+      groups: SETUP.groups.map((g) => ({ ...g, status: { phase: "setup", round: 1, halted: false } })),
+    });
+    expect(state.groups[0]?.status).toEqual({ phase: "setup", round: 1, halted: false });
   });
 
   it("records reachable cards and status per group", () => {

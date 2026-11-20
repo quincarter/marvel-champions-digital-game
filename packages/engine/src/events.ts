@@ -2011,6 +2011,19 @@ export type GameEvent =
   | { readonly type: "podInboundReceived"; readonly sequence: number; readonly kind: PodInboundEvent["kind"] }
   /** A waiting inbound event of the pod is applied, nothing resolving (MC55 p. 20); what it does follows. */
   | { readonly type: "podInboundApplied"; readonly kind: PodInboundEvent["kind"] }
+  /** The group's authority ended a wait for the pod coordinator (`Command podRelease`): shared event `seq` is unanswered. */
+  | { readonly type: "podWaitReleased"; readonly seq: number }
+  /**
+   * A stand-in for another group's card was placed in this group's villain area for a remote basic power (`placed`,
+   * with the group and the card it stands for), or removed once nothing was resolving (`CardInstance.remoteOf`).
+   */
+  | {
+      readonly type: "remoteStandIn";
+      readonly instanceId: InstanceId;
+      readonly placed: boolean;
+      readonly groupId?: GroupId;
+      readonly remoteInstanceId?: InstanceId;
+    }
   /**
    * Counters that were to be placed on a card and were not, because the card may hold no more of them (`RuleSpec
    * counterLimit`, "Max 1 [per player] synergy counters here"; docs/phase7-wave9.md §3.61). `amount` is the number not

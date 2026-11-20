@@ -160,6 +160,25 @@ in other game areas." The explicit exceptions:
   target while a group is still in setup or mulligan: A that group stops at once / B it plays its first player phase;
   (2) Overkill on another group's Mangog: A the attacker's own Avatar of Loki / B the Avatar in The Mangog's group /
   C nobody.
+- M9. A remote attack or thwart is a real basic attack or thwart by the remote character (55041, 55046 "as if it were
+  in their game area"; MC55 p. 12 exception; RRG 1.8 "Attack (Player Ability Type)" p. 10, "Thwart" p. 44), made in
+  the attacker's group: its checks ("cannot attack", "cannot thwart", stunned, confused), additional costs, ATK/THW
+  modifiers, an ally's consequential damage (RRG "Ally" p. 7; none if stunned or confused), and the attacker's own
+  area's "when/after a character attacks or thwarts" abilities (Domineering Force 55052, Mounting Resistance 55054,
+  "after you attack a minion") all apply there. Only the target is elsewhere: the damage arrives in the owning group
+  as attack damage carrying Overkill and Piercing (tough prevents it unless piercing; toughness applies), retaliate
+  is sent back to the attacker, threat removal is a thwart by it, and Overkill's excess is measured after the damage
+  resolves (rules expert, 2026-11-20).
+- Owner decisions (Quin, 2026-11-20): no cross-group reactions: the owning group's cards do not react to a remote
+  attacker (MC55 p. 12; "Friendly", RRG p. 21); and option A of the two questions above, kept. Timing, settled by
+  the rules expert: a cross-group attack or thwart is initiated when the owning group's engine accepts it (engine
+  reading: no source orders events across groups, MC55 p. 12):
+
+  | When                                                 | What happens                                                                                                        | Source                                                                                                            |
+  | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+  | Target gone before the owning group accepts          | Not initiated, no cost paid: the exhaust, costs and consequential damage are refunded                               | RRG 1.8 "Initiating Abilities" p. 24 step 2; "Target" p. 42; "Cost" p. 13                                         |
+  | Target leaves play after acceptance, while resolving | The character stays exhausted and costs stand; no consequential damage; not considered to have attacked or thwarted | RRG 1.8 "Consequential Damage" p. 13 (implementation convention for the cross-group case, not an official ruling) |
+  | Stunned attacker or confused thwarter                | The status card is discarded; costs and the exhaust stand (never readied)                                           | RRG 1.8 "Stun, Stunned" p. 41; "Confuse, Confused" p. 13                                                          |
 
 ## 2. Architecture options
 

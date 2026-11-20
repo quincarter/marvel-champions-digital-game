@@ -1,6 +1,7 @@
 import {
   createGame,
   createPodCoordinator,
+  groupStatusOf,
   inboundCommand,
   podOutboundOf,
   receiveOutbound,
@@ -92,6 +93,7 @@ export class PodSim {
         groupId: state.pod!.groupId,
         podId: setups[i]!.podId,
         players: state.startingPlayerCount,
+        status: groupStatusOf(state),
       })),
       shared,
     };
@@ -161,7 +163,17 @@ export class PodSim {
     for (let guard = 0; ; guard++) {
       if (guard > 10_000) throw new Error("inbound events did not settle");
       const group = [...this.groups.values()].find((g) => g.inbox.length > 0);
-      if (!group) return;
+      if (!group) {
+        // The in-memory coordinator answers every shared event at once: a group still waiting means a lost answer.
+        // (An answer still queued behind an open choice is fine: it applies once that choice is answered.)
+        const waiting = [...this.groups.values()].find((g) => {
+          const pod = g.session.state.pod;
+          return pod?.awaiting !== undefined && !pod.pendingInbound?.some((e) => e.kind === "sharedAck");
+        });
+        if (waiting && !waiting.session.state.outcome)
+          throw new Error(`${waiting.groupId} still waits for the coordinator after every inbound event was applied`);
+        return;
+      }
       const next = group.inbox.shift()!;
       if (group.session.state.outcome) {
         group.inbox.length = 0;

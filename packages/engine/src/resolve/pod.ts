@@ -9,11 +9,11 @@
  */
 
 import type { EngineDeps } from "../abilities.js";
-import { emit, pushFrames, type Ctx } from "../ctx.js";
+import { emit, moveCard, nextInstanceId, pushFrames, updateInstance, type Ctx } from "../ctx.js";
 import { endGame } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import type { InstanceId } from "../ids.js";
-import { statusActive } from "../keywords.js";
+import type { GroupId, InstanceId } from "../ids.js";
+import { keywordTotal } from "../keywords.js";
 import {
   applySharedEvent,
   POD_MOMENT,
@@ -31,11 +31,11 @@ import {
   type SharedResult,
   type SharedThreatCause,
 } from "../pod.js";
-import { cardOf, getInstance, remainingHitPoints } from "../query.js";
+import { cardOf, getInstance, maxHitPoints, remainingHitPoints } from "../query.js";
 import { activeRules, cardsInPlay, matchesQuery } from "../select.js";
-import type { EffectSpec, TargetRef, ValueSpec } from "../spec.js";
+import type { EffectSpec } from "../spec.js";
 import type { GameState } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import type { RemoteHit, TriggerEvent } from "../trigger-events.js";
 import { gameAbilityFrames, pushEffects, pushEvent, type Frame } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -191,6 +191,8 @@ export function settlePod(ctx: Ctx): boolean {
     applyQueuedInbound(ctx, inbound);
     return true;
   }
+  // A remote power has been made or cancelled: its stand-in leaves (`CardInstance.remoteOf`).
+  if (removeStandIns(ctx)) return true;
   if (pod.finalPlayerPhase && ctx.state.step.phase !== "player") {
     const { finalPlayerPhase: _over, ...kept } = pod;
     setPod(ctx, kept);
@@ -284,6 +286,10 @@ function applyQueuedInbound(ctx: Ctx, event: PodInboundEvent): void {
       return resolveRemotePower(ctx, event);
     case "remotePowerResolved":
       return resolveRemotePowerResult(ctx, event);
+    case "overkillExcess":
+      return resolveOverkillExcess(ctx, event);
+    case "podReachable":
+      return recordPodReachable(ctx, event);
   }
 }
 
@@ -306,7 +312,8 @@ function resolvePodEffect(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "pod
 
 /**
  * The cards of this group's area other groups of the pod may reach (`RuleSpec reachableFromPod`), in play order, with
- * the numbers their players need: hit points left for an attack, threat for a thwart.
+ * the numbers their players need: hit points left for an attack, threat for a thwart. A stand-in for another group's
+ * card (`CardInstance.remoteOf`) is never one.
  */
 export function reachableCardsOf(state: GameState, deps: EngineDeps): readonly ReachableCard[] {
   const rules = activeRules(state, deps, "reachableFromPod");
@@ -314,7 +321,7 @@ export function reachableCardsOf(state: GameState, deps: EngineDeps): readonly R
   const found: ReachableCard[] = [];
   for (const id of cardsInPlay(state)) {
     const card = cardOf(state, id);
-    if (!card) continue;
+    if (!card || getInstance(state, id)?.remoteOf) continue;
     for (const by of ["attack", "thwart"] as const) {
       if (!rules.some(({ rule, context }) => rule.by === by && matchesQuery(state, id, rule.card, context))) continue;
       found.push(
@@ -340,68 +347,286 @@ export function remoteTargetFault(
 }
 
 /**
- * `PodInboundEvent remotePower` (plan §1.8 M6; MC55 p. 16; 55041 "Any player in your pod can attack The Mangog as if
- * it were in their game area", 55046 the same for a thwart of Door Between Worlds). The attacker's group has paid and
- * measured the power (`Command remotePower`); this, the owning group, checks the card is still reachable and deals the
- * damage or removes the threat with its own rules (toughness, tough, "cannot take damage", its When Defeated). The
- * result goes back to the attacker's group, with Overkill's excess: owner question 2, option A pending (plan §1.8), the
- * excess goes to the attacker's own Avatar of Loki, so it is measured here (the hit points left before the damage, none
- * past a tough status card) and dealt there.
+ * `PodInboundEvent remotePower`, in the group whose card was attacked or thwarted.
  *
- * Engine reading, flagged: the damage is dealt as plain damage by no card of this area, not as an attack here, so this
- * area's "when a character attacks" abilities do not see it (the attacker is not in this area).
+ * 55041/55046 "as if it were in their game area": a real attack/thwart by the remote character (MC55 insert p.12
+ * exception; RRG Attack (Player Ability Type) p.10, Thwart p.44). The attack was made in the attacker's group, with
+ * its costs, modifiers and responses there (`Command remotePower`); here it arrives as attack damage carrying the
+ * attack's Overkill and Piercing, so the card's own keywords and statuses apply (toughness, tough unless piercing), and
+ * the card's retaliate is sent back for the attacker (RRG 1.8 "Retaliate X", p. 37). A thwart removes its threat. The
+ * remote attacker is not in this area, so this group's own cards see damage, not an attack (owner question pending,
+ * option A: they do not react to a remote attacker). Overkill's excess is measured once the damage has resolved, at
+ * the defeat (`overkillExcess`; owner question pending, option A: the attacker's own Avatar of Loki).
+ *
+ * A card no longer reachable (it left play before the power arrived) refuses it, and the attacker's group treats the
+ * power as never started (owner question pending, option A: refund).
  */
 function resolveRemotePower(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "remotePower" }>): void {
   const pod = ctx.state.pod;
   if (!pod) return;
   const target = event.targetInstanceId;
+  // Committed when this group validates the target (implementation convention pending the rules expert): refused
+  // here, the attacker's group refunds; accepted, the answer goes back once the hit applies (`reportRemoteHit`).
   const refused = remoteTargetFault(ctx.state, ctx.deps, target, event.power);
-  let excess = 0;
-  if (refused === null && event.amount > 0) {
-    if (event.power === "attack") {
-      const left = remainingHitPoints(ctx.state, target, ctx.deps) ?? 0;
-      const tough = statusActive(ctx.state, target, "tough", ctx.deps);
-      excess = event.overkill && !tough ? Math.max(0, event.amount - left) : 0;
-    }
-    const amount: ValueSpec = { kind: "const", value: event.amount };
-    const ref: TargetRef = { kind: "slot", slot: REMOTE_TARGET };
-    pushEffects(ctx, {
-      effects: [
-        event.power === "attack"
-          ? { kind: "dealDamage", target: ref, amount }
-          : { kind: "removeThreat", target: ref, amount },
-      ],
-      selfInstanceId: null,
-      controllerId: ctx.state.firstPlayerId,
-      bindings: { [REMOTE_TARGET]: [target] },
+  if (refused !== null || event.amount <= 0) {
+    const retaliate =
+      refused === null && event.power === "attack" ? keywordTotal(ctx.state, target, "retaliate", ctx.deps) : 0;
+    emitPodEvent(ctx, {
+      type: "remotePowerResolved",
+      groupId: pod.groupId,
+      toGroupId: event.fromGroupId,
+      ref: event.ref,
+      targetInstanceId: target,
+      power: event.power,
+      retaliate,
+      ...(refused === null ? {} : { refused }),
     });
+    return;
   }
+  const hit: RemoteHit = {
+    fromGroupId: event.fromGroupId,
+    ref: event.ref,
+    retaliate: event.power === "attack" ? keywordTotal(ctx.state, target, "retaliate", ctx.deps) : 0,
+  };
+  if (event.power === "attack")
+    pushEvent(ctx, {
+      kind: "dealDamage",
+      targetInstanceId: target,
+      amount: event.amount,
+      sourceInstanceId: null,
+      fromAttack: true,
+      overkill: event.overkill,
+      ...(event.piercing ? { piercing: true } : {}),
+      remoteHit: hit,
+    });
+  else
+    pushEvent(ctx, {
+      kind: "removeThreat",
+      schemeInstanceId: target,
+      amount: event.amount,
+      sourceInstanceId: null,
+      noPlayer: true,
+      remoteHit: hit,
+    });
+}
+
+/**
+ * An accepted remote power's hit applies here (the damage or threat removal of `resolveRemotePower`, at its apply
+ * step): its answer goes back to the attacker's group, with the card's retaliate. A card that left play while the hit
+ * was resolving is reported `lost` (implementation convention, not an official ruling; owner answer 2026-11-20,
+ * option A): the attacker's costs and exhaust stand, but it takes no consequential damage and did not attack or
+ * thwart, so no retaliate.
+ */
+export function reportRemoteHit(ctx: Ctx, hit: RemoteHit, target: InstanceId, power: RemotePower): void {
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  const lost = !cardsInPlay(ctx.state).includes(target);
   emitPodEvent(ctx, {
     type: "remotePowerResolved",
     groupId: pod.groupId,
-    toGroupId: event.fromGroupId,
-    playerId: event.playerId,
+    toGroupId: hit.fromGroupId,
+    ref: hit.ref,
     targetInstanceId: target,
-    power: event.power,
-    excess,
-    ...(refused === null ? {} : { refused }),
+    power,
+    retaliate: lost ? 0 : hit.retaliate,
+    ...(lost ? { lost: true as const } : {}),
   });
 }
 
-const REMOTE_TARGET = "remoteTarget";
+/**
+ * A remote attack's excess, at the defeat of the card it attacked (`beginDefeat`; RRG 1.8 "Overkill", p. 31): sent to
+ * the attacker's group rather than spilled onto this group's villain (owner question pending, option A).
+ */
+export function sendOverkillExcess(ctx: Ctx, hit: RemoteHit, amount: number): void {
+  const pod = ctx.state.pod;
+  if (!pod || amount <= 0) return;
+  emitPodEvent(ctx, { type: "overkillExcess", groupId: pod.groupId, toGroupId: hit.fromGroupId, ref: hit.ref, amount });
+}
 
 /**
- * `PodInboundEvent remotePowerResolved`, in the attacker's group: Overkill's excess is dealt to this group's villain
- * (RRG 1.8 "Overkill", p. 31: excess damage "is dealt to the villain"; owner question 2, option A pending: the
- * attacker's own Avatar of Loki). A refusal changes nothing: the power was used (engine reading, flagged).
+ * Where a stand-in's power goes (`CardInstance.remoteOf`): damage dealt to it, or threat removed from it, is not dealt
+ * here but sent to the group whose card it stands for, as `remotePowerUsed` with the amount this group's modifiers
+ * made it and the attack's keywords. True when `targetId` is a stand-in (the caller then does nothing more).
+ */
+export function divertToRemote(
+  ctx: Ctx,
+  targetId: InstanceId,
+  power: RemotePower,
+  amount: number,
+  keywords: { readonly overkill: boolean; readonly piercing: boolean },
+): boolean {
+  const pod = ctx.state.pod;
+  const remote = getInstance(ctx.state, targetId)?.remoteOf;
+  if (!pod || !remote) return false;
+  const flight = pod.inFlight?.find((entry) => entry.ref === targetId);
+  emitPodEvent(ctx, {
+    type: "remotePowerUsed",
+    groupId: pod.groupId,
+    playerId: flight?.playerId ?? ctx.state.firstPlayerId,
+    toGroupId: remote.groupId,
+    targetInstanceId: remote.instanceId,
+    ref: targetId,
+    power,
+    amount: Math.max(0, amount),
+    overkill: keywords.overkill,
+    piercing: keywords.piercing,
+  });
+  const after = ctx.state.pod;
+  if (after?.inFlight)
+    setPod(ctx, {
+      ...after,
+      inFlight: after.inFlight.map((entry) => (entry.ref === targetId ? { ...entry, sent: true } : entry)),
+    });
+  return true;
+}
+
+/**
+ * The stand-ins of remote powers leave once nothing is resolving (their power has been made or cancelled), and an
+ * in-flight power that never sent anything (a stunned attacker, a confused thwarter) is forgotten: its status discard
+ * and exhaust stand (RRG 1.8 "Stun, Stunned", p. 41). True when anything changed.
+ */
+function removeStandIns(ctx: Ctx): boolean {
+  const standIns = ctx.state.villainArea.filter((id) => getInstance(ctx.state, id)?.remoteOf);
+  const pod = ctx.state.pod;
+  const unsent = pod?.inFlight?.filter((entry) => !entry.sent) ?? [];
+  if (standIns.length === 0 && unsent.length === 0) return false;
+  const instances = { ...ctx.state.instances };
+  for (const id of standIns) delete instances[id];
+  ctx.state = {
+    ...ctx.state,
+    instances,
+    villainArea: ctx.state.villainArea.filter((id) => !standIns.includes(id)),
+  };
+  for (const id of standIns) emit(ctx, { type: "remoteStandIn", instanceId: id, placed: false });
+  const now = ctx.state.pod;
+  if (now && unsent.length > 0) {
+    const kept = (now.inFlight ?? []).filter((entry) => entry.sent);
+    const { inFlight: _dropped, ...rest } = now;
+    setPod(ctx, kept.length > 0 ? { ...rest, inFlight: kept } : rest);
+  }
+  return true;
+}
+
+/**
+ * `PodInboundEvent remotePowerResolved`, in the attacker's group. The power is no longer in flight. A refusal (the
+ * card left play before the power arrived) treats it as never started (owner question pending, option A): the
+ * character readies, the consequential damage it took for the power is healed, and the hand cards spent on its costs
+ * come back from the discard pile. A refund undoes, so no "cannot ready" or "cannot be healed" applies to it. Otherwise
+ * the attacked card's retaliate hits the attacker (RRG 1.8 "Retaliate X", p. 37).
  */
 function resolveRemotePowerResult(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "remotePowerResolved" }>): void {
-  if (event.refused !== undefined || event.excess <= 0) return;
-  pushEffects(ctx, {
-    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: event.excess } }],
-    selfInstanceId: null,
-    controllerId: ctx.state.firstPlayerId,
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  const flight = pod.inFlight?.find((entry) => entry.ref === event.ref);
+  if (flight) {
+    const rest = (pod.inFlight ?? []).filter((entry) => entry !== flight);
+    const { inFlight: _done, ...kept } = pod;
+    setPod(ctx, rest.length > 0 ? { ...kept, inFlight: rest } : kept);
+  }
+  const character = flight?.characterInstanceId;
+  const inPlay = character !== undefined && cardsInPlay(ctx.state).includes(character);
+  // Lost while the accepted hit resolved (implementation convention, owner answer 2026-11-20, option A): costs and the
+  // exhaust stand, but there was no attack or thwart, so no consequential damage (RRG 1.8 "Consequential Damage", p. 13).
+  const heal = (): void => {
+    const healed = Math.min(flight?.consequential ?? 0, getInstance(ctx.state, character!)?.damage ?? 0);
+    if (healed <= 0) return;
+    updateInstance(ctx, character!, (i) => ({ ...i, damage: i.damage - healed }));
+    emit(ctx, { type: "damageHealed", targetInstanceId: character!, amount: healed });
+  };
+  if (event.lost) {
+    if (flight && inPlay) heal();
+    return;
+  }
+  if (event.refused !== undefined) {
+    if (!flight || !inPlay) return;
+    const instance = getInstance(ctx.state, character);
+    if (instance?.exhausted) {
+      updateInstance(ctx, character, (i) => ({ ...i, exhausted: false }));
+      emit(ctx, { type: "cardReadied", instanceId: character });
+    }
+    heal();
+    for (const id of flight.spent) {
+      const owner = getInstance(ctx.state, id)?.ownerId;
+      const player = owner ? ctx.state.players.find((p) => p.playerId === owner) : undefined;
+      if (player?.discard.includes(id)) moveCard(ctx, id, { kind: "hand", playerId: player.playerId });
+    }
+    return;
+  }
+  if (event.retaliate > 0 && inPlay)
+    pushEvent(ctx, {
+      kind: "dealDamage",
+      targetInstanceId: character,
+      amount: event.retaliate,
+      sourceInstanceId: null,
+      fromAttack: false,
+    });
+}
+
+/**
+ * `PodInboundEvent overkillExcess`, in the attacker's group: the excess of its remote attack is dealt to this group's
+ * villain as the attack's damage, not as an attack on it (RRG 1.8 "Overkill", p. 31; owner question pending, option A:
+ * the attacker's own Avatar of Loki).
+ */
+function resolveOverkillExcess(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "overkillExcess" }>): void {
+  if (event.amount <= 0) return;
+  pushEvent(ctx, {
+    kind: "dealDamage",
+    targetInstanceId: ctx.state.activeVillainId,
+    amount: event.amount,
+    sourceInstanceId: null,
+    fromAttack: true,
+    notAttacked: true,
   });
+}
+
+/**
+ * A stand-in for another group's card, in this group's villain area for one basic power (`Command remotePower`):
+ * "as if it were in their game area". It has no text box here (`CardInstance.remoteOf`); its numbers are the last
+ * report's: the threat on a side scheme, the hit points left on a minion (its damage set to match).
+ */
+export function placeStandIn(ctx: Ctx, groupId: GroupId, card: ReachableCard): InstanceId {
+  const id = nextInstanceId(ctx);
+  ctx.state = {
+    ...ctx.state,
+    instances: {
+      ...ctx.state.instances,
+      [id]: {
+        instanceId: id,
+        cardId: card.cardId,
+        ownerId: null,
+        controllerId: null,
+        home: { kind: "activeEncounterDeck" },
+        faceup: true,
+        exhausted: false,
+        damage: 0,
+        threat: card.threat ?? 0,
+        statuses: { stunned: 0, confused: 0, tough: 0 },
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: null,
+        flipped: false,
+        remoteOf: { groupId, instanceId: card.instanceId },
+      },
+    },
+    villainArea: [...ctx.state.villainArea, id],
+  };
+  if (card.remainingHitPoints !== undefined) {
+    const max = maxHitPoints(ctx.state, id, ctx.deps) ?? 0;
+    updateInstance(ctx, id, (i) => ({ ...i, damage: Math.max(0, max - card.remainingHitPoints!) }));
+  }
+  emit(ctx, { type: "remoteStandIn", instanceId: id, placed: true, groupId, remoteInstanceId: card.instanceId });
+  return id;
+}
+
+/** `PodInboundEvent podReachable`: another group's reachable cards, kept for `Command remotePower` (bookkeeping). */
+export function recordPodReachable(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "podReachable" }>): void {
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  setPod(ctx, { ...pod, reachable: { ...pod.reachable, [event.groupId]: event.cards } });
 }
 
 /**

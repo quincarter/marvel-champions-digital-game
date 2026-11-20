@@ -1,30 +1,27 @@
 /**
- * The two commands of Epic Multiplayer (docs/epic-multiplayer-plan.md §4 items 1 to 3; docs/phase7-wave9.md §3.68), and
+ * The commands of Epic Multiplayer (docs/epic-multiplayer-plan.md §4 items 1 to 3; docs/phase7-wave9.md §3.68), and
  * what every command of a group with a remote coordinator tells it at its end (`reportPodBoundary`).
  *
  * MC55 p. 11 and 55028b: one Loki, God of Lies and one Worlds Collide per game; pods only scope "your pod" abilities
  * (MC55 pp. 4, 13). A `GameState` is one group; the coordinator (`pod-coordinator.ts`) is outside every group.
  */
 
-import { requireActivePlayer, usableCharacter } from "./actions.js";
+import { basicAttack, basicThwart } from "./actions.js";
 import type { EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { emit, type Ctx } from "./ctx.js";
-import { discardStatusCards, exhaustCard } from "./effects.js";
 import { engineError, type EngineError } from "./errors.js";
 import type { GameEvent } from "./events.js";
-import { attackKeywordsOf, statusActive } from "./keywords.js";
 import { podGroupIds, type GroupStatus, type PodInboundEvent, type PodOutbound, type PodState } from "./pod.js";
-import { characterProfile } from "./query.js";
 import {
   concludeFromCoordinator,
   emitPodEvent,
   haltGroup,
+  placeStandIn,
   reachableCardsOf,
+  recordPodReachable,
   replaceSharedCopy,
 } from "./resolve/pod.js";
-import { announceStatusDiscarded } from "./resolve/status-discarded.js";
-import { attackerForbiddenEveryAttack } from "./select.js";
 import type { GameState } from "./state.js";
 
 const remotePod = (state: GameState): PodState | null => (state.pod?.coordinator === "remote" ? state.pod : null);
@@ -37,7 +34,7 @@ export const inboundCommand = (state: GameState, sequence: number, event: PodInb
   event,
 });
 
-/** Commands a halted group refuses: every action. A choice still resolves, and conceding and inbound events go on. */
+/** Commands a halted or waiting group refuses: every action. A choice still resolves; conceding and inbound go on. */
 const ACTIONS: ReadonlySet<Command["type"]> = new Set([
   "changeForm",
   "playCard",
@@ -51,7 +48,8 @@ const ACTIONS: ReadonlySet<Command["type"]> = new Set([
 
 /**
  * MC55 p. 21: a group that has stopped play after the shared scheme's completion takes no more actions; what was
- * resolving still finishes (a choice is answered), and the coordinator's verdict still arrives.
+ * resolving still finishes (a choice is answered), and the coordinator's verdict still arrives. A group waiting for the
+ * coordinator's answer to its shared event (`PodState.awaiting`) takes none until it comes.
  */
 export function haltedFault(state: GameState, command: Command): EngineError | null {
   if (!ACTIONS.has(command.type)) return null;
@@ -64,8 +62,9 @@ export function haltedFault(state: GameState, command: Command): EngineError | n
 
 /**
  * `Command externalEvent`. Accepted only with a remote coordinator, from the first player's seat, with the next
- * sequence. Then:
- * - `sharedStateChanged` replaces this group's copy of the shared record at once (bookkeeping, no draw);
+ * sequence (one already applied is `external_event_already_applied`, which a host drops; a gap is
+ * `external_event_out_of_order`, which it fills). Then:
+ * - `sharedStateChanged` and `podReachable` take effect at once (bookkeeping, no draw);
  * - `gameWon` / `gameLost` end the game at once, whatever is resolving (Q6: groups stop at their next command boundary);
  * - `stopAfterPhase` in setup or a mulligan stops the group at once (owner question 1, option A pending; plan §1.8);
  * - everything else waits in `PodState.pendingInbound` for the resolution in progress to finish (MC55 p. 20; M3).
@@ -75,6 +74,12 @@ export function externalEvent(ctx: Ctx, command: Command & { type: "externalEven
   if (!pod) return engineError("no_remote_coordinator", "this game has no remote pod coordinator", command);
   if (command.playerId !== ctx.state.firstPlayerId)
     return engineError("unknown_player", "an inbound pod event is recorded under the first player", command);
+  if (command.sequence <= pod.inboundSeq)
+    return engineError(
+      "external_event_already_applied",
+      `inbound event ${command.sequence} was applied already (last ${pod.inboundSeq})`,
+      command,
+    );
   if (command.sequence !== pod.inboundSeq + 1)
     return engineError(
       "external_event_out_of_order",
@@ -87,6 +92,9 @@ export function externalEvent(ctx: Ctx, command: Command & { type: "externalEven
   switch (event.kind) {
     case "sharedStateChanged":
       replaceSharedCopy(ctx, event.shared);
+      return null;
+    case "podReachable":
+      recordPodReachable(ctx, event);
       return null;
     case "gameWon":
     case "gameLost":
@@ -107,59 +115,126 @@ export function externalEvent(ctx: Ctx, command: Command & { type: "externalEven
 }
 
 /**
- * `Command remotePower` (plan §1.8 M6): a basic attack or thwart on another group's reachable card. Checked and paid
- * here as a basic power is (RRG 1.8 "Basic Powers"): the active player's turn; a hero (not an alter-ego) or an ally they
- * control, ready; exhausted as the cost. A stunned attacker or a confused thwarter only discards the status card (RRG
- * 1.8 "Stun, Stunned", p. 41; "Confuse, Confused", p. 13), and nothing is sent. Otherwise the power is measured (ATK or
- * THW as it stands, Overkill from the attacker's basic attack keywords) and sent as `remotePowerUsed`.
+ * `Command podRelease`: the group's authority ends a wait for the coordinator's answer (`PodState.awaiting`) after a
+ * timeout, when the coordinator is gone and cannot be restored (docs/live-game-rooms.md §10). The group plays on; its
+ * unanswered shared event keeps its number and is re-sent when a coordinator returns, whose late `sharedAck` then
+ * changes nothing. Refused with nothing to release.
+ */
+export function podRelease(ctx: Ctx, command: Command & { type: "podRelease" }): EngineError | null {
+  const pod = remotePod(ctx.state);
+  if (!pod) return engineError("no_remote_coordinator", "this game has no remote pod coordinator", command);
+  if (command.playerId !== ctx.state.firstPlayerId)
+    return engineError("unknown_player", "a pod release is recorded under the first player", command);
+  if (pod.awaiting === undefined)
+    return engineError("no_valid_target", "this group is not waiting for the coordinator", command);
+  const { awaiting, ...kept } = pod;
+  ctx.state = { ...ctx.state, pod: kept };
+  emit(ctx, { type: "podWaitReleased", seq: awaiting });
+  return null;
+}
+
+/**
+ * `Command remotePower` (plan §1.8 M6): a basic attack or thwart on another group's reachable card.
  *
- * The owning group judges the card when the event reaches it (`remoteTargetFault`), so a card that left play in the
- * meantime is refused there, after this group paid (engine reading, flagged; a host can ask the owning group's
- * `remoteTargetFault` first). Engine reading, flagged for the owner: the power is made here with no attack or thwart
- * event, so this group's "when a character attacks / thwarts" abilities (Domineering Force, Mounting Resistance) and
- * the power's additional costs do not apply to it.
+ * 55041/55046 "as if it were in their game area": a real attack/thwart by the remote character (MC55 insert p.12
+ * exception; RRG Attack (Player Ability Type) p.10, Thwart p.44). A stand-in for the card is placed in this group's
+ * villain area (`placeStandIn`, no text box here) and the ordinary basic power is made against it: its checks ("cannot
+ * attack", "cannot thwart", stunned, confused), its costs, ATK or THW and their modifiers, this group's "when/after a
+ * character attacks/thwarts" abilities (Domineering Force 55052, Mounting Resistance 55054, "after you attack a
+ * minion"), and an ally's consequential damage. Only the damage or the threat removal aimed at the stand-in is sent,
+ * with the attack's keywords (`divertToRemote`); the card's own keywords and statuses apply where it is.
+ *
+ * Cross-group attack/thwart (55041/55046) is initiated when the owning group's engine accepts it (engine reading: no
+ * source orders events across groups, MC55 p.12). No valid target then = not initiated, no cost paid (RRG v1.8
+ * Initiating Abilities p.24 step 2; Target p.42; Cost p.13). Target leaves play after that = exhausts, no consequential
+ * damage, not considered to have attacked (Consequential Damage p.13).
+ *
+ * So a refusal from the owning group refunds the exhaust, the consequential damage and the hand cards spent
+ * (`PodState.inFlight`), and a stunned attacker or a confused thwarter, whose attempt never reaches the card, keeps the
+ * status discard and the exhaust (RRG 1.8 "Stun, Stunned", p. 41; owner answer 2026-11-20). Checked first against this
+ * group's copy of the owning group's last report (`PodState.reachable`), so a card known to be gone is refused before
+ * anything is paid.
  */
 export function remotePower(ctx: Ctx, command: Command & { type: "remotePower" }): EngineError | null {
   const pod = remotePod(ctx.state);
   if (!pod) return engineError("no_remote_coordinator", "this game has no remote pod coordinator", command);
   if (command.toGroupId === pod.groupId || !podGroupIds(ctx.state).includes(command.toGroupId))
     return engineError("no_valid_target", "that is not another group of your pod", command);
-  const inactive = requireActivePlayer(ctx.state, command.playerId, command);
-  if (inactive) return inactive;
-  const id = command.characterInstanceId;
-  const unusable = usableCharacter(ctx, command.playerId, id, command);
-  if (unusable) return unusable;
-  const stat = command.power === "attack" ? "atk" : "thw";
-  const profile = characterProfile(ctx.state, id, ctx.deps);
-  if (!profile || profile.missing.includes(stat))
+  const card = pod.reachable?.[command.toGroupId]?.find(
+    (c) => c.instanceId === command.targetInstanceId && c.by === command.power,
+  );
+  if (!card)
     return engineError(
       "no_valid_target",
-      `a character with a printed '—' ${stat.toUpperCase()} cannot do that`,
+      `that card cannot be ${command.power === "attack" ? "attacked" : "thwarted"} from your pod (as last reported)`,
       command,
     );
-  if (command.power === "attack" && attackerForbiddenEveryAttack(ctx.state, id, ctx.deps, true))
-    return engineError("no_valid_target", "this character cannot make basic attacks", command);
-
-  exhaustCard(ctx, id);
-  const status = command.power === "attack" ? "stunned" : "confused";
-  if (statusActive(ctx.state, id, status, ctx.deps)) {
-    const cause = command.power === "attack" ? "cancelledAttack" : "cancelledSchemeOrThwart";
-    announceStatusDiscarded(ctx, discardStatusCards(ctx, id, status, cause));
-    return null;
-  }
-  const overkill =
-    command.power === "attack" &&
-    attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: id, basic: true }).includes("overkill");
-  emitPodEvent(ctx, {
-    type: "remotePowerUsed",
-    groupId: pod.groupId,
-    playerId: command.playerId,
-    toGroupId: command.toGroupId,
-    targetInstanceId: command.targetInstanceId,
-    power: command.power,
-    amount: Math.max(0, profile[stat]),
-    overkill,
-  });
+  const standIn = placeStandIn(ctx, command.toGroupId, card);
+  const spent = [
+    ...(command.payment ?? []).flatMap((p) => ("fromHand" in p ? [p.fromHand] : [])),
+    ...(command.costChoices?.["discard"] ?? []),
+  ];
+  const withFlight = ctx.state.pod as PodState;
+  ctx.state = {
+    ...ctx.state,
+    pod: {
+      ...withFlight,
+      inFlight: [
+        ...(withFlight.inFlight ?? []),
+        {
+          ref: standIn,
+          characterInstanceId: command.characterInstanceId,
+          playerId: command.playerId,
+          toGroupId: command.toGroupId,
+          consequential: 0,
+          spent,
+          sent: false,
+        },
+      ],
+    },
+  };
+  const paid = {
+    ...(command.payment ? { payment: command.payment } : {}),
+    ...(command.costChoices ? { costChoices: command.costChoices } : {}),
+  };
+  const error =
+    command.power === "attack"
+      ? basicAttack(ctx, {
+          type: "basicAttack",
+          playerId: command.playerId,
+          attackerInstanceId: command.characterInstanceId,
+          targetInstanceId: standIn,
+          ...paid,
+        })
+      : basicThwart(ctx, {
+          type: "basicThwart",
+          playerId: command.playerId,
+          thwarterInstanceId: command.characterInstanceId,
+          schemeInstanceId: standIn,
+          ...paid,
+        });
+  // Refused: `applyCommand` drops this command's state, the stand-in with it.
+  if (error) return error;
+  // The consequential damage the power pushed for the character (an ally), refunded if the owning group refuses.
+  const consequential = ctx.state.stack.reduce(
+    (sum, frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "dealDamage" &&
+      frame.event.consequentialFrom !== undefined &&
+      frame.event.targetInstanceId === command.characterInstanceId
+        ? sum + frame.event.amount
+        : sum,
+    0,
+  );
+  const now = ctx.state.pod as PodState;
+  if (consequential > 0)
+    ctx.state = {
+      ...ctx.state,
+      pod: {
+        ...now,
+        inFlight: (now.inFlight ?? []).map((entry) => (entry.ref === standIn ? { ...entry, consequential } : entry)),
+      },
+    };
   return null;
 }
 
@@ -185,7 +260,7 @@ export function reportPodBoundary(ctx: Ctx, before: GameState, deps: EngineDeps)
     emitPodEvent(ctx, { type: "groupStatus", groupId: pod.groupId, status });
   const cards = reachableCardsOf(ctx.state, deps);
   if (JSON.stringify(reachableCardsOf(before, deps)) !== JSON.stringify(cards))
-    emitPodEvent(ctx, { type: "reachableCards", groupId: ctx.state.pod?.groupId ?? pod.groupId, cards });
+    emitPodEvent(ctx, { type: "reachableCards", groupId: pod.groupId, cards });
 }
 
 /**

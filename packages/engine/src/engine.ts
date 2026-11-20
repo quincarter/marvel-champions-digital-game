@@ -23,7 +23,7 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { spendPays } from "./payable.js";
-import { externalEvent, haltedFault, remotePower, reportPodBoundary } from "./pod-commands.js";
+import { externalEvent, haltedFault, podRelease, remotePower, reportPodBoundary } from "./pod-commands.js";
 import { getPlayer, handSize } from "./query.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
@@ -80,7 +80,8 @@ export function applyCommand(
       state.pendingChoice &&
       command.type !== "resolveChoice" &&
       command.type !== "concede" &&
-      command.type !== "externalEvent"
+      command.type !== "externalEvent" &&
+      command.type !== "podRelease"
     ) {
       return { ok: false, error: engineError("choice_pending", "a choice must be resolved first", command) };
     }
@@ -130,6 +131,8 @@ function dispatch(ctx: Ctx, command: Command): EngineError | null {
       return externalEvent(ctx, command);
     case "remotePower":
       return remotePower(ctx, command);
+    case "podRelease":
+      return podRelease(ctx, command);
   }
 }
 

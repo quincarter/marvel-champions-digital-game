@@ -61,6 +61,8 @@ export type EngineErrorCode =
   | "no_remote_coordinator"
   /** `externalEvent` whose `sequence` is not the next one: a re-send already applied, or a gap the host must fill. */
   | "external_event_out_of_order"
+  /** `externalEvent` whose `sequence` was applied already: a re-send, which a host drops. */
+  | "external_event_already_applied"
   /** An action while this group has stopped play after the shared scheme's completion (MC55 p. 21; `PodState.halted`). */
   | "pod_halted"
   /** An action while this group waits for the coordinator to answer its shared event (`PodState.awaiting`). */

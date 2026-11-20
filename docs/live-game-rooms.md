@@ -323,6 +323,18 @@ game; pods scope only the "your pod" abilities). Architecture: that plan's optio
   limit, a "choose a group in your pod" sheet, and a Loki-flip banner. Watchers can follow any table.
 - **Drops.** A table whose host drops: the table waits; the organizer can mark it abandoned after a timeout (plan Q-C
   recommendation). The organizer dropping pauses the pod until they return (host migration is #884).
+- **Coordinator lost.** A table that sent a shared event (Loki damage, threat on Worlds Collide) waits at its next quiet
+  point for the coordinator's `sharedAck` (`PodState.awaiting`; its seats see `pod_waiting`). To recover, the organizer's
+  device rebuilds the coordinator from its saved setup and log (`replayCoordinator(setup, log)`). Each table host then
+  re-forwards its outbound events after the coordinator's `received` for it (duplicates are no-ops), and the coordinator
+  re-sends `inboundSince(state, table, inboundSeq)`. If the coordinator cannot come back, a table host may after a
+  timeout apply `Command podRelease` (authority-only, like `externalEvent`): the table plays on, and its unanswered
+  event keeps its number for a coordinator that returns.
+- **Cross-table timing (engine).** A remote attack or thwart is a real basic power in the attacker's table, made against
+  a blank stand-in for the card. It is initiated when the owning table's engine accepts it: refused there, the attacker's
+  table refunds the exhaust, the consequential damage and the spent hand cards. Each table keeps a copy of its pod's
+  reachable cards (`PodState.reachable`, relayed as `podReachable`), so a card known to be gone is refused before
+  anything is paid.
 
 ### 10.1 Room and protocol (built, `packages/sync-worker`, capability `tables`)
 

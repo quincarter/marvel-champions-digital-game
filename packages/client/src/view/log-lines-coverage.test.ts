@@ -89,6 +89,8 @@ const SILENT: ReadonlySet<string> = new Set([
   "podEventEmitted",
   "podInboundReceived",
   "podInboundApplied",
+  "podWaitReleased",
+  "remoteStandIn",
   "stepChanged",
   "targetChosen",
   "thenSkipped",

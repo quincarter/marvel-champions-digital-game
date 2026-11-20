@@ -319,10 +319,9 @@ export type Command =
     }
   /**
    * A basic attack or thwart on a card in another group's area of the pod "as if it were in their game area" (The
-   * Mangog 55041, Door Between Worlds 55046; MC55 p. 16; plan §1.8 M6: only these two powers). Made here as a basic
-   * power is (the active player's turn, a ready hero or ally they control, exhausted as its cost; a stunned or confused
-   * character only discards the status card), measured here (ATK or THW, Overkill), and sent to the coordinator as
-   * `remotePowerUsed`; the owning group's engine checks the card and resolves it (`PodInboundEvent remotePower`).
+   * Mangog 55041, Door Between Worlds 55046; MC55 p. 16; plan §1.8 M6: only these two powers): a real basic power made
+   * here, against a stand-in for the card (`pod-commands.ts` `remotePower`), with the basic power's own `payment` and
+   * `costChoices`. `targetInstanceId` is the card's id in the owning group, as `PodState.reachable` reports it.
    */
   | {
       readonly type: "remotePower";
@@ -331,13 +330,21 @@ export type Command =
       readonly power: RemotePower;
       readonly toGroupId: GroupId;
       readonly targetInstanceId: InstanceId;
-    };
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
+    }
+  /**
+   * The group's authority ends a wait for a pod coordinator that is gone (`PodState.awaiting`; docs/live-game-rooms.md
+   * §10). Issued only by the authority after a timeout (`isAuthorityCommand`), under the first player's seat.
+   */
+  | { readonly type: "podRelease"; readonly playerId: PlayerId };
 
 /**
- * A command only a group's authority (its host) issues, never a seat: `externalEvent`. The engine has no notion of who
- * sent a command; a host refuses these from a seat (docs/phase7-wave9.md §3.68).
+ * A command only a group's authority (its host) issues, never a seat: `externalEvent` and `podRelease`. The engine has
+ * no notion of who sent a command; a host refuses these from a seat (docs/phase7-wave9.md §3.68).
  */
-export const isAuthorityCommand = (command: Command): boolean => command.type === "externalEvent";
+export const isAuthorityCommand = (command: Command): boolean =>
+  command.type === "externalEvent" || command.type === "podRelease";
 
 export type CommandType = Command["type"];
 

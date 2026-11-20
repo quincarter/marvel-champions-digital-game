@@ -75,6 +75,7 @@ function covers(entry: LegalAction, command: Command): boolean {
     case "adjust":
     case "externalEvent":
     case "remotePower":
+    case "podRelease":
       return false;
   }
 }

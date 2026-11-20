@@ -176,6 +176,33 @@ export interface PodState {
    * group in a villain phase "stop[s] play immediately"). Absent otherwise; never set with a local coordinator.
    */
   readonly awaiting?: number;
+  /**
+   * The cards of the other groups of this pod that this group's players may attack or thwart (their last reports,
+   * relayed by the coordinator as `podReachable`), by group id: what `Command remotePower` checks before anything is
+   * paid. Absent until a report arrives.
+   */
+  readonly reachable?: Readonly<Record<string, readonly ReachableCard[]>>;
+  /**
+   * Remote powers made here and not yet answered by the owning group, oldest first: what a refusal refunds. Absent when
+   * none is waiting.
+   */
+  readonly inFlight?: readonly RemotePowerInFlight[];
+}
+
+/** A remote power this group made, until the owning group answers (`PodState.inFlight`). */
+export interface RemotePowerInFlight {
+  /** The stand-in it was made against (`CardInstance.remoteOf`), which names it in the answer. */
+  readonly ref: InstanceId;
+  readonly characterInstanceId: InstanceId;
+  /** The player who made the power (the character's controller). */
+  readonly playerId: PlayerId;
+  readonly toGroupId: GroupId;
+  /** The consequential damage the power put on the character (an ally), refunded with the exhaust on a refusal. */
+  readonly consequential: number;
+  /** Hand cards spent paying the power's costs, returned on a refusal if still in their discard pile. */
+  readonly spent: readonly InstanceId[];
+  /** Whether its damage or threat removal was sent; one never sent (a stunned attacker's) is dropped when quiet. */
+  readonly sent: boolean;
 }
 
 /** Where a group of a pod stands, as its coordinator reads it (MC55 p. 21; the stop rule M4). */
@@ -223,35 +250,54 @@ export type PodOutboundEvent =
   | { readonly type: "groupStatus"; readonly groupId: GroupId; readonly status: GroupStatus }
   /** The cards of this group's area the pod may reach changed over the command (entered, left, damage or threat). */
   | { readonly type: "reachableCards"; readonly groupId: GroupId; readonly cards: readonly ReachableCard[] }
-  /** A player of this group used a basic power on another group's reachable card (`Command remotePower`). */
+  /**
+   * A basic attack or thwart made here against a stand-in for another group's card reached that card: the damage the
+   * attack deals it (after this group's modifiers) with the attack's keywords, or the threat the thwart removes.
+   */
   | {
       readonly type: "remotePowerUsed";
       readonly groupId: GroupId;
       readonly playerId: PlayerId;
       readonly toGroupId: GroupId;
       readonly targetInstanceId: InstanceId;
+      readonly ref: InstanceId;
       readonly power: RemotePower;
       readonly amount: number;
       readonly overkill: boolean;
+      readonly piercing: boolean;
     }
-  /** This group resolved another group's remote power on its card (inbound `remotePower`), or refused it. */
+  /** This group dealt another group's remote power to its card (inbound `remotePower`), or refused it. */
   | {
       readonly type: "remotePowerResolved";
       readonly groupId: GroupId;
       readonly toGroupId: GroupId;
-      readonly playerId: PlayerId;
+      readonly ref: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly power: RemotePower;
-      /** Overkill's excess, owed to the attacker's own villain (owner question 2, option A, pending; plan §1.8). */
-      readonly excess: number;
+      /** The attacked card's retaliate, owed to the attacker (RRG 1.8 "Retaliate X", p. 37); 0 for a thwart. */
+      readonly retaliate: number;
       /** Why the card could not be reached any more (it left play, or no longer allows it); absent when it was. */
       readonly refused?: string;
+      /** The card left play while the accepted hit was resolving (`reportRemoteHit`): costs stand, no consequential damage. */
+      readonly lost?: true;
+    }
+  /**
+   * A remote attack with Overkill defeated the card here: the excess, measured after its damage resolved (RRG 1.8
+   * "Overkill", p. 31), owed to the attacker's group (owner question pending, option A: the attacker's own Avatar of
+   * Loki).
+   */
+  | {
+      readonly type: "overkillExcess";
+      readonly groupId: GroupId;
+      readonly toGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly amount: number;
     };
 
 /**
  * What a pod coordinator tells one group (`Command externalEvent`; docs/live-game-rooms.md §10's `lokiFlipped`,
  * `gameWon`, `gameLost`, `synergyGranted` and `stopAfterPhase`, in the engine's card-neutral words). Each waits for
- * the group's next quiet point, after what is resolving has finished (MC55 p. 20; M3).
+ * the group's next quiet point, after what is resolving has finished (MC55 p. 20; M3), except as `externalEvent` says.
  */
 export type PodInboundEvent =
   /** The coordinator's shared record changed: this group's copy is replaced (bookkeeping only, takes no draw). */
@@ -269,6 +315,8 @@ export type PodInboundEvent =
    * those): the pause of `PodState.awaiting` ends once it is applied.
    */
   | { readonly kind: "sharedAck"; readonly seq: number }
+  /** Another group of the pod reported its reachable cards (bookkeeping, `PodState.reachable`; takes no draw). */
+  | { readonly kind: "podReachable"; readonly groupId: GroupId; readonly cards: readonly ReachableCard[] }
   /** Resolve block `block` of `abilityId` in this group's area (`GameEvent podEffectRequested`; a synergy grant). */
   | {
       readonly kind: "podEffect";
@@ -277,24 +325,35 @@ export type PodInboundEvent =
       readonly abilityId: AbilityId;
       readonly block: number;
     }
-  /** A player of another group attacks or thwarts a reachable card here "as if it were in their game area" (M6). */
+  /** A player of another group attacked or thwarted a reachable card here "as if it were in their game area" (M6). */
   | {
       readonly kind: "remotePower";
       readonly fromGroupId: GroupId;
       readonly playerId: PlayerId;
       readonly targetInstanceId: InstanceId;
+      readonly ref: InstanceId;
       readonly power: RemotePower;
       readonly amount: number;
       readonly overkill: boolean;
+      readonly piercing: boolean;
     }
-  /** This group's remote power was resolved where its target is; Overkill's excess, if any, comes back with it. */
+  /** This group's remote power was dealt where its target is (with the target's retaliate), or refused. */
   | {
       readonly kind: "remotePowerResolved";
       readonly fromGroupId: GroupId;
+      readonly ref: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly power: RemotePower;
-      readonly excess: number;
+      readonly retaliate: number;
       readonly refused?: string;
+      readonly lost?: true;
+    }
+  /** Overkill's excess from this group's remote attack, dealt to this group's villain (owner question, option A). */
+  | {
+      readonly kind: "overkillExcess";
+      readonly fromGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly amount: number;
     };
 
 /** A numbered outbound event, as a host forwards it: `seq` is the group's own count, from 1. */

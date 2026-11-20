@@ -4746,6 +4746,8 @@ export function constantAbilityRefs(
 export function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
+  // A stand-in for another group's card has no text box here (`CardInstance.remoteOf`): its abilities work where it is.
+  if (getInstance(state, id)?.remoteOf) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank
   // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9); not a card its own constant
   // treats as an ally (Black Cat, docs/phase7-wave11-scenarios.md §S3.8).

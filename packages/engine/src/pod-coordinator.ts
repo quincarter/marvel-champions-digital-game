@@ -34,6 +34,8 @@ export interface PodCoordinatorGroupSetup {
   readonly podId: string;
   /** Its players at the start of the scenario. */
   readonly players: number;
+  /** Its status as setup left it (`groupStatusOf` of its first state). Absent: setup, round 0, not halted. */
+  readonly status?: GroupStatus;
 }
 
 export interface PodCoordinatorSetup {
@@ -126,7 +128,7 @@ export function createPodCoordinator(setup: PodCoordinatorSetup): PodCoordinator
       players: group.players,
       received: 0,
       inbound: [],
-      status: { phase: "setup", round: 0, halted: false },
+      status: group.status ?? { phase: "setup", round: 0, halted: false },
       reachable: [],
       dropped: false,
     })),
@@ -281,49 +283,72 @@ export function receiveOutbound(
       break;
     case "reachableCards":
       step.update(groupId, (g) => ({ ...g, reachable: event.cards }));
+      // Every other group of the pod keeps a copy, so its remote power is checked before anything is paid there.
+      for (const mate of podmatesOf(state, groupId))
+        if (mate !== groupId) step.send(mate, { kind: "podReachable", groupId, cards: event.cards });
       break;
     case "remotePowerUsed": {
       // M6: another group's player may attack The Mangog and thwart Door Between Worlds "as if it were in their game
-      // area", only from the same pod (55041, 55046). The owning group's engine judges the card itself.
+      // area", only from the same pod (55041, 55046). The coordinator refuses what the owning group's last report
+      // already rules out; the owning group's engine judges the card itself when it arrives.
       const target = coordinatorGroup(state, event.toGroupId);
+      const reported = target?.reachable.some(
+        (card) => card.instanceId === event.targetInstanceId && card.by === event.power,
+      );
       const refused =
         step.outcome !== "playing"
           ? "the game is over"
           : !target || !inPod(event.toGroupId)
             ? "that group is not in your pod"
-            : target.dropped
-              ? "that group has dropped"
-              : null;
+            : target.dropped || target.status.phase === "over"
+              ? "that group is no longer playing"
+              : !reported
+                ? "that card is no longer reachable from your pod"
+                : null;
       if (refused === null)
         step.send(event.toGroupId, {
           kind: "remotePower",
           fromGroupId: groupId,
           playerId: event.playerId,
           targetInstanceId: event.targetInstanceId,
+          ref: event.ref,
           power: event.power,
           amount: event.amount,
           overkill: event.overkill,
+          piercing: event.piercing,
         });
       else
         step.send(groupId, {
           kind: "remotePowerResolved",
           fromGroupId: event.toGroupId,
+          ref: event.ref,
           targetInstanceId: event.targetInstanceId,
           power: event.power,
-          excess: 0,
+          retaliate: 0,
           refused,
         });
       break;
     }
     case "remotePowerResolved":
-      if (inPod(event.toGroupId) && step.outcome === "playing")
+      if (inPod(event.toGroupId))
         step.send(event.toGroupId, {
           kind: "remotePowerResolved",
           fromGroupId: groupId,
+          ref: event.ref,
           targetInstanceId: event.targetInstanceId,
           power: event.power,
-          excess: event.excess,
+          retaliate: event.retaliate,
           ...(event.refused === undefined ? {} : { refused: event.refused }),
+          ...(event.lost ? { lost: true as const } : {}),
+        });
+      break;
+    case "overkillExcess":
+      if (inPod(event.toGroupId) && step.outcome === "playing")
+        step.send(event.toGroupId, {
+          kind: "overkillExcess",
+          fromGroupId: groupId,
+          ref: event.ref,
+          amount: event.amount,
         });
       break;
   }
