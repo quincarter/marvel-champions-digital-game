@@ -12,10 +12,13 @@ import {
   controllerOf,
   getInstance,
   remainingHitPoints,
+  type CompetitiveCondition,
+  type CompetitiveOutcome,
   type EngineDeps,
   type GameState,
   type PlayerId,
   type ResourcePool,
+  type TieBreakMeasure,
 } from "@mc/engine";
 import type { CorePlayer } from "@mc/cards";
 import type { GameRecord } from "./game-record.js";
@@ -37,8 +40,66 @@ import type { GameRecord } from "./game-record.js";
  */
 export const SUMMARY_VERSION = 6;
 
-/** Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. */
-export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "other";
+/**
+ * Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. `competitive`:
+ * a Civil War Competitive game (issue #883), whatever any one team's result; its result is `GameSummary.competitive`.
+ */
+export type LossReason = "playersDefeated" | "schemeCompleted" | "conceded" | "competitive" | "other";
+
+/**
+ * A competitive game's result (issue #883, MC56 p. 17), kept apart from the cooperative numbers for PvP tracking
+ * (#909). A competitive game counts as played only (the owner, 2026-11-20): every win/loss reader leaves its save out
+ * (`isCompetitiveSave`), so this is the one place its result is read from. The same on every device: each seat's
+ * result is its team's, whoever held it.
+ */
+export interface CompetitiveSummary {
+  /** `teamConceded`: a team forfeited; `competitiveEnded`: every other end. */
+  readonly reason: CompetitiveOutcome["reason"];
+  readonly decision: CompetitiveOutcome["decision"];
+  readonly teams: readonly {
+    readonly teamId: string;
+    readonly side: "registration" | "resistance" | null;
+    readonly result: "win" | "loss" | "tie";
+    /** The win conditions the team met, in order (MC56 p. 17). */
+    readonly conditions: readonly CompetitiveCondition[];
+    /** The engine players (`p1`..) on the team. */
+    readonly playerIds: readonly string[];
+  }[];
+  /** Each seat's team result, in seat order (as `GameSummary.seats`). */
+  readonly seats: readonly ("win" | "loss" | "tie")[];
+  /** With a tie on conditions: whether the tie-breaks were played, and the measure that decided (null: still tied). */
+  readonly tieBreak?: { readonly applied: boolean; readonly decidedBy: TieBreakMeasure | null };
+  /** With `teamConceded`: the engine player whose concession it was. */
+  readonly concededBy?: string;
+}
+
+/** The competitive part of a summary, or undefined for a cooperative game. */
+function competitiveSummaryOf(state: GameState): CompetitiveSummary | undefined {
+  const outcome = state.outcome;
+  if (outcome?.result !== "teams") return undefined;
+  const teamOfPlayer = (playerId: string) =>
+    outcome.teams.find((team) =>
+      (state.teams ?? []).some(
+        (stored) => stored.teamId === team.teamId && (stored.playerIds as readonly string[]).includes(playerId),
+      ),
+    );
+  return {
+    reason: outcome.reason,
+    decision: outcome.decision,
+    teams: outcome.teams.map((team) => ({
+      teamId: team.teamId as string,
+      side: team.side,
+      result: team.result,
+      conditions: team.conditions,
+      playerIds: (state.teams?.find((stored) => stored.teamId === team.teamId)?.playerIds ?? []) as readonly string[],
+    })),
+    seats: state.players.map((player) => teamOfPlayer(player.playerId as string)?.result ?? "tie"),
+    ...(outcome.tieBreak
+      ? { tieBreak: { applied: outcome.tieBreak.applied, decidedBy: outcome.tieBreak.decidedBy ?? null } }
+      : {}),
+    ...(outcome.concededBy ? { concededBy: outcome.concededBy as string } : {}),
+  };
+}
 
 /**
  * What defeated the last hero standing (`GameRecord.lastEliminated.hit`): the villain's attack, a minion's attack,
@@ -144,6 +205,8 @@ export interface GameSummary {
    * of); null when the engine named none or for any other result. Absent before version 2.
    */
   readonly finalBlowCardId?: string | null;
+  /** A competitive game's own result (`CompetitiveSummary`); absent for every cooperative game. */
+  readonly competitive?: CompetitiveSummary;
 }
 
 /** The four aspects and 'Pool, as a deck's aspect cards name them (`Aspect`); basic and hero cards are neither. */
@@ -228,6 +291,8 @@ function villainsOf(state: GameState): string[] {
 const lossReasonOf = (outcome: NonNullable<GameState["outcome"]>): LossReason | null => {
   if (outcome.result === "win") return null;
   if (outcome.result === "conceded") return "conceded";
+  // A competitive game has a result per team, never one for the table: its own field holds it (`competitive`).
+  if (outcome.result === "teams") return "competitive";
   if (outcome.result !== "loss") return "other";
   if (outcome.reason === "mainSchemeCompleted") return "schemeCompleted";
   if (outcome.reason === "allPlayersDefeated") return "playersDefeated";
@@ -267,7 +332,9 @@ export function summarizeGame(
 ): GameSummary | null {
   const outcome = state.outcome;
   if (!outcome) return null;
+  // A competitive game is no table win: no winners and no final blow; its result is `competitive` (issue #883).
   const won = outcome.result === "win";
+  const competitive = competitiveSummaryOf(state);
   const lossReason = lossReasonOf(outcome);
   const wiped = lossReason === "playersDefeated";
   return {
@@ -294,5 +361,6 @@ export function summarizeGame(
     encounterRevealed: record.encounterRevealed ?? {},
     hurtBy: record.hurtBy ?? {},
     finalBlowCardId: won ? finalBlowCardOf(state, record) : null,
+    ...(competitive ? { competitive } : {}),
   };
 }

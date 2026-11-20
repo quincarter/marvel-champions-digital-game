@@ -45,7 +45,11 @@ export type ReplaySummary = (
 
 /** Why a replay is not this game's story: it must end the way the save says, in the same round, for the same reason. */
 function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boolean {
-  if ((state.outcome?.result === "win") !== (meta.status === "won")) return false;
+  // A competitive game's save holds one device's team result (`seatResultOf`, issue #883), never a table win: its
+  // replay must end as a competitive game too, and the reason and round below say the rest.
+  if (state.outcome?.result === "teams") {
+    if (meta.outcome && meta.outcome.result !== "teams") return false;
+  } else if ((state.outcome?.result === "win") !== (meta.status === "won")) return false;
   if (state.round !== meta.round) return false;
   if (meta.outcome && state.outcome?.reason !== meta.outcome.reason) return false;
   return meta.summary ? summary.lossReason === meta.summary.lossReason : true;

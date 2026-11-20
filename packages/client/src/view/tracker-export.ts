@@ -31,7 +31,7 @@
  * dashes and accents. A text cell that begins with `= + - @` gets a leading apostrophe so a spreadsheet does not read a
  * deck's name as a formula.
  */
-import { isAdjustedSave, type SaveMeta } from "../engine/game-storage.js";
+import { isAdjustedSave, isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import { CLIENT_VERSION } from "../version.js";
 import {
   isPastGame,
@@ -283,7 +283,10 @@ function rowOf(row: PastGameRow, input: TrackerExportInput): TrackerExportRow {
 /** The export's rows, oldest game first (a log reads forward); won and lost games only. */
 export function trackerRowsOf(input: TrackerExportInput): readonly TrackerExportRow[] {
   // An adjusted game (issue #791) is not a result to log elsewhere; Past games still lists it.
-  const finished = input.saves.filter((save) => isPastGame(save, input.appVersion) && !isAdjustedSave(save));
+  // A competitive game (issue #883) is played only, never a cooperative win or loss to log.
+  const finished = input.saves.filter(
+    (save) => isPastGame(save, input.appVersion) && !isAdjustedSave(save) && !isCompetitiveSave(save),
+  );
   return pastGameRowsOf(finished, input.names, "all", input.appVersion)
     .filter((row) => row.result === "won" || row.result === "lost")
     .reverse()

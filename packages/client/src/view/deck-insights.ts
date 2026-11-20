@@ -12,7 +12,7 @@
  * Pure: names come in through `StatsNames`.
  */
 import type { CorePlayer } from "@mc/cards";
-import type { SaveMeta } from "../engine/game-storage.js";
+import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import type { SeatSummary } from "../engine/game-summary.js";
 import type { StatsNames } from "./player-stats-model.js";
 
@@ -139,6 +139,8 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
   > = {};
   for (const meta of saves) {
     if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) continue;
+    // A competitive game is played only, never a win or a loss (issue #883).
+    if (isCompetitiveSave(meta)) continue;
     const won = meta.status === "won";
     const summary = meta.summary ?? null;
     const lossReason =

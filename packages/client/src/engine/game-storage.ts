@@ -344,5 +344,18 @@ export const isCustomSave = (meta: { readonly config?: { readonly packs?: readon
  */
 export const isAdjustedSave = (meta: object): boolean => (meta as { readonly adjusted?: unknown }).adjusted === true;
 
+/**
+ * A Civil War Competitive game (issue #883): its config carries the two teams (`SessionConfig.competitive`, a room's
+ * `roomTeams`), or its outcome is per team. It counts as a game played only (the owner, 2026-11-20): never a win or a
+ * loss for unlocks, achievements, champion points, scenario wins and losses, hero win rates, deck insights, the
+ * previous-game fact or global stats. Its result is kept apart on the summary (`GameSummary.competitive`) for PvP
+ * tracking (#909).
+ */
+export const isCompetitiveSave = (meta: { readonly config?: object; readonly outcome?: unknown }): boolean => {
+  const config = meta.config as { readonly competitive?: unknown; readonly roomTeams?: unknown } | undefined;
+  if (config?.competitive !== undefined || config?.roomTeams !== undefined) return true;
+  return (meta.outcome as { readonly result?: unknown } | null | undefined)?.result === "teams";
+};
+
 export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
   meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";
