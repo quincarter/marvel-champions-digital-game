@@ -10,6 +10,7 @@ import { openApp } from "./wave6-helpers-b.js";
 
 const SETTINGS = "SettingsOverlay";
 const CONFIRM = "EndTurnConfirmOverlay";
+const SHOTS = process.env.SHOT_DIR ?? "";
 
 const allowed = (page: Page): Promise<boolean> =>
   page.evaluate(async () => {
@@ -42,9 +43,11 @@ test("Allow manual adjust warns before it turns on, and Escape on the warning ke
   await pressStop(page, "tab:more");
   await scrollStopIntoView(page, "row:manual-adjust", SETTINGS);
   expect(await allowed(page)).toBe(false);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-misc-gameplay.png` });
 
   await pressStop(page, "row:manual-adjust");
   await waitForScene(page, CONFIRM);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/manual-adjust-warning.png` });
   await pressKey(page, "Escape");
   await waitFor(async () => ((await screens(page)).includes(CONFIRM) ? null : true), "the warning closes", 8000);
   expect(await screens(page), "Escape closed the warning, not Settings").toContain(SETTINGS);

@@ -100,6 +100,8 @@ test("issue #800: Pause's search puts settings first, changes them in place, and
   await pressStop(page, phone, "result:undo-past-turn:warn");
   await waitForScene(page, "EndTurnConfirmOverlay");
   expect((await findText(page, "This blocks progression", "EndTurnConfirmOverlay")).length).toBeGreaterThan(0);
+  if (process.env.SHOT_DIR)
+    await page.screenshot({ path: `${process.env.SHOT_DIR}/undo-warning-${phone ? "phone" : "desktop"}.png` });
   const confirm = await page.evaluate(
     () =>
       (
