@@ -118,6 +118,17 @@
 //     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
 //     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
 //     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
+//   - Several tables in one room (Epic mode, docs/live-game-rooms.md section 10) add no new kind of cost: each table keeps its
+//     own header row, one chunk row per 20 commands and one tail row (refreshed at most once a minute while its host
+//     streams, and when its host drops or the table ends), so a table costs what a one-table room does and N tables N times
+//     that. A table's end is one `<table>:end` row and the room's end one meta write. The lobby row grows by the tables,
+//     pods and the table-host token hashes and is written only when the organizer sets the lobby, a seat changes hands or a
+//     table host returns with its token. The pod channel (pod event, inbound, state) writes no row: it is relayed
+//     in memory, each message capped at 16 KiB (state 32 KiB) and limited to 30 then 10 a second per participant, and
+//     the last pod state is kept in memory for joiners. A joining participant makes a woken room read every table once
+//     (header, chunks, tail, end: about one row per 20 commands per table, plus 3 per table), which is the same
+//     once-per-wake cost as a one-table room times the table count. Epic rooms of 4 tables x 4 players plus watchers
+//     need MAX_ROOM_PARTICIPANTS above 25 (table hosts and the organizer always get in).
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
 //     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
 //     secret alone must not stop rooms.
