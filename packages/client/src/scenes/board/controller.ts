@@ -62,6 +62,9 @@ import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-p
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
 import { roomStrictOf, strictReason } from "../../view/room-strict.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
+import { askHost } from "../../platform/room.js";
+import { seatContext } from "../../view/seat-context.js";
+import { t } from "../../i18n/translate.js";
 import {
   undoOf,
   undoStepsOf,
@@ -186,6 +189,9 @@ export interface BoardControllerHost {
   hasThemeStop?(): boolean;
   /** True while the top bar's watch eye is drawn (a stop before the dark mode button), and what Enter on it does (#876). */
   hasWatchStop?(): boolean;
+  /** How many buttons the room prompt under the top bar draws (#881), and what Enter on the `index`th does. */
+  promptStops?(): number;
+  pressPrompt?(index: number): void;
   shareWatchLink?(): void;
   toggleTheme?(): void;
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
@@ -528,6 +534,7 @@ export class BoardController {
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
         ...(this.#host.hasWatchStop?.() ? { watch: true as const } : {}),
+        ...((this.#host.promptStops?.() ?? 0) > 0 ? { prompts: this.#host.promptStops!() } : {}),
         ...(this.#host.hasThemeStop?.() ? { theme: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
@@ -589,6 +596,11 @@ export class BoardController {
     // The theme is a setting, not a move: it flips on a replayed board too.
     if (focus.kind === "theme") {
       this.#host.toggleTheme?.();
+      return;
+    }
+    // A room prompt's buttons (#881) answer the room, not the table: they work while the table is read-only.
+    if (focus.kind === "prompt") {
+      this.#host.pressPrompt?.(focus.index);
       return;
     }
     // Sharing the link sends nothing to the game either.
@@ -2039,6 +2051,14 @@ export class BoardController {
   undoOffer(): UndoOffer | null {
     const { game, perspectiveId, commandTrail, offTurnSeat, config } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
+    // A seated guest never rewinds: in a Host control room Undo asks the host, in a Strict one it says who turned it off.
+    const seat = seatContext();
+    if (seat?.seatGame) {
+      if (game.outcome || game.pendingChoice) return null;
+      return seat.room.settings?.playMode === "strict"
+        ? { kind: "unavailable", reason: strictReason() }
+        : { kind: "ask" };
+    }
     // Strict rules in a lobby room: Undo stays on the bar, greyed, and says who turned it off.
     if (roomStrictOf(config)) {
       return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: strictReason() };
@@ -2103,6 +2123,12 @@ export class BoardController {
    * second press while one is in flight, or in the moment after one, is ignored, so two undos are two deliberate steps.
    */
   async undo(): Promise<void> {
+    // The guest's ask goes to the host even while it is another seat's turn: the host undoes the active hero's last move.
+    if (this.undoOffer()?.kind === "ask") {
+      askHost("undo");
+      this.#noteUndo(t("ask.undoSent"));
+      return;
+    }
     if (this.#readOnly) return;
     // A guided step teaching one control keeps Undo inert, the same as any other control it doesn't name.
     if (this.#guideGate.current !== null) {
@@ -2110,12 +2136,14 @@ export class BoardController {
       return;
     }
     const offer = this.undoOffer();
-    if (!offer) return;
+    if (!offer || offer.kind === "ask") return;
     if (offer.kind === "unavailable") {
       this.#noteUndo(offer.reason);
       return;
     }
     if (this.#undoing || Date.now() < this.#undoSettledAt + UNDO_COOLDOWN_MS) return;
+    // The version the target was worked out from: a dialog may delay the rewind, and a seat's move landing meanwhile refuses it.
+    const fromVersion = appSession().store.state.version;
     if (offer.revealed) {
       if (!(await this.#acknowledgeAdjusting())) return;
       // The table may have moved while the warning was up: take back only what was offered.
@@ -2128,7 +2156,7 @@ export class BoardController {
       const { game } = appSession().store.state;
       const what = game ? undoneSummary(offer.command, (id) => cardName(game, id)) : "last move";
       const adjusted = offer.revealed === true;
-      if (await appSession().store.rewindTo(offer.target, { adjusted })) this.#noteUndo(`Undid: ${what}`);
+      if (await appSession().store.rewindTo(offer.target, { adjusted, fromVersion })) this.#noteUndo(`Undid: ${what}`);
     } finally {
       this.#undoing = false;
       this.#undoSettledAt = Date.now();

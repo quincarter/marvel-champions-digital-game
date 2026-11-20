@@ -23,6 +23,7 @@ import type {
   SessionConfig,
   UpdateListener,
 } from "../engine/host.js";
+import { t } from "../i18n/translate.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -34,27 +35,31 @@ const REFUSED = "a seat plays through the room: this device does not keep the ga
 /** How long a proposal waits for the log's answer before it is given up (the host is slow, or gone). */
 export const PROPOSAL_TIMEOUT_MS = 15_000;
 
-/** What a refusal says, in words (the UI may reword; these are the readable fallback). */
+/** What a refusal says, in plain words in the player's language (`seat.refusal.*` in the catalogs). */
 export function refusalMessage(reason: SeatRefusal): string {
   switch (reason) {
     case "stale":
-      return "The table moved on before your move arrived. Look at it and try again.";
+      return t("seat.refusal.stale");
     case "not-your-turn":
-      return "It is not your turn to act.";
+      return t("seat.refusal.notYourTurn");
     case "illegal":
-      return "The host did not accept that move.";
+      return t("seat.refusal.illegal");
     case "strict":
-      return "The host's rules do not allow that.";
+      return t("seat.refusal.strict");
     case "build-mismatch":
-      return "Your game version is not the host's, so you cannot act.";
+      return t("seat.refusal.buildMismatch");
     case "not-seated":
-      return "You hold no seat that may act.";
+      return t("seat.refusal.notSeated");
+    case "not-away":
+      return t("seat.refusal.notAway");
+    case "handover-off":
+      return t("seat.refusal.handoverOff");
     case "out-of-order":
-      return "The game is not running.";
+      return t("seat.refusal.outOfOrder");
     case "rate-limited":
-      return "Too many moves too quickly. Wait a moment.";
+      return t("seat.refusal.rateLimited");
     default:
-      return "The room did not accept that move.";
+      return t("seat.refusal.generic");
   }
 }
 
@@ -149,8 +154,8 @@ export class SeatEngineHost implements EngineHost {
    */
   dispatch(command: Command): Promise<DispatchResult> {
     const current = this.#current;
-    if (this.#disposed || !current) return Promise.resolve(this.#failed(command, "The room's game is not open."));
-    if (this.#status.over || this.#status.failed) return Promise.resolve(this.#failed(command, "The game is over."));
+    if (this.#disposed || !current) return Promise.resolve(this.#failed(command, t("seat.msg.notOpen")));
+    if (this.#status.over || this.#status.failed) return Promise.resolve(this.#failed(command, t("seat.msg.over")));
     // Never a proposal: a seat's Concede is leaving the seat. The table is shown as it is, without this device's heroes.
     if (command.type === "concede" && this.#o.leaveSeats) {
       this.#o.leaveSeats();
@@ -164,7 +169,7 @@ export class SeatEngineHost implements EngineHost {
         command,
         resolve,
         timer: setTimer(() => {
-          this.#settle(pending, this.#failed(command, "The host did not answer. Check the connection and try again."));
+          this.#settle(pending, this.#failed(command, t("seat.msg.noAnswer")));
         }, this.#o.proposalTimeoutMs ?? PROPOSAL_TIMEOUT_MS),
       };
       this.#pending.push(pending);
@@ -214,7 +219,7 @@ export class SeatEngineHost implements EngineHost {
   dispose(): void {
     this.#disposed = true;
     for (const pending of [...this.#pending]) {
-      this.#settle(pending, this.#failed(pending.command, "You left the room's game."));
+      this.#settle(pending, this.#failed(pending.command, t("seat.msg.left")));
     }
     this.#listeners.clear();
     this.#statusListeners.clear();
@@ -238,11 +243,11 @@ export class SeatEngineHost implements EngineHost {
         return;
       case "over":
         this.#setStatus({ ...this.#status, over: true });
-        this.#failAll("The game is over.");
+        this.#failAll(t("seat.msg.over"));
         return;
       case "failed":
         this.#setStatus({ ...this.#status, over: true, failed: true, hostConnected: false });
-        this.#failAll("This device could not follow the game any more.");
+        this.#failAll(t("seat.msg.lost"));
         return;
     }
   }
@@ -274,7 +279,7 @@ export class SeatEngineHost implements EngineHost {
     }
     // The log was cut back or read again: a proposal waiting on the old log cannot be told apart from its echo.
     if (change.type === "rewind" || change.type === "open" || change.type === "reset") {
-      this.#failAll("The table changed under your move. Look at it and try again.");
+      this.#failAll(t("seat.msg.changed"));
     }
   }
 

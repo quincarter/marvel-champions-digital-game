@@ -34,6 +34,12 @@ export function watchBaseOf(
 }
 
 let roomListener: ((state: RoomState) => void) | null = null;
+/** `platform/seat-play.ts` sets this while a guest's seat game is up, so the Title can put it away (#881). */
+let seatLeaver: (() => void) | null = null;
+
+export function setSeatLeaver(leave: (() => void) | null): void {
+  seatLeaver = leave;
+}
 /** Whether the room worker last reported a room (host or guest) this device is in. */
 let inRoom = false;
 
@@ -43,6 +49,8 @@ let inRoom = false;
  * (single player never posts to the worker).
  */
 export function leaveRoomAtTitle(): void {
+  // A guest's seat game (#881) is put away first: its host and store were swapped under the session.
+  seatLeaver?.();
   if (!inRoom || !worker) return;
   inRoom = false;
   worker.postMessage({ kind: "room-leave" } satisfies LiveRoomIn);

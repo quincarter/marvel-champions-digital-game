@@ -66,6 +66,8 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.unlocks]: () => import("./unlocks.js").then((m) => m.UnlocksOverlay),
   [SCENES.unlockConfirm]: () => import("./unlock-confirm.js").then((m) => m.UnlockConfirmOverlay),
   [SCENES.onlineName]: () => import("./online-name.js").then((m) => m.OnlineNameOverlay),
+  [SCENES.roomChat]: () => import("./room-chat.js").then((m) => m.RoomChatOverlay),
+  [SCENES.roomAsk]: () => import("./room-ask.js").then((m) => m.RoomAskOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.searchHelp]: () => import("./search-help-sheet.js").then((m) => m.SearchHelpSheet),

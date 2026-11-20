@@ -20,6 +20,7 @@
  */
 
 import Phaser from "phaser";
+import { activeSeat } from "../platform/seat-play.js";
 import type { GameOutcome, GameState, InstanceId } from "@mc/engine";
 import { gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
@@ -623,6 +624,8 @@ export class GameOverScene extends Phaser.Scene {
   #playActions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
+    // A guest who played from a seat has no game of their own to run again (#881): the host decides what is next.
+    if (activeSeat()) return [];
     if (config?.campaign) {
       const campaign = config.campaign;
       return [

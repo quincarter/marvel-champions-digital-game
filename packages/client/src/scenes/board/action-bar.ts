@@ -165,7 +165,13 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   // Undo (`view/undo.ts`) sits just before End turn: on the commit row's left when stacked, else between the basic
   // powers and End turn. Drawn, greyed with its reason, for as long as it is the hero's own turn.
   const undo = controller.undoOffer();
-  const undoWidth = undo ? (stacked ? Math.min(110, rect.width * 0.3) : Math.min(110, rect.width * 0.14)) : 0;
+  // "Ask host to undo" (a seated guest's Undo, #881) needs more room than "Undo".
+  const asking = undo?.kind === "ask";
+  const undoWidth = undo
+    ? stacked
+      ? Math.min(asking ? 150 : 110, rect.width * (asking ? 0.4 : 0.3))
+      : Math.min(asking ? 150 : 110, rect.width * (asking ? 0.18 : 0.14))
+    : 0;
   const undoGap = undo ? 6 : 0;
   const endTurnWidth = stacked ? rect.width - 20 - undoWidth - undoGap : Math.min(180, rect.width * 0.28);
   const basicsWidth = stacked ? rect.width - 20 : rect.width - endTurnWidth - 30 - undoWidth - undoGap;
@@ -246,10 +252,15 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const undoButton = new McButton(scene, {
       kind: "onInk",
       // Taking the previous hero's End turn back (`view/end-turn-takeback.ts`) reads as what it is.
-      label: undo.kind === "available" && undo.command.type === "endTurn" ? "Nevermind" : "Undo",
+      label:
+        undo.kind === "ask"
+          ? t("ask.undo")
+          : undo.kind === "available" && undo.command.type === "endTurn"
+            ? "Nevermind"
+            : "Undo",
       type: typeRole.label,
       rect: undoRect,
-      enabled: undo.kind === "available",
+      enabled: undo.kind === "available" || undo.kind === "ask",
       ...(undo.kind === "unavailable" ? { reason: undo.reason } : {}),
       // A greyed Undo says why on hover (pointer), on focus (keyboard) and on press (touch, Enter, Z): the label
       // below is drawn hidden when there is nothing to say and toggled here without a redraw.

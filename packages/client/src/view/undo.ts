@@ -404,7 +404,9 @@ export type UndoOffer =
       readonly command: Command;
       readonly revealed?: true;
     }
-  | { readonly kind: "unavailable"; readonly reason: string };
+  | { readonly kind: "unavailable"; readonly reason: string }
+  /** A seated guest's Undo (#881): it asks the host, who decides; nothing is rewound here. */
+  | { readonly kind: "ask" };
 
 /** Says why nothing earlier can be undone, the reason the disabled Undo button shows. */
 export const UNDO_REASONS = {

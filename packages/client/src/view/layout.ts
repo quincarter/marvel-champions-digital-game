@@ -198,7 +198,20 @@ export const REPLAY_BANNER_HEIGHT = 42;
 /** What a phone's replay bar takes under the title bar when it is on top: the bar and its banner. */
 export const REPLAY_BAR_TOP_RESERVE = REPLAY_BAR_HEIGHT + REPLAY_BANNER_HEIGHT;
 
+/**
+ * A room game's whose-turn line (#881) is one more row at the foot of the title bar, the same height on every layout; a
+ * prompt (a request to answer, a seat to take over) is another, below it, only while there is one.
+ */
+export const TURN_ROW_HEIGHT = 24;
+export const PROMPT_ROW_HEIGHT = 52;
+/** A prompt with three buttons stacks them under its words, so it is taller. */
+export const PROMPT_ROW_HEIGHT_STACKED = 96;
+export const promptRowHeight = (actions: number): number =>
+  actions > 2 ? PROMPT_ROW_HEIGHT_STACKED : PROMPT_ROW_HEIGHT;
+
 export interface LayoutOptions {
+  /** Rows added to the foot of the title bar (`TURN_ROW_HEIGHT`, `PROMPT_ROW_HEIGHT`): the table starts below them. */
+  readonly chromeExtra?: number;
   /**
    * A phone's replay bar is on top (`REPLAY_BAR_TOP_RESERVE`): the tab rail and everything under it start below it, and
    * the action bar zone, which a replay has no use for, gives its height back to the table.
@@ -461,7 +474,7 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
   // A tablet in portrait uses this layout too, with its own gutters and chrome.
   const formFactor = formFactorFor(viewport.width, viewport.height);
   const gutter = GUTTER[formFactor];
-  const chromeHeight = CHROME_HEIGHT[formFactor];
+  const chromeHeight = CHROME_HEIGHT[formFactor] + (options.chromeExtra ?? 0);
   const tabsHeight = hit.target;
   const replayTop = options.replayBar ?? 0;
   const barHeight = replayTop > 0 ? 0 : actionBarHeight(formFactor);
@@ -559,7 +572,7 @@ function phoneZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect =
  */
 function phoneLandscapeZones(viewport: Rect, options: LayoutOptions, fullViewport: Rect = viewport): ZonesAndScroll {
   const gutter = GUTTER.phoneLandscape;
-  const chromeHeight = CHROME_HEIGHT.phoneLandscape;
+  const chromeHeight = CHROME_HEIGHT.phoneLandscape + (options.chromeExtra ?? 0);
   // The long table's single row: End turn beside the basic powers, tall enough for its 42px button.
   const barHeight = hit.primary;
   const railWidth = PHONE_LANDSCAPE_RAIL_WIDTH;
@@ -653,7 +666,7 @@ function longTableZones(
   fullViewport: Rect = viewport,
 ): ZonesAndScroll {
   const gutter = GUTTER[formFactor];
-  const chromeHeight = CHROME_HEIGHT[formFactor];
+  const chromeHeight = CHROME_HEIGHT[formFactor] + (options.chromeExtra ?? 0);
   const barHeight = actionBarHeight(formFactor);
   // `grow` (0..1) is how far the band has grown while it animates (`BoardScene.setVillainDock`); past half the row draws compact.
   const grow =

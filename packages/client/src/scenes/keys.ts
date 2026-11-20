@@ -134,6 +134,10 @@ export const SCENES = {
   nameConflict: "NameConflictOverlay",
   /** "Your name" for online play (`scenes/online-name.ts`, #880): asked once, changed in Settings. */
   onlineName: "OnlineNameOverlay",
+  /** In-game room chat (`scenes/room-chat.ts`, #881): a compact sheet over a room game's board. */
+  roomChat: "RoomChatOverlay",
+  /** A seated guest's "Ask for a change" note to the host (`scenes/room-ask.ts`, #881). */
+  roomAsk: "RoomAskOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
   /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */

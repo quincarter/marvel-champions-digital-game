@@ -39,6 +39,8 @@ export type FocusTarget =
   | { readonly kind: "discard" }
   /** The victory display's pile in the encounter column: Enter opens the pile view, as a click on it does. */
   | { readonly kind: "victoryDisplay" }
+  /** The `index`th button of the room prompt under the top bar (#881): Take over, Accept, Decline. The first stops on the idle route. */
+  | { readonly kind: "prompt"; readonly index: number }
   /** The top bar's dark mode button (#735): Enter flips the theme. Just before the music note on the idle route. */
   | { readonly kind: "theme" }
   /** The top bar's watch eye (#876): Enter copies or shares the watch link. Just before the dark mode button. */
@@ -52,6 +54,8 @@ export type FocusMode =
       readonly kind: "idle";
       readonly hand: readonly InstanceId[];
       readonly teamUps?: readonly string[];
+      /** How many buttons the room prompt draws under the top bar (#881): the first stops on the route. */
+      readonly prompts?: number;
       /** True while the top bar's music note is drawn: the route's last stop. */
       readonly music?: true;
       /** True while the top bar's dark mode button is drawn: the stop before the note. */
@@ -131,7 +135,9 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   const endTurnAt = basics.findIndex((target) => target.kind === "basic" && target.action === "endTurn");
   if (mode.undo) basics.splice(endTurnAt < 0 ? basics.length : endTurnAt, 0, { kind: "undo" });
   const teamUps: FocusTarget[] = (mode.teamUps ?? []).map((pairKey) => ({ kind: "teamUp", pairKey }));
+  const prompts: FocusTarget[] = Array.from({ length: mode.prompts ?? 0 }, (_, index) => ({ kind: "prompt", index }));
   return [
+    ...prompts,
     ...cards,
     ...(mode.discard ? [{ kind: "discard" as const }] : []),
     ...tableCards,
@@ -196,6 +202,7 @@ export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolea
   if (a.kind === "basic" && b.kind === "basic") return a.action === b.action;
   if (a.kind === "teamUp" && b.kind === "teamUp") return a.pairKey === b.pairKey;
   if (a.kind === "bar" && b.kind === "bar") return a.index === b.index;
+  if (a.kind === "prompt" && b.kind === "prompt") return a.index === b.index;
   return a.kind === b.kind;
 }
 

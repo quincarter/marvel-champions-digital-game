@@ -36,6 +36,16 @@ import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
 import { onArtChange } from "../language-change.js";
 import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
+import { answerRequest, dismissAsk, giveBackSeat, onRoomState, roomState, takeOverSeat } from "../platform/room.js";
+import type { RoomState } from "../platform/room.js";
+import { activeSeat } from "../platform/seat-play.js";
+import { actingOf, inRoomGame, whoseTurnOf, type TurnLine } from "../view/whose-turn.js";
+import { promptViewOf, roomChatOn, roomPromptsOf, type PromptView } from "../view/room-prompts.js";
+import { heldElsewhere } from "../view/seat-gate.js";
+import { setSeatContext } from "../view/seat-context.js";
+import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
+import { TURN_ROW_HEIGHT, promptRowHeight } from "../view/layout.js";
+import { askToConfirm } from "./end-turn-confirm.js";
 import {
   REPLAY_READING_KEYS,
   onReplayInspectChange,
@@ -385,6 +395,8 @@ export class BoardScene extends Phaser.Scene {
     hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
     hasWatchStop: () => this.#frame.focusRects.has(focusKey({ kind: "watch" })),
+    promptStops: () => [...this.#frame.focusRects.keys()].filter((key) => key.startsWith("prompt:")).length,
+    pressPrompt: (index) => this.#pressPrompt(index),
     shareWatchLink: () => this.#shareWatchLink(),
     hasThemeStop: () => this.#frame.focusRects.has(focusKey({ kind: "theme" })),
     toggleTheme: () => (this.scene.manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
@@ -471,6 +483,10 @@ export class BoardScene extends Phaser.Scene {
 
   /** The replay being watched (#693), or null for a game: the table is then read-only and the transport runs over it. */
   #replay: ReplayHost | null = null;
+  /** The room this board plays in (#881): the whose-turn line, the room prompts and who may act read it. */
+  #room: RoomState = roomState();
+  /** Seats the host chose to wait on, so their "disconnected" prompt stays away until the seat changes. */
+  readonly #waiting = new Set<string>();
   /** The line the top bar's watch control shows for a moment after a press (#876). */
   #watchToast: string | null = null;
   #replayBarTop = false;
@@ -669,6 +685,31 @@ export class BoardScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
+    // A room game (#881): who may act, the whose-turn line and the prompts follow the room's own state.
+    this.#room = roomState();
+    this.#waiting.clear();
+    if (!this.#replay) resetChatRead();
+    setSeatContext(() => ({ seatGame: activeSeat() !== null, room: this.#room }));
+    let roomShown = this.#roomKey();
+    const roomOff = onRoomState((room) => {
+      this.#room = room;
+      for (const id of [...this.#waiting]) {
+        const seat = room.seats.find((s) => s.id === id);
+        if (!seat || (!seat.away && seat.holder !== null)) this.#waiting.delete(id);
+      }
+      const key = this.#roomKey();
+      if (key === roomShown) return;
+      roomShown = key;
+      if (!this.#model) return;
+      const state = appSession().store.state;
+      this.#applyGate(state);
+      this.#syncChoiceOverlay(state);
+      this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      roomOff();
+      setSeatContext(null);
+    });
     const config = store.state.config;
     // A replay plays its scenario's music too, so it is in the mood of the game it shows (#858).
     if (config?.scenarioId) {
@@ -739,6 +780,8 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.villainPhase) ||
         this.scene.isActive(SCENES.pause) ||
+        this.scene.isActive(SCENES.roomChat) ||
+        this.scene.isActive(SCENES.roomAsk) ||
         // The campaign beat splash closes on A, B, Start, View, Y and Enter: the same press must not also act on the table.
         this.scene.isActive(SCENES.campaignBeat) ||
         this.scene.isActive(SCENES.rules) ||
@@ -999,6 +1042,7 @@ export class BoardScene extends Phaser.Scene {
     }
     this.#soundTrail = trail.length;
     const replay = this.#replay;
+    this.#applyGate(state);
     if (!replay) this.#syncGuide(state);
 
     // Fold this command's events onto the log before the state replaces it.
@@ -1548,7 +1592,8 @@ export class BoardScene extends Phaser.Scene {
    * stays visible underneath while a decision is open.
    */
   #syncChoiceOverlay(state: SessionState): void {
-    const open = state.game?.pendingChoice != null;
+    // A decision addressed to another seat is theirs: its sheet does not open here (#881).
+    const open = state.game?.pendingChoice != null && !this.#held(state);
     if (open && !this.#choiceOpen) {
       this.#choiceOpen = true;
       this.scene.launch(SCENES.choice);
@@ -1658,7 +1703,11 @@ export class BoardScene extends Phaser.Scene {
     const cardSize = this.#drawnSettings.cardSize;
     const cardScale = cardSizeFactor(cardSize);
     this.#scrollDirty = false;
+    const roomView = this.#roomView();
+    const chromeExtra =
+      (roomView.turn ? TURN_ROW_HEIGHT : 0) + (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : 0);
     const atRest = boardLayout(viewport, {
+      ...(chromeExtra > 0 ? { chromeExtra } : {}),
       playerCount: model.team.length + 1,
       neutralArea: model.scenarioPlayAreas.some((area) => area.neutral),
       // The open log takes the tab area; the tab under it comes back when it shuts.
@@ -1734,6 +1783,34 @@ export class BoardScene extends Phaser.Scene {
     const drawTopBand = (): void => {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
+        ...(roomView.turn
+          ? { turn: { text: t(roomView.turn.key, roomView.turn.params), tone: roomView.turn.tone } }
+          : {}),
+        ...(roomView.chatOn
+          ? {
+              chat: {
+                label: t("chat.open"),
+                unread: unreadChatCount(this.#room.chat),
+                onPress: () => this.#openChat(),
+              },
+            }
+          : {}),
+        ...(roomView.prompt
+          ? {
+              prompt: {
+                text:
+                  t(roomView.prompt.titleKey, roomView.prompt.params) +
+                  (roomView.prompt.more > 0 ? ` (+${roomView.prompt.more})` : ""),
+                detail: roomView.prompt.detail,
+                actions: roomView.prompt.actions.map((action, index) => ({
+                  label: t(action.labelKey),
+                  primary: index === roomView.prompt!.actions.length - 1 || action.id === "take-over",
+                  onPress: () => this.#pressPrompt(index),
+                })),
+                onRect: (index: number, rect: Rect) => this.#frame.focusRects.set(`prompt:${index}`, rect),
+              },
+            }
+          : {}),
         ...(this.#replay
           ? { live: livePillOf(this.#replay.live) }
           : {
@@ -2681,6 +2758,86 @@ export class BoardScene extends Phaser.Scene {
         if (this.sys.isActive()) this.#draw();
       });
     });
+  }
+
+  /** The room game's view of the table (#881): the whose-turn line and the prompt under it; empty in single player. */
+  #roomView(): { turn: TurnLine | null; prompt: PromptView | null; chatOn: boolean } {
+    const room = this.#room;
+    if (!inRoomGame(room)) return { turn: null, prompt: null, chatOn: false };
+    const acting = actingOf(appSession().store.state.game);
+    const prompts = this.#replay ? [] : roomPromptsOf(room, acting, this.#waiting);
+    return {
+      turn: whoseTurnOf(room, acting),
+      prompt: promptViewOf(prompts, room),
+      chatOn: !this.#replay && roomChatOn(room),
+    };
+  }
+
+  /** What the room part of the board shows, as a string: the board draws again only when it changes. */
+  #roomKey(): string {
+    const view = this.#roomView();
+    const turn = view.turn ? `${view.turn.key}|${JSON.stringify(view.turn.params ?? {})}` : "";
+    const prompt = view.prompt
+      ? `${view.prompt.titleKey}|${JSON.stringify(view.prompt.params)}|${view.prompt.detail}|${view.prompt.more}|${view.prompt.actions.map((a) => a.id).join(",")}`
+      : "";
+    return `${turn}#${prompt}#${view.chatOn ? unreadChatCount(this.#room.chat) : -1}#${this.#held(appSession().store.state)}`;
+  }
+
+  /** True while the hero who must act sits behind a seat this device does not act for (#881). */
+  #held(state: SessionState): boolean {
+    if (this.#replay) return false;
+    const acting = actingOf(state.game);
+    return heldElsewhere(this.#room, acting?.playerId ?? null, activeSeat() !== null);
+  }
+
+  /** The table is read-only while it is another seat's decision: no action, no choice sheet (#881). */
+  #applyGate(state: SessionState): void {
+    this.#controller.setReadOnly(this.#replay !== null || this.#held(state));
+  }
+
+  #openChat(draft?: string): void {
+    if (this.scene.isActive(SCENES.roomChat)) return;
+    markChatRead(this.#room.chat);
+    this.scene.launch(SCENES.roomChat, draft === undefined ? {} : { draft });
+  }
+
+  /** The `index`th button of the room prompt (a click, Enter or A on it). */
+  #pressPrompt(index: number): void {
+    const view = this.#roomView().prompt;
+    const action = view?.actions[index];
+    if (!view || !action) return;
+    const prompt = view.prompt;
+    switch (action.id) {
+      case "take-over":
+        if (prompt.kind !== "away") return;
+        askToConfirm(
+          this,
+          t(prompt.vacant ? "takeover.vacantTitle" : "takeover.title", { name: prompt.name, hero: prompt.hero }),
+          t(prompt.vacant ? "takeover.vacantBody" : "takeover.body", { name: prompt.name, hero: prompt.hero }),
+          t("takeover.confirm"),
+          () => takeOverSeat(prompt.seat),
+        );
+        return;
+      case "give-back":
+        if (prompt.kind === "giveBack") giveBackSeat(prompt.seat);
+        return;
+      case "accept":
+      case "decline":
+        if (prompt.kind === "request") void answerRequest(prompt.id, action.id === "accept");
+        return;
+      case "dismiss":
+        dismissAsk();
+        return;
+      case "message":
+        this.#openChat(t("chat.stillThere"));
+        return;
+      case "wait":
+        if (prompt.kind === "away") {
+          this.#waiting.add(prompt.seat);
+          this.#draw();
+        }
+        return;
+    }
   }
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */

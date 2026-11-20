@@ -64,10 +64,11 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
   "bad-message": "room.refusal.generic",
   "too-large": "room.refusal.generic",
   "out-of-order": "room.refusal.generic",
-  // Play-together refusals (#881): the UI agent words them.
-  "not-away": "room.refusal.generic",
-  "not-seated": "room.refusal.generic",
-  strict: "room.refusal.generic",
+  // Play-together refusals (#881).
+  "not-away": "room.refusal.notAway",
+  "not-seated": "room.refusal.notSeated",
+  strict: "room.refusal.strict",
+  "handover-off": "room.refusal.handoverOff",
 };
 
 /** What to say about the room's last refusal, in plain language. */
@@ -123,7 +124,7 @@ export function participantRows(state: RoomState): readonly ParticipantRow[] {
   });
 }
 
-export type SeatActionKind = "ask" | "withdraw" | "leave" | "take" | "remove";
+export type SeatActionKind = "ask" | "withdraw" | "leave" | "take" | "remove" | "takeOver" | "giveBack";
 
 export interface SeatAction {
   readonly kind: SeatActionKind;
@@ -158,6 +159,10 @@ export interface SeatRowView {
   readonly mine: boolean;
   readonly mismatch: boolean;
   readonly requestedByMe: boolean;
+  /** The host plays this seat for its absent holder (#881). */
+  readonly takenOver: boolean;
+  /** Host only: take over an away seat, or give a taken-over one back (#881); null for everyone else and every other seat. */
+  readonly play: SeatAction | null;
   /** Pending requests, for the host to approve or deny; empty for everyone else. */
   readonly requests: readonly RequestRow[];
   readonly action: SeatAction | null;
@@ -199,6 +204,22 @@ export function assignCandidates(state: RoomState): readonly { readonly id: stri
     .map((p) => ({ id: p.id, name: p.name }));
 }
 
+/** Hand-offs are on unless the lobby setting says otherwise (read loosely until the settings carry the field). */
+const handoverAllowed = (state: RoomState): boolean => state.settings?.handover !== false;
+
+/** The host's way to keep the game moving for an absent holder: Take over, then Give back once they return. */
+function playAction(seat: RoomSeat, started: boolean, handover: boolean): SeatAction | null {
+  // The host turned hand-offs off: a leaving player's seat stays theirs, and the game waits (or the host concedes).
+  if (!handover && !seat.takenOver) return null;
+  if (seat.takenOver) return { kind: "giveBack", labelKey: "room.seat.giveBack", enabled: true };
+  // A seat its holder left mid-game (a guest's Concede) can be taken over too; the lobby's Give to... hands it on.
+  if (seat.holder === null && seat.player !== null && started) {
+    return { kind: "takeOver", labelKey: "room.seat.takeOver", enabled: true };
+  }
+  if (seat.holder !== null && seat.away) return { kind: "takeOver", labelKey: "room.seat.takeOver", enabled: true };
+  return null;
+}
+
 export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowView[] {
   const isHost = state.role === "host";
   const multi = state.settings?.multiSeat ?? false;
@@ -206,13 +227,16 @@ export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowVi
     id: seat.id,
     label: parseSeatLabel(seat.label).text,
     cardId: parseSeatLabel(seat.label).cardId,
-    candidates: isHost && seat.holder === null ? assignCandidates(state) : [],
+    candidates:
+      isHost && seat.holder === null && (handoverAllowed(state) || !state.started) ? assignCandidates(state) : [],
     holderName: seat.holder === null ? null : (seat.holderName ?? seat.holder),
     holderConnected: seat.holderConnected,
     holderDevice: deviceText(state.participants.find((p) => p.id === seat.holder)?.device),
     mine: seat.mine,
     mismatch: seat.mismatch,
     requestedByMe: seat.requestedByMe,
+    takenOver: seat.takenOver,
+    play: isHost ? playAction(seat, state.started, handoverAllowed(state)) : null,
     requests: isHost
       ? seat.requests.map((request) => {
           const who = state.participants.find((p) => p.id === request.participant);
