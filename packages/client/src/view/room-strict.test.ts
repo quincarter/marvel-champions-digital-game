@@ -61,3 +61,10 @@ describe("roomCheatsOf", () => {
     );
   });
 });
+
+describe("roomCheatsOf on a game that names only its play mode", () => {
+  test("is still a room's game: cheats off turns the settings off", () => {
+    const mine = { allowManualAdjust: true, undoPastTurn: "allow" as const };
+    expect(roomCheatsOf(mine, { roomPlayMode: "strict" })).toEqual({ manualAdjust: false, undoPastTurn: "off" });
+  });
+});

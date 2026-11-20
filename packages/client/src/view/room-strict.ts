@@ -41,7 +41,8 @@ export function roomCheatsOf(
   settings: { readonly allowManualAdjust: boolean; readonly undoPastTurn: UndoPastTurn },
   config: Pick<SessionConfig, "room" | "roomPlayMode" | "roomUndo" | "roomCheats"> | null | undefined,
 ): EffectiveCheats {
-  if (!config || config.room === undefined) {
+  // A room's game carries `room` (and a play mode); anything else is the player's own game.
+  if (!config || (config.room === undefined && config.roomPlayMode === undefined)) {
     return { manualAdjust: settings.allowManualAdjust, undoPastTurn: settings.undoPastTurn };
   }
   const on = config.roomCheats === true;
