@@ -67,10 +67,12 @@ export const MAX_LOBBY_SEATS = 4;
 /** An Epic lobby has at most this many tables (each up to `MAX_LOBBY_SEATS` seats). */
 export const MAX_LOBBY_TABLES = 8;
 /**
- * Competitive rooms: the most JSON characters one team's sealed scenario submission may have (two fit one stored row and
- * both fit well under a message cap).
+ * Competitive rooms: the most bytes of JSON one team's sealed scenario submission may have. A submission fits the 64 KiB
+ * message cap, and the two together (80 KiB) fit one stored row (128 KiB) and the reply to the host's reveal (under the
+ * WebSocket's own 1 MiB message cap; the cap on ordinary messages applies to what a participant sends, not to the reply).
  */
-export const MAX_SEALED_SCENARIO_CHARS = 40 * 1024;
+export const MAX_SEALED_SCENARIO_BYTES = 40 * 1024;
+const sealedBytes = (v: unknown): number => new TextEncoder().encode(JSON.stringify(v) ?? "").byteLength;
 /** Epic lobby pods, table names and difficulty (opaque JSON, in characters). */
 export const MAX_LOBBY_PODS = 8;
 export const MAX_TABLE_NAME_CHARS = 40;
@@ -535,7 +537,7 @@ export type ClientMessage =
   | { readonly v: 1; readonly ch: "room"; readonly kind: "team-set"; readonly seat: string; readonly team: TeamId }
   /**
    * Competitive rooms: the sealed scenario `team` built for the other team, opaque to the room (at most
-   * `MAX_SEALED_SCENARIO_CHARS` of JSON). The host or a holder of a seat on `team` may send it. It replaces the team's
+   * `MAX_SEALED_SCENARIO_BYTES` of JSON). A holder of a seat on `team` may send it, and the host too when it is on `team` or holds no seat at all. It replaces the team's
    * earlier one and clears that team's readiness. The room keeps it privately: it is never broadcast, never in the lobby,
    * and goes only to the host's device, in `sealed`, when the host asks with `sealed-reveal`.
    */
@@ -1106,9 +1108,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "room:team-ready":
       return ok(isTeam(m.team) && typeof m.ready === "boolean");
     case "room:scenario-submit":
-      return ok(
-        isTeam(m.team) && "scenario" in m && (JSON.stringify(m.scenario)?.length ?? 0) <= MAX_SEALED_SCENARIO_CHARS,
-      );
+      return ok(isTeam(m.team) && "scenario" in m && sealedBytes(m.scenario) <= MAX_SEALED_SCENARIO_BYTES);
     case "room:sealed-reveal":
       return ok(true);
     case "room:seat-assign":

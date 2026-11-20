@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { roomTeamsOf, buildCompetitiveConfig } from "./competitive-start.js";
 import { LiveRoomController } from "./live-room-controller.js";
 import { MemorySeatTokenStore } from "./room-seat-store.js";
-import { firstPlayerSeatOf, type RoomState } from "./room-state.js";
+import type { RoomState } from "./room-state.js";
 import type { CreateRoomDeps, CreateRoomResult, RoomSocketDeps, WebSocketLike } from "./room-socket.js";
 
 class FakeSocket implements WebSocketLike {
@@ -176,27 +176,10 @@ describe("a Competitive room's state", () => {
     expect(t.last().seats[0]!.team).toBeNull();
   });
 
-  it("finds the seat of a team's first player, where a choice for the enemy team goes (N1)", async () => {
-    const t = await hosting();
-    t.sock.receive(
-      lobby({
-        seats: [
-          { id: "s1", label: "A", player: "p1", team: "registration", holder: "host1" },
-          { id: "s2", label: "B", player: "p2", team: "resistance", holder: "ava" },
-          { id: "s3", label: "C", player: "p3", team: "registration" },
-          { id: "s4", label: "D", player: "p4", team: "resistance", holder: "gone", holderName: "Cleo" },
-        ],
-      }),
-    );
-    expect(firstPlayerSeatOf(t.last(), "resistance")).toMatchObject({ holderName: "Ava", mine: false, away: false });
-    expect(firstPlayerSeatOf(t.last(), "registration")).toMatchObject({ holderName: "Hosty", mine: true });
-    expect(firstPlayerSeatOf({ ...t.last(), seats: [] }, "resistance")).toBeNull();
-  });
-
   it("maps each engine player to its team for the proposal gate", async () => {
     const t = await hosting();
     expect(roomTeamsOf(t.last())).toEqual({ p1: "registration", p2: "resistance" });
-    // Seat n plays p<n> before the game names it.
+    // Seat n plays p<n>, the mapping startCompetitive sends, whatever the seat's own player says.
     expect(
       roomTeamsOf({
         seats: [
@@ -277,5 +260,38 @@ describe("the Competitive calls", () => {
     t.sock.receive({ v: 1, ch: "room", kind: "sealed", registration: { r: SECRET }, resistance: { s: 2 } });
     expect(t.sealed).toEqual([{ registration: { r: SECRET }, resistance: { s: 2 } }]);
     expect(JSON.stringify(t.states)).not.toContain(SECRET);
+  });
+});
+
+describe("a guest in a Competitive room", () => {
+  it("ignores a stray sealed message: only a host's reveal answer is handed on", async () => {
+    FakeSocket.all = [];
+    const sealed: unknown[] = [];
+    const states: RoomState[] = [];
+    const controller = new LiveRoomController({
+      syncUrl: "https://sync.example",
+      watchBase: "https://web.example/",
+      onStatus: () => undefined,
+      socket: { WebSocket: FakeSocket, setTimer: () => ({}), clearTimer: () => undefined, random: () => 0.5 },
+      room: {
+        build: BUILD,
+        seatStore: new MemorySeatTokenStore(),
+        onState: (s) => states.push(s),
+        onSealed: (s) => sealed.push(s),
+      },
+    });
+    controller.setEnabled(true);
+    controller.onRoomCommand({ kind: "room-join", target: "room00000001", name: "Ava" });
+    await flush();
+    const sock = FakeSocket.all[0]!;
+    sock.open();
+    sock.receive({
+      ...welcome(),
+      you: { id: "ava", role: "watcher", name: "Ava", build: BUILD },
+    });
+    sock.receive(lobby());
+    sock.receive({ v: 1, ch: "room", kind: "sealed", registration: { r: SECRET }, resistance: {} });
+    expect(sealed).toEqual([]);
+    expect(JSON.stringify(states)).not.toContain(SECRET);
   });
 });

@@ -452,3 +452,92 @@ describe("Competitive play: routing", () => {
     expect(h.b.of("proposal-refused")).toHaveLength(0);
   });
 });
+
+describe("Competitive lobby: who speaks for a team, and what takes readiness back", () => {
+  it("lets the host speak only for its own team while it holds a seat, and for either when it holds none", async () => {
+    const h = await setup();
+    await h.submit(h.host, "resistance", { x: 1 });
+    await h.ready(h.host, "resistance");
+    expect(h.host.refusals).toEqual(["not-seated", "not-seated"]);
+    expect(h.a.last("lobby")!.competitive!.teams.resistance.submitted).toBe(false);
+    await h.submit(h.host, "registration", { x: 1 });
+    expect(h.host.refusals).toHaveLength(2);
+    // Without a seat the host only runs the table: either team's.
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "seat-release", seat: "s1" });
+    await h.submit(h.host, "resistance", { x: 2 });
+    await h.ready(h.host, "resistance");
+    expect(h.host.refusals).toHaveLength(2);
+    expect(h.a.last("lobby")!.competitive!.teams.resistance).toEqual({ submitted: true, ready: true });
+  });
+
+  it("takes both teams' readiness and the reveal back when a team seat changes hands", async () => {
+    const h = await setup();
+    await h.readyBoth();
+    await h.reveal(h.host);
+    await h.send(h.host, { ch: "room", kind: "seat-deny", seat: "s4", participant: h.c.id });
+    expect(h.a.last("lobby")!.competitive!.teams).toEqual({
+      registration: { submitted: true, ready: false },
+      resistance: { submitted: true, ready: false },
+    });
+    await h.start();
+    expect(h.host.refusals).toEqual(["out-of-order"]);
+  });
+
+  it("takes readiness and the reveal back when the rules or the tie-break option change, before the game", async () => {
+    const h = await setup();
+    await h.readyBoth();
+    await h.reveal(h.host);
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { tieBreaks: false } });
+    expect(h.a.last("lobby")!.competitive!.teams.registration.ready).toBe(false);
+    await h.start();
+    expect(h.host.refusals).toEqual(["out-of-order"]);
+    await h.readyBoth();
+    await h.reveal(h.host);
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { tableRules: { house: true } } });
+    expect(h.a.last("lobby")!.competitive!.teams.resistance.ready).toBe(false);
+    // A change that is not the rules (chat) leaves it.
+    await h.readyBoth();
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { chat: false } });
+    expect(h.a.last("lobby")!.competitive!.teams.resistance.ready).toBe(true);
+  });
+
+  it("fixes the play mode and the tie-break option while the game runs", async () => {
+    const h = await setup();
+    await h.readyBoth();
+    await h.reveal(h.host);
+    await h.start();
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { tieBreaks: false } });
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { playMode: "strict" } });
+    expect(h.host.refusals).toEqual(["out-of-order", "out-of-order"]);
+    expect(h.a.last("lobby")!.settings).toMatchObject({ tieBreaks: true, playMode: "host" });
+    h.clock.now += 10_000;
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { chat: false } });
+    expect(h.host.refusals).toHaveLength(2);
+  });
+
+  it("refuses a seat on the other team to someone who already played in this game (release, then request)", async () => {
+    const h = await setup();
+    await h.readyBoth();
+    await h.reveal(h.host);
+    await h.start();
+    await h.send(h.a, { ch: "room", kind: "seat-release", seat: "s2" });
+    await h.send(h.b, { ch: "room", kind: "seat-release", seat: "s3" });
+    await h.send(h.b, { ch: "room", kind: "seat-request", seat: "s2" });
+    expect(h.b.refusals).toEqual(["other-team"]);
+    await h.send(h.host, { ch: "room", kind: "seat-assign", seat: "s2", participant: h.b.id });
+    expect(h.host.refusals).toEqual(["other-team"]);
+    // Their own side is still theirs to take again, and a newcomer may fill the other team's empty seat.
+    await h.send(h.b, { ch: "room", kind: "seat-request", seat: "s3" });
+    expect(h.b.refusals).toEqual(["other-team"]);
+    const late = await h.join("Late");
+    await h.send(h.host, { ch: "room", kind: "seat-assign", seat: "s2", participant: late.id });
+    expect(h.host.refusals).toEqual(["other-team"]);
+    expect(h.a.last("lobby")!.seats.find((s) => s.id === "s2")!.holder).toBe(late.id);
+  });
+});

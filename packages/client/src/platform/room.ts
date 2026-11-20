@@ -577,8 +577,18 @@ export type StartCompetitiveResult =
 /** How long the host waits for the room to answer a reveal. */
 const REVEAL_TIMEOUT_MS = 10_000;
 
+/** A reveal waiting for the room's answer: a second call shares it rather than replacing the listener. */
+let revealing: Promise<SealedScenarios | null> | null = null;
+
 /** Asks the room for both sealed scenarios, once; the room answers the host's worker, which posts them here. */
 function revealSealed(): Promise<SealedScenarios | null> {
+  revealing ??= askForSealed().finally(() => {
+    revealing = null;
+  });
+  return revealing;
+}
+
+function askForSealed(): Promise<SealedScenarios | null> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       setSealedListener(null);

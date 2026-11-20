@@ -400,16 +400,6 @@ export interface SeatOfPlayer {
   readonly takenOver: boolean;
 }
 
-/**
- * Competitive rooms: the seat of a team's first player, where a choice a card gives to "the enemy team" goes (plan Q-N1:
- * the first player answers; an optional "any player may" offer goes round in player order). Seats are in player order,
- * so it is the team's first seat. Null when the team has no seat or its seat has no player yet.
- */
-export function firstPlayerSeatOf(state: RoomState, team: TeamId): SeatOfPlayer | null {
-  const seat = state.seats.find((s) => s.team === team && s.player !== null);
-  return seat ? seatOfPlayerIn(state, seat.player!) : null;
-}
-
 /** `null` when the room has no seat for `playerId` (a solo game, a watcher before Start, no room). */
 export function seatOfPlayerIn(state: RoomState, playerId: string): SeatOfPlayer | null {
   const seat = state.seats.find((s) => s.player === playerId);

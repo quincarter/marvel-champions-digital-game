@@ -467,3 +467,9 @@ answers `refused not-your-turn`).
 - **Tie-breaks.** `settings.tieBreaks` (default on, sent only in Competitive) is stored and relayed; the engine applies it.
 - **Costs.** A row per submission (rate limited as above), a lobby-row write when readiness, a team or a seat holder
   changes, one `sealed` delete at the game's end; proposals write nothing, as before.
+- **Who speaks for a team (owner question pending; recommended rule built).** A team's scenario and readiness are sent by
+  a holder of a seat on that team; the host may too when it sits on that team, or for either team when it holds no seat.
+  A change of a team seat's holder, of the teams, or of the rules or tie-break option takes both teams' readiness and the
+  reveal back (before the game). While the game runs the play mode and tie-break option are fixed, and a participant who
+  played one team may not take a seat on the other (`other-team`; tracked by participant id, so a fresh reconnect without
+  its seat token is a limit of the design, as with any anonymous guest).

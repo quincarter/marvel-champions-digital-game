@@ -45,13 +45,14 @@ export function buildCompetitiveConfig(_input: CompetitiveBuildInput): SessionCo
 }
 
 /**
- * The team of each engine player (`p1`..), from the lobby's seats. Seat n plays `p<n>` unless the seat already names its
- * player (`startGame` sends that mapping at Start); a seat with no team is left out.
+ * The team of each engine player (`p1`..), from the lobby's seats. Seat n plays `p<n>`: the one mapping
+ * `startCompetitive` sends the room at Start and uses here, so the gate and the lobby never disagree. A seat with no team
+ * is left out.
  */
 export function roomTeamsOf(state: Pick<RoomState, "seats">): Record<string, TeamId> {
   const teams: Record<string, TeamId> = {};
   state.seats.forEach((seat, index) => {
-    if (seat.team) teams[seat.player ?? `p${index + 1}`] = seat.team;
+    if (seat.team) teams[`p${index + 1}`] = seat.team;
   });
   return teams;
 }

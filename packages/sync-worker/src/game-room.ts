@@ -193,6 +193,8 @@ interface StoredTable extends Omit<LobbyTable, "host"> {
 interface CompetitiveRow {
   submitted: Record<TeamId, boolean>;
   ready: Record<TeamId, boolean>;
+  /** While a game runs: the team each participant held at its start (or first took), so nobody switches sides. */
+  sides?: Record<string, TeamId>;
   /** The host has been sent both scenarios (any change to teams or submissions takes this back); a `start` needs it. */
   revealed: boolean;
 }
@@ -487,6 +489,22 @@ export class GameRoomLogic {
       team !== undefined &&
       lobby.seats.some((s) => s.holder === id && s.id !== seatId && s.team !== undefined && s.team !== team)
     );
+  }
+
+  /** Records who is on which team (the holders now), so a running game's sides cannot be swapped. */
+  private noteSides(lobby: LobbyRow): void {
+    const comp = lobby.competitive;
+    if (!comp) return;
+    const sides: Record<string, TeamId> = { ...comp.sides };
+    for (const seat of lobby.seats) if (seat.holder && seat.team) sides[seat.holder] ??= seat.team;
+    comp.sides = sides;
+  }
+
+  /** During a Competitive game: this participant already played the other team, and may not take a seat on `team`. */
+  private async switchesSide(lobby: LobbyRow, id: string, team: TeamId | undefined): Promise<boolean> {
+    if (!lobby.competitive || team === undefined || !(await this.gameLive())) return false;
+    const was = lobby.competitive.sides?.[id];
+    return was !== undefined && was !== team;
   }
 
   private async loadSealed(): Promise<SealedRow> {
@@ -1150,6 +1168,10 @@ export class GameRoomLogic {
         // A Competitive game starts only after the host has had both teams' sealed scenarios (and nobody changed since).
         if (this.competitive() && this.lobby?.competitive?.revealed !== true)
           return this.refuse(socket, "out-of-order");
+        if (this.lobby?.competitive) {
+          this.noteSides(this.lobby);
+          await this.saveLobby();
+        }
         // A lobby room hosts one game after another (a rematch): `start` on an ended table reopens it first. Any other
         // room's ended table stays ended.
         if (table.ended) {
@@ -1504,6 +1526,18 @@ export class GameRoomLogic {
     // Competitive: the mode, and while a game runs the teams, are locked (a team's scenario was already traded).
     const live = [...this.tables.values()].some((t) => t.hasHeader && !t.ended);
     if (live && competitive !== wasCompetitive) return refuse("out-of-order");
+    // What the running game was built on (the rules and the tie-break option) is fixed while it runs; before it, a change
+    // takes both teams' readiness back, since they agreed to other rules.
+    const rulesSig = (s: LobbySettings): string =>
+      JSON.stringify([s.playMode, s.tableRules, s.mods, s.tieBreaks !== false]);
+    const settingsChanged = wasCompetitive && competitive && rulesSig(settings) !== rulesSig(next);
+    if (
+      live &&
+      settingsChanged &&
+      (settings.playMode !== next.playMode || (settings.tieBreaks !== false) !== (next.tieBreaks !== false))
+    ) {
+      return refuse("out-of-order");
+    }
 
     let seats = lobby.seats;
     if (message.seats) {
@@ -1736,7 +1770,7 @@ export class GameRoomLogic {
     } else if (!lobby.competitive || !wasCompetitive) {
       lobby.competitive = newCompetitive();
       this.sealed = undefined;
-    } else if (teamsChanged) {
+    } else if (teamsChanged || settingsChanged) {
       lobby.competitive.ready = { registration: false, resistance: false };
       lobby.competitive.revealed = false;
     }
@@ -1810,6 +1844,7 @@ export class GameRoomLogic {
     };
     // Only a change of holder, or the host setting the lobby, is stored. A request or its withdrawal is memory only.
     let persist = false;
+    const holdersBefore = lobby.seats.map((s) => s.holder ?? "").join();
 
     switch (message.kind) {
       case "lobby-set": {
@@ -1840,6 +1875,7 @@ export class GameRoomLogic {
         if (this.holdsElsewhere(lobby, who.id, this.seatTable(seat))) return this.refuse(socket, "other-table");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
         if (this.holdsOtherTeam(lobby, who.id, seat.id, seat.team)) return this.refuse(socket, "other-team");
+        if (await this.switchesSide(lobby, who.id, seat.team)) return this.refuse(socket, "other-team");
         if (isHost) {
           // The host approves their own request.
           await this.grant(seat, who);
@@ -1889,6 +1925,7 @@ export class GameRoomLogic {
         if (this.holdsElsewhere(lobby, target.id, this.seatTable(seat))) return this.refuse(socket, "other-table");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, target.id) > 0) return this.refuse(socket, "multi-seat");
         if (this.holdsOtherTeam(lobby, target.id, seat.id, seat.team)) return this.refuse(socket, "other-team");
+        if (await this.switchesSide(lobby, target.id, seat.team)) return this.refuse(socket, "other-team");
         await this.grant(seat, target);
         persist = true;
         break;
@@ -2014,6 +2051,14 @@ export class GameRoomLogic {
         break;
       }
     }
+    if (persist && lobby.competitive) {
+      if (await this.gameLive()) this.noteSides(lobby);
+      else if (lobby.seats.map((s) => s.holder ?? "").join() !== holdersBefore) {
+        // Another player on a team is another team: both must say ready again (and the host reveal again).
+        lobby.competitive.ready = { registration: false, resistance: false };
+        lobby.competitive.revealed = false;
+      }
+    }
     if (persist) {
       await this.saveLobby();
       // A holder who plays is not counted as a watcher, so a change of holders changes the roster's count.
@@ -2073,9 +2118,11 @@ export class GameRoomLogic {
       comp.revealed = false;
       return true;
     }
-    if (!isHost && !(holds(message.team) && this.sameBuild(who.build, lobby.settings))) {
-      return this.refused(socket, "not-seated");
-    }
+    // A team's scenario and readiness are its own: the host may speak for a team it sits on, or for either team when it
+    // holds no seat (it only runs the table). Owner question pending; this is the recommended rule.
+    const holdsAny = lobby.seats.some((s) => s.holder === who.id);
+    const allowed = holds(message.team) && (isHost || this.sameBuild(who.build, lobby.settings));
+    if (!allowed && !(isHost && !holdsAny)) return this.refused(socket, "not-seated");
     if (message.kind === "team-ready") {
       if (message.ready && !comp.submitted[message.team]) return this.refused(socket, "not-ready");
       if (comp.ready[message.team] === message.ready) return false;
