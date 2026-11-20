@@ -488,6 +488,12 @@ function playerCommonErrors(card: PlayerCard): string[] {
   } else if (!isPositiveInteger(card.deckLimit)) {
     errors.push(`${card.type} deckLimit must be a positive integer`);
   }
+  if (card.optionalForIdentity !== undefined) {
+    if (card.optionalForIdentity !== true) errors.push(`${card.type} optionalForIdentity must be true when present`);
+    if (typeof card.aspect !== "string" || !card.aspect.startsWith("hero:"))
+      errors.push(`${card.type} optionalForIdentity is only for an identity-specific card (aspect "hero:<id>")`);
+    if (card.separateDeck !== undefined) errors.push(`${card.type} optionalForIdentity cannot be in a separate deck`);
+  }
   const r = card.playRestrictions;
   if (r !== undefined) {
     if (typeof r !== "object" || r === null) errors.push("playRestrictions must be an object");

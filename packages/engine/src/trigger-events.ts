@@ -13,7 +13,7 @@ import type {
   TargetCategory,
   ValueSpec,
 } from "./spec.js";
-import { PAID_CARDS_SLOT, PAID_IN_PLAY_CARDS_SLOT, type Bindings, type Vars } from "./stack.js";
+import { PAID_CARDS_SLOT, PAID_IN_PLAY_CARDS_SLOT, READIED_CARDS_SLOT, type Bindings, type Vars } from "./stack.js";
 import type { DeckDiscard, MainSchemeAdvancedBy, StatusCounts, ZoneId } from "./state.js";
 
 /**
@@ -1976,6 +1976,14 @@ export type TriggerEventBody =
       readonly carriedVars?: Readonly<Record<string, number>>;
     }
   | { readonly kind: "playerPhaseEnded" }
+  /**
+   * RRG 1.8 "End of Player Phase" (p. 18) step 3 has resolved: `readied` are the cards `playerId` controls that were
+   * exhausted before the step and are ready after it (#890 item 1). "Response: After you ready your cards at the end of
+   * the player phase, for each 2 upgrades you readied this way, …" (Web-Sling, the `spider-punisher-tw` community
+   * pack). Announced once per player, in player order, before step 5 ("when/after the player phase ends"); only when an
+   * ability hears it. The answering ability reads the cards as slot `readied.cards` (`READIED_CARDS_SLOT`).
+   */
+  | { readonly kind: "endPhaseCardsReadied"; readonly playerId: PlayerId; readonly readied: readonly InstanceId[] }
   | { readonly kind: "villainPhaseEnded" }
   /**
    * "When/After the [player|villain] phase begins" (docs/phase7-wave3.md §3.2): Museum Ship and Nebula's Ship (`gmw`),
@@ -2794,6 +2802,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.identityInstanceId], [event.playerId]);
     case "turnStarted":
     case "turnEnding":
+    case "endPhaseCardsReadied":
       return of([], [], [event.playerId]);
     case "minionEngaged":
       return of([event.minionInstanceId], [event.minionInstanceId], [event.playerId]);
@@ -2940,6 +2949,9 @@ export function carriedByEvent(event: TriggerEvent | null | undefined): typeof N
       },
       vars: {},
     };
+  // The cards the end-of-phase ready step readied (#890 item 1).
+  if (event?.kind === "endPhaseCardsReadied" && event.readied.length > 0)
+    return { bindings: { [READIED_CARDS_SLOT]: event.readied }, vars: {} };
   if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
 }

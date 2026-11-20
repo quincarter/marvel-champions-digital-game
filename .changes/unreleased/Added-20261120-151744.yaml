@@ -1,0 +1,3 @@
+kind: Added
+body: 'Mod Store: a pack''s page shows its full description before it is installed (preview.json carries it), where the catalog has only the one-line summary (#890 item 18).'
+time: 2026-11-20T15:17:44.581869+01:00

@@ -337,7 +337,13 @@ export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostPartPayers, CostSelection, DelegableCostPart } from "./commands.js";
 export { DELEGABLE_COST_PARTS } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
-export { attackPreventedVars, currentActivationFrameId, PAID_CARDS_SLOT, PAID_IN_PLAY_CARDS_SLOT } from "./stack.js";
+export {
+  attackPreventedVars,
+  currentActivationFrameId,
+  PAID_CARDS_SLOT,
+  PAID_IN_PLAY_CARDS_SLOT,
+  READIED_CARDS_SLOT,
+} from "./stack.js";
 export {
   abilityUseKey,
   BORROWED_BOOST_ICONS_SLOT,

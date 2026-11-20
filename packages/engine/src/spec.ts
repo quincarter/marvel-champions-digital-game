@@ -164,6 +164,16 @@ export interface TargetQuery {
   /** Excludes cards that have this keyword now (printed or granted), read exactly as `withKeyword` reads it. */
   readonly withoutKeyword?: KeywordName;
   /**
+   * `withKeyword` / `withoutKeyword` leave out what the query's own card (`self`) grants by a constant ability:
+   * "Attached villain gains steady. If it already has steady or stalwart, it gets +4[per_hero] hit points instead"
+   * (Rose's Greenhouse, the `the-rose-bf` community pack; #890 item 9) asks whether the villain has steady apart from
+   * the attachment's own grant, which would otherwise always answer yes. Every other source still counts: printed
+   * keywords, other cards' constants and lasting grants. Asked from inside a keyword grant's own `while` (as that card
+   * asks it), the other cards' grants are read one level deep, not printed keywords only as other queries there are:
+   * with its own grant left out the scan cannot reach itself (`keywords.ts` `queryHasKeyword`).
+   */
+  readonly keywordNotFromSelf?: true;
+  /**
    * Matches at least one of these queries, each read in this query's own context: "choose an attachment, non-Elite
    * minion, or non-permanent side scheme" (Vivian, `ironheart` 29024) is `{ anyOf: [query("attachment"),
    * query("minion", { withoutTrait: ELITE }), query("sideScheme", { withoutKeyword: "permanent" })] }` — one choice
@@ -1137,6 +1147,15 @@ export type ValueSpec =
    * 30021). `false` counts it only when it was not.
    */
   | { readonly kind: "defeatExcessDamage"; readonly consequential?: boolean }
+  /**
+   * The excess threat the triggering `schemeDefeated` event recorded (`schemeDefeated.excessThreat`): how much more
+   * threat the defeating removal attempted than the scheme had, after every modifier (#890 item 8). 0 when the removal
+   * took exactly the last threat, for a defeat no removal made, or any other event. "After a side scheme is
+   * overdefeated (more threat was removed from it than it had)" (The Rose, the `the-rose-bf` community pack: Hero
+   * Resistance, Rose's Greenhouse) is this at least 1, from any removal, a thwart's or not; the threat counterpart of
+   * `defeatExcessDamage`.
+   */
+  | { readonly kind: "defeatExcessThreat" }
   /**
    * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
    * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
@@ -2792,6 +2811,27 @@ export type EffectSpec =
    */
   | { readonly kind: "countBoostIcons"; readonly cards: TargetRef; readonly bind: string }
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
+  /**
+   * "… or resolve an 'Action' ability on a card you control" (War Machine Armor, the `punisher-msp` community pack;
+   * #890 item 6): the player uses one Action ability of a card in play they control as they could on their own turn,
+   * its cost paid (the author's answer, 2026-11-17: "Yes you pay the cost"), at this effect's moment, which need not be
+   * their turn (the Action timing is not asked, as `playFromHand.ignoreActionTiming` does not ask it of an event).
+   * Everything else about using the ability applies: its condition, limit and targets (`useAbility`), and its form: an
+   * "Action", a "Hero Action" or an "Alter-Ego Action" may be picked, each only in its own form (the designer, PR #903).
+   * Only printed abilities (`activePrintedAbilityRefs`): an Action another card grants is not "on a card you control".
+   *
+   * The player picks among the abilities that could be used now (each checked by triggering it on a copy of the game),
+   * then answers what using it on their turn would ask: the branch of an either/or cost, each choice of cards in play
+   * its cost makes, and its resources in a `spendResources` choice priced as an ability's payment (so a resource "for
+   * an upgrade ability" pays). `filter`: only cards matching it. `optional`: the player may pick none. With nothing
+   * usable, nothing happens.
+   */
+  | {
+      readonly kind: "useActionAbility";
+      readonly player: PlayerRef;
+      readonly filter?: TargetQuery;
+      readonly optional?: boolean;
+    }
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
   /**
    * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`

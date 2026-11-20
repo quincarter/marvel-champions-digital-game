@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK (PR #903 review): useActionAbility tries each resource ability alone as well when judging an Action usable, and asks how many counters an "up to N" counter cost removes; the end-of-phase readied announcement is prepared for any ability listening for it, whatever its condition, which is then judged with the cards readied.'
+time: 2026-11-20T16:18:52.5073185+01:00

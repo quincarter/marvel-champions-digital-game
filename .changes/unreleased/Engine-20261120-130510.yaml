@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK: TriggerEvent endPhaseCardsReadied (DSL on.yourCardsReadiedAtPhaseEnd), each player''s cards the end-of-player-phase ready step readied, as slot readied.cards, for "after you ready your cards at the end of the player phase" (Web-Sling, #890 item 1).'
+time: 2026-11-20T13:05:10.4945036+01:00

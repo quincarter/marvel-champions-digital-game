@@ -21,6 +21,8 @@ import {
 export interface ParsedPackPreview {
   readonly packId: string;
   readonly version: string;
+  /** The pack's full description (`PackPreview.description`), for the store page before the install; undefined if none. */
+  readonly description: string | undefined;
   readonly featured: { readonly cardId: string; readonly images: readonly string[] } | undefined;
   /** The pack's cover path (`PackPreview.cover`): the catalog's thumbnail is then that cover. */
   readonly cover: string | undefined;
@@ -108,6 +110,8 @@ export function parsePackPreview(data: unknown, packId: string): ParsedPackPrevi
   return {
     packId,
     version: data.version,
+    // A store description is prose, not a document: bounded so a bad preview cannot fill the page.
+    description: isString(data.description) && data.description.trim() ? data.description.slice(0, 4000) : undefined,
     featured,
     cover,
     images,

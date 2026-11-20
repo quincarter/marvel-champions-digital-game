@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK (PR #903 review 7): an optionalForIdentity card is held to the copy rules (three by title, its own deck limit) like any card outside the identity set''s required cards, in validateDeck and copiesUpToLimit. useActionAbility on a card whose costs any player may help pay asks who pays each delegable part (CostSelection.paidBy; no question when one player can) and offers the other players'' hand cards for a hand-discard cost, as a regular use does; the client titles that question by part.'
+time: 2026-11-20T19:15:00.0000000+01:00

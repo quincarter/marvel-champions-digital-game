@@ -1335,7 +1335,7 @@ export class ModStoreScene extends Phaser.Scene {
         : (loadedPacks().find((pack) => pack.id === tile.id)?.achievements ??
           this.#previewOf(tile)?.achievements ??
           []);
-    const page = packPageOf(tile, entry, installed, achievements);
+    const page = packPageOf(tile, entry, installed, achievements, this.#previewOf(tile)?.description);
     const running = this.#install?.id === tile.id ? this.#install : null;
     const busy = (running !== null && running.error === null) || this.#removing;
 

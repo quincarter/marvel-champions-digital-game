@@ -35,6 +35,7 @@ import {
   threatNote,
   tuckedLine,
   type CharacterPanel,
+  type PipStatus,
   type StatTile,
 } from "../../view/board-model.js";
 import { hpFromValue } from "../../view/hp-motion.js";
@@ -49,7 +50,6 @@ import {
   type Rect,
   type StatBlock,
 } from "../../view/layout.js";
-import type { StatusName } from "../../view/log-lines.js";
 import { lerp } from "../../view/motion-math.js";
 import type { BoardDrawContext } from "./context.js";
 import type { DefeatFlashState, ExhaustMotionState, HpTickState, StatusStampState } from "./motion.js";
@@ -1069,13 +1069,14 @@ const STATUS_TEXT: Record<CharacterPanel["statuses"][number]["status"], number> 
   stunned: surface.inkOnHue.hex,
   confused: surface.paper.hex,
   tough: surface.inkOnHue.hex,
+  exposed: surface.ink.hex,
 };
 
 /** A real status pip/tag, plus the ghosts of any just-removed ones not already among the real ones — the shared list both `drawStatusPips` and `drawStatusTags` lay out. */
 function statusEntries(
   ctx: BoardDrawContext,
   panel: CharacterPanel,
-): readonly { readonly status: StatusName; readonly count: number; readonly ghost: StatusStampState | null }[] {
+): readonly { readonly status: PipStatus; readonly count: number; readonly ghost: StatusStampState | null }[] {
   const ghosts = ctx.motion
     .statusGhosts(panel.instanceId)
     .filter((ghost) => !panel.statuses.some((pip) => pip.status === ghost.status));
@@ -1121,7 +1122,7 @@ function drawStatusPips(ctx: BoardDrawContext, rect: Rect, panel: CharacterPanel
     if (ghost) {
       stampFade(scene, firstDrawn, pip, ghost, "out");
     } else {
-      const stamp = ctx.motion.statusStamp(panel.instanceId, status);
+      const stamp = status === "exposed" ? null : ctx.motion.statusStamp(panel.instanceId, status);
       if (stamp) stampFade(scene, firstDrawn, pip, stamp, "in");
     }
   });
@@ -1181,7 +1182,7 @@ function drawStatusTags(
     if (ghost) {
       stampFade(scene, firstDrawn, tagRect, ghost, "out");
     } else {
-      const stamp = ctx.motion.statusStamp(panel.instanceId, status);
+      const stamp = status === "exposed" ? null : ctx.motion.statusStamp(panel.instanceId, status);
       if (stamp) stampFade(scene, firstDrawn, tagRect, stamp, "in");
     }
 

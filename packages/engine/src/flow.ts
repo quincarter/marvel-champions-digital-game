@@ -32,6 +32,7 @@ import { useLateForcedAction } from "./actions.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
   cardOf,
+  getInstance,
   getPlayer,
   handSize,
   isPlayerCardType,
@@ -69,12 +70,12 @@ import { announceBoostCardsGiven } from "./resolve/enemy-activation.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { settlePod } from "./resolve/pod.js";
 import { cannotChooseToDiscard, playerPhaseTurnOrder } from "./rules.js";
-import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
 import { putSeparatedCardIntoPlay } from "./separated-identity.js";
 import { offerStartingCard } from "./starting.js";
 import type { GameState, GameStep } from "./state.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import { patternHearsKind, type TriggerEvent } from "./trigger-events.js";
 import {
   executeDealEncounterCards,
   executeEnemyActivations,
@@ -197,7 +198,7 @@ function executeStep(ctx: Ctx): void {
     case "endPhaseDraw":
       return executeEndPhaseDraw(ctx, step);
     case "endPhaseReady":
-      return executeEndPhaseReady(ctx, step.readied === true);
+      return executeEndPhaseReady(ctx, step);
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       // A skip made while the player phase's end resolved (`skipsVillainPhaseNow`) is taken before step one.
@@ -656,9 +657,61 @@ function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhase
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }
 
-function executeEndPhaseReady(ctx: Ctx, readied: boolean): void {
-  if (!readied && readyEveryCard(ctx)) return;
+function executeEndPhaseReady(ctx: Ctx, step: Extract<GameState["step"], { kind: "endPhaseReady" }>): void {
+  if (step.announced) return finishPlayerPhase(ctx);
+  let exhausted = step.exhausted;
+  if (!step.readied) {
+    exhausted = readiedHeard(ctx)
+      ? cardsInPlay(ctx.state).filter((id) => getInstance(ctx.state, id)?.exhausted)
+      : undefined;
+    if (readyEveryCard(ctx, exhausted)) return;
+  }
+  if (exhausted && announceCardsReadied(ctx, exhausted)) return;
   finishPlayerPhase(ctx);
+}
+
+/**
+ * Whether any card in play has an active ability that listens for `endPhaseCardsReadied`, so the step snapshots what
+ * is exhausted. Read by the event's kind alone, not `heard`: an ability's condition may need the cards the step readies
+ * ("if at least two upgrades readied this way") or the board after it, which do not exist yet (PR #903 review). The
+ * real announcement is then judged with `heard` and the readied cards (`announceCardsReadied`).
+ */
+const readiedHeard = (ctx: Ctx): boolean =>
+  cardsInPlay(ctx.state).some((id) =>
+    activeAbilityRefs(ctx.state, id, ctx.deps).some((ref) => {
+      const trigger = ctx.deps.abilities[ref.id]?.trigger;
+      return (
+        (trigger?.kind === "response" || trigger?.kind === "interrupt") &&
+        trigger.on !== undefined &&
+        patternHearsKind(trigger.on, "endPhaseCardsReadied")
+      );
+    }),
+  );
+
+/**
+ * "After you ready your cards at the end of the player phase" (#890 item 1): each player's cards that were exhausted as
+ * step 3 began and are ready now, announced in player order (the first player's resolves first) when heard. True when
+ * something was pushed, after marking the step `announced` so step 5 follows once they have resolved.
+ */
+function announceCardsReadied(ctx: Ctx, exhausted: readonly InstanceId[]): boolean {
+  const events: TriggerEvent[] = playerOrder(ctx.state).flatMap((player): TriggerEvent[] => {
+    const readied = exhausted.filter((id) => {
+      const instance = getInstance(ctx.state, id);
+      return (
+        instance !== undefined &&
+        !instance.exhausted &&
+        cardsInPlay(ctx.state).includes(id) &&
+        controllerOf(ctx.state, id) === player.playerId
+      );
+    });
+    const event: TriggerEvent = { kind: "endPhaseCardsReadied", playerId: player.playerId, readied };
+    return heard(ctx.state, ctx.deps, event) ? [event] : [];
+  });
+  if (events.length === 0) return false;
+  setStep(ctx, { phase: "player", kind: "endPhaseReady", readied: true, announced: true });
+  // The stack is innermost-first: push the last player's first, so the first player's resolves first.
+  for (const event of [...events].reverse()) pushEvent(ctx, event);
+  return true;
 }
 
 /**
@@ -668,7 +721,7 @@ function executeEndPhaseReady(ctx: Ctx, readied: boolean): void {
  * step 5 runs only once it has resolved (docs/phase7-wave4.md §3.19). With nothing pushed, step 5 follows at once, as
  * it always has.
  */
-function readyEveryCard(ctx: Ctx): boolean {
+function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
   const depth = ctx.state.stack.length;
   // Each card once: a ready that waits on a cost is still exhausted when a later list names the same card again.
   const readied = new Set<InstanceId>();
@@ -708,7 +761,7 @@ function readyEveryCard(ctx: Ctx): boolean {
     ...ctx.state,
     stack: [...ctx.state.stack.slice(0, pushed).reverse(), ...ctx.state.stack.slice(pushed)],
   };
-  setStep(ctx, { phase: "player", kind: "endPhaseReady", readied: true });
+  setStep(ctx, { phase: "player", kind: "endPhaseReady", readied: true, ...(exhausted ? { exhausted } : {}) });
   return true;
 }
 

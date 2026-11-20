@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK: a player card that attaches itself with its own effect (a support moved onto a side scheme, under its player''s control) and whose text keeps it when its host is defeated (staysWhenHostLeaves) comes back unattached to its controller''s play area, permanent or not; the importer no longer reads "Action: Attach to …" as the card''s attach rule (Juston Seyfert, #890 items 12 and 17).'
+time: 2026-11-20T14:20:04.9891678+01:00

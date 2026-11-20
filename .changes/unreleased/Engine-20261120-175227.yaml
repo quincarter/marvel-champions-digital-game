@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK (PR #903 review 5): useActionAbility tries each way a hand card''s "when spent" ability may be used (each damage amount Energy Siphon may take) when judging an Action, and asks which cards a combined-value hand discard takes (Advanced Glider), asking again when they fall short.'
+time: 2026-11-20T17:52:27.270511+01:00

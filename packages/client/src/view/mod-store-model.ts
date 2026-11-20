@@ -385,9 +385,14 @@ export function packPageOf(
   installed: InstalledPack | undefined,
   /** The pack's own achievements (docs/custom-content-packs.md section 11.12), when it defines any. */
   achievements: readonly { readonly name: string; readonly description: string }[] = [],
+  /**
+   * The full description from the store's preview (`PackPreview.description`), read before the pack is installed, so
+   * the page shows more than the catalog's one-line summary (#890 item 18).
+   */
+  previewDescription?: string,
 ): PackPage {
   const paragraphs: string[] = [];
-  paragraphs.push(installed?.manifest.description || tile.summary || "No description.");
+  paragraphs.push(installed?.manifest.description || previewDescription || tile.summary || "No description.");
   if (achievements.length > 0) paragraphs.push(achievementsParagraphOf(achievements));
   const authors = installed?.manifest.authors.length ? installed.manifest.authors.join(", ") : tile.creator;
   const license = installed?.manifest.license;

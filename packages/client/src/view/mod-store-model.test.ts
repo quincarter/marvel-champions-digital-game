@@ -274,6 +274,17 @@ describe("packPageOf", () => {
     expect(page.requirement).toBeUndefined();
   });
 
+  it("shows the preview's full description before the install, the summary only without one (#890 item 18)", () => {
+    const e = entry("p");
+    const page = packPageOf(tileOf(e, context()), e, undefined, [], "The full store text.");
+    expect(page.body).toContain("The full store text.");
+    expect(page.body).not.toContain("A summary.");
+    const inst = installedPack("p");
+    expect(packPageOf(tileOf(e, context([inst])), e, inst, [], "The full store text.").body).toContain(
+      "From the manifest.",
+    );
+  });
+
   it("uses the manifest's description, authors and license once installed", () => {
     const e = entry("p");
     const inst = installedPack("p");

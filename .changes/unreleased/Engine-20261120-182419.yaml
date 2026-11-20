@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Mod SDK (PR #903 review 6): useActionAbility judges an Action with legalActions'' own evaluation, as at the player''s moment to act (abilityUsableAsTheirMoment), its branches and counter range included; a hand card the cost discards is offered to pay in none of its ways. The shared payment search gains a wallet with one resource ability per card, one with each chosen-amount resource at its largest, and an either/or branch''s own hand discard, so Actions those make affordable are offered on the player''s own turn too; resourcePickChoices builds its combinations lazily.'
+time: 2026-11-20T18:24:19.6633231+01:00
