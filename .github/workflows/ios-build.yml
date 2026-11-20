@@ -40,7 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          # A release tag; on a pull request, the PR head itself (not GitHub's merge commit), so the preview is exactly the
+          # commit its name and comment give.
+          ref: ${{ inputs.tag || github.event.pull_request.head.sha || github.ref }}
           persist-credentials: false
 
       - uses: pnpm/action-setup@v6
