@@ -809,4 +809,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.measure.leaderAttachments": "Menos anexos en el líder de tu zona",
   "comp.tab.teams": "Equipos",
   "comp.side.speak": "Hablar por {side}",
+  "comp.strip.leader": "Su líder",
 };

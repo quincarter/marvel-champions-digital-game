@@ -53,6 +53,7 @@ import { heldElsewhere } from "../view/seat-gate.js";
 import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
 import { TURN_ROW_HEIGHT, promptRowHeight, PROMPT_ROW_HEIGHT } from "../view/layout.js";
 import { justFlipped, podStripOf, podStripHeight, type PodStrip } from "../view/pod-strip.js";
+import { competitiveStripOf, type CompetitiveStrip } from "../view/competitive-strip.js";
 import { gameCardsById as epicCardsById } from "../content/game-deps.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import {
@@ -1731,7 +1732,7 @@ export class BoardScene extends Phaser.Scene {
     const cardScale = cardSizeFactor(cardSize);
     this.#scrollDirty = false;
     const roomView = this.#roomView();
-    const podStrip = this.#podStrip();
+    const podStrip = this.#podStrip() ?? this.#competitiveStrip(model);
     const stuckPrompt = roomView.prompt === null && this.#podStuck();
     const chromeExtra =
       (roomView.turn ? TURN_ROW_HEIGHT : 0) +
@@ -1833,10 +1834,15 @@ export class BoardScene extends Phaser.Scene {
                 lineHeight: POD_LINE,
                 button: {
                   label:
-                    podStrip.targets > 0
-                      ? t("epic.strip.buttonTargets", { count: podStrip.targets })
-                      : t("epic.strip.button"),
-                  onPress: () => this.#openEpicSheet(),
+                    "leaderId" in podStrip
+                      ? t("comp.strip.leader")
+                      : podStrip.targets > 0
+                        ? t("epic.strip.buttonTargets", { count: podStrip.targets })
+                        : t("epic.strip.button"),
+                  onPress: () =>
+                    "leaderId" in podStrip
+                      ? podStrip.leaderId && this.#inspect(podStrip.leaderId as InstanceId)
+                      : this.#openEpicSheet(),
                   onRect: (rect: Rect) => this.#frame.focusRects.set("podStrip", rect),
                 },
               },
@@ -2828,6 +2834,13 @@ export class BoardScene extends Phaser.Scene {
       prompt: promptViewOf(prompts, room),
       chatOn: !this.#replay && roomChatOn(room),
     };
+  }
+
+  /** Civil War Competitive (#883): the other side's table in brief, as the strip under the bar; null in any other game. */
+  #competitiveStrip(model: BoardModel): CompetitiveStrip | null {
+    if (!model.competitive) return null;
+    const width = this.scale.gameSize.width;
+    return competitiveStripOf(model.competitive, Math.max(24, Math.floor((width - 120) / 6.5)));
   }
 
   /** The Epic pod strip for this table's board (#882), or null outside an Epic game. */

@@ -803,4 +803,5 @@ export const en = {
   "comp.measure.leaderAttachments": "Fewest attachments on the leader in your area",
   "comp.tab.teams": "Teams",
   "comp.side.speak": "Speak for {side}",
+  "comp.strip.leader": "Their leader",
 } as const;
