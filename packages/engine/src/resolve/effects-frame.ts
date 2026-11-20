@@ -4384,7 +4384,12 @@ function requestTargetChoice(
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
-    prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
+    prompt: {
+      kind: "chooseTarget",
+      slot: effect.slot,
+      abilityId: null,
+      ...(effect.prompt !== undefined ? { title: effect.prompt } : {}),
+    },
     options: legal.map((id) => ({
       optionId: id,
       label: displayNameOf(ctx.state, id),

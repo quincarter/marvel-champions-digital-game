@@ -1,11 +1,11 @@
 /**
- * The `?screen=board&fixture=multi-gun` dev jump (`scenes/boot-dev-jump.ts`): Venom and Spider-Man against Rhino, a
- * minion engaged with each, stopped on Multi-Gun's (20008) "Choose a player" question, so the sheet shows each seat's
+ * The `?screen=board&fixture=multi-gun` dev jump (`scenes/boot-dev-jump.ts`): Venom and Spider-Man against Rhino,
+ * two minions engaged with each, stopped on Multi-Gun's (20008) "Choose a player" question, so the sheet shows each seat's
  * engaged minions with their card hover (issue #911). `dev-multi-gun-game.test.ts` proves it.
  *
  * Played forward through the store with `SessionConfig.stack` and the engine's own example commands, never a state
  * edit. Venom plays Multi-Gun on the first turn and flips to hero form; the villain phase deals each seat a minion;
- * on the second turn Venom uses Multi-Gun and picks its "Choose a player" option.
+ * on the third turn Venom uses Multi-Gun and picks its "Choose a player" option.
  */
 import type { GameState } from "@mc/engine";
 import type { SessionConfig } from "../engine/host.js";
@@ -23,8 +23,9 @@ export const MULTI_GUN_CONFIG: SessionConfig = {
   stack: {
     // Multi-Gun with Strength and Energy to pay for it.
     players: { 0: ids(MULTI_GUN, "20019", "20017") },
-    // A boost with no icons per seat, then a minion per seat: Hydra Mercenary and Sandman.
-    encounter: ids("01104", "01104", "01101", "01102"),
+    // Each round a boost with no icons per seat, then a minion per seat: round 1 Hydra Mercenary and Sandman, round 2
+    // Shocker and another Hydra Mercenary, so each seat has two minions engaged (a stack on its row).
+    encounter: ids("01104", "01104", "01101", "01102", "01105", "01105", "01103", "01101"),
   },
 };
 
@@ -53,8 +54,8 @@ export async function startMultiGunGame(store: SessionStore): Promise<void> {
     const gun = turn.legal.find(
       (entry) => entry.action.kind === "useAbility" && String(entry.action.abilityId) === MULTI_GUN_ACTION,
     );
-    const minionsEverywhere = game.players.every((seat) =>
-      seat.playArea.some((id) => game.cardPool[codeOf(game, id)]?.type === "minion"),
+    const minionsEverywhere = game.players.every(
+      (seat) => seat.playArea.filter((id) => game.cardPool[codeOf(game, id)]?.type === "minion").length >= 2,
     );
     if (gun && minionsEverywhere) {
       await store.dispatch(gun.example);

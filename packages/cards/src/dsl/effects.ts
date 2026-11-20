@@ -39,12 +39,15 @@ import {
   amount,
   chosen,
   eachPlayer,
+  exists,
   firstPlayer,
+  playersWhere,
   query,
   readsAtkOf,
   refMatches,
   self,
   TRAIT,
+  thatPlayer,
   you,
   yourIdentity,
   identityOf,
@@ -628,6 +631,16 @@ export const chooseTarget = (
   ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
   ...(opts.prompt !== undefined ? { prompt: opts.prompt } : {}),
 });
+/**
+ * "Choose a player" whose effects act on the minions (or, with `kind: "enemy"`, the enemies) engaged with that player:
+ * Explosive Arrow, Multi-Gun, Spray Fire and the like (issue #911, Quin 2026-11-20). Only players with one engaged are
+ * offered, and one such player is chosen without asking (`choosePlayer`'s `among`). With none engaged anywhere no
+ * player is chosen, so the effects on that player's minions find nothing while the rest of the ability (the villain's
+ * damage) resolves. Engine reading (authority step 5), the owner's decision: naming a player with no engaged minion
+ * changes nothing the card does.
+ */
+export const choosePlayerWithEngaged = (slot = "player", kind: "minion" | "enemy" = "minion"): EffectSpec =>
+  choosePlayer(slot, you, { among: playersWhere(exists(query(kind, { engagedWithPlayer: thatPlayer }))) });
 export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ kind: "bindTargets", slot, target });
 
 // ---------------------------------------------------------------------------

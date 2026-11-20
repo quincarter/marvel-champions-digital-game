@@ -12,7 +12,7 @@ import {
   chooseCards,
   chooseOne,
   chooseTarget,
-  choosePlayer,
+  choosePlayerWithEngaged,
   constant,
   dealDamage,
   defineAbilities,
@@ -151,7 +151,7 @@ export const ROCKET_KIT = defineAbilities({
   "16037.rocket-launcher-constant": forcedResponse(on.entersPlay("self"), addCounters(CHARGE, 2, self)),
   "16037.rocket-launcher-action": heroAction(
     { cost: [exhaustThis, removeCounter(CHARGE, 1)] },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     dealDamage(2, theVillain),
     dealDamage(2, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),

@@ -14,7 +14,7 @@ import {
   cards,
   chooseCards,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -47,7 +47,6 @@ import {
   partOf,
   option,
   paidWithOnly,
-  playersWhere,
   query,
   ready,
   reduceNextCardCost,
@@ -60,7 +59,6 @@ import {
   shuffleDeck,
   stun,
   takeDamageCost,
-  thatPlayer,
   theVillain,
   threatOn,
   thwartAScheme,
@@ -73,8 +71,6 @@ import {
 
 const WEAPON = trait("WEAPON");
 const GUARDIAN = trait("GUARDIAN");
-/** Multi-Gun's (20008) players to choose from: those with a minion engaged with them. */
-const PLAYERS_WITH_A_MINION = playersWhere(exists(query("minion", { engagedWithPlayer: thatPlayer })));
 
 /**
  * Venom / Flash Thompson (20001a/b) and his hero kit (20002–20022, 20026–20029). Reprints in this pack — The
@@ -190,7 +186,7 @@ export const VENOM_KIT = defineAbilities({
       option(
         "Choose a player. Deal 1 damage to each minion engaged with that player.",
         { when: exists(query("minion", { engagedWith: "any" })) },
-        choosePlayer("player", you, { among: PLAYERS_WITH_A_MINION }),
+        choosePlayerWithEngaged("player"),
         dealDamage(1, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
       ),
       option("Remove 2 threat from a scheme", ...removeThreatFromAScheme(2)),

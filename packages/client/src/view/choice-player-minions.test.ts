@@ -1,32 +1,51 @@
-import { describe, expect, it } from "vitest";
 import type { ChoiceRef, GameState, PlayerId } from "@mc/engine";
-import { MINION_STRIP_GAP, MINION_THUMB_MAX, minionStripOf, playerRowMinions } from "./choice-player-minions.js";
+import { describe, expect, it } from "vitest";
+import {
+  MINION_FAN_SHOW,
+  MINION_STRIP_GAP,
+  MINION_THUMB_MAX,
+  minionStripOf,
+  playerRowMinions,
+} from "./choice-player-minions.js";
 
 const row = { x: 100, y: 10, width: 400, height: 52 };
 
-describe("the minion strip on a choose-a-player row (issue #911)", () => {
+describe("the minion stack on a choose-a-player row (issue #911)", () => {
   it("takes no room with no minion", () => {
-    expect(minionStripOf(row, 0, 200)).toEqual({ thumbs: [], more: 0, moreRect: null, width: 0 });
+    expect(minionStripOf(row, 0, 200)).toEqual({ thumbs: [], visible: [], count: 0, badge: null, width: 0 });
   });
 
-  it("right-aligns one square per minion inside the row", () => {
+  it("one minion: one full picture at the row's right end, no badge", () => {
+    const strip = minionStripOf(row, 1, 200);
+    expect(strip.thumbs).toHaveLength(1);
+    expect(strip.badge).toBeNull();
+    const [only] = strip.thumbs;
+    expect(only!.width).toBe(MINION_THUMB_MAX);
+    expect(only!.x + only!.width + MINION_STRIP_GAP).toBe(row.x + row.width);
+    expect(strip.visible).toEqual(strip.thumbs);
+  });
+
+  it("several minions overlap as a fan, the last fully on top, with a count badge", () => {
     const strip = minionStripOf(row, 3, 200);
-    const side = MINION_THUMB_MAX;
-    expect(strip.thumbs).toHaveLength(3);
-    expect(strip.more).toBe(0);
-    expect(strip.thumbs.every((t) => t.width === side && t.height === side)).toBe(true);
-    const last = strip.thumbs[2]!;
-    expect(last.x + last.width + MINION_STRIP_GAP).toBe(row.x + row.width);
-    expect(strip.thumbs[0]!.x).toBe(row.x + row.width - strip.width + MINION_STRIP_GAP);
-    expect(strip.thumbs.every((t) => t.y >= row.y && t.y + t.height <= row.y + row.height)).toBe(true);
+    const step = Math.round(MINION_THUMB_MAX * MINION_FAN_SHOW);
+    expect(strip.count).toBe(3);
+    expect(strip.thumbs.map((t) => t.x - strip.thumbs[0]!.x)).toEqual([0, step, 2 * step]);
+    expect(strip.visible.slice(0, 2).every((v) => v.width === step)).toBe(true);
+    expect(strip.visible[2]).toEqual(strip.thumbs[2]);
+    expect(strip.width).toBe(MINION_THUMB_MAX + 2 * step + 2 * MINION_STRIP_GAP);
+    expect(strip.badge).not.toBeNull();
+    // The hover areas never overlap: each minion can be hovered on its own.
+    for (let i = 1; i < strip.visible.length; i++) {
+      expect(strip.visible[i]!.x).toBeGreaterThanOrEqual(strip.visible[i - 1]!.x + strip.visible[i - 1]!.width);
+    }
   });
 
-  it("counts the minions it has no room for as +N", () => {
-    const strip = minionStripOf(row, 6, 120);
-    expect(strip.thumbs.length + strip.more).toBe(6);
-    expect(strip.more).toBeGreaterThan(0);
-    expect(strip.width).toBeLessThanOrEqual(120);
-    expect(strip.moreRect).not.toBeNull();
+  it("many minions narrow their slivers to fit, never below a hoverable floor", () => {
+    const strip = minionStripOf(row, 8, 120);
+    expect(strip.thumbs).toHaveLength(8);
+    const step = strip.thumbs[1]!.x - strip.thumbs[0]!.x;
+    expect(step).toBeGreaterThanOrEqual(10);
+    expect(step).toBeLessThan(Math.round(MINION_THUMB_MAX * MINION_FAN_SHOW));
   });
 
   it("lists a seat's minions for a player row, and none for any other row", () => {

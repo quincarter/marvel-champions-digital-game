@@ -3,7 +3,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   andThen,
   cancelRevealedCard,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -48,7 +48,7 @@ const AERIAL_YOURS = query("character", { trait: AERIAL, controller: "you" });
 export const ANGEL_PACK_CARDS: AbilityRegistry = defineAbilities({
   "42029.bombs-away-action": heroAction(
     { cost: exhaustCardsCost(AERIAL_YOURS) },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     dealDamage(3, theVillain),
     dealDamage(3, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),

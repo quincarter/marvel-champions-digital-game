@@ -13,6 +13,7 @@ import {
   cancelRevealedCard,
   cards,
   choosePlayer,
+  choosePlayerWithEngaged,
   chooseCards,
   chooseOne,
   chooseTarget,
@@ -333,7 +334,7 @@ export const AOS_ASPECT_BASIC: AbilityRegistry = defineAbilities({
 
   "50018.the-bellerophon-action": action(
     { cost: [exhaustThis, removeCounter("missile")] },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     removeStatus(theVillain, "tough"),
     removeStatus(each(query("minion", { engagedWithPlayer: chosenPlayer("player") })), "tough"),
     dealDamage(3, theVillain),

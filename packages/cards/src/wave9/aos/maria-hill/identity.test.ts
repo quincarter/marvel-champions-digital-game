@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
+  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -332,5 +333,19 @@ describe("Reassignment's prompts (issue #911)", () => {
       ["from", "Move a counter FROM which S.H.I.E.L.D. support?"],
       ["to", "Move the counter TO which S.H.I.E.L.D. support?"],
     ]);
+  });
+
+  it("the live pending choices carry those titles, FROM then TO", () => {
+    const { state, a } = staged({ code: ILIAD, counters: { mission: 3 } }, { code: STAFF, counters: { staff: 3 } });
+    const asked = runWith(MARIA_DEPS, state, use(P1, identityOf(state), REASSIGNMENT));
+    expect(asked.pendingChoice!.prompt).toMatchObject({
+      kind: "chooseTarget",
+      title: "Move a counter FROM which S.H.I.E.L.D. support?",
+    });
+    const next = answer(asked, [a], MARIA_DEPS).pendingChoice;
+    expect(next?.prompt).toMatchObject({
+      kind: "chooseTarget",
+      title: "Move the counter TO which S.H.I.E.L.D. support?",
+    });
   });
 });
