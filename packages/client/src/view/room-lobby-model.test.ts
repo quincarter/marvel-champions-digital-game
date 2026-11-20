@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { NO_ROOM, type RoomSeat, type RoomState } from "../live/room-state.js";
+import { t } from "../i18n/translate.js";
+import { es } from "../i18n/es.js";
 import {
+  undoRows,
+  cheatsOn,
+  CHEATS_NOTE_KEY,
   connectionWords,
   guestModRows,
   hostModRows,
@@ -20,6 +25,8 @@ import {
 
 const settings = {
   playMode: "strict" as const,
+  undo: "off" as const,
+  cheats: false,
   tableRules: {},
   mods: [],
   multiSeat: false,
@@ -371,5 +378,28 @@ describe("a host preset over a deck its holder chose", () => {
     const preset = room({ role: "host", seats: [seat({ holder: "g", deck: deck({ preset: true }) })] });
     expect(seatRows(preset, { installed: [] })[0]?.deckButton?.enabled).toBe(true);
     expect(refusalWords({ reason: "not-allowed", seat: "s1", seq: 1 }, state)?.key).toBe("room.deck.takeBackFirst");
+  });
+});
+
+describe("the Undo and Cheats rows", () => {
+  it("Strict offers only Off; Host control offers Off, Host only and Ask, Ask selected by default", () => {
+    expect(undoRows(settings).map((r) => [r.value, r.selected])).toEqual([["off", true]]);
+    const host = { ...settings, playMode: "host" as const, undo: "ask" as const };
+    expect(undoRows(host).map((r) => [r.value, r.selected])).toEqual([
+      ["off", false],
+      ["host", false],
+      ["ask", true],
+    ]);
+    expect(undoRows({ ...host, undo: "host" }).find((r) => r.selected)?.value).toBe("host");
+    expect(undoRows({ ...settings, undo: "ask" }).find((r) => r.selected)?.value).toBe("off");
+  });
+
+  it("explains each choice in one line, in English and Spanish", () => {
+    expect(t("room.undo.hostDetail")).toBe("The host may Undo or Back out; guests cannot ask.");
+    expect(es["room.undo.askDetail"]).toContain("invitados");
+    expect(t(CHEATS_NOTE_KEY)).toBe("No one earns points, achievements or stats from a game with cheats on.");
+    expect(es[CHEATS_NOTE_KEY]).toContain("Nadie gana");
+    expect(cheatsOn(settings)).toBe(false);
+    expect(cheatsOn({ ...settings, cheats: true })).toBe(true);
   });
 });

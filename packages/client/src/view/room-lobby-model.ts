@@ -3,7 +3,7 @@
  * `RoomState`. Nothing here decides a rule: whether a seat may be taken, or the game started, is the room's call; this
  * only words what the room reports and turns the buttons off, with the reason, where the room would refuse anyway.
  */
-import type { LobbyMod, RoomDevice } from "@mc/sync-worker/room-protocol";
+import { lobbyUndoFor, type LobbyMod, type LobbyUndo, type RoomDevice } from "@mc/sync-worker/room-protocol";
 import { aspectName } from "./aspect-stamp.js";
 import { en } from "../i18n/en.js";
 import { t, tPlural, type MessageKey, type PluralBase } from "../i18n/translate.js";
@@ -514,6 +514,41 @@ export const playModeKeys: Readonly<Record<"strict" | "host", { title: MessageKe
   strict: { title: "room.mode.strict", detail: "room.mode.strictDetail" },
   host: { title: "room.mode.host", detail: "room.mode.hostDetail" },
 };
+
+export const undoKeys: Readonly<Record<LobbyUndo, { title: MessageKey; detail: MessageKey }>> = {
+  off: { title: "room.undo.off", detail: "room.undo.offDetail" },
+  host: { title: "room.undo.host", detail: "room.undo.hostDetail" },
+  ask: { title: "room.undo.ask", detail: "room.undo.askDetail" },
+};
+
+export interface UndoRow {
+  readonly value: LobbyUndo;
+  readonly titleKey: MessageKey;
+  readonly detailKey: MessageKey;
+  readonly selected: boolean;
+}
+
+/**
+ * The Undo row's choices. Strict rules force Off, so only Off is offered (and nothing can be pressed); Host control
+ * offers all three. The host presses them, guests see only the selected one. Unknown settings read as the mode's default.
+ */
+export function undoRows(settings: LobbySettings | null): readonly UndoRow[] {
+  const mode = settings?.playMode ?? "strict";
+  const current = lobbyUndoFor(mode, settings?.undo);
+  const values: readonly LobbyUndo[] = mode === "strict" ? ["off"] : ["off", "host", "ask"];
+  return values.map((value) => ({
+    value,
+    titleKey: undoKeys[value].title,
+    detailKey: undoKeys[value].detail,
+    selected: value === current,
+  }));
+}
+
+/** The note under the Cheats row, for everyone. */
+export const CHEATS_NOTE_KEY: MessageKey = "room.cheats.note";
+
+/** The cheats setting as the lobby holds it (off when absent). */
+export const cheatsOn = (settings: LobbySettings | null): boolean => settings?.cheats === true;
 
 /** Whether chat shows: the room's own setting (on until the lobby says otherwise). */
 export const chatOn = (state: RoomState): boolean => state.settings?.chat !== false;

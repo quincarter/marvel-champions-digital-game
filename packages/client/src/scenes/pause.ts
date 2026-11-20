@@ -88,7 +88,7 @@ import type { ManualAdjustData } from "./manual-adjust.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
-import { roomStrictOf } from "../view/room-strict.js";
+import { roomCheatsOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
@@ -347,7 +347,7 @@ export class PauseOverlay extends Phaser.Scene {
 
   /** Manual adjust is offered when Settings allows it and the game is not a strict lobby room's (`view/room-strict.ts`). */
   #manualAdjustOn(): boolean {
-    return appSession().settings.allowManualAdjust && !roomStrictOf(appSession().store.state.config);
+    return roomCheatsOf(appSession().settings, appSession().store.state.config).manualAdjust;
   }
 
   /** Manual adjust, over this sheet (#791): Done there closes it and Pause takes input again. */

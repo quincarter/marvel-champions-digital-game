@@ -136,6 +136,8 @@ export type CoreDispatch =
 
 /** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
 export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+/** A room whose Undo setting is Off (`SessionConfig.roomUndo`) takes no Undo or Back out either. */
+export const UNDO_OFF_REFUSAL = "The host turned Undo off";
 
 /**
  * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
@@ -459,7 +461,8 @@ export class EngineSessionCore {
     this.#saveError = null;
     this.#gameId = null;
     this.#playedMs = 0;
-    this.#adjusted = false;
+    // A room's game with Cheats on counts for nothing from its first command (docs/live-game-rooms.md section 8).
+    this.#adjusted = config.roomCheats === true;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
     this.#createdAt = startedAt;
@@ -485,6 +488,7 @@ export class EngineSessionCore {
         // `exactOptionalPropertyTypes`: `guided` is absent, not `undefined`, on a plain game (`SaveMeta.guided`'s
         // own doc comment — additive, no `SAVE_SCHEMA` bump).
         ...(config.guided ? { guided: config.guided } : {}),
+        ...(config.roomCheats ? { adjusted: true as const } : {}),
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet
@@ -621,6 +625,7 @@ export class EngineSessionCore {
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
     if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
+    if (config.roomUndo === "off") throw new Error(UNDO_OFF_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
     }

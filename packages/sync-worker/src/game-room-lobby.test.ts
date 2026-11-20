@@ -179,6 +179,52 @@ describe("who may set the lobby", () => {
     expect(w.last("lobby")!.seats.map((s) => s.label)).toEqual(["Hero s1", "Hero s2"]);
   });
 
+  it("holds the undo policy: Off in Strict, Ask when Host control starts, the host's choice after, host-only to set", async () => {
+    const { room, host, join, lobbySet } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings).toMatchObject({ playMode: "strict", undo: "off" });
+    await lobbySet(h, { settings: { undo: "host" } });
+    expect(h.last("lobby")!.settings.undo).toBe("off");
+    await lobbySet(h, { settings: { playMode: "host" } });
+    expect(w.last("lobby")!.settings).toMatchObject({ playMode: "host", undo: "ask" });
+    await lobbySet(h, { settings: { undo: "host" } });
+    expect(w.last("lobby")!.settings.undo).toBe("host");
+    await lobbySet(h, { settings: { chat: false } });
+    expect(w.last("lobby")!.settings.undo).toBe("host");
+    await lobbySet(w, { settings: { undo: "ask" } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    expect(h.last("lobby")!.settings.undo).toBe("host");
+    await lobbySet(h, { settings: { playMode: "host", undo: "off" } });
+    expect(w.last("lobby")!.settings.undo).toBe("off");
+    await lobbySet(h, { settings: { playMode: "strict", undo: "ask" } });
+    expect(w.last("lobby")!.settings).toMatchObject({ playMode: "strict", undo: "off" });
+    await lobbySet(h, { settings: { undo: "maybe" } });
+    expect(h.refusals).toEqual(["bad-message"]);
+  });
+
+  it("holds the cheats setting: off by default, host-only, fixed once the game has started", async () => {
+    const { room, host, join, lobbySet, send } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.cheats).toBe(false);
+    await lobbySet(w, { settings: { cheats: true } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { cheats: true } });
+    expect(w.last("lobby")!.settings.cheats).toBe(true);
+    await lobbySet(h, { settings: { chat: false } });
+    expect(w.last("lobby")!.settings.cheats).toBe(true);
+    await lobbySet(h, { settings: { cheats: false } });
+    expect(w.last("lobby")!.settings.cheats).toBe(false);
+    await lobbySet(h, { settings: { cheats: true } });
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    await lobbySet(h, { settings: { cheats: false } });
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(w.last("lobby")!.settings.cheats).toBe(true);
+    await lobbySet(h, { settings: { cheats: 1 } });
+    expect(h.refusals).toEqual(["not-allowed", "bad-message"]);
+  });
+
   it("never takes the build versions from a client", async () => {
     const { host, lobbySet } = await setup();
     const h = await host();

@@ -32,6 +32,8 @@ const room = (seats: RoomSeat[], over: Partial<RoomState> = {}): RoomState => ({
   connection: "connected",
   settings: {
     playMode: "strict",
+    undo: "off",
+    cheats: false,
     tableRules: {},
     mods: [{ id: "cool", version: "2" }],
     multiSeat: false,
