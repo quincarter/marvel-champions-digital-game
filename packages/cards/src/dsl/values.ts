@@ -225,6 +225,12 @@ export const attackedBy = (attacker: TargetRef = { kind: "self" }): TargetRef =>
 export const activatingEnemy: TargetRef = { kind: "activatingEnemy" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
 /**
+ * "Your leader's main scheme" (Double Agent 56211, Spectacular! 56182, Neighborhood Hero 56183, Cloak 56194,
+ * Darkforce 56196): the main scheme of the game area your leader is in (MC56 p. 16). None in a cooperative game, where
+ * "your leader" cannot be resolved (MC56 p. 6).
+ */
+export const yourLeadersMainScheme: TargetRef = { kind: "mainScheme", of: "yourLeader" };
+/**
  * The central main scheme stage, outside every separate game area (docs/phase7-wave2.md §3.1): "place 1 set-aside
  * Kang's Dominion facedown under stage 4A" while game areas are still split. Distinct from `theMainScheme`, which
  * resolves inside the *current* context's own area.

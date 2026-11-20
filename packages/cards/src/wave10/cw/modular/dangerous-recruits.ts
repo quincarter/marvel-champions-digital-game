@@ -4,7 +4,6 @@ import {
   boostCardOf,
   chooseTarget,
   chosen,
-  competitiveOnly,
   constant,
   countOf,
   defineAbilities,
@@ -26,6 +25,10 @@ import {
   whenRevealed,
   you,
   boost,
+  enemyAttacksEnemy,
+  yourLeader,
+  enemyTeamChooses,
+  atEndOfActivation,
 } from "../../../dsl/index.js";
 import { STREET_DEFENDERS } from "./defenders.js";
 
@@ -60,20 +63,29 @@ const MINION = query("minion");
  * - 56090 Excessive Force (treachery)
  * - 56091 Dangerous Recruits (side_scheme)
  */
+/** "An attachment from your leader": on the other side of the table, which the card names (MC56 p. 16). */
+const ATTACHMENT_ON_YOUR_LEADER = query("attachment", { host: yourLeader, anyGameArea: true });
+
 export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
   "56087.venom-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "56087.when-revealed": whenRevealed(
     ifThen(
       inCompetitiveMode(),
-      [competitiveOnly("Venom attacks your leader.")],
+      // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+      [enemyAttacksEnemy(self, yourLeader, { boost: true })],
       enemyActivates(self, { against: you }),
     ),
   ),
 
   "56088.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
-      [competitiveOnly("The enemy team discards an attachment from your leader.")],
+      // The attachment is on the other side of the table, which the card names (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)). Otherwise (none there, or
+      // a cooperative game with no "your leader") an upgrade you control.
+      exists(ATTACHMENT_ON_YOUR_LEADER),
+      [
+        chooseTarget("attachment", ATTACHMENT_ON_YOUR_LEADER, { chooser: enemyTeamChooses }),
+        discard(chosen("attachment")),
+      ],
       // No "choose": an encounter card targeting one of several eligible cards; the first player selects
       // (RRG 1.8 "First Player", p. 19).
       [
@@ -87,11 +99,8 @@ export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
 
   "56090.when-revealed": whenRevealed(ifThen(exists(MINION), placeThreat(countOf(MINION), theMainScheme), surge())),
   "56090.boost": boost(
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly(
-        "The enemy leader attacks your leader (after this activation). Do not give it a boost card for that attack.",
-      ),
-    ]),
+    // "after this activation", with no boost card (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader)),
   ),
 
   "56091.dangerous-recruits-forced-interrupt": forcedInterrupt(

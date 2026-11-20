@@ -37,7 +37,7 @@ import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./reso
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 import { activeTeamOf, teamsOf, type TeamState } from "./team.js";
-import { switchActiveTeam } from "./team-phases.js";
+import { firstPlayerFacingDeck, switchActiveTeam } from "./team-phases.js";
 
 /** The step a campaign game starts on: nothing of Appendix II has happened yet (MC60 p. 9 steps 1-7). */
 export const FIRST_CAMPAIGN_STEP: GameStep = { phase: "setup", kind: "campaignWindow", window: "beforeScenarioSetup" };
@@ -406,7 +406,8 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): readonly 
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
-      encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+      // With two teams, the first player of the team facing this deck reveals it (MC56 p. 14; Q4 A, 2026-11-20).
+      encounterSetupCardEntersPlay(ctx, id, firstPlayerFacingDeck(ctx.state, deckId) ?? revealingPlayerId);
       encounterCards.push(id);
     }
   }

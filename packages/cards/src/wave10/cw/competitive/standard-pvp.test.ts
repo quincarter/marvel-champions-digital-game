@@ -158,9 +158,10 @@ describe("registry", () => {
     const earned = [
       "Each player on your team chooses 2 of your leader's set-aside player cards and adds them to their hand.",
     ];
+    // The leader-versus-leader attack is scripted (M3): no marker left for it.
+    expect(JSON.stringify(def("56126.when-revealed-alter-ego"))).toContain("enemyAttacksEnemy");
+    expect(attack).toHaveLength(1);
     expect(listed).toEqual({
-      "56126.when-revealed-alter-ego": attack,
-      "56204.when-revealed-alter-ego": attack,
       "56128b.now-its-personal-action": earned,
       "56206b.now-its-personal-action": earned,
     });

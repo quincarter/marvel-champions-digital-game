@@ -126,6 +126,13 @@ export type AttachCategory = "ally" | "minion" | "sideScheme";
 export interface TargetQuery {
   readonly categories?: readonly TargetCategory[];
   /**
+   * The query reaches the other team's game area too: a card that "specifically refers to" the other side of the table
+   * (MC56 p. 16: card abilities "completely ignore cards on the other side of the table unless they specifically refer
+   * to them"; Drafted 56080's "a minion engaged with" the enemy team, Bullseye 56088's "an attachment from your
+   * leader"). Read on the query itself. Without it a query matches only cards in the effect's own game area.
+   */
+  readonly anyGameArea?: true;
+  /**
    * "At the mission", "in the mission area", "the [MISSION] side scheme" (MC45 p. 5; docs/phase7-wave8.md §3.33): only
    * a card in the in-play scenario area of this name (`ZoneId scenarioPlayArea`), or attached to one. This is how an
    * ability "refers to the mission area": a card in a closed area is matched by a query that names the area and by no
@@ -890,7 +897,12 @@ export type TargetRef =
    * (p. 39) names no "you", a Boost ability's "you" is the player the enemy is scheming against, as
    * `gameAbilityFrames` reads it.
    */
-  | { readonly kind: "mainScheme"; readonly of?: "central" | "yours" }
+  /**
+   * `of: "yourLeader"`: "your leader's main scheme" (Double Agent 56211, Spectacular! 56182, Neighborhood Hero 56183,
+   * Cloak 56194, Darkforce 56196): the main scheme of the game area the team's leader is in (MC56 p. 16); none with one
+   * team (MC56 p. 6: "your leader" cannot be resolved).
+   */
+  | { readonly kind: "mainScheme"; readonly of?: "central" | "yours" | "yourLeader" }
   | { readonly kind: "identityOf"; readonly player: PlayerRef }
   /** "The villain corresponding to the attached side scheme" (Held Hostage): each undefeated villain whose signature side scheme the ref names. */
   | { readonly kind: "villainOfSideScheme"; readonly scheme: TargetRef }

@@ -2,7 +2,6 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   attacksGainKeywords,
   boost,
-  competitiveOnly,
   constant,
   defineAbilities,
   discard,
@@ -24,6 +23,9 @@ import {
   whenDefeated,
   whenRevealed,
   you,
+  enemyAttacksEnemy,
+  yourLeader,
+  each,
 } from "../../../dsl/index.js";
 
 const TASKMASTER = "Taskmaster";
@@ -78,7 +80,8 @@ export const SYNTHEZOID_MODULAR_TASKMASTER: AbilityRegistry = defineAbilities({
       inCompetitiveMode(),
       ifThen(
         exists(query("minion", { name: TASKMASTER })),
-        [competitiveOnly("Taskmaster attacks your leader.")],
+        // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+        [enemyAttacksEnemy(each(query("minion", { name: TASKMASTER })), yourLeader, { boost: true })],
         TOUGH_AND_BOOST,
       ),
       TOUGH_AND_BOOST,

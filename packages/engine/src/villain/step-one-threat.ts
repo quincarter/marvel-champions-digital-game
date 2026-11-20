@@ -54,8 +54,7 @@ export function stepOneThreats(state: GameState, deps: EngineDeps): readonly Ste
   if (team) {
     // Two teams (MC56 pp. 16, 20; scenario rules override RRG per Golden Rule, RRG p. 4): a team's villain phase is the
     // normal one run on its own side of the table, so only the main scheme in the active team's area gains threat, from
-    // its own acceleration and tokens and the acceleration icons in that area. Acceleration tokens off a scheme are not
-    // read across the table here (plan M3).
+    // its own acceleration and tokens, the tokens on other cards in that area, and the acceleration icons in that area.
     return sharedMainSchemes(state)
       .filter((scheme) => scheme.gameAreaId === team.areaId)
       .map((scheme) =>
@@ -63,7 +62,7 @@ export function stepOneThreats(state: GameState, deps: EngineDeps): readonly Ste
           scheme.instanceId,
           mainSchemeValue(state, "acceleration", deps, scheme),
           scheme.accelerationTokens,
-          0,
+          offSchemeAccelerationTokens(state, team),
           iconsInPlay(state, deps, "acceleration", team),
         ),
       );

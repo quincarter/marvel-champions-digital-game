@@ -40,6 +40,11 @@ import {
   eachPlayer,
   yourLeader,
   you,
+  enemyAttacksEnemy,
+  instead,
+  attackingEnemy,
+  yourLeadersMainScheme,
+  placeThreat,
 } from "../../../dsl/index.js";
 
 const TECH = trait("TECH");
@@ -60,9 +65,13 @@ const HOST_FINESSE = query("attachment", { name: "Finesse", host: host });
  * the game has none; a sentence that needs something the engine does not have yet is a `competitiveOnly` marker.
  */
 
-/** Marker: the leader-versus-leader attack (MC56 p. 16, plan section 1.5), shared by the four attack events. */
-const leaderAttacksEnemyLeader = (leader: string) =>
-  ifThen(inCompetitiveMode(), [competitiveOnly(`Your ${leader} leader attacks the enemy leader.`)]);
+/**
+ * "Your <name> leader attacks the enemy leader." (the four attack events): the leader-versus-leader attack, MC56 p. 16
+ * (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6, settled 2026-11-20): your leader is given a boost card from the deck of the area it sits in, the
+ * first player of the team in that area turns it, no defender, no guard, its total ATK dealt. Nothing cooperatively
+ * (no "your leader", MC56 p. 6).
+ */
+const leaderAttacksEnemyLeader = (_leader: string) => enemyAttacksEnemy(yourLeader, enemyLeader, { boost: true });
 
 /**
  * Competitive cards (docs/competitive-mode-plan.md section 4 task 11): the sixteen leader-specific basic player cards of
@@ -164,7 +173,9 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
     on.villainAttacks({ againstYou: true }),
     { would: true },
     attachCard(each(query("attachment", { name: "Cap's Shield" })), yourLeader),
-    ifThen(inCompetitiveMode(), [competitiveOnly("Resolve this attack against him instead.")]),
+    // "Resolve this attack against him instead": the enemy leader's attack becomes a leader-versus-leader attack on
+    // your leader (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6). Cooperatively there is no leader and the attack goes on against you.
+    ifThen(inCompetitiveMode(), instead(enemyAttacksEnemy(attackingEnemy, yourLeader, { boost: true }))),
     discard(self),
   ),
 
@@ -183,10 +194,7 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   "56210.the-peoples-hero-response": response(on.youSpendThis(), giveBoostCard(yourLeader)),
 
   // ---- Spider-Woman ----
-  "56211.double-agent-action": action(
-    removeThreat(2, theMainScheme),
-    ifThen(inCompetitiveMode(), [competitiveOnly("Place 2 threat on your leader's main scheme.")]),
-  ),
+  "56211.double-agent-action": action(removeThreat(2, theMainScheme), placeThreat(2, yourLeadersMainScheme)),
 
   "56212.spider-blast-action": action(
     { readsPaidTypes: { types: ["mental"] } },

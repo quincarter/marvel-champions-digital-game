@@ -799,7 +799,7 @@ const areaById = (state: GameState, areaId: GameAreaState["areaId"]): GameAreaSt
  * main scheme deck"; p. 20: "Cards in your opponent's game area are not in play in your game area"). Null in every
  * other game: with separate game areas (Kang) an encounter deck is in every area, as before.
  */
-function encounterDeckArea(state: GameState, deckId: EncounterDeckId): GameAreaState | null {
+export function encounterDeckArea(state: GameState, deckId: EncounterDeckId): GameAreaState | null {
   if (!state.teams) return null;
   for (const team of state.teams) {
     const area = team.areaId === null ? null : areaById(state, team.areaId);

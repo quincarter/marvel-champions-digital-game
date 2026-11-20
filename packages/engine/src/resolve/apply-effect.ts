@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { firstPlayerOfAreaHolding } from "../team-phases.js";
 import { imminentAttach, imminentAttachHeard, resolveImminentAttach } from "./imminent-attach.js";
 import { placeCountersOrAnnounce } from "./counters-being-placed.js";
 import { announceDeckTops } from "../deck-top.js";
@@ -1045,7 +1046,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attackerInstanceId: attacker,
             targetInstanceId: target,
             sourceInstanceId: frame.selfInstanceId,
-            ...(effect.boost && frame.controllerId ? { boostPlayerId: frame.controllerId } : {}),
+            // With two teams the boost card is turned by the first player of the team whose area the attacker is in,
+            // the defending leader's team when a leader attacks a leader (MC56 p. 16 step 2; Q5, settled 2026-11-20).
+            ...(effect.boost && frame.controllerId
+              ? { boostPlayerId: firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId }
+              : {}),
           },
         ],
         reportTo(effect.bind),

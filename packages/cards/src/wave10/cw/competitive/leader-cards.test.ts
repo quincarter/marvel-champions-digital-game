@@ -147,19 +147,13 @@ describe("registry", () => {
         .map(([ref, definition]) => [ref, competitiveOnlyTexts(definition)] as const)
         .filter(([, texts]) => texts.length > 0),
     );
-    // Each waits on plan milestone M3 (cross-area effects: a leader attacking a leader or scheming, a leader's main
-    // scheme, an attack redirected onto a leader).
+    // Scripted in M3 (the leader attacks, No, You Move!'s redirect, Double Agent's threat). Still waiting: a leader
+    // scheming across the table, and a redirect with a damage cap for that attack alone.
     expect(listed).toEqual({
       "56129.the-futurist-action": ["Your Iron Man leader schemes. Do not give him a boost card for this activation."],
-      "56130.target-lock-action": ["Your Iron Man leader attacks the enemy leader."],
       "56133.provoked-response-forced-interrupt": [
         "When the enemy leader would attack you, it attacks your Captain Marvel leader instead. She cannot take more than 3 damage from this attack.",
       ],
-      "56134.you-started-this-action": ["Your Captain Marvel leader attacks the enemy leader."],
-      "56207.no-you-move-forced-interrupt": ["Resolve this attack against him instead."],
-      "56208.fighting-dirty-action": ["Your Captain America leader attacks the enemy leader."],
-      "56211.double-agent-action": ["Place 2 threat on your leader's main scheme."],
-      "56212.spider-blast-action": ["Your Spider-Woman leader attacks the enemy leader."],
     });
   });
 

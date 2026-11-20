@@ -15,10 +15,17 @@
  */
 
 import { emit, type Ctx } from "./ctx.js";
-import type { InstanceId, PlayerId, TeamId } from "./ids.js";
-import { areaOfCard, nextClockwisePlayer, playerOrder } from "./query.js";
+import type { EncounterDeckId, InstanceId, PlayerId, TeamId } from "./ids.js";
+import {
+  activeEncounterDeckId,
+  areaOfCard,
+  encounterDeckArea,
+  nextClockwisePlayer,
+  playerOrder,
+  villainOf,
+} from "./query.js";
 import type { GameState, PlayerState } from "./state.js";
-import { activeTeamOf, teamOf, teamsOf, type TeamState } from "./team.js";
+import { activeTeamOf, teamFirstPlayerOf, teamInArea, teamOf, teamsOf, type TeamState } from "./team.js";
 
 /**
  * "In player order" for the phase being played (RRG 1.8 "In Player Order", p. 24): the active team's players from its
@@ -98,4 +105,37 @@ export function switchActiveTeam(ctx: Ctx, id: TeamId, phase: "setup" | "player"
   const activeVillainId = area?.activeVillainId ?? ctx.state.activeVillainId;
   ctx.state = { ...ctx.state, activeTeamId: id, firstPlayerId, activeVillainId };
   emit(ctx, { type: "activeTeamChanged", teamId: id, phase, firstPlayerId, activeVillainId });
+}
+
+/**
+ * The encounter deck an enemy's boost card comes from: the active villain's ("the encounter deck"), and with two teams
+ * the deck of the game area the enemy is in now. MC56 p. 16 (scenario rules override RRG per Golden Rule, RRG p. 4):
+ * an attacking leader "is given a facedown boost card from its encounter deck", which is the deck of the area it sits
+ * in, whichever team's card made it attack (Q6, settled by the rules expert 2026-11-20); a minion moved to the other
+ * area takes its boost from the deck of the area it is in now (N5 per owner decision 2026-11-20).
+ */
+export function boostDeckOf(state: GameState, enemyId: InstanceId): EncounterDeckId {
+  if (!state.teams) return activeEncounterDeckId(state);
+  const area = areaOfCard(state, enemyId);
+  const leader = area?.activeVillainId ? villainOf(state, area.activeVillainId) : undefined;
+  return leader?.encounterDeckId ?? activeEncounterDeckId(state);
+}
+
+/**
+ * The first player of the team whose game area holds `id` (MC56 p. 16, a leader attacking a leader: "The first player
+ * on the defending leader's team" turns the boost card faceup, and that team plays in the attacker's area; Q5, settled
+ * by the rules expert 2026-11-20). Null in a game without stored teams, and for a card in no team's area.
+ */
+export function firstPlayerOfAreaHolding(state: GameState, id: InstanceId): PlayerId | null {
+  if (!state.teams) return null;
+  const area = areaOfCard(state, id);
+  const team = area ? teamInArea(state, area) : null;
+  return team ? teamFirstPlayerOf(state, team) : null;
+}
+
+/** The first player of the team that faces encounter deck `deckId`, or null (no stored teams, or no team faces it). */
+export function firstPlayerFacingDeck(state: GameState, deckId: EncounterDeckId): PlayerId | null {
+  const area = encounterDeckArea(state, deckId);
+  const team = area ? teamInArea(state, area) : null;
+  return team ? teamFirstPlayerOf(state, team) : null;
 }

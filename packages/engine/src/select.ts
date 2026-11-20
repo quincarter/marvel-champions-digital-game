@@ -9,6 +9,7 @@ import {
   teamsOf,
   type TeamState,
   yourLeaderOf,
+  teamFirstPlayerOf,
 } from "./team.js";
 import { gameModeOf } from "./game-mode.js";
 import {
@@ -985,10 +986,16 @@ function readEachChoosableMainScheme<T>(
  * §3.4). RRG 1.8 "Acceleration Token" (p. 5): they "still add threat to the main scheme during step one" — to "the main
  * scheme", so to the glider's when there is one (MC27 p. 17), else the central one.
  */
-export function offSchemeAccelerationTokens(state: GameState): number {
+export function offSchemeAccelerationTokens(state: GameState, area?: GameAreaState): number {
   const schemes = new Set(mainSchemeStates(state).map((s) => s.instanceId));
+  // `area`: only the tokens on cards in that game area or in every area (two teams, MC56 p. 16).
+  const inArea = (id: InstanceId): boolean => {
+    if (!area) return true;
+    const at = areaOfCard(state, id);
+    return at === null || at.areaId === area.areaId;
+  };
   return cardsInPlay(state)
-    .filter((id) => !schemes.has(id))
+    .filter((id) => !schemes.has(id) && inArea(id))
     .reduce((sum, id) => sum + (getInstance(state, id)?.counters["acceleration"] ?? 0), 0);
 }
 
@@ -1471,7 +1478,7 @@ export function explainQuery(
   query: TargetQuery,
   context: EffectContext,
 ): QueryExclusion | null {
-  if (!inContextArea(state, id, context)) return "otherGameArea";
+  if (!query.anyGameArea && !inContextArea(state, id, context)) return "otherGameArea";
   const instance = getInstance(state, id);
   if (!instance) return "unknownCard";
   // A stand-in for another group's card is in that group's game area for everything but the power made against it.
@@ -2728,8 +2735,11 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const first = resolvePlayers(state, ref.first, context);
       return first.length > 0 ? first : resolvePlayers(state, ref.otherwise, context);
     }
-    case "firstPlayer":
-      return [state.firstPlayerId];
+    case "firstPlayer": {
+      // With two teams, the first player of the team the effect is read for: each team has its own token (MC56 p. 16).
+      const team = state.teams ? contextTeam(state, context) : null;
+      return [team ? teamFirstPlayerOf(state, team) : state.firstPlayerId];
+    }
     case "each": {
       // The Once and Future Kang insert, "Rules Clarifications": "'Each player' refers to each player in the same game
       // area" (docs/phase7-wave2.md §3.1).
@@ -2955,6 +2965,13 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
     case "mainScheme": {
       // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
       if (ref.of === "central") return [state.mainScheme.instanceId];
+      // "Your leader's main scheme" (MC56 p. 16): the main scheme of the game area your leader is in; none with one team
+      // (MC56 p. 6: "your leader" cannot be resolved).
+      if (ref.of === "yourLeader") {
+        const [leader] = leaderFor(state, "yours", context, () => []);
+        const scheme = leader ? mainSchemeFor(state, areaOfCard(state, leader)) : null;
+        return scheme ? [scheme.instanceId] : [];
+      }
       // "Your main scheme" (docs/phase7-wave11-scenarios.md §S3.2): the one in your play area, wherever the card is.
       if (ref.of === "yours" && hasPerPlayerMainSchemes(state)) {
         const you = context.scopedPlayerId ?? context.controllerId;

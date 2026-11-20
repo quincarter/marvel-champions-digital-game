@@ -39,6 +39,8 @@ import {
   whenRevealedHero,
   you,
   yourTeam,
+  enemyAttacksEnemy,
+  yourLeader,
 } from "../../../dsl/index.js";
 
 /** "Each player on your team": the players of the team whose area holds the card (MC56 p. 20). */
@@ -75,7 +77,8 @@ const RIGHTEOUS_CAUSE = whenRevealed(
  * happens (MC56 p. 6).
  */
 const WHATEVER_IT_TAKES_ALTER_EGO = whenRevealedAlterEgo(
-  ifThen(inCompetitiveMode(), [competitiveOnly("The enemy leader attacks your leader.")]),
+  // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q5, Q6 (settled 2026-11-20): the leader-versus-leader attack.
+  enemyAttacksEnemy(enemyLeader, yourLeader, { boost: true }),
 );
 
 /** Whatever It Takes, Hero face: "The enemy leader attacks you." */

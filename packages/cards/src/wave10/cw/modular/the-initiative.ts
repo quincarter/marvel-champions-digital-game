@@ -4,7 +4,6 @@ import {
   attachCard,
   boost,
   chosen,
-  competitiveOnly,
   confuse,
   constant,
   dealIndirectDamage,
@@ -32,6 +31,10 @@ import {
   whenRevealed,
   yourIdentity,
   you,
+  chooseTarget,
+  enemyTeam,
+  enemyTeamChooses,
+  engage,
 } from "../../../dsl/index.js";
 
 const AVENGER = trait("AVENGER");
@@ -86,9 +89,15 @@ export const MODULAR_THE_INITIATIVE: AbilityRegistry = defineAbilities({
   "56080.when-revealed": whenRevealed(
     ifThen(
       inCompetitiveMode(),
-      competitiveOnly(
-        "In competitive mode, the enemy team attaches Drafted to a minion engaged with them and that minion engages you.",
-      ),
+      // The minion moves across the table and keeps its home deck: defeated, it and Drafted go to the discard pile of
+      // the deck it came from (MC56 FAQ p. 20; Q17 A, settled 2026-11-20). MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4).
+      [
+        chooseTarget("drafted", query("minion", { engagedWithPlayer: enemyTeam, anyGameArea: true }), {
+          chooser: enemyTeamChooses,
+        }),
+        attachCard(self, chosen("drafted")),
+        engage(chosen("drafted"), you),
+      ],
       [discardEncounterUntil(query("minion"), "found"), revealCard(chosen("found")), attachCard(self, chosen("found"))],
     ),
   ),

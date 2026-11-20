@@ -1,6 +1,7 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
 import { displayNameOf } from "../visibility.js";
+import { boostDeckOf } from "../team-phases.js";
 import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   announceResourcesSpent,
@@ -145,7 +146,8 @@ export const dashedStatSkipsActivation = (
  * `EffectSpec giveBoostCard.forBasicPower`).
  */
 export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation = false, forBasicPower = false): void {
-  const id = drawEncounterCard(ctx);
+  // With two teams, from the deck of the area the enemy is in (`boostDeckOf`; MC56 p. 16, Q6, N5).
+  const id = drawEncounterCard(ctx, boostDeckOf(ctx.state, enemyId));
   if (!id) return;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "boost", hostInstanceId: enemyId });

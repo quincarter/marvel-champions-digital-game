@@ -6,7 +6,6 @@ import {
   cannotAttach,
   chooseTarget,
   chosen,
-  competitiveOnly,
   constant,
   defineAbilities,
   enemyActivates,
@@ -24,6 +23,10 @@ import {
   surge,
   whenRevealed,
   you,
+  enemyAttacksEnemy,
+  yourLeader,
+  enemyLeader,
+  atEndOfActivation,
 } from "../../../dsl/index.js";
 import { STREET_DEFENDERS } from "./defenders.js";
 
@@ -74,16 +77,14 @@ export const MODULAR_HELLS_KITCHEN: AbilityRegistry = defineAbilities({
   "56190.when-revealed": whenRevealed(
     ifThen(
       inCompetitiveMode(),
-      [competitiveOnly("Iron Fist attacks your leader.")],
+      // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+      [enemyAttacksEnemy(self, yourLeader, { boost: true })],
       enemyActivates(self, { against: you }),
     ),
   ),
   "56190.boost": boost(
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly(
-        "The enemy leader attacks your leader (after this activation). Do not give it a boost card for this attack.",
-      ),
-    ]),
+    // "after this activation", with no boost card (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader)),
   ),
 
   "56191.resistance-fighter-constant": cannotAttach(surge()),
