@@ -20,9 +20,12 @@ export async function leaveSeatForWatch(board: Phaser.Scene): Promise<void> {
     goToScreen(board, SCENES.title, {});
     return;
   }
+  // The table takes no more input from here on: nothing may reach the device's own store once the seat is put away.
+  (board as { holdForLeave?: () => void }).holdForLeave?.();
   for (const id of room.mySeats) releaseSeat(id);
-  leaveSeatGame();
+  // The watch is opened first, while the seat still holds the session: the swap happens only when it is ready.
   const watched = await watchRoomGame();
+  leaveSeatGame();
   if (!watched.ok) {
     goToScreen(board, SCENES.title, {});
     return;

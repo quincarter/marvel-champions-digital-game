@@ -219,7 +219,10 @@ export function seatOfPlayerIn(state: RoomState, playerId: string): SeatOfPlayer
     seat,
     holderName: seat.holderName,
     // A seat I hold but that is away (I left it) is not one I act for until I take it up again.
-    mine: (seat.mine && !seat.away) || (state.role === "host" && seat.takenOver),
+    // A guest's seat the host took over, or one on another build, is not theirs to act for.
+    mine:
+      (seat.mine && !seat.away && (state.role === "host" || (!seat.takenOver && !seat.mismatch))) ||
+      (state.role === "host" && seat.takenOver),
     away: seat.away,
     takenOver: seat.takenOver,
   };

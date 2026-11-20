@@ -29,6 +29,7 @@ import { SessionStore } from "../store/session-store.js";
 import type { LiveRoomIn } from "../live/live-room-protocol.js";
 import { onRoomState, roomState, watchRoomGame } from "./room.js";
 import { postRoomCommand, setSeatLeaver } from "./live-watch.js";
+import { setSeatGameUp } from "../view/seat-context.js";
 
 export type PlayRoomGame =
   /** A seat that may act: hand `host` to `enterSeatGame`. */
@@ -135,6 +136,7 @@ export async function enterSeatGame(
   seated = { seat: host, ...previous, gameLog, villainReview, stopTracking };
   // The Title ends a room's game for a guest too: it puts the seat away through this (`leaveRoomAtTitle`).
   setSeatLeaver(leaveSeatGame);
+  setSeatGameUp(true);
   try {
     // Not `resume`: that syncs a saved game first, and the room's game is no save of this device's.
     await store.open();
@@ -156,6 +158,7 @@ export function leaveSeatGame(): void {
   if (!current) return;
   seated = null;
   setSeatLeaver(null);
+  setSeatGameUp(false);
   current.stopTracking();
   const { store } = swapSessionHost(current.host, current.store);
   const session = appSession();

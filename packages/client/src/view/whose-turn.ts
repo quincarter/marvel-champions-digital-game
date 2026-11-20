@@ -88,7 +88,11 @@ export function whoseTurnOf(room: RoomState, acting: Acting | null): TurnLine | 
           : "turn.yourChoice";
     return { key, params, tone: "mine" };
   }
-  if (found.takenOver) return { key: "turn.hostPlays", params, tone: "other" };
+  if (found.takenOver) {
+    return found.holderName === null
+      ? { key: "turn.hostPlaysVacant", params: { hero }, tone: "other" }
+      : { key: "turn.hostPlays", params, tone: "other" };
+  }
   // A guest who conceded left the seat: nobody holds the hero until the host takes it over or hands it on.
   if (found.seat.holder === null) return { key: "turn.vacant", params: { hero }, tone: "away" };
   if (found.away) return { key: "turn.away", params, tone: "away" };

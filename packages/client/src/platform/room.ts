@@ -27,6 +27,7 @@ import {
   type SeatOfPlayer,
 } from "../live/room-state.js";
 import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
+import { setSeatContextSource } from "../view/seat-context.js";
 
 export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
 
@@ -41,6 +42,7 @@ function publish(next: RoomState): void {
 setRoomStateListener(publish);
 
 export const roomState = (): RoomState => state;
+setSeatContextSource(() => state);
 
 /** Calls `listener` with the current state at once, then on every change. Returns the unsubscribe. */
 export function onRoomState(listener: (state: RoomState) => void): () => void {

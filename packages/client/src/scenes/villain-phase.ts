@@ -265,6 +265,8 @@ import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
 import { gateTakebackOf } from "../view/end-turn-takeback.js";
+import { seatContext, seatNoRewind } from "../view/seat-context.js";
+import { heldElsewhere } from "../view/seat-gate.js";
 import {
   abilityName,
   drawInterruptAnswer,
@@ -795,8 +797,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #picks: readonly string[] = [];
   #picksFor: string | null = null;
 
+  /** The open decision is another seat's hero's, in a room game (#881): this device answers nothing for it. */
+  #heldChoice(): boolean {
+    const room = seatContext();
+    const choice = appSession().store.state.game?.pendingChoice;
+    return room !== null && !!choice && heldElsewhere(room.room, choice.playerId, room.seatGame);
+  }
+
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
   #resolve(selectedOptionIds: readonly string[]): void {
+    if (this.#heldChoice()) return;
     void appSession().store.resolveChoice(selectedOptionIds);
   }
 
@@ -1040,12 +1050,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** A defend option picked in the docked panel; picking again leaves it picked. */
   #pickDefender(choiceId: string, optionId: string): void {
+    if (this.#heldChoice()) return;
     this.#defendPick = { choiceId, optionId };
     this.#draw();
   }
 
   /** CONFIRM on the docked defend: the same `resolveChoice` the sheet sends, with the same option id. */
   #confirmDefender(choiceId: string): void {
+    if (this.#heldChoice()) return;
     const pick = this.#defendPick;
     if (!pick || pick.choiceId !== choiceId) return;
     void appSession().store.resolveChoice([pick.optionId]);
@@ -1117,6 +1129,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
     if (this.scene.isActive(SCENES.pause) || this.#logView) return null;
     if (state.inFlight || state.version !== state.commandTrail.length || roomStrictOf(state.config)) return null;
+    // A guest's seat game never takes End turn back (#881).
+    if (seatNoRewind()) return null;
     return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
 
@@ -2089,6 +2103,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): boolean {
     const choice = game.pendingChoice;
     if (!choice) return false;
+    // Another seat's defend decision is theirs (#881): no answer is offered here.
+    if (this.#heldChoice()) return false;
     const picked = this.#defendPick?.choiceId === choice.choiceId ? this.#defendPick.optionId : null;
     const view = defendChoiceViewOf(game, choice, gameDeps(), viewer, picked ? [picked] : []);
     const layout = view ? villainDefendLayout({ panel, kind, optionCount: view.options.length, footer }) : null;

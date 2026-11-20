@@ -12,7 +12,7 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, McTextInput } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
-import { lastChatLines, markChatRead } from "../view/room-chat-unread.js";
+import { markChatRead } from "../view/room-chat-unread.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -22,7 +22,7 @@ export interface RoomChatData {
   readonly draft?: string;
 }
 
-const LINE_HEIGHT = 20;
+const LINE_GAP = 4;
 const buttonType = { ...typeRole.label, size: 13 };
 
 export class RoomChatOverlay extends Phaser.Scene {
@@ -80,6 +80,8 @@ export class RoomChatOverlay extends Phaser.Scene {
     const text = (this.#input?.value ?? this.#value).trim();
     if (text === "") return;
     say(text);
+    // Cleared before the redraw, which keeps what the field holds: a second press must not send it again.
+    this.#input?.setValue("");
     this.#value = "";
     this.#draw();
     this.#input?.focus();
@@ -115,25 +117,35 @@ export class RoomChatOverlay extends Phaser.Scene {
     const footer = fieldHeight + 10 + hit.target + 16;
     const listTop = title.y + title.height + 10;
     const listHeight = box.y + box.height - footer - listTop;
-    const rows = Math.max(1, Math.floor(listHeight / LINE_HEIGHT));
-    const lines = lastChatLines(this.#state.chat, rows);
     this.#lastLines = this.#state.chat.length;
-    if (lines.length === 0) {
+    const shown = this.#state.chat.slice(-60);
+    if (shown.length === 0) {
       this.add.text(box.x + 16, listTop, t("chat.empty"), textStyle(typeRole.body, surface.ink.hex, 0.7));
     }
-    lines.forEach((line, index) => {
+    // Newest first, each line wrapped whole, until the list is full; then laid out oldest to newest.
+    const made: Phaser.GameObjects.Text[] = [];
+    let used = 0;
+    for (let index = shown.length - 1; index >= 0; index -= 1) {
+      const line = shown[index]!;
       const who = line.mine ? "" : `${line.name ?? ""}: `;
       const text = this.add
-        .text(
-          box.x + 16,
-          listTop + index * LINE_HEIGHT,
-          `${who}${line.text}`,
-          textStyle(typeRole.body, surface.ink.hex),
-        )
+        .text(0, 0, `${who}${line.text}`, textStyle(typeRole.body, surface.ink.hex))
         .setFontSize(13)
-        .setFontStyle(line.mine ? "bold" : "normal");
-      text.setWordWrapWidth(textWidth, true).setMaxLines(1);
-    });
+        .setFontStyle(line.mine ? "bold" : "normal")
+        .setWordWrapWidth(textWidth, true);
+      const height = text.height + LINE_GAP;
+      if (used + height > listHeight && made.length > 0) {
+        text.destroy();
+        break;
+      }
+      used += height;
+      made.unshift(text);
+    }
+    let at = listTop;
+    for (const text of made) {
+      text.setPosition(box.x + 16, at);
+      at += text.height + LINE_GAP;
+    }
     const fieldRect: Rect = {
       x: box.x + 16,
       y: box.y + box.height - footer + 8,

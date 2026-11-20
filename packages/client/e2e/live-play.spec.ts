@@ -38,7 +38,7 @@ test("a seated guest acts from their own device and the whose-turn line follows 
 }, info) => {
   test.skip(info.project.name !== "desktop", "two desktop contexts");
   test.setTimeout(240_000);
-  const host = await open(browser, baseURL!, "/?screen=room-play-host&name=Mara");
+  const host = await open(browser, baseURL!, "/?screen=room-play-host&name=Mara&setup=1");
   const code = await waitFor(
     async () => (await host.page.evaluate(() => (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode)) ?? null,
     "the room code",
@@ -46,25 +46,34 @@ test("a seated guest acts from their own device and the whose-turn line follows 
   );
   const guest = await open(browser, baseURL!, `/?screen=room-play-guest&code=${code}&name=Ava`);
   try {
-    await waitForScene(host.page, "Board", 60000);
+    // Setup deal: the host answers its own mulligan only. The guest's mulligan is the guest's: the host's setup screen
+    // shows no controls for it and says who it waits for (the store refuses a host answer for that hero too).
+    await waitForScene(host.page, "SetupDeal", 60000);
     await waitForScene(guest.page, "Board", 60000);
-    // The mulligan is each hero's own choice: the host's first, then the guest's, each named on both boards.
-    await waitForLine(host.page, /^Your choice/, "the host's own mulligan");
     await waitForLine(guest.page, /^Waiting for Mara \(Spider-Man\)/, "the guest waiting for the host");
-    await declineMulligans(host.page);
+    await clickText(host.page, /^Keep all/, { sceneKey: "SetupDeal" });
+    await waitFor(
+      async () =>
+        (await visibleTexts(host.page)).some((t) => /^Waiting for Ava \(Captain Marvel\)/.test(t.text)) ? true : null,
+      "the host waiting for the guest's mulligan",
+      45000,
+    );
+    expect((await visibleTexts(host.page)).some((t) => /^(Keep all|Mulligan)/.test(t.text))).toBe(false);
     await waitForLine(guest.page, /^Your choice/, "the guest's own mulligan");
-    await waitForLine(host.page, /^Waiting for Ava \(Captain Marvel\)/, "the host waiting for the guest");
     await declineMulligans(guest.page);
+    await waitForScene(host.page, "Board", 60000);
     // The host's turn.
     await waitForLine(host.page, /^Your turn/, "the host's turn");
     await waitForLine(guest.page, /^Mara's turn \(Spider-Man\)/, "the guest seeing whose turn it is");
-    // The guest has no actions while it is the host's turn: Undo asks the host instead of rewinding.
-    expect((await visibleTexts(guest.page)).some((t) => /ask host to undo/i.test(t.text))).toBe(true);
+    // Not the guest's hero: no Undo, not even a request, until its own turn.
+    expect((await visibleTexts(guest.page)).some((t) => /ask host to undo/i.test(t.text))).toBe(false);
     await clickText(host.page, "End turn", { sceneKey: "Board" });
     await settle(host.page);
     // The guest's turn, played from the guest's own device.
     await waitForLine(guest.page, /^Your turn/, "the guest's turn");
     await waitForLine(host.page, /^Ava's turn \(Captain Marvel\)/, "the host seeing the guest's turn");
+    // Its own hero: Undo is a request to the host, not a rewind.
+    expect((await visibleTexts(guest.page)).some((t) => /ask host to undo/i.test(t.text))).toBe(true);
     await clickText(guest.page, "End turn", { sceneKey: "Board" });
     await settle(guest.page);
     // The proposal reached the host's engine and came back: the turn passed on both boards.

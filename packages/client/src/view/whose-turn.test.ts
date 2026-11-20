@@ -128,3 +128,26 @@ describe("heldElsewhere (the board's gating)", () => {
     expect(heldElsewhere(room(), null, true)).toBe(false);
   });
 });
+
+describe("a guest's seat the host took over or that is on another build", () => {
+  const guestRoom = (over: Partial<RoomSeat>): RoomState =>
+    room({ seats: [seat({ mine: true, ...over })], participants: [host] });
+
+  it("is not mine: the guest neither acts for it nor is told it is their turn", () => {
+    for (const over of [{ takenOver: true }, { mismatch: true }]) {
+      const state = guestRoom(over);
+      expect(heldElsewhere(state, "p1", true)).toBe(true);
+      expect(whoseTurnOf(state, turn("p1"))?.tone).not.toBe("mine");
+    }
+  });
+
+  it("names the host as playing the hero while it is taken over", () => {
+    const state = guestRoom({ takenOver: true, away: true });
+    expect(whoseTurnOf(state, turn("p1"))).toMatchObject({
+      key: "turn.hostPlays",
+      params: { name: "Ava", hero: "Spider-Man" },
+    });
+    const vacant = guestRoom({ takenOver: true, holder: null, holderName: null, mine: false });
+    expect(whoseTurnOf(vacant, turn("p1"))?.key).toBe("turn.hostPlaysVacant");
+  });
+});

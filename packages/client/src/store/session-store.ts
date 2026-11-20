@@ -13,6 +13,9 @@
  */
 
 import { roomStrictOf } from "../view/room-strict.js";
+import { seatContext } from "../view/seat-context.js";
+import { heldElsewhere } from "../view/seat-gate.js";
+import { t } from "../i18n/translate.js";
 import {
   type ChoiceId,
   type Command,
@@ -279,6 +282,13 @@ export class SessionStore {
    */
   async dispatch(command: Command): Promise<boolean> {
     if (this.#state.inFlight) return false;
+    // A room game (#881): nothing is answered for a hero whose seat this device does not act for, whatever screen asks
+    // (the board, setup, the villain phase). Concede is the one command that is the table's, not a hero's.
+    const room = seatContext();
+    if (room && command.type !== "concede" && heldElsewhere(room.room, command.playerId, room.seatGame)) {
+      this.#set({ ...this.#state, error: t("seat.refusal.notYourTurn") });
+      return false;
+    }
     this.#set({ ...this.#state, inFlight: true });
     try {
       const drawsBefore = this.#state.game?.rng.draws;

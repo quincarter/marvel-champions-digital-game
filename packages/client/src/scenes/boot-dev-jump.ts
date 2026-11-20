@@ -376,7 +376,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }],
       seed: intParam(params.get("seed"), 7),
     });
-    return { key: SCENES.board, data: {} };
+    // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
+    return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
   // `?screen=online`: Play online.
   if (screen === "online") return { key: SCENES.online, data: {} };

@@ -63,7 +63,8 @@ import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } fr
 import { roomStrictOf, strictReason } from "../../view/room-strict.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { askHost } from "../../platform/room.js";
-import { seatContext } from "../../view/seat-context.js";
+import { seatOfPlayerIn } from "../../live/room-state.js";
+import { seatContext, seatNoRewind } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
 import {
   undoOf,
@@ -2052,9 +2053,11 @@ export class BoardController {
     const { game, perspectiveId, commandTrail, offTurnSeat, config } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
     // A seated guest never rewinds: in a Host control room Undo asks the host, in a Strict one it says who turned it off.
+    // It is offered only while the acting hero is one this device holds (any other hero is not the guest's to undo).
     const seat = seatContext();
     if (seat?.seatGame) {
       if (game.outcome || game.pendingChoice) return null;
+      if (!seatOfPlayerIn(seat.room, perspectiveId)?.mine) return null;
       return seat.room.settings?.playMode === "strict"
         ? { kind: "unavailable", reason: strictReason() }
         : { kind: "ask" };
@@ -2123,7 +2126,7 @@ export class BoardController {
    * second press while one is in flight, or in the moment after one, is ignored, so two undos are two deliberate steps.
    */
   async undo(): Promise<void> {
-    // The guest's ask goes to the host even while it is another seat's turn: the host undoes the active hero's last move.
+    // The guest's ask goes to the host, which undoes the acting hero's last move; it is offered on my own hero's turn only.
     if (this.undoOffer()?.kind === "ask") {
       askHost("undo");
       this.#noteUndo(t("ask.undoSent"));
@@ -2204,6 +2207,8 @@ export class BoardController {
    * same notice and the same one-at-a-time guard as Undo. False when `target` isn't reachable or nothing was undone.
    */
   async undoTo(target: number): Promise<boolean> {
+    // A guest's seat game never rewinds on its own (#881): the host takes moves back.
+    if (seatNoRewind()) return false;
     const targets = this.undoTargets();
     const steps = targets.indexOf(target) + 1;
     if (steps === 0) return false;

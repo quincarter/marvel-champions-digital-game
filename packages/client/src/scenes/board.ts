@@ -42,7 +42,6 @@ import { activeSeat } from "../platform/seat-play.js";
 import { actingOf, inRoomGame, whoseTurnOf, type TurnLine } from "../view/whose-turn.js";
 import { promptViewOf, roomChatOn, roomPromptsOf, type PromptView } from "../view/room-prompts.js";
 import { heldElsewhere } from "../view/seat-gate.js";
-import { setSeatContext } from "../view/seat-context.js";
 import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
 import { TURN_ROW_HEIGHT, promptRowHeight } from "../view/layout.js";
 import { askToConfirm } from "./end-turn-confirm.js";
@@ -592,6 +591,7 @@ export class BoardScene extends Phaser.Scene {
   create(): void {
     holdGameArt(this);
     this.#replay = activeReplay();
+    this.#leaving = false;
     this.#replayBarTop = false;
     // A scene is reused from game to game: each game shows its own first "not offered" notices.
     this.#unofferedShown = new Set();
@@ -689,7 +689,6 @@ export class BoardScene extends Phaser.Scene {
     this.#room = roomState();
     this.#waiting.clear();
     if (!this.#replay) resetChatRead();
-    setSeatContext(() => ({ seatGame: activeSeat() !== null, room: this.#room }));
     let roomShown = this.#roomKey();
     const roomOff = onRoomState((room) => {
       this.#room = room;
@@ -708,7 +707,6 @@ export class BoardScene extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       roomOff();
-      setSeatContext(null);
     });
     const config = store.state.config;
     // A replay plays its scenario's music too, so it is in the mood of the game it shows (#858).
@@ -2791,9 +2789,21 @@ export class BoardScene extends Phaser.Scene {
     return heldElsewhere(this.#room, acting?.playerId ?? null, activeSeat() !== null);
   }
 
+  /** A guest's seat is being put away (#881): the table takes no more input, so nothing reaches the device's own store. */
+  #leaving = false;
+
+  holdForLeave(): void {
+    this.#leaving = true;
+    this.#controller.setReadOnly(true);
+    for (const key of [SCENES.choice, SCENES.villainPhase]) {
+      if (this.scene.isActive(key)) this.scene.stop(key);
+    }
+    this.#choiceOpen = false;
+  }
+
   /** The table is read-only while it is another seat's decision: no action, no choice sheet (#881). */
   #applyGate(state: SessionState): void {
-    this.#controller.setReadOnly(this.#replay !== null || this.#held(state));
+    this.#controller.setReadOnly(this.#replay !== null || this.#leaving || this.#held(state));
   }
 
   #openChat(draft?: string): void {
