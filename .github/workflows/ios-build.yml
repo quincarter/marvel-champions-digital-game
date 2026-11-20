@@ -30,6 +30,12 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels the build of the older one, so an older .ipa never replaces the preview of a
+# newer one. Release and manual runs each get a group of their own (the run id) and are never cancelled.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ios-preview-pr-{0}', github.event.pull_request.number) || format('ios-build-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ipa:
     name: iOS unsigned .ipa (${{ matrix.lang }})
@@ -127,6 +133,12 @@ jobs:
           if [ ! -f "$built" ]; then
             echo "::error::The .ipa was not found in the build artifact."
             exit 1
+          fi
+          # A newer push may have landed while this built: leave the preview to that push's run.
+          current=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid) || current=""
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo "PR #${PR} has moved on from ${HEAD_SHA:0:7}; not publishing this build."
+            exit 0
           fi
           name="$(basename "$built" -iOS-unsigned.ipa)-PR${PR}-${HEAD_SHA:0:7}-iOS-unsigned.ipa"
           mv "$built" "$name"
