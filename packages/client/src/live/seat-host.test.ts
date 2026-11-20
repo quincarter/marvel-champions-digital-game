@@ -102,13 +102,14 @@ const appended = (from: number, commands: readonly Command[]) => ({
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function seatAt(count: number) {
+async function seatAt(count: number, options: { leaveSeats?: () => void } = {}) {
   const game = await hostedGame();
   for (let i = 0; i < count; i++) game.next();
   const feed = new FakeFeed();
   const timers: { run: () => void; ms: number; cleared: boolean }[] = [];
   const follower = new SeatFollower({ feed, packs: [] });
   const host = new SeatEngineHost(follower, {
+    ...options,
     setTimer: (run, ms) => {
       const timer = { run, ms, cleared: false };
       timers.push(timer);
@@ -171,7 +172,8 @@ describe("SeatEngineHost", () => {
     const command = anyLegalCommand(await host.legalActions(acting));
 
     const result = host.dispatch(command);
-    expect(feed.sent).toEqual([{ kind: "propose", command, base: 2 }]);
+    // The stamp is the identity of the table it was built on: the host's own state at the same count has the same one.
+    expect(feed.sent).toEqual([{ kind: "propose", command, base: 2, stamp: game.core.liveChecksum() }]);
     // Nothing is applied before the echo.
     expect(updates.at(-1)!.version).toBe(2);
 
@@ -202,6 +204,39 @@ describe("SeatEngineHost", () => {
       expect(done.error.code).toBe("not_active_player");
       expect(done.error.command).toEqual(command);
     }
+  });
+
+  test("the room's own refusal of a proposal fails it at once, not after the wait", async () => {
+    const { feed, host, first, timers } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    const result = host.dispatch(command);
+    feed.say({ ch: "room", kind: "refused", reason: "not-seated" });
+    const done = await result;
+    expect(done.ok).toBe(false);
+    if (!done.ok) expect(done.error.message).toBe(refusalMessage("not-seated"));
+    expect(timers.at(-1)!.cleared).toBe(true);
+  });
+
+  test("a room refusal with no proposal outstanding (chat, a seat request) is not a refused move", async () => {
+    const { feed, host, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    feed.say({ ch: "room", kind: "refused", reason: "rate-limited" });
+    await flush();
+    expect(host.status.over).toBe(false);
+  });
+
+  test("Concede from a seat leaves the seats and proposes nothing: the game goes on", async () => {
+    const leaveSeats = vi.fn();
+    const { feed, host, first } = await seatAt(2, { leaveSeats });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const done = await host.dispatch({ type: "concede", playerId: acting } as Command);
+    expect(done.ok).toBe(true);
+    expect(leaveSeats).toHaveBeenCalledTimes(1);
+    expect(feed.sent).toEqual([]);
   });
 
   test("a proposal nobody answers is given up after the timeout", async () => {

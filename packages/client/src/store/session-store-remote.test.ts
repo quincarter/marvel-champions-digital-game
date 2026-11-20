@@ -18,6 +18,12 @@ const CONFIG: SessionConfig = {
 /** A local host that tags the update of the next dispatch as a seat holder's command, as the worker host does. */
 class RemoteTaggingHost extends LocalEngineHost {
   remote: Command | null = null;
+  /** While set, this host's own dispatches wait for it (a round trip to the engine that has not returned). */
+  gate: Promise<void> | null = null;
+  override async dispatch(command: Command) {
+    if (this.gate && !this.remote) await this.gate;
+    return super.dispatch(command);
+  }
   override subscribe(listener: UpdateListener): () => void {
     return super.subscribe((update: EngineUpdate) => {
       const remote = this.remote;
@@ -68,5 +74,26 @@ describe("a seat holder's command in the host's store", () => {
     await host.dispatch(first);
     expect(await store.dispatch(anyLegalCommand(await host.legalActions(store.state.legal!.playerId)))).toBe(true);
     expect(store.state.commandTrail).toHaveLength(store.state.version);
+  });
+});
+
+describe("a seat holder's command while the host's own is out", () => {
+  test("does not clear the host's in-flight flag", async () => {
+    const host = new RemoteTaggingHost();
+    const store = new SessionStore(host);
+    await store.start(CONFIG);
+    const first = anyLegalCommand(await host.legalActions(store.state.legal!.playerId));
+    let release!: () => void;
+    host.gate = new Promise<void>((resolve) => (release = resolve));
+    // The store's own dispatch is waiting on the engine while a seat's command lands first.
+    const dispatching = store.dispatch(first);
+    expect(store.state.inFlight).toBe(true);
+    host.remote = first;
+    await host.dispatch(first);
+    expect(store.state.version).toBe(1);
+    expect(store.state.inFlight).toBe(true);
+    release();
+    await dispatching;
+    expect(store.state.inFlight).toBe(false);
   });
 });

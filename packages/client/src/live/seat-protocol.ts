@@ -21,6 +21,8 @@ export interface SeatFeedPropose {
   readonly kind: "propose";
   readonly command: Command;
   readonly base: number;
+  /** The table's identity at `base` (`SeatCore.stampAt`): the host dispatches only onto the table it names. */
+  readonly stamp?: string;
 }
 
 /** What the room worker sends the room for a seat's feed message: the `propose` of a `SeatFeedPropose`, else null. */
@@ -29,7 +31,14 @@ export function seatFeedMessage(data: unknown): Omit<Extract<ClientMessage, { ki
   const m = data as Partial<SeatFeedPropose>;
   if (m.kind !== "propose" || typeof m.base !== "number" || !Number.isInteger(m.base) || m.base < 0) return null;
   if (typeof m.command !== "object" || m.command === null) return null;
-  return { ch: "game", kind: "propose", table: FIRST_TABLE, command: m.command, base: m.base };
+  return {
+    ch: "game",
+    kind: "propose",
+    table: FIRST_TABLE,
+    command: m.command,
+    base: m.base,
+    ...(typeof m.stamp === "string" && m.stamp !== "" ? { stamp: m.stamp } : {}),
+  };
 }
 
 /** Why a seat's proposal came back: the host's reasons, or the room's own soft refusal when it never reached the host. */

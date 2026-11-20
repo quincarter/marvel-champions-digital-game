@@ -344,7 +344,11 @@ export class SessionStore {
     if (roomStrictOf(this.#state.config)) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
-      const update = await this.#host.rewindTo(commandCount, options);
+      // Worked out from this version: a seat's command the engine applied since (not yet absorbed here) refuses it.
+      const update = await this.#host.rewindTo(commandCount, {
+        ...options,
+        fromVersion: options?.fromVersion ?? this.#state.version,
+      });
       // The trail has one entry per command dispatched so far, in the same order `commandTrail.length ===
       // version` already holds elsewhere in this class — truncating it to the rewound version keeps that true.
       this.#absorb(update, { force: true, commandTrail: this.#state.commandTrail.slice(0, update.version) });
@@ -481,7 +485,8 @@ export class SessionStore {
       offTurnSeats: [],
       offTurnSeat: null,
       peekSeat: null,
-      inFlight: false,
+      // A seat holder's command lands while this host's own dispatch is still out: that one clears the flag when it returns.
+      inFlight: update.remote ? this.#state.inFlight : false,
       error: null,
       setupError: null,
       record: update.record,

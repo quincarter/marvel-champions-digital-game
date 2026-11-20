@@ -194,6 +194,12 @@ export interface LobbySettings {
   readonly mods: readonly LobbyMod[];
   /** May one participant hold more than one seat? */
   readonly multiSeat: boolean;
+  /**
+   * May the host take over or hand on a seat whose player left or is away, during a game? Default true. Off: the room
+   * refuses `take-over` and a `seat-assign` of such a seat (`handover-off`), and a seat its holder leaves mid-game
+   * stays theirs (`left`), to take again with their token.
+   */
+  readonly handover?: boolean;
   readonly chat: boolean;
   readonly contentVersion: string;
   readonly appVersion: string;
@@ -230,6 +236,11 @@ export interface LobbySeat extends LobbySeatSpec {
    * refused, so two devices never act for one hero. Stored with the seat.
    */
   readonly takenOver?: boolean;
+  /**
+   * The holder left the seat during a game while `handover` is off: it stays reserved for them and nobody acts for it
+   * until they take it again (their seat token, or asking for it).
+   */
+  readonly left?: boolean;
   /** Participants who asked for the seat and await the host's answer. Memory only: a woken room starts with none. */
   readonly requested?: readonly string[];
 }
@@ -355,6 +366,12 @@ export type ClientMessage =
       readonly table: string;
       readonly command: TableCommand;
       readonly base: number;
+      /**
+       * The state the command was built on, as the proposer's engine has it (`replayChecksum` after `base` commands):
+       * the host dispatches only when its own state at `base` is that one, so a rewind and a new move that reach the
+       * same count never pass for the old position. Opaque to the room, which relays it.
+       */
+      readonly stamp?: string;
     }
   /** Host only: turn a proposal down. The room sends it to participant `to` alone, as `proposal-refused` without `to`. */
   | {
@@ -472,6 +489,8 @@ export type ServerMessage =
       readonly seats: readonly string[];
       readonly command: TableCommand;
       readonly base: number;
+      /** The proposer's `stamp`, relayed untouched (absent when it sent none). */
+      readonly stamp?: string;
     }
   /** To the proposer alone: the host turned its proposal down. Keep following the log. */
   | {
@@ -509,7 +528,7 @@ export type ServerMessage =
  * equal). `name-required`: a lobby room's `hello` had no usable name (the socket is closed). `rate-limited`: chat over
  * its limit. `multi-seat`: a second seat while the host has `multiSeat` off. `not-seated`: a `propose` or `request` from
  * someone who holds no seat at that table that may act (a mismatched or taken-over seat does not count). `strict`: a
- * `request` in a Strict room. `not-away`: `take-over` of a seat whose holder is connected or absent. Only `bad-message`, `too-large` and
+ * `request` in a Strict room. `not-away`: `take-over` of a seat whose holder is connected. Only `bad-message`, `too-large` and
  * `not-allowed` count toward the room closing a noisy socket.
  */
 export type RefusalReason =
@@ -525,6 +544,7 @@ export type RefusalReason =
   | "not-seated"
   | "strict"
   | "not-away"
+  | "handover-off"
   | "seat-taken"
   | "no-such-seat"
   | "no-such-participant";
@@ -559,6 +579,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (v.playMode !== undefined && v.playMode !== "strict" && v.playMode !== "host") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
+  if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.tableRules !== undefined) {
     if (!isRecord(v.tableRules) || (JSON.stringify(v.tableRules)?.length ?? 0) > MAX_TABLE_RULES_CHARS) return false;
@@ -627,7 +648,12 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "game:end":
       return ok(isTable(m.table));
     case "game:propose":
-      return ok(isTable(m.table) && "command" in m && isCount(m.base));
+      return ok(
+        isTable(m.table) &&
+          "command" in m &&
+          isCount(m.base) &&
+          (m.stamp === undefined || (typeof m.stamp === "string" && m.stamp.length <= MAX_SEAT_PLAYER_CHARS)),
+      );
     case "game:proposal-refused":
       return ok(
         isTable(m.table) &&

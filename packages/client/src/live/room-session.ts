@@ -62,6 +62,7 @@ export interface GameHooks {
     readonly players: readonly string[];
     readonly command: unknown;
     readonly base: number;
+    readonly stamp?: string;
   }) => void;
 }
 
@@ -92,7 +93,7 @@ const CAPS = ["watch", "chat", "seats"] as const;
 /** A host also judges seat holders' proposals (issue #881). */
 const HOST_CAPS = ["watch", "chat", "seats", "play"] as const;
 
-const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed"]);
+const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed", "refused"]);
 const SEAT_REFUSED_TO_CLOSE = new Set(["name-required", "full"]);
 
 export class RoomSession {
@@ -267,16 +268,18 @@ export class RoomSession {
   // -- the lobby --------------------------------------------------------------------------------------------------
 
   lobbySet(change: { readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }): void {
-    if (this.role !== "host" || (!change.settings && !change.seats)) return;
+    // Once the table has its game the seats are fixed, and so is who plays which hero (`player`): a seat list changed
+    // under a running game would repoint proposals at other heroes. Settings stay the host's to change.
+    const frozen = this.#model.state().started && !this.#model.state().gameOver;
+    const seats = frozen ? undefined : change.seats;
+    if (this.role !== "host" || (!change.settings && !seats)) return;
     this.#say({
       ch: "room",
       kind: "lobby-set",
       ...(change.settings ? { settings: change.settings } : {}),
       // The room drops a seat's `player` unless every `lobby-set` repeats it: seat n plays engine player p<n> (the order
       // setup built the game's players in), so a spec without one gets it from its position.
-      ...(change.seats
-        ? { seats: change.seats.map((spec, index) => ({ ...spec, player: spec.player ?? `p${index + 1}` })) }
-        : {}),
+      ...(seats ? { seats: seats.map((spec, index) => ({ ...spec, player: spec.player ?? `p${index + 1}` })) } : {}),
     });
   }
 
@@ -311,6 +314,20 @@ export class RoomSession {
     const request = this.#model.takeRequest(id);
     if (!request) return;
     this.#say({ ch: "game", kind: "request-answer", table: FIRST_TABLE, to: request.from, accepted });
+    this.#publish();
+  }
+
+  /** Guest: asks the host to undo or change something (Host control rooms; the room refuses it in a Strict one). */
+  askHost(what: "undo" | "adjust", note: string): void {
+    if (this.role !== "guest") return;
+    this.#model.noteAsk(what);
+    this.#say({ ch: "game", kind: "request", table: FIRST_TABLE, what, note: note.trim().slice(0, 140) });
+    this.#publish();
+  }
+
+  /** Guest: dismisses the answer to my last request. */
+  clearAsk(): void {
+    this.#model.clearAsk();
     this.#publish();
   }
 
@@ -464,6 +481,7 @@ export class RoomSession {
       players: this.#model.playersOfSeats(message.seats),
       command: message.command,
       base: message.base,
+      ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
     });
   }
 

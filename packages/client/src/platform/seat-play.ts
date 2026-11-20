@@ -75,7 +75,12 @@ export async function playRoomGame(deps: SeatPlayDeps = defaultDeps): Promise<Pl
   // The room worker follows this end for the log and carries the seat's proposals; the seat worker holds the other.
   if (!deps.post({ kind: "room-follow", port: channel.port1 }, [channel.port1]))
     return { ok: false, message: "watch.link.gone" };
-  const host = new SeatEngineHost(deps.makeBackend(channel.port2, deps.packs()));
+  const host = new SeatEngineHost(deps.makeBackend(channel.port2, deps.packs()), {
+    // Concede from a seat is leaving it (the game goes on): every seat this device holds is released.
+    leaveSeats: () => {
+      for (const seat of deps.roomState().mySeats) deps.post({ kind: "room-seat", op: "release", seat });
+    },
+  });
   const dispose = host.dispose.bind(host);
   host.dispose = () => {
     deps.post({ kind: "room-unfollow" });

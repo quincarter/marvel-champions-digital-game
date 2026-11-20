@@ -342,6 +342,11 @@ export interface RewindOptions {
    * game is marked adjusted (`SaveMeta.adjusted`) and stops counting toward achievements and stats.
    */
   readonly adjusted?: boolean;
+  /**
+   * The command count the target was worked out from. The rewind is refused when the game has moved on from it (a
+   * seat's command landed first), so Undo never cuts a move nobody saw; the board then offers Undo again.
+   */
+  readonly fromVersion?: number;
 }
 
 export interface EngineHost {

@@ -90,7 +90,11 @@ export interface RoomSeat {
   readonly player: string | null;
   /** The host acts for this seat (its holder was away), until it gives it back. Nobody else may act for it. */
   readonly takenOver: boolean;
-  /** Held, but the holder is not connected: the game waits on it unless the host takes it over. */
+  /**
+   * Held, but the holder is not connected or has left the seat (handover off): the game waits on it unless the host
+   * takes it over. A seat nobody holds (`holder` null, `player` set, game started) is vacant: its player left and the
+   * host may take it over or hand it on (`settings.handover` off forbids both).
+   */
   readonly away: boolean;
   /** Who asked for it and awaits the host (what the host's approve and deny buttons act on). */
   readonly requests: readonly RoomSeatRequest[];
@@ -111,6 +115,16 @@ export interface RoomRequest {
   readonly what: "undo" | "adjust";
   /** What the asker wrote, cleaned and at most 140 characters; "" when none. */
   readonly note: string;
+}
+
+/**
+ * A seated guest's own request to the host (Host control rooms), and what became of it: `waiting` until the host
+ * answers, then `accepted` or `declined`. `seq` rises with each ask, so asking twice still shows. In memory only.
+ */
+export interface RoomAsk {
+  readonly what: "undo" | "adjust";
+  readonly status: "waiting" | "accepted" | "declined";
+  readonly seq: number;
 }
 
 export interface RoomChatLine extends ChatLine {
@@ -148,6 +162,8 @@ export interface RoomState {
   readonly refusal: RoomRefusal | null;
   /** Host only: what seat holders asked for and the host has not answered, oldest first. Empty for a guest. */
   readonly requests: readonly RoomRequest[];
+  /** Guest only: my last request to the host and its answer; null before the first, or once dismissed. */
+  readonly myRequest: RoomAsk | null;
   /** My own build equals the host's (both versions), so I may take a seat. True while the host's build is unknown. */
   readonly buildMatches: boolean;
   /** The game has started: the host has streamed it (host side), or the room holds its log (guest: `watchRoomGame()` opens it). */
@@ -171,6 +187,7 @@ export const NO_ROOM: RoomState = {
   chat: [],
   refusal: null,
   requests: [],
+  myRequest: null,
   buildMatches: true,
   started: false,
   gameOver: false,
@@ -201,7 +218,8 @@ export function seatOfPlayerIn(state: RoomState, playerId: string): SeatOfPlayer
   return {
     seat,
     holderName: seat.holderName,
-    mine: seat.mine || (state.role === "host" && seat.takenOver),
+    // A seat I hold but that is away (I left it) is not one I act for until I take it up again.
+    mine: (seat.mine && !seat.away) || (state.role === "host" && seat.takenOver),
     away: seat.away,
     takenOver: seat.takenOver,
   };

@@ -322,15 +322,18 @@ describe("play together: take over and give back", () => {
     expect(host.of("proposal")).toHaveLength(1);
   });
 
-  it("is the host's alone, and only for a held seat whose holder is away", async () => {
+  it("is the host's alone, for a seat whose holder is away or who left it, never a connected holder's", async () => {
     const { host, send, seated, join } = await setup();
     const ann = await seated("Ann", "s1");
     await send(ann, { ch: "room", kind: "take-over", seat: "s1" });
     expect(ann.refusals).toEqual(["not-allowed"]);
     await send(host, { ch: "room", kind: "take-over", seat: "s1" }); // holder connected
-    await send(host, { ch: "room", kind: "take-over", seat: "s2" }); // nobody holds it
     await send(host, { ch: "room", kind: "take-over", seat: "zz" });
-    expect(host.refusals).toEqual(["not-away", "not-away", "no-such-seat"]);
+    expect(host.refusals).toEqual(["not-away", "no-such-seat"]);
+    // A seat nobody holds (its player left it mid-game) can be taken over, and keeps its player; assigning it later hands it on.
+    await send(host, { ch: "room", kind: "take-over", seat: "s2" });
+    expect(host.last("lobby")!.seats[1]).toMatchObject({ id: "s2", takenOver: true });
+    expect(host.last("lobby")!.seats[1]!.holder).toBeUndefined();
     const wes = await join("Wes");
     await send(wes, { ch: "room", kind: "give-back", seat: "s1" });
     expect(wes.refusals).toEqual(["not-allowed"]);
@@ -392,5 +395,67 @@ describe("play together: seat players and the watcher count", () => {
     const back = await join("Ann", { seatTokens: [token] });
     expect(host.last("roster")!.watchers).toBe(0);
     expect(back.last("roster")!.watchers).toBe(0);
+  });
+});
+
+describe("the handover setting", () => {
+  it("is on by default, host-only like the other settings, and a patch must carry a boolean", async () => {
+    const { host, send, seated } = await setup();
+    expect(host.last("lobby")!.settings.handover).toBe(true);
+    expect(
+      parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "lobby-set", settings: { handover: "no" } })),
+    ).toBeNull();
+    const ann = await seated("Ann", "s1");
+    await send(ann, { ch: "room", kind: "lobby-set", settings: { handover: false } });
+    expect(ann.refusals).toEqual(["not-allowed"]);
+    await send(host, { ch: "room", kind: "lobby-set", settings: { handover: false } });
+    expect(ann.last("lobby")!.settings.handover).toBe(false);
+  });
+
+  it("with it off, refuses taking a seat over, even an away one", async () => {
+    const { host, send, seated, room } = await setup();
+    const ann = await seated("Ann", "s1");
+    await send(host, { ch: "room", kind: "lobby-set", settings: { handover: false } });
+    await room.close(ann);
+    await send(host, { ch: "room", kind: "take-over", seat: "s1" });
+    expect(host.refusals).toEqual(["handover-off"]);
+    expect(host.last("lobby")!.seats[0]!.takenOver).toBeUndefined();
+  });
+
+  it("with it off, keeps a seat its player leaves mid-game reserved, refuses handing it on, and gives it back on their token", async () => {
+    const { host, send, seated, join, room } = await setup();
+    const ann = await seated("Ann", "s1");
+    const wes = await join("Wes");
+    const token = ann.last("seat-token")!.token;
+    await send(host, { ch: "room", kind: "lobby-set", settings: { handover: false } });
+    await send(ann, { ch: "room", kind: "seat-release", seat: "s1" });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ holder: ann.id, left: true, player: "p1" });
+    await send(host, { ch: "room", kind: "seat-assign", seat: "s1", participant: wes.id });
+    expect(host.refusals).toEqual(["handover-off"]);
+    // Nobody acts for the seat while it is left.
+    await send(ann, { ch: "game", kind: "propose", table: "t1", command: { type: "pass" }, base: 3 });
+    expect(ann.refusals).toEqual(["not-seated"]);
+    // Asking for it again, or coming back with the token, takes it up.
+    await send(ann, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(host.last("lobby")!.seats[0]!.left).toBeUndefined();
+    await send(ann, { ch: "room", kind: "seat-release", seat: "s1" });
+    await room.close(ann);
+    const back = await join("Ann", { seatTokens: [token] });
+    expect(back.last("lobby")!.seats[0]).toMatchObject({ holder: back.id });
+    expect(back.last("lobby")!.seats[0]!.left).toBeUndefined();
+  });
+
+  it("with it on, a seat its player leaves is vacant: the host may take it over and keep its player, or hand it on", async () => {
+    const { host, send, seated, join } = await setup();
+    const ann = await seated("Ann", "s1");
+    const wes = await join("Wes");
+    await send(ann, { ch: "room", kind: "seat-release", seat: "s1" });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ id: "s1", player: "p1" });
+    expect(host.last("lobby")!.seats[0]!.holder).toBeUndefined();
+    await send(host, { ch: "room", kind: "take-over", seat: "s1" });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ takenOver: true, player: "p1" });
+    await send(host, { ch: "room", kind: "seat-assign", seat: "s1", participant: wes.id });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ holder: wes.id, player: "p1" });
+    expect(host.last("lobby")!.seats[0]!.takenOver).toBeUndefined();
   });
 });

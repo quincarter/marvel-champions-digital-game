@@ -75,6 +75,11 @@ export interface SeatHostOptions {
   readonly proposalTimeoutMs?: number;
   readonly setTimer?: (run: () => void, ms: number) => unknown;
   readonly clearTimer?: (handle: unknown) => void;
+  /**
+   * A seated player's Concede means leaving their seats, not ending the game for the table (Quin, 2026-11-20): this puts
+   * their seats away, as if they had disconnected. The game goes on; the host may take a seat over or hand it on.
+   */
+  readonly leaveSeats?: () => void;
 }
 
 interface Pending {
@@ -146,6 +151,11 @@ export class SeatEngineHost implements EngineHost {
     const current = this.#current;
     if (this.#disposed || !current) return Promise.resolve(this.#failed(command, "The room's game is not open."));
     if (this.#status.over || this.#status.failed) return Promise.resolve(this.#failed(command, "The game is over."));
+    // Never a proposal: a seat's Concede is leaving the seat. The table is shown as it is, without this device's heroes.
+    if (command.type === "concede" && this.#o.leaveSeats) {
+      this.#o.leaveSeats();
+      return Promise.resolve({ ok: true, update: current });
+    }
     const base = current.version;
     return new Promise<DispatchResult>((resolve) => {
       const setTimer = this.#o.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));

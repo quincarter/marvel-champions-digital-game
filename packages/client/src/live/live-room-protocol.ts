@@ -44,6 +44,10 @@ export type LiveRoomIn =
   | { readonly kind: "room-say"; readonly text: string }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
+  /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
+  | { readonly kind: "room-ask"; readonly what: "undo" | "adjust"; readonly note: string }
+  /** Guest only: dismisses the answer to the last request. */
+  | { readonly kind: "room-ask-clear" }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
   | { readonly kind: "room-follow"; readonly port: MessagePort }
   | { readonly kind: "room-unfollow" };
@@ -112,4 +116,6 @@ export type LiveControlMessage =
       readonly players: readonly string[];
       readonly command: unknown;
       readonly base: number;
+      /** The proposer's state identity at `base` (`replayChecksum`); absent means the proposal cannot be judged current. */
+      readonly stamp?: string;
     };

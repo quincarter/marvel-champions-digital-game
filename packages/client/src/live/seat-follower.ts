@@ -20,6 +20,18 @@ import { SeatCore, type SeatPlayer, type SeatSnapshot } from "./seat-core.js";
 import type { SeatBackend, SeatEvent, SeatFeedPropose } from "./seat-protocol.js";
 import { WatchFeed, type WatchAction } from "./watch-feed.js";
 
+/** The room's own refusals of a `propose` (it never reached the host). */
+const PROPOSAL_ROOM_REFUSALS: ReadonlySet<string> = new Set([
+  "not-seated",
+  "build-mismatch",
+  "out-of-order",
+  "rate-limited",
+  "no-such-participant",
+  "too-large",
+  "bad-message",
+  "not-allowed",
+]);
+
 /** The room worker's end of the feed, as a watcher gets it (`room-follow`), which also carries a seat's proposals. */
 export interface SeatFeedPort {
   onmessage: ((event: { readonly data: unknown }) => void) | null;
@@ -45,6 +57,8 @@ export class SeatFollower implements SeatBackend {
   readonly #core: SeatCore;
   readonly #feed = new WatchFeed(FIRST_TABLE);
   #chain: Promise<void> = Promise.resolve();
+  /** The `base` of the proposal sent and not yet answered by the log or a refusal: what a room refusal is about. */
+  #outstanding: number | null = null;
   #opening: { resolve: (opened: Opened) => void; reject: (error: Error) => void } | null = null;
   #timer: unknown = null;
   #disposed = false;
@@ -77,7 +91,8 @@ export class SeatFollower implements SeatBackend {
   }
 
   propose(command: Command, base: number): void {
-    this.#o.feed.postMessage({ kind: "propose", command, base });
+    this.#outstanding = base;
+    this.#o.feed.postMessage({ kind: "propose", command, base, stamp: this.#core.stampAt(base) });
   }
 
   async setPlayers(players: readonly SeatPlayer[]): Promise<SeatSnapshot> {
@@ -113,7 +128,21 @@ export class SeatFollower implements SeatBackend {
 
   #onServer(message: ServerMessage): void {
     if (message.ch === "game" && message.kind === "proposal-refused" && message.table === FIRST_TABLE) {
+      this.#outstanding = null;
       this.#emit({ type: "refused", base: message.base, reason: message.reason });
+      return;
+    }
+    // The room itself turned the proposal down (not seated, other build, rate limit, no host): it never reached the host,
+    // so no `proposal-refused` is coming; the seat fails at once rather than after its wait.
+    if (
+      message.ch === "room" &&
+      message.kind === "refused" &&
+      this.#outstanding !== null &&
+      PROPOSAL_ROOM_REFUSALS.has(message.reason)
+    ) {
+      const base = this.#outstanding;
+      this.#outstanding = null;
+      this.#emit({ type: "refused", base, reason: message.reason });
       return;
     }
     this.#queue(this.#feed.onMessage(message));
@@ -154,6 +183,7 @@ export class SeatFollower implements SeatBackend {
       }
       case "append": {
         if (!this.#core.opened) return;
+        this.#outstanding = null;
         this.#update(this.#core.append(action.commands, action.checksums ?? undefined));
         return;
       }

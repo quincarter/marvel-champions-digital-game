@@ -14,6 +14,7 @@ import type { ReplayHost } from "../replay/replay-host.js";
 import { ReplayHost as ReplayHostClass, WorkerReplayBackend } from "../replay/replay-host.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { appSession } from "../session.js";
+import type { PlayerId } from "@mc/engine";
 import { undoOf } from "../view/undo.js";
 import { cleanOnlineName } from "../settings.js";
 import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
@@ -27,7 +28,7 @@ import {
 } from "../live/room-state.js";
 import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
 
-export type { RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
+export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -48,18 +49,31 @@ export function onRoomState(listener: (state: RoomState) => void): () => void {
   return () => listeners.delete(listener);
 }
 
-/** The board's Undo (`view/undo.ts`) for the hero whose turn it is: true when it took a move back. */
-async function undoLastMove(): Promise<boolean> {
-  const { store, settings } = appSession();
-  const { game, perspectiveId, commandTrail } = store.state;
-  if (!game || !perspectiveId) return false;
-  const offer = undoOf(commandTrail, game, perspectiveId, { pastReveals: settings.undoPastTurn !== "off" });
-  if (offer?.kind !== "available") return false;
-  try {
-    return await store.rewindTo(offer.target, { adjusted: offer.revealed === true });
-  } catch {
-    return false;
+/** The engine players behind the seats a participant holds. */
+function playersOfParticipant(participantId: string): string[] {
+  return state.seats.filter((s) => s.holder === participantId && s.player !== null).map((s) => s.player as string);
+}
+
+/**
+ * The board's Undo (`view/undo.ts`) for the asker's own hero: takes back the last move of one of the heroes the asker
+ * holds, when it is that hero's turn and the move can be taken back without a reveal. Past a reveal (a draw, a shuffle)
+ * Undo needs the host's own acknowledgement at the board, so such a request is declined here. True when a move was taken
+ * back. The rewind carries the version the target was worked out from, so a command that landed meanwhile refuses it.
+ */
+async function undoMoveOf(participantId: string): Promise<boolean> {
+  const { store } = appSession();
+  const { game, commandTrail, version } = store.state;
+  if (!game) return false;
+  for (const player of playersOfParticipant(participantId)) {
+    const offer = undoOf(commandTrail, game, player as PlayerId, { pastReveals: false });
+    if (offer?.kind !== "available" || offer.revealed === true) continue;
+    try {
+      return await store.rewindTo(offer.target, { fromVersion: version });
+    } catch {
+      return false;
+    }
   }
+  return false;
 }
 
 /** The "Online name" setting: empty until the player has been asked. */
@@ -145,8 +159,18 @@ export async function answerRequest(id: string, accepted: boolean): Promise<void
   if (state.role !== "host" || !request) return;
   let answer = accepted;
   // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
-  if (accepted && request.what === "undo") answer = await undoLastMove();
+  if (accepted && request.what === "undo") answer = await undoMoveOf(request.from);
   postRoomCommand({ kind: "room-answer", id, accepted: answer });
+}
+
+/** Guest only (Host control rooms): asks the host to undo, or to change something, with a short note (at most 140 characters). */
+export function askHost(what: "undo" | "adjust", note = ""): void {
+  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140) });
+}
+
+/** Guest only: dismisses the host's answer to my last request. */
+export function dismissAsk(): void {
+  postRoomCommand({ kind: "room-ask-clear" });
 }
 
 /** Host only: acts for a held seat whose holder is away (`RoomSeat.away`), until `giveBackSeat`. */
@@ -177,7 +201,7 @@ export async function startGame(config: SessionConfig): Promise<void> {
   const playMode = state.settings?.playMode;
   // Seat n plays engine player p<n> (setup's player order is the lobby's seat order): the room keeps it for the
   // proposals it forwards, and drops it from any later seat list that omits it.
-  if (state.role === "host" && state.seats.length > 0) {
+  if (state.role === "host" && state.seats.length > 0 && (!state.started || state.gameOver)) {
     setLobby({ seats: state.seats.map((s, index) => ({ id: s.id, label: s.label, player: `p${index + 1}` })) });
   }
   await appSession().store.start({

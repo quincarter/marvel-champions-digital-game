@@ -137,6 +137,8 @@ export type CoreDispatch =
   | { readonly ok: false; readonly error: EngineError };
 
 /** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
+/** A rewind worked out for an older table than the game now has (a seat's command landed first). */
+export const MOVED_REFUSAL = "The table moved on while this was being decided";
 export const STRICT_REFUSAL = "Strict rules: the host turned this off";
 
 /**
@@ -623,6 +625,7 @@ export class EngineSessionCore {
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
     if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
+    if (options.fromVersion !== undefined && options.fromVersion !== this.#version) throw new Error(MOVED_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
     }
@@ -693,6 +696,7 @@ export class EngineSessionCore {
   dispatchProposal(
     command: unknown,
     base: number,
+    stamp: string | undefined,
     players: readonly string[],
   ):
     | { readonly ok: true; readonly command: Command; readonly snapshot: Snapshot }
@@ -705,15 +709,25 @@ export class EngineSessionCore {
       state: session.state,
       count: this.#version,
       base,
+      stamp,
+      stampNow: () => replayChecksum(session.state),
       players,
       command,
       strict: config.roomPlayMode === "strict",
     });
     if (!verdict.ok) return verdict;
-    const result = this.dispatch(command as Command);
-    return result.ok
-      ? { ok: true, command: command as Command, snapshot: result.snapshot }
-      : { ok: false, reason: "illegal" };
+    const before = this.#version;
+    try {
+      const result = this.dispatch(verdict.command);
+      return result.ok
+        ? { ok: true, command: verdict.command, snapshot: result.snapshot }
+        : { ok: false, reason: "illegal" };
+    } catch {
+      // A throw after the command was applied (not before) is not the proposer's fault: the game moved, so it was accepted.
+      return this.#version === before
+        ? { ok: false, reason: "illegal" }
+        : { ok: true, command: verdict.command, snapshot: this.#snapshot([]) };
+    }
   }
 
   legalActions(playerId: PlayerId): LegalActions {

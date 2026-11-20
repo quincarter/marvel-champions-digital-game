@@ -98,6 +98,7 @@ export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   tableRules: {},
   mods: [],
   multiSeat: false,
+  handover: true,
   chat: true,
   contentVersion: "",
   appVersion: "",
@@ -129,6 +130,7 @@ interface StoredSeat extends LobbySeatSpec {
   holderName?: string;
   tokenHash?: string;
   takenOver?: boolean;
+  left?: boolean;
 }
 
 interface LobbyRow {
@@ -340,7 +342,12 @@ export class GameRoomLogic {
         ...(mismatch ? { mismatch: true } : {}),
       };
     });
-    return { code: this.meta?.code ?? "", settings: lobby.settings, seats };
+    // A lobby stored before `handover` existed has none: handing over is allowed, as it always was.
+    return {
+      code: this.meta?.code ?? "",
+      settings: { ...lobby.settings, handover: lobby.settings.handover !== false },
+      seats,
+    };
   }
 
   private broadcastLobby(lobby: LobbyRow): void {
@@ -997,6 +1004,7 @@ export class GameRoomLogic {
       }
       seat.holder = you.id;
       seat.holderName = you.name ?? "";
+      delete seat.left;
       changed = true;
     }
     if (changed) {
@@ -1042,6 +1050,12 @@ export class GameRoomLogic {
       delete seat.holderName;
       delete seat.tokenHash;
       delete seat.takenOver;
+      delete seat.left;
+    };
+    const handover = settings.handover !== false;
+    const gameLive = (): boolean => {
+      const t = this.tables.get(FIRST_TABLE);
+      return t !== undefined && t.hasHeader && !t.ended;
     };
     // Only a change of holder, or the host setting the lobby, is stored. A request or its withdrawal is memory only.
     let persist = false;
@@ -1055,6 +1069,7 @@ export class GameRoomLogic {
           ...(message.settings?.tableRules !== undefined ? { tableRules: message.settings.tableRules } : {}),
           ...(message.settings?.mods !== undefined ? { mods: message.settings.mods.map((m) => ({ ...m })) } : {}),
           ...(message.settings?.multiSeat !== undefined ? { multiSeat: message.settings.multiSeat } : {}),
+          ...(message.settings?.handover !== undefined ? { handover: message.settings.handover } : {}),
           ...(message.settings?.chat !== undefined ? { chat: message.settings.chat } : {}),
         };
         let seats = lobby.seats;
@@ -1085,7 +1100,13 @@ export class GameRoomLogic {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (!isHost && !this.sameBuild(who.build, settings)) return this.refuse(socket, "build-mismatch");
-        if (seat.holder === who.id) return; // Already theirs.
+        if (seat.holder === who.id) {
+          // Already theirs; a seat they left mid-game (handover off) is theirs to take again.
+          if (!seat.left) return;
+          delete seat.left;
+          persist = true;
+          break;
+        }
         if (seat.holder) return this.refuse(socket, "seat-taken");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
         if (isHost) {
@@ -1103,7 +1124,11 @@ export class GameRoomLogic {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (seat.holder === who.id) {
-          free(seat);
+          if (!handover && gameLive()) {
+            // Leaving a seat mid-game with handover off: it stays reserved for them (their token keeps working).
+            seat.left = true;
+            delete seat.takenOver;
+          } else free(seat);
           persist = true;
         } else if (!this.dropRequest(seat.id, who.id)) {
           return this.refuse(socket, "not-allowed");
@@ -1119,8 +1144,17 @@ export class GameRoomLogic {
         if (target.role !== "host" && !this.sameBuild(target.build, settings)) {
           return this.refuse(socket, "build-mismatch");
         }
-        if (seat.holder && seat.holder !== target.id) return this.refuse(socket, "seat-taken");
-        if (seat.holder === target.id) return;
+        if (seat.holder && seat.holder !== target.id) {
+          // A seat whose player left it or is away is not the host's to hand on while handover is off.
+          const gone = seat.left === true || !this.participants.has(seat.holder);
+          return this.refuse(socket, !handover && gameLive() && gone ? "handover-off" : "seat-taken");
+        }
+        if (seat.holder === target.id) {
+          if (!seat.left) return;
+          delete seat.left;
+          persist = true;
+          break;
+        }
         if (!settings.multiSeat && this.seatsHeldBy(lobby, target.id) > 0) return this.refuse(socket, "multi-seat");
         await this.grant(seat, target);
         persist = true;
@@ -1130,8 +1164,10 @@ export class GameRoomLogic {
         if (!isHost) return this.refuse(socket, "not-allowed");
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
-        // Only an away seat: held, and its holder is not connected. A connected holder is the host's to deny instead.
-        if (!seat.holder || this.participants.has(seat.holder)) return this.refuse(socket, "not-away");
+        if (!handover) return this.refuse(socket, "handover-off");
+        // An away seat (held, holder not connected) or a vacant one (its holder left it, Quin 2026-11-20: a seated player's
+        // Concede is leaving the seat). A connected holder is the host's to deny instead.
+        if (seat.holder && this.participants.has(seat.holder)) return this.refuse(socket, "not-away");
         if (seat.takenOver) return;
         seat.takenOver = true;
         persist = true;
@@ -1173,7 +1209,7 @@ export class GameRoomLogic {
   /** The seat ids `who` holds that may act: builds match and the host has not taken the seat over. */
   private actingSeats(lobby: LobbyRow, who: Participant): { ids: string[]; held: boolean; takenOver: boolean } {
     const held = lobby.seats.filter((seat) => seat.holder === who.id);
-    const free = held.filter((seat) => !seat.takenOver);
+    const free = held.filter((seat) => !seat.takenOver && !seat.left);
     const ids = this.sameBuild(who.build, lobby.settings) ? free.map((seat) => seat.id) : [];
     return { ids, held: free.length > 0, takenOver: held.length > free.length };
   }
@@ -1218,6 +1254,7 @@ export class GameRoomLogic {
         seats: ids,
         command: message.command,
         base: message.base,
+        ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
       });
       return;
     }

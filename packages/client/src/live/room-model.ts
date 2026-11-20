@@ -9,6 +9,7 @@ import {
   MAX_CHAT_KEPT,
   NO_ROOM,
   playerIdOfSeat,
+  type RoomAsk,
   type RoomChatLine,
   type RoomConnection,
   type RoomParticipant,
@@ -62,6 +63,9 @@ export class RoomModel {
   /** Host: requests from seat holders awaiting its answer (memory only, as the room's own are). */
   #requests: RoomRequest[] = [];
   #requestSeq = 0;
+  /** Guest: my last request to the host and its answer. */
+  #ask: RoomAsk | null = null;
+  #askSeq = 0;
 
   constructor(options: RoomModelOptions) {
     this.#role = options.role;
@@ -97,6 +101,16 @@ export class RoomModel {
       if (player !== undefined) out.push(playerIdOfSeat(player));
     }
     return out;
+  }
+
+  /** Guest: a request to the host went out; its answer fills the status in. */
+  noteAsk(what: "undo" | "adjust"): void {
+    this.#ask = { what, status: "waiting", seq: ++this.#askSeq };
+  }
+
+  /** Guest: forgets the last request's answer (the player has read it). */
+  clearAsk(): void {
+    this.#ask = null;
   }
 
   /** Removes and returns a pending request (the host answered it), or undefined when it is gone. */
@@ -200,6 +214,11 @@ export class RoomModel {
         ];
         return true;
       }
+      if (message.kind === "request-answer" && message.table === FIRST_TABLE) {
+        if (this.#ask?.status !== "waiting") return false;
+        this.#ask = { ...this.#ask, status: message.accepted ? "accepted" : "declined" };
+        return true;
+      }
       if (message.kind === "end" && message.table === FIRST_TABLE && this.#table) {
         this.#table = { ...this.#table, ended: true };
         return true;
@@ -236,6 +255,10 @@ export class RoomModel {
       case "refused": {
         const seat = SEAT_REFUSALS.has(message.reason) ? this.#lastSeat : undefined;
         if (seat) this.#wanted.delete(seat);
+        // A turned-down request (a Strict room, no seat) is no longer waiting: the refusal says why.
+        if (this.#ask?.status === "waiting" && (message.reason === "strict" || message.reason === "not-seated")) {
+          this.#ask = null;
+        }
         this.#refusal = { reason: message.reason, ...(seat ? { seat } : {}), seq: ++this.#refusalSeq };
         return true;
       }
@@ -268,7 +291,8 @@ export class RoomModel {
       mine: meId !== null && seat.holder === meId,
       player: seat.player === undefined ? null : playerIdOfSeat(seat.player),
       takenOver: seat.takenOver === true,
-      away: seat.holder !== undefined && !this.#participants.some((p) => p.id === seat.holder),
+      // Away: the holder is not connected, or (handover off) left the seat mid-game and has not taken it up again.
+      away: seat.holder !== undefined && (seat.left === true || !this.#participants.some((p) => p.id === seat.holder)),
       requests: (seat.requested ?? []).map((id) => ({ participant: id, name: nameOf(id) })),
       requestedByMe: meId !== null && (seat.requested ?? []).includes(meId),
     }));
@@ -302,6 +326,7 @@ export class RoomModel {
       chat: this.#chat,
       refusal: this.#refusal,
       requests: this.#role === "host" ? this.#requests : [],
+      myRequest: this.#role === "guest" ? this.#ask : null,
       buildMatches: me ? buildMatches(me) : sameBuild(this.#build, hostBuild) || !hostBuild,
       started: this.#hostStarted || (this.#table?.hasHeader ?? false),
       gameOver: this.#table?.ended ?? false,

@@ -20,6 +20,8 @@ const check = (over: Partial<ProposalCheck> = {}): ProposalCheck => ({
   state: turn("p1"),
   count: 5,
   base: 5,
+  stamp: "S",
+  stampNow: () => "S",
   players: ["p1"],
   command: { type: "endTurn", playerId: "p1" },
   strict: false,
@@ -28,12 +30,47 @@ const check = (over: Partial<ProposalCheck> = {}): ProposalCheck => ({
 
 describe("judging a seat holder's proposal", () => {
   it("passes the acting hero's own command built on the current log", () => {
-    expect(judgeProposal(check())).toEqual({ ok: true });
+    expect(judgeProposal(check())).toMatchObject({ ok: true });
   });
 
   it("answers a command built on an older log stale, before anything else", () => {
     expect(judgeProposal(check({ base: 4 }))).toEqual({ ok: false, reason: "stale" });
     expect(judgeProposal(check({ base: 6, command: "junk" }))).toEqual({ ok: false, reason: "stale" });
+  });
+
+  it("answers stale when the proposer saw another table at the same count (a rewind, then a new move)", () => {
+    expect(judgeProposal(check({ stamp: "OTHER" }))).toEqual({ ok: false, reason: "stale" });
+    expect(judgeProposal(check({ stamp: undefined }))).toEqual({ ok: false, reason: "stale" });
+  });
+
+  it("accepts a villain-phase choice addressed to the proposer's hero", () => {
+    const answer = { type: "resolveChoice", playerId: "p2", choiceId: "c1", selectedOptionIds: ["a"] };
+    expect(judgeProposal(check({ state: choice("p2"), players: ["p2"], command: answer }))).toEqual({
+      ok: true,
+      command: answer,
+    });
+  });
+
+  it("refuses a concede: giving up is a request the host performs", () => {
+    expect(judgeProposal(check({ command: { type: "concede", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+  });
+
+  it("refuses a command type the engine does not have, and hands back a plain copy of a good one", () => {
+    expect(judgeProposal(check({ command: { type: "__proto__", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+    expect(judgeProposal(check({ command: { type: "bogus", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+    const sent = { type: "endTurn", playerId: "p1" };
+    const verdict = judgeProposal(check({ command: sent }));
+    expect(verdict.ok && verdict.command).toEqual(sent);
+    expect(verdict.ok && verdict.command).not.toBe(sent);
   });
 
   it("answers not-your-turn when the table waits on a hero the proposer does not play", () => {
@@ -65,7 +102,7 @@ describe("judging a seat holder's proposal", () => {
 
   it("leaves an off-turn action of the proposer's own hero to the engine, but never during a choice", () => {
     const offTurn = check({ state: turn("p2"), command: { type: "playCard", playerId: "p1" } });
-    expect(judgeProposal(offTurn)).toEqual({ ok: true });
+    expect(judgeProposal(offTurn)).toMatchObject({ ok: true });
     const duringChoice = check({ state: choice("p2"), command: { type: "playCard", playerId: "p1" } });
     expect(judgeProposal(duringChoice)).toEqual({ ok: false, reason: "not-your-turn" });
   });

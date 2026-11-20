@@ -8,7 +8,27 @@ import type { Command, GameState, PlayerId } from "@mc/engine";
 import type { ProposalRefusal } from "@mc/sync-worker/room-protocol";
 import { actingPlayer } from "../engine/acting-player.js";
 
-export type ProposalVerdict = { readonly ok: true } | { readonly ok: false; readonly reason: ProposalRefusal };
+export type ProposalVerdict =
+  | {
+      readonly ok: true;
+      /** The command rebuilt as plain data: what is dispatched, never the object the wire handed over. */
+      readonly command: Command;
+    }
+  | { readonly ok: false; readonly reason: ProposalRefusal };
+
+/** Every command type the engine has; a proposal of any other type is refused, and a new type must be listed here. */
+const COMMAND_TYPES: Readonly<Record<Command["type"], true>> = {
+  changeForm: true,
+  playCard: true,
+  useAbility: true,
+  basicAttack: true,
+  basicThwart: true,
+  basicRecover: true,
+  endTurn: true,
+  concede: true,
+  adjust: true,
+  resolveChoice: true,
+};
 
 export interface ProposalCheck {
   /** The table now: the game's outcome, open choice and step. */
@@ -17,6 +37,13 @@ export interface ProposalCheck {
   readonly count: number;
   /** What the proposal was built on. */
   readonly base: number;
+  /**
+   * The state it was built on (`replayChecksum` after `base` commands, from the proposer's engine). A rewind followed by
+   * a new move reaches the same count with a different table, so the count alone cannot say the proposer saw this one.
+   */
+  readonly stamp: string | undefined;
+  /** `replayChecksum` of the host's state now; only called once `base` matches the count. */
+  readonly stampNow: () => string;
   /** The engine players behind the seats the proposer may act for. */
   readonly players: readonly string[];
   /** The proposal, as it came off the wire (anything). */
@@ -25,19 +52,28 @@ export interface ProposalCheck {
   readonly strict: boolean;
 }
 
+/** A plain-data copy of a command of a known type made by a player, or null (anything else is not a command). */
 const asCommand = (value: unknown): Command | null => {
   if (typeof value !== "object" || value === null) return null;
   const { type, playerId } = value as { type?: unknown; playerId?: unknown };
-  return typeof type === "string" && typeof playerId === "string" ? (value as Command) : null;
+  if (typeof type !== "string" || typeof playerId !== "string" || !Object.hasOwn(COMMAND_TYPES, type)) return null;
+  try {
+    return JSON.parse(JSON.stringify(value)) as Command;
+  } catch {
+    return null;
+  }
 };
 
 export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   const { state, count, base, players, strict } = check;
   if (base !== count) return { ok: false, reason: "stale" };
+  if (check.stamp === undefined || check.stamp !== check.stampNow()) return { ok: false, reason: "stale" };
   const command = asCommand(check.command);
   if (!command) return { ok: false, reason: "illegal" };
   // Adjusting the table is the host's own act, after it accepts a request: a seat never proposes one.
   if (command.type === "adjust") return { ok: false, reason: strict ? "strict" : "illegal" };
+  // Giving the game up ends it for the whole table: a seat asks the host for it (a `concede` request), never proposes it.
+  if (command.type === "concede") return { ok: false, reason: "illegal" };
   const acting = actingPlayer(state);
   if (acting === null || players.length === 0) return { ok: false, reason: "not-your-turn" };
   const mine = (id: string): boolean => players.includes(id);
@@ -45,8 +81,8 @@ export function judgeProposal(check: ProposalCheck): ProposalVerdict {
     // Acting as a hero the proposer's seats are not: another seat's turn is "not yours", a forged id is not legal.
     return { ok: false, reason: mine(acting) ? "illegal" : "not-your-turn" };
   }
-  if (command.playerId === (acting as PlayerId)) return { ok: true };
+  if (command.playerId === (acting as PlayerId)) return { ok: true, command };
   // A seat the table is not waiting on: only an off-turn Action in a player turn can be legal, and the engine judges it.
-  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn") return { ok: true };
+  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn") return { ok: true, command };
   return { ok: false, reason: "not-your-turn" };
 }

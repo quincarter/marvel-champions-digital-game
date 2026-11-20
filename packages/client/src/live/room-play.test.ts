@@ -105,7 +105,7 @@ const gameMessage = (gameKey: string, room: string): Extract<LiveGameMessage, { 
 });
 
 /** A host in a lobby with seats `s1`, `s2`, a game started in it, and the engine port's messages captured. */
-async function hosting(playMode: "strict" | "host" = "host", seats: object[] = SEATS) {
+async function hosting(playMode: "strict" | "host" = "host", seats: object[] = SEATS, startGame = true) {
   FakeSocket.all = [];
   const states: RoomState[] = [];
   const toEngine: LiveControlMessage[] = [];
@@ -139,14 +139,14 @@ async function hosting(playMode: "strict" | "host" = "host", seats: object[] = S
   sock.open();
   sock.receive(welcome([ava]));
   sock.receive(lobby(playMode, seats));
-  controller.onGameMessage(gameMessage("game-1", "room00000001"));
+  if (startGame) controller.onGameMessage(gameMessage("game-1", "room00000001"));
   await flush();
   return { controller, sock, states, toEngine, last: () => states[states.length - 1]! };
 }
 
 describe("the seat to player mapping", () => {
   it("sends each seat's player in every lobby-set that carries seats, whether or not the caller named it", async () => {
-    const t = await hosting();
+    const t = await hosting("host", SEATS, false);
     t.controller.onRoomCommand({ kind: "room-lobby", seats: SEATS });
     t.controller.onRoomCommand({ kind: "room-lobby", seats: [{ id: "s1", label: "Spider-Man", player: "p3" }] });
     const sets = t.sock.of("lobby-set");
@@ -171,6 +171,45 @@ describe("the seat to player mapping", () => {
   });
 });
 
+describe("a table whose game is running", () => {
+  it("keeps its seats and who plays which hero: a seat list from the host is not sent, settings still are", async () => {
+    const t = await hosting();
+    t.controller.onRoomCommand({ kind: "room-lobby", seats: [{ id: "s1", label: "Other" }] });
+    expect(t.sock.of("lobby-set")).toHaveLength(0);
+    t.controller.onRoomCommand({ kind: "room-lobby", seats: [{ id: "s1", label: "Other" }], settings: { chat: false } });
+    expect(t.sock.of("lobby-set")).toEqual([expect.objectContaining({ settings: { chat: false } })]);
+    expect(t.sock.of("lobby-set")[0]).not.toHaveProperty("seats");
+  });
+});
+
+describe("a seat its player left", () => {
+  it("is away while the holder has left it (handover off), and not the holder's to act for", async () => {
+    const t = await hosting("host", [
+      { id: "s1", label: "Spider-Man", player: "p1", holder: "ava", left: true },
+      { id: "s2", label: "She-Hulk", player: "p2" },
+    ]);
+    expect(t.last().seats.map((s) => [s.away, s.holder])).toEqual([
+      [true, "ava"],
+      [false, null],
+    ]);
+    expect(seatOfPlayerIn(t.last(), "p1")).toMatchObject({ away: true, mine: false });
+  });
+
+  it("is vacant when released with handover on: no holder, player kept, host may take it over", async () => {
+    const t = await hosting("host", [{ id: "s1", label: "Spider-Man", player: "p1" }]);
+    expect(t.last().seats[0]).toMatchObject({ holder: null, player: "p1", away: false });
+    t.controller.onRoomCommand({ kind: "room-seat", op: "take-over", seat: "s1" });
+    expect(t.sock.of("take-over")).toHaveLength(1);
+  });
+
+  it("shows the handover setting from the room", async () => {
+    const t = await hosting();
+    expect(t.last().settings?.handover).toBeUndefined();
+    t.sock.receive({ ...lobby("host", SEATS), settings: { ...lobby("host", SEATS).settings, handover: false } });
+    expect(t.last().settings?.handover).toBe(false);
+  });
+});
+
 describe("a seat holder's proposal", () => {
   it("goes to the engine worker with the engine players behind the seats the room named, untouched", async () => {
     const t = await hosting("host", [
@@ -188,6 +227,12 @@ describe("a seat holder's proposal", () => {
         base: 4,
       },
     ]);
+  });
+
+  it("carries the proposer's state stamp to the engine worker", async () => {
+    const t = await hosting("host", [{ id: "s1", label: "Spider-Man", player: "p1" }]);
+    t.sock.receive(proposal({ stamp: "9:ab:cd" }));
+    expect(t.toEngine[0]).toMatchObject({ stamp: "9:ab:cd" });
   });
 
   it("is refused stale straight away when no game is attached to judge it", async () => {

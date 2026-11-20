@@ -25,7 +25,7 @@ import {
   type Snapshot,
 } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
-import { REPLAY_FORMAT, REPLAY_VERSION, LiveChecksumCheck } from "../replay/replay-file.js";
+import { REPLAY_FORMAT, REPLAY_VERSION, LiveChecksumCheck, replayChecksum } from "../replay/replay-file.js";
 import { ReplayOpenError, trustedFile } from "../replay/replay-core.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import type { PaymentState } from "../view/payment-model.js";
@@ -177,6 +177,14 @@ export class SeatCore {
   /** The first command count whose state differs from the one the host checksummed, or null. */
   get divergedAt(): number | null {
     return this.#check.divergedAt;
+  }
+
+  /**
+   * The identity of the table a proposal made at `base` is built on (`replayChecksum` of the state, as the host takes it
+   * when it judges): empty when this seat's table is not at `base`, which the host then reads as stale.
+   */
+  stampAt(base: number): string {
+    return this.#state && base === this.#commands.length ? replayChecksum(this.#state) : "";
   }
 
   get length(): number {
