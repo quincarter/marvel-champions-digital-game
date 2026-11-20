@@ -7,7 +7,7 @@
 # release-on-merge.yml calls this as its `ios-build` job once it has tagged a release: the English .ipa goes up to the
 # release as soon as it is built, and the other languages' wait for finalize-release, as the other installers do. A
 # manual run from the Actions tab builds from the branch it runs on and keeps the .ipa as a workflow artifact only, as
-# does a pull request that changes the iOS project or its build (English only there).
+# does a pull request that changes the app or its build (English only there).
 name: iOS build
 
 on:
@@ -18,12 +18,14 @@ on:
         required: true
         type: string
   workflow_dispatch:
+  # Any pull request that changes what goes into the app (the game, its cards and data, the iOS project) or its build,
+  # so the preview .ipa always follows the PR's head. macOS runners are free on a public repository.
   pull_request:
     paths:
       - .github/workflows/ios-build.yml
       - scripts/build-ios.mjs
-      - packages/client/ios/**
-      - packages/client/capacitor.config.ts
+      - packages/**
+      - pnpm-lock.yaml
 
 # The build runs with a read-only token and keeps no git credentials: it runs the branch's own code (on a pull
 # request too), and only the upload job below, which runs nothing from the checkout, may write to the release.
