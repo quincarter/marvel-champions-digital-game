@@ -28,6 +28,8 @@ declare module "virtual:landing-data" {
   export type StoreMod = Pick<PackIndexEntry, "id" | "kind" | "name" | "creator" | "summary" | "thumbnail" | "latest">;
   /** The store's packs at build time, withdrawn ones left out; the page refreshes them live where it can. */
   export const MODS: readonly StoreMod[];
+  /** The store's withdrawn packs at build time, by id, kind and name. */
+  export const WITHDRAWN_MODS: readonly Pick<PackIndexEntry, "id" | "kind" | "name">[];
   export const BUILT_AT: string;
   /** Each hero's portrait by identity card code, with the CSS `object-position` that keeps its subject in frame. */
   export const HERO_ART: Readonly<Record<string, { readonly src: string; readonly position: string }>>;
