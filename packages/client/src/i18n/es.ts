@@ -107,6 +107,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.emptyFilter": "Aún no hay partidas aquí.",
   "pastGames.search": "Buscar héroes, villanos, mazos",
   "pastGames.emptySearch": "Ninguna partida coincide con esa búsqueda.",
+  "stats.viewGame": "Ver partida ▸",
   "gameOver.watchReplay": "Ver repetición",
   "gamesList.watch": "Ver",
   "replay.title": "Repetición",

@@ -17,6 +17,7 @@
  * The stats are folded in a worker (`view/player-stats-client.ts`) from the saves' rows this scene reads when it opens.
  */
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -1688,7 +1689,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     let detailRight = box.x + box.width - 12;
     if (linked) {
       const link = this.add
-        .text(box.x + box.width - 12, box.y + box.height - 10, "View game ▸", textStyle(typeRole.label, fg, 1))
+        .text(box.x + box.width - 12, box.y + box.height - 10, t("stats.viewGame"), textStyle(typeRole.label, fg, 1))
         .setOrigin(1, 1)
         .setFontSize(12);
       const rule = this.add.graphics();

@@ -104,6 +104,7 @@ export const en = {
   "pastGames.emptyFilter": "No games here yet.",
   "pastGames.search": "Search heroes, villains, decks",
   "pastGames.emptySearch": "No games match that search.",
+  "stats.viewGame": "View game ▸",
   "gameOver.watchReplay": "Watch replay",
   "gamesList.watch": "Watch",
   "replay.title": "Replay",
