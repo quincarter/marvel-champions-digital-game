@@ -8,7 +8,6 @@
 import type { GameState } from "@mc/engine";
 import type { MessageKey, Params } from "../i18n/translate.js";
 import { seatOfPlayerIn, type RoomSeat, type RoomState } from "../live/room-state.js";
-import { parseSeatLabel } from "./room-table-setup.js";
 
 /** `turn`: it is that hero's turn to act. `choice`: the game waits on a decision addressed to them (a villain-phase choice). */
 export type TurnKind = "turn" | "choice";
@@ -38,9 +37,11 @@ export interface TurnLine {
   readonly tone: TurnTone;
 }
 
-/** The hero's short name from a seat label ("Spider-Man (Justice) - Core Set deck" is "Spider-Man"). */
-export function heroNameOf(seat: Pick<RoomSeat, "label">): string {
-  const text = parseSeatLabel(seat.label).text;
+/** The hero's short name: the seat deck's hero, else a seat label ("Spider-Man (Justice) - Core Set deck" is "Spider-Man"). */
+export function heroNameOf(seat: Pick<RoomSeat, "label"> & Partial<Pick<RoomSeat, "deck">>): string {
+  // The seat's deck names its hero (players bring their own decks); a host's label is the fallback.
+  if (seat.deck?.heroName) return seat.deck.heroName;
+  const text = seat.label.trim();
   const hero = (text.split(" - ")[0] ?? text).replace(/\s*\(.*\)\s*$/, "").trim();
   return hero === "" ? text : hero;
 }

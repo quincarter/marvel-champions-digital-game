@@ -7,7 +7,7 @@ import { MemoryRoomStore } from "./live-room-store.js";
 import { LiveRoomController } from "./live-room-controller.js";
 import type { LiveGameMessage, RoomFeedOut } from "./live-room-protocol.js";
 import { MemorySeatTokenStore } from "./room-seat-store.js";
-import type { RoomState } from "./room-state.js";
+import type { RoomState, SeatDeckEntry } from "./room-state.js";
 import type { FeedPort } from "./room-session.js";
 import type { CreateRoomDeps, CreateRoomResult, RoomSocketDeps, WebSocketLike } from "./room-socket.js";
 
@@ -105,6 +105,7 @@ function setup(
 ) {
   FakeSocket.all = [];
   const states: RoomState[] = [];
+  const answers: { id: number; decks: readonly SeatDeckEntry[] | null }[] = [];
   const timers: { run: () => void; live: boolean; ms: number }[] = [];
   const socket: RoomSocketDeps = {
     WebSocket: FakeSocket,
@@ -141,12 +142,22 @@ function setup(
       seatStore,
       ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
       onState: (s) => states.push(s),
+      onDecks: (id, decks) => answers.push({ id, decks }),
       createRoom,
       resolveRoomCode,
     },
   });
   controller.setEnabled(true);
-  return { controller, states, createRoom, resolveRoomCode, seatStore, timers, last: () => states[states.length - 1]! };
+  return {
+    controller,
+    states,
+    answers,
+    createRoom,
+    resolveRoomCode,
+    seatStore,
+    timers,
+    last: () => states[states.length - 1]!,
+  };
 }
 
 describe("the device in a room", () => {
@@ -708,5 +719,123 @@ describe("review fixes (issue #880)", () => {
     t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
     await flush();
     expect([...seatStore.records.keys()]).toEqual(["new000000000"]);
+  });
+});
+
+describe("seat decks in a room (each player brings their own deck)", () => {
+  const SUMMARY = {
+    hero: "01001a",
+    heroName: "Spider-Man",
+    aspects: ["justice"],
+    name: "Spidey Justice",
+    cards: 40,
+    mods: [],
+  };
+  const DECK = {
+    name: "Spidey Justice",
+    hero: "01001a",
+    heroName: "Spider-Man",
+    aspects: ["justice"],
+    cards: [{ cardId: "01010", quantity: 3 }],
+    mods: [],
+  };
+
+  async function inLobby(role: "host" | "guest", seats: object[]) {
+    const t = setup();
+    if (role === "host") t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    else t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "Me" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome(role === "host" ? "host" : "watcher");
+    socket.receive(lobbyMessage(seats));
+    return { t, socket };
+  }
+
+  it("shows each seat's deck summary in the state, never a card list", async () => {
+    const { t } = await inLobby("guest", [
+      { id: "s1", holder: "me", deck: SUMMARY },
+      { id: "s2", holder: "host1", deck: { ...SUMMARY, heroName: "She-Hulk", preset: true } },
+      { id: "s3" },
+    ]);
+    expect(t.last().seats.map((s) => s.deck)).toEqual([
+      SUMMARY,
+      { ...SUMMARY, heroName: "She-Hulk", preset: true },
+      null,
+    ]);
+    expect(t.last().seats.map((s) => s.mine)).toEqual([true, false, false]);
+    expect(JSON.stringify(t.last())).not.toContain("01010");
+  });
+
+  it("sends my deck for a seat as seat-deck, and a host preset the same way", async () => {
+    const { t, socket } = await inLobby("host", [{ id: "s1" }, { id: "s2" }]);
+    t.controller.onRoomCommand({ kind: "room-deck", seat: "s1", deck: DECK });
+    t.controller.onRoomCommand({ kind: "room-deck", seat: "s2", deck: DECK });
+    expect(socket.sent.filter((m) => m.kind === "seat-deck")).toEqual([
+      { v: 1, ch: "room", kind: "seat-deck", seat: "s1", deck: DECK },
+      { v: 1, ch: "room", kind: "seat-deck", seat: "s2", deck: DECK },
+    ]);
+  });
+
+  it("tells only the holder why their deck was refused, until they change it", async () => {
+    const seats = [
+      { id: "s1", holder: "me", deck: SUMMARY },
+      { id: "s2", holder: "host1", deck: SUMMARY },
+    ];
+    const { t, socket } = await inLobby("guest", seats);
+    socket.receive({ v: 1, ch: "room", kind: "deck-refused", seat: "s1", code: "illegal", reason: "28 of 40 cards." });
+    expect(t.last().seats[0]!.deckProblem).toEqual({ code: "illegal", reason: "28 of 40 cards." });
+    expect(t.last().seats[1]!.deckProblem).toBeNull();
+    // The deck changed in the lobby: the old verdict no longer applies.
+    socket.receive(lobbyMessage([{ ...seats[0]!, deck: { ...SUMMARY, cards: 41 } }, seats[1]!]));
+    expect(t.last().seats[0]!.deckProblem).toBeNull();
+    // Refused again, then I choose again (even the same list): the problem goes at once.
+    socket.receive({ v: 1, ch: "room", kind: "deck-refused", seat: "s1", code: "mod-version", reason: "Version." });
+    expect(t.last().seats[0]!.deckProblem).toMatchObject({ code: "mod-version" });
+    t.controller.onRoomCommand({ kind: "room-deck", seat: "s1", deck: DECK });
+    expect(t.last().seats[0]!.deckProblem).toBeNull();
+  });
+
+  it("gives the host the full lists for its Start, and keeps them out of the state", async () => {
+    const { t, socket } = await inLobby("host", [{ id: "s1", holder: "g1", deck: SUMMARY }]);
+    t.controller.onRoomCommand({ kind: "room-decks-request", id: 7 });
+    expect(socket.kinds.at(-1)).toBe("room:seat-decks-request");
+    const entries = [{ seat: "s1", holder: "g1", preset: false, deck: DECK }];
+    socket.receive({ v: 1, ch: "room", kind: "seat-decks", decks: entries });
+    await flush();
+    expect(t.answers).toEqual([{ id: 7, decks: entries }]);
+    expect(JSON.stringify(t.states)).not.toContain("01010");
+  });
+
+  it("answers null when the room never answers, and for a guest, and sends nothing for a guest", async () => {
+    const host = await inLobby("host", [{ id: "s1" }]);
+    host.t.controller.onRoomCommand({ kind: "room-decks-request", id: 1 });
+    const timer = host.t.timers.filter((x) => x.live).at(-1)!;
+    timer.run();
+    await flush();
+    expect(host.t.answers).toEqual([{ id: 1, decks: null }]);
+    const guest = await inLobby("guest", [{ id: "s1" }]);
+    guest.t.controller.onRoomCommand({ kind: "room-decks-request", id: 2 });
+    await flush();
+    expect(guest.t.answers).toEqual([{ id: 2, decks: null }]);
+    expect(guest.socket.kinds).not.toContain("room:seat-decks-request");
+    // A guest never acts on a decks message either (the room only ever sends it to the host).
+    guest.socket.receive({ v: 1, ch: "room", kind: "seat-decks", decks: [] });
+    expect(guest.t.answers).toHaveLength(1);
+  });
+
+  it("sends deck-refused only from the host", async () => {
+    const host = await inLobby("host", [{ id: "s1" }]);
+    host.t.controller.onRoomCommand({ kind: "room-deck-refuse", seat: "s1", code: "no-deck", reason: "None." });
+    expect(host.socket.sent.at(-1)).toEqual({
+      v: 1,
+      ch: "room",
+      kind: "deck-refused",
+      seat: "s1",
+      code: "no-deck",
+      reason: "None.",
+    });
+    const guest = await inLobby("guest", [{ id: "s1" }]);
+    guest.t.controller.onRoomCommand({ kind: "room-deck-refuse", seat: "s1", code: "no-deck", reason: "None." });
+    expect(guest.socket.kinds).not.toContain("room:deck-refused");
   });
 });

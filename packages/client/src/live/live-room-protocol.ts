@@ -4,9 +4,16 @@
  * streams the game over a port, as it does for Discord presence.
  */
 import type { Command, GameOutcome } from "@mc/engine";
-import type { ProposalRefusal, RoomBuild, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
+import type {
+  DeckRefusalCode,
+  ProposalRefusal,
+  RoomBuild,
+  RoomDeck,
+  RoomDevice,
+  ServerMessage,
+} from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
-import type { LobbySeatSpec, LobbySettingsPatch, RoomState } from "./room-state.js";
+import type { LobbySeatSpec, LobbySettingsPatch, RoomState, SeatDeckEntry } from "./room-state.js";
 
 /** Main thread to the live-room worker. */
 export type LiveRoomIn =
@@ -48,6 +55,17 @@ export type LiveRoomIn =
   | { readonly kind: "room-ask"; readonly what: "undo" | "adjust"; readonly note: string }
   /** Guest only: dismisses the answer to the last request. */
   | { readonly kind: "room-ask-clear" }
+  /** My deck for a seat I hold, or (host only) a preset for any seat. */
+  | { readonly kind: "room-deck"; readonly seat: string; readonly deck: RoomDeck }
+  /** Host only: the full deck of every seat (answered with a `room-decks` carrying the same `id`). */
+  | { readonly kind: "room-decks-request"; readonly id: number }
+  /** Host only: tells a seat's holder why their deck was refused at Start. */
+  | {
+      readonly kind: "room-deck-refuse";
+      readonly seat: string;
+      readonly code: DeckRefusalCode;
+      readonly reason: string;
+    }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
   | { readonly kind: "room-follow"; readonly port: MessagePort }
   | { readonly kind: "room-unfollow" };
@@ -55,7 +73,9 @@ export type LiveRoomIn =
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
 export type LiveRoomOut =
   | { readonly kind: "status"; readonly status: LiveStatus }
-  | { readonly kind: "room"; readonly state: RoomState };
+  | { readonly kind: "room"; readonly state: RoomState }
+  /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
+  | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null };
 
 /** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
 export type RoomFeedOut =

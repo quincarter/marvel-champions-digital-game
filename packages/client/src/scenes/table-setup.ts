@@ -113,7 +113,7 @@ import {
   toggleHoodIncludedSet,
   type HoodModularSetOption,
 } from "../view/hood-modular-sets.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural } from "../i18n/translate.js";
 import { liveWatchDefault } from "../platform/live-watch.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
@@ -170,7 +170,7 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
-import { keepRoomDraft, roomSetupActive, seatLabelOf, seatSpecsOf, seatsToClear } from "../view/room-table-setup.js";
+import { keepRoomDraft, leaveRoomSetup, roomSetupActive } from "../view/room-table-setup.js";
 import { cardHoverFactor, tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
 import type { InstanceId } from "@mc/engine";
 import type { GlyphHints } from "../ui/glyph-hints.js";
@@ -423,6 +423,12 @@ export class TableSetupScene extends Phaser.Scene {
     if (this.#starting || this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // Room mode (#880): there is no hero step (players bring their own decks), so Back returns to the lobby.
+    if (roomSetupActive()) {
+      leaveRoomSetup();
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
   }
 
@@ -478,7 +484,13 @@ export class TableSetupScene extends Phaser.Scene {
     const seatedOptions = this.#draft.seats
       .map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId))
       .filter((o): o is DeckOption => o !== undefined);
-    const players = seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
+    // Room mode (#880): the heroes are not known yet, so the preview is dealt with stand-in precon heroes, one per seat.
+    const players = roomSetupActive()
+      ? deckOptions
+          .filter((o) => o.seatable && o.deck.source.kind === "precon")
+          .slice(0, this.#draft.seats.length)
+          .map((option) => corePlayerForSeat(option))
+      : seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
 
     // A Civil War build: the read-only summary stands in for the picker (one tile per line, then "Edit scenario").
     this.#cwSummary = civilWarTableSummaryOf(this.#draft, CW_SUMMARY_CONTEXT);
@@ -545,7 +557,8 @@ export class TableSetupScene extends Phaser.Scene {
         compositionRows = compositionRowsOf(preview.encounterDeck);
         whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
         if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
-        nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
+        // Which nemesis sets come in depends on the heroes, which a room's players choose later.
+        nemesisStandby = roomSetupActive() ? null : nemesisStandbyOf(preview.encounterDeck);
         gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
         encounterDeckSize = preview.encounterDeckSize;
       }
@@ -776,7 +789,9 @@ export class TableSetupScene extends Phaser.Scene {
       bodyColor,
     );
     const seatCells = this.#seatCells(deckOptions);
-    if (layout.wide && layout.randomControl.width > 0) {
+    if (roomSetupActive()) {
+      this.#drawRoomSeatsNote(layout.seatingRow, bodyColor);
+    } else if (layout.wide && layout.randomControl.width > 0) {
       const roll = (): void => {
         this.#draft = setFirstPlayerIndex(
           this.#draft,
@@ -1266,7 +1281,8 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     if (id === "firstPlayer") {
-      this.#drawCompactFirstPlayerRow(rect, data.seatCells);
+      if (roomSetupActive()) this.#drawRoomSeatsNote(rect, surface.ink.hex);
+      else this.#drawCompactFirstPlayerRow(rect, data.seatCells);
       return;
     }
     if (id === "header:seed") {
@@ -2857,6 +2873,16 @@ export class TableSetupScene extends Phaser.Scene {
     });
   }
 
+  /** Room mode: in place of the seating row, a note that the players bring their own hero and deck (#880). */
+  #drawRoomSeatsNote(rect: Rect, color: number): void {
+    const count = this.#draft.seats.length;
+    const note = this.add
+      .text(rect.x, rect.y + 4, tPlural("room.setup.seatsNote", count), textStyle(typeRole.body, color))
+      .setFontSize(13)
+      .setWordWrapWidth(rect.width, true);
+    void note;
+  }
+
   /** SEATING & FIRST PLAYER: one horizontal row. `includeRandom` adds a dashed "Random" cell at the end (narrow, matching P12); wide keeps Random on the section-header line instead (`#rebuild`). */
   #drawSeatingRow(rect: Rect, cells: readonly SeatCell[], bodyColor: number, includeRandom: boolean): void {
     const gap = 10;
@@ -3118,26 +3144,11 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   /**
-   * Room mode (#880): the host is setting the table up for a room, so this does not deal. The draft is kept, each hero
-   * becomes a lobby seat (hero and deck as its label), and the lobby comes back.
+   * Room mode (#880): the host is setting the table up for a room, so this does not deal. The draft is kept (it names
+   * no heroes: every player brings their own deck) and the lobby comes back.
    */
   #finishForRoom(): void {
-    const options = this.#deckOptions();
-    const labels = this.#draft.seats.map((deckId) => {
-      const option = options.find((o) => (o.deck.id as string) === deckId);
-      return {
-        label: seatLabelOf(option?.identityName ?? null, option?.deck.name ?? null),
-        cardId: option ? (option.deck.identityCardId as string) : null,
-      };
-    });
     keepRoomDraft(this.#draft);
-    // Loaded only now: a single-player setup never pulls the room code in.
-    void import("../platform/room.js").then((room) => {
-      const specs = seatSpecsOf(labels);
-      // A seat that now names another hero (or is gone) loses its holder: they asked for a different table.
-      for (const { seat, participant } of seatsToClear(room.roomState().seats, specs)) room.denySeat(seat, participant);
-      room.setLobby({ seats: specs });
-    });
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.roomLobby);

@@ -30,6 +30,8 @@ const seat = (over: Partial<RoomSeat>): RoomSeat => ({
   away: false,
   requests: [],
   requestedByMe: false,
+  deck: null,
+  deckProblem: null,
   ...over,
 });
 

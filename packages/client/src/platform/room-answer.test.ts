@@ -12,6 +12,7 @@ vi.mock("./live-watch.js", () => ({
     posted.push(message);
     return true;
   },
+  setRoomDecksListener: () => {},
   setRoomStateListener: (l: (state: RoomState) => void) => {
     listener = l;
   },
@@ -40,6 +41,8 @@ const seat = (id: string, player: string, holder: string): RoomSeat => ({
   away: false,
   requests: [],
   requestedByMe: false,
+  deck: null,
+  deckProblem: null,
 });
 const hostState = (what: "undo" | "adjust", from: string): RoomState => ({
   ...NO_ROOM,

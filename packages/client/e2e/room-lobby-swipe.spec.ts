@@ -70,3 +70,45 @@ test("a swipe of the chat list that lifts on Send sends nothing; a tap sends", a
   expect(await calls(page)).toEqual(["say(hello there)"]);
   expect(errors).toEqual([]);
 });
+
+test("a swipe of the seat list that lifts on Set deck opens nothing; a tap opens the picker", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "phone", "touch only");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?screen=room-lobby&as=host&v=open");
+  await waitForScene(page, "RoomLobby");
+  await settle(page);
+  const button = ((await routeStops(page, "RoomLobby"))?.stops ?? []).find((stop) => stop.key === "deck:s1");
+  expect(button, "the first seat's Set deck button").toBeTruthy();
+  const target = { x: button!.rect.x + button!.rect.width / 2, y: button!.rect.y + button!.rect.height / 2 };
+  await swipe(page, { x: target.x - 60, y: target.y - 80 }, target);
+  await waitForScene(page, "RoomLobby");
+  const now = ((await routeStops(page, "RoomLobby"))?.stops ?? []).find((stop) => stop.key === "deck:s1")!;
+  await page.touchscreen.tap(now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
+  await settle(page);
+  await waitForScene(page, "RoomDeckPicker");
+  expect(errors).toEqual([]);
+});
+
+test("a swipe of the deck picker that lifts on Pick chooses nothing; a tap chooses", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "touch only");
+  test.setTimeout(120_000);
+  const errors = trackErrors(page);
+  await installWave6Helpers(page);
+  await page.goto("/?screen=room-deck-picker&as=guest");
+  await waitForScene(page, "RoomDeckPicker");
+  await settle(page);
+  const pick = ((await routeStops(page, "RoomDeckPicker"))?.stops ?? []).find((stop) => stop.key.startsWith("deck:"));
+  expect(pick, "a Pick button").toBeTruthy();
+  const target = { x: pick!.rect.x + pick!.rect.width / 2, y: pick!.rect.y + pick!.rect.height / 2 };
+  await swipe(page, { x: target.x - 60, y: target.y + 90 }, target);
+  expect(await calls(page), "the swipe's lift chose a deck").toEqual([]);
+  const now = ((await routeStops(page, "RoomDeckPicker"))?.stops ?? []).find((stop) => stop.key === pick!.key)!;
+  await page.touchscreen.tap(now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
+  await settle(page);
+  expect((await calls(page))[0]).toMatch(/^chooseDeck\(s1,/);
+  expect(errors).toEqual([]);
+});

@@ -15,6 +15,8 @@ import {
   FIRST_TABLE,
   ROOM_PROTOCOL_VERSION,
   type ClientMessage,
+  type DeckRefusalCode,
+  type RoomDeck,
   type RoomBuild,
   type RoomDevice,
   type ProposalRefusal,
@@ -38,7 +40,7 @@ import { GameMirror } from "./room-game-mirror.js";
 import { RoomModel } from "./room-model.js";
 import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
-import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState } from "./room-state.js";
+import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState, SeatDeckEntry } from "./room-state.js";
 import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -93,6 +95,9 @@ const CAPS = ["watch", "chat", "seats"] as const;
 /** A host also judges seat holders' proposals (issue #881). */
 const HOST_CAPS = ["watch", "chat", "seats", "play"] as const;
 
+/** How long the host waits for the room to hand over the decks before Start gives up. */
+export const DECKS_REPLY_MS = 8000;
+
 const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed", "refused"]);
 const SEAT_REFUSED_TO_CLOSE = new Set(["name-required", "full"]);
 
@@ -117,6 +122,8 @@ export class RoomSession {
   #lastGapAt = Number.NEGATIVE_INFINITY;
   /** Bumped by each `start`/`close`, so a lookup that returns after the session was left does nothing. */
   #generation = 0;
+  /** Host: callers waiting for the room's `seat-decks` answer. */
+  readonly #deckWaiters: { done: (decks: readonly SeatDeckEntry[] | null) => void; timer: unknown }[] = [];
 
   constructor(role: "host" | "guest", name: string, deps: RoomSessionDeps) {
     this.role = role;
@@ -241,6 +248,7 @@ export class RoomSession {
     this.#hooks = null;
     this.unfollow();
     this.#mirror.clear();
+    this.#answerDecks(null);
     this.#model.ended(this.#model.state().problem ?? "closed-ended");
   }
 
@@ -335,6 +343,44 @@ export class RoomSession {
   refuseProposal(to: string, reason: ProposalRefusal, base: number): void {
     if (this.role !== "host") return;
     this.#say({ ch: "game", kind: "proposal-refused", table: FIRST_TABLE, to, reason, base });
+  }
+
+  /**
+   * Sets the deck in a seat: a seat's holder sends their own, the host may send one for any seat (a preset the holder
+   * can replace). Whatever the host said about the seat's old deck no longer applies. The room checks the size and
+   * rate; its refusal shows as `state.refusal`.
+   */
+  chooseDeck(seat: string, deck: RoomDeck): void {
+    this.#model.clearDeckProblem(seat);
+    this.#say({ ch: "room", kind: "seat-deck", seat, deck });
+    this.#publish();
+  }
+
+  /**
+   * Host only: asks the room for every seat's full deck list and resolves with it, or null when the room did not answer
+   * in time, the socket is down or this is not the host. A guest never gets another seat's list.
+   */
+  requestDecks(timeoutMs: number = DECKS_REPLY_MS): Promise<readonly SeatDeckEntry[] | null> {
+    if (this.role !== "host" || !this.#socket?.connected) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const waiter = {
+        done: (decks: readonly SeatDeckEntry[] | null) => {
+          this.#timers.clearTimer(waiter.timer);
+          const at = this.#deckWaiters.indexOf(waiter);
+          if (at >= 0) this.#deckWaiters.splice(at, 1);
+          resolve(decks);
+        },
+        timer: this.#timers.setTimer(() => waiter.done(null), timeoutMs),
+      };
+      this.#deckWaiters.push(waiter);
+      this.#say({ ch: "room", kind: "seat-decks-request" });
+    });
+  }
+
+  /** Host only: tells a seat's holder, and only them, why the host's engine refused their deck at Start. */
+  refuseDeck(seat: string, code: DeckRefusalCode, reason: string): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "deck-refused", seat, code, reason });
   }
 
   chat(text: string): void {
@@ -455,6 +501,7 @@ export class RoomSession {
   /** Nothing more will come from the room: say why, stop the socket and the game's stream. */
   #over(problem: RoomProblem): void {
     this.#model.ended(problem);
+    this.#answerDecks(null);
     this.#socket?.close();
     this.#socket = null;
     const hooks = this.#hooks;
@@ -495,6 +542,11 @@ export class RoomSession {
       // Private to this device: kept and presented on the next hello, never shown.
       this.#tokens[message.seat] = message.token;
       this.#saveTokens();
+      return;
+    }
+    if (message.ch === "room" && message.kind === "seat-decks") {
+      // The full lists are for the host's Start only: handed to the waiting caller, never kept in the state.
+      if (this.role === "host") this.#answerDecks(message.decks);
       return;
     }
     if (message.ch === "room" && message.kind === "refused" && SEAT_REFUSED_TO_CLOSE.has(message.reason)) {
@@ -589,6 +641,10 @@ export class RoomSession {
       },
       reconnectDelay(this.#gapAttempt++, this.#timers.random),
     );
+  }
+
+  #answerDecks(decks: readonly SeatDeckEntry[] | null): void {
+    for (const waiter of [...this.#deckWaiters]) waiter.done(decks);
   }
 
   #clearGapTimer(): void {
