@@ -91,6 +91,18 @@ export const SEAT_ID_PATTERN = /^[A-Za-z0-9_-]{1,16}$/;
 export const LOBBY_CODE_LENGTH = 6;
 /** The largest `tableRules` object, in JSON characters. */
 export const MAX_TABLE_RULES_CHARS = 16 * 1024;
+/**
+ * One seat's deck list, in JSON bytes (`seat-deck`): a deck is about 40 lines of card id and count, so this is generous
+ * and still keeps four seats' decks plus the rest of the lobby row well under a storage value's 128 KiB.
+ */
+export const MAX_SEAT_DECK_BYTES = 16 * 1024;
+/** Most card lines (distinct card ids) in one deck list. */
+export const MAX_DECK_LINES = 120;
+/** `seat-deck` per participant: a burst of this many, then one every `DECK_REFILL_SECONDS` (each accepted change writes a row). */
+export const DECK_MESSAGE_BURST = 4;
+export const DECK_REFILL_SECONDS = 3;
+/** The longest `reason` of a `deck-refused`, after the room cleans it. */
+export const MAX_DECK_REFUSAL_CHARS = 400;
 /** A lobby holds at most this many mods. */
 export const MAX_LOBBY_MODS = 64;
 /** Most seat tokens a `hello` may present. */
@@ -240,11 +252,70 @@ export interface LobbySettings {
 /** What the host may change with `lobby-set`; `appVersion` and `contentVersion` are never taken from a client. */
 export type LobbySettingsPatch = Partial<Omit<LobbySettings, "appVersion" | "contentVersion">>;
 
+/** One line of a deck list: a card id and how many copies. */
+export interface RoomDeckLine {
+  readonly cardId: string;
+  readonly quantity: number;
+}
+
+/**
+ * A player's own deck, as a plain list (Quin, 2026-11-20: each player brings their hero and deck). Built on the player's
+ * device from a saved, imported or precon deck. The room stores it with the seat and never reads the cards; only the
+ * host's engine judges it. `mods` names the custom packs the deck's cards come from (id and version), so the host can
+ * tell a missing or different pack apart from an unknown card. At most `MAX_SEAT_DECK_BYTES` of JSON.
+ */
+export interface RoomDeck {
+  /** The deck's name (at most 80 characters). */
+  readonly name: string;
+  /** The identity card id (the hero or alter-ego the deck belongs to). */
+  readonly hero: string;
+  /** The hero's display name, for the lobby (at most 80 characters). */
+  readonly heroName: string;
+  /** The chosen aspect(s), as their ids. */
+  readonly aspects: readonly string[];
+  /** The cards, without the identity card itself (a `Deck`'s own `cards`). */
+  readonly cards: readonly RoomDeckLine[];
+  /** The custom packs the deck's cards or hero come from; empty for a base-game deck. */
+  readonly mods: readonly LobbyMod[];
+  /**
+   * Attribution only, never a rule input (like `CorePlayer.deckId`): the precon's starter deck id, or the player's own
+   * deck id on their device, so stats and Past games can name the deck a room game was played with.
+   */
+  readonly deckId?: string;
+}
+
+/**
+ * What the lobby shows everyone of a seat's deck: no card list. The full list goes only to the host (`seat-decks`), so
+ * a guest cannot read another guest's deck.
+ */
+export interface RoomDeckSummary {
+  readonly hero: string;
+  readonly heroName: string;
+  readonly aspects: readonly string[];
+  readonly name: string;
+  /** Total cards (the sum of the quantities). */
+  readonly cards: number;
+  readonly mods: readonly LobbyMod[];
+  /** The host chose this deck for the seat (the holder may still replace it). */
+  readonly preset?: true;
+}
+
+/** Why a deck was turned down at Start; the `reason` carries the words (from the host's engine) for that player. */
+export const DECK_REFUSAL_CODES = [
+  "no-deck",
+  "illegal",
+  "unknown-card",
+  "mod-missing",
+  "mod-version",
+  "mod-not-allowed",
+] as const;
+export type DeckRefusalCode = (typeof DECK_REFUSAL_CODES)[number];
+
 /** A seat as the host defines it. */
 export interface LobbySeatSpec {
   readonly id: string;
-  /** The hero or deck label, opaque to the room (at most 80 characters). */
-  readonly label: string;
+  /** An optional label, opaque to the room (at most 80 characters). The host sets a count of open seats; the hero is the deck's. */
+  readonly label?: string;
   /**
    * The engine player (an id, or a seat index) the host assigns to this seat when it starts the game. Opaque to the
    * room, which only stores and relays it; a seat without one has none yet.
@@ -312,6 +383,8 @@ export interface LobbySeat extends LobbySeatSpec {
   readonly left?: boolean;
   /** Participants who asked for the seat and await the host's answer. Memory only: a woken room starts with none. */
   readonly requested?: readonly string[];
+  /** The seat's deck, summarized: set once the holder (or the host's preset) has sent one. Never the card list. */
+  readonly deck?: RoomDeckSummary;
 }
 
 /** The lobby: its code, the host's settings and the seats. Sent to everyone after each change, and to a joiner. */
@@ -408,6 +481,23 @@ export type ClientMessage =
       readonly kind: "seat-deny";
       readonly seat: string;
       readonly participant: string;
+    }
+  /**
+   * The seat's holder sets the seat's deck (the full list); the host may send one for any seat as a preset, which stays
+   * through a change of holder where a holder's own deck does not. At most `MAX_SEAT_DECK_BYTES`, rate limited
+   * (`DECK_MESSAGE_BURST`, then one per `DECK_REFILL_SECONDS`). Everyone sees only a summary; the host can ask for the lists.
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-deck"; readonly seat: string; readonly deck: RoomDeck }
+  /** Host only: asks for every seat's full deck list (answered to the host alone with `seat-decks`). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-decks-request" }
+  /** Host only: tells a seat's holder, and only them, why the host's engine refused their deck at Start. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "deck-refused";
+      readonly seat: string;
+      readonly code: DeckRefusalCode;
+      readonly reason: string;
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "start"; readonly table: string; readonly header: TableHeader }
   /** The commands `from` .. `from + commands.length - 1`. A batch that does not continue the table's log is refused. */
@@ -559,6 +649,27 @@ export type ServerMessage =
       readonly kind: "table-host-token";
       readonly table: string;
       readonly token: string;
+    }
+  /** To the host alone, answering `seat-decks-request`: the full deck of every seat that has one. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "seat-decks";
+      readonly decks: readonly {
+        readonly seat: string;
+        readonly holder?: string;
+        readonly preset: boolean;
+        readonly deck: RoomDeck;
+      }[];
+    }
+  /** To the holder of `seat` alone: the host's engine refused the seat's deck at Start, and why. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "deck-refused";
+      readonly seat: string;
+      readonly code: DeckRefusalCode;
+      readonly reason: string;
     }
   /** To a participant whose pending request for `seat` the host turned down: stop asking (the request is gone). */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-denied"; readonly seat: string }
@@ -740,12 +851,48 @@ function isSeatSpecs(v: unknown): boolean {
       (s) =>
         isRecord(s) &&
         isSeatId(s.id) &&
-        shortString(s.label, 80) &&
+        (s.label === undefined || shortString(s.label, 80)) &&
         (s.table === undefined || isTableId(s.table)) &&
         (s.player === undefined ||
           (typeof s.player === "string" && s.player.length > 0 && s.player.length <= MAX_SEAT_PLAYER_CHARS) ||
           (typeof s.player === "number" && Number.isInteger(s.player) && s.player >= 0 && s.player < 1000)),
     )
+  );
+}
+
+function isMods(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_LOBBY_MODS &&
+    v.every((m) => isRecord(m) && shortString(m.id, 64) && shortString(m.version, 32))
+  );
+}
+
+/** The shape and limits of a `RoomDeck`; the room cleans the text and checks the byte size after. */
+function isDeck(v: unknown): v is RoomDeck {
+  return (
+    isRecord(v) &&
+    shortString(v.name, 160) &&
+    shortString(v.hero, 64) &&
+    v.hero.length > 0 &&
+    shortString(v.heroName, 160) &&
+    Array.isArray(v.aspects) &&
+    v.aspects.length <= 4 &&
+    v.aspects.every((a) => shortString(a, 24)) &&
+    Array.isArray(v.cards) &&
+    v.cards.length <= MAX_DECK_LINES &&
+    v.cards.every(
+      (c) =>
+        isRecord(c) &&
+        shortString(c.cardId, 64) &&
+        c.cardId.length > 0 &&
+        typeof c.quantity === "number" &&
+        Number.isInteger(c.quantity) &&
+        c.quantity >= 1 &&
+        c.quantity <= 99,
+    ) &&
+    isMods(v.mods) &&
+    (v.deckId === undefined || (shortString(v.deckId, 64) && v.deckId.length > 0))
   );
 }
 
@@ -821,6 +968,17 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "room:seat-assign":
     case "room:seat-deny":
       return ok(isSeatId(m.seat) && typeof m.participant === "string" && m.participant.length <= 32);
+    case "room:seat-deck":
+      return ok(isSeatId(m.seat) && isDeck(m.deck));
+    case "room:seat-decks-request":
+      return ok(true);
+    case "room:deck-refused":
+      return ok(
+        isSeatId(m.seat) &&
+          DECK_REFUSAL_CODES.some((c) => c === m.code) &&
+          typeof m.reason === "string" &&
+          m.reason.length <= MAX_DECK_REFUSAL_CHARS * 4,
+      );
     case "game:start":
       return ok(isTable(m.table) && "header" in m);
     case "game:commands":

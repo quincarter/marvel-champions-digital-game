@@ -16,9 +16,20 @@ import {
 
 export type EpicFixtureAs = "organizer" | "player" | "watcher";
 
-const seat = (id: string, label: string, holder: string | null, name: string | null, mine = false): RoomSeat => ({
+/** A seat whose player brought a deck: `hero` is the identity card id, `heroName` its name, `deckName` the deck's. */
+const seat = (
+  id: string,
+  hero: string,
+  heroName: string,
+  aspect: string,
+  holder: string | null,
+  name: string | null,
+  mine = false,
+): RoomSeat => ({
   id,
-  label,
+  label: "",
+  deck: { hero, heroName, aspects: [aspect], name: `${heroName} (${aspect})`, cards: 40, mods: [] },
+  deckProblem: null,
   holder,
   holderName: name,
   holderConnected: holder !== null,
@@ -63,16 +74,11 @@ export function epicRoomFixture(options: EpicFixtureOptions): RoomState {
     })),
   ];
   const seats: RoomSeat[] = [
-    seat("t1s1", "Spider-Man (Justice) - Core Set starter deck|01001a", "u1", "Ava", as === "player"),
-    seat("t1s2", "She-Hulk (Aggression) - Core Set starter deck|01019a", "u2", "Ben"),
-    seat("t2s1", "Captain Marvel (Leadership) - Core Set starter deck|01010a", "u3", "Cleo"),
-    seat("t3s1", "Iron Man (Aggression) - Core Set starter deck|01029a", playing ? "u4" : null, playing ? "Dev" : null),
-    seat(
-      "t3s2",
-      "Black Panther (Protection) - Core Set starter deck|01022a",
-      playing ? "u5" : null,
-      playing ? "Esi" : null,
-    ),
+    seat("t1s1", "01001a", "Spider-Man", "justice", "u1", "Ava", as === "player"),
+    seat("t1s2", "01019a", "She-Hulk", "aggression", "u2", "Ben"),
+    seat("t2s1", "01010a", "Captain Marvel", "leadership", "u3", "Cleo"),
+    seat("t3s1", "01029a", "Iron Man", "aggression", playing ? "u4" : null, playing ? "Dev" : null),
+    seat("t3s2", "01022a", "Black Panther", "protection", playing ? "u5" : null, playing ? "Esi" : null),
   ];
   const byTable: Record<string, string[]> = { t1: ["t1s1", "t1s2"], t2: ["t2s1"], t3: ["t3s1", "t3s2"] };
   const mk = (id: string, name: string, pod: string, host: string | null, hostName: string | null): EpicTable => ({

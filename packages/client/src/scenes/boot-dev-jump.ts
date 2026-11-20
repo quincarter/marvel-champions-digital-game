@@ -380,7 +380,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
     return {
       key: SCENES.roomLobby,
-      data: { preview: roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host") },
+      data: {
+        preview: roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host", variantOf(params.get("v"))),
+        ...(params.get("result") === "decks" ? { startResult: "decks" } : {}),
+      },
+    };
+  }
+  // `?screen=room-deck-picker&as=guest|host`: the deck picker for a seat of the made-up room (a guest's own seat, or the host's Set deck on seat 2).
+  if (screen === "room-deck-picker") {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const host = params.get("as") === "host";
+    return {
+      key: SCENES.roomDeckPicker,
+      data: { seat: host ? "s2" : "s1", preset: host, preview: roomLobbyFixture(host ? "host" : "guest", "open") },
     };
   }
   // `?screen=room-play-host&name=Mara[&mode=strict][&handover=0]` and `?screen=room-play-guest&code=ABC123&name=Ava` (issue #881,
@@ -1592,3 +1604,7 @@ async function injectEpicRoom(
     setTimeout(() => room.previewRoomState(flipped), 4000);
   }
 }
+
+/** `?v=open|decks|problem` of the room lobby preview. */
+const variantOf = (value: string | null): "open" | "decks" | "problem" =>
+  value === "open" || value === "problem" ? value : "decks";

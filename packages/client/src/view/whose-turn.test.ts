@@ -16,6 +16,8 @@ const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
   away: false,
   requests: [],
   requestedByMe: false,
+  deck: null,
+  deckProblem: null,
   ...over,
 });
 const host = { id: "h", name: "Mara", role: "host" as const, me: false, buildMatches: true, seats: [] };

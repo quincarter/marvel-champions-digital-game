@@ -55,6 +55,8 @@ export const SCENES = {
   online: "Online",
   /** A room's lobby (`scenes/room-lobby.ts`, #880): people, seats, host controls and chat before the game. */
   roomLobby: "RoomLobby",
+  /** The room's deck picker (`scenes/room-deck-picker.ts`, #880): choose a deck from this device for a seat. */
+  roomDeckPicker: "RoomDeckPicker",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */

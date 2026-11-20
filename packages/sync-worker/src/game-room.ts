@@ -32,6 +32,8 @@ import {
   DEFAULT_MAX_ROOM_LOG_BYTES,
   DEFAULT_MAX_ROOM_MESSAGE_BYTES,
   DEFAULT_MAX_ROOM_PARTICIPANTS,
+  DECK_MESSAGE_BURST,
+  DECK_REFILL_SECONDS,
   FIRST_TABLE,
   LOG_PART_BYTES,
   MAX_CHAT_LENGTH,
@@ -43,8 +45,10 @@ import {
   POD_BURST,
   POD_PER_SECOND,
   MAX_LOG_BYTES,
+  MAX_DECK_REFUSAL_CHARS,
   MAX_NAME_LENGTH,
   MAX_ROOM_REFUSALS,
+  MAX_SEAT_DECK_BYTES,
   ROOM_CHUNK_COMMANDS,
   ROOM_END_GRACE_MS,
   ROOM_IDLE_MS,
@@ -56,6 +60,8 @@ import {
   type LobbySeat,
   type LobbySeatSpec,
   type LobbyTable,
+  type RoomDeck,
+  type RoomDeckSummary,
   type LobbySettings,
   type LobbyState,
   type Participant,
@@ -143,6 +149,30 @@ interface StoredSeat extends LobbySeatSpec {
   tokenHash?: string;
   takenOver?: boolean;
   left?: boolean;
+  /** The seat's full deck list: only ever sent to the host (`seat-decks`), never in the lobby broadcast. */
+  deck?: RoomDeck;
+  /** The host chose `deck`: it stays through a change of holder. */
+  deckPreset?: true;
+  /** A host preset the holder replaced with their own deck: it comes back when they give the seat up. */
+  presetDeck?: RoomDeck;
+}
+
+/** Whole-room cap on accepted deck changes (each rewrites the lobby row): a burst of this many, then one every 2 s. */
+const ROOM_DECK_BURST = 20;
+const ROOM_DECK_REFILL_SECONDS = 2;
+const DECK_BYTES = new TextEncoder();
+
+/** What the lobby shows of a deck: everything but the card list. */
+function summarize(deck: RoomDeck, preset: boolean): RoomDeckSummary {
+  return {
+    hero: deck.hero,
+    heroName: deck.heroName,
+    aspects: [...deck.aspects],
+    name: deck.name,
+    cards: deck.cards.reduce((n, line) => n + line.quantity, 0),
+    mods: deck.mods.map((m) => ({ id: m.id, version: m.version })),
+    ...(preset ? { preset: true as const } : {}),
+  };
 }
 
 /** An Epic table as stored: the public table plus the hash of its host's token. */
@@ -287,6 +317,24 @@ const clip = (text: string, max: number): string => {
 /** Whether a cleaned name has something to see: not only spaces and marks. */
 const hasVisible = (text: string): boolean => /[\p{L}\p{N}\p{P}\p{S}]/u.test(text);
 
+/** A deck rebuilt from the fields the room knows, with its text cleaned: nothing else a client sent is kept. */
+function cleanDeck(deck: RoomDeck): RoomDeck | null {
+  const text = (value: string, max: number): string => clip(cleanText(value).replace(/\s+/g, " "), max).trim();
+  const name = text(deck.name, 80);
+  const heroName = text(deck.heroName, 80);
+  const hero = text(deck.hero, 64);
+  if (hero.length === 0 || name.length === 0 || heroName.length === 0) return null;
+  return {
+    name,
+    hero,
+    heroName,
+    aspects: deck.aspects.map((a) => text(a, 24)),
+    cards: deck.cards.map((c) => ({ cardId: text(c.cardId, 64), quantity: c.quantity })),
+    mods: deck.mods.map((m) => ({ id: text(m.id, 64), version: text(m.version, 32) })),
+    ...(deck.deckId ? { deckId: text(deck.deckId, 64) } : {}),
+  };
+}
+
 /** A token bucket in a map: true when one token was taken. Memory only. */
 function takeToken(
   buckets: Map<string, { tokens: number; at: number }>,
@@ -325,6 +373,9 @@ export class GameRoomLogic {
   private readonly proposalBuckets = new Map<string, { tokens: number; at: number }>();
   /** Lobby message rate: a bucket per participant (burst `LOBBY_MESSAGE_BURST`, 2 a second). Memory only. */
   private readonly lobbyBuckets = new Map<string, { tokens: number; at: number }>();
+  /** `seat-deck` rate per participant, and for the whole room (every accepted deck rewrites the lobby row). Memory only. */
+  private readonly deckBuckets = new Map<string, { tokens: number; at: number }>();
+  private readonly roomDeckBucket = new Map<string, { tokens: number; at: number }>();
   /** The lobby row, loaded on first use; null for a room without a code. */
   private lobby: LobbyRow | null | undefined;
   /** The last chat lines, oldest first. Memory only: a woken room starts with none. */
@@ -418,7 +469,7 @@ export class GameRoomLogic {
   }
 
   private lobbyState(lobby: LobbyRow): LobbyState {
-    const seats: LobbySeat[] = lobby.seats.map(({ tokenHash: _hash, ...seat }) => {
+    const seats: LobbySeat[] = lobby.seats.map(({ tokenHash: _hash, deck, deckPreset, presetDeck: _held, ...seat }) => {
       const requested = this.requests.get(seat.id);
       const holder = seat.holder ? this.participants.get(seat.holder) : undefined;
       const mismatch =
@@ -427,6 +478,7 @@ export class GameRoomLogic {
         ...seat,
         ...(requested && requested.length > 0 ? { requested: [...requested] } : {}),
         ...(mismatch ? { mismatch: true } : {}),
+        ...(deck ? { deck: summarize(deck, deckPreset === true) } : {}),
       };
     });
     // A lobby stored before `handover` existed has none: handing over is allowed, as it always was.
@@ -1172,6 +1224,8 @@ export class GameRoomLogic {
    */
   private async grant(seat: StoredSeat, who: Participant): Promise<void> {
     const token = newSeatToken();
+    // A change of holder clears the previous holder's own deck; the host's preset stays.
+    if (seat.holder !== who.id && !seat.deckPreset) delete seat.deck;
     // Holder first: the hash below is an await, and a second message must already see the seat taken.
     seat.holder = who.id;
     seat.holderName = who.name ?? "";
@@ -1284,8 +1338,14 @@ export class GameRoomLogic {
         const table = epic ? (spec.table ?? FIRST_TABLE) : undefined;
         const player = spec.player === undefined ? {} : { player: spec.player };
         const moved = kept !== undefined && epic && this.seatTable(kept) !== table;
-        const { player: _old, table: _table, ...rest } = moved || !kept ? { id: spec.id, label: spec.label } : kept;
-        return { ...rest, label: spec.label, ...player, ...(table !== undefined ? { table } : {}) };
+        const label = spec.label === undefined ? {} : { label: spec.label };
+        const {
+          label: _label,
+          player: _old,
+          table: _table,
+          ...rest
+        } = moved || !kept ? ({ id: spec.id } as StoredSeat) : kept;
+        return { ...rest, ...label, ...player, ...(table !== undefined ? { table } : {}) };
       });
     } else if (!epic && seats.some((s) => this.seatTable(s) !== FIRST_TABLE)) {
       return refuse("bad-message");
@@ -1443,8 +1503,23 @@ export class GameRoomLogic {
       delete seat.tokenHash;
       delete seat.takenOver;
       delete seat.left;
+      // The holder's own deck goes with them (the next holder brings theirs); the host's preset stays, and one the
+      // holder had replaced comes back. During a live game the hero is fixed (the frozen seat-to-player mapping), so the
+      // deck summary stays: a vacant seat still names its hero, and whoever takes it plays that hero.
+      if (!seat.deckPreset && !gameLive(seat)) {
+        delete seat.deck;
+        if (seat.presetDeck) {
+          seat.deck = seat.presetDeck;
+          seat.deckPreset = true;
+        }
+        delete seat.presetDeck;
+      }
     };
     const handover = settings.handover !== false;
+    // Whose seats' full decks this participant may read and refuse: the host's, all of them in a standard room; in an
+    // Epic room the host of a table reads its own table's seats (the organizer too, only if it hosts a table).
+    const inDeckScope = (): boolean => (this.epic() ? who.role === "host" && who.table !== undefined : isHost);
+    const deckScope = (seat: StoredSeat): boolean => !this.epic() || this.seatTable(seat) === who.table;
     const gameLive = (seat: StoredSeat): boolean => {
       const t = this.tables.get(this.seatTable(seat));
       return t !== undefined && t.hasHeader && !t.ended;
@@ -1550,6 +1625,82 @@ export class GameRoomLogic {
         delete seat.takenOver;
         persist = true;
         break;
+      }
+      case "seat-deck": {
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        // A holder sets their own seat's deck; the host may set any seat's, which is then a preset.
+        if (seat.holder !== who.id && !isHost) return this.refuse(socket, "not-allowed");
+        const preset = isHost && seat.holder !== who.id;
+        // A preset does not overwrite a deck its holder chose: take the seat back first.
+        if (preset && seat.holder && !seat.deckPreset && seat.deck) return this.refuse(socket, "not-allowed");
+        const now = this.clock();
+        if (
+          !takeToken(this.deckBuckets, who.id, DECK_MESSAGE_BURST, 1 / DECK_REFILL_SECONDS, now) ||
+          !takeToken(this.roomDeckBucket, "room", ROOM_DECK_BURST, 1 / ROOM_DECK_REFILL_SECONDS, now)
+        ) {
+          return this.refuse(socket, "rate-limited");
+        }
+        // The size is the deck as sent, in bytes; the shape and counts were checked when the message was read.
+        if (DECK_BYTES.encode(JSON.stringify(message.deck)).length > MAX_SEAT_DECK_BYTES) {
+          return this.refuse(socket, "too-large");
+        }
+        const deck = cleanDeck(message.deck);
+        if (!deck) return this.refuse(socket, "bad-message");
+        // The same deck again changes nothing, so it writes nothing and tells no one.
+        if (seat.deck && (seat.deckPreset === true) === preset && JSON.stringify(seat.deck) === JSON.stringify(deck)) {
+          return;
+        }
+        // A holder's own deck over the host's preset keeps the preset behind it, for when they give the seat up.
+        if (!preset && seat.deckPreset && seat.deck) seat.presetDeck = seat.deck;
+        if (preset) delete seat.presetDeck;
+        seat.deck = deck;
+        if (preset) seat.deckPreset = true;
+        else delete seat.deckPreset;
+        persist = true;
+        break;
+      }
+      case "seat-decks-request": {
+        // The full lists go to the host alone, on request, never in the lobby everyone gets. In an Epic room that is
+        // each table's host, for the seats at its own table: it judges and deals that table's game.
+        if (!inDeckScope()) return this.refuse(socket, "not-allowed");
+        this.sendTo(who.id, {
+          v: 1,
+          ch: "room",
+          kind: "seat-decks",
+          decks: lobby.seats.filter(deckScope).flatMap((seat) =>
+            seat.deck
+              ? [
+                  {
+                    seat: seat.id,
+                    ...(seat.holder ? { holder: seat.holder } : {}),
+                    preset: seat.deckPreset === true,
+                    deck: seat.deck,
+                  },
+                ]
+              : [],
+          ),
+        });
+        return;
+      }
+      case "deck-refused": {
+        // The host's engine judged a deck at Start: only that seat's holder is told why.
+        if (!inDeckScope()) return this.refuse(socket, "not-allowed");
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (!deckScope(seat)) return this.refuse(socket, "not-allowed");
+        const reason = clip(cleanText(message.reason), MAX_DECK_REFUSAL_CHARS);
+        if (seat.holder && seat.holder !== who.id) {
+          this.sendTo(seat.holder, {
+            v: 1,
+            ch: "room",
+            kind: "deck-refused",
+            seat: seat.id,
+            code: message.code,
+            reason,
+          });
+        }
+        return;
       }
       case "seat-deny": {
         if (!isHost) return this.refuse(socket, "not-allowed");
@@ -1780,6 +1931,7 @@ export class GameRoomLogic {
     this.lobbyBuckets.delete(participant.id);
     this.proposalBuckets.delete(participant.id);
     this.podBuckets.delete(participant.id);
+    this.deckBuckets.delete(participant.id);
     this.broadcastRoster();
     if (participant.role === "host" && participant.table) {
       const table = this.tableOf(participant.table);
@@ -1862,6 +2014,8 @@ export class GameRoomLogic {
     this.proposalBuckets.clear();
     this.podBuckets.clear();
     this.podState = undefined;
+    this.deckBuckets.clear();
+    this.roomDeckBucket.clear();
     this.requests.clear();
   }
 

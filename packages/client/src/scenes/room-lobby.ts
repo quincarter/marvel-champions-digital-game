@@ -10,8 +10,8 @@
  * fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
-import { currentCardsById, currentPool, currentScenarios, currentDeps, POOL_VERSION } from "../content/pool.js";
-import { t } from "../i18n/translate.js";
+import { currentCardsById, currentScenarios } from "../content/pool.js";
+import { t, tPlural } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { withLoadedPacks } from "../packs/game-packs.js";
 import {
@@ -22,17 +22,16 @@ import {
   roomState,
   say,
   setLobby,
-  startGame,
+  startRoomGame,
   assignSeat,
   denySeat,
   takeOverSeat,
   giveBackSeat,
   type RoomState,
 } from "../platform/room.js";
-import { dropTable, setEpic, startEpicGame, startEpicTable, watchTable } from "../platform/room.js";
+import { dropTable, setEpic, startEpicGame, startEpicTableRoomGame, watchTable } from "../platform/room.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
-import { appSession, deckStorage } from "../session.js";
 import { copyText } from "../ui/report-export.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
@@ -52,8 +51,8 @@ import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import type { ModStoreSceneData } from "./mod-store.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
-import type { DeckOption } from "../view/deck-list-model.js";
-import { corePlayerForSeat } from "../view/deck-seat.js";
+import type { RoomGameBase } from "../live/room-start.js";
+import type { DeckRefusalCode } from "../live/room-state.js";
 import type { Rect } from "../view/layout.js";
 import { lobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import {
@@ -63,27 +62,40 @@ import {
   guestModRows,
   hostModRows,
   participantRows,
+  deckKeyOf,
   playModeKeys,
   refusalWords,
+  seatNameOf,
   seatRows,
   startBlock,
+  startResultText,
+  startResultWords,
   tableRuleRows,
   toggleModPatch,
   toggleTableRulePatch,
   wordsText,
   type SeatRowView,
+  type StartResultView,
   type Words,
 } from "../view/room-lobby-model.js";
-import { clearRoomTable, enterRoomSetup, parseSeatLabel, roomDraft } from "../view/room-table-setup.js";
+import {
+  clampSeatCount,
+  clearRoomTable,
+  enterRoomSetup,
+  placeholderSeats,
+  ROOM_SEATS_DEFAULT,
+  ROOM_SEATS_MAX,
+  ROOM_SEATS_MIN,
+  roomBaseConfig,
+  roomDraft,
+  seatSpecsOf,
+} from "../view/room-table-setup.js";
 import { setSeatNote } from "../view/room-seat-note.js";
-import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
 import { tableRulesOf, type Settings } from "../settings.js";
-import { toSessionConfig } from "../view/setup-draft.js";
 import type { SessionConfig } from "../engine/host.js";
-import { EPIC_SCENARIO_ID, epicTableSessionConfig, missingHeroes } from "../view/epic-table-config.js";
+import { EPIC_SCENARIO_ID, epicTableBase } from "../view/epic-table-config.js";
 import { withEpicTimeLimit } from "../live/epic-start.js";
 import {
-  HERO_UNSET,
   MAX_EPIC_TABLES,
   MIN_EPIC_TABLES,
   epicStartBlock,
@@ -101,6 +113,7 @@ import {
   type EpicTableView,
 } from "../view/epic-lobby-model.js";
 import type { EpicSheetData } from "./epic-sheet.js";
+import type { RoomDeckPickerData } from "./room-deck-picker.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { introReplay } from "./replay-entry.js";
@@ -164,6 +177,8 @@ const PREVIEW_API: RoomApi | null = import.meta.env.DEV
 export interface RoomLobbyData {
   /** Dev only: a made-up room to draw (`view/room-lobby-fixture.ts`) instead of the live one. */
   readonly preview?: RoomState;
+  /** Dev only: show the refusal a Start with refused decks would (the preview's seats 1 and 3 refused). */
+  readonly startResult?: "decks";
 }
 
 type ScrollKey = "seats" | "settings" | "chat";
@@ -205,8 +220,14 @@ export class RoomLobbyScene extends Phaser.Scene {
   #refusalSeen = 0;
   #note: Note | null = null;
   #linkCopied = false;
-  #decks: readonly DeckOption[] | null = null;
   #starting = false;
+  /** What the host's last Start said when it did not start the game (shown in the seats panel until dismissed). */
+  #startResult: StartResultView | null = null;
+  /** The seats' decks at a table start that failed, so it is not tried again until one changes. */
+  #epicFailedKey: string | null = null;
+  /** The decks the host's last Start refused, each with the deck it was about, so a changed deck clears it. */
+  #refused: readonly { seat: string; code: DeckRefusalCode; reason: string; deckKey: string }[] = [];
+  #seatsDefaulted = false;
   #opening = false;
   /** After a failed open of the room's game: no new try before this time (ms on the scene clock), and the next wait. */
   #openAfter = 0;
@@ -225,9 +246,27 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#confirmLeave = false;
     this.#note = null;
     this.#starting = false;
+    this.#startResult = null;
+    this.#refused = [];
+    this.#seatsDefaulted = false;
     this.#opening = false;
     this.#openAfter = 0;
     this.#openBackoff = 3000;
+    if (this.#preview && data.startResult === "decks") {
+      const refused = [
+        {
+          seat: "s1",
+          code: "illegal" as const,
+          reason: "Spider-Man (Justice) needs 40 to 50 cards; this deck has 38.",
+        },
+        { seat: "s3", code: "mod-missing" as const, reason: "The host does not have the pack fan-pack." },
+      ];
+      this.#refused = refused.map((r) => ({
+        ...r,
+        deckKey: deckKeyOf(this.#state.seats.find((seat) => seat.id === r.seat)?.deck ?? null),
+      }));
+      this.#startResult = startResultWords({ ok: false, reason: "decks", refused }, this.#state);
+    }
     this.#chatCount = this.#state.chat.length;
     this.#refusalSeen = this.#state.refusal?.seq ?? 0;
   }
@@ -273,14 +312,6 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    void deckStorage()
-      .list()
-      .then((decks) => {
-        if (!this.#alive) return;
-        this.#decks = seatableDeckOptionsOf(decks, currentPool(), POOL_VERSION, currentDeps());
-        this.#draw();
-        void this.#maybeStartTable();
-      });
     if (!this.#preview) this.#off = onRoomState((state) => this.#onState(state));
   }
 
@@ -300,6 +331,13 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (!this.#alive) return;
     this.#state = state;
     if (state.role === "none") return;
+    // A new lobby opens with a couple of open seats: the host changes the count with the stepper.
+    if (state.role === "host" && state.connection === "connected" && state.settings && state.seats.length === 0) {
+      if (!this.#seatsDefaulted) {
+        this.#seatsDefaulted = true;
+        setLobby({ seats: seatSpecsOf(ROOM_SEATS_DEFAULT) });
+      }
+    }
     if (state.refusal && state.refusal.seq !== this.#refusalSeen) {
       this.#refusalSeen = state.refusal.seq;
       const words = refusalWords(state.refusal, state);
@@ -345,75 +383,87 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   // ---- The host's table -------------------------------------------------------------------------------------
 
-  /** The game the kept draft makes, with the lobby's house rules, or null while the table is not set up. */
-  #config(): SessionConfig | null {
+  /** The game the kept draft makes without its players, with the lobby's house rules, or null while the table is not set up. */
+  #base(): RoomGameBase | null {
     const draft = roomDraft();
-    const decks = this.#decks;
-    if (!draft || !decks) return null;
-    // Built again only when the draft, the decks, the loaded packs or the house rule change (every draw asks).
+    if (!draft) return null;
+    // Built again only when the draft, the seat count, the loaded packs or the house rule change (every draw asks).
     const rule = this.#state.settings?.tableRules.sameNameHeroAllyConflict === true;
+    const seats = this.#state.seats.length;
     const packs = loadedPacks()
       .map((p) => `${p.id}@${p.version}`)
       .join(",");
     // The draft is compared by value: Table setup may edit the kept object in place.
     const draftKey = JSON.stringify(draft);
-    const cached = this.#configCache;
+    const cached = this.#baseCache;
     if (
       cached &&
       cached.draft === draftKey &&
-      cached.decks === decks &&
       cached.rule === rule &&
-      cached.packs === packs
+      cached.packs === packs &&
+      cached.seats === seats
     ) {
-      return cached.config;
+      return cached.base;
     }
-    const config = this.#buildConfig(draft, decks);
-    this.#configCache = { draft: draftKey, decks, rule, packs, config };
-    return config;
+    const scenario = currentScenarios().find((sc) => (sc.id as string) === draft.scenarioId);
+    const settings = { sameNameHeroAllyConflict: rule } as Pick<Settings, "sameNameHeroAllyConflict">;
+    const base = roomBaseConfig(draft, Math.max(1, seats), scenario, tableRulesOf(settings));
+    this.#baseCache = { draft: draftKey, rule, packs, seats, base };
+    return base;
   }
 
-  #configCache: {
+  #baseCache: {
     readonly draft: string;
-    readonly decks: unknown;
     readonly rule: boolean;
     readonly packs: string;
-    readonly config: SessionConfig | null;
+    readonly seats: number;
+    readonly base: RoomGameBase;
   } | null = null;
 
-  #buildConfig(draft: NonNullable<ReturnType<typeof roomDraft>>, decks: readonly DeckOption[]): SessionConfig | null {
-    const options = draft.seats.map((id) => decks.find((o) => (o.deck.id as string) === id));
-    if (options.length === 0 || options.some((o) => o === undefined)) return null;
-    const players = (options as DeckOption[]).map((o) => corePlayerForSeat(o, draft.deckSwaps));
-    const scenario = currentScenarios().find((s) => (s.id as string) === draft.scenarioId);
-    const rules = this.#state.settings?.tableRules;
-    const settings = { sameNameHeroAllyConflict: rules?.sameNameHeroAllyConflict === true } as Pick<
-      Settings,
-      "sameNameHeroAllyConflict"
-    >;
-    return toSessionConfig(draft, players, scenario, tableRulesOf(settings));
-  }
-
-  #packsUsed(config: SessionConfig | null): readonly { id: string; version: string }[] {
-    return config ? (withLoadedPacks(config).packs?.map((p) => ({ id: p.id, version: p.version })) ?? []) : [];
+  #packsUsed(base: RoomGameBase | null): readonly { id: string; version: string }[] {
+    if (!base) return [];
+    const config: SessionConfig = { ...base, players: [] };
+    return withLoadedPacks(config).packs?.map((p) => ({ id: p.id, version: p.version })) ?? [];
   }
 
   #startWords(): Words | null {
-    if (this.#state.epic) return epicStartBlock(this.#state, { missingDecks: this.#missingOwnDecks() });
-    const config = this.#config();
-    return startBlock(this.#state, { tableReady: config !== null, packsUsed: this.#packsUsed(config) });
+    if (this.#state.epic) return epicStartBlock(this.#state, { missingDecks: [] });
+    const base = this.#base();
+    return startBlock(this.#state, { tableReady: base !== null, packsUsed: this.#packsUsed(base) });
   }
 
   #setUpTable(): void {
     if (!this.#isHost()) return;
-    enterRoomSetup();
+    enterRoomSetup(this.#state.seats.length || ROOM_SEATS_DEFAULT);
     this.scale.off("resize", this.#draw, this);
     const draft = roomDraft();
-    if (draft) goToScreen(this, SCENES.setup, { draft } satisfies TableSetupData);
-    else goToScreen(this, SCENES.scenarioSelect, { draft: newGameDraft() } satisfies ScenarioSelectData);
+    // No heroes here: every player brings their own deck, so the table has one placeholder per lobby seat.
+    if (draft) {
+      const seated = { ...draft, seats: placeholderSeats(this.#state.seats.length || ROOM_SEATS_DEFAULT) };
+      goToScreen(this, SCENES.setup, { draft: seated } satisfies TableSetupData);
+    } else goToScreen(this, SCENES.scenarioSelect, { draft: newGameDraft() } satisfies ScenarioSelectData);
+  }
+
+  /** The host changes the number of seats (one to four); a seat someone holds is not dropped by accident. */
+  #setSeatCount(count: number): void {
+    const next = clampSeatCount(count);
+    if (next === this.#state.seats.length) return;
+    this.#api.setLobby({ seats: seatSpecsOf(next) });
+  }
+
+  /** Opens the deck picker for a seat: mine ("Choose your deck") or, for the host, any seat ("Set deck"). */
+  #pickDeck(seat: string, preset: boolean): void {
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.roomDeckPicker, {
+      seat,
+      preset,
+      ...(this.#preview ? { preview: this.#state } : {}),
+    } satisfies RoomDeckPickerData);
   }
 
   async #start(): Promise<void> {
     if (this.#starting) return;
+    this.#startResult = null;
     const block = this.#startWords();
     if (block) {
       this.#say(wordsText(block));
@@ -425,16 +475,27 @@ export class RoomLobbyScene extends Phaser.Scene {
       else startEpicGame();
       return;
     }
-    const config = this.#config();
-    if (!config) return;
+    const base = this.#base();
+    if (!base) return;
     this.#starting = true;
     this.#draw();
-    await startGame(config);
+    // The decks the seats hold are fetched, judged and dealt by `startRoomGame`; it says what stopped it, if anything.
+    const keys = new Map(this.#state.seats.map((seat) => [seat.id, deckKeyOf(seat.deck)] as const));
+    const result = await startRoomGame(base);
     if (!this.#alive) return;
-    const { store } = appSession();
-    if (store.state.status === "failed") {
+    if (!result.ok) {
       this.#starting = false;
-      this.#say(store.state.error ?? t("room.refusal.generic"));
+      this.#refused =
+        result.reason === "decks"
+          ? result.refused.map((r) => ({
+              seat: r.seat,
+              code: r.code,
+              reason: r.reason,
+              deckKey: keys.get(r.seat) ?? "",
+            }))
+          : [];
+      this.#startResult = startResultWords(result, this.#state);
+      if (this.#startResult) this.#tab = "seats";
       this.#draw();
       return;
     }
@@ -495,9 +556,11 @@ export class RoomLobbyScene extends Phaser.Scene {
       goToScreen(this, SCENES.board, {});
       return;
     }
-    const labels = this.#state.mySeats.map(
-      (id) => parseSeatLabel(this.#state.seats.find((s) => s.id === id)?.label ?? id).text,
-    );
+    const labels = this.#state.mySeats.map((id) => {
+      const index = this.#state.seats.findIndex((seat) => seat.id === id);
+      const seat = this.#state.seats[index];
+      return seat?.deck?.heroName ?? (seat ? seatNameOf(seat, index) : id);
+    });
     setSeatNote(
       labels.length === 0
         ? null
@@ -792,12 +855,14 @@ export class RoomLobbyScene extends Phaser.Scene {
           suppressClick: guard.suppress,
         });
         guard.stop("setup", setupRect, () => this.#setUpTable());
-        y += hit.target + 14;
+        y += hit.target + 10;
+        y = this.#drawSeatCount(x, y, w, guard) + 14;
       } else if (!state.buildMatches) {
         const note = this.#text(x, y, t("room.refusal.buildMismatch"), 13, w, { bold: true });
         y += note.height + 10;
       }
-      const rows = seatRows(state, { installed: this.#installed() });
+      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
+      const rows = seatRows(state, { installed: this.#installed(), refused: this.#refused });
       if (rows.length === 0) {
         const none = this.#text(x, y, t(this.#isHost() ? "room.seats.noneHost" : "room.seats.none"), 14, w, {
           alpha: 0.85,
@@ -851,6 +916,110 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
   }
 
+  /** The host's seat count: fewer / more (one to four). A seat somebody holds is never dropped by a press. */
+  #drawSeatCount(
+    x: number,
+    y: number,
+    w: number,
+    guard: { clip: () => Rect; suppress: () => boolean; stop: (key: string, rect: Rect, activate: () => void) => void },
+  ): number {
+    const count = this.#state.seats.length;
+    const size = hit.target;
+    const label = this.add
+      .text(x, y + size / 2, `${t("room.seats.count")}: ${count}`, textStyle(typeRole.rowTitle, INK))
+      .setOrigin(0, 0.5)
+      .setFontSize(15);
+    const lastHeld = this.#state.seats[count - 1]?.holder != null;
+    const buttons: { id: string; label: string; to: number; enabled: boolean; reason?: string; aria: string }[] = [
+      {
+        id: "less",
+        label: "−",
+        to: count - 1,
+        enabled: count > ROOM_SEATS_MIN && !lastHeld,
+        ...(count > ROOM_SEATS_MIN && lastHeld ? { reason: t("room.seats.lastHeld") } : {}),
+        aria: t("room.seats.fewer"),
+      },
+      { id: "more", label: "+", to: count + 1, enabled: count < ROOM_SEATS_MAX, aria: t("room.seats.more") },
+    ];
+    let bx = x + w - size * 2 - 8;
+    for (const button of buttons) {
+      const rect: Rect = { x: bx, y, width: size, height: size };
+      const go = (): void => {
+        if (!button.enabled) {
+          if (button.reason) this.#say(button.reason);
+          this.#draw();
+          return;
+        }
+        this.#setSeatCount(button.to);
+      };
+      this.#button({
+        kind: "secondary",
+        label: button.label,
+        type: { ...typeRole.label, size: 18 },
+        rect,
+        enabled: button.enabled,
+        ...(button.reason ? { reason: button.reason } : {}),
+        onUnavailablePress: go,
+        onClick: go,
+        clip: guard.clip,
+        suppressClick: guard.suppress,
+      });
+      guard.stop(`seats:${button.id}`, rect, go);
+      bx += size + 8;
+    }
+    fitText(label, Math.max(60, w - size * 2 - 20), 15);
+    const hint = this.#text(x, y + size + 4, t("room.seats.countHint"), 12, w, { alpha: 0.8 });
+    return y + size + 4 + hint.height;
+  }
+
+  /** What the host's Start said when it did not start the game: the headline and a line per refused seat. */
+  #drawStartResult(
+    result: StartResultView,
+    x: number,
+    y: number,
+    w: number,
+    guard: { clip: () => Rect; suppress: () => boolean; stop: (key: string, rect: Rect, activate: () => void) => void },
+  ): number {
+    const pad = 10;
+    const bg = this.add.graphics();
+    const mark = this.add.graphics();
+    let cy = y + 10;
+    const head = this.#text(x + pad + 26, cy, wordsText(result.headline), 14, w - pad * 2 - 26, { bold: true });
+    mark.fillStyle(INK, 1).fillRect(x + pad, cy, 18, 18);
+    this.add.text(x + pad + 9, cy + 9, "!", textStyle(bangers(16), PAPER)).setOrigin(0.5);
+    cy += Math.max(head.height, 18) + 6;
+    for (const line of result.lines) {
+      const who = line.holder === "" ? "" : ` (${line.holder})`;
+      const text = this.#text(
+        x + pad,
+        cy,
+        t("room.startResult.seatLine", { seat: line.seat, who, title: line.title, reason: line.reason }),
+        12,
+        w - pad * 2,
+      );
+      cy += text.height + 6;
+    }
+    const rect: Rect = { x: x + pad, y: cy + 2, width: w - pad * 2, height: hit.target };
+    const dismiss = (): void => {
+      this.#startResult = null;
+      this.#draw();
+    };
+    this.#button({
+      kind: "secondary",
+      label: t("room.startResult.dismiss"),
+      type: { ...typeRole.label, size: 12 },
+      rect,
+      onClick: dismiss,
+      clip: guard.clip,
+      suppressClick: guard.suppress,
+    });
+    guard.stop("start-result-dismiss", rect, dismiss);
+    cy += hit.target + 12;
+    bg.fillStyle(PAPER, 1).fillRect(x, y, w, cy - y);
+    bg.lineStyle(3, INK, 1).strokeRect(x + 1.5, y + 1.5, w - 3, cy - y - 3);
+    return cy;
+  }
+
   #heading(x: number, y: number, w: number, text: string): number {
     const h = this.add.text(x, y, text.toUpperCase(), textStyle(bangers(17), INK)).setLetterSpacing(1);
     const g = this.add.graphics();
@@ -858,7 +1027,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     return y + h.height + 8;
   }
 
-  /** One seat's card: label, who holds it (a filled dot when connected, a hollow one when away), its action and requests. */
+  /**
+   * One seat's card: its name, the deck in it (the hero's picture, hero, aspect, deck name, card count, "preset" and mods),
+   * who holds it (a filled dot when connected, a hollow one when away), its action, the deck button, a deck the host turned
+   * down (with the reason), mods this device lacks (with a Mod Store link) and requests.
+   */
   #drawSeatRow(
     row: SeatRowView,
     x: number,
@@ -868,31 +1041,47 @@ export class RoomLobbyScene extends Phaser.Scene {
   ): number {
     const pad = 10;
     const buttonWidth = 104;
-    // The hero's picture (the identity card's art, as Take your seats shows it) at the left.
-    const artSize = row.cardId ? 56 : 0;
-    const tx = x + pad + (artSize > 0 ? artSize + 10 : 0);
-    const textWidth = w - (tx - x) - pad - (row.action ? buttonWidth + 8 : 0);
-    // The label wraps (never shrinks to nothing on a narrow screen), up to two lines.
-    const label = this.add
-      .text(tx, y + 10, row.label, textStyle(typeRole.rowTitle, INK))
-      .setFontSize(15)
-      .setWordWrapWidth(textWidth, true);
-    if (label.height > 15 * 2.6) fitText(label, textWidth, 13);
-    const holderY = y + 10 + label.height + 16;
-    const topHeight = holderY + 14 - y + (row.requestedByMe ? 18 : 0) + (row.mismatch ? 26 : 0);
-    const requestHeight = 78;
-    const canGive = row.candidates.length > 0 || (this.#isHost() && row.holderName === null);
-    const picking = canGive && this.#picking === row.id;
-    const pickHeight = picking ? (row.candidates.length > 0 ? row.candidates.length * (hit.target + 6) + 6 : 30) : 0;
-    const buttonsHeight = 10 + hit.target + (canGive || row.play ? 6 + hit.target : 0) + 10;
-    const topEnd = Math.max(topHeight, artSize > 0 ? 10 + artSize + 10 : 0, buttonsHeight);
-    const height = topEnd + pickHeight + row.requests.length * requestHeight;
+    const art = 56;
+    // The card's ground and frame are drawn last, once the height is known; created first so it sits under everything.
+    const bg = this.add.graphics();
     const g = this.add.graphics();
-    this.children.moveTo(g, this.children.getIndex(label));
-    g.fillStyle(PAPER, 1).fillRect(x, y, w, height);
-    g.lineStyle(row.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y + 1, w - 2, height - 2);
+    const tx = x + pad + art + 10;
+    const textWidth = w - (tx - x) - pad - (row.action ? buttonWidth + 8 : 0);
+    const deck = row.deck;
+
+    let ty = y + 8;
+    const tag = [row.name, ...(deck?.preset ? [t("room.deck.preset")] : [])].join(" · ").toUpperCase();
+    const nameText = this.add
+      .text(tx, ty, tag, textStyle(typeRole.label, INK, 0.75))
+      .setFontSize(11)
+      .setLetterSpacing(1);
+    fitText(nameText, textWidth, 11);
+    ty += nameText.height + 2;
+    if (deck) {
+      const hero = this.#text(tx, ty, deck.heroName, 15, textWidth, { bold: true });
+      ty += hero.height + 1;
+      const detail = [deck.aspects, deck.name, tPlural("room.deck.cards", deck.cards)]
+        .filter((p) => p !== "")
+        .join(" · ");
+      const line = this.#text(tx, ty, detail, 12, textWidth, { alpha: 0.85 });
+      ty += line.height + 2;
+      if (deck.mods.length > 0) {
+        const mods = this.#text(
+          tx,
+          ty,
+          t("room.deck.mods", { mods: deck.mods.map((m) => `${m.id} v${m.version}`).join(", ") }),
+          12,
+          textWidth,
+          { alpha: 0.8 },
+        );
+        ty += mods.height + 2;
+      }
+    } else {
+      const none = this.#text(tx, ty, t("room.deck.none"), 15, textWidth, { bold: true, alpha: 0.7 });
+      ty += none.height + 2;
+    }
     // Who holds it.
-    const dotY = holderY;
+    const dotY = ty + 12;
     const held = row.holderName !== null;
     g.lineStyle(2, INK, 1);
     if (held && row.holderConnected) g.fillStyle(INK, 1).fillCircle(tx + 6, dotY, 6);
@@ -906,21 +1095,37 @@ export class RoomLobbyScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setFontSize(14);
     fitText(holder, textWidth - 20, 14);
-    if (row.cardId) {
-      const rect: Rect = { x: x + pad, y: y + 10, width: artSize, height: artSize };
-      drawHeroAvatar(this, rect, currentCardsById().get(row.cardId), INK);
-      this.#hoverFaces.push({ cardId: row.cardId, rect, view: guard.clip(), scroll: "seats" });
-    }
+    ty = dotY + 12;
     if (row.requestedByMe) {
-      this.#text(tx, dotY + 12, t("room.seat.requestedByMe"), 12, textWidth, { alpha: 0.85 });
+      const asked = this.#text(tx, ty + 2, t("room.seat.requestedByMe"), 12, textWidth, { alpha: 0.85 });
+      ty += asked.height + 4;
     }
     if (row.mismatch) {
-      const tag = this.add
-        .text(tx + 6, y + topHeight - 22, t("room.differentVersion").toUpperCase(), textStyle(typeRole.label, INK))
+      const mark = this.add
+        .text(tx + 6, ty + 4, t("room.differentVersion").toUpperCase(), textStyle(typeRole.label, INK))
         .setFontSize(11)
         .setLetterSpacing(1);
-      g.lineStyle(2, INK, 1).strokeRect(tx, y + topHeight - 26, tag.width + 12, 20);
+      g.lineStyle(2, INK, 1).strokeRect(tx, ty, mark.width + 12, 20);
+      ty += 26;
     }
+
+    // The hero's picture (the identity card's art, as Take your seats shows it) at the left; an empty frame until a deck.
+    const artRect: Rect = { x: x + pad, y: y + 10, width: art, height: art };
+    if (deck) {
+      drawHeroAvatar(this, artRect, currentCardsById().get(deck.cardId), INK);
+      this.#hoverFaces.push({ cardId: deck.cardId, rect: artRect, view: guard.clip(), scroll: "seats" });
+    } else {
+      g.lineStyle(2, INK, 0.45).strokeRect(artRect.x + 1, artRect.y + 1, art - 2, art - 2);
+      this.add.text(artRect.x + art / 2, artRect.y + art / 2, "?", textStyle(bangers(30), INK, 0.4)).setOrigin(0.5);
+    }
+
+    const canGive = row.candidates.length > 0 || (this.#isHost() && row.holderName === null);
+    const picking = canGive && this.#picking === row.id;
+    const pickHeight = picking ? (row.candidates.length > 0 ? row.candidates.length * (hit.target + 6) + 6 : 30) : 0;
+    const buttonsBottom = y + 10 + hit.target + (canGive || row.play ? 6 + hit.target : 0) + 10;
+    let cy = Math.max(ty + 6, artRect.y + art + 10, row.action ? buttonsBottom : 0);
+    const topEnd = cy - y;
+
     if (row.action) {
       const action = row.action;
       const rect: Rect = { x: x + w - pad - buttonWidth, y: y + 10, width: buttonWidth, height: hit.target };
@@ -964,7 +1169,7 @@ export class RoomLobbyScene extends Phaser.Scene {
           return;
         }
         // Acting for someone is the host's call, and a returning player may find their hero moved: confirm first.
-        const hero = row.label;
+        const hero = row.deck?.heroName ?? row.name;
         const name = row.holderName ?? "";
         const vacant = row.holderName === null;
         askToConfirm(
@@ -1039,14 +1244,97 @@ export class RoomLobbyScene extends Phaser.Scene {
         }
       }
     }
-    // The host's Approve and Deny for each request.
-    row.requests.forEach((request, index) => {
-      const top = y + topEnd + pickHeight + index * requestHeight;
-      g.lineStyle(1, INK, 0.5).lineBetween(x + pad, top, x + w - pad, top);
-      const text = this.#text(x + pad, top + 8, t("room.seat.asks", { name: request.name }), 13, w - pad * 2, {
-        bold: true,
+    cy += pickHeight;
+
+    // A deck the host's check turned down: the reason in the engine's words, boxed and headed (never colour alone).
+    if (row.problem) {
+      const problem = row.problem;
+      const boxX = x + pad;
+      const boxW = w - pad * 2;
+      const head = this.add
+        .text(boxX + 30, cy + 8, t("room.deckProblem.heading").toUpperCase(), textStyle(typeRole.label, INK))
+        .setFontSize(11)
+        .setLetterSpacing(1);
+      fitText(head, boxW - 40, 11);
+      const title = this.#text(boxX + 30, cy + 8 + head.height + 2, t(problem.titleKey), 14, boxW - 40, { bold: true });
+      const reason = this.#text(boxX + 30, cy + 8 + head.height + 2 + title.height + 2, problem.reason, 12, boxW - 40, {
+        alpha: 0.9,
       });
-      void text;
+      const boxH = 8 + head.height + 2 + title.height + 2 + reason.height + 10;
+      g.lineStyle(3, INK, 1).strokeRect(boxX + 1.5, cy + 1.5, boxW - 3, boxH - 3);
+      g.fillStyle(INK, 1).fillRect(boxX + 8, cy + 10, 16, 16);
+      this.add.text(boxX + 16, cy + 18, "!", textStyle(bangers(16), PAPER)).setOrigin(0.5);
+      cy += boxH + 8;
+    }
+
+    // Mods this device lacks for the deck on my seat: named, with the Mod Store opened on each.
+    for (const mod of row.missingMods) {
+      const line = this.#text(
+        x + pad,
+        cy + 2,
+        t("room.deck.needMod", { mod: `${mod.id} v${mod.version}` }),
+        12,
+        w - pad * 2,
+        {
+          bold: true,
+        },
+      );
+      cy += line.height + 6;
+      const store: Rect = { x: x + pad, y: cy, width: w - pad * 2, height: hit.target };
+      const open = (): void => {
+        this.scale.off("resize", this.#draw, this);
+        goToScreen(this, SCENES.modStore, {
+          packId: mod.id,
+          returnTo: SCENES.roomLobby,
+        } satisfies ModStoreSceneData);
+      };
+      this.#button({
+        kind: "secondary",
+        label: t("room.mods.store"),
+        type: { ...typeRole.label, size: 12 },
+        rect: store,
+        onClick: open,
+        clip: guard.clip,
+        suppressClick: guard.suppress,
+      });
+      guard.stop(`modstore:${row.id}:${mod.id}`, store, open);
+      cy += hit.target + 8;
+    }
+
+    // Choose your deck / Change deck on my seat; Set deck for the host on any other.
+    if (row.deckButton) {
+      const button = row.deckButton;
+      const rect: Rect = { x: x + pad, y: cy, width: w - pad * 2, height: hit.target };
+      const go = (): void => {
+        if (!button.enabled) {
+          if (button.reason) this.#say(t(button.reason));
+          this.#draw();
+          return;
+        }
+        this.#pickDeck(row.id, button.kind === "preset");
+      };
+      this.#button({
+        kind: button.kind === "choose" && !row.deck ? "primary" : "secondary",
+        label: t(button.labelKey),
+        type: { ...typeRole.label, size: 13 },
+        rect,
+        enabled: button.enabled,
+        ...(button.reason ? { reason: t(button.reason) } : {}),
+        onUnavailablePress: go,
+        onClick: go,
+        clip: guard.clip,
+        suppressClick: guard.suppress,
+      });
+      guard.stop(`deck:${row.id}`, rect, go);
+      cy += hit.target + 10;
+    }
+
+    // The host's Approve and Deny for each request.
+    const requestHeight = 78;
+    row.requests.forEach((request, index) => {
+      const top = cy + index * requestHeight;
+      g.lineStyle(1, INK, 0.5).lineBetween(x + pad, top, x + w - pad, top);
+      this.#text(x + pad, top + 8, t("room.seat.asks", { name: request.name }), 13, w - pad * 2, { bold: true });
       const half = (w - pad * 2 - 8) / 2;
       const approve: Rect = { x: x + pad, y: top + 28, width: half, height: hit.target };
       const deny: Rect = { x: x + pad + half + 8, y: top + 28, width: half, height: hit.target };
@@ -1083,6 +1371,11 @@ export class RoomLobbyScene extends Phaser.Scene {
       guard.stop(`approve:${row.id}:${request.participant}`, approve, ok);
       guard.stop(`deny:${row.id}:${request.participant}`, deny, no);
     });
+    cy += row.requests.length * requestHeight;
+
+    const height = cy - y;
+    bg.fillStyle(PAPER, 1).fillRect(x, y, w, height);
+    bg.lineStyle(row.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y + 1, w - 2, height - 2);
     return height;
   }
 
@@ -1333,22 +1626,9 @@ export class RoomLobbyScene extends Phaser.Scene {
         `drop:${view.id}`,
       );
     }
-    for (const seat of view.seats) {
-      const unset = seat.label === HERO_UNSET;
-      const row = { ...seat, label: unset ? t("epic.seat.noHero") : seat.label };
-      y += this.#drawSeatRow(row, x + pad, y, inW, guard);
-      if (editable) {
-        y = this.#panelButton(
-          x + pad,
-          y + 4,
-          inW,
-          t(unset ? "epic.seat.chooseHero" : "epic.seat.changeHero"),
-          () => this.#epicSheet({ kind: "hero", seat: seat.id }),
-          guard,
-          `hero:${seat.id}`,
-        );
-      } else y += 6;
-    }
+    // Each seat shows its deck and the deck button of the standard seat row: the player (or the organizer, as a preset)
+    // chooses the deck, and the hero is the deck's.
+    for (const seat of view.seats) y += this.#drawSeatRow(seat, x + pad, y, inW, guard) + 6;
     const height = y - y0 + pad - 6;
     g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
     g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
@@ -1356,46 +1636,40 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   /**
-   * A table host, once the organizer has started: builds this table's game from the heroes the organizer chose, with
-   * decks of this device, and starts it, once per start (`epicStarted`).
+   * A table host, once the organizer has started: deals this table's game from its seats' decks (fetched from the room
+   * and judged on this device, the same path as a standard room's Start) and starts it, once per start (`epicStarted`).
    */
   async #maybeStartTable(): Promise<void> {
     const epic = this.#state.epic;
-    if (this.#preview || !epic?.start || !epic.hostsTable || !this.#decks) return;
+    if (this.#preview || !epic?.start || !epic.hostsTable) return;
     if (epicStarted.has(epic.start.id) || this.#starting) return;
     const table = epic.tables.find((x) => x.id === epic.hostsTable);
     if (!table) return;
-    const seats = table.seats.flatMap((id) => this.#state.seats.filter((s) => s.id === id));
+    // After a failed try, ask again only once a seat's deck has changed (not on every lobby update).
+    const decksKey = JSON.stringify(table.seats.map((id) => this.#state.seats.find((s) => s.id === id)?.deck ?? null));
+    if (this.#epicFailedKey === decksKey) return;
     const rules = this.#state.settings?.tableRules;
-    const result = epicTableSessionConfig({
-      seats,
+    const base = epicTableBase({
+      seats: table.seats.length,
       difficulty: table.difficulty,
-      decks: this.#decks,
       scenario: currentScenarios().find((s) => (s.id as string) === EPIC_SCENARIO_ID),
       ...(rules?.sameNameHeroAllyConflict === true
         ? { tableRules: tableRulesOf({ sameNameHeroAllyConflict: true }) }
         : {}),
     });
     epicStarted.add(epic.start.id);
-    if (!result.ok) {
-      this.#say(t("epic.table.startFailed", { why: t("epic.start.noDeck", { hero: result.missing.join(", ") }) }));
-      this.#draw();
-      return;
-    }
     this.#starting = true;
     this.#draw();
-    try {
-      await startEpicTable(result.config);
-    } catch (cause) {
-      this.#starting = false;
-      this.#say(t("epic.table.startFailed", { why: cause instanceof Error ? cause.message : String(cause) }));
-      this.#draw();
-      return;
-    }
+    const result = await startEpicTableRoomGame(base, table.seats);
     if (!this.#alive) return;
-    if (appSession().store.state.status === "failed") {
+    if (!result.ok) {
       this.#starting = false;
-      this.#say(t("epic.table.startFailed", { why: appSession().store.state.error ?? t("room.refusal.generic") }));
+      // Decks turned down were told to their holders by the room; the table host reads them here. A table that could not
+      // start because a deck is missing is tried again when the decks change (`epicStarted` is cleared).
+      epicStarted.delete(epic.start.id);
+      this.#epicFailedKey = decksKey;
+      const view = startResultWords(result, this.#state);
+      this.#say(t("epic.table.startFailed", { why: view ? startResultText(view) : t("room.refusal.generic") }));
       this.#draw();
       return;
     }
@@ -1422,15 +1696,6 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#say(t("watch.link.gone"));
       this.#draw();
     }
-  }
-
-  /** The heroes of the organizer's own table that none of its decks can play. */
-  #missingOwnDecks(): readonly string[] {
-    const epic = this.#state.epic;
-    if (!epic?.hostsTable || !this.#decks) return [];
-    const table = epic.tables.find((x) => x.id === epic.hostsTable);
-    const labels = (table?.seats ?? []).map((id) => this.#state.seats.find((s) => s.id === id)?.label ?? HERO_UNSET);
-    return missingHeroes(labels, this.#decks);
   }
 
   // ---- Settings -------------------------------------------------------------------------------------------------
@@ -1807,7 +2072,8 @@ export class RoomLobbyScene extends Phaser.Scene {
       return;
     }
     const block = this.#startWords();
-    say2(note ?? (block ? wordsText(block) : ""), note !== null);
+    const resultNote = this.#startResult ? wordsText(this.#startResult.headline) : null;
+    say2(note ?? resultNote ?? (block ? wordsText(block) : ""), note !== null || resultNote !== null);
     this.#button({
       kind: "primary",
       label: this.#starting ? t("room.starting") : t("room.start"),

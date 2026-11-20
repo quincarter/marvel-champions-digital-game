@@ -7,8 +7,13 @@ import {
   missingMods,
   participantRows,
   refusalWords,
+  deckKeyOf,
+  problemOf,
+  seatNameOf,
   seatRows,
   startBlock,
+  startResultText,
+  startResultWords,
   toggleModPatch,
   toggleTableRulePatch,
 } from "./room-lobby-model.js";
@@ -24,7 +29,7 @@ const settings = {
 };
 const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
   id: "s1",
-  label: "Spider-Man",
+  label: "",
   holder: null,
   holderName: null,
   holderConnected: false,
@@ -35,6 +40,8 @@ const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
   away: false,
   requests: [],
   requestedByMe: false,
+  deck: null,
+  deckProblem: null,
   ...over,
 });
 const room = (over: Partial<RoomState> = {}): RoomState => ({
@@ -63,7 +70,7 @@ describe("refusalWords", () => {
     const state = room();
     expect(refusalWords({ reason: "seat-taken", seat: "s1", seq: 1 }, state)).toEqual({
       key: "room.refusal.seatTaken",
-      params: { seat: "Spider-Man" },
+      params: { seat: "Seat 1" },
     });
     expect(refusalWords({ reason: "build-mismatch", seq: 2 }, state)?.key).toBe("room.refusal.buildMismatch");
     expect(refusalWords(null, state)).toBeNull();
@@ -82,7 +89,7 @@ describe("participantRows", () => {
       }),
     );
     expect(rows.map((r) => r.role)).toEqual(["host", "player", "watcher"]);
-    expect(rows[1]).toMatchObject({ seats: ["Spider-Man"], differentVersion: true });
+    expect(rows[1]).toMatchObject({ seats: ["Seat 1"], differentVersion: true });
   });
 });
 
@@ -117,11 +124,149 @@ describe("seatRows", () => {
   });
 });
 
-describe("seat pictures and giving a seat", () => {
-  it("splits the identity card from the label", () => {
-    const state = room({ seats: [seat({ label: "Spider-Man|01001a" })] });
-    expect(seatRows(state, { installed: [] })[0]).toMatchObject({ label: "Spider-Man", cardId: "01001a" });
+const deck = (over: Partial<NonNullable<RoomSeat["deck"]>> = {}): NonNullable<RoomSeat["deck"]> => ({
+  hero: "01001a",
+  heroName: "Spider-Man",
+  aspects: ["justice"],
+  name: "Webs",
+  cards: 40,
+  mods: [],
+  ...over,
+});
+
+describe("seat decks", () => {
+  const ctx = { installed: [] };
+  it("names an open seat by its number, or by the host's label", () => {
+    expect(seatRows(room(), ctx)[0]?.name).toBe("Seat 1");
+    expect(seatNameOf({ id: "s3", label: "" }, 2)).toBe("Seat 3");
+    expect(seatNameOf({ id: "s3", label: "Tank" }, 2)).toBe("Tank");
+    expect(seatRows(room(), ctx)[0]?.deck).toBeNull();
   });
+  it("shows the hero, aspect, deck name and card count, and says when the host preset it", () => {
+    const rows = seatRows(
+      room({ seats: [seat({ deck: deck({ aspects: ["leadership", "protection"], preset: true }) })] }),
+      ctx,
+    );
+    expect(rows[0]?.deck).toEqual({
+      cardId: "01001a",
+      heroName: "Spider-Man",
+      aspects: "Leadership + Protection",
+      name: "Webs",
+      cards: 40,
+      preset: true,
+      mods: [],
+    });
+  });
+  it("offers Choose your deck on my seat, Change deck once it has one, and Set deck to the host on the others", () => {
+    const mine = room({ seats: [seat({ holder: "g", holderName: "Guest", mine: true })] });
+    expect(seatRows(mine, ctx)[0]?.deckButton).toMatchObject({ kind: "choose", labelKey: "room.deck.choose" });
+    const withDeck = room({ seats: [seat({ holder: "g", holderName: "Guest", mine: true, deck: deck() })] });
+    expect(seatRows(withDeck, ctx)[0]?.deckButton?.labelKey).toBe("room.deck.change");
+    expect(seatRows(room(), ctx)[0]?.deckButton).toBeNull();
+    const host = room({ role: "host", seats: [seat()] });
+    expect(seatRows(host, ctx)[0]?.deckButton).toMatchObject({ kind: "preset", labelKey: "room.deck.set" });
+    const hostMine = room({ role: "host", seats: [seat({ holder: "h", mine: true })] });
+    expect(seatRows(hostMine, ctx)[0]?.deckButton?.kind).toBe("choose");
+  });
+  it("turns the deck button off with the reason while disconnected or on another build", () => {
+    const mine = [seat({ holder: "g", holderName: "Guest", mine: true })];
+    expect(seatRows(room({ seats: mine, connection: "reconnecting" }), ctx)[0]?.deckButton).toMatchObject({
+      enabled: false,
+      reason: "room.seat.notConnected",
+    });
+    expect(seatRows(room({ seats: mine, buildMatches: false }), ctx)[0]?.deckButton?.reason).toBe(
+      "room.seat.differentVersion",
+    );
+  });
+  it("words my seat's deck problem with the engine's reason as the detail", () => {
+    const state = room({
+      seats: [
+        seat({ holder: "g", mine: true, deck: deck(), deckProblem: { code: "illegal", reason: "Too few cards." } }),
+      ],
+    });
+    expect(seatRows(state, ctx)[0]?.problem).toEqual({
+      titleKey: "room.deckProblem.illegal",
+      reason: "Too few cards.",
+      code: "illegal",
+    });
+    expect(seatRows(room(), ctx)[0]?.problem).toBeNull();
+  });
+  it("shows the host a refusal of its own seat until that seat's deck changes", () => {
+    const state = room({ role: "host", seats: [seat({ holder: "h", mine: true, deck: deck() })] });
+    const refused = [{ seat: "s1", code: "mod-missing" as const, reason: "No fan-pack.", deckKey: deckKeyOf(deck()) }];
+    expect(seatRows(state, { installed: [], refused })[0]?.problem?.titleKey).toBe("room.deckProblem.modMissing");
+    const changed = room({ role: "host", seats: [seat({ holder: "h", mine: true, deck: deck({ name: "Other" }) })] });
+    expect(seatRows(changed, { installed: [], refused })[0]?.problem).toBeNull();
+  });
+  it("names the mods my seat's deck needs that this device lacks", () => {
+    const mods = [
+      { id: "fan-pack", version: "1.2.0" },
+      { id: "have", version: "1" },
+    ];
+    const state = room({ seats: [seat({ holder: "g", mine: true, deck: deck({ mods }) })] });
+    expect(seatRows(state, { installed: [{ id: "have", version: "1" }] })[0]?.missingMods).toEqual([mods[0]]);
+    const theirs = room({ seats: [seat({ holder: "x", deck: deck({ mods }) })] });
+    expect(seatRows(theirs, { installed: [] })[0]?.missingMods).toEqual([]);
+  });
+  it("words every problem code", () => {
+    for (const code of [
+      "no-deck",
+      "illegal",
+      "unknown-card",
+      "mod-missing",
+      "mod-version",
+      "mod-not-allowed",
+    ] as const) {
+      expect(problemOf(code, "x").titleKey).toMatch(/^room\.deckProblem\./);
+    }
+  });
+});
+
+describe("what Start said", () => {
+  const state = room({
+    role: "host",
+    seats: [seat({ id: "s1", holder: "h", holderName: "Mara" }), seat({ id: "s2", holder: "g", holderName: "Ava" })],
+  });
+  it("says nothing on success and words each stop", () => {
+    expect(startResultWords({ ok: true }, state)).toBeNull();
+    expect(startResultWords({ ok: false, reason: "no-answer" }, state)?.headline.key).toBe("room.startResult.noAnswer");
+    expect(startResultWords({ ok: false, reason: "check-failed" }, state)?.headline.key).toBe(
+      "room.startResult.checkFailed",
+    );
+    expect(startResultWords({ ok: false, reason: "not-host" }, state)?.headline.key).toBe("room.start.hostOnly");
+    expect(startResultWords({ ok: false, reason: "no-seats" }, state)?.headline.key).toBe("room.start.noTable");
+    expect(startResultWords({ ok: false, reason: "unfilled", seats: ["s1", "s2"] }, state)?.headline).toEqual({
+      key: "room.startResult.unfilled",
+      params: { seats: "Seat 1, Seat 2" },
+    });
+    expect(startResultWords({ ok: false, reason: "start-failed", error: "boom" }, state)?.headline.params).toEqual({
+      error: "boom",
+    });
+  });
+  it("lists which seats were refused, whose they are and why", () => {
+    const view = startResultWords(
+      {
+        ok: false,
+        reason: "decks",
+        refused: [
+          { seat: "s1", code: "no-deck", reason: "Seat 1 has no deck." },
+          { seat: "s2", code: "illegal", reason: "Too few cards." },
+        ],
+      },
+      state,
+    );
+    expect(view?.headline).toEqual({ key: "room.startResult.decks", params: { count: 2 } });
+    expect(view?.lines).toEqual([
+      { seat: "Seat 1", holder: "Mara", title: "No deck chosen", reason: "Seat 1 has no deck." },
+      { seat: "Seat 2", holder: "Ava", title: "The deck is not legal", reason: "Too few cards." },
+    ]);
+    const text = startResultText(view!);
+    expect(text).toContain("2 decks were turned down");
+    expect(text).toContain("Seat 2 (Ava): The deck is not legal. Too few cards.");
+  });
+});
+
+describe("giving a seat", () => {
   it("lists who the host could give an open seat to", () => {
     const host = room({
       role: "host",
@@ -214,5 +359,20 @@ describe("host controls", () => {
     expect(missingMods(allowed, [{ id: "m", version: "1" }])).toEqual(allowed);
     expect(missingMods(allowed, [{ id: "m", version: "2" }])).toEqual([]);
     expect(guestModRows({ ...settings, mods: allowed }, [])[0]?.have).toBe(false);
+  });
+});
+
+describe("a host preset over a deck its holder chose", () => {
+  it("is turned off with 'take the seat back first'", () => {
+    const own = deck();
+    const state = room({ role: "host", seats: [seat({ holder: "g", holderName: "Guest", deck: own })] });
+    expect(seatRows(state, { installed: [] })[0]?.deckButton).toMatchObject({
+      kind: "preset",
+      enabled: false,
+      reason: "room.deck.takeBackFirst",
+    });
+    const preset = room({ role: "host", seats: [seat({ holder: "g", deck: deck({ preset: true }) })] });
+    expect(seatRows(preset, { installed: [] })[0]?.deckButton?.enabled).toBe(true);
+    expect(refusalWords({ reason: "not-allowed", seat: "s1", seq: 1 }, state)?.key).toBe("room.deck.takeBackFirst");
   });
 });

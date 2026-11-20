@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  HERO_UNSET,
   groupOptionLabel,
   isGroupChoice,
   epicStartBlock,
@@ -13,7 +12,6 @@ import {
   withNextDifficulty,
   withNextPod,
   withSeatCount,
-  withSeatHero,
   withTableCount,
   withTableName,
 } from "./epic-lobby-model.js";
@@ -24,9 +22,10 @@ describe("the organizer's plan", () => {
     const plan = newEpicPlan();
     expect(plan.tables.map((t) => t.id)).toEqual(["t1", "t2"]);
     expect(plan.pods).toHaveLength(1);
-    expect(plan.seats.map((s) => [s.id, s.table, s.label])).toEqual([
-      ["t1s1", "t1", HERO_UNSET],
-      ["t2s1", "t2", HERO_UNSET],
+    // No labels: each seat's hero is the deck its player brings.
+    expect(plan.seats).toEqual([
+      { id: "t1s1", table: "t1" },
+      { id: "t2s1", table: "t2" },
     ]);
   });
 
@@ -87,12 +86,6 @@ describe("the organizer's plan", () => {
     expect(withSeatCount(plan, "t1", 0).seats.filter((s) => s.table === "t1")).toHaveLength(1);
   });
 
-  it("sets a seat's hero label", () => {
-    const plan = withSeatHero(newEpicPlan(), "t2s1", "Spider-Man|01001a");
-    expect(plan.seats[1]?.label).toBe("Spider-Man|01001a");
-    expect(plan.seats[0]?.label).toBe(HERO_UNSET);
-  });
-
   it("reads the plan back from the room without the tables' hosts", () => {
     const plan = planOf(epicRoomFixture({ as: "organizer", phase: "lobby" }));
     expect(plan?.tables.map((t) => [t.id, t.difficulty])).toEqual([
@@ -144,10 +137,10 @@ describe("why Start is off", () => {
     expect(epicStartBlock(seated, { missingDecks: ["Iron Man"] })?.key).toBe("epic.start.noDeck");
   });
 
-  it("wants a hero on every seat and refuses while its host is away", () => {
+  it("wants a deck on every seat and refuses while its host is away", () => {
     const room = organizer();
-    const unset = { ...room, seats: room.seats.map((s) => (s.id === "t2s1" ? { ...s, label: HERO_UNSET } : s)) };
-    expect(epicStartBlock(unset, ctx)).toEqual({ key: "epic.start.heroNotSet", params: { table: "South Table" } });
+    const unset = { ...room, seats: room.seats.map((s) => (s.id === "t2s1" ? { ...s, deck: null } : s)) };
+    expect(epicStartBlock(unset, ctx)).toEqual({ key: "epic.start.deckNotSet", params: { table: "South Table" } });
     const seated = {
       ...room,
       seats: room.seats.map((s) =>

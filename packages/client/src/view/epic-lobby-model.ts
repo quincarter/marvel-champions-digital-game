@@ -26,9 +26,6 @@ export const MAX_EPIC_TABLES = MAX_LOBBY_TABLES;
 export const MIN_TABLE_SEATS = 1;
 export const MAX_TABLE_SEATS = 4;
 
-/** A seat whose hero the organizer has not chosen yet: the room keeps labels as opaque text. */
-export const HERO_UNSET = "?";
-
 export type EpicDifficulty = "standard" | "expert";
 
 /** The plan the organizer edits and `setEpic` takes. Table `host` is never in it: the room keeps each table's host. */
@@ -41,11 +38,8 @@ export interface EpicPlan {
 const tableIdOf = (index: number): string => `t${index + 1}`;
 const podIdOf = (index: number): string => `p${index + 1}`;
 const seatIdOf = (table: string, index: number): string => `${table}s${index + 1}`;
-const unsetSeat = (table: string, index: number): LobbySeatSpec => ({
-  id: seatIdOf(table, index),
-  label: HERO_UNSET,
-  table,
-});
+/** A new seat has no label: its hero is the deck its player brings. */
+const unsetSeat = (table: string, index: number): LobbySeatSpec => ({ id: seatIdOf(table, index), table });
 
 /** `difficulty` as the table carries it (opaque JSON in the room): anything but "expert" is standard. */
 export const difficultyOf = (value: unknown): EpicDifficulty => (value === "expert" ? "expert" : "standard");
@@ -78,7 +72,12 @@ export function planOf(state: RoomState): EpicPlan | null {
       difficulty: difficultyOf(t.difficulty),
     })),
     pods: epic.pods.map((p) => ({ id: p.id, name: p.name })),
-    seats: epic.tables.flatMap((t) => t.seats.map((id) => ({ id, label: labelOf.get(id) ?? HERO_UNSET, table: t.id }))),
+    seats: epic.tables.flatMap((t) =>
+      t.seats.map((id) => {
+        const label = labelOf.get(id) ?? "";
+        return { id, ...(label === "" ? {} : { label }), table: t.id };
+      }),
+    ),
   };
 }
 
@@ -177,11 +176,6 @@ export function withSeatCount(plan: EpicPlan, id: string, count: number): EpicPl
   return { ...plan, seats };
 }
 
-/** The plan with one seat's hero set (`label` as `seatSpecsOf` writes it, with the identity card id after it). */
-export function withSeatHero(plan: EpicPlan, seatId: string, label: string): EpicPlan {
-  return { ...plan, seats: plan.seats.map((s) => (s.id === seatId ? { ...s, label } : s)) };
-}
-
 // ---- What the lobby shows ---------------------------------------------------------------------------------------
 
 const STATUS_KEYS: Readonly<Record<EpicTableStatus, MessageKey>> = {
@@ -272,13 +266,13 @@ export function epicStartBlock(state: RoomState, ctx: EpicStartContext): Words |
   if (state.connection !== "connected") return { key: "room.start.notConnected" };
   if (epic.start) return { key: "room.start.started" };
   if (epic.tables.length < MIN_EPIC_TABLES) return { key: "epic.start.fewTables" };
-  const labelOf = (id: string): string => state.seats.find((s) => s.id === id)?.label ?? HERO_UNSET;
+  const hasDeck = (id: string): boolean => state.seats.find((s) => s.id === id)?.deck != null;
   for (const table of epic.tables) {
     if (table.seats.length === 0) return { key: "epic.start.noSeats", params: { table: table.name } };
   }
   for (const table of epic.tables) {
-    if (table.seats.some((id) => labelOf(id) === HERO_UNSET || labelOf(id) === "")) {
-      return { key: "epic.start.heroNotSet", params: { table: table.name } };
+    if (table.seats.some((id) => !hasDeck(id))) {
+      return { key: "epic.start.deckNotSet", params: { table: table.name } };
     }
   }
   const open = state.seats.filter((s) => s.holder === null).length;

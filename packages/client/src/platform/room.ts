@@ -27,10 +27,20 @@ import {
   type LobbyTableSpec,
   type RemoteTarget,
   type RoomState,
+  type SeatDeckEntry,
   type SeatOfPlayer,
 } from "../live/room-state.js";
 import { epicTableConfig } from "../live/epic-start.js";
-import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
+import { RoomDeckWorker } from "../live/room-deck-check-client.js";
+import { withRequiredPacks } from "../packs/pack-runtime.js";
+import {
+  startRoomGame as runRoomStart,
+  type RoomGameBase,
+  type RoomStartDeps,
+  type RoomStartResult,
+} from "../live/room-start.js";
+import type { DeckOption } from "../view/deck-list-model.js";
+import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 
 export type {
@@ -59,6 +69,37 @@ function publish(next: RoomState): void {
 }
 
 setRoomStateListener(publish);
+
+/** Answers to the host's requests for the seats' full decks, by request id (the room worker posts them back). */
+const deckRequests = new Map<number, (decks: readonly SeatDeckEntry[] | null) => void>();
+let nextDeckRequest = 0;
+setRoomDecksListener((id, decks) => {
+  const answer = deckRequests.get(id);
+  deckRequests.delete(id);
+  answer?.(decks);
+});
+
+/** The room worker answers in 8 seconds at most; this is for the worker itself being gone. */
+const DECKS_WAIT_MS = 12_000;
+
+function requestSeatDecks(): Promise<readonly SeatDeckEntry[] | null> {
+  return new Promise((resolve) => {
+    const id = ++nextDeckRequest;
+    const timer = setTimeout(() => {
+      deckRequests.delete(id);
+      resolve(null);
+    }, DECKS_WAIT_MS);
+    deckRequests.set(id, (decks) => {
+      clearTimeout(timer);
+      resolve(decks);
+    });
+    if (!postRoomCommand({ kind: "room-decks-request", id })) {
+      deckRequests.delete(id);
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
+}
 
 export const roomState = (): RoomState => state;
 
@@ -144,6 +185,7 @@ export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
 export function leaveRoom(): void {
   if (state.role === "none") return;
   postRoomCommand({ kind: "room-leave" });
+  deckWorker.destroy();
   publish(NO_ROOM);
 }
 
@@ -214,9 +256,97 @@ export function seatOfPlayer(playerId: string): SeatOfPlayer | null {
   return seatOfPlayerIn(state, playerId);
 }
 
+/**
+ * Why a deck could not be put in a seat: `not-seatable` (illegal or not ready on this device, `option.blockedReason` says
+ * why: the host would refuse it too), `too-large` (a list over the room's size cap), `not-allowed` (a seat that is not
+ * mine, or a preset by a guest), `no-seat`.
+ */
+export type ChooseDeckResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: "not-seatable" | "too-large" | "not-allowed" | "no-seat" | "no-worker" };
+
+/** Builds decks and judges them off the main thread; lives while the room is used and ends after a quiet minute. */
+const deckWorker = new RoomDeckWorker();
+
+async function sendDeck(seat: string, option: DeckOption, preset: boolean): Promise<ChooseDeckResult> {
+  const mine = state.seats.find((s) => s.id === seat);
+  if (!mine) return { ok: false, reason: "no-seat" };
+  if (preset ? state.role !== "host" : !mine.mine) return { ok: false, reason: "not-allowed" };
+  if (!option.seatable) return { ok: false, reason: "not-seatable" };
+  const built = await deckWorker.deck(
+    option.deck,
+    option.identityName ?? (option.deck.identityCardId as string),
+    loadedPacks(),
+  );
+  if (!built.ok) return { ok: false, reason: built.reason === "too-large" ? "too-large" : "no-worker" };
+  postRoomCommand({ kind: "room-deck", seat, deck: built.deck });
+  return { ok: true };
+}
+
+/**
+ * Puts my deck in a seat I hold: a saved, imported or precon deck from this device's own list (`DeckOption`s, the way the
+ * Decks screen and Table setup list them). Everyone sees only a summary (hero, aspect, name, card count, mods); the full
+ * list goes to the host alone. The room rate limits it; a refusal shows as `state.refusal`.
+ */
+export function chooseDeck(seat: string, option: DeckOption): Promise<ChooseDeckResult> {
+  return sendDeck(seat, option, false);
+}
+
+/** Host only: presets a deck for any seat; the holder may replace it with their own, and it stays through a change of holder. */
+export function presetDeck(seat: string, option: DeckOption): Promise<ChooseDeckResult> {
+  return sendDeck(seat, option, true);
+}
+
 /** Sends a chat line (the room trims, caps and rate limits it). */
 export function say(text: string): void {
   postRoomCommand({ kind: "room-say", text });
+}
+
+/**
+ * Host only: Start for a room where each player brought their own hero and deck. `base` is the host's game without its
+ * players (scenario, difficulty, rules, modular sets, ...). Fetches every seat's deck from the room, judges all of them
+ * in a worker (`live/room-deck.ts`), tells only each failing seat's holder why through `deck-refused`, and otherwise
+ * starts the game from the seats' decks (in seat order). Nothing starts unless every seat is held and every deck passes.
+ * The result says what stopped it, for the host's own words; a deck refused for a seat the host holds is in
+ * `refused` but not sent to the room (the host reads it there).
+ */
+export function startRoomGame(base: RoomGameBase): Promise<RoomStartResult> {
+  return runRoomStart(
+    base,
+    roomStartDeps(async (config) => startGame(config)),
+  );
+}
+
+/**
+ * Epic table host only, once `RoomState.epic.start` is set: the same deck path as `startRoomGame` for this table's seats
+ * (their decks fetched from the room, judged in a worker, refusals told to each holder), then `startEpicTable`.
+ */
+export function startEpicTableRoomGame(base: RoomGameBase, seatIds: readonly string[]): Promise<RoomStartResult> {
+  return runRoomStart(base, { ...roomStartDeps(startEpicTable), seatIds });
+}
+
+function roomStartDeps(begin: (config: SessionConfig) => Promise<void>): RoomStartDeps {
+  return {
+    state: roomState,
+    requestDecks: requestSeatDecks,
+    refuse: (refusal) => {
+      postRoomCommand({ kind: "room-deck-refuse", ...refusal });
+    },
+    check: (input) => {
+      const loaded = loadedPacks();
+      const allowedPacks = loaded.filter((p) => input.allowed.some((m) => m.id === p.id && m.version === p.version));
+      return deckWorker.check(input, loaded, withRequiredPacks(allowedPacks, loaded));
+    },
+    start: async (config) => {
+      try {
+        await begin(config);
+      } catch (cause) {
+        return cause instanceof Error ? cause.message : String(cause);
+      }
+      const { store } = appSession();
+      return store.state.status === "failed" ? (store.state.error ?? "failed") : null;
+    },
+  };
 }
 
 /**

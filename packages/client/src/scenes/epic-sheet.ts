@@ -7,14 +7,13 @@
  * - `tables` (board): what my table may attack or thwart in other tables of its pod (card art, hover, one button per
  *   character the engine lists the power for), then every table with its status in words, a Watch button for a watcher,
  *   and the organizer's "Drop table" for a table whose host is away.
- * - `rename`: a table's name (the organizer). `host`: who hosts a table (the organizer). `hero`: a hero for an open seat.
+ * - `rename`: a table's name (the organizer). `host`: who hosts a table (the organizer).
  *
  * The list scrolls inside a masked region and every control passes its clip and drag, so a swipe never presses one
  * (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
 import { gameCardsById } from "../content/game-deps.js";
-import { currentDeps, currentPool, POOL_VERSION } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { t } from "../i18n/translate.js";
@@ -29,7 +28,7 @@ import {
   type RoomState,
 } from "../platform/room.js";
 import { activeReplay } from "../replay/replay-mode.js";
-import { appSession, deckStorage } from "../session.js";
+import { appSession } from "../session.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -38,19 +37,9 @@ import { McButton, McTextInput } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { cardOf } from "@mc/engine";
-import {
-  difficultyOf,
-  planOf,
-  statusKey,
-  withSeatHero,
-  withTableName,
-  type EpicPlan,
-} from "../view/epic-lobby-model.js";
+import { difficultyOf, planOf, statusKey, withTableName, type EpicPlan } from "../view/epic-lobby-model.js";
 import { reachRows, remotePowerCommand } from "../view/epic-reach.js";
 import type { Rect } from "../view/layout.js";
-import { seatLabelOf, seatSpecsOf } from "../view/room-table-setup.js";
-import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
-import type { DeckOption } from "../view/deck-list-model.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { BoardScene } from "./board.js";
 import { askToConfirm } from "./end-turn-confirm.js";
@@ -61,8 +50,7 @@ import { bindTextFieldEscape } from "./text-field-escape.js";
 export type EpicSheetData =
   | { readonly kind: "tables"; readonly preview?: RoomState }
   | { readonly kind: "rename"; readonly table: string; readonly preview?: RoomState }
-  | { readonly kind: "host"; readonly table: string; readonly preview?: RoomState }
-  | { readonly kind: "hero"; readonly seat: string; readonly preview?: RoomState };
+  | { readonly kind: "host"; readonly table: string; readonly preview?: RoomState };
 
 const INK = surface.ink.hex;
 const PAPER = surface.paper.hex;
@@ -85,7 +73,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #input: McTextInput | null = null;
   #value = "";
   #note: string | null = null;
-  #decks: readonly DeckOption[] | null = null;
   #order: string[] = [];
   #stops = new Map<string, FocusStop>();
   #off: (() => void) | null = null;
@@ -141,15 +128,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
       this.#input?.destroy();
       this.#input = null;
     });
-    if (this.#data.kind === "hero") {
-      void deckStorage()
-        .list()
-        .then((decks) => {
-          if (!this.sys.isActive()) return;
-          this.#decks = seatableDeckOptionsOf(decks, currentPool(), POOL_VERSION, currentDeps());
-          this.#draw();
-        });
-    }
     this.#draw();
     this.#input?.focus();
   }
@@ -261,8 +239,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
         const id = this.#data.table;
         return t("epic.table.hostPickTitle", { table: epic?.tables.find((x) => x.id === id)?.name ?? id });
       }
-      case "hero":
-        return t("epic.hero.title");
     }
   }
 
@@ -353,17 +329,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
         row(name, () => this.#hostIs(data.table, id), table?.host === id ? "primary" : "secondary");
       }
       if (table?.host) row(t("epic.table.hostTake"), () => this.#hostIs(data.table, null));
-      return y - top;
-    }
-    if (data.kind === "hero") {
-      const decks = this.#decks;
-      if (!decks) return 30;
-      if (decks.length === 0) y += this.#text(x, y, t("epic.hero.none"), 13, w).height;
-      for (const option of decks.filter((o) => o.seatable)) {
-        const label = seatLabelOf(option.identityName, option.deck.name);
-        const cardId = option.deck.identityCardId as string;
-        row(label, () => this.#heroIs(data.seat, seatSpecsOf([{ label, cardId }])[0]!.label));
-      }
       return y - top;
     }
     if (data.kind !== "tables" || !epic) return 0;
@@ -467,12 +432,6 @@ export class EpicSheetOverlay extends Phaser.Scene {
   #hostIs(table: string, participant: string | null): void {
     if (this.#preview) record(`assignTableHost(${table},${participant})`);
     else assignTableHost(table, participant);
-    this.scene.stop();
-  }
-
-  #heroIs(seat: string, label: string): void {
-    const plan = planOf(this.#state);
-    if (plan) this.#send(withSeatHero(plan, seat, label));
     this.scene.stop();
   }
 

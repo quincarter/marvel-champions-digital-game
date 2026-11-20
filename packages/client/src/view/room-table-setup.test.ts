@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampSeatCount,
   clearRoomTable,
   enterRoomSetup,
+  isPlaceholderSeat,
   keepRoomDraft,
+  placeholderSeats,
+  roomBaseConfig,
   roomDraft,
+  roomSeatCount,
   roomSetupActive,
-  parseSeatLabel,
-  seatLabelOf,
   seatSpecsOf,
-  seatsToClear,
 } from "./room-table-setup.js";
 import type { SetupDraft } from "./setup-draft.js";
 
@@ -16,8 +18,9 @@ describe("room table setup", () => {
   it("is on from entering until the draft is kept", () => {
     clearRoomTable();
     expect(roomSetupActive()).toBe(false);
-    enterRoomSetup();
+    enterRoomSetup(3);
     expect(roomSetupActive()).toBe(true);
+    expect(roomSeatCount()).toBe(3);
     const draft = { seats: ["d1"] } as unknown as SetupDraft;
     keepRoomDraft(draft);
     expect(roomSetupActive()).toBe(false);
@@ -25,35 +28,29 @@ describe("room table setup", () => {
     clearRoomTable();
     expect(roomDraft()).toBeNull();
   });
-  it("makes one seat per hero, labelled with hero and deck", () => {
-    expect(
-      seatSpecsOf([
-        { label: "Spider-Man - Justice", cardId: "01001a" },
-        { label: "Ms. Marvel", cardId: null },
-      ]),
-    ).toEqual([
-      { id: "s1", label: "Spider-Man - Justice|01001a" },
-      { id: "s2", label: "Ms. Marvel" },
-    ]);
-    expect(parseSeatLabel("Spider-Man - Justice|01001a")).toEqual({ text: "Spider-Man - Justice", cardId: "01001a" });
-    expect(parseSeatLabel("Ms. Marvel")).toEqual({ text: "Ms. Marvel", cardId: null });
-    expect(seatSpecsOf([{ label: "x".repeat(200), cardId: "01001a" }])[0]!.label).toHaveLength(80);
-    expect(seatLabelOf("Iron Man", "Aggression")).toBe("Iron Man - Aggression");
-    expect(seatLabelOf("Iron Man", null)).toBe("Iron Man");
-    expect(seatLabelOf("Spider-Man (Peter Parker)", "Spider-Man (Justice) — Core Set starter deck")).toBe(
-      "Spider-Man (Justice) — Core Set starter deck",
-    );
+  it("keeps the seat count between one and four", () => {
+    expect([0, 1, 2.6, 4, 9].map(clampSeatCount)).toEqual([1, 1, 3, 4, 4]);
+    expect(seatSpecsOf(3)).toEqual([{ id: "s1" }, { id: "s2" }, { id: "s3" }]);
+    expect(seatSpecsOf(7)).toHaveLength(4);
   });
-  it("takes a seat back from its holder when the redone table names another hero there", () => {
-    const current = [
-      { id: "s1", label: "Spider-Man|01001a", holder: "p1" },
-      { id: "s2", label: "She-Hulk|01019a", holder: "p2" },
-      { id: "s3", label: "Iron Man", holder: null },
-    ];
-    const next = seatSpecsOf([
-      { label: "Spider-Man", cardId: "01001a" },
-      { label: "Captain Marvel", cardId: "01010a" },
-    ]);
-    expect(seatsToClear(current, next)).toEqual([{ seat: "s2", participant: "p2" }]);
+  it("stands a placeholder in for each seat's deck", () => {
+    expect(placeholderSeats(2)).toEqual(["room-seat-1", "room-seat-2"]);
+    expect(isPlaceholderSeat("room-seat-1")).toBe(true);
+    expect(isPlaceholderSeat("deck-7")).toBe(false);
+  });
+  it("builds the game's settings without players", () => {
+    const draft = {
+      scenarioId: "rhino",
+      difficulty: "expert",
+      modularSetIds: null,
+      seats: [],
+      firstPlayerIndex: null,
+      seed: 5,
+      setAsideModularSetIds: null,
+      extraModularSetIds: [],
+    } as unknown as SetupDraft;
+    const base = roomBaseConfig(draft, 3, undefined, undefined);
+    expect(base).not.toHaveProperty("players");
+    expect(base).toMatchObject({ scenarioId: "rhino", difficulty: "expert", seed: 5 });
   });
 });

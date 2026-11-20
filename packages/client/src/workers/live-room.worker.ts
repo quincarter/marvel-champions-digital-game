@@ -52,6 +52,7 @@ worker.addEventListener("message", (event) => {
               seatStore: new IdbSeatTokenStore(),
               epicStore: new IdbEpicLogStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
+              onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
             },
           }
         : {}),

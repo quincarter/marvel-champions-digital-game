@@ -1,30 +1,50 @@
 /**
- * Setting the table up for a room (issue #880): the existing New game flow (scenario, seats, Table setup) run in "room
- * mode". The host opens it from the lobby; where it would deal the game it instead hands its draft back here and
- * returns to the lobby, the draft's heroes becoming the room's seats. Start (in the lobby) then deals the game from the
- * kept draft.
+ * Setting the table up for a room (issue #880): the existing New game flow (scenario, Table setup) run in "room mode".
+ * The host opens it from the lobby; it picks the scenario, difficulty, rules and modular sets but no heroes (Quin,
+ * 2026-11-20: every player brings their own hero and deck), so Scenario select goes straight to Table setup with one
+ * placeholder seat per lobby seat. Where Table setup would deal the game it hands its draft back here and returns to
+ * the lobby. Start (in the lobby) deals the game from the kept draft and the decks the seats hold.
  *
  * Module state, as `view/builder-origin` style flows keep theirs: a screen reload leaves room mode, which is right (the
  * room does not survive one either).
  */
-import type { SetupDraft } from "./setup-draft.js";
+import type { CorePlayer } from "@mc/cards";
+import type { Scenario } from "@mc/content";
+import type { TableRules } from "@mc/engine";
+import type { RoomGameBase } from "../live/room-start.js";
 import type { LobbySeatSpec } from "../live/room-state.js";
+import { toSessionConfig, type SetupDraft } from "./setup-draft.js";
 
 interface RoomTable {
   /** True while the New game flow is the room host's: its last step returns to the lobby. */
   active: boolean;
   /** The draft the host finished the flow with. */
   draft: SetupDraft | null;
+  /** How many seats the lobby has now: the table is set up for that many players. */
+  seats: number;
 }
 
-const table: RoomTable = { active: false, draft: null };
+/** A room seats one to four players. */
+export const ROOM_SEATS_MIN = 1;
+export const ROOM_SEATS_MAX = 4;
+/** The seats a new lobby opens with. */
+export const ROOM_SEATS_DEFAULT = 2;
+
+export const clampSeatCount = (count: number): number =>
+  Math.min(ROOM_SEATS_MAX, Math.max(ROOM_SEATS_MIN, Math.round(count)));
+
+const table: RoomTable = { active: false, draft: null, seats: ROOM_SEATS_DEFAULT };
 
 /** The host is setting up a table for the room: Title's Back and Table setup's last button go to the lobby. */
 export const roomSetupActive = (): boolean => table.active;
 
-export function enterRoomSetup(): void {
+export function enterRoomSetup(seatCount: number = table.seats): void {
   table.active = true;
+  table.seats = clampSeatCount(seatCount);
 }
+
+/** The seats the table is being set up for. */
+export const roomSeatCount = (): number => table.seats;
 
 /** Leaves room mode, keeping the draft. */
 export function leaveRoomSetup(): void {
@@ -45,61 +65,35 @@ export function clearRoomTable(): void {
   table.draft = null;
 }
 
-/** The longest seat label the room takes. */
-export const SEAT_LABEL_MAX = 80;
+/** The seats of a lobby with `count` open seats (the room names them `s1`..`s4`; the hero is each deck's own). */
+export const seatSpecsOf = (count: number): readonly LobbySeatSpec[] =>
+  Array.from({ length: clampSeatCount(count) }, (_, index) => ({ id: `s${index + 1}` }));
 
-/** Seat ids the room takes are `s1`..`s4`. */
-const seatIdOf = (index: number): string => `s${index + 1}`;
+/** The draft's seats while the table is set up: one placeholder per lobby seat, standing for a deck nobody has chosen yet. */
+export const placeholderSeats = (count: number): readonly string[] =>
+  Array.from({ length: clampSeatCount(count) }, (_, index) => `room-seat-${index + 1}`);
 
-/** The room keeps a seat's label as opaque text; the hero's identity card id rides after this separator. */
-const CARD_SEPARATOR = "|";
-
-export interface SeatItem {
-  readonly label: string;
-  /** The hero's identity card, for the seat's picture on every device. */
-  readonly cardId: string | null;
-}
-
-/** One seat per hero in the draft: the label (hero and deck) with its identity card id after it, within the room's cap. */
-export function seatSpecsOf(items: readonly SeatItem[]): readonly LobbySeatSpec[] {
-  return items.map((item, index) => {
-    const tail = item.cardId ? CARD_SEPARATOR + item.cardId : "";
-    const text = item.label.trim().slice(0, Math.max(1, SEAT_LABEL_MAX - tail.length)) || seatIdOf(index);
-    return { id: seatIdOf(index), label: text + tail };
-  });
-}
+/** True for a seat id `placeholderSeats` made. */
+export const isPlaceholderSeat = (id: string): boolean => id.startsWith("room-seat-");
 
 /**
- * Seats a redone setup changes under their holders: the same seat id now names a different hero (or the seat is gone),
- * so whoever held it is not seated at the new table. Returns each such seat with its holder, for the host to take back.
+ * The game's settings with no players: the draft (its seats set to the lobby's seat count) built the way a normal game
+ * is, with stand-in players only so `toSessionConfig` sees the right number of them (it reads nothing but the count to
+ * size the modular picks); the real players come from the seats' decks at Start (`live/room-start.ts`).
  */
-export function seatsToClear(
-  current: readonly { readonly id: string; readonly label: string; readonly holder: string | null }[],
-  next: readonly LobbySeatSpec[],
-): readonly { readonly seat: string; readonly participant: string }[] {
-  const out: { seat: string; participant: string }[] = [];
-  for (const seat of current) {
-    if (seat.holder === null) continue;
-    const kept = next.find((spec) => spec.id === seat.id);
-    if (!kept || kept.label !== seat.label) out.push({ seat: seat.id, participant: seat.holder });
-  }
-  return out;
-}
-
-/** A seat label from the room, split into its words and its identity card id (none when it carries none). */
-export function parseSeatLabel(label: string): { readonly text: string; readonly cardId: string | null } {
-  const at = label.lastIndexOf(CARD_SEPARATOR);
-  if (at < 0) return { text: label, cardId: null };
-  const cardId = label.slice(at + 1).trim();
-  return { text: label.slice(0, at), cardId: cardId === "" ? null : cardId };
-}
-
-/**
- * A seat's label: the hero and the deck, or the deck alone when its name already says the hero ("Spider-Man (Justice) -
- * Core Set starter deck" names Spider-Man), so a label never says the hero twice.
- */
-export function seatLabelOf(hero: string | null, deck: string | null): string {
-  const heroShort = hero?.replace(/\s*\(.*\)\s*$/, "").trim() ?? "";
-  if (deck && heroShort !== "" && deck.toLowerCase().includes(heroShort.toLowerCase())) return deck.trim();
-  return [hero, deck].filter((part): part is string => !!part && part.trim() !== "").join(" - ");
+export function roomBaseConfig(
+  draft: SetupDraft,
+  seatCount: number,
+  scenario: Scenario | undefined,
+  tableRules: TableRules | undefined,
+): RoomGameBase {
+  const standIn = { identityCardId: "", deck: [], aspects: [] } as unknown as CorePlayer;
+  const seated: SetupDraft = { ...draft, seats: placeholderSeats(seatCount) };
+  const { players: _players, ...base } = toSessionConfig(
+    seated,
+    Array.from({ length: clampSeatCount(seatCount) }, () => standIn),
+    scenario,
+    tableRules,
+  );
+  return base;
 }

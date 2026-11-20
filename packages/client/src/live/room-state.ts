@@ -10,17 +10,21 @@ import type {
   ChatLine,
   LobbyMode,
   LobbyPod,
+  DeckRefusalCode,
   LobbySeatSpec,
   LobbySettings,
   LobbySettingsPatch,
   LobbyTableSpec,
   RefusalReason,
   RoomBuild,
+  RoomDeck,
+  RoomDeckSummary,
   RoomDevice,
 } from "@mc/sync-worker/room-protocol";
 
 export type {
   ChatLine,
+  DeckRefusalCode,
   LobbyMode,
   LobbyPod,
   LobbySeatSpec,
@@ -29,6 +33,8 @@ export type {
   LobbyTableSpec,
   RefusalReason,
   RoomBuild,
+  RoomDeck,
+  RoomDeckSummary,
   RoomDevice,
 };
 
@@ -85,10 +91,37 @@ export interface RoomSeatRequest {
   readonly name: string;
 }
 
+/**
+ * Why the host's engine refused the deck I put in a seat at Start (`deck-refused`). Only the seat's holder ever has one.
+ * `code` is for the UI to word or pick an action from; `reason` is the engine's own sentence (English), shown as the
+ * detail. It goes away when I change the seat's deck, give the seat up or lose it.
+ */
+export interface RoomDeckProblem {
+  readonly code: DeckRefusalCode;
+  readonly reason: string;
+}
+
+/** One seat's full deck, as the room gives it to the host alone (`seat-decks`). Never part of `RoomState`. */
+export interface SeatDeckEntry {
+  readonly seat: string;
+  /** The holder's participant id (a deck preset on a free seat has none). */
+  readonly holder?: string;
+  /** The host chose it, and the holder has not replaced it. */
+  readonly preset: boolean;
+  readonly deck: RoomDeck;
+}
+
 export interface RoomSeat {
   readonly id: string;
-  /** The hero or deck label the host set for the seat. */
+  /** An optional label the host set for the seat; empty for the usual open seat (the hero is the deck's). */
   readonly label: string;
+  /**
+   * The seat's deck as everyone sees it: hero, aspects, deck name, card count and mod refs (never the card list), or
+   * null while no deck has been chosen. `deck.preset` is true when the host chose it (the holder may replace it).
+   */
+  readonly deck: RoomDeckSummary | null;
+  /** Why my deck in this seat was refused at Start; null for everyone else's seat and while nothing is wrong. */
+  readonly deckProblem: RoomDeckProblem | null;
   /** The holder's participant id, or null when free. May name a participant no longer connected (`holderConnected`). */
   readonly holder: string | null;
   readonly holderName: string | null;

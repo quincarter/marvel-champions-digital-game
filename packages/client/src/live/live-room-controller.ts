@@ -27,7 +27,7 @@ import { PodLink } from "./pod-link.js";
 import { recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
 import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";
 import type { SeatTokenStore } from "./room-seat-store.js";
-import { NO_ROOM, type RoomState } from "./room-state.js";
+import { NO_ROOM, type RoomState, type SeatDeckEntry } from "./room-state.js";
 
 type GameMessage = Extract<LiveGameMessage, { kind: "game" }>;
 
@@ -61,6 +61,8 @@ export interface LiveRoomControllerDeps {
     /** The saved online name: what a lobby room resumed after a reload says hello with when its record has none. */
     readonly onlineName?: string;
     readonly onState: (state: RoomState) => void;
+    /** The host's Start asked for the decks (`room-decks-request`): the answer, or null. */
+    readonly onDecks?: (id: number, decks: readonly SeatDeckEntry[] | null) => void;
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
   };
@@ -236,6 +238,19 @@ export class LiveRoomController {
         return;
       case "room-epic-drop":
         this.#session?.dropTable(message.table);
+        return;
+      case "room-deck":
+        this.#session?.chooseDeck(message.seat, message.deck);
+        return;
+      case "room-decks-request": {
+        const answer = this.#deps.room.onDecks;
+        const session = this.#session;
+        if (!session) answer?.(message.id, null);
+        else void session.requestDecks().then((decks) => answer?.(message.id, decks));
+        return;
+      }
+      case "room-deck-refuse":
+        this.#session?.refuseDeck(message.seat, message.code, message.reason);
         return;
       case "room-follow": {
         const port = message.port as unknown as FeedPort;

@@ -15,7 +15,7 @@ import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
 import { currentRoomDevice } from "./room-device.js";
-import { NO_ROOM, type RoomState } from "../live/room-state.js";
+import { NO_ROOM, type RoomState, type SeatDeckEntry } from "../live/room-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { POOL_VERSION } from "../content/pool.js";
 import { takeLiveEnd } from "./live-presence-link.js";
@@ -40,6 +40,7 @@ let seatLeaver: (() => void) | null = null;
 export function setSeatLeaver(leave: (() => void) | null): void {
   seatLeaver = leave;
 }
+let decksListener: ((id: number, decks: readonly SeatDeckEntry[] | null) => void) | null = null;
 /** Whether the room worker last reported a room (host or guest) this device is in. */
 let inRoom = false;
 
@@ -60,6 +61,11 @@ export function leaveRoomAtTitle(): void {
 /** `platform/room.ts` hears the room worker's lobby states through this (one listener). */
 export function setRoomStateListener(listener: (state: RoomState) => void): void {
   roomListener = listener;
+}
+
+/** `platform/room.ts` hears the answer to a deck request (the host's Start) through this (one listener). */
+export function setRoomDecksListener(listener: (id: number, decks: readonly SeatDeckEntry[] | null) => void): void {
+  decksListener = listener;
 }
 
 /** Posts a room command (`platform/room.ts`) to the worker, spawning it first. False where there is no worker host. */
@@ -102,6 +108,10 @@ function spawn(): boolean {
   });
   worker = next;
   next.addEventListener("message", (event: MessageEvent<LiveRoomOut>) => {
+    if (event.data.kind === "room-decks") {
+      decksListener?.(event.data.id, event.data.decks);
+      return;
+    }
     if (event.data.kind === "room") {
       inRoom = event.data.state.role !== "none";
       roomListener?.(event.data.state);
