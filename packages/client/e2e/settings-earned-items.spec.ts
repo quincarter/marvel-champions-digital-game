@@ -55,11 +55,15 @@ test("the Drone art row toggles on a tap, never on a swipe's lift", async ({ pag
   await page.touchscreen.tap(moreTab!.x + moreTab!.width / 2, moreTab!.y + moreTab!.height / 2);
   await settle(page);
 
-  // The More tab runs past a phone's screen (Achievements sits above Earned items): scroll the row up into view first.
+  // The More tab runs past a phone's screen (Achievements, Custom content and Cheats sit above Earned items): scroll
+  // the row up into view first, a swipe at a time.
   const viewport = page.viewportSize()!;
-  await touchSwipe(page, viewport.width / 2, viewport.height - 120, 220);
-  await settle(page, { quietMs: 400, maxMs: 2000 });
-  const row = await rowRect(page);
+  let row = await rowRect(page);
+  for (let i = 0; i < 6 && row.y + row.height / 2 >= viewport.height - 40; i++) {
+    await touchSwipe(page, viewport.width / 2, viewport.height - 120, 220);
+    await settle(page, { quietMs: 400, maxMs: 2000 });
+    row = await rowRect(page);
+  }
   const x = row.x + row.width / 2;
   const y = row.y + row.height / 2;
   expect(y, "the row is on screen").toBeLessThan(viewport.height - 40);
