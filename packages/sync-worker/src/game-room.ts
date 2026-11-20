@@ -7,7 +7,8 @@
  * `<table>:header` row at `start`/`log`, and one `<table>:c:<n>` row per completed chunk of `ROOM_CHUNK_COMMANDS`
  * commands with the checksums that fall in it, written once when the chunk fills and never rewritten. The unfinished
  * tail of up to a chunk lives in memory, and is written to one `<table>:tail` row when the host disconnects (so a host
- * who closes the app mid-game leaves watchers the whole log), overwritten each time and dropped when a frozen chunk
+ * who closes the app mid-game leaves watchers the whole log; also written on the first batch of a table and then at
+ * most once a minute while it streams), overwritten each time and dropped when a frozen chunk
  * supersedes it, a rewind cuts it or a `log` replaces the table; a woken room loads the chunks and asks the host for the tail with
  * `resend { from }`. About one row per 20 commands.
  *
@@ -464,7 +465,7 @@ export class GameRoomLogic {
       const tail = await this.storage.get<{ commands: unknown[]; checksums: Record<string, string>; at?: number }>(
         tailKey(table.id),
       );
-      table.tailAt = tail?.at ?? this.clock();
+      table.tailAt = tail?.at;
       table.rewindWatchers = true;
       if (tail) {
         table.commands = [...table.commands, ...tail.commands];
@@ -550,7 +551,18 @@ export class GameRoomLogic {
       commands: table.commands.length,
       ended: table.ended,
       hasHeader: table.hasHeader,
+      checkpoint: this.checkpointOf(table),
     };
+  }
+
+  /** The latest stored checksum at or below the command count, so a resuming host can prove its log is this one. */
+  private checkpointOf(table: Table): { count: number; sum: string } | null {
+    let best = -1;
+    for (const key of Object.keys(table.checksums)) {
+      const at = Number(key);
+      if (at <= table.commands.length && at > best) best = at;
+    }
+    return best < 0 ? null : { count: best, sum: table.checksums[String(best)]! };
   }
 
   private rosterList(): Participant[] {
@@ -904,8 +916,9 @@ export class GameRoomLogic {
         await this.persistChunks(table);
         // A host that closes the app may never return to write the tail: refresh it while it streams, at most once a
         // minute, so an evicted room still has the commands past the last chunk.
-        table.tailAt ??= this.clock();
-        if (this.clock() - table.tailAt >= TAIL_REFRESH_MS) await this.writeTail(table);
+        // The first batch of a table (or of a woken room with no stored tail) writes it at once, so a quiet host that
+        // then hibernates and closes never leaves watchers an empty log; after that at most once a minute.
+        if (table.tailAt === undefined || this.clock() - table.tailAt >= TAIL_REFRESH_MS) await this.writeTail(table);
         this.unverified = false;
         this.resendAsked.delete(table.id);
         this.broadcast(
@@ -942,7 +955,8 @@ export class GameRoomLogic {
         // What remains of the cut chunk is the new tail: store it, or an evicted room would serve only the frozen chunks.
         if (cut) await this.writeTail(table);
         // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
-        if (cut && table.ended) await this.reopen(table);
+        // A rewind to the current count reopens too: a resumed host whose game is not over says so that way.
+        if (table.ended) await this.reopen(table);
         this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to }, host.id);
         this.broadcastTable(table);
         return;

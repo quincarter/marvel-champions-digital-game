@@ -84,8 +84,8 @@
 //     an hour, plus each watcher's join and its few messages. A hibernated room costs no duration.
 //   - Rows: one header row at the game's start, and one row per completed chunk of 20 commands (written once when the
 //     chunk fills, never rewritten; the unfinished tail stays in memory, is written to one t1:tail row each time the
-//     host's socket closes or is replaced, when the game ends (with the end), and while the host streams when a batch
-//     arrives over 60 seconds after the last write (at most 60 rows an hour, overwritten, deleted when a chunk
+//     host's socket closes or is replaced, when the game ends (with the end), on the first batch of a table, and while the
+//     host streams when a batch arrives over 60 seconds after the last write (at most 60 rows an hour plus one, overwritten, deleted when a chunk
 //     supersedes it, a rewind cuts it or a log replaces it; a close in a woken room that has not loaded the table
 //     writes nothing, so it cannot overwrite the stored tail) and what a wake still lacks is re-asked from the host),
 //     so about 1 row per 20 commands plus up to 60 tail rows an hour: a 600-command hour is about 30 chunk rows plus at

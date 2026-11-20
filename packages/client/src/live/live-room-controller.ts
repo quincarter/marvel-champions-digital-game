@@ -440,7 +440,14 @@ export class LiveRoomController {
           }
           const info = message.tables.find((t) => t.id === "t1");
           live.publisher.onWelcome(
-            info ? { commands: info.commands, ended: info.ended, hasHeader: info.hasHeader } : undefined,
+            info
+              ? {
+                  commands: info.commands,
+                  ended: info.ended,
+                  hasHeader: info.hasHeader,
+                  ...(info.checkpoint !== undefined ? { checkpoint: info.checkpoint } : {}),
+                }
+              : undefined,
           );
         }
         live.publisher.onMessage(message);

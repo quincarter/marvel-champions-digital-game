@@ -31,16 +31,22 @@ authoritative, the room only orders and relays, and nobody else runs a different
 - **The log, not snapshots.** A command is a few hundred bytes; a state is hundreds of KB. Watchers and seats rebuild
   from the log the same way a resumed save and a replay do. A divergence (another build's card scripts) is caught by
   the replay checksums (`replay-file.ts`, every `CHECKSUM_EVERY` commands), which the host sends along.
+- **A resumed host proves the prefix.** The room's welcome carries each table's `checkpoint` (its latest stored checksum and
+  that count). A freshly built publisher compares it with its own checksum at that count: a match trusts the log up to
+  there (commands past it are cut back and resent, at most a checksum interval), a mismatch or no proof replaces the table
+  from the host's log (`start`, after a same-count `rewind` that reopens an ended table). A host `rewind` to the current
+  count on an ended table reopens it (ended cleared, end alarm cancelled, idle alarm re-armed).
 - **The log in frozen chunks.** Hibernation evicts a room from memory after about 10 s of quiet, which is common
   between moves, so a memory-only log would mean a full re-upload after most pauses, and a log past the 1 MiB WebSocket
   message would never fit one resend. The room stores one row for the header (at `start`/`log`) and one row per
   completed chunk of 20 commands, with the checksums that fall in it, written once when the chunk fills and never
   rewritten. The unfinished tail (under 20 commands) lives in memory and is written to one `t1:tail` row, with its checksums, each
-  time the host's socket closes or is replaced, when the game ends, and while the host streams when a batch arrives
-  over 60 s after the last write (at most 60 rows an hour; a close in a woken room that has not loaded the table writes
+  time the host's socket closes or is replaced, when the game ends, on the first batch of a table (so a short burst
+  followed by quiet and a hibernation is never lost whole), and while the host streams when a batch arrives
+  over 60 s after the last write (at most 60 rows an hour, plus one per table; a close in a woken room that has not loaded the table writes
   nothing, so it cannot overwrite the stored tail; overwritten each time; deleted when a frozen chunk
   supersedes it, a rewind cuts it or a `log` replaces the table), so a host who closes the app mid-game leaves
-  watchers the log to within about a minute of its last command (a close that lands in a room that has just woken keeps
+  watchers the log to within about a minute of its last command (commands broadcast since the last tail write, within the last minute, are the window of loss; a write per batch would cost a row per batch) (a close that lands in a room that has just woken keeps
   the last stored tail, which is at most a minute old; the host's later resend heals the rest). A woken room loads the header and chunks and
   asks the host for the tail with `resend { from: <stored count> }`, answered with an ordinary `commands` batch (or,
   when `from` is 0, a `log` with the header and first commands, then `commands` batches). That is about one row per 20
