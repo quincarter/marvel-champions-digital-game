@@ -540,6 +540,13 @@ describe("promptTitleOf", () => {
   test("every other kind keeps its existing generic title", () => {
     expect(promptTitleOf({ kind: "mulligan", handSize: 5 }, POOL_DEPS)).toBe("Mulligan");
     expect(promptTitleOf({ kind: "chooseTarget", slot: "x", abilityId: null }, POOL_DEPS)).toBe("Choose a target");
+    // Issue #911: a card that words its own pick (Maria Hill's Reassignment) is titled with it.
+    expect(
+      promptTitleOf(
+        { kind: "chooseTarget", slot: "to", abilityId: null, title: "Move the counter TO which?" },
+        POOL_DEPS,
+      ),
+    ).toBe("Move the counter TO which?");
     expect(promptTitleOf({ kind: "somethingNew" as never }, POOL_DEPS)).toBe("Choose");
   });
 });

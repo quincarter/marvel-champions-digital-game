@@ -2218,10 +2218,10 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /**
-   * The minions engaged with a choose-a-player row's player, at the row's right end (issue #911): each a square crop of
-   * its art, with the card hover on a desktop (hit points, damage and statuses, as on the table). A tap picks the row as
-   * the row does; a hold or right-click opens the minion in Inspect. "+N" counts the ones with no room. Returns what it
-   * drew, for a scrolling list to carry.
+   * The minions engaged with a choose-a-player row's player, at the row's right end (issue #911): a fanned stack of
+   * square crops of their art, the last on top, with a count badge when there are several. Each opens the card hover on
+   * a desktop over the part of it that shows (hit points, damage and statuses, as on the table). A tap picks the row as
+   * the row does; a hold or right-click opens that minion in Inspect. Returns what it drew, for a scrolling list to carry.
    */
   #drawMinionStrip(
     game: GameState,
@@ -2233,18 +2233,18 @@ export class ChoiceOverlay extends Phaser.Scene {
     hovered: Set<InstanceId>,
   ): Phaser.GameObjects.GameObject[] {
     const drawn: Phaser.GameObjects.GameObject[] = [];
+    // Bottom of the stack first, so each picture covers the one before it.
     strip.thumbs.forEach((thumb, index) => {
       const id = minions[index]!;
+      const shows = strip.visible[index] ?? thumb;
       if (!hovered.has(id)) {
         hovered.add(id);
-        noteHoverCard(this, id, thumb);
+        noteHoverCard(this, id, shows);
         if (scrolls) this.#hoverScrolled.add(id);
       }
-      const frame = this.add
-        .graphics()
-        .lineStyle(1.5, surface.ink.hex, 1)
-        .strokeRect(thumb.x - 1, thumb.y - 1, thumb.width + 2, thumb.height + 2);
-      drawn.push(frame);
+      drawn.push(
+        this.add.graphics().fillStyle(surface.ink.hex, 1).fillRect(thumb.x, thumb.y, thumb.width, thumb.height),
+      );
       const source = artFor(cardOf(game, id), faceOf(game, id));
       const key = source ? cardArt(this).request(this, source) : null;
       if (key && this.textures.exists(key)) {
@@ -2263,8 +2263,14 @@ export class ChoiceOverlay extends Phaser.Scene {
           );
         }
       }
+      drawn.push(
+        this.add
+          .graphics()
+          .lineStyle(1.5, surface.ink.hex, 1)
+          .strokeRect(thumb.x - 0.75, thumb.y - 0.75, thumb.width + 1.5, thumb.height + 1.5),
+      );
       const zone = this.add
-        .zone(thumb.x, thumb.y, thumb.width, thumb.height)
+        .zone(shows.x, shows.y, shows.width, shows.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
       const inspect = (): void => {
@@ -2274,16 +2280,21 @@ export class ChoiceOverlay extends Phaser.Scene {
       bindHoldTarget(this, zone, { key: `row-minion:${optionKey}:${id}`, onTap: pick, onInspect: inspect });
       drawn.push(zone);
     });
-    if (strip.moreRect && strip.more > 0) {
-      const more = strip.moreRect;
+    if (strip.badge) {
+      const badge = strip.badge;
+      const r = badge.width / 2;
       drawn.push(
         this.add
-          .text(
-            more.x + more.width / 2,
-            more.y + more.height / 2,
-            `+${strip.more}`,
-            textStyle(typeRole.label, surface.ink.hex),
-          )
+          .graphics()
+          .fillStyle(surface.ink.hex, 1)
+          .fillCircle(badge.x + r, badge.y + r, r)
+          .lineStyle(1.5, surface.paper.hex, 1)
+          .strokeCircle(badge.x + r, badge.y + r, r),
+        this.add
+          .text(badge.x + r, badge.y + r, String(strip.count), {
+            ...textStyle(typeRole.label, surface.paper.hex),
+            fontSize: "12px",
+          })
           .setOrigin(0.5, 0.5),
       );
     }

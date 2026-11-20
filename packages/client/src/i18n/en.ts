@@ -199,6 +199,8 @@ export const en = {
   "scenario.seeAll": "SEE ALL",
   "scenario.randomBox": "Random box",
   "scenario.randomScenario": "Random scenario",
+  "seats.randomHero": "Random",
+  "seats.randomHeroNone": "No other hero fits the filters and the table right now.",
   "scenario.clear": "Clear",
   "scenario.selected": "SELECTED",
   "scenario.locked": "LOCKED",

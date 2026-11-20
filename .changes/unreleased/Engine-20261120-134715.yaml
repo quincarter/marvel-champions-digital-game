@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK: a resource ability on a card in hand that pays for that card alone (activeIn: "hand", DSL resource(..., { inHand: true })), what it generated read as paid.ability.<id>; legalActions tries one option per resource ability whose cost picks cards in play, the widest (Enhanced Combat Sense, #890 item 2).'
-time: 2026-11-20T13:47:15.0792197+01:00

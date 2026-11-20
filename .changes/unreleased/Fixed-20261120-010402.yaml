@@ -1,3 +1,0 @@
-kind: Fixed
-body: Replays play through the villain phase by themselves with Reduced motion on, instead of stopping on Start player phase (#892). Reported by @bluefireF5ran.
-time: 2026-11-20T01:04:02.8213305-05:00

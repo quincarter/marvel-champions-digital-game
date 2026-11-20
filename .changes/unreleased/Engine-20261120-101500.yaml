@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK: a "take N damage" cost may be unpreventable (AbilityCost.damageSelfUnpreventable, takeDamageCost(n, { unpreventable: true })), so Sentinel''s destroy cost is paid through tough, prevention and reduction; legalActions and the cost pickers judge and ask each branch of an either/or cost with that branch''s own cards in play, and name an additional cost to play in the branch labels; a pack scenario''s set-aside modular sets are checked as its modular picks are (#891 review).'
-time: 2026-11-20T10:15:00.000000+01:00
