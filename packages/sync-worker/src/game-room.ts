@@ -1201,6 +1201,21 @@ export class GameRoomLogic {
         if (message.seats) {
           const ids = new Set(message.seats.map((s) => s.id));
           if (ids.size !== message.seats.length) return this.refuse(socket, "bad-message");
+          // Once a game is running, the seat-to-player mapping is the host engine's: only labels may change here.
+          // A seat added, removed, reordered or given another player would let a guest be judged against a hero
+          // the engine does not map to that seat. An omitted player keeps the seat's own.
+          const table = this.tableOf(FIRST_TABLE);
+          if (table) await this.ensureLoaded(table);
+          const activeGame = table !== undefined && table.hasHeader && !table.ended;
+          if (activeGame) {
+            const same =
+              message.seats.length === lobby.seats.length &&
+              message.seats.every((spec, i) => {
+                const kept = lobby.seats[i]!;
+                return spec.id === kept.id && (spec.player === undefined || spec.player === kept.player);
+              });
+            if (!same) return this.refuse(socket, "not-allowed");
+          }
           // A seat id that stays keeps its holder, requests and token; its label may change; a removed one is gone.
           seats = message.seats.map((spec) => {
             const kept = lobby.seats.find((s) => s.id === spec.id);
@@ -1208,7 +1223,9 @@ export class GameRoomLogic {
             const player = spec.player === undefined ? {} : { player: spec.player };
             if (!kept) return { id: spec.id, ...label, ...player };
             const { label: _old, player: _oldPlayer, ...rest } = kept;
-            return { ...rest, ...label, ...player };
+            // In a running game the seat keeps its player whatever was sent (checked equal or omitted above).
+            const keep = activeGame && kept.player !== undefined ? { player: kept.player } : player;
+            return { ...rest, ...label, ...keep };
           });
         }
         if (!next.multiSeat) {
