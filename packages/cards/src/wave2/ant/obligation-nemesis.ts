@@ -4,7 +4,6 @@ import {
   cannotChangeFormUntil,
   chosen,
   constant,
-  coveredByEngineRule,
   defineAbilities,
   discardEncounterUntil,
   discardFromHand,
@@ -85,10 +84,8 @@ export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
   ),
 
   // Size Increase — Attach to Yellowjacket, if able. Otherwise, attach to the villain (data, `AttachmentHost.
-  // ifAble`). Uses (3 counters) (data). The data carries a second ("-constant") ref for the "Uses" reminder with no
-  // separate text of its own — the same parser-artifact shape as other "-constant" refs beside data-only lines
-  // elsewhere in wave 2.
-  "12028.size-increase-constant": coveredByEngineRule(),
+  // ifAble`). Uses (3 size counters) is its data keyword, so the engine places the counters and discards the card as
+  // the last one goes (RRG 1.8 "Uses", p. 46; issue #897).
   // [star] Forced Response: after attached enemy activates (attacks or schemes), remove 1 size counter from here.
   "12028.size-increase-forced-response": forcedResponse(
     on.enemySchemesOrAttacks("host"),

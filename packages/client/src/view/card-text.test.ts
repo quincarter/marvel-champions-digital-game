@@ -97,6 +97,14 @@ describe("the Inspect sheet in Spanish", () => {
     expect(sheet.flavor).toMatch(/^"¿Has estado entrenándote\?/);
   });
 
+  it("prints the Spanish rules text of a face whose English the data corrected, where the Spanish already translates the card (Size Increase, 12028, issue #897)", async () => {
+    useSpanish();
+    await loadSpanish();
+    const sheet = cardInspectModel(card("12028"), { kind: "front" });
+    expect(sheet.name).toBe("Aumento de tamaño");
+    expect(sheet.rulesText).toContain("Usos (3 contadores de Tamaño)");
+  });
+
   it("keeps a hero's qualifier and words icons in Spanish", async () => {
     useSpanish();
     await loadSpanish();

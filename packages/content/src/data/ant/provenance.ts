@@ -63,7 +63,14 @@ export const ANT_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("12025"), cardSetCode: "ant", marvelcdbCodes: ["12025"], corrections: [] },
   { cardId: cardId("12026"), cardSetCode: "ant_nemesis", marvelcdbCodes: ["12026"], corrections: [] },
   { cardId: cardId("12027"), cardSetCode: "ant_nemesis", marvelcdbCodes: ["12027"], corrections: [] },
-  { cardId: cardId("12028"), cardSetCode: "ant_nemesis", marvelcdbCodes: ["12028"], corrections: [] },
+  {
+    cardId: cardId("12028"),
+    cardSetCode: "ant_nemesis",
+    marvelcdbCodes: ["12028"],
+    corrections: [
+      "12028: MarvelCDB reads Size Increase's Uses as \"Uses (3 counters)\" with no type and omits its CONDITION trait. Without the type the parser emits no uses keyword, so the card entered play with no size counters and its Forced Response had nothing to remove and nothing to discard it on (issue #897). [evidence: Scan 12028.png (read 2026-11-20): \"CONDITION.\" trait line and \"Uses (3 size counters).\" RRG 1.8 \"Uses\" (p. 46).]",
+    ],
+  },
   { cardId: cardId("12029"), cardSetCode: "ant_nemesis", marvelcdbCodes: ["12029"], corrections: [] },
   { cardId: cardId("12030"), cardSetCode: "aggression", marvelcdbCodes: ["12030"], corrections: [] },
   { cardId: cardId("12031"), cardSetCode: "justice", marvelcdbCodes: ["12031"], corrections: [] },

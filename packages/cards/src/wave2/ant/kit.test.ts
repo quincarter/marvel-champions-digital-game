@@ -316,6 +316,44 @@ describe("Ant-Man's obligation and nemesis (Care for Cassie, Yellowjacket)", () 
     expect(characterProfile(tiny, yellowjacket, WAVE2_DEPS)?.atk).toBe(3); // printed 2 + 1
   });
 
+  // Issue #897: Size Increase reached the villain with no size counters (the data had no uses keyword), so its Forced
+  // Response removed nothing and the card never left. Uses (3 size counters): RRG 1.8 "Uses" (p. 46) discards it as
+  // the last counter goes.
+  it("Size Increase: with no Yellowjacket in play it attaches to the villain with 3 size counters, loses one each time the villain activates, and is discarded with the last", () => {
+    // Rhino's boosted attacks and the main scheme's threat would end the game inside three rounds, so each round
+    // starts with Ant-Man undamaged and the main scheme empty.
+    const fresh = (state: GameState): GameState => {
+      const scheme = state.mainScheme.instanceId;
+      const hero = identityOf(state);
+      return {
+        ...state,
+        instances: {
+          ...state.instances,
+          [scheme]: { ...state.instances[scheme]!, threat: 0 },
+          [hero]: { ...state.instances[hero]!, damage: 0 },
+        },
+      };
+    };
+    const nextRound = (state: GameState) =>
+      settle(runWave2(fresh(state), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const start = fresh(withForm(antManVsRhino(), GIANT));
+    const villain = start.villains[0]!.instanceId;
+    // Revealed in the villain phase's encounter step, after Rhino has already activated this round.
+    const { state: attached, id: size } = revealFromEncounterDeck(start, "12028");
+    expect(inst(attached, size).attachedTo).toBe(villain);
+    expect(inst(attached, size).counters).toEqual({ size: 3 });
+
+    // Ant-Man is in hero form, so Rhino attacks each villain phase.
+    const round1 = nextRound(attached);
+    expect(inst(round1, size).counters).toEqual({ size: 2 });
+    const round2 = nextRound(round1);
+    expect(inst(round2, size).counters).toEqual({ size: 1 });
+    const round3 = nextRound(round2);
+    expect(round3.outcome).toBeNull();
+    expect(cardsInPlay(round3)).not.toContain(size);
+    expect(inst(round3, villain).attachments).not.toContain(size);
+  });
+
   // docs/phase7-wave2.md §22/§23: `applyRuleUntil`/`cannotChangeFormUntil` — a `RuleSpec` restriction that outlives
   // the obligation discarding itself in the same breath that imposes it. Care for Cassie (12025) is Ant-Man's own
   // obligation, shuffled directly into the shared encounter deck at setup (`HeroIdentityCard.obligationCardId`) —

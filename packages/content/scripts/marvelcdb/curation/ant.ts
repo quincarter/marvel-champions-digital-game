@@ -27,7 +27,17 @@ export const ANT_CURATION: PackCuration = {
   outDir: "src/data/ant",
   exportPrefix: "ANT",
 
-  corrections: [],
+  corrections: [
+    {
+      code: "12028",
+      reason:
+        'MarvelCDB reads Size Increase\'s Uses as "Uses (3 counters)" with no type and omits its CONDITION trait. Without the type the parser emits no uses keyword, so the card entered play with no size counters and its Forced Response had nothing to remove and nothing to discard it on (issue #897).',
+      evidence:
+        'Scan 12028.png (read 2026-11-20): "CONDITION." trait line and "Uses (3 size counters)." RRG 1.8 "Uses" (p. 46).',
+      textReplace: { find: "Uses (3 counters).", replace: "Uses (3 size counters)." },
+      traits: ["Condition"],
+    },
+  ],
   errata: [],
 
   scriptingNotes: {},
