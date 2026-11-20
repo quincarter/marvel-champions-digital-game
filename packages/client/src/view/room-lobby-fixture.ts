@@ -56,6 +56,8 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
       mine: !host,
       requests: [],
       requestedByMe: false,
+      deck: null,
+      deckProblem: null,
     },
     {
       id: "s2",
@@ -70,6 +72,8 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
         { participant: "p4", name: "Dev" },
       ],
       requestedByMe: false,
+      deck: null,
+      deckProblem: null,
     },
     {
       id: "s3",
@@ -81,6 +85,8 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
       mine: false,
       requests: [],
       requestedByMe: false,
+      deck: null,
+      deckProblem: null,
     },
     {
       id: "s4",
@@ -92,6 +98,8 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
       mine: false,
       requests: [],
       requestedByMe: false,
+      deck: null,
+      deckProblem: null,
     },
   ];
   const chat: RoomChatLine[] = Array.from({ length: 40 }, (_, i) => ({

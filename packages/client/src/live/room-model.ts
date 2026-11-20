@@ -9,6 +9,7 @@ import {
   MAX_CHAT_KEPT,
   NO_ROOM,
   type RoomChatLine,
+  type RoomDeckProblem,
   type RoomConnection,
   type RoomParticipant,
   type RoomProblem,
@@ -57,6 +58,11 @@ export class RoomModel {
   #welcomed = false;
   /** Seats asked for and not yet answered: the room keeps requests in memory only, so they are sent again after a wake. */
   readonly #wanted = new Set<string>();
+  /**
+   * The host's engine refused my deck in a seat at Start. Kept with what the seat looked like then (its deck and the
+   * lobby's mods), so it disappears once either changes: the verdict may be different now.
+   */
+  readonly #deckProblems = new Map<string, RoomDeckProblem & { readonly key: string }>();
 
   constructor(options: RoomModelOptions) {
     this.#role = options.role;
@@ -135,6 +141,17 @@ export class RoomModel {
     return lost;
   }
 
+  /** I chose a deck again (or gave the seat up): whatever the host said about the old one no longer applies. */
+  clearDeckProblem(seat: string): void {
+    this.#deckProblems.delete(seat);
+  }
+
+  /** What a seat's deck problem is keyed by: its summary and the lobby's allowed mods. */
+  #deckKey(seat: string): string {
+    const found = this.#lobby?.seats.find((s) => s.id === seat);
+    return JSON.stringify([found?.deck ?? null, this.#lobby?.settings.mods ?? []]);
+  }
+
   setHostStarted(started: boolean): void {
     this.#hostStarted = started;
   }
@@ -190,6 +207,13 @@ export class RoomModel {
         if (message.table.id !== FIRST_TABLE) return false;
         this.#table = message.table;
         return true;
+      case "deck-refused":
+        this.#deckProblems.set(message.seat, {
+          code: message.code,
+          reason: message.reason,
+          key: this.#deckKey(message.seat),
+        });
+        return true;
       case "seat-denied":
         // The host turned the request down: stop asking (a reconnect would send it again).
         this.#wanted.delete(message.seat);
@@ -214,6 +238,12 @@ export class RoomModel {
     }
   }
 
+  #deckProblemOf(seat: string, mine: boolean): RoomDeckProblem | null {
+    const problem = this.#deckProblems.get(seat);
+    if (!mine || !problem || problem.key !== this.#deckKey(seat)) return null;
+    return { code: problem.code, reason: problem.reason };
+  }
+
   state(): RoomState {
     const lobby = this.#lobby;
     const host = this.#participants.find((p) => p.role === "host");
@@ -226,6 +256,8 @@ export class RoomModel {
     const seats: RoomSeat[] = (lobby?.seats ?? []).map((seat) => ({
       id: seat.id,
       label: seat.label ?? "",
+      deck: seat.deck ?? null,
+      deckProblem: this.#deckProblemOf(seat.id, meId !== null && seat.holder === meId),
       holder: seat.holder ?? null,
       holderName: seat.holder ? nameOf(seat.holder) || seat.holderName || null : null,
       mismatch: seat.mismatch === true,

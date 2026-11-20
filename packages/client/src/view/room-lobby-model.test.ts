@@ -32,6 +32,8 @@ const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
   mine: false,
   requests: [],
   requestedByMe: false,
+  deck: null,
+  deckProblem: null,
   ...over,
 });
 const room = (over: Partial<RoomState> = {}): RoomState => ({

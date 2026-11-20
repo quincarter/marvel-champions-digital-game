@@ -47,6 +47,7 @@ worker.addEventListener("message", (event) => {
               onlineName: onlineName ?? "",
               seatStore: new IdbSeatTokenStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
+              onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
             },
           }
         : {}),

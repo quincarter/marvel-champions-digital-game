@@ -214,6 +214,14 @@ exactly as watching did):
   Start the host sends `deck-refused { seat, code, reason }` for each failing seat, which the room relays to that seat's
   holder alone. `seat-deck` is rate limited per participant (burst 4, then one every 3 s) and for the room (burst 20, then
   one every 2 s); a refused one is `rate-limited`, `too-large` or `not-allowed`. `LobbySeatSpec.label` is now optional.
+- **Seat decks on the client** (`platform/room.ts`): `chooseDeck(seat, option)` puts one of this device's own `DeckOption`s (saved,
+  imported, custom or precon, which must be seatable here) in a seat I hold; `presetDeck` is the host's version for any seat. Each
+  seat in `RoomState` carries `deck` (the summary) and, on my own seat only, `deckProblem` (`code` and the engine's `reason`, gone
+  once the deck or the allowed mods change or I choose again). The host's `startRoomGame(base)` (`live/room-start.ts`) needs
+  every seat held, asks the room for the full lists, judges them in `workers/room-deck-check.worker.ts` (`live/room-deck.ts`:
+  mod refs first (`mod-missing`, `mod-version`, `mod-not-allowed`), then unknown cards, then `validateDeck`), sends `deck-refused`
+  for each failing seat (a seat the host holds is read from the result instead), and otherwise starts the game with the seats'
+  decks as its players, in seat order. A check that cannot run starts nothing.
 - A seat whose connected holder runs a build that is not the host's (restored by token after an update, or the host changed
   build) stays held and is sent with `mismatch: true`; its holder may not act for it until the builds match (the later play
   step enforces that). Restoring by token also obeys `multiSeat`: an extra seat is refused `multi-seat` and stays with its

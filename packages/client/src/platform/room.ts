@@ -16,8 +16,18 @@ import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { appSession } from "../session.js";
 import { cleanOnlineName } from "../settings.js";
 import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
-import { NO_ROOM, type LobbySeatSpec, type LobbySettingsPatch, type RoomState } from "../live/room-state.js";
-import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
+import {
+  NO_ROOM,
+  type LobbySeatSpec,
+  type LobbySettingsPatch,
+  type RoomState,
+  type SeatDeckEntry,
+} from "../live/room-state.js";
+import { checkRoomDecksInWorker } from "../live/room-deck-check-client.js";
+import { roomDeckOf } from "../live/room-deck.js";
+import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult } from "../live/room-start.js";
+import type { DeckOption } from "../view/deck-list-model.js";
+import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
 
 export type { RoomState } from "../live/room-state.js";
 
@@ -30,6 +40,37 @@ function publish(next: RoomState): void {
 }
 
 setRoomStateListener(publish);
+
+/** Answers to the host's requests for the seats' full decks, by request id (the room worker posts them back). */
+const deckRequests = new Map<number, (decks: readonly SeatDeckEntry[] | null) => void>();
+let nextDeckRequest = 0;
+setRoomDecksListener((id, decks) => {
+  const answer = deckRequests.get(id);
+  deckRequests.delete(id);
+  answer?.(decks);
+});
+
+/** The room worker answers in 8 seconds at most; this is for the worker itself being gone. */
+const DECKS_WAIT_MS = 12_000;
+
+function requestSeatDecks(): Promise<readonly SeatDeckEntry[] | null> {
+  return new Promise((resolve) => {
+    const id = ++nextDeckRequest;
+    const timer = setTimeout(() => {
+      deckRequests.delete(id);
+      resolve(null);
+    }, DECKS_WAIT_MS);
+    deckRequests.set(id, (decks) => {
+      clearTimeout(timer);
+      resolve(decks);
+    });
+    if (!postRoomCommand({ kind: "room-decks-request", id })) {
+      deckRequests.delete(id);
+      clearTimeout(timer);
+      resolve(null);
+    }
+  });
+}
 
 export const roomState = (): RoomState => state;
 
@@ -113,9 +154,68 @@ export function denySeat(seat: string, participant: string): void {
   postRoomCommand({ kind: "room-seat", op: "deny", seat, participant });
 }
 
+/**
+ * Why a deck could not be put in a seat: `not-seatable` (illegal or not ready on this device, `option.blockedReason` says
+ * why: the host would refuse it too), `too-large` (a list over the room's size cap), `not-allowed` (a seat that is not
+ * mine, or a preset by a guest), `no-seat`.
+ */
+export type ChooseDeckResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: "not-seatable" | "too-large" | "not-allowed" | "no-seat" };
+
+function sendDeck(seat: string, option: DeckOption, preset: boolean): ChooseDeckResult {
+  const mine = state.seats.find((s) => s.id === seat);
+  if (!mine) return { ok: false, reason: "no-seat" };
+  if (preset ? state.role !== "host" : !mine.mine) return { ok: false, reason: "not-allowed" };
+  if (!option.seatable) return { ok: false, reason: "not-seatable" };
+  const deck = roomDeckOf(option.deck, option.identityName ?? (option.deck.identityCardId as string), loadedPacks());
+  if (!deck) return { ok: false, reason: "too-large" };
+  postRoomCommand({ kind: "room-deck", seat, deck });
+  return { ok: true };
+}
+
+/**
+ * Puts my deck in a seat I hold: a saved, imported or precon deck from this device's own list (`DeckOption`s, the way the
+ * Decks screen and Table setup list them). Everyone sees only a summary (hero, aspect, name, card count, mods); the full
+ * list goes to the host alone. The room rate limits it; a refusal shows as `state.refusal`.
+ */
+export function chooseDeck(seat: string, option: DeckOption): ChooseDeckResult {
+  return sendDeck(seat, option, false);
+}
+
+/** Host only: presets a deck for any seat; the holder may replace it with their own, and it stays through a change of holder. */
+export function presetDeck(seat: string, option: DeckOption): ChooseDeckResult {
+  return sendDeck(seat, option, true);
+}
+
 /** Sends a chat line (the room trims, caps and rate limits it). */
 export function say(text: string): void {
   postRoomCommand({ kind: "room-say", text });
+}
+
+/**
+ * Host only: Start for a room where each player brought their own hero and deck. `base` is the host's game without its
+ * players (scenario, difficulty, rules, modular sets, ...). Fetches every seat's deck from the room, judges all of them
+ * in a worker (`live/room-deck.ts`), tells only each failing seat's holder why through `deck-refused`, and otherwise
+ * starts the game from the seats' decks (in seat order). Nothing starts unless every seat is held and every deck passes.
+ * The result says what stopped it, for the host's own words; a deck refused for a seat the host holds is in
+ * `refused` but not sent to the room (the host reads it there).
+ */
+export function startRoomGame(base: RoomGameBase): Promise<RoomStartResult> {
+  return runRoomStart(base, {
+    state: roomState,
+    requestDecks: requestSeatDecks,
+    refuse: (refusal) => {
+      postRoomCommand({ kind: "room-deck-refuse", ...refusal });
+    },
+    check: (input) => checkRoomDecksInWorker(input),
+    loadedPacks,
+    start: async (config) => {
+      await startGame(config);
+      const { store } = appSession();
+      return store.state.status === "failed" ? (store.state.error ?? "failed") : null;
+    },
+  });
 }
 
 /**
