@@ -132,9 +132,11 @@ export const SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS = defineAbilities({
 
   // Requirement ([energy] [mental] [physical]) — engine-enforced from `keywords` (module docblock); no ability
   // ref for it, same as every other Requirement card in this file.
+  // "Choose another Web-Warrior character" has no control limit, so another player's Web-Warrior can be readied
+  // (RRG 1.8 "Choose (Game Element)", p. 12; "Play Area", p. 35: abilities affect cards across play areas).
   "27049.spider-man-response": response(
     after.attacksOrThwarts("self"),
-    chooseTarget("character", { categories: ["identity", "ally"], trait: WEB_WARRIOR, controller: "you", self: false }),
+    chooseTarget("character", { categories: ["identity", "ally"], trait: WEB_WARRIOR, self: false }),
     ready(chosen("character")),
   ),
 

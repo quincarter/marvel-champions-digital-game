@@ -42,4 +42,22 @@ describe("#888: a discount for the card 'played' is for any player", () => {
     expect(playerOf(played, P2).playArea).toContain(blackCat);
     expect(playCostOf(played, P2, daredevil, WAVE1_DEPS)).toMatchObject({ printed: 4, current: 4 });
   });
+
+  it("an ally played by a player eliminated since is still the round's first: Living Legend stays spent", () => {
+    const start = startWave1Game(
+      wave1Scenario("rhino", {
+        players: [{ starterDeckId: "cap-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+        seed: 11,
+      }),
+    );
+    const p2Turn = runWave1(start, endTurn(P1));
+    const given = moveToHand(p2Turn, P2, "01002"); // Black Cat (2)
+    const [blackCat] = given.ids as [never];
+    const played = runWave1(given.state, play(P2, blackCat, payWith(given.state, P2, 1, [blackCat])));
+    // P2 is then eliminated (RRG 1.8 "Player Elimination", p. 34); their play still counted this round.
+    const out = { ...played, players: played.players.map((p) => (p.playerId === P2 ? { ...p, eliminated: true } : p)) };
+    const mine = moveToHand(out, P1, "03013"); // Squirrel Girl (2)
+    const [squirrelGirl] = mine.ids as [never];
+    expect(playCostOf(mine.state, P1, squirrelGirl, WAVE1_DEPS)).toMatchObject({ printed: 2, current: 2 });
+  });
 });

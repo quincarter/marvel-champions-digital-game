@@ -3797,8 +3797,14 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "playedThisRound": {
       // Summed over every player the ref names: `each` reads "the first ally played each round" by anyone (Living
-      // Legend; RRG 1.8 FAQ "Steve Rogers (#1B)", p. 59).
-      const players = resolvePlayers(state, predicate.player, context);
+      // Legend; RRG 1.8 FAQ "Steve Rogers (#1B)", p. 59). For `each` that includes a player eliminated since they
+      // played: their ally was still the first played this round. Engine reading: RRG 1.8 "Player Elimination" (p. 34)
+      // says eliminated players "no longer participate", and says nothing of undoing what they already did.
+      const area = predicate.player.kind === "each" ? contextArea(state, context) : null;
+      const players =
+        predicate.player.kind === "each"
+          ? state.players.map((p) => p.playerId).filter((id) => !area || area.playerIds.includes(id))
+          : resolvePlayers(state, predicate.player, context);
       if (players.length === 0) return false;
       const playedBy = (playerId: PlayerId): number =>
         predicate.cardType === undefined
