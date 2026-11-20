@@ -28,6 +28,7 @@ import {
   draw,
   each,
   eventTarget,
+  exists,
   exhaustCardsCost,
   exhaustThis,
   forcedResponse,
@@ -46,6 +47,7 @@ import {
   partOf,
   option,
   paidWithOnly,
+  playersWhere,
   query,
   ready,
   reduceNextCardCost,
@@ -58,6 +60,7 @@ import {
   shuffleDeck,
   stun,
   takeDamageCost,
+  thatPlayer,
   theVillain,
   threatOn,
   thwartAScheme,
@@ -70,6 +73,8 @@ import {
 
 const WEAPON = trait("WEAPON");
 const GUARDIAN = trait("GUARDIAN");
+/** Multi-Gun's (20008) players to choose from: those with a minion engaged with them. */
+const PLAYERS_WITH_A_MINION = playersWhere(exists(query("minion", { engagedWithPlayer: thatPlayer })));
 
 /**
  * Venom / Flash Thompson (20001a/b) and his hero kit (20002–20022, 20026–20029). Reprints in this pack — The
@@ -179,9 +184,13 @@ export const VENOM_KIT = defineAbilities({
     { cost: exhaustThis },
     chooseOne(
       option("Deal 2 damage to an enemy", ...damageAnEnemy(2)),
+      // Only players with an engaged minion can be chosen, and the option needs one (issue #911). RRG 1.8 "Choose
+      // (Option)" p. 12: an option that cannot at least partially resolve can't be chosen; naming a player with no
+      // minion is an engine reading (authority step 5) on the same ground.
       option(
         "Choose a player. Deal 1 damage to each minion engaged with that player.",
-        choosePlayer("player"),
+        { when: exists(query("minion", { engagedWith: "any" })) },
+        choosePlayer("player", you, { among: PLAYERS_WITH_A_MINION }),
         dealDamage(1, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
       ),
       option("Remove 2 threat from a scheme", ...removeThreatFromAScheme(2)),

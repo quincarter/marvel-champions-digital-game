@@ -323,3 +323,14 @@ describe(`${SEARCH}: exhaust Maria Hill, search your deck for a S.H.I.E.L.D. sup
     expect(applyCommand(s, use(P1, identityOf(s), SEARCH), MARIA_DEPS).ok).toBe(false);
   });
 });
+
+// Issue #911: the two picks say which support the counter leaves and which it goes to.
+describe("Reassignment's prompts (issue #911)", () => {
+  it("asks FROM first, then TO", () => {
+    const picks = MARIA_HILL_IDENTITY[REASSIGNMENT]!.effects.filter((e) => e.kind === "chooseTarget");
+    expect(picks.map((e) => (e.kind === "chooseTarget" ? [e.slot, e.prompt] : null))).toEqual([
+      ["from", "Move a counter FROM which S.H.I.E.L.D. support?"],
+      ["to", "Move the counter TO which S.H.I.E.L.D. support?"],
+    ]);
+  });
+});

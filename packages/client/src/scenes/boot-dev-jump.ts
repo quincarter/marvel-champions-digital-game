@@ -521,6 +521,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     return { key: SCENES.board, data: {} };
   }
 
+  // `&fixture=multi-gun`: Venom and Spider-Man, a minion engaged with each, on Multi-Gun's "Choose a player" question,
+  // so the sheet shows each seat's engaged minions (`store/dev-multi-gun-game.ts`, issue #911).
+  if (screen === "board" && params.get("fixture") === "multi-gun") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startMultiGunGame } = await import("../store/dev-multi-gun-game.js");
+      await startMultiGunGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
   // `&fixture=attackers`: Captain Marvel's turn in hero form with three ready allies, so "Who attacks?" offers four characters
   // (`store/dev-attackers-game.ts`).
   if (screen === "board" && params.get("fixture") === "attackers") {

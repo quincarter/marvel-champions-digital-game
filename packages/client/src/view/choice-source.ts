@@ -52,6 +52,7 @@
  */
 
 import type { AbilityId } from "@mc/content";
+import { targetPromptOf } from "./target-prompt.js";
 import type {
   ChoiceList,
   ChoiceOption,
@@ -477,6 +478,11 @@ export function promptTitleOf(
     return `Who controls ${cardName(state, prompt.cardInstanceId)}?`;
   }
   if (kind === "discardRestricted") return `Discard to ${numberWord(prompt.limit)} restricted cards`;
+  // A pick the card itself words, so its role is clear ("Move a counter FROM which ...?", issue #911).
+  if (kind === "chooseTarget") {
+    const asked = targetPromptOf(deps, prompt.abilityId, prompt.slot);
+    if (asked !== null) return asked;
+  }
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",

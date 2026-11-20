@@ -615,6 +615,8 @@ export const chooseTarget = (
     readonly upTo?: boolean;
     readonly optional?: boolean;
     readonly count?: Amount;
+    /** The question the client asks, for a pick whose role the plain "Choose a target" doesn't say ("FROM" / "TO"). */
+    readonly prompt?: string;
   } = {},
 ): EffectSpec => ({
   kind: "chooseTarget",
@@ -624,6 +626,7 @@ export const chooseTarget = (
   ...(opts.upTo ? { upTo: true as const } : {}),
   ...(opts.optional ? { optional: true } : {}),
   ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
+  ...(opts.prompt !== undefined ? { prompt: opts.prompt } : {}),
 });
 export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ kind: "bindTargets", slot, target });
 
