@@ -59,7 +59,7 @@ const sharedEn = {
   "ios.intro":
     "The game isn't on the App Store. You install the app yourself with a free tool and your own Apple ID, no jailbreak: about 15 minutes the first time. The download is about 1.3 GB, so use Wi-Fi.",
   "ios.download": "Download the app (.ipa)",
-  "ios.guide": "Full guide, with AltStore, Sideloadly and Scarlet",
+  "ios.guide": "Full guide, with AltStore and Sideloadly",
   "ios.step1":
     "Set up <b>SideStore</b> once, with a computer: follow <a href='{sidestore}' rel='noopener'>SideStore's install guide</a>. It puts SideStore on your iPhone with your Apple ID.",
   "ios.step2": "On iOS 16 or later, turn on <b>Settings → Privacy &amp; Security → Developer Mode</b> and restart.",
@@ -73,7 +73,7 @@ const sharedEn = {
   "ios.update":
     "A new version? Install its <code>.ipa</code> the same way, with the same Apple ID: your saves carry over.",
   "ios.noComputer":
-    "<b>No computer?</b> <a href='{scarlet}' rel='noopener'>Scarlet</a> installs the <code>.ipa</code> from Safari alone, with no 7-day refresh. The catch: it signs apps with one certificate all its users share, and when Apple revokes it, the game stops opening until Scarlet puts out a new one (your saves stay). <a href='{guide}' rel='noopener'>Scarlet's steps</a>",
+    "<b>No computer?</b> You need one once, to set up SideStore; after that it all happens on the iPhone. Stay away from sites that offer to install the game from Safari with no computer: some push downloads you didn't ask for or send you to unrelated sites.",
   "file.steam-windows": "Install for Steam, Windows",
   "file.steam-mac": "Install for Steam, macOS",
   "file.steam-linux": "Install for Steam, Linux and Steam Deck",
@@ -135,7 +135,7 @@ const sharedEs: Catalog<SharedKey> = {
   "ios.intro":
     "El juego no está en la App Store. Instalas la app tú mismo con una herramienta gratuita y tu propio Apple ID, sin jailbreak: unos 15 minutos la primera vez. La descarga ocupa unos 1,3 GB, así que usa wifi.",
   "ios.download": "Descargar la app (.ipa)",
-  "ios.guide": "Guía completa, con AltStore, Sideloadly y Scarlet",
+  "ios.guide": "Guía completa, con AltStore y Sideloadly",
   "ios.step1":
     'Prepara <b>SideStore</b> una vez, con un ordenador: sigue <a href="{sidestore}" rel="noopener">la guía de instalación de SideStore</a>. Pone SideStore en tu iPhone con tu Apple ID.',
   "ios.step2":
@@ -150,7 +150,7 @@ const sharedEs: Catalog<SharedKey> = {
     "<b>Cada 7 días</b>, abre SideStore y toca <b>Refresh All</b>: las apps firmadas con un Apple ID gratuito dejan de abrirse a la semana, y renovarlas conserva tus partidas. Un Apple ID gratuito tiene tres apps instaladas así a la vez, SideStore incluida.",
   "ios.update": "¿Versión nueva? Instala su <code>.ipa</code> igual, con el mismo Apple ID: tus partidas se conservan.",
   "ios.noComputer":
-    '<b>¿Sin ordenador?</b> <a href="{scarlet}" rel="noopener">Scarlet</a> instala el <code>.ipa</code> solo con Safari, sin renovar cada 7 días. La pega: firma las apps con un único certificado que comparten todos sus usuarios, y cuando Apple lo revoca, el juego deja de abrirse hasta que Scarlet saca uno nuevo (tus partidas se conservan). <a href="{guide}" rel="noopener">Los pasos de Scarlet</a>',
+    "<b>¿Sin ordenador?</b> Hace falta uno una vez, para preparar SideStore; después todo se hace en el iPhone. Evita las webs que ofrecen instalar el juego desde Safari sin ordenador: algunas descargan cosas que no pediste o te llevan a webs que no tienen nada que ver.",
   "file.steam-windows": "Instalar para Steam, Windows",
   "file.steam-mac": "Instalar para Steam, macOS",
   "file.steam-linux": "Instalar para Steam, Linux y Steam Deck",

@@ -46,13 +46,3 @@ export const IOS_GUIDE_URLS = {
 } as const;
 /** SideStore's own install guide, which its one-time setup follows. */
 export const SIDESTORE_DOCS_URL = "https://docs.sidestore.io";
-/**
- * Scarlet's own site, the no-computer way to sideload (a shared enterprise certificate Apple revokes now and then).
- * Not scarletios.com, a third-party site that gates its install behind a share and a "verify you're human" task.
- */
-export const SCARLET_URL = "https://usescarlet.com";
-/** The install guide's Scarlet section, in each page language. */
-export const IOS_GUIDE_SCARLET_URLS = {
-  en: `${IOS_GUIDE_URLS.en}#scarlet-no-computer`,
-  es: `${IOS_GUIDE_URLS.es}#scarlet-sin-ordenador`,
-} as const;

@@ -16,13 +16,7 @@ import {
 } from "./downloads.js";
 import { LANGUAGE_KEY, LANGUAGE_NAMES, PAGE_LANGUAGES, storageWrite, type PageLanguage } from "./page-language.js";
 import { fileKey, fill, type SharedKey } from "./site-text.js";
-import {
-  IOS_GUIDE_SCARLET_URLS,
-  IOS_GUIDE_URLS,
-  LATEST_RELEASE_URL,
-  SCARLET_URL,
-  SIDESTORE_DOCS_URL,
-} from "./site-urls.js";
+import { IOS_GUIDE_URLS, LATEST_RELEASE_URL, SIDESTORE_DOCS_URL } from "./site-urls.js";
 import steamLogo from "./steam-logo.svg";
 
 export type Translate = (key: string, params?: Readonly<Record<string, string | number>>) => string;
@@ -150,9 +144,9 @@ function fileLink(download: Download, t: Translate): HTMLAnchorElement {
 }
 
 /**
- * How to sideload the iOS app, with its download beside the steps: SideStore's way, the one most players want, Scarlet
- * for players with no computer (with its catch), and a link to the full guide with AltStore, Sideloadly and Scarlet's
- * steps (docs/project/ios-install.md). Open on an iPhone or iPad, a
+ * How to sideload the iOS app, with its download beside the steps: SideStore's way, the one most players want, a warning
+ * against no-computer install sites (#906), and a link to the full guide with AltStore and Sideloadly's steps
+ * (docs/project/ios-install.md). Open on an iPhone or iPad, a
  * closed section anywhere else.
  */
 function iosSection(ipa: Download, open: boolean, language: PageLanguage, t: Translate): HTMLDetailsElement {
@@ -179,9 +173,7 @@ function iosSection(ipa: Download, open: boolean, language: PageLanguage, t: Tra
     steps,
     element("p", { html: t("ios.limits" satisfies SharedKey) }),
     element("p", { html: t("ios.update" satisfies SharedKey) }),
-    element("p", {
-      html: t("ios.noComputer" satisfies SharedKey, { scarlet: SCARLET_URL, guide: IOS_GUIDE_SCARLET_URLS[language] }),
-    }),
+    element("p", { html: t("ios.noComputer" satisfies SharedKey) }),
   );
   section.open = open;
   return section;
