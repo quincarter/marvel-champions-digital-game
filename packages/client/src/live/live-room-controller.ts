@@ -63,6 +63,9 @@ export interface LiveRoomControllerDeps {
 /** Rooms one game may use up (the first, and one replacement for a gone room or a refused token). */
 const MAX_ROOMS_PER_GAME = 2;
 
+/** The saved record's last-activity stamp is rewritten at most this often (the room's own stamp is hourly). */
+const TOUCH_EVERY_MS = 60_000;
+
 interface Live {
   readonly gameKey: string;
   /** The lobby room this game was started in (`SessionConfig.room`); only a host session for that room takes it. */
@@ -72,6 +75,9 @@ interface Live {
   /** The lobby's room, when this game streams into the room the host made (its socket is the room session's). */
   room: RoomSession | null;
   rooms: number;
+  /** The saved record of the room in use, and when its last-activity stamp was written. */
+  record: LiveRoomRecord | null;
+  touchedAt: number;
   createAttempts: number;
   retry: unknown;
   /** Set when this game will not be streamed any more. */
@@ -131,6 +137,7 @@ export class LiveRoomController {
         const live = this.#live;
         if (live?.gameKey !== message.gameKey) return;
         live.publisher.command(message.command, message.count, message.checksum, message.outcome);
+        this.#touch(live);
         return;
       }
       case "none":
@@ -295,6 +302,8 @@ export class LiveRoomController {
       socket: null,
       room: null,
       rooms: 0,
+      record: null,
+      touchedAt: 0,
       createAttempts: 0,
       retry: null,
       failed: false,
@@ -342,6 +351,8 @@ export class LiveRoomController {
     }
     if (record && record.gameKey === live.gameKey && recordFresh(record, now)) {
       live.rooms++;
+      live.record = record;
+      live.touchedAt = now;
       this.#connect(live, record.roomId, record.hostToken);
       return;
     }
@@ -363,14 +374,19 @@ export class LiveRoomController {
     live.room = room;
     if (room.roomId) live.publisher.roomOpened(room.roomId);
     if (room.roomId && room.hostToken && room.code) {
+      const at = (this.#deps.now ?? Date.now)();
       const record: LiveRoomRecord = {
         gameKey: live.gameKey,
         roomId: room.roomId,
         hostToken: room.hostToken,
-        createdAt: (this.#deps.now ?? Date.now)(),
+        createdAt: at,
+        lastActiveAt: at,
         code: room.code,
         name: room.name,
       };
+      // The lobby room's record follows the host's activity too (#touch), so a reload past 12 hours finds it fresh.
+      live.record = record;
+      live.touchedAt = at;
       void this.#deps.store?.save(record).catch(() => {});
     }
     const hooks: GameHooks = {
@@ -405,15 +421,29 @@ export class LiveRoomController {
     }
     live.createAttempts = 0;
     live.rooms++;
-    void this.#deps.store
-      ?.save({
-        gameKey: live.gameKey,
-        roomId: result.room.roomId,
-        hostToken: result.room.hostToken,
-        createdAt: (this.#deps.now ?? Date.now)(),
-      })
-      .catch(() => {});
+    const at = (this.#deps.now ?? Date.now)();
+    live.record = {
+      gameKey: live.gameKey,
+      roomId: result.room.roomId,
+      hostToken: result.room.hostToken,
+      createdAt: at,
+      lastActiveAt: at,
+    };
+    live.touchedAt = at;
+    void this.#deps.store?.save(live.record).catch(() => {});
     this.#connect(live, result.room.roomId, result.room.hostToken);
+  }
+
+  /** Host activity keeps the room alive on the server, so the saved record's stamp follows it (throttled). */
+  #touch(live: Live): void {
+    const store = this.#deps.store;
+    const record = live.record;
+    if (!store || !record) return;
+    const at = (this.#deps.now ?? Date.now)();
+    if (at - live.touchedAt < TOUCH_EVERY_MS) return;
+    live.touchedAt = at;
+    live.record = { ...record, lastActiveAt: at };
+    void store.save(live.record).catch(() => {});
   }
 
   #connect(live: Live, roomId: string, hostToken: string): void {
@@ -472,6 +502,7 @@ export class LiveRoomController {
     live.socket = null;
     live.publisher.onDisconnected();
     if (this.#live !== live) return;
+    live.record = null;
     void this.#deps.store?.clear(live.gameKey).catch(() => {});
     if (live.rooms < MAX_ROOMS_PER_GAME) void this.#create(live);
     else live.failed = true;
