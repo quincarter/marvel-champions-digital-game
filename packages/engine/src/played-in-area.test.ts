@@ -58,7 +58,7 @@ describe("the first ally played each round, by game area", () => {
     expect(evaluate(ctx.state, FIRST_ALLY, asP1)).toBe(false);
   });
 
-  it("a game saved before plays were kept by area counts by player, as before", () => {
+  it("a game saved before plays were kept by area counts every player's plays", () => {
     const old = split({});
     const { playedInAreaThisRound: _dropped, ...saved } = { ...old, playedByPlayerThisRound: { [`${P1}:ally`]: 1 } };
     expect(evaluate(saved, FIRST_ALLY, asP1)).toBe(false);
@@ -69,5 +69,8 @@ describe("the first ally played each round, by game area", () => {
       playedInAreaThisRound: { "area-2:ally": 1 },
     };
     expect(evaluate(later, FIRST_ALLY, asP1)).toBe(false);
+    // Another player's ally from such a save, made before the split or not, withholds this area's first.
+    const theirs = { ...saved, playedByPlayerThisRound: { [`${P2}:ally`]: 1 } };
+    expect(evaluate(theirs, FIRST_ALLY, asP1)).toBe(false);
   });
 });

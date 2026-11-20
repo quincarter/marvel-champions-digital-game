@@ -3804,7 +3804,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       // In a split game area, the plays made in it or while the players still shared one (`""`), wherever their
       // players are now (The Once and Future Kang, docs/phase7-wave2.md §3.1). Kang puts every player in an area at
       // once, so `""` is only ever a play from before the split. Read only while it holds every play this round: a game
-      // saved before it was kept falls back to the plays by player.
+      // saved before it was kept falls back to every player's plays, which can only withhold a "first" (engine reading:
+      // it cannot tell a play from before the split from one in the other area).
       const inArea = state.playedInAreaThisRound;
       const total = (counts: Readonly<Record<string, number>>) => Object.values(counts).reduce((a, b) => a + b, 0);
       if (area && inArea && total(inArea) === total(state.playedByPlayerThisRound)) {
@@ -3817,7 +3818,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       }
       const players =
         predicate.player.kind === "each"
-          ? state.players.map((p) => p.playerId).filter((id) => !area || area.playerIds.includes(id))
+          ? state.players.map((p) => p.playerId)
           : resolvePlayers(state, predicate.player, context);
       if (players.length === 0) return false;
       const playedBy = (playerId: PlayerId): number =>
