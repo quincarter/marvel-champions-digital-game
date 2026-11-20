@@ -133,7 +133,7 @@ export function drawChrome(scene: Phaser.Scene, fullWhole: Rect, model: BoardMod
   if (options.turn) {
     const turnRow: Rect = { x: whole.x, y: whole.y + whole.height, width: whole.width, height: TURN_ROW_HEIGHT };
     // The Esc / Menu glyph hangs under the MENU button on wide bars: the Chat control stays clear of it.
-    drawTurnRow(scene, turnRow, options.turn, options.chat ?? null, fullWhole.width >= 640 ? 80 : 10);
+    drawTurnRow(scene, turnRow, options.turn, options.chat ?? null, fullWhole.width >= 640 ? 80 : 10, options.buttons);
   }
   if (options.prompt) {
     const top = whole.y + whole.height + (options.turn ? TURN_ROW_HEIGHT : 0);
@@ -308,6 +308,7 @@ function drawTurnRow(
   turn: ChromeTurn,
   chat: ChromeOptions["chat"],
   rightInset: number,
+  buttons: McButton[],
 ): void {
   const g = scene.add.graphics();
   const mine = turn.tone === "mine";
@@ -320,19 +321,26 @@ function drawTurnRow(
     .setOrigin(0, 0.5);
   let room = row.width - 20;
   if (chat) {
-    // Words and a count, never a colour or a dot alone: "CHAT" or "CHAT · 2".
+    // Words and a count, never a colour or a dot alone: "CHAT" or "CHAT · 2". A real button, at the touch size.
     const word = chat.unread > 0 ? `${chat.label} · ${chat.unread}` : chat.label;
-    const label = scene.add
-
-      .text(row.x + row.width - rightInset, row.y + row.height / 2, word, textStyle(typeRole.label, colour))
-      .setOrigin(1, 0.5);
-    const zoneWidth = Math.max(64, label.width + 20);
-    const zone = scene.add
-      .zone(row.x + row.width - rightInset + 10 - zoneWidth, row.y, zoneWidth, row.height)
-      .setOrigin(0, 0);
-    zone.setInteractive({ useHandCursor: true });
-    onTap(zone, chat.onPress, "chrome-chat");
-    room -= zoneWidth;
+    const buttonWidth = Math.max(84, word.length * 9 + 24);
+    const rect: Rect = {
+      x: row.x + row.width - rightInset + 4 - buttonWidth,
+      y: row.y + 4,
+      width: buttonWidth,
+      height: row.height - 8,
+    };
+    buttons.push(
+      new McButton(scene, {
+        kind: mine ? "secondary" : "onInk",
+        label: word,
+        type: { ...typeRole.label, size: 12 },
+        rect,
+        enabled: true,
+        onClick: chat.onPress,
+      }),
+    );
+    room -= buttonWidth + 8;
   }
   clipLine(text, room);
   // A name to a screen reader or a hover, in the row's own zone.

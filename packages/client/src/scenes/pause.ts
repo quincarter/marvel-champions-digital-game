@@ -91,7 +91,8 @@ import { appSession } from "../session.js";
 import { roomStrictOf } from "../view/room-strict.js";
 import { activeSeat } from "../platform/seat-play.js";
 import { roomState } from "../platform/room.js";
-import { handoverOn } from "../view/room-prompts.js";
+import { handoverOn, roomChatOn } from "../view/room-prompts.js";
+import { inRoomGame } from "../view/whose-turn.js";
 import { leaveSeatForWatch } from "./seat-drop.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -387,6 +388,16 @@ export class PauseOverlay extends Phaser.Scene {
     this.scene.launch(SCENES.manualAdjust, { from: SCENES.pause } satisfies ManualAdjustData);
   }
 
+  /** The room's chat is on in this room game: Pause has a Chat entry (the stats' place) (#881). */
+  #roomChat(): boolean {
+    const room = roomState();
+    return inRoomGame(room) && roomChatOn(room);
+  }
+
+  #openChat(): void {
+    if (!this.scene.isActive(SCENES.roomChat)) this.#launchOver(SCENES.roomChat, {});
+  }
+
   /** Your stats, over this sheet: Back there closes it and Pause takes input again. */
   #openStats(): void {
     if (this.scene.isActive(SCENES.playerStats)) return;
@@ -499,9 +510,9 @@ export class PauseOverlay extends Phaser.Scene {
       },
       {
         id: "stats",
-        title: "Your stats",
-        detail: "Your record, heroes, villains and the cards you play.",
-        open: () => this.#openStats(),
+        title: this.#roomChat() ? t("chat.title") : "Your stats",
+        detail: this.#roomChat() ? t("chat.pauseDetail") : "Your record, heroes, villains and the cards you play.",
+        open: () => (this.#roomChat() ? this.#openChat() : this.#openStats()),
       },
       // Only once the player has turned it on in Settings > More > Cheats (the owner, 2026-11-19).
       ...(this.#manualAdjustOn()
@@ -747,7 +758,10 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
       this.#launchOver(SCENES.settings, {}),
     );
-    this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
+    // A room game's chat takes the stats slot: its stop keeps the id, so the focus route is the same (#881).
+    this.#menuButton(stops, "stats", "onInk", this.#roomChat() ? t("chat.open") : "Your stats", layout.menu.stats, () =>
+      this.#roomChat() ? this.#openChat() : this.#openStats(),
+    );
     this.#menuButton(stops, "save-quit", "onInk", this.#quitLabel(), layout.menu.saveQuit, () => this.#saveAndQuit());
     this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.

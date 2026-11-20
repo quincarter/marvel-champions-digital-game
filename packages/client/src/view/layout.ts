@@ -202,7 +202,7 @@ export const REPLAY_BAR_TOP_RESERVE = REPLAY_BAR_HEIGHT + REPLAY_BANNER_HEIGHT;
  * A room game's whose-turn line (#881) is one more row at the foot of the title bar, the same height on every layout; a
  * prompt (a request to answer, a seat to take over) is another, below it, only while there is one.
  */
-export const TURN_ROW_HEIGHT = 24;
+export const TURN_ROW_HEIGHT = 44;
 export const PROMPT_ROW_HEIGHT = 52;
 /** A prompt with three buttons stacks them under its words, so it is taller. */
 export const PROMPT_ROW_HEIGHT_STACKED = 96;

@@ -32,7 +32,7 @@ export type RoomPrompt =
   | { readonly kind: "answer"; readonly what: "undo" | "adjust"; readonly status: "waiting" | "accepted" | "declined" };
 
 /** What a button on a prompt does. */
-export type PromptActionId = "take-over" | "give-back" | "accept" | "decline" | "dismiss" | "message" | "wait";
+export type PromptActionId = "take-over" | "give-back" | "accept" | "decline" | "dismiss" | "message" | "wait" | "give";
 
 /**
  * Whether the host may take over or hand off a hero when its player leaves (the lobby's "Host can take over or hand off a
@@ -109,6 +109,7 @@ export function promptViewOf(
         detail: null,
         actions: [
           ...(handoverOn(room) ? [{ id: "take-over" as const, labelKey: "prompt.takeOver" as const }] : []),
+          ...(handoverOn(room) ? [{ id: "give" as const, labelKey: "prompt.giveTo" as const }] : []),
           ...(roomChatOn(room) && !prompt.vacant
             ? [{ id: "message" as const, labelKey: "prompt.message" as const }]
             : []),

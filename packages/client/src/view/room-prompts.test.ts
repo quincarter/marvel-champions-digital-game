@@ -43,7 +43,7 @@ describe("host prompts", () => {
     const room = hostRoom({ seats: [seat({ away: true, holderConnected: false })] });
     const view = promptViewOf(roomPromptsOf(room, turn), room);
     expect(view?.titleKey).toBe("prompt.away");
-    expect(view?.actions.map((a) => a.id)).toEqual(["take-over", "message", "wait"]);
+    expect(view?.actions.map((a) => a.id)).toEqual(["take-over", "give", "message", "wait"]);
   });
 
   it("offers only Wait when hand-offs and chat are off", () => {

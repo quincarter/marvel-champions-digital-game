@@ -4,6 +4,7 @@
 
 import type Phaser from "phaser";
 import { appSession } from "../../session.js";
+import { seatContext } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
 import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
@@ -296,7 +297,21 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       : selection.kind === "paying"
         ? "" // The payment bar above the hand is already saying it.
         : (appSession().store.state.error ?? "");
-  if (message && !stacked) {
+  if (message && seatContext()) {
+    // A room game's refusal ("The host did not accept that move.") is a plate clear of the screen edge, on every layout.
+    const width = Math.min(rect.width - 16, 460);
+    const text = scene.add
+      .text(0, 0, message, { ...textStyle(typeRole.body, signal.caution.hex), wordWrap: { width: width - 20 } })
+      .setOrigin(0, 0)
+      .setDepth(900);
+    const height = text.height + 14;
+    const x = rect.x + 8;
+    const y = rect.y - height - 8;
+    const plate = scene.add.graphics().setDepth(899);
+    plate.fillStyle(surface.ink.hex, 1).fillRect(x, y, width, height);
+    plate.lineStyle(2, signal.caution.hex, 1).strokeRect(x + 1, y + 1, width - 2, height - 2);
+    text.setPosition(x + 10, y + 7);
+  } else if (message && !stacked) {
     scene.add
       .text(rect.x + 10, rect.y + rect.height - 14, message, textStyle(typeRole.body, signal.caution.hex))
       .setOrigin(0, 0.5)

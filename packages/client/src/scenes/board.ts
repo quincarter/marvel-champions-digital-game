@@ -782,6 +782,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.roomChat) ||
         this.scene.isActive(SCENES.roomAsk) ||
+        this.scene.isActive(SCENES.roomGive) ||
         // The campaign beat splash closes on A, B, Start, View, Y and Enter: the same press must not also act on the table.
         this.scene.isActive(SCENES.campaignBeat) ||
         this.scene.isActive(SCENES.rules) ||
@@ -2827,6 +2828,11 @@ export class BoardScene extends Phaser.Scene {
         return;
       case "dismiss":
         dismissAsk();
+        return;
+      case "give":
+        if (prompt.kind === "away" && !this.scene.isActive(SCENES.roomGive)) {
+          this.scene.launch(SCENES.roomGive, { seat: prompt.seat, hero: prompt.hero });
+        }
         return;
       case "message":
         this.#openChat(t("chat.stillThere"));

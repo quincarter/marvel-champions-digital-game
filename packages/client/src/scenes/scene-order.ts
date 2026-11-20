@@ -78,6 +78,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.onlineName,
   SCENES.roomChat,
   SCENES.roomAsk,
+  SCENES.roomGive,
   SCENES.heroDecks,
   SCENES.searchHelp,
   SCENES.saveData,
