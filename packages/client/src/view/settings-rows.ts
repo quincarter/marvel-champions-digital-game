@@ -295,7 +295,7 @@ export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
 }
 
 /**
- * Settings > More > Misc gameplay (the owner, 2026-11-19): whether Pause offers Manual adjust (#791). Off by default;
+ * Settings > More > Cheats (the owner, 2026-11-19): whether Pause offers Manual adjust (#791). Off by default;
  * turning it on asks first (`cheatUnlockWarningOf`).
  */
 export function manualAdjustRowInfoOf(settings: Settings): SettingsRowInfo {
@@ -965,7 +965,7 @@ export interface UndoPastTurnRowInfo {
   readonly selected: UndoPastTurn;
 }
 
-/** "Undo past your turn" under Gameplay (issue #791): allow, warn first, or off. */
+/** "Undo past your turn" under More > Cheats (issues #791, #899): allow, warn first, or off. */
 export function undoPastTurnRowInfoOf(settings: Settings): UndoPastTurnRowInfo {
   return {
     title: "Undo past your turn",
