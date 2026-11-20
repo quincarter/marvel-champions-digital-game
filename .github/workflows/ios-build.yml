@@ -73,6 +73,18 @@ jobs:
           if-no-files-found: error
           path: release/*.ipa
 
+      # On a pull request, the same build for the iOS Simulator, so the game can be checked on a Mac with no iPhone.
+      - name: Build the Simulator app
+        if: github.event_name == 'pull_request'
+        run: node scripts/build-ios.mjs --simulator --skip-web
+
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request'
+        with:
+          name: marvel-champions-ios-simulator-${{ matrix.lang }}
+          if-no-files-found: error
+          path: release/*-iOS-Simulator.zip
+
   # The English .ipa, attached to the release as soon as it is built. Other languages wait for finalize-release (see
   # the desktop upload in release-on-merge.yml). Only for a release tag: never on a pull request or a manual run.
   upload:
@@ -119,6 +131,11 @@ jobs:
           name: marvel-champions-ios-en
           path: ipa
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: marvel-champions-ios-simulator-en
+          path: simulator
+
       - name: Publish the pre-release
         id: publish
         run: |
@@ -135,13 +152,16 @@ jobs:
           fi
           name="$(basename "$built" -iOS-unsigned.ipa)-PR${PR}-${HEAD_SHA:0:7}-iOS-unsigned.ipa"
           mv "$built" "$name"
+          sim_built=$(find simulator -name "*-iOS-Simulator.zip" | head -n 1)
+          sim="$(basename "$sim_built" -iOS-Simulator.zip)-PR${PR}-${HEAD_SHA:0:7}-iOS-Simulator.zip"
+          mv "$sim_built" "$sim"
           # Recreated on every push, so the tag sits on the commit the .ipa was built from. GitHub refuses the workflow
           # token a tag on a commit that itself edits a workflow file (HTTP 403), so such a push tags the default
           # branch instead; the file name, notes and comment still name the commit.
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
           notes="A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. Unsigned: sideload it with SideStore, AltStore or Sideloadly (docs/project/ios-install.md). Deleted when the pull request closes."
           for target in "$HEAD_SHA" "$DEFAULT_BRANCH"; do
-            if gh release create "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --prerelease --target "$target" \
+            if gh release create "$TAG" "$name" "$sim" --repo "$GITHUB_REPOSITORY" --prerelease --target "$target" \
               --title "iOS preview: PR #${PR}" --notes "$notes"; then
               break
             fi
@@ -160,12 +180,14 @@ jobs:
           fi
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
           echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sim=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${sim}" >> "$GITHUB_OUTPUT"
           echo "iOS preview: $url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment the .ipa link
         if: steps.publish.outputs.url != ''
         env:
           URL: ${{ steps.publish.outputs.url }}
+          SIM: ${{ steps.publish.outputs.sim }}
         run: |
           marker="<!-- ios-preview -->"
           # The guide at the built commit, so the link works before the guide reaches the default branch.
@@ -173,7 +195,9 @@ jobs:
           body="$marker
           **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7})
 
-          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID, no jailbreak."
+          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID, or Scarlet with no computer.
+
+          **No iPhone? iOS Simulator build:** $SIM. On a Mac with Xcode, unzip it, open the Simulator (\`open -a Simulator\`), then run \`xcrun simctl install booted App.app\` (or drag \`App.app\` onto the Simulator window)."
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then

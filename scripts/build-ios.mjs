@@ -5,10 +5,21 @@
 // need.
 //
 // Card language: MC_CARD_LANG, as for the other installers. Output: release/MarvelChampions-<v>-<LANG>-iOS-unsigned.ipa.
+//
+// `--simulator` builds for the iOS Simulator instead: release/MarvelChampions-<v>-<LANG>-iOS-Simulator.zip, App.app
+// zipped, which `xcrun simctl install booted App.app` installs. Pull request previews carry it so the game can be
+// checked on a Mac without an iPhone. `--skip-web` reuses the web build and `cap sync` already done (CI builds the
+// .ipa first, then this).
 
 import fs from "node:fs";
 import path from "node:path";
-import { clientDir, defaultReleaseDir, getProjectVersion, iosIpaName } from "./lib/release-collector.mjs";
+import {
+  clientDir,
+  defaultReleaseDir,
+  getProjectVersion,
+  iosIpaName,
+  iosSimulatorZipName,
+} from "./lib/release-collector.mjs";
 import { loadDotenv } from "./lib/env.mjs";
 import { pnpm, run } from "./lib/run.mjs";
 
@@ -20,8 +31,10 @@ if (process.platform !== "darwin") {
   process.exit(1);
 }
 
+const simulator = process.argv.includes("--simulator");
+const skipWeb = process.argv.includes("--skip-web");
 const iosDir = path.join(clientDir, "ios", "App");
-const derivedData = path.join(iosDir, "build");
+const derivedData = path.join(iosDir, simulator ? "build-simulator" : "build");
 const version = getProjectVersion();
 
 function step(label, result) {
@@ -33,9 +46,58 @@ function step(label, result) {
 
 // Step 1: the web build, copied into the iOS project with the Capacitor config (`cap sync ios`, not `mobile:sync`,
 // which would copy the whole build into the Android project too).
-console.log("[build-ios] Step 1: Building the client and syncing it into the iOS project...");
-step("The client build", pnpm(["build"], { cwd: clientDir }));
-step("cap sync ios", pnpm(["exec", "cap", "sync", "ios"], { cwd: clientDir }));
+if (skipWeb) {
+  console.log("[build-ios] Step 1: Skipped (--skip-web): using the client build already in the iOS project.");
+} else {
+  console.log("[build-ios] Step 1: Building the client and syncing it into the iOS project...");
+  step("The client build", pnpm(["build"], { cwd: clientDir }));
+  step("cap sync ios", pnpm(["exec", "cap", "sync", "ios"], { cwd: clientDir }));
+}
+
+if (simulator) {
+  // A Release build for the Simulator (both Mac architectures). The Simulator runs apps without signing them.
+  console.log(`[build-ios] Step 2: Building App.app ${version} for the iOS Simulator...`);
+  fs.rmSync(derivedData, { recursive: true, force: true });
+  step(
+    "xcodebuild (Simulator)",
+    run(
+      "xcodebuild",
+      [
+        "-project",
+        "App.xcodeproj",
+        "-scheme",
+        "App",
+        "-configuration",
+        "Release",
+        "-sdk",
+        "iphonesimulator",
+        "-destination",
+        "generic/platform=iOS Simulator",
+        "-derivedDataPath",
+        derivedData,
+        `MARKETING_VERSION=${version}`,
+        `CURRENT_PROJECT_VERSION=${version}`,
+        "ONLY_ACTIVE_ARCH=NO",
+        "CODE_SIGNING_ALLOWED=NO",
+        "build",
+      ],
+      { cwd: iosDir },
+    ),
+  );
+  const simApp = path.join(derivedData, "Build", "Products", "Release-iphonesimulator", "App.app");
+  if (!fs.existsSync(simApp)) {
+    console.error(`[build-ios] ERROR: Expected the built app at ${simApp}`);
+    process.exit(1);
+  }
+  console.log("[build-ios] Step 3: Zipping App.app...");
+  fs.mkdirSync(defaultReleaseDir, { recursive: true });
+  const zip = path.join(defaultReleaseDir, iosSimulatorZipName(version));
+  fs.rmSync(zip, { force: true });
+  step("Zipping App.app", run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", simApp, zip]));
+  console.log(`\n[build-ios] Simulator build done: ${zip}`);
+  console.log("[build-ios] Unzip it, boot a simulator, then: xcrun simctl install booted App.app\n");
+  process.exit(0);
+}
 
 // Step 2: a Release build for devices, with code signing off. The version comes from the release (the Xcode project's
 // own 1.0 is never shipped), so Settings > General > About on the phone names the same version as the release page.

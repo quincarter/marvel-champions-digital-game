@@ -74,6 +74,14 @@ export function iosIpaName(version, lang) {
   return `${assetStem(version, lang)}-iOS-unsigned.ipa`;
 }
 
+/**
+ * The iOS Simulator build (`App.app` zipped), for checking a pull request on a Mac without an iPhone. Only pull request
+ * previews carry it; it never goes on a release.
+ */
+export function iosSimulatorZipName(version, lang) {
+  return `${assetStem(version, lang)}-iOS-Simulator.zip`;
+}
+
 const DESKTOP_EXTENSIONS = [".app.tar.gz", ".dmg", ".msi", ".exe", ".deb", ".rpm", ".AppImage"];
 
 /**
