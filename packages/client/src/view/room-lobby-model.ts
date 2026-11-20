@@ -4,10 +4,12 @@
  * only words what the room reports and turns the buttons off, with the reason, where the room would refuse anyway.
  */
 import type { LobbyMod, RoomDevice } from "@mc/sync-worker/room-protocol";
-import { parseSeatLabel } from "./room-table-setup.js";
+import { aspectName } from "./aspect-stamp.js";
 import { en } from "../i18n/en.js";
 import { t, tPlural, type MessageKey, type PluralBase } from "../i18n/translate.js";
+import type { RoomStartResult, SeatDeckRefusal } from "../live/room-start.js";
 import type {
+  DeckRefusalCode,
   LobbySettings,
   LobbySettingsPatch,
   RefusalReason,
@@ -70,7 +72,27 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
 export function refusalWords(refusal: RoomRefusal | null, state: RoomState): Words | null {
   if (!refusal) return null;
   const seat = refusal.seat ? state.seats.find((s) => s.id === refusal.seat) : undefined;
-  return { key: REFUSAL_KEYS[refusal.reason], params: { seat: seat ? parseSeatLabel(seat.label).text : "" } };
+  if (
+    refusal.reason === "not-allowed" &&
+    state.role === "host" &&
+    seat?.holder != null &&
+    seat.deck?.preset !== true &&
+    seat.deck
+  ) {
+    return { key: "room.deck.takeBackFirst" };
+  }
+  return {
+    key: REFUSAL_KEYS[refusal.reason],
+    params: { seat: seat ? seatNameOf(seat, state.seats.indexOf(seat)) : "" },
+  };
+}
+
+/** A seat's name: the host's label when it set one, else "Seat 2" (the hero is the deck's, shown beside it). */
+export function seatNameOf(seat: { readonly id: string; readonly label: string }, index: number): string {
+  const label = seat.label.trim();
+  if (label !== "") return label;
+  const number = index >= 0 ? index + 1 : Number(seat.id.replace(/\D/g, "")) || 0;
+  return t("room.seat.number", { n: number });
 }
 
 export type RoleKind = "host" | "player" | "watcher";
@@ -111,8 +133,9 @@ export function participantRows(state: RoomState): readonly ParticipantRow[] {
       role,
       roleKey: role === "host" ? "room.role.host" : role === "player" ? "room.role.player" : "room.role.watcher",
       seats: p.seats.map((id) => {
-        const label = state.seats.find((s) => s.id === id)?.label;
-        return label === undefined ? id : parseSeatLabel(label).text;
+        const index = state.seats.findIndex((s) => s.id === id);
+        const seat = state.seats[index];
+        return seat ? seatNameOf(seat, index) : id;
       }),
       differentVersion: !p.buildMatches,
     };
@@ -138,12 +161,49 @@ export interface RequestRow {
   readonly reason?: MessageKey;
 }
 
+/** A seat's deck as every device sees it (never the card list). */
+export interface SeatDeckView {
+  /** The hero's identity card, for the seat's picture. */
+  readonly cardId: string;
+  readonly heroName: string;
+  /** The aspects in words ("Justice", "Leadership + Protection"); empty for a deck with none. */
+  readonly aspects: string;
+  readonly name: string;
+  readonly cards: number;
+  /** The host chose it (the holder may replace it). */
+  readonly preset: boolean;
+  /** Mods the deck uses. */
+  readonly mods: readonly LobbyMod[];
+}
+
+/** Why a seat's deck was refused at Start, in words: a title for the code, the engine's own sentence as the detail. */
+export interface SeatProblemView {
+  readonly titleKey: MessageKey;
+  readonly reason: string;
+  readonly code: DeckRefusalCode;
+}
+
+export type DeckButtonKind = "choose" | "preset";
+
+export interface DeckButtonView {
+  readonly kind: DeckButtonKind;
+  readonly labelKey: MessageKey;
+  readonly enabled: boolean;
+  readonly reason?: MessageKey;
+}
+
 export interface SeatRowView {
   readonly id: string;
-  /** The seat's words (hero and deck), without the identity card id the room carries after them. */
-  readonly label: string;
-  /** The hero's identity card, for the seat's picture; null when the host's label carried none. */
-  readonly cardId: string | null;
+  /** "Seat 2", or the label the host gave it. */
+  readonly name: string;
+  /** The seat's deck, or null while nobody has chosen one. */
+  readonly deck: SeatDeckView | null;
+  /** The reason the host's check turned this seat's deck down (on my seat; for the host, on any seat its own last Start refused). */
+  readonly problem: SeatProblemView | null;
+  /** Mods this seat's deck needs that this device lacks (only on a seat I hold), for the Mod Store link. */
+  readonly missingMods: readonly LobbyMod[];
+  /** Pick a deck for this seat (mine: choose; the host on another's seat: preset). Null when this device cannot. */
+  readonly deckButton: DeckButtonView | null;
   /** The host may give this open seat to someone: the people who could take it (empty: nobody now). */
   readonly candidates: readonly { readonly id: string; readonly name: string }[];
   /** Null: open. */
@@ -167,6 +227,67 @@ export function missingMods(allowed: readonly LobbyMod[], installed: readonly Lo
 export interface SeatContext {
   /** The packs installed on this device. */
   readonly installed: readonly LobbyMod[];
+  /** What the host's own last Start refused, with the deck each refusal was about (a changed deck clears it). */
+  readonly refused?: readonly (SeatDeckRefusal & { readonly deckKey: string })[];
+}
+
+const PROBLEM_KEYS_BY_CODE: Readonly<Record<DeckRefusalCode, MessageKey>> = {
+  "no-deck": "room.deckProblem.noDeck",
+  illegal: "room.deckProblem.illegal",
+  "unknown-card": "room.deckProblem.unknownCard",
+  "mod-missing": "room.deckProblem.modMissing",
+  "mod-version": "room.deckProblem.modVersion",
+  "mod-not-allowed": "room.deckProblem.modNotAllowed",
+};
+
+/** Words for a refused deck: the code's title and the engine's sentence. */
+export const problemOf = (code: DeckRefusalCode, reason: string): SeatProblemView => ({
+  titleKey: PROBLEM_KEYS_BY_CODE[code],
+  reason,
+  code,
+});
+
+/** Tells one version of a seat's deck from another, so a refusal about the old one stops showing. */
+export const deckKeyOf = (deck: RoomSeat["deck"]): string =>
+  deck
+    ? [deck.hero, deck.name, deck.cards, deck.aspects.join("+"), deck.mods.map((m) => m.id + m.version).join(",")].join(
+        "|",
+      )
+    : "";
+
+function deckViewOf(deck: RoomSeat["deck"]): SeatDeckView | null {
+  if (!deck) return null;
+  return {
+    cardId: deck.hero,
+    heroName: deck.heroName,
+    aspects: deck.aspects.map(aspectName).join(" + "),
+    name: deck.name,
+    cards: deck.cards,
+    preset: deck.preset === true,
+    mods: deck.mods,
+  };
+}
+
+function deckButton(state: RoomState, seat: RoomSeat): DeckButtonView | null {
+  const kind: DeckButtonKind | null = seat.mine ? "choose" : state.role === "host" ? "preset" : null;
+  if (!kind) return null;
+  const labelKey: MessageKey =
+    kind === "preset" ? "room.deck.set" : seat.deck ? "room.deck.change" : "room.deck.choose";
+  let reason: MessageKey | undefined;
+  if (state.connection !== "connected") reason = "room.seat.notConnected";
+  else if (kind === "choose" && (!state.buildMatches || seat.mismatch)) reason = "room.seat.differentVersion";
+  // The holder chose their own deck: a preset would be refused, so the host takes the seat back first.
+  else if (kind === "preset" && seat.holder !== null && seat.deck && seat.deck.preset !== true) {
+    reason = "room.deck.takeBackFirst";
+  }
+  return { kind, labelKey, enabled: reason === undefined, ...(reason ? { reason } : {}) };
+}
+
+function problemFor(seat: RoomSeat, ctx: SeatContext): SeatProblemView | null {
+  if (seat.deckProblem) return problemOf(seat.deckProblem.code, seat.deckProblem.reason);
+  const key = deckKeyOf(seat.deck);
+  const refused = ctx.refused?.find((r) => r.seat === seat.id && r.deckKey === key);
+  return refused ? problemOf(refused.code, refused.reason) : null;
 }
 
 function seatAction(state: RoomState, seat: RoomSeat, ctx: SeatContext): SeatAction | null {
@@ -198,10 +319,13 @@ export function assignCandidates(state: RoomState): readonly { readonly id: stri
 export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowView[] {
   const isHost = state.role === "host";
   const multi = state.settings?.multiSeat ?? false;
-  return state.seats.map((seat) => ({
+  return state.seats.map((seat, index) => ({
     id: seat.id,
-    label: parseSeatLabel(seat.label).text,
-    cardId: parseSeatLabel(seat.label).cardId,
+    name: seatNameOf(seat, index),
+    deck: deckViewOf(seat.deck),
+    problem: problemFor(seat, ctx),
+    missingMods: seat.mine && seat.deck ? missingMods(seat.deck.mods, ctx.installed) : [],
+    deckButton: deckButton(state, seat),
     candidates: isHost && seat.holder === null ? assignCandidates(state) : [],
     holderName: seat.holder === null ? null : (seat.holderName ?? seat.holder),
     holderConnected: seat.holderConnected,
@@ -254,6 +378,69 @@ export function startBlock(state: RoomState, ctx: StartContext): Words | null {
   const outside = ctx.packsUsed.find((p) => !allowed.some((m) => m.id === p.id && m.version === p.version));
   if (outside) return { key: "room.start.modNotAllowed", params: { name: outside.id } };
   return null;
+}
+
+// ---- What Start said ---------------------------------------------------------------------------------------------
+
+/** What the host's Start answered, in words: a headline and, for refused decks, one line per seat. */
+export interface StartResultView {
+  readonly headline: Words;
+  /** For `decks`: which seat, whose, and why. */
+  readonly lines: readonly {
+    readonly seat: string;
+    readonly holder: string;
+    readonly title: string;
+    readonly reason: string;
+  }[];
+}
+
+export function startResultWords(result: RoomStartResult, state: RoomState): StartResultView | null {
+  if (result.ok) return null;
+  const nameOf = (id: string): string => {
+    const index = state.seats.findIndex((s) => s.id === id);
+    const seat = state.seats[index];
+    return seat ? seatNameOf(seat, index) : id;
+  };
+  switch (result.reason) {
+    case "not-host":
+      return { headline: { key: "room.start.hostOnly" }, lines: [] };
+    case "no-seats":
+      return { headline: { key: "room.start.noTable" }, lines: [] };
+    case "no-answer":
+      return { headline: { key: "room.startResult.noAnswer" }, lines: [] };
+    case "check-failed":
+      return { headline: { key: "room.startResult.checkFailed" }, lines: [] };
+    case "unfilled":
+      return {
+        headline: { key: "room.startResult.unfilled", params: { seats: result.seats.map(nameOf).join(", ") } },
+        lines: [],
+      };
+    case "start-failed":
+      return { headline: { key: "room.startResult.startFailed", params: { error: result.error } }, lines: [] };
+    case "decks":
+      return {
+        headline: { key: "room.startResult.decks", params: { count: result.refused.length } },
+        lines: result.refused.map((r) => ({
+          seat: nameOf(r.seat),
+          holder: state.seats.find((s) => s.id === r.seat)?.holderName ?? "",
+          title: t(PROBLEM_KEYS_BY_CODE[r.code]),
+          reason: r.reason,
+        })),
+      };
+  }
+}
+
+/** The whole answer as one block of text for the footer: the headline, then a line per refused seat. */
+export function startResultText(view: StartResultView): string {
+  const lines = view.lines.map((line) =>
+    t("room.startResult.seatLine", {
+      seat: line.seat,
+      who: line.holder === "" ? "" : ` (${line.holder})`,
+      title: line.title,
+      reason: line.reason,
+    }),
+  );
+  return [wordsText(view.headline), ...lines].join("\n");
 }
 
 // ---- Host controls -------------------------------------------------------------------------------------------
