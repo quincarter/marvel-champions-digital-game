@@ -173,3 +173,26 @@ describe("judging a proposal in a Competitive room (issue #883)", () => {
     });
   });
 });
+
+describe("a Competitive room's concede (plan N12 A)", () => {
+  const teamOf = (id: string): string | undefined => ({ p1: "registration", p2: "resistance" })[id];
+  it("takes a seat's own concession, for the team or alone, even off its turn", () => {
+    const team = judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p2" } }));
+    expect(team).toMatchObject({ ok: true, command: { type: "concede", playerId: "p2" } });
+    const alone = judgeProposal(
+      check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p2", alone: true } }),
+    );
+    expect(alone).toMatchObject({ ok: true, command: { alone: true } });
+  });
+
+  it("refuses a concession for a seat the proposer does not hold, and any concede outside Competitive", () => {
+    expect(judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+    expect(judgeProposal(check({ players: ["p2"], command: { type: "concede", playerId: "p2" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+  });
+});

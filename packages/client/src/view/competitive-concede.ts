@@ -6,6 +6,19 @@
 import type { Command, GameState } from "@mc/engine";
 import type { MessageKey } from "../i18n/translate.js";
 
+/**
+ * What Pause's Concede opens: `sheet` (the competitive sheet: the team's forfeit, or leaving alone, for the engine's owner
+ * and for a seated guest, who proposes it to the host), `leave` (an ordinary room's guest leaves their seat, #881) or
+ * `confirm` (the one-line confirm).
+ */
+export function concedeRouteOf(
+  game: Pick<GameState, "teams"> | null | undefined,
+  seatGame: boolean,
+): "sheet" | "leave" | "confirm" {
+  if (game?.teams) return "sheet";
+  return seatGame ? "leave" : "confirm";
+}
+
 export interface ConcedeChoice {
   readonly id: "team" | "alone";
   readonly labelKey: MessageKey;

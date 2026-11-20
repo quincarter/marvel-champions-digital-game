@@ -84,7 +84,13 @@ export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   // Adjusting the table is the host's own act, after it accepts a request: a seat never proposes one.
   if (command.type === "adjust") return { ok: false, reason: strict ? "strict" : "illegal" };
   // Giving the game up ends it for the whole table: a seat asks the host for it (a `concede` request), never proposes it.
-  if (command.type === "concede") return { ok: false, reason: "illegal" };
+  // In a Competitive room (#883, plan N12 A) a seat may propose it for itself: the team's forfeit, or `alone` to leave a
+  // 2v2 alone. It is the proposer's own seat's concession only, never another seat's, and the engine decides what it means.
+  if (command.type === "concede") {
+    return check.teamOf !== undefined && players.includes(command.playerId)
+      ? { ok: true, command }
+      : { ok: false, reason: "illegal" };
+  }
   // Authority-only commands (`isAuthorityCommand`): an inbound pod event and a release of a pod wait never come from a seat.
   if (command.type === "externalEvent" || command.type === "podRelease") return { ok: false, reason: "illegal" };
   const acting = actingPlayer(state);

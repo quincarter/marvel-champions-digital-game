@@ -40,3 +40,16 @@ describe("concedeChoicesOf", () => {
     expect(concedeChoicesOf(state(two, players(["p4"])), "p3").map((c) => c.id)).toEqual(["team"]);
   });
 });
+
+import { concedeRouteOf } from "./competitive-concede.js";
+
+describe("concedeRouteOf", () => {
+  test("a competitive game opens the sheet for the owner and for a seated guest; an ordinary room's guest leaves", () => {
+    const competitive = { teams: [] } as unknown as Pick<GameState, "teams">;
+    expect(concedeRouteOf(competitive, false)).toBe("sheet");
+    expect(concedeRouteOf(competitive, true)).toBe("sheet");
+    expect(concedeRouteOf({ teams: undefined }, true)).toBe("leave");
+    expect(concedeRouteOf({ teams: undefined }, false)).toBe("confirm");
+    expect(concedeRouteOf(null, false)).toBe("confirm");
+  });
+});
