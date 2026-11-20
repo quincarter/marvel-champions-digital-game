@@ -129,7 +129,8 @@ export interface TargetQuery {
    * The query reaches the other team's game area too: a card that "specifically refers to" the other side of the table
    * (MC56 p. 16: card abilities "completely ignore cards on the other side of the table unless they specifically refer
    * to them"; Drafted 56080's "a minion engaged with" the enemy team, Bullseye 56088's "an attachment from your
-   * leader"). Read on the query itself. Without it a query matches only cards in the effect's own game area.
+   * leader"). Read on the query itself. Without it a query matches only cards in the effect's own game area. It carries
+   * into the query's `anyOf` alternatives and its `not`, so it need not be repeated there.
    */
   readonly anyGameArea?: true;
   /**
@@ -985,7 +986,14 @@ export type PlayerRef =
    * when no player removed it (The Search for Spiral, `mojo` 39016; owner decision Q64, docs/phase7-wave6-handoff.md).
    */
   | { readonly kind: "orElse"; readonly first: PlayerRef; readonly otherwise: PlayerRef }
-  | { readonly kind: "firstPlayer" }
+  /**
+   * The first player. With two teams each team has its own first player token (MC56 p. 16), and this is the token
+   * holder of the team the effect is read for (`contextTeam`); `of: "enemy"` is the other team's: "deal it to the
+   * first player on the enemy team" (Calculated Risk 57074). Not `enemyTeamDecider`, which names who answers a choice
+   * given to the enemy team and need not hold its token. With one team the enemy team is the players (MC56 p. 6), so
+   * both read as the first player; with two teams and no team to read for, `of: "enemy"` names nobody.
+   */
+  | { readonly kind: "firstPlayer"; readonly of?: "yours" | "enemy" }
   | { readonly kind: "each" }
   | { readonly kind: "id"; readonly playerId: PlayerId }
   /** The player(s) picked by `choosePlayer` into this slot ("choose a player. That player …"). */
@@ -2340,6 +2348,19 @@ export type EffectSpec =
        * and only the boost cards already facedown on the attacker are turned (the same owner question, A).
        */
       readonly boost?: true | "held";
+      /**
+       * "[Attacker] gets +1 ATK for this attack" on the attack this effect initiates (a leader-versus-leader attack, MC56
+       * p. 16): evaluated once, as this effect resolves, and carried on this attack's own event frame (`vars.atkBonus`),
+       * as `enemyAttack.atkBonus` is for an activation. Read when the damage is dealt, beside the attacker's ATK and
+       * any boost icons, so it ends with the attack and never reaches another one. A "—" ATK attacker still makes no
+       * attack (RRG 1.8 "Dash (Value)", p. 15).
+       */
+      readonly atkBonus?: ValueSpec;
+      /**
+       * "This attack gains piercing": attack keywords carried by exactly the attack this effect initiates (one var per
+       * keyword on its event frame, read by `attackKeywordsOf`), as `enemyAttack.keywords`. Not the attacker's.
+       */
+      readonly keywords?: readonly AttackKeyword[];
       readonly bind?: string;
     }
   /**
@@ -4093,7 +4114,14 @@ export type EffectSpec =
       readonly perPlayerAs?: number;
       readonly fromEncounterDeck?: true;
     }
-  | { readonly kind: "shuffleEncounterDeck" }
+  /**
+   * Shuffles "the encounter deck" (`effectEncounterDeckId`: the active villain's, or with two teams the deck of the
+   * leader in the effect's own area). `deckOf` names another villain's deck where card text does, as the `encounter`
+   * card selector's `deckOf`: "Search the top 5 cards of your leader's encounter deck …" shuffles that deck once the
+   * search is done (RRG 1.8 "Search", p. 39), and "your leader" sits in the other team's area (MC56 p. 16). Each deck
+   * a named villain has is shuffled once; a ref that names no villain with a deck shuffles nothing.
+   */
+  | { readonly kind: "shuffleEncounterDeck"; readonly deckOf?: TargetRef }
   /**
    * "Create the Experimental Weapons deck" / "Shuffle every other encounter side scheme into the side-scheme deck"
    * (docs/phase7-wave2.md §3.3): every card of the encounter deck matching the scenario deck's `contents` (its encounter

@@ -1066,6 +1066,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           },
         ],
         reportTo(effect.bind),
+        // "+1 ATK for this attack and this attack gains piercing": on this attack's own event frame, read as its damage
+        // is dealt (`applyEnemyAttacksEnemy`), so it ends with this attack, as `enemyAttack.atkBonus` / `keywords` do.
+        {
+          ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+          ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
+        },
       );
       // "She cannot take more than 3 damage from this attack" (Provoked Response 56133): a rule written before this
       // effect with `attack: "initiated"` is now scoped to this attack.
@@ -4127,10 +4133,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Krahllak's Blessing (`shadowland` 65019, "Attached villain attacks that character", after a minion's attack on
       // the villain: a minion is "a character", RRG 1.8 "Character", p. 12) has the villain attack that minion the same
       // way: an attack on an enemy, not an activation against a player.
-      // The `enemyAttack`'s own modifiers (`keywords`, `atkBonus`, extra boost cards, `statBonusTiming`) are not carried
-      // over: `enemyAttacksEnemy` has none, and no card that can reach this branch prints one (an `enemyAttack` with
-      // `keywords`, such as Batroc's Leaping Kick 50096 or Energy Channel 56098, only ever aims at a player's character).
-      // A card that needs one here needs the field on `enemyAttacksEnemy` first.
+      // The `enemyAttack`'s `keywords` and an eager `atkBonus` carry over, as `enemyAttacksEnemy` takes both for this
+      // attack only ("Captain Marvel attacks that character. This attack gains overkill", Energy Channel 56098, aimed at
+      // a leader). Extra boost cards and a deferred bonus (`statBonusTiming`) do not: `enemyAttacksEnemy` has neither,
+      // and no card that can reach this branch prints one.
       if (effect.kind === "enemyAttack" && effect.targetCharacter) {
         const inPlayNow = cardsInPlay(ctx.state);
         const [aimed] = targets(effect.targetCharacter).filter(
@@ -4142,6 +4148,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attacker: effect.enemies,
             target: effect.targetCharacter,
             ...(effect.boost === false ? {} : { boost: true as const }),
+            ...(effect.atkBonus && effect.statBonusTiming === undefined ? { atkBonus: effect.atkBonus } : {}),
+            ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
             ...(effect.bind !== undefined ? { bind: effect.bind } : {}),
           };
           applyEffect(ctx, routed, context, frame);
@@ -4515,9 +4523,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "buildScenarioDeck":
       buildScenarioDeck(ctx, effect.name, effect.from);
       return;
-    case "shuffleEncounterDeck":
-      shuffleEncounterDeck(ctx, effectEncounterDeckId(ctx.state, context));
+    case "shuffleEncounterDeck": {
+      if (!effect.deckOf) {
+        shuffleEncounterDeck(ctx, effectEncounterDeckId(ctx.state, context));
+        return;
+      }
+      // "Your leader's encounter deck": each deck the ref's villains have, once, as the `encounter` selector's `deckOf`.
+      const deckIds = new Set(targets(effect.deckOf).flatMap((id) => villainOf(ctx.state, id)?.encounterDeckId ?? []));
+      for (const deckId of deckIds) shuffleEncounterDeck(ctx, deckId);
       return;
+    }
     case "discardEncounterUntil": {
       // Finding nothing does not mark the text before a "then" unresolved: RRG 1.8 "Encounter Deck" (p. 17), "If the
       // encounter deck is emptied this way, that card ability is considered to be fulfilled." A following "Reveal that

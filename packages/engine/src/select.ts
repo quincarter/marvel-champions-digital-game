@@ -1561,10 +1561,17 @@ export function explainQuery(
     queryHasKeyword(state, id, query.withoutKeyword, context.deps ?? DEFAULT_DEPS, notFrom)
   )
     return "hasExcludedKeyword";
-  if (query.anyOf !== undefined && !query.anyOf.some((alternative) => matchesQuery(state, id, alternative, context)))
+  // An inner query (`anyOf` alternative, `not`) is read in the game area the outer query reaches: the area check above
+  // has passed, so an outer `anyGameArea` carries into it rather than each inner query re-checking the area and
+  // rejecting (or, under `not`, accepting) every card of the other area.
+  const inner = (sub: TargetQuery): TargetQuery => (query.anyGameArea ? { ...sub, anyGameArea: true } : sub);
+  if (
+    query.anyOf !== undefined &&
+    !query.anyOf.some((alternative) => matchesQuery(state, id, inner(alternative), context))
+  )
     return "matchesNoAlternative";
   // The general negation (docs/phase7-wave7.md §3.8): the card must fail the inner query.
-  if (query.not !== undefined && matchesQuery(state, id, query.not, context)) return "matchesNoAlternative";
+  if (query.not !== undefined && matchesQuery(state, id, inner(query.not), context)) return "matchesNoAlternative";
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
@@ -2779,6 +2786,9 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
     case "firstPlayer": {
       // With two teams, the first player of the team the effect is read for: each team has its own token (MC56 p. 16).
       const team = state.teams ? contextTeam(state, context) : null;
+      // `of: "enemy"`: the other team's token holder. With one team the enemy team is the players (MC56 p. 6).
+      if (ref.of === "enemy" && state.teams)
+        return team ? [teamFirstPlayerOf(state, enemyTeamOf(state, team.teamId))] : [];
       return [team ? teamFirstPlayerOf(state, team) : state.firstPlayerId];
     }
     case "each": {
