@@ -310,8 +310,9 @@ function matchesOwnFields(
   deps: EngineDeps,
   controllerOverride?: PlayerId,
 ): boolean {
-  // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`).
-  if (!patternHearsKind(pattern, event.kind)) return false;
+  // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`), and "when/after
+  // [enemy] attacks" hears a leader's attack on the other leader (`leaderAttacksLeader`).
+  if (!patternHearsKind(pattern, event.kind) && !hearsLeaderAttack(state, pattern, event)) return false;
   if (
     (event.kind === "phaseBeginning" ||
       event.kind === "phaseEnding" ||
@@ -870,6 +871,26 @@ function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTimin
   return false;
 }
 
+/**
+ * A leader attacking the other leader in competitive play (`enemyAttacksEnemy` between two villains of a two-team
+ * game; MC56 p. 16). N11 A per owner decision 2026-11-20: it is an attack, so the attacker's own "when/after [X]
+ * attacks" abilities (`enemyAttack` patterns) hear it, though it is no activation (patterns asking for one do not);
+ * every other game keeps wave 3 Q12 (an enemy attacking an enemy is heard by no "when [enemy] attacks").
+ * MC56 p. 16 (no defender: defense-labelled abilities unusable, RRG v1.8 Defend p. 14), p. 20 FAQ (Energy Channel
+ * fires on leader-vs-leader); RRG v1.8 Attack p. 8 ("attacks you" needs an attacked player): the event names no
+ * player, so a pattern for an attack against "you" never matches it, and `gatherCandidates` drops defense-labelled
+ * abilities.
+ */
+export function leaderAttacksLeader(state: GameState, event: TriggerEvent): boolean {
+  if (event.kind !== "enemyAttacksEnemy" || state.teams === undefined) return false;
+  const leaders = state.villains.map((villain) => villain.instanceId);
+  return leaders.includes(event.attackerInstanceId) && leaders.includes(event.targetInstanceId);
+}
+
+/** An `enemyAttack` pattern hearing a leader's attack on the other leader (`leaderAttacksLeader`). */
+const hearsLeaderAttack = (state: GameState, pattern: EventPattern, event: TriggerEvent): boolean =>
+  patternHearsKind(pattern, "enemyAttack") && leaderAttacksLeader(state, event);
+
 function gatherCandidates(
   state: GameState,
   deps: EngineDeps,
@@ -964,8 +985,13 @@ function gatherCandidates(
   // response on a player card, forced or optional, in play, in hand or out of play, from the first setup step until
   // the first player phase begins; a "Setup" ability is its own trigger kind and never gathered here. Keywords are
   // kept: "entering play during setup triggers Toughness" (ruling, April 30, 2026 (3) #2).
+  const unlabelled = leaderAttacksLeader(state, event)
+    ? found.filter((candidate) => deps.abilities[candidate.abilityId]?.label?.includes("defense") !== true)
+    : found;
   const settled =
-    state.step.phase === "setup" ? found.filter((candidate) => !isPlayerCard(state, candidate.instanceId)) : found;
+    state.step.phase === "setup"
+      ? unlabelled.filter((candidate) => !isPlayerCard(state, candidate.instanceId))
+      : unlabelled;
   // In the order they have always been gathered: the in-play abilities, the keywords, then the out-of-play ones.
   const inPlay = settled.filter((candidate) => found.indexOf(candidate) < inPlayCount);
   return [...inPlay, ...keywords, ...settled.slice(inPlay.length)];
@@ -1381,7 +1407,7 @@ export function hearersOf(
   const listens = (definition: AbilityDefinition | undefined): boolean => {
     const trigger = definition?.trigger;
     if (!trigger || trigger.kind !== timing || trigger.forced) return false;
-    return patternHearsKind(trigger.on, event.kind);
+    return patternHearsKind(trigger.on, event.kind) || hearsLeaderAttack(state, trigger.on, event);
   };
   const found: string[] = [];
   for (const id of cardsInPlay(state)) {

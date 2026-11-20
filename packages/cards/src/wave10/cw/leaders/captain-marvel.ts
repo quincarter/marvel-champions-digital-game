@@ -117,8 +117,8 @@ const cosmicFlight = () =>
  *
  * **Energy Channel (56098)**: Permanent, holding energy counters. As corrected by RRG 1.8 (p. 70) the cost arrow is
  * gone: at 4 or more counters all of them are removed and Captain Marvel attacks that character, the attack gaining
- * overkill, whether or not the attacker is still in play. "A leader" (MC56 p. 20, competitive only) matches no attack
- * in a cooperative game: no leader attacks her, so only a hero or an ally is heard.
+ * overkill, whether or not the attacker is still in play. "A leader" is a villain attacker: in competitive play the
+ * other leader (MC56 p. 20), and in a cooperative game no villain attacks her, so only a hero or an ally is heard.
  *
  * **Captain Marvel's Helmet (56099)**: unique, and it matches the Core upgrade 01016, so a revealed copy is discarded
  * and the player is dealt a facedown card when 01016 is in play (RRG 1.8 "Unique Icon", pp. 45-46; the Captain Marvel
@@ -151,8 +151,10 @@ export const LEADERS_CAPTAIN_MARVEL: AbilityRegistry = defineAbilities({
   "56095.when-revealed": advancedWhenRevealed(),
   "56095.captain-marvel-forced-response": captainMarvelForcedResponse(),
 
+  // "After a leader, hero, or ally attacks Captain Marvel": a leader is a villain, which attacks her only in
+  // competitive play (the other leader; MC56 p. 20 FAQ: Energy Channel fires and she may attack that leader).
   "56098.energy-channel-forced-response": forcedResponse(
-    on.attacks(query(["hero", "ally"]), { target: HOST_VILLAIN }),
+    on.attacks(query(["hero", "ally", "villain"], { anyGameArea: true }), { target: HOST_VILLAIN }),
     energyCounters(1),
     ifThen(valueAtLeast(ENERGY_ON_CHANNEL, 4), [
       removeEachCounterFrom(self, ENERGY),

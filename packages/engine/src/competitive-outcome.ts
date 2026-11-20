@@ -33,9 +33,10 @@ import { teamInArea, teamOf, teamsOf, type TeamSide, type TeamState } from "./te
  * - `leaderSchemeCompleted`: its leader completed its main scheme (the final stage of the scheme in the enemy team's
  *   area), which is the enemy team losing;
  * - `opponentsDefeated`: every identity of the enemy team was defeated, by any cause (Q8 A);
- * - `opponentsLost`: the enemy team lost some other way the rules name for one team (a card's own "the players lose",
- *   an encounter deck exhausted with no discard pile; RRG 1.8 p. 17). Engine reading (authority step 5): MC56 names
- *   only the three above, and a loss of one team is read as the other's win, as for the scheme.
+ * - `opponentsLost`: the enemy team lost some other way a card names for one team (a card's own "the players lose":
+ *   MC56 p. 20 QR, "the players" is that team only). Engine reading (authority step 5): MC56 names only the three
+ *   above, and a loss of one team is read as the other's win, as for the scheme. An encounter deck emptied with no
+ *   discard pile is no loss in competitive play (`loseIfEncounterCardsExhausted`).
  */
 export type CompetitiveCondition =
   | "enemyLeaderDefeated"
@@ -126,7 +127,10 @@ export interface CompetitiveTeamResult {
 /** `GameOutcome` for a competitive game (MC56 p. 17). */
 export interface CompetitiveOutcome {
   readonly result: "teams";
-  readonly reason: "competitiveEnded";
+  /** `teamConceded`: a team forfeited (N12 A, `competitiveConcession`); `competitiveEnded`: every other end. */
+  readonly reason: "competitiveEnded" | "teamConceded";
+  /** With `teamConceded`: the seat whose concession it was. */
+  readonly concededBy?: PlayerId;
   readonly decision: "win" | "tie" | "bothLose";
   readonly teams: readonly CompetitiveTeamResult[];
   /** Present when the teams were tied on win conditions: the tie-break the table chose (Q9 C), or `applied: false`. */
@@ -299,6 +303,27 @@ export function competitiveOutcome(state: GameState, deps?: Parameters<typeof ma
     decision: "win",
     teams: teams.map((team) => result(team, (team.teamId === first!.teamId) === firstWins ? "win" : "loss")),
     tieBreak: { applied: true, ...report },
+  };
+}
+
+/**
+ * A team's forfeit (N12 A per owner decision 2026-11-20; MC56 p. 17 has no concession, so this is the engine's): the
+ * game ends at once, the conceding team loses and the other wins, with no equal phases and no tie-breaks. The
+ * conditions each team met before it are kept for the record.
+ */
+export function competitiveConcession(state: GameState, teamId: TeamId, byPlayerId: PlayerId): CompetitiveOutcome {
+  const triggers = state.competitive?.end?.triggers ?? [];
+  return {
+    result: "teams",
+    reason: "teamConceded",
+    concededBy: byPlayerId,
+    decision: "win",
+    teams: teamsOf(state).map((team) => ({
+      teamId: team.teamId,
+      side: team.side,
+      result: team.teamId === teamId ? "loss" : "win",
+      conditions: triggers.filter((trigger) => trigger.teamId === team.teamId).map((trigger) => trigger.condition),
+    })),
   };
 }
 

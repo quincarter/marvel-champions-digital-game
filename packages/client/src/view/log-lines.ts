@@ -2006,6 +2006,9 @@ const outcomeText = (
     // Competitive play (MC56 p. 17): a result per team. A generic line until the competitive game-over screen words it.
     case "competitiveEnded":
       return "The competitive game is over.";
+    // A team gave the competitive game up (N12): it loses and the other team wins at once.
+    case "teamConceded":
+      return "A team conceded the competitive game.";
     // A card's own text lost it (The Champion's ratings, Robert Kelly leaving play). The engine names the card, and
     // the card that met its condition when that is another one; a log saved before it always did may name neither.
     case "cardAbility":
