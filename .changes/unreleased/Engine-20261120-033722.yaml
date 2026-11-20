@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK: a cost may flip another card you control (AbilityCost.flipCards, DSL flipCardsCost), and an additional cost to play a card may be an either/or choice picked with the play''s costSelection, for Sentinel''s "exhaust or destroy a Component" (#890).'
-time: 2026-11-20T03:37:22.521635+01:00

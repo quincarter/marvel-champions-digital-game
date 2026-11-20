@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'The release workflow starts again: its iOS build job grants the pull-requests permission ios-build.yml''s preview job asks for, so release-on-merge.yml no longer fails before it runs (since #875).'
-time: 2026-11-20T14:55:07.1493352-05:00

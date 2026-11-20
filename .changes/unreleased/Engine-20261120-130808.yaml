@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK: a resource ability usable only for an ability''s cost on a matching card (AbilityDefinition.generatesForAbility, DSL resource(..., { generatesFor, forAbility: true })), for "generate a [wild] resource for an upgrade ability" (With Great Firepower, #890 item 3).'
-time: 2026-11-20T13:08:08.1608425+01:00
