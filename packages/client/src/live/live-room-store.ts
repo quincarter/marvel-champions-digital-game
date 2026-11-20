@@ -15,6 +15,8 @@ export interface LiveRoomRecord {
   /** Set for a lobby room (issue #880): its 6-character code, and the host's name for the same room's `hello`. */
   readonly code?: string;
   readonly name?: string;
+  /** When the host last published (written at most once a minute); absent on a record from before this field. */
+  readonly lastActiveAt?: number;
 }
 
 export interface LiveRoomStore {
@@ -23,8 +25,9 @@ export interface LiveRoomStore {
   clear(gameKey: string): Promise<void>;
 }
 
-/** Whether a record is still inside the room's own lifetime (a room closes 12 hours after its host last spoke). */
-export const recordFresh = (record: LiveRoomRecord, now: number): boolean => now - record.createdAt < ROOM_IDLE_MS;
+/** Whether a record is still inside the room's own lifetime (a room closes 12 hours after its host last spoke, so age is measured from the last host activity). */
+export const recordFresh = (record: LiveRoomRecord, now: number): boolean =>
+  now - (record.lastActiveAt ?? record.createdAt) < ROOM_IDLE_MS;
 
 export class MemoryRoomStore implements LiveRoomStore {
   readonly records = new Map<string, LiveRoomRecord>();

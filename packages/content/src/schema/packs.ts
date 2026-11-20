@@ -568,6 +568,11 @@ export interface PackPreview {
   readonly packId: string;
   readonly version: string;
   /**
+   * The pack's full description (`PackManifest.description`), so the store page shows it before the pack is installed,
+   * where the catalog has only its one-line `summary` (#890 item 18). Absent in a preview built before the field.
+   */
+  readonly description?: string;
+  /**
    * The card the store leads with: the hero identity of a hero pack (both faces), the villain (stage I) or main scheme
    * of a scenario pack, the first scenario's villain of a campaign pack. `images` are its faces' pictures, pack paths.
    */

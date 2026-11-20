@@ -720,3 +720,21 @@ describe("one ability printed with two timings (Hecate hercules 59042)", () => {
     expect(parsed.abilities[0]?.text).toBe(parsed.abilities[1]?.text);
   });
 });
+
+describe("an Action that attaches its own card is an effect, not the card's attach rule (#890 items 12 and 17)", () => {
+  it('"Action: Attach to a side scheme." on a support (Juston Seyfert, sentinel-tw) has no attachesTo', () => {
+    const parsed = parseCardText(
+      "Action: Attach to a side scheme.\nHero Action: Exhaust Juston Seyfert → remove 1 threat from attached side scheme.",
+      { villainNames: new Set() },
+    );
+    expect(parsed.attachesTo).toBeUndefined();
+    expect(parsed.abilities.map((a) => a.kind)).toContain("action");
+  });
+
+  it('"When Revealed: Attach to …" still reads as the attach rule (Beguiled 25031)', () => {
+    const parsed = parseCardText("When Revealed: Attach to a minion. Otherwise, this card gains surge.", {
+      villainNames: new Set(),
+    });
+    expect(parsed.attachesTo).toEqual({ kind: "minion" });
+  });
+});

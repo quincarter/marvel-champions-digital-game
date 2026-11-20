@@ -26,6 +26,12 @@ describe("parsePackPreview", () => {
     expect([...parsed.images]).toEqual(["cards/en/x.demo.01a.webp", "cards/es/x.demo.01a.webp"]);
     expect(parsed.featured).toEqual({ cardId: "x.demo.01a", images: ["cards/en/x.demo.01a.webp"] });
     expect(parsed.decks[0]!.cards).toEqual([{ cardId: "x.demo.02", quantity: 2 }]);
+    expect(parsed.description).toBeUndefined();
+  });
+
+  it("reads the pack's full description when the preview carries one (#890 item 18)", () => {
+    expect(parsePackPreview(preview({ description: "Store text." }), "demo")!.description).toBe("Store text.");
+    expect(parsePackPreview(preview({ description: 7 }), "demo")!.description).toBeUndefined();
   });
 
   it("refuses another pack's preview, the wrong schema and non-objects", () => {

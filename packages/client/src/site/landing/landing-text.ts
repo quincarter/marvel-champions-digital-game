@@ -73,8 +73,13 @@ const en = {
   "mods.kind.campaign": "Campaign",
   "mods.kind.art": "Art",
   "mods.empty": "Open the game to browse the store.",
-  "mods.batchAlt":
-    "Custom content, batch 1: nine fan-made packs for the game, 201 new cards and 24 rebuilt official cards, in English and Spanish. Hero packs Gwenpool, Throg, Carnage, Night Thrasher and Yondu; scenarios The Punisher and Mephisto; house rules Lost Traits and GMW Fixes.",
+  "mods.batch": "Batch {n}",
+  "mods.batches": "Mod Store batches",
+  "mods.soon": "Coming with v0.51.0",
+  "mods.batchAlt.2":
+    "Custom content, batch 2: six fan-made packs, 113 new cards and 2 alternate arts, in English and Spanish. Hero pack precons The Punisher, Spider-Punisher, Sentinel and Throg; the scenario The Rose; the house rule Don't Make Me Angry! for Hulk.",
+  "mods.batchAlt.1":
+    "Custom content, batch 1: eight fan-made packs, 179 new cards, 24 rebuilt official cards and 4 starter decks, in English and Spanish. Hero packs Gwenpool, Carnage, Night Thrasher and Yondu; scenarios The Punisher and Mephisto; house rules Lost Traits and GMW Fixes.",
 
   "news.title": "What's new",
   "news.released": "{version} · {date}",
@@ -179,8 +184,13 @@ const es: Catalog<LandingKey> = {
   "mods.kind.campaign": "Campaña",
   "mods.kind.art": "Arte",
   "mods.empty": "Abre el juego para ver la tienda.",
-  "mods.batchAlt":
-    "Contenido personalizado, lote 1: nueve packs hechos por fans para el juego, 201 cartas nuevas y 24 cartas oficiales rehechas, en inglés y español. Packs de héroe Gwenpool, Throg, Carnage, Night Thrasher y Yondu; escenarios The Punisher y Mephisto; reglas caseras Lost Traits y GMW Fixes.",
+  "mods.batch": "Lote {n}",
+  "mods.batches": "Lotes de la Tienda de Mods",
+  "mods.soon": "Llega con v0.51.0",
+  "mods.batchAlt.2":
+    "Contenido personalizado, lote 2: seis packs hechos por fans, 113 cartas nuevas y 2 ilustraciones alternativas, en inglés y español. Packs de héroe con mazo preconstruido The Punisher, Spider-Punisher, Sentinel y Throg; el escenario The Rose; la regla casera Don't Make Me Angry! para Hulk.",
+  "mods.batchAlt.1":
+    "Contenido personalizado, lote 1: ocho packs hechos por fans, 179 cartas nuevas, 24 cartas oficiales rehechas y 4 mazos iniciales, en inglés y español. Packs de héroe Gwenpool, Carnage, Night Thrasher y Yondu; escenarios The Punisher y Mephisto; reglas caseras Lost Traits y GMW Fixes.",
 
   "news.title": "Novedades",
   "news.released": "{version} · {date}",

@@ -292,10 +292,22 @@ export const resource = (
     readonly spentAsIfResource?: boolean;
     /** "… to overpay for a card": never toward the cost, always overpaid (hero-packs H3.14). */
     readonly overpayOnly?: boolean;
+    /**
+     * "… for an upgrade ability" (With Great Firepower, `spider-punisher-tw`; #890 item 3): only for an ability's cost
+     * on a card matching `generatesFor`, never to play a card: `{ generatesFor: query("upgrade"), forAbility: true }`.
+     */
+    readonly forAbility?: boolean;
+    /**
+     * "… while paying for this card" on a card in hand (Enhanced Combat Sense, `spider-punisher-tw`; #890 item 2): the
+     * ability works from its owner's hand and pays for its own card alone (`activeIn: "hand"`). What it generated is
+     * `paid.ability.<its id>` for the card's text ("for each upgrade you exhausted to pay for this card").
+     */
+    readonly inHand?: boolean;
   } = {},
   ...effects: readonly EffectArg[]
 ): AbilityDefinition => {
-  const { form, generatesFor, forAnyPlayer, repeatable, spentAsIfResource, overpayOnly, ...rest } = options;
+  const { form, generatesFor, forAnyPlayer, repeatable, spentAsIfResource, overpayOnly, forAbility, inHand, ...rest } =
+    options;
   const definition = build(
     {
       kind: "resource",
@@ -309,7 +321,13 @@ export const resource = (
     effects,
     generates,
   );
-  return { ...definition, ...(generatesFor ? { generatesFor } : {}), ...(overpayOnly ? { overpayOnly: true } : {}) };
+  return {
+    ...definition,
+    ...(generatesFor ? { generatesFor } : {}),
+    ...(overpayOnly ? { overpayOnly: true } : {}),
+    ...(forAbility ? { generatesForAbility: true as const } : {}),
+    ...(inHand ? { activeIn: "hand" as const } : {}),
+  };
 };
 /**
  * "Interrupt: When you spend this card, [cost] → generate …" on a card spent from hand (Organizational Support, `aos`
@@ -350,7 +368,11 @@ export const countersAsResource = (counterType: string, generates: ResourceGener
 /** "Hero Resource:" */
 export const heroResource = (
   generates: ResourceGeneration,
-  options: AbilityOptions & { readonly generatesFor?: TargetQuery; readonly overpayOnly?: boolean } = {},
+  options: AbilityOptions & {
+    readonly generatesFor?: TargetQuery;
+    readonly overpayOnly?: boolean;
+    readonly forAbility?: boolean;
+  } = {},
   ...effects: readonly EffectArg[]
 ): AbilityDefinition => resource(generates, { ...options, form: "hero" }, ...effects);
 
@@ -2424,12 +2446,22 @@ export const attacksLoseKeywords = (
  */
 export const attacksDealAdditionalDamage = (
   amount: number,
-  opts: { readonly target: TargetQuery; readonly attacker?: TargetQuery; readonly while?: Predicate },
+  opts: {
+    readonly target: TargetQuery;
+    readonly attacker?: TargetQuery;
+    readonly while?: Predicate;
+    /**
+     * `amount` for each counter of this type on the attacked character (Sentinel's Exposed, `sentinel-tw`; #890 item
+     * 10): `attacksDealAdditionalDamage(1, { target: query("enemy"), perCounterOnTarget: "exposed" })`.
+     */
+    readonly perCounterOnTarget?: string;
+  },
 ): ConstantPart => ({
   rules: [
     {
       kind: "attacksDealExtraDamage",
       amount,
+      ...(opts.perCounterOnTarget ? { perCounterOnTarget: opts.perCounterOnTarget } : {}),
       target: opts.target,
       ...(opts.attacker ? { attacker: opts.attacker } : {}),
       ...(opts.while ? { while: opts.while } : {}),
@@ -4420,6 +4452,12 @@ export const on = {
     pattern("formChanged", { playerIs: "controller", eventIs: { change: "additional", formType } }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
+  /**
+   * "After you ready your cards at the end of the player phase" (Web-Sling, `spider-punisher-tw`; #890 item 1): the
+   * cards the step readied are slot `readied.cards`, so "for each 2 upgrades you readied this way" counts
+   * `countOf(query("upgrade", { inSlot: "readied.cards" }))`.
+   */
+  yourCardsReadiedAtPhaseEnd: (): EventPattern => pattern("endPhaseCardsReadied", { playerIs: "controller" }),
   /**
    * "After you use a basic power" (Quicksilver's Super Speed, Captain Marvel ally 04032, Rapid Growth; docs/phase7-
    * wave2.md §3.11). The engine's `EventPattern` has no field to narrow by *which* power (attack/thwart/defense/

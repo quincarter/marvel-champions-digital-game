@@ -2,9 +2,13 @@
  * Where a device remembers the seat tokens a room gave it (issue #880), so a reload or a dropped connection puts the
  * same person back in the same seats (`hello.seatTokens`). A seat token is a bearer secret: it lives only here, in this
  * device's IndexedDB (read by the room worker), is sent only to the room's own socket and is never logged or posted to
- * the main thread. Keyed by room id; a record is dropped when it outlives the room's own idle limit.
+ * the main thread. Keyed by room id. A token is dropped when the room refuses it or ends (the session prunes seats the
+ * lobby no longer says it holds), with a days-long local cap as a cleanup backstop. The cap is not the room's 12-hour
+ * idle limit: host activity extends that deadline, so a game played for longer must still restore its seats.
  */
-import { ROOM_IDLE_MS } from "@mc/sync-worker/room-protocol";
+
+/** Local cleanup cap for a seat token record, far beyond any live room's life. */
+export const SEAT_TOKEN_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Seat id to token. */
 export type SeatTokens = Readonly<Record<string, string>>;
@@ -19,11 +23,12 @@ export interface SeatTokenStore {
   load(roomId: string): Promise<SeatTokenRecord | null>;
   save(record: SeatTokenRecord): Promise<void>;
   clear(roomId: string): Promise<void>;
-  /** Drops every record that outlived the room's idle limit (a room the player never came back to). */
+  /** Drops every record that outlived the local cap (a room the player never came back to). */
   sweep?(now: number): Promise<void>;
 }
 
-export const seatTokensFresh = (record: SeatTokenRecord, now: number): boolean => now - record.savedAt < ROOM_IDLE_MS;
+export const seatTokensFresh = (record: SeatTokenRecord, now: number): boolean =>
+  now - record.savedAt < SEAT_TOKEN_KEEP_MS;
 
 export class MemorySeatTokenStore implements SeatTokenStore {
   readonly records = new Map<string, SeatTokenRecord>();

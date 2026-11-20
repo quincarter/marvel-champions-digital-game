@@ -44,6 +44,9 @@ describe("buildPreview", () => {
     expect((preview.cards as { id: string }[]).map((card) => card.id)).toEqual(["x.tiny-pack.01a", "x.tiny-pack.02"]);
     expect(preview.decks).toHaveLength(1);
     expect(preview.decks[0]!.cards.every((entry) => entry.quantity > 0)).toBe(true);
+    // The store page shows the full description before the install (#890 item 18).
+    expect(preview.description).toBe((await withPictures()).manifest.description);
+    expect(preview.description?.length).toBeGreaterThan(0);
   });
 
   it("features the card with no picture, and no thumbnail, when the pack ships none", async () => {

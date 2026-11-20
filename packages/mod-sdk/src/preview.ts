@@ -89,6 +89,7 @@ export function buildPreview(pack: PackInput, manifest: PackManifest = pack.mani
     schema: PACK_PREVIEW_SCHEMA_VERSION,
     packId: manifest.id,
     version: manifest.version,
+    ...(manifest.description ? { description: manifest.description } : {}),
     ...(cardId ? { featured: { cardId, images: featuredPaths } } : {}),
     ...(cover ? { cover } : {}),
     images,

@@ -1568,6 +1568,16 @@ export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
  */
 export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
   if (leavingCancelled(ctx.state, id)) unattachInPlay(ctx, id);
+  // A player's card that is no permanent but whose own text keeps it in play when its host is defeated or leaves
+  // (`AbilityDefinition.staysWhenHostLeaves`): Juston Seyfert, a support that attaches itself to a side scheme ("After
+  // attached side scheme is defeated, put Juston Seyfert in play under your control", the `sentinel-tw` community pack;
+  // #890 item 12) comes back unattached to its controller's play area, as Wrist Navigator does.
+  else if (
+    !isPermanent(ctx.state, id, ctx.deps) &&
+    playerCardOwnerOf(ctx.state, id) !== null &&
+    staysForOwnText(ctx.state, ctx.deps, id, getInstance(ctx.state, id)?.attachedTo ?? null)
+  )
+    unattachInPlay(ctx, id);
   else if (!staysInPlayWithoutHost(ctx, id)) discardAtOnce(ctx, id);
   else if (rehostPermanentAttachment(ctx, id, getInstance(ctx.state, id)?.attachedTo ?? null, true)) return;
   else if (removedWithoutHost(ctx.state, ctx.deps, id))
