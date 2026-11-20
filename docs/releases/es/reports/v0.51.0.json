@@ -10,7 +10,7 @@
   "Seconds, at most": "Segundos, como máximo",
   "an iPhone's start waits on your saves before it carries on.": "espera el inicio en un iPhone a tus partidas guardadas antes de seguir.",
   "Reports and ideas": "Reportes e ideas",
-  "4 Discord reports and 4 suggestions from @bluefireF5ran.": "4 reportes de Discord y 4 sugerencias de @bluefireF5ran.",
+  "5 reports and 4 suggestions from @bluefireF5ran.": "5 reportes y 4 sugerencias de @bluefireF5ran.",
   "The game on iPhone and iPad": "El juego en iPhone y iPad",
   "Issue #874 · PR #875": "Issue #874 · PR #875",
   "<small>Achievement unlocked</small><span>Stark Tech, Pocket Size</span>": "<small>Logro desbloqueado</small><span>Tecnología Stark de bolsillo</span>",
@@ -48,7 +48,7 @@
   "<b>Manual adjust</b> leaves Pause until <b>Settings ▸ More ▸ Misc gameplay ▸ Allow manual adjust</b> is on.": "<b>Manual adjust</b> sale de Pause hasta que actives <b>Settings ▸ More ▸ Misc gameplay ▸ Allow manual adjust</b>.",
   "The deck builder lists cards that start the game outside your deck (Permanent and Setup cards, Valkyrie's Death-Glow, Rogue's Touched) first, in their own <b>Setup</b> group (#895). Your deck size doesn't change.": "El constructor de mazos muestra primero las cartas que empiezan la partida fuera de tu mazo (cartas Permanent y Setup, Death-Glow de Valkyrie, Touched de Rogue), en su propio grupo <b>Setup</b> (#895). El tamaño de tu mazo no cambia.",
   "You asked, we fixed": "Lo pediste, lo corregimos",
-  "Issues #869, #871, #873, #888, #892": "Issues #869, #871, #873, #888, #892",
+  "Issues #869, #871, #873, #888, #892, #897": "Issues #869, #871, #873, #888, #892, #897",
   "<small>Achievement unlocked</small><span>Nick Fury Reads the Fine Print</span>": "<small>Logro desbloqueado</small><span>Nick Fury lee la letra pequeña</span>",
   "<b>The Saga shelf now tells you when a win was adjusted.</b> bktanner finished The Rise of Red Skull, and Galaxy's Most Wanted stayed sealed with no reason given. A campaign with an adjusted game in it (Pause ▸ Manual adjust, or an Undo past a reveal) earns no unlocks, so its win doesn't open the next volume. The shelf didn't know that. Now it does, and says so.": "<b>El estante de la Saga ahora te dice cuándo una victoria fue ajustada.</b> bktanner terminó The Rise of Red Skull y Galaxy's Most Wanted siguió sellado sin ninguna explicación. Una campaña con una partida ajustada (Pause ▸ Manual adjust, o un Undo más allá de una carta revelada) no gana desbloqueos, así que su victoria no abre el siguiente volumen. El estante no lo sabía. Ahora sí, y lo dice.",
   "A finished run with an adjusted game in it": "Una campaña terminada con una partida ajustada",
@@ -122,5 +122,10 @@
   "The Saga on an iPhone SE, with the COMPLETE and ADJUSTED stamps and the ADJUSTED chip in Grid View": "La Saga en un iPhone SE, con los sellos COMPLETE y ADJUSTED y la etiqueta ADJUSTED en Grid View",
   "The website's Releases page with the shared top bar: Home, Download stats, Releases, English and Español, Steam, Download and Play now, over hero art": "La página Releases del sitio web con la barra superior compartida: Home, Download stats, Releases, English y Español, Steam, Download y Play now, sobre arte de héroes",
   "Download stats: 4,921 downloads and counting, over hero art": "Download stats: 4,921 downloads and counting, sobre arte de héroes",
-  "Code shipped since v0.50.0": "Código publicado desde v0.50.0"
+  "Code shipped since v0.50.0": "Código publicado desde v0.50.0",
+  "Size Increase shrinks": "Size Increase se encoge",
+  "Ant-Man's nemesis attachment came in with no size counters, so it never left the enemy it was attached to. It now comes in with 3, loses one each time that enemy activates, and is discarded with the last.": "La vinculada de némesis de Ant-Man entraba sin contadores de tamaño, así que nunca dejaba al enemigo al que estaba vinculada. Ahora entra con 3, pierde uno cada vez que ese enemigo se activa y se descarta con el último.",
+  "Issue #897 from @MegaJesup · PR #898": "Issue #897 de @MegaJesup · PR #898",
+  "@MegaJesup": "@MegaJesup",
+  "Reported Ant-Man's Size Increase staying on Rhino for good, <b>#897</b>.": "Reportó que Size Increase de Ant-Man se quedaba para siempre en Rhino, <b>#897</b>."
 }
