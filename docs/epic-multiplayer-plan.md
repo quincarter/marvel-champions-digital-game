@@ -51,8 +51,8 @@ Per group (insert p. 11):
 
 | Thing                                                                                | Scope                                  | Source     |
 | ------------------------------------------------------------------------------------ | -------------------------------------- | ---------- |
-| Loki, God of Lies villain and his hit points (20 per player in the game, all groups) | one per game (see Q1)                  | p. 11      |
-| Worlds Collide main scheme and its threat (target 2 per group)                       | one per game (see Q1)                  | pp. 11, 21 |
+| Loki, God of Lies villain and his hit points (20 per player in the game, all groups) | one per game, all pods (Q1)            | p. 11      |
+| Worlds Collide main scheme and its threat (target 2 per group)                       | one per game, all pods (Q1)            | pp. 11, 21 |
 | Event organizer and time limit (default 180 minutes)                                 | one per game                           | pp. 14, 16 |
 | Avatar of Loki villains (four), their shared hit point dial                          | per group                              | p. 11      |
 | Mischief and Mayhem main scheme                                                      | per group                              | p. 11      |
@@ -124,34 +124,42 @@ in other game areas." The explicit exceptions:
   in all groups lose." Worlds Collide reaching its target threat ends villain-phase play and lets player phases finish,
   so the loss lands when every group's current player phase ends. Completing the stage also reads "the players lose the
   game" (55028b). (Insert p. 21.)
-- **Group loss:** the insert gives no separate group loss. A group whose players are all defeated feeds threat to
-  Worlds Collide for each defeated identity (insert p. 21) and the whole game is lost or won together.
-- **Player elimination:** a defeated identity places threat on Worlds Collide (second Forced Interrupt on Mischief and
-  Mayhem). The insert says nothing about a group with no players left continuing (Q4).
+- **Group loss:** the insert gives no separate group loss; the whole game is lost or won together.
+- **No elimination:** Mischief and Mayhem (55033b) replaces an identity's defeat (alter-ego, 1 hit point, 1 threat on
+  Worlds Collide), so no identity is ever defeated and no group runs out of players (Q4).
 - **Difficulty:** per group (section 1.2).
 
-### 1.8 Rules ambiguities (each with a recommended default)
+### 1.8 Rules questions, settled (rules expert, 2026-11-20; sources in parentheses)
 
-- Q1. Does each pod have its own Loki and Worlds Collide, or is there one per whole game? The insert says "one group
-  puts their Loki" in setup but "total players across all groups in all pods" and "pods ... each working together to
-  take down Loki" (pp. 11, 13, 20, 21). (a) One Loki and Worlds Collide per game, all pods share; (b) one per pod.
-  Recommended: (b), matching "each pod working together to take down Loki" and the pod-scoped cards. Make the
-  coordinator pod-scoped, so (a) is a pod of all groups.
-- Q2. Per-group multiplier when a group drops or finishes: groups that began the scenario (Reminder card), or groups
-  currently in the pod (insert p. 4)? Recommended: groups that began, fixed at setup (the Reminder card is the later
-  summary and a fixed count keeps hit points and threat from changing mid-game).
-- Q3. Do the per-hero count (Loki's 20 per player) and the Worlds Collide target (2 per group) count groups and players
-  in the pod or the whole game? Insert p. 20 says "in all pods". Recommended: whole game if Q1 is (a), pod if (b).
-- Q4. Can a group continue once all its players are defeated? Recommended: no; the group is finished, its threat
-  contribution is already on Worlds Collide, and the pod continues.
-- Q5. When Loki flips, does a group that has already finished (all players out) resolve When Revealed? Recommended:
-  no, finished groups are skipped.
-- Q6. A group takes the final Loki damage while another is mid-villain-phase: the win is immediate for all. Recommended:
-  yes, stop at the next command boundary (not mid-ability).
-- Q7. Is "Fading Figment" and the Shatter step 3 ("Deal each player 1 facedown encounter card") per group? Recommended:
-  each player in that group only (the other groups' players are in other game areas).
-- Q8. Does a group in standard mode and a group in expert mode that share a pod change the shared Loki's numbers?
-  Recommended: no; difficulty modifies only that group's own area.
+- Q1. **One Loki, God of Lies and one Worlds Collide for the whole game, shared by every pod** (MC55 p. 11 "remove all
+  other groups' copies", p. 13, p. 4; card 55028b). Pods only scope the "your pod" abilities (The Mangog, Door Between
+  Worlds, synergy choices, per-group icons on cards inside a group's area). The coordinator is game-wide, with pods
+  inside it. (Corrects the earlier recommendation of one Loki per pod.)
+- Q2. Per-group multiplier: the groups that **began** the scenario in that pod, fixed at setup (Epic Multiplayer
+  Reminder card; cf. RRG Per Player Icon p. 32).
+- Q3. Loki's per-player hit points and flip count every player in the game; Worlds Collide's target counts every
+  group in the game (MC55 pp. 11, 20, 21; 55028b).
+- Q4. Cannot arise: Mischief and Mayhem (55033b) replaces every identity defeat, so no group runs out of players. A
+  group only stops by a network drop or conceding (an app question, Q-C).
+- Q5. Every group resolves Loki's flip (55027b; MC55 p. 20). A dropped group is Q-C.
+- Q6. Loki defeated: all players in all groups win at once (55027b; MC55 p. 21). Groups stop at their next command
+  boundary.
+- Q7. Shatter step 3 deals only the players of the group whose Fading Figment flipped, from that group's encounter
+  deck (MC55 p. 12, p. 23 FAQ).
+- Q8. Mixed difficulties do not change Loki's or Worlds Collide's numbers (55027a/b, 55028b; MC55 p. 12).
+- M1. Per-player icons on cards inside a group's area count that group's players (MC55 p. 11; 55028b).
+- M2. "Choose a group in your pod": the resolving group's first player chooses, own group allowed (MC55 p. 23, p. 10).
+  Each group's own first player picks its Synergy environment for The Mangog and Door Between Worlds.
+- M3. On Loki's flip each group first finishes what is resolving (MC55 p. 20).
+- M4. Worlds Collide at target: groups in a villain phase finish the resolving ability and stop; groups in a player
+  phase finish it and stop; all lose when no player phase is running (MC55 p. 21; wave 9 §4.1 Q9 option A).
+- M6. Other groups may only attack The Mangog and thwart Door Between Worlds, nothing else (55041, 55046; MC55 p. 12).
+- M7. The Mangog / Door Between Worlds go to the owning group's victory display (engine reading; nothing reads it).
+- M8. The time limit has no rules outcome; display only (Q-D).
+- Owner questions open (asked 2026-11-20, building the recommended A meanwhile): (1) Worlds Collide reaches its
+  target while a group is still in setup or mulligan: A that group stops at once / B it plays its first player phase;
+  (2) Overkill on another group's Mangog: A the attacker's own Avatar of Loki / B the Avatar in The Mangog's group /
+  C nobody.
 
 ## 2. Architecture options
 
@@ -293,7 +301,7 @@ scenario test in the wave 9 suite.
 
 ## 5. Open questions for the owner
 
-- Q-A. One Loki per pod or one per whole game? (a) per game, (b) per pod. Recommended: (b), see Q1.
+- Q-A. Settled by the rules (Q1 above): one Loki per whole game.
 - Q-B. Is the per-group multiplier the groups at start or the current count? (a) at start, (b) current. Recommended: (a).
 - Q-C. When a group drops mid-pod (cannot reconnect), what happens? (a) the pod waits, (b) the group is marked
   abandoned and the pod continues, (c) the organizer decides. Recommended: (c), defaulting to (b) after a timeout.
