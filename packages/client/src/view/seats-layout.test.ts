@@ -40,6 +40,31 @@ describe("the hero art button", () => {
   });
 });
 
+describe("the Random hero button", () => {
+  test.each([
+    [375, 667, true],
+    [412, 924, true],
+    [768, 1024, true],
+    [1024, 768, true],
+    [1100, 700, false],
+    [1440, 980, false],
+  ])("is a full-size control that clears its neighbours at %ix%i", (width, height, filtersButton) => {
+    const layout = seatsLayout({ width, height, chipRows: 2, detailLines: 8, filtersButton });
+    expect(layout.random.height).toBeGreaterThanOrEqual(layout.wide ? 26 : 44);
+    expect(layout.random.width).toBeGreaterThanOrEqual(64);
+    expect(layout.random.x).toBeGreaterThanOrEqual(0);
+    expect(layout.random.x + layout.random.width).toBeLessThanOrEqual(width);
+    const neighbours = [
+      layout.heroArt,
+      layout.usePreconstructed,
+      layout.detailsToggle,
+      layout.filtersButton,
+      layout.searchToggle,
+    ];
+    for (const rect of neighbours) if (rect) expect(rectsOverlap(layout.random, rect)).toBe(false);
+  });
+});
+
 describe("seatsLayout", () => {
   for (const size of SIZES) {
     test(`no overlap at ${size.width}x${size.height}`, () => {
