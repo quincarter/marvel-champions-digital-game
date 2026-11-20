@@ -4130,6 +4130,11 @@ export type EffectSpec =
        * such card prints "as if it were in your hand"); one from `"deck"` or a separate deck does not unless marked
        * `asIfInHand` (`PlayOrigin`, `actions.ts`). RRG 1.8 FAQ "Magik (#30A)", p. 64.
        *
+       * `"discard"`: a card from the player's own discard pile ("play an Attack event from your discard pile, paying its
+       * costs", Warzone, `punisher-msp`; #890 item 5). It is a play (RRG 1.8 "Play, Put Into Play", p. 32) from that
+       * pile, not one "as if it were in your hand": the log's `cardPlayed` carries `from: "discard"` and no
+       * `countsAsFrom`, so a "from your hand" response does not answer it.
+       *
        * `{ deck: "search", asIfInHand: true }`: `"deck"` for text that says "as if it were in your hand" ("search your
        * deck for an ally and play it as if it were in your hand, reducing its resource cost by 2", Calling in Favors
        * 61008; hero-pack spec H3.16). The same search, play and shuffle; the log's `cardPlayed` carries `from: "deck",
@@ -4141,6 +4146,7 @@ export type EffectSpec =
         | "hand"
         | "setAside"
         | "deck"
+        | "discard"
         | { readonly deck: "search"; readonly asIfInHand: true }
         | { readonly tuckedUnder: TargetRef }
         | { readonly separateDeck: string; readonly position: "top" | "any"; readonly asIfInHand?: true };

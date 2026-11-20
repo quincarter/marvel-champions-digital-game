@@ -167,7 +167,7 @@ export const FALCON_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbilities({
   "53007.soup-kitchen-action": alterEgoAction(
     { cost: [exhaustYourHero, exhaustThis] },
     heal(statOf(yourIdentity, "rec"), yourIdentity),
-    reduceNextCardCost(you, 2, "phase", query(["ally", "support"])),
+    reduceNextCardCost(you, 2, "phase", query(["ally", "support"]), { anyPlayer: true }),
   ),
 
   "53008.aerial-evacuation-interrupt": heroInterrupt(

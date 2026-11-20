@@ -21,6 +21,7 @@ import {
   inPlayCostCandidates,
   inPlayPicksOf,
   resolveValue,
+  type AbilityCost,
   type AbilityDefinition,
   type CostChoices,
   type EngineDeps,
@@ -80,6 +81,27 @@ function abilityOf(state: GameState, deps: EngineDeps, action: LegalAction["acti
 }
 
 /**
+ * The cost an either/or cost pays on `branch` (the player's pick, `CostSelection.branch`), the engine's own merge
+ * (`selectCost`: the common parts with the branch's). With no pick, the branch the engine would pay: the example's own,
+ * else the first one `legalActions` lists as payable. A cost with no either/or is itself.
+ */
+export function costOnBranch(
+  cost: AbilityCost | undefined,
+  action: LegalAction,
+  branch?: number,
+): AbilityCost | undefined {
+  if (!cost?.either) return cost;
+  const { either, ...common } = cost;
+  const example = action.example;
+  const picked =
+    branch ??
+    ((example.type === "playCard" || example.type === "useAbility") && example.costSelection?.branch !== undefined
+      ? example.costSelection.branch
+      : (action.costBranches?.[0] ?? 0));
+  return { ...common, ...either[picked] };
+}
+
+/**
  * The picker for an action whose cost leaves a choice among cards in play, or null when it does not: no such cost,
  * every pick forced (exactly `min` candidates), or an "each" pick (the cost takes every matching card, nothing to say).
  */
@@ -87,11 +109,12 @@ export function beginInPlayCostChoice(
   state: GameState,
   deps: EngineDeps,
   action: LegalAction,
+  branch?: number,
 ): InPlayCostChoiceState | null {
   const ref = action.action;
   if (ref.kind !== "playCard" && ref.kind !== "useAbility") return null;
   const playerId = action.example.playerId;
-  const cost = actionAbilityCost(state, deps, playerId, ref);
+  const cost = costOnBranch(actionAbilityCost(state, deps, playerId, ref), action, branch);
   const found = inPlayPicksOf(cost).map(({ mode, pick }) => ({
     mode,
     pick,
@@ -211,6 +234,7 @@ const VERB: Readonly<Record<InPlayCostMode, string>> = {
   discard: "discard",
   return: "return to hand",
   damage: "damage",
+  flip: "flip",
 };
 
 /** What the cost is doing to the cards, as a verb for "Choose cards to …". */

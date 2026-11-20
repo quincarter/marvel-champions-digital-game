@@ -76,7 +76,21 @@ export interface SettingsSearchEntry {
  * never drawn, so they can be loose: "zoom" finds Card size, "rewind" finds Undo past your turn.
  */
 export const SETTINGS_KEYWORDS: Partial<Readonly<Record<SettingsItemId, readonly string[]>>> = {
-  "undo-past-turn": ["undo", "rewind", "take back", "go back", "mistake", "misclick", "house rule"],
+  "undo-past-turn": ["undo", "rewind", "take back", "go back", "mistake", "misclick", "house rule", "cheat"],
+  "manual-adjust": [
+    "fix",
+    "edit",
+    "change",
+    "override",
+    "health",
+    "threat",
+    "counters",
+    "bug",
+    "misclick",
+    "cheat",
+    "creative",
+    "modify",
+  ],
   "confirm-end-turn": ["end turn", "accidental", "prompt", "are you sure"],
   "card-size": ["zoom", "bigger", "smaller", "scale", "readable", "tiny"],
   "large-card-text": ["font", "text size", "readable", "accessibility", "bigger text"],

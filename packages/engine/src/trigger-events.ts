@@ -80,7 +80,7 @@ export interface DefeatedSnapshot {
  * Where a played card was played from (`TriggerEvent cardPlayed.from`, `PlayOrigin` in `actions.ts`): its owner's hand,
  * the top of the deck or a tuck under an as-if-in-hand permission, or a zone an effect played it from.
  */
-export type PlayedFrom = "hand" | "deckTop" | "tucked" | "separateDeck" | "deck" | "setAside";
+export type PlayedFrom = "hand" | "deckTop" | "tucked" | "separateDeck" | "deck" | "setAside" | "discard";
 
 export type TriggerEventBody =
   | {

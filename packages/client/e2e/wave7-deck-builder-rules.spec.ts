@@ -142,7 +142,9 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     test.setTimeout(300_000);
     await openDecks(page);
     await startNewDeck(page, "41001a");
-    expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY — PSYLOCKE", "HERO · 17"]));
+    expect(await texts(page, "DeckBuilder")).toEqual(
+      expect.arrayContaining(["IDENTITY — PSYLOCKE", "SETUP · 2", "HERO · 15"]),
+    );
     expect(await deckPanel(page)).toEqual(expect.arrayContaining(["Psi-Knife", "2"]));
     await search(page, "Psi-Knife");
     // The text search ranks name matches first and also finds cards whose rules mention Psi-Knives.
@@ -191,7 +193,8 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     test.setTimeout(250_000);
     await openDecks(page);
     await startNewDeck(page, "43001a");
-    expect(await texts(page, "DeckBuilder")).toContain("HERO · 16");
+    // The claws list in their own Setup group (#895); the set is still 16 cards.
+    expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["SETUP · 1", "HERO · 15"]));
     await press(page, "DeckBuilder", "aspect:aggression");
     await search(page, "Claws");
     expect((await poolIds(page))[0]).toBe("43002"); // rules text matches follow it (43005 mentions the claws)

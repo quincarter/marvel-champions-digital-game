@@ -176,6 +176,28 @@ ${ADJUSTED_GAME_WARNING}`,
   } satisfies EndTurnConfirmData);
 }
 
+/**
+ * A yes/no box with its own title and words over `scene` (a settings change that turns on a way out of the rules,
+ * `cheatUnlockWarningOf`), calling `onConfirm` only if the player says yes. Cancel and Escape change nothing.
+ */
+export function askToConfirm(
+  scene: Phaser.Scene,
+  title: string,
+  sentence: string,
+  confirmLabel: string,
+  onConfirm: () => void,
+): void {
+  if (scene.scene.isActive(SCENES.endTurnConfirm)) return;
+  scene.scene.launch(SCENES.endTurnConfirm, {
+    sentence,
+    title,
+    cancelLabel: "Cancel",
+    confirmLabel,
+    from: scene.scene.key,
+    onConfirm,
+  } satisfies EndTurnConfirmData);
+}
+
 /** The line every adjusted-game warning ends with. */
 export const ADJUSTED_GAME_WARNING =
   "If you go ahead, this game will no longer count toward your stats or achievements, even if you win.";

@@ -42,6 +42,7 @@ describe("settingsSectionsOf", () => {
       "rules",
       "custom-placement",
       "custom-unlocked",
+      "manual-adjust",
       "achievement-popup-time",
       "achievement-popup-place",
       "achievement-popup-size",
@@ -50,7 +51,7 @@ describe("settingsSectionsOf", () => {
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Custom content, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Custom content, Misc gameplay, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
       "Cards left",
@@ -62,14 +63,21 @@ describe("settingsSectionsOf", () => {
       "More",
       "Achievements",
       "Custom content",
+      "Misc gameplay",
       "Earned items",
     ]);
   });
 
   test("Earned items sits on the More tab, under its own heading (#291)", () => {
     const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
-    expect(more.sections.map((s) => s.title)).toEqual(["More", "Achievements", "Custom content", "Earned items"]);
-    expect(more.sections[3]!.items).toContain("ultron-drone-art");
+    expect(more.sections.map((s) => s.title)).toEqual([
+      "More",
+      "Achievements",
+      "Custom content",
+      "Misc gameplay",
+      "Earned items",
+    ]);
+    expect(more.sections[4]!.items).toContain("ultron-drone-art");
   });
 
   test("the achievement popup's time and position sit on the More tab, under Achievements", () => {

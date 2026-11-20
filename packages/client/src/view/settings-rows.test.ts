@@ -51,6 +51,8 @@ import {
   nextSettingsAfterCardLanguage,
   nextSettingsAfterUndoPastTurn,
   undoPastTurnRowInfoOf,
+  cheatUnlockWarningOf,
+  manualAdjustRowInfoOf,
 } from "./settings-rows.js";
 import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
@@ -72,6 +74,7 @@ const BASE: Settings = {
   deckCopyLimits: false,
   allowExtraModularSets: false,
   undoPastTurn: "warn",
+  allowManualAdjust: false,
   deckListOnOpen: "all",
   showPreconDecks: true,
   notOfferedNotices: true,
@@ -138,6 +141,7 @@ describe("settingsRowInfoOf", () => {
       deckCopyLimits: false,
       allowExtraModularSets: false,
       undoPastTurn: "off",
+      allowManualAdjust: true,
       deckListOnOpen: "all",
       showPreconDecks: true,
       notOfferedNotices: false,
@@ -783,12 +787,41 @@ describe("Deck list settings (#755)", () => {
 });
 
 describe("Undo past your turn (issue #791)", () => {
-  test("defaults to Warn, offers Allow / Warn / Off, and refuses anything else", () => {
+  test("defaults to Off (2026-11-19), offers Allow / Warn / Off, and refuses anything else", () => {
     const settings = defaultSettings();
-    expect(settings.undoPastTurn).toBe("warn");
+    expect(settings.undoPastTurn).toBe("off");
     const row = undoPastTurnRowInfoOf(settings);
     expect(row.options.map((option) => option.value)).toEqual(["allow", "warn", "off"]);
-    expect(nextSettingsAfterUndoPastTurn(settings, "off").undoPastTurn).toBe("off");
+    expect(row.detail).toMatch(/blocks progression/i);
+    expect(nextSettingsAfterUndoPastTurn(settings, "warn").undoPastTurn).toBe("warn");
     expect(nextSettingsAfterUndoPastTurn(settings, "nope" as never)).toBe(settings);
+  });
+});
+
+describe("Allow manual adjust (2026-11-19)", () => {
+  test("defaults off and toggles", () => {
+    const settings = defaultSettings();
+    expect(settings.allowManualAdjust).toBe(false);
+    expect(manualAdjustRowInfoOf(settings).on).toBe(false);
+    expect(nextSettingsAfterToggle(settings, "manual-adjust", 1).allowManualAdjust).toBe(true);
+  });
+});
+
+describe("cheatUnlockWarningOf: turning on a way for a game to stop counting asks first", () => {
+  const base = defaultSettings();
+  test("Undo past your turn from Off to Warn or Allow warns; between Warn and Allow, or back to Off, does not", () => {
+    expect(cheatUnlockWarningOf(base, { ...base, undoPastTurn: "warn" })?.title).toMatch(/blocks progression/i);
+    expect(cheatUnlockWarningOf(base, { ...base, undoPastTurn: "allow" })).not.toBeNull();
+    const warn = { ...base, undoPastTurn: "warn" as const };
+    expect(cheatUnlockWarningOf(warn, { ...warn, undoPastTurn: "allow" })).toBeNull();
+    expect(cheatUnlockWarningOf(warn, { ...warn, undoPastTurn: "off" })).toBeNull();
+  });
+  test("Manual adjust turning on warns that the game will not count; turning it off does not", () => {
+    const on = nextSettingsAfterToggle(base, "manual-adjust", 1);
+    expect(cheatUnlockWarningOf(base, on)?.title).toBe("THIS GAME WILL NOT COUNT");
+    expect(cheatUnlockWarningOf(on, base)).toBeNull();
+  });
+  test("any other change asks nothing", () => {
+    expect(cheatUnlockWarningOf(base, { ...base, sound: !base.sound })).toBeNull();
   });
 });

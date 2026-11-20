@@ -339,7 +339,7 @@ export const MARKET = defineAbilities({
   "16168.safeguard-constant": partOf("16168.safeguard-action"),
 
   // Sure Gamble (16169) — Hero Action: Reduce the resource cost of the next card played this phase by 3.
-  "16169.sure-gamble-action": heroAction(reduceNextCardCost(you, 3, "phase")),
+  "16169.sure-gamble-action": heroAction(reduceNextCardCost(you, 3, "phase", undefined, { anyPlayer: true })),
   "16169.sure-gamble-constant": partOf("16169.sure-gamble-action"),
 
   // Cargo Hold (16170, upgrade, LOCATION/MILANO MOD) — Hero Action: Exhaust Cargo Hold → heal 1 damage from a

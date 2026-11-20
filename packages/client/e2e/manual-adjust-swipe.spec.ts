@@ -43,6 +43,8 @@ test("issue #791: a swipe of the Manual adjust list that lifts on a row or on Do
   const phone = info.project.name === "phone";
   const errors = trackErrors(page);
   await installWave6Helpers(page);
+  // Manual adjust is off until the player turns it on in Settings (2026-11-19).
+  await page.addInitScript(() => localStorage.setItem("mc-settings", JSON.stringify({ allowManualAdjust: true })));
   await page.goto("/?screen=board&fixture=crowded");
   await waitFor(async () => ((await activeScenes(page)).includes("Board") ? true : null), "the board", 90_000);
   await settle(page, { quietMs: 600, maxMs: 6000 });

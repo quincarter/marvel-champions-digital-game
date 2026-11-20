@@ -32,7 +32,7 @@
  *   checks this holds for Doctor Strange's real precon rather than trusting
  *   the comment alone.
  */
-import type { CardId, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
+import type { AnyCard, CardId, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
 import { isPermanentCard, type CardPool } from "@mc/engine";
 import { artLanguageNow } from "../art/art-source.js";
 import { localizedLabelOf } from "./card-text.js";
@@ -274,6 +274,43 @@ const NO_COST = Number.MAX_SAFE_INTEGER;
 const costGroupLabel = (rank: number): string =>
   rank === NO_COST ? "No cost" : rank === COST_X ? "Cost X" : `Cost ${rank}`;
 
+/** The lines of an identity's two faces that start the game: "Setup: ..." clauses (both faces, printed text as errata'd). */
+function identitySetupLines(identity: AnyCard | undefined): readonly string[] {
+  if (!identity || identity.type !== "hero_identity") return [];
+  return [identity.hero.text, identity.alterEgo.text]
+    .flatMap((text) => (text?.current ?? "").split("\n"))
+    .filter((line) => /\bSetup:/.test(line) && /\b(aside|into play)\b/i.test(line));
+}
+
+/** `loose` with punctuation as spaces, words single-spaced: "Wolverine's Claws." reads "wolverine s claws". */
+const words = (text: string): string =>
+  loose(text)
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Lowercase, with dashes as spaces: "Death-Glow" reads as Valkyrie's "Death Glow". */
+const loose = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[-‐-―]/g, " ")
+    .replace(/\s+/g, " ");
+
+/**
+ * A card that starts the game outside the deck (BluefireF5ran, 2026-11-19; #890 item 19), shown in the deck list's own
+ * Setup group like the identity is: a Permanent card (Wolverine's Claws, the form upgrades), a card with the Setup
+ * keyword (begins the game in play), or a card the identity's own Setup sets aside or puts into play by name
+ * (Valkyrie's Death-Glow, Rogue's Touched). Display only: what counts toward deck size is `isPermanentCard`'s call.
+ * RRG v1.8 Appendix I (p. 50) + "Permanent" (p. 32): only the identity and permanent cards are left out of deck size;
+ * Death-Glow and Touched count (FFG rulings, RRG 1.0-1.4 expansion questions part 6; June 2023 Q3).
+ */
+export function isSetupCard(card: AnyCard, identity: AnyCard | undefined): boolean {
+  if (!("keywords" in card) || !PLAYER_CARD_TYPES.has(card.type)) return false;
+  if (card.keywords.some((k) => k.name === "permanent" || k.name === "setup")) return true;
+  // Whole words only, so a short name never matches inside a longer word.
+  const name = ` ${words(card.name)} `;
+  return identitySetupLines(identity).some((line) => ` ${words(line)} `.includes(name));
+}
+
 const groupOf = (key: string, label: string, entries: readonly DeckListEntry[]): DeckListGroup => {
   const sorted = entries.slice().sort((a, b) => a.name.localeCompare(b.name));
   return { key, label, count: sorted.reduce((sum, e) => sum + e.quantity, 0), entries: sorted };
@@ -286,13 +323,17 @@ const groupOf = (key: string, label: string, entries: readonly DeckListEntry[]):
  * every count — there is nothing to name or group it by.
  */
 export function deckListGroupsOf(
-  deck: Pick<Deck, "cards">,
+  deck: Pick<Deck, "cards"> & { readonly identityCardId?: CardId },
   pool: CardPool,
   sort: DeckListSort = DEFAULT_DECK_LIST_SORT,
+  /** False keeps setup cards in their aspect, for a read by aspect (Deck check's Aspect and Curve tabs). */
+  groupSetupCards = true,
 ): readonly DeckListGroup[] {
   const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
   const buckets = new Map<string, DeckListEntry[]>();
   const costRanks = new Map<string, number>();
+  const identity = deck.identityCardId === undefined ? undefined : byId.get(deck.identityCardId as string);
+  const setup: DeckListEntry[] = [];
 
   for (const entry of deck.cards as readonly DeckCardEntry[]) {
     const card = byId.get(entry.cardId as string);
@@ -308,28 +349,45 @@ export function deckListGroupsOf(
         : "cost" in card
           ? (card.cost as number)
           : NO_COST;
-    const key =
-      sort === "aspect" ? aspectKey : sort === "type" ? card.type : sort === "cost" ? String(costRank) : "all";
-    costRanks.set(key, costRank);
-    const list = buckets.get(key) ?? [];
-    list.push({
+    const listed: DeckListEntry = {
       cardId: card.id,
       name: localizedLabelOf(card, artLanguageNow()),
       type: card.type as PlayerCardType,
       cost: "cost" in card ? (card.cost as number) : null,
       quantity: entry.quantity,
-    });
+    };
+    // Cards that start the game outside the deck get their own group first, whatever the sort.
+    if (groupSetupCards && isSetupCard(card, identity)) {
+      setup.push(listed);
+      continue;
+    }
+    const key =
+      sort === "aspect" ? aspectKey : sort === "type" ? card.type : sort === "cost" ? String(costRank) : "all";
+    costRanks.set(key, costRank);
+    const list = buckets.get(key) ?? [];
+    list.push(listed);
     buckets.set(key, list);
   }
 
-  if (sort === "name") return buckets.size > 0 ? [groupOf("all", "All cards", buckets.get("all")!)] : [];
+  const setupGroup = setup.length > 0 ? [groupOf(SETUP_GROUP_KEY, "Setup", setup)] : [];
+  if (sort === "name")
+    return [...setupGroup, ...(buckets.size > 0 ? [groupOf("all", "All cards", buckets.get("all")!)] : [])];
   if (sort === "cost")
-    return [...buckets.keys()]
-      .sort((a, b) => costRanks.get(a)! - costRanks.get(b)!)
-      .map((key) => groupOf(key, costGroupLabel(costRanks.get(key)!), buckets.get(key)!));
+    return [
+      ...setupGroup,
+      ...[...buckets.keys()]
+        .sort((a, b) => costRanks.get(a)! - costRanks.get(b)!)
+        .map((key) => groupOf(key, costGroupLabel(costRanks.get(key)!), buckets.get(key)!)),
+    ];
   const order = sort === "type" ? TYPE_GROUPS : GROUP_ORDER;
-  return order.filter(({ key }) => buckets.has(key)).map(({ key, label }) => groupOf(key, label, buckets.get(key)!));
+  return [
+    ...setupGroup,
+    ...order.filter(({ key }) => buckets.has(key)).map(({ key, label }) => groupOf(key, label, buckets.get(key)!)),
+  ];
 }
+
+/** `deckListGroupsOf`'s group of cards that start the game outside the deck (`isSetupCard`), always first. */
+export const SETUP_GROUP_KEY = "setup";
 
 /**
  * `groups` (`deckListGroupsOf`'s own output) narrowed to one `PlayerCardType` — Deck check's own left-rail type

@@ -81,6 +81,8 @@ import {
   nextSettingsAfterDeckListOnOpen,
   fadedCampaignArtRowInfoOf,
   customUnlockedRowInfoOf,
+  cheatUnlockWarningOf,
+  manualAdjustRowInfoOf,
   customPlacementRowInfoOf,
   nextSettingsAfterCustomPlacement,
   deckSignatureRowInfoOf,
@@ -176,6 +178,7 @@ import {
 } from "../platform/screen-settings.js";
 import { onHardwareChange } from "../platform/device-hardware.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import { askToConfirm } from "./end-turn-confirm.js";
 import { SCENES } from "./keys.js";
 import {
   CONTROLS_ROW,
@@ -440,7 +443,9 @@ export class SettingsOverlay extends Phaser.Scene {
       this.scene.isActive(SCENES.playerStats) ||
       this.scene.isActive(SCENES.controls) ||
       this.scene.isActive(SCENES.steamUpdate) ||
-      this.scene.isActive(SCENES.rules)
+      this.scene.isActive(SCENES.rules) ||
+      // The warning before turning on Undo past your turn or Manual adjust (`#afterWarning`).
+      this.scene.isActive(SCENES.endTurnConfirm)
     );
   }
 
@@ -654,9 +659,28 @@ export class SettingsOverlay extends Phaser.Scene {
     });
   }
 
+  /**
+   * Applies `next` straight away, or, where it turns on a way for a game to stop counting (Undo past your turn, Manual
+   * adjust), only once the player has read the warning and said yes (`cheatUnlockWarningOf`).
+   */
+  #afterWarning(next: Settings, apply: (next: Settings) => void): void {
+    const warning = cheatUnlockWarningOf(appSession().settings, next);
+    if (!warning) {
+      apply(next);
+      return;
+    }
+    askToConfirm(this, warning.title, warning.sentence, warning.confirmLabel, () => {
+      if (this.#motion.leaving) return;
+      apply(next);
+    });
+  }
+
   #toggle(row: SettingsRowInfo): void {
-    const { settings } = appSession();
-    const next = nextSettingsAfterToggle(settings, row.id, drawnDensity());
+    const next = nextSettingsAfterToggle(appSession().settings, row.id, drawnDensity());
+    this.#afterWarning(next, (applied) => this.#applyToggle(row, applied));
+  }
+
+  #applyToggle(row: SettingsRowInfo, next: Settings): void {
     if (row.id === "sharper-text") applyTextResolution(next);
     if (row.id === "discord-presence") syncDiscordPresence(next.discordPresence);
     if (row.id === "sound" || row.id === "music-shuffle") appSession().music?.syncSettings(next);
@@ -901,6 +925,7 @@ export class SettingsOverlay extends Phaser.Scene {
       extraModularSetsRowInfoOf(settings),
       fadedCampaignArtRowInfoOf(settings),
       customUnlockedRowInfoOf(settings),
+      manualAdjustRowInfoOf(settings),
       ...earnedItemRowInfoOf(settings, earnedItems()),
     ]) {
       items.set(row.id, {
@@ -969,10 +994,12 @@ export class SettingsOverlay extends Phaser.Scene {
       appSession().settings = nextSettingsAfterDeckSignature(appSession().settings, v);
       this.#draw();
     });
-    segmented("undo-past-turn", undoPastTurnRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) => {
-      appSession().settings = nextSettingsAfterUndoPastTurn(appSession().settings, v);
-      this.#draw();
-    });
+    segmented("undo-past-turn", undoPastTurnRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, (v) =>
+      this.#afterWarning(nextSettingsAfterUndoPastTurn(appSession().settings, v), (next) => {
+        appSession().settings = next;
+        this.#draw();
+      }),
+    );
     segmented("deck-list-on-open", deckListOnOpenRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => {
       appSession().settings = nextSettingsAfterDeckListOnOpen(appSession().settings, v);
       this.#draw();

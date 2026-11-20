@@ -351,7 +351,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const option = deckOptionOf(this.#deck, currentPool(), POOL_VERSION, currentDeps());
     const stats = deckStatsOf(this.#deck, currentPool());
     // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
-    const groups = deckListGroupsOf(this.#deck, currentPool());
+    const groups = deckListGroupsOf(this.#deck, currentPool(), undefined, false);
     const sorted = deckListGroupsOf(this.#deck, currentPool(), this.#deckSort);
     const status = this.#verdict?.status ?? deckStatusOf(option);
     const inFlow = this.#returnTo.scene === SCENES.seats;

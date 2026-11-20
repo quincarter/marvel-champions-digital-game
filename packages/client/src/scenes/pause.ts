@@ -78,7 +78,9 @@ import {
   settingsRowInfoOf,
   type GuideRowInfo,
   type SettingsRowInfo,
+  cheatUnlockWarningOf,
 } from "../view/settings-rows.js";
+import { askToConfirm } from "./end-turn-confirm.js";
 import type { GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
@@ -112,6 +114,7 @@ import {
   PauseSearchSession,
   type PauseResultSlot,
   type PauseSettingRow,
+  type PauseSettingsState,
 } from "../view/pause-search.js";
 import { controlsShown, settingsDeviceRowsFor, settingsTabsFor } from "./settings-env.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
@@ -329,7 +332,7 @@ export class PauseOverlay extends Phaser.Scene {
 
   /** Manual adjust, over this sheet (#791): Done there closes it and Pause takes input again. */
   #openManualAdjust(): void {
-    if (this.scene.isActive(SCENES.manualAdjust)) return;
+    if (!appSession().settings.allowManualAdjust || this.scene.isActive(SCENES.manualAdjust)) return;
     this.scene.launch(SCENES.manualAdjust, { from: SCENES.pause } satisfies ManualAdjustData);
   }
 
@@ -426,12 +429,17 @@ export class PauseOverlay extends Phaser.Scene {
         detail: "Your record, heroes, villains and the cards you play.",
         open: () => this.#openStats(),
       },
-      {
-        id: "manualAdjust",
-        title: "Manual adjust",
-        detail: "Fix the table by hand after a bug or a misclick.",
-        open: () => this.#openManualAdjust(),
-      },
+      // Only once the player has turned it on in Settings > More > Misc gameplay (the owner, 2026-11-19).
+      ...(appSession().settings.allowManualAdjust
+        ? [
+            {
+              id: "manualAdjust",
+              title: "Manual adjust",
+              detail: "Fix the table by hand after a bug or a misclick. The game stops counting.",
+              open: () => this.#openManualAdjust(),
+            },
+          ]
+        : []),
       {
         id: "music",
         title: "Music",
@@ -683,9 +691,12 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
     else {
       // Not the primary, and in the slot the concede confirm takes over, so the two never show at once.
-      this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
-        this.#openManualAdjust(),
-      );
+      // Off unless the player turned it on in Settings > More > Misc gameplay (the owner, 2026-11-19).
+      if (appSession().settings.allowManualAdjust) {
+        this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
+          this.#openManualAdjust(),
+        );
+      }
       // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
       // 2026-09-18); its place alone at the panel's foot, and the confirm step behind it, already set it apart.
       this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
@@ -1392,6 +1403,18 @@ export class PauseOverlay extends Phaser.Scene {
     if (!row.apply) return;
     const before = { settings: appSession().settings, guide: guidePrefs() };
     const next = row.apply(before, value, drawnDensity());
+    // Turning on a way for a game to stop counting (Undo past your turn, Manual adjust) asks first, as Settings does.
+    const warning = cheatUnlockWarningOf(before.settings, next.settings);
+    if (warning) {
+      askToConfirm(this, warning.title, warning.sentence, warning.confirmLabel, () => {
+        if (!this.#motion.leaving) this.#landSetting(row, before, next);
+      });
+      return;
+    }
+    this.#landSetting(row, before, next);
+  }
+
+  #landSetting(row: PauseSettingRow, before: PauseSettingsState, next: PauseSettingsState): void {
     if (next.settings !== before.settings) {
       if (row.id === "sharper-text") applyTextResolution(next.settings);
       if (MUSIC_ROW_IDS.has(row.id)) appSession().music?.syncSettings(next.settings);
