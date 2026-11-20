@@ -1005,10 +1005,14 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       const stamped = asDamaged(ctx, withUsedStat(ctx.state, event));
       // Aimed at a stand-in for another group's card (`CardInstance.remoteOf`): dealt there, not here.
       if (
-        divertToRemote(ctx, stamped.targetInstanceId, "attack", stamped.amount, {
-          overkill: stamped.overkill === true,
-          piercing: stamped.piercing === true,
-        })
+        divertToRemote(
+          ctx,
+          stamped.targetInstanceId,
+          "attack",
+          stamped.amount,
+          { overkill: stamped.overkill === true, piercing: stamped.piercing === true },
+          { sourceInstanceId: stamped.sourceInstanceId, fromAttack: stamped.fromAttack },
+        )
       )
         return;
       // An accepted remote attack's hit applies now: its answer goes back to the attacker's group.
@@ -2664,7 +2668,17 @@ export function removalBlockedOf(
 
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
   // Threat removed from a stand-in for another group's card (`CardInstance.remoteOf`) is removed there, not here.
-  if (divertToRemote(ctx, event.schemeInstanceId, "thwart", event.amount, { overkill: false, piercing: false })) return;
+  if (
+    divertToRemote(
+      ctx,
+      event.schemeInstanceId,
+      "thwart",
+      event.amount,
+      { overkill: false, piercing: false },
+      { sourceInstanceId: event.sourceInstanceId, fromAttack: false },
+    )
+  )
+    return;
   if (event.remoteHit) reportRemoteHit(ctx, event.remoteHit, event.schemeInstanceId, "thwart");
   const scheme = getInstance(ctx.state, event.schemeInstanceId);
   if (!scheme) return;

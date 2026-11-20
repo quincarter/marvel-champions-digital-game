@@ -2021,6 +2021,8 @@ export type GameEvent =
       readonly type: "remoteStandIn";
       readonly instanceId: InstanceId;
       readonly placed: boolean;
+      /** Damage or threat removal aimed at it that was not its power's own, so was dealt nowhere (`divertToRemote`). */
+      readonly ignored?: "attack" | "thwart";
       readonly groupId?: GroupId;
       readonly remoteInstanceId?: InstanceId;
     }

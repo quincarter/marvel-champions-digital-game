@@ -319,6 +319,48 @@ describe("PodCoordinator: 'your pod' routing (M2, M6)", () => {
     });
   });
 
+  it("refuses back a forwarded remote power when the owning group drops, so the attacker's group refunds it", () => {
+    const [g1, g2] = [new FakeGroup(G1), new FakeGroup(G2)];
+    const target = instanceId("i-mangog");
+    const ref = instanceId("i-standin");
+    let state = createPodCoordinator(SETUP);
+    state = send(state, g2, {
+      type: "reachableCards",
+      groupId: G2,
+      cards: [{ instanceId: target, cardId: cardId("55041"), by: "attack", remainingHitPoints: 20 }],
+    }).state;
+    state = send(state, g1, {
+      type: "remotePowerUsed",
+      groupId: G1,
+      playerId: playerId("p1"),
+      toGroupId: G2,
+      targetInstanceId: target,
+      ref,
+      power: "attack",
+      amount: 2,
+      overkill: false,
+      piercing: false,
+    }).state;
+    expect(state.pending).toEqual([{ fromGroupId: G1, toGroupId: G2, ref, targetInstanceId: target, power: "attack" }]);
+    const dropped = ok(markGroupDropped(state, G2));
+    expect(dropped.delivered.map((d) => [d.groupId, d.event])).toEqual([
+      [
+        G1,
+        {
+          kind: "remotePowerResolved",
+          fromGroupId: G2,
+          ref,
+          targetInstanceId: target,
+          power: "attack",
+          retaliate: 0,
+          refused: "that group has dropped",
+        },
+      ],
+    ]);
+    expect(dropped.state.pending).toBeUndefined();
+    expect(replayCoordinator(SETUP, dropped.state.log)).toEqual(dropped.state);
+  });
+
   it("re-sends what a reconnecting group missed (inboundSince)", () => {
     const [g1, g2] = [new FakeGroup(G1), new FakeGroup(G2)];
     let state = createPodCoordinator(SETUP);

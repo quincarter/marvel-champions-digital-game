@@ -36,6 +36,7 @@ import { activeRules, cardsInPlay, matchesQuery } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { RemoteHit, TriggerEvent } from "../trigger-events.js";
+import { consequentialDamageEvent } from "../actions.js";
 import { gameAbilityFrames, pushEffects, pushEvent, type Frame } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -454,11 +455,25 @@ export function divertToRemote(
   power: RemotePower,
   amount: number,
   keywords: { readonly overkill: boolean; readonly piercing: boolean },
+  /** The card the damage or removal comes from, and whether it is an attack's damage. */
+  from: { readonly sourceInstanceId: InstanceId | null; readonly fromAttack: boolean },
 ): boolean {
   const pod = ctx.state.pod;
   const remote = getInstance(ctx.state, targetId)?.remoteOf;
   if (!pod || !remote) return false;
   const flight = pod.inFlight?.find((entry) => entry.ref === targetId);
+  // Only the power's own damage (its attack's, from its character) or threat removal (its thwart's), once. Anything else
+  // aimed at the stand-in (a response's damage, an "each enemy" effect) is not dealt at all, here or there: the card is
+  // not in this area for it (MC55 p. 12), and nothing is taken, so no "after damaged" ability answers it.
+  const own =
+    flight !== undefined &&
+    !flight.sent &&
+    from.sourceInstanceId === flight.characterInstanceId &&
+    (power === "thwart" || from.fromAttack);
+  if (!own) {
+    emit(ctx, { type: "remoteStandIn", instanceId: targetId, placed: true, ignored: power });
+    return true;
+  }
   emitPodEvent(ctx, {
     type: "remotePowerUsed",
     groupId: pod.groupId,
@@ -471,11 +486,30 @@ export function divertToRemote(
     overkill: keywords.overkill,
     piercing: keywords.piercing,
   });
+  // The character's consequential damage waits under the power: it is taken off and dealt only once the owning group
+  // accepts the power (`resolveRemotePowerResult`). Refused, the power was not initiated and dealt none (RRG 1.8
+  // "Initiating Abilities", p. 24 step 2); lost after acceptance, it dealt none either ("Consequential Damage", p. 13).
+  const character = flight.characterInstanceId;
+  const waiting = ctx.state.stack.filter(
+    (frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "dealDamage" &&
+      frame.event.consequentialFrom !== undefined &&
+      frame.event.targetInstanceId === character,
+  );
+  const consequential = waiting.reduce(
+    (sum, frame) => sum + (frame.kind === "event" && frame.event.kind === "dealDamage" ? frame.event.amount : 0),
+    0,
+  );
+  if (waiting.length > 0)
+    ctx.state = { ...ctx.state, stack: ctx.state.stack.filter((frame) => !waiting.includes(frame)) };
   const after = ctx.state.pod;
   if (after?.inFlight)
     setPod(ctx, {
       ...after,
-      inFlight: after.inFlight.map((entry) => (entry.ref === targetId ? { ...entry, sent: true } : entry)),
+      inFlight: after.inFlight.map((entry) =>
+        entry.ref === targetId ? { ...entry, sent: true, consequential: entry.consequential + consequential } : entry,
+      ),
     });
   return true;
 }
@@ -508,11 +542,22 @@ function removeStandIns(ctx: Ctx): boolean {
 }
 
 /**
- * `PodInboundEvent remotePowerResolved`, in the attacker's group. The power is no longer in flight. A refusal (the
- * card left play before the power arrived) treats it as never started (owner question pending, option A): the
- * character readies, the consequential damage it took for the power is healed, and the hand cards spent on its costs
- * come back from the discard pile. A refund undoes, so no "cannot ready" or "cannot be healed" applies to it. Otherwise
- * the attacked card's retaliate hits the attacker (RRG 1.8 "Retaliate X", p. 37).
+ * `PodInboundEvent remotePowerResolved`, in the attacker's group. The power is no longer in flight.
+ *
+ * Cross-group attack/thwart (55041/55046) is initiated when the owning group's engine accepts it (engine reading: no
+ * source orders events across groups, MC55 p.12). No valid target then = not initiated, no cost paid (RRG v1.8
+ * Initiating Abilities p.24 step 2; Target p.42; Cost p.13). Target leaves play after that = exhausts, no consequential
+ * damage, not considered to have attacked (Consequential Damage p.13).
+ *
+ * - Accepted: the character's consequential damage, held back when the power was sent (`divertToRemote`), is dealt now,
+ *   as consequential damage (a tough card absorbs it as usual); then the attacked card's retaliate hits the attacker
+ *   (RRG 1.8 "Retaliate X", p. 37).
+ * - Lost while resolving (`lost`): nothing more; the exhaust and costs stand (implementation convention, not an official
+ *   ruling; owner answer 2026-11-20).
+ * - Refused: the character readies and the hand cards spent on the power's costs (under any cost key) come back from
+ *   the discard pile. A refund undoes, so no "cannot ready" applies to it. Engine reading A: a synergy counter spent on
+ *   Domineering Force or Mounting Resistance stands, being the cost of that interrupt, an ability of its own that
+ *   resolved, not a cost of the power; so do resource abilities used in the payment.
  */
 function resolveRemotePowerResult(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "remotePowerResolved" }>): void {
   const pod = ctx.state.pod;
@@ -523,28 +568,15 @@ function resolveRemotePowerResult(ctx: Ctx, event: Extract<PodInboundEvent, { ki
     const { inFlight: _done, ...kept } = pod;
     setPod(ctx, rest.length > 0 ? { ...kept, inFlight: rest } : kept);
   }
-  const character = flight?.characterInstanceId;
-  const inPlay = character !== undefined && cardsInPlay(ctx.state).includes(character);
-  // Lost while the accepted hit resolved (implementation convention, owner answer 2026-11-20, option A): costs and the
-  // exhaust stand, but there was no attack or thwart, so no consequential damage (RRG 1.8 "Consequential Damage", p. 13).
-  const heal = (): void => {
-    const healed = Math.min(flight?.consequential ?? 0, getInstance(ctx.state, character!)?.damage ?? 0);
-    if (healed <= 0) return;
-    updateInstance(ctx, character!, (i) => ({ ...i, damage: i.damage - healed }));
-    emit(ctx, { type: "damageHealed", targetInstanceId: character!, amount: healed });
-  };
-  if (event.lost) {
-    if (flight && inPlay) heal();
-    return;
-  }
+  if (!flight) return;
+  const character = flight.characterInstanceId;
+  const inPlay = cardsInPlay(ctx.state).includes(character);
+  if (event.lost) return;
   if (event.refused !== undefined) {
-    if (!flight || !inPlay) return;
-    const instance = getInstance(ctx.state, character);
-    if (instance?.exhausted) {
+    if (inPlay && getInstance(ctx.state, character)?.exhausted) {
       updateInstance(ctx, character, (i) => ({ ...i, exhausted: false }));
       emit(ctx, { type: "cardReadied", instanceId: character });
     }
-    heal();
     for (const id of flight.spent) {
       const owner = getInstance(ctx.state, id)?.ownerId;
       const player = owner ? ctx.state.players.find((p) => p.playerId === owner) : undefined;
@@ -552,7 +584,11 @@ function resolveRemotePowerResult(ctx: Ctx, event: Extract<PodInboundEvent, { ki
     }
     return;
   }
-  if (event.retaliate > 0 && inPlay)
+  if (!inPlay) return;
+  // Pushed first, so the retaliate (pushed above it) resolves before it, as an attack's retaliate does (RRG 1.8
+  // "Attack (Player Ability Type)", p. 9: the retaliate in the attack's response window, consequential damage after).
+  if (flight.consequential > 0) pushEvent(ctx, consequentialDamageEvent(character, flight.consequential, event.power));
+  if (event.retaliate > 0)
     pushEvent(ctx, {
       kind: "dealDamage",
       targetInstanceId: character,

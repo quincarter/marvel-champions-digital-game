@@ -170,10 +170,12 @@ export function remotePower(ctx: Ctx, command: Command & { type: "remotePower" }
       command,
     );
   const standIn = placeStandIn(ctx, command.toGroupId, card);
+  // The hand cards the power's costs may spend, under any cost key: refunded if the owning group refuses it.
+  const hand = ctx.state.players.find((p) => p.playerId === command.playerId)?.hand ?? [];
   const spent = [
     ...(command.payment ?? []).flatMap((p) => ("fromHand" in p ? [p.fromHand] : [])),
-    ...(command.costChoices?.["discard"] ?? []),
-  ];
+    ...Object.values(command.costChoices ?? {}).flat(),
+  ].filter((id, i, all) => hand.includes(id) && all.indexOf(id) === i);
   const withFlight = ctx.state.pod as PodState;
   ctx.state = {
     ...ctx.state,
@@ -214,28 +216,7 @@ export function remotePower(ctx: Ctx, command: Command & { type: "remotePower" }
           ...paid,
         });
   // Refused: `applyCommand` drops this command's state, the stand-in with it.
-  if (error) return error;
-  // The consequential damage the power pushed for the character (an ally), refunded if the owning group refuses.
-  const consequential = ctx.state.stack.reduce(
-    (sum, frame) =>
-      frame.kind === "event" &&
-      frame.event.kind === "dealDamage" &&
-      frame.event.consequentialFrom !== undefined &&
-      frame.event.targetInstanceId === command.characterInstanceId
-        ? sum + frame.event.amount
-        : sum,
-    0,
-  );
-  const now = ctx.state.pod as PodState;
-  if (consequential > 0)
-    ctx.state = {
-      ...ctx.state,
-      pod: {
-        ...now,
-        inFlight: (now.inFlight ?? []).map((entry) => (entry.ref === standIn ? { ...entry, consequential } : entry)),
-      },
-    };
-  return null;
+  return error;
 }
 
 /** This group's status for its coordinator (MC55 p. 21; M4). */

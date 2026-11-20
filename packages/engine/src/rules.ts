@@ -2402,6 +2402,9 @@ export function nonSchemeIcons(
 function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
   const instance = getInstance(state, id);
   const card = cardOf(state, id);
+  // A stand-in for another group's card (`CardInstance.remoteOf`) carries none here: its crisis, acceleration and hazard
+  // work in its own group's area (MC55 p. 12).
+  if (instance?.remoteOf) return [];
   if (!instance || !card || instance.facedownAs || iconsBlankedOn(state, deps, id)) return [];
   const icons = showingIconsOn(state, id, card);
   // "Loses the [amplify] icon" (`gainsIcon.loses`, §3.38): still printed (RRG 1.8 "'Loses'", p. 27), not shown.

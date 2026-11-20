@@ -16,7 +16,7 @@
  * Nothing here reads a `GameState`, draws a random number or names a card.
  */
 
-import type { GroupId } from "./ids.js";
+import type { GroupId, InstanceId } from "./ids.js";
 import {
   applySharedEvent,
   sharedLost,
@@ -24,6 +24,7 @@ import {
   type PodInboundEvent,
   type PodOutbound,
   type ReachableCard,
+  type RemotePower,
   type SharedPodState,
 } from "./pod.js";
 
@@ -84,10 +85,24 @@ export type CoordinatorLogEntry =
   | ({ readonly kind: "outbound"; readonly groupId: GroupId } & PodOutbound)
   | { readonly kind: "dropped"; readonly groupId: GroupId };
 
+/** A remote power forwarded and not yet answered (`PodCoordinatorState.pending`). */
+export interface PendingRemotePower {
+  readonly fromGroupId: GroupId;
+  readonly toGroupId: GroupId;
+  readonly ref: InstanceId;
+  readonly targetInstanceId: InstanceId;
+  readonly power: RemotePower;
+}
+
 export interface PodCoordinatorState {
   readonly shared: SharedPodState;
   /** The game's outcome: every group wins or loses together (MC55 p. 21). */
   readonly outcome: "playing" | "won" | "lost";
+  /**
+   * Remote powers forwarded to their owning group and not yet answered there: refused back to their group if the owning
+   * group drops (`markGroupDropped`). Absent when none.
+   */
+  readonly pending?: readonly PendingRemotePower[];
   readonly groups: readonly CoordinatorGroupState[];
   readonly log: readonly CoordinatorLogEntry[];
 }
@@ -163,11 +178,13 @@ class Step {
   readonly delivered: PodDelivery[] = [];
   shared: SharedPodState;
   outcome: PodCoordinatorState["outcome"];
+  pending: readonly PendingRemotePower[];
 
   constructor(readonly state: PodCoordinatorState) {
     this.groups = new Map(state.groups.map((group) => [group.groupId, group]));
     this.shared = state.shared;
     this.outcome = state.outcome;
+    this.pending = state.pending ?? [];
   }
 
   update(groupId: GroupId, change: (group: CoordinatorGroupState) => CoordinatorGroupState): void {
@@ -194,6 +211,7 @@ class Step {
       state: {
         shared: this.shared,
         outcome: this.outcome,
+        ...(this.pending.length > 0 ? { pending: this.pending } : {}),
         groups: this.state.groups.map((group) => this.groups.get(group.groupId) ?? group),
         log: [...this.state.log, entry],
       },
@@ -305,7 +323,17 @@ export function receiveOutbound(
               : !reported
                 ? "that card is no longer reachable from your pod"
                 : null;
-      if (refused === null)
+      if (refused === null) {
+        step.pending = [
+          ...step.pending,
+          {
+            fromGroupId: groupId,
+            toGroupId: event.toGroupId,
+            ref: event.ref,
+            targetInstanceId: event.targetInstanceId,
+            power: event.power,
+          },
+        ];
         step.send(event.toGroupId, {
           kind: "remotePower",
           fromGroupId: groupId,
@@ -317,7 +345,7 @@ export function receiveOutbound(
           overkill: event.overkill,
           piercing: event.piercing,
         });
-      else
+      } else
         step.send(groupId, {
           kind: "remotePowerResolved",
           fromGroupId: event.toGroupId,
@@ -330,6 +358,7 @@ export function receiveOutbound(
       break;
     }
     case "remotePowerResolved":
+      step.pending = step.pending.filter((p) => !(p.toGroupId === groupId && p.ref === event.ref));
       if (inPod(event.toGroupId))
         step.send(event.toGroupId, {
           kind: "remotePowerResolved",
@@ -366,6 +395,18 @@ export function markGroupDropped(state: PodCoordinatorState, groupId: GroupId): 
   if (group.dropped) return { ok: true, state, delivered: [], duplicate: true };
   const step = new Step(state);
   step.update(groupId, (g) => ({ ...g, dropped: true }));
+  // Powers sent to it will not be answered now: refused back, so their groups refund them (not initiated).
+  for (const p of step.pending.filter((entry) => entry.toGroupId === groupId))
+    step.send(p.fromGroupId, {
+      kind: "remotePowerResolved",
+      fromGroupId: groupId,
+      ref: p.ref,
+      targetInstanceId: p.targetInstanceId,
+      power: p.power,
+      retaliate: 0,
+      refused: "that group has dropped",
+    });
+  step.pending = step.pending.filter((entry) => entry.toGroupId !== groupId && entry.fromGroupId !== groupId);
   settleLoss(step);
   return step.finish({ kind: "dropped", groupId });
 }

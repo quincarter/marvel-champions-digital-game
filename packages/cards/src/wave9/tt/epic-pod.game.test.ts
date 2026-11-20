@@ -18,7 +18,20 @@ import {
   type SharedPodState,
 } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
-import { mergeRegistries } from "../../dsl/index.js";
+import {
+  FRIENDLY_CHARACTER,
+  constant,
+  dealDamage,
+  discard,
+  eventTarget,
+  forcedInterrupt,
+  gainsKeywordX,
+  interrupt,
+  mergeRegistries,
+  on,
+  reachableFromPod,
+  self,
+} from "../../dsl/index.js";
 import { P1, firstLegal, identityOf, inst, patchInstance, type Picker } from "../../testing/harness.js";
 import { PodSim } from "../../testing/pod-sim.js";
 import { WAVE8_ABILITIES } from "../../wave8/index.js";
@@ -59,7 +72,7 @@ const ENVIRONMENT_OF: Readonly<Record<string, string>> = {
 };
 const INTENSE_FOCUS = "55034a";
 
-function pods(stage?: (shared: SharedPodState) => SharedPodState, seed = 1): PodSim {
+function pods(stage?: (shared: SharedPodState) => SharedPodState, seed = 1, deps: EngineDeps = DEPS): PodSim {
   const seats = [SPIDER_MAN, IRON_MAN, SHE_HULK];
   return new PodSim(
     [G1, G2, G3].map((g, i) => {
@@ -73,7 +86,7 @@ function pods(stage?: (shared: SharedPodState) => SharedPodState, seed = 1): Pod
         ),
       };
     }),
-    DEPS,
+    deps,
     stage,
   );
 }
@@ -497,6 +510,135 @@ describe("Overkill on another group's Mangog (owner question 2, option A)", () =
     sim.edit(G2, (s) => patchInstance(s, mangog, { statuses: { ...inst(s, mangog).statuses, tough: 1 } }));
     sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
     expect(inst(sim.state(G2), mangog)).toMatchObject({ damage: 0, statuses: { tough: 0 } });
+    expect(sim.replayFault()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Fixtures: The Mangog's two ability refs remapped in a test registry (the registry decides timing), for cases no
+// card in the pool shows: a reachable card with retaliate, one that leaves play as it would take damage, and an
+// interrupt in the attacker's area that deals damage to the attack's target.
+// ---------------------------------------------------------------------------------------------------------------
+
+const withAbilities = (overrides: EngineDeps["abilities"]): EngineDeps => ({
+  abilities: { ...DEPS.abilities, ...overrides },
+});
+/** The Mangog with "Retaliate 2." */
+const RETALIATE_2 = withAbilities({
+  "55041.the-mangog-constant": constant(reachableFromPod("attack"), gainsKeywordX("retaliate", 2, { self: true })),
+});
+/** The Mangog with "Forced Interrupt: When this would take damage, discard it." */
+const LEAVES_AT_DAMAGE = withAbilities({
+  "55041.when-defeated": forcedInterrupt(on.damage("self"), discard(self)),
+});
+/** Domineering Force as "Interrupt: When a friendly character attacks, deal 1 damage to the attacked enemy." */
+const PINGS_THE_TARGET = withAbilities({
+  "55052.domineering-force-interrupt": interrupt(on.attacks(FRIENDLY_CHARACTER), dealDamage(1, eventTarget)),
+});
+
+describe("remote powers: what comes back, and what does not cross", () => {
+  it("the attacked card's retaliate comes back to the attacker (RRG 1.8 'Retaliate X', p. 37)", () => {
+    const sim = pods(undefined, 1, RETALIATE_2);
+    const mangog = mangogInG2(sim);
+    const before = inst(sim.state(G1), hero(sim, G1)).damage;
+    const atk = characterProfile(sim.state(G1), hero(sim, G1), RETALIATE_2)!.atk;
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
+    expect(inst(sim.state(G2), mangog).damage).toBe(atk);
+    expect(inst(sim.state(G1), hero(sim, G1)).damage).toBe(before + 2);
+    expect(sim.replayFault()).toBeNull();
+  });
+
+  it("a card lost after acceptance: the exhaust stands, no retaliate, and the answer says lost", () => {
+    const sim = pods(undefined, 1, { abilities: { ...RETALIATE_2.abilities, ...LEAVES_AT_DAMAGE.abilities } });
+    const mangog = mangogInG2(sim);
+    const before = inst(sim.state(G1), hero(sim, G1)).damage;
+    sim.clearEvents();
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), firstLegal);
+    expect(onTable(sim.state(G2), "55041")).toBeUndefined();
+    expect(sent(sim, G2, "remotePowerResolved").map((e) => (e as { event: unknown }).event)).toEqual([
+      expect.objectContaining({ lost: true, retaliate: 0 }),
+    ]);
+    expect(inst(sim.state(G1), hero(sim, G1))).toMatchObject({ exhausted: true, damage: before });
+    expect(sim.replayFault()).toBeNull();
+  });
+
+  it("lost after acceptance: an ally's consequential damage, held back until then, is never dealt", () => {
+    const sim = pods();
+    ready(sim, G1, G3);
+    readyWith(sim, G2, ["55046"]);
+    sim.act(G2, { type: "endTurn", playerId: P1 }, firstLegal);
+    sim.answer(G2, firstLegal);
+    const door = onTable(sim.state(G2), "55046")!;
+    let ally: InstanceId | undefined;
+    sim.edit(G1, (s) => {
+      const played = playFromHand(DEPS, s, BLACK_CAT, 2);
+      ally = played.id;
+      return played.state;
+    });
+    // g1 alone, as its host would see it, with the answer written by hand: the power, then "lost".
+    const made = applyCommand(
+      sim.state(G1),
+      { ...remote(sim, G1, "thwart", G2, door), characterInstanceId: ally! },
+      DEPS,
+    );
+    if (!made.ok) throw new Error(made.error.message);
+    const flight = podOf(made.state).inFlight?.[0];
+    expect(flight).toMatchObject({ sent: true, consequential: 1 });
+    expect(inst(made.state, ally!)).toMatchObject({ exhausted: true, damage: 0 });
+    const answered = applyCommand(
+      made.state,
+      inboundCommand(made.state, podOf(made.state).inboundSeq + 1, {
+        kind: "remotePowerResolved",
+        fromGroupId: G2,
+        ref: flight!.ref,
+        targetInstanceId: door,
+        power: "thwart",
+        retaliate: 0,
+        lost: true,
+      }),
+      DEPS,
+    );
+    if (!answered.ok) throw new Error(answered.error.message);
+    expect(inst(answered.state, ally!)).toMatchObject({ exhausted: true, damage: 0 });
+    expect(podOf(answered.state).inFlight).toBeUndefined();
+  });
+
+  it("a piercing remote attack discards the Mangog's tough card and deals its damage (RRG 1.8 'Piercing', p. 32)", () => {
+    const sim = pods();
+    const mangog = mangogInG2(sim);
+    sim.edit(G2, (s) => patchInstance(s, mangog, { statuses: { ...inst(s, mangog).statuses, tough: 1 } }));
+    const g2 = sim.state(G2);
+    expect(
+      sim.tryApply(
+        G2,
+        inboundCommand(g2, podOf(g2).inboundSeq + 1, {
+          kind: "remotePower",
+          fromGroupId: G1,
+          playerId: P1,
+          targetInstanceId: mangog,
+          ref: mangog,
+          power: "attack",
+          amount: 3,
+          overkill: false,
+          piercing: true,
+        }),
+      ),
+    ).toBeNull();
+    sim.pump();
+    expect(inst(sim.state(G2), mangog)).toMatchObject({ damage: 3, statuses: { tough: 0 } });
+  });
+
+  it("damage aimed at the stand-in that is not the power's own is dealt nowhere, and only the attack crosses", () => {
+    const sim = pods(undefined, 1, PINGS_THE_TARGET);
+    const mangog = mangogInG2(sim);
+    const atk = characterProfile(sim.state(G1), hero(sim, G1), PINGS_THE_TARGET)!.atk;
+    sim.clearEvents();
+    sim.act(G1, remote(sim, G1, "attack", G2, mangog), taking("55052"));
+    expect(inst(sim.state(G2), mangog).damage).toBe(atk);
+    expect(sent(sim, G1, "remotePowerUsed")).toHaveLength(1);
+    expect(typesOf(sim.group(G1).events, "remoteStandIn")).toContainEqual(
+      expect.objectContaining({ ignored: "attack" }),
+    );
     expect(sim.replayFault()).toBeNull();
   });
 });

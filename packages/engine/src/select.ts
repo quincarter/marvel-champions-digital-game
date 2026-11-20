@@ -280,6 +280,12 @@ export interface EffectContext {
    */
   readonly reaches?: "all" | { readonly scenarioPlayArea: string };
   /**
+   * The context of an event pattern being matched (the trigger matcher). Only such a context matches a stand-in for
+   * another group's card (`CardInstance.remoteOf`): "after you attack a minion" sees the remote power made against it,
+   * while a count, a condition or a choice in this group does not see the card at all (MC55 p. 12).
+   */
+  readonly watching?: true;
+  /**
    * Last known information about cards that may have left play, by card: what was attached to each, the status
    * cards it held and whom it was engaged with (`LastKnownCard`). A query's `hasAttachment`, `hasStatus`,
    * `hasAnyStatus`, `engagedWith` and `engagedWithPlayer` read it for a card that is no longer in play; a card still in
@@ -1468,6 +1474,8 @@ export function explainQuery(
   if (!inContextArea(state, id, context)) return "otherGameArea";
   const instance = getInstance(state, id);
   if (!instance) return "unknownCard";
+  // A stand-in for another group's card is in that group's game area for everything but the power made against it.
+  if (instance.remoteOf && context.watching !== true) return "otherGameArea";
   // The mission area (docs/phase7-wave8.md §3.33): a query that names an in-play scenario area matches only cards in
   // it, and a closed area's cards are matched by no query that does not, unless the ability reaches the area.
   if (query.inScenarioPlayArea !== undefined) {

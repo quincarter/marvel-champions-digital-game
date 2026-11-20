@@ -369,6 +369,8 @@ function matchesRest(
     deps,
     // Watching is a read: a pattern sees a card in a closed scenario area (docs/phase7-wave8.md §4.1 Q18 = A).
     reaches: "all",
+    // …and a stand-in for another group's card as the power made against it (`CardInstance.remoteOf`).
+    watching: true,
     // "After a character in this play area is attacked" when the attack defeated the minion engaged with that player:
     // whom it was engaged with as it was attacked (`characterAttacked.targetEngagedWith`), read by the engagement
     // clauses at any depth of the query (inside `anyOf` too) only once the target has left play.

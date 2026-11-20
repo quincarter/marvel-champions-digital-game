@@ -7037,7 +7037,7 @@ function consequentialAmount(
   );
 }
 
-const consequentialDamageEvent = (
+export const consequentialDamageEvent = (
   characterId: InstanceId,
   amount: number,
   kind: "attack" | "thwart",
