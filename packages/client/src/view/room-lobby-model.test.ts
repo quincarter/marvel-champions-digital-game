@@ -136,6 +136,29 @@ describe("seat pictures and giving a seat", () => {
   });
 });
 
+describe("devices in words", () => {
+  it("says platform and form on each person and seat holder, and nothing for an older client", () => {
+    const state = room({
+      participants: [
+        {
+          id: "a",
+          name: "A",
+          role: "watcher",
+          me: false,
+          buildMatches: true,
+          seats: ["s1"],
+          device: { platform: "android", form: "phone" },
+        },
+        { id: "b", name: "B", role: "watcher", me: false, buildMatches: true, seats: [] },
+      ],
+      seats: [seat({ holder: "a", holderName: "A", holderConnected: true })],
+    });
+    expect(participantRows(state).map((p) => p.device)).toEqual(["Android · phone", null]);
+    expect(participantRows(state)[0]?.platform).toBe("android");
+    expect(seatRows(state, { installed: [] })[0]?.holderDevice).toBe("Android · phone");
+  });
+});
+
 describe("startBlock", () => {
   const ready = { tableReady: true, packsUsed: [] };
   const held = seat({ holder: "g", holderName: "Guest", holderConnected: true });

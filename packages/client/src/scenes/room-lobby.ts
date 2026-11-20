@@ -40,6 +40,8 @@ import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { drawPlayPlatformIcon } from "../ui/play-platform-icon.js";
+import { playPlatformMarkOf } from "../view/play-platform-mark.js";
 import type { ScenarioIntroData } from "./scenario-intro.js";
 import { scenarioIntroFor } from "../campaign/scenario-intros.js";
 import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
@@ -704,7 +706,9 @@ export class RoomLobbyScene extends Phaser.Scene {
       y += 6;
       y = this.#heading(x, y, w, t("room.people"));
       for (const person of participantRows(state)) {
-        const rowHeight = person.seats.length > 0 || person.differentVersion ? 54 : 38;
+        const hasMore = person.seats.length > 0 || person.differentVersion;
+        // The device is a line of words with a small icon (never the icon alone), when their client said what it runs on.
+        const rowHeight = 38 + (person.device ? 18 : 0) + (hasMore ? 16 : 0);
         const g = this.add.graphics();
         g.lineStyle(1, INK, 0.35).strokeRect(x + 0.5, y + 0.5, w - 1, rowHeight - 1);
         const roleText = this.add
@@ -724,9 +728,21 @@ export class RoomLobbyScene extends Phaser.Scene {
           textStyle(typeRole.rowTitle, INK),
         );
         fitText(name, w - chipW - 30, 15);
+        let lineY = y + 30;
+        if (person.device) {
+          const mark = person.platform ? playPlatformMarkOf({ platform: person.platform }) : null;
+          let tx = x + 10;
+          if (mark) {
+            const icon = this.add.graphics();
+            drawPlayPlatformIcon(icon, mark, { x: x + 10, y: lineY + 1, width: 14, height: 14 }, INK, 0.85);
+            tx += 20;
+          }
+          this.#text(tx, lineY, person.device, 12, w - (tx - x) - 10, { alpha: 0.85 });
+          lineY += 18;
+        }
         const more = [...person.seats];
         if (person.differentVersion) more.push(t("room.differentVersion"));
-        if (more.length > 0) this.#text(x + 10, y + 30, more.join(" · "), 12, w - 20, { alpha: 0.8 });
+        if (more.length > 0) this.#text(x + 10, lineY, more.join(" · "), 12, w - 20, { alpha: 0.8 });
         y += rowHeight + 6;
       }
       return y - top + 4;
@@ -779,8 +795,9 @@ export class RoomLobbyScene extends Phaser.Scene {
     g.lineStyle(2, INK, 1);
     if (held && row.holderConnected) g.fillStyle(INK, 1).fillCircle(tx + 6, dotY, 6);
     else g.strokeCircle(tx + 6, dotY, 6);
+    const device = row.holderDevice && textWidth >= 230 ? ` · ${row.holderDevice}` : "";
     const who = held
-      ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}`
+      ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}${device}`
       : t("room.seat.open");
     const holder = this.add
       .text(tx + 20, dotY, who, textStyle(typeRole.body, INK, held ? 1 : 0.7))

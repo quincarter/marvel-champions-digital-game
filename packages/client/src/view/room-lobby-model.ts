@@ -3,7 +3,7 @@
  * `RoomState`. Nothing here decides a rule: whether a seat may be taken, or the game started, is the room's call; this
  * only words what the room reports and turns the buttons off, with the reason, where the room would refuse anyway.
  */
-import type { LobbyMod } from "@mc/sync-worker/room-protocol";
+import type { LobbyMod, RoomDevice } from "@mc/sync-worker/room-protocol";
 import { parseSeatLabel } from "./room-table-setup.js";
 import { en } from "../i18n/en.js";
 import { t, tPlural, type MessageKey, type PluralBase } from "../i18n/translate.js";
@@ -75,8 +75,20 @@ export function refusalWords(refusal: RoomRefusal | null, state: RoomState): Wor
 
 export type RoleKind = "host" | "player" | "watcher";
 
+/** A device in words, never an icon alone: "Windows · desktop", "Android · phone". */
+export function deviceText(device: RoomDevice | undefined): string | null {
+  if (!device) return null;
+  return t("room.device", {
+    platform: t(`room.device.${device.platform}` as MessageKey),
+    form: t(`room.device.form.${device.form}` as MessageKey),
+  });
+}
+
 export interface ParticipantRow {
   readonly id: string;
+  /** Their device in words (null when their client sent none), and its platform for the small icon. */
+  readonly device: string | null;
+  readonly platform: RoomDevice["platform"] | null;
   readonly name: string;
   readonly me: boolean;
   /** Said in words beside the name, never by the name alone. */
@@ -92,6 +104,8 @@ export function participantRows(state: RoomState): readonly ParticipantRow[] {
     const role: RoleKind = p.role === "host" ? "host" : p.seats.length > 0 ? "player" : "watcher";
     return {
       id: p.id,
+      device: deviceText(p.device),
+      platform: p.device?.platform ?? null,
       name: p.name,
       me: p.me,
       role,
@@ -135,6 +149,8 @@ export interface SeatRowView {
   /** Null: open. */
   readonly holderName: string | null;
   readonly holderConnected: boolean;
+  /** The holder's device in words, when their client sent one. */
+  readonly holderDevice: string | null;
   readonly mine: boolean;
   readonly mismatch: boolean;
   readonly requestedByMe: boolean;
@@ -189,6 +205,7 @@ export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowVi
     candidates: isHost && seat.holder === null ? assignCandidates(state) : [],
     holderName: seat.holder === null ? null : (seat.holderName ?? seat.holder),
     holderConnected: seat.holderConnected,
+    holderDevice: deviceText(state.participants.find((p) => p.id === seat.holder)?.device),
     mine: seat.mine,
     mismatch: seat.mismatch,
     requestedByMe: seat.requestedByMe,

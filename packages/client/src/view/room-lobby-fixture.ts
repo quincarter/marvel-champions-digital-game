@@ -3,20 +3,45 @@
  * a pending request, a seat held by someone away and one on another version, a dozen people and enough chat to scroll.
  * Screenshots and the e2e specs use it, so no room service has to run. Dev only: a production build never loads it.
  */
-import { NO_ROOM, type RoomChatLine, type RoomParticipant, type RoomSeat, type RoomState } from "../live/room-state.js";
+import {
+  NO_ROOM,
+  type RoomChatLine,
+  type RoomDevice,
+  type RoomParticipant,
+  type RoomSeat,
+  type RoomState,
+} from "../live/room-state.js";
 
 const NAMES = ["Ava", "Ben", "Cleo", "Dev", "Esi", "Finn", "Gus", "Hana", "Ivo", "Jun", "Kai"];
+
+/** Varied devices for the made-up people (the last one sent none: an older client shows nothing). */
+const DEVICES: readonly (RoomDevice | undefined)[] = [
+  { platform: "android", form: "phone" },
+  { platform: "web", form: "tablet" },
+  { platform: "macos", form: "desktop" },
+  { platform: "ios", form: "tablet" },
+  undefined,
+];
 
 export function roomLobbyFixture(as: "host" | "guest"): RoomState {
   const host = as === "host";
   const participants: RoomParticipant[] = [
-    { id: "p0", name: host ? "Mara (host)" : "Ava the host", role: "host", me: host, buildMatches: true, seats: [] },
+    {
+      id: "p0",
+      name: host ? "Mara (host)" : "Ava the host",
+      role: "host",
+      me: host,
+      buildMatches: true,
+      device: { platform: "windows", form: "desktop" },
+      seats: [],
+    },
     ...NAMES.map((name, i): RoomParticipant => ({
       id: `p${i + 1}`,
       name,
       role: "watcher",
       me: !host && i === 0,
       buildMatches: i !== 3,
+      ...(DEVICES[i] ? { device: DEVICES[i] } : {}),
       seats: i === 0 ? ["s1"] : [],
     })),
   ];
