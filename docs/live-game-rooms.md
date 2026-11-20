@@ -266,3 +266,28 @@ How it works (host-authoritative, as §2 says):
 
 Not in this step: hidden-information enforcement between seats (co-op lets players talk about their hands; each seat
 sees the table the host's sealed view gives, as replays do), host migration (#884), cross-device seat moves (#886).
+
+Room and protocol (built, `packages/sync-worker`, capability `play`; the lobby room advertises it):
+
+- Seat holder to room: `propose { table, command, base }` and `request { table, what: "undo" | "adjust", note? }` (`what`,
+  because `kind` is the envelope's discriminator). Host to room: `proposal-refused { table, to, reason: "stale" |
+  "not-your-turn" | "illegal" | "strict", base }`, `request-answer { table, to, accepted }`, and on the room channel
+  `take-over { seat }` / `give-back { seat }`.
+- Room to the table's host: `proposal { table, from, seats, command, base }` (`from` is the proposer's participant id,
+  `seats` the seat ids it holds that may act) and `request { table, from, what, note }` (note cleaned, at most 140
+  characters, `""` when none). Room to the participant named by `to`, and to nobody else: `proposal-refused { table,
+  reason, base }` and `request-answer { table, accepted }`.
+- Who may propose or request: a connected participant who holds a seat, the host excepted (the host's engine acts
+  directly), whose build equals the host's, on a seat the host has not taken over. Otherwise a soft refusal:
+  `not-seated`, `build-mismatch` (holds seats but none may act), `out-of-order` (the table has no header or has ended),
+  `no-such-participant` (no host connected), and `strict` for a `request` when `settings.playMode` is `strict`.
+  Proposals are limited to a burst of 10 then 4 a second per participant, requests share the lobby bucket (burst 10,
+  2 a second), both capped at the ordinary message size (`too-large`). Nothing here is stored: no row, no alarm.
+  `proposal-refused` and `request-answer` from anyone but the table's host are refused `not-allowed`, and a `to` that is
+  not connected `no-such-participant`.
+- Seats gain `player` (an engine player id string or a seat index the host sets in `lobby-set`; opaque to the room,
+  dropped when a later `lobby-set` omits it) and `takenOver`. `take-over` is the host's, for a held seat whose holder is
+  not connected (else `not-away`); it is stored with the seat. The returning holder gets the seat back by token but may
+  not act until `give-back`. A seat that changes hands loses `takenOver`.
+- The roster's `watchers` count leaves out seat holders (an assigned holder plays); the roster is re-sent when holders
+  change. The room has no other presence count.
