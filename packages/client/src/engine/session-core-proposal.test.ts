@@ -54,7 +54,10 @@ describe("a seat holder's proposal reaching the engine", () => {
 
   test("is refused not-your-turn when the table waits on someone else's hero", async () => {
     const { core, other, command } = await started();
-    expect(core.dispatchProposal(command, 0, core.liveChecksum(), [other])).toEqual({ ok: false, reason: "not-your-turn" });
+    expect(core.dispatchProposal(command, 0, core.liveChecksum(), [other])).toEqual({
+      ok: false,
+      reason: "not-your-turn",
+    });
     expect(core.dispatchProposal(command, 0, core.liveChecksum(), [])).toEqual({ ok: false, reason: "not-your-turn" });
     expect(core.liveGame()!.game.commands).toHaveLength(0);
   });

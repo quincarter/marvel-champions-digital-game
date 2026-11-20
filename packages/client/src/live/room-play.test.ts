@@ -176,7 +176,11 @@ describe("a table whose game is running", () => {
     const t = await hosting();
     t.controller.onRoomCommand({ kind: "room-lobby", seats: [{ id: "s1", label: "Other" }] });
     expect(t.sock.of("lobby-set")).toHaveLength(0);
-    t.controller.onRoomCommand({ kind: "room-lobby", seats: [{ id: "s1", label: "Other" }], settings: { chat: false } });
+    t.controller.onRoomCommand({
+      kind: "room-lobby",
+      seats: [{ id: "s1", label: "Other" }],
+      settings: { chat: false },
+    });
     expect(t.sock.of("lobby-set")).toEqual([expect.objectContaining({ settings: { chat: false } })]);
     expect(t.sock.of("lobby-set")[0]).not.toHaveProperty("seats");
   });

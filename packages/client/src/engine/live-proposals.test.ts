@@ -17,7 +17,9 @@ const proposal: Proposal = {
 const command = { type: "endTurn", playerId: "p1" } as Command;
 const snapshot = { version: 4 } as unknown as Snapshot;
 
-function setup(over: { busy?: boolean; key?: string | null; dispatch?: ProposalHandlerDeps["core"]["dispatchProposal"] } = {}) {
+function setup(
+  over: { busy?: boolean; key?: string | null; dispatch?: ProposalHandlerDeps["core"]["dispatchProposal"] } = {},
+) {
   const sent: LiveGameMessage[] = [];
   const remote = vi.fn();
   const after = vi.fn();

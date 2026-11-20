@@ -54,7 +54,9 @@ test("a seated guest acts from their own device and the whose-turn line follows 
     await clickText(host.page, /^Keep all/, { sceneKey: "SetupDeal" });
     await waitFor(
       async () =>
-        (await visibleTexts(host.page)).some((t) => /^Waiting for Ava \(Captain Marvel\)/.test(t.text)) ? true : null,
+        (await visibleTexts(host.page)).some((t) => t.text.startsWith("Waiting for Ava (Captain Marvel)"))
+          ? true
+          : null,
       "the host waiting for the guest's mulligan",
       45000,
     );
