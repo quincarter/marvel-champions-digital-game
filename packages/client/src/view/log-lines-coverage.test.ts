@@ -93,6 +93,8 @@ const SILENT: ReadonlySet<string> = new Set([
   "remoteStandIn",
   "stepChanged",
   "targetChosen",
+  // Setup's record of the two competitive teams; the board shows the two sides.
+  "teamsFormed",
   "thenSkipped",
   "threatCostSettled",
   "threatPrevented",

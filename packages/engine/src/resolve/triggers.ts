@@ -533,6 +533,12 @@ function matchesRest(
         typeof expected === "string" ? carried[key] === expected : expected.includes(carried[key] as string);
       if (!matches) return false;
     }
+    // "When the round ends" (`"round"` among the phases it hears: `on.roundEnding()`, the temporary keyword) does not
+    // hear a villain phase that leaves the round going: the first team's, with two teams (MC56 p. 16; Q3 B per owner
+    // decision 2026-11-20).
+    const phases = pattern.eventIs.phase;
+    if (event.kind === "phaseEnding" && event.roundContinues && Array.isArray(phases) && phases.includes("round"))
+      return false;
   }
   // "You cannot trigger Echo's 'Watch and Learn' ability for that event" (docs/phase7-wave11.md §3.9).
   if (pattern.playedVia) {

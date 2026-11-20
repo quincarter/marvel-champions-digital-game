@@ -315,6 +315,16 @@ function describe(
   switch (event.type) {
     case "roundStarted":
       return { text: `Round ${event.round} begins.`, voice: "scenario" };
+    // Competitive play (MC56 p. 16): each team's phase in turn; during setup, each team's game area sets up in turn.
+    case "activeTeamChanged": {
+      const side = state.teams?.find((team) => team.teamId === event.teamId)?.side;
+      const team = side ? `The ${side[0]!.toUpperCase()}${side.slice(1)} team` : "The other team";
+      const phase =
+        event.phase === "setup"
+          ? "sets up its side of the table"
+          : `begins its ${event.phase === "player" ? "hero" : "villain"} phase`;
+      return { text: `${team} ${phase}.`, voice: "scenario" };
+    }
     /**
      * Most `cardMoved`s are bookkeeping the player watches happen on the board
      * (a card sliding from hand to play). Dealt encounter cards are the

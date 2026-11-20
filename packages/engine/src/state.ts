@@ -1,6 +1,6 @@
 import type { AnyCard, CardId, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
-import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId, TeamId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { OutsideFacts } from "./outside-facts.js";
 import type { RngState } from "./rng.js";
@@ -700,6 +700,15 @@ export interface MainSchemeState {
    * game, so saves are unchanged.
    */
   readonly playArea?: PlayerId;
+  /**
+   * The game area this main scheme is in, in a game with two teams (docs/competitive-mode-plan.md §3.2; MC56 p. 15:
+   * each team's half of the table holds the main scheme deck it faces). Setup makes the first team's scheme
+   * `GameState.mainScheme` and the second team's an `extraMainSchemes` entry, so each completes and advances as a
+   * shared stage does (RRG 1.8 "Main Scheme", p. 27), and tags each with its team's area: "the main scheme" in that
+   * area is this one (`mainSchemeFor`), and the scheme is in that area (`areaOfCard`). Absent in every other game, so
+   * saves are unchanged.
+   */
+  readonly gameAreaId?: GameAreaId;
 }
 
 /**
@@ -876,6 +885,14 @@ export type GameStep =
    * II step 12's abilities have fully resolved and before step 14's draw. Reached only by a game that has some.
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
+  /**
+   * RRG 1.8 Appendix II step 12 (p. 51) for each team's game area after the first, in a game with two teams: the team
+   * becomes the active team, so "the first player" and "the encounter deck" of its scheme's and leader's Setup and When
+   * Revealed abilities are its own, and those abilities go on the stack. Each area sets up on its own, the first
+   * (registration) team's first (MC56 p. 14; Q4 A per owner decision 2026-11-20). With `remainingTeamIds` empty the
+   * first team is active again and setup goes on to the draw. Reached only by a game with two teams.
+   */
+  | { readonly phase: "setup"; readonly kind: "teamScenarioSetup"; readonly remainingTeamIds: readonly TeamId[] }
   | {
       readonly phase: "setup";
       readonly kind: "drawStartingHands";
@@ -992,6 +1009,13 @@ export type GameStep =
       readonly delayedResolved?: boolean;
       readonly villainPhaseSkipped?: true;
     }
+  /**
+   * One team's phase has ended and `teamId`'s phase of kind `phase` begins next, within the same round (MC56 p. 16,
+   * p. 20: registration hero, resistance hero, registration villain, resistance villain; one shared round per owner
+   * decision Q3 B, 2026-11-20). The ending phase's end-of-phase effects have been put on the stack; once they resolve,
+   * `teamId` becomes the active team (`activeTeamChanged`) and its phase begins. Reached only by a game with two teams.
+   */
+  | { readonly phase: "player" | "villain"; readonly kind: "teamHandover"; readonly teamId: TeamId }
   | { readonly phase: "gameOver"; readonly kind: "gameOver" };
 
 export type GameOutcome =
@@ -1509,6 +1533,21 @@ export interface GameState {
    * is absent. **Absent** in every game setup makes, so every game before the field serializes as before.
    */
   readonly teams?: readonly TeamState[];
+  /**
+   * The team whose phase it is, in a game with two teams (docs/competitive-mode-plan.md §3.7, M2; MC56 p. 16: the
+   * registration team's hero phase, the resistance team's hero phase, the registration team's villain phase, the
+   * resistance team's villain phase, one shared round per owner decision Q3 B, 2026-11-20). The other team's side of the
+   * table is inactive: it takes no action (owner decision Q11 A), while its triggered abilities still fire and it
+   * answers choices addressed to it. Read through `activeTeamOf` (`team.ts`).
+   *
+   * Kept here rather than on each `GameStep`: the step is rebuilt as a literal at every step change, and the team does
+   * not change with it. While a team is active, `firstPlayerId` is that team's first player (each team has its own
+   * token, `TeamState.firstPlayerId`) and `activeVillainId` is the leader in that team's game area, so "the first
+   * player" and "the encounter deck" of every existing reader mean the active team's (N2 per owner decision
+   * 2026-11-20). Each change is logged `activeTeamChanged`. **Absent** in every game without two teams, and in a
+   * hand-built two-team test state, whose phases then run for the whole table as before.
+   */
+  readonly activeTeamId?: TeamId;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

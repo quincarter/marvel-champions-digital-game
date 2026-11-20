@@ -1045,7 +1045,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "phaseEnding":
       // The phase's (and at the villain phase's end, the round's) delayed effects, between the interrupts and the
       // responses (RRG 1.8 "Delayed Effect", p. 16; docs/phase7-wave3.md §3.2).
-      pushPhaseEndDelayed(ctx, event.phase);
+      pushPhaseEndDelayed(ctx, event.phase, event.roundContinues === true);
       return;
     case "surgeResolving":
       resolveSurge(ctx, event.instanceId, event.playerId);

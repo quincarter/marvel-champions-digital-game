@@ -136,6 +136,7 @@ import type { Form, GameState } from "./state.js";
 import { displayNameOf } from "./visibility.js";
 import { healCostChoices } from "./heal-cost.js";
 import { anyThwartCost } from "./thwart-cost.js";
+import { onInactiveTeam } from "./team.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
@@ -1765,6 +1766,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   if (step.ended) return waiting(null);
   const player = getPlayer(state, playerId);
   if (!player || player.eliminated) return waiting(step.activePlayerId);
+  // The other team's phase: this side of the table is inactive and has nothing to take (MC56 p. 16; Q11 A).
+  if (onInactiveTeam(state, playerId)) return waiting(step.activePlayerId);
   const ownTurn = step.activePlayerId === playerId;
 
   const results: Evaluated[] = [];

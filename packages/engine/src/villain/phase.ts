@@ -25,10 +25,9 @@ import {
   getPlayer,
   isMinion,
   mustPlayer,
-  nextClockwisePlayer,
   nextVillainInActivationOrder,
-  playerOrder,
 } from "../query.js";
+import { nextClockwiseTeammate, phasePlayerOrder, setTeamFirstPlayer } from "../team-phases.js";
 import {
   announceStatusDiscarded,
   encounterResetAwaitsResponse,
@@ -92,7 +91,8 @@ export function executePlaceThreat(ctx: Ctx): void {
     phase: "villain",
     kind: "enemyActivations",
     currentPlayerId: null,
-    remainingPlayerIds: playerOrder(ctx.state).map((p) => p.playerId),
+    // With two teams, the active team's players: its villain phase is run on its own side (MC56 p. 16).
+    remainingPlayerIds: phasePlayerOrder(ctx.state).map((p) => p.playerId),
     villainActivated: false,
     activatedMinionIds: [],
   });
@@ -372,7 +372,7 @@ export function executeDealEncounterCards(ctx: Ctx, step: Extract<GameStep, { ki
       return;
     }
   }
-  const order = playerOrder(ctx.state);
+  const order = phasePlayerOrder(ctx.state);
   // One card each, X more rounds at heroic level X, then one per hazard icon, all in player order: card `index` goes to
   // `order[index % players]`. RRG 1.8 "Modes of Play" (p. 29); cards are dealt one at a time, "In Heroic Mode level 1,
   // cards would be dealt in the order ABCABC" (ruling, August 22, 2025). Engine reading, no source orders heroic against
@@ -419,7 +419,7 @@ export function executeRevealEncounterCards(ctx: Ctx, remainingPlayerIds: readon
     // being revealed in that step; "In Player Order" (p. 24): a sequence that has not concluded goes around again. So
     // a card that reached a player who had finished revealing (dealt or passed to them by a later player's card,
     // docs/phase7-wave8.md §3.75) is revealed in another turn around the table, not in the next villain phase.
-    const holding = playerOrder(ctx.state).filter((player) => player.dealtEncounter.length > 0);
+    const holding = phasePlayerOrder(ctx.state).filter((player) => player.dealtEncounter.length > 0);
     if (holding.length > 0) {
       setStep(ctx, {
         phase: "villain",
@@ -439,7 +439,9 @@ export function executeRevealEncounterCards(ctx: Ctx, remainingPlayerIds: readon
   pushRevealFrame(ctx, current, next);
 }
 
-// RRG "Villain Phase" step 5: the first player token passes clockwise.
+// RRG "Villain Phase" step 5: the first player token passes clockwise. With two teams, the active team's own token,
+// among its players (MC56 p. 16: "each team has its own first player token. Pass it at the end of that team's villain
+// phase").
 export function executePassFirstPlayer(ctx: Ctx): void {
   passFirstPlayerToken(ctx);
   setStep(ctx, { phase: "villain", kind: "endOfRound" });
@@ -447,9 +449,6 @@ export function executePassFirstPlayer(ctx: Ctx): void {
 
 /** The first player token passes clockwise (step 5's own change, also read by a skipped villain phase's Q101 B). */
 export function passFirstPlayerToken(ctx: Ctx): void {
-  const next = nextClockwisePlayer(ctx.state, ctx.state.firstPlayerId);
-  if (next) {
-    ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
-    emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
-  }
+  const next = nextClockwiseTeammate(ctx.state, ctx.state.firstPlayerId);
+  if (next) setTeamFirstPlayer(ctx, next.playerId);
 }

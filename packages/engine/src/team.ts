@@ -34,6 +34,20 @@ export interface TeamState {
    * one game area.
    */
   readonly areaId: GameAreaId | null;
+  /**
+   * The holder of the team's own first player token (MC56 p. 16: "In 2v2 play, each team has its own first player
+   * token. Pass it at the end of that team's villain phase"). While the team is active, `GameState.firstPlayerId` is
+   * the same player. Absent on the one derived team of a cooperative game, whose token is `GameState.firstPlayerId`,
+   * and on a hand-built test team.
+   */
+  readonly firstPlayerId?: PlayerId;
+  /**
+   * The four basic player cards of the team's own leader, set aside at setup (MC56 p. 14: "Each team finds the four
+   * basic player cards for their chosen leader and sets them aside"; p. 16: its players can earn them). They wait,
+   * ownerless and faceup, in the shared set-aside area (`GameState.encounterSetAside`) until the Choosing Sides reward
+   * hands them out (plan M6). Absent when the team set none aside.
+   */
+  readonly leaderCardIds?: readonly InstanceId[];
 }
 
 /** The one team of a game that stores none. */
@@ -128,4 +142,51 @@ export function enemyLeaderOf(state: GameState, id: TeamId): InstanceId | null {
 export function yourLeaderOf(state: GameState, id: TeamId): InstanceId | null {
   const enemy = enemyTeamOf(state, id);
   return enemy.teamId === id ? null : enemyLeaderOf(state, enemy.teamId);
+}
+
+/**
+ * The team whose phase it is (`GameState.activeTeamId`), or null when the whole table plays every phase together: a
+ * game with one team, and a hand-built two-team state that set no active team.
+ */
+export function activeTeamOf(state: GameState): TeamState | null {
+  if (state.activeTeamId === undefined) return null;
+  return mustTeam(state, state.activeTeamId);
+}
+
+/** Whether `playerId` sits on the side of the table that is inactive now (MC56 p. 16; Q11 A per owner decision 2026-11-20). */
+export function onInactiveTeam(state: GameState, playerId: PlayerId): boolean {
+  const active = activeTeamOf(state);
+  return active !== null && !active.playerIds.includes(playerId);
+}
+
+/** The team that comes after `id` in team order, or null for the last team: the round's next team (MC56 p. 16). */
+export function nextTeamAfter(state: GameState, id: TeamId): TeamState | null {
+  const teams = teamsOf(state);
+  const index = teams.findIndex((team) => team.teamId === id);
+  return index < 0 ? null : (teams[index + 1] ?? null);
+}
+
+/**
+ * The first player token of a player's team: `GameState.firstPlayerId` for the active team and for a game that stores
+ * no teams, else the team's own token (`TeamState.firstPlayerId`).
+ */
+export function teamFirstPlayerOf(state: GameState, team: TeamState): PlayerId {
+  if (!state.teams || state.activeTeamId === team.teamId) return state.firstPlayerId;
+  return team.firstPlayerId ?? state.firstPlayerId;
+}
+
+/** The side's name a player reads in a refusal ("the Registration team"). */
+const sideLabel = (team: TeamState): string =>
+  team.side === null ? `team ${team.teamId}` : `the ${team.side[0]!.toUpperCase()}${team.side.slice(1)} team`;
+
+/**
+ * Why `playerId` may not act now, or null when they may: during the other team's phase "your side of the table is
+ * inactive" (MC56 p. 16). Owner decision Q11 A (2026-11-20): the inactive team takes no action; its triggered abilities
+ * still fire and it answers choices addressed to it, which reach it as `resolveChoice` and are not refused here.
+ */
+export function inactiveTeamMessage(state: GameState, playerId: PlayerId): string | null {
+  const active = activeTeamOf(state);
+  if (active === null || active.playerIds.includes(playerId)) return null;
+  const phase = state.step.phase === "villain" ? "villain" : "hero";
+  return `It is ${sideLabel(active)}'s ${phase} phase: your side of the table is inactive until it ends.`;
 }

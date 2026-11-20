@@ -322,9 +322,12 @@ import {
 } from "./form-change-cost.js";
 import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { characterTitledAs } from "./titles.js";
+import { inactiveTeamMessage } from "./team.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
 export function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+  const inactive = inactiveTeamMessage(state, playerId);
+  if (inactive) return engineError("inactive_team", inactive, command);
   const step = state.step;
   if (step.phase !== "player" || step.kind !== "turn") {
     return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);
@@ -354,6 +357,9 @@ const TURNS_ENDED_MESSAGE = "the player turns have ended; a Forced Action must b
  * of the command reads the acting player, exactly as on their own turn.
  */
 function requireActionTiming(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+  // Not even an Action offered during another player's turn: the inactive team takes no action (Q11 A).
+  const inactive = inactiveTeamMessage(state, playerId);
+  if (inactive) return engineError("inactive_team", inactive, command);
   const step = state.step;
   if (step.phase !== "player" || step.kind !== "turn") {
     return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);

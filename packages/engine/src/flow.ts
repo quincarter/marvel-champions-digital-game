@@ -10,6 +10,7 @@ import {
   STEP_AFTER_SCENARIO_SETUP,
   resolveScenarioSetupInstructions,
   resolveVillainSetupAbilities,
+  executeTeamScenarioSetup,
   stepAfterScenarioSetupAbilities,
   stepAfterScenarioSetupInstructions,
   stepAfterVillainSetupAbilities,
@@ -29,7 +30,7 @@ import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError, type EngineError } from "./errors.js";
 import { forcedActionOptionId, outstandingForcedActions } from "./legal.js";
 import { useLateForcedAction } from "./actions.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId, TeamId } from "./ids.js";
 import {
   cardOf,
   getInstance,
@@ -76,6 +77,8 @@ import { putSeparatedCardIntoPlay } from "./separated-identity.js";
 import { offerStartingCard } from "./starting.js";
 import type { GameState, GameStep } from "./state.js";
 import { patternHearsKind, type TriggerEvent } from "./trigger-events.js";
+import { activeTeamOf, nextTeamAfter, teamsOf, type TeamState } from "./team.js";
+import { onActiveSide, phasePlayerOrder, switchActiveTeam } from "./team-phases.js";
 import {
   executeDealEncounterCards,
   executeEnemyActivations,
@@ -190,6 +193,8 @@ function executeStep(ctx: Ctx): void {
     case "scenarioSetupInstructions":
       resolveScenarioSetupInstructions(ctx);
       return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
+    case "teamScenarioSetup":
+      return executeTeamScenarioSetup(ctx, step);
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -219,6 +224,8 @@ function executeStep(ctx: Ctx): void {
       return executePassFirstPlayer(ctx);
     case "endOfRound":
       return executeEndOfRound(ctx, step);
+    case "teamHandover":
+      return executeTeamHandover(ctx, step);
     case "gameOver":
       return;
   }
@@ -404,10 +411,11 @@ export function beginPlayerPhase(ctx: Ctx): void {
   clearPlayedByPlayerThisPhase(ctx);
   // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
   // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
+  // With two teams, the active team's players only (MC56 p. 16).
   const order = playerPhaseTurnOrder(
     ctx.state,
     ctx.deps,
-    playerOrder(ctx.state).map((p) => p.playerId),
+    phasePlayerOrder(ctx.state).map((p) => p.playerId),
   );
   const [first, ...rest] = order;
   if (!first) {
@@ -478,9 +486,11 @@ function pushIfHeard(ctx: Ctx, event: TriggerEvent): boolean {
  * (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7), the "at the end of the round" ones too. RRG 1.8 "Delayed Effect" (p. 16):
  * they resolve "immediately after their specified timing point [...] and before responses to that point".
  */
-export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain" | "round"): void {
+export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain" | "round", roundContinues = false): void {
   const phaseDelayed = takeDelayed(ctx, "endOfPhase");
-  pushDelayed(ctx, phase === "player" ? phaseDelayed : [...phaseDelayed, ...takeDelayed(ctx, "endOfRound")]);
+  // A villain phase that does not end the round (`TriggerEvent phaseEnding.roundContinues`, two teams) is a phase end.
+  const roundEnds = phase !== "player" && !roundContinues;
+  pushDelayed(ctx, roundEnds ? [...phaseDelayed, ...takeDelayed(ctx, "endOfRound")] : phaseDelayed);
 }
 
 /** Ends `playerId`'s turn if it still is theirs: the `endTurn` command, or its `turnEnding` event applying. */
@@ -539,7 +549,7 @@ export function advanceAfterTurn(ctx: Ctx, remainingPlayerIds: readonly PlayerId
   setStep(ctx, {
     phase: "player",
     kind: "endPhaseDiscard",
-    remainingPlayerIds: playerOrder(ctx.state).map((p) => p.playerId),
+    remainingPlayerIds: phasePlayerOrder(ctx.state).map((p) => p.playerId),
   });
 }
 
@@ -553,7 +563,7 @@ export function advanceAfterTurn(ctx: Ctx, remainingPlayerIds: readonly PlayerId
 function requestLateForcedAction(ctx: Ctx): boolean {
   const step = ctx.state.step;
   if (step.phase !== "player" || step.kind !== "turn") return false;
-  const outstanding = playerOrder(ctx.state).flatMap((player) =>
+  const outstanding = phasePlayerOrder(ctx.state).flatMap((player) =>
     outstandingForcedActions(ctx.state, player.playerId, ctx.deps),
   );
   const first = outstanding[0];
@@ -637,7 +647,7 @@ const endPhaseRefill = (playerId: PlayerId): string => `endPhase:${playerId}`;
 
 function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhaseDraw" }>): void {
   const resumed = step.remainingPlayerIds;
-  const order = resumed ?? playerOrder(ctx.state).map((player) => player.playerId);
+  const order = resumed ?? phasePlayerOrder(ctx.state).map((player) => player.playerId);
   let drawnSoFar = step.drawn ?? 0;
   for (const [index, playerId] of order.entries()) {
     if (resumed && getPlayer(ctx.state, playerId)?.eliminated !== false) {
@@ -735,7 +745,9 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
     readied.add(id);
     readyOrAnnounce(ctx, id);
   };
-  for (const player of playerOrder(ctx.state)) {
+  // With two teams, the active team's players and the cards on its side of the table (MC56 p. 16: each team plays its
+  // entire hero phase, "including readying"; `onActiveSide` is every card in a game with one team).
+  for (const player of phasePlayerOrder(ctx.state)) {
     ready(player.identity.instanceId);
     for (const id of mustPlayer(ctx.state, player.playerId).playArea) ready(id);
     // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
@@ -744,12 +756,13 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
       if (controllerOf(ctx.state, id) === player.playerId) ready(id);
     }
   }
-  for (const id of ctx.state.villainArea) ready(id);
+  for (const id of ctx.state.villainArea) if (onActiveSide(ctx.state, id)) ready(id);
   // A card in an in-play scenario area is a card in play (MC45 p. 5), so the step readies it though nobody controls it,
   // and each card attached to one (docs/phase7-wave8.md §3.33: game steps are not card abilities).
   if (ctx.state.scenarioPlayAreas)
     for (const id of cardsInPlay(ctx.state)) if (scenarioPlayAreaOf(ctx.state, id) !== null) ready(id);
-  for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
+  for (const villain of undefeatedVillains(ctx.state))
+    if (onActiveSide(ctx.state, villain.instanceId)) ready(villain.instanceId);
   // "Ready each exhausted encounter card" (RRG 1.8 "End of Player Phase", step 3): whatever the lists above did not
   // name, wherever it is in play. An encounter card attached to an identity, an ally or a minion is in its host's
   // `attachments` and under no player's control (a Trance exhausted by its Forced Action, MC55 p. 22), and so is one
@@ -757,7 +770,8 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
   // An encounter card is a card no player owns: a player's card that nobody controls (a captive ally,
   // docs/phase7-wave8.md §3.19) is neither "their card" nor an encounter card, and stays as it is.
   // An encounter card a player owns (a Labor card) is an encounter card too (`playerCardOwnerOf`).
-  for (const id of cardsInPlay(ctx.state)) if (playerCardOwnerOf(ctx.state, id) === null) ready(id);
+  for (const id of cardsInPlay(ctx.state))
+    if (playerCardOwnerOf(ctx.state, id) === null && onActiveSide(ctx.state, id)) ready(id);
   const pushed = ctx.state.stack.length - depth;
   if (pushed === 0) return false;
   // Each push went on top of the last, so the last card readied would be asked first; put them back in ready order
@@ -772,11 +786,15 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
 
 /** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
 function finishPlayerPhase(ctx: Ctx): void {
+  // With two teams the next phase is another team's (MC56 p. 16): the second team's hero phase after the first's, then
+  // the first team's villain phase. It begins from the `teamHandover` step once this end has resolved.
+  const handover = handoverAfterPlayerPhase(ctx.state);
   // A player phase in place of the villain phase (`replaceNextVillainPhaseWithPlayerPhase`) comes first: it begins from
   // step one's place once this end has resolved (`playerPhaseInsteadNow`), and a waiting skip waits for the next one.
   const replacing = (ctx.state.villainPhasesReplacedByPlayerPhase ?? 0) > 0;
-  const skipping = !replacing && (ctx.state.villainPhasesToSkip ?? 0) > 0;
+  const skipping = !handover && !replacing && (ctx.state.villainPhasesToSkip ?? 0) > 0;
   if (skipping) skipVillainPhase(ctx);
+  else if (handover) setStep(ctx, { phase: handover.phase, kind: "teamHandover", teamId: handover.teamId });
   else setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
@@ -794,7 +812,8 @@ function finishPlayerPhase(ctx: Ctx): void {
   // A skipped villain phase never begins (docs/phase7-wave11-hero-packs.md H3.7): no beginning to answer, and "until
   // the next villain phase begins" lasts on to the next one played (H3.8).
   // Nor does one a player phase is played in place of.
-  if (!skipping && !replacing) pushVillainPhaseBeginning(ctx);
+  // A team's villain phase begins at its handover, once the other team is active (`executeTeamHandover`).
+  if (!skipping && !replacing && !handover) pushVillainPhaseBeginning(ctx);
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);
@@ -903,6 +922,9 @@ function pushDelayed(ctx: Ctx, delayed: readonly Extract<LastingEffect, { kind: 
  * effects resolve through the stack, then the round actually ends.
  */
 function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound" }>): void {
+  // With two teams only the last team's villain phase ends the round (MC56 p. 16, p. 20; one shared round, Q3 B per
+  // owner decision 2026-11-20): the first team's ends its phase alone, and the next team's villain phase follows.
+  const nextTeam = nextTeamInRound(ctx.state);
   if (!step.delayedResolved) {
     // RRG 1.8 "Villain Phase" (p. 47) step 6: "until the end of the phase/round" effects end (6a), then "when/after the
     // [villain] phase ends" and "when/after the round ends" resolve (6b) — one timing point, an event when an ability
@@ -910,13 +932,17 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     // (H3.7) never began, so only the round ends: `phase: "round"`, which "when the villain phase ends" does not hear.
     const skipped = step.villainPhaseSkipped === true;
     if (skipped && SKIPPED_VILLAIN_PHASE_PASSES_TOKEN) passFirstPlayerToken(ctx);
-    const ending: TriggerEvent = { kind: "phaseEnding", phase: skipped ? "round" : "villain" };
+    const ending: TriggerEvent = {
+      kind: "phaseEnding",
+      phase: skipped ? "round" : "villain",
+      ...(nextTeam ? { roundContinues: true as const } : {}),
+    };
     const listened = heard(ctx.state, ctx.deps, ending);
     // The villain phase and the round end together: "at the end of the phase" effects first, then the round's.
     const phaseDelayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
-    const delayed = listened ? [] : takeDelayed(ctx, "endOfRound");
+    const delayed = listened || nextTeam ? [] : takeDelayed(ctx, "endOfRound");
     expireLastingEffects(ctx, "endOfPhase");
-    expireLastingEffects(ctx, "endOfRound");
+    if (!nextTeam) expireLastingEffects(ctx, "endOfRound");
     setStep(ctx, {
       phase: "villain",
       kind: "endOfRound",
@@ -925,6 +951,11 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     });
     if (listened) pushEvent(ctx, ending);
     else pushDelayed(ctx, [...phaseDelayed, ...delayed]);
+    return;
+  }
+  if (nextTeam) {
+    if (!step.villainPhaseSkipped) announce(ctx, { kind: "villainPhaseEnded" });
+    setStep(ctx, { phase: "villain", kind: "teamHandover", teamId: nextTeam.teamId });
     return;
   }
   for (const player of ctx.state.players) {
@@ -947,7 +978,56 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     ...(ctx.state.revealedThisRound ? { revealedThisRound: [] } : {}),
   };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
+  // With two teams the first (registration) team goes first each round (MC56 p. 16).
+  const [firstTeam] = ctx.state.activeTeamId !== undefined ? teamsOf(ctx.state) : [];
+  if (firstTeam) switchActiveTeam(ctx, firstTeam.teamId, "player");
   beginPlayerPhase(ctx);
   // A skipped villain phase (H3.7) did not end: it never began.
   if (!step.villainPhaseSkipped) announce(ctx, { kind: "villainPhaseEnded" });
+}
+
+/**
+ * The team whose phase follows the active team's phase of the same kind within this round, or null when the active
+ * team is the last (or no team is active). MC56 p. 16: the registration team's phase comes first, then the resistance
+ * team's, for the hero phases and again for the villain phases.
+ */
+function nextTeamInRound(state: GameState): TeamState | null {
+  const active = activeTeamOf(state);
+  return active ? nextTeamAfter(state, active.teamId) : null;
+}
+
+/**
+ * The phase that follows the active team's hero phase (MC56 p. 16, p. 20): the next team's hero phase, or after the
+ * last team's, the first team's villain phase. Null with no active team: the villain phase follows as in every game.
+ */
+function handoverAfterPlayerPhase(
+  state: GameState,
+): { readonly teamId: TeamId; readonly phase: "player" | "villain" } | null {
+  const active = activeTeamOf(state);
+  if (!active) return null;
+  const next = nextTeamAfter(state, active.teamId);
+  if (next) return { teamId: next.teamId, phase: "player" };
+  const [first] = teamsOf(state);
+  return first ? { teamId: first.teamId, phase: "villain" } : null;
+}
+
+/**
+ * `GameStep teamHandover`: the ending team's end-of-phase effects have resolved, so the next team becomes the active
+ * team (`switchActiveTeam`: its first player and its leader become the table's) and its phase begins. The phase's own
+ * records start empty (per-phase ability limits and the "this phase" tallies): "until the end of the phase" and "once
+ * per phase" are the acting team's phase (MC56 p. 16; Q3 B per owner decision 2026-11-20).
+ */
+function executeTeamHandover(ctx: Ctx, step: Extract<GameStep, { kind: "teamHandover" }>): void {
+  clearAbilityUses(ctx, "phase");
+  ctx.state = { ...ctx.state, playedThisPhase: {} };
+  clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
+  switchActiveTeam(ctx, step.teamId, step.phase);
+  if (step.phase === "player") {
+    beginPlayerPhase(ctx);
+    return;
+  }
+  setStep(ctx, { phase: "villain", kind: "placeThreat" });
+  pushVillainPhaseBeginning(ctx);
 }

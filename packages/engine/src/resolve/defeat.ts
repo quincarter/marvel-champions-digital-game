@@ -35,7 +35,6 @@ import {
   mustInstance,
   mustPlayer,
   mustVillain,
-  nextClockwisePlayer,
   playerOrder,
   undefeatedVillains,
   villainOf,
@@ -63,6 +62,8 @@ import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./re
 import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
+import { teamFirstPlayerOf, teamOf } from "../team.js";
+import { nextClockwiseTeammate, setTeamFirstPlayer } from "../team-phases.js";
 
 /** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
 const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
@@ -1093,11 +1094,12 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   if (player.eliminated) return;
 
-  if (ctx.state.firstPlayerId === playerId) {
-    const next = nextClockwisePlayer(ctx.state, playerId);
+  // With two teams, the player's own team's token, to a teammate (MC56 p. 16, p. 20: "in 2v2 … your remaining
+  // teammate"); `teamFirstPlayerOf` and `nextClockwiseTeammate` are the table's token and seat order otherwise.
+  if (teamFirstPlayerOf(ctx.state, teamOf(ctx.state, playerId)) === playerId) {
+    const next = nextClockwiseTeammate(ctx.state, playerId);
     if (next) {
-      ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
-      emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
+      setTeamFirstPlayer(ctx, next.playerId);
       // "The first player controls …" is a constant ability, so a card that says it changes control with the token, at
       // step 1 ("the first player token immediately passes", RRG 1.8 "First Player", p. 19). It has left this player's
       // play area before step 3 discards the cards there that they do not own, so an encounter set's ally the first
@@ -1106,7 +1108,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     }
   }
 
-  const nextSeat = nextClockwisePlayer(ctx.state, playerId);
+  const nextSeat = nextClockwiseTeammate(ctx.state, playerId);
   // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
   const notOwnedPermanent = (id: InstanceId): boolean =>
     getInstance(ctx.state, id)?.ownerId !== playerId && isPermanent(ctx.state, id, ctx.deps);

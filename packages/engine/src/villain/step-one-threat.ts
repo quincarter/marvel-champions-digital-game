@@ -9,9 +9,11 @@ import type { EngineDeps } from "../abilities.js";
 import type { InstanceId } from "../ids.js";
 import { hasPerPlayerMainSchemes } from "../per-player-main-schemes.js";
 import { iconsInPlay } from "../rules.js";
-import { mainSchemeValue, playerOrder, sharedMainSchemes } from "../query.js";
+import { mainSchemeValue, sharedMainSchemes } from "../query.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
-import type { GameState, MainSchemeState } from "../state.js";
+import type { GameAreaState, GameState, MainSchemeState } from "../state.js";
+import { activeTeamOf } from "../team.js";
+import { phasePlayerOrder } from "../team-phases.js";
 
 /** One main scheme's step-one threat and its parts. */
 export interface StepOneThreat {
@@ -48,6 +50,24 @@ const sum = (
 
 /** Every main scheme that gains threat in step one, in the order `executePlaceThreat` places it. */
 export function stepOneThreats(state: GameState, deps: EngineDeps): readonly StepOneThreat[] {
+  const team = activeTeamArea(state);
+  if (team) {
+    // Two teams (MC56 pp. 16, 20; scenario rules override RRG per Golden Rule, RRG p. 4): a team's villain phase is the
+    // normal one run on its own side of the table, so only the main scheme in the active team's area gains threat, from
+    // its own acceleration and tokens and the acceleration icons in that area. Acceleration tokens off a scheme are not
+    // read across the table here (plan M3).
+    return sharedMainSchemes(state)
+      .filter((scheme) => scheme.gameAreaId === team.areaId)
+      .map((scheme) =>
+        sum(
+          scheme.instanceId,
+          mainSchemeValue(state, "acceleration", deps, scheme),
+          scheme.accelerationTokens,
+          0,
+          iconsInPlay(state, deps, "acceleration", team),
+        ),
+      );
+  }
   if (state.gameAreas.length === 0) {
     // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
     // p. 10 (docs/phase7-wave4.md §3.2). Tokens on other cards add to "the main scheme" (docs/phase7-wave5.md §3.4):
@@ -98,7 +118,16 @@ export const stepOneThreatOf = (
  * encounter deck forecast (issue #769) reads it.
  */
 export function stepThreeDealCount(state: GameState, deps: EngineDeps): number {
-  const players = playerOrder(state).length;
+  // With two teams, the active team's players and the hazard icons on its side of the table (MC56 p. 16).
+  const players = phasePlayerOrder(state).length;
   if (players === 0) return 0;
-  return players * (1 + (state.scenarioRules.heroicLevel ?? 0)) + iconsInPlay(state, deps, "hazard");
+  return (
+    players * (1 + (state.scenarioRules.heroicLevel ?? 0)) + iconsInPlay(state, deps, "hazard", activeTeamArea(state))
+  );
+}
+
+/** The game area of the active team, or null when the whole table plays the phase (`activeTeamOf`). */
+function activeTeamArea(state: GameState): GameAreaState | null {
+  const areaId = activeTeamOf(state)?.areaId;
+  return areaId ? (state.gameAreas.find((area) => area.areaId === areaId) ?? null) : null;
 }
