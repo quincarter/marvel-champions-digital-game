@@ -11,10 +11,15 @@ import {
 import {
   compositionTilesOf,
   costCurveBars,
+  DECK_LIST_SORTS,
+  SETUP_GROUP_KEY,
   deckListGroupsOf,
   deckStatsOf,
   filterDeckListGroups,
+  isSetupCard,
 } from "./deck-stats.js";
+import { POOL_CARDS } from "../content/pool-cards.js";
+import { POOL_STARTER_DECKS } from "../content/pool.js";
 
 const sumQuantities = (deck: Deck): number => deck.cards.reduce((total, entry) => total + entry.quantity, 0);
 
@@ -252,5 +257,37 @@ describe("filterDeckListGroups: Deck check's own left-rail type filter chips", (
       const stats = deckStatsOf(deck, CORE_CARDS);
       expect(filteredTotal).toBe(stats.countsByType[type] ?? 0);
     }
+  });
+});
+
+describe("deckListGroupsOf: cards that start the game outside the deck (BluefireF5ran, 2026-11-19)", () => {
+  const precon = (identity: string): Deck =>
+    deckFromStarterDeck(
+      POOL_STARTER_DECKS.find((s) => (s.identityCardId as string) === identity)!,
+      "poolv1",
+    );
+
+  test("Valkyrie's Death-Glow (her Setup sets it aside) leads in its own Setup group, under every sort", () => {
+    const deck = precon("25001a");
+    for (const sort of DECK_LIST_SORTS) {
+      const groups = deckListGroupsOf(deck, POOL_CARDS, sort);
+      expect(groups[0]!.key, sort).toBe(SETUP_GROUP_KEY);
+      expect(groups[0]!.entries.map((e) => e.cardId as string)).toEqual(["25002"]);
+      expect(groups.slice(1).some((g) => g.entries.some((e) => (e.cardId as string) === "25002"))).toBe(false);
+    }
+  });
+
+  test("Wolverine's Claws (Permanent) sit in the Setup group; an ordinary hero card does not", () => {
+    const groups = deckListGroupsOf(precon("35001a"), POOL_CARDS);
+    expect(groups[0]!.label).toBe("Setup");
+    expect(groups[0]!.entries.map((e) => e.name)).toContain("Wolverine's Claws");
+    expect(groups.find((g) => g.key === "hero")!.entries.length).toBeGreaterThan(0);
+  });
+
+  test("isSetupCard: Cap's Shield, fetched into hand by his Setup, is an ordinary card", () => {
+    const shield = POOL_CARDS.find((c) => c.name === "Captain America's Shield")!;
+    const cap = POOL_CARDS.find((c) => c.name === "Captain America" && c.type === "hero_identity");
+    expect(cap).toBeDefined();
+    expect(isSetupCard(shield, cap)).toBe(false);
   });
 });
