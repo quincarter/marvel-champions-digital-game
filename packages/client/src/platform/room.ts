@@ -635,6 +635,7 @@ export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCo
     ...(state.roomId ? { room: state.roomId } : {}),
     ...(playMode ? { roomPlayMode: playMode } : {}),
     roomTeams: roomTeamsOf(state),
+    localSeats: state.seats.flatMap((seat, index) => (seat.mine ? [`p${index + 1}`] : [])),
   });
   return { ok: true };
 }

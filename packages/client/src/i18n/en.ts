@@ -67,6 +67,8 @@ export const en = {
   "pastGames.result.won": "Won",
   "pastGames.result.lost": "Lost",
   "pastGames.result.conceded": "Conceded",
+  "pastGames.result.tie": "Tie",
+  "pastGames.reason.competitive": "Competitive game",
   "pastGames.reason.encounterDeckExhausted": "The encounter deck ran out",
   "pastGames.partialLog": "This version can only replay the first {n} moves of that game, so its log stops there.",
   "pastGames.result.unfinished": "Unfinished",

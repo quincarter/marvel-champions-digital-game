@@ -229,6 +229,9 @@ export function endGame(ctx: Ctx, outcome: GameOutcome, side: ResultSide = {}): 
   if (hasTeamOutcome(ctx.state) && (outcome.result === "win" || outcome.result === "loss")) {
     const team = teamOfSide(ctx.state, side);
     if (team) {
+      // Every win the engine reports is the enemy leader's defeat (the villain defeated) or a card's own "you win the
+      // game"; MC56 p. 17 names no other win, so a card-text win is recorded as that team's `enemyLeaderDefeated`
+      // (engine reading, authority step 5: it is the one win condition that is that team's own achievement).
       if (outcome.result === "win")
         recordTeamCondition(ctx, team.teamId, "enemyLeaderDefeated", side.instanceId ?? undefined);
       else recordTeamLoss(ctx, team.teamId, TEAM_LOSS_CONDITION[outcome.reason], side.instanceId ?? undefined);

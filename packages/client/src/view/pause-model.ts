@@ -12,6 +12,7 @@ import { civilWarKindOf, describeCivilWar } from "./civil-war-label.js";
 import { blindRevealOf, blindSheetLines } from "./civil-war-blind.js";
 import { difficultyLabelOf } from "./difficulty-label.js";
 import { playerName } from "./names.js";
+import { seatResultLabel, seatResultOf } from "./team-outcome.js";
 
 export interface PauseStatus {
   readonly scenarioName: string;
@@ -81,10 +82,9 @@ export function blindSheetNamesOf(
  * Mirrors `board-model.ts`'s own `phaseOf` switch, worded for a status line rather
  * than a step label. A concession reads as one, never as a defeat (`conceded.test.ts`).
  */
-function phaseLabelOf(state: GameState): string {
-  if (state.outcome) {
-    return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
-  }
+function phaseLabelOf(state: GameState, config: SessionConfig | null): string {
+  // A competitive game reads this device's team's result (`seatResultOf`), which may be a tie.
+  if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, config?.localSeats));
   switch (state.step.phase) {
     case "setup":
       return "Setup";
@@ -118,7 +118,7 @@ export function pauseStatusOf(
     scenarioName: (config && describeCivilWar(config)) ?? scenario?.name ?? config?.scenarioId ?? "This game",
     difficultyLabel: difficultyLabelOf(config ?? null) ?? "—",
     round: game.round,
-    phaseLabel: phaseLabelOf(game),
+    phaseLabel: phaseLabelOf(game, config ?? null),
     seatLabel: playerName(game, perspectiveId),
     seed: config?.seed ?? null,
     adjusted,

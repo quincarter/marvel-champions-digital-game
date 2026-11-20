@@ -348,7 +348,8 @@ export function moveCardsTo(
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
   let shuffleEncounter = false;
-  let encounterShuffleDeckId: EncounterDeckId | null = null;
+  /** Every encounter deck a card went back into, in first-touched order: each is shuffled (two teams, two decks). */
+  const encounterShuffleDeckIds: EncounterDeckId[] = [];
   const scenarioDecksToShuffle = new Set<string>();
   const separateDecks = new Map<string, { readonly playerId: PlayerId; readonly name: string }>();
   // Cards put into a scenario area by this move, announced after it when an ability listens (`cardPutIntoScenarioArea`).
@@ -502,7 +503,7 @@ export function moveCardsTo(
           // With two teams, an encounter card goes back into the deck it came from (each side of the table has its own,
           // MC56 p. 16; Q17 per the rules expert 2026-11-20); every other game shuffles into the active villain's deck.
           const deckId = ctx.state.teams ? homeEncounterDeckId(ctx.state, id) : activeEncounterDeckId(ctx.state);
-          encounterShuffleDeckId = deckId;
+          if (!encounterShuffleDeckIds.includes(deckId)) encounterShuffleDeckIds.push(deckId);
           to = { kind: "encounterDeck", deckId };
           shuffleEncounter = true;
           // "Shuffle this card into the encounter deck" on a player card (the Cosmic Entities, docs/phase7-wave4.md
@@ -634,13 +635,16 @@ export function moveCardsTo(
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
     announceDeckTops(ctx);
   }
-  if (shuffleEncounter && encounterTop !== undefined) {
-    // The moved cards went on top of the deck (`position` "top"), in front of the `encounterTop` cards they are
-    // shuffled in among.
-    const deckId = encounterShuffleDeckId ?? activeEncounterDeckId(ctx.state);
-    const moved = ids.filter((id) => encounterDeckOf(ctx.state, deckId).deck.includes(id)).length;
-    shuffleEncounterDeckTop(ctx, moved + Math.max(0, encounterTop), deckId);
-  } else if (shuffleEncounter) shuffleEncounterDeck(ctx, encounterShuffleDeckId ?? activeEncounterDeckId(ctx.state));
+  const shuffledDecks =
+    encounterShuffleDeckIds.length > 0 ? encounterShuffleDeckIds : [activeEncounterDeckId(ctx.state)];
+  for (const deckId of shuffleEncounter ? shuffledDecks : []) {
+    if (encounterTop !== undefined) {
+      // The moved cards went on top of the deck (`position` "top"), in front of the `encounterTop` cards they are
+      // shuffled in among.
+      const moved = ids.filter((id) => encounterDeckOf(ctx.state, deckId).deck.includes(id)).length;
+      shuffleEncounterDeckTop(ctx, moved + Math.max(0, encounterTop), deckId);
+    } else shuffleEncounterDeck(ctx, deckId);
+  }
   for (const name of scenarioDecksToShuffle) {
     const piles = ctx.state.scenarioDecks[name];
     if (!piles) continue;

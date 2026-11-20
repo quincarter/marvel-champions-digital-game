@@ -10,6 +10,7 @@
 
 import type { AbilityId, Aspect, AnyCard, ResourceIconType, StatStar } from "@mc/content";
 import { seatContext } from "./seat-context.js";
+import { seatResultLabel, seatResultOf } from "./team-outcome.js";
 import { t } from "../i18n/translate.js";
 import {
   handSize,
@@ -1386,9 +1387,9 @@ function stepLabel(state: GameState, perspectiveId: PlayerId): string {
 
 function liveStepLabel(state: GameState, perspectiveId: PlayerId): string {
   const { step } = state;
-  // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`).
-  if (state.outcome)
-    return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
+  // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`); a competitive game
+  // reads the perspective seat's team's result, which may be a tie.
+  if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, [perspectiveId]));
   switch (step.phase) {
     case "setup":
       return step.kind === "mulligan" ? "Setup — mulligan" : "Setup — draw starting hands";

@@ -72,7 +72,8 @@ export function migrateSaveMeta(meta: SaveMeta): SaveMeta {
  * content — a card changed under it. Kept, not deleted, so the log can still be
  * exported; never offered as "Continue".
  */
-export type SaveStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
+/** `tie`: a competitive game (issue #883) this device's team neither won nor lost (`view/team-outcome.ts`). */
+export type SaveStatus = "active" | "won" | "lost" | "tie" | "abandoned" | "incompatible";
 
 /**
  * Which guided run (`docs/guided-mode.md` §3.12) a save was launched as — the tutorial's five lessons, or one

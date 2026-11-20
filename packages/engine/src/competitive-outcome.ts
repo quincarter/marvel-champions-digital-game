@@ -161,12 +161,26 @@ export function teamOfSide(state: GameState, side: ResultSide): TeamState | null
 const otherTeam = (state: GameState, id: TeamId): TeamState | null =>
   teamsOf(state).find((team) => team.teamId !== id) ?? null;
 
+/**
+ * The kind of phase being played now. During a phase's end (its "when/after the phase ends" effects) the step is
+ * already the `teamHandover` naming the next phase, so the phase still ending is read from it instead: a handover to
+ * the next team's hero phase, or to the first team's villain phase (after the last team's hero phase), ends a hero
+ * phase; a handover to a later team's villain phase ends a villain phase (MC56 p. 16; Q3 B).
+ */
+export function phaseBeingPlayed(state: GameState): "player" | "villain" {
+  const step = state.step;
+  if (step.kind === "teamHandover") {
+    const [first] = teamsOf(state);
+    return step.phase === "player" || step.teamId === first?.teamId ? "player" : "villain";
+  }
+  return step.phase === "villain" ? "villain" : "player";
+}
+
 /** The phase the game closes after, from the moment of the first result. */
 function closeFor(state: GameState): CompetitiveClose {
   const teams = teamsOf(state);
   const last = teams[teams.length - 1]!;
-  const phase = state.step.phase === "villain" ? "villain" : "player";
-  return { teamId: last.teamId, round: state.round, phase };
+  return { teamId: last.teamId, round: state.round, phase: phaseBeingPlayed(state) };
 }
 
 /**
@@ -188,7 +202,7 @@ export function recordTeamCondition(
     teamId,
     condition,
     round: ctx.state.round,
-    phase: ctx.state.step.phase === "villain" ? "villain" : "player",
+    phase: phaseBeingPlayed(ctx.state),
     activeTeamId: ctx.state.activeTeamId ?? null,
     ...(instanceId ? { instanceId } : {}),
   };
@@ -246,6 +260,8 @@ export function competitiveOutcome(state: GameState, deps?: Parameters<typeof ma
     conditions: conditionsOf(team),
   });
   const base = { result: "teams" as const, reason: "competitiveEnded" as const };
+  // No condition met by either team (a state read before any result): no winner and no loser, so not "both lose".
+  if (winners.length === 0) return { ...base, decision: "tie", teams: teams.map((team) => result(team, "tie")) };
   if (winners.length === 1) {
     const [winner] = winners;
     return {

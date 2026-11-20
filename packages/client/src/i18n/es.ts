@@ -69,6 +69,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.result.won": "Victoria",
   "pastGames.result.lost": "Derrota",
   "pastGames.result.conceded": "Rendición",
+  "pastGames.result.tie": "Empate",
+  "pastGames.reason.competitive": "Partida competitiva",
   "pastGames.reason.encounterDeckExhausted": "Se agotó el mazo de encuentro",
   "pastGames.partialLog":
     "Esta versión solo puede reproducir los primeros {n} movimientos de esa partida, así que su registro termina ahí.",

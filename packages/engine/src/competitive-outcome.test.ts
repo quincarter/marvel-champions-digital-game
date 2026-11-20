@@ -13,13 +13,14 @@ import { competitiveOutcome, type CompetitiveOutcome } from "./competitive-outco
 import { applyCommand, sessionApply, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import { playerId, type PlayerId } from "./ids.js";
+import { mainSchemeFor } from "./query.js";
 import { cardsInPlay } from "./select.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubEvent, stubSupport } from "./testing/fixtures.js";
-import { playerCardIntoPlay } from "./testing/wave3.js";
-import { DEFAULT_DECK, defaultPick, giveCard } from "./testing/scenario.js";
+import { stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
+import { minionEngagedWith, playerCardIntoPlay } from "./testing/wave3.js";
+import { DEFAULT_DECK, defaultPick, giveCard, TREACHERY, UPGRADE } from "./testing/scenario.js";
 import { competitiveConfig, competitiveGame, TEAM_ONE, TEAM_TWO } from "./testing/team.js";
 import { createGame } from "./setup.js";
 import { settle } from "./testing/scenario.js";
@@ -60,9 +61,21 @@ const AT_VILLAIN_PHASE = stubAbility("villain-phase-defeat.response", {
 });
 const AT_VILLAIN_PHASE_CARD = stubSupport({ id: "villain-phase-defeat", cost: 0, abilities: [AT_VILLAIN_PHASE.ref] });
 
+/** "Forced Response: After the player phase ends, defeat the enemy leader." (on a support) */
+const AT_PLAYER_PHASE_END = stubAbility("player-phase-end-defeat.response", {
+  trigger: { kind: "response", forced: true, on: { on: "phaseEnding", eventIs: { phase: "player" } } },
+  effects: [{ kind: "defeat", target: ENEMY_LEADER }],
+});
+const AT_PLAYER_PHASE_END_CARD = stubSupport({
+  id: "player-phase-end-defeat",
+  cost: 0,
+  abilities: [AT_PLAYER_PHASE_END.ref],
+});
+const MINION = stubMinion({ id: "tie-break-minion", atk: 1, sch: 1, hp: 3 });
+
 const ACTIONS = [DEFEAT_ENEMY_LEADER, COMPLETE_OWN, COMPLETE_LEADERS, SELF_DEFEAT, LEADER_ATTACK];
-const deps: EngineDeps = depsOf(...ACTIONS.map((a) => a.ability), AT_VILLAIN_PHASE);
-const CARDS = [...ACTIONS.map((a) => a.card), AT_VILLAIN_PHASE_CARD];
+const deps: EngineDeps = depsOf(...ACTIONS.map((a) => a.ability), AT_VILLAIN_PHASE, AT_PLAYER_PHASE_END);
+const CARDS = [...ACTIONS.map((a) => a.card), AT_VILLAIN_PHASE_CARD, AT_PLAYER_PHASE_END_CARD];
 const options = { deps, extraCards: CARDS, deck: [...DEFAULT_DECK, ...CARDS.flatMap((c) => [c.id, c.id, c.id])] };
 const game = (): GameState => competitiveGame(options);
 const gameWithoutTieBreaks = (): GameState => {
@@ -171,6 +184,24 @@ describe("a result in the resistance team's phase ends that phase's end (equal p
   });
 });
 
+describe("a result in the resistance team's end-of-hero-phase effects (MC56 p. 17)", () => {
+  it("closes after that hero phase, not after the villain phase the step already names", () => {
+    // During the end of the resistance team's hero phase the step is already the handover to the registration team's
+    // villain phase; the phase ending is still the hero phase.
+    const placed = playerCardIntoPlay(game(), AT_PLAYER_PHASE_END_CARD.id, P2).state;
+    const handed = endTurn(start(placed));
+    expect(handed.state.competitive?.end).toBeUndefined();
+    const done = endTurn(handed);
+    const recorded = done.events.find((e) => e.type === "teamResultRecorded");
+    expect(recorded).toMatchObject({
+      trigger: { teamId: TEAM_TWO, condition: "enemyLeaderDefeated", phase: "player", round: 1 },
+      closesAfter: { teamId: TEAM_TWO, phase: "player", round: 1 },
+    });
+    expect(resultOf(done)).toEqual({ [TEAM_ONE]: "loss", [TEAM_TWO]: "win" });
+    expect(done.events.some((e) => e.type === "activeTeamChanged" && e.phase === "villain")).toBe(false);
+  });
+});
+
 describe("a leader defeated in a villain phase (MC56 p. 17)", () => {
   it("leaves play at once, and the game closes after the resistance team's villain phase", () => {
     const placed = playerCardIntoPlay(game(), AT_VILLAIN_PHASE_CARD.id, P1).state;
@@ -264,10 +295,118 @@ describe("every identity of a team defeated (1v1 elimination; Q8 A, any cause)",
     const run = play(start(), P1, SELF_DEFEAT.card.id);
     expect(run.state.players.find((p) => p.playerId === P1)?.eliminated).toBe(true);
     expect(run.state.outcome).toBeNull();
+    expect(run.state.competitive?.end?.closesAfter).toEqual({ teamId: TEAM_TWO, phase: "player", round: 1 });
     const handed = run.state.activeTeamId === TEAM_TWO ? run : endTurn(run);
     const done = handed.state.outcome ? handed : endTurn(handed);
     expect(resultOf(done)).toEqual({ [TEAM_ONE]: "loss", [TEAM_TWO]: "win" });
     expect(outcomeOf(done)?.teams[1]?.conditions).toEqual(["opponentsDefeated"]);
+    const all = [...run.events, ...(handed === run ? [] : handed.events), ...(done === handed ? [] : done.events)];
+    expect(all.some((e) => e.type === "activeTeamChanged" && e.phase === "villain")).toBe(false);
+  });
+});
+
+describe("each tie-break measure, in printed order (MC56 p. 17; Q9 C)", () => {
+  /** Both teams defeated their enemy leaders; every measure equal unless `change` makes one differ. */
+  const tied = (state: GameState, change: (state: GameState) => GameState = (s) => s): CompetitiveOutcome => {
+    const triggers = [TEAM_ONE, TEAM_TWO].map((teamId) => ({
+      teamId,
+      condition: "enemyLeaderDefeated" as const,
+      round: 1,
+      phase: "player" as const,
+      activeTeamId: TEAM_ONE,
+    }));
+    const schemes = new Set(state.gameAreas.map((area) => mainSchemeFor(state, area)?.instanceId));
+    const instances = Object.fromEntries(
+      Object.entries(state.instances).map(([id, inst]) => [
+        id,
+        schemes.has(inst.instanceId) ? { ...inst, threat: 3 } : inst,
+      ]),
+    );
+    const even: GameState = {
+      ...state,
+      instances,
+      competitive: { tieBreaks: true, end: { triggers, closesAfter: { teamId: TEAM_TWO, phase: "player", round: 1 } } },
+    };
+    return competitiveOutcome(change(even), deps);
+  };
+  const winnerOf = (outcome: CompetitiveOutcome) => outcome.teams.find((t) => t.result === "win")?.teamId;
+  const identityOf = (state: GameState, player: PlayerId) =>
+    state.players.find((p) => p.playerId === player)!.identity.instanceId;
+  const withThreat = (state: GameState, areaIndex: number, threat: number): GameState => {
+    const id = mainSchemeFor(state, state.gameAreas[areaIndex]!)!.instanceId;
+    return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, threat } } };
+  };
+
+  it("with every measure equal, the teams stay tied", () => {
+    const outcome = tied(game());
+    expect(outcome).toMatchObject({ decision: "tie", tieBreak: { applied: true, decidedBy: null } });
+    expect(outcome.teams.map((t) => t.result)).toEqual(["tie", "tie"]);
+  });
+
+  it("1) the team whose enemy main scheme did not advance past 1B wins", () => {
+    const advanced = play(start(), P1, COMPLETE_OWN.card.id).state;
+    const outcome = tied(advanced);
+    expect(outcome.tieBreak?.decidedBy).toBe("mainSchemeAdvanced");
+    expect(outcome.tieBreak?.measures?.[0]?.values).toEqual({ [TEAM_ONE]: 1, [TEAM_TWO]: 0 });
+    expect(winnerOf(outcome)).toBe(TEAM_TWO);
+  });
+
+  it("2) the fewest minions and side schemes in your game area wins", () => {
+    const withMinion = competitiveGame({
+      ...options,
+      extraCards: [...CARDS, MINION],
+      encounterDecks: [
+        [MINION.id, ...Array.from({ length: 9 }, () => TREACHERY.id)],
+        [MINION.id, ...Array.from({ length: 9 }, () => TREACHERY.id)],
+      ],
+    });
+    const outcome = tied(withMinion, (state) => minionEngagedWith(state, MINION.id, P2).state);
+    expect(outcome.tieBreak?.decidedBy).toBe("minionsAndSideSchemes");
+    expect(outcome.tieBreak?.measures?.[1]?.values).toEqual({ [TEAM_ONE]: 0, [TEAM_TWO]: 1 });
+    expect(winnerOf(outcome)).toBe(TEAM_ONE);
+  });
+
+  it("3) the least threat on your main scheme wins", () => {
+    const outcome = tied(game(), (state) => withThreat(state, 0, 5));
+    expect(outcome.tieBreak?.decidedBy).toBe("mainSchemeThreat");
+    expect(outcome.tieBreak?.measures?.[2]?.values).toEqual({ [TEAM_ONE]: 5, [TEAM_TWO]: 3 });
+    expect(winnerOf(outcome)).toBe(TEAM_TWO);
+  });
+
+  it("4) the most remaining hit points on your identities wins", () => {
+    const outcome = tied(game(), (state) => {
+      const id = identityOf(state, P2);
+      return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, damage: 2 } } };
+    });
+    expect(outcome.tieBreak?.decidedBy).toBe("identityHitPoints");
+    const values = outcome.tieBreak?.measures?.[3]?.values;
+    expect(values![TEAM_ONE]! - values![TEAM_TWO]!).toBe(2);
+    expect(winnerOf(outcome)).toBe(TEAM_ONE);
+  });
+
+  it("4) an eliminated identity counts 0 hit points", () => {
+    const outcome = tied(game(), (state) => ({
+      ...state,
+      players: state.players.map((p) => (p.playerId === P1 ? { ...p, eliminated: true } : p)),
+    }));
+    expect(outcome.tieBreak?.decidedBy).toBe("identityHitPoints");
+    expect(outcome.tieBreak?.measures?.[3]?.values[TEAM_ONE]).toBe(0);
+    expect(winnerOf(outcome)).toBe(TEAM_TWO);
+  });
+
+  it("5) the fewest attachments on the leader in your area wins", () => {
+    const outcome = tied(game(), (state) => {
+      const given = giveCard(state, P1, UPGRADE.id);
+      const leader = given.state.gameAreas[0]!.activeVillainId!;
+      const host = given.state.instances[leader]!;
+      return {
+        ...given.state,
+        instances: { ...given.state.instances, [leader]: { ...host, attachments: [...host.attachments, given.id] } },
+      };
+    });
+    expect(outcome.tieBreak?.decidedBy).toBe("leaderAttachments");
+    expect(outcome.tieBreak?.measures?.[4]?.values).toEqual({ [TEAM_ONE]: 1, [TEAM_TWO]: 0 });
+    expect(winnerOf(outcome)).toBe(TEAM_TWO);
   });
 });
 

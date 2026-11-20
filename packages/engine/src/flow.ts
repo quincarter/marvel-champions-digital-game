@@ -26,6 +26,7 @@ import {
   untilNextVillainPhase,
   closeCompetitiveIfDue,
 } from "./effects.js";
+import { phaseBeingPlayed } from "./competitive-outcome.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError, type EngineError } from "./errors.js";
@@ -1027,8 +1028,7 @@ function executeTeamHandover(ctx: Ctx, step: Extract<GameStep, { kind: "teamHand
   // number of phases (MC56 p. 17). The handover after a hero phase names the next hero phase, or the first team's
   // villain phase after the last team's hero phase; after a villain phase, the next team's villain phase.
   const ending = activeTeamOf(ctx.state);
-  const [firstTeam] = teamsOf(ctx.state);
-  const endedPhase = step.phase === "player" || step.teamId === firstTeam?.teamId ? "player" : "villain";
+  const endedPhase = phaseBeingPlayed(ctx.state);
   if (ending && closeCompetitiveIfDue(ctx, { teamId: ending.teamId, phase: endedPhase, round: ctx.state.round }))
     return;
   clearAbilityUses(ctx, "phase");

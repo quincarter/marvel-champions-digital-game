@@ -38,6 +38,7 @@ import { difficultyLabelOf } from "./difficulty-label.js";
 import { foeWord } from "./foe-words.js";
 import { hpFraction, hpNumber } from "./hp-format.js";
 import { inspectModel } from "./inspect-model.js";
+import { seatResultOf } from "./team-outcome.js";
 import { cardName, playerName } from "./names.js";
 
 export type GameOverTone = "win" | "loss";
@@ -187,7 +188,9 @@ export function gameOverModel(
    * defeated, which is where the distinction actually shows.
    */
   const concededBy = outcome?.result === "conceded" ? outcome.byPlayerId : null;
-  const tone: GameOverTone = outcome?.result === "win" ? "win" : "loss";
+  // A competitive game's tone is this device's team's result (`seatResultOf`); a tie is not a win.
+  const tone: GameOverTone =
+    outcome && seatResultOf(outcome, state.teams, config?.localSeats) === "win" ? "win" : "loss";
   // The villain with the active counter: with several villains, the one still standing last.
   const villainState = activeVillain(state);
   const avatar = cardName(state, villainState.instanceId);

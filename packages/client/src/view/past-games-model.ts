@@ -22,7 +22,8 @@ import type { GamesListNames } from "./games-list-model.js";
 import type { Rect } from "./layout.js";
 
 /** `conceded`: the players gave the game up, which the save stores as `abandoned` (`EngineSessionCore.statusOf`). */
-export type PastGameResult = "won" | "lost" | "conceded" | "unfinished";
+/** `tie`: a competitive game (issue #883) this device's team neither won nor lost (`view/team-outcome.ts`). */
+export type PastGameResult = "won" | "lost" | "tie" | "conceded" | "unfinished";
 
 /** Why the game ended, as the row and the details word it. */
 export type PastGameReason =
@@ -35,6 +36,8 @@ export type PastGameReason =
   /** The encounter deck ran out where a scenario loses on it (`GameOutcome` `encounterDeckExhausted`). */
   | "encounterDeckExhausted"
   | "unfinished"
+  /** A competitive game (MC56 p. 17): its per-team result, worded by the competitive game-over screen. */
+  | "competitive"
   /** Won or lost, but the save does not say how. */
   | "unknown";
 
@@ -104,6 +107,8 @@ export function resultOf(save: Pick<SaveMeta, "status" | "outcome">): PastGameRe
       return "won";
     case "lost":
       return "lost";
+    case "tie":
+      return "tie";
     case "abandoned":
       return (save.outcome as { readonly result?: string } | null)?.result === "conceded" ? "conceded" : "unfinished";
     default:
@@ -115,6 +120,7 @@ function reasonOf(save: SaveMeta, result: PastGameResult): PastGameReason {
   if (result === "unfinished") return "unfinished";
   if (result === "conceded") return "conceded";
   const outcome = save.outcome as { readonly result: string; readonly reason?: string } | null;
+  if (outcome?.result === "teams") return "competitive";
   if (outcome?.result === "win") return "villainDefeated";
   if (outcome?.reason === "mainSchemeCompleted") return "schemeCompleted";
   if (outcome?.reason === "allPlayersDefeated") return "heroesDefeated";

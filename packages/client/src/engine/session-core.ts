@@ -80,6 +80,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
+import { seatResultOfState } from "../view/team-outcome.js";
 import { BACKFILL_BUSY, backfillSummaries } from "./summary-backfill.js";
 
 /** Commands a backfill replay runs between yields. */
@@ -350,16 +351,16 @@ const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): 
 const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);
 const depsOf = (config: SessionConfig | null): EngineDeps => viewOf(config).deps;
 
-const statusOf = (state: GameState): SaveStatus =>
-  state.outcome
-    ? state.outcome.result === "win"
-      ? "won"
-      : // A concession is a real, finished session that resolved to neither a win nor a loss, which is exactly what
-        // `abandoned` already means to `view/results-history.ts`: played, but not a result.
-        state.outcome.result === "conceded"
-        ? "abandoned"
-        : "lost"
-    : "active";
+/**
+ * The save's status. A competitive game counts this device's team's result (`seatResultOf`): won, lost or a tie.
+ * A concession is a real, finished session that resolved to neither a win nor a loss, which is exactly what `abandoned`
+ * already means to `view/results-history.ts`: played, but not a result.
+ */
+const statusOf = (state: GameState, config: SessionConfig | null): SaveStatus => {
+  const result = seatResultOfState(state, config?.localSeats);
+  if (result === null) return "active";
+  return result === "win" ? "won" : result === "loss" ? "lost" : result === "tie" ? "tie" : "abandoned";
+};
 
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
@@ -698,7 +699,7 @@ export class EngineSessionCore {
         updatedAt: this.#played(),
         ...this.#playedField(),
         ...this.#adjustedField(),
-        status: statusOf(state),
+        status: statusOf(state, config),
         outcome: state.outcome,
         summary: summarizeGame(state, record, depsOf(config), config.players),
       };
@@ -934,7 +935,7 @@ export class EngineSessionCore {
       updatedAt: at,
       ...this.#playedField(),
       ...this.#adjustedField(),
-      status: statusOf(state),
+      status: statusOf(state, this.#config),
       outcome: state.outcome,
       summary: summarizeGame(state, this.#record, depsOf(this.#config), this.#config?.players),
     };

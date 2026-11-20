@@ -123,6 +123,12 @@ export interface SessionConfig {
    * the engine's own two-team setup is what carries teams into the game.
    */
   readonly roomTeams?: Readonly<Record<string, "registration" | "resistance">>;
+  /**
+   * A Competitive room game (issue #883): the engine players (`p1`..) this device holds, so a competitive result is read
+   * for this device's team (`view/team-outcome.ts`). Absent in a hot-seat game, where one device plays both teams. Like
+   * `roomTeams` it never reaches the rules, and headers and replay files leave it out.
+   */
+  readonly localSeats?: readonly string[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

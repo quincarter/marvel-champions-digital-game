@@ -8,7 +8,10 @@
  *
  * **Which statuses count, and why** (`SaveStatus`, `engine/game-storage.ts`):
  * - `won` / `lost` are results: they count as a win or a loss, and as a
- *   played game.
+ *   played game. A competitive game's save holds this device's team's result
+ *   (`view/team-outcome.ts`, issue #883).
+ * - `tie` (a competitive game neither team won, or one device playing both
+ *   teams) is a played game and neither a win nor a loss.
  * - `abandoned` (a game the player removed from the in-progress list, a campaign
  *   run started over, and later also Concede, per docs/phase4-screen-gaps.md §4)
  *   is **not** a win or a loss —
@@ -32,7 +35,7 @@
  *   flips to `won`/`lost`/`abandoned` — there is no double count, since each
  *   game is one `SaveMeta` row updated in place, never accumulated.
  *
- * So "played" here always means `status === "won" || "lost" || "abandoned" || "active"`.
+ * So "played" here always means `status === "won" || "lost" || "tie" || "abandoned" || "active"`.
  *
  * **Best clear.** `SaveMeta.round` is the round the game's log stands at —
  * for a `won` save, the round the villain was defeated on. "Fewest rounds
@@ -127,7 +130,7 @@ export interface ResultsHistory {
   readonly unattributedSeatCount: number;
 }
 
-const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "abandoned", "active"]);
+const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "tie", "abandoned", "active"]);
 
 function emptyTally(): ScenarioTally {
   return { wins: 0, losses: 0, gamesPlayed: 0, bestClearRounds: null };
