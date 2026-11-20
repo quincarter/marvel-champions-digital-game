@@ -144,6 +144,8 @@ export const SCENES = {
   epicSheet: "EpicSheetOverlay",
   /** Civil War Competitive's result sheet: each team's result and the tie-break panel (`scenes/competitive-over.ts`, #883). */
   competitiveOver: "CompetitiveOverOverlay",
+  /** Concede in a Civil War Competitive game: the team's forfeit or leaving alone (`scenes/competitive-concede.ts`, #883). */
+  competitiveConcede: "CompetitiveConcedeOverlay",
   /** A seated guest's "Ask for a change" note to the host (`scenes/room-ask.ts`, #881). */
   roomAsk: "RoomAskOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */

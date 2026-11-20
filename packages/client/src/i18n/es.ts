@@ -816,4 +816,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.cond.opponentsLost": "El otro bando perdió",
   "comp.over.heading": "Resultado de Civil War",
   "comp.over.close": "Cerrar",
+  "comp.over.cancel": "Cancelar",
 };

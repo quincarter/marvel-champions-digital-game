@@ -305,6 +305,12 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #setConfirmingConcede(value: boolean): void {
+    // Civil War Competitive (#883): the team's forfeit or leaving alone, on its own sheet, not the one-line confirm.
+    const { game, perspectiveId } = appSession().store.state;
+    if (value && game?.teams && perspectiveId && !this.#seatGame()) {
+      if (!this.scene.isActive(SCENES.competitiveConcede)) this.scene.launch(SCENES.competitiveConcede);
+      return;
+    }
     this.#confirmingConcede = value;
     this.#draw();
   }

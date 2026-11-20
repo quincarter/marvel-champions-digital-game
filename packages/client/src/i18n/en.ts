@@ -810,4 +810,5 @@ export const en = {
   "comp.cond.opponentsLost": "The other side lost",
   "comp.over.heading": "Civil War result",
   "comp.over.close": "Close",
+  "comp.over.cancel": "Cancel",
 } as const;
