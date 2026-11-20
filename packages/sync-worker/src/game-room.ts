@@ -35,6 +35,7 @@ import {
   FIRST_TABLE,
   LOG_PART_BYTES,
   MAX_CHAT_LENGTH,
+  MAX_LOBBY_SEATS,
   MAX_LOG_BYTES,
   MAX_NAME_LENGTH,
   MAX_ROOM_REFUSALS,
@@ -654,6 +655,9 @@ export class GameRoomLogic {
     this.sockets.set(participant.id, socket);
 
     if (message.ch === "chat") return this.say(socket, participant, message.text);
+    // The pod channel and `follow` arrive with the room logic for several tables; until then they are refused.
+    if (message.ch === "pod" || (message.ch === "room" && message.kind === "follow"))
+      return this.refuse(socket, "not-allowed");
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
     if (message.kind === "propose" || message.kind === "request") return this.fromSeat(socket, participant, message);
     if (message.kind === "proposal-refused" || message.kind === "request-answer") {
@@ -1075,7 +1079,9 @@ export class GameRoomLogic {
         let seats = lobby.seats;
         if (message.seats) {
           const ids = new Set(message.seats.map((s) => s.id));
-          if (ids.size !== message.seats.length) return this.refuse(socket, "bad-message");
+          if (ids.size !== message.seats.length || message.seats.length > MAX_LOBBY_SEATS) {
+            return this.refuse(socket, "bad-message");
+          }
           // A seat id that stays keeps its holder, requests and token; its label may change; a removed one is gone.
           seats = message.seats.map((spec) => {
             const kept = lobby.seats.find((s) => s.id === spec.id);
