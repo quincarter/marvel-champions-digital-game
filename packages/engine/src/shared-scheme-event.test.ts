@@ -13,7 +13,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
-import { replay, startSession } from "./engine.js";
+import { applyCommand, replay, startSession } from "./engine.js";
+import { inboundCommand } from "./pod-commands.js";
 import type { GameEvent } from "./events.js";
 import { podOf } from "./pod.js";
 import { mustInstance, sharedScheme, sharedVillain } from "./query.js";
@@ -76,6 +77,20 @@ const endTurn = (state: GameState, deps: EngineDeps = scripted) => {
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);
   return { state: session.state, events };
+};
+/**
+ * The pod coordinator's acknowledgement of this group's last shared event (`PodState.awaiting`, `sharedAck`): what a
+ * remote coordinator sends once it has applied the event, after which the group plays on.
+ */
+const acked = (state: GameState, deps: EngineDeps = scripted): GameState => {
+  const pod = podOf(state);
+  const result = applyCommand(
+    state,
+    inboundCommand(state, pod.inboundSeq + 1, { kind: "sharedAck", seq: pod.awaiting ?? pod.outboundSeq }),
+    deps,
+  );
+  if (!result.ok) throw new Error(result.error.message);
+  return result.state;
 };
 const emitted = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "sharedEventEmitted" ? [{ seq: e.seq, event: e.event }] : []));
@@ -215,12 +230,16 @@ describe("hand-built: a remote coordinator", () => {
       pod: { ...podOf(local), coordinator: "remote", groupsInPodAtStart: 2, groupsInGameAtStart: 2 },
     };
     const a = play(remote, COMPLETED_1);
-    const b = play(a.state, COMPLETED_1);
+    const b = play(acked(a.state), COMPLETED_1);
     expect(emitted([...a.events, ...b.events]).map((e) => e.seq)).toEqual([1, 2]);
     expect(podOf(b.state).shared).toEqual(podOf(local).shared);
     expect(sharedScheme(b.state)?.finalPlayerPhase).toBe(false);
-    const { state, events } = endTurn(doomDealt(b.state));
+    const { state: waiting, events } = endTurn(doomDealt(acked(b.state)));
     expect(emitted(events).map((e) => e.seq)).toEqual([3]);
+    // The villain phase waits at its next quiet point for the coordinator's answer (`PodState.awaiting`), then goes on.
+    expect(podOf(waiting).awaiting).toBe(3);
+    expect(waiting.step.phase).toBe("villain");
+    const state = acked(waiting);
     expect(state.outcome).toBeNull();
     expect(state.round).toBe(2);
     expect(podOf(state).shared).toEqual(podOf(local).shared);

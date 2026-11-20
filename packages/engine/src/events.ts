@@ -5,7 +5,7 @@ import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, Player
 import type { CardPosition, ChoiceBehalf, PendingChoice, UnavailableOptions } from "./choices.js";
 import type { Adjustment, DelegableCostPart } from "./commands.js";
 import type { GroupId } from "./ids.js";
-import type { SharedEvent, SharedPodState, SharedResult } from "./pod.js";
+import type { PodInboundEvent, PodOutboundEvent, SharedEvent, SharedPodState, SharedResult } from "./pod.js";
 import type {
   AccusationGuess,
   FacedownRole,
@@ -1975,6 +1975,8 @@ export type GameEvent =
    */
   | {
       readonly type: "podEffectRequested";
+      /** This group's outbound number for it (`PodState.outboundSeq`), shared with `sharedEventEmitted`. */
+      readonly seq: number;
       readonly toGroupId: GroupId;
       readonly sourceCardId: CardId;
       readonly abilityId: AbilityId;
@@ -1995,6 +1997,20 @@ export type GameEvent =
    * `cardFlipped`, a `momentRaised`, a `gameEnded`).
    */
   | { readonly type: "sharedResultApplied"; readonly result: SharedResult }
+  /**
+   * An outbound event of the pod other than a shared event (`PodOutboundEvent`; docs/epic-multiplayer-plan.md §4): this
+   * group's status or reachable cards changed, or a remote power was used or resolved. `seq` is this group's next
+   * outbound number, shared with `sharedEventEmitted` and `podEffectRequested`. Only with a remote coordinator.
+   */
+  | { readonly type: "podEventEmitted"; readonly seq: number; readonly event: PodOutboundEvent }
+  /**
+   * `Command externalEvent` was accepted: inbound event `sequence` of the pod's coordinator. A `sharedStateChanged`,
+   * `gameWon` or `gameLost` (and a `stopAfterPhase` in setup) takes effect at once; any other waits for the resolution
+   * in progress to finish and is then logged `podInboundApplied`.
+   */
+  | { readonly type: "podInboundReceived"; readonly sequence: number; readonly kind: PodInboundEvent["kind"] }
+  /** A waiting inbound event of the pod is applied, nothing resolving (MC55 p. 20); what it does follows. */
+  | { readonly type: "podInboundApplied"; readonly kind: PodInboundEvent["kind"] }
   /**
    * Counters that were to be placed on a card and were not, because the card may hold no more of them (`RuleSpec
    * counterLimit`, "Max 1 [per player] synergy counters here"; docs/phase7-wave9.md §3.61). `amount` is the number not

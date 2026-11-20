@@ -324,7 +324,7 @@ import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
-function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+export function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
   const step = state.step;
   if (step.phase !== "player" || step.kind !== "turn") {
     return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);
@@ -6897,7 +6897,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }, 
   return null;
 }
 
-function usableCharacter(
+export function usableCharacter(
   ctx: Ctx,
   playerId: PlayerId,
   characterId: InstanceId,

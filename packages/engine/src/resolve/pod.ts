@@ -8,10 +8,12 @@
  * (Single Group Mode) this engine calls it; with a remote one it only emits, and the results arrive from outside.
  */
 
+import type { EngineDeps } from "../abilities.js";
 import { emit, pushFrames, type Ctx } from "../ctx.js";
 import { endGame } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId } from "../ids.js";
+import { statusActive } from "../keywords.js";
 import {
   applySharedEvent,
   POD_MOMENT,
@@ -19,14 +21,20 @@ import {
   podGroupIds,
   resolveGroup,
   sharedLost,
+  type PodInboundEvent,
+  type PodOutboundEvent,
   type PodState,
+  type ReachableCard,
+  type RemotePower,
   type SharedEvent,
   type SharedPodState,
   type SharedResult,
   type SharedThreatCause,
 } from "../pod.js";
-import { cardOf, getInstance } from "../query.js";
-import type { EffectSpec } from "../spec.js";
+import { cardOf, getInstance, remainingHitPoints } from "../query.js";
+import { activeRules, cardsInPlay, matchesQuery } from "../select.js";
+import type { EffectSpec, TargetRef, ValueSpec } from "../spec.js";
+import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { gameAbilityFrames, pushEffects, pushEvent, type Frame } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -66,7 +74,12 @@ export function emitSharedEvent(
   const numbered: PodState = { ...pod, outboundSeq: seq };
   setPod(ctx, numbered);
   emit(ctx, { type: "sharedEventEmitted", seq, event });
-  if (pod.coordinator !== "local" || !numbered.shared) return;
+  if (pod.coordinator === "remote") {
+    // Wait for the coordinator's answer before playing on (`PodState.awaiting`; MC55 pp. 20, 21).
+    setPod(ctx, { ...numbered, awaiting: seq });
+    return;
+  }
+  if (!numbered.shared) return;
   const { shared, results } = applySharedEvent(numbered.shared, event);
   const stored = setShared(ctx, numbered, shared);
   if (results.length > 0) setPod(ctx, { ...stored, pendingResults: [...(stored.pendingResults ?? []), ...results] });
@@ -171,13 +184,224 @@ export function settlePod(ctx: Ctx): boolean {
     applyInbound(ctx, next);
     return true;
   }
+  const [inbound, ...later] = pod.pendingInbound ?? [];
+  if (inbound !== undefined) {
+    const { pendingInbound: _taken, ...kept } = pod;
+    setPod(ctx, later.length > 0 ? { ...kept, pendingInbound: later } : kept);
+    applyQueuedInbound(ctx, inbound);
+    return true;
+  }
   if (pod.finalPlayerPhase && ctx.state.step.phase !== "player") {
     const { finalPlayerPhase: _over, ...kept } = pod;
     setPod(ctx, kept);
     if (kept.coordinator === "local" && kept.shared?.status === "schemeCompleted") loseToSharedScheme(ctx, kept);
+    // A remote coordinator hears the halt (`groupStatus`) and declares the loss once every group has halted.
+    else if (kept.coordinator === "remote" && kept.shared?.status !== "won") setPod(ctx, { ...kept, halted: true });
     return true;
   }
   return false;
+}
+
+/**
+ * `PodOutboundEvent` other than a shared event (those are `sharedEventEmitted`): numbered with this group's next
+ * outbound number and logged as `podEventEmitted`, which a host forwards to the coordinator. Only with a remote
+ * coordinator; a pod of one group has nobody to tell.
+ */
+export function emitPodEvent(ctx: Ctx, event: PodOutboundEvent): void {
+  const pod = ctx.state.pod;
+  if (!pod || pod.coordinator !== "remote") return;
+  const seq = pod.outboundSeq + 1;
+  setPod(ctx, { ...pod, outboundSeq: seq });
+  emit(ctx, { type: "podEventEmitted", seq, event });
+}
+
+/**
+ * The game ends at once in this group, whatever is resolving (Q6: "Groups stop at their next command boundary";
+ * 55027b "all players in all groups win the game"; MC55 p. 21, every player phase ended: "all players in all groups
+ * lose"). The neutral cards' own lines would record the same outcome (`conclude`); they are not waited for, since a
+ * choice may be open and nothing more resolves here.
+ */
+export function concludeFromCoordinator(ctx: Ctx, result: "gameWon" | "gameLost"): void {
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  if (result === "gameWon") {
+    if (pod.shared && pod.shared.status !== "won") setShared(ctx, pod, { ...pod.shared, status: "won" });
+    endGame(ctx, { result: "win", reason: "villainDefeated" });
+    return;
+  }
+  if (pod.shared) setShared(ctx, pod, sharedLost(pod.shared));
+  endGame(ctx, {
+    result: "loss",
+    reason: "cardAbility",
+    sourceInstanceId: pod.neutral?.mainSchemeInstanceId ?? ctx.state.mainScheme.instanceId,
+  });
+}
+
+/** `PodInboundEvent sharedStateChanged`: this group's copy of the record is replaced. Bookkeeping: no draw, no rule. */
+export function replaceSharedCopy(ctx: Ctx, shared: SharedPodState): void {
+  const pod = ctx.state.pod;
+  if (pod) setShared(ctx, pod, shared);
+}
+
+/** This group stops play (MC55 p. 21; M4). The next `groupStatus` tells the coordinator. */
+export function haltGroup(ctx: Ctx): void {
+  const pod = ctx.state.pod;
+  if (pod && !pod.halted) setPod(ctx, { ...pod, halted: true });
+}
+
+/**
+ * An inbound event applied at a quiet point, nothing resolving (MC55 p. 20: "first finishing any actions or abilities
+ * that are currently resolving"; M3). Logged `podInboundApplied`, then what it does.
+ */
+function applyQueuedInbound(ctx: Ctx, event: PodInboundEvent): void {
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  emit(ctx, { type: "podInboundApplied", kind: event.kind });
+  switch (event.kind) {
+    case "sharedStateChanged":
+      return replaceSharedCopy(ctx, event.shared);
+    case "sharedVillainFlipped":
+      return applyInbound(ctx, "sharedVillainFlipped");
+    case "stopAfterPhase":
+      // MC55 p. 21: "Each group in the middle of a villain phase must finish any abilities currently resolving, then stop
+      // play immediately; each group in the middle of a player phase may finish that phase as normal." (M4.)
+      if (pod.shared?.status === "won") return;
+      if (ctx.state.step.phase === "player") setPod(ctx, { ...pod, finalPlayerPhase: true });
+      else haltGroup(ctx);
+      return;
+    case "gameWon":
+    case "gameLost":
+      return concludeFromCoordinator(ctx, event.kind);
+    case "sharedAck":
+      if (pod.awaiting !== undefined && pod.awaiting <= event.seq) {
+        const { awaiting: _answered, ...kept } = pod;
+        setPod(ctx, kept);
+      }
+      return;
+    case "podEffect":
+      return resolvePodEffect(ctx, event);
+    case "remotePower":
+      return resolveRemotePower(ctx, event);
+    case "remotePowerResolved":
+      return resolveRemotePowerResult(ctx, event);
+  }
+}
+
+/**
+ * `PodInboundEvent podEffect` (docs/phase7-wave9.md §3.67, §3.68): block `block` of the named ability, read from this
+ * group's own registry, resolves here with this group's first player as "you" (M2: "each group's own first player
+ * picks its Synergy environment"), as `resolveInGroup` resolves its own group's block. An ability or block this
+ * registry does not have is an invariant break: every group runs the same card scripts.
+ */
+function resolvePodEffect(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "podEffect" }>): void {
+  const definition = ctx.deps.abilities[event.abilityId];
+  const block = definition ? podBlocksOf(definition.effects)[event.block - 1] : undefined;
+  if (!block) throw new EngineInvariantError(`no inGroup block ${event.block} on ability ${event.abilityId}`);
+  pushEffects(ctx, {
+    effects: (block as Extract<EffectSpec, { kind: "inGroup" }>).effects,
+    selfInstanceId: null,
+    controllerId: ctx.state.firstPlayerId,
+  });
+}
+
+/**
+ * The cards of this group's area other groups of the pod may reach (`RuleSpec reachableFromPod`), in play order, with
+ * the numbers their players need: hit points left for an attack, threat for a thwart.
+ */
+export function reachableCardsOf(state: GameState, deps: EngineDeps): readonly ReachableCard[] {
+  const rules = activeRules(state, deps, "reachableFromPod");
+  if (rules.length === 0) return [];
+  const found: ReachableCard[] = [];
+  for (const id of cardsInPlay(state)) {
+    const card = cardOf(state, id);
+    if (!card) continue;
+    for (const by of ["attack", "thwart"] as const) {
+      if (!rules.some(({ rule, context }) => rule.by === by && matchesQuery(state, id, rule.card, context))) continue;
+      found.push(
+        by === "attack"
+          ? { instanceId: id, cardId: card.id, by, remainingHitPoints: remainingHitPoints(state, id, deps) ?? 0 }
+          : { instanceId: id, cardId: card.id, by, threat: getInstance(state, id)?.threat ?? 0 },
+      );
+    }
+  }
+  return found;
+}
+
+/** Why `id` cannot be reached here by another group's `power` now, or null. */
+export function remoteTargetFault(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  power: RemotePower,
+): string | null {
+  return reachableCardsOf(state, deps).some((card) => card.instanceId === id && card.by === power)
+    ? null
+    : `that card is not in play here, or cannot be ${power === "attack" ? "attacked" : "thwarted"} from another group`;
+}
+
+/**
+ * `PodInboundEvent remotePower` (plan §1.8 M6; MC55 p. 16; 55041 "Any player in your pod can attack The Mangog as if
+ * it were in their game area", 55046 the same for a thwart of Door Between Worlds). The attacker's group has paid and
+ * measured the power (`Command remotePower`); this, the owning group, checks the card is still reachable and deals the
+ * damage or removes the threat with its own rules (toughness, tough, "cannot take damage", its When Defeated). The
+ * result goes back to the attacker's group, with Overkill's excess: owner question 2, option A pending (plan §1.8), the
+ * excess goes to the attacker's own Avatar of Loki, so it is measured here (the hit points left before the damage, none
+ * past a tough status card) and dealt there.
+ *
+ * Engine reading, flagged: the damage is dealt as plain damage by no card of this area, not as an attack here, so this
+ * area's "when a character attacks" abilities do not see it (the attacker is not in this area).
+ */
+function resolveRemotePower(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "remotePower" }>): void {
+  const pod = ctx.state.pod;
+  if (!pod) return;
+  const target = event.targetInstanceId;
+  const refused = remoteTargetFault(ctx.state, ctx.deps, target, event.power);
+  let excess = 0;
+  if (refused === null && event.amount > 0) {
+    if (event.power === "attack") {
+      const left = remainingHitPoints(ctx.state, target, ctx.deps) ?? 0;
+      const tough = statusActive(ctx.state, target, "tough", ctx.deps);
+      excess = event.overkill && !tough ? Math.max(0, event.amount - left) : 0;
+    }
+    const amount: ValueSpec = { kind: "const", value: event.amount };
+    const ref: TargetRef = { kind: "slot", slot: REMOTE_TARGET };
+    pushEffects(ctx, {
+      effects: [
+        event.power === "attack"
+          ? { kind: "dealDamage", target: ref, amount }
+          : { kind: "removeThreat", target: ref, amount },
+      ],
+      selfInstanceId: null,
+      controllerId: ctx.state.firstPlayerId,
+      bindings: { [REMOTE_TARGET]: [target] },
+    });
+  }
+  emitPodEvent(ctx, {
+    type: "remotePowerResolved",
+    groupId: pod.groupId,
+    toGroupId: event.fromGroupId,
+    playerId: event.playerId,
+    targetInstanceId: target,
+    power: event.power,
+    excess,
+    ...(refused === null ? {} : { refused }),
+  });
+}
+
+const REMOTE_TARGET = "remoteTarget";
+
+/**
+ * `PodInboundEvent remotePowerResolved`, in the attacker's group: Overkill's excess is dealt to this group's villain
+ * (RRG 1.8 "Overkill", p. 31: excess damage "is dealt to the villain"; owner question 2, option A pending: the
+ * attacker's own Avatar of Loki). A refusal changes nothing: the power was used (engine reading, flagged).
+ */
+function resolveRemotePowerResult(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "remotePowerResolved" }>): void {
+  if (event.refused !== undefined || event.excess <= 0) return;
+  pushEffects(ctx, {
+    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: event.excess } }],
+    selfInstanceId: null,
+    controllerId: ctx.state.firstPlayerId,
+  });
 }
 
 /**
@@ -213,8 +437,13 @@ export function resolveInGroup(
     const block = definition ? podBlocksOf(definition.effects).findIndex((b) => JSON.stringify(b) === wanted) : -1;
     if (sourceCardId === undefined || frame.abilityId === undefined || block < 0)
       throw new EngineInvariantError("an inGroup block for another group must be part of a card's ability");
+    // Numbered with the group's other outbound events, so the coordinator applies it once (§3.68; plan §4 item 1).
+    const pod = ctx.state.pod;
+    const seq = (pod?.outboundSeq ?? 0) + 1;
+    if (pod) setPod(ctx, { ...pod, outboundSeq: seq });
     emit(ctx, {
       type: "podEffectRequested",
+      seq,
       toGroupId: group,
       sourceCardId,
       abilityId: frame.abilityId,

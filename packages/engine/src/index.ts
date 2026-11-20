@@ -26,6 +26,29 @@ export {
   sharedLost,
   SINGLE_GROUP,
 } from "./pod.js";
+export type { GroupStatus, PodInboundEvent, PodOutbound, PodOutboundEvent, ReachableCard, RemotePower } from "./pod.js";
+export type {
+  CoordinatorErrorCode,
+  CoordinatorGroupState,
+  CoordinatorLogEntry,
+  CoordinatorResult,
+  PodCoordinatorGroupSetup,
+  PodCoordinatorSetup,
+  PodCoordinatorState,
+  PodDelivery,
+  PodInbound,
+} from "./pod-coordinator.js";
+export {
+  coordinatorGroup,
+  createPodCoordinator,
+  inboundSince,
+  markGroupDropped,
+  podmatesOf,
+  receiveOutbound,
+  replayCoordinator,
+} from "./pod-coordinator.js";
+export { groupStatusOf, inboundCommand, podOutboundOf } from "./pod-commands.js";
+export { reachableCardsOf, remoteTargetFault } from "./resolve/pod.js";
 
 export type { GameMode } from "./game-mode.js";
 export { COMPETITIVE_MODE_UNAVAILABLE_MESSAGE, gameModeOf } from "./game-mode.js";
@@ -335,7 +358,7 @@ export { printedResources } from "./resources.js";
 export { pairOfOptionId, pairOptionId, pairSelectionFault, resourceIconsMatch } from "./resolve/pair-cards.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostPartPayers, CostSelection, DelegableCostPart } from "./commands.js";
-export { DELEGABLE_COST_PARTS } from "./commands.js";
+export { DELEGABLE_COST_PARTS, isAuthorityCommand } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { attackPreventedVars, currentActivationFrameId, PAID_CARDS_SLOT, PAID_IN_PLAY_CARDS_SLOT } from "./stack.js";
 export {
