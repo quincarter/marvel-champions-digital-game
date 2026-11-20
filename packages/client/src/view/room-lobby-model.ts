@@ -64,6 +64,10 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
   "bad-message": "room.refusal.generic",
   "too-large": "room.refusal.generic",
   "out-of-order": "room.refusal.generic",
+  // Play-together refusals (#881): the UI agent words them.
+  "not-away": "room.refusal.generic",
+  "not-seated": "room.refusal.generic",
+  strict: "room.refusal.generic",
 };
 
 /** What to say about the room's last refusal, in plain language. */

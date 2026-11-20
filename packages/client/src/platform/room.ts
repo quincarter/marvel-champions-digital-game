@@ -16,10 +16,17 @@ import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { appSession } from "../session.js";
 import { cleanOnlineName } from "../settings.js";
 import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
-import { NO_ROOM, type LobbySeatSpec, type LobbySettingsPatch, type RoomState } from "../live/room-state.js";
+import {
+  NO_ROOM,
+  seatOfPlayerIn,
+  type LobbySeatSpec,
+  type LobbySettingsPatch,
+  type RoomState,
+  type SeatOfPlayer,
+} from "../live/room-state.js";
 import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
 
-export type { RoomState } from "../live/room-state.js";
+export type { RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -111,6 +118,24 @@ export function assignSeat(seat: string, participant: string): void {
 /** Host only: turns down a request for a seat, or takes it from its holder. */
 export function denySeat(seat: string, participant: string): void {
   postRoomCommand({ kind: "room-seat", op: "deny", seat, participant });
+}
+
+/**
+ * Host only: answers a seat holder's request (`RoomState.requests`). Accepted `undo`: the host performs its usual Undo,
+ * then answers; accepted `adjust`: answers yes and the host uses Manual adjust itself; declined: answers no.
+ * (Stub in the API commit: the behavior follows.)
+ */
+export async function answerRequest(_id: string, _accepted: boolean): Promise<void> {}
+
+/** Host only: acts for a held seat whose holder is away (`RoomSeat.away`), until `giveBackSeat`. Stub in the API commit. */
+export function takeOverSeat(_seat: string): void {}
+
+/** Host only: hands a taken-over seat back to its holder. Stub in the API commit. */
+export function giveBackSeat(_seat: string): void {}
+
+/** The seat that plays this engine player (`p1`..), who holds it and whether this device acts for it; null with no seat. */
+export function seatOfPlayer(playerId: string): SeatOfPlayer | null {
+  return seatOfPlayerIn(state, playerId);
 }
 
 /** Sends a chat line (the room trims, caps and rate limits it). */

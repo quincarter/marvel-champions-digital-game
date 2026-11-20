@@ -8,6 +8,7 @@ import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 import {
   MAX_CHAT_KEPT,
   NO_ROOM,
+  playerIdOfSeat,
   type RoomChatLine,
   type RoomConnection,
   type RoomParticipant,
@@ -231,6 +232,9 @@ export class RoomModel {
       mismatch: seat.mismatch === true,
       holderConnected: seat.holder !== undefined && this.#participants.some((p) => p.id === seat.holder),
       mine: meId !== null && seat.holder === meId,
+      player: seat.player === undefined ? null : playerIdOfSeat(seat.player),
+      takenOver: seat.takenOver === true,
+      away: seat.holder !== undefined && !this.#participants.some((p) => p.id === seat.holder),
       requests: (seat.requested ?? []).map((id) => ({ participant: id, name: nameOf(id) })),
       requestedByMe: meId !== null && (seat.requested ?? []).includes(meId),
     }));
