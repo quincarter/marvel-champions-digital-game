@@ -12,7 +12,7 @@
  * what the host reports about that — the game's `record` and any `saveError`.
  */
 
-import { roomStrictOf } from "../view/room-strict.js";
+import { roomUndoOffOf } from "../view/room-strict.js";
 import { seatContext } from "../view/seat-context.js";
 import { heldElsewhere } from "../view/seat-gate.js";
 import { t } from "../i18n/translate.js";
@@ -350,8 +350,8 @@ export class SessionStore {
    */
   async rewindTo(commandCount: number, options?: RewindOptions): Promise<boolean> {
     if (this.#state.inFlight) return false;
-    // A strict lobby room's game takes nothing back (`view/room-strict.ts`); the engine host refuses it too.
-    if (roomStrictOf(this.#state.config)) return false;
+    // A strict room's game, or one whose Undo is Off, takes nothing back (`view/room-strict.ts`); the engine host refuses it too.
+    if (roomUndoOffOf(this.#state.config)) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
       // Worked out from this version: a seat's command the engine applied since (not yet absorbed here) refuses it.

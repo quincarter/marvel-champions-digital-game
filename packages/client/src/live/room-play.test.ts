@@ -52,7 +52,16 @@ const lobby = (playMode: "strict" | "host", seats: object[]) => ({
   ch: "room",
   kind: "lobby",
   code: "ABC234",
-  settings: { playMode, tableRules: {}, mods: [], multiSeat: false, chat: true, ...BUILD },
+  settings: {
+    playMode,
+    undo: playMode === "strict" ? "off" : "ask",
+    cheats: true,
+    tableRules: {},
+    mods: [],
+    multiSeat: false,
+    chat: true,
+    ...BUILD,
+  },
   seats,
 });
 const welcome = (participants: object[] = []) => ({

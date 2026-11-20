@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Command, LegalActions } from "@mc/engine";
 import { MemoryGameStorage } from "./game-storage.js";
-import { EngineSessionCore, STRICT_REFUSAL } from "./session-core.js";
+import { EngineSessionCore, STRICT_REFUSAL, UNDO_OFF_REFUSAL } from "./session-core.js";
 import type { SessionConfig } from "./host.js";
 
 const CONFIG: SessionConfig = {
@@ -57,6 +57,38 @@ describe("a strict lobby room's game", () => {
   test("the live header leaves the play mode out", async () => {
     const { core } = await started({ ...CONFIG, roomPlayMode: "strict" });
     expect(core.liveGame()!.game.config).not.toHaveProperty("roomPlayMode");
+  });
+
+  test("Host control with Undo Off refuses a rewind but not a Manual adjust; Host only and Ask rewind", async () => {
+    const { core, playerId } = await started({ ...CONFIG, roomPlayMode: "host", roomUndo: "off" });
+    await expect(core.rewindTo(0)).rejects.toThrow(UNDO_OFF_REFUSAL);
+    expect(core.liveGame()!.game.commands.length).toBeGreaterThan(0);
+    const adjust = core.dispatch({
+      type: "adjust",
+      playerId,
+      adjustment: { kind: "draw", playerId, count: 1 },
+    } as Command);
+    expect(adjust.ok === false && adjust.error.message === STRICT_REFUSAL).toBe(false);
+    for (const roomUndo of ["host", "ask"] as const) {
+      const room = await started({ ...CONFIG, roomPlayMode: "host", roomUndo });
+      await expect(room.core.rewindTo(0)).resolves.toBeDefined();
+    }
+  });
+
+  test("the live header leaves the undo and cheats settings out", async () => {
+    const { core } = await started({ ...CONFIG, roomPlayMode: "host", roomUndo: "ask", roomCheats: true });
+    const config = core.liveGame()!.game.config;
+    expect(config).not.toHaveProperty("roomUndo");
+    expect(config).not.toHaveProperty("roomCheats");
+  });
+
+  test("a room with Cheats on starts adjusted (header and snapshot say so); one without does not", async () => {
+    const cheats = await started({ ...CONFIG, roomPlayMode: "host", roomUndo: "ask", roomCheats: true });
+    expect(cheats.core.liveGame()!.game.adjusted).toBe(true);
+    const next = cheats.core.dispatch(anyLegalCommand(cheats.core.legalActions(cheats.playerId)));
+    expect(next.ok && next.snapshot.adjusted).toBe(true);
+    const plain = await started({ ...CONFIG, roomPlayMode: "host", roomUndo: "ask" });
+    expect(plain.core.liveGame()!.game.adjusted).toBeUndefined();
   });
 
   test("Host control and a plain watchable game rewind as before", async () => {

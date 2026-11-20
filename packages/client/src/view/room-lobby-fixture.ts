@@ -160,7 +160,9 @@ export function roomLobbyFixture(as: "host" | "guest", variant: FixtureVariant =
     me: { id: host ? "p0" : "p1", name: host ? "Mara (host)" : "Ava" },
     participants,
     settings: {
-      playMode: "strict",
+      playMode: "host",
+      undo: "ask",
+      cheats: true,
       tableRules: {},
       mods: [{ id: "fan-pack", version: "1.2.0" }],
       multiSeat: false,

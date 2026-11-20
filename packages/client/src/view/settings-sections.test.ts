@@ -272,3 +272,15 @@ describe("the Controls row", () => {
     expect(more({ ...base, controls: false })).not.toContain("controls");
   });
 });
+
+describe("the Cheats section for a seated guest (#904)", () => {
+  it("is left out when cheats is false and shown otherwise", () => {
+    const ids = (cheats?: boolean) =>
+      settingsSectionsOf({ guideRowIds: [], cardHover: true, ...(cheats === undefined ? {} : { cheats }) }).map(
+        (s) => s.id,
+      );
+    expect(ids()).toContain("cheats");
+    expect(ids(true)).toContain("cheats");
+    expect(ids(false)).not.toContain("cheats");
+  });
+});

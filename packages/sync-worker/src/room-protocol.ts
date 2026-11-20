@@ -223,6 +223,18 @@ export type LobbyMode = "standard" | "epic";
 /** How the game is played: `strict` is the game as written, `host` lets the host allow Undo, Manual adjust and so on. */
 export type LobbyPlayMode = "strict" | "host";
 
+/**
+ * Who may Undo in the room's game: `off` nobody, `host` the host alone (guests cannot ask), `ask` the host, and guests
+ * may ask the host. Strict rules force `off`; Host control starts at `ask`. See `lobbyUndoFor`.
+ */
+export type LobbyUndo = "off" | "host" | "ask";
+
+/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`ask` when none was or it is unreadable). */
+export function lobbyUndoFor(playMode: LobbyPlayMode, undo: unknown): LobbyUndo {
+  if (playMode === "strict") return "off";
+  return undo === "off" || undo === "host" || undo === "ask" ? undo : "ask";
+}
+
 export interface LobbyMod {
   readonly id: string;
   readonly version: string;
@@ -231,6 +243,13 @@ export interface LobbyMod {
 /** The host's room settings, shown to everyone. `appVersion` and `contentVersion` are the host's build, set by the room. */
 export interface LobbySettings {
   readonly playMode: LobbyPlayMode;
+  /** Who may Undo (`LobbyUndo`); always `off` while `playMode` is `strict`. */
+  readonly undo: LobbyUndo;
+  /**
+   * Cheats on or off (default off). On: the host's own Cheats (Undo past a turn, Manual adjust) work in the room's game
+   * and the game counts for no one's stats or achievements. Fixed once the game starts.
+   */
+  readonly cheats: boolean;
   /** The game's `TableRules`, opaque to the room (at most `MAX_TABLE_RULES_CHARS` of JSON). */
   readonly tableRules: Readonly<Record<string, unknown>>;
   readonly mods: readonly LobbyMod[];
@@ -928,6 +947,8 @@ function isDeck(v: unknown): v is RoomDeck {
 function isSettingsPatch(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (v.playMode !== undefined && v.playMode !== "strict" && v.playMode !== "host") return false;
+  if (v.undo !== undefined && v.undo !== "off" && v.undo !== "host" && v.undo !== "ask") return false;
+  if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
   if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic") return false;

@@ -159,6 +159,8 @@ export function epicRoomFixture(options: EpicFixtureOptions): RoomState {
     participants,
     settings: {
       playMode: "host",
+      undo: "ask",
+      cheats: false,
       tableRules: { epicTimeLimitMinutes: 180 },
       mods: [],
       multiSeat: false,

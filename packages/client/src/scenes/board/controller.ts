@@ -60,7 +60,8 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
-import { roomStrictOf, strictReason } from "../../view/room-strict.js";
+import { roomCheatsOf, roomUndoOffOf, seatUndoReason, undoOffReason } from "../../view/room-strict.js";
+import { seatUndoPolicyOf } from "../../view/room-ask-policy.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { askHost } from "../../platform/room.js";
 import { seatOfPlayerIn } from "../../live/room-state.js";
@@ -81,7 +82,9 @@ import {
  * "Undo past your turn" is Off. On Warn (the default) the player acknowledges first that the game will then stop
  * counting toward stats and achievements; on Allow it goes without asking, and the game is marked all the same.
  */
-const undoRules = (): UndoRules => ({ pastReveals: appSession().settings.undoPastTurn !== "off" });
+const undoRules = (): UndoRules => ({
+  pastReveals: roomCheatsOf(appSession().settings, appSession().store.state.config).undoPastTurn !== "off",
+});
 
 /** What the warning says before an Undo past a reveal. */
 const UNDO_PAST_REVEAL_SENTENCE =
@@ -2062,13 +2065,14 @@ export class BoardController {
     if (seat?.seatGame) {
       if (game.outcome || game.pendingChoice) return null;
       if (!seatOfPlayerIn(seat.room, perspectiveId)?.mine) return null;
-      return seat.room.settings?.playMode === "strict"
-        ? { kind: "unavailable", reason: strictReason() }
-        : { kind: "ask" };
+      // Ask only under the "ask" policy; Host only and Off say why where Undo would be (#904).
+      return seatUndoPolicyOf(seat.room.settings) === "ask"
+        ? { kind: "ask" }
+        : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
     }
-    // Strict rules in a lobby room: Undo stays on the bar, greyed, and says who turned it off.
-    if (roomStrictOf(config)) {
-      return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: strictReason() };
+    // A lobby room that turned Undo off (Strict rules, or the host's Undo setting): Undo stays on the bar, greyed, with why.
+    if (roomUndoOffOf(config)) {
+      return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: undoOffReason(config) };
     }
     // Nevermind after End turn (`view/end-turn-takeback.ts`): the next hero's turn has just begun and nothing else has
     // happened, so the same Undo button takes the End turn back to the hero who pressed it.
@@ -2178,7 +2182,7 @@ export class BoardController {
   #acknowledgeAdjusting(): Promise<boolean> {
     if (
       appSession().store.state.adjusted ||
-      appSession().settings.undoPastTurn === "allow" ||
+      roomCheatsOf(appSession().settings, appSession().store.state.config).undoPastTurn === "allow" ||
       !this.#host.confirmAdjustGame
     ) {
       return Promise.resolve(true);

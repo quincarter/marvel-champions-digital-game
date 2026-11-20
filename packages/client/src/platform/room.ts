@@ -6,6 +6,7 @@
  * Every call is fire-and-forget: its effect arrives as a new `RoomState` through `onRoomState`. A refusal by the room
  * (seat taken, build mismatch, ...) shows as `state.refusal`.
  */
+import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import type { SessionConfig } from "../engine/host.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
@@ -42,6 +43,7 @@ import {
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
   EpicPod,
@@ -226,8 +228,10 @@ export async function answerRequest(id: string, accepted: boolean): Promise<void
   const request = state.requests.find((r) => r.id === id);
   if (state.role !== "host" || !request) return;
   let answer = accepted;
+  // The room's policy decides what may be asked: an undo only under "ask", a change only with cheats on (#904).
+  if (!askAllowedOf(request.what, state.settings)) answer = false;
   // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
-  if (accepted && request.what === "undo") answer = await undoMoveOf(request.from);
+  if (answer && request.what === "undo") answer = await undoMoveOf(request.from);
   postRoomCommand({ kind: "room-answer", id, accepted: answer });
 }
 
@@ -365,6 +369,9 @@ export async function startGame(config: SessionConfig): Promise<void> {
     watchable: true,
     ...(state.roomId ? { room: state.roomId } : {}),
     ...(playMode ? { roomPlayMode: playMode } : {}),
+    // Strict forces Off; a lobby without the setting (an older Worker) reads as its mode's default.
+    ...(playMode ? { roomUndo: lobbyUndoFor(playMode, state.settings?.undo) } : {}),
+    ...(state.settings?.cheats === true ? { roomCheats: true } : {}),
   });
 }
 

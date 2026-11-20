@@ -201,6 +201,26 @@ describe("a live replay source", () => {
     expect(decoded.ok && "watchable" in decoded.file.config).toBe(false);
   });
 
+  test("a header from a room with Cheats on opens adjusted on a guest's device", async () => {
+    const game = await hostedGame(5);
+    const plain = await new ReplayCore(HERE, null).open({
+      kind: "live",
+      header: game.header,
+      commands: game.commands,
+      checksums: game.checksums,
+      outcome: null,
+    });
+    expect(plain.info.adjusted).toBe(false);
+    const cheats = await new ReplayCore(HERE, null).open({
+      kind: "live",
+      header: { ...game.header, adjusted: true },
+      commands: game.commands,
+      checksums: game.checksums,
+      outcome: null,
+    });
+    expect(cheats.info.adjusted).toBe(true);
+  });
+
   test("refuses a header it cannot read", async () => {
     const core = new ReplayCore(HERE, null);
     await expect(

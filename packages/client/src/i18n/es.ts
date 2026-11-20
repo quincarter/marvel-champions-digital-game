@@ -444,6 +444,18 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.mode.host": "Control del anfitrión",
   "room.mode.hostDetail":
     "El anfitrión puede permitir Deshacer y Ajuste manual, y decide cualquier petición de cambio.",
+  "room.undo.title": "Deshacer",
+  "room.undo.reason": "El anfitrión ha desactivado Deshacer",
+  "room.undo.off": "No",
+  "room.undo.offDetail": "Nadie deshace una jugada.",
+  "room.undo.host": "Solo el anfitrión",
+  "room.undo.hostDetail": "El anfitrión puede Deshacer o Retroceder; los invitados no pueden pedirlo.",
+  "room.undo.ask": "Pedir al anfitrión",
+  "room.undo.askDetail": "El anfitrión puede Deshacer, y los invitados pueden pedírselo.",
+  "room.cheats.title": "Trucos",
+  "room.cheats.detail":
+    "El Deshacer más allá de un turno y el Ajuste manual del anfitrión funcionan en esta partida. No cambia al empezar.",
+  "room.cheats.note": "Nadie gana puntos, logros ni estadísticas de una partida con trucos.",
   "room.rules.title": "Reglas de la casa",
   "room.rule.sameName.title": "Héroe y aliado con el mismo nombre",
   "room.rule.sameName.detail": "Un héroe y un aliado con el mismo nombre no pueden estar en juego a la vez.",

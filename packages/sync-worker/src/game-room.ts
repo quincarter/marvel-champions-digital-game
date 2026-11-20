@@ -64,6 +64,7 @@ import {
   type RoomDeck,
   type RoomDeckSummary,
   type LobbySettings,
+  lobbyUndoFor,
   type LobbyState,
   type Participant,
   type RefusalReason,
@@ -111,6 +112,8 @@ export interface RoomCodeHooks {
 /** A new lobby's settings: Strict, no house rules, no mods, one seat each, chat on. The versions are the host's. */
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   playMode: "strict",
+  undo: "off",
+  cheats: false,
   tableRules: {},
   mods: [],
   multiSeat: false,
@@ -419,6 +422,11 @@ export class GameRoomLogic {
     // Another message may have loaded it while this one waited.
     this.lobby ??= stored ?? { settings: { ...DEFAULT_LOBBY_SETTINGS }, seats: [] };
     this.syncTables(this.lobby);
+    // A lobby stored before the undo setting has none: it reads as its mode's default.
+    this.lobby.settings = {
+      ...this.lobby.settings,
+      undo: lobbyUndoFor(this.lobby.settings.playMode, this.lobby.settings.undo),
+    };
     return this.lobby;
   }
 
@@ -1342,8 +1350,24 @@ export class GameRoomLogic {
   ): Promise<boolean> {
     const { settings } = lobby;
     const patch = message.settings;
+    // Cheats are fixed once the game has started: a table's header is the room's sign of that.
+    if (patch?.cheats !== undefined && patch.cheats !== (settings.cheats === true)) {
+      for (const t of this.tables.values()) {
+        await this.ensureLoaded(t);
+        if (t.hasHeader) {
+          this.refuse(socket, "not-allowed");
+          return false;
+        }
+      }
+    }
+    const playMode = patch?.playMode ?? settings.playMode;
+    // Switching to Host control without naming one starts at Ask; Strict forces Off, whatever was sent.
+    const undoChoice = patch?.undo ?? (playMode !== settings.playMode ? undefined : settings.undo);
     const next: LobbySettings = {
       ...settings,
+      playMode,
+      undo: lobbyUndoFor(playMode, undoChoice),
+      cheats: patch?.cheats ?? settings.cheats === true,
       ...(patch?.playMode !== undefined ? { playMode: patch.playMode } : {}),
       ...(patch?.tableRules !== undefined ? { tableRules: patch.tableRules } : {}),
       ...(patch?.mods !== undefined ? { mods: patch.mods.map((m) => ({ ...m })) } : {}),

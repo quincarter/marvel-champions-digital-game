@@ -102,6 +102,20 @@ export interface SessionConfig {
    * and replay files leave it out.
    */
   readonly roomPlayMode?: "strict" | "host";
+  /**
+   * Who may Undo in a lobby room's game (`LobbyUndo` in the sync worker): `"off"` makes the engine host refuse every
+   * rewind (Undo and Back out), `"host"` and `"ask"` allow them on the host's device (a guest's ask is #904). Strict
+   * rooms are `"off"` whatever this says. Set by `platform/room.ts` `startGame`; absent changes nothing. Like
+   * `roomPlayMode`, it never reaches the rules and the live header and replay files leave it out.
+   */
+  readonly roomUndo?: "off" | "host" | "ask";
+  /**
+   * A lobby room's game with Cheats on (the host's lobby setting): the game starts marked adjusted
+   * (`SaveMeta.adjusted`, issue #791) so nobody's stats, achievements or unlock points count it, and the host's own
+   * Settings > Cheats apply to it (`view/room-strict.ts` `roomCheatsOf`). Absent or false: the host's cheats are
+   * unavailable in the room's game. The live header and replay files leave it out (the header carries `adjusted`).
+   */
+  readonly roomCheats?: boolean;
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

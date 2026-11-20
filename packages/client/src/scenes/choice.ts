@@ -179,7 +179,7 @@ import {
 } from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
-import { roomStrictOf } from "../view/room-strict.js";
+import { roomUndoOffOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { choiceTakebackOf } from "../view/end-turn-takeback.js";
 import { seatNoRewind } from "../view/seat-context.js";
@@ -842,7 +842,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const takeback = this.#takebackOf(state, choice);
     const backOutTarget =
       takeback ??
-      (state.perspectiveId && !roomStrictOf(state.config) && !seatNoRewind()
+      (state.perspectiveId && !roomUndoOffOf(state.config) && !seatNoRewind()
         ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId)
         : null);
     let backOutRect: Rect | null = null;
@@ -3621,7 +3621,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (
       !state.perspectiveId ||
       choice.playerId !== state.perspectiveId ||
-      roomStrictOf(state.config) ||
+      roomUndoOffOf(state.config) ||
       seatNoRewind()
     ) {
       return null;
