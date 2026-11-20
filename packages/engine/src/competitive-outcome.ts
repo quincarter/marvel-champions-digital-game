@@ -33,10 +33,11 @@ import { teamInArea, teamOf, teamsOf, type TeamSide, type TeamState } from "./te
  * - `leaderSchemeCompleted`: its leader completed its main scheme (the final stage of the scheme in the enemy team's
  *   area), which is the enemy team losing;
  * - `opponentsDefeated`: every identity of the enemy team was defeated, by any cause (Q8 A);
- * - `opponentsLost`: the enemy team lost some other way a card names for one team (a card's own "the players lose":
- *   MC56 p. 20 QR, "the players" is that team only). Engine reading (authority step 5): MC56 names only the three
- *   above, and a loss of one team is read as the other's win, as for the scheme. An encounter deck emptied with no
- *   discard pile is no loss in competitive play (`loseIfEncounterCardsExhausted`).
+ * - `opponentsLost`: the enemy team lost some other way the rules name for one team (a card's own "the players lose":
+ *   MC56 p. 20 QR, "the players" is that team only; the encounter deck in its area emptied with its discard pile
+ *   empty too: RRG v1.8 "Encounter Deck" p. 17, to which MC56 adds no exception, `loseIfEncounterCardsExhausted`).
+ *   Engine reading (authority step 5): MC56 names only the three above, and a loss of one team is read as the other's
+ *   win, as for the scheme.
  */
 export type CompetitiveCondition =
   | "enemyLeaderDefeated"

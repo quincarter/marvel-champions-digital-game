@@ -734,19 +734,11 @@ export function loseIfEncounterCardsExhausted(ctx: Ctx, deckId: EncounterDeckId)
   if (ctx.state.outcome || ctx.state.step.phase === "setup") return false;
   const piles = ctx.state.encounterDecks[deckId];
   if (!piles || piles.deck.length > 0 || piles.discard.length > 0) return false;
-  if (ctx.state.teams) {
-    // MC56 p. 20 QR ("the players" = your team only), p. 17 (equal phases); RRG v1.8 Encounter Deck p. 16 (empty deck
-    // reshuffles + acceleration, no loss). MC56 p. 17 names the only ways a competitive game is won or lost and
-    // overrides the RRG's game-end rules (Golden Rule, RRG p. 4; rules expert 2026-11-20), so a deck emptied with no
-    // discard pile is no loss: the deck's own team's main scheme takes the acceleration token an empty deck places,
-    // and the deck resets as soon as a card reaches its discard pile (`settlePlayerDecks`). Engine reading: one token
-    // per emptying, not the infinite loop the RRG's cooperative loss stands for.
-    const deckArea = encounterDeckArea(ctx.state, deckId);
-    addAccelerationToken(ctx, deckArea ? mainSchemeFor(ctx.state, deckArea)?.instanceId : undefined);
-    return false;
-  }
+  // RRG v1.8 "Encounter Deck" p. 17: immediate reshuffle + acceleration token; deck and discard both empty = that team loses (MC56 adds no exception; p. 17 equal-phase window applies)
+  // With two teams, `endGame` records the loss for the team whose area holds `deckId` (the other team's
+  // `opponentsLost`) and the game closes once both sides have played an equal number of phases (MC56 p. 17).
   endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" }, { deckId });
-  return true;
+  return !ctx.state.teams || ctx.state.outcome !== null;
 }
 
 /**

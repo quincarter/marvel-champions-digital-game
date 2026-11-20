@@ -1,10 +1,11 @@
 /**
- * Competitive play: a concession (N12) and an encounter deck emptied with no discard pile.
+ * Competitive play: a concession (N12) and an emptied encounter deck.
  *
  * Sources: N12 A per owner decision 2026-11-20 (a team's concession is a forfeit that ends the game at once, with no
  * equal phases and no tie-breaks; one 2v2 player conceding alone removes only that player; conceding fires no defeat
  * effects; RRG v1.8 "Player Elimination" p. 34). MC56 p. 20 QR ("the players" = your team only), p. 17 (equal
- * phases); RRG v1.8 Encounter Deck p. 16 (empty deck reshuffles + acceleration, no loss).
+ * phases); RRG v1.8 "Encounter Deck" p. 17 (an empty deck reshuffles with an acceleration token; deck and discard both
+ * empty is that team's loss).
  */
 
 import { describe, expect, it } from "vitest";
@@ -114,30 +115,58 @@ describe("one 2v2 player concedes alone (N12 A; RRG v1.8 Player Elimination p. 3
   });
 });
 
-describe("an encounter deck emptied with no discard pile in competitive play (RRG v1.8 Encounter Deck p. 16)", () => {
-  it("is no loss: the deck's own team's main scheme takes an acceleration token, and nothing is recorded", () => {
-    let state = competitiveGame(options);
-    const [leaderOne] = state.villains;
-    const deckId = leaderOne!.encounterDeckId;
+// RRG v1.8 "Encounter Deck" p. 17: immediate reshuffle + acceleration token; deck and discard both empty = that team loses (MC56 adds no exception; p. 17 equal-phase window applies)
+describe('an encounter deck emptied in competitive play (RRG v1.8 "Encounter Deck" p. 17)', () => {
+  const tokens = (s: GameState, area: number) => mainSchemeFor(s, s.gameAreas[area]!)!.accelerationTokens;
+  /** Team one's deck (area 0) left with one card and `discard` cards in its discard pile; the other deck untouched. */
+  function withOneCardLeft(discard: number) {
+    const state = competitiveGame(options);
+    const deckId = state.villains[0]!.encounterDeckId;
     const piles = state.encounterDecks[deckId]!;
-    state = {
-      ...state,
-      encounterDecks: { ...state.encounterDecks, [deckId]: { deck: piles.deck.slice(0, 1), discard: [] } },
+    return {
+      deckId,
+      state: {
+        ...state,
+        encounterDecks: {
+          ...state.encounterDecks,
+          [deckId]: { deck: piles.deck.slice(0, 1), discard: piles.deck.slice(1, 1 + discard) },
+        },
+      },
     };
-    const tokens = (s: GameState, area: number) => mainSchemeFor(s, s.gameAreas[area]!)!.accelerationTokens;
-    const before = [tokens(state, 0), tokens(state, 1)];
-    // The registration team's villain phase deals P1 the one card left in that deck.
+  }
+  /** Through both hero phases into the registration team's villain phase, which deals P1 that deck's last card. */
+  function intoVillainPhase(state: GameState) {
     const one = settled(state, { type: "endTurn", playerId: P1 });
     const two = settled(one.state, { type: "endTurn", playerId: P2 });
-    const run = { state: two.state, events: [...one.events, ...two.events] };
-    const emptied = run.events.findIndex(
-      (e) => e.type === "accelerationTokenAdded" && e.schemeInstanceId === undefined,
-    );
-    expect(run.state.outcome).toBeNull();
-    expect(run.state.competitive?.end).toBeUndefined();
-    expect(run.events.some((e) => e.type === "teamResultRecorded" || e.type === "gameEnded")).toBe(false);
-    expect(tokens(run.state, 0)).toBeGreaterThan(before[0]!);
+    return { state: two.state, events: [...one.events, ...two.events] };
+  }
+
+  it("with a discard pile: reshuffled at once, with one acceleration token on that team's main scheme only", () => {
+    const { state, deckId } = withOneCardLeft(3);
+    const before = [tokens(state, 0), tokens(state, 1)];
+    const run = intoVillainPhase(state);
+    const shuffled = run.events.findIndex((e) => e.type === "accelerationTokenAdded");
+    expect(shuffled).toBeGreaterThanOrEqual(0);
+    expect(tokens(run.state, 0)).toBe(before[0]! + 1);
     expect(tokens(run.state, 1)).toBe(before[1]);
-    expect(emptied).toBeGreaterThanOrEqual(0);
+    expect(run.state.encounterDecks[deckId]!.deck.length).toBeGreaterThan(0);
+    expect(run.events.some((e) => e.type === "teamResultRecorded" || e.type === "gameEnded")).toBe(false);
+  });
+
+  it("deck and discard both empty: that team loses, the other's opponentsLost, closing after equal phases", () => {
+    const { state } = withOneCardLeft(0);
+    const run = intoVillainPhase(state);
+    const recorded = run.events.filter((e) => e.type === "teamResultRecorded");
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({ trigger: { teamId: TEAM_TWO, condition: "opponentsLost" } });
+    // MC56 p. 17: in the registration team's villain phase, so the resistance team still plays its villain phase.
+    expect(recorded[0]).toMatchObject({ closesAfter: { teamId: TEAM_TWO, phase: "villain" } });
+    // The game ends only after that phase (`settled` plays it through: its seat has no choice to make).
+    const at = run.events.indexOf(recorded[0]!);
+    const handover = run.events.findIndex((e, i) => i > at && e.type === "activeTeamChanged");
+    const ended = run.events.findIndex((e) => e.type === "gameEnded");
+    expect(handover).toBeGreaterThan(at);
+    expect(ended).toBeGreaterThan(handover);
+    expect(resultOf(run.state)).toEqual({ [TEAM_ONE]: "loss", [TEAM_TWO]: "win" });
   });
 });
