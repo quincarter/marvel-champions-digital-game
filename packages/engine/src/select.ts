@@ -3799,15 +3799,38 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return matching >= (predicate.atLeast ?? 1);
     }
     case "playedThisRound": {
-      const [playerId] = resolvePlayers(state, predicate.player, context);
-      if (playerId === undefined) return false;
-      const played =
+      // Summed over every player the ref names: `each` reads "the first ally played each round" by anyone (Living
+      // Legend; RRG 1.8 FAQ "Steve Rogers (#1B)", p. 59). For `each` that includes a player eliminated since they
+      // played: their ally was still the first played this round. Engine reading: RRG 1.8 "Player Elimination" (p. 34)
+      // says eliminated players "no longer participate", and says nothing of undoing what they already did.
+      const area = predicate.player.kind === "each" ? contextArea(state, context) : null;
+      // In a split game area, the plays made in it or while the players still shared one (`""`), wherever their
+      // players are now (The Once and Future Kang, docs/phase7-wave2.md §3.1). Kang puts every player in an area at
+      // once, so `""` is only ever a play from before the split. Read only while it holds every play this round: a game
+      // saved before it was kept falls back to every player's plays, which can only withhold a "first" (engine reading:
+      // it cannot tell a play from before the split from one in the other area).
+      const inArea = state.playedInAreaThisRound;
+      const total = (counts: Readonly<Record<string, number>>) => Object.values(counts).reduce((a, b) => a + b, 0);
+      if (area && inArea && total(inArea) === total(state.playedByPlayerThisRound)) {
+        const counted = Object.entries(inArea).filter(([key]) => {
+          const at = key.lastIndexOf(":");
+          const [areaKey, type] = [key.slice(0, at), key.slice(at + 1)];
+          return (areaKey === "" || areaKey === area.areaId) && (!predicate.cardType || type === predicate.cardType);
+        });
+        return counted.reduce((sum, [, count]) => sum + count, 0) <= predicate.atMost;
+      }
+      const players =
+        predicate.player.kind === "each"
+          ? state.players.map((p) => p.playerId)
+          : resolvePlayers(state, predicate.player, context);
+      if (players.length === 0) return false;
+      const playedBy = (playerId: PlayerId): number =>
         predicate.cardType === undefined
           ? Object.entries(state.playedByPlayerThisRound)
               .filter(([key]) => key.startsWith(`${playerId}:`))
               .reduce((sum, [, count]) => sum + count, 0)
           : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
-      return played <= predicate.atMost;
+      return players.reduce((sum, playerId) => sum + playedBy(playerId), 0) <= predicate.atMost;
     }
     case "lastPlayedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);

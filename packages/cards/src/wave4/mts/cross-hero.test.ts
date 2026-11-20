@@ -546,6 +546,8 @@ describe("mts basic cards, from Spider-Man (Justice)'s own deck", () => {
       PLAYABLE_DEPS,
     );
     expect(inst(used, tower).exhausted).toBe(true);
+    // "Played", not "you play": any player's next Avenger ally uses it.
+    expect(used.lastingEffects.filter((e) => e.kind === "costReduction")).toMatchObject([{ anyPlayer: true }]);
     // Blade (Avenger, cost 1) is now free.
     const given = moveToHand(used, P1, "21019");
     const [blade] = given.ids as readonly [InstanceId];

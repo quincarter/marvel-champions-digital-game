@@ -407,8 +407,26 @@ export function joinGameArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | 
         ),
     );
   }
+  rekeyPlaysInArea(ctx, fromId, intoId);
   emit(ctx, { type: "gameAreaJoined", fromAreaId: fromId, intoAreaId: intoId, playerIds: leaving.playerIds });
   return duplicateUniqueFrames(ctx, intoId);
+}
+
+/**
+ * The joined area's plays this round become the area it joined's (`""` once everyone shares one again), so "the first
+ * ally played each round" there counts them (`GameState.playedInAreaThisRound`). Engine reading: no source says whether
+ * a combined area shares one "first" of the round; counting both matches a split, which keeps the shared plays.
+ */
+function rekeyPlaysInArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | null): void {
+  const plays = ctx.state.playedInAreaThisRound;
+  if (!plays) return;
+  const rekeyed: Record<string, number> = {};
+  for (const [key, count] of Object.entries(plays)) {
+    const at = key.lastIndexOf(":");
+    const next = key.slice(0, at) === fromId ? `${intoId ?? ""}${key.slice(at)}` : key;
+    rekeyed[next] = (rekeyed[next] ?? 0) + count;
+  }
+  ctx.state = { ...ctx.state, playedInAreaThisRound: rekeyed };
 }
 
 /**

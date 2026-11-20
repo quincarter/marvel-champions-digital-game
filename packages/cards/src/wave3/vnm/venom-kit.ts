@@ -258,7 +258,7 @@ export const VENOM_KIT = defineAbilities({
   // `playRestrictions: { requiresIdentityTrait, maxPerRound: 1 }`, `packages/content/src/data/vnm/cards.ts` —
   // a one-shot event's own play cap, not a repeatable ability's own `limit`). Hero Action: Reduce the resource
   // cost of the next ally played this phase by 2.
-  "20027.welcome-aboard-action": heroAction(reduceNextCardCost(you, 2, "phase", query("ally"))),
+  "20027.welcome-aboard-action": heroAction(reduceNextCardCost(you, 2, "phase", query("ally"), { anyPlayer: true })),
 
   // Shake it Off — Hero Response: After a guardian character takes any amount of damage from an attack, give
   // that character a tough status card.

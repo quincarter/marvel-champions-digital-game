@@ -82,8 +82,10 @@ export const CAP_KIT = defineAbilities({
 
   // Living Legend — Reduce the cost of the first ally played each round by 1.
   // FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally played each round, whatever form it's played in.
+  // "Played" names no player: the first ally any player plays (FAQ 1.2, Caleb: "If you are Captain America when the
+  // first ally is played, then nobody gets a discount that round"), and only while Steve Rogers is in play.
   "03001b.steve-rogers-constant": constant(
-    costModifier({ delta: -1, appliesTo: query("ally"), while: firstThisRound("ally") }),
+    costModifier({ delta: -1, appliesTo: query("ally"), while: firstThisRound("ally", { kind: "each" }) }),
   ),
 
   // Setup: Search your deck and discard pile for the Captain America's Shield upgrade and add it to your hand.
@@ -208,9 +210,11 @@ export const CAP_KIT = defineAbilities({
     }),
   ),
   // Avengers Tower — Action: Exhaust Avengers Tower → reduce the cost of the next Avenger ally played this phase by 1.
+  // "Next Avenger ally played" names no player, so any player's next Avenger ally uses it (cf. Helicarrier's "that
+  // player plays"; the same reading as Mission Team, docs/phase7-wave8.md §3.35).
   "03024.avengers-tower-action": action(
     { cost: exhaustThis },
-    reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER }),
+    reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER }, { anyPlayer: true }),
   ),
 
   // Honorary Avenger — Attach to a friendly character (data). Attached character gets +1 hit point and gains the

@@ -1539,9 +1539,15 @@ function seatNotesOf(state: GameState, playerId: PlayerId | null, deps: EngineDe
 
 function seatEffectsOf(state: GameState, playerId: PlayerId | null): readonly string[] {
   if (playerId === null) return [];
+  // "The next ally played" (`anyPlayer`, #888) waits for any player's play in its player's game area, so every seat
+  // there shows it.
+  const areaOf = (id: PlayerId) => state.gameAreas.find((area) => area.playerIds.includes(id))?.areaId ?? null;
   const reduction = state.lastingEffects.reduce(
     (total, effect) =>
-      effect.kind === "costReduction" && effect.playerId === playerId ? total + effect.amount : total,
+      effect.kind === "costReduction" &&
+      (effect.playerId === playerId || (effect.anyPlayer === true && areaOf(effect.playerId) === areaOf(playerId)))
+        ? total + effect.amount
+        : total,
     0,
   );
   return reduction > 0 ? [`next card costs ${reduction} less`] : [];

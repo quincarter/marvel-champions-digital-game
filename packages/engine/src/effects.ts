@@ -41,6 +41,7 @@ import {
   isOwnedEncounterCard,
   playerCardOwnerOf,
   villainOf,
+  areaOfPlayer,
 } from "./query.js";
 import { hasPerPlayerMainSchemes } from "./per-player-main-schemes.js";
 import type { GameEvent, StatusDiscardCause } from "./events.js";
@@ -2713,9 +2714,16 @@ export function costIncreaseFor(
 
 type CostReductionEffect = Extract<LastingEffect, { kind: "costReduction" }>;
 
-/** Whose play a "next card" reduction waits for: its player's, or any player's ("the next ally played"). */
-const reductionIsFor = (effect: CostReductionEffect, playerId: PlayerId): boolean =>
-  effect.anyPlayer === true || effect.playerId === playerId;
+/**
+ * Whose play a "next card" reduction waits for: its player's, or any player's ("the next ally played") in its player's
+ * game area. The Once and Future Kang insert, "Rules Clarifications": "Cards and components in one game area cannot
+ * affect another game area" (docs/phase7-wave2.md §3.1), so a player in the other area neither gets the reduction nor
+ * uses it up. Competitive mode's per-team areas are scoped the same way.
+ */
+const reductionIsFor = (state: GameState, effect: CostReductionEffect, playerId: PlayerId): boolean =>
+  effect.playerId === playerId ||
+  (effect.anyPlayer === true &&
+    (areaOfPlayer(state, effect.playerId)?.areaId ?? null) === (areaOfPlayer(state, playerId)?.areaId ?? null));
 
 /**
  * The lasting cost changes a play of this card by `playerId` to their own area is priced with and uses up: one bound to
@@ -2732,7 +2740,7 @@ function waitingReductions(
   return state.lastingEffects.filter((effect): effect is CostReductionEffect => {
     if (effect.kind !== "costReduction" || effect.into) return false;
     if (effect.cardInstanceId !== undefined) return effect.cardInstanceId === cardInstanceId;
-    if (!reductionIsFor(effect, playerId)) return false;
+    if (!reductionIsFor(state, effect, playerId)) return false;
     return !effect.cardFilter || matchesQuery(state, cardInstanceId, effect.cardFilter, context);
   });
 }
@@ -2751,7 +2759,7 @@ function areaCostReductions(
       effect.kind === "costReduction" &&
       effect.cardInstanceId === undefined &&
       effect.into?.scenarioPlayArea === area &&
-      reductionIsFor(effect, playerId) &&
+      reductionIsFor(state, effect, playerId) &&
       (!effect.cardFilter || matchesQuery(state, cardInstanceId, effect.cardFilter, context)),
   );
 }

@@ -203,6 +203,8 @@ describe("Captain America pack basic cards, from a Core hero's deck", () => {
     void towerId;
     const used = runWith(PLAYABLE_DEPS, withTower, use(P1, tower, "03024.avengers-tower-action"));
     expect(inst(used, tower).exhausted).toBe(true);
+    // "Played", not "you play": any player's next Avenger ally uses it.
+    expect(used.lastingEffects.filter((e) => e.kind === "costReduction")).toMatchObject([{ anyPlayer: true }]);
     // Squirrel Girl costs 2; with the discount a single card pays for her.
     const given = moveToHand(used, P1, "03013");
     const squirrelGirl = given.ids[0]!;

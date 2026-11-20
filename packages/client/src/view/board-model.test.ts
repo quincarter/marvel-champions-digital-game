@@ -252,6 +252,28 @@ describe("seat rows and what is aimed at a seat", () => {
     expect(characterPanel(reduced, seat.identity.instanceId, CORE_DEPS).effects).toEqual(["next card costs 1 less"]);
   });
 
+  test("a 'next ally played' any player may use (#888) shows on every seat", () => {
+    const seat = otherSeat();
+    const reduced: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        {
+          id: "test-avengers-tower",
+          kind: "costReduction",
+          playerId: seat.playerId,
+          amount: 1,
+          duration: { kind: "endOfPhase" },
+          anyPlayer: true,
+        },
+      ],
+    };
+    const model = boardModel(reduced, viewer, CORE_DEPS);
+
+    expect(model.team[0]!.effects).toEqual(["next card costs 1 less"]);
+    expect(model.me.effects).toEqual(["next card costs 1 less"]);
+  });
+
   test("a card played under another player's control names the seat it came from", () => {
     const seat = otherSeat();
     const lentId = seat.hand[0]!;
