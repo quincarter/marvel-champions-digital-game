@@ -639,7 +639,15 @@ export class GameRoomLogic {
 
     if (message.ch === "chat") return this.say(socket, participant, message.text);
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
-    if (message.kind === "propose") return this.refuse(socket, "not-allowed");
+    // Playing together is not built into the room yet: seat messages are refused.
+    if (
+      message.kind === "propose" ||
+      message.kind === "proposal-refused" ||
+      message.kind === "request" ||
+      message.kind === "request-answer"
+    ) {
+      return this.refuse(socket, "not-allowed");
+    }
     const table = this.tableOf(message.table);
     if (participant.role !== "host" || participant.table !== message.table || !table) {
       return this.refuse(socket, "not-allowed");
@@ -764,7 +772,10 @@ export class GameRoomLogic {
     socket: RoomSocket,
     host: Participant,
     table: Table,
-    message: Exclude<ClientMessage, { ch: "room" } | { ch: "chat" } | { kind: "propose" }>,
+    message: Exclude<
+      ClientMessage,
+      { ch: "room" } | { ch: "chat" } | { kind: "propose" | "proposal-refused" | "request" | "request-answer" }
+    >,
   ): Promise<void> {
     switch (message.kind) {
       case "start": {
@@ -1105,6 +1116,9 @@ export class GameRoomLogic {
         persist = true;
         break;
       }
+      case "take-over":
+      case "give-back":
+        return this.refuse(socket, "not-allowed"); // Not built into the room yet.
       case "seat-deny": {
         if (!isHost) return this.refuse(socket, "not-allowed");
         const seat = seatOf(message.seat);

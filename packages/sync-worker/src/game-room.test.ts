@@ -321,7 +321,7 @@ describe("who may send", () => {
   it("answers propose and say with not-allowed for now, even from the host", async () => {
     const { host, hello, send } = await setup();
     for (const s of [await host(), await hello()]) {
-      await send(s, { ch: "game", kind: "propose", table: "t1", command: {} });
+      await send(s, { ch: "game", kind: "propose", table: "t1", command: {}, base: 0 });
       expect(s.last("refused")!.reason).toBe("not-allowed");
       await send(s, { ch: "chat", kind: "say", text: "hi" });
       expect(s.last("refused")!.reason).toBe("not-allowed");

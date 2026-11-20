@@ -64,6 +64,13 @@ export const CHAT_BURST = 5;
 export const CHAT_BACKLOG_LINES = 50;
 /** A lobby has at most this many seats (Marvel Champions has 1-4 heroes). */
 export const MAX_LOBBY_SEATS = 4;
+/** Proposals per participant: a burst of this many, then `PROPOSAL_PER_SECOND` a second. */
+export const PROPOSAL_BURST = 10;
+export const PROPOSAL_PER_SECOND = 4;
+/** The longest `note` on a `request`, in characters. */
+export const MAX_REQUEST_NOTE_CHARS = 140;
+/** The longest `player` string on a seat. */
+export const MAX_SEAT_PLAYER_CHARS = 64;
 /** A seat's id: chosen by the host's client (for example `s1`..`s4`). */
 export const SEAT_ID_PATTERN = /^[A-Za-z0-9_-]{1,16}$/;
 /** A room code: 6 characters of the transfer alphabet (`CODE_ALPHABET`, no look-alikes). */
@@ -81,9 +88,10 @@ export const ROOM_END_GRACE_MS = 5 * 60 * 1000;
 
 /**
  * Capabilities a side may list in `hello` / `welcome`. `watch` is every room's; a room created with `lobby: true`
- * also advertises `chat` and `seats`. `tables` is not built.
+ * also advertises `chat` and `seats`, and `play` (seat holders propose commands to the host, docs/live-game-rooms.md
+ * section 9). `tables` is not built.
  */
-export type RoomCapability = "watch" | "chat" | "seats" | "tables";
+export type RoomCapability = "watch" | "chat" | "seats" | "play" | "tables";
 
 /** `POST /room` answers 201 with this: the room, and the token that makes its holder the first table's host. */
 export interface RoomCreated {
@@ -199,6 +207,11 @@ export interface LobbySeatSpec {
   readonly id: string;
   /** The hero or deck label, opaque to the room (at most 80 characters). */
   readonly label: string;
+  /**
+   * The engine player (an id, or a seat index) the host assigns to this seat when it starts the game. Opaque to the
+   * room, which only stores and relays it; a seat without one has none yet.
+   */
+  readonly player?: string | number;
 }
 
 export interface LobbySeat extends LobbySeatSpec {
@@ -212,6 +225,11 @@ export interface LobbySeat extends LobbySeatSpec {
    * (A later multi-table step adds a `table` field here.)
    */
   readonly mismatch?: boolean;
+  /**
+   * The host acts for this seat (`take-over`) until it `give-back`s. While set, the holder's proposals for the seat are
+   * refused, so two devices never act for one hero. Stored with the seat.
+   */
+  readonly takenOver?: boolean;
   /** Participants who asked for the seat and await the host's answer. Memory only: a woken room starts with none. */
   readonly requested?: readonly string[];
 }
@@ -232,6 +250,13 @@ export interface ChatLine {
   /** Milliseconds since the epoch, by the room's clock. */
   readonly at: number;
 }
+
+/** Why a table's host turned a proposal down: its `base` is behind the log, not that seat's turn, not legal, or Strict. */
+export type ProposalRefusal = "stale" | "not-your-turn" | "illegal" | "strict";
+const PROPOSAL_REFUSALS: readonly string[] = ["stale", "not-your-turn", "illegal", "strict"];
+
+/** What a seat may ask the host for. */
+export type RequestKind = "undo" | "adjust";
 
 /** A table as the room reports it. */
 export interface TableInfo {
@@ -319,14 +344,53 @@ export type ClientMessage =
       readonly checksums?: TableChecksums;
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
-  // Reserved, not built: a seat's proposal for its table's host to judge.
+  /**
+   * A seat holder's command for its table's host to judge. `base` is the log length the command was built on. The room
+   * forwards it as `proposal`; it is never stored. Lobby rooms only; see `RefusalReason` for the soft refusals.
+   */
   | {
       readonly v: 1;
       readonly ch: "game";
       readonly kind: "propose";
       readonly table: string;
       readonly command: TableCommand;
+      readonly base: number;
     }
+  /** Host only: turn a proposal down. The room sends it to participant `to` alone, as `proposal-refused` without `to`. */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "proposal-refused";
+      readonly table: string;
+      readonly to: string;
+      readonly reason: ProposalRefusal;
+      readonly base: number;
+    }
+  /**
+   * A seat holder asks the host for an Undo or a Manual adjust (Host control rooms only; Strict refuses `strict`).
+   * `what` names it, because `kind` is the message's own discriminator.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "request";
+      readonly table: string;
+      readonly what: RequestKind;
+      readonly note?: string;
+    }
+  /** Host only: answer a `request`. The room sends it to participant `to` alone. */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "request-answer";
+      readonly table: string;
+      readonly to: string;
+      readonly accepted: boolean;
+    }
+  /** Host only: act for an away seat (its holder is disconnected), until `give-back`. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "take-over"; readonly seat: string }
+  /** Host only: hand a taken-over seat back to its holder. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "give-back"; readonly seat: string }
   /** Lobby rooms with chat on: at most `MAX_CHAT_LENGTH` characters; 1 a second per participant, burst `CHAT_BURST`. */
   | { readonly v: 1; readonly ch: "chat"; readonly kind: "say"; readonly text: string };
 
@@ -395,14 +459,46 @@ export type ServerMessage =
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "rewind"; readonly table: string; readonly to: number }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
-  // Reserved, not built: a proposal forwarded to the table's host.
+  /**
+   * To a table's host: a seat holder's `propose`. `from` is the proposer's participant id; `seats` are the seat ids it
+   * holds that may act (not `mismatch`, not taken over), which the host checks against the engine's legal actions.
+   */
   | {
       readonly v: 1;
       readonly ch: "game";
       readonly kind: "proposal";
       readonly table: string;
       readonly from: string;
+      readonly seats: readonly string[];
       readonly command: TableCommand;
+      readonly base: number;
+    }
+  /** To the proposer alone: the host turned its proposal down. Keep following the log. */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "proposal-refused";
+      readonly table: string;
+      readonly reason: ProposalRefusal;
+      readonly base: number;
+    }
+  /** To a table's host: a seat holder's request (`note` cleaned and cut to `MAX_REQUEST_NOTE_CHARS`; empty when none). */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "request";
+      readonly table: string;
+      readonly from: string;
+      readonly what: RequestKind;
+      readonly note: string;
+    }
+  /** To the requester alone: the host's answer. An accepted undo or adjust arrives as the log's own rewind or command. */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "request-answer";
+      readonly table: string;
+      readonly accepted: boolean;
     }
   | ({ readonly v: 1; readonly ch: "chat"; readonly kind: "said" } & ChatLine)
   /** To a joiner of a lobby room with chat on, after `welcome`: the last `CHAT_BACKLOG_LINES` lines, oldest first. */
@@ -411,7 +507,9 @@ export type ServerMessage =
 /**
  * Why a message was refused. `build-mismatch`: the participant's `build` is not the host's (a seat needs both versions
  * equal). `name-required`: a lobby room's `hello` had no usable name (the socket is closed). `rate-limited`: chat over
- * its limit. `multi-seat`: a second seat while the host has `multiSeat` off. Only `bad-message`, `too-large` and
+ * its limit. `multi-seat`: a second seat while the host has `multiSeat` off. `not-seated`: a `propose` or `request` from
+ * someone who holds no seat at that table that may act (a mismatched or taken-over seat does not count). `strict`: a
+ * `request` in a Strict room. `not-away`: `take-over` of a seat whose holder is connected or absent. Only `bad-message`, `too-large` and
  * `not-allowed` count toward the room closing a noisy socket.
  */
 export type RefusalReason =
@@ -424,6 +522,9 @@ export type RefusalReason =
   | "name-required"
   | "build-mismatch"
   | "multi-seat"
+  | "not-seated"
+  | "strict"
+  | "not-away"
   | "seat-taken"
   | "no-such-seat"
   | "no-such-participant";
@@ -442,7 +543,15 @@ function isSeatSpecs(v: unknown): boolean {
   return (
     Array.isArray(v) &&
     v.length <= MAX_LOBBY_SEATS &&
-    v.every((s) => isRecord(s) && isSeatId(s.id) && shortString(s.label, 80))
+    v.every(
+      (s) =>
+        isRecord(s) &&
+        isSeatId(s.id) &&
+        shortString(s.label, 80) &&
+        (s.player === undefined ||
+          (typeof s.player === "string" && s.player.length > 0 && s.player.length <= MAX_SEAT_PLAYER_CHARS) ||
+          (typeof s.player === "number" && Number.isInteger(s.player) && s.player >= 0 && s.player < 1000)),
+    )
   );
 }
 
@@ -501,6 +610,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
       );
     case "room:seat-request":
     case "room:seat-release":
+    case "room:take-over":
+    case "room:give-back":
       return ok(isSeatId(m.seat));
     case "room:seat-assign":
     case "room:seat-deny":
@@ -516,7 +627,24 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "game:end":
       return ok(isTable(m.table));
     case "game:propose":
-      return ok(isTable(m.table) && "command" in m);
+      return ok(isTable(m.table) && "command" in m && isCount(m.base));
+    case "game:proposal-refused":
+      return ok(
+        isTable(m.table) &&
+          typeof m.to === "string" &&
+          m.to.length <= 32 &&
+          typeof m.reason === "string" &&
+          PROPOSAL_REFUSALS.includes(m.reason) &&
+          isCount(m.base),
+      );
+    case "game:request":
+      return ok(
+        isTable(m.table) &&
+          (m.what === "undo" || m.what === "adjust") &&
+          (m.note === undefined || (typeof m.note === "string" && m.note.length <= MAX_REQUEST_NOTE_CHARS * 4)),
+      );
+    case "game:request-answer":
+      return ok(isTable(m.table) && typeof m.to === "string" && m.to.length <= 32 && typeof m.accepted === "boolean");
     case "chat:say":
       return ok(typeof m.text === "string" && m.text.length <= MAX_CHAT_LENGTH * 4);
     default:
