@@ -79,7 +79,7 @@ Owner: `encounter-ai-designer`.
   - New `orderEnemies` choice for effects where "each X attacks/schemes".
   - Attachment host ties and Caught Off Guard / Masters of Mayhem now go to the first player.
 - [x] Encounter deck draw/resolution flow, boost deck mechanics, modular set behavior. The engine mechanics landed in Phases 1–2. Phase 3 moved villain phase steps 1–5 into `villain/phase.ts` and added `auditVillainPhases`, which re-checks them from a game log on its own terms: step order, acceleration, activations per player/form, boost recipients and flips, cards dealt per hazard icon, reveal order, the first player token, decision authority.
-- [x] Exit criteria: `packages/cards/src/villain-ai.test.ts`.
+- [x] Exit criteria: `packages/cards/src/villain-ai-{rhino,klaw,ultron}.test.ts` (games in `packages/cards/src/testing/villain-ai.ts`).
   - 48 games (Rhino/Klaw/Ultron × standard/expert × 1–4 players × 2 seeds) played by scripted players to an outcome, each with a clean villain-phase audit and an identical replay.
   - A passive table (end turn, take the minimum) loses to each scenario with no villain-side input.
 - Readings carried forward (docs/phase3-encounter-ai.md "Readings"):

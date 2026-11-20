@@ -9,8 +9,9 @@ import {
   type GameSetupConfig,
   type GameState,
 } from "@mc/engine";
-import { CORE_DEPS, coreScenario } from "./core/index.js";
-import { playToOutcome } from "./testing/driver.js";
+import { describe, expect, it } from "vitest";
+import { CORE_DEPS, coreScenario } from "../core/index.js";
+import { playToOutcome } from "./driver.js";
 
 /**
  * PLAN.md Phase 3 exit criteria: the opposition plays a legal, rules-correct
@@ -20,6 +21,10 @@ import { playToOutcome } from "./testing/driver.js";
  * independently (step order, activations per player and form, boost cards,
  * encounter cards dealt and revealed, the first player token, and that every
  * decision made on the encounter side's behalf went to the first player).
+ *
+ * The games are split by scenario over `../villain-ai-<scenario>.test.ts`, which Vitest runs in parallel workers: as
+ * one file they took about four minutes of a CI runner (2026-11-20), the slowest file in the cards package. CI gives
+ * the parts a job of their own (scripts/ci-test-plan.mjs).
  */
 
 const DECKS = [
@@ -80,15 +85,17 @@ function playPassively(initial: GameState, maxCommands = 5_000): GameSession {
   return session;
 }
 
-const SCENARIOS = ["rhino", "klaw", "ultron"] as const;
+export const VILLAIN_AI_SCENARIOS = ["rhino", "klaw", "ultron"] as const;
+export type VillainAiScenario = (typeof VILLAIN_AI_SCENARIOS)[number];
 const DIFFICULTIES = ["standard", "expert"] as const;
 
 // Each case plays a whole game (up to 4 seats) to an outcome and audits every villain phase. A slow case takes a
 // few seconds alone, well past vitest's 5 s default once several test runs share the machine.
 const FULL_GAME = { timeout: 30_000 } as const;
 
-describe("the villain side runs itself against scripted players", FULL_GAME, () => {
-  for (const scenario of SCENARIOS) {
+/** The villain-AI games of one scenario, in their own test file. */
+export function villainAiGames(scenario: VillainAiScenario): void {
+  describe("the villain side runs itself against scripted players", FULL_GAME, () => {
     for (const difficulty of DIFFICULTIES) {
       for (const players of [1, 2, 3, 4]) {
         for (const seed of [11, 29]) {
@@ -101,29 +108,30 @@ describe("the villain side runs itself against scripted players", FULL_GAME, () 
         }
       }
     }
-  }
 
-  for (const scenario of SCENARIOS) {
     it(`${scenario}: against a table that only ends turns, the villain side wins on its own`, () => {
       const session = playPassively(setup(coreScenario(scenario, { players: seats(2, 0), seed: 7 })));
       expect(session.state.outcome?.result).toBe("loss");
       expectRulesCorrect(session);
     });
-  }
-});
-
-describe("decisions made on the encounter side's behalf", FULL_GAME, () => {
-  it("always go to the first player, and the audit records who made each one and why", () => {
-    const initial = setup(coreScenario("ultron", { players: seats(4, 0), seed: 1138 }));
-    const { session } = playToOutcome(initial, CORE_DEPS);
-    const audit = auditVillainPhases(session.log, CORE_DEPS);
-    expect(audit.violations).toEqual([]);
-    const decisions = audit.phases.flatMap((phase) =>
-      phase.decisions.map((d) => ({ ...d, firstPlayerId: phase.firstPlayerId })),
-    );
-    expect(decisions.length).toBeGreaterThan(0);
-    for (const decision of decisions) {
-      expect(["player", "firstPlayerTargets", "firstPlayerOrders"]).toContain(decision.authority);
-    }
   });
-});
+}
+
+/** Rides with the Ultron file, the lightest of the three. */
+export function encounterSideDecisions(): void {
+  describe("decisions made on the encounter side's behalf", FULL_GAME, () => {
+    it("always go to the first player, and the audit records who made each one and why", () => {
+      const initial = setup(coreScenario("ultron", { players: seats(4, 0), seed: 1138 }));
+      const { session } = playToOutcome(initial, CORE_DEPS);
+      const audit = auditVillainPhases(session.log, CORE_DEPS);
+      expect(audit.violations).toEqual([]);
+      const decisions = audit.phases.flatMap((phase) =>
+        phase.decisions.map((d) => ({ ...d, firstPlayerId: phase.firstPlayerId })),
+      );
+      expect(decisions.length).toBeGreaterThan(0);
+      for (const decision of decisions) {
+        expect(["player", "firstPlayerTargets", "firstPlayerOrders"]).toContain(decision.authority);
+      }
+    });
+  });
+}

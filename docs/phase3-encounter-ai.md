@@ -74,7 +74,7 @@ A step cut short by the game ending, or cards belonging to an eliminated player,
 
 ## Exit criteria
 
-`packages/cards/src/villain-ai.test.ts` covers the exit criteria:
+`packages/cards/src/villain-ai-{rhino,klaw,ultron}.test.ts` (games in `packages/cards/src/testing/villain-ai.ts`) covers the exit criteria:
 
 - **Scripted matrix:** 48 games — Rhino / Klaw / Ultron × standard / expert × 1–4 players × 2 seeds. Each is played by the scripted greedy driver to an outcome, gets a clean audit, and replays to a deep-equal state.
 - **Passive tables:** one game per scenario where the players only end turns and take the minimum on every choice. The villain side wins on its own, with a clean audit.

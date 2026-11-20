@@ -1,8 +1,8 @@
 // Plans the unit-test jobs of .github/workflows/netlify-deploy.yml: prints the job matrix as JSON.
 //
 // One job per wave folder of the cards package (found on disk, so a new wave needs no workflow edit; the largest
-// waves split in two or three), one for the cards tests outside the wave folders and one for each of their slowest
-// files, and up to four for the other packages. The "cards (shared)" group is defined by exclusion, so a test file
+// waves split in two or three), two for the cards tests outside the wave folders and one for each group of their
+// slowest files, and a few for the other packages. The "cards (shared)" group is defined by exclusion, so a test file
 // outside the wave folders can never fall between the groups. Jobs the changed files can't affect are left out
 // (scripts/lib/test-plan.mjs has the rule); with no list of changed files, as on a push to main, every job runs.
 //
@@ -55,6 +55,17 @@ const SOAKS = [
   },
   { name: "random decks", title: "Random deck soak", paths: ["packages/cards/src/playable/random-decks.test.ts"] },
   { name: "modular matrix", title: "Modular matrix pairings", paths: ["packages/cards/src/modular-matrix.test.ts"] },
+  // The Phase 3 villain-AI games (./testing/villain-ai.ts), one file per scenario. As one file they took about four
+  // minutes and held the shared job at nine (2026-11-20); the three run side by side.
+  {
+    name: "villain AI",
+    title: "Villain AI games",
+    paths: [
+      "packages/cards/src/villain-ai-rhino.test.ts",
+      "packages/cards/src/villain-ai-klaw.test.ts",
+      "packages/cards/src/villain-ai-ultron.test.ts",
+    ],
+  },
 ];
 const soakExcludes = SOAKS.flatMap((soak) => soak.paths)
   .map((path) => `--exclude "**/${path.replace(/^packages\/cards\//, "")}"`)
@@ -62,11 +73,19 @@ const soakExcludes = SOAKS.flatMap((soak) => soak.paths)
 // Waves 6 to 10 have no single slow file but 15 to 28 CPU-minutes of 70 to 120 files each, which made them the slowest
 // jobs once the soaks moved out (11 to 19 minutes, 2026-10-16). Vitest's `--shard` splits them by file count; with
 // that many files of similar length the parts come out about even. About eight CPU-minutes a job.
-const WAVE_SHARDS = { 6: 2, 7: 3, 8: 3, 9: 3, 10: 2 };
+// Wave 11 joined them at about four minutes in one job (2026-11-20).
+const WAVE_SHARDS = { 6: 2, 7: 3, 8: 3, 9: 3, 10: 2, 11: 2 };
+// The cards tests outside the wave folders: about 400 files, 40% of their time spent importing, and with the soaks
+// out no file over about a minute. One job took eight and a half minutes, the slowest of the run (2026-11-20).
+const SHARED_SHARDS = 2;
+// The engine and content tests: about 900 small files, 70% of their time importing. One job took six and a half
+// minutes (2026-11-20).
+const LOWER_SHARDS = 2;
 // The client's one slow file, a two-hero Breakout soak (5 to 6 minutes), runs alone; the other ~490 files are mostly
-// import time (Phaser) and split in two. The client job took 10 to 13 minutes as one (2026-10-16).
+// import time (Phaser) and split in four. The client job took 10 to 13 minutes as one (2026-10-16); in two, the parts
+// took five and eight and a half minutes (2026-11-20).
 const CLIENT_SOAK = "packages/client/src/view/breakout-two-hero-soak.test.ts";
-const CLIENT_SHARDS = 2;
+const CLIENT_SHARDS = 4;
 const shards = (count) => Array.from({ length: count }, (_, index) => index + 1);
 const capitalized = (text) => text[0].toUpperCase() + text.slice(1);
 
@@ -74,13 +93,13 @@ const capitalized = (text) => text[0].toUpperCase() + text.slice(1);
 
 const include = [
   ...(lower.length > 0
-    ? [
-        {
-          name: lower.join(" and "),
-          title: capitalized(`${lower.map((project) => LOWER_TITLE[project]).join(" and ")} tests`),
-          args: lower.map((project) => `--project @mc/${project}`).join(" "),
-        },
-      ]
+    ? shards(LOWER_SHARDS).map((part) => ({
+        name: `${lower.join(" and ")} (${part}/${LOWER_SHARDS})`,
+        title: capitalized(
+          `${lower.map((project) => LOWER_TITLE[project]).join(" and ")} tests, part ${part} of ${LOWER_SHARDS}`,
+        ),
+        args: `${lower.map((project) => `--project @mc/${project}`).join(" ")} --shard=${part}/${LOWER_SHARDS}`,
+      }))
     : []),
   // The save-transfer Worker's tests take seconds and need nothing from the other packages.
   ...(has("sync-worker")
@@ -104,11 +123,11 @@ const include = [
     : []),
   ...(has("cards")
     ? [
-        {
-          name: "cards (shared)",
-          title: "Shared card tests (core set, campaigns, ability DSL)",
-          args: `--project @mc/cards --exclude "**/src/wave*/**" ${soakExcludes}`,
-        },
+        ...shards(SHARED_SHARDS).map((part) => ({
+          name: `cards (shared ${part}/${SHARED_SHARDS})`,
+          title: `Shared card tests (core set, campaigns, ability DSL), part ${part} of ${SHARED_SHARDS}`,
+          args: `--project @mc/cards --exclude "**/src/wave*/**" ${soakExcludes} --shard=${part}/${SHARED_SHARDS}`,
+        })),
         ...SOAKS.map((soak) => ({
           name: `cards (${soak.name})`,
           title: soak.title,

@@ -1,0 +1,3 @@
+kind: Changed
+body: 'CI unit tests finish sooner: the villain AI games split into one file per scenario with a job of their own, and the shared card tests, the engine and content tests and wave 11 run in two jobs each and the client tests in four, so the slowest unit test job no longer holds the run for eight and a half minutes.'
+time: 2026-11-20T20:35:00.000000+00:00
