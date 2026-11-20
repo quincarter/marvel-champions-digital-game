@@ -45,6 +45,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.trophyRoom]: () => import("./trophy-room.js").then((m) => m.TrophyRoomScene),
   [SCENES.online]: () => import("./online.js").then((m) => m.OnlineScene),
   [SCENES.roomLobby]: () => import("./room-lobby.js").then((m) => m.RoomLobbyScene),
+  [SCENES.roomDeckPicker]: () => import("./room-deck-picker.js").then((m) => m.RoomDeckPickerScene),
   [SCENES.pastGames]: () => import("./past-games.js").then((m) => m.PastGamesScene),
   [SCENES.playerStats]: () => import("./player-stats.js").then((m) => m.PlayerStatsScene),
   [SCENES.extrasReader]: () => import("./extras-reader.js").then((m) => m.ExtrasReaderScene),

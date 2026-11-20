@@ -6,6 +6,7 @@
 import {
   NO_ROOM,
   type RoomChatLine,
+  type RoomDeckSummary,
   type RoomDevice,
   type RoomParticipant,
   type RoomSeat,
@@ -23,7 +24,10 @@ const DEVICES: readonly (RoomDevice | undefined)[] = [
   undefined,
 ];
 
-export function roomLobbyFixture(as: "host" | "guest"): RoomState {
+/** `open`: nobody has a seat or a deck yet; `decks`: seats with decks; `problem`: my deck was turned down at Start. */
+export type FixtureVariant = "open" | "decks" | "problem";
+
+export function roomLobbyFixture(as: "host" | "guest", variant: FixtureVariant = "decks"): RoomState {
   const host = as === "host";
   const participants: RoomParticipant[] = [
     {
@@ -45,10 +49,26 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
       seats: i === 0 ? ["s1"] : [],
     })),
   ];
+  const deck = (
+    hero: string,
+    heroName: string,
+    aspect: string,
+    name: string,
+    over: Partial<RoomDeckSummary> = {},
+  ): RoomDeckSummary => ({
+    hero,
+    heroName,
+    aspects: [aspect],
+    name,
+    cards: 40,
+    mods: [],
+    ...over,
+  });
+  const open = variant === "open";
   const seats: RoomSeat[] = [
     {
       id: "s1",
-      label: "Spider-Man (Justice) — Core Set starter deck|01001a",
+      label: "",
       holder: "p1",
       holderName: "Ava",
       holderConnected: true,
@@ -56,45 +76,54 @@ export function roomLobbyFixture(as: "host" | "guest"): RoomState {
       mine: !host,
       requests: [],
       requestedByMe: false,
-      deck: null,
-      deckProblem: null,
+      deck: open ? null : deck("01001a", "Spider-Man", "justice", "Webs and Justice"),
+      deckProblem:
+        variant === "problem" && !host
+          ? { code: "illegal", reason: "Spider-Man (Justice) needs 40 to 50 cards; this deck has 38." }
+          : null,
     },
     {
       id: "s2",
-      label: "She-Hulk (Aggression) — Core Set starter deck|01019a",
+      label: "",
       holder: null,
       holderName: null,
       holderConnected: false,
       mismatch: false,
       mine: false,
-      requests: [
-        { participant: "p2", name: "Ben" },
-        { participant: "p4", name: "Dev" },
-      ],
+      requests: open
+        ? []
+        : [
+            { participant: "p2", name: "Ben" },
+            { participant: "p4", name: "Dev" },
+          ],
       requestedByMe: false,
-      deck: null,
+      deck: open ? null : deck("01019a", "She-Hulk", "aggression", "Smash", { preset: true }),
       deckProblem: null,
     },
     {
       id: "s3",
-      label: "Captain Marvel (Leadership) — Core Set starter deck|01010a",
-      holder: "gone",
-      holderName: "Cleo",
+      label: "",
+      holder: open ? null : "gone",
+      holderName: open ? null : "Cleo",
       holderConnected: false,
       mismatch: false,
       mine: false,
       requests: [],
       requestedByMe: false,
-      deck: null,
+      deck: open
+        ? null
+        : deck("01010a", "Captain Marvel", "leadership", "Higher, Further, Faster", {
+            mods: [{ id: "fan-pack", version: "1.2.0" }],
+          }),
       deckProblem: null,
     },
     {
       id: "s4",
-      label: "Iron Man (Aggression) — Core Set starter deck|01029a",
-      holder: "p5",
-      holderName: "Esi",
-      holderConnected: true,
-      mismatch: true,
+      label: "",
+      holder: open ? null : "p5",
+      holderName: open ? null : "Esi",
+      holderConnected: !open,
+      mismatch: !open,
       mine: false,
       requests: [],
       requestedByMe: false,
