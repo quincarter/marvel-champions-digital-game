@@ -32,18 +32,18 @@ A paid Apple Developer account removes both limits; see [With a paid developer a
 
 ## Which way should I pick?
 
-| Way                             | What you need                         | Refreshing every 7 days                                                 |
-| ------------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
-| [SideStore](#sidestore)         | A computer once, for setup            | On the iPhone itself, no computer                                       |
-| [AltStore](#altstore)           | A Windows PC or Mac on the same Wi-Fi | Automatic while the computer is on, or a tap with it on                 |
-| [Sideloadly](#sideloadly)       | A Windows PC or Mac and a cable       | Install again from the computer (or its auto-refresh)                   |
-| [Scarlet](#scarlet-no-computer) | Only the iPhone                       | None, but it can stop working for a while ([why](#scarlet-no-computer)) |
+| Way                       | What you need                         | Refreshing every 7 days                                 |
+| ------------------------- | ------------------------------------- | ------------------------------------------------------- |
+| [SideStore](#sidestore)   | A computer once, for setup            | On the iPhone itself, no computer                       |
+| [AltStore](#altstore)     | A Windows PC or Mac on the same Wi-Fi | Automatic while the computer is on, or a tap with it on |
+| [Sideloadly](#sideloadly) | A Windows PC or Mac and a cable       | Install again from the computer (or its auto-refresh)   |
 
 **Most players: SideStore.** After a one-time setup on a computer, everything happens on the iPhone. If the setup
 gives you trouble, AltStore or Sideloadly are simpler but need your computer every week.
 
-**No computer at all?** [Scarlet](#scarlet-no-computer) installs the game from Safari on the iPhone, with a catch: read
-its section before you pick it.
+**No computer at all?** Every way here needs a computer at least once. Stay away from sites that offer to install the
+game, or any app, from Safari with no computer: they sign apps with a certificate shared by strangers, and some of them
+push downloads you didn't ask for or send you to unrelated sites.
 
 ## Turn on Developer Mode (iOS 16 and later)
 
@@ -155,42 +155,11 @@ Do the install again with the same `.ipa` and Apple ID: it replaces the app and 
 do this for you: turn on its auto-refresh option (under **Advanced options**) before you click Start, and leave
 Sideloadly's helper running on the computer, on the same Wi-Fi as the iPhone.
 
-## Scarlet (no computer)
-
-Scarlet installs apps with nothing but the iPhone: no computer, no Apple ID, no 7-day refresh and no three-app limit.
-The catch is how it does it. Scarlet signs every app with one certificate shared by all its users, not with your own
-Apple ID, and Apple revokes certificates like that when it notices them. When that happens, **Scarlet and every app it
-installed stop opening at once**, the game included, until Scarlet puts out a newly signed version. That can take
-hours or a few days. Your saves stay on the iPhone while you wait.
-
-Scarlet isn't made by this project. If you can borrow a computer once, [SideStore](#sidestore) is steadier.
-
-### Install Scarlet and the game
-
-1. On the iPhone, open [usescarlet.com](https://usescarlet.com), Scarlet's own site, in Safari and tap **Install**.
-   Other sites with "Scarlet" in their name aren't Scarlet's; don't install from them, and skip any that ask you to
-   share a link or "verify you're human" first.
-2. Follow its steps: iOS asks to allow a profile, which you then install in **Settings → General → VPN & Device
-   Management**. Trust Scarlet's certificate on the same screen if iOS asks, then open Scarlet.
-3. In Safari, open the [latest release](https://github.com/quincarter/marvel-champions-digital-game/releases/latest)
-   and tap the `-iOS-unsigned.ipa` file. Safari saves it to **Files → Downloads**. Wait until it finishes.
-4. In Scarlet, choose its option to install an IPA from Files and pick the `.ipa`. (Or, in Files, touch and hold the
-   `.ipa`, tap **Share** and choose Scarlet.) The button names change between Scarlet versions.
-5. Wait while it installs; the game appears on your Home Screen. Trust its certificate if iOS asks, as in step 2.
-
-### If the game stops opening
-
-When the game and Scarlet's other apps all stop opening together, Apple revoked Scarlet's certificate.
-
-- **Don't delete the game:** deleting it deletes its saves.
-- Wait for Scarlet's newly signed version, install Scarlet again from [usescarlet.com](https://usescarlet.com), then
-  install the same `.ipa` again in Scarlet. Installing over the game normally keeps your saves.
-
 ## Updating to a new version
 
 When a new version is out, the game's Title screen says so and links the release page. Download the new
-`-iOS-unsigned.ipa` and install it the same way, **with the same tool and the same Apple ID** (in Scarlet, just
-install it again). It replaces the old one and keeps your saves. Installing a new version also restarts its 7 days.
+`-iOS-unsigned.ipa` and install it the same way, **with the same tool and the same Apple ID**. It replaces the old one
+and keeps your saves. Installing a new version also restarts its 7 days.
 
 ## With a paid developer account
 
@@ -211,8 +180,6 @@ A paid [Apple Developer Program](https://developer.apple.com/programs/) membersh
 - **"Developer Mode Required":** [turn on Developer Mode](#turn-on-developer-mode-ios-16-and-later).
 - **The game won't open after a week:** it expired. Refresh it (SideStore, AltStore) or install it again (Sideloadly);
   your saves are still there.
-- **The game and Scarlet both stop opening:** Scarlet's certificate was revoked; see
-  [If the game stops opening](#if-the-game-stops-opening).
 - **"Maximum number of apps" or "App ID limit":** a free Apple ID has three active apps and can register ten new apps
   a week. Remove a sideloaded app you no longer use (in SideStore or AltStore, from **My Apps**), or wait a few days.
 - **Still stuck?** Ask on the [community Discord](https://discord.gg/tCy5tqu46j) or

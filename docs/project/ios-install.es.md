@@ -34,18 +34,18 @@ Una cuenta de desarrollador de pago quita los dos límites; mira [Con una cuenta
 
 ## ¿Qué forma elijo?
 
-| Forma                             | Qué necesitas                               | Renovar cada 7 días                                                                        |
-| --------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| [SideStore](#sidestore)           | Un ordenador una vez, para prepararlo       | En el propio iPhone, sin ordenador                                                         |
-| [AltStore](#altstore)             | Un PC con Windows o un Mac en la misma wifi | Automático con el ordenador encendido, o un toque con él encendido                         |
-| [Sideloadly](#sideloadly)         | Un PC con Windows o un Mac y un cable       | Volver a instalar desde el ordenador (o su renovación automática)                          |
-| [Scarlet](#scarlet-sin-ordenador) | Solo el iPhone                              | No hace falta, pero puede dejar de funcionar un tiempo ([por qué](#scarlet-sin-ordenador)) |
+| Forma                     | Qué necesitas                               | Renovar cada 7 días                                                |
+| ------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
+| [SideStore](#sidestore)   | Un ordenador una vez, para prepararlo       | En el propio iPhone, sin ordenador                                 |
+| [AltStore](#altstore)     | Un PC con Windows o un Mac en la misma wifi | Automático con el ordenador encendido, o un toque con él encendido |
+| [Sideloadly](#sideloadly) | Un PC con Windows o un Mac y un cable       | Volver a instalar desde el ordenador (o su renovación automática)  |
 
 **Para la mayoría: SideStore.** Tras prepararlo una vez en un ordenador, todo se hace en el iPhone. Si esa
 preparación te da problemas, AltStore o Sideloadly son más sencillos, pero necesitan el ordenador cada semana.
 
-**¿No tienes ordenador?** [Scarlet](#scarlet-sin-ordenador) instala el juego desde Safari en el iPhone, con una pega:
-lee su apartado antes de elegirlo.
+**¿No tienes ordenador?** Todas las formas de aquí necesitan un ordenador al menos una vez. Evita las webs que
+ofrecen instalar el juego, o cualquier app, desde Safari sin ordenador: firman las apps con un certificado que
+comparten desconocidos, y algunas descargan cosas que no pediste o te llevan a webs que no tienen nada que ver.
 
 ## Activa el modo de desarrollador (iOS 16 y posterior)
 
@@ -157,46 +157,11 @@ Vuelve a instalarlo con el mismo `.ipa` y el mismo Apple ID: sustituye la app y 
 también puede hacerlo por ti: activa su opción de renovación automática (en **Advanced options**) antes de hacer clic
 en Start, y deja el ayudante de Sideloadly abierto en el ordenador, en la misma wifi que el iPhone.
 
-## Scarlet (sin ordenador)
-
-Scarlet instala apps solo con el iPhone: sin ordenador, sin Apple ID, sin renovar cada 7 días y sin el límite de tres
-apps. La pega está en cómo lo hace. Scarlet firma todas las apps con un único certificado que comparten todos sus
-usuarios, no con tu propio Apple ID, y Apple revoca los certificados así cuando los detecta. Cuando pasa, **Scarlet y
-todas las apps que instaló dejan de abrirse a la vez**, el juego incluido, hasta que Scarlet publica una versión
-firmada de nuevo. Puede tardar horas o unos días. Tus partidas siguen en el iPhone mientras esperas.
-
-Scarlet no lo hace este proyecto. Si puedes usar un ordenador una vez, [SideStore](#sidestore) es más estable.
-
-### Instalar Scarlet y el juego
-
-1. En el iPhone, abre [usescarlet.com](https://usescarlet.com), la web propia de Scarlet, en Safari y toca
-   **Install**. Otras webs con «Scarlet» en el nombre no son de Scarlet; no instales desde ellas, y desconfía de las
-   que te piden compartir un enlace o «verificar que eres humano» antes.
-2. Sigue sus pasos: iOS pide permitir un perfil, que luego instalas en **Ajustes → General → VPN y gestión de
-   dispositivos**. Confía en el certificado de Scarlet en esa misma pantalla si iOS lo pide, y abre Scarlet.
-3. En Safari, abre la [última versión](https://github.com/quincarter/marvel-champions-digital-game/releases/latest)
-   y toca el archivo `-iOS-unsigned.ipa`. Safari lo guarda en **Archivos → Descargas**. Espera a que termine.
-4. En Scarlet, elige su opción para instalar un IPA desde Archivos y escoge el `.ipa`. (O, en Archivos, mantén
-   pulsado el `.ipa`, toca **Compartir** y elige Scarlet.) Los nombres de los botones cambian entre versiones de
-   Scarlet.
-5. Espera mientras se instala; el juego aparece en la pantalla de inicio. Confía en su certificado si iOS lo pide,
-   como en el paso 2.
-
-### Si el juego deja de abrirse
-
-Cuando el juego y las demás apps de Scarlet dejan de abrirse a la vez, Apple ha revocado el certificado de Scarlet.
-
-- **No borres el juego:** borrarlo borra sus partidas.
-- Espera a la versión firmada de nuevo de Scarlet, vuelve a instalar Scarlet desde
-  [usescarlet.com](https://usescarlet.com) y luego instala otra vez el mismo `.ipa` en Scarlet. Instalarlo encima del
-  juego normalmente conserva tus partidas.
-
 ## Actualizar a una versión nueva
 
 Cuando sale una versión nueva, la pantalla de título del juego lo avisa y enlaza la página de la versión. Descarga el
-nuevo `-iOS-unsigned.ipa` e instálalo igual, **con la misma herramienta y el mismo Apple ID** (en Scarlet, basta
-con instalarlo otra vez). Sustituye al anterior y conserva tus partidas. Instalar una versión nueva también reinicia
-sus 7 días.
+nuevo `-iOS-unsigned.ipa` e instálalo igual, **con la misma herramienta y el mismo Apple ID**. Sustituye al anterior
+y conserva tus partidas. Instalar una versión nueva también reinicia sus 7 días.
 
 ## Con una cuenta de desarrollador de pago
 
@@ -217,8 +182,6 @@ límites:
 - **«Se requiere el modo de desarrollador»:** [actívalo](#activa-el-modo-de-desarrollador-ios-16-y-posterior).
 - **El juego no abre al cabo de una semana:** ha caducado. Renuévalo (SideStore, AltStore) o vuelve a instalarlo
   (Sideloadly); tus partidas siguen ahí.
-- **El juego y Scarlet dejan de abrirse a la vez:** se revocó el certificado de Scarlet; mira
-  [Si el juego deja de abrirse](#si-el-juego-deja-de-abrirse).
 - **«Número máximo de apps» o «límite de App ID»:** un Apple ID gratuito tiene tres apps activas y puede registrar
   diez apps nuevas por semana. Quita una app instalada así que ya no uses (en SideStore o AltStore, desde
   **My Apps**), o espera unos días.

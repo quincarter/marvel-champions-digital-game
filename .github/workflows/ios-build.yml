@@ -197,7 +197,7 @@ jobs:
           body="$marker
           **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7})
 
-          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID, or Scarlet with no computer.
+          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID.
 
           **No iPhone? iOS Simulator build:** $SIM. On a Mac with Xcode, unzip it, open the Simulator (\`open -a Simulator\`), then run \`xcrun simctl install booted App.app\` (or drag \`App.app\` onto the Simulator window)."
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
