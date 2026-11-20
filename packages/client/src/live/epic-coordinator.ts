@@ -97,9 +97,14 @@ export class IdbEpicLogStore implements EpicLogStore {
   async #run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
     const db = await this.#open();
     return new Promise((resolve, reject) => {
-      const request = work(db.transaction(STORE, mode).objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
+      // A request succeeding does not make the write durable: the transaction can still abort (quota, shutdown), so
+      // resolve only when it completes, and reject on an abort or an error.
+      const tx = db.transaction(STORE, mode);
+      const request = work(tx.objectStore(STORE));
       request.onerror = () => reject(request.error ?? new Error("pod log store request failed"));
+      tx.onabort = () => reject(tx.error ?? request.error ?? new Error("pod log store transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? request.error ?? new Error("pod log store transaction failed"));
+      tx.oncomplete = () => resolve(request.result);
     });
   }
 
