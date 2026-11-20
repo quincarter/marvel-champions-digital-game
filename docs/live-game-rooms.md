@@ -291,3 +291,35 @@ Room and protocol (built, `packages/sync-worker`, capability `play`; the lobby r
   not act until `give-back`. A seat that changes hands loses `takenOver`.
 - The roster's `watchers` count leaves out seat holders (an assigned holder plays); the roster is re-sent when holders
   change. The room has no other presence count.
+
+## 10. Several tables: Trickster Takeover Epic Multiplayer (issue #882, stacked on #881)
+
+Rules: docs/epic-multiplayer-plan.md §1 (settled 2026-11-20: one Loki, God of Lies and one Worlds Collide for the whole
+game; pods scope only the "your pod" abilities). Architecture: that plan's option B, mapped onto rooms:
+
+- **A table per group.** A room in Epic mode holds 2 or more tables (`t1`, `t2`, ...), each a group of 1 to 4 seats with
+  its own host, engine, log, encounter deck and difficulty. Every game message already names its table. Lobby seats gain
+  `table`; the lobby gains `tables` (id, name, pod, difficulty, host participant) and `pods` (which tables share a pod).
+  Each table's host is one of its seat holders, picked by the room host (the organizer). One device may host only one
+  table.
+- **The coordinator runs on the organizer's device.** A pure `PodCoordinator` reducer (plan §4 item 1) owns the shared
+  state: Loki's hit points and flip, Worlds Collide's threat and target, the game outcome, and each table's status. It
+  runs in a worker on the room host's device, which also hosts its own table.
+- **A `pod` channel.** Table hosts send the coordinator their outbound events (`sharedVillainDamaged`,
+  `sharedSchemeThreat`, `mangogEntered`, `doorEntered`, `synergyOffer`, phase status) as `pod:event { table, seq, event }`;
+  the room relays them to the organizer only. The organizer answers with `pod:inbound { table, seq, event }` (`lokiFlipped`,
+  `gameWon`, `gameLost`, `synergyGranted`, `stopAfterPhase`), which the room relays to that table's host, which applies it
+  as an `externalEvent` command at its next command boundary, so each table's log replays alone. The organizer also
+  broadcasts `pod:state` (the shared numbers and every table's status) for every device's pod strip. Events are
+  idempotent by `(table, seq)` and re-sent after a reconnect. The room stores nothing per event; the coordinator's log
+  lives with the organizer's game save.
+- **Cross-table cards.** A player in another table of the same pod may attack The Mangog or thwart Door Between Worlds
+  "as if it were in their game area": the proposal goes to the owning table's host as an ordinary seat proposal with a
+  `remote` marker, judged by that table's engine; Overkill excess goes to the attacker's own Avatar of Loki (owner
+  question pending, building option A).
+- **Lobby.** The organizer picks Epic mode, the number of tables, pods and per-table difficulty, and the optional time
+  limit (shown, not enforced: plan Q-D). Players pick a table and seat.
+- **Board.** A pod strip: Loki's hit points, Worlds Collide's threat and target, each table's round and status, the time
+  limit, a "choose a group in your pod" sheet, and a Loki-flip banner. Watchers can follow any table.
+- **Drops.** A table whose host drops: the table waits; the organizer can mark it abandoned after a timeout (plan Q-C
+  recommendation). The organizer dropping pauses the pod until they return (host migration is #884).
