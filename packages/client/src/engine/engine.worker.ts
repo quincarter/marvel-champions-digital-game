@@ -9,7 +9,7 @@
  * same `EngineHost` interface.
  */
 
-import type { Command, GameOutcome } from "@mc/engine";
+import type { Command, GameEvent, GameOutcome } from "@mc/engine";
 import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
 import { saveReason } from "./save-reason.js";
@@ -20,6 +20,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { isChecksumPosition } from "../replay/replay-file.js";
 import { handleProposal, type ProposalHandlerDeps } from "./live-proposals.js";
+import { handlePodInbound, type PodInboundDeps } from "./live-pod.js";
 import type { LiveControlMessage, LiveGameMessage } from "../live/live-room-protocol.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
@@ -97,15 +98,23 @@ function publishLiveGame(): void {
   if (!livePort || !liveOn) return;
   const live = core.liveGame();
   // A game that is not watchable says so, so the live worker leaves the room of the game that was on the table before.
-  liveSend(live ? { kind: "game", ...live } : { kind: "none" });
+  const pod = live ? core.livePodGame() : null;
+  liveSend(live ? { kind: "game", ...live, ...(pod ? { pod } : {}) } : { kind: "none" });
 }
 
 /** The command just applied, with a checksum when one is due and the outcome when it ended the game. */
-function publishLiveCommand(command: Command, count: number, outcome: GameOutcome | null): void {
+function publishLiveCommand(
+  command: Command,
+  count: number,
+  outcome: GameOutcome | null,
+  events: readonly GameEvent[] = [],
+): void {
   if (!livePort || !liveOn) return;
   const gameKey = core.liveGameKey();
   if (!gameKey) return;
   const checksum = outcome || isChecksumPosition(count) ? core.liveChecksum() : undefined;
+  // Epic Multiplayer: what the command told the pod rides with it, numbered by the engine.
+  const pod = core.livePod(events);
   liveSend({
     kind: "command",
     gameKey,
@@ -113,6 +122,7 @@ function publishLiveCommand(command: Command, count: number, outcome: GameOutcom
     count,
     ...(checksum === undefined ? {} : { checksum }),
     ...(outcome ? { outcome } : {}),
+    ...(pod ? { pod } : {}),
   });
 }
 
@@ -125,8 +135,19 @@ const proposals: ProposalHandlerDeps = {
   after: [
     (_command, snapshot) => announceSaved(saveReason(snapshot)),
     () => publishPresence(),
-    (command, snapshot) => publishLiveCommand(command, snapshot.version, snapshot.state.outcome),
+    (command, snapshot) => publishLiveCommand(command, snapshot.version, snapshot.state.outcome, snapshot.events),
   ],
+};
+
+/** A pod coordinator's inbound event (Epic Multiplayer): `live-pod.ts`, wired the same way. */
+const podInbound: PodInboundDeps = {
+  core,
+  busy: proposals.busy,
+  remote: proposals.remote,
+  after: proposals.after,
+  later: (run) => {
+    setTimeout(run, 25);
+  },
 };
 
 async function handle(request: HostRequest): Promise<void> {
@@ -153,6 +174,10 @@ async function handle(request: HostRequest): Promise<void> {
         livePort.addEventListener("message", (e: MessageEvent<LiveControlMessage>) => {
           if (e.data.kind === "proposal") {
             handleProposal(proposals, e.data);
+            return;
+          }
+          if (e.data.kind === "pod-inbound") {
+            handlePodInbound(podInbound, e.data);
             return;
           }
           // `enabled`: the live-room worker is up (the game follows if it is watchable); `resync`: its log has a gap.
@@ -185,7 +210,12 @@ async function handle(request: HostRequest): Promise<void> {
         if (result.ok) {
           announceSaved(saveReason(result.snapshot));
           publishPresence();
-          publishLiveCommand(request.command, result.snapshot.version, result.snapshot.state.outcome);
+          publishLiveCommand(
+            request.command,
+            result.snapshot.version,
+            result.snapshot.state.outcome,
+            result.snapshot.events,
+          );
         }
         return;
       }

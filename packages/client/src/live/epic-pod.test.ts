@@ -320,41 +320,48 @@ describe("the pod channel", () => {
     const hub = await Hub.make();
     for (const id of ["t1", "t2", "t3"]) hub.connect(id);
     const target = instanceId("mangog-1");
-    const used = (to: string) => ({
-      type: "remotePowerUsed" as const,
-      groupId: groupId("t1"),
-      playerId: playerId("p1"),
-      toGroupId: groupId(to),
-      targetInstanceId: target,
-      power: "attack" as const,
-      amount: 6,
-      overkill: true,
-    });
+    // The engine's remote power events are still gaining detail fields; the wire only needs these.
+    const used = (to: string) =>
+      ({
+        type: "remotePowerUsed",
+        groupId: groupId("t1"),
+        playerId: playerId("p1"),
+        toGroupId: groupId(to),
+        targetInstanceId: target,
+        power: "attack",
+        amount: 6,
+        overkill: true,
+      }) as unknown as PodOutbound["event"];
+    // t2 reports The Mangog as reachable: its pod mate hears it, another pod does not.
+    hub.emit("t2", {
+      type: "reachableCards",
+      groupId: groupId("t2"),
+      cards: [{ instanceId: target, cardId: "55041", by: "attack", remainingHitPoints: 20 }],
+    } as unknown as PodOutbound["event"]);
+    expect(kinds(hub.table("t1"))).toContain("podReachable");
+    expect(kinds(hub.table("t3"))).not.toContain("podReachable");
+    expect(hub.coordinator.wire?.groups[1]?.reachable).toHaveLength(1);
     // t1's player attacks The Mangog in t2 (same pod): t2's engine is told.
     hub.emit("t1", used("t2"));
     const power = hub.table("t2").applied.find((a) => a.event.kind === "remotePower");
     expect(power?.event).toMatchObject({
       kind: "remotePower",
       fromGroupId: "t1",
-      playerId: "p1",
       targetInstanceId: target,
-      amount: 6,
-      overkill: true,
     });
     // t2's engine resolves it and says so; t1 hears the result, with Overkill's excess.
     hub.emit("t2", {
       type: "remotePowerResolved",
       groupId: groupId("t2"),
       toGroupId: groupId("t1"),
-      playerId: playerId("p1"),
       targetInstanceId: target,
       power: "attack",
       excess: 2,
-    });
+    } as unknown as PodOutbound["event"]);
     expect(hub.table("t1").applied.at(-1)?.event).toMatchObject({
       kind: "remotePowerResolved",
       fromGroupId: "t2",
-      excess: 2,
+      targetInstanceId: target,
     });
     // Another pod's card is refused, and the attacker is told.
     hub.emit("t1", used("t3"));

@@ -41,6 +41,9 @@ import { scenarioWithPacks } from "@mc/mod-sdk/game";
 import {
   applyCommand,
   createGame,
+  groupId,
+  inboundCommand,
+  podOutboundOf,
   legalActions as queryLegalActions,
   sessionApply,
   startSession,
@@ -55,7 +58,11 @@ import {
   type IllegalDeck,
   type LegalActions,
   type PlayerId,
+  type PodInboundEvent,
+  type PodOutbound,
+  type PodSetup,
   type SealedGameState,
+  type SharedPodState,
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
@@ -92,6 +99,7 @@ import {
 } from "./game-storage.js";
 import type {
   CardPool,
+  EpicGroupPlacement,
   LegalActionsFor,
   RewindOptions,
   SavedGame,
@@ -301,8 +309,30 @@ const scenarioFor = (config: SessionConfig) => {
       }
     : seated;
   const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
-  return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
+  const withRules = config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
+  return config.epic ? withEpicPlacement(withRules, config.epic) : withRules;
 };
+
+/**
+ * One group of an Epic Multiplayer game (issue #882): `@mc/cards`' `epicGroupScenario`'s last step (the pod record of a
+ * scenario with neutral cards, made a group of a pod with a coordinator outside this engine), applied to a scenario
+ * already built here so packs, tables rules and the rest of the setup go through the one `scenarioFor`.
+ */
+function withEpicPlacement<T extends { readonly pod?: PodSetup }>(setup: T, epic: EpicGroupPlacement): T {
+  if (!setup.pod) throw new Error("this scenario has no neutral cards: it has no Epic Multiplayer Mode");
+  return {
+    ...setup,
+    pod: {
+      ...setup.pod,
+      groupId: groupId(epic.groupId),
+      coordinator: "remote",
+      groupsInPod: epic.groupIdsInPod.length,
+      groupsInGame: epic.groupsInGame,
+      playersInGame: epic.playersInGame,
+      groupIdsInPod: epic.groupIdsInPod.map((id) => groupId(id)),
+    },
+  };
+}
 
 /** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
 const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
@@ -987,6 +1017,44 @@ export class EngineSessionCore {
       if (isChecksumPosition(index + 1)) out[String(index + 1)] = replayChecksum(state);
     }
     return out;
+  }
+
+  /**
+   * Epic Multiplayer: where this group stands for its pod link when the game begins or resumes, or null when the game
+   * has no remote coordinator.
+   */
+  livePodGame(): {
+    readonly groupId: string;
+    readonly inboundSeq: number;
+    readonly shared: SharedPodState | null;
+    readonly players: number;
+  } | null {
+    const state = this.#session?.state;
+    if (state?.pod?.coordinator !== "remote") return null;
+    return {
+      groupId: state.pod.groupId,
+      inboundSeq: state.pod.inboundSeq,
+      shared: state.pod.shared,
+      players: state.startingPlayerCount,
+    };
+  }
+
+  /**
+   * Epic Multiplayer: what the command that produced `events` told the pod (the group's outbound events, numbered by
+   * the engine) and how many inbound events the group has applied now. Null with no remote coordinator.
+   */
+  livePod(
+    events: readonly GameEvent[],
+  ): { readonly outbound: readonly PodOutbound[]; readonly inboundSeq: number } | null {
+    const state = this.#session?.state;
+    if (state?.pod?.coordinator !== "remote") return null;
+    return { outbound: podOutboundOf(state, events), inboundSeq: state.pod.inboundSeq };
+  }
+
+  /** The `externalEvent` command for inbound event `sequence` of the pod coordinator (recorded under the first player). */
+  podInboundCommand(sequence: number, event: PodInboundEvent): Command | null {
+    const state = this.#session?.state;
+    return state?.pod?.coordinator === "remote" ? inboundCommand(state, sequence, event) : null;
   }
 
   /** `replayChecksum` of the current state: the live stream sends one every `CHECKSUM_EVERY` commands. */

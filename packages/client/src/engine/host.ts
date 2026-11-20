@@ -236,6 +236,22 @@ export interface SessionConfig {
    * for a new game with every option off), which then replays exactly as it was created.
    */
   readonly tableRules?: TableRules;
+  /**
+   * Epic Multiplayer (issue #882, docs/epic-multiplayer-plan.md): this game is one group of a pod whose coordinator is
+   * outside the engine (`PodSetup` `coordinator: "remote"`; `@mc/cards`' `epicGroupScenario`). The group's id is its
+   * table's id; `groupIdsInPod` lists every group of its pod in the pod's order. Sent through `scenarioFor` into setup,
+   * so it is part of the save, the live header and the replay baseline: a group replays alone, with no coordinator.
+   * Absent on every other game.
+   */
+  readonly epic?: EpicGroupPlacement;
+}
+
+/** Where a group sits in an Epic Multiplayer game (`@mc/cards`' `EpicGroupPlacement`, with plain string ids). */
+export interface EpicGroupPlacement {
+  readonly groupId: string;
+  readonly groupIdsInPod: readonly string[];
+  readonly groupsInGame: number;
+  readonly playersInGame: number;
 }
 
 /**
