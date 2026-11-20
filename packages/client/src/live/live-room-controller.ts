@@ -47,6 +47,8 @@ export interface LiveRoomControllerDeps {
   /** Rooms and the lobby (issue #880). Absent: the room commands do nothing. */
   readonly room?: {
     readonly build: RoomBuild;
+    /** This device, said in every hello (the lobby's, and the publisher's for a plain watch room). */
+    readonly device?: RoomDevice;
     readonly seatStore: SeatTokenStore;
     /** The saved online name: what a lobby room resumed after a reload says hello with when its record has none. */
     readonly onlineName?: string;
@@ -211,6 +213,7 @@ export class LiveRoomController {
       syncUrl: this.#deps.syncUrl,
       linkBase: this.#deps.watchBase,
       build: room.build,
+      ...(room.device ? { device: room.device } : {}),
       seatStore: room.seatStore,
       onState: (state) => {
         if (this.#session === session) this.#postRoom(state);
@@ -407,6 +410,7 @@ export class LiveRoomController {
       roomId,
       token: hostToken,
       caps: ["watch"],
+      ...(this.#deps.room?.device ? { device: this.#deps.room.device } : {}),
       deps: this.#timers,
       onConnection: (connected) => {
         if (!connected && live.socket === socket) live.publisher.onDisconnected();

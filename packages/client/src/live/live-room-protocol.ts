@@ -21,6 +21,8 @@ export type LiveRoomIn =
       readonly gamePort?: MessagePort;
       /** This build, as rooms compare it (`hello.build`): `CLIENT_VERSION` and `POOL_VERSION`, read on main. */
       readonly build?: RoomBuild;
+      /** This device's platform and form (`platform/room-device.ts`), read on main; shown in the room's roster. */
+      readonly device?: RoomDevice;
       /** The saved "Online name", the host's name for a lobby room resumed after a reload (`room-host` and `room-join` update it). */
       readonly onlineName?: string;
       /** The presence worker's end, to post status to (Discord's "Watch live" button, a later task). */

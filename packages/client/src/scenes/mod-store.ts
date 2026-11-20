@@ -158,6 +158,8 @@ export interface ModStoreSceneData {
   readonly catalogUrl?: string;
   /** Opens straight onto this pack's page (dev jumps). */
   readonly packId?: string;
+  /** The scene Back returns to from the list (a screen that sent the player here, such as the room lobby); the Title otherwise. */
+  readonly returnTo?: string;
 }
 
 const TAB_HEIGHT = 44;
@@ -235,6 +237,7 @@ export class ModStoreScene extends Phaser.Scene {
   #obstacles: Rect[] = [];
   #redrawQueued = false;
   #alive = false;
+  #returnTo: string = SCENES.title;
 
   constructor() {
     super(SCENES.modStore);
@@ -245,6 +248,7 @@ export class ModStoreScene extends Phaser.Scene {
     this.#redrawQueued = false;
     this.#catalogUrl = data.catalogUrl;
     this.#packId = data.packId ?? null;
+    this.#returnTo = data.returnTo ?? SCENES.title;
     // An install still running from an earlier visit carries on (the scene instance is reused); only a stale failure goes.
     if (this.#install?.error) this.#install = null;
     this.#confirmingRemove = false;
@@ -425,7 +429,7 @@ export class ModStoreScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.title);
+    goToScreen(this, this.#returnTo);
   }
 
   #select(tab: ModStoreTab): void {

@@ -170,7 +170,7 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
-import { keepRoomDraft, roomSetupActive, seatLabelOf, seatSpecsOf } from "../view/room-table-setup.js";
+import { keepRoomDraft, roomSetupActive, seatLabelOf, seatSpecsOf, seatsToClear } from "../view/room-table-setup.js";
 import { cardHoverFactor, tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
 import type { InstanceId } from "@mc/engine";
 import type { GlyphHints } from "../ui/glyph-hints.js";
@@ -3132,7 +3132,12 @@ export class TableSetupScene extends Phaser.Scene {
     });
     keepRoomDraft(this.#draft);
     // Loaded only now: a single-player setup never pulls the room code in.
-    void import("../platform/room.js").then((room) => room.setLobby({ seats: seatSpecsOf(labels) }));
+    void import("../platform/room.js").then((room) => {
+      const specs = seatSpecsOf(labels);
+      // A seat that now names another hero (or is gone) loses its holder: they asked for a different table.
+      for (const { seat, participant } of seatsToClear(room.roomState().seats, specs)) room.denySeat(seat, participant);
+      room.setLobby({ seats: specs });
+    });
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.roomLobby);

@@ -216,8 +216,8 @@ export function seatRows(state: RoomState, ctx: SeatContext): readonly SeatRowVi
 export interface StartContext {
   /** The host has set the table up (a draft with every seat's deck chosen). */
   readonly tableReady: boolean;
-  /** Ids of the packs the table's game would carry. */
-  readonly packsUsed: readonly string[];
+  /** The packs (id and version) the table's game would carry. */
+  readonly packsUsed: readonly LobbyMod[];
 }
 
 /** Why Start is off, or null when the host may press it. */
@@ -232,9 +232,10 @@ export function startBlock(state: RoomState, ctx: StartContext): Words | null {
   if (mismatched) return { key: "room.start.versionMismatch", params: { name: mismatched.holderName ?? "" } };
   const away = state.seats.find((s) => !s.holderConnected);
   if (away) return { key: "room.start.holderAway", params: { name: away.holderName ?? "" } };
-  const allowed = new Set((state.settings?.mods ?? []).map((m) => m.id));
-  const outside = ctx.packsUsed.find((id) => !allowed.has(id));
-  if (outside) return { key: "room.start.modNotAllowed", params: { name: outside } };
+  // Allowed means this pack at this version: guests install the version the host allowed, not another.
+  const allowed = state.settings?.mods ?? [];
+  const outside = ctx.packsUsed.find((p) => !allowed.some((m) => m.id === p.id && m.version === p.version));
+  if (outside) return { key: "room.start.modNotAllowed", params: { name: outside.id } };
   return null;
 }
 
@@ -282,17 +283,15 @@ export function hostModRows(
     id: pack.id,
     version: pack.version,
     name: pack.name,
-    allowed: settings?.mods.some((m) => m.id === pack.id) === true,
+    allowed: settings?.mods.some((m) => m.id === pack.id && m.version === pack.version) === true,
   }));
 }
 
 export function toggleModPatch(settings: LobbySettings, pack: LobbyMod): LobbySettingsPatch {
-  const has = settings.mods.some((m) => m.id === pack.id);
-  return {
-    mods: has
-      ? settings.mods.filter((m) => m.id !== pack.id)
-      : [...settings.mods, { id: pack.id, version: pack.version }],
-  };
+  const has = settings.mods.some((m) => m.id === pack.id && m.version === pack.version);
+  // Turning a pack on replaces any other version of it that was allowed.
+  const others = settings.mods.filter((m) => m.id !== pack.id);
+  return { mods: has ? others : [...others, { id: pack.id, version: pack.version }] };
 }
 
 /** A guest's view of the allowed mods: each with whether this device has it at the room's version. */

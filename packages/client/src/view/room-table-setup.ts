@@ -69,6 +69,23 @@ export function seatSpecsOf(items: readonly SeatItem[]): readonly LobbySeatSpec[
   });
 }
 
+/**
+ * Seats a redone setup changes under their holders: the same seat id now names a different hero (or the seat is gone),
+ * so whoever held it is not seated at the new table. Returns each such seat with its holder, for the host to take back.
+ */
+export function seatsToClear(
+  current: readonly { readonly id: string; readonly label: string; readonly holder: string | null }[],
+  next: readonly LobbySeatSpec[],
+): readonly { readonly seat: string; readonly participant: string }[] {
+  const out: { seat: string; participant: string }[] = [];
+  for (const seat of current) {
+    if (seat.holder === null) continue;
+    const kept = next.find((spec) => spec.id === seat.id);
+    if (!kept || kept.label !== seat.label) out.push({ seat: seat.id, participant: seat.holder });
+  }
+  return out;
+}
+
 /** A seat label from the room, split into its words and its identity card id (none when it carries none). */
 export function parseSeatLabel(label: string): { readonly text: string; readonly cardId: string | null } {
   const at = label.lastIndexOf(CARD_SEPARATOR);

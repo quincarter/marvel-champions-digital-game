@@ -42,6 +42,8 @@ export interface LiveWatcherOptions {
   readonly packs: readonly PackRuntime[];
   readonly emit: (event: LiveWatchEvent) => void;
   readonly deps?: RoomSocketDeps;
+  /** This device's platform and form, said in the watcher's own hello. */
+  readonly device?: RoomDevice;
   /** How long to wait for the room to answer with the game before calling it gone. */
   readonly openTimeoutMs?: number;
   /** How long to wait for a host that has not started the game yet. */
@@ -123,6 +125,7 @@ export class LiveWatcher {
       baseUrl: this.#o.baseUrl,
       roomId: this.#o.roomId,
       caps: CAPS,
+      ...(this.#o.device ? { device: this.#o.device } : {}),
       ...(this.#o.deps ? { deps: this.#o.deps } : {}),
       onGone: () => {
         // The room cannot be reached for good: before the game opened that is "gone", after it the feed is lost.

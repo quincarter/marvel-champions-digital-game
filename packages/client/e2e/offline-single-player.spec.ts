@@ -101,3 +101,45 @@ test("offline: a single-player game with watching on starts, plays, saves and re
   );
   expect(errors.filter((e) => e.startsWith("pageerror"))).toEqual([]);
 });
+
+/**
+ * Before the player chooses Host or Join, nothing online exists: the Title and the Play online screen start no room
+ * worker and open no WebSocket (the room worker is spawned by Host/Join or by a watchable game, never by a visit).
+ */
+test("the Title and Play online start no room worker and open no socket", async ({ page }) => {
+  await installWave6Helpers(page);
+  await quietGuide(page);
+  await page.addInitScript(() => {
+    const seen = { workers: [] as string[], sockets: 0 };
+    (window as unknown as { __mcOnlineSeen: typeof seen }).__mcOnlineSeen = seen;
+    const RealWorker = window.Worker;
+    window.Worker = class extends RealWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        seen.workers.push(options?.name ?? String(url));
+      }
+    } as typeof Worker;
+    const RealSocket = window.WebSocket;
+    window.WebSocket = class extends RealSocket {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        seen.sockets++;
+      }
+    } as typeof WebSocket;
+  });
+  const roomWorkers = (): Promise<{ rooms: number; sockets: number }> =>
+    page.evaluate(() => {
+      const seen = (window as unknown as { __mcOnlineSeen: { workers: string[]; sockets: number } }).__mcOnlineSeen;
+      return { rooms: seen.workers.filter((name) => name.includes("live-room")).length, sockets: seen.sockets };
+    });
+  await page.goto("/");
+  await waitForScene(page, "Title", 30000);
+  await settle(page);
+  expect(await roomWorkers()).toEqual({ rooms: 0, sockets: 0 });
+  await page.evaluate(() => {
+    (window as unknown as { __mcGame: { scene: { start: (key: string) => void } } }).__mcGame.scene.start("Online");
+  });
+  await waitForScene(page, "Online");
+  await settle(page);
+  expect(await roomWorkers()).toEqual({ rooms: 0, sockets: 0 });
+});

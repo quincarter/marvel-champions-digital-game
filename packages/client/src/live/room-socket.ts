@@ -16,6 +16,7 @@ import {
   type RoomBuild,
   type RoomCapability,
   type RoomCodeResolved,
+  type RoomDevice,
   type RoomCreated,
   type RoomError,
   type ServerMessage,
@@ -107,6 +108,8 @@ export interface RoomSocketOptions {
   /** A lobby room asks for these in `hello`: the display name, this build, and the seat tokens to be put back in seats. */
   readonly name?: string;
   readonly build?: RoomBuild;
+  /** The coarse device (platform and form) shown in the roster; any room's hello may carry it. */
+  readonly device?: RoomDevice;
   /** Read at each (re)connect, so a token the room gave since the last hello is presented next time. */
   readonly seatTokens?: () => readonly string[];
   /** The `welcome` arrived (true: game messages may go out) or the socket dropped (false). */
@@ -160,6 +163,7 @@ export class RoomSocket {
         ...(this.#options.token ? { token: this.#options.token } : {}),
         ...(this.#options.name !== undefined ? { name: this.#options.name } : {}),
         ...(this.#options.build ? { build: this.#options.build } : {}),
+        ...(this.#options.device ? { device: this.#options.device } : {}),
         ...tokensOf(this.#options.seatTokens),
         caps: this.#options.caps ?? ["watch"],
       };

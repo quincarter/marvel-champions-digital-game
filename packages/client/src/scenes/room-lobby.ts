@@ -40,6 +40,7 @@ import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import type { ModStoreSceneData } from "./mod-store.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { DeckOption } from "../view/deck-list-model.js";
@@ -172,6 +173,8 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   create(): void {
     this.#alive = true;
+    // A fresh chat field each run: its Enter key is bound again (a stale flag left a rerun's field without it).
+    this.#chatBound = false;
     this.cameras.main.setBackgroundColor(cssOf(PAPER));
     setSeatNote(null);
     if (this.#state.role === "none") {
@@ -205,6 +208,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#clearWidgets();
       this.#chatInput?.destroy();
       this.#chatInput = null;
+      this.#chatBound = false;
     });
     this.#draw();
     fadeScreenIn(this);
@@ -293,8 +297,8 @@ export class RoomLobbyScene extends Phaser.Scene {
     return toSessionConfig(draft, players, scenario, tableRulesOf(settings));
   }
 
-  #packsUsed(config: SessionConfig | null): readonly string[] {
-    return config ? (withLoadedPacks(config).packs?.map((p) => p.id) ?? []) : [];
+  #packsUsed(config: SessionConfig | null): readonly { id: string; version: string }[] {
+    return config ? (withLoadedPacks(config).packs?.map((p) => ({ id: p.id, version: p.version })) ?? []) : [];
   }
 
   #startWords(): Words | null {
@@ -984,6 +988,28 @@ export class RoomLobbyScene extends Phaser.Scene {
             },
           );
           y += name.height + state.height + 10;
+          if (!mod.have) {
+            // The Mod Store, opened on this pack; its Back returns here (the room stays joined).
+            const store: Rect = { x, y, width: w, height: hit.target };
+            const open = (): void => {
+              this.scale.off("resize", this.#draw, this);
+              goToScreen(this, SCENES.modStore, {
+                packId: mod.id,
+                returnTo: SCENES.roomLobby,
+              } satisfies ModStoreSceneData);
+            };
+            this.#button({
+              kind: "secondary",
+              label: t("room.mods.store"),
+              type: { ...typeRole.label, size: 12 },
+              rect: store,
+              onClick: open,
+              clip: guard.clip,
+              suppressClick: guard.suppress,
+            });
+            guard.stop(`modstore:${mod.id}`, store, open);
+            y += hit.target + 10;
+          }
         }
       }
 

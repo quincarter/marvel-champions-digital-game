@@ -65,6 +65,7 @@ export interface RoomSessionDeps {
   /** The web version's address the join link hangs off. */
   readonly linkBase: string;
   readonly build: RoomBuild;
+  readonly device?: RoomDevice;
   readonly seatStore: SeatTokenStore;
   readonly onState: (state: RoomState) => void;
   readonly now?: () => number;
@@ -361,6 +362,7 @@ export class RoomSession {
       caps: CAPS,
       name: this.#name,
       build: this.#deps.build,
+      ...(this.#deps.device ? { device: this.#deps.device } : {}),
       seatTokens: () => Object.values(this.#tokens),
       deps: this.#timers,
       onConnection: (connected) => {

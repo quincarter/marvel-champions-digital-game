@@ -166,6 +166,13 @@ What a player sees:
   - Chat: on or off.
 - **Start:** the host presses Start when every seat is held. The game starts on the host's device as a watchable
   game; in this PR seated players follow it as watchers with their seats marked (playing it is #881).
+- **Known gap (for #881):** the lobby shows which allowed mods a guest lacks and disables the guest's own Take, but the
+  host can still approve a request or give a seat to a guest who lacks a mod. In this PR seated players only watch, so
+  nothing breaks; #881, where seats play, must refuse or warn at approval and at Start.
+- **A game belongs to one room:** the host's game config carries the lobby's room id (`SessionConfig.room`, left out of
+  live headers and replay files like `watchable`); the room worker attaches a game to the hosted lobby only on a match,
+  so a later single-player game never joins an old lobby. The room is left when the game hands back to the Title, for
+  the host and for a guest leaving the watch.
 
 Room and protocol (built, `packages/sync-worker`; extends `room-protocol.ts`, and a room created without `lobby` behaves
 exactly as watching did):

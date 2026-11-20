@@ -17,6 +17,8 @@ export type ReplayRequest =
       readonly packs: readonly PackRuntime[];
       /** A guest of a lobby room (issue #880): the room worker's end of a `MessagePort`, followed instead of a socket. */
       readonly feed?: MessagePort;
+      /** This device's platform and form, for the watcher's own hello (read on main, `platform/room-device.ts`). */
+      readonly device?: RoomDevice;
     }
   | { readonly kind: "snapshot"; readonly id: number; readonly n: number; readonly played: boolean }
   | { readonly kind: "export"; readonly id: number }

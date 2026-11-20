@@ -8,6 +8,7 @@ import {
   parseSeatLabel,
   seatLabelOf,
   seatSpecsOf,
+  seatsToClear,
 } from "./room-table-setup.js";
 import type { SetupDraft } from "./setup-draft.js";
 
@@ -42,5 +43,17 @@ describe("room table setup", () => {
     expect(seatLabelOf("Spider-Man (Peter Parker)", "Spider-Man (Justice) — Core Set starter deck")).toBe(
       "Spider-Man (Justice) — Core Set starter deck",
     );
+  });
+  it("takes a seat back from its holder when the redone table names another hero there", () => {
+    const current = [
+      { id: "s1", label: "Spider-Man|01001a", holder: "p1" },
+      { id: "s2", label: "She-Hulk|01019a", holder: "p2" },
+      { id: "s3", label: "Iron Man", holder: null },
+    ];
+    const next = seatSpecsOf([
+      { label: "Spider-Man", cardId: "01001a" },
+      { label: "Captain Marvel", cardId: "01010a" },
+    ]);
+    expect(seatsToClear(current, next)).toEqual([{ seat: "s2", participant: "p2" }]);
   });
 });

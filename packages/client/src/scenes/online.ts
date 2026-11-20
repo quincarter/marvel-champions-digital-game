@@ -130,8 +130,9 @@ export class OnlineScene extends Phaser.Scene {
     this.#withName(() => {
       this.#busy = "host";
       this.#message = null;
-      this.#watchFor();
+      // Posted first: the call publishes "connecting" at once, so an old room's state can't answer for this one.
       void hostRoom();
+      this.#watchFor();
       this.#draw();
     });
   }
@@ -153,8 +154,8 @@ export class OnlineScene extends Phaser.Scene {
     this.#withName(() => {
       this.#busy = "join";
       this.#message = null;
-      this.#watchFor();
       void joinRoom(target);
+      this.#watchFor();
       this.#draw();
     });
   }
@@ -293,6 +294,10 @@ export class OnlineScene extends Phaser.Scene {
         onClick: () => this.#join(),
       }),
     );
+    // Enter in the code field joins, as the Join button does.
+    (this.#input.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") this.#join();
+    });
     stops.set("code", { rect: fieldRect, activate: () => this.#input?.focus() });
     stops.set("join", { rect: joinRect, activate: () => this.#join() });
     order.push("code", "join");

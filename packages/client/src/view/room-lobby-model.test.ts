@@ -3,6 +3,7 @@ import { NO_ROOM, type RoomSeat, type RoomState } from "../live/room-state.js";
 import {
   connectionWords,
   guestModRows,
+  hostModRows,
   missingMods,
   participantRows,
   refusalWords,
@@ -152,7 +153,9 @@ describe("startBlock", () => {
     expect(startBlock(room({ role: "host", seats: [{ ...held, holderConnected: false }] }), ready)?.key).toBe(
       "room.start.holderAway",
     );
-    expect(startBlock(host, { ...ready, packsUsed: ["p"] })?.key).toBe("room.start.modNotAllowed");
+    expect(startBlock(host, { ...ready, packsUsed: [{ id: "p", version: "1" }] })?.key).toBe(
+      "room.start.modNotAllowed",
+    );
     expect(startBlock(room({ seats: [held] }), ready)?.key).toBe("room.start.hostOnly");
   });
 });
@@ -168,6 +171,17 @@ describe("host controls", () => {
     expect(toggleModPatch({ ...settings, mods: [{ id: "m", version: "2" }] }, { id: "m", version: "2" })).toEqual({
       mods: [],
     });
+  });
+  it("allows a pack only at the version the host allowed", () => {
+    const held = seat({ holder: "g", holderName: "Guest", holderConnected: true });
+    const ready = { tableReady: true, packsUsed: [] };
+    const withMod = room({ role: "host", seats: [held], settings: { ...settings, mods: [{ id: "p", version: "1" }] } });
+    expect(startBlock(withMod, { ...ready, packsUsed: [{ id: "p", version: "1" }] })).toBeNull();
+    expect(startBlock(withMod, { ...ready, packsUsed: [{ id: "p", version: "2" }] })?.key).toBe(
+      "room.start.modNotAllowed",
+    );
+    expect(hostModRows(withMod.settings, [{ id: "p", version: "2", name: "P" }])[0]?.allowed).toBe(false);
+    expect(toggleModPatch(withMod.settings!, { id: "p", version: "2" })).toEqual({ mods: [{ id: "p", version: "2" }] });
   });
   it("finds the mods a guest lacks, at the same version", () => {
     const allowed = [{ id: "m", version: "2" }];
