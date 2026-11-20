@@ -146,25 +146,16 @@ describe("registry", () => {
     expect(def("56128b.now-its-personal-action").trigger).toMatchObject({ kind: "action" });
   });
 
-  it("competitiveOnlyTexts lists exactly the two sentences the engine cannot run, none dropped", () => {
+  it("competitiveOnlyTexts lists no sentence: every competitive one is scripted (M3, M6)", () => {
     const listed = Object.fromEntries(
       Object.entries(COMPETITIVE_STANDARD_PVP)
         .map(([ref, definition]) => [ref, competitiveOnlyTexts(definition)] as const)
         .filter(([, texts]) => texts.length > 0),
     );
-    // Waits on a leader-versus-leader attack (MC56 p. 14; plan section 1.5, milestone M4).
-    const attack = ["The enemy leader attacks your leader."];
-    // Waits on a team's set-aside leader player cards (plan question 12, milestone M6).
-    const earned = [
-      "Each player on your team chooses 2 of your leader's set-aside player cards and adds them to their hand.",
-    ];
-    // The leader-versus-leader attack is scripted (M3): no marker left for it.
+    // The leader-versus-leader attack is scripted (M3), and so is Now It's Personal's reward (M6).
     expect(JSON.stringify(def("56126.when-revealed-alter-ego"))).toContain("enemyAttacksEnemy");
-    expect(attack).toHaveLength(1);
-    expect(listed).toEqual({
-      "56128b.now-its-personal-action": earned,
-      "56206b.now-its-personal-action": earned,
-    });
+    expect(JSON.stringify(def("56128b.now-its-personal-action"))).toContain("yourLeadersCards");
+    expect(listed).toEqual({});
   });
 
   it("Choosing Sides' cap names the villain (no query yet names a team's enemy leader): pinned so it is not forgotten", () => {

@@ -6341,7 +6341,17 @@ export type CardSelector =
    * of the matching cards at random, from the game's seeded RNG ("Place 1 random set-aside Captive ally facedown beneath
    * this scheme", Captured by Hydra; docs/phase7-wave2.md §3.12).
    */
-  | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
+  | {
+      readonly kind: "encounterSetAside";
+      readonly filter?: TargetQuery;
+      readonly random?: ValueSpec;
+      /**
+       * "Your leader's set-aside player cards" (Now It's Personal, 56128b / 56206b; MC56 p. 16): only the four basic
+       * player cards of the effect's team's own leader still set aside (`TeamState.leaderCardIds`). None in a game
+       * without stored teams, where "your leader" cannot be resolved (MC56 p. 6).
+       */
+      readonly yourLeadersCards?: true;
+    }
   /**
    * The removed-from-game area (`GameState.removedFromGame`): "search the encounter deck, discard pile, set-aside area,
    * **and removed-from-game area** for a copy of your obligation" (Loose Ends, `sm` 27135). Card text that names this

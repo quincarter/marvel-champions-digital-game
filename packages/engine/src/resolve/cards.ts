@@ -63,6 +63,7 @@ import {
   resolvePlayers,
   resolveRef,
   resolveValue,
+  contextTeam,
   effectEncounterDeckId,
 } from "../select.js";
 import type { CardDestination, CardSelector, PlayerZone, ScenarioDeckSource, TargetQuery } from "../spec.js";
@@ -218,7 +219,11 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return pickAtRandom(ctx, ids, resolveValue(ctx.state, selector.random, context));
     }
     case "encounterSetAside": {
-      const matching = [...filtered(state.encounterSetAside, selector.filter)];
+      const own = selector.yourLeadersCards
+        ? ((state.teams ? contextTeam(state, context) : null)?.leaderCardIds ?? [])
+        : null;
+      const pile = own ? state.encounterSetAside.filter((id) => own.includes(id)) : state.encounterSetAside;
+      const matching = [...filtered(pile, selector.filter)];
       if (!selector.random) return matching;
       return pickAtRandom(ctx, matching, resolveValue(ctx.state, selector.random, context));
     }

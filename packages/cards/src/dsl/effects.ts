@@ -1672,6 +1672,11 @@ export const encounterSetAside = (filter?: TargetQuery, opts: { readonly random?
   ...(filter ? { filter } : {}),
   ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
+/**
+ * "Your leader's set-aside player cards" (Now It's Personal, MC56 p. 16): the basic player cards of the effect's team's
+ * own leader still set aside (`CardSelector encounterSetAside.yourLeadersCards`). None cooperatively (MC56 p. 6).
+ */
+export const yourLeadersSetAsideCards = (): CardSelector => ({ kind: "encounterSetAside", yourLeadersCards: true });
 /** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
 /** The removed-from-game area: "search … set-aside area, and removed-from-game area for …" (Loose Ends, 27135). */
