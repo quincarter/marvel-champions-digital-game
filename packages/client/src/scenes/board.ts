@@ -1732,10 +1732,15 @@ export class BoardScene extends Phaser.Scene {
     const cardScale = cardSizeFactor(cardSize);
     this.#scrollDirty = false;
     const roomView = this.#roomView();
+    // Civil War Competitive (#883): the whose-turn line is the bar's own row on every device, naming the active side and
+    // saying when this side is inactive, so a phone never truncates it beside the round chip.
+    const competitiveTurn = model.competitive
+      ? { text: model.competitive.turnLine, tone: model.competitive.inactive ? ("other" as const) : ("mine" as const) }
+      : null;
     const podStrip = this.#podStrip() ?? this.#competitiveStrip(model);
     const stuckPrompt = roomView.prompt === null && this.#podStuck();
     const chromeExtra =
-      (roomView.turn ? TURN_ROW_HEIGHT : 0) +
+      (roomView.turn || competitiveTurn ? TURN_ROW_HEIGHT : 0) +
       (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : stuckPrompt ? PROMPT_ROW_HEIGHT : 0) +
       podStripHeight(podStrip, POD_LINE, 44);
     const atRest = boardLayout(viewport, {
@@ -1815,9 +1820,11 @@ export class BoardScene extends Phaser.Scene {
     const drawTopBand = (): void => {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
-        ...(roomView.turn
-          ? { turn: { text: t(roomView.turn.key, roomView.turn.params), tone: roomView.turn.tone } }
-          : {}),
+        ...(competitiveTurn
+          ? { turn: competitiveTurn }
+          : roomView.turn
+            ? { turn: { text: t(roomView.turn.key, roomView.turn.params), tone: roomView.turn.tone } }
+            : {}),
         ...(roomView.chatOn
           ? {
               chat: {

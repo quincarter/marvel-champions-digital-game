@@ -1552,13 +1552,13 @@ export class RoomLobbyScene extends Phaser.Scene {
           y,
           w,
           {
-            label: t("comp.size.1v1"),
+            label: `${perTeamOf(plan) === 1 ? "✓ " : ""}${t("comp.size.1v1")}`,
             run: () => this.#sendCompetitive(withTeamSize(plan, 1)),
             enabled: perTeamOf(plan) !== 1,
             key: "comp:size1",
           },
           {
-            label: t("comp.size.2v2"),
+            label: `${perTeamOf(plan) === 2 ? "✓ " : ""}${t("comp.size.2v2")}`,
             run: () => this.#sendCompetitive(withTeamSize(plan, 2)),
             enabled: perTeamOf(plan) !== 2,
             key: "comp:size2",
