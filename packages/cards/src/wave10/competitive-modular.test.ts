@@ -54,3 +54,24 @@ describe("competitive modular sets", () => {
     ).toThrow(/resistance set/);
   });
 });
+
+describe("a team's own leader title (MC56 pp. 14, 16)", () => {
+  it("refuses a hero that shares a title with the team's own leader, and allows it on the other team", () => {
+    const iron = (team: 0 | 1) => ({
+      leaderScenarioId: team === 0 ? "registration-iron-man" : "resistance-captain-america",
+      players: [{ starterDeckId: team === 0 ? "core-iron-man-aggression" : "hulkling-protection" }],
+    });
+    // Iron Man's own team fielding Iron Man.
+    expect(() => civilWarCompetitive({ seed: 1, teams: [iron(0), iron(1)] })).toThrow(/shares a title/);
+    // The resistance team may field the Iron Man hero: its leader is Captain America.
+    expect(() =>
+      civilWarCompetitive({
+        seed: 1,
+        teams: [
+          { leaderScenarioId: "registration-iron-man", players: [{ starterDeckId: "tigra-aggression" }] },
+          { leaderScenarioId: "resistance-captain-america", players: [{ starterDeckId: "core-iron-man-aggression" }] },
+        ],
+      }),
+    ).not.toThrow();
+  });
+});

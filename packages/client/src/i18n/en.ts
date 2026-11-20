@@ -813,4 +813,6 @@ export const en = {
   "comp.over.cancel": "Cancel",
   "comp.mode.tapped": "Competitive mode is played in an online room. Play this scenario cooperatively here.",
   "comp.notice.box": "Competitive mode is in online rooms. Hot-seat is coming soon.",
+  "comp.builder.clash":
+    "{hero} shares a title with your leader {leader}. A team cannot field it: pick another hero or leader.",
 } as const;

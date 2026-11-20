@@ -629,12 +629,13 @@ export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCo
   });
   if (!config) return { ok: false, reason: "invalid" };
   // Seats play engine players in team order (registration first, `competitiveSeatOrder`); the proposal judge reads the teams.
+  // Every seat is on a team by now (`canStart` says so); a seat with none gets no player rather than another seat's.
   const order = competitiveSeatOrder(state);
   setLobby({
     seats: state.seats.map((s) => ({
       id: s.id,
       label: s.label,
-      player: `p${Math.max(0, order.indexOf(s.id)) + 1}`,
+      ...(order.includes(s.id) ? { player: `p${order.indexOf(s.id) + 1}` } : {}),
     })),
   });
   const playMode = state.settings?.playMode;

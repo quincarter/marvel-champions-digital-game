@@ -38,3 +38,17 @@ export function sealedScenarioOf(draft: SetupDraft, offer: PlayableScenarioOffer
     ...(draft.extraModularSetIds.length > 0 ? { extraModularSetIds: draft.extraModularSetIds } : {}),
   };
 }
+
+/**
+ * The first hero among `labels` (a team's seat labels: "Spider-Man (Justice)|01001a") whose name is the title of the
+ * team's own leader, or null. A team cannot field an identity that shares a title with its own leader (MC56 pp. 14, 16);
+ * the engine refuses it at Start, and this tells the team before it seals.
+ */
+export function heroSharingLeaderTitle(labels: readonly string[], leaderName: string): string | null {
+  const title = leaderName.trim().toLowerCase();
+  for (const label of labels) {
+    const hero = (label.split("|")[0] ?? "").split(" (")[0]!.trim();
+    if (hero !== "" && hero.toLowerCase() === title) return hero;
+  }
+  return null;
+}

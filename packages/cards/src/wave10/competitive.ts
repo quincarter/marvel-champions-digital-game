@@ -105,6 +105,25 @@ export function civilWarCompetitive(options: CivilWarCompetitiveOptions): GameSe
   for (const config of [facedByRegistration, facedByResistance])
     if (config.scenarioDecks?.length) throw new Error("a competitive scenario with a separate deck is not supported");
 
+  // A team may not field an identity that shares a title with its own leader (MC56 pp. 14, 16; plan 1.2 item 2). The
+  // team's players are the ones the other team's scenario was built for, and its own leader is in that scenario's pool
+  // of the other build.
+  for (const [facing, own] of [
+    [facedByRegistration, facedByResistance],
+    [facedByResistance, facedByRegistration],
+  ] as const) {
+    const leaderName = own.cards.find((card) => card.id === own.villainCardId)?.name;
+    for (const player of facing.players) {
+      const identity = facing.cards.find((card) => card.id === player.identityCardId);
+      if (!identity || identity.type !== "hero_identity" || leaderName === undefined) continue;
+      const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName];
+      if (titles.includes(leaderName))
+        throw new Error(
+          `${identity.name} shares a title with its own team's leader ${leaderName}: a team cannot field it (MC56 pp. 14, 16)`,
+        );
+    }
+  }
+
   const faces = (config: GameSetupConfig): CompetitiveScenarioSetup => ({
     villain: {
       villainCardId: config.villainCardId,

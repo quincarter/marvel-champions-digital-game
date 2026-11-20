@@ -59,8 +59,8 @@ import { centeredCard, fanRects, rectsNearViewport, type FaceRef } from "../view
 import { cardsRandomizer } from "../view/civil-war-random.js";
 import { handoffOf, lastBuilderOrigin, rememberBuild, type BuilderHandoff } from "../view/civil-war-entry.js";
 import { offerOf } from "../view/setup-options.js";
-import { sealedScenarioOf, sealingFor, stopSealing } from "../view/competitive-seal.js";
-import { submitScenario } from "../platform/room.js";
+import { heroSharingLeaderTitle, sealedScenarioOf, sealingFor, stopSealing } from "../view/competitive-seal.js";
+import { roomState, submitScenario } from "../platform/room.js";
 import { t } from "../i18n/translate.js";
 import type { SetupDraft } from "../view/setup-draft.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -260,6 +260,17 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     const team = sealingFor();
     const sealed = team ? sealedScenarioOf(this.#draft, offerOf(this.#draft)) : null;
     if (!team || !sealed) return false;
+    // A team cannot field a hero that shares a title with its own leader (MC56 pp. 14, 16): say so before sealing.
+    const room = roomState();
+    const mine = room.competitive?.teams[team].seats ?? [];
+    const labels = room.seats.filter((seat) => mine.includes(seat.id)).map((seat) => seat.label);
+    const leader = builderViewOf(this.#draft, this.#context())?.summaryArt.leader.name ?? "";
+    const clash = heroSharingLeaderTitle(labels, leader);
+    if (clash) {
+      this.#status = t("comp.builder.clash", { hero: clash, leader });
+      this.#rebuild();
+      return false;
+    }
     submitScenario(sealed, team);
     stopSealing();
     this.scale.off("resize", this.#rebuild, this);

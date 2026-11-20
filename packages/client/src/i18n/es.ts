@@ -820,4 +820,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.mode.tapped": "El modo competitivo se juega en una sala en línea. Aquí juega este escenario en cooperativo.",
   "comp.notice.box":
     "El modo competitivo está en las salas en línea. El modo por turnos en un mismo dispositivo llegará pronto.",
+  "comp.builder.clash":
+    "{hero} comparte título con tu líder {leader}. Un equipo no puede usarlo: elige otro héroe o líder.",
 };

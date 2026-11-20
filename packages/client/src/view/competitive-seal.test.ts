@@ -109,3 +109,15 @@ describe("sealing refuses a neutral set (MC56 p. 5)", () => {
     expect(view.startProblem).toMatch(/competitive mode/);
   });
 });
+
+import { heroSharingLeaderTitle } from "./competitive-seal.js";
+
+describe("heroSharingLeaderTitle", () => {
+  test("finds a hero named like the team's own leader", () => {
+    expect(heroSharingLeaderTitle(["Iron Man (Aggression)|01028a", "Spider-Man (Justice)|01001a"], "Iron Man")).toBe(
+      "Iron Man",
+    );
+    expect(heroSharingLeaderTitle(["Spider-Man (Justice)|01001a"], "Iron Man")).toBeNull();
+    expect(heroSharingLeaderTitle(["?"], "Iron Man")).toBeNull();
+  });
+});
