@@ -83,6 +83,7 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.epicSheet,
   SCENES.competitiveOver,
   SCENES.competitiveConcede,
+  SCENES.choosingSides,
   SCENES.heroDecks,
   SCENES.searchHelp,
   SCENES.saveData,

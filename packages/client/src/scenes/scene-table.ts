@@ -71,6 +71,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.roomGive]: () => import("./room-give.js").then((m) => m.RoomGiveOverlay),
   [SCENES.epicSheet]: () => import("./epic-sheet.js").then((m) => m.EpicSheetOverlay),
   [SCENES.competitiveOver]: () => import("./competitive-over.js").then((m) => m.CompetitiveOverOverlay),
+  [SCENES.choosingSides]: () => import("./choosing-sides.js").then((m) => m.ChoosingSidesOverlay),
   [SCENES.competitiveConcede]: () => import("./competitive-concede.js").then((m) => m.CompetitiveConcedeOverlay),
   [SCENES.roomAsk]: () => import("./room-ask.js").then((m) => m.RoomAskOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),

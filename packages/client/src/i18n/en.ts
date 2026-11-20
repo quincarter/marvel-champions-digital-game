@@ -815,4 +815,8 @@ export const en = {
   "comp.notice.box": "Competitive mode is in online rooms. Hot-seat is coming soon.",
   "comp.builder.clash":
     "{hero} shares a title with your leader {leader}. A team cannot field it: pick another hero or leader.",
+  "comp.over.reopen": "Result and tie-breaks",
+  "comp.reward.title": "Choosing Sides defeated: cards earned",
+  "comp.reward.body": "Now It's Personal is in play. Your team earned the basic cards of {leader}, still set aside:",
+  "comp.reward.each": "Its Action lets each hero on your team take {count} of them into their hand.",
 } as const;

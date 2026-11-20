@@ -48,8 +48,8 @@ describe("concedeRouteOf", () => {
     const competitive = { teams: [] } as unknown as Pick<GameState, "teams">;
     expect(concedeRouteOf(competitive, false)).toBe("sheet");
     expect(concedeRouteOf(competitive, true)).toBe("sheet");
-    expect(concedeRouteOf({ teams: undefined }, true)).toBe("leave");
-    expect(concedeRouteOf({ teams: undefined }, false)).toBe("confirm");
+    expect(concedeRouteOf({} as Pick<GameState, "teams">, true)).toBe("leave");
+    expect(concedeRouteOf({} as Pick<GameState, "teams">, false)).toBe("confirm");
     expect(concedeRouteOf(null, false)).toBe("confirm");
   });
 });

@@ -822,4 +822,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "El modo competitivo está en las salas en línea. El modo por turnos en un mismo dispositivo llegará pronto.",
   "comp.builder.clash":
     "{hero} comparte título con tu líder {leader}. Un equipo no puede usarlo: elige otro héroe o líder.",
+  "comp.over.reopen": "Resultado y desempates",
+  "comp.reward.title": "Choosing Sides derrotado: cartas ganadas",
+  "comp.reward.body": "Now It's Personal está en juego. Tu equipo ganó las cartas básicas de {leader}, aún apartadas:",
+  "comp.reward.each": "Su Acción permite que cada héroe de tu equipo tome {count} de ellas a su mano.",
 };

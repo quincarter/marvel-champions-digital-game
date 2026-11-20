@@ -649,7 +649,21 @@ export class GameOverScene extends Phaser.Scene {
   #actions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
-    return [...this.#playActions(config), this.#replayAction()];
+    // Civil War Competitive: the result sheet can be opened again after it was closed (#883).
+    const sheet =
+      appSession().store.state.game?.outcome?.result === "teams"
+        ? [
+            {
+              label: t("comp.over.reopen"),
+              primary: false,
+              run: () => {
+                if (!this.scene.isActive(SCENES.competitiveOver)) this.scene.launch(SCENES.competitiveOver);
+              },
+              unavailable: undefined,
+            },
+          ]
+        : [];
+    return [...this.#playActions(config), this.#replayAction(), ...sheet];
   }
 
   #playActions(

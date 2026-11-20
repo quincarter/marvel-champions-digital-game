@@ -348,6 +348,25 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `?screen=choosing-sides`: the Choosing Sides reward sheet over Iron Man's four basic cards (issue #883). Dev only.
+  if (screen === "choosing-sides" && import.meta.env.DEV) {
+    return {
+      key: SCENES.choosingSides,
+      data: {
+        preview: {
+          leaderName: "Iron Man",
+          earned: true,
+          heroes: 2,
+          remaining: [
+            { instanceId: "a", cardId: "56129", name: "Suit Up" },
+            { instanceId: "b", cardId: "56130", name: "Target Lock" },
+            { instanceId: "c", cardId: "56131", name: "High-Tech Suit" },
+            { instanceId: "d", cardId: "56132", name: "Raw Power" },
+          ],
+        },
+      },
+    };
+  }
   // `?screen=competitive-over[&kind=tie|win|both]`: the result sheet over a made-up result, with the tie-break panel (issue #883).
   if (screen === "competitive-over" && import.meta.env.DEV) {
     const { competitiveOverFixture } = await import("../view/competitive-over-fixture.js");

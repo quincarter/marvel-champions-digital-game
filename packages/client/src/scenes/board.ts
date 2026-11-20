@@ -53,6 +53,7 @@ import { heldElsewhere } from "../view/seat-gate.js";
 import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
 import { TURN_ROW_HEIGHT, promptRowHeight, PROMPT_ROW_HEIGHT } from "../view/layout.js";
 import { justFlipped, podStripOf, podStripHeight, type PodStrip } from "../view/pod-strip.js";
+import { choosingSidesOf } from "../view/choosing-sides.js";
 import { competitiveStripOf, type CompetitiveStrip } from "../view/competitive-strip.js";
 import { gameCardsById as epicCardsById } from "../content/game-deps.js";
 import { askToConfirm } from "./end-turn-confirm.js";
@@ -1742,6 +1743,7 @@ export class BoardScene extends Phaser.Scene {
     const roomView = this.#roomView();
     // Civil War Competitive (#883): the whose-turn line is the bar's own row on every device, naming the active side and
     // saying when this side is inactive, so a phone never truncates it beside the round chip.
+    this.#maybeShowChoosingSides(model);
     const competitiveTurn = model.competitive
       ? { text: model.competitive.turnLine, tone: model.competitive.inactive ? ("other" as const) : ("mine" as const) }
       : null;
@@ -2849,6 +2851,20 @@ export class BoardScene extends Phaser.Scene {
       prompt: promptViewOf(prompts, room),
       chatOn: !this.#replay && roomChatOn(room),
     };
+  }
+
+  /** The game the Choosing Sides reward sheet already opened for, so it opens once (#883). */
+  #choosingSidesFor: string | null = null;
+
+  /** Civil War Competitive (#883): when this seat's team earns the Choosing Sides reward, the sheet opens once. */
+  #maybeShowChoosingSides(model: BoardModel): void {
+    if (!model.competitive) return;
+    const { game, perspectiveId, gameId } = appSession().store.state;
+    if (!game || !perspectiveId || !choosingSidesOf(game, perspectiveId)) return;
+    const key = `${gameId ?? "game"}:${model.competitive.mySide}`;
+    if (this.#choosingSidesFor === key || this.scene.isActive(SCENES.choosingSides)) return;
+    this.#choosingSidesFor = key;
+    this.scene.launch(SCENES.choosingSides);
   }
 
   /** Civil War Competitive (#883): the other side's table in brief, as the strip under the bar; null in any other game. */
