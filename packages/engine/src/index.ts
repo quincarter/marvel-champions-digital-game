@@ -660,6 +660,7 @@ export {
   controllerOf,
   deckTopFaceupPlayers,
   enemyTeamDecider,
+  encounterDecksFaceup,
   encounterTopFaceup,
   hitPointFloor,
   ignoredAbilities,

@@ -38,7 +38,6 @@ import {
   unblankedPrintedKeywordsOf,
 } from "./keywords.js";
 import {
-  activeEncounterDeck,
   activeVillain,
   baseStat,
   cardOf,
@@ -2394,18 +2393,38 @@ export function shownDeckTop(state: GameState, deps: EngineDeps, playerId: Playe
  * docs/phase7-wave9.md §3.42): one rule in force is enough, and a second adds nothing. Read from the rules in force,
  * never from anything stored.
  */
-export const encounterTopFaceup = (state: GameState, deps: EngineDeps): boolean =>
-  activeRules(state, deps, "topOfDeckFaceup").some((active) => active.rule.deck === "encounter");
+export const encounterTopFaceup = (
+  state: GameState,
+  deps: EngineDeps,
+  deckId: EncounterDeckId = activeEncounterDeckId(state),
+): boolean => encounterDecksFaceup(state, deps).includes(deckId);
 
 /**
- * The card showing on top of the encounter deck under that rule: the first card of the active villain's encounter deck
- * while the rule holds, null when it does not or the deck is empty. The single derivation `faceVisible`, the
- * `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ * The encounter decks whose top card is kept faceup right now: each `topOfDeckFaceup { deck: "encounter" }` rule in
+ * force shows "the encounter deck" of its own card's side of the table (`effectEncounterDeckId`; MC56 p. 16: each side
+ * has its own encounter deck, and a card ignores the other side's unless it names it), so with two teams Falcon's
+ * rule shows his own area's deck whichever team is active. Every game without teams: the active villain's deck.
  */
-export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceId | null {
-  const top = activeEncounterDeck(state).deck[0];
+export function encounterDecksFaceup(state: GameState, deps: EngineDeps): readonly EncounterDeckId[] {
+  const decks = activeRules(state, deps, "topOfDeckFaceup")
+    .filter((active) => active.rule.deck === "encounter")
+    .map((active) => effectEncounterDeckId(state, active.context));
+  return [...new Set(decks)];
+}
+
+/**
+ * The card showing on top of encounter deck `deckId` (the active villain's unless named) under that rule: its first
+ * card while the rule holds for it, null when it does not or the deck is empty. The single derivation `faceVisible`,
+ * the `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ */
+export function shownEncounterTop(
+  state: GameState,
+  deps: EngineDeps,
+  deckId: EncounterDeckId = activeEncounterDeckId(state),
+): InstanceId | null {
+  const top = state.encounterDecks[deckId]?.deck[0];
   if (top === undefined) return null;
-  return encounterTopFaceup(state, deps) ? top : null;
+  return encounterTopFaceup(state, deps, deckId) ? top : null;
 }
 
 /**
@@ -3899,11 +3918,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     case "topOfDeckFaceup": {
       const deps = context.deps ?? DEFAULT_DEPS;
       if (predicate.deck === "encounter") {
-        if (!encounterTopFaceup(state, deps)) return false;
+        // "The encounter deck" of the predicate's own side of the table (`effectEncounterDeckId`).
+        const deckId = effectEncounterDeckId(state, context);
+        if (!encounterTopFaceup(state, deps, deckId)) return false;
         const { matches, boostAreaIcons } = predicate;
         if (matches === undefined && boostAreaIcons === undefined) return true;
         // Only the card the rule shows is read (wave 8 §4.1 Q26 = B); an empty deck has none.
-        const top = activeEncounterDeck(state).deck[0];
+        const top = state.encounterDecks[deckId]?.deck[0];
         if (top === undefined) return false;
         if (matches !== undefined && !matchesQuery(state, top, matches, context)) return false;
         if (boostAreaIcons === undefined) return true;

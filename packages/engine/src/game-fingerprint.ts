@@ -11,8 +11,8 @@ import type { StackFrame } from "./stack.js";
  * Bookkeeping: the stack and the open choice; the counters that name frames, choices and lasting effects; the
  * per-ability use counts ("Limit once per round" counts a resolution that did nothing); and the memory of what the
  * between-frames checks and the log last saw (`stateChecks`, `hitPointsSeen`, `schemeTargetsSeen`,
- * `deckTopsAnnounced`, `encounterTopAnnounced`), none of which the game is ever read from. The queues those checks
- * drain (`pending…`) are game: a card left play or entered a hand.
+ * `deckTopsAnnounced`, `encounterTopAnnounced`, `encounterTopsAnnounced`), none of which the game is ever read from.
+ * The queues those checks drain (`pending…`) are game: a card left play or entered a hand.
  */
 export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" | "bookkeeping" } = {
   stack: "bookkeeping",
@@ -26,6 +26,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   schemeTargetsSeen: "bookkeeping",
   deckTopsAnnounced: "bookkeeping",
   encounterTopAnnounced: "bookkeeping",
+  encounterTopsAnnounced: "bookkeeping",
   round: "game",
   step: "game",
   firstPlayerId: "game",

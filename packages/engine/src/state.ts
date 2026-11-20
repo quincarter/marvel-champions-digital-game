@@ -1360,6 +1360,12 @@ export interface GameState {
    */
   readonly encounterTopAnnounced?: InstanceId;
   /**
+   * With two teams (MC56 p. 16: each side of the table has its own encounter deck), `encounterTopAnnounced` per deck:
+   * the card last logged as showing on top of each, by deck id (`announceDeckTops`). The log's memory and nothing else.
+   * Absent in every game without teams, and while no card is showing.
+   */
+  readonly encounterTopsAnnounced?: Readonly<Record<string, InstanceId>>;
+  /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
    * Reset when the round ends.

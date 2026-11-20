@@ -25,6 +25,9 @@ import {
   you,
   enemyAttacksEnemy,
   yourLeader,
+  allOf,
+  refCount,
+  valueAtLeast,
   enemyLeader,
   atEndOfActivation,
 } from "../../../dsl/index.js";
@@ -39,6 +42,9 @@ const A_CHARACTER_YOU_CONTROL = chooseTarget("tired", query("character", { contr
 const A_CHARACTER_THE_ENEMY_TEAM_PICKS = chooseTarget("tired", query("character", { controller: "you" }), {
   chooser: enemyTeamChooses,
 });
+
+/** Whether "your leader" is in play: none in a cooperative game (MC56 p. 6), nor once it has left play. */
+const YOUR_LEADER_IN_PLAY = valueAtLeast(refCount(yourLeader), 1);
 
 /**
  * Modular encounter set `hells_kitchen` (Civil War, Resistance side; docs/phase7-wave10.md sections 3.5, 3.6 and
@@ -76,7 +82,9 @@ export const MODULAR_HELLS_KITCHEN: AbilityRegistry = defineAbilities({
 
   "56190.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
+      // "Your leader" must be in play to be attacked (as Provoked Response); with none (a cooperative game, MC56 p. 6,
+      // or a leader that has left play) the "Otherwise" sentence resolves.
+      allOf(inCompetitiveMode(), YOUR_LEADER_IN_PLAY),
       // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
       // covers leader attacks only. So a plain minion's attack on your leader is dealt none (`getsBoostCard`), and one
       // that is villainous gets one from the deck of the area it is in (N5), turned by that team's first player.

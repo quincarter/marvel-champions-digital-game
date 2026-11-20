@@ -76,8 +76,8 @@ import { withoutSealedFields } from "./campaign/log.js";
 import { hiddenPileOf, hiddenPileSizesOf } from "./hidden-pile-state.js";
 import { otherFaceVisible, standInOf } from "./hidden-reverse.js";
 import type { EngineDeps } from "./abilities.js";
-import { activeEncounterDeck, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import { activeEncounterDeck, activeEncounterDeckId, cardOf, getInstance, getPlayer, locateCard } from "./query.js";
+import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { activeRules, rulePlayers, shownDeckTop, shownEncounterTop } from "./select.js";
 import type { GameState, ZoneId } from "./state.js";
 
@@ -173,8 +173,9 @@ const shownOnTopOfDeck = (
 /**
  * "Play with the top card of the encounter deck faceup" (`RuleSpec topOfDeckFaceup { deck: "encounter" }`,
  * docs/phase7-wave9.md §3.42): the card is the one that rule shows on top of the active villain's encounter deck
- * (`shownEncounterTop`). The same for every viewer, so `view` is only read for its deps; another villain's deck (The
- * Wrecking Crew) is not "the encounter deck" and stays closed.
+ * (`shownEncounterTop`), or with two teams on top of the deck of the rule's own side (`encounterDecksFaceup`). The same
+ * for every viewer, so `view` is only read for its deps; another villain's deck (The Wrecking Crew) is not "the
+ * encounter deck" and stays closed.
  */
 const shownOnTopOfEncounterDeck = (
   state: GameState,
@@ -182,7 +183,17 @@ const shownOnTopOfEncounterDeck = (
   view: ViewerContext | TableContext | undefined,
 ): boolean =>
   // The deck's order is asked first, so the rules are read for one card of the deck and not for each.
-  view !== undefined && activeEncounterDeck(state).deck[0] === id && shownEncounterTop(state, view.deps) === id;
+  view !== undefined && shownOnTopOf(state, view.deps, id, encounterDeckToppedBy(state, id));
+
+/** The encounter deck `id` is the top card of: the active villain's, or with two teams either side's (MC56 p. 16). */
+const encounterDeckToppedBy = (state: GameState, id: InstanceId): EncounterDeckId | undefined => {
+  if (!state.teams) return activeEncounterDeck(state).deck[0] === id ? activeEncounterDeckId(state) : undefined;
+  return (Object.keys(state.encounterDecks) as EncounterDeckId[]).find(
+    (deckId) => state.encounterDecks[deckId]?.deck[0] === id,
+  );
+};
+const shownOnTopOf = (state: GameState, deps: EngineDeps, id: InstanceId, deckId: EncounterDeckId | undefined) =>
+  deckId !== undefined && shownEncounterTop(state, deps, deckId) === id;
 
 /**
  * Whether this table may read the card's face right now. `view` names the player looking, for the permissions only one

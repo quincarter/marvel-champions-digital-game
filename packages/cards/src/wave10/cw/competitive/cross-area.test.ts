@@ -418,6 +418,26 @@ describe.each([
   });
 });
 
+describe.each([
+  ["Venom (56087)", VENOM],
+  ["Iron Fist (56190)", IRON_FIST],
+])("%s with your leader out of play: Otherwise, it activates against you (as Provoked Response)", (_name, code) => {
+  // Leader two has left play (defeated in a villain phase, MC56 p. 17): "your leader" names no card in play.
+  const fresh = forms(game({ deckOne: [NO_BOOST.id, code] }), true);
+  const gone = leaders(fresh).two;
+  const start: GameState = {
+    ...fresh,
+    villains: fresh.villains.map((v) => (v.instanceId === gone ? { ...v, defeated: true } : v)),
+  };
+  const { events } = round(start);
+  const minion = Object.values(start.instances).find((i) => i.cardId === cardId(code))!.instanceId;
+
+  it("makes no attack on a leader, and activates against p1 (in alter-ego form: it schemes)", () => {
+    expect(events.some((e) => e.type === "enemyAttackedEnemy" && e.attackerInstanceId === minion)).toBe(false);
+    expect(events).toContainEqual(expect.objectContaining({ type: "schemeResolved", enemyInstanceId: minion }));
+  });
+});
+
 describe("Taskmaster (57022) under Mimicked Move (57025): a villainous minion's attack on your leader gets one boost card", () => {
   // Boost cards for leader one's and Taskmaster's schemes, Mimicked Move dealt to p1, then the attack's boost card.
   const start = forms(game({ deckOne: [NO_BOOST.id, NO_BOOST.id, MIMICKED_MOVE, BIG_BOOST.id, TASKMASTER] }), true);

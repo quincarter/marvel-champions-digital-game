@@ -27,6 +27,9 @@ import {
   boost,
   enemyAttacksEnemy,
   yourLeader,
+  allOf,
+  refCount,
+  valueAtLeast,
   enemyTeamChooses,
   atEndOfActivation,
 } from "../../../dsl/index.js";
@@ -71,11 +74,16 @@ const ATTACHMENT_ON_YOUR_LEADER = query("attachment", {
   withoutKeyword: "permanent",
 });
 
+/** Whether "your leader" is in play: none in a cooperative game (MC56 p. 6), nor once it has left play. */
+const YOUR_LEADER_IN_PLAY = valueAtLeast(refCount(yourLeader), 1);
+
 export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
   "56087.venom-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "56087.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
+      // "Your leader" must be in play to be attacked (as Provoked Response); with none (a cooperative game, MC56 p. 6,
+      // or a leader that has left play) the "Otherwise" sentence resolves.
+      allOf(inCompetitiveMode(), YOUR_LEADER_IN_PLAY),
       // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
       // covers leader attacks only. So a plain minion's attack on your leader is dealt none (`getsBoostCard`), and one
       // that is villainous gets one from the deck of the area it is in (N5), turned by that team's first player.
