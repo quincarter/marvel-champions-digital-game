@@ -47,7 +47,8 @@ export type LiveRoomIn =
   | { readonly kind: "room-host"; readonly name: string }
   /** `target` is a room code or a room id. */
   | { readonly kind: "room-join"; readonly target: string; readonly name: string }
-  | { readonly kind: "room-leave" }
+  /** `closeRoom`: a host who confirmed closing the lobby for everyone asks the room to shut down first. */
+  | { readonly kind: "room-leave"; readonly closeRoom?: boolean }
   | { readonly kind: "room-lobby"; readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }
   | {
       readonly kind: "room-seat";

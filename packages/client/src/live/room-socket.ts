@@ -148,7 +148,7 @@ export interface RoomSocketOptions {
   readonly onConnection: (connected: boolean) => void;
   readonly onMessage: (message: ServerMessage) => void;
   /** The room said it is closing: no reconnect follows. */
-  readonly onClosed?: (reason: "ended" | "idle" | "disabled") => void;
+  readonly onClosed?: (reason: "ended" | "idle" | "disabled" | "host") => void;
   /** Another socket took this one's place as the host (close code 4000 "replaced"): no reconnect follows. */
   readonly onReplaced?: () => void;
   /**

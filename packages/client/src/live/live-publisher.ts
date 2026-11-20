@@ -90,6 +90,8 @@ export interface RoomTableState {
   readonly commands: number;
   readonly ended: boolean;
   readonly hasHeader: boolean;
+  /** The room's latest checksum and its command count (null: none; undefined: the room does not say, so it is trusted). */
+  readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
 }
 
 export interface LivePublisherOptions {
@@ -130,6 +132,10 @@ export class LivePublisher {
   #roomEnded = false;
   /** The lowest count any cut since the room last agreed went to (Infinity: none). A cut made offline lives here. */
   #lowWater = Number.POSITIVE_INFINITY;
+  /** The room's prefix was checked against this log on the first welcome (a later drop in this process needs none). */
+  #verified = false;
+  /** The room's table is not this game's: replace it with `start` (after reopening it when it shows ended). */
+  #replaceTable = false;
   #outcome: GameOutcome | null;
   #watchers = 0;
   #gaveUp = false;
@@ -206,6 +212,19 @@ export class LivePublisher {
     this.#roomHeader = table?.hasHeader ?? false;
     this.#roomCount = this.#roomHeader ? (table?.commands ?? 0) : 0;
     this.#roomEnded = this.#roomHeader ? (table?.ended ?? false) : false;
+    // The room's command count does not say it holds this game: a host resumed from a save can meet a room with the
+    // same number of different commands. The room's latest checksum is compared with ours at the same count; with no
+    // proof the table is replaced from our log, and commands past the proven count are cut back and resent.
+    if (this.#roomHeader && !this.#verified && table?.checkpoint !== undefined) {
+      const proof = table.checkpoint;
+      if (!proof || this.#checksums[String(proof.count)] !== proof.sum) {
+        this.#roomHeader = false;
+        this.#replaceTable = true;
+      } else if (this.#roomCount > proof.count) {
+        this.#lowWater = Math.min(this.#lowWater, proof.count);
+      }
+    }
+    this.#verified = true;
     this.#flush();
     this.#report();
   }
@@ -302,10 +321,16 @@ export class LivePublisher {
   #flush(): void {
     if (!this.#connected || this.#gaveUp) return;
     if (!this.#roomHeader) {
+      // The room refuses a `start` on an ended table: a same-count rewind reopens it first.
+      if (this.#replaceTable && this.#roomEnded) {
+        if (!this.#sendMessage({ ch: "game", kind: "rewind", table: this.#table, to: this.#roomCount })) return;
+        this.#roomEnded = false;
+      }
       if (!this.#sendMessage({ ch: "game", kind: "start", table: this.#table, header: this.#header })) return;
       this.#roomHeader = true;
       this.#roomCount = 0;
       this.#roomEnded = false;
+      this.#replaceTable = false;
       this.#lowWater = Number.POSITIVE_INFINITY;
     }
     // The room is ahead of this log (a cut made while it was away, or since), or still shows an ended table that is not.

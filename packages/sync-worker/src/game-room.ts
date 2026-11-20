@@ -7,7 +7,8 @@
  * `<table>:header` row at `start`/`log`, and one `<table>:c:<n>` row per completed chunk of `ROOM_CHUNK_COMMANDS`
  * commands with the checksums that fall in it, written once when the chunk fills and never rewritten. The unfinished
  * tail of up to a chunk lives in memory, and is written to one `<table>:tail` row when the host disconnects (so a host
- * who closes the app mid-game leaves watchers the whole log), overwritten each time and dropped when a frozen chunk
+ * who closes the app mid-game leaves watchers the whole log; also written on the first batch of a table and then at
+ * most once a minute while it streams), overwritten each time and dropped when a frozen chunk
  * supersedes it, a rewind cuts it or a `log` replaces the table; a woken room loads the chunks and asks the host for the tail with
  * `resend { from }`. About one row per 20 commands.
  *
@@ -371,6 +372,11 @@ export class GameRoomLogic {
   private readonly requests = new Map<string, string[]>();
   /** Proposal rate: a bucket per participant (burst `PROPOSAL_BURST`, `PROPOSAL_PER_SECOND` a second). Memory only. */
   private readonly proposalBuckets = new Map<string, { tokens: number; at: number }>();
+  /**
+   * Set when sockets were restored after a hibernation: the pending requests above were lost while the sockets stayed
+   * open, so the first message handled sends everyone a fresh lobby and the clients ask again (they do on every lobby).
+   */
+  private woke = false;
   /** Lobby message rate: a bucket per participant (burst `LOBBY_MESSAGE_BURST`, 2 a second). Memory only. */
   private readonly lobbyBuckets = new Map<string, { tokens: number; at: number }>();
   /** `seat-deck` rate per participant, and for the whole room (every accepted deck rewrites the lobby row). Memory only. */
@@ -530,6 +536,7 @@ export class GameRoomLogic {
     if (!participant) return;
     this.sockets.set(participant.id, socket);
     this.participants.set(participant.id, participant);
+    this.woke = true;
   }
 
   /** Loads a table's header and stored chunks once per lifetime. */
@@ -567,7 +574,7 @@ export class GameRoomLogic {
       const tail = await this.storage.get<{ commands: unknown[]; checksums: Record<string, string>; at?: number }>(
         tailKey(table.id),
       );
-      table.tailAt = tail?.at ?? this.clock();
+      table.tailAt = tail?.at;
       table.rewindWatchers = true;
       if (tail) {
         table.commands = [...table.commands, ...tail.commands];
@@ -660,7 +667,18 @@ export class GameRoomLogic {
       commands: table.commands.length,
       ended: table.ended,
       hasHeader: table.hasHeader,
+      checkpoint: this.checkpointOf(table),
     };
+  }
+
+  /** The latest stored checksum at or below the command count, so a resuming host can prove its log is this one. */
+  private checkpointOf(table: Table): { count: number; sum: string } | null {
+    let best = -1;
+    for (const key of Object.keys(table.checksums)) {
+      const at = Number(key);
+      if (at <= table.commands.length && at > best) best = at;
+    }
+    return best < 0 ? null : { count: best, sum: table.checksums[String(best)]! };
   }
 
   private rosterList(): Participant[] {
@@ -841,7 +859,17 @@ export class GameRoomLogic {
     // The room's own record is current (a promotion to table host is not yet on an old attachment's copy).
     const who = this.participants.get(participant.id)!;
     await this.loadLobby(); // So `tables` holds every Epic table before a message names one.
+    if (this.woke) {
+      this.woke = false;
+      const lobby = await this.loadLobby();
+      if (lobby) this.broadcastLobby(lobby);
+    }
 
+    if (message.ch === "room" && message.kind === "room-close") {
+      // Only the room's host (the organizer in an Epic room) closes it.
+      if (!this.isOrganizer(who)) return this.refuse(socket, "not-allowed");
+      return this.shutdown("host");
+    }
     if (message.ch === "chat") return this.say(socket, who, message.text);
     if (message.ch === "pod") return this.pod(socket, who, message);
     if (message.ch === "room" && message.kind === "follow") return this.follow(socket, who, message.tables);
@@ -1097,8 +1125,9 @@ export class GameRoomLogic {
         await this.persistChunks(table);
         // A host that closes the app may never return to write the tail: refresh it while it streams, at most once a
         // minute, so an evicted room still has the commands past the last chunk.
-        table.tailAt ??= this.clock();
-        if (this.clock() - table.tailAt >= TAIL_REFRESH_MS) await this.writeTail(table);
+        // The first batch of a table (or of a woken room with no stored tail) writes it at once, so a quiet host that
+        // then hibernates and closes never leaves watchers an empty log; after that at most once a minute.
+        if (table.tailAt === undefined || this.clock() - table.tailAt >= TAIL_REFRESH_MS) await this.writeTail(table);
         table.unverified = false;
         this.resendAsked.delete(table.id);
         this.sendGame(
@@ -1136,7 +1165,8 @@ export class GameRoomLogic {
         // What remains of the cut chunk is the new tail: store it, or an evicted room would serve only the frozen chunks.
         if (cut) await this.writeTail(table);
         // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
-        if (cut && table.ended) await this.reopen(table);
+        // A rewind to the current count reopens too: a resumed host whose game is not over says so that way.
+        if (table.ended) await this.reopen(table);
         this.sendGame(table.id, { v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to }, host.id);
         this.broadcastTable(table);
         return;
@@ -1484,7 +1514,7 @@ export class GameRoomLogic {
   private async lobbyMessage(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" }>,
+    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" }>,
   ): Promise<void> {
     const lobby = await this.loadLobby();
     if (!lobby) return this.refuse(socket, "not-allowed");
@@ -1713,7 +1743,10 @@ export class GameRoomLogic {
           free(seat);
           persist = true;
         } else {
-          return this.refuse(socket, "no-such-participant");
+          // The request is gone (the room woke from hibernation, or the requester withdrew): not an error, the host
+          // just needs the current lobby.
+          this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
+          return;
         }
         break;
       }
@@ -1985,7 +2018,7 @@ export class GameRoomLogic {
   }
 
   /** Closes the room for good: tells everyone, closes the sockets, and forgets the room so its id is a 404 again. */
-  async shutdown(reason: "ended" | "idle" | "disabled"): Promise<void> {
+  async shutdown(reason: "ended" | "idle" | "disabled" | "host"): Promise<void> {
     this.broadcast({ v: 1, ch: "room", kind: "closed", reason });
     for (const socket of this.sockets.values()) {
       try {

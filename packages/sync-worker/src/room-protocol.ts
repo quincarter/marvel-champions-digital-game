@@ -422,6 +422,11 @@ export interface TableInfo {
   readonly ended: boolean;
   /** The room holds this table's header: false means it needs the host's `start` or `log`. */
   readonly hasHeader: boolean;
+  /**
+   * The latest checksum the room holds at or below its command count (`null`: none), so a host that resumes can prove
+   * its saved log is the room's before it appends; absent from an older room.
+   */
+  readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -462,6 +467,8 @@ export type ClientMessage =
       readonly tables?: readonly LobbyTableSpec[];
       readonly pods?: readonly LobbyPod[];
     }
+  /** Host only: closes the room for everyone (`closed` with reason `host`, every socket closed, the code released). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "room-close" }
   /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-request"; readonly seat: string }
   /** Give up a seat you hold, or withdraw a request. */
@@ -632,7 +639,12 @@ export type ServerMessage =
     }
   | { readonly v: 1; readonly ch: "room"; readonly kind: "table"; readonly table: TableInfo }
   /** The room is closing. */
-  | { readonly v: 1; readonly ch: "room"; readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" }
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "closed";
+      readonly reason: "ended" | "idle" | "disabled" | "host";
+    }
   /** A message was refused; the socket stays open unless the room closes it (or the refusal is `name-required`). */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "refused"; readonly reason: RefusalReason }
   /** Lobby rooms: everyone, after each change (and the joiner, after `welcome`). */
@@ -971,6 +983,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "room:seat-deck":
       return ok(isSeatId(m.seat) && isDeck(m.deck));
     case "room:seat-decks-request":
+    case "room:room-close":
       return ok(true);
     case "room:deck-refused":
       return ok(
