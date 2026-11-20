@@ -7,10 +7,10 @@
  * Discord presence, results history, past games and player stats) goes through this one mapping, so a competitive
  * win, loss or tie is counted the same way everywhere and a tie is never counted as a loss.
  *
- * Whose seats: `SessionConfig.localSeats` in a Competitive room game (the engine players this device holds), a
- * perspective player on the board. With no seat known, or seats on both teams (one person playing both sides at one
- * device), no single team's result is this device's: both teams losing is a loss, anything else reads as a tie, since
- * that person both won and lost.
+ * Whose seats: `SessionConfig.localSeats` in a Competitive room game (the engine players this device holds); the board
+ * and the pause screen read the same seats. With no seat known (a hot-seat game), or seats on both teams (one person
+ * playing both sides at one device), no single team's result is this device's: a team's forfeit is a concession, both
+ * teams losing is a loss, and anything else reads as a tie, since that person both won and lost.
  */
 
 import type { GameOutcome, GameState } from "@mc/engine";
@@ -33,6 +33,8 @@ export function seatResultOf(
     const [teamId] = held;
     return outcome.teams.find((team) => team.teamId === teamId)?.result ?? "tie";
   }
+  // A team's forfeit seen from both sides at once (hot seat): neither a win nor a loss for that person, but a concession.
+  if (outcome.reason === "teamConceded") return "conceded";
   return outcome.decision === "bothLose" ? "loss" : "tie";
 }
 

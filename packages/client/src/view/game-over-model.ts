@@ -41,7 +41,11 @@ import { inspectModel } from "./inspect-model.js";
 import { seatResultOf } from "./team-outcome.js";
 import { cardName, playerName } from "./names.js";
 
-export type GameOverTone = "win" | "loss";
+/**
+ * The palette and the words a result is drawn in. `tie`: a competitive game (issue #883) this device's team neither won
+ * nor lost (`seatResultOf`), drawn in a neutral palette and never told as a defeat.
+ */
+export type GameOverTone = "win" | "loss" | "tie";
 
 export interface GameOverStat {
   readonly label: string;
@@ -188,9 +192,9 @@ export function gameOverModel(
    * defeated, which is where the distinction actually shows.
    */
   const concededBy = outcome?.result === "conceded" ? outcome.byPlayerId : null;
-  // A competitive game's tone is this device's team's result (`seatResultOf`); a tie is not a win.
-  const tone: GameOverTone =
-    outcome && seatResultOf(outcome, state.teams, config?.localSeats) === "win" ? "win" : "loss";
+  // A competitive game's tone is this device's team's result (`seatResultOf`): a tie is neither a win nor a loss.
+  const seatResult = outcome ? seatResultOf(outcome, state.teams, config?.localSeats) : null;
+  const tone: GameOverTone = seatResult === "win" ? "win" : seatResult === "tie" ? "tie" : "loss";
   // The villain with the active counter: with several villains, the one still standing last.
   const villainState = activeVillain(state);
   const avatar = cardName(state, villainState.instanceId);
@@ -447,7 +451,8 @@ export function gameOverModel(
     cause,
     stats,
     quickStats,
-    beatsHeading: concededBy ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
+    beatsHeading:
+      concededBy || tone === "tie" ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
     beats: turningPoints(
       state,
       record,

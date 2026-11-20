@@ -43,4 +43,12 @@ describe("seatResultOf (issue #883, MC56 p. 17)", () => {
     expect(seatResultOf(competitive("win", "loss", "win"), teams, ["p1", "p3"])).toBe("tie");
     expect(seatResultOf(competitive("bothLose", "loss", "loss"), teams, undefined)).toBe("loss");
   });
+
+  it("a team's forfeit with no single team held (hot seat) is a concession; a held team still reads its result", () => {
+    const conceded = { ...competitive("win", "loss", "win"), reason: "teamConceded", concededBy: "p1" } as GameOutcome;
+    expect(seatResultOf(conceded, teams, undefined)).toBe("conceded");
+    expect(seatResultOf(conceded, teams, ["p1", "p3"])).toBe("conceded");
+    expect(seatResultOf(conceded, teams, ["p1"])).toBe("loss");
+    expect(seatResultOf(conceded, teams, ["p4"])).toBe("win");
+  });
 });

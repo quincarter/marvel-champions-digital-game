@@ -54,6 +54,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
 import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
 import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { seatResultOf } from "../view/team-outcome.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
@@ -188,7 +189,9 @@ export class GameOverScene extends Phaser.Scene {
     }
     if (game?.outcome && config) {
       const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;
-      appSession().music?.playOutcome(config.scenarioId, tableResult(game.outcome), packCode);
+      // The music is this device's result (`seatResultOf`): a competitive win plays win music; a tie is neutral.
+      const heard = seatResultOf(game.outcome, game.teams, config.localSeats);
+      appSession().music?.playOutcome(config.scenarioId, heard === "tie" ? "conceded" : heard, packCode);
     }
     this.#draw();
     fadeScreenIn(this);
@@ -276,7 +279,8 @@ export class GameOverScene extends Phaser.Scene {
 
   /** Screens - Desktop #12. */
   #drawWide(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
-    const ground = model.tone === "win" ? signal.heal.hex : accent.heroRed.hex;
+    // A competitive tie (issue #883) is neither green nor red: the neutral ink ground, paper text over it.
+    const ground = model.tone === "win" ? signal.heal.hex : model.tone === "tie" ? surface.ink.hex : accent.heroRed.hex;
     this.cameras.main.setBackgroundColor(cssOf(ground));
     // D12 draws no art window: its ground color *is* the result (red for a loss, green for a win). So the
     // result's scene goes behind everything, under a wash of that same ground — the tint keeps its meaning and
@@ -437,7 +441,8 @@ export class GameOverScene extends Phaser.Scene {
     cardTop = 10,
   ): number {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
-    const accentHue = model.tone === "win" ? signal.caution.hex : accent.heroRed.hex;
+    const accentHue =
+      model.tone === "win" ? signal.caution.hex : model.tone === "tie" ? surface.paper.hex : accent.heroRed.hex;
     const pad = 16;
 
     // The art window across the top (P11 "Defeat art" / P17): this result's scene from `art/`, edge to edge;

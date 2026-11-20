@@ -1221,6 +1221,11 @@ export function boardModel(
   actions: LegalActions | null = null,
   /** How your play area is laid out (`Settings.playAreaOrder`); the engine's own order is never changed. */
   playAreaOrder: PlayAreaOrder = "played",
+  /**
+   * The seats this device holds (`SessionConfig.localSeats`, null in a hot-seat game), for a competitive result read as
+   * the pause screen reads it (`seatResultOf`). Omitted: the perspective seat's own team.
+   */
+  viewerSeats?: readonly string[] | null,
 ): BoardModel {
   const me = getPlayer(state, perspectiveId);
   if (!me) throw new Error(`no seat ${perspectiveId}`);
@@ -1243,7 +1248,7 @@ export function boardModel(
   const model: BoardModel = {
     round: state.round,
     phase: phaseOf(state),
-    stepLabel: stepLabel(state, perspectiveId),
+    stepLabel: stepLabel(state, perspectiveId, viewerSeats === undefined ? [perspectiveId] : viewerSeats),
     competitive: null,
     meOut: outStatusOf(me),
     firstPlayerId: state.firstPlayerId,
@@ -1377,8 +1382,8 @@ function dialValue(state: GameState, id: InstanceId, current: number | undefined
   return isIdentity || isVillain(state, id) ? 0 : current;
 }
 
-function stepLabel(state: GameState, perspectiveId: PlayerId): string {
-  const label = liveStepLabel(state, perspectiveId);
+function stepLabel(state: GameState, perspectiveId: PlayerId, viewer: readonly string[] | null): string {
+  const label = liveStepLabel(state, perspectiveId, viewer);
   if (state.outcome) return label;
   const out = outStatusOf(getPlayer(state, perspectiveId) ?? { eliminated: false });
   if (out === null) return label;
@@ -1392,11 +1397,11 @@ function stepLabel(state: GameState, perspectiveId: PlayerId): string {
   return `${label} · ${tag}`;
 }
 
-function liveStepLabel(state: GameState, perspectiveId: PlayerId): string {
+function liveStepLabel(state: GameState, perspectiveId: PlayerId, viewer: readonly string[] | null): string {
   const { step } = state;
   // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`); a competitive game
-  // reads the perspective seat's team's result, which may be a tie.
-  if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, [perspectiveId]));
+  // reads the result of this device's seats, as the pause screen does (`seatResultOf`), which may be a tie.
+  if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, viewer));
   switch (step.phase) {
     case "setup":
       return step.kind === "mulligan" ? "Setup — mulligan" : "Setup — draw starting hands";
