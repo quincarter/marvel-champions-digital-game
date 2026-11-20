@@ -339,6 +339,8 @@ export type ServerMessage =
   | ({ readonly v: 1; readonly ch: "room"; readonly kind: "lobby" } & LobbyState)
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
+  /** To a participant whose pending request for `seat` the host turned down: stop asking (the request is gone). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-denied"; readonly seat: string }
   /**
    * To a table's host: the room holds `from` commands of the table (its stored chunks after a wake, or the point a
    * refused batch did not line up with). Answer with ordinary `commands` batches from there, or, when `from` is 0,

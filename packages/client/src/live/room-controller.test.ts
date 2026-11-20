@@ -92,14 +92,22 @@ const flush = async (): Promise<void> => {
   for (let i = 0; i < 8; i++) await Promise.resolve();
 };
 
-function setup(options: { seatStore?: MemorySeatTokenStore; store?: MemoryRoomStore } = {}) {
+function setup(
+  options: {
+    seatStore?: MemorySeatTokenStore;
+    store?: MemoryRoomStore;
+    createRoom?: (deps: CreateRoomDeps) => Promise<CreateRoomResult>;
+    onlineName?: string;
+    now?: () => number;
+  } = {},
+) {
   FakeSocket.all = [];
   const states: RoomState[] = [];
-  const timers: { run: () => void; live: boolean }[] = [];
+  const timers: { run: () => void; live: boolean; ms: number }[] = [];
   const socket: RoomSocketDeps = {
     WebSocket: FakeSocket,
-    setTimer: (run) => {
-      const t = { run, live: true };
+    setTimer: (run, ms) => {
+      const t = { run, live: true, ms };
       timers.push(t);
       return t;
     },
@@ -108,10 +116,11 @@ function setup(options: { seatStore?: MemorySeatTokenStore; store?: MemoryRoomSt
     },
     random: () => 0.5,
   };
-  const createRoom = vi.fn(async (_deps: CreateRoomDeps): Promise<CreateRoomResult> => ({
+  const defaultCreate = async (_deps: CreateRoomDeps): Promise<CreateRoomResult> => ({
     ok: true,
     room: { roomId: "room00000001", hostToken: "h".repeat(32), table: "t1", code: "ABC234" },
-  }));
+  });
+  const createRoom = vi.fn(options.createRoom ?? defaultCreate);
   const resolveRoomCode = vi.fn(async (_deps: CreateRoomDeps, _code: string) => ({
     ok: true as const,
     roomId: "room00000002",
@@ -122,8 +131,16 @@ function setup(options: { seatStore?: MemorySeatTokenStore; store?: MemoryRoomSt
     watchBase: "https://web.example/",
     onStatus: () => undefined,
     socket,
+    ...(options.now ? { now: options.now } : {}),
     ...(options.store ? { store: options.store } : {}),
-    room: { build: BUILD, seatStore, onState: (s) => states.push(s), createRoom, resolveRoomCode },
+    room: {
+      build: BUILD,
+      seatStore,
+      ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
+      onState: (s) => states.push(s),
+      createRoom,
+      resolveRoomCode,
+    },
   });
   controller.setEnabled(true);
   return { controller, states, createRoom, resolveRoomCode, seatStore, timers, last: () => states[states.length - 1]! };
@@ -395,9 +412,9 @@ describe("a guest following the game", () => {
     socket.receive({ v: 1, ch: "game", kind: "commands", table: "t1", from: 3, commands: [cmd(4)] });
     expect(port.posted.at(-1)).toMatchObject({ message: { kind: "commands", from: 3 } });
     // Chat and tokens never reach the watcher.
-    socket.receive({ v: 1, ch: "chat", kind: "said", from: "x", text: "yo", at: 1 });
+    socket.receive({ v: 1, ch: "chat", kind: "said", from: "x", text: "chatline-xyz", at: 1 });
     socket.receive({ v: 1, ch: "room", kind: "seat-token", seat: "s1", token: "S".repeat(32) });
-    expect(JSON.stringify(port.posted)).not.toContain("yo");
+    expect(JSON.stringify(port.posted)).not.toContain("chatline-xyz");
     expect(JSON.stringify(port.posted)).not.toContain("S".repeat(32));
   });
 
@@ -422,5 +439,186 @@ describe("a guest following the game", () => {
     const port = fakePort();
     t.controller.onRoomCommand({ kind: "room-follow", port: port as unknown as MessagePort });
     expect(port.closed).toBe(true);
+  });
+});
+
+describe("review fixes (issue #880)", () => {
+  async function guestWithRequest() {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("watcher");
+    socket.receive(lobbyMessage());
+    t.controller.onRoomCommand({ kind: "room-seat", op: "request", seat: "s1" });
+    return { t, socket };
+  }
+  const requests = (socket: FakeSocket) => socket.kinds.filter((k) => k === "room:seat-request").length;
+
+  it("stops asking for a seat the host denied, even after a reconnect", async () => {
+    const { t, socket } = await guestWithRequest();
+    socket.receive({ v: 1, ch: "room", kind: "seat-denied", seat: "s1" });
+    socket.closeWith(1006);
+    t.timers.at(-1)!.run();
+    const second = FakeSocket.all[1]!;
+    second.welcome("watcher");
+    second.receive(lobbyMessage());
+    expect(second.kinds).not.toContain("room:seat-request");
+  });
+
+  it("sends a request again when a lobby arrives that no longer lists it, with no reconnect (a woken room)", async () => {
+    const { socket } = await guestWithRequest();
+    expect(requests(socket)).toBe(1);
+    socket.receive(lobbyMessage());
+    expect(requests(socket)).toBe(2);
+  });
+
+  it("does not send again a request the lobby lists, or one a refusal named", async () => {
+    const { t, socket } = await guestWithRequest();
+    socket.receive(lobbyMessage([{ id: "s1", label: "Spider-Man", requested: ["me"] }]));
+    expect(requests(socket)).toBe(1);
+    socket.receive({ v: 1, ch: "room", kind: "refused", reason: "seat-taken" });
+    expect(t.last().refusal).toMatchObject({ reason: "seat-taken", seat: "s1" });
+    socket.receive(lobbyMessage());
+    expect(requests(socket)).toBe(1);
+  });
+
+  describe("the guest's watcher is told when the session ends", () => {
+    const fake = () => {
+      const posted: RoomFeedOut[] = [];
+      const port: FeedPort = { onmessage: null, postMessage: (m) => void posted.push(m), close: () => undefined };
+      return { posted, port: port as unknown as MessagePort };
+    };
+
+    it("when the room can no longer be reached", async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      const { posted, port } = fake();
+      t.controller.onRoomCommand({ kind: "room-follow", port });
+      // Never welcomed, closed with "no such room": the session ends.
+      FakeSocket.all[0]!.closeWith(1011);
+      expect(posted.at(-1)).toEqual({ kind: "gone" });
+      expect(t.last()).toMatchObject({ connection: "ended", problem: "not-found" });
+    });
+
+    it("when the room closes it arrives as its own message", async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      FakeSocket.all[0]!.welcome("watcher");
+      const { posted, port } = fake();
+      t.controller.onRoomCommand({ kind: "room-follow", port });
+      FakeSocket.all[0]!.receive({ v: 1, ch: "room", kind: "closed", reason: "idle" });
+      expect(posted.some((m) => m.kind === "server" && m.message.kind === "closed")).toBe(true);
+    });
+
+    it("when the player leaves the room", async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      FakeSocket.all[0]!.welcome("watcher");
+      const { posted, port } = fake();
+      t.controller.onRoomCommand({ kind: "room-follow", port });
+      t.controller.onRoomCommand({ kind: "room-leave" });
+      expect(posted.at(-1)).toEqual({ kind: "gone" });
+    });
+
+    it("and attaching sends a welcome with who is here and what the table holds", async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      FakeSocket.all[0]!.welcome("watcher", { commands: 0, ended: false, hasHeader: false });
+      const { posted, port } = fake();
+      t.controller.onRoomCommand({ kind: "room-follow", port });
+      const welcome = posted.find((m) => m.kind === "server" && m.message.kind === "welcome");
+      expect(welcome).toMatchObject({
+        message: { participants: [{ role: "host" }, { role: "watcher" }], tables: [{ id: "t1", hasHeader: false }] },
+      });
+    });
+  });
+
+  it("backs off between reconnects forced by a gap in the log", async () => {
+    const clock = { now: 1_000 };
+    const t = setup({ now: () => clock.now });
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const gap = { v: 1, ch: "game", kind: "commands", table: "t1", from: 9, commands: [cmd(1)] };
+    const log = { v: 1, ch: "game", kind: "log", table: "t1", header: {}, commands: [], checksums: {} };
+    const table = { commands: 0, ended: false, hasHeader: true };
+    FakeSocket.all[0]!.welcome("watcher", table);
+    FakeSocket.all[0]!.receive(log);
+    FakeSocket.all[0]!.receive(gap);
+    const first = t.timers.at(-1)!;
+    first.run();
+    // The new connection never gets a log before the next gap: the wait grows.
+    FakeSocket.all[1]!.welcome("watcher", table);
+    FakeSocket.all[1]!.receive(log);
+    FakeSocket.all[1]!.receive(gap);
+    expect(t.timers.at(-1)!.ms).toBeGreaterThan(first.ms);
+    // A gap long after that starts again from the shortest wait.
+    clock.now += 120_000;
+    t.timers.at(-1)!.run();
+    FakeSocket.all[2]!.welcome("watcher", table);
+    FakeSocket.all[2]!.receive(log);
+    FakeSocket.all[2]!.receive(gap);
+    expect(t.timers.at(-1)!.ms).toBe(first.ms);
+  });
+
+  it("holds the game until a lobby room still being made exists, never making a plain room", async () => {
+    let release!: (r: CreateRoomResult) => void;
+    const t = setup({ createRoom: () => new Promise<CreateRoomResult>((resolve) => (release = resolve)) });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    t.controller.onGameMessage(gameMessage("g1"));
+    await flush();
+    release({ ok: true, room: { roomId: "room00000001", hostToken: "h".repeat(32), table: "t1", code: "ABC234" } });
+    await flush();
+    expect(t.createRoom).toHaveBeenCalledTimes(1);
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    expect(FakeSocket.all[0]!.kinds).toContain("game:start");
+    expect(t.last().started).toBe(true);
+  });
+
+  it("joins a hosted lobby on the game message, before any command", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1"));
+    await flush();
+    expect(FakeSocket.all[0]!.kinds).toContain("game:start");
+  });
+
+  it("resumes a lobby room on the game message with a name, and never with an empty one", async () => {
+    const store = new MemoryRoomStore();
+    const base = { roomId: "room00000001", hostToken: "h".repeat(32), createdAt: Date.now(), code: "ABC234" };
+    await store.save({ ...base, gameKey: "g1", name: "" });
+    const named = setup({ store, onlineName: "Saved" });
+    named.controller.onGameMessage(gameMessage("g1"));
+    await flush();
+    expect(named.createRoom).not.toHaveBeenCalled();
+    FakeSocket.all[0]!.open();
+    expect(FakeSocket.all[0]!.hello).toMatchObject({ name: "Saved", token: "h".repeat(32) });
+
+    await store.save({ ...base, gameKey: "g2" });
+    const nameless = setup({ store });
+    nameless.controller.onGameMessage(gameMessage("g2"));
+    nameless.controller.onGameMessage({ kind: "command", gameKey: "g2", command: cmd(1), count: 1 });
+    await flush();
+    await flush();
+    // No name to say hello with: the stale lobby record is dropped and the lobby room is not resumed.
+    expect(FakeSocket.all).toHaveLength(0);
+    expect(nameless.createRoom).not.toHaveBeenCalled();
+    expect(store.records.has("g2")).toBe(false);
+  });
+
+  it("sweeps stale seat token records when a session starts", async () => {
+    const seatStore = new MemorySeatTokenStore();
+    await seatStore.save({ roomId: "old000000000", tokens: { s1: "x" }, savedAt: 1 });
+    await seatStore.save({ roomId: "new000000000", tokens: { s1: "x" }, savedAt: Date.now() });
+    const t = setup({ seatStore });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    expect([...seatStore.records.keys()]).toEqual(["new000000000"]);
   });
 });

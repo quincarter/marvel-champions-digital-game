@@ -277,6 +277,7 @@ describe("seat requests and assignments", () => {
     const a = await join(room);
     await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
     await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
+    expect(a.of("seat-denied")).toEqual([{ v: 1, ch: "room", kind: "seat-denied", seat: "s1" }]);
     expect(h.last("lobby")!.seats[0]!.requested).toBeUndefined();
     expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
     await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
@@ -284,6 +285,27 @@ describe("seat requests and assignments", () => {
     expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
     await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
     expect(h.refusals).toEqual(["no-such-participant"]);
+  });
+
+  it("takes a seat from its holder without a seat-denied notice (only a pending request gets one)", async () => {
+    const { room, join, send, h } = await withSeats();
+    const a = await join(room);
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s1", participant: a.id });
+    await send(room, h, { ch: "room", kind: "seat-deny", seat: "s1", participant: a.id });
+    expect(a.of("seat-denied")).toHaveLength(0);
+  });
+
+  it("a lobby room reuses its room for a rematch: a start on an ended table begins a new game", async () => {
+    const { room, host, send, clock, storage } = await setup();
+    const h = await host();
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: 1 } });
+    await send(room, h, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2] });
+    await send(room, h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: 2 } });
+    expect(h.refusals).toEqual([]);
+    expect(h.last("table")!.table).toMatchObject({ ended: false, commands: 0, hasHeader: true });
+    // The end alarm gave way to the idle one.
+    expect(storage.alarm).toBe(clock.now + ROOM_IDLE_MS);
   });
 
   it("a participant releases a held seat or withdraws a request; a stranger's release is refused", async () => {

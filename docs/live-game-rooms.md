@@ -210,6 +210,9 @@ exactly as watching did):
   text, at }` to everyone including the sender. The last 50 lines are kept in memory and sent to a joiner in a
   `chat { kind: "backlog", lines }` message after `welcome` (not when empty or chat is off). No chat is stored, so a room
   that hibernates forgets the backlog.
+- A host's `seat-deny` of a pending request sends the requester `seat-denied { seat }` (the request is memory-only, so the
+  client otherwise re-sends it after a wake). A lobby room hosts one game after another: the host's `start` on an ended
+  table reopens it (a rematch), where any other room refuses it.
 - Storage: the existing `meta` row gains `code` and `roomId` (lobby rooms only); settings, seats (holders, requests) and the
   seat-token hashes are one separate `lobby` row, not part of `meta` (which also carries the end outcome and the hourly
   host stamp), written only when the host sets or changes the lobby, a seat's holder changes (assigned, released, taken back, or

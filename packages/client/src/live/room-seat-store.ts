@@ -19,6 +19,8 @@ export interface SeatTokenStore {
   load(roomId: string): Promise<SeatTokenRecord | null>;
   save(record: SeatTokenRecord): Promise<void>;
   clear(roomId: string): Promise<void>;
+  /** Drops every record that outlived the room's idle limit (a room the player never came back to). */
+  sweep?(now: number): Promise<void>;
 }
 
 export const seatTokensFresh = (record: SeatTokenRecord, now: number): boolean => now - record.savedAt < ROOM_IDLE_MS;
@@ -33,6 +35,10 @@ export class MemorySeatTokenStore implements SeatTokenStore {
   }
   async clear(roomId: string): Promise<void> {
     this.records.delete(roomId);
+  }
+  async sweep(now: number): Promise<void> {
+    for (const record of [...this.records.values()])
+      if (!seatTokensFresh(record, now)) this.records.delete(record.roomId);
   }
 }
 
@@ -69,5 +75,20 @@ export class IdbSeatTokenStore implements SeatTokenStore {
   }
   async clear(roomId: string): Promise<void> {
     await this.#run("readwrite", (s) => s.delete(roomId));
+  }
+  async sweep(now: number): Promise<void> {
+    const db = await this.#open();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      const request = tx.objectStore(STORE).openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        if (!seatTokensFresh(cursor.value as SeatTokenRecord, now)) cursor.delete();
+        cursor.continue();
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error("seat token sweep failed"));
+    });
   }
 }

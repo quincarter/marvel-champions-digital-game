@@ -96,6 +96,7 @@ function spawn(): boolean {
     watchBase: watchBaseOf(detectPlatform() !== "web"),
     gamePort: channel.port2,
     build: { appVersion: CLIENT_VERSION, contentVersion: POOL_VERSION },
+    onlineName: appSession().settings.onlineName,
     ...(presencePort ? { presencePort } : {}),
   };
   next.postMessage(init, presencePort ? [channel.port2, presencePort] : [channel.port2]);

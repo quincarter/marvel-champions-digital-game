@@ -48,6 +48,8 @@ export interface LiveRoomControllerDeps {
   readonly room?: {
     readonly build: RoomBuild;
     readonly seatStore: SeatTokenStore;
+    /** The saved online name: what a lobby room resumed after a reload says hello with when its record has none. */
+    readonly onlineName?: string;
     readonly onState: (state: RoomState) => void;
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
@@ -79,6 +81,8 @@ export class LiveRoomController {
   #status: LiveStatus = NO_LIVE_STATUS;
   #session: RoomSession | null = null;
   #roomState: RoomState = NO_ROOM;
+  /** The name the last host or join call used. */
+  #lastName = "";
 
   constructor(deps: LiveRoomControllerDeps) {
     this.#deps = deps;
@@ -106,6 +110,11 @@ export class LiveRoomController {
         }
         this.#leave();
         this.#pending = message;
+        // A game started in a hosted lobby, or a lobby room's game resumed after a reload, joins its room at once
+        // (the room shows it started) rather than at its first command.
+        const session = this.#session;
+        if (session?.role === "host" && !session.ended) this.#openPending(message.gameKey);
+        else if (this.#deps.room) void this.#resumeEarly(message.gameKey);
         return;
       }
       case "command": {
@@ -147,12 +156,14 @@ export class LiveRoomController {
     if (!this.#deps.room) return;
     switch (message.kind) {
       case "room-host": {
+        this.#lastName = message.name.trim();
         const session = this.#newSession("host", message.name);
         if (message.name.trim() === "") session.failWith("no-name");
         else void session.startHost();
         return;
       }
       case "room-join": {
+        this.#lastName = message.name.trim();
         const session = this.#newSession("guest", message.name);
         if (message.name.trim() === "") session.failWith("no-name");
         else void session.startGuest(message.target);
@@ -227,6 +238,23 @@ export class LiveRoomController {
     this.#deps.room?.onState(state);
   }
 
+  #openPending(gameKey: string): void {
+    if (this.#live || this.#pending?.gameKey !== gameKey) return;
+    this.#open(this.#pending);
+    this.#pending = null;
+  }
+
+  /** A saved game whose record names a lobby room joins it before its first command. */
+  async #resumeEarly(gameKey: string): Promise<void> {
+    let record: LiveRoomRecord | null = null;
+    try {
+      record = (await this.#deps.store?.load(gameKey)) ?? null;
+    } catch {
+      return;
+    }
+    if (record?.code && recordFresh(record, (this.#deps.now ?? Date.now)())) this.#openPending(gameKey);
+  }
+
   #open(game: GameMessage): void {
     const live: Live = {
       gameKey: game.gameKey,
@@ -268,16 +296,27 @@ export class LiveRoomController {
     }
     if (this.#live !== live) return;
     const session = this.#session;
-    if (session?.role === "host" && session.roomId && session.hostToken && !session.ended) {
-      this.#attachRoom(live, session);
-      return;
+    if (session?.role === "host" && !session.ended) {
+      // The lobby's room may still be being made (the game was started at once): wait for it, never make a plain room.
+      await session.ready;
+      if (this.#live !== live) return;
+      if (session.roomId && session.hostToken && !session.ended) {
+        this.#attachRoom(live, session);
+        return;
+      }
     }
-    if (record?.code && record.gameKey === live.gameKey && recordFresh(record, now) && this.#deps.room) {
-      // A lobby room's host after a reload: back into the same room, lobby and game.
-      const resumed = this.#newSession("host", record.name ?? "");
-      resumed.resumeHost(record.roomId, record.hostToken, record.code);
-      this.#session = resumed;
-      this.#attachRoom(live, resumed);
+    if (record?.code) {
+      const name = (record.name?.trim() || this.#lastName || this.#deps.room?.onlineName?.trim()) ?? "";
+      if (name && record.gameKey === live.gameKey && recordFresh(record, now) && this.#deps.room) {
+        // A lobby room's host after a reload: back into the same room, lobby and game.
+        const resumed = this.#newSession("host", name);
+        resumed.resumeHost(record.roomId, record.hostToken, record.code);
+        this.#attachRoom(live, resumed);
+        return;
+      }
+      // No name to say hello with (a lobby room refuses one without): the old room is no use, the game streams on its own.
+      void store?.clear(live.gameKey).catch(() => {});
+      await this.#create(live);
       return;
     }
     if (record && record.gameKey === live.gameKey && recordFresh(record, now)) {

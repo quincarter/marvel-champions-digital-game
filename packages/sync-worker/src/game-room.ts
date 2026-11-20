@@ -765,7 +765,12 @@ export class GameRoomLogic {
   ): Promise<void> {
     switch (message.kind) {
       case "start": {
-        if (table.ended) return this.refuse(socket, "not-allowed");
+        // A lobby room hosts one game after another (a rematch): `start` on an ended table reopens it first. Any other
+        // room's ended table stays ended.
+        if (table.ended) {
+          if (this.meta?.code === undefined) return this.refuse(socket, "not-allowed");
+          await this.reopen(table);
+        }
         await this.dropTail(table);
         await this.deleteChunks(table.id, 0, table.persisted);
         await this.storage.put(headerKey(table.id), { h: message.header });
@@ -1102,7 +1107,8 @@ export class GameRoomLogic {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (this.dropRequest(seat.id, message.participant)) {
-          // A pending request: memory only.
+          // A pending request: memory only. The requester is told, or it would keep asking after every reconnect.
+          this.sendTo(message.participant, { v: 1, ch: "room", kind: "seat-denied", seat: seat.id });
         } else if (seat.holder === message.participant) {
           free(seat);
           persist = true;

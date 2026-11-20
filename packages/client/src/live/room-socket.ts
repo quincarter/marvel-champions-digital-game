@@ -77,7 +77,7 @@ function tokensOf(read: (() => readonly string[]) | undefined): { readonly seatT
 }
 
 const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
-  room: new Set(["welcome", "roster", "table", "closed", "refused", "lobby", "seat-token"]),
+  room: new Set(["welcome", "roster", "table", "closed", "refused", "lobby", "seat-token", "seat-denied"]),
   game: new Set(["resend", "log", "commands", "rewind", "end", "proposal"]),
   chat: new Set(["said", "backlog"]),
 };

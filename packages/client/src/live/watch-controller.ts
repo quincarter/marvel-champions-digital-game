@@ -112,6 +112,7 @@ export class LiveWatcher {
       feed.onmessage = (event) => {
         const data = event.data as RoomFeedOut;
         if (data.kind === "server") this.#queue(this.#feed.onMessage(data.message));
+        else if (data.kind === "gone") this.#failFollowing();
         else if (!data.connected) this.#queue(this.#feed.onDisconnected());
       };
       feed.start?.();

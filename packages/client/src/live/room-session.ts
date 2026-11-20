@@ -23,6 +23,8 @@ import {
   createRoom as defaultCreateRoom,
   defaultSocketDeps,
   parseJoinTarget,
+  reconnectDelay,
+  RECONNECT_CAP_MS,
   resolveRoomCode as defaultResolveRoomCode,
   RoomSocket,
   type CreateRoomDeps,
@@ -90,8 +92,12 @@ export class RoomSession {
   readonly #mirror = new GameMirror();
   #feed: FeedPort | null = null;
   #closed = false;
-  /** Set at each welcome: the next `lobby` message is checked for requests the room lost. */
-  #resend = false;
+  /** Resolves when the room is made (or failed): a game that starts meanwhile waits for it. */
+  #ready: Promise<void> = Promise.resolve();
+  /** Gap reconnects in a row (backoff), and the timer of the one pending. */
+  #gapAttempt = 0;
+  #gapTimer: unknown = null;
+  #lastGapAt = Number.NEGATIVE_INFINITY;
   /** Bumped by each `start`/`close`, so a lookup that returns after the session was left does nothing. */
   #generation = 0;
 
@@ -101,6 +107,8 @@ export class RoomSession {
     this.#deps = deps;
     this.#timers = deps.socket ?? defaultSocketDeps();
     this.#model = new RoomModel({ role, name, build: deps.build, linkBase: deps.linkBase });
+    // Records of rooms never come back to would pile up: drop the ones past the room's own idle limit.
+    void deps.seatStore.sweep?.((deps.now ?? Date.now)()).catch(() => {});
   }
 
   state(): RoomState {
@@ -146,7 +154,17 @@ export class RoomSession {
   // -- starting ---------------------------------------------------------------------------------------------------
 
   /** Host: makes the lobby room and connects to it. */
-  async startHost(): Promise<void> {
+  startHost(): Promise<void> {
+    this.#ready = this.#startHost();
+    return this.#ready;
+  }
+
+  /** Settles once the lobby room exists (or could not be made). */
+  get ready(): Promise<void> {
+    return this.#ready;
+  }
+
+  async #startHost(): Promise<void> {
     const generation = ++this.#generation;
     this.#publish();
     const baseUrl = this.#deps.syncUrl;
@@ -200,6 +218,7 @@ export class RoomSession {
   close(): void {
     this.#generation++;
     this.#closed = true;
+    this.#clearGapTimer();
     this.#socket?.close();
     this.#socket = null;
     this.#hooks = null;
@@ -279,6 +298,7 @@ export class RoomSession {
     this.#feed = null;
     if (!port) return;
     port.onmessage = null;
+    port.postMessage({ kind: "gone" });
     try {
       port.close();
     } catch {
@@ -368,7 +388,11 @@ export class RoomSession {
     this.#socket = null;
     const hooks = this.#hooks;
     this.#hooks = null;
-    this.#feed?.postMessage({ kind: "connection", connected: false });
+    this.#clearGapTimer();
+    // A closed room already reached the watcher as a `closed` message; any other end tells it to stop following.
+    this.#feed?.postMessage(
+      problem.startsWith("closed-") ? { kind: "connection", connected: false } : { kind: "gone" },
+    );
     this.#publish();
     hooks?.onEnded();
   }
@@ -393,13 +417,10 @@ export class RoomSession {
     const changed = this.#model.onMessage(message);
     if (message.ch === "room" && message.kind === "lobby") {
       this.#pruneTokens();
-      // The first lobby after a welcome: requests the room no longer lists (it woke from hibernation) are sent again.
-      if (this.#resend) {
-        this.#resend = false;
-        for (const seat of this.#model.lostRequests()) this.#say({ ch: "room", kind: "seat-request", seat });
-      }
+      // A request the lobby no longer lists (the room woke from hibernation and forgot it; the socket survives that, so
+      // there is no welcome) is sent again. A denied one was told to us (`seat-denied`) and is no longer wanted.
+      for (const seat of this.#model.lostRequests()) this.#say({ ch: "room", kind: "seat-request", seat });
     }
-    if (message.ch === "room" && message.kind === "welcome") this.#resend = true;
     if (this.role === "guest") this.#guestMessage(message);
     else if (message.ch === "room" && message.kind === "welcome") this.#hooks?.onWelcome(this.#tableInfo());
     this.#hooks?.onMessage(message);
@@ -445,20 +466,44 @@ export class RoomSession {
     }
   }
 
-  /** Drops the socket and connects again (a new hello): the room answers with the whole log. */
+  /**
+   * Drops the socket and connects again after a backoff (a new hello): the room answers with the whole log. Repeated
+   * gaps wait longer each time (the socket's own schedule, capped), so a room that keeps sending bad batches is not hammered.
+   */
   #reconnect(): void {
     const roomId = this.#model.roomId;
     this.#socket?.close();
     this.#socket = null;
     this.#mirror.clear();
-    if (roomId && !this.#closed) this.#connect(roomId);
+    this.#model.dropped();
+    this.#publish();
+    this.#feed?.postMessage({ kind: "connection", connected: false });
+    if (!roomId || this.#closed || this.#gapTimer !== null) return;
+    // A gap long after the last one starts the schedule again; gaps close together climb it.
+    const now = (this.#deps.now ?? Date.now)();
+    if (now - this.#lastGapAt > RECONNECT_CAP_MS) this.#gapAttempt = 0;
+    this.#lastGapAt = now;
+    this.#gapTimer = this.#timers.setTimer(
+      () => {
+        this.#gapTimer = null;
+        if (!this.#closed && !this.#socket) this.#connect(roomId);
+      },
+      reconnectDelay(this.#gapAttempt++, this.#timers.random),
+    );
+  }
+
+  #clearGapTimer(): void {
+    if (this.#gapTimer === null) return;
+    this.#timers.clearTimer(this.#gapTimer);
+    this.#gapTimer = null;
   }
 
   #sendSnapshot(): void {
     const feed = this.#feed;
     if (!feed) return;
-    const table = this.#model.table;
-    if (table) feed.postMessage({ kind: "server", message: { v: 1, ch: "room", kind: "table", table } });
+    // What a joiner's `welcome` tells it: who is here (the watchers count), whether the host is, and whether the game started.
+    const welcome = this.#model.welcomeFor();
+    if (welcome) feed.postMessage({ kind: "server", message: welcome });
     for (const message of this.#mirror.snapshot()) feed.postMessage({ kind: "server", message });
   }
 }

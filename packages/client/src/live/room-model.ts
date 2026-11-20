@@ -84,6 +84,21 @@ export class RoomModel {
     return this.#lobby;
   }
 
+  /** A `welcome` for a watcher that attaches late (the guest's feed): who is here and what the table holds. */
+  welcomeFor(): ServerMessage | null {
+    const me = this.#participants.find((p) => p.id === this.meId);
+    if (!me) return null;
+    return {
+      v: 1,
+      ch: "room",
+      kind: "welcome",
+      you: me,
+      caps: ["watch"],
+      participants: this.#participants,
+      tables: this.#table ? [this.#table] : [],
+    };
+  }
+
   /** What the room reported of the first table, for a publisher that attaches after the welcome. */
   get table(): TableInfo | null {
     return this.#table;
@@ -175,13 +190,17 @@ export class RoomModel {
         if (message.table.id !== FIRST_TABLE) return false;
         this.#table = message.table;
         return true;
+      case "seat-denied":
+        // The host turned the request down: stop asking (a reconnect would send it again).
+        this.#wanted.delete(message.seat);
+        return false;
       case "lobby":
         this.#lobby = { code: message.code, settings: message.settings, seats: message.seats };
         this.#code = message.code;
         return true;
       case "refused": {
         const seat = SEAT_REFUSALS.has(message.reason) ? this.#lastSeat : undefined;
-        if (SEAT_REFUSALS.has(message.reason)) this.#wanted.delete(this.#lastSeat ?? "");
+        if (seat) this.#wanted.delete(seat);
         this.#refusal = { reason: message.reason, ...(seat ? { seat } : {}), seq: ++this.#refusalSeq };
         return true;
       }

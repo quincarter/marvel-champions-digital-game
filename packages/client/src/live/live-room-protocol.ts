@@ -21,6 +21,8 @@ export type LiveRoomIn =
       readonly gamePort?: MessagePort;
       /** This build, as rooms compare it (`hello.build`): `CLIENT_VERSION` and `POOL_VERSION`, read on main. */
       readonly build?: RoomBuild;
+      /** The saved "Online name", the host's name for a lobby room resumed after a reload (`room-host` and `room-join` update it). */
+      readonly onlineName?: string;
       /** The presence worker's end, to post status to (Discord's "Watch live" button, a later task). */
       readonly presencePort?: MessagePort;
     }
@@ -50,7 +52,9 @@ export type LiveRoomOut =
 /** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
 export type RoomFeedOut =
   | { readonly kind: "server"; readonly message: ServerMessage }
-  | { readonly kind: "connection"; readonly connected: boolean };
+  | { readonly kind: "connection"; readonly connected: boolean }
+  /** The room session is over (left, replaced, gone): the watcher stops following. A closed room arrives as a `closed` message. */
+  | { readonly kind: "gone" };
 
 /** A guest's watcher to the room worker: the log had a gap, send the game again. */
 export type RoomFeedIn = { readonly kind: "resync" };

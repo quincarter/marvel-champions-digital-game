@@ -59,14 +59,14 @@ function nameFor(name: string | undefined): string {
 }
 
 /** The worker could not start (no engine worker host here): the room is unavailable. */
-function unavailable(): void {
-  publish({ ...NO_ROOM, role: "guest", connection: "ended", problem: "unavailable" });
+function unavailable(role: "host" | "guest"): void {
+  publish({ ...NO_ROOM, role, connection: "ended", problem: "unavailable" });
 }
 
 /** Makes a lobby room and connects as its host. `name` (when given) is saved as the online name; empty: `problem: "no-name"`. */
 export async function hostRoom(name?: string): Promise<void> {
   publish({ ...NO_ROOM, role: "host", connection: "connecting" });
-  if (!postRoomCommand({ kind: "room-host", name: nameFor(name) })) unavailable();
+  if (!postRoomCommand({ kind: "room-host", name: nameFor(name) })) unavailable("host");
 }
 
 /**
@@ -75,7 +75,7 @@ export async function hostRoom(name?: string): Promise<void> {
  */
 export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
   publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
-  if (!postRoomCommand({ kind: "room-join", target: codeOrId, name: nameFor(name) })) unavailable();
+  if (!postRoomCommand({ kind: "room-join", target: codeOrId, name: nameFor(name) })) unavailable("guest");
 }
 
 /** Leaves the room (a host closes its lobby for everyone). Seat tokens are kept, so joining again restores the seats. */
@@ -139,6 +139,12 @@ const followDeps: WatchOpenDeps = {
     }
     try {
       await host.watch(roomId, syncUrl, loadedPacks(), channel.port2);
+      // Closing the watch lets the room worker drop the feed (a message port has no close event of its own).
+      const dispose = host.dispose.bind(host);
+      host.dispose = () => {
+        postRoomCommand({ kind: "room-unfollow" });
+        dispose();
+      };
       return host;
     } catch (cause) {
       host.dispose();

@@ -26,7 +26,7 @@ let controller: LiveRoomController | null = null;
 worker.addEventListener("message", (event) => {
   const message = event.data;
   if (message.kind === "init") {
-    const { gamePort, presencePort, build } = message;
+    const { gamePort, presencePort, build, onlineName } = message;
     controller = new LiveRoomController({
       syncUrl: message.syncUrl,
       watchBase: message.watchBase,
@@ -43,6 +43,7 @@ worker.addEventListener("message", (event) => {
         ? {
             room: {
               build,
+              onlineName: onlineName ?? "",
               seatStore: new IdbSeatTokenStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
             },
