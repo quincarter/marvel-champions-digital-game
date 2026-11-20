@@ -66,6 +66,11 @@ export const CHAT_BACKLOG_LINES = 50;
 export const MAX_LOBBY_SEATS = 4;
 /** An Epic lobby has at most this many tables (each up to `MAX_LOBBY_SEATS` seats). */
 export const MAX_LOBBY_TABLES = 8;
+/**
+ * Competitive rooms: the most JSON characters one team's sealed scenario submission may have (two fit one stored row and
+ * both fit well under a message cap).
+ */
+export const MAX_SEALED_SCENARIO_CHARS = 40 * 1024;
 /** Epic lobby pods, table names and difficulty (opaque JSON, in characters). */
 export const MAX_LOBBY_PODS = 8;
 export const MAX_TABLE_NAME_CHARS = 40;
@@ -115,9 +120,10 @@ export const ROOM_END_GRACE_MS = 5 * 60 * 1000;
 /**
  * Capabilities a side may list in `hello` / `welcome`. `watch` is every room's; a room created with `lobby: true`
  * also advertises `chat`, `seats`, `play` (seat holders propose commands to the host, docs/live-game-rooms.md
- * section 9) and `tables` (several tables in one room, the Epic mode, section 10).
+ * section 9), `tables` (several tables in one room, the Epic mode, section 10) and `teams` (two teams at one table with
+ * sealed scenario submissions, the Competitive mode, section 11).
  */
-export type RoomCapability = "watch" | "chat" | "seats" | "play" | "tables";
+export type RoomCapability = "watch" | "chat" | "seats" | "play" | "tables" | "teams";
 
 /** `POST /room` answers 201 with this: the room, and the token that makes its holder the first table's host. */
 export interface RoomCreated {
@@ -217,8 +223,16 @@ export interface Participant {
   readonly device?: RoomDevice;
 }
 
-/** `standard` is one table; `epic` is several tables in one room (Trickster Takeover Epic Multiplayer). */
-export type LobbyMode = "standard" | "epic";
+/**
+ * `standard` is one table; `epic` is several tables in one room (Trickster Takeover Epic Multiplayer); `competitive` is
+ * one table with two teams, 1v1 or 2v2 (Civil War Competitive, docs/live-game-rooms.md section 11).
+ */
+export type LobbyMode = "standard" | "epic" | "competitive";
+
+/** The two sides of a Competitive room. */
+export const TEAMS = ["registration", "resistance"] as const;
+export type TeamId = (typeof TEAMS)[number];
+const isTeam = (v: unknown): v is TeamId => v === "registration" || v === "resistance";
 
 /** How the game is played: `strict` is the game as written, `host` lets the host allow Undo, Manual adjust and so on. */
 export type LobbyPlayMode = "strict" | "host";
@@ -263,6 +277,11 @@ export interface LobbySettings {
   readonly handover?: boolean;
   /** `epic`: several tables, each with its own host, joined by the pod channel (section 10). Absent means `standard`. */
   readonly mode?: LobbyMode;
+  /**
+   * Competitive rooms: apply the tie-break policy when both teams win in the same equal-phase window (plan Q9 C); off
+   * reports a tie. Absent means on. The room stores and relays it; the host's engine applies it.
+   */
+  readonly tieBreaks?: boolean;
   readonly chat: boolean;
   readonly contentVersion: string;
   readonly appVersion: string;
@@ -341,6 +360,11 @@ export interface LobbySeatSpec {
    */
   readonly player?: string | number;
   /**
+   * Competitive rooms: the seat's team. A later `lobby-set` that omits it keeps the seat's team (unlike `player`); a seat
+   * with none is not on a team yet and blocks `sealed-reveal`. A standard or Epic room drops it.
+   */
+  readonly team?: TeamId;
+  /**
    * Epic rooms: the table the seat belongs to (required there, a known table id). Absent in a standard room, where
    * every seat is at `t1`.
    */
@@ -406,6 +430,20 @@ export interface LobbySeat extends LobbySeatSpec {
   readonly deck?: RoomDeckSummary;
 }
 
+/**
+ * What the lobby shows about a team's sealed scenario: only whether it exists and whether the team is ready, never its
+ * contents (the room keeps those privately and gives them to the host's device alone, at `sealed-reveal`).
+ */
+export interface TeamStatus {
+  readonly submitted: boolean;
+  readonly ready: boolean;
+}
+
+/** Competitive rooms: both teams' status, sent to everyone. */
+export interface CompetitiveLobby {
+  readonly teams: Readonly<Record<TeamId, TeamStatus>>;
+}
+
 /** The lobby: its code, the host's settings and the seats. Sent to everyone after each change, and to a joiner. */
 export interface LobbyState {
   readonly code: string;
@@ -414,6 +452,8 @@ export interface LobbyState {
   /** Epic rooms only: the tables and the pods they belong to. */
   readonly tables?: readonly LobbyTable[];
   readonly pods?: readonly LobbyPod[];
+  /** Competitive rooms only. */
+  readonly competitive?: CompetitiveLobby;
 }
 
 /** One line of chat as the room relays it. */
@@ -488,6 +528,33 @@ export type ClientMessage =
     }
   /** Host only: closes the room for everyone (`closed` with reason `host`, every socket closed, the code released). */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "room-close" }
+  /**
+   * Competitive rooms, before the game starts: put a seat on a team. The host or the seat's holder may; any change of
+   * teams clears both teams' readiness and any reveal.
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "team-set"; readonly seat: string; readonly team: TeamId }
+  /**
+   * Competitive rooms: the sealed scenario `team` built for the other team, opaque to the room (at most
+   * `MAX_SEALED_SCENARIO_CHARS` of JSON). The host or a holder of a seat on `team` may send it. It replaces the team's
+   * earlier one and clears that team's readiness. The room keeps it privately: it is never broadcast, never in the lobby,
+   * and goes only to the host's device, in `sealed`, when the host asks with `sealed-reveal`.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "scenario-submit";
+      readonly team: TeamId;
+      readonly scenario: unknown;
+    }
+  /** Competitive rooms: a team says it is ready (needs its scenario submitted) or takes it back. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "team-ready"; readonly team: TeamId; readonly ready: boolean }
+  /**
+   * Host only, Competitive rooms: ask for both teams' sealed scenarios, to start the game. Refused `team-size` unless the
+   * seats make a 1v1 or a 2v2 (every seat on a team), `not-ready` unless both teams have submitted and are ready.
+   * The room then sends `sealed` to the host alone; a `start` is refused until this has been answered, and a reload of the
+   * host's device may ask again while the game is live. Nobody else ever receives a submission.
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "sealed-reveal" }
   /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-request"; readonly seat: string }
   /** Give up a seat you hold, or withdraw a request. */
@@ -681,6 +748,17 @@ export type ServerMessage =
     }
   /** Lobby rooms: everyone, after each change (and the joiner, after `welcome`). */
   | ({ readonly v: 1; readonly ch: "room"; readonly kind: "lobby" } & LobbyState)
+  /**
+   * To the host that asked with `sealed-reveal`, and to nobody else: both teams' submissions, each the scenario its team
+   * built for the other. The host's engine applies each to the opposing team's area.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "sealed";
+      readonly registration: unknown;
+      readonly resistance: unknown;
+    }
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
   /**
@@ -828,7 +906,9 @@ export type ServerMessage =
  * `request` in a Strict room. `not-away`: `take-over` of a seat whose holder is connected. Only `bad-message`, `too-large` and
  * `not-allowed` count toward the room closing a noisy socket. `other-table`: a seat at a second table (a participant plays
  * at one table). `bad-table-host`: a table host that is neither the organizer nor one of that table's seat holders, or a
- * participant already hosting another table. `no-such-table`: an unknown table in `follow` or `lobby-set`.
+ * participant already hosting another table. `team-size`: a Competitive reveal whose seats are not a 1v1 or a 2v2 (or a
+ * `lobby-set` with more than 2 seats on a team). `not-ready`: a reveal before both teams have submitted and are ready, or
+ * a `team-ready` without a submission. `no-such-table`: an unknown table in `follow` or `lobby-set`.
  */
 export type RefusalReason =
   | "bad-message"
@@ -849,6 +929,8 @@ export type RefusalReason =
   | "bad-table-host"
   | "no-such-table"
   | "no-such-seat"
+  | "team-size"
+  | "not-ready"
   | "no-such-participant";
 
 const CHANNELS = new Set(["room", "game", "chat", "pod"]);
@@ -900,6 +982,7 @@ function isSeatSpecs(v: unknown): boolean {
         isRecord(s) &&
         isSeatId(s.id) &&
         (s.label === undefined || shortString(s.label, 80)) &&
+        (s.team === undefined || isTeam(s.team)) &&
         (s.table === undefined || isTableId(s.table)) &&
         (s.player === undefined ||
           (typeof s.player === "string" && s.player.length > 0 && s.player.length <= MAX_SEAT_PLAYER_CHARS) ||
@@ -951,7 +1034,8 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
-  if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic") return false;
+  if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic" && v.mode !== "competitive") return false;
+  if (v.tieBreaks !== undefined && typeof v.tieBreaks !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.tableRules !== undefined) {
     if (!isRecord(v.tableRules) || (JSON.stringify(v.tableRules)?.length ?? 0) > MAX_TABLE_RULES_CHARS) return false;
@@ -1015,6 +1099,16 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "room:take-over":
     case "room:give-back":
       return ok(isSeatId(m.seat));
+    case "room:team-set":
+      return ok(isSeatId(m.seat) && isTeam(m.team));
+    case "room:team-ready":
+      return ok(isTeam(m.team) && typeof m.ready === "boolean");
+    case "room:scenario-submit":
+      return ok(
+        isTeam(m.team) && "scenario" in m && (JSON.stringify(m.scenario)?.length ?? 0) <= MAX_SEALED_SCENARIO_CHARS,
+      );
+    case "room:sealed-reveal":
+      return ok(true);
     case "room:seat-assign":
     case "room:seat-deny":
       return ok(isSeatId(m.seat) && typeof m.participant === "string" && m.participant.length <= 32);
