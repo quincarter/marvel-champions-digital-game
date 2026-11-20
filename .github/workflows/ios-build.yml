@@ -122,6 +122,7 @@ jobs:
       PR: ${{ github.event.pull_request.number }}
       HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       TAG: ios-preview-pr-${{ github.event.pull_request.number }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -144,11 +145,22 @@ jobs:
           fi
           name="$(basename "$built" -iOS-unsigned.ipa)-PR${PR}-${HEAD_SHA:0:7}-iOS-unsigned.ipa"
           mv "$built" "$name"
-          # Recreated on every push, so the tag sits on the commit the .ipa was built from.
+          # Recreated on every push, so the tag sits on the commit the .ipa was built from. GitHub refuses the workflow
+          # token a tag on a commit that itself edits a workflow file (HTTP 403), so such a push tags the default
+          # branch instead; the file name, notes and comment still name the commit.
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
-          gh release create "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --prerelease --target "$HEAD_SHA" \
-            --title "iOS preview: PR #${PR}" \
-            --notes "A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. Unsigned: sideload it with SideStore, AltStore or Sideloadly (docs/project/ios-install.md). Deleted when the pull request closes."
+          notes="A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. Unsigned: sideload it with SideStore, AltStore or Sideloadly (docs/project/ios-install.md). Deleted when the pull request closes."
+          for target in "$HEAD_SHA" "$DEFAULT_BRANCH"; do
+            if gh release create "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --prerelease --target "$target" \
+              --title "iOS preview: PR #${PR}" --notes "$notes"; then
+              break
+            fi
+            if [ "$target" = "$DEFAULT_BRANCH" ]; then
+              exit 1
+            fi
+            echo "Couldn't tag ${HEAD_SHA:0:7}; tagging ${DEFAULT_BRANCH} instead."
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
+          done
           # A pull request that closed while this built already had its cleanup run (#472): take the preview down.
           state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
           if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
