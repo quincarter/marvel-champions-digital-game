@@ -108,6 +108,8 @@ export function settingsSectionsOf(input: {
   readonly steamInstall?: boolean;
   /** The desktop app with Steam installed and the game not in it yet: an Add to Steam row under More (#844). */
   readonly steamAdd?: boolean;
+  /** False for a seated guest in a room game (#904): the Cheats section is left out. Defaults to shown. */
+  readonly cheats?: boolean;
 }): readonly SettingsSection[] {
   return [
     {
@@ -215,7 +217,9 @@ export function settingsSectionsOf(input: {
     // Every setting that can stop a game counting toward stats, achievements and champion points, in one place (#899,
     // the owner, 2026-11-20): off by default, each with a warning before it turns on. A new setting that marks a game
     // Adjusted (`isAdjustedSave`) belongs here.
-    { id: "cheats", title: "Cheats", items: ["undo-past-turn", "manual-adjust"] },
+    ...(input.cheats === false
+      ? []
+      : [{ id: "cheats" as const, title: "Cheats", items: ["undo-past-turn", "manual-adjust"] as const }]),
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }

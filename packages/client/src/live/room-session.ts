@@ -42,6 +42,7 @@ import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState, SeatDeckEntry } from "./room-state.js";
 import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type Body = DistributiveOmit<ClientMessage, "v">;
@@ -584,7 +585,7 @@ export class RoomSession {
     }
     if (this.role === "host" && message.ch === "game" && message.kind === "request") {
       // The room refuses requests in a Strict room itself; one that slips through is declined, never listed.
-      if (this.#model.state().settings?.playMode !== "host") {
+      if (!askAllowedOf(message.what, this.#model.state().settings)) {
         this.#say({
           ch: "game",
           kind: "request-answer",

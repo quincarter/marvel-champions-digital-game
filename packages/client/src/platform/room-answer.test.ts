@@ -44,10 +44,22 @@ const seat = (id: string, player: string, holder: string): RoomSeat => ({
   deck: null,
   deckProblem: null,
 });
-const hostState = (what: "undo" | "adjust", from: string): RoomState => ({
+const lobby = {
+  playMode: "host",
+  undo: "ask",
+  cheats: true,
+  tableRules: {},
+  mods: [],
+  multiSeat: false,
+  chat: true,
+  appVersion: "1",
+  contentVersion: "1",
+} as const;
+const hostState = (what: "undo" | "adjust", from: string, settings: RoomState["settings"] = lobby): RoomState => ({
   ...NO_ROOM,
   role: "host",
   connection: "connected",
+  settings,
   seats: [seat("s1", "p1", "ava"), seat("s2", "p2", "ben")],
   requests: [{ id: "r1", from, name: from, what, note: "" }],
 });
@@ -80,6 +92,24 @@ describe("answering a request as the host", () => {
     await answer(hostState("undo", "ben"));
     expect(rewindTo).toHaveBeenCalledWith(0, { fromVersion: 1 });
     expect(posted.at(-1)).toEqual({ kind: "room-answer", id: "r1", accepted: true });
+  });
+
+  it("declines an undo ask when the room's policy is not ask (Host only, Off, Strict), without undoing", async () => {
+    for (const settings of [
+      { ...lobby, undo: "host" as const },
+      { ...lobby, undo: "off" as const },
+      { ...lobby, playMode: "strict" as const, undo: "off" as const },
+    ]) {
+      Object.assign(storeState, { game: turnOf("p2"), commandTrail: [move("p2")], version: 1 });
+      await answer(hostState("undo", "ben", settings));
+      expect(rewindTo).not.toHaveBeenCalled();
+      expect(posted.at(-1)).toEqual({ kind: "room-answer", id: "r1", accepted: false });
+    }
+  });
+
+  it("declines an adjust ask when cheats are off", async () => {
+    await answer(hostState("adjust", "ben", { ...lobby, cheats: false }));
+    expect(posted.at(-1)).toEqual({ kind: "room-answer", id: "r1", accepted: false });
   });
 
   it("declines when the asker's hero is not the one whose turn it is, rather than undoing someone else's move", async () => {

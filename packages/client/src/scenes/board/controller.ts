@@ -60,7 +60,8 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
-import { roomCheatsOf, roomUndoOffOf, strictReason, undoOffReason } from "../../view/room-strict.js";
+import { roomCheatsOf, roomUndoOffOf, seatUndoReason, undoOffReason } from "../../view/room-strict.js";
+import { seatUndoPolicyOf } from "../../view/room-ask-policy.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { askHost } from "../../platform/room.js";
 import { seatOfPlayerIn } from "../../live/room-state.js";
@@ -2060,9 +2061,10 @@ export class BoardController {
     if (seat?.seatGame) {
       if (game.outcome || game.pendingChoice) return null;
       if (!seatOfPlayerIn(seat.room, perspectiveId)?.mine) return null;
-      return seat.room.settings?.playMode === "strict"
-        ? { kind: "unavailable", reason: strictReason() }
-        : { kind: "ask" };
+      // Ask only under the "ask" policy; Host only and Off say why where Undo would be (#904).
+      return seatUndoPolicyOf(seat.room.settings) === "ask"
+        ? { kind: "ask" }
+        : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
     }
     // A lobby room that turned Undo off (Strict rules, or the host's Undo setting): Undo stays on the bar, greyed, with why.
     if (roomUndoOffOf(config)) {

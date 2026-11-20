@@ -34,6 +34,7 @@ import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult 
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
 
@@ -198,8 +199,10 @@ export async function answerRequest(id: string, accepted: boolean): Promise<void
   const request = state.requests.find((r) => r.id === id);
   if (state.role !== "host" || !request) return;
   let answer = accepted;
+  // The room's policy decides what may be asked: an undo only under "ask", a change only with cheats on (#904).
+  if (!askAllowedOf(request.what, state.settings)) answer = false;
   // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
-  if (accepted && request.what === "undo") answer = await undoMoveOf(request.from);
+  if (answer && request.what === "undo") answer = await undoMoveOf(request.from);
   postRoomCommand({ kind: "room-answer", id, accepted: answer });
 }
 

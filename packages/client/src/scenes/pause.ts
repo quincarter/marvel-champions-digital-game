@@ -89,6 +89,7 @@ import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { roomCheatsOf } from "../view/room-strict.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 import { activeSeat } from "../platform/seat-play.js";
 import { roomState } from "../platform/room.js";
 import { handoverOn, roomChatOn } from "../view/room-prompts.js";
@@ -353,7 +354,7 @@ export class PauseOverlay extends Phaser.Scene {
   /** Manual adjust is offered when Settings allows it and the game is not a strict lobby room's (`view/room-strict.ts`). */
   #manualAdjustOn(): boolean {
     // A seated guest does not adjust the table: in a Host control room the same place asks the host for a change (#881).
-    if (this.#seatGame()) return roomState().settings?.playMode === "host";
+    if (this.#seatGame()) return askAllowedOf("adjust", roomState().settings);
     return roomCheatsOf(appSession().settings, appSession().store.state.config).manualAdjust;
   }
 
