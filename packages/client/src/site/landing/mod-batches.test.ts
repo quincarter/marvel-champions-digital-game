@@ -40,6 +40,21 @@ describe("groupByBatch", () => {
     expect(groups[0]!.mods.map((m) => m.id)).toEqual(["soon-punisher", "rose-bd"]);
   });
 
+  it("keeps an announced pack hidden once its store pack is withdrawn", () => {
+    const listed = groupByBatch([mod("punisher-msp", "hero", "The Punisher")], [ONE, TWO]);
+    expect(listed[0]!.mods.map((m) => m.id)).toEqual(["punisher-msp", "soon-rose"]);
+    // Withdrawn later: the catalog leaves it out, and its announcement doesn't come back.
+    const withdrawn = groupByBatch([], [ONE, TWO], [{ id: "punisher-msp", kind: "hero", name: "The Punisher" }]);
+    expect(withdrawn[0]!.mods.map((m) => m.id)).toEqual(["soon-rose"]);
+    // A withdrawn pack of an older batch with the same kind and name doesn't hide it.
+    const older = groupByBatch(
+      [],
+      [{ ...ONE, ids: [...ONE.ids, "punisher-old"] }, TWO],
+      [{ id: "punisher-old", kind: "hero", name: "The Punisher" }],
+    );
+    expect(older[0]!.mods.map((m) => m.id)).toEqual(["soon-punisher", "soon-rose"]);
+  });
+
   it("has nothing to show without batches", () => {
     expect(groupByBatch([mod("x", "hero", "X")], [])).toEqual([]);
   });

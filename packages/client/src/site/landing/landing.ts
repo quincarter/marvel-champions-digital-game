@@ -14,6 +14,7 @@ import {
   SCREENSHOTS,
   VILLAIN_ART,
   WALLPAPERS,
+  WITHDRAWN_MODS,
   type FeedRelease,
   type StoreMod,
 } from "virtual:landing-data";
@@ -98,6 +99,7 @@ let release: LatestRelease | null | "loading" = BUILT_RELEASE ?? "loading";
  */
 let latestTag: string | null = BUILT_RELEASE?.tag_name ?? null;
 let mods: readonly StoreMod[] = MODS;
+let withdrawnMods: readonly Pick<StoreMod, "id" | "kind" | "name">[] = WITHDRAWN_MODS;
 /**
  * The store's batches, each with the owner's poster. Batch 2's packs wait on the v0.51.0 Mod SDK, so until the store
  * lists them they show with the covers from the batch's announcement.
@@ -500,7 +502,7 @@ function modTile(mod: BatchMod, i: number): HTMLElement {
 }
 
 function drawMods(): void {
-  const groups = groupByBatch(mods, BATCHES);
+  const groups = groupByBatch(mods, BATCHES, withdrawnMods);
   // The batches' posters as tabs, newest first; the poster opens full size.
   const tabs = $("batch-tabs");
   tabs.setAttribute("role", "group");
@@ -660,9 +662,12 @@ void fetch(PACK_CATALOG_URL, { signal: AbortSignal.timeout(6000) })
   .then((data) => {
     const live = data?.packs?.filter((pack) => !pack.withdrawn);
     if (!live || live.length === 0) return;
-    const ids = (list: readonly StoreMod[]) => list.map((mod) => `${mod.id}@${mod.latest}`).join();
-    if (ids(live) === ids(mods)) return;
+    const gone = (data?.packs ?? []).filter((pack) => pack.withdrawn);
+    const ids = (list: readonly Pick<StoreMod, "id">[]) => list.map((mod) => mod.id).join();
+    const versions = (list: readonly StoreMod[]) => list.map((mod) => `${mod.id}@${mod.latest}`).join();
+    if (versions(live) === versions(mods) && ids(gone) === ids(withdrawnMods)) return;
     mods = live;
+    withdrawnMods = gone;
     drawMods();
     drawStats();
     reveal();
