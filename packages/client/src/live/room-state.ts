@@ -244,6 +244,12 @@ export interface EpicState {
   readonly remoteTargets: readonly RemoteTarget[];
   /** The tables whose logs I receive: `"all"` or their ids (a table I hold a seat at is always included). */
   readonly following: "all" | readonly string[];
+  /**
+   * Table host only: this table has waited too long for the pod coordinator (an unconfirmed event, a `sharedAck` that
+   * never comes). Offer the host `releasePod()`: the group plays on, and its unanswered event is re-sent when a
+   * coordinator returns. False otherwise.
+   */
+  readonly podStuck: boolean;
 }
 
 export interface RoomState {

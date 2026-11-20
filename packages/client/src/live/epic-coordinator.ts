@@ -50,6 +50,8 @@ export interface EpicLogRecord {
   readonly setup: PodCoordinatorSetup;
   readonly log: readonly CoordinatorLogEntry[];
   readonly savedAt: number;
+  /** The epoch the coordinator had: a restored one starts well past it, so tables always see a restart. */
+  readonly epoch?: number;
 }
 
 export interface EpicLogStore {
@@ -170,6 +172,7 @@ export class EpicCoordinator {
     try {
       coordinator.#state = replayCoordinator(record.setup, record.log);
       coordinator.#shared = record.setup.shared;
+      coordinator.#epoch = Math.max(coordinator.#epoch, (record.epoch ?? 0) + 1000);
     } catch {
       void options.store?.clear(options.roomId).catch(() => {});
     }
@@ -198,10 +201,24 @@ export class EpicCoordinator {
 
   /** Re-sends the shared state to everyone (the organizer's socket was welcomed again, or someone joined). */
   broadcast(): void {
-    const wire = this.wire;
-    if (!wire) return;
-    this.#options.onState?.(wire);
-    this.#emit({ v: ROOM_PROTOCOL_VERSION, ch: "pod", kind: "state", state: wire });
+    this.#later(() => {
+      const wire = this.wire;
+      if (!wire) return;
+      this.#options.onState?.(wire);
+      this.#emit({ v: ROOM_PROTOCOL_VERSION, ch: "pod", kind: "state", state: wire });
+    });
+  }
+
+  /**
+   * Runs `send` once what the coordinator has decided is saved (with a store), in the order asked: nothing is told to a
+   * table before the log that explains it is on disk, so a reload never rebuilds a state older than what tables heard.
+   */
+  #later(send: () => void): void {
+    if (!this.#options.store) {
+      send();
+      return;
+    }
+    this.#saving = this.#saving.then(send).catch(() => {});
   }
 
   /** A table host's `pod:event`. Nothing here throws: a message it cannot use is dropped. */
@@ -278,12 +295,14 @@ export class EpicCoordinator {
   }
 
   #deliver(table: string, sequence: number, event: PodInboundEvent | PodSyncAck): void {
-    const local = this.#options.local;
-    if (local && local.table === table) {
-      local.deliver(sequence, event);
-      return;
-    }
-    this.#emit({ v: ROOM_PROTOCOL_VERSION, ch: "pod", kind: "inbound", table, seq: sequence, event });
+    this.#later(() => {
+      const local = this.#options.local;
+      if (local && local.table === table) {
+        local.deliver(sequence, event);
+        return;
+      }
+      this.#emit({ v: ROOM_PROTOCOL_VERSION, ch: "pod", kind: "inbound", table, seq: sequence, event });
+    });
   }
 
   #save(): void {
@@ -296,6 +315,7 @@ export class EpicCoordinator {
       setup: { ...this.#setup, shared },
       log: state.log,
       savedAt: (this.#options.now ?? Date.now)(),
+      epoch: this.#epoch,
     };
     this.#saving = this.#saving.then(() => store.save(record)).catch(() => {});
   }

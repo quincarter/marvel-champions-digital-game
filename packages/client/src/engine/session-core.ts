@@ -148,6 +148,7 @@ export type CoreDispatch =
 /** A rewind worked out for an older table than the game now has (a seat's command landed first). */
 export const MOVED_REFUSAL = "The table moved on while this was being decided";
 export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+export const POD_REFUSAL = "Epic Multiplayer: the pod has already heard what this move did, so it cannot be taken back";
 
 /**
  * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
@@ -669,6 +670,15 @@ export class EngineSessionCore {
       record = recordEvents(record, result.events, result.state, depsOf(config));
       state = result.state;
     }
+    // Epic Multiplayer: the pod has already been told, and has answered, what the cut commands did; the sequence numbers
+    // of a group with a remote coordinator never go back. (Undo past a reveal and Back out reach here.)
+    const now = session.state.pod;
+    if (
+      now?.coordinator === "remote" &&
+      (state.pod?.outboundSeq !== now.outboundSeq || state.pod?.inboundSeq !== now.inboundSeq)
+    ) {
+      throw new Error(POD_REFUSAL);
+    }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
     this.#version = truncated.length;
     this.#record = record;
@@ -1028,15 +1038,36 @@ export class EngineSessionCore {
     readonly inboundSeq: number;
     readonly shared: SharedPodState | null;
     readonly players: number;
+    readonly outbox: readonly PodOutbound[];
+    readonly awaiting: boolean;
   } | null {
-    const state = this.#session?.state;
-    if (state?.pod?.coordinator !== "remote") return null;
+    const session = this.#session;
+    const state = session?.state;
+    if (!session || state?.pod?.coordinator !== "remote") return null;
     return {
       groupId: state.pod.groupId,
       inboundSeq: state.pod.inboundSeq,
       shared: state.pod.shared,
       players: state.startingPlayerCount,
+      outbox: this.#podOutbox(session),
+      awaiting: state.pod.awaiting !== undefined,
     };
+  }
+
+  /**
+   * Every outbound pod event the log produced, by replaying it from its baseline: what a reloaded table host re-sends
+   * to a coordinator that lacks some (the engine numbered them when they happened and a saved game keeps the log).
+   */
+  #podOutbox(session: GameSession): readonly PodOutbound[] {
+    const out: PodOutbound[] = [];
+    let state = session.log.initialState;
+    for (const command of session.log.commands) {
+      const result = applyCommand(state, command, depsOf(this.#config));
+      if (!result.ok) break;
+      state = result.state;
+      out.push(...podOutboundOf(state, result.events));
+    }
+    return out;
   }
 
   /**
@@ -1045,10 +1076,20 @@ export class EngineSessionCore {
    */
   livePod(
     events: readonly GameEvent[],
-  ): { readonly outbound: readonly PodOutbound[]; readonly inboundSeq: number } | null {
+  ): { readonly outbound: readonly PodOutbound[]; readonly inboundSeq: number; readonly awaiting: boolean } | null {
     const state = this.#session?.state;
     if (state?.pod?.coordinator !== "remote") return null;
-    return { outbound: podOutboundOf(state, events), inboundSeq: state.pod.inboundSeq };
+    return {
+      outbound: podOutboundOf(state, events),
+      inboundSeq: state.pod.inboundSeq,
+      awaiting: state.pod.awaiting !== undefined,
+    };
+  }
+
+  /** The `podRelease` command: ends the wait for a coordinator that is gone (recorded under the first player). */
+  podReleaseCommand(): Command | null {
+    const state = this.#session?.state;
+    return state?.pod?.coordinator === "remote" ? { type: "podRelease", playerId: state.firstPlayerId } : null;
   }
 
   /** The `externalEvent` command for inbound event `sequence` of the pod coordinator (recorded under the first player). */

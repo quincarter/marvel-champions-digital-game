@@ -39,6 +39,9 @@ interface Table {
 /** A fake room with an organizer (t1, local) and two table hosts. */
 class Hub {
   readonly store = new MemoryEpicLogStore();
+  /** Whether the coordinator saves its log (only the reload tests need it: a save defers what is sent after it). */
+  useStore = false;
+  readonly stuck: boolean[] = [];
   readonly timers: (() => void)[] = [];
   readonly tables = new Map<string, Table>();
   coordinator!: EpicCoordinator;
@@ -47,8 +50,9 @@ class Hub {
   /** Every message the organizer put on the socket. */
   sent: ClientMessage[] = [];
 
-  static async make(): Promise<Hub> {
+  static async make(useStore = false): Promise<Hub> {
     const hub = new Hub();
+    hub.useStore = useStore;
     await hub.startCoordinator();
     for (const id of ["t1", "t2", "t3"]) hub.addTable(id);
     return hub;
@@ -59,7 +63,7 @@ class Hub {
     this.coordinator = await EpicCoordinator.restore({
       roomId: "room",
       groups: GROUPS,
-      store: this.store,
+      ...(this.useStore ? { store: this.store } : {}),
       send: (message) => this.fromOrganizer(message),
       local: { table: "t1", deliver: (seq, event) => this.deliverTo("t1", seq, event) },
       now: () => this.clock,
@@ -77,7 +81,14 @@ class Hub {
       link: new PodLink({
         table: id,
         send: (message) => this.toOrganizer(id, message),
-        apply: (seq, event) => table.applied.push({ seq, event }),
+        // The engine accepts the event and reports its own inbound count with the next command.
+        apply: (seq, event) => {
+          table.applied.push({ seq, event });
+          table.link.outbound([], seq);
+        },
+        onStuck: (stuck) => this.stuck.push(stuck),
+        setTimer: (run) => this.timers.push(run),
+        clearTimer: () => {},
         onState: (state) => table.states.push(state),
       }),
     };
@@ -276,7 +287,7 @@ describe("the pod channel", () => {
   });
 
   it("an organizer that reloaded rebuilds the coordinator from its saved log, and the tables sync again", async () => {
-    const hub = await Hub.make();
+    const hub = await Hub.make(true);
     for (const id of ["t1", "t2", "t3"]) hub.connect(id);
     hub.emit("t2", damaged("t2", 9));
     hub.coordinator.dropTable("t3");
@@ -296,13 +307,15 @@ describe("the pod channel", () => {
     hub.organizerUp = true;
     // The organizer is back: its state broadcast carries a new epoch, so each table syncs and its unacked event goes out.
     hub.coordinator.broadcast();
+    // The broadcast and then the syncs it causes each wait for the save before them.
+    for (let i = 0; i < 4; i++) await hub.coordinator.flushed();
     expect(hub.coordinator.state?.shared.villainDamage).toBe(10);
     expect(hub.table("t2").link.unacked).toBe(0);
     expect(hub.coordinator.state?.groups[2]?.dropped).toBe(true);
   });
 
   it("starts fresh when the saved log belongs to other groups", async () => {
-    const hub = await Hub.make();
+    const hub = await Hub.make(true);
     hub.connect("t1");
     await hub.coordinator.flushed();
     hub.store.records.set("room", {
@@ -389,5 +402,107 @@ describe("the pod channel", () => {
     expect(hub.coordinator.state?.shared.villainDamage).toBe(40);
     expect(hub.table("t2").applied).toHaveLength(80);
     expect(hub.table("t2").applied.map((a) => a.seq)).toEqual(Array.from({ length: 80 }, (_, i) => i + 1));
+  });
+
+  it("a table host that reloaded rebuilds its outbox from its saved log, and sends only what the coordinator lacks", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 5), damaged("t2", 2));
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(2);
+    // The coordinator lost event 2 (an older save), and t2's page reloaded: a new link, the outbox rebuilt by replay.
+    const events = [1, 2].map((seq) => ({ seq, event: damaged("t2", seq === 1 ? 5 : 2) }));
+    const table = hub.addTable("t2");
+    // A coordinator a step behind: it has event 1 only.
+    await hub.startCoordinator();
+    hub.coordinator.receive("t2", 0, { type: "podSync", inboundSeq: 0, shared: SHARED });
+    hub.coordinator.receive("t2", 1, events[0]!.event);
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(1);
+    table.connected = true;
+    table.link.game({ inboundSeq: 0, shared: SHARED, outbox: events });
+    table.link.onWelcome();
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(2);
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(7);
+    expect(table.link.unacked).toBe(0);
+  });
+
+  it("does not answer the same ack again: a gap no re-send can fill is reported stuck, not looped on", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t3"]) hub.connect(id);
+    // t2 reloaded with only event 2 of its log (event 1 is gone): the coordinator has nothing of t2.
+    const table = hub.table("t2");
+    table.connected = true;
+    table.link.game({ inboundSeq: 0, shared: SHARED, outbox: [{ seq: 2, event: damaged("t2", 1) }] });
+    table.link.onWelcome();
+    const sends = hub.sent.length;
+    expect(hub.coordinator.state?.groups[1]?.received).toBe(0);
+    // The hole is reported after the wait, and nothing more is sent meanwhile.
+    expect(hub.stuck).toEqual([]);
+    for (const run of hub.timers.splice(0)) run();
+    expect(hub.stuck).toEqual([true]);
+    expect(table.link.stuck).toBe(true);
+    expect(hub.sent.length).toBe(sends);
+    // The same ack again changes nothing (it used to re-send and be refused forever).
+    hub.coordinator.receive("t2", 2, damaged("t2", 1));
+    expect(hub.sent.length).toBeLessThanOrEqual(sends + 3);
+  });
+
+  it("syncs from what the engine really applied, so an inbound event it never accepted is sent again", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    // A host whose engine does not apply anything it is forwarded (busy, refused): its own count stays 0.
+    const forwarded: number[] = [];
+    const lazy = new PodLink({
+      table: "t3",
+      send: (m) => (m.ch === "pod" ? (hub.coordinator.receive("t3", m.seq as number, m.event), true) : true),
+      apply: (seq) => forwarded.push(seq),
+    });
+    lazy.game({ inboundSeq: 0, shared: SHARED });
+    lazy.onWelcome();
+    hub.emit("t2", damaged("t2", 3));
+    // The coordinator's answer to t3 went to t3's own link, not this one: deliver it by hand, then sync again.
+    const answer = hub.coordinator.state?.groups[2]?.inbound[0];
+    lazy.onMessage({
+      v: 1,
+      ch: "pod",
+      kind: "inbound",
+      table: "t3",
+      seq: answer!.sequence,
+      event: answer!.event,
+    } as ServerMessage);
+    expect(forwarded).toEqual([1]);
+    lazy.onWelcome();
+    // The sync said 0 applied, so the coordinator re-sends it, and it is forwarded again.
+    const resent = hub.sent
+      .filter((m) => m.ch === "pod" && m.kind === "inbound" && m.table === "t3" && m.seq === 1)
+      .at(-1)!;
+    lazy.onMessage(resent as unknown as ServerMessage);
+    expect(forwarded).toEqual([1, 1]);
+    expect(lazy.applied).toBe(0);
+  });
+
+  it("reports a wait for the coordinator that does not clear, and clears it when the coordinator answers", async () => {
+    const hub = await Hub.make();
+    hub.organizerUp = false;
+    hub.connect("t2");
+    hub.emit("t2", damaged("t2", 1));
+    expect(hub.timers.length).toBeGreaterThan(0);
+    for (const run of hub.timers.splice(0)) run();
+    expect(hub.stuck).toEqual([true]);
+    // The organizer returns: the sync is answered and the event confirmed.
+    hub.organizerUp = true;
+    hub.connect("t2");
+    expect(hub.table("t2").link.stuck).toBe(false);
+    expect(hub.stuck).toEqual([true, false]);
+  });
+
+  it("is stuck while the engine waits for a sharedAck that never comes, and not once it has it", async () => {
+    const hub = await Hub.make();
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    const link = hub.table("t2").link;
+    link.outbound([], link.applied, true);
+    for (const run of hub.timers.splice(0)) run();
+    expect(link.stuck).toBe(true);
+    link.outbound([], link.applied, false);
+    expect(link.stuck).toBe(false);
   });
 });

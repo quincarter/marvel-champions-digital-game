@@ -20,7 +20,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { isChecksumPosition } from "../replay/replay-file.js";
 import { handleProposal, type ProposalHandlerDeps } from "./live-proposals.js";
-import { handlePodInbound, type PodInboundDeps } from "./live-pod.js";
+import { handlePodInbound, handlePodRelease, type PodInboundDeps } from "./live-pod.js";
 import type { LiveControlMessage, LiveGameMessage } from "../live/live-room-protocol.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
@@ -174,6 +174,10 @@ async function handle(request: HostRequest): Promise<void> {
         livePort.addEventListener("message", (e: MessageEvent<LiveControlMessage>) => {
           if (e.data.kind === "proposal") {
             handleProposal(proposals, e.data);
+            return;
+          }
+          if (e.data.kind === "pod-release") {
+            handlePodRelease(podInbound, e.data);
             return;
           }
           if (e.data.kind === "pod-inbound") {

@@ -5,7 +5,7 @@
 import type { Command, PodInboundEvent } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import type { LiveControlMessage } from "../live/live-room-protocol.js";
-import { handlePodInbound, type PodInboundDeps } from "./live-pod.js";
+import { handlePodInbound, handlePodRelease, type PodInboundDeps } from "./live-pod.js";
 import type { Snapshot } from "./session-core.js";
 
 type Inbound = Extract<LiveControlMessage, { kind: "pod-inbound" }>;
@@ -103,5 +103,15 @@ describe("a pod coordinator's inbound event in the engine worker", () => {
     };
     handlePodInbound(throwing, message());
     expect(calls).toEqual(["command 1", "dispatch", "remote", "after-2"]);
+  });
+
+  it("applies a release as the group's own command, and only for the game it names", () => {
+    const { deps, calls } = setup();
+    const core = deps.core as unknown as { podReleaseCommand: () => Command | null };
+    core.podReleaseCommand = () => ({ type: "podRelease", playerId: "p1" }) as unknown as Command;
+    handlePodRelease(deps, { kind: "pod-release", gameKey: "game" });
+    expect(calls).toEqual(["dispatch", "remote", "after-1", "after-2"]);
+    handlePodRelease(deps, { kind: "pod-release", gameKey: "other" });
+    expect(calls).toHaveLength(4);
   });
 });

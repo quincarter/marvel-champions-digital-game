@@ -58,6 +58,8 @@ export type LiveRoomIn =
   | { readonly kind: "room-epic-start" }
   /** Organizer: gives up a table whose host left (the game goes on without it). */
   | { readonly kind: "room-epic-drop"; readonly table: string }
+  /** Table host: ends a wait for the pod coordinator that has stuck (`RoomState.epic.podStuck`). */
+  | { readonly kind: "room-pod-release" }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
@@ -109,7 +111,11 @@ export type LiveGameMessage =
       readonly checksum?: string;
       readonly outcome?: GameOutcome;
       /** Epic Multiplayer: what this command told the pod, and the inbound events the group has applied by now. */
-      readonly pod?: { readonly outbound: readonly PodOutbound[]; readonly inboundSeq: number };
+      readonly pod?: {
+        readonly outbound: readonly PodOutbound[];
+        readonly inboundSeq: number;
+        readonly awaiting?: boolean;
+      };
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
   /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
@@ -129,6 +135,10 @@ export interface LivePodGame {
   readonly inboundSeq: number;
   readonly shared: SharedPodState | null;
   readonly players: number;
+  /** Every outbound event the saved log produced (a replay), so a reloaded host re-sends what the coordinator lacks. */
+  readonly outbox?: readonly PodOutbound[];
+  /** The engine waits for the coordinator's `sharedAck`. */
+  readonly awaiting?: boolean;
 }
 
 /**
@@ -142,6 +152,7 @@ export type LiveControlMessage =
    * The pod coordinator's inbound event `sequence` for this table's group (Epic Multiplayer): the engine worker applies it
    * as a `Command externalEvent` at its next boundary, in order, once each.
    */
+  | { readonly kind: "pod-release"; readonly gameKey: string }
   | {
       readonly kind: "pod-inbound";
       readonly gameKey: string;

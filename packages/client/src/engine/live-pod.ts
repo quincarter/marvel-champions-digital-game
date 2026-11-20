@@ -10,7 +10,7 @@ import type { LiveControlMessage } from "../live/live-room-protocol.js";
 import type { EngineSessionCore, Snapshot } from "./session-core.js";
 
 export interface PodInboundDeps {
-  readonly core: Pick<EngineSessionCore, "liveGameKey" | "dispatch" | "podInboundCommand">;
+  readonly core: Pick<EngineSessionCore, "liveGameKey" | "dispatch" | "podInboundCommand" | "podReleaseCommand">;
   /** True while a start, resume or rewind is awaiting: the event waits (it is never dropped) until the table settles. */
   readonly busy: () => boolean;
   /** Runs `run` again a little later. */
@@ -19,6 +19,37 @@ export interface PodInboundDeps {
   readonly remote: (command: Command, snapshot: Snapshot) => void;
   /** What follows an applied command, as after a host dispatch: saving, presence, the live stream. Each may throw. */
   readonly after: readonly ((command: Command, snapshot: Snapshot) => void)[];
+}
+
+/**
+ * The table host ends a wait for a coordinator that is gone (`Command podRelease`): applied like an inbound event, and
+ * refused by the engine unless the group really is waiting.
+ */
+export function handlePodRelease(
+  deps: PodInboundDeps,
+  message: Extract<LiveControlMessage, { kind: "pod-release" }>,
+): void {
+  if (deps.busy()) {
+    deps.later(() => handlePodRelease(deps, message));
+    return;
+  }
+  if (deps.core.liveGameKey() !== message.gameKey) return;
+  const command = deps.core.podReleaseCommand();
+  if (!command) return;
+  try {
+    const result = deps.core.dispatch(command);
+    if (!result.ok) return;
+    deps.remote(command, result.snapshot);
+    for (const after of deps.after) {
+      try {
+        after(command, result.snapshot);
+      } catch {
+        // Saving and the stream are nicer-to-have; the release stands.
+      }
+    }
+  } catch {
+    // Nothing changed.
+  }
 }
 
 export function handlePodInbound(

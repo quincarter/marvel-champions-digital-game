@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from "vitest";
 import { MemoryGameStorage } from "./game-storage.js";
-import { EngineSessionCore } from "./session-core.js";
+import { EngineSessionCore, POD_REFUSAL } from "./session-core.js";
 import type { SessionConfig } from "./host.js";
 
 const config = (group: string): SessionConfig => ({
@@ -42,7 +42,7 @@ describe("an Epic group in the engine session", () => {
     expect(game).toMatchObject({ groupId: "t1", inboundSeq: 0, players: 1 });
     expect(game?.shared?.schemeTarget).toBeGreaterThan(0);
     // Outbound events come from a command's own events, numbered by the engine: none yet for no events.
-    expect(core.livePod([])).toEqual({ outbound: [], inboundSeq: 0 });
+    expect(core.livePod([])).toEqual({ outbound: [], inboundSeq: 0, awaiting: false });
     expect(snapshot.version).toBe(0);
   });
 
@@ -76,5 +76,67 @@ describe("an Epic group in the engine session", () => {
     const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
     await core.start(config("t1"));
     expect(core.liveGame()?.game.config.epic).toEqual(config("t1").epic);
+  });
+
+  /** Plays the first legal ending of a turn, or the first legal thing, until `count` commands were dispatched. */
+  function playOn(core: EngineSessionCore, playerId: string, count: number): void {
+    for (let n = 0; n < count; n++) {
+      const legal = core.legalActions(playerId as never);
+      if (legal.kind === "choice") {
+        const option = legal.choice.options[0]!;
+        core.dispatch({
+          type: "resolveChoice",
+          playerId: legal.choice.playerId,
+          choiceId: legal.choice.choiceId,
+          selectedOptionIds: [option.optionId],
+        });
+        continue;
+      }
+      if (legal.kind !== "turn") return;
+      const pick = legal.legal.find((a) => a.action.kind === "endTurn") ?? legal.legal[0]!;
+      core.dispatch(pick.example);
+    }
+  }
+
+  test("a reloaded group rebuilds every outbound pod event from its saved log, as the engine numbered them", async () => {
+    const storage = new MemoryGameStorage();
+    const core = new EngineSessionCore({ storage });
+    const { snapshot } = await core.start(config("t1"));
+    playOn(core, snapshot.legal!.playerId as string, 6);
+    const live = core.livePodGame()!;
+    const sent = core.livePodGame()!.outbox;
+    // Every number the engine handed out is in the rebuilt outbox, in order and once.
+    expect(sent.map((o) => o.seq)).toEqual(Array.from({ length: sent.length }, (_, i) => i + 1));
+    expect(sent.length).toBeGreaterThan(0);
+    // After a reload (a new session over the saved game) it is the same.
+    await core.flushed();
+    const reloaded = new EngineSessionCore({ storage });
+    await reloaded.resume((await reloaded.latestSave())!.id);
+    expect(reloaded.livePodGame()?.outbox).toEqual(sent);
+    expect(reloaded.livePodGame()?.inboundSeq).toBe(live.inboundSeq);
+  });
+
+  test("never takes back what the pod has heard: a rewind past a pod event is refused, one that keeps them is not", async () => {
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const { snapshot } = await core.start(config("t1"));
+    const shared = core.livePodGame()!.shared!;
+    core.dispatch(core.podInboundCommand(1, { kind: "sharedStateChanged", shared: { ...shared, villainDamage: 2 } })!);
+    // The inbound event is in the log: cutting it would turn the group's sequence back.
+    await expect(core.rewindTo(0)).rejects.toThrow(POD_REFUSAL);
+    expect(core.liveGame()!.game.commands).toHaveLength(1);
+    // Cutting nothing is fine.
+    await expect(core.rewindTo(1)).resolves.toBeDefined();
+    void snapshot;
+  });
+
+  test("makes the podRelease command only for a group with a remote coordinator", async () => {
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    await core.start(config("t1"));
+    expect(core.podReleaseCommand()).toMatchObject({ type: "podRelease" });
+    // Not waiting for any ack: the engine refuses it, and nothing changes.
+    expect(core.dispatch(core.podReleaseCommand()!).ok).toBe(false);
+    const solo = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    await solo.start({ ...config("t1"), epic: undefined as never });
+    expect(solo.podReleaseCommand()).toBeNull();
   });
 });

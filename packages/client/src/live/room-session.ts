@@ -120,6 +120,8 @@ export class RoomSession {
   /** Epic Multiplayer: the organizer's pod coordinator (made when the first table speaks) and its start. */
   #coordinator: EpicCoordinator | null = null;
   #coordinatorStart: Promise<EpicCoordinator | null> | null = null;
+  /** The groups the coordinator was made from, so a lobby edited before the game starts makes a new one. */
+  #coordinatorKey = "";
   /** The tables this device asked to follow (`followTables`); null until it chooses, then the room is told. */
   #followChosen: "all" | readonly string[] | null = null;
   /** The follow last sent, so a lobby message does not repeat it. Cleared on a new connection. */
@@ -367,7 +369,7 @@ export class RoomSession {
   }
 
   /** Organizer: starts the game: every table host sees the start in the lobby and starts its own group. */
-  startEpic(start: { readonly id: string; readonly seed: number }): void {
+  startEpic(start: { readonly id: string; readonly seed: number; readonly at?: number }): void {
     const settings = this.#model.lobby?.settings;
     if (this.role !== "host" || settings?.mode !== "epic") return;
     this.#say({ ch: "room", kind: "lobby-set", settings: { tableRules: withEpicStart(settings.tableRules, start) } });
@@ -413,6 +415,7 @@ export class RoomSession {
   /** Runs `use` on the organizer's coordinator, once it exists (it restores its saved log first). */
   #withCoordinator(use: (coordinator: EpicCoordinator) => void): Promise<void> {
     if (this.role !== "host") return Promise.resolve();
+    this.#refreshCoordinator();
     const start = (this.#coordinatorStart ??= this.#startCoordinator());
     return start.then((coordinator) => {
       // No lobby tables yet: nothing to coordinate, and the next call tries again.
@@ -421,8 +424,23 @@ export class RoomSession {
     });
   }
 
+  /**
+   * A coordinator made from an earlier lobby (tables, pods or seat counts edited since) that has heard nothing yet is
+   * thrown away: the next one is made from the lobby as it stands. Once a game has begun the room locks the lobby.
+   */
+  #refreshCoordinator(): void {
+    const key = JSON.stringify(this.#podGroups());
+    if (this.#coordinatorStart === null || key === this.#coordinatorKey) return;
+    const current = this.#coordinator;
+    if (current?.state) return;
+    current?.dispose();
+    this.#coordinator = null;
+    this.#coordinatorStart = null;
+  }
+
   async #startCoordinator(): Promise<EpicCoordinator | null> {
     const groups = this.#podGroups();
+    this.#coordinatorKey = JSON.stringify(groups);
     const roomId = this.#model.roomId;
     if (!groups || !roomId) return null;
     const local = this.hostedTable;

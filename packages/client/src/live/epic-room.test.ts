@@ -645,6 +645,102 @@ describe("the organizer's coordinator", () => {
   });
 });
 
+describe("a coordinator made before the lobby was final", () => {
+  it("is made from the lobby as it stands when the first table speaks, not as it was when it was first made", async () => {
+    const t = await organizer({ game: false });
+    // The lobby made a coordinator (its state broadcast) from 1 + 2 + 1 players; then the organizer moved a seat.
+    t.sock.receive(lobbyEpic());
+    await flush();
+    t.sock.receive(lobbyEpic({ seats: SEATS.map((seat) => (seat.id === "s3" ? { ...seat, table: "t1" } : seat)) }));
+    t.sock.receive({
+      v: 1,
+      ch: "pod",
+      kind: "event",
+      table: "t2",
+      seq: 0,
+      event: { type: "podSync", inboundSeq: 0, shared: SHARED },
+    });
+    await flush();
+    const state = t.sock.of("pod", "state").at(-1)!.state as { groups: { groupId: string; players: number }[] };
+    expect(state.groups.map((g) => [g.groupId, g.players])).toEqual([
+      ["t1", 2],
+      ["t2", 1],
+      ["t3", 1],
+    ]);
+  });
+
+  it("keeps the groups it began the game with once a table has spoken (the room locks the lobby then)", async () => {
+    const t = await organizer({ game: false });
+    t.sock.receive({
+      v: 1,
+      ch: "pod",
+      kind: "event",
+      table: "t2",
+      seq: 0,
+      event: { type: "podSync", inboundSeq: 0, shared: SHARED },
+    });
+    await flush();
+    t.sock.receive(lobbyEpic({ seats: SEATS.map((seat) => (seat.id === "s3" ? { ...seat, table: "t1" } : seat)) }));
+    await flush();
+    const state = t.sock.of("pod", "state").at(-1)!.state as { groups: { players: number }[] };
+    expect(state.groups.map((g) => g.players)).toEqual([1, 2, 1]);
+  });
+});
+
+describe("a table host waiting too long for the coordinator", () => {
+  it("shows podStuck, sends the engine a release when asked, and clears once the coordinator has the event", async () => {
+    const t = await tableHost();
+    t.controller.onGameMessage({
+      kind: "command",
+      gameKey: "g2",
+      command: cmd(1),
+      count: 1,
+      pod: { outbound: [{ seq: 1, event: damaged("t2", 10) }], inboundSeq: 0, awaiting: true },
+    });
+    expect(t.last().epic?.podStuck).toBe(false);
+    for (const timer of t.timers.splice(0)) if (timer.live) timer.run();
+    expect(t.last().epic?.podStuck).toBe(true);
+    t.controller.onRoomCommand({ kind: "room-pod-release" });
+    expect(t.toEngine.at(-1)).toEqual({ kind: "pod-release", gameKey: "g2" });
+    // The engine released its wait and the coordinator answered: no longer stuck.
+    t.controller.onGameMessage({
+      kind: "command",
+      gameKey: "g2",
+      command: cmd(2),
+      count: 2,
+      pod: { outbound: [], inboundSeq: 0, awaiting: false },
+    });
+    t.sock.receive({
+      v: 1,
+      ch: "pod",
+      kind: "state",
+      state: {
+        epoch: 1,
+        shared: SHARED,
+        outcome: "playing",
+        groups: [
+          {
+            groupId: "t2",
+            podId: "a",
+            players: 2,
+            received: 1,
+            status: { phase: "player", round: 1, halted: false },
+            reachable: [],
+            dropped: false,
+          },
+        ],
+      },
+    });
+    expect(t.last().epic?.podStuck).toBe(false);
+  });
+
+  it("asks for nothing when no game is running", async () => {
+    const t = await tableHost({ game: false });
+    t.controller.onRoomCommand({ kind: "room-pod-release" });
+    expect(t.toEngine).toEqual([]);
+  });
+});
+
 describe("a remote power", () => {
   it("is a proposal to the attacker's own table's host, whose engine emits it to the pod", async () => {
     // The seat proposes the command to its own table's host like any other; the host judges and dispatches it, and the

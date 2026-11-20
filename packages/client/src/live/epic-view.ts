@@ -18,6 +18,10 @@ export interface EpicViewInput {
   readonly podState: PodStateWire | null;
   /** What this device asked to follow (`follow`); a table it hosts or holds a seat at is always received. */
   readonly follow: "all" | readonly string[];
+  /** This table host's wait for the coordinator is stuck (`PodLink.onStuck`). */
+  readonly podStuck?: boolean;
+  /** This table host's wait for the coordinator is stuck (`PodLink.onStuck`). */
+  readonly podStuck?: boolean;
   /** Ids of the seats I hold. */
   readonly mySeats: readonly string[];
 }
@@ -101,5 +105,6 @@ export function epicStateOf(input: EpicViewInput): EpicState | null {
     pod: input.podState ? { shared: input.podState.shared, outcome: input.podState.outcome } : null,
     remoteTargets,
     following: input.follow,
+    podStuck: input.podStuck === true,
   };
 }

@@ -42,7 +42,7 @@ export interface LiveRoomControllerDeps {
   /** Hands a seat holder's proposal to the engine worker to judge (issue #881). */
   readonly onProposal?: (proposal: Extract<LiveControlMessage, { kind: "proposal" }>) => void;
   /** Hands the pod coordinator's inbound event to the engine worker to apply as a command (Epic Multiplayer). */
-  readonly onPodInbound?: (inbound: Extract<LiveControlMessage, { kind: "pod-inbound" }>) => void;
+  readonly onPodInbound?: (inbound: Extract<LiveControlMessage, { kind: "pod-inbound" | "pod-release" }>) => void;
   /** Remembers each game's room, so a resumed game returns to it as the host. Absent: every game gets a new room. */
   readonly store?: LiveRoomStore;
   readonly now?: () => number;
@@ -140,7 +140,8 @@ export class LiveRoomController {
         const live = this.#live;
         if (live?.gameKey !== message.gameKey) return;
         live.publisher.command(message.command, message.count, message.checksum, message.outcome);
-        if (message.pod) live.pod?.outbound(message.pod.outbound, message.pod.inboundSeq);
+        if (message.pod)
+          live.pod?.outbound(message.pod.outbound, message.pod.inboundSeq, message.pod.awaiting === true);
         return;
       }
       case "none":
@@ -226,7 +227,12 @@ export class LiveRoomController {
         this.#session?.startEpic({
           id: Math.floor(this.#timers.random() * 0xffffffff).toString(36),
           seed: Math.floor(this.#timers.random() * 0xffffffff),
+          at: Date.now(),
         });
+        return;
+      case "room-pod-release":
+        // The table host ends a wait for the coordinator that has stuck: the engine refuses unless it really waits.
+        if (this.#live) this.#deps.onPodInbound?.({ kind: "pod-release", gameKey: this.#live.gameKey });
         return;
       case "room-epic-drop":
         this.#session?.dropTable(message.table);
@@ -315,7 +321,13 @@ export class LiveRoomController {
       gameKey: game.gameKey,
       roomId: game.room,
       pod: game.pod
-        ? this.#podLink(game.gameKey, game.pod, (m) => (live.room ? live.room.podSend(m) : false), table)
+        ? this.#podLink(
+            game.gameKey,
+            game.pod,
+            (m) => (live.room ? live.room.podSend(m) : false),
+            table,
+            (stuck) => live.room?.setPodStuck(stuck),
+          )
         : null,
       publisher: new LivePublisher({
         game: game.game,
@@ -348,11 +360,15 @@ export class LiveRoomController {
     pod: NonNullable<GameMessage["pod"]>,
     send: (message: ClientMessage) => boolean,
     table: string | null,
+    onStuck: (stuck: boolean) => void,
   ): PodLink {
     const link = new PodLink({
       table: table ?? pod.groupId,
       send,
       apply: (sequence, event) => this.#deps.onPodInbound?.({ kind: "pod-inbound", gameKey, sequence, event }),
+      onStuck,
+      setTimer: (run, ms) => this.#timers.setTimer(run, ms),
+      clearTimer: (handle) => this.#timers.clearTimer(handle),
     });
     link.game(pod);
     return link;
@@ -542,7 +558,9 @@ export class LiveRoomController {
     if (live.retry !== null) this.#timers.clearTimer(live.retry);
     live.socket?.close();
     live.socket = null;
+    live.pod?.dispose();
     if (live.room) {
+      live.room.setPodStuck(false);
       live.room.detachGame();
       live.room = null;
     }

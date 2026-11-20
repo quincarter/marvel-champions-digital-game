@@ -65,6 +65,8 @@ export class RoomModel {
   #watching: Readonly<Record<string, number>> = {};
   #podState: PodStateWire | null = null;
   #follow: "all" | readonly string[] = "all";
+  /** The table host's wait for the pod coordinator is not clearing (`EpicState.podStuck`). */
+  #podStuck = false;
   /** The host's own game is streaming (set by the session): `started` before the room's `table` message says so. */
   #hostStarted = false;
   #welcomed = false;
@@ -132,6 +134,10 @@ export class RoomModel {
   /** Epic rooms: what this device asked to follow (`follow`); the state shows it. */
   setFollow(follow: "all" | readonly string[]): void {
     this.#follow = follow;
+  }
+
+  setPodStuck(stuck: boolean): void {
+    this.#podStuck = stuck;
   }
 
   get follow(): "all" | readonly string[] {
@@ -413,6 +419,7 @@ export class RoomModel {
         watching: this.#watching,
         podState: this.#podState,
         follow: this.#follow,
+        podStuck: this.#podStuck,
         mySeats: seats.filter((s) => s.mine).map((s) => s.id),
       }),
     };

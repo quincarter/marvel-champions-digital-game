@@ -334,6 +334,15 @@ export function dropTable(table: string): void {
   postRoomCommand({ kind: "room-epic-drop", table });
 }
 
+/**
+ * Table host only, when `RoomState.epic.podStuck` is true: gives up waiting for the pod coordinator. The engine refuses
+ * unless the group is waiting for a `sharedAck`; its unanswered shared event keeps its number and is re-sent when a
+ * coordinator returns, whose late answer changes nothing.
+ */
+export function releasePod(): void {
+  postRoomCommand({ kind: "room-pod-release" });
+}
+
 /** What I may attack or thwart in other tables of my pod right now (`RoomState.epic.remoteTargets`). */
 export function reachableRemoteTargets(): readonly RemoteTarget[] {
   return state.epic?.remoteTargets ?? [];
