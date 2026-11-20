@@ -698,16 +698,13 @@ export const ANT_CARDS: readonly AnyCard[] = [
     statStars: ["atk"],
     encounterSetIds: [encounterSetId("ant_nemesis")],
     boostIcons: 0,
-    traits: [],
-    keywords: [],
+    traits: [trait("CONDITION")],
+    keywords: [{ name: "uses", count: 3, counterType: "size" }],
     text: {
-      printed: "Attach to Yellowjacket, if able. If you cannot, attach to the villain.\nUses (3 counters).\n[star] Forced Response: After attached enemy activates, remove 1 size counter from here.",
-      current: "Attach to Yellowjacket, if able. If you cannot, attach to the villain.\nUses (3 counters).\n[star] Forced Response: After attached enemy activates, remove 1 size counter from here.",
+      printed: "Attach to Yellowjacket, if able. If you cannot, attach to the villain.\nUses (3 size counters).\n[star] Forced Response: After attached enemy activates, remove 1 size counter from here.",
+      current: "Attach to Yellowjacket, if able. If you cannot, attach to the villain.\nUses (3 size counters).\n[star] Forced Response: After attached enemy activates, remove 1 size counter from here.",
     },
-    abilities: [
-      { id: abilityId("12028.size-increase-constant") },
-      { id: abilityId("12028.size-increase-forced-response") },
-    ],
+    abilities: [{ id: abilityId("12028.size-increase-forced-response") }],
   },
   {
     id: cardId("12029"),
