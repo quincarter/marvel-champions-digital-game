@@ -100,6 +100,8 @@ describe("#888: a discount for the card 'played' is for any player", () => {
     it("an ally played in the other area after the split leaves Steve Rogers' area its first ally", () => {
       const given = moveToHand(split(start()), P2, "01002");
       const [blackCat] = given.ids as [never];
+      // Steve Rogers is in the other area, so his Living Legend does not reach this play.
+      expect(playCostOf(given.state, P2, blackCat, WAVE1_DEPS)).toMatchObject({ printed: 2, current: 2 });
       const played = runWave1(given.state, play(P2, blackCat, payWith(given.state, P2, 2, [blackCat])));
       expect(playerOf(played, P2).playArea).toContain(blackCat);
       expect(squirrelGirlCost(played)).toMatchObject({ printed: 2, current: 1 });
