@@ -331,13 +331,12 @@ describe("You Started This (56134): your Captain Marvel leader attacks the enemy
   });
 });
 
-// BUG (reported): the Energy Channel query in competitive/leader-cards.ts lacks `anyGameArea: true`, so "your leader's Energy
-// Channel" (a card in the other team's area) is never found. `fixed` swaps in the one-line fix; as shipped the three
-// affected tests are `it.fails`, so they flip red the moment the file is fixed (remove `broken` then).
+// Regression: "your leader's Energy Channel" sits in the other team's area, so its query needs `anyGameArea: true`
+// (competitive/leader-cards.ts). Both runs (shipped scripts and the `fixed` override) must pass.
 describe.each([[false], [true]])(
   "Raw Power (56136) and Alpha Flight Recruit (56135) with the Energy Channel on your Captain Marvel leader (fixed query: %s)",
   (fixed) => {
-    const broken = fixed ? it : it.fails;
+    const broken = it;
     /** Energy Channel on leader two (your leader) and on leader one, a damaged ally of p1's with the Recruit attached. */
     function table() {
       const { state: start, deps } = game({ deckOne: [ENERGY_CHANNEL], deckTwo: [ENERGY_CHANNEL], fixed });

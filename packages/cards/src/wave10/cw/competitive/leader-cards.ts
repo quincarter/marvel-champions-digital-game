@@ -57,9 +57,9 @@ const ENERGY = "energy";
 const SKILL = "skill";
 
 /** "Your Captain Marvel leader's Energy Channel attachment": the Channel attached to a leader that is yours. */
-const YOUR_ENERGY_CHANNEL = query("attachment", { name: "Energy Channel", host: yourLeader });
+const YOUR_ENERGY_CHANNEL = query("attachment", { name: "Energy Channel", host: yourLeader, anyGameArea: true });
 /** "Her Finesse attachment" / "your Spider-Woman leader's Finesse attachment". */
-const YOUR_FINESSE = query("attachment", { name: "Finesse", host: yourLeader });
+const YOUR_FINESSE = query("attachment", { name: "Finesse", host: yourLeader, anyGameArea: true });
 /** The Finesse on the leader this upgrade is attached to ("her Finesse attachment"). */
 const HOST_FINESSE = query("attachment", { name: "Finesse", host: host });
 
