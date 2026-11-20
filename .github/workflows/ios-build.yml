@@ -96,3 +96,68 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
         run: gh release upload "$TAG" ipa/*.ipa --clobber --repo "$GITHUB_REPOSITORY"
+
+  # On a pull request, the English .ipa also goes up as the pre-release `ios-preview-pr-<number>` and is linked in a
+  # PR comment, as the Android and Linux previews are (netlify-deploy.yml). Replaced on every push that rebuilds it and
+  # deleted when the pull request closes (android-preview-cleanup.yml). Like `upload`, it runs nothing from the
+  # checkout. Fork PRs get a read-only token, so they keep the workflow artifact only.
+  preview:
+    name: iOS preview .ipa
+    needs: ipa
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TAG: ios-preview-pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: marvel-champions-ios-en
+          path: ipa
+
+      - name: Publish the pre-release
+        id: publish
+        run: |
+          built=$(find ipa -name "*-iOS-unsigned.ipa" | head -n 1)
+          if [ ! -f "$built" ]; then
+            echo "::error::The .ipa was not found in the build artifact."
+            exit 1
+          fi
+          name="$(basename "$built" -iOS-unsigned.ipa)-PR${PR}-${HEAD_SHA:0:7}-iOS-unsigned.ipa"
+          mv "$built" "$name"
+          # Recreated on every push, so the tag sits on the commit the .ipa was built from.
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
+          gh release create "$TAG" "$name" --repo "$GITHUB_REPOSITORY" --prerelease --target "$HEAD_SHA" \
+            --title "iOS preview: PR #${PR}" \
+            --notes "A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. Unsigned: sideload it with SideStore, AltStore or Sideloadly (docs/project/ios-install.md). Deleted when the pull request closes."
+          # A pull request that closed while this built already had its cleanup run (#472): take the preview down.
+          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
+          if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+            echo "PR #${PR} closed while the preview built; deleting it."
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            exit 0
+          fi
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "iOS preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the .ipa link
+        if: steps.publish.outputs.url != ''
+        env:
+          URL: ${{ steps.publish.outputs.url }}
+        run: |
+          marker="<!-- ios-preview -->"
+          body="$marker
+          **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7}; sideload it with SideStore, AltStore or Sideloadly)"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
