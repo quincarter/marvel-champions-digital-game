@@ -59,7 +59,12 @@ export function seatSpecsOf(names: readonly string[]): readonly LobbySeatSpec[] 
   }));
 }
 
-/** "Hero - Deck", with either missing left out. */
+/**
+ * A seat's label: the hero and the deck, or the deck alone when its name already says the hero ("Spider-Man (Justice) -
+ * Core Set starter deck" names Spider-Man), so a label never says the hero twice.
+ */
 export function seatLabelOf(hero: string | null, deck: string | null): string {
+  const heroShort = hero?.replace(/\s*\(.*\)\s*$/, "").trim() ?? "";
+  if (deck && heroShort !== "" && deck.toLowerCase().includes(heroShort.toLowerCase())) return deck.trim();
   return [hero, deck].filter((part): part is string => !!part && part.trim() !== "").join(" - ");
 }

@@ -51,6 +51,10 @@ export const SCENES = {
   playerStats: "PlayerStats",
   /** Past games (`scenes/past-games.ts`, #706): finished games to watch, share or export, reached from Title. */
   pastGames: "PastGames",
+  /** Play online (`scenes/online.ts`, #880): Host a room or Join one by its code. */
+  online: "Online",
+  /** A room's lobby (`scenes/room-lobby.ts`, #880): people, seats, host controls and chat before the game. */
+  roomLobby: "RoomLobby",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */
@@ -128,6 +132,8 @@ export const SCENES = {
   unlockConfirm: "UnlockConfirmOverlay",
   /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
   nameConflict: "NameConflictOverlay",
+  /** "Your name" for online play (`scenes/online-name.ts`, #880): asked once, changed in Settings. */
+  onlineName: "OnlineNameOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
   /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */

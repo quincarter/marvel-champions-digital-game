@@ -8,6 +8,7 @@
  * `SeatsScene`.
  */
 import Phaser from "phaser";
+import { leaveRoomSetup, roomSetupActive } from "../view/room-table-setup.js";
 import type { CardId, Scenario } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
@@ -356,6 +357,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // Room mode (#880): the host set the table up from the lobby, and Back returns there.
+    if (roomSetupActive()) {
+      leaveRoomSetup();
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     goToScreen(this, SCENES.title);
   }
 

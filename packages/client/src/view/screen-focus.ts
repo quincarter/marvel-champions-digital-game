@@ -498,6 +498,7 @@ export function titleMenuFocusOrder(input: {
     "new-game",
     "decks",
     "campaign",
+    "play-online",
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
     "past-games",

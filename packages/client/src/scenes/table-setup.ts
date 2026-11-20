@@ -170,6 +170,7 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
+import { keepRoomDraft, roomSetupActive, seatLabelOf, seatSpecsOf } from "../view/room-table-setup.js";
 import { cardHoverFactor, tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
 import type { InstanceId } from "@mc/engine";
 import type { GlyphHints } from "../ui/glyph-hints.js";
@@ -883,7 +884,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Dealing it out…" : "Deal it out",
+        label: this.#starting ? "Dealing it out…" : roomSetupActive() ? t("room.setupDone") : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
         enabled: !this.#starting && this.#dealBlocked === null,
@@ -1763,7 +1764,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Dealing it out…" : "Deal it out",
+        label: this.#starting ? "Dealing it out…" : roomSetupActive() ? t("room.setupDone") : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
         enabled: !this.#starting && this.#dealBlocked === null,
@@ -3088,7 +3089,8 @@ export class TableSetupScene extends Phaser.Scene {
 
   /** The wide and narrow layouts' watch toggle: a checkbox card (the check mark and the words, never colour alone). */
   #drawWatchToggle(rect: Rect): void {
-    if (rect.height <= 0) return;
+    // A room's game is always watchable (it streams to the room), so the choice is not offered (#880).
+    if (rect.height <= 0 || roomSetupActive()) return;
     const onClick = (): void => this.#toggleWatchable();
     this.#buttons.push(new McButton(this, { kind: "onInk", label: "", type: typeRole.label, rect, onClick }));
     this.#stops.set("watch", { rect, activate: onClick });
@@ -3115,12 +3117,34 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(words, rect.width - size - 30, typeRole.label.size);
   }
 
+  /**
+   * Room mode (#880): the host is setting the table up for a room, so this does not deal. The draft is kept, each hero
+   * becomes a lobby seat (hero and deck as its label), and the lobby comes back.
+   */
+  #finishForRoom(): void {
+    const options = this.#deckOptions();
+    const labels = this.#draft.seats.map((deckId) => {
+      const option = options.find((o) => (o.deck.id as string) === deckId);
+      return seatLabelOf(option?.identityName ?? null, option?.deck.name ?? null);
+    });
+    keepRoomDraft(this.#draft);
+    // Loaded only now: a single-player setup never pulls the room code in.
+    void import("../platform/room.js").then((room) => room.setLobby({ seats: seatSpecsOf(labels) }));
+    this.#leaving = true;
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.roomLobby);
+  }
+
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
     // A press during a screen change (Back, then Start inside the fade) must not deal a game behind the screen.
     if (this.#starting || this.#leaving) return;
     if (this.#dealBlocked !== null) return;
     if (parseSeed(this.#seedText) === null) {
       this.#status?.setText("seed must be a whole number");
+      return;
+    }
+    if (roomSetupActive()) {
+      this.#finishForRoom();
       return;
     }
     this.#starting = true;

@@ -30,5 +30,8 @@ describe("room table setup", () => {
     ]);
     expect(seatLabelOf("Iron Man", "Aggression")).toBe("Iron Man - Aggression");
     expect(seatLabelOf("Iron Man", null)).toBe("Iron Man");
+    expect(seatLabelOf("Spider-Man (Peter Parker)", "Spider-Man (Justice) — Core Set starter deck")).toBe(
+      "Spider-Man (Justice) — Core Set starter deck",
+    );
   });
 });

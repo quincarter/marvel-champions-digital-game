@@ -312,6 +312,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
+  if (screen === "room-lobby") {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    return {
+      key: SCENES.roomLobby,
+      data: { preview: roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host") },
+    };
+  }
+  // `?screen=online`: Play online.
+  if (screen === "online") return { key: SCENES.online, data: {} };
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=mod-store&catalog=/packs/fixture.json&pack=fan-x`: the Mod Store, optionally on another catalog and open on a pack.

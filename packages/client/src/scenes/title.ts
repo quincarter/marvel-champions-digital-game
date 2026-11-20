@@ -758,6 +758,22 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
 
+    // "Play online" (#880): an entry point only. Nothing online starts, and nothing is loaded, until its own screen is used.
+    const openOnline = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.online);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: t("title.playOnline"),
+        type: typeRole.menuButton,
+        rect: layout.playOnline,
+        onClick: openOnline,
+      }),
+    );
+    this.#stops.set("play-online", { rect: layout.playOnline, activate: openOnline });
+
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {
       const openCivilWar = (): void => {

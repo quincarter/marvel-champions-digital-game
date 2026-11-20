@@ -47,6 +47,7 @@ export type SettingsItemId =
   | "achievement-popup-time"
   | "achievement-popup-place"
   | "hero-art"
+  | "online-name"
   | "custom-placement"
   | "achievement-popup-size";
 
@@ -199,6 +200,7 @@ export function settingsSectionsOf(input: {
         ...(input.controls === false ? [] : (["controls"] as const)),
         ...(input.discord ? (["discord-presence"] as const) : []),
         "live-watch",
+        "online-name",
         ...(input.steamInstall ? (["steam-install"] as const) : []),
         ...(input.steamAdd ? (["steam-add"] as const) : []),
         "rules",

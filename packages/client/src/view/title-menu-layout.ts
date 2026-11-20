@@ -189,6 +189,8 @@ export interface TitleMenuLayout {
   readonly newGame: Rect;
   readonly decks: Rect;
   readonly campaign: Rect;
+  /** "Play online" (#880), the right half of Campaign's row: host or join a room; only an entry point, nothing connects until a choice is made on its screen. */
+  readonly playOnline: Rect;
   /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
   readonly civilWar: Rect | null;
   /** "Extras", the left half of its row. */
@@ -233,6 +235,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.newGame,
     layout.decks,
     layout.campaign,
+    layout.playOnline,
     ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
     layout.pastGames,
@@ -421,7 +424,10 @@ function titleMenuLayoutAt(
   y += primary + gap;
   const decks: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
-  const campaign: Rect = { x: left, y, width: column, height: hit.target };
+  // Campaign and Play online share a row, so the menu is no taller than before the online screens existed.
+  const modeHalf = Math.floor((column - 10) / 2);
+  const campaign: Rect = { x: left, y, width: modeHalf, height: hit.target };
+  const playOnline: Rect = { x: left + column - modeHalf, y, width: modeHalf, height: hit.target };
   y += hit.target + gap;
   let civilWar: Rect | null = null;
   if (input.civilWar === true) {
@@ -497,6 +503,7 @@ function titleMenuLayoutAt(
     newGame,
     decks,
     campaign,
+    playOnline,
     civilWar,
     extras,
     pastGames,
