@@ -4,6 +4,7 @@
  * fixture code it pulls in) from the entry chunk.
  */
 
+import type { Command } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { replacementCandidatesOf } from "../view/replacement-candidates.js";
@@ -335,6 +336,9 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       }
     };
     (globalThis as { __mcRoomState?: unknown }).__mcRoomState = room.roomState;
+    // Lets a spec or a screenshot send a move the room will refuse (a seat acting out of turn).
+    (globalThis as { __mcDispatch?: unknown }).__mcDispatch = (command: Command) =>
+      appSession().store.dispatch(command);
     const name = params.get("name") ?? (screen === "room-play-host" ? "Mara" : "Ava");
     if (screen === "room-play-guest") {
       await room.joinRoom(params.get("code") ?? "", name);
