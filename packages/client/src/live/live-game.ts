@@ -20,11 +20,21 @@ export interface LiveGameParts {
 }
 
 export function liveGameOf(parts: LiveGameParts): LiveGame {
-  const { packs, watchable: _watchable, room: _room, roomPlayMode: _roomPlayMode, ...rest } = parts.config;
+  const {
+    packs,
+    watchable: _watchable,
+    room: _room,
+    roomPlayMode: _roomPlayMode,
+    roomUndo: _roomUndo,
+    roomCheats: _roomCheats,
+    ...rest
+  } = parts.config;
   const refs: readonly ReplayPackRef[] = (packs ?? []).map(({ id, version }) => ({ id, version }));
   return {
     writer: parts.writer,
     config: withoutDeckNames(rest as SessionConfig),
+    // The guests' devices mark their record of the game adjusted too (`replay-core.ts`).
+    ...(parts.config.roomCheats ? { adjusted: true as const } : {}),
     ...(refs.length > 0 ? { packs: refs } : {}),
     createdAt: parts.createdAt,
     initialState: parts.initialState,

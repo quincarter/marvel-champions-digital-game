@@ -37,6 +37,8 @@ export interface LiveTableHeader {
   readonly packs?: readonly ReplayPackRef[];
   readonly createdAt: number;
   readonly initialState: StateWithoutPool;
+  /** The game counts for nothing (a room with Cheats on): a watcher's record of it is adjusted too. Absent otherwise. */
+  readonly adjusted?: true;
 }
 
 /** What the engine worker knows of a game when the live stream starts (or the setting is switched on mid-game). */
@@ -47,6 +49,8 @@ export interface LiveGame {
   readonly packs?: readonly ReplayPackRef[];
   readonly createdAt: number;
   readonly initialState: StateWithoutPool;
+  /** The game was started with room Cheats on (`SessionConfig.roomCheats`): carried to the header. */
+  readonly adjusted?: true;
   /** The commands so far: none for a new game, the log for a resumed one. */
   readonly commands: readonly Command[];
   readonly outcome?: GameOutcome | null;
@@ -63,6 +67,7 @@ export function headerOf(game: LiveGame): LiveTableHeader {
     ...(game.packs?.length ? { packs: game.packs } : {}),
     createdAt: game.createdAt,
     initialState: game.initialState,
+    ...(game.adjusted ? { adjusted: true as const } : {}),
   };
 }
 

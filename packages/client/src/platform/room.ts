@@ -6,6 +6,7 @@
  * Every call is fire-and-forget: its effect arrives as a new `RoomState` through `onRoomState`. A refusal by the room
  * (seat taken, build mismatch, ...) shows as `state.refusal`.
  */
+import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import type { SessionConfig } from "../engine/host.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
@@ -317,6 +318,9 @@ export async function startGame(config: SessionConfig): Promise<void> {
     watchable: true,
     ...(state.roomId ? { room: state.roomId } : {}),
     ...(playMode ? { roomPlayMode: playMode } : {}),
+    // Strict forces Off; a lobby without the setting (an older Worker) reads as its mode's default.
+    ...(playMode ? { roomUndo: lobbyUndoFor(playMode, state.settings?.undo) } : {}),
+    ...(state.settings?.cheats === true ? { roomCheats: true } : {}),
   });
 }
 

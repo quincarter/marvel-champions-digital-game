@@ -88,7 +88,7 @@ import type { ManualAdjustData } from "./manual-adjust.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
-import { roomStrictOf } from "../view/room-strict.js";
+import { roomCheatsOf } from "../view/room-strict.js";
 import { activeSeat } from "../platform/seat-play.js";
 import { roomState } from "../platform/room.js";
 import { handoverOn, roomChatOn } from "../view/room-prompts.js";
@@ -354,7 +354,7 @@ export class PauseOverlay extends Phaser.Scene {
   #manualAdjustOn(): boolean {
     // A seated guest does not adjust the table: in a Host control room the same place asks the host for a change (#881).
     if (this.#seatGame()) return roomState().settings?.playMode === "host";
-    return appSession().settings.allowManualAdjust && !roomStrictOf(appSession().store.state.config);
+    return roomCheatsOf(appSession().settings, appSession().store.state.config).manualAdjust;
   }
 
   /** This device plays a room's game from a seat (a guest): Pause leaves instead of saving, and Concede leaves the seat. */

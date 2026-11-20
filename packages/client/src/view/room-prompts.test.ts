@@ -23,6 +23,8 @@ const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
 });
 const settings = {
   playMode: "host" as const,
+  undo: "ask" as const,
+  cheats: false,
   tableRules: {},
   mods: [],
   multiSeat: false,

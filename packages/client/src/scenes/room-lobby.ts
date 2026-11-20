@@ -63,6 +63,9 @@ import {
   participantRows,
   deckKeyOf,
   playModeKeys,
+  undoRows,
+  cheatsOn,
+  CHEATS_NOTE_KEY,
   refusalWords,
   seatNameOf,
   seatRows,
@@ -1342,14 +1345,21 @@ export class RoomLobbyScene extends Phaser.Scene {
         const note = this.#text(x, y, t("room.settings.readOnly"), 12, w, { alpha: 0.75 });
         y += note.height + 8;
       }
-      const toggleRow = (key: string, title: string, detail: string, on: boolean, change: () => void): void => {
+      const toggleRow = (
+        key: string,
+        title: string,
+        detail: string,
+        on: boolean,
+        change: () => void,
+        locked = false,
+      ): void => {
         const btnW = 76;
         const textW = w - btnW - 12;
         const name = this.#text(x, y, title, 14, textW, { bold: true });
         const info = this.#text(x, y + name.height + 2, detail, 12, textW, { alpha: 0.8 });
         const rowH = Math.max(hit.target, name.height + info.height + 4);
         const rect2: Rect = { x: x + w - btnW, y: y + (rowH - hit.target) / 2, width: btnW, height: hit.target };
-        if (host) {
+        if (host && !locked) {
           this.#button({
             kind: "secondary",
             label: on ? t("room.on") : t("room.off"),
@@ -1403,6 +1413,49 @@ export class RoomLobbyScene extends Phaser.Scene {
           const info = this.#text(x, y + name.height + 2, t(words.detail), 12, w, { alpha: 0.85 });
           y += name.height + info.height + 12;
         }
+      }
+
+      // Undo: who may take a move back (Strict forces Off).
+      y = this.#heading(x, y + 4, w, t("room.undo.title"));
+      for (const row of undoRows(settings)) {
+        const pressable = host && settings.playMode !== "strict";
+        if (pressable) {
+          const btn: Rect = { x, y, width: w, height: hit.target };
+          const choose = (): void => this.#api.setLobby({ settings: { undo: row.value } });
+          this.#button({
+            kind: "secondary",
+            label: t(row.titleKey),
+            type: typeRole.label,
+            rect: btn,
+            selected: row.selected,
+            onClick: choose,
+            clip: guard.clip,
+            suppressClick: guard.suppress,
+          });
+          guard.stop(`undo:${row.value}`, btn, choose);
+          y += hit.target + 4;
+          const info = this.#text(x + 4, y, t(row.detailKey), 12, w - 8, { alpha: 0.8 });
+          y += info.height + 10;
+        } else if (row.selected) {
+          const name = this.#text(x, y, t(row.titleKey), 15, w, { bold: true });
+          const info = this.#text(x, y + name.height + 2, t(row.detailKey), 12, w, { alpha: 0.85 });
+          y += name.height + info.height + 12;
+        }
+      }
+
+      // Cheats: the host's own cheats on or off, fixed once the game starts; the note is for everyone.
+      y = this.#heading(x, y + 4, w, t("room.cheats.title"));
+      toggleRow(
+        "cheats",
+        t("room.cheats.title"),
+        t("room.cheats.detail"),
+        cheatsOn(settings),
+        () => this.#api.setLobby({ settings: { cheats: !cheatsOn(settings) } }),
+        this.#state.started,
+      );
+      {
+        const note = this.#text(x + 4, y - 4, t(CHEATS_NOTE_KEY), 12, w - 8, { alpha: 0.85 });
+        y += note.height + 8;
       }
 
       // House rules.

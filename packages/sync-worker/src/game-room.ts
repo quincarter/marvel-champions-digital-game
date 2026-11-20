@@ -55,6 +55,7 @@ import {
   type RoomDeck,
   type RoomDeckSummary,
   type LobbySettings,
+  lobbyUndoFor,
   type LobbyState,
   type Participant,
   type RefusalReason,
@@ -102,6 +103,8 @@ export interface RoomCodeHooks {
 /** A new lobby's settings: Strict, no house rules, no mods, one seat each, chat on. The versions are the host's. */
 export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   playMode: "strict",
+  undo: "off",
+  cheats: false,
   tableRules: {},
   mods: [],
   multiSeat: false,
@@ -381,6 +384,11 @@ export class GameRoomLogic {
     const stored = await this.storage.get<LobbyRow>("lobby");
     // Another message may have loaded it while this one waited.
     this.lobby ??= stored ?? { settings: { ...DEFAULT_LOBBY_SETTINGS }, seats: [] };
+    // A lobby stored before the undo setting has none: it reads as its mode's default.
+    this.lobby.settings = {
+      ...this.lobby.settings,
+      undo: lobbyUndoFor(this.lobby.settings.playMode, this.lobby.settings.undo),
+    };
     return this.lobby;
   }
 
@@ -1168,8 +1176,20 @@ export class GameRoomLogic {
     switch (message.kind) {
       case "lobby-set": {
         if (!isHost) return this.refuse(socket, "not-allowed");
+        // Cheats are fixed once the game has started: the table's header is the room's sign of that.
+        if (message.settings?.cheats !== undefined && message.settings.cheats !== settings.cheats) {
+          const table = this.tableOf(FIRST_TABLE);
+          if (table) await this.ensureLoaded(table);
+          if (table?.hasHeader) return this.refuse(socket, "not-allowed");
+        }
+        const playMode = message.settings?.playMode ?? settings.playMode;
+        // Switching to Host control without naming one starts at Ask; Strict forces Off, whatever was sent.
+        const undoChoice = message.settings?.undo ?? (playMode !== settings.playMode ? undefined : settings.undo);
         const next: LobbySettings = {
           ...settings,
+          playMode,
+          undo: lobbyUndoFor(playMode, undoChoice),
+          cheats: message.settings?.cheats ?? settings.cheats === true,
           ...(message.settings?.playMode !== undefined ? { playMode: message.settings.playMode } : {}),
           ...(message.settings?.tableRules !== undefined ? { tableRules: message.settings.tableRules } : {}),
           ...(message.settings?.mods !== undefined ? { mods: message.settings.mods.map((m) => ({ ...m })) } : {}),
