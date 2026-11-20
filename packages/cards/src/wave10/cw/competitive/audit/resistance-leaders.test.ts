@@ -61,7 +61,8 @@ const PHYSICAL = typedResource("res-physical", "physical");
 /** "Cap's Shield" and "Finesse" stand-ins (the fixture builds no real leader cards) that attach to any card. */
 const SHIELD = stubAttachment({ id: "shield", name: "Cap's Shield", attachesTo: { kind: "anyCard" } });
 const FINESSE = stubAttachment({ id: "finesse", name: "Finesse", attachesTo: { kind: "anyCard" } });
-const MINION = fixtures.stubMinion({ id: "audit-minion", atk: 1, sch: 1, hp: 5, boostIcons: 0 });
+const MINION_ID = "audit-minion";
+const MINION = fixtures.stubMinion({ id: MINION_ID, atk: 1, sch: 1, hp: 5, boostIcons: 0 });
 
 const SEAT_CARDS = [
   NO_YOU_MOVE,
@@ -201,7 +202,7 @@ describe.each([
 
 describe("Recruited by Cap (56209): a minion engaged with you engages a player on the enemy team", () => {
   function recruit(withLieInWait: boolean) {
-    const { state: start, deps } = game({ deckTwo: [MINION.id as string] });
+    const { state: start, deps } = game({ deckTwo: [MINION_ID] });
     const { deckTwo } = leadersOf(start);
     let state = start;
     let lie: InstanceId | null = null;
@@ -215,7 +216,7 @@ describe("Recruited by Cap (56209): a minion engaged with you engages a player o
     state = toResistance(deps, state);
     // A minion engaged with p2 (surgery: no reveal).
     const piles = state.encounterDecks[deckTwo]!;
-    const minion = piles.deck.find((i) => state.instances[i]!.cardId === cardId(MINION.id as string))!;
+    const minion = piles.deck.find((i) => state.instances[i]!.cardId === cardId(MINION_ID))!;
     state = {
       ...state,
       encounterDecks: {
