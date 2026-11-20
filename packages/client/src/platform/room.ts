@@ -123,7 +123,7 @@ export function say(text: string): void {
  * returned promise is the engine's `start` (the UI then moves to the board as for any new game).
  */
 export async function startGame(config: SessionConfig): Promise<void> {
-  await appSession().store.start({ ...config, watchable: true });
+  await appSession().store.start({ ...config, watchable: true, ...(state.roomId ? { room: state.roomId } : {}) });
 }
 
 const followDeps: WatchOpenDeps = {

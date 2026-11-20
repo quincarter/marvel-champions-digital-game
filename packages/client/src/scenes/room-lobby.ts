@@ -64,7 +64,7 @@ import {
   type SeatRowView,
   type Words,
 } from "../view/room-lobby-model.js";
-import { clearRoomTable, enterRoomSetup, roomDraft } from "../view/room-table-setup.js";
+import { clearRoomTable, enterRoomSetup, parseSeatLabel, roomDraft } from "../view/room-table-setup.js";
 import { setSeatNote } from "../view/room-seat-note.js";
 import { seatableDeckOptionsOf } from "../view/seatable-decks.js";
 import { tableRulesOf, type Settings } from "../settings.js";
@@ -352,7 +352,9 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#draw();
       return;
     }
-    const labels = this.#state.mySeats.map((id) => this.#state.seats.find((s) => s.id === id)?.label ?? id);
+    const labels = this.#state.mySeats.map(
+      (id) => parseSeatLabel(this.#state.seats.find((s) => s.id === id)?.label ?? id).text,
+    );
     setSeatNote(
       labels.length === 0
         ? null

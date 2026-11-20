@@ -88,6 +88,13 @@ export interface SessionConfig {
    * and the scenario ignore it, and the live header and replay files leave it out. Absent: not streamed.
    */
   readonly watchable?: true;
+  /**
+   * The lobby room this game belongs to (issue #880): the room's id, set by `platform/room.ts` `startGame` for the game
+   * a host starts from its lobby. The live-room worker attaches a game to the host's lobby room only when this matches
+   * (a later single-player game never joins an old lobby). Like `watchable`, it never reaches the rules and the live
+   * header and replay files leave it out.
+   */
+  readonly room?: string;
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

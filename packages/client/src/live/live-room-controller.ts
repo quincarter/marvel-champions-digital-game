@@ -61,6 +61,8 @@ const MAX_ROOMS_PER_GAME = 2;
 
 interface Live {
   readonly gameKey: string;
+  /** The lobby room this game was started in (`SessionConfig.room`); only a host session for that room takes it. */
+  readonly roomId: string | undefined;
   readonly publisher: LivePublisher;
   socket: RoomSocket | null;
   /** The lobby's room, when this game streams into the room the host made (its socket is the room session's). */
@@ -113,7 +115,7 @@ export class LiveRoomController {
         // A game started in a hosted lobby, or a lobby room's game resumed after a reload, joins its room at once
         // (the room shows it started) rather than at its first command.
         const session = this.#session;
-        if (session?.role === "host" && !session.ended) this.#openPending(message.gameKey);
+        if (session && this.#takesGame(session, message.room)) this.#openPending(message.gameKey);
         else if (this.#deps.room) void this.#resumeEarly(message.gameKey);
         return;
       }
@@ -258,6 +260,7 @@ export class LiveRoomController {
   #open(game: GameMessage): void {
     const live: Live = {
       gameKey: game.gameKey,
+      roomId: game.room,
       publisher: new LivePublisher({
         game: game.game,
         watchBase: this.#deps.watchBase,
@@ -296,7 +299,7 @@ export class LiveRoomController {
     }
     if (this.#live !== live) return;
     const session = this.#session;
-    if (session?.role === "host" && !session.ended) {
+    if (session && this.#takesGame(session, live.roomId)) {
       // The lobby's room may still be being made (the game was started at once): wait for it, never make a plain room.
       await session.ready;
       if (this.#live !== live) return;
@@ -326,6 +329,14 @@ export class LiveRoomController {
     }
     if (record) void store?.clear(live.gameKey).catch(() => {});
     await this.#create(live);
+  }
+
+  /**
+   * A hosted lobby room takes a game only when the game was started in that very room (`SessionConfig.room`): the room
+   * stays open after its game, and a later single-player game must not attach to it (issue #880).
+   */
+  #takesGame(session: RoomSession, room: string | undefined): boolean {
+    return session.role === "host" && !session.ended && room !== undefined && room === session.roomId;
   }
 
   /** The game streams into the lobby's room, over the lobby's own socket. */

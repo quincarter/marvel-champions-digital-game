@@ -68,7 +68,7 @@ export interface LiveStatusMessage {
 /** Engine worker to the live-room worker, over the game port. Posted only while the setting is on. */
 export type LiveGameMessage =
   /** A game began, resumed, or the setting was switched on mid-game. A different `gameKey` is a new room. */
-  | { readonly kind: "game"; readonly gameKey: string; readonly game: LiveGame }
+  | { readonly kind: "game"; readonly gameKey: string; readonly game: LiveGame; readonly room?: string }
   /** Command number `count` was applied. `checksum` is `replayChecksum` of the state after it, when one is due. */
   | {
       readonly kind: "command";

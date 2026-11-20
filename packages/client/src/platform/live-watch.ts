@@ -14,7 +14,7 @@ import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
-import type { RoomState } from "../live/room-state.js";
+import { NO_ROOM, type RoomState } from "../live/room-state.js";
 import { CLIENT_VERSION } from "../version.js";
 import { POOL_VERSION } from "../content/pool.js";
 import { takeLiveEnd } from "./live-presence-link.js";
@@ -33,6 +33,20 @@ export function watchBaseOf(
 }
 
 let roomListener: ((state: RoomState) => void) | null = null;
+/** Whether the room worker last reported a room (host or guest) this device is in. */
+let inRoom = false;
+
+/**
+ * The Title is where a room's game hands back to (the host's Quit, a guest leaving the watch): the room is left there,
+ * for host and guest alike, so a hosted room does not outlive its game. Nothing happens where no room was ever joined
+ * (single player never posts to the worker).
+ */
+export function leaveRoomAtTitle(): void {
+  if (!inRoom || !worker) return;
+  inRoom = false;
+  worker.postMessage({ kind: "room-leave" } satisfies LiveRoomIn);
+  roomListener?.(NO_ROOM);
+}
 
 /** `platform/room.ts` hears the room worker's lobby states through this (one listener). */
 export function setRoomStateListener(listener: (state: RoomState) => void): void {
@@ -80,6 +94,7 @@ function spawn(): boolean {
   worker = next;
   next.addEventListener("message", (event: MessageEvent<LiveRoomOut>) => {
     if (event.data.kind === "room") {
+      inRoom = event.data.state.role !== "none";
       roomListener?.(event.data.state);
       return;
     }

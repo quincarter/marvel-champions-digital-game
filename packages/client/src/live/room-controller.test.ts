@@ -75,9 +75,10 @@ const lobbyMessage = (seats: object[] = [{ id: "s1", label: "Spider-Man" }]) => 
 
 const cmd = (n: number): Command => ({ type: "test", n }) as unknown as Command;
 const config = { scenarioId: "rhino", seed: 1, watchable: true, players: [] } as unknown as SessionConfig;
-const gameMessage = (gameKey: string): Extract<LiveGameMessage, { kind: "game" }> => ({
+const gameMessage = (gameKey: string, room?: string): Extract<LiveGameMessage, { kind: "game" }> => ({
   kind: "game",
   gameKey,
+  ...(room ? { room } : {}),
   game: liveGameOf({
     writer: { appVersion: "1", contentVersion: "1" },
     config,
@@ -189,7 +190,7 @@ describe("hosting a room", () => {
     await flush();
     const socket = FakeSocket.all[0]!;
     socket.welcome("host", { commands: 0, ended: false, hasHeader: false });
-    t.controller.onGameMessage(gameMessage("g1"));
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
     t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
     await flush();
     expect(FakeSocket.all).toHaveLength(1);
@@ -205,13 +206,13 @@ describe("hosting a room", () => {
     t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
     await flush();
     FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
-    t.controller.onGameMessage(gameMessage("g1"));
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
     t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
     await flush();
     expect(store.records.get("g1")).toMatchObject({ roomId: "room00000001", code: "ABC234", name: "Hosty" });
 
     const again = setup({ store });
-    again.controller.onGameMessage(gameMessage("g1"));
+    again.controller.onGameMessage(gameMessage("g1", "room00000001"));
     again.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
     await flush();
     expect(again.createRoom).not.toHaveBeenCalled();
@@ -234,7 +235,7 @@ describe("hosting a room", () => {
     await flush();
     const socket = FakeSocket.all[0]!;
     socket.welcome("host", { commands: 0, ended: false, hasHeader: false });
-    t.controller.onGameMessage(gameMessage("g1"));
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
     t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
     await flush();
     t.controller.onRoomCommand({ kind: "room-leave" });
@@ -569,9 +570,10 @@ describe("review fixes (issue #880)", () => {
     let release!: (r: CreateRoomResult) => void;
     const t = setup({ createRoom: () => new Promise<CreateRoomResult>((resolve) => (release = resolve)) });
     t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
-    t.controller.onGameMessage(gameMessage("g1"));
     await flush();
     release({ ok: true, room: { roomId: "room00000001", hostToken: "h".repeat(32), table: "t1", code: "ABC234" } });
+    await flush();
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
     await flush();
     expect(t.createRoom).toHaveBeenCalledTimes(1);
     FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
@@ -584,9 +586,41 @@ describe("review fixes (issue #880)", () => {
     t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
     await flush();
     FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
-    t.controller.onGameMessage(gameMessage("g1"));
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
     await flush();
     expect(FakeSocket.all[0]!.kinds).toContain("game:start");
+  });
+
+  it("never attaches a game that was not started in the hosted room (a later single-player game)", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    // No room tag, then another room's tag: neither joins this lobby.
+    t.controller.onGameMessage(gameMessage("solo"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "solo", command: cmd(1), count: 1 });
+    await flush();
+    await flush();
+    expect(FakeSocket.all[0]!.kinds).not.toContain("game:start");
+    expect(t.last().started).toBe(false);
+    t.controller.onGameMessage(gameMessage("other", "someotherroom"));
+    await flush();
+    expect(FakeSocket.all[0]!.kinds).not.toContain("game:start");
+  });
+
+  it("leaving the room ends the game's stream into it", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    t.controller.onRoomCommand({ kind: "room-leave" });
+    expect(t.last().role).toBe("none");
+    t.controller.onGameMessage(gameMessage("solo"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "solo", command: cmd(1), count: 1 });
+    await flush();
+    expect(FakeSocket.all[0]!.kinds).not.toContain("game:start:solo");
   });
 
   it("resumes a lobby room on the game message with a name, and never with an empty one", async () => {

@@ -47,6 +47,17 @@ describe("EngineSessionCore live stream", () => {
     expect(Object.keys(live!.game.checksums ?? {})).toEqual(["0"]);
   });
 
+  test("a game started in a lobby room names its room beside the game, never inside its header", async () => {
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    await core.start({ ...CONFIG, room: "room00000001" });
+    const live = core.liveGame();
+    expect(live?.room).toBe("room00000001");
+    expect(live!.game.config).not.toHaveProperty("room");
+    const solo = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    await solo.start(CONFIG);
+    expect(solo.liveGame()).not.toHaveProperty("room");
+  });
+
   test("the game key is stable across a resume, so the same game keeps its room", async () => {
     const storage = new MemoryGameStorage();
     const first = new EngineSessionCore({ storage });

@@ -20,7 +20,7 @@ export interface LiveGameParts {
 }
 
 export function liveGameOf(parts: LiveGameParts): LiveGame {
-  const { packs, watchable: _watchable, ...rest } = parts.config;
+  const { packs, watchable: _watchable, room: _room, ...rest } = parts.config;
   const refs: readonly ReplayPackRef[] = (packs ?? []).map(({ id, version }) => ({ id, version }));
   return {
     writer: parts.writer,

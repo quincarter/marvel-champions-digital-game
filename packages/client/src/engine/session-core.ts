@@ -897,13 +897,14 @@ export class EngineSessionCore {
   }
 
   /** The game as the live room's header and log (`live/`): null with no game or when it is not `watchable`. */
-  liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
+  liveGame(): { readonly gameKey: string; readonly game: LiveGame; readonly room?: string } | null {
     const session = this.#session;
     const config = this.#config;
     const gameKey = this.liveGameKey();
     if (!session || !config || !gameKey) return null;
     return {
       gameKey,
+      ...(config.room ? { room: config.room } : {}),
       game: liveGameOf({
         writer: {
           appVersion: this.#writer.appVersion,
