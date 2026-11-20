@@ -32,7 +32,7 @@ export type WatchAction =
   /** The room turned this watcher away: it is full. */
   | { readonly kind: "refused" }
   | { readonly kind: "presence"; readonly hostConnected: boolean; readonly watchers: number }
-  | { readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" };
+  | { readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" | "host" };
 
 export class WatchFeed {
   readonly #table: string;

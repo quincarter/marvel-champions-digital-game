@@ -510,7 +510,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   }
 
   #goTitle(): void {
-    leaveRoom();
+    // A host who got here confirmed "close room": the room closes for everyone, not just this socket.
+    leaveRoom({ closeRoom: this.#isHost() });
     clearRoomTable();
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.title);

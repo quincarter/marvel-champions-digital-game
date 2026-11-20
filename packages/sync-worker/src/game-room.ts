@@ -326,6 +326,11 @@ export class GameRoomLogic {
   private readonly softRefusals = new WeakMap<RoomSocket, { n: number; since: number }>();
   /** Pending seat requests by seat id. Memory only, so asking and withdrawing never write a row. */
   private readonly requests = new Map<string, string[]>();
+  /**
+   * Set when sockets were restored after a hibernation: the pending requests above were lost while the sockets stayed
+   * open, so the first message handled sends everyone a fresh lobby and the clients ask again (they do on every lobby).
+   */
+  private woke = false;
   /** Lobby message rate: a bucket per participant (burst `LOBBY_MESSAGE_BURST`, 2 a second). Memory only. */
   private readonly lobbyBuckets = new Map<string, { tokens: number; at: number }>();
   /** `seat-deck` rate per participant, and for the whole room (every accepted deck rewrites the lobby row). Memory only. */
@@ -421,6 +426,7 @@ export class GameRoomLogic {
     if (!participant) return;
     this.sockets.set(participant.id, socket);
     this.participants.set(participant.id, participant);
+    this.woke = true;
   }
 
   /** Loads a table's header and stored chunks once per lifetime. */
@@ -688,7 +694,16 @@ export class GameRoomLogic {
       return;
     }
     this.sockets.set(participant.id, socket);
+    if (this.woke) {
+      this.woke = false;
+      const lobby = await this.loadLobby();
+      if (lobby) this.broadcastLobby(lobby);
+    }
 
+    if (message.ch === "room" && message.kind === "room-close") {
+      if (participant.role !== "host") return this.refuse(socket, "not-allowed");
+      return this.shutdown("host");
+    }
     if (message.ch === "chat") return this.say(socket, participant, message.text);
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
     if (message.kind === "propose") return this.refuse(socket, "not-allowed");
@@ -1060,7 +1075,7 @@ export class GameRoomLogic {
   private async lobbyMessage(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" }>,
+    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" }>,
   ): Promise<void> {
     const lobby = await this.loadLobby();
     if (!lobby) return this.refuse(socket, "not-allowed");
@@ -1257,7 +1272,10 @@ export class GameRoomLogic {
           free(seat);
           persist = true;
         } else {
-          return this.refuse(socket, "no-such-participant");
+          // The request is gone (the room woke from hibernation, or the requester withdrew): not an error, the host
+          // just needs the current lobby.
+          this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
+          return;
         }
         break;
       }
@@ -1344,7 +1362,7 @@ export class GameRoomLogic {
   }
 
   /** Closes the room for good: tells everyone, closes the sockets, and forgets the room so its id is a 404 again. */
-  async shutdown(reason: "ended" | "idle" | "disabled"): Promise<void> {
+  async shutdown(reason: "ended" | "idle" | "disabled" | "host"): Promise<void> {
     this.broadcast({ v: 1, ch: "room", kind: "closed", reason });
     for (const socket of this.sockets.values()) {
       try {

@@ -49,7 +49,7 @@ export type RoomConnection = "idle" | "connecting" | "connected" | "reconnecting
  * - `not-found`: the code or link names no open room (wrong, expired or closed); `full`: the room has no space;
  * - `gone`: the room vanished or no longer honours the host token; `replaced`: another device took over as host;
  * - `closed-ended` / `closed-idle` / `closed-disabled`: the room closed itself (all games over, idle for 12 hours,
- *   switched off).
+ *   switched off); `closed-host`: the host closed it.
  */
 export type RoomProblem =
   | "no-name"
@@ -63,7 +63,8 @@ export type RoomProblem =
   | "replaced"
   | "closed-ended"
   | "closed-idle"
-  | "closed-disabled";
+  | "closed-disabled"
+  | "closed-host";
 
 export interface RoomParticipant {
   /** Stable while connected; a reconnect is a new id (seats follow the seat token). */

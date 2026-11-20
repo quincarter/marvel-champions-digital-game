@@ -230,7 +230,13 @@ export class RoomModel {
       }
       case "closed":
         this.ended(
-          message.reason === "ended" ? "closed-ended" : message.reason === "idle" ? "closed-idle" : "closed-disabled",
+          message.reason === "ended"
+            ? "closed-ended"
+            : message.reason === "idle"
+              ? "closed-idle"
+              : message.reason === "host"
+                ? "closed-host"
+                : "closed-disabled",
         );
         return true;
       default:

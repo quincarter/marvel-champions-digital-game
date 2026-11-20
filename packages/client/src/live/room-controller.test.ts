@@ -8,7 +8,7 @@ import { LiveRoomController } from "./live-room-controller.js";
 import type { LiveGameMessage, RoomFeedOut } from "./live-room-protocol.js";
 import { MemorySeatTokenStore } from "./room-seat-store.js";
 import type { RoomState, SeatDeckEntry } from "./room-state.js";
-import type { FeedPort } from "./room-session.js";
+import { RoomSession, type FeedPort } from "./room-session.js";
 import type { CreateRoomDeps, CreateRoomResult, RoomSocketDeps, WebSocketLike } from "./room-socket.js";
 
 class FakeSocket implements WebSocketLike {
@@ -837,5 +837,68 @@ describe("seat decks in a room (each player brings their own deck)", () => {
     const guest = await inLobby("guest", [{ id: "s1" }]);
     guest.t.controller.onRoomCommand({ kind: "room-deck-refuse", seat: "s1", code: "no-deck", reason: "None." });
     expect(guest.socket.kinds).not.toContain("room:deck-refused");
+  });
+});
+
+describe("closing and resuming a lobby room (#901 review)", () => {
+  it("a host who confirms closing asks the room to close for everyone; a plain leave and a guest do not", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("host");
+    t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
+    expect(socket.kinds).toContain("room:room-close");
+    expect(t.last().role).toBe("none");
+
+    const plain = setup();
+    plain.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const s2 = FakeSocket.all[0]!;
+    s2.welcome("host");
+    plain.controller.onRoomCommand({ kind: "room-leave" });
+    expect(s2.kinds).not.toContain("room:room-close");
+
+    const guest = setup();
+    guest.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const s3 = FakeSocket.all[0]!;
+    s3.welcome("watcher");
+    guest.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
+    expect(s3.kinds).not.toContain("room:room-close");
+  });
+
+  it("shows a room the host closed as closed-host", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("watcher");
+    socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+    expect(t.last()).toMatchObject({ connection: "ended", problem: "closed-host" });
+  });
+
+  it("a resumed host presents its own stored seat tokens in the hello", async () => {
+    FakeSocket.all = [];
+    const seatStore = new MemorySeatTokenStore();
+    await seatStore.save({ roomId: "room00000001", tokens: { s1: "S".repeat(32) }, savedAt: Date.now() });
+    const session = new RoomSession("host", "Hosty", {
+      syncUrl: "https://sync.example",
+      linkBase: "https://web.example/",
+      build: BUILD,
+      seatStore,
+      onState: () => undefined,
+      socket: {
+        WebSocket: FakeSocket,
+        setTimer: () => ({}),
+        clearTimer: () => undefined,
+        random: () => 0.5,
+      },
+    });
+    session.resumeHost("room00000001", "h".repeat(32), "ABC234");
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.open();
+    expect(socket.hello).toMatchObject({ token: "h".repeat(32), seatTokens: ["S".repeat(32)] });
   });
 });

@@ -40,6 +40,7 @@ const PROBLEM_KEYS: Readonly<Record<RoomProblem, MessageKey>> = {
   "closed-ended": "room.problem.closedEnded",
   "closed-idle": "room.problem.closedIdle",
   "closed-disabled": "room.problem.closedDisabled",
+  "closed-host": "room.problem.closedHost",
 };
 
 /** The one line about the connection, or null while it is up. */
