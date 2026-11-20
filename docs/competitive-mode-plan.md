@@ -263,6 +263,7 @@ Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rul
 | N4  | A: different win conditions met in the equal-phase window are a tie, decided by the Q9 policy; never by acting first                                                                     |
 | N5  | A: a moved minion's boost comes from the deck of the area it is in now (its discard still goes to its origin)                                                                            |
 | N6  | A: Synthezoid Smackdown leaders, main schemes and sided modular sets join the competitive pool, locked to their side                                                                     |
+| N7  | A: the host may submit or ready only its own team's scenario, or either team's only when it holds no seat                                                                                |
 
 Code comment for competitive rules: `// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); <Q#> per owner decision 2026-11-20`.
 
