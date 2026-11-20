@@ -3796,15 +3796,17 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return matching >= (predicate.atLeast ?? 1);
     }
     case "playedThisRound": {
-      const [playerId] = resolvePlayers(state, predicate.player, context);
-      if (playerId === undefined) return false;
-      const played =
+      // Summed over every player the ref names: `each` reads "the first ally played each round" by anyone (Living
+      // Legend; RRG 1.8 FAQ "Steve Rogers (#1B)", p. 59).
+      const players = resolvePlayers(state, predicate.player, context);
+      if (players.length === 0) return false;
+      const playedBy = (playerId: PlayerId): number =>
         predicate.cardType === undefined
           ? Object.entries(state.playedByPlayerThisRound)
               .filter(([key]) => key.startsWith(`${playerId}:`))
               .reduce((sum, [, count]) => sum + count, 0)
           : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
-      return played <= predicate.atMost;
+      return players.reduce((sum, playerId) => sum + playedBy(playerId), 0) <= predicate.atMost;
     }
     case "lastPlayedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);

@@ -73,6 +73,18 @@ const BRIEF_MINE = action("brief-mine", {
   cardFilter: { categories: ["ally"] },
   into: INTO,
 });
+/**
+ * "Reduce the cost of the next ally played this phase by 2.", with no destination: Avengers Tower's "the next Avenger
+ * ally played this phase" and Welcome Aboard's "the next ally played this phase" name no player.
+ */
+const RALLY = action("rally", {
+  kind: "reduceNextCardCost",
+  player: you,
+  amount: n(2),
+  duration: "phase",
+  cardFilter: { categories: ["ally"] },
+  anyPlayer: true,
+});
 const EVENTS = [OPEN, BRIEF, BRIEF_MINE];
 
 const SCHEME = stubMainScheme({
@@ -81,7 +93,7 @@ const SCHEME = stubMainScheme({
 });
 const TYRANT = stubVillain({ id: "tyrant", stages: [{ hp: flat(40), atk: 0, sch: 0 }] });
 const NOISE = stubTreachery({ id: "noise", boostIcons: 0 });
-const deps: EngineDeps = depsOf(...EVENTS.map((e) => e.ability));
+const deps: EngineDeps = depsOf(...[...EVENTS, RALLY].map((e) => e.ability));
 
 const of = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
@@ -106,15 +118,15 @@ const playFree = (state: GameState, card: { card: { id: CardId } }, player: Play
   }).state;
 };
 
-function start(): GameState {
+function start(extra: readonly CardId[] = []): GameState {
   const base = gameAtFirstTurn({
-    cards: [ERRAND, SCOUT, RUNNER, GUARD, NOISE, ...EVENTS.map((e) => e.card)],
+    cards: [ERRAND, SCOUT, RUNNER, GUARD, NOISE, ...[...EVENTS, RALLY].map((e) => e.card)],
     deps,
     villain: TYRANT,
     mainScheme: SCHEME,
     players: 2,
     encounter: [ERRAND.id, ...copiesOf(NOISE.id, 14)],
-    deck: [SCOUT.id, SCOUT.id, RUNNER.id, GUARD.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [SCOUT.id, SCOUT.id, RUNNER.id, GUARD.id, ...EVENTS.map((e) => e.card.id), ...extra],
     scenarioRuleSpecs: RULES,
   });
   return heroForm(playFree(base, OPEN));
@@ -273,5 +285,26 @@ describe("§3.35 (b) a cost reduction for the next card played into an area", ()
     expect(both?.destinations).toEqual([AREA]);
     expect(both?.destinationOnly).toBeUndefined();
     expect(both?.example).not.toHaveProperty("into");
+  });
+});
+
+describe("a cost reduction for the next card any player plays, with no destination", () => {
+  it("another player's next ally to their own area uses it, and a second ally that phase costs its printed cost", () => {
+    const rallied = toP2(playFree(start([RALLY.card.id]), RALLY));
+    expect(reductions(rallied)).toMatchObject([{ playerId: P1, amount: 2, anyPlayer: true }]);
+    expect(play(rallied, SCOUT.id, { cost: 0, player: P2 }).ok).toBe(false);
+    const first = mustPlay(rallied, SCOUT.id, { cost: 1, player: P2 });
+    expect(mustPlayer(first.state, P2).playArea).toContain(first.id);
+    expect(of(first.events, "cardPlayed").find((e) => e.instanceId === first.id)).toMatchObject({ resourcesPaid: 1 });
+    expect(reductions(first.state)).toEqual([]);
+    expect(play(first.state, RUNNER.id, { cost: 1, player: P2 }).ok).toBe(false);
+    expect(play(first.state, RUNNER.id, { cost: 2, player: P2 }).ok).toBe(true);
+  });
+
+  it("its own player's next ally uses it too, and the other player's play is then full price", () => {
+    const rallied = playFree(start([RALLY.card.id]), RALLY);
+    const own = mustPlay(rallied, SCOUT.id, { cost: 1 });
+    expect(reductions(own.state)).toEqual([]);
+    expect(play(toP2(own.state), RUNNER.id, { cost: 0, player: P2 }).ok).toBe(false);
   });
 });

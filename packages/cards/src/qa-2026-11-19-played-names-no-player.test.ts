@@ -1,0 +1,45 @@
+/**
+ * Discounts whose printed text says "played", not "you play", name no player (#888): the next or first matching card
+ * any player plays uses them. Avengers Tower ("the next Avenger ally played this phase"), Sure Gamble, Welcome Aboard,
+ * Soup Kitchen, and Steve Rogers' Living Legend ("the first ally played each round": RRG 1.8 FAQ "Steve Rogers (#1B)",
+ * p. 59; FAQ 1.2, Caleb: "If you are Captain America when the first ally is played, then nobody gets a discount that
+ * round"). Compare Helicarrier's "that player plays", which stays per player.
+ */
+import { playCostOf } from "@mc/engine";
+import { describe, expect, it } from "vitest";
+import { PLAYABLE_DEPS } from "./playable/index.js";
+import { endTurn, moveToHand, P1, P2, payWith, play, playerOf } from "./testing/harness.js";
+import { wave1Scenario } from "./wave1/setup.js";
+import { runWave1, startWave1Game, WAVE1_DEPS } from "./wave1/testing.js";
+
+describe("#888: a discount for the card 'played' is for any player", () => {
+  it.each([
+    "03024.avengers-tower-action",
+    "21020.avengers-tower-action",
+    "16169.sure-gamble-action",
+    "20027.welcome-aboard-action",
+    "53007.soup-kitchen-action",
+  ])("%s waits for any player's play", (id) => {
+    const definition = PLAYABLE_DEPS.abilities[id];
+    expect(definition).toBeDefined();
+    expect(JSON.stringify(definition)).toContain('"kind":"reduceNextCardCost"');
+    expect(JSON.stringify(definition)).toContain('"anyPlayer":true');
+  });
+
+  it("Living Legend discounts the first ally another player plays that round, and not their second", () => {
+    const start = startWave1Game(
+      wave1Scenario("rhino", {
+        players: [{ starterDeckId: "cap-leadership" }, { starterDeckId: "core-spider-man-justice" }],
+        seed: 11,
+      }),
+    );
+    const p2Turn = runWave1(start, endTurn(P1));
+    const given = moveToHand(p2Turn, P2, "01002", "01058"); // Black Cat (2), Daredevil (4)
+    const [blackCat, daredevil] = given.ids as [never, never];
+    expect(playCostOf(given.state, P2, blackCat, WAVE1_DEPS)).toMatchObject({ printed: 2, current: 1 });
+
+    const played = runWave1(given.state, play(P2, blackCat, payWith(given.state, P2, 1, [blackCat, daredevil])));
+    expect(playerOf(played, P2).playArea).toContain(blackCat);
+    expect(playCostOf(played, P2, daredevil, WAVE1_DEPS)).toMatchObject({ printed: 4, current: 4 });
+  });
+});

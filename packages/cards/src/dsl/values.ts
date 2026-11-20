@@ -1806,8 +1806,9 @@ export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "
 export const duringTurnOf = (player: PlayerRef = { kind: "controller" }): Predicate => ({ kind: "turnOf", player });
 /**
  * "The first [card type] played each round" (Steve Rogers, Living Legend: "Reduce the cost of the first ally
- * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
- * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
+ * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally played each
+ * round, whatever form they're in when it's played — so this reads the round count, not the phase's. `player`: whose
+ * plays count; `{ kind: "each" }` counts every player's ("played" names no player, so Living Legend uses it, #888).
  */
 export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({
   kind: "playedThisRound",
