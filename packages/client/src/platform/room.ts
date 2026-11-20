@@ -21,15 +21,33 @@ import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
 import {
   NO_ROOM,
   seatOfPlayerIn,
+  type LobbyPod,
   type LobbySeatSpec,
   type LobbySettingsPatch,
+  type LobbyTableSpec,
+  type RemoteTarget,
   type RoomState,
   type SeatOfPlayer,
 } from "../live/room-state.js";
 import { postRoomCommand, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 
-export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
+export type {
+  EpicPod,
+  EpicShared,
+  EpicStart,
+  EpicState,
+  EpicTable,
+  EpicTableRole,
+  EpicTableStatus,
+  LobbyPod,
+  LobbyTableSpec,
+  RemoteTarget,
+  RoomAsk,
+  RoomRequest,
+  RoomState,
+  SeatOfPlayer,
+} from "../live/room-state.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -252,4 +270,68 @@ export async function watchRoomGame(): Promise<
   const id = state.roomId;
   if (state.role !== "guest" || !id) return { ok: false, message: "watch.link.gone" };
   return loadLiveWatch(id, followDeps);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Epic Multiplayer (issue #882, docs/live-game-rooms.md section 10). The state is `RoomState.epic`.
+//
+// A seat's remote power (attack The Mangog, thwart Door Between Worlds in another table of its pod) is an ordinary
+// command: `store.dispatch({ type: "remotePower", playerId, characterInstanceId, toGroupId, targetInstanceId, power })`,
+// where `toGroupId` is the other table's id and the target comes from `RoomState.epic.remoteTargets`. A table host
+// dispatches it on its own engine; a seat holder proposes it to its table's host as any command. The attacker's group
+// pays; the owning group's engine judges the card and answers through the pod, and the result shows in both logs.
+
+/**
+ * Organizer only: turns the lobby into an Epic one with these tables (2 to 8, including `t1`; each names its pod and
+ * may name its host), pods and seats (each naming its table; at most 4 per table). Seat n of a table plays that table's
+ * engine player p<n>, as in a standard room. Locked once any table has a game.
+ */
+export function setEpic(
+  tables: readonly LobbyTableSpec[],
+  pods: readonly LobbyPod[],
+  seats: readonly LobbySeatSpec[],
+): void {
+  postRoomCommand({ kind: "room-epic", tables, pods, seats });
+}
+
+/** Organizer only: makes a connected participant (a seat holder of that table, or the organizer) the host of `table`; `null` takes the host away. */
+export function assignTableHost(table: string, participant: string | null): void {
+  postRoomCommand({ kind: "room-table-host", table, participant });
+}
+
+/** Chooses which tables' logs this device receives: `"all"` or a list. A table I hold a seat at is always received. */
+export function followTables(tables: "all" | readonly string[]): void {
+  postRoomCommand({ kind: "room-follow-tables", tables });
+}
+
+/**
+ * Organizer only: starts the game. Sets `RoomState.epic.start`; each table host then starts its own group's game with
+ * `startEpicTable` (the organizer too, if it hosts a table).
+ */
+export function startEpicGame(): void {
+  postRoomCommand({ kind: "room-epic-start" });
+}
+
+/**
+ * Table host only, once `RoomState.epic.start` is set: starts this device's table. `config` is the table's game as a
+ * standard room's (its seats' heroes and decks, the scenario `god-of-lies`, the table's difficulty); this fills in the
+ * seed (made from the start's seed and the table id, so the start is deterministic), the group's place in the pod
+ * (its id is the table id) and the room fields, then starts the engine. Resolves with the engine's `start`.
+ */
+export async function startEpicTable(config: SessionConfig): Promise<void> {
+  void config;
+  throw new Error("startEpicTable: not built yet");
+}
+
+/**
+ * Organizer only: marks a table dropped (its host did not return; plan Q-C (b)): the game goes on without it and it no
+ * longer holds up the stop rule. Ask the organizer to confirm first; this cannot be undone.
+ */
+export function dropTable(table: string): void {
+  postRoomCommand({ kind: "room-epic-drop", table });
+}
+
+/** What I may attack or thwart in other tables of my pod right now (`RoomState.epic.remoteTargets`). */
+export function reachableRemoteTargets(): readonly RemoteTarget[] {
+  return state.epic?.remoteTargets ?? [];
 }

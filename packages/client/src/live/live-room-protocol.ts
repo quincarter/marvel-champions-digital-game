@@ -6,7 +6,7 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type { ProposalRefusal, RoomBuild, RoomDevice, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
-import type { LobbySeatSpec, LobbySettingsPatch, RoomState } from "./room-state.js";
+import type { LobbyPod, LobbySeatSpec, LobbySettingsPatch, LobbyTableSpec, RoomState } from "./room-state.js";
 
 /** Main thread to the live-room worker. */
 export type LiveRoomIn =
@@ -42,6 +42,22 @@ export type LiveRoomIn =
       readonly participant?: string;
     }
   | { readonly kind: "room-say"; readonly text: string }
+  // Epic Multiplayer (issue #882). Each is one call of `platform/room.ts`.
+  /** Organizer: Epic mode with these tables, pods and seats (a `lobby-set`). */
+  | {
+      readonly kind: "room-epic";
+      readonly tables: readonly LobbyTableSpec[];
+      readonly pods: readonly LobbyPod[];
+      readonly seats: readonly LobbySeatSpec[];
+    }
+  /** Organizer: makes `participant` (or nobody, `null`) the host of `table`. */
+  | { readonly kind: "room-table-host"; readonly table: string; readonly participant: string | null }
+  /** The tables whose logs this device receives. */
+  | { readonly kind: "room-follow-tables"; readonly tables: "all" | readonly string[] }
+  /** Organizer: starts the game (the signal every table host starts its own group on). */
+  | { readonly kind: "room-epic-start" }
+  /** Organizer: gives up a table whose host left (the game goes on without it). */
+  | { readonly kind: "room-epic-drop"; readonly table: string }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
