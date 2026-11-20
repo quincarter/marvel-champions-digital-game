@@ -48,6 +48,28 @@ describe("the minion stack on a choose-a-player row (issue #911)", () => {
     expect(step).toBeLessThan(Math.round(MINION_THUMB_MAX * MINION_FAN_SHOW));
   });
 
+  it.each([
+    [12, 96],
+    [12, 60],
+    [30, 120],
+    [3, 30],
+  ])("never wider than its room: %i minions in %ipx (code review, #911)", (count, maxWidth) => {
+    const strip = minionStripOf(row, count, maxWidth);
+    expect(strip.width).toBeLessThanOrEqual(maxWidth);
+    expect(strip.count).toBe(count);
+    expect(strip.thumbs.length).toBeGreaterThanOrEqual(1);
+    expect(strip.thumbs.length).toBeLessThanOrEqual(count);
+    const right = row.x + row.width;
+    for (const t of strip.thumbs) {
+      expect(t.x).toBeGreaterThanOrEqual(right - maxWidth);
+      expect(t.x + t.width).toBeLessThanOrEqual(right);
+    }
+    for (let i = 1; i < strip.visible.length; i++) {
+      expect(strip.visible[i]!.x).toBeGreaterThanOrEqual(strip.visible[i - 1]!.x + strip.visible[i - 1]!.width);
+    }
+    if (count > 1) expect(strip.badge).not.toBeNull();
+  });
+
   it("lists a seat's minions for a player row, and none for any other row", () => {
     const game = {
       players: [{ playerId: "p1", playArea: ["m1", "ally", "m2"] }],
