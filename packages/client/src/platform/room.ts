@@ -45,6 +45,8 @@ import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener, setSealedListener } from "./live-watch.js";
 import {
   buildCompetitiveConfig,
+  competitiveSeatOrder,
+  localPlayersOf,
   roomTeamsOf,
   type CompetitiveSetup,
   type SealedScenarios,
@@ -569,9 +571,9 @@ export type StartCompetitiveResult =
       readonly ok: false;
       /**
        * `not-host`, `not-ready` (see `RoomState.competitive.canStart`), `unavailable` (no room worker, or the room did not
-       * answer the reveal in time), or `engine-pending` (the two-team engine's setup API is not wired in yet).
+       * answer the reveal in time), or `invalid` (a sealed scenario does not read, or a team has no player for a seat).
        */
-      readonly reason: "not-host" | "not-ready" | "unavailable" | "engine-pending";
+      readonly reason: "not-host" | "not-ready" | "unavailable" | "invalid";
     };
 
 /** How long the host waits for the room to answer a reveal. */
@@ -625,9 +627,16 @@ export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCo
     teams: { registration: competitive.teams.registration.seats, resistance: competitive.teams.resistance.seats },
     tieBreaks: competitive.tieBreaks,
   });
-  if (!config) return { ok: false, reason: "engine-pending" };
-  // Seat n plays engine player p<n>, as in a standard room; the proposal judge also reads the teams.
-  setLobby({ seats: state.seats.map((s, index) => ({ id: s.id, label: s.label, player: `p${index + 1}` })) });
+  if (!config) return { ok: false, reason: "invalid" };
+  // Seats play engine players in team order (registration first, `competitiveSeatOrder`); the proposal judge reads the teams.
+  const order = competitiveSeatOrder(state);
+  setLobby({
+    seats: state.seats.map((s) => ({
+      id: s.id,
+      label: s.label,
+      player: `p${Math.max(0, order.indexOf(s.id)) + 1}`,
+    })),
+  });
   const playMode = state.settings?.playMode;
   await appSession().store.start({
     ...config,
@@ -635,7 +644,7 @@ export async function startCompetitive(setup: CompetitiveSetup): Promise<StartCo
     ...(state.roomId ? { room: state.roomId } : {}),
     ...(playMode ? { roomPlayMode: playMode } : {}),
     roomTeams: roomTeamsOf(state),
-    localSeats: state.seats.flatMap((seat, index) => (seat.mine ? [`p${index + 1}`] : [])),
+    localSeats: localPlayersOf(state),
   });
   return { ok: true };
 }

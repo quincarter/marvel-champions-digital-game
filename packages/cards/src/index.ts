@@ -80,7 +80,7 @@ export {
   wave10Scenario,
   wave10StarterDeckSetup,
 } from "./wave10/index.js";
-export { civilWarCompetitive, leaderPlayerCardIds } from "./wave10/index.js";
+export { civilWarCompetitive, competitiveModularSetProblem, leaderPlayerCardIds } from "./wave10/index.js";
 export type {
   CivilWarCompetitiveOptions,
   CivilWarCompetitiveTeam,

@@ -14,6 +14,7 @@ import type { CompetitiveScenarioSetup, CompetitiveTeamSetup, GameSetupConfig } 
 import type { CorePlayer } from "../core/setup.js";
 import { WAVE10_CARDS } from "./cards.js";
 import {
+  WAVE10_GAME_ENCOUNTER_SETS,
   wave10CompetitiveScenario,
   wave10ScenarioRecord,
   type Wave10Difficulty,
@@ -52,6 +53,20 @@ export function leaderPlayerCardIds(leaderScenarioId: string): readonly CardId[]
   ).map((card) => card.id);
 }
 
+/**
+ * The refusal for a modular set that is not of the scenario's own side. MC56 p. 5: "Modular sets from other products are
+ * cooperative-only; in competitive mode only registration or resistance sets are legal"; p. 4: sides are not mixed.
+ * Synthezoid Smackdown's sided sets join the pool locked to their side (owner decision N6, 2026-11-20).
+ */
+export function competitiveModularSetProblem(side: string, setId: string): string | null {
+  const set = WAVE10_GAME_ENCOUNTER_SETS.find((candidate) => candidate.id === setId);
+  if (!set) return `${setId} is not an encounter set`;
+  if (set.side === undefined)
+    return `${set.name} is not a Civil War set: only registration and resistance sets are legal in competitive mode (MC56 p. 5)`;
+  if (set.side !== side) return `${set.name} is a ${set.side} set, and this scenario is ${side} (MC56 p. 4)`;
+  return null;
+}
+
 const sideOf = (scenarioId: string): string | undefined => wave10ScenarioRecord(scenarioId).side;
 
 /**
@@ -65,6 +80,13 @@ export function civilWarCompetitive(options: CivilWarCompetitiveOptions): GameSe
     throw new Error(`the first team's leader ${registration.leaderScenarioId} is not a registration leader`);
   if (sideOf(resistance.leaderScenarioId) !== "resistance")
     throw new Error(`the second team's leader ${resistance.leaderScenarioId} is not a resistance leader`);
+  for (const team of options.teams) {
+    const side = sideOf(team.leaderScenarioId)!;
+    for (const setId of [...(team.scenario?.modularSetIds ?? []), ...(team.scenario?.extraModularSetIds ?? [])]) {
+      const problem = competitiveModularSetProblem(side, setId);
+      if (problem) throw new Error(problem);
+    }
+  }
   for (const team of options.teams)
     if (team.players.length < 1 || team.players.length > 2)
       throw new Error(`a competitive team has 1 or 2 players, not ${team.players.length} (MC56 p. 14)`);

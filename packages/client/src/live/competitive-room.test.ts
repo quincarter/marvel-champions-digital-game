@@ -4,7 +4,7 @@
  * host's reveal, and the seat of a team's first player. Fake sockets, as `room-play.test.ts` does.
  */
 import { describe, expect, it, vi } from "vitest";
-import { roomTeamsOf, buildCompetitiveConfig } from "./competitive-start.js";
+import { roomTeamsOf } from "./competitive-start.js";
 import { LiveRoomController } from "./live-room-controller.js";
 import { MemorySeatTokenStore } from "./room-seat-store.js";
 import type { RoomState } from "./room-state.js";
@@ -190,7 +190,6 @@ describe("a Competitive room's state", () => {
     ).toEqual({
       p1: "resistance",
     });
-    expect(buildCompetitiveConfig({} as never)).toBeNull();
   });
 });
 
