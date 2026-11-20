@@ -74,6 +74,16 @@ async function playsThrough(page: Page, info: TestInfo): Promise<void> {
   expect(game, "a game was saved").toBeTruthy();
   await markWon(page, game!.id);
 
+  // Watched in the page, every frame, from the replay's first moment: at 4x the phase can open and close between two
+  // polls from here, and the replay starts playing as it opens.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __mcActiveScenes?: () => string[]; __sawVillainPhase?: boolean };
+    const look = (): void => {
+      if (w.__mcActiveScenes?.().includes("VillainPhaseOverlay")) w.__sawVillainPhase = true;
+      requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
   await page.goto("/?unlock=all");
   await waitForScene(page, "Title", 30000);
   await settle(page, { quietMs: 500, maxMs: 3000 });
@@ -87,10 +97,26 @@ async function playsThrough(page: Page, info: TestInfo): Promise<void> {
   await waitFor(() => replayState(page), "the replay opens on the board", 30000);
   await settle(page, { quietMs: 500, maxMs: 3000 });
 
-  // S cycles the speed: 1x, 2x, 4x.
-  for (let i = 0; i < 3 && (await replayState(page))!.speed !== 4; i += 1) await pressKey(page, "s");
+  // S cycles the speed: 1x, 2x, 4x. Each press is waited on, so none lands before the last one took.
+  for (let i = 0; i < 3 && (await replayState(page))!.speed !== 4; i += 1) {
+    const before = (await replayState(page))!.speed;
+    await pressKey(page, "s");
+    await waitFor(async () => ((await replayState(page))!.speed !== before ? true : null), "the speed changes", 5000);
+  }
   expect((await replayState(page))!.speed).toBe(4);
-  if (!(await replayState(page))!.playing) await pressKey(page, " ");
+  // Play from the start, whether or not the replay was already playing when it opened.
+  await page.evaluate(() =>
+    (window as unknown as { __mcReplayDebug: { seek(n: number): Promise<unknown> } }).__mcReplayDebug.seek(0),
+  );
+  await settle(page, { quietMs: 300, maxMs: 2000 });
+  if (!(await replayState(page))!.playing)
+    await page.evaluate(() =>
+      (window as unknown as { __mcReplayDebug: { togglePlay(): void } }).__mcReplayDebug.togglePlay(),
+    );
+  await waitFor(async () => ((await replayState(page))!.playing ? true : null), "the replay plays", 5000);
+  await page.evaluate(() => {
+    (window as unknown as { __sawVillainPhase?: boolean }).__sawVillainPhase = false;
+  });
 
   // Play to the end with no input: the villain phase opens, closes itself, and the replay reaches its last command.
   let sawPhase = false;
@@ -104,7 +130,10 @@ async function playsThrough(page: Page, info: TestInfo): Promise<void> {
     if (!state.playing && !scenes.includes("VillainPhaseOverlay")) break;
     await page.waitForTimeout(250); // loop pacing
   }
-  expect(sawPhase, "the replay showed the villain phase").toBe(true);
+  sawPhase ||= await page.evaluate(
+    () => (window as unknown as { __sawVillainPhase?: boolean }).__sawVillainPhase === true,
+  );
+  expect(sawPhase, `the replay showed the villain phase (last: ${last})`).toBe(true);
   expect(await activeScenes(page), `stuck: ${last}`).not.toContain("VillainPhaseOverlay");
   expect((await replayState(page))!.position, "the replay reached its end").toBe(game!.commandCount);
   expect(errors).toEqual([]);

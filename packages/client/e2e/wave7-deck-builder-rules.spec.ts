@@ -142,7 +142,9 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     test.setTimeout(300_000);
     await openDecks(page);
     await startNewDeck(page, "41001a");
-    expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY — PSYLOCKE", "SETUP · 2", "HERO · 15"]));
+    expect(await texts(page, "DeckBuilder")).toEqual(
+      expect.arrayContaining(["IDENTITY — PSYLOCKE", "SETUP · 2", "HERO · 15"]),
+    );
     expect(await deckPanel(page)).toEqual(expect.arrayContaining(["Psi-Knife", "2"]));
     await search(page, "Psi-Knife");
     // The text search ranks name matches first and also finds cards whose rules mention Psi-Knives.
