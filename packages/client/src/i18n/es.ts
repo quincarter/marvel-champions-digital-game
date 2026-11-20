@@ -810,4 +810,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.tab.teams": "Equipos",
   "comp.side.speak": "Hablar por {side}",
   "comp.strip.leader": "Su líder",
+  "comp.cond.enemyLeaderDefeated": "Derrotó al líder enemigo",
+  "comp.cond.leaderSchemeCompleted": "Su líder completó el plan principal",
+  "comp.cond.opponentsDefeated": "Derrotó a todos los héroes enemigos",
+  "comp.cond.opponentsLost": "El otro bando perdió",
+  "comp.over.heading": "Resultado de Civil War",
+  "comp.over.close": "Cerrar",
 };

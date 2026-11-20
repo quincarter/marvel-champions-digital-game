@@ -804,4 +804,10 @@ export const en = {
   "comp.tab.teams": "Teams",
   "comp.side.speak": "Speak for {side}",
   "comp.strip.leader": "Their leader",
+  "comp.cond.enemyLeaderDefeated": "Defeated the enemy leader",
+  "comp.cond.leaderSchemeCompleted": "Its leader completed the main scheme",
+  "comp.cond.opponentsDefeated": "Defeated every enemy hero",
+  "comp.cond.opponentsLost": "The other side lost",
+  "comp.over.heading": "Civil War result",
+  "comp.over.close": "Close",
 } as const;

@@ -192,6 +192,10 @@ export class GameOverScene extends Phaser.Scene {
     }
     this.#draw();
     fadeScreenIn(this);
+    // Civil War Competitive: the per-team result and the tie-break panel open over the screen (plan M9).
+    if (game?.outcome?.result === "teams" && !this.scene.isActive(SCENES.competitiveOver)) {
+      this.scene.launch(SCENES.competitiveOver);
+    }
   }
 
   #draw(bandShrink = 0): void {
