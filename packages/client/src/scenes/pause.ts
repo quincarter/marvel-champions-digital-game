@@ -429,7 +429,7 @@ export class PauseOverlay extends Phaser.Scene {
         detail: "Your record, heroes, villains and the cards you play.",
         open: () => this.#openStats(),
       },
-      // Only once the player has turned it on in Settings > More > Misc gameplay (the owner, 2026-11-19).
+      // Only once the player has turned it on in Settings > More > Cheats (the owner, 2026-11-19).
       ...(appSession().settings.allowManualAdjust
         ? [
             {
@@ -691,7 +691,7 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
     else {
       // Not the primary, and in the slot the concede confirm takes over, so the two never show at once.
-      // Off unless the player turned it on in Settings > More > Misc gameplay (the owner, 2026-11-19).
+      // Off unless the player turned it on in Settings > More > Cheats (the owner, 2026-11-19).
       if (appSession().settings.allowManualAdjust) {
         this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
           this.#openManualAdjust(),

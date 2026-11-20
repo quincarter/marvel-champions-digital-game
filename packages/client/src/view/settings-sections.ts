@@ -61,7 +61,7 @@ export type SettingsSectionId =
   | "sound"
   | "guide"
   | "more"
-  | "misc"
+  | "cheats"
   | "custom"
   | "achievements"
   | "earned";
@@ -114,7 +114,6 @@ export function settingsSectionsOf(input: {
       title: "Gameplay",
       items: [
         "confirm-end-turn",
-        "undo-past-turn",
         "not-offered-notices",
         "same-name-conflict",
         "deck-signature",
@@ -210,8 +209,10 @@ export function settingsSectionsOf(input: {
       items: ["achievement-popup-time", "achievement-popup-place", "achievement-popup-size"],
     },
     { id: "custom", title: "Custom content", items: ["custom-placement", "custom-unlocked"] },
-    // Rules escapes the owner wants out of the way (2026-11-19): off by default, each warning before it turns on.
-    { id: "misc", title: "Misc gameplay", items: ["manual-adjust"] },
+    // Every setting that can stop a game counting toward stats, achievements and champion points, in one place (#899,
+    // the owner, 2026-11-20): off by default, each with a warning before it turns on. A new setting that marks a game
+    // Adjusted (`isAdjustedSave`) belongs here.
+    { id: "cheats", title: "Cheats", items: ["undo-past-turn", "manual-adjust"] },
     { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
@@ -235,7 +236,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "achievements", "custom", "misc", "earned"] },
+  { id: "more", label: "More", sections: ["more", "achievements", "custom", "cheats", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

@@ -4,7 +4,7 @@ import { routeStops, screens, scrollStopIntoView, waitForScene } from "./wave6-h
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Allow manual adjust (#894) is off until the player turns it on in Settings > More > Misc gameplay, and turning it on
+ * Allow manual adjust (#894) is off until the player turns it on in Settings > More > Cheats, and turning it on
  * warns first. Escape on the warning backs out of the warning only: Settings stays up and the setting stays off.
  */
 
@@ -43,7 +43,7 @@ test("Allow manual adjust warns before it turns on, and Escape on the warning ke
   await pressStop(page, "tab:more");
   await scrollStopIntoView(page, "row:manual-adjust", SETTINGS);
   expect(await allowed(page)).toBe(false);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-misc-gameplay.png` });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-cheats.png` });
 
   await pressStop(page, "row:manual-adjust");
   await waitForScene(page, CONFIRM);
@@ -67,5 +67,44 @@ test("Allow manual adjust warns before it turns on, and Escape on the warning ke
   await pressAt(page, ok!.x + ok!.width / 2, ok!.y + ok!.height / 2);
   await waitFor(async () => ((await allowed(page)) ? true : null), "Allow manual adjust is on", 8000);
   expect(await screens(page)).toContain(SETTINGS);
+  expect(errors).toEqual([]);
+});
+
+test("Undo past your turn sits under Cheats on the More tab, not on the Game tab, and warns before it turns on (#899)", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "the keyboard's case");
+  const errors = trackPageErrors(page);
+  await openApp(page, "unlock=all");
+  await waitForScene(page, "Title", 30000);
+  await settle(page);
+  await clickText(page, "SETTINGS", { sceneKey: "Title", until: () => isSceneUp(page, SETTINGS) });
+  await settle(page);
+  const stopKeys = async (): Promise<readonly string[]> =>
+    ((await routeStops(page, SETTINGS))?.stops ?? []).map((s) => s.key);
+  expect(
+    (await stopKeys()).some((k) => k.startsWith("row:undo-past-turn:")),
+    "not on the Game tab",
+  ).toBe(false);
+
+  await pressStop(page, "tab:more");
+  await scrollStopIntoView(page, "row:undo-past-turn:warn", SETTINGS);
+  const keys = await stopKeys();
+  const undoAt = keys.indexOf("row:undo-past-turn:off");
+  expect(undoAt).toBeGreaterThan(-1);
+  expect(keys.indexOf("row:manual-adjust"), "Manual adjust follows it in the same section").toBeGreaterThan(undoAt);
+
+  await pressStop(page, "row:undo-past-turn:warn");
+  await waitForScene(page, CONFIRM);
+  await pressKey(page, "Escape");
+  await waitFor(async () => ((await screens(page)).includes(CONFIRM) ? null : true), "the warning closes", 8000);
+  expect(await screens(page)).toContain(SETTINGS);
+  const undo = await page.evaluate(async () => {
+    const { appSession } = (await import("/src/session.ts")) as unknown as {
+      appSession: () => { settings: { undoPastTurn: string } };
+    };
+    return appSession().settings.undoPastTurn;
+  });
+  expect(undo).toBe("off");
   expect(errors).toEqual([]);
 });

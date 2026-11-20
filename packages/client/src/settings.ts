@@ -121,7 +121,7 @@ export interface Settings {
   readonly undoPastTurn: UndoPastTurn;
   /**
    * Pause offers Manual adjust (#791), which fixes the table by hand and stops the game counting. Defaults off and lives
-   * under Settings > More > Misc gameplay (the owner, 2026-11-19); turning it on asks first (`cheatUnlockWarningOf`).
+   * under Settings > More > Cheats (the owner, 2026-11-19); turning it on asks first (`cheatUnlockWarningOf`).
    */
   readonly allowManualAdjust: boolean;
   /** The list the Decks screen opens on (#755). Defaults to all, the list of everything it has always opened to. */

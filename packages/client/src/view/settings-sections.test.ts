@@ -51,7 +51,7 @@ describe("settingsSectionsOf", () => {
     expect([...items].sort()).toEqual([...expected].sort());
   });
 
-  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Custom content, Misc gameplay, Earned items", () => {
+  test("the sections read top to bottom: Gameplay, Cards left, Villain phase, Cards, Animation and display, Sound, Guide, More, Achievements, Custom content, Cheats, Earned items", () => {
     expect(settingsSectionsOf({ guideRowIds, cardHover: true }).map((s) => s.title)).toEqual([
       "Gameplay",
       "Cards left",
@@ -63,7 +63,7 @@ describe("settingsSectionsOf", () => {
       "More",
       "Achievements",
       "Custom content",
-      "Misc gameplay",
+      "Cheats",
       "Earned items",
     ]);
   });
@@ -74,7 +74,7 @@ describe("settingsSectionsOf", () => {
       "More",
       "Achievements",
       "Custom content",
-      "Misc gameplay",
+      "Cheats",
       "Earned items",
     ]);
     expect(more.sections[4]!.items).toContain("ultron-drone-art");
@@ -117,6 +117,18 @@ describe("settingsSectionsOf", () => {
     const guide = settingsSectionsOf({ guideRowIds, cardHover: true }).find((s) => s.id === "guide")!;
     expect(guide.items).toEqual(guideRowIds);
     expect(guide.items[0]).toBe("guide-level");
+  });
+});
+
+describe("the Cheats section (#899)", () => {
+  test("holds every setting that can stop a game counting, and nothing else, on the More tab", () => {
+    const more = settingsTabsOf({ guideRowIds, cardHover: true }).find((tab) => tab.id === "more")!;
+    expect(more.sections.find((s) => s.id === "cheats")?.items).toEqual(["undo-past-turn", "manual-adjust"]);
+  });
+
+  test("Undo past your turn is no longer among the ordinary Gameplay rows", () => {
+    const gameplay = settingsSectionsOf({ guideRowIds, cardHover: true }).find((s) => s.id === "gameplay")!;
+    expect(gameplay.items).not.toContain("undo-past-turn");
   });
 });
 
