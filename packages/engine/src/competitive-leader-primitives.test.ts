@@ -28,6 +28,7 @@ import { stubEvent } from "./testing/fixtures.js";
 import { DEFAULT_DECK, giveCard, settle } from "./testing/scenario.js";
 import { competitiveGame } from "./testing/team.js";
 import { copiesOf, gameAtFirstTurn, playFree } from "./testing/wave3.js";
+import { effectChoiceAuthority } from "./villain/authority.js";
 
 const P1 = playerId("p1");
 const P2 = playerId("p2");
@@ -55,9 +56,34 @@ const BOOSTED = actionEvent("boosted-strike", [attack({ boost: true })]);
 const BOOSTED_STRONG = actionEvent("boosted-strong-strike", [
   attack({ boost: true, atkBonus: { kind: "const", value: 1 } }),
 ]);
+/** "Your leader attacks the enemy leader" as an `enemyAttack` at a character: redirected to `enemyAttacksEnemy`. */
+const redirected = (extra: Partial<Extract<EffectSpec, { kind: "enemyAttack" }>>): EffectSpec => ({
+  kind: "enemyAttack",
+  enemies: YOUR_LEADER,
+  targetCharacter: ENEMY_LEADER,
+  boost: false,
+  ...extra,
+});
+const REDIRECT_PLAIN = actionEvent("redirect-plain", [redirected({})]);
+const REDIRECT_STRONG = actionEvent("redirect-strong", [
+  redirected({ atkBonus: { kind: "const", value: 1 }, keywords: ["piercing"] }),
+]);
+const REDIRECT_DEFERRED = actionEvent("redirect-deferred", [
+  redirected({ atkBonus: { kind: "const", value: 1 }, statBonusTiming: "afterInterrupts" }),
+]);
 const SHUFFLE_YOURS = actionEvent("shuffle-yours", [{ kind: "shuffleEncounterDeck", deckOf: YOUR_LEADER }]);
 const SHUFFLE_PLAIN = actionEvent("shuffle-plain", [{ kind: "shuffleEncounterDeck" }]);
-const EVENTS = [PLAIN, STRONG, BOOSTED, BOOSTED_STRONG, SHUFFLE_YOURS, SHUFFLE_PLAIN];
+const EVENTS = [
+  PLAIN,
+  STRONG,
+  BOOSTED,
+  BOOSTED_STRONG,
+  REDIRECT_PLAIN,
+  REDIRECT_STRONG,
+  REDIRECT_DEFERRED,
+  SHUFFLE_YOURS,
+  SHUFFLE_PLAIN,
+];
 const deps: EngineDeps = depsOf(...EVENTS.map((e) => e.ability));
 
 const twoTeams = (sizes?: readonly [number, number]): GameState =>
@@ -109,6 +135,13 @@ describe("'the first player on the enemy team' (firstPlayer of: enemy)", () => {
     expect(resolvePlayers(state, ENEMY_FIRST, context(P4))).toEqual([state.firstPlayerId]);
   });
 
+  it("as an encounter card's chooser it is that player's own pick, not the first player's encounter targeting", () => {
+    const state = twoTeams();
+    const leader = state.villains[0]!.instanceId as InstanceId;
+    expect(effectChoiceAuthority(state, leader, { kind: "firstPlayer" })).toBe("firstPlayerTargets");
+    expect(effectChoiceAuthority(state, leader, ENEMY_FIRST)).toBe("player");
+  });
+
   it("with two teams and no team to read for, it names nobody", () => {
     expect(resolvePlayers(twoTeams(), ENEMY_FIRST, { ...context(P1), controllerId: null })).toEqual([]);
   });
@@ -136,7 +169,7 @@ describe("shuffleEncounterDeck deckOf: another villain's encounter deck", () => 
     expect(shuffled(play(state, SHUFFLE_PLAIN.card.id).events)).toEqual([leaderOne!.encounterDeckId]);
   });
 
-  it("cooperative: a deckOf that names no villain ('your leader') shuffles nothing; without it, the active deck", () => {
+  it("cooperative: a deckOf naming no villain ('your leader') shuffles nothing; without it, the active deck", () => {
     const coop = gameAtFirstTurn({
       cards: EVENTS.map((e) => e.card),
       deps,
@@ -164,7 +197,7 @@ describe("enemyAttacksEnemy atkBonus and keywords: this attack only", () => {
     expect(mustInstance(play(start, STRONG.card.id).state, target).damage).toBe(3);
   });
 
-  it("piercing discards the target's tough status card and the damage lands; without it tough absorbs the attack", () => {
+  it("piercing discards the target's tough status card and the damage lands; without it tough absorbs it", () => {
     const pierced = play(tough(start), STRONG.card.id).state;
     expect(mustInstance(pierced, target).statuses.tough).toBe(0);
     expect(mustInstance(pierced, target).damage).toBe(3);
@@ -180,7 +213,24 @@ describe("enemyAttacksEnemy atkBonus and keywords: this attack only", () => {
     expect(mustInstance(second, target).statuses.tough).toBe(0);
   });
 
-  it("with a boost card the bonus is added to ATK and boost icons alike (one more than the same boosted attack)", () => {
+  it("does not reach the next attack on an untoughened target: 3, then 5 (6 if the bonus leaked)", () => {
+    const first = play(start, STRONG.card.id).state;
+    expect(mustInstance(first, target).damage).toBe(3);
+    expect(mustInstance(play(first, PLAIN.card.id).state, target).damage).toBe(5);
+  });
+
+  it("an enemyAttack at an enemy character is redirected with its keywords and eager atkBonus (2 + 1)", () => {
+    expect(mustInstance(play(start, REDIRECT_PLAIN.card.id).state, target).damage).toBe(2);
+    const pierced = play(tough(start), REDIRECT_STRONG.card.id).state;
+    expect(mustInstance(pierced, target).statuses.tough).toBe(0);
+    expect(mustInstance(pierced, target).damage).toBe(3);
+  });
+
+  it("a deferred atkBonus (statBonusTiming afterInterrupts) is dropped by the redirect", () => {
+    expect(mustInstance(play(start, REDIRECT_DEFERRED.card.id).state, target).damage).toBe(2);
+  });
+
+  it("with a boost card the bonus adds to ATK and boost icons (one more than the same boosted attack)", () => {
     const boosted = mustInstance(play(start, BOOSTED.card.id).state, target).damage;
     expect(mustInstance(play(start, BOOSTED_STRONG.card.id).state, target).damage).toBe(boosted + 1);
   });

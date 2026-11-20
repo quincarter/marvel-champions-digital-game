@@ -4134,9 +4134,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // the villain: a minion is "a character", RRG 1.8 "Character", p. 12) has the villain attack that minion the same
       // way: an attack on an enemy, not an activation against a player.
       // The `enemyAttack`'s `keywords` and an eager `atkBonus` carry over, as `enemyAttacksEnemy` takes both for this
-      // attack only ("Captain Marvel attacks that character. This attack gains overkill", Energy Channel 56098, aimed at
-      // a leader). Extra boost cards and a deferred bonus (`statBonusTiming`) do not: `enemyAttacksEnemy` has neither,
-      // and no card that can reach this branch prints one.
+      // attack only; no current card reaches this branch with either. Extra boost cards and a deferred bonus
+      // (`statBonusTiming`) do not: `enemyAttacksEnemy` has neither, and no card that can reach this branch prints one.
       if (effect.kind === "enemyAttack" && effect.targetCharacter) {
         const inPlayNow = cardsInPlay(ctx.state);
         const [aimed] = targets(effect.targetCharacter).filter(

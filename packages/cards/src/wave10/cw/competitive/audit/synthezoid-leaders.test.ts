@@ -1,16 +1,16 @@
 /**
- * Competitive card audit, group 4 (docs/competitive-card-audit.md): the Synthezoid Smackdown leader player cards, She-Hulk
- * 57032 to 57035 (played by the registration team, p1) and Vision 57074 to 57077 (57076 and 57077 played by the
- * resistance team, p2; 57074 and 57075 by p1, which only changes which leader is "your leader"), each in a real two-team
- * game (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader" is leader one; for p2
- * the other way round. 57075 follows reading A of docs/competitive-mode-plan.md section 1.10 (bullets checked once, then
- * the flip; FFG ruling Feb 28, 2026 #5).
+ * Competitive card audit, group 4 (docs/competitive-card-audit.md): the Synthezoid Smackdown leader player cards,
+ * She-Hulk 57032 to 57035 (played by the registration team, p1) and Vision 57074 to 57077 (57076 and 57077 played by
+ * the resistance team, p2; 57074 and 57075 by p1, which only changes which leader is "your leader"), each in a real
+ * two-team game (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader" is leader
+ * one; for p2 the other way round. 57075 follows reading A of docs/competitive-mode-plan.md section 1.10 (bullets
+ * checked once, then the flip; FFG ruling Feb 28, 2026 #5).
  *
- * Sources: the cards' printed text (data `synthezoid`), MC56 p. 16 (a leader attacking a leader: one boost card from the
- * deck of the area the attacker sits in, no defender), pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG
- * p. 4); owner decisions Q5, Q6, Q11, N11 of docs/competitive-mode-plan.md section 1.10; RRG v1.8 "Interrupt" p. 24,
- * "Response" p. 38, "Then" p. 44, "Search" p. 39; Phased Out's current text from the errata of RRG v1.8 p. 70 and the March 19, 2026
- * ruling (Hero Action, not Hero Interrupt).
+ * Sources: the cards' printed text (data `synthezoid`), MC56 p. 16 (a leader attacking a leader: one boost card from
+ * the deck of the area the attacker sits in, no defender), pp. 16-17, 20 (scenario rules override RRG per Golden Rule,
+ * RRG p. 4); owner decisions Q5, Q6, Q11, N11 of docs/competitive-mode-plan.md section 1.10; RRG v1.8 "Interrupt"
+ * p. 24, "Response" p. 38, "Then" p. 44, "Search" p. 39; Phased Out's current text from the errata of RRG v1.8 p. 70
+ * and the March 19, 2026 ruling (Hero Action, not Hero Interrupt).
  */
 
 import type { GameEvent, GameState, InstanceId } from "@mc/engine";
@@ -121,7 +121,10 @@ function hand(state: GameState, player: Seat, code: string, payCode: string, n: 
   return { state: current, id: card.id, paid };
 }
 
-/** A resource card of `player` spent to pay for an upgrade played on their identity: the "when/after you spend it" window. */
+/**
+ * A resource card of `player` spent to pay for an upgrade played on their identity: the "when/after you spend it"
+ * window.
+ */
 function spendResource(deps: Game["deps"], state: GameState, player: Seat, code: string) {
   const upgrade = give(state, player, "upgrade");
   const resource = give(upgrade.state, player, code);
@@ -138,7 +141,8 @@ describe("You're Out of Order! (57032): threat that would be placed on the main 
   function villainPhase(holdsCard: boolean) {
     const { state: start, deps } = game({ deckOne: [BIG_BOOST.id as string] });
     const { one: schemeOne } = schemesOf(start);
-    // p1 ends its turn first (a hand-size prompt would discard the card), then holds the card through the villain phase.
+    // p1 ends its turn first (a hand-size prompt would discard the card), then holds the card through the villain
+    // phase.
     const afterP1 = toResistance(deps, start);
     const base = holdsCard ? hand(afterP1, P1, OUT_OF_ORDER, ENERGY.id as string, 1).state : afterP1;
     // Accept every trigger and payment, but keep the card out of the hand-size discard the hand surgery causes.
@@ -174,7 +178,7 @@ describe("She-Hulk Smash (57033): your She-Hulk leader attacks the enemy leader;
     return { ...result, one, two };
   }
 
-  it("leader two (your leader) attacks leader one with one boost card from its own area's deck, no defender (2 + 4)", () => {
+  it("leader two (your leader) attacks leader one, a boost card from its own area's deck, no defender (2+4)", () => {
     const r = smash(PHYSICAL.id as string);
     expect(attacked(r.events, r.two, r.one)).toBe(true);
     expect(r.events.some((e) => e.type === "defenderDeclared")).toBe(false);
@@ -194,7 +198,7 @@ describe("She-Hulk Smash (57033): your She-Hulk leader attacks the enemy leader;
   });
 });
 
-describe("Make Me Angry (57034): after a hero or leader attacks attached She-Hulk, she attacks that character, then discard", () => {
+describe("Make Me Angry (57034): after a hero or leader attacks She-Hulk, she attacks back, then discard", () => {
   function attached() {
     const { state: start, deps } = game({ deckOne: [BIG_BOOST.id as string], deckTwo: [BIG_BOOST.id as string] });
     const { one, two } = leadersOf(start);
@@ -224,7 +228,7 @@ describe("Make Me Angry (57034): after a hero or leader attacks attached She-Hul
     expect(playerOf(state, P1).discard).toContain(a.card);
   });
 
-  it("the other leader attacks her (Fighting Dirty): she attacks that leader back, a leader-versus-leader attack", () => {
+  it("the other leader attacks her (Fighting Dirty): she attacks that leader back, leader versus leader", () => {
     const a = attached();
     const given = hand(a.state, P2, FIGHTING_DIRTY, PHYSICAL.id as string, 2);
     const { state, events } = run(a.deps, given.state, acceptAll, play(P2, given.id, given.paid));
@@ -238,7 +242,7 @@ describe("Make Me Angry (57034): after a hero or leader attacks attached She-Hul
 /** Leader `attacker` attacked leader `target`. */
 const attached_ = attacked;
 
-describe("Legal Counsel (57035): after you spend it, move 1 threat from the main scheme to your leader's main scheme", () => {
+describe("Legal Counsel (57035): after you spend it, move 1 threat from the main scheme to your leader's", () => {
   const { state: start, deps } = game();
   const { one: schemeOne, two: schemeTwo } = schemesOf(start);
   const seeded = patch(start, schemeOne, { threat: 5 });
@@ -250,7 +254,7 @@ describe("Legal Counsel (57035): after you spend it, move 1 threat from the main
   });
 });
 
-describe("Calculated Risk (57074): search the top 5 of your leader's encounter deck, deal one to the enemy team's first player", () => {
+describe("Calculated Risk (57074): search your leader's deck's top 5, deal one to the enemy first player", () => {
   const FILL = NO_BOOST.id as string;
   const { state: start, deps } = game({
     deckTwo: [FILL, FILL, RISK_TOP.id as string, FILL, FILL, FILL, RISK_DEEP.id as string],
@@ -294,7 +298,7 @@ describe("Calculated Risk (57074): search the top 5 of your leader's encounter d
   });
 });
 
-describe("Synthezoid Strike (57075): your Vision leader attacks the enemy leader; Dense: +1 ATK and piercing; Intangible: flip first", () => {
+describe("Synthezoid Strike (57075): leader attack; Dense: +1 ATK and piercing; Intangible: flip first", () => {
   /** Leader two (p1's "your leader") holds the mass form attachment, Dense side up or flipped to Intangible. */
   function strike(face: "Dense" | "Intangible", tough = false) {
     const { state: start, deps } = game({ deckTwo: [DENSE] });
@@ -307,7 +311,7 @@ describe("Synthezoid Strike (57075): your Vision leader attacks the enemy leader
     return { ...result, one, two, attachment: dense.id };
   }
 
-  it("Dense: leader two attacks leader one for ATK 2 + Dense's printed 1 + this card's 1 (no-boost card), no defender", () => {
+  it("Dense: leader two hits leader one for ATK 2 + Dense's printed 1 + this card's 1, no defender", () => {
     const r = strike("Dense");
     expect(attacked(r.events, r.two, r.one)).toBe(true);
     expect(r.events.some((e) => e.type === "defenderDeclared")).toBe(false);
@@ -321,7 +325,7 @@ describe("Synthezoid Strike (57075): your Vision leader attacks the enemy leader
     expect(inst(r.state, r.one).damage).toBe(4);
   });
 
-  it("Intangible: flips to Dense before the attack, which gets Dense's printed +1 ATK but not this card's +1 or piercing", () => {
+  it("Intangible: flips to Dense first; Dense's printed +1 ATK applies, not this card's +1 or piercing", () => {
     const r = strike("Intangible");
     expect(inst(r.state, r.attachment).flipped).toBe(false);
     expect(inst(r.state, r.one).damage).toBe(3);

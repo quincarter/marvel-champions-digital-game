@@ -78,5 +78,9 @@ export function effectChoiceAuthority(
   chooser: PlayerRef,
 ): DecisionAuthority {
   if (chooser.kind === "enemyTeamDecider") return "enemyTeam";
-  return chooser.kind === "firstPlayer" && isEncounterSide(state, sourceId) ? "firstPlayerTargets" : "player";
+  // `firstPlayer` with `of: "enemy"` names the other team's token holder, who is not the encounter card's targeting
+  // first player (RRG 1.8 "First Player", p. 19): their pick is their own.
+  return chooser.kind === "firstPlayer" && chooser.of !== "enemy" && isEncounterSide(state, sourceId)
+    ? "firstPlayerTargets"
+    : "player";
 }
