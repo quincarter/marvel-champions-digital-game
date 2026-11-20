@@ -17,6 +17,7 @@
  */
 import { GLOSSARY_ENTRIES, type GlossaryBoxId, type GlossaryEntry } from "@mc/content";
 import { MECHANIC_TRYITS, type MechanicTryIt } from "../guide/mechanic-tryits.js";
+import { t } from "../i18n/translate.js";
 import { contentSlotHeights, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export interface BoxDef {
@@ -33,7 +34,7 @@ export interface BoxDef {
 }
 
 /** The Civil War box's page line (owner, 2026-10-11, wave 10 question 27). */
-export const COMPETITIVE_NOTICE = "Competitive mode is in online rooms. Hot-seat is coming soon.";
+export const competitiveNotice = (): string => t("comp.notice.box");
 
 /** Every box a page can exist for, in release order. `new-in-box-model.test.ts` checks the names against the unlock path. */
 export const BOXES: readonly BoxDef[] = [
@@ -48,7 +49,14 @@ export const BOXES: readonly BoxDef[] = [
   { id: "cycle7", name: "NeXt Evolution", unlockKey: "cycle7" },
   { id: "cycle8", name: "Age of Apocalypse", unlockKey: "cycle8" },
   { id: "cycle9", name: "Agents of S.H.I.E.L.D.", unlockKey: "cycle9" },
-  { id: "cycle10", name: "Civil War", unlockKey: "cycle10", notice: COMPETITIVE_NOTICE },
+  {
+    id: "cycle10",
+    name: "Civil War",
+    unlockKey: "cycle10",
+    get notice() {
+      return competitiveNotice();
+    },
+  },
   { id: "cycle11", name: "Fear No Evil", unlockKey: "cycle11" },
 ];
 

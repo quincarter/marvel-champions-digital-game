@@ -459,8 +459,9 @@ answers `refused not-your-turn`).
   a team, `not-ready` unless both teams submitted and are ready. The room then sends `sealed { registration, resistance }`
   to that host alone, and the host's `start` is accepted only after it (any later change takes the reveal back). The
   host's device builds the two-team game from both and keeps them in its own game save; it may ask again after a reload
-  while the game runs. A game's `end` clears the scenarios, readiness and reveal, so a rematch builds new ones. Guests
-  never receive a submission.
+  while the game runs. A game's `end` clears the scenarios, readiness and reveal, so a rematch builds new ones. The stored room row never sends a submission to a guest, but
+  the live game header carries the built config (so both scenarios), and every device replays the full log: hiding the other
+  team's scenario from a guest is client-side only, the accepted limit below.
 - **Known limit (§11).** The host's device sees both scenarios, so a host playing on a team knows the other team's
   modular list. Hiding it from the host would need a server authority; hot-seat and the physical game have the same trust
   model.

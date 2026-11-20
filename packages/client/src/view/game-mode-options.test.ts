@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPETITIVE_TAPPED_MESSAGE, GAME_MODE_OPTIONS, gameModeOptionsView, selectMode } from "./game-mode-options.js";
+import { competitiveTappedMessage, GAME_MODE_OPTIONS, gameModeOptionsView, selectMode } from "./game-mode-options.js";
 
 describe("game mode options", () => {
   it("has exactly two options, cooperative first", () => {
@@ -31,8 +31,8 @@ describe("game mode options", () => {
     const r = selectMode(draft, "competitive");
     expect(r.ok).toBe(false);
     expect(r.draft).toBe(draft);
-    expect(r).toMatchObject({ message: COMPETITIVE_TAPPED_MESSAGE });
-    expect(COMPETITIVE_TAPPED_MESSAGE).toBe(
+    expect(r).toMatchObject({ message: competitiveTappedMessage() });
+    expect(competitiveTappedMessage()).toBe(
       "Competitive mode is played in an online room. Play this scenario cooperatively here.",
     );
   });

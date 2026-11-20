@@ -635,11 +635,13 @@ export class CivilWarBuilderScene extends Phaser.Scene {
     }
     const textWidth = Math.max(40, right - layout.title.x);
     const title =
-      layout.mode === "phone"
-        ? `Step ${view.step} · ${view.steps[view.step - 1]!.title}`
-        : view.seal
-          ? t("comp.builder.title")
-          : view.title;
+      view.seal && layout.mode === "phone"
+        ? t("comp.builder.title")
+        : layout.mode === "phone"
+          ? `Step ${view.step} · ${view.steps[view.step - 1]!.title}`
+          : view.seal
+            ? t("comp.builder.title")
+            : view.title;
     const titleText = this.#text(layout.title.x, 6, title, typeRole.barTitle, { color: surface.paper.hex });
     fitText(titleText, textWidth, 20);
 

@@ -11,6 +11,8 @@ import {
 import { POOL_ENCOUNTER_SETS } from "../content/pool.js";
 import { applyBuilderAction, builderViewOf, openBuilderOn, type BuilderContext } from "./civil-war-builder-model.js";
 import { sealedScenarioOf } from "./competitive-seal.js";
+import { effectiveSetIds as effectiveSetIdsOf } from "./civil-war-builder-model.js";
+import { setModularSetIds } from "./setup-draft.js";
 import { initialSetupDraft } from "./setup-draft.js";
 import { offerOf } from "./setup-options.js";
 
@@ -77,5 +79,33 @@ describe("the builder for the other team", () => {
         id,
       ).toBe(true);
     }
+  });
+});
+
+describe("sealing refuses a neutral set (MC56 p. 5)", () => {
+  test("tapping a set from another product leaves the draft unchanged in seal mode, not in the ordinary builder", () => {
+    const draft = start("registration-iron-man");
+    const neutral = playableScenarioOffer("registration-iron-man").modularSets!.find((s) => s.side === null && s.ok)!;
+    // Make room so only legality, not the cap, decides.
+    const chosen = playableScenarioOffer("registration-iron-man")
+      .modularSets!.filter((s) => s.recommended)
+      .slice(0, 2)
+      .map((s) => s.id);
+    const room = applyBuilderAction(draft, `civil:set:${chosen[0]}`, BASE).draft;
+    const sealed = applyBuilderAction(room, `civil:set:${neutral.id}`, { ...BASE, sealSide: "registration" });
+    expect(sealed.draft).toBe(room);
+    const plain = applyBuilderAction(room, `civil:set:${neutral.id}`, BASE);
+    expect(plain.draft).not.toBe(room);
+  });
+
+  test("a build that holds a neutral set cannot be sealed", () => {
+    const draft = start("registration-iron-man");
+    const offer = offerOf(draft);
+    const neutral = offer.modularSets!.find((s) => s.side === null && s.ok)!;
+    const sets = [...effectiveSetIdsOf(draft, offer).slice(0, 2), neutral.id];
+    const bad = setModularSetIds(draft, sets);
+    const view = builderViewOf(bad, { ...BASE, sealSide: "registration" })!;
+    expect(view.canStart).toBe(false);
+    expect(view.startProblem).toMatch(/competitive mode/);
   });
 });

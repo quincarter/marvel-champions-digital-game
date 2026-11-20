@@ -6,7 +6,7 @@ import { UNLOCK_WAVES } from "../progression/unlocks.js";
 import { MECHANIC_TRYITS } from "../guide/mechanic-tryits.js";
 import {
   BOXES,
-  COMPETITIVE_NOTICE,
+  competitiveNotice,
   boxPageContentLayout,
   boxPageFocusOrder,
   boxPageHeaderLayout,
@@ -433,7 +433,7 @@ describe("the Civil War box notice", () => {
       unlockKey: "cycle10",
       notice: "Competitive mode is in online rooms. Hot-seat is coming soon.",
     });
-    expect(COMPETITIVE_NOTICE).toBe("Competitive mode is in online rooms. Hot-seat is coming soon.");
+    expect(competitiveNotice()).toBe("Competitive mode is in online rooms. Hot-seat is coming soon.");
   });
 
   it("shows the notice exactly once, with no tagged entry needed, and lays it out", () => {

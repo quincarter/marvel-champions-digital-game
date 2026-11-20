@@ -25,6 +25,7 @@ import {
   type FaceRef,
   type SetSheetView,
 } from "./civil-war-builder-art.js";
+import { t } from "../i18n/translate.js";
 import { BUILDER_STEP_COUNT, type BuilderStep } from "./civil-war-builder-layout.js";
 import { gameModeOptionsView, selectMode, type GameModeOptionRow } from "./game-mode-options.js";
 import { foeWord } from "./foe-words.js";
@@ -414,7 +415,12 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
   const chosenIds = effectiveSetIds(draft, offer);
   const range = { min: offer.modularSetCount.min, max: offer.modularSetCount.max };
   const atMax = modularAtMaxReason(range, chosenIds.length);
-  const problems = problemsOf(draft, offer);
+  const sealProblems = ctx.sealSide
+    ? chosenIds.flatMap((id) =>
+        offer.modularSets?.find((s) => s.id === id)?.side === null ? [t("comp.builder.neutral")] : [],
+      )
+    : [];
+  const problems = [...problemsOf(draft, offer), ...sealProblems];
   const ready = isReadyMade(draft, offer);
 
   // Side (step 1) and leader (step 2) choices.
@@ -478,13 +484,7 @@ export function builderViewOf(draft: SetupDraft, ctx: BuilderContext): BuilderVi
     const selected = chosenIds.includes(s.id);
     // Competitive: a set from another product is cooperative-only (MC56 p. 5).
     const neutralInCompetitive = ctx.sealSide !== undefined && s.side === null;
-    const reason = neutralInCompetitive
-      ? "Only registration and resistance sets are legal in competitive mode (MC56 p. 5)."
-      : !s.ok
-        ? s.problem
-        : !selected
-          ? atMax
-          : null;
+    const reason = neutralInCompetitive ? t("comp.builder.neutral") : !s.ok ? s.problem : !selected ? atMax : null;
     return {
       id: s.id,
       name: s.name,
@@ -796,6 +796,8 @@ function applyAction(draft: SetupDraft, action: string, ctx: BuilderContext): Bu
       const listed = offer.modularSets?.find((s) => s.id === first);
       if (!listed || !listed.ok) return unchanged(draft);
       const chosen = effectiveSetIds(draft, offer);
+      // Competitive (MC56 p. 5): a set from another product cannot be added; one already picked may still be removed.
+      if (ctx.sealSide && listed.side === null && !chosen.includes(listed.id)) return unchanged(draft);
       if (chosen.includes(listed.id))
         return unchanged(
           setModularSetIds(

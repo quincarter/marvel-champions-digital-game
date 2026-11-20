@@ -817,4 +817,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "comp.over.heading": "Resultado de Civil War",
   "comp.over.close": "Cerrar",
   "comp.over.cancel": "Cancelar",
+  "comp.mode.tapped": "El modo competitivo se juega en una sala en línea. Aquí juega este escenario en cooperativo.",
+  "comp.notice.box":
+    "El modo competitivo está en las salas en línea. El modo por turnos en un mismo dispositivo llegará pronto.",
 };

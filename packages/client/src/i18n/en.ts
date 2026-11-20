@@ -811,4 +811,6 @@ export const en = {
   "comp.over.heading": "Civil War result",
   "comp.over.close": "Close",
   "comp.over.cancel": "Cancel",
+  "comp.mode.tapped": "Competitive mode is played in an online room. Play this scenario cooperatively here.",
+  "comp.notice.box": "Competitive mode is in online rooms. Hot-seat is coming soon.",
 } as const;
