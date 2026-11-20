@@ -2749,6 +2749,11 @@ export function triggeringPlayers(
   if (trigger.kind !== "action" && trigger.kind !== "interrupt" && trigger.kind !== "response") return null;
   if (trigger.kind !== "action" && trigger.forced) return null;
   if (!trigger.triggerableBy) return null;
+  // 56131 "Any player may trigger": every player of either team (card text over RRG p. 4 "Abilities", which already
+  // lets the controller; MC56 p. 20 limits only "the players/each player/per player"). Actions only in the triggering
+  // player's own team's hero phase (RRG "Action" p. 6; Q11): the inactive-team gate of the command still applies.
+  // A cooperative game, even one split into game areas (Kang), keeps `each` read in the card's own area.
+  if (state.teams && trigger.triggerableBy.kind === "each") return playerOrder(state).map((p) => p.playerId);
   const context: EffectContext = {
     selfInstanceId: instanceId,
     controllerId: controllerOf(state, instanceId) ?? uncontrolledYouOf(state, instanceId),

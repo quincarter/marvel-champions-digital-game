@@ -252,7 +252,11 @@ phases (RRG v1.8 "Encounter Deck" p. 17; MC56 adds no exception; MC56 p. 17). "A
 attacks" ability is the leader you are fighting or a minion on your side (MC56 p. 16), so a leader attacking the other
 leader is heard only by the team whose area holds the attacker (the attacked leader's team), never by the attacking
 team; defense-labelled and "attacks you" abilities stay excluded (N11). Energy Channel 56098 attacking a leader follows
-the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20).
+the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20). "Any player may trigger this ability" (High-Tech Suit 56131,
+`triggerableBy: eachPlayer`) is every player of either team, its controller included (card text over RRG p. 4
+"Abilities"; MC56 p. 20 limits only "the players/each player/per player"); as an Action it is taken only in the
+triggering player's own team's hero phase (RRG "Action" p. 6; Q11). Inactive = the team whose round segment is not
+being played (MC56 p. 16); in a team's own villain phase its responses are ordinary.
 
 Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rulings):
 

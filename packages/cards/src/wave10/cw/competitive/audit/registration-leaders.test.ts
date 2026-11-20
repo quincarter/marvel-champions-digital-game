@@ -12,7 +12,7 @@
  */
 
 import type { AbilityDefinition, GameState, InstanceId } from "@mc/engine";
-import { traitsOf } from "@mc/engine";
+import { applyCommand, legalActions, traitsOf } from "@mc/engine";
 import { trait } from "@mc/content";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -227,9 +227,9 @@ describe("High-Tech Suit (56131): attaches to your leader, counts as Tech, any p
     expect(traitsOf(r.state, r.suit, r.deps)).toContain(trait("TECH"));
   });
 
-  // BUG (reported): `triggerableBy: eachPlayer` resolves to "each player in the card's own game area" (select.ts resolvePlayers,
-  // Once and Future Kang insert), and the suit sits on leader two in area two, so its controller p1 (area one) is refused.
-  it.fails("its controller discards it by spending [energy][mental]", () => {
+  // "Any player may trigger" is every player of either team (`triggeringPlayers`, engine select.ts); the
+  // suit sits on leader two in area two, but its controller p1 (area one) may trigger it.
+  it("its controller discards it by spending [energy][mental]", () => {
     const r = suited();
     const pay = hand(r.state, ENERGY.id as string, MENTAL.id as string, 1);
     const used = run(r.deps, pay.state, acceptAll, {
@@ -243,22 +243,36 @@ describe("High-Tech Suit (56131): attaches to your leader, counts as Tech, any p
     expect(playerOf(used.state, P1).discard).toContain(r.suit);
   });
 
-  it("the enemy team's player may trigger it too, on their own turn (RRG v1.8 Action p. 6: text naming who may)", () => {
+  /** p2 (the enemy team) holding one [energy] and one [mental] resource. */
+  function enemyPays(state: GameState) {
+    const e = give(state, P2, ENERGY.id as string);
+    const m = give(e.state, P2, MENTAL.id as string);
+    return { state: m.state, payment: [{ fromHand: e.id }, { fromHand: m.id }] };
+  }
+  const enemyUses = (r: ReturnType<typeof suited>, payment: unknown) => ({
+    type: "useAbility",
+    playerId: P2,
+    cardInstanceId: r.suit,
+    abilityId: "56131.high-tech-suit-action",
+    payment,
+  });
+
+  it("the enemy team's player may trigger it in their own team's hero phase (RRG v1.8 Action p. 6; Q11)", () => {
     const r = suited();
     const turn = run(r.deps, r.state, firstLegal, endTurn(P1));
-    const pay = hand(turn.state, ENERGY.id as string, MENTAL.id as string, 1);
-    // `hand` moves cards for P1; give p2 the same two payers by taking the cards for P2.
-    const e = give(turn.state, P2, ENERGY.id as string);
-    const m = give(e.state, P2, MENTAL.id as string);
-    void pay;
-    const used = run(r.deps, m.state, acceptAll, {
-      type: "useAbility",
-      playerId: P2,
-      cardInstanceId: r.suit,
-      abilityId: "56131.high-tech-suit-action",
-      payment: [{ fromHand: e.id }, { fromHand: m.id }],
-    });
+    expect(turn.state.step).toMatchObject({ phase: "player", kind: "turn", activePlayerId: P2 });
+    const pay = enemyPays(turn.state);
+    const used = run(r.deps, pay.state, acceptAll, enemyUses(r, pay.payment));
     expect(inst(used.state, r.suit).attachedTo).toBeNull();
+    expect(playerOf(used.state, P1).discard).toContain(r.suit);
+  });
+
+  it("the enemy team's player may not trigger it in the registration team's hero phase (inactive team, Q11)", () => {
+    const r = suited();
+    const pay = enemyPays(r.state);
+    const result = applyCommand(pay.state, enemyUses(r, pay.payment) as never, r.deps);
+    expect(result).toMatchObject({ ok: false, error: { code: "inactive_team" } });
+    expect(legalActions(pay.state, P2, r.deps)).toMatchObject({ legal: [] });
   });
 });
 
