@@ -1,10 +1,10 @@
 /**
  * Competitive card audit, group 4 (docs/competitive-card-audit.md): the Synthezoid Smackdown leader player cards, She-Hulk
- * 57032 to 57035 (played by the registration team, p1) and Vision 57074, 57076 and 57077 (57076 and 57077 played by the
- * resistance team, p2; 57074 by p1, which only changes whose leader's deck it reads), each in a real two-team game
- * (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader" is leader one; for p2 the
- * other way round. 57075 Synthezoid Strike is not scripted (its Intangible bullet reads two ways; see the skipped list of
- * `synthezoid/competitive/leader-cards.ts`).
+ * 57032 to 57035 (played by the registration team, p1) and Vision 57074 to 57077 (57076 and 57077 played by the
+ * resistance team, p2; 57074 and 57075 by p1, which only changes which leader is "your leader"), each in a real two-team
+ * game (`./two-team.ts`). For p1 "your leader" is leader two (in p2's area) and "the enemy leader" is leader one; for p2
+ * the other way round. 57075 follows reading A of docs/competitive-mode-plan.md section 1.10 (bullets checked once, then
+ * the flip; FFG ruling Feb 28, 2026 #5).
  *
  * Sources: the cards' printed text (data `synthezoid`), MC56 p. 16 (a leader attacking a leader: one boost card from the
  * deck of the area the attacker sits in, no defender), pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG
@@ -43,6 +43,7 @@ const SMASH = "57033";
 const MAKE_ME_ANGRY = "57034";
 const LEGAL_COUNSEL = "57035";
 const CALCULATED_RISK = "57074";
+const SYNTHEZOID_STRIKE = "57075";
 const PHASED_OUT = "57076";
 const ANDROID_ASSISTANCE = "57077";
 const FIGHTING_DIRTY = "56208";
@@ -64,6 +65,7 @@ const SEAT_CARDS = [
   MAKE_ME_ANGRY,
   LEGAL_COUNSEL,
   CALCULATED_RISK,
+  SYNTHEZOID_STRIKE,
   PHASED_OUT,
   ANDROID_ASSISTANCE,
   FIGHTING_DIRTY,
@@ -88,6 +90,7 @@ function game(options: { deckOne?: readonly string[]; deckTwo?: readonly string[
         MAKE_ME_ANGRY,
         LEGAL_COUNSEL,
         CALCULATED_RISK,
+        SYNTHEZOID_STRIKE,
         PHASED_OUT,
         ANDROID_ASSISTANCE,
         FIGHTING_DIRTY,
@@ -288,6 +291,43 @@ describe("Calculated Risk (57074): search the top 5 of your leader's encounter d
   it("then leader two's deck is shuffled (RRG Search p. 39), and p1's own deck is not", () => {
     expect(shuffledDecks).toContain(deckTwo as string);
     expect(shuffledDecks).not.toContain(deckOne as string);
+  });
+});
+
+describe("Synthezoid Strike (57075): your Vision leader attacks the enemy leader; Dense: +1 ATK and piercing; Intangible: flip first", () => {
+  /** Leader two (p1's "your leader") holds the mass form attachment, Dense side up or flipped to Intangible. */
+  function strike(face: "Dense" | "Intangible", tough = false) {
+    const { state: start, deps } = game({ deckTwo: [DENSE] });
+    const { one, two, deckTwo } = leadersOf(start);
+    const dense = attachFromDeck(start, deckTwo, DENSE, two);
+    let state = face === "Intangible" ? patch(dense.state, dense.id, { flipped: true }) : dense.state;
+    if (tough) state = patch(state, one, { statuses: { ...inst(state, one).statuses, tough: 1 } });
+    const given = hand(state, P1, SYNTHEZOID_STRIKE, ENERGY.id as string, 2);
+    const result = run(deps, given.state, acceptAll, play(P1, given.id, given.paid));
+    return { ...result, one, two, attachment: dense.id };
+  }
+
+  it("Dense: leader two attacks leader one for ATK 2 + Dense's printed 1 + this card's 1 (no-boost card), no defender", () => {
+    const r = strike("Dense");
+    expect(attacked(r.events, r.two, r.one)).toBe(true);
+    expect(r.events.some((e) => e.type === "defenderDeclared")).toBe(false);
+    expect(inst(r.state, r.one).damage).toBe(4);
+    expect(inst(r.state, r.attachment).flipped).toBe(false);
+  });
+
+  it("Dense: the attack gains piercing, so the enemy leader's tough status card does not stop it", () => {
+    const r = strike("Dense", true);
+    expect(inst(r.state, r.one).statuses.tough).toBe(0);
+    expect(inst(r.state, r.one).damage).toBe(4);
+  });
+
+  it("Intangible: flips to Dense before the attack, which gets Dense's printed +1 ATK but not this card's +1 or piercing", () => {
+    const r = strike("Intangible");
+    expect(inst(r.state, r.attachment).flipped).toBe(false);
+    expect(inst(r.state, r.one).damage).toBe(3);
+    const toughened = strike("Intangible", true);
+    expect(inst(toughened.state, toughened.one).statuses.tough).toBe(0);
+    expect(inst(toughened.state, toughened.one).damage).toBe(0);
   });
 });
 

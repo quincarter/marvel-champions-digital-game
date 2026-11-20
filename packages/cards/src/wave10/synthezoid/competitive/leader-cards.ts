@@ -10,6 +10,7 @@ import {
   discard,
   each,
   encounterCards,
+  faceNamed,
   enemyAttack,
   enemyAttacksEnemy,
   enemyLeader,
@@ -57,6 +58,8 @@ const YOUR_MASS_FORM = query("attachment", {
   ],
   anyGameArea: true,
 });
+/** "If Vision's mass form attachment is [Dense / Intangible]": the face showing now. */
+const massFormIs = (name: "Dense" | "Intangible") => faceNamed(each(YOUR_MASS_FORM), name);
 
 /**
  * The eight leader player cards (She-Hulk 57032 to 57035, Vision 57074 to 57077) of Synthezoid Smackdown (MC57;
@@ -76,12 +79,13 @@ const YOUR_MASS_FORM = query("attachment", {
  * Vision
  * - 57074 Calculated Risk: search the top 5 of your leader's encounter deck (in the other team's area) for a card, deal
  *   it facedown to the first player on the enemy team (that team's token holder), then shuffle that deck.
- * - 57075 Synthezoid Strike: not scripted yet (a rules question is open; see below).
+ * - 57075 Synthezoid Strike: the leader-versus-leader attack; a Dense Vision gets +1 ATK and piercing for it, an
+ *   Intangible one flips to Dense first (reading A, docs/competitive-mode-plan.md section 1.10).
  * - 57076 Phased Out: discard an attachment on the enemy leader printing Hero Action or Hero Response (current text,
  *   errata RRG v1.8 p. 70 and the March 19, 2026 ruling: the printed "Hero Interrupt" is "Hero Action").
  * - 57077 Android Assistance: when you spend it, flip your leader's mass form attachment.
  *
- * Not scripted (see the skipped list): 57075 Synthezoid Strike, whose Intangible bullet reads two ways.
+ * All eight are scripted.
  */
 export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   "57032.youre-out-of-order-interrupt": interrupt(when.threatPlaced(query("mainScheme")), preventThreat(3)),
@@ -122,6 +126,17 @@ export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilit
     shuffleEncounterDeck(yourLeader),
   ),
 
+  // Bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast / Erratic Teleportation): an
+  // Intangible Vision flips to Dense before the attack (Dense's printed +1 ATK applies) but does not get this card's
+  // +1 ATK / piercing; same check-then-flip order as 57052 / 57053.
+  "57075.synthezoid-strike-action": action(
+    ifThen(
+      massFormIs("Dense"),
+      enemyAttacksEnemy(yourLeader, enemyLeader, { boost: true, atkBonus: 1, keywords: ["piercing"] }),
+      [ifThen(massFormIs("Intangible"), flipCard(each(YOUR_MASS_FORM))), LEADER_ATTACKS_ENEMY_LEADER],
+    ),
+  ),
+
   "57076.phased-out-action": action(
     chooseTarget(
       "attachment",
@@ -140,7 +155,4 @@ export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilit
  * Refs of this module's cards deliberately left unscripted, each with its written reason. Delete a line as its ref is
  * scripted.
  */
-export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED: Readonly<Record<string, string>> = {
-  "57075.synthezoid-strike-action":
-    "needs a rules answer: whether an Intangible attachment flipped to Dense before the attack then gets the Dense bullet (+1 ATK, piercing); the engine primitives (enemyAttacksEnemy atkBonus and keywords) exist",
-};
+export const SYNTHEZOID_COMPETITIVE_LEADER_CARDS_SKIPPED: Readonly<Record<string, string>> = {};

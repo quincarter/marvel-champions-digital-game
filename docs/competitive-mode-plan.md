@@ -256,7 +256,11 @@ the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20). "Any player may trigger 
 `triggerableBy: eachPlayer`) is every player of either team, its controller included (card text over RRG p. 4
 "Abilities"; MC56 p. 20 limits only "the players/each player/per player"); as an Action it is taken only in the
 triggering player's own team's hero phase (RRG "Action" p. 6; Q11). Inactive = the team whose round segment is not
-being played (MC56 p. 16); in a team's own villain phase its responses are ordinary.
+being played (MC56 p. 16); in a team's own villain phase its responses are ordinary. Synthezoid Strike 57075 (rules
+expert, 2026-11-20, reading A): its bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast /
+Erratic Teleportation), so the face is checked once: a Dense Vision gets the card's +1 ATK and piercing for the attack;
+an Intangible Vision flips to Dense before the attack (Dense's printed +1 ATK applies) but does not get the card's +1
+ATK or piercing, the same check-then-flip order as 57052 / 57053.
 
 Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rulings):
 
