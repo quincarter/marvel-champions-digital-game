@@ -49,6 +49,8 @@ export function competitiveRoomFixture(options: CompetitiveRoomFixtureOptions): 
     away: false,
     requests: [],
     requestedByMe: false,
+    deck: null,
+    deckProblem: null,
     team: teamOf(i),
   })) as RoomSeat[];
   const participants: RoomParticipant[] = [
@@ -94,6 +96,8 @@ export function competitiveRoomFixture(options: CompetitiveRoomFixtureOptions): 
       mods: [],
       multiSeat: false,
       chat: true,
+      undo: "off",
+      cheats: false,
       mode: "competitive",
       tieBreaks: true,
       appVersion: "preview",

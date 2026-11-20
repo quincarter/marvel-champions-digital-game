@@ -5,8 +5,7 @@
  * room only reports `submitted` and `ready` per team, and the other team's scenario is never read here.
  */
 import type { LobbySeatSpec } from "@mc/sync-worker/room-protocol";
-import { HERO_UNSET } from "./epic-lobby-model.js";
-import { parseSeatLabel } from "./room-table-setup.js";
+import { HERO_UNSET, parseSeatLabel } from "./seat-label.js";
 import type { MessageKey } from "../i18n/translate.js";
 import type { RoomState, TeamId } from "../live/room-state.js";
 import type { Words } from "./room-lobby-model.js";
@@ -23,11 +22,11 @@ export const sideKey = (team: TeamId): MessageKey =>
 export const otherTeam = (team: TeamId): TeamId => (team === "registration" ? "resistance" : "registration");
 
 /** One seat of the plan the host edits: a hero label (HERO_UNSET until chosen) and the side it plays. */
-export type CompetitivePlan = readonly (LobbySeatSpec & { readonly team: TeamId })[];
+export type CompetitivePlan = readonly (LobbySeatSpec & { readonly label: string; readonly team: TeamId })[];
 
 /** 1 v 1 or 2 v 2 (plan Q14 A): registration's seats first, then resistance's. */
 export function newCompetitivePlan(perTeam: 1 | 2 = 1): CompetitivePlan {
-  const seats: (LobbySeatSpec & { team: TeamId })[] = [];
+  const seats: (LobbySeatSpec & { label: string; team: TeamId })[] = [];
   for (const team of TEAMS) {
     for (let i = 0; i < perTeam; i++) seats.push({ id: `s${seats.length + 1}`, label: HERO_UNSET, team });
   }

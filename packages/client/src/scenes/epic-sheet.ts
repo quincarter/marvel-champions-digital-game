@@ -267,7 +267,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
         return t("epic.table.hostPickTitle", { table: epic?.tables.find((x) => x.id === id)?.name ?? id });
       }
       case "teamHero":
-        return t("epic.hero.title");
+        return t("comp.hero.title");
     }
   }
 
@@ -363,7 +363,7 @@ export class EpicSheetOverlay extends Phaser.Scene {
     if (data.kind === "teamHero") {
       const decks = this.#decks;
       if (!decks) return 30;
-      if (decks.length === 0) y += this.#text(x, y, t("epic.hero.none"), 13, w).height;
+      if (decks.length === 0) y += this.#text(x, y, t("comp.hero.none"), 13, w).height;
       for (const option of decks.filter((o) => o.seatable)) {
         const label = seatLabelOf(option.identityName, option.deck.name);
         const cardId = option.deck.identityCardId as string;

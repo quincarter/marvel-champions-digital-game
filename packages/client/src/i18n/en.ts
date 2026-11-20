@@ -725,6 +725,8 @@ export const en = {
   "room.seats.lastHeld": "Take the last seat back first.",
   "room.deck.takeBackFirst": "Take the seat back first.",
   "room.picker.noWorker": "This device could not prepare the deck.",
+  "comp.hero.title": "Choose a hero for this seat",
+  "comp.hero.none": "You have no deck that can be seated. Build one in Decks first.",
   "comp.heading": "Civil War Competitive",
   "comp.mode.standard": "Standard",
   "comp.mode.competitive": "Competitive",

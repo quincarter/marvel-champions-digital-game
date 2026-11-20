@@ -11,7 +11,7 @@ import type { SealedScenario } from "../live/competitive-start.js";
 import type { TeamId } from "../live/room-state.js";
 import { effectiveSetIds } from "./civil-war-builder-model.js";
 import type { AnyCard } from "@mc/content";
-import { parseSeatLabel } from "./room-table-setup.js";
+import { parseSeatLabel } from "./seat-label.js";
 import type { SetupDraft } from "./setup-draft.js";
 
 let sealing: TeamId | null = null;

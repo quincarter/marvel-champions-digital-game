@@ -730,6 +730,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.seats.lastHeld": "Recupera antes el último asiento.",
   "room.deck.takeBackFirst": "Recupera antes el asiento.",
   "room.picker.noWorker": "Este dispositivo no pudo preparar el mazo.",
+  "comp.hero.title": "Elige un héroe para este asiento",
+  "comp.hero.none": "No tienes ningún mazo que se pueda sentar. Crea uno antes en Mazos.",
   "comp.heading": "Civil War Competitivo",
   "comp.mode.standard": "Estándar",
   "comp.mode.competitive": "Competitivo",

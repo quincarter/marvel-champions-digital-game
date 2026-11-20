@@ -70,6 +70,8 @@ const YOUR_MASS_FORM = query("attachment", {
  * - 57035 Legal Counsel: after you spend it, move 1 threat from the main scheme to your leader's main scheme.
  *
  * Vision
+ * - 57074 Calculated Risk: not scripted yet (an engine primitive is missing; see below).
+ * - 57075 Synthezoid Strike: not scripted yet (an engine primitive is missing; see below).
  * - 57076 Phased Out: discard an attachment on the enemy leader printing Hero Action or Hero Response (current text,
  *   errata RRG v1.8 p. 70 and the March 19, 2026 ruling: the printed "Hero Interrupt" is "Hero Action").
  * - 57077 Android Assistance: when you spend it, flip your leader's mass form attachment.

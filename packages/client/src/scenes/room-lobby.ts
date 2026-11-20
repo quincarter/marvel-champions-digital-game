@@ -1604,7 +1604,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       const row = rows.get(seat.id);
       if (!row) continue;
       const hero = seat.hero ?? t("comp.seat.noHero");
-      y += this.#drawSeatRow({ ...row, label: hero }, x + pad, y, inW, guard);
+      y += this.#drawSeatRow({ ...row, name: hero }, x + pad, y, inW, guard);
       if (host && !state.started) {
         y = this.#panelButton(
           x + pad,

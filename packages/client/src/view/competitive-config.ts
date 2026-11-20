@@ -7,8 +7,7 @@ import type { CompetitiveSetup } from "../live/competitive-start.js";
 import type { RoomState } from "../live/room-state.js";
 import { corePlayerForSeat } from "./deck-seat.js";
 import type { DeckOption } from "./deck-list-model.js";
-import { HERO_UNSET } from "./epic-lobby-model.js";
-import { deckForSeat, missingHeroes } from "./epic-table-config.js";
+import { deckForSeat, HERO_UNSET, missingHeroes } from "./seat-label.js";
 import { expertOn } from "./competitive-lobby-model.js";
 import { initialSetupDraft } from "./setup-draft.js";
 
