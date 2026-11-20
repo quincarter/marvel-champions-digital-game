@@ -58,6 +58,7 @@ Every release now has an iPhone and iPad app, to install yourself with a free Ap
 - Replays play through the villain phase by themselves with Reduced motion on, instead of stopping on Start player phase (#892). Reported by @bluefireF5ran.
 - Mod SDK importer: a double-sided card's nested back face of another type (an environment that flips to an attachment) is marked as its hidden flip side too, so the normalizer emits both faces as cards naming each other in otherFaceId, as it does Chief Medical Officer / Medical Officer's Aid (#890 item 17).
 - Ant-Man's nemesis attachment Size Increase now comes in with its 3 size counters, loses one each time the enemy it is attached to activates, and is discarded with the last (#897).
+- The release workflow starts again: its iOS build job grants the pull-requests permission ios-build.yml's preview job asks for, so release-on-merge.yml no longer fails before it runs (since #875).
 
 ### Engine
 
