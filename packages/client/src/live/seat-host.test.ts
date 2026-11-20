@@ -173,7 +173,7 @@ describe("SeatEngineHost", () => {
 
     const result = host.dispatch(command);
     // The stamp is the identity of the table it was built on: the host's own state at the same count has the same one.
-    expect(feed.sent).toEqual([{ kind: "propose", command, base: 2, stamp: game.core.liveChecksum() }]);
+    expect(feed.sent).toEqual([{ kind: "propose", command, base: 2, pid: 1, stamp: game.core.liveChecksum() }]);
     // Nothing is applied before the echo.
     expect(updates.at(-1)!.version).toBe(2);
 
@@ -196,7 +196,7 @@ describe("SeatEngineHost", () => {
     const command = anyLegalCommand(await host.legalActions(acting));
 
     const result = host.dispatch(command);
-    feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "not-your-turn", base: 2 });
+    feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "not-your-turn", base: 2, pid: 1 });
     const done = await result;
     expect(done.ok).toBe(false);
     if (!done.ok) {
@@ -212,7 +212,7 @@ describe("SeatEngineHost", () => {
     await host.setPlayers([acting]);
     const command = anyLegalCommand(await host.legalActions(acting));
     const result = host.dispatch(command);
-    feed.say({ ch: "room", kind: "refused", reason: "not-seated" });
+    feed.say({ ch: "room", kind: "refused", reason: "not-seated", pid: 1 });
     const done = await result;
     expect(done.ok).toBe(false);
     if (!done.ok) expect(done.error.message).toBe(refusalMessage("not-seated"));
@@ -226,6 +226,53 @@ describe("SeatEngineHost", () => {
     feed.say({ ch: "room", kind: "refused", reason: "rate-limited" });
     await flush();
     expect(host.status.over).toBe(false);
+  });
+
+  test("a refused chat line or seat request does not fail the proposal in flight, and its echo still lands", async () => {
+    const { game, feed, host, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    let settled = false;
+    const result = host.dispatch(command).then((r) => ((settled = true), r));
+    // Refusals of other operations carry no proposal id (or one that is not mine): they are not about this move.
+    feed.say({ ch: "room", kind: "refused", reason: "rate-limited" });
+    feed.say({ ch: "room", kind: "refused", reason: "not-allowed", rid: 4 });
+    feed.say({ ch: "room", kind: "refused", reason: "rate-limited", pid: 99 });
+    await flush();
+    expect(settled).toBe(false);
+    game.core.dispatch(command);
+    feed.say(appended(2, [command]));
+    expect((await result).ok).toBe(true);
+  });
+
+  test("two identical proposals built on the same log length: one echo acknowledges only the first", async () => {
+    const { game, feed, host, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    const one = host.dispatch(command);
+    const two = host.dispatch(command);
+    expect(feed.sent.map((m) => (m as { pid: number }).pid)).toEqual([1, 2]);
+    game.core.dispatch(command);
+    feed.say(appended(2, [command]));
+    const [a, b] = await Promise.all([one, two]);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(false);
+  });
+
+  test("a host refusal names its proposal: the other proposal on the same log length stays pending", async () => {
+    const { feed, host, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    let secondSettled = false;
+    const one = host.dispatch(command);
+    void host.dispatch(command).then(() => (secondSettled = true));
+    feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "stale", base: 2, pid: 1 });
+    expect((await one).ok).toBe(false);
+    await flush();
+    expect(secondSettled).toBe(false);
   });
 
   test("Concede from a seat leaves the seats and proposes nothing: the game goes on", async () => {

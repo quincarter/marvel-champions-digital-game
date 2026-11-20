@@ -544,6 +544,8 @@ export type ClientMessage =
       readonly table: string;
       readonly command: TableCommand;
       readonly base: number;
+      /** The proposer's id for this proposal, echoed in every refusal of it (the room's own and the host's). */
+      readonly pid?: number;
       /**
        * The state the command was built on, as the proposer's engine has it (`replayChecksum` after `base` commands):
        * the host dispatches only when its own state at `base` is that one, so a rewind and a new move that reach the
@@ -560,6 +562,7 @@ export type ClientMessage =
       readonly to: string;
       readonly reason: ProposalRefusal;
       readonly base: number;
+      readonly pid?: number;
     }
   /**
    * A seat holder asks the host for an Undo or a Manual adjust (Host control rooms only; Strict refuses `strict`).
@@ -572,6 +575,8 @@ export type ClientMessage =
       readonly table: string;
       readonly what: RequestKind;
       readonly note?: string;
+      /** The asker's id for this ask, echoed in the host's `request-answer` and in the room's refusal of it. */
+      readonly rid?: number;
     }
   /** Host only: answer a `request`. The room sends it to participant `to` alone. */
   | {
@@ -581,6 +586,7 @@ export type ClientMessage =
       readonly table: string;
       readonly to: string;
       readonly accepted: boolean;
+      readonly rid?: number;
     }
   /** Host only: act for an away seat (its holder is disconnected), until `give-back`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "take-over"; readonly seat: string }
@@ -646,7 +652,14 @@ export type ServerMessage =
       readonly reason: "ended" | "idle" | "disabled" | "host";
     }
   /** A message was refused; the socket stays open unless the room closes it (or the refusal is `name-required`). */
-  | { readonly v: 1; readonly ch: "room"; readonly kind: "refused"; readonly reason: RefusalReason }
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "refused";
+      readonly reason: RefusalReason;
+      readonly pid?: number;
+      readonly rid?: number;
+    }
   /** Lobby rooms: everyone, after each change (and the joiner, after `welcome`). */
   | ({ readonly v: 1; readonly ch: "room"; readonly kind: "lobby" } & LobbyState)
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
@@ -730,6 +743,7 @@ export type ServerMessage =
       readonly seats: readonly string[];
       readonly command: TableCommand;
       readonly base: number;
+      readonly pid?: number;
       /** The proposer's `stamp`, relayed untouched (absent when it sent none). */
       readonly stamp?: string;
     }
@@ -741,6 +755,7 @@ export type ServerMessage =
       readonly table: string;
       readonly reason: ProposalRefusal;
       readonly base: number;
+      readonly pid?: number;
     }
   /** To a table's host: a seat holder's request (`note` cleaned and cut to `MAX_REQUEST_NOTE_CHARS`; empty when none). */
   | {
@@ -751,6 +766,7 @@ export type ServerMessage =
       readonly from: string;
       readonly what: RequestKind;
       readonly note: string;
+      readonly rid?: number;
     }
   /** To the requester alone: the host's answer. An accepted undo or adjust arrives as the log's own rewind or command. */
   | {
@@ -759,6 +775,7 @@ export type ServerMessage =
       readonly kind: "request-answer";
       readonly table: string;
       readonly accepted: boolean;
+      readonly rid?: number;
     }
   /** To the organizer only: a table host's `pod:event`, relayed untouched. */
   | {
@@ -1007,6 +1024,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
         isTable(m.table) &&
           "command" in m &&
           isCount(m.base) &&
+          (m.pid === undefined || isCount(m.pid)) &&
           (m.stamp === undefined || (typeof m.stamp === "string" && m.stamp.length <= MAX_SEAT_PLAYER_CHARS)),
       );
     case "game:proposal-refused":
@@ -1016,16 +1034,24 @@ export function parseClientMessage(text: string): ClientMessage | null {
           m.to.length <= 32 &&
           typeof m.reason === "string" &&
           PROPOSAL_REFUSALS.includes(m.reason) &&
-          isCount(m.base),
+          isCount(m.base) &&
+          (m.pid === undefined || isCount(m.pid)),
       );
     case "game:request":
       return ok(
         isTable(m.table) &&
           (m.what === "undo" || m.what === "adjust") &&
+          (m.rid === undefined || isCount(m.rid)) &&
           (m.note === undefined || (typeof m.note === "string" && m.note.length <= MAX_REQUEST_NOTE_CHARS * 4)),
       );
     case "game:request-answer":
-      return ok(isTable(m.table) && typeof m.to === "string" && m.to.length <= 32 && typeof m.accepted === "boolean");
+      return ok(
+        isTable(m.table) &&
+          typeof m.to === "string" &&
+          m.to.length <= 32 &&
+          typeof m.accepted === "boolean" &&
+          (m.rid === undefined || isCount(m.rid)),
+      );
     case "pod:event":
     case "pod:inbound":
       return ok(isTable(m.table) && isCount(m.seq) && "event" in m);

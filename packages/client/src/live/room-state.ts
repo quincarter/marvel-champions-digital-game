@@ -164,6 +164,8 @@ export interface RoomRequest {
   readonly what: "undo" | "adjust";
   /** What the asker wrote, cleaned and at most 140 characters; "" when none. */
   readonly note: string;
+  /** The asker's id for the ask, echoed in the answer so it lands on that ask (absent from an older client). */
+  readonly rid?: number;
 }
 
 /**

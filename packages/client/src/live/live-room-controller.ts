@@ -152,7 +152,7 @@ export class LiveRoomController {
       case "refuse":
         // The engine worker turned a seat holder's proposal down: only the room can reach them.
         if (this.#live?.gameKey === message.gameKey) {
-          this.#live.room?.refuseProposal(message.to, message.reason, message.base);
+          this.#live.room?.refuseProposal(message.to, message.reason, message.base, message.pid);
         }
         return;
       case "rewind": {

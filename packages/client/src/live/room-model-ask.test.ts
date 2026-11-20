@@ -22,6 +22,27 @@ describe("a guest's request to the host", () => {
     expect(guest.state().myRequest).toBeNull();
   });
 
+  it("answers land on the ask they name: an answer to an earlier ask does not settle a later one", () => {
+    const guest = model("guest");
+    const undo = guest.noteAsk("undo");
+    const adjust = guest.noteAsk("adjust");
+    const answer = (rid: number, accepted: boolean) =>
+      guest.onMessage({ v: 1, ch: "game", kind: "request-answer", table: "t1", accepted, rid });
+    // The undo's answer arrives after the adjust was asked: it is not the adjust's.
+    expect(answer(undo, true)).toBe(false);
+    expect(guest.state().myRequest).toMatchObject({ what: "adjust", status: "waiting" });
+    expect(answer(adjust, false)).toBe(true);
+    expect(guest.state().myRequest).toMatchObject({ what: "adjust", status: "declined" });
+  });
+
+  it("a refusal of an earlier ask does not drop the later one", () => {
+    const guest = model("guest");
+    const first = guest.noteAsk("undo");
+    guest.noteAsk("adjust");
+    guest.onMessage({ v: 1, ch: "room", kind: "refused", reason: "strict", rid: first });
+    expect(guest.state().myRequest).toMatchObject({ what: "adjust", status: "waiting" });
+  });
+
   it("is never shown to a host", () => {
     const host = model("host");
     host.noteAsk("adjust");

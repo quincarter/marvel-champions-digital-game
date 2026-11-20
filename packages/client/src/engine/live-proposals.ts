@@ -26,7 +26,14 @@ export function handleProposal(
   proposal: Extract<LiveControlMessage, { kind: "proposal" }>,
 ): void {
   const refuse = (reason: ProposalRefusal): void =>
-    deps.liveSend({ kind: "refuse", gameKey: proposal.gameKey, to: proposal.from, reason, base: proposal.base });
+    deps.liveSend({
+      kind: "refuse",
+      gameKey: proposal.gameKey,
+      to: proposal.from,
+      reason,
+      base: proposal.base,
+      ...(proposal.pid === undefined ? {} : { pid: proposal.pid }),
+    });
   if (deps.busy() || deps.core.liveGameKey() !== proposal.gameKey) {
     refuse("stale");
     return;

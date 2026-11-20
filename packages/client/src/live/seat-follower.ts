@@ -57,8 +57,8 @@ export class SeatFollower implements SeatBackend {
   readonly #core: SeatCore;
   readonly #feed = new WatchFeed(FIRST_TABLE);
   #chain: Promise<void> = Promise.resolve();
-  /** The `base` of the proposal sent and not yet answered by the log or a refusal: what a room refusal is about. */
-  #outstanding: number | null = null;
+  /** The proposals sent and not yet answered by the log or a refusal (id to `base`): what a room refusal can be about. */
+  readonly #outstanding = new Map<number, number>();
   #opening: { resolve: (opened: Opened) => void; reject: (error: Error) => void } | null = null;
   #timer: unknown = null;
   #disposed = false;
@@ -90,9 +90,9 @@ export class SeatFollower implements SeatBackend {
     });
   }
 
-  propose(command: Command, base: number): void {
-    this.#outstanding = base;
-    this.#o.feed.postMessage({ kind: "propose", command, base, stamp: this.#core.stampAt(base) });
+  propose(command: Command, base: number, pid: number): void {
+    this.#outstanding.set(pid, base);
+    this.#o.feed.postMessage({ kind: "propose", command, base, pid, stamp: this.#core.stampAt(base) });
   }
 
   async setPlayers(players: readonly SeatPlayer[]): Promise<SeatSnapshot> {
@@ -128,21 +128,28 @@ export class SeatFollower implements SeatBackend {
 
   #onServer(message: ServerMessage): void {
     if (message.ch === "game" && message.kind === "proposal-refused" && message.table === FIRST_TABLE) {
-      this.#outstanding = null;
-      this.#emit({ type: "refused", base: message.base, reason: message.reason });
+      if (message.pid !== undefined) this.#outstanding.delete(message.pid);
+      this.#emit({
+        type: "refused",
+        base: message.base,
+        reason: message.reason,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
+      });
       return;
     }
     // The room itself turned the proposal down (not seated, other build, rate limit, no host): it never reached the host,
-    // so no `proposal-refused` is coming; the seat fails at once rather than after its wait.
+    // so no `proposal-refused` is coming; the seat fails at once rather than after its wait. Only a refusal that names a
+    // proposal of mine counts: a refused chat line or seat request carries no `pid` and is not about any of them.
     if (
       message.ch === "room" &&
       message.kind === "refused" &&
-      this.#outstanding !== null &&
+      message.pid !== undefined &&
       PROPOSAL_ROOM_REFUSALS.has(message.reason)
     ) {
-      const base = this.#outstanding;
-      this.#outstanding = null;
-      this.#emit({ type: "refused", base, reason: message.reason });
+      const base = this.#outstanding.get(message.pid);
+      if (base === undefined) return;
+      this.#outstanding.delete(message.pid);
+      this.#emit({ type: "refused", base, reason: message.reason, pid: message.pid });
       return;
     }
     this.#queue(this.#feed.onMessage(message));
@@ -183,7 +190,8 @@ export class SeatFollower implements SeatBackend {
       }
       case "append": {
         if (!this.#core.opened) return;
-        this.#outstanding = null;
+        // The log moved past every proposal built on an earlier length; the host never answers those with the room.
+        this.#outstanding.clear();
         this.#update(this.#core.append(action.commands, action.checksums ?? undefined));
         return;
       }

@@ -70,6 +70,7 @@ export interface GameHooks {
     readonly players: readonly string[];
     readonly command: unknown;
     readonly base: number;
+    readonly pid?: number;
     readonly stamp?: string;
   }) => void;
 }
@@ -605,6 +606,7 @@ export class RoomSession {
       table: this.hostedTable ?? FIRST_TABLE,
       to: request.from,
       accepted,
+      ...(request.rid === undefined ? {} : { rid: request.rid }),
     });
     this.#publish();
   }
@@ -612,8 +614,15 @@ export class RoomSession {
   /** Guest: asks the host to undo or change something (Host control rooms; the room refuses it in a Strict one). */
   askHost(what: "undo" | "adjust", note: string): void {
     if (this.role !== "guest") return;
-    this.#model.noteAsk(what);
-    this.#say({ ch: "game", kind: "request", table: this.#model.view, what, note: note.trim().slice(0, 140) });
+    const rid = this.#model.noteAsk(what);
+    this.#say({
+      ch: "game",
+      kind: "request",
+      table: this.#model.view,
+      what,
+      note: note.trim().slice(0, 140),
+      rid,
+    });
     this.#publish();
   }
 
@@ -624,9 +633,17 @@ export class RoomSession {
   }
 
   /** Host: turns a proposal down (the engine worker's verdict); the room tells the proposer alone. */
-  refuseProposal(to: string, reason: ProposalRefusal, base: number): void {
+  refuseProposal(to: string, reason: ProposalRefusal, base: number, pid?: number): void {
     if (!this.hosting) return;
-    this.#say({ ch: "game", kind: "proposal-refused", table: this.hostedTable ?? FIRST_TABLE, to, reason, base });
+    this.#say({
+      ch: "game",
+      kind: "proposal-refused",
+      table: this.hostedTable ?? FIRST_TABLE,
+      to,
+      reason,
+      base,
+      ...(pid === undefined ? {} : { pid }),
+    });
   }
 
   /**
@@ -833,7 +850,7 @@ export class RoomSession {
     const onProposal = this.#hooks?.onProposal;
     if (!onProposal) {
       // No game attached to judge it (a reload, or the stream ended): the proposer keeps following the log.
-      this.refuseProposal(message.from, "stale", message.base);
+      this.refuseProposal(message.from, "stale", message.base, message.pid);
       return;
     }
     onProposal({
@@ -841,6 +858,7 @@ export class RoomSession {
       players: this.#model.playersOfSeats(message.seats),
       command: message.command,
       base: message.base,
+      ...(message.pid === undefined ? {} : { pid: message.pid }),
       ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
     });
   }
@@ -904,6 +922,7 @@ export class RoomSession {
           table: this.hostedTable ?? FIRST_TABLE,
           to: message.from,
           accepted: false,
+          ...(message.rid === undefined ? {} : { rid: message.rid }),
         });
         return;
       }
