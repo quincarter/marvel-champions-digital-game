@@ -2,7 +2,7 @@
 
 The game now comes as an iPhone and iPad app, and game links open the game you have installed.
 
-🍎 **iPhone and iPad**: every release has an app you install yourself with a free Apple ID (SideStore, AltStore, Sideloadly, or Scarlet with no computer). I don't have an iPhone, so if you try it, tell us how it went!
+🍎 **iPhone and iPad**: every release has an app you install yourself with a free Apple ID (SideStore, AltStore or Sideloadly). I don't have an iPhone, so if you try it, tell us how it went!
 📱 **Links open the app**: on Android, a link to the game, like a shared replay, opens the app. In a desktop browser, a shared replay offers **Open in the desktop app**. Links start opening the app once v0.51.0 is installed.
 ✅ **Every game counts unless you say so**: Undo past your turn is now off by default, Manual adjust is off until you allow it, and both sit under Settings ▸ More ▸ Cheats. Both warn you before a game stops counting. The deck builder also lists setup cards in their own group.
 📚 **The Saga**: a campaign won with an adjusted game shows an ADJUSTED stamp, and the next volume says why it's still sealed. Red Skull's Improved Condition now enters on its Improved side.
@@ -21,7 +21,7 @@ Downloads: https://champions-digital-game.com/#download
 
 El juego ahora viene como app para iPhone y iPad, y los enlaces del juego abren el juego que tienes instalado.
 
-🍎 **iPhone y iPad**: cada versión tiene una app que instalas tú mismo con un Apple ID gratuito (SideStore, AltStore, Sideloadly, o Scarlet sin computadora). No tengo iPhone, así que si la pruebas, ¡cuéntanos cómo te fue!
+🍎 **iPhone y iPad**: cada versión tiene una app que instalas tú mismo con un Apple ID gratuito (SideStore, AltStore o Sideloadly). No tengo iPhone, así que si la pruebas, ¡cuéntanos cómo te fue!
 📱 **Los enlaces abren la app**: en Android, un enlace al juego, como una repetición compartida, abre la app. En un navegador de escritorio, una repetición compartida ofrece **Open in the desktop app**. Los enlaces empiezan a abrir la app cuando tengas v0.51.0 instalada.
 ✅ **Cada partida cuenta salvo que digas lo contrario**: Undo past your turn ahora viene desactivado por defecto, Manual adjust está desactivado hasta que lo permitas, y los dos están en Settings ▸ More ▸ Cheats. Los dos te avisan antes de que una partida deje de contar. El constructor de mazos también muestra las cartas de preparación en su propio grupo.
 📚 **La Saga**: una campaña ganada con una partida ajustada muestra el sello ADJUSTED, y el siguiente volumen dice por qué sigue sellado. La Condition Improved de Red Skull ahora entra por su cara Improved.
