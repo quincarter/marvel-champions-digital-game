@@ -529,8 +529,30 @@ body {
   height: auto;
   aspect-ratio: 16 / 9;
 }
+.batch-tabs {
+  margin: 0 0 14px;
+}
+.batch + .batch {
+  margin-top: 34px;
+}
+.batch-title {
+  font: 400 clamp(28px, 3vw, 38px)/1 var(--d);
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid var(--gold);
+}
 .mod-plate {
   padding: 12px 14px 14px;
+}
+.mod .soon-tag {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  font: 700 11px var(--b);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: #15110e;
 }
 .mod .kind {
   font: 700 11px var(--b);
@@ -548,7 +570,7 @@ body {
   font-weight: 700;
   color: var(--panel-muted);
 }
-.mods .empty {
+.mods-empty {
   color: var(--muted);
 }
 

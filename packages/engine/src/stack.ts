@@ -1263,6 +1263,11 @@ export const PAID_CARDS_SLOT = "paid.cards";
  * spent as cards ("paid with a resource card", Concussive Blast). Bound and carried as `PAID_CARDS_SLOT` is.
  */
 export const PAID_IN_PLAY_CARDS_SLOT = "paid.inPlayCards";
+/**
+ * The slot an `endPhaseCardsReadied` event hands its answering abilities: the player's cards the end-of-player-phase
+ * ready step readied ("for each 2 upgrades you readied this way", #890 item 1).
+ */
+export const READIED_CARDS_SLOT = "readied.cards";
 
 /**
  * The cards that paid for the play of `instanceId` while that play is still resolving, as the bindings its own

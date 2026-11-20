@@ -396,6 +396,7 @@ describe("play together: seat players and the watcher count", () => {
     const { host, send, seated } = await setup();
     expect(host.last("lobby")!.seats.map((s) => s.player)).toEqual(["p1", 1]);
     await seated("Ann", "s1");
+    await send(host, { ch: "game", kind: "end", table: "t1", outcome: {} }); // between games the host may remap
     await send(host, {
       ch: "room",
       kind: "lobby-set",
@@ -407,6 +408,53 @@ describe("play together: seat players and the watcher count", () => {
     const seats = host.last("lobby")!.seats;
     expect(seats[0]).toMatchObject({ label: "Renamed", player: 0, holderName: "Ann" });
     expect(seats[1]!.player).toBeUndefined();
+  });
+
+  it("refuses a live lobby-set that switches a seat's player, removes or reorders a seat, or adds one", async () => {
+    const { host, send, seated, propose } = await setup();
+    const ann = await seated("Ann", "s1");
+    const edit = (seats: object[]) => send(host, { ch: "room", kind: "lobby-set", seats });
+    await edit([
+      { id: "s1", player: "p2" },
+      { id: "s2", player: 1 },
+    ]);
+    await edit([{ id: "s1", player: "p1" }]);
+    await edit([
+      { id: "s2", player: 1 },
+      { id: "s1", player: "p1" },
+    ]);
+    await edit([{ id: "s1", player: "p1" }, { id: "s2", player: 1 }, { id: "s3" }]);
+    expect(host.refusals).toEqual(["not-allowed", "not-allowed", "not-allowed", "not-allowed"]);
+    expect(host.last("lobby")!.seats.map((s) => [s.id, s.player])).toEqual([
+      ["s1", "p1"],
+      ["s2", 1],
+    ]);
+    // A guest proposal is still judged against the original mapping.
+    await propose(ann);
+    expect(host.last("proposal")).toMatchObject({ from: ann.id, seats: ["s1"] });
+    expect(ann.refusals).toEqual([]);
+  });
+
+  it("still lets a live lobby-set relabel seats (an omitted player is kept) and hand a seat over", async () => {
+    const { host, send, seated } = await setup();
+    const ann = await seated("Ann", "s1");
+    await send(host, {
+      ch: "room",
+      kind: "lobby-set",
+      seats: [
+        { id: "s1", label: "Cap" },
+        { id: "s2", label: "Iron" },
+      ],
+    });
+    expect(host.refusals).toEqual([]);
+    expect(host.last("lobby")!.seats.map((s) => [s.label, s.player, s.holderName])).toEqual([
+      ["Cap", "p1", "Ann"],
+      ["Iron", 1, undefined],
+    ]);
+    const bob = await seated("Bob");
+    await send(ann, { ch: "room", kind: "seat-release", seat: "s1" });
+    await send(host, { ch: "room", kind: "seat-assign", seat: "s1", participant: bob.id });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ holderName: "Bob", player: "p1" });
   });
 
   it("leaves seat holders out of the roster's watcher count, and counts them back when they let go", async () => {

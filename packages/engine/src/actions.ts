@@ -1450,6 +1450,16 @@ function resourceAbilityFault(
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
+  // "You can exhaust any number of Weapon or Tech upgrades you control to generate that many [wild] resources while
+  // paying for this card" (Enhanced Combat Sense, `spider-punisher-tw`; #890 item 2): a resource ability that works
+  // in hand (`activeIn: "hand"`) is its owner's while the card is in their hand, and pays for that card alone.
+  const ownCardInHand = definition.activeIn === "hand";
+  if (ownCardInHand) {
+    if (!getPlayer(state, playerId)?.hand.includes(instanceId)) {
+      return { code: "no_valid_target", message: `${abilityId} works only while its card is in your hand` };
+    }
+    if (payingFor !== instanceId) return { code: "no_valid_target", message: notForMessage(abilityId) };
+  }
   // The player who resolves a resource ability is its card's controller, also when it generates "for any player" and
   // another player spends it (RRG 1.8 "Ownership and Control", p. 31); the payer on a card no player controls.
   if (
@@ -1459,7 +1469,12 @@ function resourceAbilityFault(
   }
   // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13); any player's, for an
   // alliance card (§3.17).
-  if (controllerOf(state, instanceId) !== playerId && definition.trigger.forAnyPlayer !== true && !group) {
+  if (
+    !ownCardInHand &&
+    controllerOf(state, instanceId) !== playerId &&
+    definition.trigger.forAnyPlayer !== true &&
+    !group
+  ) {
     return { code: "no_valid_target", message: "resource abilities must be on cards you control" };
   }
   const spender = resourceSpender(state, deps, instanceId, abilityId, playerId);
@@ -1733,9 +1748,16 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
 const MAX_PICK_OPTIONS = 20;
 
 /** Every way to choose `size` of `ids`, in order. */
-function combinations<T>(ids: readonly T[], size: number): readonly (readonly T[])[] {
-  if (size === 0) return [[]];
-  return ids.flatMap((id, i) => combinations(ids.slice(i + 1), size - 1).map((rest) => [id, ...rest]));
+function* combinations<T>(ids: readonly T[], size: number, from = 0): Generator<readonly T[]> {
+  // One at a time, so a caller that stops at its cap builds no more than it keeps (PR #903 review: 40 candidates and a
+  // pick of 8 would otherwise build all 76,904,685 subsets first).
+  if (size === 0) {
+    yield [];
+    return;
+  }
+  for (let i = from; i <= ids.length - size; i++) {
+    for (const rest of combinations(ids, size - 1, i + 1)) yield [ids[i]!, ...rest];
+  }
 }
 
 /**
@@ -1762,12 +1784,30 @@ function resourcePickChoices(
     if (pick.each || candidates.length <= pick.min) continue;
     choosing = true;
     const most = Math.min(pick.max ?? candidates.length, candidates.length);
+    // "This card and up to N others" (`InPlayCostPick.includesSelf`): only the picks holding the card pay.
+    const holdsSelf = (ids: readonly InstanceId[]): boolean => !pick.includesSelf || ids.includes(instanceId);
+    // Every combination, smallest first, up to the cap, as always; then one option of each size the cap left out, the
+    // largest included, so a cost of "any number" (Enhanced Combat Sense, `spider-punisher-tw`: "exhaust any number of
+    // Weapon or Tech upgrades") can be paid in full and at every size between, however many candidates there are (#890
+    // item 2, PR #903 review). Below the cap the list is what it was.
     const options: (readonly InstanceId[])[] = [];
     for (let size = pick.min; size <= most && options.length < MAX_PICK_OPTIONS; size++) {
-      // "This card and up to N others" (`InPlayCostPick.includesSelf`): only the picks holding the card pay.
-      options.push(...combinations(candidates, size).filter((ids) => !pick.includesSelf || ids.includes(instanceId)));
+      for (const ids of combinations(candidates, size)) {
+        if (options.length >= MAX_PICK_OPTIONS) break;
+        if (holdsSelf(ids)) options.push(ids);
+      }
     }
-    sets = sets.flatMap((set) => options.map((ids) => ({ ...set, [pick.slot]: ids }))).slice(0, MAX_PICK_OPTIONS);
+    const sizes = new Set(options.map((ids) => ids.length));
+    const ordered = pick.includesSelf ? [instanceId, ...candidates.filter((id) => id !== instanceId)] : candidates;
+    const sized: (readonly InstanceId[])[] = [];
+    for (let size = Math.max(pick.min, 1); size <= most; size++) {
+      const first = ordered.slice(0, size);
+      if (!sizes.has(size) && holdsSelf(first)) sized.push(first);
+    }
+    options.push(...sized);
+    sets = sets
+      .flatMap((set) => options.map((ids) => ({ ...set, [pick.slot]: ids })))
+      .slice(0, Math.max(MAX_PICK_OPTIONS, options.length));
   }
   return choosing ? sets : [undefined];
 }
@@ -2179,6 +2219,17 @@ const MAX_REPEAT_OPTIONS = 20;
 const isPlayPayment = (excludeInstanceId: InstanceId | null, payingFor: InstanceId | null): boolean =>
   excludeInstanceId !== null && payingFor !== null;
 
+/**
+ * Whether a payment is for an ability's cost on a card (`AbilityDefinition.generatesForAbility`): a card is paid for and
+ * none is being played.
+ */
+const isAbilityPayment = (excludeInstanceId: InstanceId | null, payingFor: InstanceId | null): boolean =>
+  excludeInstanceId === null && payingFor !== null;
+
+/** A resource ability usable only for an ability's cost (`AbilityDefinition.generatesForAbility`). */
+const forAbilitiesOnly = (deps: EngineDeps, abilityId: string): boolean =>
+  deps.abilities[abilityId]?.generatesForAbility === true;
+
 /** A resource ability whose resources may only be overpaid (`AbilityDefinition.overpayOnly`). */
 const overpaysOnly = (deps: EngineDeps, abilityId: string): boolean => {
   const definition = deps.abilities[abilityId];
@@ -2337,6 +2388,8 @@ export function priceOf(
     const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group, choices);
     if (fault) return fault;
     if (overpaysOnly(ctx.deps, abilityId) && !isPlayPayment(excludeInstanceId, payingFor)) return OVERPAY_ONLY_FAULT;
+    if (forAbilitiesOnly(ctx.deps, abilityId) && !isAbilityPayment(excludeInstanceId, payingFor))
+      return { code: "no_valid_target", message: notForMessage(abilityId) };
     const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
     if (isFault(plan)) return plan;
     for (const id of cardsSpentByResourceCost(ctx.deps, entry.ability, plan)) {
@@ -2489,14 +2542,21 @@ export function paymentOptions(
       });
     }
   }
-  for (const id of cardsInPlay(ctx.state)) {
-    const controlled = controllerOf(ctx.state, id) === playerId;
+  // The card paid for, when it is in the player's hand: its own resource abilities that work in hand (`activeIn:
+  // "hand"`, Enhanced Combat Sense; #890 item 2) pay for it, and for nothing else.
+  const ownInHand = payingFor !== null && mustPlayer(ctx.state, playerId).hand.includes(payingFor) ? [payingFor] : [];
+  for (const id of [...cardsInPlay(ctx.state), ...ownInHand]) {
+    const inHand = ownInHand.includes(id);
+    const controlled = inHand || controllerOf(ctx.state, id) === playerId;
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       const trigger = ctx.deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "resource") continue;
+      if ((ctx.deps.abilities[ref.id]?.activeIn === "hand") !== inHand) continue;
       if (!controlled && trigger.forAnyPlayer !== true && !group) continue;
       // A resource "to overpay for a card" is offered only while a card is being played (`isPlayPayment`).
       if (overpaysOnly(ctx.deps, ref.id) && !isPlayPayment(excludeInstanceId, payingFor)) continue;
+      // A resource "for an upgrade ability" is offered only while an ability's cost is paid (`generatesForAbility`).
+      if (forAbilitiesOnly(ctx.deps, ref.id) && !isAbilityPayment(excludeInstanceId, payingFor)) continue;
       const spender = resourceSpender(ctx.state, ctx.deps, id, ref.id, playerId);
       // A cost that picks cards in play: one option per legal pick, so each shows what it generates (Sync Ratio).
       const pickChoices = resourcePickChoices(ctx.state, ctx.deps, id, ref.id, spender);

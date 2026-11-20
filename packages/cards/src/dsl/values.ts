@@ -1650,6 +1650,18 @@ export const eventDamageTakenBy = (of: TargetRef): ValueSpec => eventResult("dam
  * lethal or defeated by a non-damage effect.
  */
 export const defeatExcessDamage: ValueSpec = { kind: "defeatExcessDamage" };
+/**
+ * In an "after X is defeated" ability on a scheme's defeat: the excess threat it recorded, the threat the defeating
+ * removal attempted beyond what the scheme had (#890 item 8). 0 when it took exactly the last threat.
+ */
+export const defeatExcessThreat: ValueSpec = { kind: "defeatExcessThreat" };
+/**
+ * "After a side scheme is overdefeated (more threat was removed from it than it had)" (The Rose's Hero Resistance and
+ * Rose's Greenhouse, `the-rose-bf`): a response's `while` on a `schemeDefeated` pattern, true when the defeating removal
+ * attempted more threat than the scheme had, whatever made it. The opposite of `exactlyDefeated`, which also asks for a
+ * thwart.
+ */
+export const overdefeated: Predicate = valueAtLeast(defeatExcessThreat, 1);
 /** "If this minion was defeated with excess damage" (Shifting Apparition, `sm` 27091). */
 export const defeatedWithExcessDamage: Predicate = valueAtLeast(defeatExcessDamage, 1);
 /**

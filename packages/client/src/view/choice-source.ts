@@ -162,6 +162,15 @@ export function instructionHeaderName(instruction: SetupInstructionSource): stri
   return instruction.kind === "campaign" ? "Campaign setup" : "Scenario setup";
 }
 
+/** Who pays a delegable part of a cost (`DelegableCostPart`), by part. */
+const COST_PART_TITLES: Readonly<Record<string, string>> = {
+  damageSelf: "Who takes the cost's damage?",
+  indirectDamage: "Who takes the cost's indirect damage?",
+  discardFromDeck: "Who discards from their deck?",
+  discardRandomFromHand: "Who discards at random?",
+  dealEncounterCards: "Who is dealt the encounter cards?",
+};
+
 /**
  * The question a campaign setup instruction's "choose a player" asks, by instruction id: the engine's `choosePlayer`
  * carries no prompt text, so the sheet would read "Longshot: choose a player" with no hint what the pick does.
@@ -458,6 +467,10 @@ export function promptTitleOf(
   // docs/phase7-wave7.md §3.83: a fact from outside the game, reported by the asked player.
   if (kind === "reportFact") {
     return prompt.fact === "minutesAway" ? "On a break" : "Did you talk this phase?";
+  }
+  // A part of a cost any player may help pay, asked by `EffectSpec useActionAbility` (`CostSelection.paidBy`).
+  if (kind === "choosePlayer" && prompt.slot.startsWith("costPart.")) {
+    return COST_PART_TITLES[prompt.slot.slice("costPart.".length)] ?? "Who pays this cost?";
   }
   // An any-player-control card an effect puts into play (RRG 1.8 pp. 32-33): name the card being placed.
   if (kind === "choosePlayer" && prompt.cardInstanceId !== undefined && state) {

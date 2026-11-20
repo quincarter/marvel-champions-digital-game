@@ -542,8 +542,11 @@ jobs:
     name: iOS
     needs: check-and-cut-release
     if: needs.check-and-cut-release.outputs.should_release == 'true'
+    # A called workflow's jobs may ask for no more than its caller grants, and ios-build.yml's `preview` job (pull
+    # requests only, never run here) asks for pull-requests: write. Without it every run of this workflow fails to start.
     permissions:
       contents: write
+      pull-requests: write
     uses: ./.github/workflows/ios-build.yml
     with:
       tag: ${{ needs.check-and-cut-release.outputs.tag }}

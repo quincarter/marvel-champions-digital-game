@@ -3069,6 +3069,20 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
 // ---------------------------------------------------------------------------
 
 /**
+ * "… or resolve an 'Action' ability on a card you control" (War Machine Armor, `punisher-msp`; #890 item 6): the player
+ * uses one Action ability of a card in play they control, paying its cost, at this moment (no Action timing asked).
+ * `filter` narrows the cards; `optional` lets the player use none. `EffectSpec useActionAbility`.
+ */
+export const useActionAbility = (
+  player: PlayerRef = you,
+  opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {},
+): EffectSpec => ({
+  kind: "useActionAbility",
+  player,
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
+/**
  * "Deal a total of N damage divided among X you choose" (Wasp Sting) / "Remove a total of N threat from among
  * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7. A status name divides status cards: "place a total of 2
  * stun status cards on up to 2 enemies" (Thwip Thwip!) is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`;

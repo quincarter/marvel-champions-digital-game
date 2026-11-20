@@ -372,6 +372,22 @@ describe("joining a room", () => {
     expect(await t.seatStore.load("room00000002")).toBeNull();
   });
 
+  it("a guest reclaims its seat in a room active for more than 12 hours", async () => {
+    const seatStore = new MemorySeatTokenStore();
+    const savedAt = Date.now() - 13 * 60 * 60 * 1000;
+    await seatStore.save({ roomId: "room00000002", tokens: { s1: "T".repeat(32) }, savedAt });
+    const t = setup({ seatStore });
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.open();
+    expect(socket.hello).toMatchObject({ seatTokens: ["T".repeat(32)] });
+    socket.welcome("watcher");
+    socket.receive(lobbyMessage([{ id: "s1", label: "Spider-Man", holder: "me" }]));
+    expect(t.last()).toMatchObject({ mySeats: ["s1"] });
+    expect((await seatStore.load("room00000002"))?.tokens).toEqual({ s1: "T".repeat(32) });
+  });
+
   it("surfaces refusals, with the seat asked for", async () => {
     const t = setup();
     t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
@@ -900,5 +916,28 @@ describe("closing and resuming a lobby room (#901 review)", () => {
     const socket = FakeSocket.all[0]!;
     socket.open();
     expect(socket.hello).toMatchObject({ token: "h".repeat(32), seatTokens: ["S".repeat(32)] });
+  });
+
+  it("a resumed host in a room active for more than 12 hours still presents its seat tokens", async () => {
+    FakeSocket.all = [];
+    const seatStore = new MemorySeatTokenStore();
+    await seatStore.save({
+      roomId: "room00000001",
+      tokens: { s1: "S".repeat(32) },
+      savedAt: Date.now() - 13 * 60 * 60 * 1000,
+    });
+    const session = new RoomSession("host", "Hosty", {
+      syncUrl: "https://sync.example",
+      linkBase: "https://web.example/",
+      build: BUILD,
+      seatStore,
+      onState: () => undefined,
+      socket: { WebSocket: FakeSocket, setTimer: () => ({}), clearTimer: () => undefined, random: () => 0.5 },
+    });
+    session.resumeHost("room00000001", "h".repeat(32), "ABC234");
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.open();
+    expect(socket.hello).toMatchObject({ seatTokens: ["S".repeat(32)] });
   });
 });

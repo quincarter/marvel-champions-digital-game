@@ -1384,7 +1384,13 @@ export class GameRoomLogic {
     };
     // Whether a table has a game needs its header: read once, only when tables or the mode change, or in an Epic room
     // (whose topology freezes once a table has started).
-    if (message.tables !== undefined || message.pods !== undefined || epic !== wasEpic || wasEpic) {
+    if (
+      message.tables !== undefined ||
+      message.pods !== undefined ||
+      message.seats !== undefined ||
+      epic !== wasEpic ||
+      wasEpic
+    ) {
       for (const t of this.tables.values()) await this.ensureLoaded(t);
     }
     // An Epic game that has started is a fixed set of tables, pods, hosts, seats and players: the coordinator, each
@@ -1392,6 +1398,10 @@ export class GameRoomLogic {
     // cosmetic edits (a table's or pod's name, a seat's label) and the play settings below stay open.
     const frozen = wasEpic && [...this.tables.values()].some((t) => t.hasHeader);
     const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    // An ordinary room's running game (issue #881): the seat-to-player mapping is the host engine's, and guests'
+    // proposals are judged by it, so a seat may not be added, removed, reordered or given another player until the
+    // table ends. Labels and holder handovers stay open.
+    const seatsLive = !wasEpic && [...this.tables.values()].some((t) => t.hasHeader && !t.ended);
     if (frozen) {
       if (next.mode !== settings.mode) return refuse("out-of-order");
       if (patch?.mods !== undefined && !same(patch.mods, settings.mods)) return refuse("out-of-order");
@@ -1421,12 +1431,22 @@ export class GameRoomLogic {
         });
         if (!same1 || !unchanged) return refuse("out-of-order");
       }
+      if (seatsLive) {
+        const unchanged =
+          message.seats.length === lobby.seats.length &&
+          message.seats.every((spec, i) => {
+            const kept = lobby.seats[i]!;
+            return spec.id === kept.id && (spec.player === undefined || String(spec.player) === String(kept.player));
+          });
+        if (!unchanged) return refuse("not-allowed");
+      }
       seats = message.seats.map((spec) => {
         const kept = lobby.seats.find((s) => s.id === spec.id);
         const table = epic ? (spec.table ?? FIRST_TABLE) : undefined;
         const moved = kept !== undefined && epic && this.seatTable(kept) !== table;
         // An Epic seat keeps its player when the spec leaves it out: the table's engine seated its heroes by it.
-        const keptPlayer = epic && kept && !moved && kept.player !== undefined ? { player: kept.player } : {};
+        const keptPlayer =
+          (epic || seatsLive) && kept && !moved && kept.player !== undefined ? { player: kept.player } : {};
         const player = spec.player === undefined ? keptPlayer : { player: spec.player };
         const label = spec.label === undefined ? {} : { label: spec.label };
         const {

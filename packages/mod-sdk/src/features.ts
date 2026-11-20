@@ -186,6 +186,7 @@ export const TARGET_QUERY_FIELDS: readonly string[] = [
   "anyTrait",
   "withKeyword",
   "withoutKeyword",
+  "keywordNotFromSelf",
   "anyOf",
   "not",
   "cardTypeIs",
