@@ -95,6 +95,13 @@ export interface SessionConfig {
    * header and replay files leave it out.
    */
   readonly room?: string;
+  /**
+   * How a lobby room's game is played (issue #880): `"strict"` takes Undo, Back out and Manual adjust away from the
+   * host and the engine host refuses them (`view/room-strict.ts`); `"host"` and absent change nothing. Set by
+   * `platform/room.ts` `startGame` from the lobby's rules. Like `room`, it never reaches the rules and the live header
+   * and replay files leave it out.
+   */
+  readonly roomPlayMode?: "strict" | "host";
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

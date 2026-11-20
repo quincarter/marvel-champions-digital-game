@@ -11,6 +11,7 @@ import { applyDeckSwaps } from "../view/name-conflicts.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { tableRulesOf } from "../settings.js";
 import { addSeat, initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
+import type { SessionConfig } from "../engine/host.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
@@ -1041,7 +1042,9 @@ async function startDevGame(): Promise<void> {
   });
   const config = toSessionConfig(draft, [corePlayerForSeat(seat)], undefined, tableRulesOf(appSession().settings));
   // `&watch=1`: the game is open to watchers (issue #876), for checking a live room end to end.
-  await store.start(params.get("watch") === "1" ? { ...config, watchable: true } : config);
+  // `&roomstrict=1`: the game of a lobby room on Strict rules (issue #880): no Undo, Back out or Manual adjust.
+  const started: SessionConfig = params.get("watch") === "1" ? { ...config, watchable: true as const } : config;
+  await store.start(params.get("roomstrict") === "1" ? { ...started, roomPlayMode: "strict" as const } : started);
 }
 
 /**

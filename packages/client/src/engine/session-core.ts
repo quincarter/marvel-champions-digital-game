@@ -134,6 +134,9 @@ export type CoreDispatch =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly error: EngineError };
 
+/** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
+export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+
 /**
  * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
  * `illegal_deck` — which seat and why, rather than only a flattened message. A
@@ -617,6 +620,7 @@ export class EngineSessionCore {
     const session = this.#require();
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
+    if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
     }
@@ -664,6 +668,9 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
+    if (command.type === "adjust" && this.#config?.roomPlayMode === "strict") {
+      return { ok: false, error: { code: "internal_error", message: STRICT_REFUSAL, command } };
+    }
     const result = sessionApply(session, command, depsOf(this.#config), { recordStates: inVillainPhase });
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;

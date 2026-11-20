@@ -176,6 +176,7 @@ import {
 } from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
+import { roomStrictOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { choiceTakebackOf } from "../view/end-turn-takeback.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
@@ -830,7 +831,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     // only asked it, so the whole turn end is taken back, and B on a pad does the same.
     const takeback = this.#takebackOf(state, choice);
     const backOutTarget =
-      takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null);
+      takeback ??
+      (state.perspectiveId && !roomStrictOf(state.config)
+        ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId)
+        : null);
     let backOutRect: Rect | null = null;
     // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
     // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
@@ -3602,7 +3606,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
   #takebackOf(state: SessionState, choice: PendingChoice): number | null {
-    if (!state.perspectiveId || choice.playerId !== state.perspectiveId) return null;
+    if (!state.perspectiveId || choice.playerId !== state.perspectiveId || roomStrictOf(state.config)) return null;
     return choiceTakebackOf(state.commandTrail, choice, state.perspectiveId);
   }
 

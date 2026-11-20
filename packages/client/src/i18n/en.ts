@@ -435,6 +435,7 @@ export const en = {
   "room.settings.title": "Table settings",
   "room.settings.readOnly": "Only the host can change these.",
   "room.mode.title": "How it's played",
+  "room.strict.reason": "Strict rules: the host turned this off",
   "room.mode.strict": "Strict rules",
   "room.mode.strictDetail": "The game as written: no Undo, no Back out, no Manual adjust.",
   "room.mode.host": "Host control",

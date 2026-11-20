@@ -60,6 +60,7 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
+import { roomStrictOf, strictReason } from "../../view/room-strict.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import {
   undoOf,
@@ -2036,8 +2037,12 @@ export class BoardController {
    * and only that, so Undo never does both (the QA's F2: Z cancelled a payment and took the move before it back).
    */
   undoOffer(): UndoOffer | null {
-    const { game, perspectiveId, commandTrail, offTurnSeat } = appSession().store.state;
+    const { game, perspectiveId, commandTrail, offTurnSeat, config } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
+    // Strict rules in a lobby room: Undo stays on the bar, greyed, and says who turned it off.
+    if (roomStrictOf(config)) {
+      return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: strictReason() };
+    }
     // Nevermind after End turn (`view/end-turn-takeback.ts`): the next hero's turn has just begun and nothing else has
     // happened, so the same Undo button takes the End turn back to the hero who pressed it.
     const handover = handoverTakebackOf(commandTrail, game);

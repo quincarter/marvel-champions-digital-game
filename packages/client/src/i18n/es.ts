@@ -438,6 +438,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.settings.readOnly": "Solo el anfitrión puede cambiarlos.",
   "room.mode.title": "Cómo se juega",
   "room.mode.strict": "Reglas estrictas",
+  "room.strict.reason": "Reglas estrictas: el anfitrión lo ha desactivado",
   "room.mode.strictDetail": "El juego tal como está escrito: sin Deshacer, sin Retroceder, sin Ajuste manual.",
   "room.mode.host": "Control del anfitrión",
   "room.mode.hostDetail":
