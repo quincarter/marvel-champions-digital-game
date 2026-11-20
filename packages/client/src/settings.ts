@@ -41,7 +41,9 @@ export function clampGlyphSize(percent: number): number {
 /**
  * How far Undo reaches (issue #791, the owner 2026-11-17): past the start of your turn, a draw, a reveal or a random pick
  * without asking ("allow"), only after the "This game won't count" warning ("warn"), or never ("off": Undo keeps to
- * your own moves this turn that revealed nothing). Either way past that line marks the game adjusted.
+ * your own moves this turn that revealed nothing). Either way past that line marks the game adjusted. Defaults to off
+ * (BluefireF5ran and the owner, 2026-11-19): a player who never asked for it should never find a game stopped counting;
+ * turning it on asks first (`cheatUnlockWarningOf`).
  */
 export const UNDO_PAST_TURN_VALUES = ["allow", "warn", "off"] as const;
 export type UndoPastTurn = (typeof UNDO_PAST_TURN_VALUES)[number];
@@ -115,8 +117,13 @@ export interface Settings {
    * played with it on is not the scenario as printed.
    */
   readonly allowExtraModularSets: boolean;
-  /** How far Undo reaches (`UNDO_PAST_TURN_VALUES`, issue #791). Defaults to warn. */
+  /** How far Undo reaches (`UNDO_PAST_TURN_VALUES`, issue #791). Defaults to off. */
   readonly undoPastTurn: UndoPastTurn;
+  /**
+   * Pause offers Manual adjust (#791), which fixes the table by hand and stops the game counting. Defaults off and lives
+   * under Settings > More > Misc gameplay (the owner, 2026-11-19); turning it on asks first (`cheatUnlockWarningOf`).
+   */
+  readonly allowManualAdjust: boolean;
   /** The list the Decks screen opens on (#755). Defaults to all, the list of everything it has always opened to. */
   readonly deckListOnOpen: DeckListOnOpen;
   /**
@@ -523,7 +530,8 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     deckSignatureCards: "free",
     deckCopyLimits: false,
     allowExtraModularSets: false,
-    undoPastTurn: "warn",
+    undoPastTurn: "off",
+    allowManualAdjust: false,
     deckListOnOpen: "all",
     showPreconDecks: true,
     notOfferedNotices: true,

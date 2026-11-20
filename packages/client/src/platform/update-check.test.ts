@@ -68,12 +68,13 @@ describe("installOs", () => {
     expect(installOs("tauri", MAC)).toBe("macos");
     expect(installOs("tauri", LINUX)).toBe("linux");
     expect(installOs("capacitor", ANDROID)).toBe("android");
+    expect(installOs("capacitor", IPHONE)).toBe("ios");
   });
 
-  it("is null on the web and on iOS, which no release ships a build for", () => {
+  it("is null on the web", () => {
     expect(installOs("web", WINDOWS)).toBeNull();
     expect(installOs("web", ANDROID)).toBeNull();
-    expect(installOs("capacitor", IPHONE)).toBeNull();
+    expect(installOs("web", IPHONE)).toBeNull();
   });
 });
 
@@ -130,6 +131,11 @@ describe("parseLatestRelease", () => {
 describe("installTargetOf", () => {
   it("is always the APK on Android", () => {
     expect(installTargetOf("android", null)).toEqual({ os: "android", kind: "apk" });
+  });
+
+  it("never names an installer on iOS, where the app can't install one itself (#874)", () => {
+    expect(installTargetOf("ios", null)).toEqual({ os: "ios", kind: null });
+    expect(installTargetOf("ios", "apk")).toEqual({ os: "ios", kind: null });
   });
 
   it("takes the desktop shell's own installer", () => {
@@ -204,6 +210,20 @@ describe("updateFor", () => {
     expect(updateFor(androidOnly, "0.19.1", { os: "windows", kind: "msi" })).toBeNull();
     expect(updateFor(androidOnly, "0.19.1", { os: "macos", kind: "dmg-x64" })).toBeNull();
     expect(updateFor(androidOnly, "0.19.1", { os: "linux", kind: null })).toBeNull();
+  });
+
+  it("offers iOS only the release page, and only once the release has an .ipa (#874)", () => {
+    const ipa = "MarvelChampions-0.20.0-EN-iOS-unsigned.ipa";
+    expect(updateFor(release([...ALL_ASSETS, ipa]), "0.19.1", { os: "ios", kind: null })).toEqual({
+      version: "0.20.0",
+      downloadUrl: null,
+      downloadDigest: null,
+      notesUrl: page,
+    });
+    expect(updateFor(release(ALL_ASSETS), "0.19.1", { os: "ios", kind: null })).toBeNull();
+    expect(
+      updateFor(release(["MarvelChampions-0.20.0-ES-iOS-unsigned.ipa"]), "0.19.1", { os: "ios", kind: null }, "en"),
+    ).toBeNull();
   });
 
   it("falls back to the release page when the platform has installers but not this install's own", () => {

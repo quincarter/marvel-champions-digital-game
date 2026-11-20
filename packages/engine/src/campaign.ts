@@ -60,6 +60,26 @@ export interface CampaignDefinition {
    */
   readonly conditionalInstructions?: Readonly<Record<string, CampaignInstruction>>;
   /**
+   * Brings a log saved by an older build up to the shape the current definition writes, when what a log *means*
+   * changed without any id changing (so `version` stays put and the log still loads). `resolveBetweenGames` runs these
+   * on the log first, before anything else reads it, every time it composes a game; its returned log carries the
+   * result, so the upgrade is persisted with the composed game (and a `nodeStart` retry restores to it).
+   *
+   * Engine bookkeeping, not printed rules: they are not traced as steps of the attempt. They may only rewrite log data
+   * (fields, grants, decks, removals). The runner throws on an upgrade that:
+   * - is not a `betweenGames` step;
+   * - asks for a choice (`choose`, or a `random` the players may decline);
+   * - draws from the campaign RNG (`random`);
+   * - sets cards aside or composes a villain or encounter sets (those feed a game, and the upgrade's run is thrown
+   *   away);
+   * - moves the campaign's position or status (`markNode`, `progressNode`, `endCampaign`, or anything else that
+   *   changes the next node, a node's mark or progress, or the status).
+   * The mod SDK holds them to the same pack limits as every other instruction. Each must also be idempotent, so a log
+   * already in the current shape, or one upgraded before, is left as it is. Absent: no upgrade.
+   * Issue #873: a Sinister Motives log saved before MC27 p. 22 node 13's flip moved to Setup.
+   */
+  readonly logUpgrades?: readonly CampaignInstruction[];
+  /**
    * What happens to a player eliminated from a game the rest of the table goes on to win (§4.6b). Absent means
    * nothing does: the eliminated seat takes part in the Victory steps like any other seat, which is what a standard
    * campaign does in every box (none prints the rule outside its expert campaign rules).
@@ -732,7 +752,19 @@ export type CampaignOp =
       readonly byTitle?: true;
     }
   /** MC10 p. 12 ("replace their 'Basic' Condition upgrade with its 'Improved' side"); MC27 p. 22's Enhanced side. */
-  | { readonly kind: "setGrantFace"; readonly card: CampaignValue; readonly face: string }
+  | {
+      readonly kind: "setGrantFace";
+      readonly card: CampaignValue;
+      readonly face: string;
+      /**
+       * The face is reached by a campaign Setup flip each game, not by a permanent swap: the copy enters play on its
+       * front and the node's own `inGame` Setup instruction turns it (MC27 p. 22, "**Setup:** Each player flips their
+       * … upgrade to its Enhanced side", resolved at RRG v1.8 p. 51 setup step 13, after step 11's Setup keyword put
+       * the front into play). Recorded on the grant as `CampaignGrant.faceAtSetup`, so the log still says which face
+       * the card is on. Absent: the face is permanent and the copy enters play already on it (MC10 p. 12).
+       */
+      readonly atSetup?: true;
+    }
   // --- choices and randomness --------------------------------------------------------------------------------
   /** MC10 p. 5's Tech upgrade choice; MC27 p. 22's "chooses an aspect card in their collection"; MC60 p. 9 step 4. */
   | {
@@ -1188,6 +1220,12 @@ export interface CampaignGrant {
   readonly leftOut?: true;
   /** Which face the grant is on: MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. */
   readonly face?: string;
+  /**
+   * `face` is reached by a campaign Setup flip each game (`setGrantFace`'s `atSetup`; MC27 p. 22, RRG v1.8 p. 51 step
+   * 13), so the copy enters play on its front and is not in `CampaignSeatInput.grantFaces`. Absent: the copy enters
+   * play already on `face` (MC10 p. 12). Only ever set alongside `face`.
+   */
+  readonly faceAtSetup?: true;
   /** The node that granted it, for the sheet and for `LossPolicy.retryBaseline`. */
   readonly grantedAtNodeId: string;
 }
@@ -1437,6 +1475,19 @@ export interface CampaignSeatInput {
    * when every grant is exempt, so an input composed before the field existed is unchanged.
    */
   readonly grantDeckSizes?: readonly GrantDeckSizeRule[];
+  /**
+   * The granted copies that are on another face (`CampaignGrant.face`): one entry per such copy in `deck`. MC10 p. 12
+   * replaces a "Basic" Condition upgrade "with its 'Improved' side", so that copy enters play on that face at setup
+   * (`putSetupCardsIntoPlay`); MC27 p. 22's Enhanced side the same way. Absent when no grant names a face, so every
+   * earlier game input is unchanged.
+   */
+  readonly grantFaces?: readonly CampaignGrantFace[];
+}
+
+/** One granted copy and the face the campaign log has it on (`CampaignSeatInput.grantFaces`). */
+export interface CampaignGrantFace {
+  readonly cardId: CardId;
+  readonly face: string;
 }
 
 /** An instruction the runner has already gated and ordered, ready for the engine to resolve at its window. */

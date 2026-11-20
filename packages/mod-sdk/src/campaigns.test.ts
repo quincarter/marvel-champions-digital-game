@@ -328,6 +328,29 @@ describe("validatePack: campaigns", () => {
         /elimination policy is not available yet/,
       );
     });
+
+    it("holds logUpgrades to the same limits and campaign set record as every other instruction", () => {
+      const upgradeWith = (op: object) => (c: any) =>
+        (c.definition.logUpgrades = [
+          { id: "sample-upgrade", text: "t", citation: "c", step: { kind: "betweenGames", ops: [op] } },
+        ]);
+      expect(issuesWith(upgradeWith({ kind: "setAsideCards", cards: [{ kind: "const", value: "x" }] }))).toMatch(
+        /setting cards aside between games/,
+      );
+      expect(
+        issuesWith(upgradeWith({ kind: "spend", field: "cogs", seat: "self", amount: { kind: "const", value: 1 } })),
+      ).toMatch(/spending a currency/);
+      expect(
+        issuesWith(
+          upgradeWith({
+            kind: "choose",
+            slot: "x",
+            chooser: "group",
+            from: { kind: "campaignSet", encounterSetId: "sample-scenario-gears" },
+          }),
+        ),
+      ).toMatch(/draws from "sample-scenario-gears", which is not in record.campaignSetIds/);
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { settle, waitFor } from "./helpers.js";
-import { installWave6Helpers, routeStops } from "./wave6-helpers-a.js";
+import { findText, settle, waitFor } from "./helpers.js";
+import { installWave6Helpers, routeStops, screens, waitForScene } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { boardUp, press } from "./x-men-helpers.js";
 
@@ -95,8 +95,34 @@ test("issue #800: Pause's search puts settings first, changes them in place, and
   // The results have the sheet: none of its usual rows or cards are there to press.
   expect(keys.some((k) => k.startsWith("quick:") || k.startsWith("table:") || k.startsWith("keyword:"))).toBe(false);
 
+  // Off by default (2026-11-19). Turning it on warns that it blocks progression, and only Turn it on changes it.
+  expect(await undoPastTurn(page)).toBe("off");
+  await pressStop(page, phone, "result:undo-past-turn:warn");
+  await waitForScene(page, "EndTurnConfirmOverlay");
+  expect((await findText(page, "This blocks progression", "EndTurnConfirmOverlay")).length).toBeGreaterThan(0);
+  if (process.env.SHOT_DIR)
+    await page.screenshot({ path: `${process.env.SHOT_DIR}/undo-warning-${phone ? "phone" : "desktop"}.png` });
+  const confirm = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __mcEndTurnConfirmDebug?: { endRect(): { x: number; y: number; width: number; height: number } };
+        }
+      ).__mcEndTurnConfirmDebug?.endRect() ?? null,
+  );
+  expect(confirm, "the warning's Turn it on").not.toBeNull();
+  await press(page, phone, confirm!.x + confirm!.width / 2, confirm!.y + confirm!.height / 2);
+  await waitFor(async () => ((await undoPastTurn(page)) === "warn" ? true : null), "Undo past your turn is Warn", 8000);
+  // Back to Off asks nothing.
+  await typeQuery(page, phone, "undo");
+  await waitFor(
+    async () => ((await stopKeys(page)).some((k) => k === "result:undo-past-turn:off") ? true : null),
+    "the Off choice again",
+    10000,
+  );
   await pressStop(page, phone, "result:undo-past-turn:off");
   await waitFor(async () => ((await undoPastTurn(page)) === "off" ? true : null), "Undo past your turn is Off", 8000);
+  expect(await screens(page)).not.toContain("EndTurnConfirmOverlay");
 
   // A typo'd shorthand still finds Card size.
   await typeQuery(page, phone, "crd siz");

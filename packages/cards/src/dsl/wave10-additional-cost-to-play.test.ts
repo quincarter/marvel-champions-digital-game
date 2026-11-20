@@ -59,7 +59,7 @@ describe("B3.1 additionalCostToPlay and searchEncounterIntoPlayCost", () => {
       validateDefinition(additionalCostToPlay(searchEncounterIntoPlayCost(query("minion"), "found", []))),
     ).toContain("cost searchEncounterIntoPlay: names the encounter deck, its discard pile or both");
     expect(validateDefinition(additionalCostToPlay({ ...search, resources: 1 }))).toContain(
-      "an additional cost to play has no resources or either/or part",
+      "an additional cost to play has no resources",
     );
   });
 

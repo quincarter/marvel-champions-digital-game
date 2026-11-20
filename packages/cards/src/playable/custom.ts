@@ -5,7 +5,8 @@
  *
  * - **A pack scenario** is built generically from its `Scenario` record, the way `coreScenario` builds a Core one: the
  *   villain's stages, the main scheme, the scenario's own sets, the picked modular sets, the Standard (and Expert) set,
- *   each hero's obligation and nemesis set. A pack scenario may use only the plain fields and `setAsideCardIds` (`CUSTOM_SCENARIO_FIELDS`);
+ *   each hero's obligation and nemesis set. A pack scenario may use only the plain fields, `setAsideCardIds` and
+ *   `setAsideModularSetCount` (`CUSTOM_SCENARIO_FIELDS`);
  *   anything a printed scenario needs a hand-written builder for (several villains, a set-aside deck, a villain choice)
  *   is refused by `customScenarioProblems` rather than built wrong.
  * - **A pack modular set at a base scenario** is added to the base builder's own game: the base picks go through
@@ -22,12 +23,13 @@ import {
   autoIncludedSetsOf,
   difficultyEncounterSetIds,
   difficultyOf,
+  setAsideModularSetCountFor,
   type AnyCard,
   type CardId,
   type EncounterSet,
   type Scenario,
 } from "@mc/content";
-import type { GameSetupConfig } from "@mc/engine";
+import { createRng, shuffle, type GameSetupConfig } from "@mc/engine";
 import {
   encounterCardsOf,
   modularSetContents,
@@ -89,6 +91,9 @@ export const CUSTOM_SCENARIO_FIELDS: ReadonlySet<string> = new Set([
   "modularSetCount",
   "modularSetCountRange",
   "setAsideCardIds",
+  // Modular sets set aside at setup for the scenario's own cards to call on (The Rose's mini-boss set): the picks are
+  // `PlayableScenarioOptions.setAsideModularSetIds`, or seeded random modular choices when the seat gives none.
+  "setAsideModularSetCount",
 ]);
 
 /** The base pool with custom cards added; a custom card that reuses a base id is an error, never an override. */
@@ -290,6 +295,40 @@ export function customScenarioProblems(scenario: Scenario, custom: CustomContent
   return problems;
 }
 
+/**
+ * The modular sets a pack scenario sets aside (`Scenario.setAsideModularSetCount`): the seat's picks when given, checked
+ * as modular picks (`customModularPickProblem`, as a shuffled-in pick is: never another scenario's own set, a Standard or
+ * Expert set, or a set with no cards) and kept apart from the shuffled-in ones; otherwise seeded random choices among
+ * the sets that pass the same check (a generic pack scenario has no restricted pool to draw from).
+ */
+function customSetAsideModularSetIds(
+  scenario: Scenario,
+  options: PlayableScenarioOptions,
+  modular: readonly string[],
+  sets: readonly EncounterSet[],
+  custom: CustomContent,
+): readonly string[] {
+  const count = setAsideModularSetCountFor(scenario, options.players.length);
+  if (count === 0) return [];
+  const picks = options.setAsideModularSetIds;
+  if (picks) {
+    if (picks.length !== count) throw new Error(`${scenario.name}: expected ${count} set-aside modular sets`);
+    if (new Set(picks).size !== picks.length) throw new Error(`${scenario.name}: a set-aside set is chosen twice`);
+    for (const id of picks) {
+      const problem = customModularPickProblem(scenario, id, custom);
+      if (problem) throw new Error(`${scenario.name}: ${id} cannot be set aside (${problem})`);
+      if (modular.includes(id)) throw new Error(`${scenario.name}: ${id} is both shuffled in and set aside`);
+    }
+    return picks;
+  }
+  const candidates = sets
+    .map((set) => set.id as string)
+    .filter((id) => !modular.includes(id) && customModularPickProblem(scenario, id, custom) === null);
+  if (candidates.length < count) throw new Error(`${scenario.name}: not enough modular sets to set ${count} aside`);
+  const [shuffled] = shuffle(candidates, createRng(options.seed + 1));
+  return shuffled.slice(0, count);
+}
+
 /** A custom scenario record by id, or undefined. */
 const customScenarioOf = (scenarioId: string, custom: CustomContent): Scenario | undefined =>
   custom.scenarios.find((scenario) => scenario.id === scenarioId);
@@ -300,7 +339,8 @@ const customScenarioOf = (scenarioId: string, custom: CustomContent): Scenario |
  */
 function customScenario(scenario: Scenario, options: PlayableScenarioOptions, custom: CustomContent): GameSetupConfig {
   const unsupported: string[] = [];
-  if (options.setAsideModularSetIds) unsupported.push("setAsideModularSetIds");
+  if (options.setAsideModularSetIds && setAsideModularSetCountFor(scenario, options.players.length) === 0)
+    unsupported.push("setAsideModularSetIds");
   if (options.extraModularSetIds?.length) unsupported.push("extraModularSetIds");
   if (options.setupOptions) unsupported.push("setupOptions");
   if (options.mainSchemeStageIds) unsupported.push("mainSchemeStageIds");
@@ -343,6 +383,7 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     const problem = customModularPickProblem(scenario, id, custom);
     if (problem) throw new Error(`${scenario.name}: ${problem}`);
   }
+  const setAsideModular = customSetAsideModularSetIds(scenario, options, modular, sets, custom);
   const ownAndModular = [...scenario.encounterSetIds, ...modular];
   // Standard II / III and Expert II stand in for a pack scenario's plain Standard or Expert set under the base game's
   // rule (The Hood insert p. 2, "Alternative Sets"; Q10 = A for Standard III), checked the same way (#786).
@@ -379,6 +420,17 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
       ...modularSetupCardIds(modular, pool),
     ],
     ...(setAside.length > 0 ? { setAside } : {}),
+    ...(setAsideModular.length > 0
+      ? {
+          // As the wave 9 builder sets them aside: whole sets, called in by the scenario's own text
+          // (`shuffleInSetAsideModularSet`, `encounterSetAside`); a setup-keyword card in one stays aside too.
+          setAsideModularSets: setAsideModular.map((encounterSetId) => ({
+            encounterSetId,
+            cardIds: encounterCardsOf([encounterSetId], pool),
+          })),
+          setAsideUntilCalled: { encounterSetIds: setAsideModular },
+        }
+      : {}),
     players: options.players.map((seat) => {
       if ("starterDeckId" in seat) return playableStarterDeckSetup(seat.starterDeckId);
       return {

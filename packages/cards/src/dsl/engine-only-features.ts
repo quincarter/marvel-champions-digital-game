@@ -17,9 +17,15 @@ import {
   forcedInterrupt,
   forcedResponse,
   heroInterrupt,
+  eitherCost,
+  exhaustCardsCost,
+  exhaustThis,
+  flipCardsCost,
   ignoreBoostAbilities,
+  takeDamageCost,
   minDamageTaken,
   on,
+  resource,
   resourcesGeneratedAsWild,
   setAsideDestination,
   tagged,
@@ -226,6 +232,24 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
     { label: ["attack"] },
     anAttackableEnemy("enemy"),
     attack(4, chosen("enemy"), { ignores: ["guard"] }),
+  ),
+  // "Resource: Exhaust Avengers' Cache → generate a [wild] resource for a 'Pool card." (`punisher-msp`): a resource
+  // usable only while paying for a card of one aspect (`generatesFor` with the query's `aspect`, read by `matchesQuery`).
+  // "As an additional cost to play this event, exhaust or destroy Arms (Intact)" (Rocket Punch, `sentinel-tw`): destroy
+  // flips the Component to its Destroyed side and deals 2 unpreventable damage (`AbilityCost.flipCards` beside
+  // `takeDamageCost(2, { unpreventable: true })`, `AbilityCost.damageSelfUnpreventable`).
+  "engine-only.flip-cards-cost": heroAction(
+    {
+      cost: eitherCost(exhaustCardsCost(query("upgrade", { name: "Arms (Intact)" })), [
+        flipCardsCost(query("upgrade", { name: "Arms (Intact)" })),
+        takeDamageCost(2, { unpreventable: true }),
+      ]),
+    },
+    draw(1),
+  ),
+  "engine-only.generates-for-aspect": resource(
+    { wild: 1 },
+    { cost: exhaustThis, generatesFor: query([], { aspect: "pool" }) },
   ),
 };
 

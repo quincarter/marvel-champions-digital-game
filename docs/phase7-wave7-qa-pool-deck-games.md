@@ -10,7 +10,7 @@
 | ------------------------- | -------------------- | ------------------------------ | -------------------- |
 | deadpool-pool-break-time  | 0W (231 m, 9 d)      | 0W                             | 0W                   |
 | deadpool-aggression       | **5W** (219 m, 16 d) | **1W**                         | 0W                   |
-| spider-man-pool           | 0W (182 m, 58 d)     | 0W                             | 0W                   |
+| spider-man-pool           | 0W (182 m, 58 d)     | **1W** (2026-11-20, see below) | 0W                   |
 | domino-pool               | 0W (146 m, 94 d)     | 0W (1 game never ends, see F1) | 0W                   |
 | adam-warlock-pool         | 0W (168 m, 72 d)     | 0W                             | 0W                   |
 | cable-leadership-live-d.  | 0W (159 m, 81 d)     | 0W                             | 0W                   |
@@ -24,6 +24,12 @@ Reason from the logs (10 seeds each): a game lasts about 4 rounds; the main sche
 MarvelCDB 01097) takes about 9 threat while the driver thwarts it about 1 time (Break Time deck 0.9, Aggression 1.8), 5.6 cards stay in hand unplayed, and Rhino takes
 8-10 damage of 14. The driver thwarts the main scheme only when the next villain phase could complete it, which with Deadpool's THW 2 is too late. The Dreadpool set
 adds side threat (4.8 vs 3.0 per game) but the Aggression deck loses the same way, so no rule looked wrong on Rhino.
+
+**Re-pin 2026-11-20 (#891):** `legalActions` now judges each branch of an either/or cost with that branch's own default
+picks among cards in play, so Inhibitor Collar's (40092) "exhaust a character you control" branch is offered when two
+characters are ready (before, only "take 3 damage" was). The Spider-Man 'Pool / Morlock Siege scan then found 1 win in
+96 (seed 3, hero-ready, explore 3, 7 rounds), which is that pairing's `PINS` entry now; its `LONG_PINS` game (seed 6,
+explore 0, 11 rounds) ends `loss:cardAbility`.
 
 ## 2. Pinned games (`PINS`, 21, hero-ready unless noted)
 

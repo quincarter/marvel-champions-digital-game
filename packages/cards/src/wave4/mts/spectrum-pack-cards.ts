@@ -159,7 +159,7 @@ export const SPECTRUM_PACK_CARDS = defineAbilities({
   ),
   "21020.avengers-tower-action": action(
     { cost: exhaustThis },
-    reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER }),
+    reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER }, { anyPlayer: true }),
   ),
 
   // Avengers Mansion (21021) — Core's own Avengers Mansion (01091), reprinted verbatim: Action: exhaust it → choose

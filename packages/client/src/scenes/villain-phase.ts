@@ -629,13 +629,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   /**
    * Whether autoplay of a replay must wait: the beats are still being shown, or the phase is shown and about to close
    * itself. A phase paused on a decision with every beat so far shown does not hold it: the replay's next command is the
-   * answer. Under reduced motion nothing closes on a timer, so a finished phase does not hold it either.
+   * answer. A replay closes a finished phase itself under reduced motion too (`#syncTiming`), so a finished phase holds
+   * it until it has closed: the replay never steps on under a phase still up (#892).
    */
   replayHolds(): boolean {
     if (this.#motion.leaving) return true;
     if (this.#review) return false;
     if (this.#revealed < totalBeatsOf(this.#walkthrough)) return true;
-    return this.#walkthrough.complete && !appSession().settings.reducedMotion;
+    return this.#walkthrough.complete;
   }
 
   /** A reopened, finished phase (the Board's drawer handle), as opposed to the live replay. */
@@ -1287,7 +1288,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      *  - "off" (default): nothing. The recap stays up until the player starts the player phase (#117).
      *  - "afterPause": the recap closes itself after `VILLAIN_RECAP_PAUSE_MS`.
      *  - "on": no recap; the last beat gets one beat interval to be read, then the screen closes.
-     * Reduced motion never auto-closes, whatever the setting.
+     * Reduced motion never auto-closes, whatever the setting, except in a replay (#892).
      *
      * With no reveal timer the phase appears at once up to each stop the player asked for, so a close timer
      * would give the player who asked for less motion the *least* time to read it. The only ways out are the ones
@@ -1300,7 +1301,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         : mode === "afterPause"
           ? VILLAIN_RECAP_PAUSE_MS
           : null;
-    if (!reducedMotion && delay !== null && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
+    // A replay closes under reduced motion too (#892): the viewer pressed Play, and a phase that stayed up would leave
+    // the replay stepping on under it, or ending with Start player phase still on screen.
+    const closes = !reducedMotion || activeReplay() !== null;
+    if (closes && delay !== null && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
       this.#closeTimer ??= this.time.delayedCall(delay, () => this.#close());
     } else {
       this.#closeTimer?.remove();
@@ -1432,8 +1436,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // A game that ended is shown out through the rail, not held open on a recap whose Start would start nothing.
     if (this.#latest?.game?.outcome) return false;
     if (!(this.#walkthrough.complete && reveal.caughtUp)) return false;
-    // "on" skips the recap, except under reduced motion where nothing may close on a timer.
-    return this.#autoAdvance() !== "on" || appSession().settings.reducedMotion;
+    // "on" skips the recap, except under reduced motion where nothing may close on a timer. A replay plays on by itself
+    // whatever the motion setting (#892): it never waits on Start player phase.
+    return this.#autoAdvance() !== "on" || (appSession().settings.reducedMotion && !activeReplay());
   }
 
   /** The recap's AUTO-ADVANCE toggle: OFF to "afterPause", anything else back to "off". Saved like any setting. */

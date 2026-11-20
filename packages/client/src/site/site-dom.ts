@@ -4,7 +4,9 @@
  * attribute), so the static HTML carries no copy of its own and a language switch redraws in place.
  */
 import {
+  downloadHref,
   downloadsOf,
+  IOS_SECTION_ID,
   primaryButtons,
   steamButtonFor,
   versionOf,
@@ -14,7 +16,13 @@ import {
 } from "./downloads.js";
 import { LANGUAGE_KEY, LANGUAGE_NAMES, PAGE_LANGUAGES, storageWrite, type PageLanguage } from "./page-language.js";
 import { fileKey, fill, type SharedKey } from "./site-text.js";
-import { LATEST_RELEASE_URL } from "./site-urls.js";
+import {
+  IOS_GUIDE_SCARLET_URLS,
+  IOS_GUIDE_URLS,
+  LATEST_RELEASE_URL,
+  SCARLET_URL,
+  SIDESTORE_DOCS_URL,
+} from "./site-urls.js";
 import steamLogo from "./steam-logo.svg";
 
 export type Translate = (key: string, params?: Readonly<Record<string, string | number>>) => string;
@@ -93,7 +101,9 @@ export function mountLanguageToggle(
   return (label) => container.setAttribute("aria-label", label);
 }
 
-const DEVICE_ORDER: readonly Download["device"][] = ["windows", "mac", "linux", "android"];
+const DEVICE_ORDER: readonly Download["device"][] = ["windows", "mac", "linux", "android", "ios"];
+
+const IOS_HREF = `#${IOS_SECTION_ID}`;
 
 function languageName(code: string | null): string | null {
   if (code === null) return null;
@@ -120,20 +130,61 @@ function formatDate(iso: string | undefined, language: PageLanguage): string {
 
 function fileLink(download: Download, t: Translate): HTMLAnchorElement {
   const name = languageName(download.language);
+  const ios = download.id === "ios-ipa";
   return element(
     "a",
-    { class: "file", href: download.url, rel: "noopener" },
+    ios ? { class: "file", href: downloadHref(download) } : { class: "file", href: download.url, rel: "noopener" },
     element("span", { class: "file-name" }, t(fileKey(download.id))),
     element(
       "span",
       { class: "file-meta" },
-      download.id.startsWith("steam-")
-        ? t("dl.steamNote" satisfies SharedKey)
-        : name
-          ? t("dl.cardLanguage" satisfies SharedKey, { language: name })
-          : download.fileName,
+      ios
+        ? t("ios.how" satisfies SharedKey)
+        : download.id.startsWith("steam-")
+          ? t("dl.steamNote" satisfies SharedKey)
+          : name
+            ? t("dl.cardLanguage" satisfies SharedKey, { language: name })
+            : download.fileName,
     ),
   );
+}
+
+/**
+ * How to sideload the iOS app, with its download beside the steps: SideStore's way, the one most players want, Scarlet
+ * for players with no computer (with its catch), and a link to the full guide with AltStore, Sideloadly and Scarlet's
+ * steps (docs/project/ios-install.md). Open on an iPhone or iPad, a
+ * closed section anywhere else.
+ */
+function iosSection(ipa: Download, open: boolean, language: PageLanguage, t: Translate): HTMLDetailsElement {
+  const steps = element("ol", { class: "dl-ios-steps" });
+  for (const key of ["ios.step1", "ios.step2", "ios.step3", "ios.step4", "ios.step5"] as const) {
+    steps.append(element("li", { html: t(key satisfies SharedKey, { sidestore: SIDESTORE_DOCS_URL }) }));
+  }
+  const section = element(
+    "details",
+    { class: "dl-ios", id: IOS_SECTION_ID },
+    element("summary", {}, t("ios.title" satisfies SharedKey)),
+    element("p", {}, t("ios.intro" satisfies SharedKey)),
+    element(
+      "div",
+      { class: "dl-main" },
+      element(
+        "a",
+        { class: "btn primary", href: ipa.url, rel: "noopener" },
+        element("span", {}, t("ios.download" satisfies SharedKey)),
+        element("small", {}, ipa.fileName),
+      ),
+      element("a", { class: "btn ghost", href: IOS_GUIDE_URLS[language], rel: "noopener" }, t("ios.guide"), " ↗"),
+    ),
+    steps,
+    element("p", { html: t("ios.limits" satisfies SharedKey) }),
+    element("p", { html: t("ios.update" satisfies SharedKey) }),
+    element("p", {
+      html: t("ios.noComputer" satisfies SharedKey, { scarlet: SCARLET_URL, guide: IOS_GUIDE_SCARLET_URLS[language] }),
+    }),
+  );
+  section.open = open;
+  return section;
 }
 
 /** Draws the download panel into `container` (`.dl` markup the pages style). */
@@ -165,7 +216,10 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
       ...buttons.map(({ download, labelKey }, i) =>
         element(
           "a",
-          { class: i === 0 ? "btn primary" : "btn", href: download.url, rel: "noopener" },
+          // The iOS app's button leads to its install steps, where the download is (`iosSection`).
+          download.id === "ios-ipa"
+            ? { class: "btn primary", href: downloadHref(download) }
+            : { class: i === 0 ? "btn primary" : "btn", href: download.url, rel: "noopener" },
           element("span", {}, t("dl.forDevice", { device: t(labelKey) })),
           element("small", {}, t(fileKey(download.id))),
         ),
@@ -239,5 +293,25 @@ export function renderDownloads(container: HTMLElement, state: DownloadPanelStat
   );
   // A redraw (a language switch, GitHub answering) keeps the list open if the visitor opened it.
   if (!primary || container.querySelector<HTMLDetailsElement>("details.dl-more")?.open) more.open = true;
-  container.replaceChildren(main, ...notes, ...steamHelp, more);
+  const ipa = downloads.find((download) => download.id === "ios-ipa");
+  const ios = ipa
+    ? [
+        iosSection(
+          ipa,
+          device === "ios" || container.querySelector<HTMLDetailsElement>(`#${IOS_SECTION_ID}`)?.open === true,
+          language,
+          t,
+        ),
+      ]
+    : [];
+  // On an iPhone or iPad the install steps come before the other devices; anywhere else, after them.
+  if (device === "ios") container.replaceChildren(main, ...notes, ...ios, more);
+  else container.replaceChildren(main, ...notes, ...steamHelp, more, ...ios);
+  // A link to the install steps opens them before the page scrolls there.
+  for (const link of container.querySelectorAll<HTMLAnchorElement>(`a[href="${IOS_HREF}"]`)) {
+    link.addEventListener("click", () => {
+      const section = container.querySelector<HTMLDetailsElement>(`#${IOS_SECTION_ID}`);
+      if (section) section.open = true;
+    });
+  }
 }

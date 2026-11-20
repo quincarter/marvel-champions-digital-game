@@ -1382,6 +1382,13 @@ export interface GameState {
    */
   readonly revealedThisRound?: readonly RevealRecord[];
   /**
+   * Cards played this round keyed `<game area id>:<card type>`, the area the player was in when they played it, `""`
+   * while the players shared one (The Once and Future Kang, docs/phase7-wave2.md §3.1): "the first ally played each
+   * round" in a split area still counts a play made before the split. Absent until a card is played; reset when the
+   * round ends.
+   */
+  readonly playedInAreaThisRound?: Readonly<Record<string, number>>;
+  /**
    * The cards each player has played **this turn**, in order: "7 damage instead if you have played a [Thwart] event this
    * turn" (Decisive Blow, `gam`), "5 threat instead if you have played an [Attack] event this turn" (Forward Momentum).
    * Written when a play commits (so a card counts from the moment it is played), emptied when a turn begins and ends, as

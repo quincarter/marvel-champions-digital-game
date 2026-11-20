@@ -2812,7 +2812,13 @@ export const costIf = (
  * "take damage equal to its printed cost" (Wolverine's Claws 35002) is `takeDamageCost(printedCostOf(chosen("event")))`
  * beside `chooseCardCost("event", …)` (docs/phase7-wave6.md §3.42).
  */
-export const takeDamageCost = (n: number | ValueSpec): AbilityCost => ({ damageSelf: n });
+export const takeDamageCost = (
+  n: number | ValueSpec,
+  opts: { readonly unpreventable?: boolean } = {},
+): AbilityCost => ({
+  damageSelf: n,
+  ...(opts.unpreventable ? { damageSelfUnpreventable: true as const } : {}),
+});
 /**
  * "Take any amount of damage up to your remaining hit points →" (Maximum Effort 44004, "Yoo-Hoo!" 44006;
  * docs/phase7-wave7.md §3.79): the payer picks the amount, from `min` (default 0: §4.1 Q46 = B, 0 damage may be
@@ -3034,6 +3040,16 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
  */
 export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   exhaustCards: inPlayPick(q, opts, "exhausted"),
+});
+/**
+ * "Flip [a card you control] →": the picked double-sided cards in play turn to their other face as the cost
+ * (`AbilityCost.flipCards`; #890 item 11). Sentinel's "destroy Arms (Intact)" is a flip plus 2 unpreventable damage,
+ * so with `takeDamageCost(2, { unpreventable: true })` beside it, and "exhaust or destroy it" is
+ * `eitherCost(exhaustCardsCost(arms), [flipCardsCost(arms), takeDamageCost(2, { unpreventable: true })])`. The picks
+ * are bound to `slot` (default "flipped").
+ */
+export const flipCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
+  flipCards: inPlayPick(q, opts, "flipped"),
 });
 /**
  * "Exhaust an [Avenger] character and a [Guardian] character →" (As One!, Stand Together, Problem Solvers; Combine

@@ -61,6 +61,7 @@ const BOOLEAN_FIELDS = [
   "deckCopyLimits",
   "showPreconDecks",
   "allowExtraModularSets",
+  "allowManualAdjust",
   "notOfferedNotices",
   "deckCountsHero",
   "deckCountsEncounter",

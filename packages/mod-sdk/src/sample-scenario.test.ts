@@ -421,6 +421,53 @@ describe("scenarioWithPacks: refusals and options", () => {
     const created = createGame(config, gameDepsWithPacks(PLAYABLE_DEPS, [changed]));
     expect(created.ok).toBe(true);
   });
+  it("sets aside modular sets for a pack scenario with setAsideModularSetCount: the seat's picks or seeded ones", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const withCount = { ...record, setAsideModularSetCount: 1 };
+    expect(customScenarioProblems(withCount as never, content)).toEqual([]);
+    const changed = { ...pack, scenarios: [withCount] } as unknown as PackInput;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    const picked = scenarioWithPacks(SCENARIO, { ...seat, setAsideModularSetIds: ["masters_of_evil"] }, [changed]);
+    expect(picked.setAsideModularSets?.map((set) => set.encounterSetId)).toEqual(["masters_of_evil"]);
+    expect(picked.setAsideModularSets?.[0]?.cardIds.length).toBeGreaterThan(0);
+    const asideIds = new Set((picked.setAsideModularSets?.[0]?.cardIds ?? []).map(String));
+    expect((picked.encounterDeck ?? []).map(String).some((id) => asideIds.has(id))).toBe(false);
+    expect(createGame(picked, gameDepsWithPacks(PLAYABLE_DEPS, [changed])).ok).toBe(true);
+    const seeded = scenarioWithPacks(SCENARIO, seat, [changed]);
+    expect(seeded.setAsideModularSets).toHaveLength(1);
+    expect(scenarioWithPacks(SCENARIO, seat, [changed]).setAsideModularSets).toEqual(seeded.setAsideModularSets);
+    expect(() =>
+      scenarioWithPacks(SCENARIO, { ...seat, setAsideModularSetIds: ["masters_of_evil", "bomb_scare"] }, [changed]),
+    ).toThrow(/expected 1 set-aside modular sets/);
+    expect(() =>
+      scenarioWithPacks(SCENARIO, { ...seat, modularSetIds: [GEARS], setAsideModularSetIds: [GEARS] }, [changed]),
+    ).toThrow(/both shuffled in and set aside/);
+    expect(() => scenarioWithPacks(SCENARIO, { ...seat, setAsideModularSetIds: ["masters_of_evil"] }, [pack])).toThrow(
+      /not offered at a pack scenario/,
+    );
+  });
+  it("sets aside only what a modular pick could be: never the scenario's own, Standard or an empty set", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const EMPTY = "sample-scenario-empty";
+    const changed = {
+      ...pack,
+      encounterSets: [...pack.encounterSets!, { id: EMPTY, name: "Empty", packCodes: ["sample-scenario"] }],
+      scenarios: [{ ...record, setAsideModularSetCount: 1 }],
+    } as unknown as PackInput;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    const aside = (id: string) => () =>
+      scenarioWithPacks(SCENARIO, { ...seat, setAsideModularSetIds: [id] }, [changed]);
+    expect(aside(EMPTY)).toThrow(/cannot be set aside \(.*has no cards\)/);
+    expect(aside(SCENARIO)).toThrow(/cannot be set aside/);
+    expect(aside("standard")).toThrow(/cannot be set aside/);
+    // Seeded picks draw from the same sets: across many seeds, never one of those.
+    const forbidden = new Set([EMPTY, SCENARIO, "standard", "expert"]);
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const config = scenarioWithPacks(SCENARIO, { ...seat, seed }, [changed]);
+      for (const set of config.setAsideModularSets ?? []) expect(forbidden.has(String(set.encounterSetId))).toBe(false);
+    }
+  });
   it("sets aside a Standard set card only while the Standard set is in the game (#786)", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;
     const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };

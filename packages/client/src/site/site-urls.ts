@@ -38,3 +38,21 @@ export const HOMEBREW_DISCORD_ES_URL = "https://discord.com/invite/FcX5NkhAVW";
 export const PROXY_NEXUS_URL = "https://proxynexus.net";
 export const MARVELCDB_URL = "https://marvelcdb.com";
 export const HALL_OF_HEROES_URL = "https://hallofheroeslcg.com";
+
+/** The step-by-step iPhone and iPad install guide (issue #874), in each page language. */
+export const IOS_GUIDE_URLS = {
+  en: `${REPO_URL}/blob/main/docs/project/ios-install.md`,
+  es: `${REPO_URL}/blob/main/docs/project/ios-install.es.md`,
+} as const;
+/** SideStore's own install guide, which its one-time setup follows. */
+export const SIDESTORE_DOCS_URL = "https://docs.sidestore.io";
+/**
+ * Scarlet's own site, the no-computer way to sideload (a shared enterprise certificate Apple revokes now and then).
+ * Not scarletios.com, a third-party site that gates its install behind a share and a "verify you're human" task.
+ */
+export const SCARLET_URL = "https://usescarlet.com";
+/** The install guide's Scarlet section, in each page language. */
+export const IOS_GUIDE_SCARLET_URLS = {
+  en: `${IOS_GUIDE_URLS.en}#scarlet-no-computer`,
+  es: `${IOS_GUIDE_URLS.es}#scarlet-sin-ordenador`,
+} as const;

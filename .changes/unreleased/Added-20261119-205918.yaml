@@ -1,0 +1,3 @@
+kind: Added
+body: Pull request previews also carry an iOS Simulator build, linked in the same comment, so the game can be checked on a Mac without an iPhone.
+time: 2026-11-19T20:59:18.7910096-05:00

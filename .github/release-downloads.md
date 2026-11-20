@@ -15,6 +15,7 @@ English and `-ES-` is Spanish.
 | Linux: Fedora, RHEL, openSUSE                 | `MarvelChampions-VERSION-EN-Linux-x64.rpm`                                                                            |
 | Linux: any other distro                       | `MarvelChampions-VERSION-EN-Linux-x64.AppImage`                                                                       |
 | Android phone or tablet                       | `MarvelChampions-VERSION-EN-Android.apk`                                                                              |
+| iPhone or iPad (sideload it: see below)       | `MarvelChampions-VERSION-EN-iOS-unsigned.ipa`                                                                         |
 
 ### Español (Spanish)
 
@@ -31,6 +32,11 @@ scan for any card that has no Spanish one yet. Installing one replaces the Engli
 | Linux: Fedora, RHEL, openSUSE                 | `MarvelChampions-VERSION-ES-Linux-x64.rpm`                |
 | Linux: any other distro                       | `MarvelChampions-VERSION-ES-Linux-x64.AppImage`           |
 | Android phone or tablet                       | `MarvelChampions-VERSION-ES-Android.apk`                  |
+| iPhone or iPad (sideload it: see below)       | `MarvelChampions-VERSION-ES-iOS-unsigned.ipa`             |
+
+**iPhone and iPad:** the game isn't on the App Store, so the `.ipa` is installed with a free tool and your own Apple ID
+(SideStore, AltStore or Sideloadly), no jailbreak. Step by step: [how to install it on an iPhone or iPad](https://github.com/quincarter/marvel-champions-digital-game/blob/main/docs/project/ios-install.md)
+([en español](https://github.com/quincarter/marvel-champions-digital-game/blob/main/docs/project/ios-install.es.md)). Saves carry over when you install a new version the same way.
 
 To play from Steam (library art, Big Picture, Steam Deck): run your system's `MarvelChampions-*-Install-for-Steam` script.
 It installs the latest version for you, and the game can then update itself through it (on Windows, double-click the

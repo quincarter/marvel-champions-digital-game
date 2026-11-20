@@ -22,6 +22,7 @@ import {
   browserDevice,
   downloadsOf,
   fetchLatestRelease,
+  downloadHref,
   primaryDownload,
   sameRelease,
   steamButtonFor,
@@ -174,7 +175,10 @@ function drawHeroDownload(): void {
     primary && known
       ? element(
           "a",
-          { class: "btn gold big dl-cta", href: primary.url, rel: "noopener" },
+          // The iOS app's leads to its install steps in the download section (`downloadHref`, issue #874).
+          primary.id === "ios-ipa"
+            ? { class: "btn gold big dl-cta", href: downloadHref(primary) }
+            : { class: "btn gold big dl-cta", href: primary.url, rel: "noopener" },
           element("span", {}, t("dl.forDevice", { device: t(`device.${device}`) })),
           element("small", {}, `${t(fileKey(primary.id))} · v${versionOf(known)}`),
         )

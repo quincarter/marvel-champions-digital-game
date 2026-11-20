@@ -276,7 +276,7 @@ export type GameEvent =
        * an effect names (Med Lab 38028, Avengers Compound 58034), each "as if it were in your hand", with
        * `countsAsFrom: "hand"` (`PlayOrigin`). A play from the hand logs neither.
        */
-      readonly from?: "deckTop" | "separateDeck" | "tucked" | "deck" | "setAside";
+      readonly from?: "deckTop" | "separateDeck" | "tucked" | "deck" | "setAside" | "discard";
       readonly countsAsFrom?: "hand";
       /**
        * Present only for a play under an "as if it were in your hand" permission printed on a card in the player's

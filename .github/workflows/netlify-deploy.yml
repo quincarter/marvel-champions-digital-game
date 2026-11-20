@@ -411,6 +411,19 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
           fi
 
+  # The iOS app as an unsigned .ipa for sideloading (#874), next to the Android and Linux previews: ios-build.yml builds
+  # it, puts it up as the pre-release `ios-preview-pr-<number>` and links it in a PR comment, which carries the install
+  # guide. Deleted when the pull request closes (android-preview-cleanup.yml). Not required: the gate ignores its result.
+  ios-preview:
+    name: iOS preview
+    needs: tests
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/ios-build.yml
+    secrets: inherit
+
   # The save-transfer Worker (packages/sync-worker, #276) on Cloudflare's free plan: production on a push to main,
   # the staging Worker (`--env staging`, what previews talk to) on a pull request. Its tests run in the tests stage.
   # Skips with a notice until the owner adds the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets
@@ -598,6 +611,7 @@ jobs:
         deploy,
         android-preview,
         linux-preview,
+        ios-preview,
         deploy-sync,
         deploy-landing,
         deploy-landing-main,
@@ -624,12 +638,13 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          # The two deploy jobs count only through their build steps; the Android and Linux previews, the sync
+          # The two deploy jobs count only through their build steps; the Android, Linux and iOS previews, the sync
           # Worker deploy, the landing page's deploy and the game's Cloudflare deploy don't count; a skipped job
           # passes.
           bad=$(echo "$NEEDS" | jq -r '
             to_entries[]
-            | select(.key != "android-preview" and .key != "linux-preview" and .key != "deploy-sync"
+            | select(.key != "android-preview" and .key != "linux-preview" and .key != "ios-preview"
+                     and .key != "deploy-sync"
                      and .key != "deploy-landing-main" and .key != "deploy-game")
             | select(if .key == "deploy" or .key == "deploy-landing" then .value.outputs.build != "success"
                      else .value.result == "failure" or .value.result == "cancelled" end)

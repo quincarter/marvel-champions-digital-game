@@ -566,6 +566,58 @@ figcaption {
   padding: 6px 10px;
   border-left: 3px solid var(--line);
 }
+/* The iPhone and iPad install steps (issue #874), with the .ipa's download beside them. */
+.dl-ios {
+  margin-top: 18px;
+  border-top: 2px solid var(--line);
+  padding-top: 14px;
+  scroll-margin-top: calc(var(--site-bar-h, 64px) + 16px);
+}
+.dl-ios summary {
+  font: 700 13px var(--b);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  min-height: 32px;
+}
+.dl-ios[open] summary {
+  font: 400 30px/1.1 var(--d);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--fg);
+}
+.dl-ios p,
+.dl-ios-steps {
+  color: var(--muted);
+  font-size: 15.5px;
+  line-height: 1.55;
+  margin: 12px 0 0;
+}
+.dl-ios .dl-main {
+  margin: 16px 0 6px;
+}
+.dl-ios-steps {
+  padding-left: 1.4em;
+}
+.dl-ios-steps li {
+  margin: 8px 0;
+  padding-left: 4px;
+}
+.dl-ios-steps li::marker {
+  color: var(--gold);
+  font-weight: 700;
+}
+.dl-ios b {
+  color: var(--fg);
+}
+.dl-ios a:not(.btn) {
+  color: var(--gold);
+}
+.dl-ios code {
+  font-size: 13.5px;
+  background: rgb(0 0 0 / 0.35);
+  padding: 1px 5px;
+}
 .dl .all {
   display: inline-block;
   margin-top: 14px;

@@ -1,0 +1,209 @@
+# The iOS app as an unsigned .ipa, one per card language (issue #874; scripts/build-ios.mjs).
+#
+# There is no Apple Developer account behind the game, so it can't go on the App Store or TestFlight. Players
+# sideload the unsigned .ipa with a free Apple ID through SideStore, AltStore or Sideloadly, which sign it on install
+# (docs/project/ios-install.md).
+#
+# release-on-merge.yml calls this as its `ios-build` job once it has tagged a release: the English .ipa goes up to the
+# release as soon as it is built, and the other languages' wait for finalize-release, as the other installers do. A
+# manual run from the Actions tab builds from the branch it runs on and keeps the .ipa as a workflow artifact only.
+# netlify-deploy.yml calls it as its `ios-preview` job on every pull request once the tests pass, beside the Android
+# preview: English only, put up as a preview pre-release (the `preview` job below).
+name: iOS build
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "The release tag to build from and attach the English .ipa to (none for a pull request's preview)"
+        required: false
+        default: ""
+        type: string
+  workflow_dispatch:
+
+# The build runs with a read-only token and keeps no git credentials: it runs the branch's own code (on a pull
+# request too), and only the upload job below, which runs nothing from the checkout, may write to the release.
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    name: iOS unsigned .ipa (${{ matrix.lang }})
+    runs-on: macos-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: ${{ github.event_name == 'pull_request' && fromJSON('["en"]') || fromJSON('["en", "es"]') }}
+    env:
+      MC_CARD_LANG: ${{ matrix.lang }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A release tag; on a pull request, the PR head itself (not GitHub's merge commit), so the preview is exactly the
+          # commit its name and comment give.
+          ref: ${{ inputs.tag || github.event.pull_request.head.sha || github.ref }}
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fetch media assets
+        uses: ./.github/actions/assets
+        with:
+          bundles: card-art music art${{ matrix.lang == 'es' && ' card-art-es' || '' }}
+
+      - name: Build the unsigned .ipa
+        env:
+          # The save-transfer Worker (save-data/transfer-config.ts): staging for a pull request's preview, as the Android
+          # preview uses, production for a release or manual run; empty until the variable is set.
+          VITE_SYNC_URL: >-
+            ${{ (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN) && format('https://{0}.{1}.workers.dev',
+            github.event_name == 'pull_request' && 'mc-sync-staging' || 'mc-sync',
+            (vars.CLOUDFLARE_WORKERS_SUBDOMAIN || secrets.CLOUDFLARE_WORKERS_SUBDOMAIN)) || '' }}
+        run: pnpm ios:build
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: marvel-champions-ios-${{ matrix.lang }}
+          if-no-files-found: error
+          path: release/*.ipa
+
+      # On a pull request, the same build for the iOS Simulator, so the game can be checked on a Mac with no iPhone.
+      - name: Build the Simulator app
+        if: github.event_name == 'pull_request'
+        run: node scripts/build-ios.mjs --simulator --skip-web
+
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request'
+        with:
+          name: marvel-champions-ios-simulator-${{ matrix.lang }}
+          if-no-files-found: error
+          path: release/*-iOS-Simulator.zip
+
+  # The English .ipa, attached to the release as soon as it is built. Other languages wait for finalize-release (see
+  # the desktop upload in release-on-merge.yml). Only for a release tag: never on a pull request or a manual run.
+  upload:
+    name: Attach the English .ipa to the release
+    needs: ipa
+    # The English .ipa goes up even if the Spanish build failed.
+    if: ${{ !cancelled() && inputs.tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: marvel-champions-ios-en
+          path: ipa
+
+      - name: Upload the .ipa to the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" ipa/*.ipa --clobber --repo "$GITHUB_REPOSITORY"
+
+  # On a pull request, the English .ipa also goes up as the pre-release `ios-preview-pr-<number>` and is linked in a
+  # PR comment, as the Android and Linux previews are. Replaced on every push (netlify-deploy.yml's concurrency cancels
+  # the older run) and deleted when the pull request closes (android-preview-cleanup.yml). Like `upload`, it runs nothing from the
+  # checkout. Fork PRs get a read-only token, so they keep the workflow artifact only.
+  preview:
+    name: iOS preview .ipa
+    needs: ipa
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      TAG: ios-preview-pr-${{ github.event.pull_request.number }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: marvel-champions-ios-en
+          path: ipa
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: marvel-champions-ios-simulator-en
+          path: simulator
+
+      - name: Publish the pre-release
+        id: publish
+        run: |
+          built=$(find ipa -name "*-iOS-unsigned.ipa" | head -n 1)
+          if [ ! -f "$built" ]; then
+            echo "::error::The .ipa was not found in the build artifact."
+            exit 1
+          fi
+          # A newer push may have landed while this built: leave the preview to that push's run.
+          current=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid) || current=""
+          if [ "$current" != "$HEAD_SHA" ]; then
+            echo "PR #${PR} has moved on from ${HEAD_SHA:0:7}; not publishing this build."
+            exit 0
+          fi
+          name="$(basename "$built" -iOS-unsigned.ipa)-PR${PR}-${HEAD_SHA:0:7}-iOS-unsigned.ipa"
+          mv "$built" "$name"
+          sim_built=$(find simulator -name "*-iOS-Simulator.zip" | head -n 1)
+          sim="$(basename "$sim_built" -iOS-Simulator.zip)-PR${PR}-${HEAD_SHA:0:7}-iOS-Simulator.zip"
+          mv "$sim_built" "$sim"
+          # Recreated on every push, so the tag sits on the commit the .ipa was built from. GitHub refuses the workflow
+          # token a tag on a commit that itself edits a workflow file (HTTP 403), so such a push tags the default
+          # branch instead; the file name, notes and comment still name the commit.
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
+          notes="A test build of #${PR} at ${HEAD_SHA:0:7}, not a release. Unsigned: sideload it with SideStore, AltStore or Sideloadly (docs/project/ios-install.md). Deleted when the pull request closes."
+          for target in "$HEAD_SHA" "$DEFAULT_BRANCH"; do
+            if gh release create "$TAG" "$name" "$sim" --repo "$GITHUB_REPOSITORY" --prerelease --target "$target" \
+              --title "iOS preview: PR #${PR}" --notes "$notes"; then
+              break
+            fi
+            if [ "$target" = "$DEFAULT_BRANCH" ]; then
+              exit 1
+            fi
+            echo "Couldn't tag ${HEAD_SHA:0:7}; tagging ${DEFAULT_BRANCH} instead."
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2> /dev/null || true
+          done
+          # A pull request that closed while this built already had its cleanup run (#472): take the preview down.
+          state=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || state=UNKNOWN
+          if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
+            echo "PR #${PR} closed while the preview built; deleting it."
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+            exit 0
+          fi
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${name}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "sim=https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${sim}" >> "$GITHUB_OUTPUT"
+          echo "iOS preview: $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment the .ipa link
+        if: steps.publish.outputs.url != ''
+        env:
+          URL: ${{ steps.publish.outputs.url }}
+          SIM: ${{ steps.publish.outputs.sim }}
+        run: |
+          marker="<!-- ios-preview -->"
+          # The guide at the built commit, so the link works before the guide reaches the default branch.
+          guide="https://github.com/${GITHUB_REPOSITORY}/blob/${HEAD_SHA}/docs/project/ios-install.md"
+          body="$marker
+          **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7})
+
+          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID, or Scarlet with no computer.
+
+          **No iPhone? iOS Simulator build:** $SIM. On a Mac with Xcode, unzip it, open the Simulator (\`open -a Simulator\`), then run \`xcrun simctl install booted App.app\` (or drag \`App.app\` onto the Simulator window)."
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi

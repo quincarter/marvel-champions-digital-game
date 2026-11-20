@@ -1,6 +1,6 @@
-# Deletes a pull request's Android and Linux preview pre-releases and their tags (netlify-deploy.yml's android-preview
-# and linux-preview jobs) once the pull request closes, merged or not, so the Releases page only lists real releases
-# and the previews still open.
+# Deletes a pull request's Android, Linux and iOS preview pre-releases and their tags (netlify-deploy.yml's
+# android-preview and linux-preview jobs, ios-build.yml's preview job) once the pull request closes, merged or not, so
+# the Releases page only lists real releases and the previews still open.
 #
 # The close can land while a preview is still building; the preview jobs delete their own release when they find the
 # pull request closed after publishing (#472). The daily sweep is the backstop: it deletes every preview release and
@@ -33,6 +33,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: linux-preview-pr-${{ github.event.pull_request.number }}
         run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || echo "No preview for $TAG."
+      # The iOS .ipa preview (ios-build.yml's preview job).
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ios-preview-pr-${{ github.event.pull_request.number }}
+        run: gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || echo "No preview for $TAG."
 
   sweep:
     name: Sweep previews of closed pull requests
@@ -44,7 +49,7 @@ jobs:
       - run: |
           # Releases first (deleting one takes its tag), then any preview tag left without a release.
           gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[].tag_name' \
-            | grep -E '^(android|linux)-preview-pr-[0-9]+$' | sort -u > releases.txt || true
+            | grep -E '^(android|linux|ios)-preview-pr-[0-9]+$' | sort -u > releases.txt || true
           while read -r tag; do
             state=$(gh pr view "${tag##*-pr-}" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || continue
             if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
@@ -53,7 +58,7 @@ jobs:
             fi
           done < releases.txt
           gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --paginate --jq '.[].ref' \
-            | sed 's#^refs/tags/##' | grep -E '^(android|linux)-preview-pr-[0-9]+$' | sort -u > tags.txt || true
+            | sed 's#^refs/tags/##' | grep -E '^(android|linux|ios)-preview-pr-[0-9]+$' | sort -u > tags.txt || true
           while read -r tag; do
             state=$(gh pr view "${tag##*-pr-}" --repo "$GITHUB_REPOSITORY" --json state --jq .state) || continue
             if [ "$state" = "CLOSED" ] || [ "$state" = "MERGED" ]; then
