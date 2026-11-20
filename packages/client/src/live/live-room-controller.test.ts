@@ -345,6 +345,31 @@ describe("live room controller", () => {
       expect((await store.load("g1"))?.roomId).not.toBe("oldroom00001");
     });
 
+    it("reuses a room created over 12 hours ago while the host kept publishing into it", async () => {
+      const hour = 60 * 60 * 1000;
+      const store = new MemoryRoomStore();
+      let clock = 1_000;
+      const first = setup([], store, () => clock);
+      first.controller.onGameMessage(gameMessage("g1"));
+      first.controller.onGameMessage(command("g1", 1));
+      await settle();
+      const room = await store.load("g1");
+      for (let h = 1; h <= 13; h++) {
+        clock = 1_000 + h * hour;
+        first.controller.onGameMessage(command("g1", 1 + h));
+      }
+      await settle();
+      expect((await store.load("g1"))?.lastActiveAt).toBe(1_000 + 13 * hour);
+
+      FakeSocket.all.length = 0;
+      const second = setup([], store, () => clock + 60_000);
+      second.controller.onGameMessage(gameMessage("g1"));
+      second.controller.onGameMessage(command("g1", 20));
+      await settle();
+      expect(second.createRoom).not.toHaveBeenCalled();
+      expect(FakeSocket.all[0]!.url).toContain(`/room/${room!.roomId}/ws`);
+    });
+
     it("saves a new room's record, and clears it when the game is left or the room closes", async () => {
       const store = new MemoryRoomStore();
       const { controller } = setup([], store);
