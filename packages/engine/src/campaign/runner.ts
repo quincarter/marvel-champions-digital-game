@@ -28,6 +28,7 @@ import type {
   CampaignGameInput,
   CampaignGameResult,
   CampaignGrant,
+  CampaignGrantFace,
   CampaignHistoryEntry,
   CampaignInstruction,
   CampaignLog,
@@ -58,6 +59,7 @@ import {
   campaignChoiceKey,
   evaluateCampaignPredicate,
   mixWithAttempt,
+  runCampaignInstruction,
   runCampaignInstructions,
   type CampaignChoiceAnswer,
   type CampaignDeps,
@@ -451,9 +453,62 @@ const seatInputOf = (seat: CampaignSeat): CampaignSeatInput => ({
   // An optional grant the player left out is not in `deck`, so it is not named as a granted copy either.
   grantedCardIds: includedGrantsOf(seat.grants).map((grant) => grant.cardId),
   ...(grantDeckSizesOf(seat.grants).length > 0 ? { grantDeckSizes: grantDeckSizesOf(seat.grants) } : {}),
+  ...(grantFacesOf(seat.grants).length > 0 ? { grantFaces: grantFacesOf(seat.grants) } : {}),
 });
 
+/**
+ * The included grants on another face (MC10 p. 12's "Improved" side), one entry per copy. Without this the log knew
+ * the face and the game never did: the upgrade entered the next scenario on its "Basic" side (issue #873). A grant
+ * whose face is reached by a Setup flip each game (`faceAtSetup`; MC27 p. 22, RRG v1.8 p. 51 step 13) is left out:
+ * the copy enters play on its front, or the Setup flip would turn it back.
+ */
+const grantFacesOf = (grants: readonly CampaignGrant[]): readonly CampaignGrantFace[] =>
+  includedGrantsOf(grants).flatMap((grant) =>
+    grant.face === undefined || grant.faceAtSetup === true ? [] : [{ cardId: grant.cardId, face: grant.face }],
+  );
+
 const windowIndex = (instruction: ResolvedInstruction): number => CAMPAIGN_WINDOW_ORDER.indexOf(instruction.window);
+
+/**
+ * `CampaignDefinition.logUpgrades`, run on the working log in place. A throwaway run of its own, so nothing it does
+ * is traced into the attempt's steps: an upgrade is the engine reading an older save, not a printed instruction.
+ *
+ * It may only rewrite log data (fields, grants, decks, removals). Whatever else an op can do would be lost with the
+ * throwaway run (cards set aside, a composed villain or encounter sets) or would move the campaign itself (the next
+ * node, a node's mark or progress, the campaign's status), so each is refused rather than dropped or applied quietly.
+ */
+function applyLogUpgrades(
+  definition: CampaignDefinition,
+  deps: CampaignDeps,
+  modes: PlayModes,
+  working: CampaignWorkingLog,
+): void {
+  const upgrades = definition.logUpgrades ?? [];
+  if (upgrades.length === 0) return;
+  const refuse = (what: string): never => {
+    throw new EngineInvariantError(`campaign ${definition.campaignId} log upgrades ${what}`);
+  };
+  const rngBefore = working.rng;
+  const positionOf = (): string =>
+    JSON.stringify([working.nextNodeId, working.resolved, working.progress, working.status]);
+  const positionBefore = positionOf();
+  const run = newRun(definition, deps, modes, [], "beforeGame", working, "", []);
+  for (const upgrade of upgrades) {
+    if (upgrade.step.kind !== "betweenGames") {
+      refuse(`must be betweenGames steps (${upgrade.id} is ${upgrade.step.kind})`);
+    }
+    runCampaignInstruction(run, upgrade);
+    if (run.pending) refuse(`must not ask for a choice (${upgrade.id} does)`);
+  }
+  if (run.setAsideCards.length > 0) refuse("must not set cards aside");
+  if (run.composedVillain !== null) refuse("must not compose a villain");
+  if (run.composedEncounterSets.deck.length > 0 || run.composedEncounterSets.setAside.length > 0)
+    refuse("must not compose encounter sets");
+  if (positionOf() !== positionBefore) refuse("must not move the campaign's position or status");
+  if (working.rng.value !== rngBefore.value || working.rng.draws !== rngBefore.draws) {
+    refuse("must not draw from the campaign RNG");
+  }
+}
 
 /**
  * Composes the next game.
@@ -482,6 +537,7 @@ export function resolveBetweenGames(
   const working = workingOf(log);
   // A log saved before removals left decks on their own still holds them; the game must never deal one.
   working.seats = withoutRemovedCards(working.seats, working.removedFromCampaign);
+  applyLogUpgrades(definition, deps, modes, working);
   // The deck lists a client edited between games must agree with the grants it marked (`CampaignGrant.leftOut`).
   assertGrantInclusion(log.id, working.seats);
   const logBefore = snapshotOf(working, log.definitionVersion);

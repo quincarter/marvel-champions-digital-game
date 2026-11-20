@@ -401,6 +401,7 @@ export type {
   CampaignGameQuery,
   CampaignGameResult,
   CampaignGrant,
+  CampaignGrantFace,
   CampaignGraph,
   CampaignHistoryEntry,
   CampaignInGameWrites,
