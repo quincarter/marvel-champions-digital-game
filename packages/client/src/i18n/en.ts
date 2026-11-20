@@ -102,6 +102,8 @@ export const en = {
   "pastGames.exportTrackerOne": "Exported 1 game for MC Tracker.",
   "pastGames.exportTrackerNone": "No won or lost games to export here.",
   "pastGames.emptyFilter": "No games here yet.",
+  "pastGames.search": "Search heroes, villains, decks",
+  "pastGames.emptySearch": "No games match that search.",
   "gameOver.watchReplay": "Watch replay",
   "gamesList.watch": "Watch",
   "replay.title": "Replay",

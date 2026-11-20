@@ -105,6 +105,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pastGames.exportTrackerOne": "Se exportó 1 partida para MC Tracker.",
   "pastGames.exportTrackerNone": "No hay partidas ganadas o perdidas que exportar aquí.",
   "pastGames.emptyFilter": "Aún no hay partidas aquí.",
+  "pastGames.search": "Buscar héroes, villanos, mazos",
+  "pastGames.emptySearch": "Ninguna partida coincide con esa búsqueda.",
   "gameOver.watchReplay": "Ver repetición",
   "gamesList.watch": "Ver",
   "replay.title": "Repetición",
