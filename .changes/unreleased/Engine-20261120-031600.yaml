@@ -1,3 +1,0 @@
-kind: Engine
-body: An effect can play a card from its player's discard pile, paying its costs (playFromHand from "discard", DSL playFromDiscard), for pack cards such as the Punisher's Warzone; it is not counted as played from the hand (#890).
-time: 2026-11-20T03:16:00.4448296+01:00

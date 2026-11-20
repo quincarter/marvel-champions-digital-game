@@ -1,3 +1,0 @@
-kind: Changed
-body: 'Undo past your turn now defaults to Off, and turning it on warns that games where you use it stop counting; Manual adjust leaves Pause until Settings > More > Misc gameplay > Allow manual adjust is on (#893, #894). Suggested by @bluefireF5ran.'
-time: 2026-11-20T01:03:58.2652483-05:00

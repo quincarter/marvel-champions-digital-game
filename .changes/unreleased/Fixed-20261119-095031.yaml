@@ -1,3 +1,0 @@
-kind: Fixed
-body: The Saga shelf now stamps ADJUSTED beside COMPLETE and says when a finished campaign was won with an adjusted game (Manual adjust or an Undo past a reveal), which doesn't open the next volume, and the next volume says why it is still sealed (#869).
-time: 2026-11-19T09:50:31.8993635-05:00

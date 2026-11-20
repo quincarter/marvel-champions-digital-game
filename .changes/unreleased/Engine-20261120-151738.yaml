@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Mod SDK (PR #903 review): useActionAbility offers only printed Actions (an Action, Hero Action or Alter-Ego Action, each in its form), asks the branch and the in-play cost picks of the chosen Action, and prices its resources as an ability''s payment; a resource whose cost picks any number of cards always offers one option of every size, the largest included.'
-time: 2026-11-20T15:17:38.1235111+01:00
