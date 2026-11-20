@@ -38,6 +38,7 @@ import {
   ROOM_CHUNK_COMMANDS,
   ROOM_END_GRACE_MS,
   ROOM_IDLE_MS,
+  cleanDevice,
   parseClientMessage,
   type ChatLine,
   type ClientMessage,
@@ -699,6 +700,7 @@ export class GameRoomLogic {
       socket.close(1008, "name required");
       return;
     }
+    const device = cleanDevice(message.device);
     const seatHashes = lobbyRoom ? await Promise.all((message.seatTokens ?? []).map(sha256Hex)) : [];
     const table = this.tables.get(FIRST_TABLE)!;
     await this.ensureLoaded(table);
@@ -729,6 +731,7 @@ export class GameRoomLogic {
       role: isHost ? "host" : "watcher",
       ...(isHost ? { table: FIRST_TABLE } : {}),
       ...(lobbyRoom ? { name, ...(message.build ? { build: message.build } : {}) } : {}),
+      ...(device ? { device } : {}),
     };
     socket.setParticipant(you);
     this.sockets.set(you.id, socket);

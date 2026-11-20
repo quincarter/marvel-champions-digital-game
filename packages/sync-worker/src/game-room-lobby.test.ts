@@ -1040,3 +1040,60 @@ describe("the code directory and the room's alarm never race", () => {
     expect(await logic.exists()).toBe(false);
   });
 });
+
+describe("device in the roster", () => {
+  const hello = (r: GameRoomLogic, device: unknown, extra: object = {}) => {
+    const s = new FakeSocket();
+    return r.message(s, JSON.stringify({ v: 1, ch: "room", kind: "hello", caps: [], device, ...extra })).then(() => s);
+  };
+
+  it("keeps a valid device on the participant, in the roster and the welcome, in a lobby room", async () => {
+    const { room, host } = await setup();
+    const h = await host();
+    const a = await hello(room, { platform: "android", form: "phone" }, { name: "Ann", build: BUILD });
+    expect(a.last("welcome")!.you.device).toEqual({ platform: "android", form: "phone" });
+    expect(h.last("roster")!.participants.map((p) => p.device)).toEqual([
+      undefined,
+      { platform: "android", form: "phone" },
+    ]);
+    expect(a.attachment!.device).toEqual({ platform: "android", form: "phone" });
+  });
+
+  it("keeps it in a watch room too, where names stay ignored", async () => {
+    const { room } = await setup({ lobby: false });
+    const w = await hello(room, { platform: "web", form: "tablet" }, { name: "Ann" });
+    expect(w.last("welcome")!.you).toEqual({ id: w.id, role: "watcher", device: { platform: "web", form: "tablet" } });
+  });
+
+  it("ignores anything else without refusing the hello: unknown values, extra fields, wrong types", async () => {
+    const { room } = await setup({ lobby: false });
+    for (const device of [
+      { platform: "beos", form: "phone" },
+      { platform: "web", form: "watch" },
+      { platform: "web" },
+      "web",
+      7,
+      null,
+      [],
+    ]) {
+      const w = await hello(room, device);
+      expect(w.last("welcome")!.you.device, JSON.stringify(device)).toBeUndefined();
+    }
+    const extra = await hello(room, { platform: "ios", form: "phone", model: "iPhone 15", ua: "x" });
+    expect(extra.last("welcome")!.you.device).toEqual({ platform: "ios", form: "phone" });
+  });
+
+  it("survives hibernation in the socket attachment", async () => {
+    const { room, make, host } = await setup();
+    const h = await host();
+    const a = await hello(room, { platform: "linux", form: "desktop" }, { name: "Ann", build: BUILD });
+    const woken = make();
+    woken.restore(h);
+    woken.restore(a);
+    const late = await hello(woken, undefined, { name: "Late", build: BUILD });
+    expect(late.last("welcome")!.participants.find((p) => p.id === a.id)!.device).toEqual({
+      platform: "linux",
+      form: "desktop",
+    });
+  });
+});

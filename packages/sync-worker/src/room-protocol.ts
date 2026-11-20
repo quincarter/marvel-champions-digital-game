@@ -133,6 +133,24 @@ export type TableChecksums = Readonly<Record<string, string>>;
 export type ParticipantRole = "host" | "seat" | "watcher";
 
 /** The client build a participant runs. A seat requires it to equal the host's. */
+export const DEVICE_PLATFORMS = ["web", "windows", "macos", "linux", "android", "ios"] as const;
+export const DEVICE_FORMS = ["desktop", "tablet", "phone"] as const;
+
+/** What a participant plays on, as two coarse values (no model, OS version or screen size). Shown in the roster. */
+export interface RoomDevice {
+  readonly platform: (typeof DEVICE_PLATFORMS)[number];
+  readonly form: (typeof DEVICE_FORMS)[number];
+}
+
+/** A `device` from a `hello`, or undefined when it is missing or not exactly those two known values. */
+export function cleanDevice(value: unknown): RoomDevice | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const { platform, form } = value as Record<string, unknown>;
+  const p = DEVICE_PLATFORMS.find((x) => x === platform);
+  const f = DEVICE_FORMS.find((x) => x === form);
+  return p && f ? { platform: p, form: f } : undefined;
+}
+
 export interface RoomBuild {
   readonly appVersion: string;
   readonly contentVersion: string;
@@ -148,6 +166,8 @@ export interface Participant {
   readonly name?: string;
   /** What the participant's `hello` said it runs, so a lobby can show a mismatch. */
   readonly build?: RoomBuild;
+  /** From the participant's `hello`, in every room (watch rooms too); absent when it sent none or an unknown one. */
+  readonly device?: RoomDevice;
 }
 
 /** How the game is played: `strict` is the game as written, `host` lets the host allow Undo, Manual adjust and so on. */
@@ -239,6 +259,8 @@ export type ClientMessage =
       readonly token?: string;
       readonly name?: string;
       readonly build?: RoomBuild;
+      /** Optional and never refused: an unknown value is ignored. */
+      readonly device?: RoomDevice;
       readonly seatTokens?: readonly string[];
       readonly caps: readonly RoomCapability[];
     }
