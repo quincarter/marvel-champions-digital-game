@@ -173,8 +173,12 @@ jobs:
           URL: ${{ steps.publish.outputs.url }}
         run: |
           marker="<!-- ios-preview -->"
+          # The guide at the built commit, so the link works before the guide reaches the default branch.
+          guide="https://github.com/${GITHUB_REPOSITORY}/blob/${HEAD_SHA}/docs/project/ios-install.md"
           body="$marker
-          **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7}; sideload it with SideStore, AltStore or Sideloadly)"
+          **iOS preview .ipa (unsigned):** $URL (built from ${HEAD_SHA:0:7})
+
+          To install it, follow the [install guide]($guide) ([en español](${guide%.md}.es.md)): SideStore, AltStore or Sideloadly with a free Apple ID, no jailbreak."
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
             --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
           if [ -n "$id" ]; then
