@@ -38,25 +38,26 @@ export interface MinionStrip {
 const BADGE_SIZE = 18;
 
 /**
- * The stack of `count` minion pictures at the right end of `row`, at most `maxWidth` wide. The pictures fan from left to
- * right, each covered one showing `MINION_FAN_SHOW` of its width; with too many to fan in `maxWidth` the slivers narrow,
- * never below `MIN_SLIVER` (the strip then grows past `maxWidth` only by what that floor needs).
+ * The stack of `count` minion pictures at the right end of `row`, never wider than `maxWidth`. The pictures fan from
+ * left to right, each covered one showing `MINION_FAN_SHOW` of its width; with too many to fan in `maxWidth` the
+ * slivers narrow down to `MIN_SLIVER`, and past that only the first minions are drawn (`thumbs` is shorter than
+ * `count`) while the badge still says how many there are (code review, #911).
  */
 export function minionStripOf(row: Rect, count: number, maxWidth: number): MinionStrip {
   const none: MinionStrip = { thumbs: [], visible: [], count: 0, badge: null, width: 0 };
   if (count <= 0 || maxWidth <= 0) return none;
-  const side = Math.max(0, Math.min(MINION_THUMB_MAX, row.height - 12));
+  const side = Math.max(0, Math.min(MINION_THUMB_MAX, row.height - 12, maxWidth - 2 * MINION_STRIP_GAP));
   if (side <= 0) return none;
   const room = maxWidth - 2 * MINION_STRIP_GAP - side;
-  const step =
-    count > 1 ? Math.max(MIN_SLIVER, Math.min(Math.round(side * MINION_FAN_SHOW), Math.floor(room / (count - 1)))) : 0;
-  const stackWidth = side + step * (count - 1);
+  const shown = 1 + Math.min(count - 1, Math.floor(room / MIN_SLIVER));
+  const step = shown > 1 ? Math.min(Math.round(side * MINION_FAN_SHOW), Math.floor(room / (shown - 1))) : 0;
+  const stackWidth = side + step * (shown - 1);
   const width = stackWidth + 2 * MINION_STRIP_GAP;
   const left = row.x + row.width - MINION_STRIP_GAP - stackWidth;
   const y = row.y + (row.height - side) / 2;
-  const thumbs = Array.from({ length: count }, (_, i): Rect => ({ x: left + i * step, y, width: side, height: side }));
-  const visible = thumbs.map((thumb, i): Rect => (i < count - 1 ? { ...thumb, width: step } : thumb));
-  const top = thumbs[count - 1]!;
+  const thumbs = Array.from({ length: shown }, (_, i): Rect => ({ x: left + i * step, y, width: side, height: side }));
+  const visible = thumbs.map((thumb, i): Rect => (i < shown - 1 ? { ...thumb, width: step } : thumb));
+  const top = thumbs[shown - 1]!;
   const badge =
     count > 1 ? { x: top.x + top.width - BADGE_SIZE + 4, y: top.y - 4, width: BADGE_SIZE, height: BADGE_SIZE } : null;
   return { thumbs, visible, count, badge, width };
