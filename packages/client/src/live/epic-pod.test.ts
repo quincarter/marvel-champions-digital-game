@@ -453,7 +453,10 @@ describe("the pod channel", () => {
     const forwarded: number[] = [];
     const lazy = new PodLink({
       table: "t3",
-      send: (m) => (m.ch === "pod" ? (hub.coordinator.receive("t3", m.seq as number, m.event), true) : true),
+      send: (m) => {
+        if (m.ch === "pod" && m.kind === "event") hub.coordinator.receive("t3", m.seq, m.event);
+        return true;
+      },
       apply: (seq) => forwarded.push(seq),
     });
     lazy.game({ inboundSeq: 0, shared: SHARED });

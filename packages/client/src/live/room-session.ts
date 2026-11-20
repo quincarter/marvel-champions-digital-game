@@ -375,6 +375,12 @@ export class RoomSession {
     this.#say({ ch: "room", kind: "lobby-set", settings: { tableRules: withEpicStart(settings.tableRules, start) } });
   }
 
+  /** Table host: its wait for the pod coordinator has stuck (or cleared); the state carries it for the UI. */
+  setPodStuck(stuck: boolean): void {
+    this.#model.setPodStuck(stuck);
+    this.#publish();
+  }
+
   /** Chooses which tables' logs this device receives. A table it hosts or holds a seat at always comes. */
   followTables(tables: "all" | readonly string[]): void {
     this.#followChosen = tables;
