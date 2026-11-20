@@ -77,14 +77,18 @@ export const MODULAR_HELLS_KITCHEN: AbilityRegistry = defineAbilities({
   "56190.when-revealed": whenRevealed(
     ifThen(
       inCompetitiveMode(),
-      // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+      // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
+      // covers leader attacks only. So a plain minion's attack on your leader is dealt none (`getsBoostCard`), and one
+      // that is villainous gets one from the deck of the area it is in (N5), turned by that team's first player.
       [enemyAttacksEnemy(self, yourLeader, { boost: true })],
       enemyActivates(self, { against: you }),
     ),
   ),
   "56190.boost": boost(
-    // "after this activation", with no boost card (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
-    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader)),
+    // "The enemy leader attacks your leader after this activation" with no boost card dealt for it (MC56 pp. 16-17, 20
+    // (scenario rules override RRG per Golden Rule, RRG p. 4)): p. 16 steps 1-3 skipped; boost cards already facedown
+    // on the leader are still turned (owner question pending, built at A).
+    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader, { boost: "held" })),
   ),
 
   "56191.resistance-fighter-constant": cannotAttach(surge()),

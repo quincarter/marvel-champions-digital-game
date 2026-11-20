@@ -271,21 +271,28 @@ function spillUnheard(pattern: EventPattern, event: TriggerEvent): boolean {
   return !asksResult(pattern);
 }
 
-/** A pattern's own fields, without its `anyOf` alternatives. */
 /**
- * Competitive: phase begin/end events are scoped to the active team's area (MC56 p. 16 "their entire hero phase",
+ * Competitive: phase begin/end events, and the villain phase's own steps ("after resolving step 1 of the villain
+ * phase", "at the start of step three"), are scoped to the active team's area (MC56 p. 16 "their entire hero phase",
  * per-team first player token); round end is shared after phase 4 (plan §1.10 Q3). Owner decision pending, A
- * recommended. So a card on the inactive side hears neither the other team's phases beginning nor their ending, but
- * "when the round ends" (`"round"` among the phases a pattern hears) is heard on both sides at the round's one end.
- * Every card hears every phase in a game with no active team.
+ * recommended. So a card on the inactive side hears neither the other team's phases beginning or ending nor their
+ * villain steps (Vision 57040 flips its mass form once a round; Public Outrage 56122b resolves once, in its own
+ * villain phase), but "when the round ends" (`"round"` among the phases a pattern hears) is heard on both sides at the
+ * round's one end. A pattern that names no phase (any phase beginning or ending) is scoped to the active side like the
+ * rest: it hears the round's end only as the villain phase that ends it, on that side. Every card hears every phase
+ * in a game with no active team.
  */
 function hearsTeamPhase(
   state: GameState,
   pattern: EventPattern,
-  event: Extract<TriggerEvent, { kind: "phaseBeginning" | "phaseEnding" }>,
+  event: Extract<
+    TriggerEvent,
+    { kind: "phaseBeginning" | "phaseEnding" | "villainStepResolved" | "villainStepStarting" }
+  >,
   selfId: InstanceId,
 ): boolean {
   if (state.activeTeamId === undefined) return true;
+  if (event.kind !== "phaseBeginning" && event.kind !== "phaseEnding") return onActiveSide(state, selfId);
   const phases = pattern.eventIs?.phase;
   const roundEnd =
     event.kind === "phaseEnding" && event.phase !== "player" && !event.roundContinues && Array.isArray(phases);
@@ -293,6 +300,7 @@ function hearsTeamPhase(
   return onActiveSide(state, selfId);
 }
 
+/** A pattern's own fields, without its `anyOf` alternatives. */
 function matchesOwnFields(
   state: GameState,
   pattern: EventPattern,
@@ -305,7 +313,10 @@ function matchesOwnFields(
   // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`).
   if (!patternHearsKind(pattern, event.kind)) return false;
   if (
-    (event.kind === "phaseBeginning" || event.kind === "phaseEnding") &&
+    (event.kind === "phaseBeginning" ||
+      event.kind === "phaseEnding" ||
+      event.kind === "villainStepResolved" ||
+      event.kind === "villainStepStarting") &&
     !hearsTeamPhase(state, pattern, event, selfId)
   )
     return false;

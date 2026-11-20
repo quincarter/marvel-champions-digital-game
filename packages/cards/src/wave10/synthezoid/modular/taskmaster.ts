@@ -80,7 +80,9 @@ export const SYNTHEZOID_MODULAR_TASKMASTER: AbilityRegistry = defineAbilities({
       inCompetitiveMode(),
       ifThen(
         exists(query("minion", { name: TASKMASTER })),
-        // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+        // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
+        // covers leader attacks only. Taskmaster is villainous here (Mimicked Move), so he gets one from the deck of the
+        // area he is in (N5), turned by the first player of the defending leader's team (owner question pending).
         [enemyAttacksEnemy(each(query("minion", { name: TASKMASTER })), yourLeader, { boost: true })],
         TOUGH_AND_BOOST,
       ),

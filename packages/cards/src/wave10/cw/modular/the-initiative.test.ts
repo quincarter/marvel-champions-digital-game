@@ -460,7 +460,10 @@ describe("Drafted (56080)", () => {
     const definition = MODULAR_THE_INITIATIVE["56080.when-revealed"]!;
     expect(competitiveOnlyTexts(definition)).toEqual([]);
     expect(JSON.stringify(definition)).toContain('"anyGameArea":true');
-    expect(definition.effects[0]).toMatchObject({ kind: "if", condition: { kind: "gameMode", is: "competitive" } });
+    expect(definition.effects[0]).toMatchObject({
+      kind: "if",
+      condition: { kind: "and", of: [{ kind: "gameMode", is: "competitive" }, { kind: "exists" }] },
+    });
   });
 
   it("BOOST: 1 icon on the activating enemy's attack (Rhino ATK 2 + 1)", () => {

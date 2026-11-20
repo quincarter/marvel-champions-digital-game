@@ -2328,8 +2328,18 @@ export type EffectSpec =
        * Activation)" step 1, p. 8), turned faceup and resolved with the effect's controller as "you": FFG ruling
        * January 26, 2026 (4), "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16 (audit
        * finding 14). Its icons add to the ATK dealt. Absent (Moondragon, §4 Q12): no boost card.
+       *
+       * Only a villain or a villainous minion is dealt one (`getsBoostCard`; RRG v1.8 Attack (Enemy Activation) p. 8
+       * step 1): a plain minion attacking a leader (Venom 56087, Iron Fist 56190) gets none. Boost cards already
+       * facedown on the attacker (Taskmaster's Academy 57026, The People's Hero 56210) are turned with it and their
+       * icons added (competitive plan M3; owner question pending, built at A). With two teams the card comes from the
+       * deck of the area the attacker is in and is turned by the first player of the team there (MC56 p. 16; Q5, Q6,
+       * N5).
+       *
+       * `"held"`: "(do not give it a boost card)" (Excessive Force 56090, Iron Fist 56190's Boost): no card is dealt,
+       * and only the boost cards already facedown on the attacker are turned (the same owner question, A).
        */
-      readonly boost?: true;
+      readonly boost?: true | "held";
       readonly bind?: string;
     }
   /**
@@ -3033,7 +3043,9 @@ export type EffectSpec =
    * cannot play events until after that attack resolves."). `attack` says which attack:
    * - `"current"` (the default): the attack or activation already resolving (`currentActivationFrameId`), the same
    *   frame `modifyStatUntil`'s `"endOfAttack"` names. Not created outside one.
-   * - `"initiated"`: the attack the **next `enemyAttack` of this same effects frame** initiates. It is written
+   * - `"initiated"`: the attack the **next `enemyAttack` (or `enemyAttacksEnemy`: "it attacks your leader instead.
+   *   She cannot take more than 3 damage from this attack", Provoked Response 56133) of this same effects frame**
+   *   initiates. It is written
    *   *before* that `enemyAttack`, so the rule is already active when the attack begins, its interrupt windows
    *   included. The printed sentence comes after the attack, but it covers the attack's whole resolution. Until the
    *   attack is initiated the rule waits on the frame (`LastingDuration awaitingAttack`); `enemyAttack` then retimes
@@ -3884,6 +3896,13 @@ export type EffectSpec =
       readonly distinctTypes?: number;
       readonly required?: true;
       readonly x?: { readonly max: ValueSpec };
+      /**
+       * "Spend resources equal to that ally's cost" (Switching Sides 56158): `resources` is the price of one and is
+       * taken this many times, read as the effect resolves (`printedCost` of the card). A price of 0 or less asks
+       * nothing and binds `<bind>.made` 0, so a script offers a free card some other way. Not combined with `x` or
+       * `required`.
+       */
+      readonly times?: ValueSpec;
     }
   /**
    * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed

@@ -149,3 +149,12 @@ export function firstPlayerFacingDeck(state: GameState, deckId: EncounterDeckId)
 export function firstPlayerOfCard(state: GameState, id: InstanceId): PlayerId {
   return firstPlayerOfAreaHolding(state, id) ?? state.firstPlayerId;
 }
+
+/**
+ * "The first player" for a choice made on a player's side of the table: the holder of that player's team's token (MC56
+ * p. 16), and the table's first player in a game without stored teams.
+ */
+export function firstPlayerOfPlayersSide(state: GameState, playerId: PlayerId): PlayerId {
+  if (!state.teams) return state.firstPlayerId;
+  return teamFirstPlayerOf(state, teamOf(state, playerId));
+}

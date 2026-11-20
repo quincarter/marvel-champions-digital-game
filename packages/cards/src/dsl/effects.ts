@@ -731,11 +731,14 @@ export const enemyScheme = (
      * theirs alone. Works on a card that is not in play (a treachery's When Revealed).
      */
     readonly wouldPlaceThreat?: readonly EffectArg[];
+    /** "Do not give him a boost card for this activation." (The Futurist 56129): no boost card at all. */
+    readonly noBoost?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
+  ...(opts.noBoost ? { boost: false as const } : {}),
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
   ...bonusTiming(opts),
@@ -870,15 +873,20 @@ export const basicPowerBy = (
     ...(opts.terms ? { terms: opts.terms } : {}),
   };
 };
+/**
+ * An enemy attacks another enemy (engine `EffectSpec enemyAttacksEnemy`). `boost: true` deals the attacker its boost card
+ * (a villain or villainous minion only) and turns any already on it; `boost: "held"` deals none and turns only those
+ * already on it ("do not give it a boost card", Excessive Force 56090).
+ */
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly boost?: true } = {},
+  opts: { readonly bind?: string; readonly boost?: true | "held" } = {},
 ): EffectSpec => ({
   kind: "enemyAttacksEnemy",
   attacker,
   target,
-  ...(opts.boost ? { boost: true as const } : {}),
+  ...(opts.boost ? { boost: opts.boost } : {}),
   ...withBind(opts.bind),
 });
 /**
@@ -2864,7 +2872,7 @@ export const spendResources = (
   resources: ResourceRequirement,
   bind: string,
   player: PlayerRef = you,
-  opts: { readonly distinctTypes?: number; readonly required?: true } = {},
+  opts: { readonly distinctTypes?: number; readonly required?: true; readonly times?: Amount } = {},
 ): EffectSpec => ({
   kind: "spendResources",
   player,
@@ -2872,6 +2880,7 @@ export const spendResources = (
   bind,
   ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
   ...(opts.required ? { required: true as const } : {}),
+  ...(opts.times !== undefined ? { times: amount(opts.times) } : {}),
 });
 /**
  * "You may spend X [mental] resources to prevent X of that threat" (Battle of Wits, `aos` 50175; A.I.M. Interference

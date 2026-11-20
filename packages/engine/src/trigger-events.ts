@@ -653,6 +653,11 @@ export type TriggerEventBody =
        * controller; FFG ruling January 26, 2026 (4); owner decision 2026-10-16, audit finding 14). Absent: no boost.
        */
       readonly boostPlayerId?: PlayerId;
+      /**
+       * With `boostPlayerId`: no boost card is dealt for this attack, and only the cards already facedown on the
+       * attacker are turned (`EffectSpec enemyAttacksEnemy.boost` `"held"`).
+       */
+      readonly heldBoostOnly?: true;
     }
   /**
    * "After [character] is attacked", named after the attack's damage resolves so

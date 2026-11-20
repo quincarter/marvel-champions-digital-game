@@ -77,7 +77,8 @@ const RIGHTEOUS_CAUSE = whenRevealed(
  * happens (MC56 p. 6).
  */
 const WHATEVER_IT_TAKES_ALTER_EGO = whenRevealedAlterEgo(
-  // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q5, Q6 (settled 2026-11-20): the leader-versus-leader attack.
+  // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q5, Q6 (settled 2026-11-20): the
+  // leader-versus-leader attack.
   enemyAttacksEnemy(enemyLeader, yourLeader, { boost: true }),
 );
 

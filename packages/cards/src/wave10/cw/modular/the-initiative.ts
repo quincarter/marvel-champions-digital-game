@@ -35,6 +35,8 @@ import {
   enemyTeam,
   enemyTeamChooses,
   engage,
+  allOf,
+  exists,
 } from "../../../dsl/index.js";
 
 const AVENGER = trait("AVENGER");
@@ -72,6 +74,9 @@ const HOST_MINION = query("minion", { hostOfSelf: true });
  * - 56081 Mighty Avengers (treachery)
  * - 56082 The Fifty State Initiative (side_scheme)
  */
+/** "A minion engaged with them" (Drafted 56080): engaged with a player of the enemy team, on their side of the table. */
+const MINION_ENGAGED_WITH_THE_ENEMY_TEAM = query("minion", { engagedWithPlayer: enemyTeam, anyGameArea: true });
+
 export const MODULAR_THE_INITIATIVE: AbilityRegistry = defineAbilities({
   "56078.when-revealed": whenRevealed(
     ifThen(hasStatus(yourIdentity, "confused"), placeThreat(2, theMainScheme)),
@@ -88,13 +93,14 @@ export const MODULAR_THE_INITIATIVE: AbilityRegistry = defineAbilities({
   "56080.drafted-constant": constant(gets("hp", 2, HOST_MINION), gainsTrait(AVENGER, HOST_MINION)),
   "56080.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
+      // "In competitive mode, the enemy team attaches this card to a minion engaged with them … Otherwise, …": with no
+      // such minion the competitive sentence cannot resolve, so "Otherwise" does (RRG 1.8 "Otherwise", p. 31).
+      allOf(inCompetitiveMode(), exists(MINION_ENGAGED_WITH_THE_ENEMY_TEAM)),
       // The minion moves across the table and keeps its home deck: defeated, it and Drafted go to the discard pile of
-      // the deck it came from (MC56 FAQ p. 20; Q17 A, settled 2026-11-20). MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4).
+      // the deck it came from (MC56 FAQ p. 20; Q17 A, settled 2026-11-20). MC56 pp. 16-17, 20 (scenario rules
+      // override RRG per Golden Rule, RRG p. 4).
       [
-        chooseTarget("drafted", query("minion", { engagedWithPlayer: enemyTeam, anyGameArea: true }), {
-          chooser: enemyTeamChooses,
-        }),
+        chooseTarget("drafted", MINION_ENGAGED_WITH_THE_ENEMY_TEAM, { chooser: enemyTeamChooses }),
         attachCard(self, chosen("drafted")),
         engage(chosen("drafted"), you),
       ],

@@ -147,14 +147,8 @@ describe("registry", () => {
         .map(([ref, definition]) => [ref, competitiveOnlyTexts(definition)] as const)
         .filter(([, texts]) => texts.length > 0),
     );
-    // Scripted in M3 (the leader attacks, No, You Move!'s redirect, Double Agent's threat). Still waiting: a leader
-    // scheming across the table, and a redirect with a damage cap for that attack alone.
-    expect(listed).toEqual({
-      "56129.the-futurist-action": ["Your Iron Man leader schemes. Do not give him a boost card for this activation."],
-      "56133.provoked-response-forced-interrupt": [
-        "When the enemy leader would attack you, it attacks your Captain Marvel leader instead. She cannot take more than 3 damage from this attack.",
-      ],
-    });
+    // Every sentence is scripted (M3): the leader attacks, the redirects, a leader scheming, the 3-damage cap.
+    expect(listed).toEqual({});
   });
 
   it("the sentences that need no second team are real effects, not markers", () => {

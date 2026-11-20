@@ -64,14 +64,21 @@ const MINION = query("minion");
  * - 56091 Dangerous Recruits (side_scheme)
  */
 /** "An attachment from your leader": on the other side of the table, which the card names (MC56 p. 16). */
-const ATTACHMENT_ON_YOUR_LEADER = query("attachment", { host: yourLeader, anyGameArea: true });
+const ATTACHMENT_ON_YOUR_LEADER = query("attachment", {
+  host: yourLeader,
+  anyGameArea: true,
+  // A permanent card cannot leave play (RRG 1.8 "Permanent", p. 32), so it is no target for a discard.
+  withoutKeyword: "permanent",
+});
 
 export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
   "56087.venom-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "56087.when-revealed": whenRevealed(
     ifThen(
       inCompetitiveMode(),
-      // An attack a card makes gets a boost card (RRG 1.8 "Activation", p. 6), dealt as in MC56 p. 16 (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
+      // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
+      // covers leader attacks only. So a plain minion's attack on your leader is dealt none (`getsBoostCard`), and one
+      // that is villainous gets one from the deck of the area it is in (N5), turned by that team's first player.
       [enemyAttacksEnemy(self, yourLeader, { boost: true })],
       enemyActivates(self, { against: you }),
     ),
@@ -79,8 +86,9 @@ export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
 
   "56088.when-revealed": whenRevealed(
     ifThen(
-      // The attachment is on the other side of the table, which the card names (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)). Otherwise (none there, or
-      // a cooperative game with no "your leader") an upgrade you control.
+      // The attachment is on the other side of the table, which the card names (MC56 pp. 16-17, 20 (scenario rules
+      // override RRG per Golden Rule, RRG p. 4)). Otherwise (none there, or a cooperative game with no "your leader")
+      // an upgrade you control.
       exists(ATTACHMENT_ON_YOUR_LEADER),
       [
         chooseTarget("attachment", ATTACHMENT_ON_YOUR_LEADER, { chooser: enemyTeamChooses }),
@@ -99,8 +107,10 @@ export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
 
   "56090.when-revealed": whenRevealed(ifThen(exists(MINION), placeThreat(countOf(MINION), theMainScheme), surge())),
   "56090.boost": boost(
-    // "after this activation", with no boost card (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)).
-    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader)),
+    // "The enemy leader attacks your leader after this activation" with no boost card dealt for it (MC56 pp. 16-17, 20
+    // (scenario rules override RRG per Golden Rule, RRG p. 4)): p. 16 steps 1-3 skipped; boost cards already facedown
+    // on the leader are still turned (owner question pending, built at A).
+    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader, { boost: "held" })),
   ),
 
   "56091.dangerous-recruits-forced-interrupt": forcedInterrupt(

@@ -33,6 +33,8 @@ import {
   removeThreat,
   yourLeadersMainScheme,
   moveThreat,
+  allOf,
+  refMatches,
 } from "../../../dsl/index.js";
 
 const SPIDER_MAN_MINION = query("minion", { name: "Spider-Man" });
@@ -94,8 +96,14 @@ export const MODULAR_SPIDER_MAN: AbilityRegistry = defineAbilities({
 
   "56183.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
-      // Threat moves across the table (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)): removed there, placed here (RRG 1.8 "Move", p. 30).
+      // With no threat on your leader's main scheme nothing can move, so "Otherwise" resolves (RRG 1.8 "Otherwise",
+      // p. 31); with 1, that 1 moves (RRG 1.8 "Move", p. 30: as much as can be).
+      allOf(
+        inCompetitiveMode(),
+        refMatches(yourLeadersMainScheme, { hasThreat: true, anyGameArea: true }, { anywhere: true }),
+      ),
+      // Threat moves across the table (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)):
+      // removed there, placed here (RRG 1.8 "Move", p. 30).
       [moveThreat(yourLeadersMainScheme, self, { amount: 2 })],
       placeThreat(perHero(2), self),
     ),

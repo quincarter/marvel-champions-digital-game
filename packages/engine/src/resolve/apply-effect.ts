@@ -1,6 +1,7 @@
 /** Applying one non-interactive effect from an effects frame. */
 
 import { firstPlayerOfAreaHolding } from "../team-phases.js";
+import { teamOf } from "../team.js";
 import { imminentAttach, imminentAttachHeard, resolveImminentAttach } from "./imminent-attach.js";
 import { placeCountersOrAnnounce } from "./counters-being-placed.js";
 import { announceDeckTops } from "../deck-top.js";
@@ -72,7 +73,6 @@ import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
 import {
-  activeEncounterDeckId,
   cardBackOf,
   cardOf,
   currentName,
@@ -120,6 +120,7 @@ import {
   resolveRef,
   resolveValue,
   sourcePlayerOf,
+  effectEncounterDeckId,
 } from "../select.js";
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
@@ -1029,16 +1030,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const inPlay = cardsInPlay(ctx.state);
       const [attacker] = targets(effect.attacker).filter((id) => inPlay.includes(id));
       const [target] = targets(effect.target).filter((id) => id !== attacker && inPlay.includes(id));
-      if (!attacker || !target) return;
+      // A rule waiting on "this attack" (`applyRuleUntil` `attack: "initiated"`) ends with no attack made.
+      const noAttack = (): void => settleAwaitingAttackEffects(ctx, frame.frameId, null);
+      if (!attacker || !target) return noAttack();
       if (!categoriesOf(ctx.state, attacker).includes("enemy") || !categoriesOf(ctx.state, target).includes("enemy"))
-        return;
+        return noAttack();
       // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
       // This is an attack, so a stunned attacker spends its stun, even though it is not an activation.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
         announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
-        return;
+        return noAttack();
       }
-      pushEvents(
+      // With two teams the boost card is turned by the first player of the team whose area the attacker is in, the
+      // defending leader's team when a leader attacks a leader (MC56 p. 16 step 2; Q5, settled 2026-11-20). Whether a
+      // card is dealt at all is the attacker's (`getsBoostCard`): RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a
+      // villain or villainous minion gets a boost; MC56 p. 16 covers leader attacks only.
+      const boostPlayerId =
+        effect.boost && frame.controllerId
+          ? (firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId)
+          : null;
+      const [pushed] = pushEvents(
         ctx,
         [
           {
@@ -1046,15 +1057,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attackerInstanceId: attacker,
             targetInstanceId: target,
             sourceInstanceId: frame.selfInstanceId,
-            // With two teams the boost card is turned by the first player of the team whose area the attacker is in,
-            // the defending leader's team when a leader attacks a leader (MC56 p. 16 step 2; Q5, settled 2026-11-20).
-            ...(effect.boost && frame.controllerId
-              ? { boostPlayerId: firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId }
-              : {}),
+            ...(boostPlayerId ? { boostPlayerId } : {}),
+            ...(boostPlayerId && effect.boost === "held" ? { heldBoostOnly: true as const } : {}),
           },
         ],
         reportTo(effect.bind),
       );
+      // "She cannot take more than 3 damage from this attack" (Provoked Response 56133): a rule written before this
+      // effect with `attack: "initiated"` is now scoped to this attack.
+      settleAwaitingAttackEffects(ctx, frame.frameId, pushed ?? null);
       return;
     }
     case "thwart": {
@@ -1380,7 +1391,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // shuffled on its own with the game's seeded RNG, the encounter deck beneath left in its order.
       const [order, rng] = shuffle(ids, ctx.state.rng);
       ctx.state = { ...ctx.state, rng };
-      const deckId = activeEncounterDeckId(ctx.state);
+      const deckId = effectEncounterDeckId(ctx.state, context);
       for (const id of [...order].reverse()) {
         moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
@@ -4150,6 +4161,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const attacksAgainst = (player: { readonly identity: { readonly form: string } }): boolean =>
         effect.kind === "enemyActivation" ? player.identity.form === "hero" : effect.kind === "enemyAttack";
       const against = effect.against ? resolvePlayers(ctx.state, effect.against, context) : null;
+      // An unengaged enemy activated by a card with no "against you" (The Futurist 56129, "Your Iron Man leader
+      // schemes"): the ability's controller, unless the enemy is on the other side of the table, where the activation
+      // is against the first player of the team there, the player who turns its boost cards (MC56 p. 16, Q5; engine
+      // reading, authority step 5).
+      const activatesAgainstOnItsSide = (enemy: InstanceId): PlayerId | null => {
+        const controller = frame.controllerId;
+        const there = firstPlayerOfAreaHolding(ctx.state, enemy);
+        if (there === null || controller === null) return controller ?? there;
+        return teamOf(ctx.state, controller).playerIds.includes(there) ? controller : there;
+      };
       const inPlayNow = cardsInPlay(ctx.state);
       const [character] =
         effect.kind === "enemyAttack" && effect.targetCharacter
@@ -4233,7 +4254,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           effect.kind === "enemyAttack" && effect.targetCharacter
             ? [characterController].filter((p): p is PlayerId => p !== null)
             : (against ??
-              [getInstance(ctx.state, enemy)?.engagedWith ?? frame.controllerId].filter(
+              [getInstance(ctx.state, enemy)?.engagedWith ?? activatesAgainstOnItsSide(enemy)].filter(
                 (p): p is PlayerId => p !== null,
               ));
         for (const playerId of players) {
@@ -4489,14 +4510,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       buildScenarioDeck(ctx, effect.name, effect.from);
       return;
     case "shuffleEncounterDeck":
-      shuffleEncounterDeck(ctx);
+      shuffleEncounterDeck(ctx, effectEncounterDeckId(ctx.state, context));
       return;
     case "discardEncounterUntil": {
       // Finding nothing does not mark the text before a "then" unresolved: RRG 1.8 "Encounter Deck" (p. 17), "If the
       // encounter deck is emptied this way, that card ability is considered to be fulfilled." A following "Reveal that
       // minion" with no minion does (`revealCard`, `revealFoundNothing`).
       // Bounded by the number of encounter cards, so a deck with no match can't loop forever.
-      const deckId = activeEncounterDeckId(ctx.state);
+      const deckId = effectEncounterDeckId(ctx.state, context);
       const piles = encounterDeckOf(ctx.state, deckId);
       const limit = piles.deck.length + piles.discard.length;
       let found: InstanceId | null = null;

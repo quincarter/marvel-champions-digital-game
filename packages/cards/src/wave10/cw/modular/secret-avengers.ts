@@ -5,7 +5,6 @@ import {
   chooseCards,
   chooseTarget,
   chosen,
-  competitiveOnly,
   defineAbilities,
   discard,
   each,
@@ -24,6 +23,17 @@ import {
   exists,
   whenDefeated,
   whenRevealed,
+  chooseOneBy,
+  enemyTeam,
+  forEachPlayer,
+  made,
+  not,
+  option,
+  printedCostOf,
+  putIntoPlay,
+  spendResources,
+  thatPlayer,
+  valueAtMost,
 } from "../../../dsl/index.js";
 import { FREEDOM_FIGHTERS_BOOST, FREEDOM_FIGHTERS_WHEN_REVEALED } from "./new-avengers.js";
 
@@ -37,6 +47,26 @@ const GIVEN_TO_THE_ENEMY_LEADER: AbilityDefinition = whenDefeated(setDefeatDesti
 
 const AN_ALLY_YOU_CONTROL = query("ally", { controller: "you" });
 
+/** The ally Switching Sides discarded, once a player of the enemy team has put it into play (on either side). */
+const THE_DISCARDED_ALLY_IN_PLAY = query("ally", { inSlot: "ally", anyGameArea: true });
+const UNDER_THEIR_CONTROL = { controllerStated: true } as const;
+/**
+ * "May spend resources equal to that ally's cost to put it into play under their control", for the player of the enemy
+ * team being offered it (`thatPlayer`). A cost of 0 asks only whether they take it.
+ */
+const STEAL = ifThen(
+  valueAtMost(printedCostOf(chosen("ally")), 0),
+  chooseOneBy(
+    thatPlayer,
+    option("Put it into play under your control", putIntoPlay(chosen("ally"), thatPlayer, UNDER_THEIR_CONTROL)),
+    option("Decline"),
+  ),
+  [
+    spendResources({ generic: 1 }, "switched", thatPlayer, { times: printedCostOf(chosen("ally")) }),
+    ifThen(made("switched"), putIntoPlay(chosen("ally"), thatPlayer, UNDER_THEIR_CONTROL)),
+  ],
+);
+
 /**
  * Modular encounter set `secret_avengers` (Civil War, Resistance side; docs/phase7-wave10.md sections 3.5, 3.9, 3.10,
  * 3.4 and 3.23). Teamwork (Avenger), Hinder 1[per_hero], the boost icons and stars are data.
@@ -49,10 +79,9 @@ const AN_ALLY_YOU_CONTROL = query("ally", { controller: "you" });
  * `new-avengers.ts`, where question 10's switch lives).
  *
  * **Switching Sides (56158)**: When Revealed: the revealing player discards an ally they control; with none, no ally
- * leaves play and the card gains surge. The competitive sentence ("any player on the enemy team may spend resources
- * equal to that ally's cost to put it into play under their control") is written in full as a competitive-only
- * marker; it follows the discard, does nothing cooperatively, and the surge sentence (no ally was there to discard) reads
- * the same in both modes.
+ * leaves play and the card gains surge. In competitive mode the players of the enemy team are then offered the ally in
+ * player order: the first to spend resources equal to its cost puts it into play under their control (N1). The surge
+ * sentence (no ally was there to discard) reads the same in both modes.
  *
  * **Secret Avengers (56159)**: When Defeated: "the enemy team searches the top 5 cards of the encounter deck for a
  * card" is the first player's choice among them, in a prompt marked as the enemy team's (owner's answer to question 6
@@ -86,14 +115,17 @@ export const MODULAR_SECRET_AVENGERS: AbilityRegistry = defineAbilities({
     // Read before the discard: with an ally to discard none is missing, with none "no ally left play this way".
     ifThen(
       exists(AN_ALLY_YOU_CONTROL),
-      [chooseTarget("ally", AN_ALLY_YOU_CONTROL, { chooser: firstPlayer }), discard(chosen("ally"))],
+      [
+        chooseTarget("ally", AN_ALLY_YOU_CONTROL, { chooser: firstPlayer }),
+        discard(chosen("ally")),
+        // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); N1 per owner decision
+        // 2026-11-20: "any player on the enemy team may" is offered round the enemy team in player order until one
+        // takes it. The ally keeps its owner, so when it leaves play it goes to its owner's discard pile (Q17 A;
+        // RRG 1.8 "Ownership and Control", p. 31).
+        ifThen(inCompetitiveMode(), forEachPlayer(enemyTeam, ifThen(not(exists(THE_DISCARDED_ALLY_IN_PLAY)), STEAL))),
+      ],
       [surge()],
     ),
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly(
-        "In competitive mode, any player on the enemy team may spend resources equal to that ally's cost to put it into play under their control.",
-      ),
-    ]),
   ),
 
   "56159.when-defeated": whenDefeated(

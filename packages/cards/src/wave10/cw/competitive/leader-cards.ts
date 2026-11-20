@@ -9,7 +9,6 @@ import {
   choosePlayer,
   chosen,
   chosenPlayer,
-  competitiveOnly,
   confuse,
   constant,
   defineAbilities,
@@ -45,6 +44,12 @@ import {
   attackingEnemy,
   yourLeadersMainScheme,
   placeThreat,
+  allOf,
+  applyRuleUntil,
+  bindTargets,
+  enemyScheme,
+  refCount,
+  valueAtLeast,
 } from "../../../dsl/index.js";
 
 const TECH = trait("TECH");
@@ -62,25 +67,26 @@ const HOST_FINESSE = query("attachment", { name: "Finesse", host: host });
  * The reading of the rulebook's cooperative rules (MC56 p. 6) shared by all sixteen cards: "the enemy leader" is the
  * villain, "your leader" cannot be resolved ("Do as much as you can"), and these cards are "used only when playing in
  * competitive mode" (MC56 p. 3). So a clause aimed at "your leader" is written with `yourLeader` and does nothing when
- * the game has none; a sentence that needs something the engine does not have yet is a `competitiveOnly` marker.
+ * the game has none.
  */
 
 /**
  * "Your <name> leader attacks the enemy leader." (the four attack events): the leader-versus-leader attack, MC56 p. 16
- * (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6, settled 2026-11-20): your leader is given a boost card from the deck of the area it sits in, the
- * first player of the team in that area turns it, no defender, no guard, its total ATK dealt. Nothing cooperatively
- * (no "your leader", MC56 p. 6).
+ * (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6, settled 2026-11-20): your leader is
+ * given a boost card from the deck of the area it sits in, the first player of the team in that area turns it, no
+ * defender, no guard, its total ATK dealt. Nothing cooperatively (no "your leader", MC56 p. 6).
  */
-const leaderAttacksEnemyLeader = (_leader: string) => enemyAttacksEnemy(yourLeader, enemyLeader, { boost: true });
+const LEADER_ATTACKS_ENEMY_LEADER = enemyAttacksEnemy(yourLeader, enemyLeader, { boost: true });
+
+/** Whether "your leader" is in play: none in a cooperative game (MC56 p. 6), nor once it has left play. */
+const HAS_YOUR_LEADER = valueAtLeast(refCount(yourLeader), 1);
 
 /**
  * Competitive cards (docs/competitive-mode-plan.md section 4 task 11): the sixteen leader-specific basic player cards of
  * the Civil War box, four per leader (MC56 p. 3). The data marks them competitive-only and a cooperative deck holding one
- * is refused (`competitive_card`), so none can be played in a real game today. Every ref is scripted from the printed
- * text for when the mode arrives. Sentences the engine cannot yet run are `competitiveOnly` markers in the competitive
- * branch of `ifThen(inCompetitiveMode(), ...)`; each waits on plan milestone M3 (cross-area effects: the leader-versus-
- * leader attack, a leader scheming, a leader's main scheme, redirecting an attack onto a leader, a minion moving to
- * the other team's area).
+ * is refused (`competitive_card`), so they are played only in a competitive game. Every sentence is scripted (plan
+ * milestone M3: the leader-versus-leader attack, a leader scheming across the table, a leader's main scheme,
+ * redirecting an attack onto a leader, a minion moving to the other team's area).
  *
  * Cooperative reading, followed by every card (owner's answer to question 11 = A for the like case of Darkforce, 2026-10-11):
  * a sentence aimed at "your leader" does nothing, and the rest of the card resolves. So the leader attack events still
@@ -88,7 +94,7 @@ const leaderAttacksEnemyLeader = (_leader: string) => enemyAttacksEnemy(yourLead
  * A Forced ability whose instruction cannot be resolved still triggers and its "Discard this card" still happens.
  *
  * Iron Man
- * - 56129 The Futurist: marker "Your Iron Man leader schemes. Do not give him a boost card for this activation."
+ * - 56129 The Futurist: your Iron Man leader schemes in its own area, with no boost card.
  * - 56130 Target Lock: marker for the attack; "if you spent a [mental] resource" the discard of a Hero Response or Hero
  *   Interrupt attachment on the enemy leader (`abilityTiming`).
  * - 56131 High-Tech Suit: attaches to your leader (card data), counts as a Tech attachment (the Iron Man leader counts Tech
@@ -96,7 +102,7 @@ const leaderAttacksEnemyLeader = (_leader: string) => enemyAttacksEnemy(yourLead
  * - 56132 Suit Up: after you spend it, give your Iron Man leader a tough status card.
  *
  * Captain Marvel
- * - 56133 Provoked Response: marker for the redirect and its 3-damage cap; discards itself.
+ * - 56133 Provoked Response: the redirect onto your leader, capped at 3 damage for that attack; discards itself.
  * - 56134 You Started This: marker for the attack; with [energy] paid, confuse the enemy leader.
  * - 56135 Alpha Flight Recruit: after energy counters are placed on your leader's Energy Channel, heal 1 from the ally.
  * - 56136 Raw Power: after you spend it, place 2 energy counters on your leader's Energy Channel.
@@ -121,14 +127,14 @@ const leaderAttacksEnemyLeader = (_leader: string) => enemyAttacksEnemy(yourLead
 export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   // ---- Iron Man ----
   "56129.the-futurist-action": action(
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly("Your Iron Man leader schemes. Do not give him a boost card for this activation."),
-    ]),
+    // A scheme across the table, in the area your leader is in, placing threat on its main scheme (MC56 pp. 16-17, 20
+    // (scenario rules override RRG per Golden Rule, RRG p. 4)). Cooperatively there is no "your leader" (p. 6).
+    enemyScheme(yourLeader, { noBoost: true }),
   ),
 
   "56130.target-lock-action": action(
     { readsPaidTypes: { types: ["mental"] } },
-    leaderAttacksEnemyLeader("Iron Man"),
+    LEADER_ATTACKS_ENEMY_LEADER,
     ifThen(paidWith("mental"), [
       chooseTarget(
         "attachment",
@@ -150,9 +156,21 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   "56133.provoked-response-forced-interrupt": forcedInterrupt(
     on.villainAttacks({ againstYou: true }),
     { would: true },
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly(
-        "When the enemy leader would attack you, it attacks your Captain Marvel leader instead. She cannot take more than 3 damage from this attack.",
+    // "would" interrupt resolves before the attack initiates (RRG v1.8 Interrupt p. 24), so no boost is dealt yet;
+    // redirected attack resolves per MC56 p. 16 (one boost from the leader's deck, turned by the defending leader's
+    // team's first player). A replacement, so nothing more answers the attack on you. "She cannot take more than 3
+    // damage from this attack": a cap scoped to the attack the redirect makes (`attack: "initiated"`). Cooperatively
+    // there is no leader and the attack goes on against you (MC56 p. 6).
+    ifThen(allOf(inCompetitiveMode(), HAS_YOUR_LEADER), [
+      instead(
+        bindTargets("provoked", yourLeader),
+        applyRuleUntil(
+          { kind: "maxDamageTakenPerAttack", target: { inSlot: "provoked", anyGameArea: true }, amount: 3 },
+          "endOfAttack",
+          undefined,
+          { attack: "initiated" },
+        ),
+        enemyAttacksEnemy(attackingEnemy, yourLeader, { boost: true }),
       ),
     ]),
     discard(self),
@@ -160,7 +178,7 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
 
   "56134.you-started-this-action": action(
     { readsPaidTypes: { types: ["energy"] } },
-    leaderAttacksEnemyLeader("Captain Marvel"),
+    LEADER_ATTACKS_ENEMY_LEADER,
     ifThen(paidWith("energy"), confuse(enemyLeader)),
   ),
 
@@ -172,16 +190,23 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
   "56207.no-you-move-forced-interrupt": forcedInterrupt(
     on.villainAttacks({ againstYou: true }),
     { would: true },
-    attachCard(each(query("attachment", { name: "Cap's Shield" })), yourLeader),
+    // Cap's Shield is on the other side of the table, which the card names (MC56 p. 16).
+    attachCard(each(query("attachment", { name: "Cap's Shield", anyGameArea: true })), yourLeader),
     // "Resolve this attack against him instead": the enemy leader's attack becomes a leader-versus-leader attack on
-    // your leader (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6). Cooperatively there is no leader and the attack goes on against you.
-    ifThen(inCompetitiveMode(), instead(enemyAttacksEnemy(attackingEnemy, yourLeader, { boost: true }))),
+    // your leader (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q6). "would" interrupt
+    // resolves before the attack initiates (RRG v1.8 Interrupt p. 24), so no boost is dealt yet; redirected attack
+    // resolves per MC56 p. 16 (one boost from the leader's deck, turned by the defending leader's team's first
+    // player). Cooperatively there is no leader and the attack goes on against you.
+    ifThen(
+      allOf(inCompetitiveMode(), HAS_YOUR_LEADER),
+      instead(enemyAttacksEnemy(attackingEnemy, yourLeader, { boost: true })),
+    ),
     discard(self),
   ),
 
   "56208.fighting-dirty-action": action(
     { readsPaidTypes: { types: ["physical"] } },
-    leaderAttacksEnemyLeader("Captain America"),
+    LEADER_ATTACKS_ENEMY_LEADER,
     ifThen(paidWith("physical"), stun(enemyLeader)),
   ),
 
@@ -198,7 +223,7 @@ export const COMPETITIVE_LEADER_CARDS: AbilityRegistry = defineAbilities({
 
   "56212.spider-blast-action": action(
     { readsPaidTypes: { types: ["mental"] } },
-    leaderAttacksEnemyLeader("Spider-Woman"),
+    LEADER_ATTACKS_ENEMY_LEADER,
     ifThen(paidWith("mental"), confuse(enemyLeader)),
   ),
 

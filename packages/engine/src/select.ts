@@ -24,7 +24,7 @@ import {
 } from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import { countersOfType } from "./counter-types.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
   canTakeStatus,
@@ -70,6 +70,7 @@ import {
   sharedMainSchemes,
   activationOrderOf,
   activeVillainIdFor,
+  activeEncounterDeckId,
   areaOfCard,
   areaOfPlayer,
   maxHitPoints,
@@ -2027,6 +2028,19 @@ export function contextArea(state: GameState, context: EffectContext): GameAreaS
  * no player the team that plays in the game area of the effect's card. Null when neither names a team: an area-neutral
  * card resolving for no player, for which the words name nobody.
  */
+/**
+ * "The encounter deck" for an effect: the active villain's deck, and with two teams the deck of the leader in the
+ * effect's own game area (MC56 p. 16: each side of the table has its own encounter deck; a card on the inactive side
+ * resolves for its own side, Q11 A per owner decision 2026-11-20). The active deck for an effect in no area, and in
+ * every game without stored teams.
+ */
+export function effectEncounterDeckId(state: GameState, context: EffectContext): EncounterDeckId {
+  if (!state.teams) return activeEncounterDeckId(state);
+  const leaderId = contextArea(state, context)?.activeVillainId;
+  const leader = leaderId ? villainOf(state, leaderId) : undefined;
+  return leader?.encounterDeckId ?? activeEncounterDeckId(state);
+}
+
 export function contextTeam(state: GameState, context: EffectContext): TeamState | null {
   if (!state.teams) return teamsOf(state)[0] ?? null;
   const player = context.controllerId ?? context.scopedPlayerId;
