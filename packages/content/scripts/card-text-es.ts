@@ -101,6 +101,45 @@ const sameNumbers = (spanish: string, english: string): boolean => {
 
 const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 
+/**
+ * Faces whose English the curation corrected (a MarvelCDB transcription slip, not errata) where MarvelCDB's Spanish
+ * already translates the printed card. Their `e` fingerprints the corrected English the card data prints, so the
+ * Spanish still shows; every other corrected face keeps the raw English fingerprint and falls back to English. Add a
+ * code only after reading the Spanish against the scan.
+ * - 12028 Size Increase: the English drops "size" from "Uses (3 size counters)"; the Spanish has "Usos (3 contadores
+ *   de Tamaño)" (issue #897).
+ */
+const SPANISH_MATCHES_CORRECTED_ENGLISH = new Set(["12028"]);
+
+/**
+ * The data's printed English for `code`: the card's own top-level `text.printed` (4-space indent), searched only within
+ * its own record (up to the next `id: cardId(`), so a nested ability's `printed` or the next card's is never read. A
+ * double-sided card's other face is not looked up: list single-face cards only.
+ */
+const correctedEnglish = (code: string): string => {
+  const start = `id: cardId("${code}"),`;
+  const files = (dir: string): string[] =>
+    fs
+      .readdirSync(dir, { withFileTypes: true })
+      .flatMap((entry) =>
+        entry.isDirectory()
+          ? files(path.join(dir, entry.name))
+          : entry.name === "cards.ts"
+            ? [path.join(dir, entry.name)]
+            : [],
+      );
+  for (const file of files(DATA)) {
+    const source = fs.readFileSync(file, "utf8");
+    const at = source.indexOf(start);
+    if (at < 0) continue;
+    const next = source.indexOf("id: cardId(", at + start.length);
+    const record = source.slice(at, next < 0 ? undefined : next);
+    const match = /\n {4}text: \{\s*printed: ("(?:[^"\\]|\\.)*")/.exec(record);
+    if (match) return JSON.parse(match[1]!) as string;
+  }
+  throw new Error(`${code}: no printed text in the card data for SPANISH_MATCHES_CORRECTED_ENGLISH`);
+};
+
 const es = readCards(path.join(RAW, "es"));
 const en = readCards(RAW);
 const entries: [string, Record<string, string>][] = [];
@@ -123,7 +162,8 @@ for (const [code, card] of es) {
   if (flavor && englishFlavor && !wrong && !same(flavor, englishFlavor)) fields.f = flavor;
   // What the client checks the face against: the English rules text, or for a face with none, the English flavor.
   if (fields.t !== undefined || fields.f !== undefined) {
-    if (englishText) fields.e = fingerprint(englishText);
+    if (englishText)
+      fields.e = fingerprint(SPANISH_MATCHES_CORRECTED_ENGLISH.has(code) ? correctedEnglish(code) : englishText);
     else fields.g = fingerprint(englishFlavor);
   }
   if (Object.keys(fields).length > 0) entries.push([code, fields]);
