@@ -350,17 +350,14 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=choosing-sides`: the Choosing Sides reward sheet over Iron Man's four basic cards (issue #883). Dev only.
   if (screen === "choosing-sides" && import.meta.env.DEV) {
+    const { gameCardsById } = await import("../content/game-deps.js");
+    const { previewEarnedCards } = await import("../view/choosing-sides.js");
     return {
       key: SCENES.choosingSides,
       data: {
         preview: {
           leaderName: "Iron Man",
-          remaining: [
-            { instanceId: "a", cardId: "56129", name: "Suit Up" },
-            { instanceId: "b", cardId: "56130", name: "Target Lock" },
-            { instanceId: "c", cardId: "56131", name: "High-Tech Suit" },
-            { instanceId: "d", cardId: "56132", name: "Raw Power" },
-          ],
+          remaining: previewEarnedCards(["56129", "56130", "56131", "56132"], (id) => gameCardsById().get(id)?.name),
         },
       },
     };

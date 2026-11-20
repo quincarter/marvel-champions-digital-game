@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import { createGame, startSession, type GameState, type InstanceId } from "@mc/engine";
 import { civilWarCompetitive } from "@mc/cards";
-import { gameDeps } from "../content/game-deps.js";
-import { choosingSidesOf } from "./choosing-sides.js";
+import { gameCardsById, gameDeps } from "../content/game-deps.js";
+import { choosingSidesOf, previewEarnedCards } from "./choosing-sides.js";
 
 const deps = gameDeps();
 let state: GameState;
@@ -75,5 +75,20 @@ describe("choosingSidesOf reads set-aside cards and any printing", () => {
       players: state.players.map((p) => (p.playerId === owner ? { ...p, playArea: [...p.playArea, id] } : p)),
     };
     expect(choosingSidesOf(resistance, owner)).not.toBeNull();
+  });
+});
+
+describe("the sheet's names come from card data by id", () => {
+  test("every earned card's name is the card data's name for its own id", () => {
+    const view = choosingSidesOf(withNowItsPersonal(state, 0), "p1")!;
+    for (const card of view.remaining) expect(card.name).toBe(gameCardsById().get(card.cardId)?.name);
+  });
+
+  test("a preview names each id from the card data, not from a label", () => {
+    const ids = ["56129", "56130", "56131", "56132"];
+    const cards = previewEarnedCards(ids, (id) => gameCardsById().get(id)?.name);
+    expect(cards.map((c) => c.cardId)).toEqual(ids);
+    for (const card of cards) expect(card.name).toBe(gameCardsById().get(card.cardId)!.name);
+    expect(previewEarnedCards(["nope"], () => undefined)[0]!.name).toBe("nope");
   });
 });

@@ -163,6 +163,7 @@ import { livePillKey, livePillOf } from "../view/live-pill.js";
 import { deliverReplayLink } from "../replay/replay-share.js";
 import { t } from "../i18n/translate.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
+import { firstPlayerFallbackOn } from "../view/first-player-fallback.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
 import {
@@ -464,6 +465,10 @@ export class BoardScene extends Phaser.Scene {
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
   readonly #firstPlayerToken = new BoardFirstPlayerToken();
+  /** The rows under the title bar's own (`chromeExtra`), whether the whose-turn row is one, and whether it carries Chat. */
+  #chromeExtra = 0;
+  #turnRowShown = false;
+  #chatShown = false;
   /** Dev e2e hook only: who the token is drawn for in place of the game's first player, to see a pass without a round. */
   #debugFirstPlayer: PlayerId | null = null;
   /**
@@ -1756,6 +1761,9 @@ export class BoardScene extends Phaser.Scene {
       (roomView.turn || competitiveTurn ? TURN_ROW_HEIGHT : 0) +
       (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : stuckPrompt ? PROMPT_ROW_HEIGHT : 0) +
       podStripHeight(podStrip, POD_LINE, 44);
+    this.#turnRowShown = Boolean(roomView.turn || competitiveTurn);
+    this.#chatShown = roomView.chatOn;
+    this.#chromeExtra = chromeExtra;
     const atRest = boardLayout(viewport, {
       ...(chromeExtra > 0 ? { chromeExtra } : {}),
       playerCount: model.team.length + 1,
@@ -2094,7 +2102,7 @@ export class BoardScene extends Phaser.Scene {
             height: 30,
           }
         : chrome
-          ? { x: chrome.x + chrome.width * 0.5 - 20, y: chrome.y, width: 40, height: chrome.height }
+          ? firstPlayerFallbackOn(chrome, this.#chromeExtra, this.#turnRowShown, this.#chatShown)
           : { x: 8, y: 8, width: 40, height: 40 };
     this.#firstPlayerToken.draw(
       this,

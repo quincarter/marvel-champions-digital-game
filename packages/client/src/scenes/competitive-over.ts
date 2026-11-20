@@ -87,7 +87,11 @@ export class CompetitiveOverOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     const boxW = Math.min(560, width - 16);
-    const boxH = Math.min(height - 16, 640);
+    // Sized to its words: a short result (a concession) is a short sheet, a tie-break panel a tall one that scrolls.
+    const titleH = this.#measureTitle(`${t("comp.over.heading")}: ${over.headline}`, boxW - 32);
+    const listH = this.#measureList(boxW - 24 - 12, over) + 4;
+    const chrome = 12 + titleH + 8 + 8 + 12 + hit.target;
+    const boxH = Math.min(height - 16, 640, chrome + listH);
     const box: Rect = { x: (width - boxW) / 2, y: (height - boxH) / 2, width: boxW, height: boxH };
     const g = this.add.graphics();
     g.fillStyle(PAPER, 1).fillRect(box.x, box.y, box.width, box.height);
@@ -120,10 +124,57 @@ export class CompetitiveOverOverlay extends Phaser.Scene {
     this.#route?.set(["close"], this.#stops);
   }
 
+  /** The title's wrapped height, measured and thrown away. */
+  #measureTitle(text: string, width: number): number {
+    const probe = this.add.text(0, 0, text, textStyle(typeRole.barTitle, INK)).setWordWrapWidth(width, true);
+    const h = probe.height;
+    probe.destroy();
+    return h;
+  }
+
+  /** The height the result's words take at `width`, measured on texts that are thrown away. */
+  #measureList(width: number, over: CompetitiveOver): number {
+    return this.#walk(0, 0, width, over, false);
+  }
+
+  /** Lays out the result's rows, reasons and tie-break panel from `y0`; draws them, or only measures when `draw` is false. */
+  #walk(x: number, y0: number, w: number, over: CompetitiveOver, draw: boolean): number {
+    let y = y0;
+    const g = draw ? this.add.graphics() : null;
+    const text = (tx: number, ty: number, str: string, size: number, width: number, bold = false): number => {
+      const node = this.#text(tx, ty, str, size, width, bold);
+      const h = node.height;
+      if (!draw) node.destroy();
+      return h;
+    };
+    for (const row of over.rows) {
+      const head = `${row.mine ? "▶ " : ""}${row.sideLabel}: ${row.resultLabel}`;
+      y += text(x, y, head, 17, w, true) + 2;
+      for (const condition of row.conditions) y += text(x + 12, y, `• ${condition}`, 13, w - 12) + 2;
+      y += 8;
+    }
+    if (over.reason) y += text(x, y, over.reason, 14, w, true) + 8;
+    const panel = over.tieBreak;
+    if (panel) {
+      g?.fillStyle(INK, 1).fillRect(x, y, w, 2);
+      y += 8;
+      y += text(x, y, t("comp.over.title"), 17, w, true) + 2;
+      y += text(x, y, panel.summary, 14, w, true) + 8;
+      for (const measure of panel.measures) {
+        // The deciding measure is marked with a glyph and the word, never only a colour or weight.
+        const mark = measure.decided ? "★ " : "";
+        y += text(x, y, `${mark}${measure.label}`, 13, w, measure.decided) + 2;
+        const values = measure.values.map((v) => `${v.sideLabel} ${v.value}`).join("   ·   ");
+        y += text(x + 12, y, values, 13, w - 12) + 8;
+      }
+    }
+    return y - y0;
+  }
+
   #list(inner: Rect, over: CompetitiveOver): void {
     const region = new McScrollRegion(this, {
       rect: inner,
-      heights: [inner.height],
+      heights: [Math.max(inner.height, this.#measureList(inner.width - 12, over) + 4)],
       scroll: this.#scroll,
       clipInteractive: true,
     });
@@ -131,29 +182,7 @@ export class CompetitiveOverOverlay extends Phaser.Scene {
     const before = this.children.list.length;
     const w = inner.width - 12;
     const x = inner.x;
-    let y = inner.y + 2;
-    const g = this.add.graphics();
-    for (const row of over.rows) {
-      const head = `${row.mine ? "▶ " : ""}${row.sideLabel}: ${row.resultLabel}`;
-      y += this.#text(x, y, head, 17, w, true).height + 2;
-      for (const condition of row.conditions) y += this.#text(x + 12, y, `• ${condition}`, 13, w - 12).height + 2;
-      y += 8;
-    }
-    if (over.reason) y += this.#text(x, y, over.reason, 14, w, true).height + 8;
-    const panel = over.tieBreak;
-    if (panel) {
-      g.fillStyle(INK, 1).fillRect(x, y, w, 2);
-      y += 8;
-      y += this.#text(x, y, t("comp.over.title"), 17, w, true).height + 2;
-      y += this.#text(x, y, panel.summary, 14, w, true).height + 8;
-      for (const measure of panel.measures) {
-        // The deciding measure is marked with a glyph and the word, never only a colour or weight.
-        const mark = measure.decided ? "★ " : "";
-        y += this.#text(x, y, `${mark}${measure.label}`, 13, w, measure.decided).height + 2;
-        const values = measure.values.map((v) => `${v.sideLabel} ${v.value}`).join("   ·   ");
-        y += this.#text(x + 12, y, values, 13, w - 12).height + 8;
-      }
-    }
+    this.#walk(x, inner.y + 2, w, over, true);
     const added = this.children.list.slice(before).filter((n) => n !== region.root);
     if (added.length > 0) region.content.add(added);
     region.refresh();

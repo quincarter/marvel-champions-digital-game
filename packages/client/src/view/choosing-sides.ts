@@ -51,3 +51,18 @@ export function choosingSidesOf(state: GameState, viewer: string): ChoosingSides
   const leaderName = leaderId ? (cardOf(full, leaderId)?.name ?? "") : "";
   return { leaderName, remaining };
 }
+
+/**
+ * A made-up reward (the dev preview) for `cardIds`, each named by `nameOf` (the card data), so a card's name and its
+ * art always come from the same id and never from a hand-typed label.
+ */
+export function previewEarnedCards(
+  cardIds: readonly string[],
+  nameOf: (cardId: string) => string | undefined,
+): readonly EarnedCard[] {
+  return cardIds.map((cardId) => ({
+    instanceId: `preview-${cardId}` as InstanceId,
+    cardId,
+    name: nameOf(cardId) ?? cardId,
+  }));
+}
