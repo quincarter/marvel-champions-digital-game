@@ -61,6 +61,7 @@ export type SettingsSectionId =
   | "sound"
   | "guide"
   | "more"
+  | "misc"
   | "custom"
   | "achievements"
   | "earned";
@@ -203,6 +204,8 @@ export function settingsSectionsOf(input: {
         "rules",
       ],
     },
+    // Rules escapes the owner wants out of the way (2026-11-19): off by default, each warning before it turns on.
+    { id: "misc", title: "Misc gameplay", items: ["manual-adjust"] },
     {
       id: "achievements",
       title: "Achievements",
@@ -232,7 +235,7 @@ const TAB_SECTIONS: readonly {
   { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
   { id: "sound", label: "Sound", sections: ["sound"] },
   { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "achievements", "custom", "earned"] },
+  { id: "more", label: "More", sections: ["more", "misc", "achievements", "custom", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */

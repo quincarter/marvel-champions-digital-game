@@ -100,6 +100,7 @@ export type SettingsRowId =
   | "faded-campaign-art"
   | "discord-presence"
   | "custom-unlocked"
+  | "manual-adjust"
   | EarnedItemId;
 
 export interface SettingsRowInfo {
@@ -293,6 +294,20 @@ export function customUnlockedRowInfoOf(settings: Settings): SettingsRowInfo {
   };
 }
 
+/**
+ * Settings > More > Misc gameplay (the owner, 2026-11-19): whether Pause offers Manual adjust (#791). Off by default;
+ * turning it on asks first (`cheatUnlockWarningOf`).
+ */
+export function manualAdjustRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "manual-adjust",
+    title: "Allow manual adjust",
+    detail:
+      "Adds Manual adjust to Pause, to fix the table by hand after a bug or a misclick. Blocks progression: a game you adjust no longer counts toward stats, achievements or champion points.",
+    on: settings.allowManualAdjust,
+  };
+}
+
 const CUSTOM_PLACEMENT_LABELS: Readonly<Record<CustomPlacement, string>> = {
   top: "Top",
   bottom: "Bottom",
@@ -402,6 +417,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, discordPresence: !settings.discordPresence };
     case "custom-unlocked":
       return { ...settings, customUnlocked: !settings.customUnlocked };
+    case "manual-adjust":
+      return { ...settings, allowManualAdjust: !settings.allowManualAdjust };
     case "ultron-drone-art":
       return { ...settings, ultronDroneArt: !settings.ultronDroneArt };
     case "promo-art":
@@ -953,7 +970,7 @@ export function undoPastTurnRowInfoOf(settings: Settings): UndoPastTurnRowInfo {
   return {
     title: "Undo past your turn",
     detail:
-      "House rule. Undo can go back past the start of your turn, a draw or a reveal, through the villain phase. A game where you do no longer counts toward stats or achievements. Warn asks first; Off keeps Undo to your own turn.",
+      "House rule that blocks progression: Undo can go back past the start of your turn, a draw or a reveal, through the villain phase, and a game where you do stops counting toward stats, achievements and champion points. Warn asks first each game; Off (the default) keeps Undo to your own turn.",
     options: [
       { value: "allow", label: "Allow" },
       { value: "warn", label: "Warn" },
@@ -961,6 +978,38 @@ export function undoPastTurnRowInfoOf(settings: Settings): UndoPastTurnRowInfo {
     ],
     selected: settings.undoPastTurn,
   };
+}
+
+/** What a change that turns on a way out of the rules says before it takes effect (`cheatUnlockWarningOf`). */
+export interface CheatUnlockWarning {
+  readonly title: string;
+  readonly sentence: string;
+  readonly confirmLabel: string;
+}
+
+/**
+ * The warning a settings change must show before it lands, or null (BluefireF5ran and the owner, 2026-11-19): turning
+ * Undo past your turn on from Off, or turning Allow manual adjust on. Either lets a game stop counting, which a player
+ * should only ever find out about up front. Moving between Warn and Allow, or turning either off, asks nothing.
+ */
+export function cheatUnlockWarningOf(before: Settings, after: Settings): CheatUnlockWarning | null {
+  if (before.undoPastTurn === "off" && after.undoPastTurn !== "off") {
+    return {
+      title: "This blocks progression",
+      sentence:
+        "Undo past your turn lets you take back draws, reveals and the villain phase. Any game where you do will NOT count toward your stats, achievements or champion points, even if you win.",
+      confirmLabel: "Turn it on",
+    };
+  }
+  if (!before.allowManualAdjust && after.allowManualAdjust) {
+    return {
+      title: "THIS GAME WILL NOT COUNT",
+      sentence:
+        "Manual adjust lets you change the table by hand from Pause. Any game you adjust will NOT count toward your stats, achievements or champion points, even if you win.",
+      confirmLabel: "Allow it",
+    };
+  }
+  return null;
 }
 
 /** `settings` with Undo's reach set; a value that is not one of the three changes nothing. */

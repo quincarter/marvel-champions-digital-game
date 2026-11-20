@@ -34,6 +34,8 @@ test("issue #791: a Manual adjust that defeats the villain leaves an unobstructe
   test.setTimeout(240_000);
   const errors = trackErrors(page);
   await installWave6Helpers(page);
+  // Manual adjust is off until the player turns it on in Settings (2026-11-19).
+  await page.addInitScript(() => localStorage.setItem("mc-settings", JSON.stringify({ allowManualAdjust: true })));
   await page.goto("/?screen=board&fixture=crowded");
   await waitFor(async () => ((await activeScenes(page)).includes("Board") ? true : null), "the board", 90_000);
   await settle(page, { quietMs: 600, maxMs: 6000 });

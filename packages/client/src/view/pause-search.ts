@@ -30,6 +30,7 @@ import {
   cardSizeRowInfoOf,
   customPlacementRowInfoOf,
   customUnlockedRowInfoOf,
+  manualAdjustRowInfoOf,
   deckCopyLimitsRowInfoOf,
   deckListOnOpenRowInfoOf,
   deckSignatureRowInfoOf,
@@ -144,6 +145,7 @@ export function pauseSettingRowsOf(settings: Settings, guide: GuidePrefs, env: P
     extraModularSetsRowInfoOf(settings),
     fadedCampaignArtRowInfoOf(settings),
     customUnlockedRowInfoOf(settings),
+    manualAdjustRowInfoOf(settings),
     ...earnedItemRowInfoOf(settings, env.earned),
   ])
     toggle(row);
