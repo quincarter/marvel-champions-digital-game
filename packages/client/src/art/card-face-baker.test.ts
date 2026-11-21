@@ -1,7 +1,7 @@
 import type Phaser from "phaser";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CardFaceBaker } from "./card-face-baker.js";
+import { CardFaceBaker, inlineFontBytes } from "./card-face-baker.js";
 import type { CardFaceSpec } from "./card-face.js";
 
 vi.mock("./card-face-bake.js", () => ({
@@ -74,5 +74,38 @@ describe("CardFaceBaker budget", () => {
     expect(baker.request(spec(5))).not.toBeNull();
     // 1 was the coldest, so it went (asking for it again queues a re-bake and answers null).
     expect(baker.request(spec(1))).toBeNull();
+  });
+});
+
+describe("inlineFontBytes (#932: WebView2 158 crashes on a data: font in a worker)", () => {
+  const bytesOf = (buffer: ArrayBuffer | null): number[] => (buffer ? [...new Uint8Array(buffer)] : []);
+
+  it("turns a build's inlined base64 font into its bytes", () => {
+    // "wOF2" plus one byte, as Vite writes a small woff2.
+    const src = 'url("data:font/woff2;base64,d09GMgA=") format("woff2")';
+    expect(bytesOf(inlineFontBytes(src))).toEqual([0x77, 0x4f, 0x46, 0x32, 0x00]);
+  });
+
+  it("reads an unquoted data: URL without a format", () => {
+    expect(bytesOf(inlineFontBytes("url(data:font/woff2;base64,AAE=)"))).toEqual([0, 1]);
+  });
+
+  it("reads a percent-encoded data: URL as bytes, not text", () => {
+    expect(bytesOf(inlineFontBytes("url(data:font/woff2,w%FF%00)"))).toEqual([0x77, 0xff, 0x00]);
+  });
+
+  it("leaves a font file's URL to the worker", () => {
+    expect(
+      inlineFontBytes('url("http://tauri.localhost/assets/bangers-latin-400-normal.woff2") format("woff2")'),
+    ).toBeNull();
+  });
+
+  it("leaves a src with several sources alone", () => {
+    const src = 'url("data:font/woff2;base64,AAE=") format("woff2"), url("http://x/a.woff") format("woff")';
+    expect(inlineFontBytes(src)).toBeNull();
+  });
+
+  it("gives up on a broken data: URL rather than throwing", () => {
+    expect(inlineFontBytes('url("data:font/woff2;base64,%%%")')).toBeNull();
   });
 });

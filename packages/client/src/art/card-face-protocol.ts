@@ -4,8 +4,11 @@ import type { CardFaceSpec } from "./card-face.js";
 /** One `@font-face` rule, as the page's stylesheets declare it, with its `src` URLs made absolute. */
 export interface FontSource {
   readonly family: string;
-  /** A CSS `src` value: `url("…") format("woff2"), …`. */
-  readonly src: string;
+  /**
+   * A CSS `src` value (`url("…") format("woff2"), …`), or the font's bytes when the page has it inline as a `data:`
+   * URL: WebView2 158 crashes the whole page when a worker's `FontFace` loads a `data:` URL (#932).
+   */
+  readonly src: string | ArrayBuffer;
   readonly descriptors: FontFaceDescriptors;
 }
 
