@@ -2,12 +2,16 @@
    style and bars in one color per platform. */
 :root {
   --android: #4fbf73;
+  --ios: #c97bf0;
   --windows: #6f9cf0;
   --mac: #f2ede1;
   --linux: #f0b42a;
 }
 .p-android {
   --c: var(--android);
+}
+.p-ios {
+  --c: var(--ios);
 }
 .p-windows {
   --c: var(--windows);
