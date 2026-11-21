@@ -146,6 +146,7 @@ import {
 } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { onTap } from "../ui/tap.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -743,6 +744,9 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #rebuild(): void {
     resetHoverCards(this);
+    // A picture waiting to bake belongs to the draw being replaced.
+    this.#bannerBaked?.();
+    this.#bannerBaked = null;
     this.#hoverLists = [];
     this.#deckLines = [];
     this.#yourDeckRect = null;
@@ -869,8 +873,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       ? campaignDeckEditModel(deck, this.#pool(), this.#campaign.context, this.#campaign.grants)
       : null;
     this.#campaignRows = new Map(this.#campaignModel?.rows.map((row) => [row.cardId as string, row]));
-    label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
-    y += 20;
+    y = this.#drawIdentityRow(left, y, column, this.#identity);
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
     this.#drawOpenAspectTip();
@@ -3340,6 +3343,67 @@ ${entry.detail}`,
       this.#rebuild();
     });
     return ids;
+  }
+
+  /**
+   * The chosen identity above the builder (issue #920): the hero's picture, its name, and a "Hero card" button. The
+   * button, a tap on the picture or name, and the pad's stop open Inspect on the hero side, whose toggle flips to the
+   * alter-ego (and any other forms), so a player can read what the hero does while building. On desktop the picture
+   * opens the card popover too. Returns the y below the row.
+   */
+  #drawIdentityRow(left: number, top: number, column: number, identity: HeroIdentityCard): number {
+    const height = hit.target;
+    const open = (): void => {
+      this.scene.launch(SCENES.inspect, { card: { cardId: identity.id, face: { kind: "hero" } } });
+    };
+    const thumbRect: Rect = { x: left, y: top, width: Math.round(height * IDENTITY_THUMB_ASPECT), height };
+    const thumb = renderLiveArtThumb(
+      this,
+      thumbRect,
+      this.#identityArtUrl(identity),
+      0.2,
+      "cover",
+      this.#identityArtFocus(identity),
+    );
+    // The picture is baked off the main thread: swap it in when it lands, without redrawing the screen.
+    this.#bannerBaked?.();
+    this.#bannerBaked = cardFaces(this).onBaked(() => thumb.refresh());
+    noteHoverCardId(this, identity.id as string, thumbRect, true, { kind: "hero" });
+
+    const buttonWidth = 120;
+    const textX = thumbRect.x + thumbRect.width + 10;
+    const caption = label(this, textX, top + 2, "identity", typeRole.label, surface.ink.hex, ink.label);
+    const name = this.add.text(textX, top + height - 2, qualifiedHeroName(identity), {
+      ...textStyle(typeRole.rowTitle, surface.ink.hex),
+    });
+    name.setOrigin(0, 1);
+    fitText(name, Math.max(40, left + column - buttonWidth - 16 - textX));
+    // The button follows the name (a wide screen would otherwise leave it far off at the window's edge).
+    const textWidth = Math.max(name.width, caption.width);
+    const buttonRect: Rect = {
+      x: Math.min(textX + textWidth + 16, left + column - buttonWidth),
+      y: top,
+      width: buttonWidth,
+      height,
+    };
+    // The picture and the name open the card too: a press that starts and ends on them (`ui/tap.ts`), never a lift.
+    const zone = this.add
+      .zone(left, top, textX + textWidth - left, height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    onTap(zone, open, "identity-card-row");
+
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Hero card",
+        type: typeRole.rowTitle,
+        rect: buttonRect,
+        onClick: open,
+      }),
+    );
+    this.#stops.set("identity-card", { rect: buttonRect, activate: open, inspect: open });
+    return top + height + 12;
   }
 
   /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */

@@ -1,0 +1,3 @@
+kind: Added
+body: 'Deck builder: the chosen hero''s picture and name sit under the title with a Hero card button; it (or a press on the picture or name) opens the identity in Inspect, which flips between hero and alter-ego, and the picture opens the card popover on desktop (#920).'
+time: 2026-11-20T20:40:46.3542489-05:00

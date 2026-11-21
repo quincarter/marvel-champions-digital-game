@@ -208,6 +208,8 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
   ];
   return [
     "back",
+    // The chosen identity's Hero card button (issue #920).
+    "identity-card",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...(input.filtersFolded ? [] : filters),
     ...(input.chartIds ?? []),
