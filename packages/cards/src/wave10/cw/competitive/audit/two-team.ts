@@ -54,6 +54,10 @@ export const boost = (id: string, icons: number): AnyCard => fixtures.stubTreach
 export const typedResource = (id: string, type: string): AnyCard =>
   fixtures.stubResource({ id, icons: 0, produces: { [type]: 1 } });
 
+/** A resource producing one of each basic type: pays for any cost with any type requirement ("spend a [mental] resource"). */
+export const everyTypeResource = (id: string): AnyCard =>
+  fixtures.stubResource({ id, icons: 0, produces: { energy: 1, mental: 1, physical: 1 } });
+
 export const realCards = (...codes: readonly string[]): readonly AnyCard[] =>
   codes.map((code) => {
     const found = WAVE10_CARDS.find((card) => (card.id as string) === code);

@@ -52,15 +52,17 @@ Group 2 (56207 to 56214, the resistance leaders): tests in `packages/cards/src/w
 
 ## 3. Standard PvP cards
 
-Two printings per product (Q15: identical in play). Existing coverage is `standard-pvp.test.ts` (mostly STAGED, plus
-the two-team values) and `choosing-sides-reward.test.ts`; none of it is a card-by-card two-team audit yet.
+Two printings per product (Q15: identical in play), each distinct card tested once per printing (MC56 registration and
+resistance, MC57 registration and resistance) in `packages/cards/src/wave10/cw/competitive/audit/standard-pvp.test.ts`.
+`standard-pvp.test.ts` one folder up keeps the registry checks and the STAGED cooperative readings;
+`choosing-sides-reward.test.ts` covers Now It's Personal's reward by surgery.
 
-| Ids                                     | Name                               | Behaviour to check in competitive play                                                                                                           | Status                                                                                           |
-| --------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| 56125, 56203 (MC57: 57036, 57078)       | Righteous Cause                    | When Revealed: the enemy leader schemes; extra boost card with 2+ on your team                                                                   | todo (group 3)                                                                                   |
-| 56126, 56204 (57037, 57079)             | Whatever It Takes                  | Alter-ego: the enemy leader attacks your leader; hero: it attacks you (boost per N9/N10)                                                         | todo (group 3)                                                                                   |
-| 56127, 56205 (57038, 57080)             | Targeted Strike                    | When Revealed: enemy team searches top 5, deals a card to you facedown; Boost: +1 icon per player on your team                                   | todo (group 3)                                                                                   |
-| 56128a/b, 56206a/b (57039a/b, 57081a/b) | Choosing Sides / Now It's Personal | Permanent; enemy leader takes at most 2 per attack; Forced Response when cleared searches top 5 for 1 per hero and deals them; flip (Q12 reward) | todo (group 3); the cap vs Energy Channel's attack is covered by `energy-channel-leader.test.ts` |
+| Ids                                     | Name                               | Behaviour checked in the two-team game                                                                                                                                                                         | Status                                                                                              |
+| --------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 56125, 56203 (MC57: 57036, 57078)       | Righteous Cause                    | The enemy leader of the revealing team's area schemes on that area's main scheme, one boost card; a team of two gets the extra boost card; revealed in team two's area it is leader two                        | passed (all four printings; 2v2 extra boost)                                                        |
+| 56126, 56204 (57037, 57079)             | Whatever It Takes                  | Hero form: the enemy leader attacks you (a second attack that round). Alter-ego: it attacks your leader, no defender, one boost card from the attacker's area deck (ATK 2 + 3 icons = 5)                       | passed (all four printings)                                                                         |
+| 56127, 56205 (57038, 57080)             | Targeted Strike                    | The enemy team's first player searches exactly the top 5 of your area's deck, the pick is dealt to you facedown, that deck (only) shuffles; Boost: one icon per player on the activating team                  | passed (all four printings; Boost on 1v1 and 2v1 sizes)                                             |
+| 56128a/b, 56206a/b (57039a/b, 57081a/b) | Choosing Sides / Now It's Personal | Joins the area; enemy leader takes at most 2 per leader attack, the other team's leader all of it; cleared: 1 pick per hero by the enemy team, dealt facedown, deck shuffles, flip; Now It's Personal's Action | passed, except the flip's hand-over (**bug**, section 4 finding 4); 2v2 picks (5 then 4 cards) pass |
 
 ## 4. Findings so far
 
@@ -87,21 +89,66 @@ the two-team values) and `choosing-sides-reward.test.ts`; none of it is a card-b
    An outer query's `anyGameArea` now carries into its `anyOf` alternatives and its `not` (engine `explainQuery`), so
    it need not be repeated inside them.
 
-## 5. Pool cards whose responses or interrupts can fire on the other team's turn
+4. **Now It's Personal stays in the villain area after the real flip (56128b / 56206b / 57039b / 57081b).** The
+   Forced Response flips Choosing Sides with `flipCard(self, { controller: firstPlayer })` ("Give to the first player",
+   MC56 p. 16), but `relocate` in `packages/engine/src/resolve/other-face.ts` has no case for an obligation face: it falls
+   to the default and leaves the card in the villain area with `controllerId: null`, not in p1's play area (verified; its
+   Action still resolves for p1). The reward test puts it into p1's play area by surgery, so it never saw this. Four
+   `it.fails` in `audit/standard-pvp.test.ts` (one per printing). Engine owner (`game-rules-architect`): not a card-script
+   fix.
+5. **Triggers with no query hear the other team's area (Black Widow 01075).** Her
+   `when.encounterCardRevealedFromEncounterDeck()` names no query, so a card revealed in p2's area during p2's villain
+   phase is offered to p1's Widow (MC56 pp. 16-17: abilities on your side ignore the other side). Enhanced Spider-Sense
+   01004 is correctly ignored only because its `query("treachery")` is limited to the player's own area. So area
+   isolation currently depends on each card's own selectors; any pool card whose trigger pattern names no query probably
+   leaks the same way. `it.fails` in `audit/cross-turn.test.ts`. Needs an engine-level decision (scope the event's
+   subject to the listening card's area unless the ability says `anyGameArea`).
 
-Examples by category, to be audited after the leader and Standard PvP groups (not every card):
+## 5. Pool cards whose responses or interrupts fire on the other team's turn
 
-- **Triggers on an enemy attacking or being attacked across areas:** Energy Channel 56098 (counter when any hero, ally
-  or leader attacks Captain Marvel), Superhuman Strength 57007 ("when it attacks" on the attacker), Cuts Both Ways 56050
-  (defense interrupt: must stay unavailable when a leader attacks a leader with no defender).
-- **Forced responses on schemes and phases heard by the other team's cards:** Public Outrage 56122b, Protect Secret
-  Identities 57044b, Superhero Jailbreak 56202b, Cut Off Support 56063b, Open Rebellion 56172b, Vision's flip 57040; N8
-  says phase begin/end events are heard only by the active team's area.
-- **"When revealed" cards that move something between areas:** Drafted 56080, Switching Sides 56158, Venom 56087,
-  Bullseye 56088, Tangled Up 56181, Luke Cage 56184 (boost and When Revealed hit your leader), Spectacular! 56182,
-  Neighborhood Hero 56183, Cloak 56194.
-- **Hero interrupts and responses that react to damage, threat or defeat on any area:** damage prevention interrupts,
-  "after an ally is defeated" responses, "after you thwart" responses when the thwart lands on the other area's main
-  scheme; each must fire (or not) according to Q11 and N1/N2 ordering.
-- **Obligation and nemesis forced effects:** an obligation shuffled into the encounter deck in the player's own area (Q16)
-  firing during the other team's phase.
+Tests: `packages/cards/src/wave10/cw/competitive/audit/cross-turn.test.ts` (two-team game; p1 is inactive during p2's hero
+phase and p2's villain phase). Settled by MC56 p. 16 "Card abilities on your side of the table completely ignore cards on
+the other side ... unless they specifically refer to them", p. 17, and N8, N11, Q3 B, Q11. Each card has a test that it
+fires while its team is inactive, or a control (fires for its own area in its own phase) beside a test that it does not
+fire for the other area.
+
+Tested (12 cards, one of them from group 2):
+
+| Id    | Name                  | Category                                 | Result                                                                                                    |
+| ----- | --------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 37004 | Gambit's Staff        | "When an enemy attacks" interrupt        | passed: fires in p2's hero phase when leader one (p1's enemy) attacks leader two; p2's staff does not     |
+| 37011 | Bishop                | "After an enemy attacks you" response    | passed: not heard for leader one attacking leader two (N11), heard for the attack on p1                   |
+| 01003 | Backflip              | defense-labelled interrupt on damage     | passed: only for the attack on p1; never for leader one's attack on leader two or leader two's on p2      |
+| 09021 | Warning               | "a hero would take damage" interrupt     | passed: offered for p1's hero, not for p2's hero in p2's villain phase                                    |
+| 01009 | Webbed Up             | forced interrupt, attached enemy attacks | passed: p2's Fighting Dirty makes the Webbed Up leader one discard it and be stunned instead of attacking |
+| 01061 | Great Responsibility  | interrupt on threat placed on a scheme   | passed: p1 (inactive) takes p2's Double Agent threat on its own main scheme as damage                     |
+| 08017 | Counterintelligence   | interrupt, threat on the main scheme     | passed: p1's upgrade prevents it; p2's upgrade ignores threat placed in area one                          |
+| 01084 | Nick Fury             | end-of-the-round discard                 | passed: p1's Fury is discarded after phase 4, while p1 is inactive (Q3 B, N8)                             |
+| 01004 | Enhanced Spider-Sense | treachery-reveal cancel                  | passed: cancels in p1's own phase, ignores a treachery revealed in p2's area                              |
+| 01075 | Black Widow           | any-card-revealed cancel (ally, in play) | **bug** (finding 5): offered for a card revealed in p2's area (`it.fails`); control passes                |
+| 01085 | Emergency             | "when the villain schemes" interrupt     | passed: leader one's scheme in p1's phase, not leader two's in p2's phase                                 |
+| 13017 | Lie in Wait           | minion engages you response              | passed (group 2, `resistance-leaders.test.ts`, Recruited by Cap, in p2's hero phase)                      |
+
+Not tested, by category (the same selector shapes as the tested ones, but not proven):
+
+- **Interrupts on damage:** Cosmic Flight 01017, Shield Block 03005, Wiggle Room 05005, Energy Barrier 05017, Defensive
+  Stance 08032, Side Step 14015, Magic Shield 15008, Booster Boots 16052, In Defiance 16153, Armor Plating 16162, Jet Boots
+  17008, Crosscounter 18004, Parry 19006, Deflection 19015, Shield Spell 21061, Stand Together 23034, Protector 26014,
+  Bio-Synthetic Wings 13009.
+- **"(attack/defense)" or "(defense)" enemy-attacks interrupts:** Shadow and Steel 32021 / 32050, Brazen Defense 32178,
+  Mutant Protectors 32017, Quick Shift 32040, Aerial Agility 42004, Energy Conversion 45009, Psychic Misdirection 34033,
+  Flash Freeze 36012. Open question for the owner: N11 says defense-labelled abilities stay excluded from a leader attacking
+  a leader; does "(attack/defense)" count as defense-labelled? A probe showed Shadow and Steel not offered to p1 on leader
+  one's attack on leader two (so the exclusion holds in practice), but it is not asserted.
+- **"After the villain/an enemy attacks you":** Payback 19007, "You'll Pay for That!" 10016, Morlock 40079, Bishop's
+  sibling Counter-Punch (Core).
+- **Reveal cancels:** Get Behind Me! 01078 (same shape as Enhanced Spider-Sense).
+- **Threat prevention or redirect:** Serve and Protect 47029, Not my Responsibility 44022 (same shape as Great
+  Responsibility and Counterintelligence), Justice Served 22014 and Surprise! 32187 / 32191 (thwart responses), Quake
+  08012 (a minion schemes; needs a minion on a side).
+- **Obligation and nemesis forced effects, Spider-Tracer 01007 (attached minion defeated), Regroup 19032 (round-end
+  discard):** none.
+- **The leader-cross cards listed in the first draft of this section** (Energy Channel 56098, Superhuman Strength 57007, Cuts
+  Both Ways 56050, Public Outrage 56122b, Protect Secret Identities 57044b, Superhero Jailbreak 56202b, Cut Off Support
+  56063b, Open Rebellion 56172b, Vision 57040, Drafted 56080, Switching Sides 56158, Venom 56087, Bullseye 56088, Tangled Up
+  56181, Luke Cage 56184, Spectacular! 56182, Neighborhood Hero 56183, Cloak 56194): not yet audited.
