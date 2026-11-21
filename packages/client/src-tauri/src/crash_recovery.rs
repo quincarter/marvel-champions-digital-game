@@ -177,7 +177,11 @@ mod windows_impl {
             log::warn!("crash recovery: the page is not responding; waiting to see if it comes back");
             // A probe the page answers only once its main thread runs again: an answer clears this report, so a second
             // report later is a new episode, not proof of one long hang. A page still hung never answers.
-            let probe = ExecuteScriptCompletedHandler::create(Box::new(move |_, _| {
+            let probe = ExecuteScriptCompletedHandler::create(Box::new(move |status, _| {
+              // A failed run (E_FAIL when a navigation cut it off) is no sign the page answered.
+              if status.is_err() {
+                return Ok(());
+              }
               if LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).answered(now) {
                 log::info!("crash recovery: the page is responding again");
               }

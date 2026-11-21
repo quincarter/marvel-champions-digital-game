@@ -130,14 +130,41 @@ describe("WorkerCrashGuard (#932)", () => {
     expect(page(storage).guard.skip()).toBe(true);
   });
 
-  it("marks only the first job of a start, not every job after its answer", () => {
+  it("keeps the mark up for a later batch after an earlier one was answered", () => {
     const storage = new MemoryStorage();
     const { guard } = page(storage);
     guard.skip();
     guard.starting();
-    guard.working();
-    guard.settled(); // the first job's answer
-    guard.working(); // the next job
+    guard.working(3);
+    guard.answered(3); // the first batch painted
+    expect(storage.getItem(KEY)).toBeNull();
+    guard.working(2); // the next batch, which crashes the page
+    expect(storage.getItem(KEY)).toBe("starting");
+    expect(page(storage).guard.skip()).toBe(true);
+  });
+
+  it("keeps the mark while overlapping batches are out, and drops it when the last is answered", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working(2);
+    guard.working(1);
+    guard.answered(2); // the first batch back, the second still out
+    expect(storage.getItem(KEY)).toBe("starting");
+    guard.answered(1);
+    expect(storage.getItem(KEY)).toBeNull();
+  });
+
+  it("counts a batch answered in two parts (some painted, some failed)", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working(4);
+    guard.answered(3); // painted
+    expect(storage.getItem(KEY)).toBe("starting");
+    guard.answered(1); // failed
     expect(storage.getItem(KEY)).toBeNull();
   });
 

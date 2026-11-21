@@ -162,8 +162,8 @@ export class CardFaceBaker {
       for (const entry of waiting) this.#dispatch(entry);
       return;
     }
-    // A face came back (baked or not): the worker lived through its first piece of work.
-    this.#guard.settled();
+    // A face came back (baked or not): the worker lived through that job.
+    this.#guard.answered();
     const entry = this.#inflight.get(message.id);
     this.#inflight.delete(message.id);
     if (!entry) {
