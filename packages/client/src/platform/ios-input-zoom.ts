@@ -7,7 +7,9 @@
  *
  * `maximum-scale=1` on the viewport stops that zoom on iOS. Safari ignores the limit for the player's own pinch zoom
  * (since iOS 10), so only the automatic focus zoom goes away. It is iOS only: Chrome on Android would honor it by
- * blocking pinch zoom, and Android never zooms in on a focused field anyway.
+ * blocking pinch zoom, and Android never zooms in on a focused field anyway. The iOS app's WKWebView may enforce the
+ * limit for pinches too, which costs nothing there: the canvas fills the page with `touch-action: none` (index.html),
+ * so a pinch on the game never zoomed the page in the first place.
  */
 
 /** The parts of `navigator` this reads, so a test can pass its own. */
