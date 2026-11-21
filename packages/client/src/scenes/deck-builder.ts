@@ -3366,8 +3366,17 @@ ${entry.detail}`,
       this.#identityArtFocus(identity),
     );
     // The picture is baked off the main thread: swap it in when it lands, without redrawing the screen.
-    this.#bannerBaked?.();
-    this.#bannerBaked = cardFaces(this).onBaked(() => thumb.refresh());
+    // An image already baked needs no listener; a placeholder listens until its picture is in.
+    if (thumb.object.type !== "Image") {
+      const holder = thumb.object as Phaser.GameObjects.Container;
+      this.#bannerBaked = cardFaces(this).onBaked(() => {
+        thumb.refresh();
+        if (holder.list[0]?.type === "Image") {
+          this.#bannerBaked?.();
+          this.#bannerBaked = null;
+        }
+      });
+    }
     noteHoverCardId(this, identity.id as string, thumbRect, true, { kind: "hero" });
 
     const buttonWidth = 120;
