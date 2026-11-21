@@ -28,13 +28,12 @@
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { deckDiscardStillThere, handDiscardStillThere } from "../query.js";
-import { evaluate, TOGETHER_TARGETS_SLOT, type EffectContext } from "../select.js";
+import { DISCARD_MOVED_SLOT, evaluate, TOGETHER_TARGETS_SLOT, type EffectContext } from "../select.js";
 import type { EffectSpec, Predicate } from "../spec.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 
 /** A discard whose card a response has since taken out of where the discard left it; false for any other event. */
-// `select.ts` `discardMovedOn` reads the same, without importing this module: keep the two in step.
 export function discardedCardGone(state: GameState, event: TriggerEvent): boolean {
   if (event.kind === "cardDiscardedFromDeck") return !deckDiscardStillThere(state, event);
   if (event.kind === "cardDiscardedFromHand") return !handDiscardStillThere(state, event);
@@ -66,7 +65,10 @@ export function lostWithDiscardedCard(
     selfInstanceId: candidate.instanceId,
     controllerId: candidate.controllerId ?? null,
     event,
-    bindings: candidate.together ? { [TOGETHER_TARGETS_SLOT]: stillDiscardedTargets(state, candidate.together) } : {},
+    bindings: {
+      [DISCARD_MOVED_SLOT]: [],
+      ...(candidate.together ? { [TOGETHER_TARGETS_SLOT]: stillDiscardedTargets(state, candidate.together) } : {}),
+    },
     deps,
   };
   return needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
@@ -114,32 +116,45 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
       if (namesCard(effect, slots)) slots.push(effect.slot);
       continue;
     }
-    if (effect.kind === "then") continue;
+    // Post-"then" text, and a var set for later effects (`setVar`): no part of its own, it changes no game element.
+    if (effect.kind === "then" || effect.kind === "setVar") continue;
     parts.push(effect);
   }
   return parts.length > 0 && parts.every((part) => partNeedsCard(part, slots, judge));
 }
 
 /**
- * A branch needs the card when every branch that could run needs it. A condition that does not read the card could
- * pick either branch. One that reads it is read once the card has gone (`judge`): "that card" then names nothing
- * (`select.ts` `eventTarget`), so "if that card is an event, draw 1 card" runs nothing and is dropped rather than
- * offered to do nothing, and "if that card is not an event, draw 1 card" draws and is kept. A condition that reads
- * what the ability itself binds or how it was paid for cannot be told yet, and could pick either branch.
+ * A branch needs the card when every branch that could run needs it, and a "choose one" when every option that could
+ * be chosen does. With `judge` (`lostWithDiscardedCard`) a condition is read on the game as it stands, "that card"
+ * naming nothing: "if that card is an event, draw 1 card" then runs nothing and is dropped rather than offered to do
+ * nothing, "if that card is not an event, draw 1 card" draws and is kept, and an option whose condition reads false
+ * cannot be chosen. Without it, or for a condition on what the ability itself binds or how it was paid for, either
+ * branch could run.
  */
 function partNeedsCard(effect: EffectSpec, slots: readonly string[], judge?: Judge): boolean {
   // "Choose one": an option that needs nothing of the card can still be chosen (RRG 1.8 "Choose", p. 12).
   if (effect.kind === "chooseOne") {
-    const options = effect.options.filter((option) => option.effects.length > 0);
+    // An option whose condition now reads false cannot be chosen (`executeChooseOne`).
+    const options = effect.options.filter(
+      (option) => option.effects.length > 0 && (!option.condition || told(option.condition, judge) !== false),
+    );
     return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots, judge));
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
   const otherwise = effect.otherwise ?? [];
-  const told = judge && conditionReadsCard(effect.condition, slots) && !readsOwnBindings(effect.condition);
-  const reachable = told ? [judge(effect.condition) ? effect.then : otherwise] : [effect.then, otherwise];
+  const holds = told(effect.condition, judge);
+  const reachable = holds === undefined ? [effect.then, otherwise] : [holds ? effect.then : otherwise];
   if (reachable.every((branch) => branch.length === 0)) return true;
   const branches = reachable.filter((branch) => branch.length > 0);
   return branches.every((branch) => everyPartNeedsCard(inline(branch), slots, judge));
+}
+
+/**
+ * A condition read on the game as it stands (`judge`), "that card" naming nothing; undefined when it cannot be told
+ * yet: no `judge` (the remembered reading), or it reads what the ability binds or how it was paid for.
+ */
+function told(condition: Predicate, judge: Judge | undefined): boolean | undefined {
+  return judge && !readsOwnBindings(condition) ? judge(condition) : undefined;
 }
 
 /** Whether `value` reads a value or card the ability binds as it resolves (a var, a payment, a choice's slot). */
@@ -149,7 +164,8 @@ function readsOwnBindings(value: unknown): boolean {
   const record = value as Readonly<Record<string, unknown>>;
   if (record.kind === "var" || record.kind === "varAtLeast") return true;
   if (typeof record.kind === "string" && record.kind.startsWith("paid")) return true;
-  if (record.kind === "slot" && record.slot !== TOGETHER_TARGETS_SLOT) return true;
+  if (record.kind === "slot" && record.slot !== TOGETHER_TARGETS_SLOT && record.slot !== DISCARD_MOVED_SLOT)
+    return true;
   if (typeof record.inSlot === "string") return true;
   return Object.values(record).some(readsOwnBindings);
 }
@@ -232,21 +248,17 @@ const AMOUNT_KINDS: ReadonlySet<string> = new Set([
  * Whether `value` names the discarded card as what it acts on: `eventTarget`, the `together` targets, or one of
  * `slots`. Amounts nested in it are not read (`AMOUNT_KINDS`); the value itself may be a condition (`if`).
  */
-function namesCard(value: unknown, slots: readonly string[], nested = false, amounts = false): boolean {
-  if (Array.isArray(value)) return value.some((item) => namesCard(item, slots, true, amounts));
+function namesCard(value: unknown, slots: readonly string[], nested = false): boolean {
+  if (Array.isArray(value)) return value.some((item) => namesCard(item, slots, true));
   if (value === null || typeof value !== "object") return false;
   const record = value as Readonly<Record<string, unknown>>;
-  if (nested && !amounts && typeof record.kind === "string" && AMOUNT_KINDS.has(record.kind)) return false;
+  if (nested && typeof record.kind === "string" && AMOUNT_KINDS.has(record.kind)) return false;
   if (record.kind === "eventTarget") return true;
   if (record.kind === "slot" && (record.slot === TOGETHER_TARGETS_SLOT || slots.includes(record.slot as string)))
     return true;
   if (typeof record.inSlot === "string" && slots.includes(record.inSlot)) return true;
-  return Object.values(record).some((item) => namesCard(item, slots, true, amounts));
+  return Object.values(record).some((item) => namesCard(item, slots, true));
 }
-
-/** Whether a condition reads the discarded card at all, amounts included ("if that card's cost is 2 or less"). */
-const conditionReadsCard = (condition: unknown, slots: readonly string[]): boolean =>
-  namesCard(condition, slots, false, true);
 
 /** The targets of the discards a `together` answer answers, without those whose cards have since gone (#928). */
 export function stillDiscardedTargets(state: GameState, events: readonly TriggerEvent[]): readonly InstanceId[] {

@@ -117,6 +117,51 @@ const GROUP_RESPONSE = stubAbility(
     ],
   }),
 );
+// "Add that card to your hand, then set it aside": a response that moves the card itself still names it afterwards.
+const RELAY_RESPONSE = stubAbility(
+  "relay.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      { kind: "moveCards", cards: { kind: "ref", ref: { kind: "eventTarget" } }, to: "hand" },
+      { kind: "moveCards", cards: { kind: "ref", ref: { kind: "eventTarget" } }, to: "setAside" },
+    ],
+  }),
+);
+const thatCardThere = {
+  kind: "compare",
+  left: { kind: "refCount", of: { kind: "eventTarget" } },
+  op: "atLeast",
+  right: constant(1),
+} as const;
+// "If that card is not in your discard pile any more, put a counter here": read with "that card" naming nothing.
+const MISSED_RESPONSE = stubAbility(
+  "missed.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "if",
+        condition: { kind: "not", of: thatCardThere },
+        then: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
+      },
+    ],
+  }),
+);
+// The same the other way round: "if that card is there, put a counter here". Nothing can come of it once it moved.
+const THERE_RESPONSE = stubAbility(
+  "there.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "if",
+        condition: thatCardThere,
+        then: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
+      },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -144,6 +189,9 @@ const TALLY = stubSupport({ id: "tally", cost: 0, abilities: [TALLY_RESPONSE.ref
 const TICK = stubSupport({ id: "tick", cost: 0, abilities: [TICK_RESPONSE.ref] });
 const MIXED = stubSupport({ id: "mixed", cost: 0, abilities: [MIXED_RESPONSE.ref] });
 const GROUP = stubSupport({ id: "group", cost: 0, abilities: [GROUP_RESPONSE.ref] });
+const RELAY = stubSupport({ id: "relay", cost: 0, abilities: [RELAY_RESPONSE.ref] });
+const MISSED = stubSupport({ id: "missed", cost: 0, abilities: [MISSED_RESPONSE.ref] });
+const THERE = stubSupport({ id: "there", cost: 0, abilities: [THERE_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -225,6 +273,9 @@ const deps: EngineDeps = depsOf(
   TICK_RESPONSE,
   MIXED_RESPONSE,
   GROUP_RESPONSE,
+  RELAY_RESPONSE,
+  MISSED_RESPONSE,
+  THERE_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -232,7 +283,18 @@ const deps: EngineDeps = depsOf(
 const silentDeps: EngineDeps = depsOf(...ACTIONS);
 
 type Name = "filler" | "match" | "back" | "hand" | "fox";
-type InPlay = "lady" | "tally" | "tick" | "mixed" | "group" | "batch" | "costly" | "guard";
+type InPlay =
+  | "lady"
+  | "tally"
+  | "tick"
+  | "mixed"
+  | "group"
+  | "relay"
+  | "missed"
+  | "there"
+  | "batch"
+  | "costly"
+  | "guard";
 interface Table {
   readonly state: GameState;
   /** The deck's top cards, in order. */
@@ -266,6 +328,9 @@ function start(
       TICK,
       MIXED,
       GROUP,
+      RELAY,
+      MISSED,
+      THERE,
       BATCH,
       METER,
       GUARD,
@@ -286,6 +351,9 @@ function start(
       TICK.id,
       MIXED.id,
       GROUP.id,
+      RELAY.id,
+      MISSED.id,
+      THERE.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -685,6 +753,33 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
     expect(seat(result.state).hand).toContain(card);
     expect(counters(result.state, table.inPlay.group, "seen")).toBe(1);
     expect([...mustInstance(result.state, table.inPlay.group!).attachments].sort()).toEqual([...rest].sort());
+    expectReplays(result);
+  });
+
+  it("a response that moves the card itself still names it in its next instruction", () => {
+    const table = start(["filler", "filler"], { inPlay: ["relay"] });
+    const card = table.top[0]!;
+    const result = play(table, MILL_1, triggering(RELAY_RESPONSE));
+    expect(seat(result.state).setAside).toContain(card);
+    expect(seat(result.state).hand).not.toContain(card);
+    expectReplays(result);
+  });
+
+  it("one initiated after another response moved the card does not follow it", () => {
+    const table = start(["hand", "filler"], { inPlay: ["relay"] });
+    const card = table.top[0]!;
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, RELAY_RESPONSE));
+    expect(resolved(result.events, RELAY_RESPONSE)).toEqual([]);
+    expect(seat(result.state).hand).toContain(card);
+    expectReplays(result);
+  });
+
+  it("once it moved, 'if that card is not there' resolves and 'if it is' is dropped", () => {
+    const table = start(["hand", "filler"], { inPlay: ["missed", "there"] });
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, MISSED_RESPONSE, THERE_RESPONSE));
+    expect(counters(result.state, table.inPlay.missed, "seen")).toBe(1);
+    expect(resolved(result.events, THERE_RESPONSE)).toEqual([]);
+    expect(counters(result.state, table.inPlay.there, "seen")).toBe(0);
     expectReplays(result);
   });
 

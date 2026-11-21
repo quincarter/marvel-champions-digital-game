@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "../abilities.js";
 import { TOGETHER_TARGETS_SLOT } from "../select.js";
-import type { EffectSpec, TargetRef } from "../spec.js";
+import type { EffectSpec, Predicate, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { lostWithDiscardedCard, needsDiscardedCard, stillDiscardedTargets } from "./discarded-card.js";
@@ -16,6 +16,9 @@ const you = { kind: "controller" } as const;
 const n = (value: number) => ({ kind: "const", value }) as const;
 const tuck: EffectSpec = { kind: "attach", card: that, to: self, facedown: true };
 const draw: EffectSpec = { kind: "draw", player: you, amount: n(1) };
+/** "That card is there": `anyIn(eventTarget)` in the card DSL. */
+const thatCardThere: Predicate = { kind: "compare", left: { kind: "refCount", of: that }, op: "atLeast", right: n(1) };
+const readsVar = { kind: "compare", left: { kind: "var", name: "x" }, op: "atLeast", right: n(1) } as Predicate;
 const ability = (effects: readonly EffectSpec[], costEffects?: number): AbilityDefinition => ({
   trigger: { kind: "response", forced: false, on: { on: "cardDiscardedFromDeck", playerIs: "controller" } },
   effects,
@@ -72,7 +75,8 @@ describe("needsDiscardedCard", () => {
   });
 
   it("a branch needs the card when each branch that could run does", () => {
-    const always = { kind: "exists", ref: self } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
+    const always: Predicate = { kind: "not", of: thatCardThere };
+    // Untold (no `judge`), either branch could run.
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [draw] }]))).toBe(false);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck] }]))).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck], otherwise: [draw] }]))).toBe(
@@ -80,29 +84,9 @@ describe("needsDiscardedCard", () => {
     );
   });
 
-  it("a condition on that card is read as the game stands once it has gone (`judge`), not assumed", () => {
-    const readsThatCard = { kind: "exists", ref: that } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
-    const drawIf = ability([{ kind: "if", condition: readsThatCard, then: [draw] }]);
-    // Untold, either branch could run: the draw keeps it.
-    expect(needsDiscardedCard(drawIf)).toBe(false);
-    // "If that card is …, draw": false once it has gone, so nothing runs.
-    expect(needsDiscardedCard(drawIf, () => false)).toBe(true);
-    // "If that card is not …, draw" (a negation reads true): the draw runs.
-    expect(needsDiscardedCard(drawIf, () => true)).toBe(false);
-    const tuckElseDraw = ability([{ kind: "if", condition: readsThatCard, then: [tuck], otherwise: [draw] }]);
-    expect(needsDiscardedCard(tuckElseDraw, () => false)).toBe(false);
-    expect(needsDiscardedCard(tuckElseDraw, () => true)).toBe(true);
-  });
-
-  it("a condition that reads what the ability binds is not told before it resolves", () => {
-    const readsBoth = {
-      kind: "and",
-      of: [
-        { kind: "exists", ref: that },
-        { kind: "varAtLeast", name: "x", value: 1 },
-      ],
-    } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
-    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsBoth, then: [draw] }]), () => false)).toBe(false);
+  it("a var set for later effects is no part of its own", () => {
+    const snapshot: EffectSpec = { kind: "setVar", name: "before", value: n(1) };
+    expect(needsDiscardedCard(ability([snapshot, tuck]))).toBe(true);
   });
 
   it("a 'choose one' is judged option by option: one that needs nothing of the card keeps it", () => {
@@ -155,6 +139,42 @@ describe("lostWithDiscardedCard", () => {
 
   it("the discarded card's own response is lost once it is gone, whatever it does", () => {
     expect(lostWithDiscardedCard(state, deps, candidate("needs-not", undefined, "taken"), discard("taken"))).toBe(true);
+  });
+
+  it("a condition on that card is read with the real evaluator, 'that card' naming nothing", () => {
+    const registry = {
+      abilities: {
+        ifThere: ability([{ kind: "if", condition: thatCardThere, then: [draw] }]),
+        ifNotThere: ability([{ kind: "if", condition: { kind: "not", of: thatCardThere }, then: [draw] }]),
+        tuckElseDraw: ability([{ kind: "if", condition: thatCardThere, then: [tuck], otherwise: [draw] }]),
+        drawElseTuck: ability([{ kind: "if", condition: thatCardThere, then: [draw], otherwise: [tuck] }]),
+        bound: ability([
+          { kind: "if", condition: { kind: "and", of: [thatCardThere, readsVar] } as Predicate, then: [draw] },
+        ]),
+      },
+    } as never;
+    const gone = discard("taken");
+    expect(lostWithDiscardedCard(state, registry, candidate("ifThere"), gone)).toBe(true);
+    expect(lostWithDiscardedCard(state, registry, candidate("ifNotThere"), gone)).toBe(false);
+    expect(lostWithDiscardedCard(state, registry, candidate("tuckElseDraw"), gone)).toBe(false);
+    expect(lostWithDiscardedCard(state, registry, candidate("drawElseTuck"), gone)).toBe(true);
+    // Reads a var the ability binds as it resolves: not told yet, so its draw keeps it.
+    expect(lostWithDiscardedCard(state, registry, candidate("bound"), gone)).toBe(false);
+  });
+
+  it("a 'choose one' option whose condition now reads false cannot be chosen", () => {
+    const options = (drawWhen?: Predicate) => [
+      { label: "attach", effects: [tuck] },
+      { label: "draw", ...(drawWhen ? { condition: drawWhen } : {}), effects: [draw] },
+    ];
+    const registry = {
+      abilities: {
+        open: ability([{ kind: "chooseOne", chooser: you, options: options() }]),
+        barred: ability([{ kind: "chooseOne", chooser: you, options: options(thatCardThere) }]),
+      },
+    } as never;
+    expect(lostWithDiscardedCard(state, registry, candidate("open"), discard("taken"))).toBe(false);
+    expect(lostWithDiscardedCard(state, registry, candidate("barred"), discard("taken"))).toBe(true);
   });
 
   it("a 'together' answer keeps the cards still there, and is lost only once every card it needs is gone", () => {
