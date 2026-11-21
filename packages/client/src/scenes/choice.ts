@@ -662,11 +662,54 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setMaxLines(3);
     y += note.height + 12;
 
-    // The engine's own options, never the sheet's display tiles (a spend choice's exhaust tiles answer nothing).
-    const view = fallbackChoiceView(choice, state.selected);
     const ROW = 40;
     const GAP = 6;
     const footerTop = height - 16 - ROW;
+    // A whole-number report (a break's minutes) has no options to list: a − / + stepper and Confirm answer it.
+    const report = reportNumberEntryOf(choice);
+    if (report) {
+      const value = reportValueOf(report, state.selected);
+      const step = (delta: number): void => {
+        state.selected = reportAnswerOf(report, value + delta);
+        redraw();
+      };
+      const side = Math.min(96, sheetWidth / 4);
+      addButton({
+        kind: "onInk",
+        label: "−",
+        type: typeRole.label,
+        rect: { x, y, width: side, height: ROW },
+        onClick: () => step(-1),
+      });
+      this.add
+        .text(
+          x + sheetWidth / 2,
+          y + ROW / 2,
+          `${value} ${report.unit}`,
+          textStyle(typeRole.barTitle, surface.paper.hex),
+        )
+        .setOrigin(0.5);
+      addButton({
+        kind: "onInk",
+        label: "+",
+        type: typeRole.label,
+        rect: { x: x + sheetWidth - side, y, width: side, height: ROW },
+        onClick: () => step(1),
+      });
+      addButton({
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.label,
+        rect: { x, y: footerTop, width: sheetWidth, height: ROW },
+        onClick: () => answer(reportAnswerOf(report, value)),
+      });
+      this.#fallbackStops = stops;
+      this.#fallbackFocus = Math.min(this.#fallbackFocus, Math.max(0, stops.length - 1));
+      this.#drawFallbackRing();
+      return;
+    }
+    // The engine's own options, never the sheet's display tiles (a spend choice's exhaust tiles answer nothing).
+    const view = fallbackChoiceView(choice, state.selected);
     const pagerHeight = ROW + GAP;
     const room = footerTop - GAP - y;
     let { perPage, pages } = fallbackPages(view.rows.length, room, ROW + GAP);
