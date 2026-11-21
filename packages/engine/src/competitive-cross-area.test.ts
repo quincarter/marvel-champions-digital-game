@@ -363,10 +363,11 @@ describe("which side an event trigger hears (`heardOnThisSide`)", () => {
     expect(hasCandidates(state, hearDeps, ranOut(two!.encounterDeckId), "response")).toBe(false);
   });
 
-  it("Kang-shaped (split game areas, no teams): unchanged, the other area is heard", () => {
+  it("Kang-shaped (split game areas, no teams): the other area is not heard, its own is (Kang insert; option A)", () => {
     const { teams: _teams, activeTeamId: _active, ...rest } = listening(FLIP_ANY, P1);
     const kang = rest as GameState;
     expect(kang.gameAreas.length).toBe(2);
-    expect(hasCandidates(kang, hearDeps, flipOf(kang, P2), "response")).toBe(true);
+    expect(hasCandidates(kang, hearDeps, flipOf(kang, P2), "response")).toBe(false);
+    expect(hasCandidates(kang, hearDeps, flipOf(kang, P1), "response")).toBe(true);
   });
 });

@@ -259,7 +259,12 @@ triggering player's own team's hero phase (RRG "Action" p. 6; Q11). An "(attack/
 under N11 (RRG v1.8 "Labeled Ability" p. 26, multiple labels; FFG ruling July 19, 2023 #49.3, Powerful Punch; MC56
 p. 16 "no player can declare a defender"), so neither team may use one against a leader-vs-leader attack; Shadow and
 Steel 32021 with its Team-Up met (a Colossus hero and a Shadowcat ally on your own team) is not offered against a
-leader-vs-leader attack, and on the same board is offered on a minion's attack. Inactive = the team whose round segment is not
+leader-vs-leader attack, and on the same board is offered on a minion's attack. A trigger with no `anyGameArea` query
+hears only events on its own side of the table, read where the event happened when it was made (a minion moved to the
+other team and defeated there left play on that side, though it goes to its origin's discard pile; MC56 pp. 16-17, 20);
+the same holds in The Once and Future Kang's separate game areas (rules expert, option A: the Kang insert's "Cards and
+components in one game area cannot affect another game area", FFG ruling Mar 6, 2025 (Azazel); environments and stage
+2B are in every area, RRG 1.8 FAQ p. 60). Inactive = the team whose round segment is not
 being played (MC56 p. 16); in a team's own villain phase its responses are ordinary. Synthezoid Strike 57075 (rules
 expert, 2026-11-20, reading A): its bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast /
 Erratic Teleportation), so the face is checked once: a Dense Vision gets the card's +1 ATK and piercing for the attack;

@@ -277,7 +277,9 @@ function matchesPatternFields(
  * On a split table, an event about the other side is not heard here.
  *
  * Competitive, MC56 pp. 16-17: "Card abilities on your side of the table completely ignore cards on the other side of
- * the table unless they specifically refer to them." Only in a game with two teams.
+ * the table unless they specifically refer to them." The Once and Future Kang's separate game areas: "Cards and
+ * components in one game area cannot affect another game area (with the exception of the text on stage 2B)" (rules
+ * expert, 2026-11-20, option A), so a trigger there hears only events in its own area too.
  *
  * A pattern's queries are already limited to the listening card's area (`inContextArea`); this scopes the event itself
  * the same way, so a pattern that names no query (Black Widow 01075's "when a card is revealed") hears only an event on
@@ -289,12 +291,13 @@ function matchesPatternFields(
  * every event (per `anyOf` alternative, `matchesPatternFields`); a leader's attack on the other leader is on both sides,
  * so both pass here and `onAttackingLeadersSide` narrows "an enemy attacks" to the attacker's side (N11 per owner
  * decision 2026-11-20); phase and villain-step events name no card and keep their own active-team scope
- * (`hearsTeamPhase`, N8). Cooperative games are unchanged, The Once and Future Kang's split areas included (an open
- * question), and an Epic Multiplayer pod's groups are separate games.
+ * (`hearsTeamPhase`, N8). A game whose players share one game area is unchanged, and an Epic Multiplayer pod's groups
+ * are separate games.
  */
 // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); audit finding 5 (#883)
+// Kang insert "Playing With Separate Game Areas": cards in one game area cannot affect another (except stage 2B); FFG ruling Mar 6 2025 (Azazel). Environments and stage 2B are in every area (RRG 1.8 FAQ p. 60).
 function heardOnThisSide(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
-  if (state.teams === undefined || state.gameAreas.length === 0) return true;
+  if (state.gameAreas.length === 0) return true;
   const selfArea = areaOfCard(state, selfId);
   if (selfArea === null) return true;
   const sides = eventSides(state, event);
