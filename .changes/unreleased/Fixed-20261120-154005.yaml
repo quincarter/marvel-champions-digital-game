@@ -1,0 +1,3 @@
+kind: Fixed
+body: The deck builder's aspect info tip opens only once the mouse rests on it, so a fast sweep across the chips no longer pops it open; reported by @bluefireF5ran (#911).
+time: 2026-11-20T15:40:05.5864824-05:00

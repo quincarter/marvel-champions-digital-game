@@ -31,6 +31,7 @@ import type { BuilderStep } from "../view/civil-war-builder-layout.js";
 import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
 import type { ExtrasTab } from "../progression/extras.js";
+import type { StatsTab } from "../view/player-stats-layout.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
@@ -292,9 +293,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=trophies`: the Trophy Room; seed saves into IndexedDB first to see earned rows.
   if (screen === "trophies") return { key: SCENES.trophyRoom, data: {} };
   // `?screen=stats`: the Stats screen (reached from the Trophy Room); like the room, it reads the saves in IndexedDB.
-  if (screen === "stats") return { key: SCENES.playerStats, data: {} };
+  // `&fixture=demo` first writes the Past games demo games (`store/dev-past-games.ts`); `&tab=records` opens that tab,
+  // where the fastest and longest game link to their game in Past games (#911).
+  if (screen === "stats") {
+    if (params.get("fixture") === "demo") await (await import("../store/dev-past-games.js")).seedDemoPastGames();
+    const tab = params.get("tab");
+    return { key: SCENES.playerStats, data: tab ? { tab: tab as StatsTab } : {} };
+  }
   // `?screen=past-games`: Past games (#706); finished games in IndexedDB are its rows.
-  if (screen === "past-games") return { key: SCENES.pastGames, data: {} };
+  // `&fixture=demo` first writes five finished games (`store/dev-past-games.ts`) for the list to show.
+  if (screen === "past-games") {
+    if (params.get("fixture") === "demo") await (await import("../store/dev-past-games.js")).seedDemoPastGames();
+    return { key: SCENES.pastGames, data: {} };
+  }
   // `?screen=controls`: Settings ▸ Controls (`&pad=xbox|playstation|nintendo|handheld` fakes the last pad seen, for the drawing).
   if (screen === "controls") {
     const fakePads: Readonly<Record<string, string>> = {
@@ -669,6 +680,17 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     if (!gameRunning(store)) {
       const { startVictoryDevGame } = await import("../store/dev-victory-game.js");
       await startVictoryDevGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `&fixture=multi-gun`: Venom and Spider-Man, a minion engaged with each, on Multi-Gun's "Choose a player" question,
+  // so the sheet shows each seat's engaged minions (`store/dev-multi-gun-game.ts`, issue #911).
+  if (screen === "board" && params.get("fixture") === "multi-gun") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startMultiGunGame } = await import("../store/dev-multi-gun-game.js");
+      await startMultiGunGame(store);
     }
     return { key: SCENES.board, data: {} };
   }

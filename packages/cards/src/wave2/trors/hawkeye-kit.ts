@@ -8,7 +8,7 @@ import {
   attack,
   attacksGainKeywords,
   chooseCards,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chosen,
   chosenPlayer,
   confuse,
@@ -123,7 +123,7 @@ export const HAWKEYE_KIT = defineAbilities({
   // each minion engaged with that player. Not "(attack)": plain damage, no guard/retaliate.
   "04006.explosive-arrow-action": heroAction(
     { cost: exhaustCardsCost(BOW) },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     dealDamage(3, theVillain),
     dealDamage(3, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),

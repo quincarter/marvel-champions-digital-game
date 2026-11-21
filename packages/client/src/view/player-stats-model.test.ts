@@ -780,3 +780,51 @@ describe("Decks tab: the deck of every seat at the table (#756)", () => {
     expect(rows.some((r) => r.kind === "cards")).toBe(true);
   });
 });
+
+describe("playerStatsOf: records link to the game that set them (#911)", () => {
+  const gameLinked = (turn: { damage: number; thwart: number }, extra: Partial<SaveMeta> = {}): SaveMeta =>
+    meta({
+      summary: summary({
+        seats: [seat({ drawn: 12, bestTurn: turn })],
+        winners: [{ identityCardId: "spidey", hitPoints: 2, inHeroForm: true }],
+      }),
+      ...extra,
+    });
+
+  test("a record from one game carries that game's id; a total over several games carries none", () => {
+    const quick = gameLinked({ damage: 5, thwart: 9 }, { id: "quick", round: 3 });
+    const long = gameLinked({ damage: 11, thwart: 2 }, { id: "long", round: 9 });
+    const records = section(playerStatsOf([quick, long], NAMES).sections, "records");
+    expect(row(records, "rec:fastest").gameId).toBe("quick");
+    expect(row(records, "rec:longest").gameId).toBe("long");
+    expect(row(records, "rec:turn:damage").gameId).toBe("long");
+    expect(row(records, "rec:turn:thwart").gameId).toBe("quick");
+    expect(row(records, "rec:closest").gameId).toBeDefined();
+    expect(row(records, "rec:drawn").gameId).toBeDefined();
+    for (const id of ["fun:rounds", "fun:damage", "fun:thwart", "fun:drawn", "blow:hero"]) {
+      const found = records.rows.find((r) => r.id === id) as { gameId?: string } | undefined;
+      expect(found?.gameId, id).toBeUndefined();
+    }
+  });
+
+  test("a game Past games leaves out (a save written by a newer app, or one with no moves) is never linked", () => {
+    const hidden = gameLinked({ damage: 3, thwart: 3 }, { id: "hidden", round: 2, commandCount: 0 });
+    const shown = gameLinked({ damage: 1, thwart: 1 }, { id: "shown", round: 6 });
+    const records = section(playerStatsOf([hidden, shown], NAMES).sections, "records");
+    // The hidden game still counts for the number, but has no link to land on.
+    expect(row(records, "rec:fastest")).toMatchObject({ value: "Round 2" });
+    expect(row(records, "rec:fastest").gameId).toBeUndefined();
+    expect(row(records, "rec:longest").gameId).toBe("shown");
+  });
+
+  test("an adjusted game is excluded from the stats and so from any link", () => {
+    const adjusted = gameLinked({ damage: 99, thwart: 0 }, {
+      id: "adj",
+      round: 1,
+      adjusted: true,
+    } as Partial<SaveMeta>);
+    const kept = gameLinked({ damage: 4, thwart: 0 }, { id: "kept", round: 5 });
+    const records = section(playerStatsOf([adjusted, kept], NAMES).sections, "records");
+    expect(row(records, "rec:turn:damage")).toMatchObject({ value: "4", gameId: "kept" });
+  });
+});
