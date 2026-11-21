@@ -27,7 +27,11 @@ test.describe("on an iPhone", () => {
     await settle(page);
     expect(await viewport(page)).toContain("maximum-scale=1");
 
-    const search = page.locator("input").filter({ visible: true }).first();
+    // The search is the empty field; on desktop the deck's name field is also on screen.
+    const fields = page.locator("input").filter({ visible: true });
+    const index = await fields.evaluateAll((els) => els.findIndex((el) => (el as HTMLInputElement).value === ""));
+    expect(index, "an empty search field").toBeGreaterThanOrEqual(0);
+    const search = fields.nth(index);
     await expect(search).toBeVisible();
     await search.click();
     await search.pressSequentially("hulk");
