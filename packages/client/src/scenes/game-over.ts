@@ -276,7 +276,7 @@ export class GameOverScene extends Phaser.Scene {
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-    if (ribbon) this.#drawNews(ribbon, width);
+    if (ribbon) this.#drawNews(ribbon);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
     this.#hover?.onDraw();
@@ -308,7 +308,7 @@ export class GameOverScene extends Phaser.Scene {
     };
   }
 
-  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }, width: number): void {
+  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }): void {
     const { text, rect } = ribbon;
     const ground = this.add.graphics();
     ground.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
