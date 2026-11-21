@@ -21,8 +21,8 @@ import { otherFaceVisible, reverseHiddenNote } from "./hidden-reverse.js";
 import { breakPointOf } from "./break-point.js";
 import { perPlayerCostOf, type PerPlayerCost } from "./per-player-cost.js";
 import type { AbilityId, AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
-import { keywordLabel } from "./keyword-label.js";
-import { glossaryEntry } from "@mc/content";
+import { keywordLabel, keywordNameOf } from "./keyword-label.js";
+import { glossaryEntry, type GlossaryId } from "@mc/content";
 import {
   activeAbilityRefs,
   cardOf,
@@ -395,7 +395,7 @@ export function inspectModel(
   const max = maxHitPoints(state, instanceId, deps);
   const keywordChips = keywordsOf(state, instanceId, deps).map((keyword): KeywordChip => ({
     text: keywordLabel(keyword),
-    glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
+    glossaryId: glossaryIdOfKeyword(keyword),
   }));
 
   // The face in play, asked for once and used for everything the sheet prints. The art always followed it; the
@@ -936,7 +936,7 @@ function printedInspectModel(card: AnyCard | undefined, face: CardFace): Inspect
   const text = textOf(card, face);
   const keywordChips = printedKeywordsOf(card, face).map((keyword): KeywordChip => ({
     text: keywordLabel(keyword),
-    glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
+    glossaryId: glossaryIdOfKeyword(keyword),
   }));
   const sheet: InspectModel = {
     instanceId: "" as InstanceId,
@@ -1042,9 +1042,10 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
   const seen = new Set<string>();
   const entries: KeywordDefinition[] = [];
   for (const keyword of printedKeywordsOf(card, face)) {
-    if (seen.has(keyword.name)) continue;
-    seen.add(keyword.name);
-    const entry = glossaryEntry(keyword.name);
+    const name = keywordNameOf(keyword);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    const entry = glossaryEntry(name as GlossaryId);
     if (!entry) continue;
     entries.push({ label: entry.displayName, definition: entry.definition, citeLabel: citeLabelOf(entry.sources) });
   }
@@ -1342,9 +1343,10 @@ function keywordDefinitionsFor(
   const seen = new Set<string>();
   const entries: KeywordDefinition[] = [];
   for (const keyword of keywordsOf(state, instanceId, deps)) {
-    if (seen.has(keyword.name)) continue;
-    seen.add(keyword.name);
-    const entry = glossaryEntry(keyword.name);
+    const name = keywordNameOf(keyword);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    const entry = glossaryEntry(name as GlossaryId);
     if (!entry) continue;
     entries.push({ label: entry.displayName, definition: entry.definition, citeLabel: citeLabelOf(entry.sources) });
   }
@@ -1355,4 +1357,10 @@ function keywordDefinitionsFor(
 function removalNotes(state: GameState, deps: EngineDeps, id: InstanceId): readonly string[] {
   const cost = removalCostOf(state, deps, id);
   return cost ? [`To ${removalCostText(cost)}`] : [];
+}
+
+/** The glossary id of a keyword chip, or null; bad pack data (a bare string, #943) reads as its name. */
+function glossaryIdOfKeyword(keyword: unknown): string | null {
+  const name = keywordNameOf(keyword);
+  return name !== null && glossaryEntry(name as GlossaryId) ? name : null;
 }

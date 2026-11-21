@@ -97,6 +97,8 @@ import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import { choiceNoteOf, optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
 import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
+import { fallbackChoiceButtons } from "../view/choice-fallback.js";
+import { recordError } from "../ui/error-log.js";
 import {
   chosenResourcesNoteOf,
   paymentSheetView,
@@ -570,9 +572,65 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     resetHoverCards(this);
     this.#hoverScrolled.clear();
-    this.#draw();
+    try {
+      this.#draw();
+    } catch (cause) {
+      // A draw that throws (a pack card's data the sheet cannot read, #943) has already torn the sheet down, with the
+      // engine still waiting on this decision: record it and offer the plain answers, so the game can go on.
+      recordError(cause, "decision sheet");
+      this.#drawFallback(cause);
+      return;
+    }
     // The draw destroyed the popover with the rest of the sheet: it comes back where the pointer still is.
     this.#hover?.onDraw();
+  }
+
+  /** The sheet when `#draw` threw: the engine's own option labels as plain buttons (`view/choice-fallback.ts`). */
+  #drawFallback(cause: unknown): void {
+    const choice = appSession().store.state.game?.pendingChoice;
+    for (const button of this.#buttons) button.destroy();
+    this.#buttons = [];
+    this.#focusRing?.destroy();
+    this.#focusRing = null;
+    this.#focusRects.clear();
+    destroyChildren(this);
+    this.tweens.killAll();
+    this.#motion = new OverlayMotion();
+    if (!choice) return;
+    const { width, height } = this.scale.gameSize;
+    this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(0, 0, width, height);
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    const sheetWidth = Math.min(width - 32, 480);
+    const x = (width - sheetWidth) / 2;
+    let y = Math.max(24, height * 0.15);
+    const title = this.add
+      .text(x, y, "This decision could not be drawn", textStyle(typeRole.barTitle, surface.paper.hex))
+      .setWordWrapWidth(sheetWidth);
+    y += title.height + 8;
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const note = this.add
+      .text(
+        x,
+        y,
+        `${message}\n\nAnswer it here to keep playing. The error is saved for an issue report.`,
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      )
+      .setWordWrapWidth(sheetWidth);
+    y += note.height + 16;
+    // The engine's own options, never the sheet's display tiles (a spend choice's exhaust tiles answer nothing).
+    for (const option of fallbackChoiceButtons(choice)) {
+      const rect = { x, y, width: sheetWidth, height: 40 };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: option.label,
+          type: typeRole.label,
+          rect,
+          onClick: () => void appSession().store.resolveChoice(option.answer),
+        }),
+      );
+      y += rect.height + 8;
+    }
   }
 
   #draw(): void {

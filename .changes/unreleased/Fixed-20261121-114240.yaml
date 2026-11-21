@@ -1,0 +1,3 @@
+kind: Fixed
+body: A decision the game cannot draw (bad pack data) shows plain answer buttons instead of leaving the game stuck, and a bare keyword string in a pack no longer crashes the card sheet (#943)
+time: 2026-11-21T11:42:40.9388169-05:00
