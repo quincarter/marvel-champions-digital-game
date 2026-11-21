@@ -66,6 +66,7 @@ import {
 } from "./resolve/cards.js";
 import { announceDeckDiscards, settleDeckDiscards } from "./resolve/deck-discard.js";
 import { announceTuckedDiscards } from "./resolve/tuck.js";
+import { announceHandDiscards } from "./resolve/hand-discard.js";
 import { announceBoostCardsGiven } from "./resolve/enemy-activation.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { settlePod } from "./resolve/pod.js";
@@ -123,6 +124,8 @@ export function runFlow(ctx: Ctx): void {
     if (announceDeckDiscards(ctx)) continue;
     // "After a player card effect discards this card from under an identity" (docs/phase7-wave9.md §3.40 (b)).
     if (announceTuckedDiscards(ctx)) continue;
+    // "After a card is discarded [from a hand] by an ability" (issue #922).
+    if (announceHandDiscards(ctx)) continue;
     // "After an attacking enemy is given a facedown boost card" (docs/phase7-wave9.md §3.44).
     if (announceBoostCardsGiven(ctx)) continue;
     // "After this card enters your hand" (docs/phase7-wave6.md §3.10). Looked at first, so its frame resolves after the

@@ -2329,7 +2329,7 @@ dependencies = [
 
 [[package]]
 name = "marvel-champions"
-version = "0.50.0"
+version = "0.51.0"
 dependencies = [
  "discord-rich-presence",
  "gilrs",
@@ -2348,7 +2348,9 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
  "webkit2gtk",
+ "webview2-com",
  "windows 0.61.3",
+ "windows-core 0.62.2",
  "windows-sys 0.61.2",
 ]
 

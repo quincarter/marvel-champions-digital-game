@@ -22,6 +22,7 @@ import {
   leavingWithHost,
   listensForDeckDiscard,
   listensForEncounterDeckDiscard,
+  listensForHandDiscard,
   moveDestinationKind,
   permanentStopsLeaving,
   recordDeckDiscard,
@@ -30,6 +31,7 @@ import {
   encounterCardDealtEvent,
   markDealtFromEncounterDeck,
   recordEncounterCardDealt,
+  recordHandDiscard,
   recordTuckedDiscard,
   tuckedHostToRecord,
   waitsForLeaveInterrupts,
@@ -581,8 +583,24 @@ export function moveCardsTo(
       // for only when an ability hears one.
       const fromEncounterDeck =
         destination === "discard" && listensForEncounterDeckDiscard(ctx.deps) ? locateCard(ctx.state, id) : null;
+      // From a hand to a discard pile, by a card's ability: a discard from that hand (`cardDiscardedFromHand`, issue
+      // #922). Looked for only when an ability hears one; a move with no source card is no ability's.
+      const fromHand =
+        discarding &&
+        (sourceCardId !== undefined || deckDiscardBy.sourceInstanceId !== null) &&
+        listensForHandDiscard(ctx.deps)
+          ? locateCard(ctx.state, id)
+          : null;
       moveCard(ctx, id, to, position);
-      if (fromDeckOf !== null) recordDeckDiscard(ctx, fromDeckOf, id, deckDiscardBy);
+      if (fromDeckOf !== null)
+        recordDeckDiscard(ctx, fromDeckOf, id, { ...deckDiscardBy, how: asCost ? "cost" : "effect" });
+      if (fromHand?.kind === "hand")
+        recordHandDiscard(ctx, fromHand.playerId, id, {
+          sourceInstanceId: deckDiscardBy.sourceInstanceId,
+          ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+          how: asCost ? "cost" : "effect",
+          ...(deckDiscardBy.madeBy !== undefined && !asCost ? { madeBy: deckDiscardBy.madeBy } : {}),
+        });
       if (fromEncounterDeck?.kind === "encounterDeck")
         recordEncounterDeckDiscard(ctx, fromEncounterDeck.deckId, id, {
           sourceInstanceId: deckDiscardBy.sourceInstanceId,

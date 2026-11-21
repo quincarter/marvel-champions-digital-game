@@ -54,6 +54,7 @@ import {
   settleAwaitingAttackEffects,
   turnToFlipSide,
   leavePlayAtOnce,
+  listensForHandDiscard,
 } from "../effects.js";
 import { ANY_COUNTER, anyCounterPickOf, anyCounterTake, landingCounterType } from "../counter-types.js";
 import { BORROWED_BOOST_ICONS_SLOT } from "../abilities.js";
@@ -1906,24 +1907,31 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount);
       const filter = effect.filter;
       const waiting: TriggerEvent[] = [];
+      // The discarding ability, for "after a card is discarded by an ability" (`cardDiscardedFromHand`, issue #922).
+      const madeBy = listensForHandDiscard(ctx.deps) ? { madeBy: frame.frameId } : {};
+      const by = {
+        sourceInstanceId: frame.selfInstanceId,
+        sourceCardId: leaveSourceOf(ctx, frame),
+        how: "effect",
+        ...madeBy,
+      } as const;
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         // A filter narrows the pool the random pick draws from, by excluding everything that doesn't match.
         const excluded = filter
           ? mustPlayer(ctx.state, playerId).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
           : [];
         if (!listensForWouldDiscard(ctx.deps)) {
-          discardRandomFromHand(ctx, playerId, amount, excluded);
+          discardRandomFromHand(ctx, playerId, amount, excluded, by);
           continue;
         }
         // With an ability that hears "would discard a card you control" in the game (docs/phase7-wave9.md §4.1 Q20):
         // the cards are picked first, then each is discarded, or announced when that ability hears it.
-        const split = splitWouldDiscard(
-          ctx,
-          pickRandomFromHand(ctx, playerId, amount, excluded),
-          { sourceInstanceId: frame.selfInstanceId, sourceCardId: leaveSourceOf(ctx, frame) },
-          { kind: "hand", random: true },
-        );
-        for (const id of split.now) discardFromHand(ctx, playerId, id);
+        const split = splitWouldDiscard(ctx, pickRandomFromHand(ctx, playerId, amount, excluded), by, {
+          kind: "hand",
+          random: true,
+          ...madeBy,
+        });
+        for (const id of split.now) discardFromHand(ctx, playerId, id, by);
         waiting.push(...split.waiting);
       }
       if (waiting.length > 0) pushEvents(ctx, waiting);
@@ -4001,6 +4009,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           }
         : {};
       const sourceCardId = leaveSourceOf(ctx, frame);
+      // A hand card this discards waits, for its response, for the other cards of this effect (issue #922).
+      const madeBy = listensForHandDiscard(ctx.deps) ? { madeBy: frame.frameId } : {};
       // A card of a hand or a deck this would discard is announced first when an ability hears that ("when … would
       // discard a card you control", docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`): its discard waits
       // for that window, behind the cards moved now, and a replaced one leaves the bound set.
@@ -4010,7 +4020,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               ctx,
               ids,
               { sourceInstanceId: frame.selfInstanceId, sourceCardId },
-              { kind: "moveCards", ...boundOn },
+              { kind: "moveCards", ...boundOn, ...madeBy },
             )
           : { now: ids, waiting: [] };
       moveCardsTo(
@@ -4019,7 +4029,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         effect.to,
         into,
         sourceCardId,
-        { sourceInstanceId: frame.selfInstanceId, ...boundOn },
+        { sourceInstanceId: frame.selfInstanceId, ...boundOn, ...madeBy },
         false,
         effect.facedown === true,
         effect.encounterTop !== undefined ? value(effect.encounterTop) : undefined,
@@ -4551,6 +4561,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           discarded.push(id);
           recordDeckDiscard(ctx, playerId, id, {
             sourceInstanceId: frame.selfInstanceId,
+            how: "effect",
             boundOn: { frameId: frame.frameId, slot: bind, ...(bindAll !== undefined ? { also: [bindAll] } : {}) },
           });
           if (matchesQuery(ctx.state, id, effect.filter, context)) {

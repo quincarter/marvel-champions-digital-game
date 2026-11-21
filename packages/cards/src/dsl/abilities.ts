@@ -4191,6 +4191,31 @@ export const on = {
   ): EventPattern =>
     pattern("tuckedCardDiscarded", opts.yours ? { playerIs: "controller" } : {}, tuckedDiscardIs(opts)),
   /**
+   * "After a card is discarded [from a hand] by an ability" (issue #922; the Hulk house rule pack's "Don't Make Me
+   * Angry!"), on a card in play: each card a card's ability discards from a hand, by its effect or its cost, "that card"
+   * being `eventTarget` in its discard pile and the hand's player `eventPlayer`. Not the cards spent to pay, the discard
+   * down to hand size or a mulligan. `card` narrows the discarded card; `by` the side of the discarding card, `how`
+   * its effect or its cost; `yours`: only from this card's controller's hand. A response only: the cards one effect or
+   * cost discarded share one window, which resolves before that ability goes on. Merge it with the deck and play
+   * patterns in one `on: [...]` list to give one ability one limit for every place a card is discarded from.
+   */
+  cardDiscardedFromHand: (
+    opts: {
+      readonly card?: TargetQuery;
+      readonly by?: LeaveCauseSide;
+      readonly how?: "effect" | "cost";
+      readonly yours?: boolean;
+    } = {},
+  ): EventPattern =>
+    pattern(
+      "cardDiscardedFromHand",
+      opts.yours ? { playerIs: "controller" } : {},
+      opts.card && Object.keys(opts.card).length > 0 ? { targetIs: opts.card } : {},
+      opts.by || opts.how
+        ? { eventIs: { ...(opts.by ? { by: opts.by } : {}), ...(opts.how ? { how: opts.how } : {}) } }
+        : {},
+    ),
+  /**
    * "After this card enters your hand" (Infiltration, Shapeshifter Surprise, `mut_gen` 32082-32083;
    * docs/phase7-wave6.md §3.10): however it enters a hand (drawn, searched for, returned, moved there). Pair with
    * `inHand(...)`; "you" is the player whose hand it entered.
