@@ -95,7 +95,8 @@ export interface DeckBuilderNarrowFocusInput {
  * A control in another tab is not drawn, so it is not here either.
  */
 export function deckBuilderNarrowFocusOrder(input: DeckBuilderNarrowFocusInput): readonly string[] {
-  const head = ["back", ...input.tabs.map((tab) => `tab:${tab}`)];
+  // The identity row's Hero card button (issue #920) sits between Back and the tab row.
+  const head = ["back", "identity-card", ...input.tabs.map((tab) => `tab:${tab}`)];
   if (input.tab === "pool") {
     const filters =
       !input.filtersFolded || input.filtersOpen

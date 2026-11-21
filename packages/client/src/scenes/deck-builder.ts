@@ -146,6 +146,7 @@ import {
 } from "../ui/card-hover-preview.js";
 import { clipHoverRect, hoverSlotOf, visibleRowRange, type HoverCardIdRect } from "../view/card-hover.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { onTap } from "../ui/tap.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -743,6 +744,9 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #rebuild(): void {
     resetHoverCards(this);
+    // A picture waiting to bake belongs to the draw being replaced.
+    this.#bannerBaked?.();
+    this.#bannerBaked = null;
     this.#hoverLists = [];
     this.#deckLines = [];
     this.#yourDeckRect = null;
@@ -825,7 +829,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("back", { rect: backRect, activate: goBack });
-    y += Math.max(titleObj.height, phone ? 28 : 38) + 16;
+    // Below the taller of the title and Back, so nothing drawn next sits against Back (issue #920).
+    y += Math.max(titleObj.height, phone ? 28 : 38, backRect.height + 2) + 16;
 
     if (!this.#identity && this.#startFor) {
       this.#identityInput?.destroy();
@@ -869,8 +874,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       ? campaignDeckEditModel(deck, this.#pool(), this.#campaign.context, this.#campaign.grants)
       : null;
     this.#campaignRows = new Map(this.#campaignModel?.rows.map((row) => [row.cardId as string, row]));
-    label(this, left, y, `identity — ${qualifiedHeroName(this.#identity)}`, typeRole.label, surface.ink.hex, ink.label);
-    y += 20;
+    y = this.#drawIdentityRow(left, y, column, this.#identity);
 
     const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
     this.#drawOpenAspectTip();
@@ -3340,6 +3344,70 @@ ${entry.detail}`,
       this.#rebuild();
     });
     return ids;
+  }
+
+  /**
+   * The chosen identity above the builder (issue #920): one card-like row with the hero's picture, its name and a
+   * "Read card" cue. A press on the row (`ui/tap.ts`: press and release on it, never a lift) and the pad's stop open
+   * Inspect on the hero side, whose toggle flips to the alter-ego (and any other forms), so a player can read what the
+   * hero does while building. On desktop the picture opens the card popover too. Returns the y below the row.
+   */
+  #drawIdentityRow(left: number, top: number, column: number, identity: HeroIdentityCard): number {
+    const phone = formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height) === "phone";
+    const inset = 4;
+    const rowRect: Rect = { x: left, y: top, width: phone ? column : Math.min(column, 460), height: hit.target + 8 };
+    const open = (): void => {
+      this.scene.launch(SCENES.inspect, { card: { cardId: identity.id, face: { kind: "hero" } } });
+    };
+    const frame = this.add.graphics();
+    paintPanel(frame, rowRect, "card", "rest");
+    const thumbHeight = rowRect.height - inset * 2;
+    const thumbRect: Rect = {
+      x: rowRect.x + inset,
+      y: rowRect.y + inset,
+      width: Math.round(thumbHeight * IDENTITY_THUMB_ASPECT),
+      height: thumbHeight,
+    };
+    const thumb = renderLiveArtThumb(
+      this,
+      thumbRect,
+      this.#identityArtUrl(identity),
+      0.2,
+      "cover",
+      this.#identityArtFocus(identity),
+    );
+    // The picture is baked off the main thread: swap it in when it lands, without redrawing the screen.
+    // An image already baked needs no listener; a placeholder listens until its picture is in.
+    if (thumb.object.type !== "Image") {
+      const holder = thumb.object as Phaser.GameObjects.Container;
+      this.#bannerBaked = cardFaces(this).onBaked(() => {
+        thumb.refresh();
+        if (holder.list[0]?.type === "Image") {
+          this.#bannerBaked?.();
+          this.#bannerBaked = null;
+        }
+      });
+    }
+    noteHoverCardId(this, identity.id as string, thumbRect, true, { kind: "hero" });
+
+    const right = rowRect.x + rowRect.width - 12;
+    const cue = label(this, right, rowRect.y + rowRect.height / 2, "Read card ›", typeRole.label, surface.ink.hex);
+    cue.setOrigin(1, 0.5);
+    const textX = thumbRect.x + thumbRect.width + 10;
+    label(this, textX, rowRect.y + 6, "identity", typeRole.label, surface.ink.hex, ink.label);
+    const name = this.add.text(textX, rowRect.y + rowRect.height - 6, qualifiedHeroName(identity), {
+      ...textStyle(typeRole.rowTitle, surface.ink.hex),
+    });
+    name.setOrigin(0, 1);
+    fitText(name, Math.max(40, cue.x - cue.width - 12 - textX));
+
+    const zone = this.add
+      .zone(rowRect.x, rowRect.y, rowRect.width, rowRect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    onTap(zone, open, "identity-card-row");
+    this.#stops.set("identity-card", { rect: rowRect, activate: open, inspect: open });
+    return rowRect.y + rowRect.height + 12;
   }
 
   /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */
