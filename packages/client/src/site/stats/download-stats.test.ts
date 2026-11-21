@@ -27,6 +27,12 @@ describe("classifyAsset", () => {
       language: null,
     });
     // v0.19.0's names, from before the release workflow renamed its files.
+    expect(classifyAsset("MarvelChampions-0.51.0-ES-iOS-unsigned.ipa")).toEqual({
+      type: "installer",
+      platform: "ios",
+      kind: "ipa",
+      language: "es",
+    });
     expect(classifyAsset("marvel-champions-0.19.0.apk")).toMatchObject({ platform: "android" });
     expect(classifyAsset("Marvel.Champions_0.19.0_amd64.AppImage")).toMatchObject({ kind: "appImage" });
     expect(classifyAsset("Marvel.Champions-0.19.0-1.x86_64.rpm")).toMatchObject({ kind: "rpm" });
@@ -73,6 +79,8 @@ const RELEASES: GitHubRelease[] = [
     assets: [
       asset("MarvelChampions-0.39.0-EN-Android.apk", 50),
       asset("MarvelChampions-0.39.0-ES-Android.apk", 24),
+      asset("MarvelChampions-0.39.0-EN-iOS-unsigned.ipa", 5),
+      asset("MarvelChampions-0.39.0-ES-iOS-unsigned.ipa", 2),
       asset("MarvelChampions-0.39.0-EN-Linux-x64.deb", 6),
       asset("MarvelChampions-Linux-Install-for-Steam.sh", 10),
       asset("MarvelChampions-Windows-Install-for-Steam.cmd", 6),
@@ -88,15 +96,16 @@ describe("summarizeDownloads", () => {
 
   it("counts published releases from the first counted one on, newest first", () => {
     expect(stats.releases.map((release) => release.version)).toEqual(["v0.39.0", "v0.19.0"]);
-    expect(stats.installers).toBe(38 + 21 + 50 + 24 + 6);
+    expect(stats.installers).toBe(38 + 21 + 50 + 24 + 5 + 2 + 6);
   });
 
   it("splits installers by platform and format, per release and in all", () => {
-    expect(stats.platforms).toEqual({ android: 112, windows: 21, mac: 0, linux: 6 });
+    expect(stats.platforms).toEqual({ android: 112, ios: 7, windows: 21, mac: 0, linux: 6 });
     expect(stats.files.apk).toBe(112);
+    expect(stats.files.ipa).toBe(7);
     expect(stats.files.exe).toBe(21);
     expect(stats.files.deb).toBe(6);
-    expect(stats.releases[0]!.platforms).toEqual({ android: 74, windows: 0, mac: 0, linux: 6 });
+    expect(stats.releases[0]!.platforms).toEqual({ android: 74, ios: 7, windows: 0, mac: 0, linux: 6 });
   });
 
   it("counts Steam script runs apart from installers, from the first release that had them", () => {
@@ -106,7 +115,7 @@ describe("summarizeDownloads", () => {
   });
 
   it("splits card languages from the first release that names them", () => {
-    expect(stats.languages).toEqual({ since: "v0.39.0", counts: { en: 56, es: 24 } });
+    expect(stats.languages).toEqual({ since: "v0.39.0", counts: { en: 61, es: 26 } });
   });
 
   it("ranks the releases with the most installer downloads", () => {

@@ -9,13 +9,15 @@
  * carries don't. Playing in the browser isn't counted at all.
  */
 
-export type Platform = "android" | "windows" | "mac" | "linux";
-export const PLATFORMS: readonly Platform[] = ["android", "windows", "mac", "linux"];
+export type Platform = "android" | "ios" | "windows" | "mac" | "linux";
+export const PLATFORMS: readonly Platform[] = ["android", "ios", "windows", "mac", "linux"];
 
 /** The installer formats, each under its platform, in the order the page lists them. */
-export type FileKind = "apk" | "exe" | "msi" | "dmg" | "appTarGz" | "appImage" | "deb" | "rpm";
+export type FileKind = "apk" | "ipa" | "exe" | "msi" | "dmg" | "appTarGz" | "appImage" | "deb" | "rpm";
 export const FILE_KINDS: Readonly<Record<Platform, readonly FileKind[]>> = {
   android: ["apk"],
+  // The unsigned iOS build, sideloaded with AltStore, Sideloadly or the like; first shipped with v0.51.0.
+  ios: ["ipa"],
   windows: ["exe", "msi"],
   mac: ["dmg", "appTarGz"],
   linux: ["appImage", "deb", "rpm"],
@@ -37,6 +39,7 @@ export type AssetKind =
 /** A file name's ending and what it is. The macOS updater archive is checked before anything ending in .gz. */
 const INSTALLERS: readonly { readonly match: RegExp; readonly platform: Platform; readonly kind: FileKind }[] = [
   { match: /\.apk$/i, platform: "android", kind: "apk" },
+  { match: /\.ipa$/i, platform: "ios", kind: "ipa" },
   { match: /\.exe$/i, platform: "windows", kind: "exe" },
   { match: /\.msi$/i, platform: "windows", kind: "msi" },
   { match: /\.dmg$/i, platform: "mac", kind: "dmg" },
@@ -122,7 +125,7 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-const zeroPlatforms = (): Record<Platform, number> => ({ android: 0, windows: 0, mac: 0, linux: 0 });
+const zeroPlatforms = (): Record<Platform, number> => ({ android: 0, ios: 0, windows: 0, mac: 0, linux: 0 });
 
 /**
  * The stats for every published release from `since` on. Drafts and pre-releases are left out, as is anything that
