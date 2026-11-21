@@ -114,7 +114,13 @@ for (const size of SIZES) {
       // The phone layout below 768 wide (a tap opens Inspect); a tablet plays and spends on a press, as the desktop does.
       const phone = size.width < 768;
 
-      await playFromHand(page, phone, redwing, async () => (await paymentView(page)) !== null);
+      // A tap on a hand card opens Inspect (its Play it starts the play) on a phone and a portrait tablet.
+      await playFromHand(
+        page,
+        phone || (size.touch && size.width < size.height),
+        redwing,
+        async () => (await paymentView(page)) !== null,
+      );
       await settle(page, { quietMs: 400, maxMs: 2000 });
       const tile = (await paymentView(page))?.tableSources.find((source) => source.instanceId === strength);
       expect(tile, "the tucked Strength is in the payment strip").toBeDefined();
