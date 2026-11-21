@@ -10,8 +10,9 @@
 //! 3. if the safe page crashes within the window too, leaves WebView2's error page up rather than loop.
 //!
 //! A page that stops answering (WebView2 raises `RENDER_PROCESS_UNRESPONSIVE` again and again while it is hung) goes
-//! the same way once it has been reported twice within `UNRESPONSIVE_AGAIN`: one report can be a long synchronous load,
-//! two in a row are a hang.
+//! the same way once it has been reported twice within `UNRESPONSIVE_AGAIN` with no sign of life between: after the
+//! first report the shell runs a tiny script in the page, and an answer clears the report, so two separate slow moments
+//! never add up to a reload. One report alone can be a long synchronous load.
 //!
 //! Safe mode lasts the rest of the session (the page's own reloads keep `?renderer=canvas` on the address) and is gone
 //! at the next launch. A crash after the window has passed starts again at step 1.
@@ -64,6 +65,36 @@ impl Recoveries {
   }
 }
 
+/// Unresponsive reports, and whether the page has answered since the last one.
+#[derive(Clone, Debug, Default)]
+pub struct HangWatch {
+  /// The last report the page hasn't answered since.
+  open: Option<Instant>,
+}
+
+impl HangWatch {
+  /// A report at `now`: true when it follows an unanswered one within `UNRESPONSIVE_AGAIN` (a hang).
+  pub fn report(&mut self, now: Instant) -> bool {
+    let hung = self.open.is_some_and(|at| now.saturating_duration_since(at) < UNRESPONSIVE_AGAIN);
+    self.open = Some(now);
+    hung
+  }
+
+  /// The page answered the probe sent for the report at `at`; true if that report was still open.
+  pub fn answered(&mut self, at: Instant) -> bool {
+    if self.open == Some(at) {
+      self.open = None;
+      return true;
+    }
+    false
+  }
+
+  /// The page was recovered: forget the reports.
+  pub fn clear(&mut self) {
+    self.open = None;
+  }
+}
+
 /// `url` with `renderer=canvas` in its query (replacing any `renderer=` already there), its fragment kept.
 pub fn safe_mode_url(url: &str) -> String {
   let (before_hash, hash) = match url.find('#') {
@@ -92,7 +123,7 @@ pub fn start(_app: &tauri::AppHandle) {}
 
 #[cfg(windows)]
 mod windows_impl {
-  use super::{disabled, safe_mode_url, Recoveries, Recovery, UNRESPONSIVE_AGAIN};
+  use super::{disabled, safe_mode_url, HangWatch, Recoveries, Recovery};
   use std::sync::Mutex;
   use std::time::Instant;
   use tauri::Manager;
@@ -100,14 +131,14 @@ mod windows_impl {
     ICoreWebView2, ICoreWebView2ProcessFailedEventArgs2, COREWEBVIEW2_PROCESS_FAILED_KIND,
     COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
   };
-  use webview2_com::{take_pwstr, ProcessFailedEventHandler};
+  use webview2_com::{take_pwstr, ExecuteScriptCompletedHandler, ProcessFailedEventHandler};
   use windows_core::{Interface, PCWSTR, PWSTR};
 
   static RECOVERIES: Mutex<Option<Recoveries>> = Mutex::new(None);
   /// The page's address when watching began: where safe mode goes if WebView2 can't say where the page was.
   static START_URL: Mutex<Option<String>> = Mutex::new(None);
   /// The last unresponsive report, if the page has not been recovered since.
-  static LAST_UNRESPONSIVE: Mutex<Option<Instant>> = Mutex::new(None);
+  static LAST_UNRESPONSIVE: Mutex<HangWatch> = Mutex::new(HangWatch { open: None });
 
   /// Hooks `ProcessFailed` on the main window's WebView2.
   pub fn start(app: &tauri::AppHandle) {
@@ -135,14 +166,21 @@ mod windows_impl {
         unsafe { args.ProcessFailedKind(&mut kind)? };
         if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE {
           let now = Instant::now();
-          let hung = {
-            let mut last = LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            let hung = last.is_some_and(|at| now.saturating_duration_since(at) < UNRESPONSIVE_AGAIN);
-            *last = Some(now);
-            hung
-          };
+          let hung = LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).report(now);
           if !hung {
             log::warn!("crash recovery: the page is not responding; waiting to see if it comes back");
+            // A probe the page answers only once its main thread runs again: an answer clears this report, so a second
+            // report later is a new episode, not proof of one long hang. A page still hung never answers.
+            let probe = ExecuteScriptCompletedHandler::create(Box::new(move |_, _| {
+              if LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).answered(now) {
+                log::info!("crash recovery: the page is responding again");
+              }
+              Ok(())
+            }));
+            let script: Vec<u16> = "0".encode_utf16().chain(std::iter::once(0)).collect();
+            if let Err(error) = unsafe { core.ExecuteScript(PCWSTR::from_raw(script.as_ptr()), &probe) } {
+              log::warn!("crash recovery: could not probe the page: {error}");
+            }
             return Ok(());
           }
           recover(&core, None);
@@ -174,7 +212,7 @@ mod windows_impl {
 
   /// `exit_code` is None for a hang rather than an exit.
   fn recover(core: &ICoreWebView2, exit_code: Option<i32>) {
-    *LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clear();
     let decision = RECOVERIES
       .lock()
       .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -246,6 +284,34 @@ mod tests {
     recoveries.on_crash(start + Duration::from_secs(5));
     let later = start + Duration::from_secs(5) + CRASH_AGAIN_WINDOW;
     assert_eq!(recoveries.on_crash(later), Recovery::Reload);
+  }
+
+  #[test]
+  fn two_unresponsive_reports_with_no_answer_between_are_a_hang() {
+    let start = Instant::now();
+    let mut watch = HangWatch::default();
+    assert!(!watch.report(start));
+    assert!(watch.report(start + Duration::from_secs(5)));
+  }
+
+  #[test]
+  fn an_answer_between_two_reports_makes_them_separate_slow_moments() {
+    let start = Instant::now();
+    let mut watch = HangWatch::default();
+    assert!(!watch.report(start));
+    assert!(watch.answered(start)); // the page ran the probe: it came back
+    assert!(!watch.report(start + Duration::from_secs(10)));
+  }
+
+  #[test]
+  fn a_late_answer_to_an_older_report_does_not_clear_a_newer_one() {
+    let start = Instant::now();
+    let mut watch = HangWatch::default();
+    watch.report(start);
+    let newer = start + Duration::from_secs(40); // past the window: a new episode
+    assert!(!watch.report(newer));
+    assert!(!watch.answered(start));
+    assert!(watch.report(newer + Duration::from_secs(5)));
   }
 
   #[test]
