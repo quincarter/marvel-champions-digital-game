@@ -162,6 +162,19 @@ describe("lostWithDiscardedCard", () => {
     expect(lostWithDiscardedCard(state, registry, candidate("bound"), gone)).toBe(false);
   });
 
+  it("a condition is not read now behind a cost or an earlier part, which can change it before it is reached", () => {
+    const ifThere: EffectSpec = { kind: "if", condition: thatCardThere, then: [draw] };
+    const registry = {
+      abilities: {
+        costly: { ...ability([ifThere]), cost: { exhaustSelf: true } },
+        scriptedCost: ability([draw, ifThere], 1),
+        later: ability([{ kind: "addCounters", target: self, counterType: "seen", amount: n(0) }, ifThere]),
+      },
+    } as never;
+    for (const id of ["costly", "scriptedCost", "later"])
+      expect(lostWithDiscardedCard(state, registry, candidate(id), discard("taken"))).toBe(false);
+  });
+
   it("a 'choose one' option whose condition now reads false cannot be chosen", () => {
     const options = (drawWhen?: Predicate) => [
       { label: "attach", effects: [tuck] },

@@ -71,6 +71,9 @@ export function lostWithDiscardedCard(
     },
     deps,
   };
+  // A cost is paid before the effects resolve and can change what a condition reads (exhausting the card): with one,
+  // no condition is read now (#928, Codex review).
+  if (definition?.cost || (definition?.costEffects ?? 0) > 0) return needsDiscardedCard(definition);
   return needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
 }
 
@@ -120,7 +123,8 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
     if (effect.kind === "then" || effect.kind === "setVar") continue;
     parts.push(effect);
   }
-  return parts.length > 0 && parts.every((part) => partNeedsCard(part, slots, judge));
+  // Only the first part's condition is read now: an earlier part changes the game before a later one is reached.
+  return parts.length > 0 && parts.every((part, index) => partNeedsCard(part, slots, index === 0 ? judge : undefined));
 }
 
 /**
