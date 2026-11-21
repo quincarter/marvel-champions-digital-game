@@ -13,12 +13,12 @@ import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import { applyCommand, sessionApply, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import { playerId, type EncounterDeckId, type InstanceId } from "./ids.js";
-import { mustInstance, sharedMainSchemes } from "./query.js";
+import { areaOfCard, mustInstance, sharedMainSchemes } from "./query.js";
 import { matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
+import { stubAlly, stubEnvironment, stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
 import { DEFAULT_DECK, defaultPick, giveCard, settle, TREACHERY } from "./testing/scenario.js";
 import { competitiveGame } from "./testing/team.js";
 import { stepOneThreats } from "./villain/step-one-threat.js";
@@ -423,5 +423,85 @@ describe("Team-Up across Kang-shaped split game areas (no teams)", () => {
     const { state, event } = kangTable(P2);
     const shared = { ...state, gameAreas: [] } as GameState;
     expect(playRestrictionFault(shared, teamUpDeps, P1, TEAM_UP, event)).toBeNull();
+  });
+});
+
+// Kang insert "Playing With Separate Game Areas": cards in one game area cannot affect another (except stage 2B); FFG
+// ruling Mar 6 2025 (Azazel). Environments and stage 2B are in every area (RRG 1.8 FAQ p. 60).
+describe("cards in every game area (Kang-shaped split, no teams): environments and the central stage", () => {
+  const FLIP = stubAbility("every-area-flip.response", {
+    trigger: { kind: "response", forced: true, on: { on: "cardFlipped" } },
+    effects: [],
+  } as AbilityDefinition);
+  const ENVIRONMENT = stubEnvironment({ id: "every-area-environment", abilities: [FLIP.ref] });
+  const PLAYER_LISTENER = stubSupport({ id: "every-area-listener", cost: 0, abilities: [FLIP.ref] });
+  const everyDeps: EngineDeps = depsOf(FLIP);
+  /** A split table with no teams, nothing listening yet, and the environment in an encounter deck. */
+  function kangTable(): GameState {
+    const game = competitiveGame({
+      deps: everyDeps,
+      extraCards: [ENVIRONMENT, PLAYER_LISTENER],
+      encounterDecks: [
+        [ENVIRONMENT.id, ...Array.from({ length: 9 }, () => TREACHERY.id)],
+        Array.from({ length: 10 }, () => TREACHERY.id),
+      ],
+      deck: [...DEFAULT_DECK, PLAYER_LISTENER.id, PLAYER_LISTENER.id],
+    });
+    const { teams: _teams, activeTeamId: _active, ...rest } = game;
+    return rest as GameState;
+  }
+  /** The environment moved from its encounter deck into the villain's area (surgery). */
+  function withEnvironment(state: GameState): { state: GameState; id: InstanceId } {
+    const deckId = state.villains[0]!.encounterDeckId;
+    const piles = state.encounterDecks[deckId]!;
+    const id = piles.deck.find((i) => state.instances[i]!.cardId === ENVIRONMENT.id)!;
+    return {
+      id,
+      state: {
+        ...state,
+        encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== id) } },
+        villainArea: [...state.villainArea, id],
+        instances: { ...state.instances, [id]: { ...state.instances[id]!, faceup: true } },
+      } as GameState,
+    };
+  }
+  const identityFlip = (state: GameState, player: typeof P1): TriggerEvent => ({
+    kind: "cardFlipped",
+    instanceId: state.players.find((p) => p.playerId === player)!.identity.instanceId,
+  });
+
+  it("an environment hears an event in either area", () => {
+    const { state, id } = withEnvironment(kangTable());
+    expect(state.gameAreas).toHaveLength(2);
+    expect(areaOfCard(state, id)).toBeNull();
+    expect(hasCandidates(state, everyDeps, identityFlip(state, P1), "response")).toBe(true);
+    expect(hasCandidates(state, everyDeps, identityFlip(state, P2), "response")).toBe(true);
+  });
+
+  it("the central stage hears an event in either area", () => {
+    const table = kangTable();
+    const central = table.mainScheme.instanceId;
+    const cardId = table.instances[central]!.cardId;
+    // Its stages' own abilities (a main scheme's printed abilities are per stage).
+    const scheme = table.cardPool[cardId]! as unknown as { stages: readonly { abilities: readonly unknown[] }[] };
+    const listening = { ...scheme, stages: scheme.stages.map((stage) => ({ ...stage, abilities: [FLIP.ref] })) };
+    const state = { ...table, cardPool: { ...table.cardPool, [cardId]: listening } } as GameState;
+    expect(areaOfCard(state, central)).toBeNull();
+    expect(hasCandidates(state, everyDeps, identityFlip(state, P1), "response")).toBe(true);
+    expect(hasCandidates(state, everyDeps, identityFlip(state, P2), "response")).toBe(true);
+  });
+
+  it("an event naming only an environment is heard in both areas", () => {
+    const { state: withEnv, id } = withEnvironment(kangTable());
+    // Strip the environment's own listener, so only the players' listeners can hear it.
+    const quiet = {
+      ...withEnv,
+      cardPool: { ...withEnv.cardPool, [ENVIRONMENT.id]: { ...ENVIRONMENT, abilities: [] } },
+    } as GameState;
+    const flip: TriggerEvent = { kind: "cardFlipped", instanceId: id };
+    for (const player of [P1, P2]) {
+      const listening = playerCardIntoPlay(quiet, PLAYER_LISTENER.id, player).state;
+      expect(hasCandidates(listening, everyDeps, flip, "response")).toBe(true);
+    }
   });
 });
