@@ -60,6 +60,7 @@ import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { introReplay } from "./replay-entry.js";
+import { floatingThemeSlot } from "../view/theme-button.js";
 import {
   HoverPreview,
   hoverCardsOf,
@@ -288,14 +289,23 @@ export class GameOverScene extends Phaser.Scene {
    */
   #newsRibbon(news: UnlockNews | null, width: number): { readonly text: Phaser.GameObjects.Text; readonly rect: Rect } {
     const parts = newsParts(news, this.#extrasNews);
-    const wrap = width - 64;
+    // The dark mode toggle floats at the top centre (`floatingThemeSlot`): the ribbon sits beside it, to its right, and
+    // on a phone, where the toggle is a tab on the top edge, just under it, so the two never overlap.
+    const toggle = floatingThemeSlot({ width });
+    const beside = width >= 600;
+    const left = beside ? toggle.x + toggle.width + 10 : 16;
+    const top = beside ? 10 : toggle.y + toggle.height + 4;
+    const room = width - left - 16;
     const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1)
       .setOrigin(0.5, 0.5)
       .setAlign("center")
-      .setWordWrapWidth(wrap);
-    const ribbonWidth = Math.min(width - 32, text.width + 40);
+      .setWordWrapWidth(room - 24);
+    const ribbonWidth = Math.min(room, text.width + 40);
     const ribbonHeight = Math.max(34, Math.ceil(text.height) + 18);
-    return { text, rect: { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: ribbonHeight } };
+    return {
+      text,
+      rect: { x: beside ? left : (width - ribbonWidth) / 2, y: top, width: ribbonWidth, height: ribbonHeight },
+    };
   }
 
   #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }, width: number): void {
@@ -303,7 +313,7 @@ export class GameOverScene extends Phaser.Scene {
     const ground = this.add.graphics();
     ground.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     ground.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
-    text.setPosition(width / 2, rect.y + rect.height / 2);
+    text.setPosition(rect.x + rect.width / 2, rect.y + rect.height / 2);
     this.children.bringToTop(ground);
     this.children.bringToTop(text);
   }
