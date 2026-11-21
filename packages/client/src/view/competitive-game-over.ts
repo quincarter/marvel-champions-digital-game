@@ -142,14 +142,16 @@ export function competitiveGameOverOf(
   const panel = over.tieBreak
     ? {
         heading: t("comp.over.title"),
-        lines: [
-          { text: over.tieBreak.summary, detail: null, decided: false },
-          ...over.tieBreak.measures.map((measure) => ({
-            text: `${measure.decided ? "★ " : ""}${measure.label}`,
-            detail: measure.values.map((v) => `${v.sideLabel} ${v.value}`).join("   ·   "),
-            decided: measure.decided,
-          })),
-        ],
+        // The summary is the screen's own line under the headline, so the panel holds only the measures (or, with
+        // the tie-breaks off and no measures, the summary itself).
+        lines:
+          over.tieBreak.measures.length > 0
+            ? over.tieBreak.measures.map((measure) => ({
+                text: `${measure.decided ? "★ " : ""}${measure.label}`,
+                detail: measure.values.map((v) => `${v.sideLabel} ${v.value}`).join("   ·   "),
+                decided: measure.decided,
+              }))
+            : [{ text: over.tieBreak.summary, detail: null, decided: false }],
       }
     : {
         heading: t("comp.over.how.title"),

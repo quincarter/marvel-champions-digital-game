@@ -74,4 +74,13 @@ describe("the board's step label reads the pause screen's seats", () => {
     expect(board.stepLabel).toBe("Defeat");
     expect(board.stepLabel).toBe(pauseStatusOf(state, P1, config(["p1"]), []).phaseLabel);
   });
+
+  test("a competitive win has no Table MVP row, which would sit under the phone's buttons", () => {
+    const state = ended(teamsOutcome("win", "win", "loss"));
+    const record = {
+      ...emptyRecord(),
+      seats: [{ playerId: P1, damage: 9, thwart: 0, cardsPlayed: 1, defeatedInRound: null, satOut: false }],
+    } as unknown as ReturnType<typeof emptyRecord>;
+    expect(gameOverModel(state, record, config(["p1"]), DEFAULT_DEPS).mvp).toBeNull();
+  });
 });

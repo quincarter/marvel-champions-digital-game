@@ -478,6 +478,8 @@ export function gameOverModel(
         summary: competitive.summary,
         finalBlow: null,
         cause: null,
+        // The phone's "Table MVP" row is a cooperative line; two teams have no one MVP, and it would sit under the buttons.
+        mvp: null,
         beatsHeading: competitive.panel.heading,
         beats: [],
         competitive,

@@ -64,7 +64,9 @@ describe("competitiveGameOverOf", () => {
     expect(result.headline).toBe("A Tie");
     expect(result.teams.some((team) => team.winner)).toBe(false);
     expect(result.panel.heading).toBe("Tie-breaks");
-    expect(result.panel.lines.length).toBe(4);
+    // Only the measures: the summary is the screen's line under the headline.
+    expect(result.panel.lines.length).toBe(3);
+    expect(result.summary).toBe("Still tied after every tie-break: a tie.");
     expect(result.facedScenarioId).toBe("registration-iron-man");
   });
 

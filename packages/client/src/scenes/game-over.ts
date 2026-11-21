@@ -272,7 +272,7 @@ export class GameOverScene extends Phaser.Scene {
           this.#draw(overflow);
           return;
         }
-      } else this.#drawWide(model, config, width, height);
+      } else this.#drawWide(model, config, width, height, ribbon ? ribbon.rect.y + ribbon.rect.height + 8 : 0);
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
@@ -319,7 +319,14 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   /** Screens - Desktop #12. */
-  #drawWide(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
+  #drawWide(
+    model: GameOverModel,
+    config: SessionConfig | null,
+    width: number,
+    height: number,
+    /** The bottom of the news ribbon plus a gap: the header starts below it, so a long ribbon never covers it. */
+    ribbonClear = 0,
+  ): void {
     // A competitive tie (issue #883) is neither green nor red: the neutral ink ground, paper text over it.
     const ground = model.tone === "win" ? signal.heal.hex : model.tone === "tie" ? surface.ink.hex : accent.heroRed.hex;
     this.cameras.main.setBackgroundColor(cssOf(ground));
@@ -332,17 +339,18 @@ export class GameOverScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", GROUND_DOTS);
 
     const pad = Math.round(Math.min(48, width * 0.034));
+    const top = Math.max(pad, ribbonClear);
     const gap = Math.round(Math.min(20, width * 0.014));
     const blowWidth = Math.round(Math.min(280, width * 0.2));
     const sideWidth = Math.round(Math.min(330, width * 0.24));
 
     // Header: meta line, headline, and the final blow box on the right.
-    label(this, pad, pad, model.meta, typeRole.label, surface.paper.hex, 0.85).setFontSize(12);
+    label(this, pad, top, model.meta, typeRole.label, surface.paper.hex, 0.85).setFontSize(12);
     const competitive = model.competitive ?? null;
     // A competitive result has no final blow box, so its headline (a side and a result, longer than "Victory") takes the width.
     const headlineWidth = width - pad * 2 - (competitive ? 0 : blowWidth + gap);
     const headlineSize = Math.round(Math.max(44, Math.min(104, width * (competitive ? 0.06 : 0.072))));
-    const headline = this.#display(pad, pad + 22, model.headline, headlineSize, surface.paper.hex, headlineWidth);
+    const headline = this.#display(pad, top + 22, model.headline, headlineSize, surface.paper.hex, headlineWidth);
 
     let headerBottom = headline.y + headline.height;
     if (competitive) {
@@ -352,7 +360,7 @@ export class GameOverScene extends Phaser.Scene {
       headerBottom = line.y + line.height;
     }
     if (model.finalBlow) {
-      const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
+      const box: Rect = { x: width - pad - blowWidth, y: top, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
       const caption = label(this, box.x + 16, box.y + 16, "Final blow", typeRole.label, surface.paper.hex, ink.meta);
       // The card whose text ended the game, when one did: its scan, which opens Inspect for the whole text.

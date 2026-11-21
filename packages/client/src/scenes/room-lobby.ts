@@ -2039,6 +2039,7 @@ export class RoomLobbyScene extends Phaser.Scene {
         );
         y += info.height + 10;
         if (this.#state.competitive) {
+          y += this.#text(x + 4, y, t("comp.friendly"), 12, w - 8, { alpha: 0.8 }).height + 10;
           const compState = this.#state;
           toggleRow("comp:tie", t("comp.tiebreaks.title"), t("comp.tiebreaks.detail"), tieBreaksOn(compState), () =>
             this.#api.setLobby({ settings: { tieBreaks: !tieBreaksOn(compState) } }),
@@ -2061,6 +2062,7 @@ export class RoomLobbyScene extends Phaser.Scene {
           const on = (v: boolean): string => (v ? t("room.on") : t("room.off"));
           const opts = `${t("comp.tiebreaks.title")}: ${on(tieBreaksOn(this.#state))} · ${t("comp.expert.title")}: ${on(expertOn(this.#state))}`;
           y += this.#text(x, y, opts, 13, w, { alpha: 0.85 }).height + 8;
+          y += this.#text(x, y, t("comp.friendly"), 12, w, { alpha: 0.8 }).height + 8;
         }
       }
 

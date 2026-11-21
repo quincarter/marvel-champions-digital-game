@@ -694,7 +694,7 @@ one.
 - **Do not let a cheat route enable the mode**: `?unlock=all` and the saved-game loader must not set `gameMode`
   (task 9); the refusal is in the engine, not only in the UI.
 - **Do not put the facing team's deck contents into a view model or a log line that both seats can read.** The engine
-  log is whole; anything a seat sees goes through M7. Until then the mode is unreachable, so no leak exists.
+  log is whole; anything a seat sees goes through M7. Quin chose on 2026-11-20 (Codex finding on PR #923) to ship the mode as friendly play: every guest device receives the whole game and the host sees everything, and the lobby says so ("For friends: the host's device sees the whole game, both scenarios included."). Per-seat hiding (M7) is a later issue.
 - **Rules risks to track:** the p. 20 quick reference and p. 17 disagree or are ambiguous in places (Q7); cards typo or
   omit words (2.5), so any rules answer is checked against the card image; the grim rule (Q1) is a table convention the
   engine cannot enforce, and the first-player choice favours a player who would rather not hurt themselves; a leader
