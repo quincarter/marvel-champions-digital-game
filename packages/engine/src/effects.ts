@@ -23,6 +23,7 @@ import {
   discardZoneFor,
   encounterDeckOf,
   getInstance,
+  handDiscardStillThere,
   heroFacesOf,
   isPlayerCardType,
   isHostOnlyCard,
@@ -94,7 +95,15 @@ import { hasCandidates, heard } from "./resolve/triggers.js";
 import { landedInSeparateDeck, separateDeckWithHost } from "./resolve/leave-to-separate-deck.js";
 import { tuckLeavingCard } from "./resolve/tuck.js";
 import type { CardDestination, DefeatPlacement, StatusName } from "./spec.js";
-import type { DeckDiscard, GameOutcome, GameState, MainSchemeState, TuckedDiscard, ZoneId } from "./state.js";
+import type {
+  DeckDiscard,
+  GameOutcome,
+  GameState,
+  HandDiscard,
+  MainSchemeState,
+  TuckedDiscard,
+  ZoneId,
+} from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 import { noteLeftPlayInLastingEffects } from "./lasting.js";
 
@@ -1094,6 +1103,10 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 export interface DeckDiscarder {
   readonly sourceInstanceId: InstanceId | null;
   readonly boundOn?: DeckDiscard["boundOn"];
+  /** Whether that card's ability discarded it as its effect or as its cost (`cardDiscardedFromDeck.how`). */
+  readonly how?: "effect" | "cost";
+  /** The effects frame making the discard, for a card of a hand it moves (`HandDiscard.madeBy`). */
+  readonly madeBy?: FrameId | undefined;
 }
 
 const LISTENS_FOR_TUCKED_DISCARD = new WeakMap<EngineDeps, boolean>();
@@ -1225,14 +1238,79 @@ export function recordDeckDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, 
   if (by.boundOn) addFrameSlots(ctx, by.boundOn.frameId, { [deckDiscardsSlot(playerId)]: [id] });
   if (!listensForDeckDiscard(ctx.deps)) return;
   emit(ctx, { type: "cardDiscardedFromDeck", playerId, instanceId: id, by: by.sourceInstanceId, at });
+  // The side of the discarding card, for a cost too, as on an encounter deck's discard (issue #922): "discarded by an
+  // ability" reads `by`, and `how` says effect or cost where the caller knows it.
+  const source = by.sourceInstanceId ? getInstance(ctx.state, by.sourceInstanceId) : undefined;
+  const side = leaveCauseSide(ctx.state, source?.cardId);
   const discard: DeckDiscard = {
     playerId,
     instanceId: id,
     sourceInstanceId: by.sourceInstanceId,
     at,
+    ...(side ? { by: side } : {}),
+    ...(by.how ? { how: by.how } : {}),
     ...(by.boundOn ? { boundOn: by.boundOn } : {}),
   };
   ctx.state = { ...ctx.state, pendingDeckDiscards: [...(ctx.state.pendingDeckDiscards ?? []), discard] };
+}
+
+const LISTENS_FOR_HAND_DISCARD = new WeakMap<EngineDeps, boolean>();
+
+/**
+ * Whether any ability in the registry triggers on `cardDiscardedFromHand` (issue #922); cached per registry. Cards are
+ * discarded from hands in most games, so nothing is recorded or announced for a registry with no such ability: its
+ * games keep their state and their log.
+ */
+export function listensForHandDiscard(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_HAND_DISCARD.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardDiscardedFromHand");
+  });
+  LISTENS_FOR_HAND_DISCARD.set(deps, listens);
+  return listens;
+}
+
+/**
+ * What discarded a card from a hand (`TriggerEvent cardDiscardedFromHand`, issue #922): the card whose ability did, and
+ * whether as its effect or its cost. `sourceCardId` when the caller already has it; otherwise it is read from
+ * `sourceInstanceId`.
+ */
+export interface HandDiscarder {
+  readonly sourceInstanceId: InstanceId | null;
+  readonly sourceCardId?: CardId | undefined;
+  readonly how: "effect" | "cost";
+  /** The effects frame making the discard (`HandDiscard.madeBy`); absent for a cost. */
+  readonly madeBy?: FrameId | undefined;
+}
+
+/**
+ * The one place a card's discard from a hand by an ability is recorded for its `cardDiscardedFromHand` announcement
+ * (issue #922; `GameState.pendingHandDiscards`, announced between frames by `announceHandDiscards`). Called right after
+ * the move by `discardFromHand` when its caller names the discarding ability, and by `moveCardsTo` for a card it moved
+ * from a hand to a discard pile. A card that did not reach a discard pile was not discarded, and nothing is recorded;
+ * nor is anything in a game with no ability that hears one (`listensForHandDiscard`).
+ */
+export function recordHandDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, cause: HandDiscarder): void {
+  if (!listensForHandDiscard(ctx.deps)) return;
+  if (!handDiscardStillThere(ctx.state, { instanceId: id })) return;
+  const sourceCardId =
+    cause.sourceCardId ?? (cause.sourceInstanceId ? getInstance(ctx.state, cause.sourceInstanceId)?.cardId : undefined);
+  // The side of the source card, for a cost too (as `tuckedCardDiscarded.by`); `how` says which it was.
+  const by = leaveCauseSide(ctx.state, sourceCardId);
+  const discard: HandDiscard = {
+    instanceId: id,
+    playerId,
+    to: "discard",
+    sourceInstanceId: cause.sourceInstanceId,
+    ...(by ? { by } : {}),
+    how: cause.how,
+    ...(cause.madeBy !== undefined ? { madeBy: cause.madeBy } : {}),
+  };
+  ctx.state = { ...ctx.state, pendingHandDiscards: [...(ctx.state.pendingHandDiscards ?? []), discard] };
 }
 
 const LISTENS_FOR_ENCOUNTER_DECK_DISCARD = new WeakMap<EngineDeps, boolean>();
@@ -1333,7 +1411,7 @@ export function discardFromDeckAsCost(
     if (!top) break;
     const resets = playerDeckResets(ctx, playerId);
     moveCard(ctx, top, { kind: "discard", playerId }, "top");
-    recordDeckDiscard(ctx, playerId, top, by);
+    recordDeckDiscard(ctx, playerId, top, { ...by, how: "cost" });
     discarded.push(top);
     if (playerDeckResets(ctx, playerId) > resets) break;
   }
@@ -1488,22 +1566,26 @@ function drawOne(ctx: Ctx, playerId: PlayerId): InstanceId | null {
  * Control" (p. 31), "That card is discarded from a player's hand, it is placed in its owner's discard pile". The log's
  * `cardDiscardedFromHand` names the player whose hand it left either way.
  */
-export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
+export function discardFromHand(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  /**
+   * The ability whose effect or cost discards the card, which makes the discard one `cardDiscardedFromHand` hears
+   * (issue #922). Absent for the game's own discards and for spent resources, which are not heard.
+   */
+  by?: HandDiscarder,
+): void {
   const ownerId = getInstance(ctx.state, id)?.ownerId ?? null;
   if (ownerId === null) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
-    return;
-  }
-  if (ownerId !== playerId) {
+  } else if (ownerId !== playerId) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
     updateInstance(ctx, id, (i) => ({ ...i, controllerId: ownerId }));
-    emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
-    return;
-  }
-  moveCard(ctx, id, { kind: "discard", playerId }, "top");
+  } else moveCard(ctx, id, { kind: "discard", playerId }, "top");
   emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+  if (by) recordHandDiscard(ctx, playerId, id, by);
 }
 
 /**
@@ -1516,6 +1598,8 @@ export function discardRandomFromHand(
   playerId: PlayerId,
   amount: number,
   exclude: readonly InstanceId[] = [],
+  /** The discarding ability (`discardFromHand`'s `by`). */
+  by?: HandDiscarder,
 ): readonly InstanceId[] {
   const discarded: InstanceId[] = [];
   for (let i = 0; i < amount; i++) {
@@ -1525,7 +1609,7 @@ export function discardRandomFromHand(
     ctx.state = { ...ctx.state, rng };
     const picked = hand[index];
     if (!picked) break;
-    discardFromHand(ctx, playerId, picked);
+    discardFromHand(ctx, playerId, picked, by);
     discarded.push(picked);
   }
   return discarded;

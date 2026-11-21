@@ -52,7 +52,15 @@ import { EngineInvariantError } from "../errors.js";
 import { leaveReplaced } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import type { AbilityId } from "@mc/content";
-import { cardOf, deckDiscardStillThere, getInstance, mustPlayer, playerOrder, printedCostOf } from "../query.js";
+import {
+  cardOf,
+  deckDiscardStillThere,
+  getInstance,
+  handDiscardStillThere,
+  mustPlayer,
+  playerOrder,
+  printedCostOf,
+} from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { AbilityTriggerSpec, EngineDeps } from "../abilities.js";
@@ -512,7 +520,13 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     // has nothing left to act on, and is not initiated (docs/phase7-wave7.md §3.55).
     // One that answers several discards at once (`EventPattern.together`) still has the others to act on.
     const answering = next.together ?? [answered(ctx, frame, next).event];
-    if (answering.every((each) => each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)))
+    if (
+      answering.every(
+        (each) =>
+          (each.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(ctx.state, each)) ||
+          (each.kind === "cardDiscardedFromHand" && !handDiscardStillThere(ctx.state, each)),
+      )
+    )
       return setFrame(ctx, { ...picking, queue: rest });
     // Another player defended this attack, or resolved a "(defense)" ability for it, since this one was picked or
     // ordered: it is not initiated and its cost is not paid (RRG 1.8 "Defend, Defense", pp. 14-15).

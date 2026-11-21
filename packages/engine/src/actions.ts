@@ -4630,7 +4630,11 @@ export function payCost(
   }
   for (const id of plan.bindings.discard ?? []) {
     const zone = locateCard(ctx.state, id);
-    discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id);
+    // A cost of the ability on `sourceId`: heard as "discarded by an ability" (`cardDiscardedFromHand`, issue #922).
+    discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id, {
+      sourceInstanceId: sourceId,
+      how: "cost",
+    });
   }
   if (isDeckDiscardChoice(cost.discardFromDeck)) {
     // "Discard up to 3 cards from the top of your deck →" (`deck-discard-choice-cost.ts`, docs/phase7-wave8.md §3.55):
@@ -4694,7 +4698,10 @@ export function payCost(
     const excluded = filter
       ? mustPlayer(ctx.state, randomPayer).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
       : [];
-    discardRandomFromHand(ctx, randomPayer, cost.discardRandomFromHand, [sourceId, ...excluded]);
+    discardRandomFromHand(ctx, randomPayer, cost.discardRandomFromHand, [sourceId, ...excluded], {
+      sourceInstanceId: sourceId,
+      how: "cost",
+    });
   }
   // "Take 1 damage →" (`damageSelf`, `cost-damage.ts`): dealt above the frame being paid for, so it resolves first; if
   // not all of it is taken, that frame's effects don't (RRG 1.8 "Cost", p. 14).
@@ -5690,7 +5697,11 @@ export function commitPlay(
     // "Cost" (p. 13): "A player must pay all additional costs simultaneously with the cost that is being added to", so
     // it is paid here, with the resource cost below; the card is never also a resource (`asIfInHandSpentSource`). The
     // discard's own triggers ("after you discard") are heard in the windows the play's paid costs open, as any cost's.
-    if (asIfInHand.discardsSource) discardFromHand(ctx, playerId, asIfInHand.sourceInstanceId);
+    if (asIfInHand.discardsSource)
+      discardFromHand(ctx, playerId, asIfInHand.sourceInstanceId, {
+        sourceInstanceId: asIfInHand.sourceInstanceId,
+        how: "cost",
+      });
   }
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
   const spent = payPayment(ctx, playerId, payment, cardInstanceId);

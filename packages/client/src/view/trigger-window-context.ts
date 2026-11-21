@@ -128,6 +128,12 @@ export function triggerHeadlineOf(
       const by = event.sourceInstanceId === null ? "" : ` by ${cardName(state, event.sourceInstanceId)}`;
       return `${card} was discarded from the top of ${deck}${by}`;
     }
+    case "cardDiscardedFromHand": {
+      const card = cardName(state, event.instanceId);
+      const hand = event.playerId === viewer ? "your hand" : `${playerName(state, event.playerId)}'s hand`;
+      const by = event.sourceInstanceId === null ? "" : ` by ${cardName(state, event.sourceInstanceId)}`;
+      return `${card} was discarded from ${hand}${by}`;
+    }
     case "boostCardTurnedFaceup": {
       // One window per boost card: the card and its icons tell two windows of the same attack apart (issue #253).
       const boost = cardName(state, event.boostInstanceId);
