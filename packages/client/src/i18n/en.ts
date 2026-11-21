@@ -59,6 +59,8 @@ export const en = {
   "title.releaseNotes": "Release notes ↗",
   "title.pastGames": "Past games",
   "pastGames.title": "Past games",
+  "choicePrompt.reassignmentFrom": "Move a counter FROM which S.H.I.E.L.D. support?",
+  "choicePrompt.reassignmentTo": "Move the counter TO which S.H.I.E.L.D. support?",
   "pastGames.openFile": "Open a replay file",
   "pastGames.openFileShort": "Open file",
   "pastGames.filter.all": "All",

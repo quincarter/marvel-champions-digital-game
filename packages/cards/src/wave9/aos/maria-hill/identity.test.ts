@@ -325,13 +325,14 @@ describe(`${SEARCH}: exhaust Maria Hill, search your deck for a S.H.I.E.L.D. sup
   });
 });
 
-// Issue #911: the two picks say which support the counter leaves and which it goes to.
+// Issue #911: the two picks say which support the counter leaves and which it goes to, as client message keys the
+// choice sheet translates (`choicePrompt.reassignmentFrom` / `To` in i18n/en.ts and es.ts).
 describe("Reassignment's prompts (issue #911)", () => {
   it("asks FROM first, then TO", () => {
     const picks = MARIA_HILL_IDENTITY[REASSIGNMENT]!.effects.filter((e) => e.kind === "chooseTarget");
     expect(picks.map((e) => (e.kind === "chooseTarget" ? [e.slot, e.prompt] : null))).toEqual([
-      ["from", "Move a counter FROM which S.H.I.E.L.D. support?"],
-      ["to", "Move the counter TO which S.H.I.E.L.D. support?"],
+      ["from", "choicePrompt.reassignmentFrom"],
+      ["to", "choicePrompt.reassignmentTo"],
     ]);
   });
 
@@ -340,12 +341,12 @@ describe("Reassignment's prompts (issue #911)", () => {
     const asked = runWith(MARIA_DEPS, state, use(P1, identityOf(state), REASSIGNMENT));
     expect(asked.pendingChoice!.prompt).toMatchObject({
       kind: "chooseTarget",
-      title: "Move a counter FROM which S.H.I.E.L.D. support?",
+      title: "choicePrompt.reassignmentFrom",
     });
     const next = answer(asked, [a], MARIA_DEPS).pendingChoice;
     expect(next?.prompt).toMatchObject({
       kind: "chooseTarget",
-      title: "Move the counter TO which S.H.I.E.L.D. support?",
+      title: "choicePrompt.reassignmentTo",
     });
   });
 });

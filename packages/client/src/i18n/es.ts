@@ -61,6 +61,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "title.releaseNotes": "Novedades ↗",
   "title.pastGames": "Partidas jugadas",
   "pastGames.title": "Partidas jugadas",
+  "choicePrompt.reassignmentFrom": "¿DESDE qué apoyo S.H.I.E.L.D. mueves un contador?",
+  "choicePrompt.reassignmentTo": "¿HACIA qué apoyo S.H.I.E.L.D. mueves el contador?",
   "pastGames.openFile": "Abrir una repetición",
   "pastGames.openFileShort": "Abrir archivo",
   "pastGames.filter.all": "Todas",
