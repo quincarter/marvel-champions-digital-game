@@ -386,7 +386,9 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     expert: meta.config.difficulty !== "standard",
     difficulty: meta.config.difficulty,
     tier: winTierOf(meta.config),
-    modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
+    // The game's own version of a custom scenario's pack names its default modulars, never a later one's.
+    modulars:
+      meta.config.modularSetIds ?? (names.forSave?.(meta) ?? names).scenarioModulars?.(meta.config.scenarioId) ?? [],
     summary,
     lossReason: lossReason === "conceded" ? "other" : lossReason,
     lossCause: lossCauseOfMeta(meta),

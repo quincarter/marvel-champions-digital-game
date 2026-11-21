@@ -1181,6 +1181,8 @@ const PRINTED_STAT_COLUMNS: readonly { readonly ys: Readonly<Record<string, numb
   { ys: { THW: 0.235, ATK: 0.444 }, badge: 0.17 },
   { ys: { SCH: 0.222, ATK: 0.347 }, badge: 0.15 },
 ];
+/** The narrowest a badge's ribbon is drawn: a three-letter stat name at the smallest caption size, plus its margin. */
+const RIBBON_MIN_WIDTH = 32;
 
 /**
  * Badge slots over a card's printed stats, in `labels` order, or null when the card does not print these stats in a
@@ -1207,7 +1209,16 @@ export function printedStatSlots(
     cy: top + height * column.ys[label]!,
     size,
   }));
-  const inside = slots.every((slot) => slot.cy - above >= face.y && slot.cy + below <= bottom);
+  // A small badge's ribbon is as wide as its stat's name at the smallest caption ("THW"), not as its burst
+  // (`McStatBadge`), so the column must hold that width inside the face as well as the burst.
+  const halfWidth = Math.max(size, RIBBON_MIN_WIDTH) / 2;
+  const inside = slots.every(
+    (slot) =>
+      slot.cy - above >= face.y &&
+      slot.cy + below <= bottom &&
+      slot.cx - halfWidth >= face.x &&
+      slot.cx + halfWidth <= face.x + face.width,
+  );
   // A small card's ribbon has a floor height, so its badges can outgrow the printed spacing (a minion's SCH over ATK).
   const centers = slots.map((slot) => slot.cy).sort((a, b) => a - b);
   const apart = centers.every((cy, index) => index === 0 || cy - centers[index - 1]! >= above + below);

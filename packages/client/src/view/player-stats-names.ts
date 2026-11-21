@@ -89,9 +89,10 @@ function recordsOf(saves: readonly Pick<SaveMeta, "config">[], known: PackDesign
     for (const pack of (save.config?.packs ?? []) as readonly PackRuntime[]) {
       const authors = (pack.authors?.length ?? 0) > 0 ? pack.authors! : (known[pack.id] ?? []);
       const designer = authors.length > 0 ? authors.join(" & ") : undefined;
+      // The newest save that names a designer wins: a newer save of a pack stored before authors were kept says nothing
+      // about who made it, so it never erases what an older one knew.
       const mark = (id: string): void => {
         if (designer) designers.set(id, designer);
-        else designers.delete(id);
       };
       for (const card of pack.cards) {
         cards.set(card.id as string, card);

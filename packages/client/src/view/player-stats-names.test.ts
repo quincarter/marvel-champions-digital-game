@@ -131,6 +131,34 @@ describe("custom scenarios on the Matchups grids (issue #937)", () => {
     expect(rowsOf(stats)).toContain("Rhino");
   });
 
+  test("a newer save of a pack stored without authors keeps the designer an older save named", () => {
+    setLoadedPacks([]);
+    const older = { ...roseSave(["Creator"]), id: "old", updatedAt: 1, createdAt: 1 } as SaveMeta;
+    const newer = { ...roseSave(), id: "new", updatedAt: 9, createdAt: 9 } as SaveMeta;
+    for (const saves of [
+      [older, newer],
+      [newer, older],
+    ]) {
+      expect(rowsOf(playerStatsOf(saves, statsNamesForSaves(saves)))).toContain("The Rose (by Creator)");
+    }
+  });
+
+  test("a game with no modulars named takes its scenario's defaults from its own version of the pack", () => {
+    setLoadedPacks([]);
+    const versioned = (id: string, at: number, set: string): SaveMeta => {
+      const base = roseSave() as unknown as { config: { packs: Record<string, unknown>[] } & Record<string, unknown> };
+      const pack = {
+        ...base.config.packs[0]!,
+        scenarios: [{ id: SCENARIO, name: "The Rose", recommendedModularSetIds: [set] }],
+      };
+      const { modularSetIds: _none, ...config } = base.config;
+      return { ...base, id, updatedAt: at, createdAt: at, config: { ...config, packs: [pack] } } as never;
+    };
+    const saves = [versioned("old", 1, "old-goons"), versioned("new", 9, "new-goons")];
+    const columns = playerStatsOf(saves, statsNamesForSaves(saves)).matchups!.modulars.columns.map((c) => c.id);
+    expect(columns).toEqual(expect.arrayContaining(["old-goons", "new-goons"]));
+  });
+
   test("a pack saved before its authors were kept takes them from the installed pack", () => {
     setLoadedPacks([]);
     const saves = [roseSave()];

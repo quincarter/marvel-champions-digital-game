@@ -855,6 +855,12 @@ describe("printedStatSlots (issue #935)", () => {
     expect(printedStatSlots(face, face, ["REC"], 1000)).toBeNull();
     // A tall strip stack over the foot leaves no room under ATK.
     expect(printedStatSlots(face, face, ["THW", "ATK"], face.y + face.height * 0.45)).toBeNull();
+    // A small ally's ribbons are as wide as "THW", wider than its burst, and would hang off the card's left edge.
+    const narrow = { x: 0, y: 0, width: 80, height: 113 };
+    expect(printedStatSlots(narrow, narrow, ["THW", "ATK"], 1000)).toBeNull();
+    // A slot narrower than the card: "cover" crops the scan's sides, so the printed column lies partly off the face.
+    const slim = { x: 40, y: 0, width: 220, height: 423 };
+    expect(printedStatSlots({ x: 0, y: 0, width: 300, height: 423 }, slim, ["THW", "ATK"], 1000)).toBeNull();
     // A small minion's floor-height ribbons would run SCH into ATK.
     expect(
       printedStatSlots(
