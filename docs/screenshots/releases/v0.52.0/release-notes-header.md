@@ -1,9 +1,23 @@
 ## Smash the Crash
 
-The Windows app opens again: once Windows updated WebView2 to version 158, v0.51.0 crashed on start with "Can't open this page" (STATUS_BREAKPOINT), and this release fixes it, with a safety net that skips a background painter if it ever takes the page down (#932, #936). Install for Steam no longer stops on PCs whose registry keeps the game's folder in quotes (#933, #934), both reported by Dreadheart on Discord. Your stats has a new Overview that stands your favorite hero's art tall on a wide screen, with a faded wallpaper behind every tab (#926, #929). From @bluefireF5ran's play notes in #911: stats records open the game they came from, Past games has a search box and aspect chips, Take your seats has a Random hero, the aspect info tip waits for the mouse to rest, and eleven cards that choose a player to hit their engaged minions now offer only players who have one, with Hunting Down Heroes and Maria Hill's Reassignment asking clearer questions (#914, #916, #917). Thank you for playing!
+The Windows app opens again: once Windows updated WebView2 to version 158, v0.51.0 crashed on start with "Can't open this page" (STATUS_BREAKPOINT), and this release fixes it, with a safety net that skips a background painter if it ever takes the page down (#932, #936). Install for Steam no longer stops on PCs whose registry keeps the game's folder in quotes (#933, #934), both reported by Dreadheart on Discord. Your stats has a new Overview that stands your favorite hero's art tall on a wide screen, with a faded wallpaper behind every tab (#926, #929). From @bluefireF5ran's play notes in #911: stats records open the game they came from, Past games has a search box and aspect chips, Take your seats has a Random hero, the aspect info tip waits for the mouse to rest, and eleven cards that choose a player to hit their engaged minions now offer only players who have one, with Hunting Down Heroes and Maria Hill's Reassignment asking clearer questions (#914, #916, #917). The website's download stats now count iPhone and iPad downloads (#941, #942). Thank you for playing!
 
 **[Read the full v0.52.0 report on the site ↗](https://champions-digital-game.com/releases/v0.52.0/)**: the Windows crash and its fix, the new stats Overview, records that open their game, Past games search, the Random hero, the choose-a-player cards, Hunting Down Heroes, Maria Hill, Install for Steam and the thank-you wall.
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.52.0/index.es.html)**
 
-SECTION_IMAGES
+![The numbers: 11 cards that choose smarter, 9 changes from one report and 2 Windows fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-01-the-numbers.jpg)
+
+![The Windows app opens again: what caused the WebView2 158 crash, the safety net, and how to update](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-02-the-windows-app-opens-again.jpg)
+
+![Your stats, with a hero: the new Overview on desktop and iPhone SE, records with View game, and Past games search and aspect chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-03-your-stats-with-a-hero.jpg)
+
+![A Random hero: Take your seats' Random button and the deck builder's aspect tip delay](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-04-a-random-hero.jpg)
+
+![You asked, we fixed: the choose-a-player cards with each player's engaged minions, Hunting Down Heroes, Maria Hill's Reassignment, Install for Steam and Symbiotic Bond](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-05-you-asked-we-fixed.jpg)
+
+![Also in v0.52.0: iOS on the download stats page, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-06-also-in-v0-52-0.jpg)
+
+![Thank you to @bluefireF5ran and Dreadheart](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-07-thank-you.jpg)
+
+![Code shipped since v0.51.0: 10 pull requests, 122 files, 4,449 lines added and 194 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-08-code-shipped.jpg)
