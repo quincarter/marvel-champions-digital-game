@@ -38,9 +38,18 @@ function isTextEntry(target: EventTarget | null): boolean {
 }
 
 /**
+ * Whether leaving a field should put the page back to its own scale: only when the page was at its own scale as the
+ * field took focus and is zoomed now, so the zoom came from the field. A page the player pinch-zoomed before tapping the
+ * field keeps the zoom they chose.
+ */
+export function zoomedByFocus(scaleAtFocus: number, scaleNow: number): boolean {
+  return scaleAtFocus <= 1.01 && scaleNow > 1.01;
+}
+
+/**
  * Turns off the focus zoom on iOS (see the top of this file), and puts the page back to its own scale when a field
- * loses focus, in case something zoomed it anyway (a page that was zoomed before this ran, or a WebKit that ignores the
- * limit). Rewriting the viewport content makes WebKit fit the page to the window again. Does nothing elsewhere.
+ * that zoomed it anyway loses focus (a WebKit that ignores the limit). Rewriting the viewport content makes WebKit fit
+ * the page to the window again. Does nothing elsewhere.
  */
 export function applyIosInputZoomGuard(doc: Document = document, nav: NavigatorLike | undefined = navigator): void {
   if (!isIosDevice(nav)) return;
@@ -49,10 +58,13 @@ export function applyIosInputZoomGuard(doc: Document = document, nav: NavigatorL
   const guarded = withoutFocusZoom(meta.content);
   meta.content = guarded;
   const view = doc.defaultView;
+  const scaleNow = (): number => view?.visualViewport?.scale ?? 1;
+  let scaleAtFocus = 1;
+  doc.addEventListener("focusin", (event) => {
+    if (isTextEntry(event.target)) scaleAtFocus = scaleNow();
+  });
   doc.addEventListener("focusout", (event) => {
-    if (!isTextEntry(event.target)) return;
-    const scale = view?.visualViewport?.scale ?? 1;
-    if (scale <= 1.01) return;
+    if (!isTextEntry(event.target) || !zoomedByFocus(scaleAtFocus, scaleNow())) return;
     // The same content again is not a change, so WebKit would skip it: drop the limit for a frame, then put it back.
     meta.content = guarded.replace(/,?\s*maximum-scale\s*=\s*[\d.]+/, "");
     const restore = (): void => {
