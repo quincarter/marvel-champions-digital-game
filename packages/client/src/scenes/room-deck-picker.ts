@@ -68,6 +68,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #order: string[] = [];
   #alive = false;
   #leaving = false;
+  #avatarRedrawQueued = false;
   #off: (() => void) | null = null;
   #note: { readonly text: string; readonly until: number } | null = null;
 
@@ -102,14 +103,14 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       cardIds: () => this.#hoverCardIds(),
       area: (pointer) => screenHoverArea(this, pointer),
     });
-    this.events.on(SEAT_AVATAR_READY, this.#draw, this);
+    this.events.on(SEAT_AVATAR_READY, this.#avatarReady, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       this.#off?.();
       this.#off = null;
       this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
-      this.events.off(SEAT_AVATAR_READY, this.#draw, this);
+      this.events.off(SEAT_AVATAR_READY, this.#avatarReady, this);
       this.#hover?.destroy();
       this.#hover = null;
       for (const button of this.#buttons) button.destroy();
@@ -213,6 +214,20 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#stops.set(key, { rect, activate, ...extra });
     this.#order.push(key);
   }
+
+  /**
+   * A hero picture finished loading. A list of every deck loads dozens of them at once, and a full redraw per picture
+   * (each redraw rebuilding every row) froze the page for minutes on a phone, so the pictures that land together
+   * share one redraw.
+   */
+  #avatarReady = (): void => {
+    if (this.#avatarRedrawQueued || !this.#alive) return;
+    this.#avatarRedrawQueued = true;
+    this.time.delayedCall(80, () => {
+      this.#avatarRedrawQueued = false;
+      if (this.#alive) this.#draw();
+    });
+  };
 
   #draw(): void {
     if (!this.#alive) return;
