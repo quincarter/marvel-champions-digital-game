@@ -140,7 +140,9 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
           });
       });
     } else if (request.method === "GET" && /^\/room\/code\/[^/]+$/.test(path)) {
-      const code = decodeURIComponent(path.slice("/room/code/".length)).replace(/[\s-]+/g, "").toUpperCase();
+      const code = decodeURIComponent(path.slice("/room/code/".length))
+        .replace(/[\s-]+/g, "")
+        .toUpperCase();
       const roomId = codes.get(code);
       if (roomId && rooms.has(roomId)) {
         response.writeHead(200, { ...CORS, "Content-Type": "application/json" });
