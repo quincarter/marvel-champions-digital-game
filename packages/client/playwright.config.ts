@@ -106,6 +106,7 @@ export default defineConfig({
         "gmw-market-sold-out-tier.spec.ts",
         "release-history.spec.ts",
         "deck-builder-quick-filters.spec.ts",
+        "deck-builder-identity-card.spec.ts",
         "victory-display.spec.ts",
         "scheme-stack-fan.spec.ts",
         "deck-builder-search-help.spec.ts",
