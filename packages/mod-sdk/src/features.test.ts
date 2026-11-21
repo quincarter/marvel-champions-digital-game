@@ -187,6 +187,8 @@ describe("dslFeatures", () => {
     expect(SUPPORTED_DSL_FEATURES).toContain("query:keywordNotFromSelf");
     // "After you ready your cards at the end of the player phase" (Web-Sling, #890 item 1).
     expect(SUPPORTED_DSL_FEATURES).toContain("event:endPhaseCardsReadied");
+    // "After an identity-specific card is discarded by an ability" from a hand ("Don't Make Me Angry!", #922).
+    expect(SUPPORTED_DSL_FEATURES).toContain("event:cardDiscardedFromHand");
     // "Generate a [wild] resource for an upgrade ability" (With Great Firepower, #890 item 3).
     expect(SUPPORTED_DSL_FEATURES).toContain("ability:generatesForAbility");
     // "Resolve an 'Action' ability on a card you control", out of turn and paying its cost (War Machine Armor, item 6).

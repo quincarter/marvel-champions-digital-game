@@ -331,6 +331,7 @@ describe("engine-only DSL primitives", () => {
       "engine-only.boost-icons-multiplied",
       "engine-only.cannot-have-status-from",
       "engine-only.cannot-leave-host",
+      "engine-only.card-discarded-from-hand",
       "engine-only.card-unattached",
       "engine-only.cards-readied-at-phase-end",
       "engine-only.double-next-card-spent",
