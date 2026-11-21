@@ -26,18 +26,21 @@ export function heroPassesChips(deck: DeckOption["deck"], filter: RosterFilter, 
 /**
  * The decks the player could take at the active seat right now, each with whether the roster's chips and search show
  * it: legal and not from a not-ready pack (`seatable`), not blocked (`blockedBy`: seated at another seat, locked, the
- * seat maximum), and, as for Recommended, a tested community deck only while the list is narrowed to TESTED (a hero's
- * many community decks would otherwise crowd out its precon). Recommended and Random both read this one list.
+ * seat maximum), and for Recommended (`recommended`, the default) a tested community deck only while the list is
+ * narrowed to TESTED (a hero's many community decks would otherwise crowd out its precon). Random passes false: it
+ * picks a hero first, so community decks cannot crowd it, and it must see the tested decks the Built chip shows
+ * (code review, #916). Recommended and Random both read this one list.
  */
 export function takeableHeroesOf(
   deckOptions: readonly DeckOption[],
   blockedBy: (deckId: string) => string | null,
   filter: RosterFilter,
   ranking: ReadonlyMap<string, number> | null,
+  recommended = true,
 ): readonly { readonly option: DeckOption; readonly shown: boolean }[] {
   return deckOptions
     .filter((option) => option.seatable && blockedBy(option.deck.id as string) === null)
-    .filter((option) => filter.source === "tested" || !isCommunityDeckId(option.deck.id as string))
+    .filter((option) => !recommended || filter.source === "tested" || !isCommunityDeckId(option.deck.id as string))
     .map((option) => ({
       option,
       shown: heroPassesChips(option.deck, filter, null) && (ranking === null || ranking.has(option.deck.id as string)),
@@ -66,7 +69,7 @@ export function randomHeroCandidatesOf(
   rankedFor: string | null = null,
 ): readonly RandomHeroCandidate[] {
   if (searchPending(filter, rankedFor)) return [];
-  return takeableHeroesOf(deckOptions, blockedBy, filter, ranking)
+  return takeableHeroesOf(deckOptions, blockedBy, filter, ranking, false)
     .filter(({ shown, option }) => shown && (option.deck.identityCardId as string) !== ownIdentityCardId)
     .map(({ option }) => ({
       deckId: option.deck.id as string,

@@ -89,10 +89,30 @@ describe("randomHeroCandidatesOf", () => {
     expect(searchPending({ text: "  " }, "spi")).toBe(false);
   });
 
-  test("a tested community deck is a candidate only while the list is narrowed to TESTED", () => {
+  // Code review on #916: Random sees every tested deck the roster shows; only Recommended keeps them out of its row.
+  test("tested community decks are candidates wherever the roster shows them", () => {
     const decks = [option("a", "A"), option("community:1", "A", { kind: "imported" })];
-    expect(ids(randomHeroCandidatesOf(decks, none, { text: "" }, null, undefined))).toEqual(["a"]);
+    expect(ids(randomHeroCandidatesOf(decks, none, { text: "" }, null, undefined))).toEqual(["a", "community:1"]);
     expect(ids(randomHeroCandidatesOf(decks, none, { text: "", source: "tested" }, null, undefined))).toEqual([
+      "community:1",
+    ]);
+  });
+
+  test("under Built, a roster of only tested decks still gives Random candidates", () => {
+    const decks = [option("a", "A"), option("community:1", "B", { kind: "imported" })];
+    expect(ids(randomHeroCandidatesOf(decks, none, { text: "", source: "userBuilt" }, null, undefined))).toEqual([
+      "community:1",
+    ]);
+  });
+
+  test("under Built, a mixed roster offers the user's decks and the tested ones", () => {
+    const decks = [
+      option("a", "A"),
+      option("mine", "B", { kind: "userBuilt" }),
+      option("community:1", "C", { kind: "imported" }),
+    ];
+    expect(ids(randomHeroCandidatesOf(decks, none, { text: "", source: "userBuilt" }, null, undefined))).toEqual([
+      "mine",
       "community:1",
     ]);
   });
@@ -110,6 +130,15 @@ describe("randomHeroCandidatesOf", () => {
 });
 
 describe("takeableHeroesOf", () => {
+  test("for Recommended, a tested community deck counts only while the list is narrowed to TESTED", () => {
+    const decks = [option("a", "A"), option("community:1", "A", { kind: "imported" })];
+    expect(takeableHeroesOf(decks, none, { text: "" }, null).map((e) => e.option.deck.id)).toEqual(["a"]);
+    expect(takeableHeroesOf(decks, none, { text: "", source: "tested" }, null).map((e) => e.option.deck.id)).toEqual([
+      "a",
+      "community:1",
+    ]);
+  });
+
   test("keeps the deck a search or chip hides, flagged not shown, for Recommended to weigh", () => {
     const decks = [option("a", "A", { aspects: ["justice"] }), option("b", "B", { aspects: ["aggression"] })];
     const list = takeableHeroesOf(decks, none, { text: "", aspect: "justice" }, null);
