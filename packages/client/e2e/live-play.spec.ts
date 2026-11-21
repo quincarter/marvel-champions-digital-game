@@ -22,6 +22,13 @@ async function open(browser: Browser, baseURL: string, url: string): Promise<{ c
   const page = await context.newPage();
   await installWave6Helpers(page);
   await quietGuide(page);
+  // The suite's settings (playwright.config.ts): the villain phase advances by itself, so the round turns over unattended.
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "on", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
+  );
   await page.goto(url);
   return { context, page };
 }
@@ -51,7 +58,7 @@ test("a seated guest acts from their own device and the whose-turn line follows 
     await waitForScene(host.page, "SetupDeal", 60000);
     await waitForScene(guest.page, "Board", 60000);
     await waitForLine(guest.page, /^Waiting for Mara \(Spider-Man\)/, "the guest waiting for the host");
-    await clickText(host.page, /^Keep all/, { sceneKey: "SetupDeal" });
+    await clickText(host.page, "Keep all", { sceneKey: "SetupDeal" });
     await waitFor(
       async () =>
         (await visibleTexts(host.page)).some((t) => t.text.startsWith("Waiting for Ava (Captain Marvel)"))
@@ -78,9 +85,14 @@ test("a seated guest acts from their own device and the whose-turn line follows 
     expect((await visibleTexts(guest.page)).some((t) => /ask host to undo/i.test(t.text))).toBe(true);
     await clickText(guest.page, "End turn", { sceneKey: "Board" });
     await settle(guest.page);
-    // The proposal reached the host's engine and came back: the turn passed on both boards.
-    await waitForLine(host.page, /^Your turn/, "the turn back with the host");
-    await waitForLine(guest.page, /^Mara's turn \(Spider-Man\)/, "the guest seeing it back with the host");
+    // The end of the player phase asks each hero in turn whether to discard from a hand of six; each seat declines on
+    // its own device.
+    await clickText(host.page, "Decline", { sceneKey: "ChoiceOverlay", timeoutMs: 45000 });
+    await clickText(guest.page, "Decline", { sceneKey: "ChoiceOverlay", timeoutMs: 45000 });
+    // The proposal reached the host's engine and came back: the villain phase ran, the first player token passed to
+    // the guest, and round 2 opens on the guest's turn on both boards.
+    await waitForLine(guest.page, /^Your turn/, "round 2 on the guest's turn");
+    await waitForLine(host.page, /^Ava's turn \(Captain Marvel\)/, "the host seeing round 2 on the guest");
   } finally {
     await guest.context.close();
     await host.context.close();

@@ -106,8 +106,13 @@ test("a swipe of the deck picker that lifts on Pick chooses nothing; a tap choos
   const target = { x: pick!.rect.x + pick!.rect.width / 2, y: pick!.rect.y + pick!.rect.height / 2 };
   await swipe(page, { x: target.x - 60, y: target.y + 90 }, target);
   expect(await calls(page), "the swipe's lift chose a deck").toEqual([]);
-  const now = ((await routeStops(page, "RoomDeckPicker"))?.stops ?? []).find((stop) => stop.key === pick!.key)!;
-  await page.touchscreen.tap(now.rect.x + now.rect.width / 2, now.rect.y + now.rect.height / 2);
+  // The swipe scrolled the list, so the first row's button is now under the header: tap a Pick that is on screen.
+  const height = page.viewportSize()?.height ?? 844;
+  const now = ((await routeStops(page, "RoomDeckPicker"))?.stops ?? []).find(
+    (stop) => stop.key.startsWith("deck:") && stop.rect.y > 200 && stop.rect.y + stop.rect.height < height - 100,
+  );
+  expect(now, "a Pick button in view after the swipe").toBeTruthy();
+  await page.touchscreen.tap(now!.rect.x + now!.rect.width / 2, now!.rect.y + now!.rect.height / 2);
   await settle(page);
   expect((await calls(page))[0]).toMatch(/^chooseDeck\(s1,/);
   expect(errors).toEqual([]);
