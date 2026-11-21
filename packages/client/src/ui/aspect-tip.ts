@@ -47,6 +47,12 @@ const PANEL_WIDTH = 220;
 const PAD = 10;
 const GAP_FROM_ANCHOR = 8;
 const ARROW_SIZE = 7;
+/**
+ * The tip panel each scene has open (`drawAspectTipPanel`), so its segment's hover can reach across to it: the segment,
+ * the gap and the panel are one region, and the mouse can travel onto the panel's lesson link (code review, #916).
+ */
+const openPanels = new WeakMap<Phaser.Scene, Phaser.GameObjects.Container>();
+
 /** How long the mouse rests on an info segment before its tip opens (issue #911: too eager on fast sweeps). */
 export const ASPECT_TIP_HOVER_DELAY_MS = 350;
 /** The drawn "i" ring inside a segment; the segment itself is the touch target. */
@@ -135,9 +141,10 @@ export function drawAspectInfoSegment(
   zone.on("pointerout", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;
     cancelOpening();
-    if (isOpen) onClose();
+    // A tip opened by hover closes from the move watch below, which lets the mouse cross to the panel.
+    if (isOpen && options.pressOnly === true) onClose();
   });
-  // Open, the tip closes once the mouse is off the segment. The host redraws the screen when the tip opens, and Phaser
+  // Open, the tip closes once the mouse is off the segment and its panel. The host redraws the screen when the tip opens, and Phaser
   // checks what is under a pointer only when it moves, so the new segment never learns the pointer was over it: a
   // flick straight off it after the delayed open would fire no `pointerout` and leave the tip up (code review, #911).
   // Armed only once the mouse is over the segment (as it is right after a hover opens it): a tip opened from the
@@ -145,7 +152,12 @@ export function drawAspectInfoSegment(
   const over = (pointer: Phaser.Input.Pointer): boolean => {
     const clip = options.clip?.() ?? null;
     if (clip && !pointInRect(pointer.x, pointer.y, clip)) return false;
-    return zone.getBounds().contains(pointer.worldX, pointer.worldY);
+    const segment = zone.getBounds();
+    if (segment.contains(pointer.worldX, pointer.worldY)) return true;
+    // The open panel and the gap between it and the segment: the box around both.
+    const panel = openPanels.get(scene);
+    if (!panel?.active) return false;
+    return Phaser.Geom.Rectangle.Union(segment, panel.getBounds()).contains(pointer.worldX, pointer.worldY);
   };
   let armed = false;
   const offSegment = (pointer: Phaser.Input.Pointer): void => {
@@ -265,6 +277,7 @@ export function drawAspectTipPanel(
   }
 
   const container = scene.add.container(0, 0, containerChildren).setDepth(1000);
+  openPanels.set(scene, container);
   scene.children.bringToTop(container);
   return container;
 }

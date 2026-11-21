@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { waitFor } from "./helpers.js";
+import { activeScenes, findText, waitFor } from "./helpers.js";
 import { installWave6Helpers } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 import { texts } from "./wave7-deck-builder-helpers.js";
@@ -53,4 +53,33 @@ test("the aspect tip ignores a mouse sweeping past and opens when the mouse rest
   // Leaving: it closes.
   await page.mouse.move(8, 8, { steps: 4 });
   await waitFor(async () => ((await tipOpen(page)) ? null : true), "the tip closing", 5_000);
+});
+
+// Code review on #916: the segment, the gap and the tip panel are one hover region, so the mouse can reach the
+// lesson link.
+test("a tip opened by hover stays open while the mouse travels onto its lesson link, which opens the lesson", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "phone", "hover is a desktop affordance");
+  test.setTimeout(120_000);
+  await installWave6Helpers(page);
+  await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
+  const chip = await waitFor(() => stopRect(page, "aspect:justice"), "the Justice chip", 30_000);
+  const info = { x: chip.x + chip.width + 12, y: chip.y + chip.height / 2 };
+  await page.mouse.move(info.x, info.y, { steps: 4 });
+  await waitFor(async () => ((await tipOpen(page)) ? true : null), "the tip after resting on the segment", 5_000);
+
+  const link = await waitFor(async () => {
+    const found = (await findText(page, "Aspects", "DeckBuilder")).find((m) => /▸/.test(m.text));
+    return found ?? null;
+  }, "the tip's lesson link");
+  // Across the gap and onto the panel in small steps: the tip stays up the whole way.
+  await page.mouse.move(link.x, link.y, { steps: 12 });
+  expect(await tipOpen(page), "still open over its own panel").toBe(true);
+  await page.mouse.click(link.x, link.y);
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("AspectLesson") ? true : null),
+    "the aspect lesson",
+    15_000,
+  );
 });
