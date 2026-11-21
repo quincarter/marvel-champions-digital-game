@@ -123,7 +123,8 @@ test("the Title and Play online start no room worker and open no socket", async 
     window.WebSocket = class extends RealSocket {
       constructor(url: string | URL, protocols?: string | string[]) {
         super(url, protocols);
-        seen.sockets++;
+        // The dev server's own hot-reload channel (Vite's client, protocol "vite-hmr") is not the game going online.
+        if (![protocols].flat().includes("vite-hmr")) seen.sockets++;
       }
     } as typeof WebSocket;
   });
