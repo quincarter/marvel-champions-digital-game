@@ -150,11 +150,12 @@ export function drawAspectInfoSegment(
   // Armed only once the mouse is over the segment (as it is right after a hover opens it): a tip opened from the
   // keyboard or a pad, with the mouse resting elsewhere, stays open until the mouse has crossed the segment and left it.
   const over = (pointer: Phaser.Input.Pointer): boolean => {
+    // The clip (a scrolling rail's viewport) limits only the segment: the panel opens outside the rail.
     const clip = options.clip?.() ?? null;
-    if (clip && !pointInRect(pointer.x, pointer.y, clip)) return false;
     const segment = zone.getBounds();
-    if (segment.contains(pointer.worldX, pointer.worldY)) return true;
-    // The open panel and the gap between it and the segment: the box around both.
+    const inClip = !clip || pointInRect(pointer.x, pointer.y, clip);
+    if (inClip && segment.contains(pointer.worldX, pointer.worldY)) return true;
+    // The open panel and the gap between it and the segment: the box around both (code review, #916).
     const panel = openPanels.get(scene);
     if (!panel?.active) return false;
     return Phaser.Geom.Rectangle.Union(segment, panel.getBounds()).contains(pointer.worldX, pointer.worldY);
