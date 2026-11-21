@@ -82,10 +82,19 @@ test("a Mod Store scenario that sets a modular set aside offers it on Set the ta
   await waitForScene(page, "ScenarioSelect");
   if (!(await hasStop(page, "scenario-search", "ScenarioSelect")))
     await clickStop(page, "scenario-search-toggle", "ScenarioSelect");
-  await clickStop(page, "scenario-search", "ScenarioSelect");
-  await page.keyboard.type("Clockmaker");
-  await settle(page);
-  await waitFor(async () => (await hasStop(page, `scenario:${SCENARIO}`, "ScenarioSelect")) || null, "the scenario");
+  // A search typed while the installed pack's scenario is still joining the list can come up empty: type it again.
+  for (let attempt = 0; attempt < 4 && !(await hasStop(page, `scenario:${SCENARIO}`, "ScenarioSelect")); attempt++) {
+    await clickStop(page, "scenario-search", "ScenarioSelect");
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.type("Clockmaker");
+    await settle(page);
+    await waitFor(
+      async () => (await hasStop(page, `scenario:${SCENARIO}`, "ScenarioSelect")) || null,
+      "the scenario",
+      10_000,
+    ).catch(() => null);
+  }
   await clickStop(page, `scenario:${SCENARIO}`, "ScenarioSelect");
   await settle(page);
   await clickStop(page, "next", "ScenarioSelect");
