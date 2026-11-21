@@ -8,6 +8,23 @@ import { handDiscardStillThere } from "../query.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { pushEventsSharingResponses } from "./frames.js";
 import { heard } from "./triggers.js";
+import type { GameState } from "../state.js";
+
+/** The prefix of the vars a choosing `discardFromHand` keeps while it asks one player after another. */
+const DISCARD_HAND_VARS = "_discardHand.";
+
+/**
+ * Whether a discard from a hand is still being made on the stack: an effects frame part way through asking each
+ * player for their discard (`executeDiscardFromHand`), or a card waiting in its "would be discarded" window
+ * (`cardBeingDiscarded`, `resolve/would-discard.ts`).
+ */
+function discardStillMaking(state: GameState): boolean {
+  return state.stack.some(
+    (frame) =>
+      (frame.kind === "event" && frame.event.kind === "cardBeingDiscarded") ||
+      (frame.kind === "effects" && Object.keys(frame.vars).some((key) => key.startsWith(DISCARD_HAND_VARS))),
+  );
+}
 
 /**
  * Announces each card discarded from a hand by an ability since the last look (recorded by `recordHandDiscard`), when
@@ -17,10 +34,15 @@ import { heard } from "./triggers.js";
  * Condition", p. 45). The flow looks here between frames, so the window resolves before the discarding ability's next
  * effect, or, for a cost, before the ability's effects. A card no longer in a discard pile is not announced. Returns
  * true when it pushed a frame.
+ *
+ * Held while the discarding effect is still making its discards (`discardStillMaking`): "each player discards" asks
+ * one player at a time, and a card some ability may replace waits in its own "would be discarded" window, but the
+ * discards are one simultaneous set whose responses come after all of them (RRG 1.8 "Discard", p. 16).
  */
 export function announceHandDiscards(ctx: Ctx): boolean {
   const pending = ctx.state.pendingHandDiscards;
   if (!pending || pending.length === 0) return false;
+  if (discardStillMaking(ctx.state)) return false;
   const { pendingHandDiscards: _, ...rest } = ctx.state;
   ctx.state = rest;
   const events = pending

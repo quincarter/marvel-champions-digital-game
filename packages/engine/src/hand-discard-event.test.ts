@@ -30,6 +30,7 @@ import {
   gameAtFirstTurn,
   onTopOfEncounterDeck,
   P1,
+  P2,
   playerCardIntoPlay,
 } from "./testing/wave3.js";
 
@@ -83,19 +84,42 @@ const TOLL_ACTION = stubAbility("toll.action", {
 });
 const TOLL = stubSideScheme({ id: "toll", startingThreat: 3, boostIcons: 0, abilities: [TOLL_ACTION.ref] });
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
+/** "Each player chooses and discards 1 card from their hand." */
+const E_EACH = event("e-each", [{ kind: "discardFromHand", player: { kind: "each" }, amount: n(1) }]);
+/** A support: "Action: Discard 1 card from your hand → draw 0 cards." A chosen hand-discard cost. */
+const FURY_ACTION = stubAbility("fury.action", {
+  trigger: { kind: "action" },
+  cost: { discardFromHand: { min: 1, max: 1 } },
+  effects: [{ kind: "draw", player: you, amount: n(0) }],
+});
+const FURY = stubSupport({ id: "fury", cost: 0, abilities: [FURY_ACTION.ref] });
+const WARD_ID = "ward.interrupt";
+/** "Interrupt: When a card you control would be discarded, …": always declined, so each card waits in its window. */
+const WARD_INTERRUPT = stubAbility(WARD_ID, {
+  trigger: { kind: "interrupt", forced: false, would: true, on: { on: "cardBeingDiscarded", playerIs: "controller" } },
+  effects: [{ kind: "replaceTriggeringEvent", with: [] }],
+});
+const WARD = stubSupport({ id: "ward", cost: 0, abilities: [WARD_INTERRUPT.ref] });
+/** A second Rage, with an ability of its own. */
+const RAGE_TWO_RESPONSE = stubAbility("rage-two.response", { ...RAGE_RESPONSE.definition });
+const RAGE_TWO = stubSupport({ id: "rage-two", cost: 0, abilities: [RAGE_TWO_RESPONSE.ref] });
 
-const EVENTS = [E_CHOSEN, E_RANDOM, E_MILL, E_MOVE, E_COSTLY, REVEAL];
-const OTHERS = [...EVENTS.map((e) => e.ability), T_CHOSEN_ABILITY, TOLL_ACTION];
+const EVENTS = [E_CHOSEN, E_RANDOM, E_MILL, E_MOVE, E_COSTLY, REVEAL, E_EACH];
+const OTHERS = [...EVENTS.map((e) => e.ability), T_CHOSEN_ABILITY, TOLL_ACTION, FURY_ACTION];
 const HEARD: EngineDeps = depsOf(RAGE_RESPONSE, ...OTHERS);
 /** The same registry without the listener. */
 const UNHEARD: EngineDeps = depsOf(...OTHERS);
+/** With a "would be discarded" interrupt too. */
+const WARDED: EngineDeps = depsOf(RAGE_RESPONSE, WARD_INTERRUPT, ...OTHERS);
+/** With two Rages. */
+const TWO_RAGES: EngineDeps = depsOf(RAGE_RESPONSE, RAGE_TWO_RESPONSE, ...OTHERS);
 
-function start(deps: EngineDeps): GameState {
+function start(deps: EngineDeps, players: 1 | 2 = 1): GameState {
   const game = gameAtFirstTurn({
-    players: 1,
-    cards: [RAGE, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
+    players,
+    cards: [RAGE, RAGE_TWO, FURY, WARD, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
     deps,
-    deck: [RAGE.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
     encounter: [...copiesOf(FILLER.id, 26), TOLL.id, T_CHOSEN.id],
   });
   return game;
@@ -115,7 +139,8 @@ function drive(state: GameState, deps: EngineDeps, ...commands: readonly Command
   let offers = 0;
   const pick = (s: GameState) => {
     const choice = s.pendingChoice!;
-    const row = choice.options.find((o) => (o.optionId as string).includes(RAGE_ID));
+    const row = choice.options.find((o) => /rage/.test(o.optionId as string));
+    if (choice.prompt.kind === "chooseTriggers" && !row) return [];
     if (choice.prompt.kind !== "chooseTriggers" || !row) return defaultPick(s);
     offers += 1;
     return [row.optionId];
@@ -253,5 +278,69 @@ describe("cardDiscardedFromHand: after a card is discarded from a hand by an abi
       expect(pile(out.state).length, card).toBeGreaterThan(pile(out.before).length);
       expectReplays(out.session, UNHEARD);
     }
+  });
+});
+
+/** The position in the log of the first entry `match` finds; -1 when none does. */
+const firstIndex = (events: readonly GameEvent[], match: (e: GameEvent) => boolean) => events.findIndex(match);
+const isHandResponse = (e: GameEvent) =>
+  e.type === "triggerEvent" && e.event.kind === "cardDiscardedFromHand" && e.phase === "resolved";
+
+describe("cardDiscardedFromHand: one effect's discards share one window, after all of them (RRG 1.8 'Discard', p. 16)", () => {
+  it("each player discards: the window opens once both players have discarded", () => {
+    const base = playerCardIntoPlay(start(HEARD, 2), RAGE.id, P1).state;
+    const given = giveCard(base, P1, E_EACH.card.id);
+    const out = drive(given.state, HEARD, play(given.id));
+    const discards = out.events.filter((e) => e.type === "cardDiscardedFromHand");
+    expect(discards.map((e) => (e as { playerId: PlayerId }).playerId)).toEqual([P1, P2]);
+    // Both cards were discarded before any response to either resolved.
+    const lastDiscard = out.events.lastIndexOf(discards[1]!);
+    expect(firstIndex(out.events, isHandResponse)).toBeGreaterThan(lastDiscard);
+    // Rage answers its controller's card only.
+    expect(out.offers).toBe(1);
+    expectReplays(out.session, HEARD);
+  });
+
+  it("cards that wait in a 'would be discarded' window: announced once each, after the last of them is discarded", () => {
+    const base = playerCardIntoPlay(playerCardIntoPlay(start(WARDED), WARD.id, P1).state, RAGE.id, P1).state;
+    const given = giveCard(base, P1, E_RANDOM.card.id);
+    const out = drive(given.state, WARDED, play(given.id));
+    const applied = out.events.filter(
+      (e) => e.type === "triggerEvent" && e.event.kind === "cardBeingDiscarded" && e.phase === "resolved",
+    );
+    expect(applied).toHaveLength(2);
+    expect(announced(out.events, "cardDiscardedFromHand")).toHaveLength(2);
+    expect(firstIndex(out.events, isHandResponse)).toBeGreaterThan(out.events.lastIndexOf(applied[1]!));
+    expect(out.offers).toBe(2);
+    expectReplays(out.session, WARDED);
+  });
+
+  it("a chosen hand-discard cost of a player card: heard as a cost", () => {
+    const base = playerCardIntoPlay(start(HEARD), RAGE.id, P1).state;
+    const fury = playerCardIntoPlay(base, FURY.id, P1);
+    const paid = hand(fury.state)[0]!;
+    const out = drive(fury.state, HEARD, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: fury.id,
+      abilityId: FURY_ACTION.ref.id,
+      payment: [],
+      costChoices: { discard: [paid] },
+    });
+    expect(announced(out.events, "cardDiscardedFromHand")).toEqual([
+      expect.objectContaining<Partial<HandDiscard>>({ instanceId: paid, by: "playerCard", how: "cost" }),
+    ]);
+    expect(out.offers).toBe(1);
+  });
+
+  it("two responses: once the first takes the card back, the second is not offered for it", () => {
+    const one = playerCardIntoPlay(start(TWO_RAGES), RAGE.id, P1).state;
+    const base = playerCardIntoPlay(one, RAGE_TWO.id, P1).state;
+    const given = giveCard(base, P1, E_CHOSEN.card.id);
+    const out = drive(given.state, TWO_RAGES, play(given.id));
+    const [heard] = announced(out.events, "cardDiscardedFromHand");
+    expect(out.offers).toBe(1);
+    expect(hand(out.state)).toContain(heard!.instanceId);
+    expectReplays(out.session, TWO_RAGES);
   });
 });
