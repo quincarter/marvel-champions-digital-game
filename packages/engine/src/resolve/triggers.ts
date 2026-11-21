@@ -294,8 +294,8 @@ function matchesPatternFields(
  * (`hearsTeamPhase`, N8). A game whose players share one game area is unchanged, and an Epic Multiplayer pod's groups
  * are separate games.
  */
-// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); audit finding 5 (#883)
-// Kang insert "Playing With Separate Game Areas": cards in one game area cannot affect another (except stage 2B); FFG ruling Mar 6 2025 (Azazel). Environments and stage 2B are in every area (RRG 1.8 FAQ p. 60).
+// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); audit finding 5 (#883). Kang: FFG
+// ruling Mar 6 2025 (Azazel); environments and stage 2B are in every area (RRG 1.8 FAQ p. 60).
 function heardOnThisSide(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
   if (state.gameAreas.length === 0) return true;
   const selfArea = areaOfCard(state, selfId);

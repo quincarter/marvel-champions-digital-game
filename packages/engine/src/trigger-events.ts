@@ -2196,6 +2196,13 @@ export type TriggerEvent = TriggerEventBody & {
    * the other team and defeated there left play on that team's side, though its discard pile is on the first
    * (MC56 pp. 16, 20). Stamped by `eventFrame`, and by the leave-play snapshot while the card is still in play. Absent
    * in a game whose players share one game area, so such a game serializes as before. Read by `heardOnThisSide`.
+   *
+   * Invariant: the stamp names the occurrence, not its current target. An effect that retargets an event in progress
+   * spreads it and keeps the stamp (a declared defender, `resolve/enemy-activation.ts` and `resolve/friendly-attack.ts`;
+   * an overkill spill, `resolve/event.ts`): the new target is on a side the event already names, since a defender
+   * comes from the attacked player's side (MC56 p. 16; Kang insert: no defending in another game area) and an overkill
+   * spill reaches only characters the attack could (RRG 1.8 "Overkill", p. 31). An effect that would move an event to
+   * another side must drop `sides` and let it be read again.
    */
   readonly sides?: readonly GameAreaId[];
 };

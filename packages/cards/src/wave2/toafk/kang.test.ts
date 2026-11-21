@@ -551,10 +551,9 @@ describe("Kang's separate game areas: an event trigger hears its own area only",
             const offersWidow = choice.options.some(
               (o) => (o.ref.kind === "card" || o.ref.kind === "ability") && o.ref.instanceId === widow,
             );
-            if (offersWidow && choice.playerId === P1) {
-              const event = choice.prompt.event as unknown as { playerId?: string };
-              revealers.push(event.playerId ?? "?");
-            }
+            const event = choice.prompt.event;
+            if (offersWidow && choice.playerId === P1 && event.kind === "encounterCardRevealing")
+              revealers.push(event.playerId);
             return [];
           }
           return firstLegal(s);
