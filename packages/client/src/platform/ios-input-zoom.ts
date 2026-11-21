@@ -39,11 +39,11 @@ function isTextEntry(target: EventTarget | null): boolean {
 
 /**
  * Whether leaving a field should put the page back to its own scale: only when the page was at its own scale as the
- * field took focus and is zoomed now, so the zoom came from the field. A page the player pinch-zoomed before tapping the
- * field keeps the zoom they chose.
+ * field took focus, is zoomed now, and the player made no pinch in between, so the zoom came from the field. A zoom the
+ * player chose, before tapping the field or while typing in it, is kept.
  */
-export function zoomedByFocus(scaleAtFocus: number, scaleNow: number): boolean {
-  return scaleAtFocus <= 1.01 && scaleNow > 1.01;
+export function zoomedByFocus(scaleAtFocus: number, scaleNow: number, pinchedSinceFocus: boolean): boolean {
+  return !pinchedSinceFocus && scaleAtFocus <= 1.01 && scaleNow > 1.01;
 }
 
 /**
@@ -60,11 +60,22 @@ export function applyIosInputZoomGuard(doc: Document = document, nav: NavigatorL
   const view = doc.defaultView;
   const scaleNow = (): number => view?.visualViewport?.scale ?? 1;
   let scaleAtFocus = 1;
+  let pinched = false;
   doc.addEventListener("focusin", (event) => {
-    if (isTextEntry(event.target)) scaleAtFocus = scaleNow();
+    if (!isTextEntry(event.target)) return;
+    scaleAtFocus = scaleNow();
+    pinched = false;
   });
+  // Capture, so a field's own touch handlers (rexUI stops touch events at its elements) can't hide a pinch.
+  doc.addEventListener(
+    "touchstart",
+    (event) => {
+      if (event.touches.length > 1) pinched = true;
+    },
+    { capture: true, passive: true },
+  );
   doc.addEventListener("focusout", (event) => {
-    if (!isTextEntry(event.target) || !zoomedByFocus(scaleAtFocus, scaleNow())) return;
+    if (!isTextEntry(event.target) || !zoomedByFocus(scaleAtFocus, scaleNow(), pinched)) return;
     // The same content again is not a change, so WebKit would skip it: drop the limit for a frame, then put it back.
     meta.content = guarded.replace(/,?\s*maximum-scale\s*=\s*[\d.]+/, "");
     const restore = (): void => {

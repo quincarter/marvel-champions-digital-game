@@ -29,13 +29,14 @@ describe("withoutFocusZoom", () => {
 
 describe("zoomedByFocus", () => {
   it("resets a zoom the field caused", () => {
-    expect(zoomedByFocus(1, 1.6)).toBe(true);
+    expect(zoomedByFocus(1, 1.6, false)).toBe(true);
   });
 
-  it("keeps a zoom the player chose before tapping the field, and does nothing at the page's own scale", () => {
-    expect(zoomedByFocus(2, 2)).toBe(false);
-    expect(zoomedByFocus(1.5, 2)).toBe(false);
-    expect(zoomedByFocus(1, 1)).toBe(false);
+  it("keeps a zoom the player chose before tapping the field or by pinching in it, and does nothing unzoomed", () => {
+    expect(zoomedByFocus(2, 2, false)).toBe(false);
+    expect(zoomedByFocus(1.5, 2, false)).toBe(false);
+    expect(zoomedByFocus(1, 2, true)).toBe(false);
+    expect(zoomedByFocus(1, 1, false)).toBe(false);
   });
 });
 
@@ -55,7 +56,7 @@ describe("applyIosInputZoomGuard", () => {
     const { doc, meta, listeners } = fakeDoc();
     applyIosInputZoomGuard(doc, { userAgent: IPHONE });
     expect(meta.content).toBe(`${BASE}, maximum-scale=1`);
-    expect(listeners).toEqual(["focusin", "focusout"]);
+    expect(listeners).toEqual(["focusin", "touchstart", "focusout"]);
   });
 
   it("leaves the viewport alone everywhere else, so Android keeps pinch zoom", () => {
