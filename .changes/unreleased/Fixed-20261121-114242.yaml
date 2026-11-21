@@ -1,0 +1,3 @@
+kind: Fixed
+body: Tapping the UNDER n strip of a host with several tucked cards while paying opens them to choose from, instead of spending the first one (#943)
+time: 2026-11-21T11:42:42.4369938-05:00

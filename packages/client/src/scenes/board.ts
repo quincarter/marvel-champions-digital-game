@@ -1681,8 +1681,8 @@ export class BoardScene extends Phaser.Scene {
       villainHandTags: this.#villainHandTags,
       actionsHeld: this.#villainReplay !== null,
       replay: this.#replay !== null,
-      makeTapTarget: (rect, id, onTap, drag, onHover, clip) =>
-        this.#makeTapTarget(rect, id, onTap, drag, onHover, clip),
+      makeTapTarget: (rect, id, onTap, drag, onHover, clip, modeTap) =>
+        this.#makeTapTarget(rect, id, onTap, drag, onHover, clip, modeTap),
       dealtCaptionOf: (ids) => {
         const game = tableGame(appSession().store.state.game);
         return dealtCaption(ids.length, game ? dealtReasonsOf(this.#cardHistory, ids, game) : []);
@@ -2992,11 +2992,12 @@ export class BoardScene extends Phaser.Scene {
     drag?: RowDrag,
     onHover?: (over: boolean) => void,
     clip?: Rect,
+    modeTap: "answer" | "own" = "answer",
   ): void {
     this.#frame.focusRects.set(focusKey({ kind: "card", instanceId: id }), rect);
     addTapTarget(this, rect, {
       onTap: () => {
-        if (!this.#controller.tapInMode(id)) onTap?.();
+        if (modeTap === "own" || !this.#controller.tapInMode(id)) onTap?.();
       },
       onInspect: () => this.#inspect(id),
       onDrag: drag?.onDrag,

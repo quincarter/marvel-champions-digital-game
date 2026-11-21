@@ -1578,9 +1578,9 @@ export function drawPlayArea(
   const registered: { readonly id: InstanceId; readonly rect: Rect }[] = [];
   const rowCtx: BoardDrawContext = {
     ...ctx,
-    makeTapTarget: (target, id, onTap, _drag, onHover) => {
+    makeTapTarget: (target, id, onTap, _drag, onHover, _clip, modeTap) => {
       registered.push({ id, rect: target });
-      ctx.makeTapTarget(target, id, onTap, row.drag, onHover);
+      ctx.makeTapTarget(target, id, onTap, row.drag, onHover, undefined, modeTap);
     },
   };
   const before = scene.children.list.length;

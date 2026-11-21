@@ -522,10 +522,17 @@ export function drawCharacter(
   for (const row of chipTuckedRows) row.addTapTargets();
 }
 
-/** A tap target over a tucked-cards strip: it opens the first card in Inspect, ◂ ▸ stepping through the rest. */
+/**
+ * A tap target over a tucked-cards strip: it opens the first card in Inspect, ◂ ▸ stepping through the rest. With
+ * several cards under the host it opens them even while paying or aiming, so the player picks which one (Inspect
+ * offers a tucked card's spend, #927) instead of the tap answering with the first (#943). A lone card still answers.
+ */
 function openTucked(ctx: BoardDrawContext, rect: Rect, ids: readonly InstanceId[]): void {
   const first = ids[0];
-  if (first) ctx.makeTapTarget(rect, first, () => ctx.inspect(first, ids));
+  if (!first) return;
+  const open = (): void => ctx.inspect(first, ids);
+  if (ids.length > 1) ctx.makeTapTarget(rect, first, open, undefined, undefined, undefined, "own");
+  else ctx.makeTapTarget(rect, first, open);
 }
 
 /** The height a wide panel keeps for its stat badges and HP plate before the tucked-cards row may take any. */
