@@ -14,7 +14,7 @@ import {
   cards,
   chooseCards,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -28,6 +28,7 @@ import {
   draw,
   each,
   eventTarget,
+  exists,
   exhaustCardsCost,
   exhaustThis,
   forcedResponse,
@@ -179,9 +180,13 @@ export const VENOM_KIT = defineAbilities({
     { cost: exhaustThis },
     chooseOne(
       option("Deal 2 damage to an enemy", ...damageAnEnemy(2)),
+      // Only players with an engaged minion can be chosen, and the option needs one (issue #911). RRG 1.8 "Choose
+      // (Option)" p. 12: an option that cannot at least partially resolve can't be chosen; naming a player with no
+      // minion is an engine reading (authority step 5) on the same ground.
       option(
         "Choose a player. Deal 1 damage to each minion engaged with that player.",
-        choosePlayer("player"),
+        { when: exists(query("minion", { engagedWith: "any" })) },
+        choosePlayerWithEngaged("player"),
         dealDamage(1, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
       ),
       option("Remove 2 threat from a scheme", ...removeThreatFromAScheme(2)),

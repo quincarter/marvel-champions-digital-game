@@ -52,6 +52,8 @@
  */
 
 import type { AbilityId } from "@mc/content";
+import { en } from "../i18n/en.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import type {
   ChoiceList,
   ChoiceOption,
@@ -477,6 +479,11 @@ export function promptTitleOf(
     return `Who controls ${cardName(state, prompt.cardInstanceId)}?`;
   }
   if (kind === "discardRestricted") return `Discard to ${numberWord(prompt.limit)} restricted cards`;
+  // A pick the card itself words, so its role is clear ("Move a counter FROM which ...?", issue #911).
+  // A card's own question: a message key the app translates, else text shown as it is (a mod pack's own wording).
+  if (kind === "chooseTarget" && prompt.title) {
+    return Object.hasOwn(en, prompt.title) ? t(prompt.title as MessageKey) : prompt.title;
+  }
   if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",

@@ -724,7 +724,7 @@ describe("screen focus routes", () => {
     expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
   });
 
-  test("Past games: Back, the filters and the file button, each game's row, then the details' four actions", () => {
+  test("Past games: Back, filters, file button, export, search, each game's row, then the details' actions", () => {
     expect(pastGamesFocusOrder(["a", "b"])).toEqual([
       "back",
       "filter:all",
@@ -732,6 +732,7 @@ describe("screen focus routes", () => {
       "filter:lost",
       "open-file",
       "export-tracker",
+      "search",
       "game:a",
       "game:b",
       "action:watch",
@@ -851,6 +852,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-random",
       "hero-art",
       "use-preconstructed",
       "hero-search",
@@ -866,6 +868,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-random",
       "hero-art",
       "use-preconstructed",
       "hero-search",
@@ -880,6 +883,7 @@ describe("screen focus routes", () => {
       "seat:2",
       "seat:3",
       "clear-seat",
+      "hero-random",
       "hero-art",
       "use-preconstructed",
       "hero-search",
@@ -895,6 +899,7 @@ describe("screen focus routes", () => {
       "seat:1",
       "seat-details-toggle",
       "clear-seat",
+      "hero-random",
       "hero-art",
       "use-preconstructed",
       "hero-search-toggle",
