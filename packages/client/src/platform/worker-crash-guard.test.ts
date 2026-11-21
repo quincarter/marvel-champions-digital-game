@@ -117,6 +117,30 @@ describe("WorkerCrashGuard (#932)", () => {
     expect(storage.getItem(KEY)).toBeNull();
   });
 
+  it("puts the mark back for a first job that comes after the settle timer cleared it", () => {
+    const storage = new MemoryStorage();
+    const { guard, timers } = page(storage);
+    guard.skip();
+    guard.starting();
+    timers[0]!.fn(); // no work for 15 s: the mark goes
+    expect(storage.getItem(KEY)).toBeNull();
+    guard.working(); // the first bake, later on
+    expect(storage.getItem(KEY)).toBe("starting");
+    // It crashes the page: the next page skips the worker.
+    expect(page(storage).guard.skip()).toBe(true);
+  });
+
+  it("marks only the first job of a start, not every job after its answer", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working();
+    guard.settled(); // the first job's answer
+    guard.working(); // the next job
+    expect(storage.getItem(KEY)).toBeNull();
+  });
+
   it("tries the worker again once the app or WebView2 is updated", () => {
     const storage = new MemoryStorage();
     storage.setItem(KEY, WEBVIEW_158);
