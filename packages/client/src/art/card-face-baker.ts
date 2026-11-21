@@ -202,6 +202,7 @@ export class CardFaceBaker {
     const id = this.#nextId++;
     this.#inflight.set(id, entry);
     const message: CardFaceRequest = { type: "bake", id, spec: entry.spec };
+    this.#guard.working();
     this.#worker.postMessage(message);
   }
 

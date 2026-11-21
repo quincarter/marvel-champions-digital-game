@@ -106,6 +106,17 @@ describe("WorkerCrashGuard (#932)", () => {
     expect(page(storage).guard.skip()).toBe(true);
   });
 
+  it("keeps the mark past the settle timer while the worker's first job is still out", () => {
+    const storage = new MemoryStorage();
+    const { guard, timers } = page(storage);
+    guard.starting();
+    guard.working(); // a slow first bake: the timer fires before the answer
+    timers[0]!.fn();
+    expect(storage.getItem(KEY)).toBe("starting");
+    guard.settled(); // the answer
+    expect(storage.getItem(KEY)).toBeNull();
+  });
+
   it("tries the worker again once the app or WebView2 is updated", () => {
     const storage = new MemoryStorage();
     storage.setItem(KEY, WEBVIEW_158);

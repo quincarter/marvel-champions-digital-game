@@ -64,6 +64,8 @@ export class WorkerCrashGuard {
   #leaveHooked = false;
   /** Starts so far on this page; the latest is the one a settle timer may clear. */
   #starts = 0;
+  /** The latest start has been given a job it hasn't answered yet. */
+  #working = false;
 
   constructor(name: string, deps: GuardDeps | null = pageDeps()) {
     this.#key = KEY_PREFIX + name;
@@ -99,12 +101,19 @@ export class WorkerCrashGuard {
       this.#leaveHooked = true;
       this.#deps.onLeave(() => this.settled());
     }
-    // Only this start's own timer may settle it: an earlier start's timer firing after a restart must not clear the
-    // restart's mark.
+    // Only this start's own timer may settle it (an earlier start's timer firing after a restart must not clear the
+    // restart's mark), and only while the worker has been given no work: a job in flight keeps the mark until the
+    // worker answers it, however long that takes.
     const start = ++this.#starts;
+    this.#working = false;
     this.#deps.setTimer(() => {
-      if (start === this.#starts) this.settled();
+      if (start === this.#starts && !this.#working) this.settled();
     }, GUARD_SETTLE_MS);
+  }
+
+  /** The worker was handed its first job of this start: from now on only its answer (or `pagehide`) clears the mark. */
+  working(): void {
+    this.#working = true;
   }
 
   /** The worker answered, stopped on terms the page saw, or the page outlived its start: no crash. */

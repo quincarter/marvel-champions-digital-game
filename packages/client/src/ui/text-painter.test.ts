@@ -346,6 +346,9 @@ class FakeGuard implements CrashGuardLike {
   starting(): void {
     this.calls.push("starting");
   }
+  working(): void {
+    this.calls.push("working");
+  }
   settled(): void {
     this.calls.push("settled");
   }
@@ -373,7 +376,7 @@ describe("the crash guard (#932)", () => {
     const id = t.painter.submit(label, undefined, job(), frame);
     t.endTask();
     t.worker.reply({ type: "painted", results: [{ id, bitmap: bitmap() }] });
-    expect(guard.calls).toEqual(["skip", "starting", "settled"]);
+    expect(guard.calls).toEqual(["skip", "starting", "working", "settled"]);
   });
 
   it("clears the mark when the page sees the worker fail, which is not a crash", () => {

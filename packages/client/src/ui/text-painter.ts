@@ -55,6 +55,7 @@ export interface PainterDeps {
 export interface CrashGuardLike {
   skip(): boolean;
   starting(): void;
+  working(): void;
   settled(): void;
 }
 
@@ -219,7 +220,9 @@ export class TextPainter {
     if (this.#mode !== "ready" || !this.#worker) return;
     const jobs = this.#queue.filter((job) => this.#pending.has(job.id));
     this.#queue = [];
-    if (jobs.length > 0) this.#worker.postMessage({ type: "paint", jobs });
+    if (jobs.length === 0) return;
+    this.#deps.guard?.working();
+    this.#worker.postMessage({ type: "paint", jobs });
   }
 
   #scheduleApply(): void {
