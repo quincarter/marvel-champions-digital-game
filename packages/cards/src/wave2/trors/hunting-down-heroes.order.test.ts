@@ -45,4 +45,28 @@ describe("Hunting Down Heroes (04096b): the first player orders the heroes", () 
     expect(next.pendingChoice?.playerId).toBe(P1);
     expect(inst(next, scheme).threat).toBe(threatAtOrder + 1);
   });
+
+  // Issue #911: with one hero in alter-ego form only one player resolves it, so there is nothing to order. The
+  // hero-form player is still asked to choose.
+  it("with only one player in hero form, no order is asked and that player chooses (issue #911)", () => {
+    const start = startWave2Game(
+      wave2Scenario("taskmaster", {
+        players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "core-captain-marvel-leadership" }],
+        seed: 2026,
+      }),
+    );
+    const stacked = stackEncounterDeck(start, "01186", "01188");
+    const oneHero = runWave2(stacked, toHero(P1), endTurn(P1), endTurn(P2));
+    const asked = settleUntil(
+      oneHero,
+      "chooseOption",
+      (state) => {
+        expect(state.pendingChoice?.prompt.kind).not.toBe("orderPlayers");
+        return firstLegal(state);
+      },
+      WAVE2_DEPS,
+    );
+    expect(asked.pendingChoice?.playerId).toBe(P1);
+    expect(asked.pendingChoice?.options.map((o) => o.label)).toEqual(["Place 1 threat here", "Take 1 damage"]);
+  });
 });

@@ -406,7 +406,8 @@ describe("Ice Blast (46010)", () => {
     const staged = inHand(heroGame(), BLAST);
     expect(staged.pay.reduce((n, id) => n + iconsOf(staged.state, id), 0)).toBeGreaterThanOrEqual(3);
     const { state, events, seen } = playStaged(staged);
-    expect(seen.map((p) => p.kind)).toEqual(["choosePlayer", "chooseTarget"]);
+    // No minion engaged with anyone: no player is asked for (issue #911), only the enemy.
+    expect(seen.map((p) => p.kind)).toEqual(["chooseTarget"]);
     expect(frostbiteOn(state, villainOf(state))).toBe(1);
     expect(supply(state)).toBe(5);
     expect(damageTo(events, villainOf(state))).toEqual([3]);
@@ -418,7 +419,8 @@ describe("Ice Blast (46010)", () => {
     const { state: s, ids } = withMinions(heroGame(), P1, "01102", "01102");
     const [a, b] = ids as [InstanceId, InstanceId];
     const { state, events, seen } = playStaged(inHand(s, BLAST));
-    expect(seen.map((p) => p.kind)).toEqual(["choosePlayer", "chooseTarget", "chooseTarget", "chooseTarget"]);
+    // Only one player has engaged minions, so they are chosen without asking (issue #911).
+    expect(seen.map((p) => p.kind)).toEqual(["chooseTarget", "chooseTarget", "chooseTarget"]);
     for (const enemy of [villainOf(s), a, b]) {
       expect(frostbiteOn(state, enemy)).toBe(1);
       expect(damageTo(events, enemy)).toEqual([3]);
@@ -524,7 +526,7 @@ describe("Ice Blast (46010)", () => {
   it("no copy set aside: nothing is attached and no enemy is asked for; the 3 damage still goes to the enemy that has copies", () => {
     const s = freeze(heroGame(), 6);
     const { state, events, seen } = playStaged(inHand(s, BLAST));
-    expect(seen.map((p) => p.kind)).toEqual(["choosePlayer"]);
+    expect(seen.map((p) => p.kind)).toEqual([]);
     expect(frostbiteOn(state, villainOf(state))).toBe(6);
     expect(damageTo(events, villainOf(state))).toEqual([3]);
   });

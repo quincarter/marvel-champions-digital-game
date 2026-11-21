@@ -547,7 +547,8 @@ export class McVirtualList {
         scrollbarWidth: SCROLLBAR_HIT_WIDTH,
         rowIndex,
         rowCount: this.#count,
-        pressable: this.#rowPressableAt(rowIndex, pointer),
+        // Asked only about a row that exists: the pointer above or below the rows gives an index outside them (#917).
+        pressable: rowIndex >= 0 && rowIndex < this.#count && this.#rowPressableAt(rowIndex, pointer),
       }),
     );
   }

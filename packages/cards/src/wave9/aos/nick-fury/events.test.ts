@@ -340,13 +340,13 @@ describe(`${SPRAY} (Spray Fire 50039): choose a player; 3 damage to the villain 
     const { state } = playEvent(furyHeroGame(), "50039", 3);
     expect(inst(state, villainOf(state)).damage).toBe(3);
   });
-  it("no target is chosen, so no prompt follows the player choice; Hydra Mercenary (guard, 3 hit points) is defeated", () => {
+  it("one player with a minion is chosen without asking, and no target follows; Hydra Mercenary (guard, 3 hit points) is defeated", () => {
     // Owner decision Q16 = A (docs/phase7-wave9.md section 4.1): guard keeps the villain from taking this attack's
     // damage, and the damage is simultaneous, so defeating the guard minion does not let the same attack reach him.
     const s = engageMinion(furyHeroGame(), MERCENARY, "merc");
     const rec = recording(firstLegal);
     const { state } = playEvent(s, "50039", 3, rec.picker);
-    expect(rec.seen.map((p) => p[0])).toEqual(["choosePlayer"]);
+    expect(rec.seen.map((p) => p[0])).toEqual([]); // issue #911: the one player with a minion is chosen without asking
     expect(inPlay(state, "merc")).toBe(false);
     expect(inst(state, villainOf(state)).damage).toBe(0);
   });
