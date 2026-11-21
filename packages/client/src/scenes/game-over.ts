@@ -60,6 +60,16 @@ import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { introReplay } from "./replay-entry.js";
+import {
+  HoverPreview,
+  hoverCardsOf,
+  noteHoverCard,
+  resetHoverCards,
+  screenHoverArea,
+} from "../ui/card-hover-preview.js";
+import { competitiveWideLayout, competitiveTallLayout } from "../view/competitive-game-over-layout.js";
+import { drawResultPanel, drawTeamColumn, type CompetitiveKit } from "./game-over-competitive.js";
+import { competitiveGameOverOf } from "../view/competitive-game-over.js";
 
 /**
  * The result as the table's records read it: a competitive game's per-team result (`result: "teams"`, MC56 p. 17) counts
@@ -95,7 +105,9 @@ export class GameOverScene extends Phaser.Scene {
    */
   #outcomeArt: Picture | null = null;
   /** The picture key whose load is in flight, so a redraw while waiting doesn't queue it twice. */
-  #loadingArt: string | null = null;
+  #loadingArt = new Set<string>();
+  /** The desktop hover popover over every card scan this screen shows (a leader, a hero, the card that ended the game). */
+  #hover: HoverPreview | null = null;
   /** What this win earned toward progression (`progression/unlocks.ts`), shown as a ribbon. Null on a loss. */
   #news: UnlockNews | null = null;
   /** How many things this game opened in Extras (`progression/extras.ts`), win or lose. */
@@ -120,14 +132,35 @@ export class GameOverScene extends Phaser.Scene {
     });
     // Inspect opens over this screen for the card that ended the game, and has the keys while it is up.
     this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
+    this.#hover = new HoverPreview(this, {
+      cards: () => hoverCardsOf(this),
+      area: (pointer) =>
+        screenHoverArea(this, pointer, {
+          blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.competitiveOver),
+        }),
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
+    });
     const { game, config } = appSession().store.state;
     const seated = config ? config.players.map(identityOfSeat).filter((id): id is string => id !== null) : [];
+    // A competitive game's scene is the one for the leader this device's team faced, in this device's own result.
+    const competitive =
+      game?.outcome?.result === "teams" ? competitiveGameOverOf(game, config, config?.localSeats) : null;
+    const heardResult = game?.outcome ? seatResultOf(game.outcome, game.teams, config?.localSeats) : null;
     this.#outcomeArt =
       game?.outcome && config
         ? outcomeArtFor(
             ART_CATALOG,
-            config.scenarioId,
-            tableResult(game.outcome),
+            competitive?.facedScenarioId ?? config.scenarioId,
+            competitive
+              ? heardResult === "win"
+                ? "win"
+                : heardResult === "loss"
+                  ? "loss"
+                  : "conceded"
+              : tableResult(game.outcome),
             Math.random,
             config.villainSetId,
             seated,
@@ -195,10 +228,6 @@ export class GameOverScene extends Phaser.Scene {
     }
     this.#draw();
     fadeScreenIn(this);
-    // Civil War Competitive: the per-team result and the tie-break panel open over the screen (plan M9).
-    if (game?.outcome?.result === "teams" && !this.scene.isActive(SCENES.competitiveOver)) {
-      this.scene.launch(SCENES.competitiveOver);
-    }
   }
 
   #draw(bandShrink = 0): void {
@@ -209,6 +238,7 @@ export class GameOverScene extends Phaser.Scene {
     this.#status = null;
     this.#stops = new Map();
     this.#order = [];
+    resetHoverCards(this);
 
     const { store } = appSession();
     const { game, record, config } = store.state;
@@ -248,6 +278,7 @@ export class GameOverScene extends Phaser.Scene {
     if (ribbon) this.#drawNews(ribbon, width);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
+    this.#hover?.onDraw();
   }
 
   /**
@@ -297,11 +328,19 @@ export class GameOverScene extends Phaser.Scene {
 
     // Header: meta line, headline, and the final blow box on the right.
     label(this, pad, pad, model.meta, typeRole.label, surface.paper.hex, 0.85).setFontSize(12);
-    const headlineWidth = width - pad * 2 - blowWidth - gap;
-    const headlineSize = Math.round(Math.max(44, Math.min(104, width * 0.072)));
+    const competitive = model.competitive ?? null;
+    // A competitive result has no final blow box, so its headline (a side and a result, longer than "Victory") takes the width.
+    const headlineWidth = width - pad * 2 - (competitive ? 0 : blowWidth + gap);
+    const headlineSize = Math.round(Math.max(44, Math.min(104, width * (competitive ? 0.06 : 0.072))));
     const headline = this.#display(pad, pad + 22, model.headline, headlineSize, surface.paper.hex, headlineWidth);
 
     let headerBottom = headline.y + headline.height;
+    if (competitive) {
+      const line = this.add
+        .text(pad, headerBottom + 6, model.summary, textStyle(typeRole.emphasis, surface.paper.hex, 0.92))
+        .setWordWrapWidth(headlineWidth);
+      headerBottom = line.y + line.height;
+    }
     if (model.finalBlow) {
       const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
@@ -341,11 +380,28 @@ export class GameOverScene extends Phaser.Scene {
     const bodyBottom = height - pad;
     const mainWidth = width - pad * 2 - sideWidth - gap;
 
+    if (competitive) {
+      const layout = competitiveWideLayout({
+        main: { x: pad, y: bodyTop, width: mainWidth, height: bodyBottom - bodyTop },
+        winner: competitive.teams[0]?.winner ? 0 : competitive.teams[1]?.winner ? 1 : null,
+        cardCounts: [competitive.teams[0]!.heroes.length + 1, competitive.teams[1]!.heroes.length + 1],
+        panelLines: competitive.panel.lines.length,
+      });
+      const winnerShown = competitive.teams.some((team) => team.winner);
+      competitive.teams.forEach((team, index) =>
+        drawTeamColumn(this.#kit(), team, layout.columns[index]!, {
+          winnerShown,
+          displaySize: Math.round(Math.max(18, Math.min(28, width * 0.02))),
+        }),
+      );
+      drawResultPanel(this.#kit(), competitive, layout.panel);
+    }
+
     // Three paper stat cards.
     const cardGap = 14;
     const cardWidth = (mainWidth - cardGap * 2) / 3;
     const cardHeight = 96;
-    model.stats.forEach((stat, index) => {
+    (competitive ? [] : model.stats).forEach((stat, index) => {
       const x = pad + index * (cardWidth + cardGap);
       const g = this.add.graphics();
       g.fillStyle(surface.paper.hex, 1).fillRect(x, bodyTop, cardWidth, cardHeight);
@@ -365,10 +421,15 @@ export class GameOverScene extends Phaser.Scene {
     });
 
     // The rounds where it turned.
-    const beatsTop = bodyTop + cardHeight + 16;
-    // As tall as its lines, so one line is a short strip and the leader's picture shows below it.
-    const beatsHeight = beatsPanelHeight(this.#beatRowHeights(model, mainWidth), Math.max(120, bodyBottom - beatsTop));
-    this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: beatsHeight }, model);
+    if (!competitive) {
+      const beatsTop = bodyTop + cardHeight + 16;
+      // As tall as its lines, so one line is a short strip and the leader's picture shows below it.
+      const beatsHeight = beatsPanelHeight(
+        this.#beatRowHeights(model, mainWidth),
+        Math.max(120, bodyBottom - beatsTop),
+      );
+      this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: beatsHeight }, model);
+    }
 
     // Right column: the table, then the actions.
     const sideX = width - pad - sideWidth;
@@ -418,8 +479,8 @@ export class GameOverScene extends Phaser.Scene {
    */
   #drawOutcomeArt(picture: Picture, panel: Rect): boolean {
     if (!this.textures.exists(picture.key)) {
-      if (this.#loadingArt === picture.key) return false;
-      this.#loadingArt = picture.key;
+      if (this.#loadingArt.has(picture.key)) return false;
+      this.#loadingArt.add(picture.key);
       ensurePictureLoaded(this, picture, () => this.#draw());
       return false;
     }
@@ -494,10 +555,36 @@ export class GameOverScene extends Phaser.Scene {
       .setWordWrapWidth(column);
     y = summary.y + summary.height + 12;
 
+    const competitive = model.competitive ?? null;
+    if (competitive) {
+      // Civil War Competitive: the two teams' leader pictures and scans stand where the number boxes do.
+      // Where the buttons will start, so a tall screen gives the columns the room above them.
+      const buttonsTop = tallActionsLayout({
+        pad,
+        column,
+        width,
+        height,
+        top: 0,
+        actions: this.#actions(config).length,
+      }).actions[0]?.y;
+      const layout = competitiveTallLayout({
+        x: pad,
+        y,
+        width: column,
+        room: buttonsTop === undefined ? 0 : buttonsTop - 30 - y,
+        cardCounts: [competitive.teams[0]!.heroes.length + 1, competitive.teams[1]!.heroes.length + 1],
+      });
+      const winnerShown = competitive.teams.some((team) => team.winner);
+      competitive.teams.forEach((team, index) =>
+        drawTeamColumn(this.#kit(), team, layout.columns[index]!, { winnerShown, displaySize: 15 }),
+      );
+      y = layout.bottom + 12;
+    }
+
     const boxGap = 7;
     const boxWidth = (column - boxGap * 2) / 3;
     const boxHeight = 58;
-    model.quickStats.forEach((stat, index) => {
+    (competitive ? [] : model.quickStats).forEach((stat, index) => {
       const x = pad + index * (boxWidth + boxGap);
       const g = this.add.graphics();
       g.lineStyle(2.5, model.tone === "win" ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
@@ -509,7 +596,7 @@ export class GameOverScene extends Phaser.Scene {
       label(this, x + 9, y + 8, stat.label, typeRole.label, surface.paper.hex, ink.meta).setFontSize(8);
       this.#display(x + 9, y + 22, stat.value, 24, surface.paper.hex);
     });
-    y += boxHeight + 12;
+    if (!competitive) y += boxHeight + 12;
 
     if (model.mvp) {
       const row = this.add.graphics();
@@ -558,15 +645,17 @@ export class GameOverScene extends Phaser.Scene {
    * the rectangle the scan covers, or null while its picture has not arrived (the art cache redraws this screen when
    * it does), so the caller lays the words out around what is really there.
    */
-  #causeCard(instanceId: InstanceId, slot: Rect): Rect | null {
+  #causeCard(instanceId: InstanceId, slot: Rect, center = false): Rect | null {
     const game = appSession().store.state.game;
     const card = game?.cardPool[game.instances[instanceId]?.cardId ?? ""];
     if (!game || !card) return null;
     const key = cardArt(this).request(this, artFor(card, faceOf(game, instanceId)));
     const image = drawArt(this, key, slot, { fit: "contain" });
     if (!image) return null;
-    image.setPosition(slot.x, slot.y);
-    const rect: Rect = { x: slot.x, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    const left = center ? slot.x + (slot.width - image.displayWidth) / 2 : slot.x;
+    image.setPosition(left, slot.y);
+    const rect: Rect = { x: left, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    noteHoverCard(this, instanceId, rect);
     this.add.graphics().lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     const open = (): void => {
       if (!this.scene.isActive(SCENES.inspect)) this.scene.launch(SCENES.inspect, { instanceId });
@@ -580,6 +669,16 @@ export class GameOverScene extends Phaser.Scene {
     this.#order.push(stop);
     this.#stops.set(stop, { rect, activate: open });
     return rect;
+  }
+
+  /** The campaign screen's own pieces, lent to the competitive result's drawing (`game-over-competitive.ts`). */
+  #kit(): CompetitiveKit {
+    return {
+      scene: this,
+      display: (x, y, text, size, color, wrapWidth) => this.#display(x, y, text, size, color, wrapWidth),
+      scan: (instanceId, slot, center) => this.#causeCard(instanceId, slot, center),
+      picture: (picture, panel) => this.#drawOutcomeArt(picture, panel),
+    };
   }
 
   /** The wrapped height of each beat's text at this panel width, measured on throwaway text. */

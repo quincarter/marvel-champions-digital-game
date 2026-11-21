@@ -333,11 +333,19 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=board&fixture=competitive[&size=2][&inactive=1][&over=concede]`: a real Civil War Competitive game on the board
   // (`store/dev-competitive-game.ts`); `inactive=1` looks at the resistance seat during registration's hero phase, and
-  // `over=concede` ends it with the registration team's concession and opens Game over (issue #883). Dev only.
+  // `over=concede` ends it with the registration team's concession and opens Game over; `over=win|loss|tie` opens Game over
+  // over a made-up result for registration, the viewer (issue #883). Dev only.
   if ((screen === "board" || screen === "gameover") && params.get("fixture") === "competitive" && import.meta.env.DEV) {
     const { store } = appSession();
     const { startDevCompetitiveGame } = await import("../store/dev-competitive-game.js");
     await startDevCompetitiveGame(store, params.get("size") === "2" ? 2 : 1);
+    const preview = params.get("over");
+    if ((preview === "win" || preview === "loss" || preview === "tie") && store.state.game?.teams) {
+      // A made-up result for the screenshots: the same outcome shape the engine reports, the viewer being registration.
+      const { competitiveFixtureOutcome } = await import("../view/competitive-over-fixture.js");
+      Object.assign(store.state.game, { outcome: competitiveFixtureOutcome(preview, store.state.game.teams) });
+      return { key: SCENES.gameOver, data: {} };
+    }
     if (params.get("over") === "concede" && store.state.game) {
       await store.dispatch({ type: "concede", playerId: store.state.game.firstPlayerId });
       return { key: SCENES.gameOver, data: {} };
@@ -697,6 +705,10 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     });
     const game = store.state.game;
     if (game) await store.dispatch({ type: "concede", playerId: game.firstPlayerId });
+    // `&over=win`: the same screen as a win, for comparing the campaign Victory look with the competitive one (issue #883).
+    if (params.get("over") === "win" && store.state.game) {
+      Object.assign(store.state.game, { outcome: { result: "win", reason: "villainDefeated" } });
+    }
     return { key: SCENES.gameOver, data: {} };
   }
 

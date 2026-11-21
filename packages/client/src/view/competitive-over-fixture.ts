@@ -43,3 +43,43 @@ export function competitiveOverFixture(kind: "tie" | "win"): CompetitiveOver {
         };
   return competitiveOverOf({ outcome, teams } as unknown as Pick<GameState, "outcome" | "teams">, ["p1"])!;
 }
+
+/**
+ * The engine's per-team outcome for the dev game-over preview (`?screen=gameover&fixture=competitive&over=win|loss|tie`),
+ * for the real game's own two teams, the viewer (`p1`) being registration. Dev only.
+ */
+export function competitiveFixtureOutcome(
+  over: "win" | "loss" | "tie",
+  gameTeams: NonNullable<GameState["teams"]>,
+): GameState["outcome"] {
+  const [registration, resistance] = gameTeams;
+  const row = (team: typeof registration, result: "win" | "loss" | "tie", conditions: string[]) => ({
+    teamId: team!.teamId,
+    side: team!.side,
+    result,
+    conditions,
+  });
+  return {
+    result: "teams",
+    reason: "competitiveEnded",
+    decision: over === "tie" ? "tie" : "win",
+    teams:
+      over === "win"
+        ? [row(registration, "win", ["enemyLeaderDefeated"]), row(resistance, "loss", [])]
+        : over === "loss"
+          ? [row(registration, "loss", []), row(resistance, "win", ["leaderSchemeCompleted"])]
+          : [row(registration, "tie", ["enemyLeaderDefeated"]), row(resistance, "tie", ["enemyLeaderDefeated"])],
+    ...(over === "tie"
+      ? {
+          tieBreak: {
+            applied: true,
+            measures: [
+              { measure: "mainSchemeAdvanced", values: { [registration!.teamId]: 0, [resistance!.teamId]: 0 } },
+              { measure: "minionsAndSideSchemes", values: { [registration!.teamId]: 2, [resistance!.teamId]: 2 } },
+              { measure: "mainSchemeThreat", values: { [registration!.teamId]: 4, [resistance!.teamId]: 4 } },
+            ],
+          },
+        }
+      : {}),
+  } as unknown as GameState["outcome"];
+}

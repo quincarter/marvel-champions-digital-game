@@ -47,7 +47,7 @@ describe("the game-over tone of a competitive game", () => {
   test("a tie has its own tone, and is told as how it went, not where it went wrong", () => {
     const model = gameOverModel(ended(teamsOutcome("tie", "tie", "tie")), emptyRecord(), config(["p1"]), DEFAULT_DEPS);
     expect(model.tone).toBe("tie");
-    expect(model.beatsHeading).toBe("How it went");
+    expect(model.beatsHeading).toBe("How it ended");
   });
 
   test("this device's team winning is a win; the other team's device reads a loss", () => {
@@ -55,7 +55,7 @@ describe("the game-over tone of a competitive game", () => {
     expect(gameOverModel(state, emptyRecord(), config(["p1"]), DEFAULT_DEPS).tone).toBe("win");
     const loser = gameOverModel(state, emptyRecord(), config(["p2"]), DEFAULT_DEPS);
     expect(loser.tone).toBe("loss");
-    expect(loser.beatsHeading).toBe("Where it went wrong");
+    expect(loser.beatsHeading).toBe("How it ended");
   });
 });
 
