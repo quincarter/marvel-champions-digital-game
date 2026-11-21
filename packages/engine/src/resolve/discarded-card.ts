@@ -28,6 +28,7 @@
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { deckDiscardStillThere, handDiscardStillThere } from "../query.js";
+import { abilityLacksValidTarget } from "./target-validity.js";
 import { DISCARD_MOVED_SLOT, evaluate, TOGETHER_TARGETS_SLOT, type EffectContext } from "../select.js";
 import type { EffectSpec, Predicate } from "../spec.js";
 import type { GameState } from "../state.js";
@@ -52,6 +53,7 @@ export function lostWithDiscardedCard(
     readonly instanceId: InstanceId;
     readonly abilityId: string;
     readonly controllerId?: PlayerId | null;
+    readonly forced?: boolean;
     readonly together?: readonly TriggerEvent[];
   },
   event: TriggerEvent,
@@ -73,8 +75,43 @@ export function lostWithDiscardedCard(
   };
   // A cost is paid before the effects resolve and can change what a condition reads (exhausting the card): with one,
   // no condition is read now (#928, Codex review).
-  if (definition?.cost || (definition?.costEffects ?? 0) > 0) return needsDiscardedCard(definition);
-  return needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
+  const needs =
+    definition?.cost || (definition?.costEffects ?? 0) > 0
+      ? needsDiscardedCard(definition)
+      : needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
+  if (needs) return true;
+  // What it does without the card still needs a valid target: an optional response picked in the same window as the
+  // one that moved the card is judged again before it is initiated (RRG 1.8 "Ability", p. 4; "Choose", p. 12), "that
+  // card" naming nothing (`abilityTargetFault`). A forced one resolves as much as it can.
+  if (candidate.forced === true || !definition) return false;
+  const cost = definition.costEffects ?? 0;
+  const rest = {
+    ...definition,
+    effects: [...definition.effects.slice(0, cost), ...withoutCard(definition.effects.slice(cost))],
+  };
+  return abilityLacksValidTarget(state, deps, rest, candidate.instanceId, candidate.controllerId ?? null, event);
+}
+
+/**
+ * An ability's effects without the parts that act on the discarded card, which can do nothing once it has gone: such
+ * a part, and such an option of a "choose one" (`partNeedsCard`). What is left is judged for a valid target as any
+ * ability is (`abilityLacksValidTarget`): "choose one: attach that card here, or remove 1 threat from the main scheme"
+ * with no threat on it has nothing left to do.
+ */
+function withoutCard(effects: readonly EffectSpec[]): readonly EffectSpec[] {
+  const slots: string[] = [];
+  return inline(effects).flatMap((effect): readonly EffectSpec[] => {
+    if (effect.kind === "chooseTarget" || effect.kind === "chooseCards") {
+      if (namesCard(effect, slots)) slots.push(effect.slot);
+      return [effect];
+    }
+    if (effect.kind === "then" || effect.kind === "setVar") return [effect];
+    if (effect.kind === "chooseOne") {
+      const options = effect.options.filter((option) => !everyPartNeedsCard(inline(option.effects), slots));
+      return options.length > 0 ? [{ ...effect, options }] : [];
+    }
+    return partNeedsCard(effect, slots) ? [] : [effect];
+  });
 }
 
 const NEEDS = new WeakMap<AbilityDefinition, boolean>();
@@ -142,7 +179,8 @@ function partNeedsCard(effect: EffectSpec, slots: readonly string[], judge?: Jud
     const options = effect.options.filter(
       (option) => option.effects.length > 0 && (!option.condition || told(option.condition, judge) !== false),
     );
-    return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots, judge));
+    // None left: nothing can be chosen, so nothing can come of it.
+    return options.every((option) => everyPartNeedsCard(inline(option.effects), slots, judge));
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
   const otherwise = effect.otherwise ?? [];

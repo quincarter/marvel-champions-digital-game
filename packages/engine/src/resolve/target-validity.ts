@@ -84,6 +84,8 @@
  * target with a tough card (`attackPiercesTough`; ruling Jul 11, 2025).
  */
 
+import { discardedCardGone } from "./discarded-card.js";
+import { DISCARD_MOVED_SLOT } from "../select.js";
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import {
@@ -1127,7 +1129,12 @@ export function abilityTargetFault(
     selfInstanceId: sourceId,
     controllerId: playerId,
     event,
-    bindings: carriedByEvent(event).bindings,
+    // A discarded card another response has moved: "that card" names nothing here either (#928), so a "choose one"
+    // option or a part acting on it is judged as having no target.
+    bindings: {
+      ...carriedByEvent(event).bindings,
+      ...(event && discardedCardGone(state, event) ? { [DISCARD_MOVED_SLOT]: [] } : {}),
+    },
     vars: carriedByEvent(event).vars,
     deps,
     ...reachOf(definition),

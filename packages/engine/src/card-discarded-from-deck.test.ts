@@ -162,6 +162,23 @@ const THERE_RESPONSE = stubAbility(
     ],
   }),
 );
+// "Choose one: attach that card facedown here, or remove 1 threat from the main scheme."
+const EITHER_RESPONSE = stubAbility(
+  "either.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "chooseOne",
+        chooser: you,
+        options: [
+          { label: "attach", effects: [{ kind: "attach", card: { kind: "eventTarget" }, to: self, facedown: true }] },
+          { label: "thwart", effects: [{ kind: "removeThreat", target: { kind: "mainScheme" }, amount: constant(1) }] },
+        ],
+      },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -192,6 +209,7 @@ const GROUP = stubSupport({ id: "group", cost: 0, abilities: [GROUP_RESPONSE.ref
 const RELAY = stubSupport({ id: "relay", cost: 0, abilities: [RELAY_RESPONSE.ref] });
 const MISSED = stubSupport({ id: "missed", cost: 0, abilities: [MISSED_RESPONSE.ref] });
 const THERE = stubSupport({ id: "there", cost: 0, abilities: [THERE_RESPONSE.ref] });
+const EITHER = stubSupport({ id: "either", cost: 0, abilities: [EITHER_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -276,6 +294,7 @@ const deps: EngineDeps = depsOf(
   RELAY_RESPONSE,
   MISSED_RESPONSE,
   THERE_RESPONSE,
+  EITHER_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -292,6 +311,7 @@ type InPlay =
   | "relay"
   | "missed"
   | "there"
+  | "either"
   | "batch"
   | "costly"
   | "guard";
@@ -331,6 +351,7 @@ function start(
       RELAY,
       MISSED,
       THERE,
+      EITHER,
       BATCH,
       METER,
       GUARD,
@@ -354,6 +375,7 @@ function start(
       RELAY.id,
       MISSED.id,
       THERE.id,
+      EITHER.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -781,6 +803,26 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
     expect(resolved(result.events, THERE_RESPONSE)).toEqual([]);
     expect(counters(result.state, table.inPlay.there, "seen")).toBe(0);
     expectReplays(result);
+  });
+
+  it("a 'choose one' is offered while its other option can still be chosen, and not once neither can", () => {
+    const table = start(["hand", "filler"], { inPlay: ["either"] });
+    const scheme = table.state.mainScheme!.instanceId;
+    const withThreat = (threat: number): Table => ({
+      ...table,
+      state: {
+        ...table.state,
+        instances: { ...table.state.instances, [scheme]: { ...mustInstance(table.state, scheme), threat } },
+      },
+    });
+    const kept = play(withThreat(3), MILL_1, triggering(HAND_RESPONSE, EITHER_RESPONSE));
+    expect(resolved(kept.events, EITHER_RESPONSE)).toEqual([table.inPlay.either]);
+    expect(mustInstance(kept.state, table.inPlay.either!).attachments).toEqual([]);
+    // No threat on the main scheme: the removal has no target, and "that card" has gone.
+    const dropped = play(withThreat(0), MILL_1, triggering(HAND_RESPONSE, EITHER_RESPONSE));
+    expect(resolved(dropped.events, EITHER_RESPONSE)).toEqual([]);
+    expectReplays(kept);
+    expectReplays(dropped);
   });
 
   it("'attach that card facedown here' still is not, beside one that is (the card it needs is gone)", () => {

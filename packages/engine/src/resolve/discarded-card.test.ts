@@ -126,7 +126,10 @@ describe("lostWithDiscardedCard", () => {
     together?: readonly TriggerEvent[],
     instanceId = "support",
   ): Parameters<typeof lostWithDiscardedCard>[2] =>
-    ({ instanceId, abilityId, ...(together ? { together } : {}) }) as Parameters<typeof lostWithDiscardedCard>[2];
+    // Forced: the classifier alone, with no valid-target judgment (`abilityLacksValidTarget` needs a whole game).
+    ({ instanceId, abilityId, forced: true, ...(together ? { together } : {}) }) as Parameters<
+      typeof lostWithDiscardedCard
+    >[2];
 
   it("a response whose card is still there is never lost", () => {
     expect(lostWithDiscardedCard(state, deps, candidate("needs"), discard("kept"))).toBe(false);
@@ -188,6 +191,22 @@ describe("lostWithDiscardedCard", () => {
     } as never;
     expect(lostWithDiscardedCard(state, registry, candidate("open"), discard("taken"))).toBe(false);
     expect(lostWithDiscardedCard(state, registry, candidate("barred"), discard("taken"))).toBe(true);
+    // Every option's condition reads false: nothing can be chosen.
+    const none = {
+      abilities: {
+        none: ability([
+          {
+            kind: "chooseOne",
+            chooser: you,
+            options: [
+              { label: "a", condition: thatCardThere, effects: [draw] },
+              { label: "b", condition: thatCardThere, effects: [draw] },
+            ],
+          },
+        ]),
+      },
+    } as never;
+    expect(lostWithDiscardedCard(state, none, candidate("none"), discard("taken"))).toBe(true);
   });
 
   it("a 'together' answer keeps the cards still there, and is lost only once every card it needs is gone", () => {
