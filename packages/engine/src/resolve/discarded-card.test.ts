@@ -8,7 +8,7 @@ import { TOGETHER_TARGETS_SLOT } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { lostWithDiscardedCard, needsDiscardedCard } from "./discarded-card.js";
+import { lostWithDiscardedCard, needsDiscardedCard, stillDiscardedTargets } from "./discarded-card.js";
 
 const that: TargetRef = { kind: "eventTarget" };
 const self: TargetRef = { kind: "self" };
@@ -55,10 +55,17 @@ describe("needsDiscardedCard", () => {
     expect(needsDiscardedCard(ability([choose, attachPicked]))).toBe(true);
   });
 
-  it("a branch needs the card when its condition reads it, or when each of its branches does", () => {
+  it("a branch needs the card when each branch that could run once the card has gone does", () => {
     const readsThatCard = { kind: "exists", ref: that } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
     const always = { kind: "exists", ref: self } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
     expect(needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw] }]))).toBe(true);
+    // Once the card has gone the condition reads false: an `otherwise` that needs nothing of it can still run.
+    expect(
+      needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [tuck], otherwise: [draw] }])),
+    ).toBe(false);
+    expect(
+      needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw], otherwise: [tuck] }])),
+    ).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [draw] }]))).toBe(false);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck] }]))).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck], otherwise: [draw] }]))).toBe(
@@ -124,5 +131,14 @@ describe("lostWithDiscardedCard", () => {
     const gone = [discard("taken"), discard("also-taken")];
     expect(lostWithDiscardedCard(state, deps, candidate("needs", gone), gone[0]!)).toBe(true);
     expect(lostWithDiscardedCard(state, deps, candidate("needs-not", gone), gone[0]!)).toBe(false);
+  });
+});
+
+describe("stillDiscardedTargets", () => {
+  it("binds a together answer's cards still in the discard pile, not those a response moved", () => {
+    const state = { players: [{ playerId: "p1", deck: [], discard: ["kept"] }] } as unknown as GameState;
+    const discard = (id: string) =>
+      ({ kind: "cardDiscardedFromDeck", instanceId: id, playerId: "p1", at: "discard" }) as unknown as TriggerEvent;
+    expect(stillDiscardedTargets(state, [discard("taken"), discard("kept")])).toEqual(["kept"]);
   });
 });

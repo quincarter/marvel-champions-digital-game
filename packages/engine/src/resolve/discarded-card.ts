@@ -16,6 +16,11 @@
  * A response that does something else ("draw 1 card", "deal 1 damage to an enemy") keeps it, as ruling June 2, 2026 -
  * Ruling 4 (Energy Channel) reads a response whose triggering card is gone.
  *
+ * The cards of a `together` answer are read the same way: the frame binds only those still where their discard left
+ * them (`stillDiscardedTargets`, `resolve/frames.ts`), so a kept response does not follow a moved card either. A
+ * mission attempt's card a response took "does not count" for it (April 30, 2026 - Ruling 4, answer 1), so Mikhail
+ * Rasputin (45183a) no longer counts a card Abyss took.
+ *
  * Which parts need the card is read from the ability's effects (`needsDiscardedCard`), so a card script or a community
  * pack marks nothing: an effect needs the card when it names the discarded card (`eventTarget`, or the cards of an
  * `EventPattern.together` answer), or a card a choice of the ability picked from among them.
@@ -26,7 +31,7 @@ import { deckDiscardStillThere, handDiscardStillThere } from "../query.js";
 import { TOGETHER_TARGETS_SLOT } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { GameState } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 
 /** A discard whose card a response has since taken out of where the discard left it; false for any other event. */
 // `select.ts` `discardMovedOn` reads the same, without importing this module: keep the two in step.
@@ -97,9 +102,11 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
 }
 
 /**
- * A branch needs the card when its condition reads it, or when every branch with effects in it does. Engine
- * interpretation: "that card" names nothing once it moved (`select.ts` `eventTarget`), so a condition on it could only
- * read false; such a response is dropped rather than offered to do nothing ("if that card is an event, draw 1 card").
+ * A branch needs the card when every branch that could run once the card has gone needs it. Engine interpretation:
+ * "that card" names nothing once it moved (`select.ts` `eventTarget`), so a condition on it ("if that card is an event")
+ * reads false and only `otherwise` can run: with none, the response is dropped rather than offered to do nothing; with
+ * one that needs nothing of the card ("otherwise draw 1 card"), it is kept. A condition that does not read the card is
+ * judged by both branches.
  */
 function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
   // "Choose one": an option that needs nothing of the card can still be chosen (RRG 1.8 "Choose", p. 12).
@@ -108,8 +115,11 @@ function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
     return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots));
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
-  if (namesCard(effect.condition, slots)) return true;
-  const branches = [effect.then, effect.otherwise ?? []].filter((branch) => branch.length > 0);
+  const reachable = namesCard(effect.condition, slots)
+    ? [effect.otherwise ?? []]
+    : [effect.then, effect.otherwise ?? []];
+  if (reachable.every((branch) => branch.length === 0)) return true;
+  const branches = reachable.filter((branch) => branch.length > 0);
   return branches.length > 0 && branches.every((branch) => everyPartNeedsCard(inline(branch), slots));
 }
 
@@ -130,4 +140,9 @@ function namesCard(value: unknown, slots: readonly string[]): boolean {
     return true;
   if (typeof record.inSlot === "string" && slots.includes(record.inSlot)) return true;
   return Object.values(record).some((item) => namesCard(item, slots));
+}
+
+/** The targets of the discards a `together` answer answers, without those whose cards have since gone (#928). */
+export function stillDiscardedTargets(state: GameState, events: readonly TriggerEvent[]): readonly InstanceId[] {
+  return [...new Set(events.flatMap((each) => (discardedCardGone(state, each) ? [] : eventSubjects(each).targets)))];
 }

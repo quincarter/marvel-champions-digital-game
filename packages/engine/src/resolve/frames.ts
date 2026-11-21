@@ -28,16 +28,11 @@ import {
   type Vars,
   type UndeclaredWilds,
 } from "../stack.js";
-import {
-  carriedByEvent,
-  eventSubjects,
-  isAnnouncement,
-  type DefeatedSnapshot,
-  type TriggerEvent,
-} from "../trigger-events.js";
+import { carriedByEvent, isAnnouncement, type DefeatedSnapshot, type TriggerEvent } from "../trigger-events.js";
 import { placeExhausted } from "../effects.js";
 import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
+import { stillDiscardedTargets } from "./discarded-card.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
 
@@ -411,14 +406,9 @@ export function abilityFrame(
     bindings: withSelfHost(ctx.state, candidate.instanceId, {
       ...playPaidCards(ctx.state.stack, candidate.instanceId),
       ...carriedByEvent(event).bindings,
-      // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once.
-      ...(candidate.together
-        ? {
-            [TOGETHER_TARGETS_SLOT]: [
-              ...new Set(candidate.together.flatMap((answered) => eventSubjects(answered).targets)),
-            ],
-          }
-        : {}),
+      // One answer for several conditions of the occurrence (`EventPattern.together`): each one's targets, once, but
+      // not a discarded card a response has since moved (#928; `stillDiscardedTargets`).
+      ...(candidate.together ? { [TOGETHER_TARGETS_SLOT]: stillDiscardedTargets(ctx.state, candidate.together) } : {}),
       ...bindings,
     }),
     // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
