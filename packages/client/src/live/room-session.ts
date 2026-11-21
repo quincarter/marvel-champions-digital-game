@@ -703,6 +703,19 @@ export class RoomSession {
     });
   }
 
+  /** Host: tells a proposer its proposal was applied (the engine worker's verdict); the room tells the proposer alone. */
+  acceptProposal(to: string, base: number, pid?: number): void {
+    if (this.role !== "host") return;
+    this.#say({
+      ch: "game",
+      kind: "proposal-accepted",
+      table: FIRST_TABLE,
+      to,
+      base,
+      ...(pid === undefined ? {} : { pid }),
+    });
+  }
+
   /**
    * Sets the deck in a seat: a seat's holder sends their own, the host may send one for any seat (a preset the holder
    * can replace). Whatever the host said about the seat's old deck no longer applies. The room checks the size and
@@ -879,6 +892,10 @@ export class RoomSession {
     this.#hooks = null;
     this.#clearGapTimer();
     this.#coordinator?.dispose();
+    // The room is gone or ended for good: its pod log has nothing left to resume (a replaced socket keeps it).
+    const epicRoom = this.#model.roomId;
+    if (this.role === "host" && epicRoom && (problem === "gone" || problem.startsWith("closed-")))
+      void this.#deps.epicStore?.clear(epicRoom).catch(() => {});
     // A closed room already reached the watcher as a `closed` message; any other end tells it to stop following.
     this.#feed?.postMessage(
       problem.startsWith("closed-") ? { kind: "connection", connected: false } : { kind: "gone" },

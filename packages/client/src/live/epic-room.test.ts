@@ -599,6 +599,19 @@ describe("the organizer's coordinator", () => {
     expect(again.map((m) => m.seq)).toEqual([1, 2]);
   });
 
+  it("forgets the saved log when the room is closed", async () => {
+    const store = new MemoryEpicLogStore();
+    const t = await organizer({ epicStore: store });
+    t.sock.receive(remoteSync("t2"));
+    await flush();
+    t.sock.receive({ v: 1, ch: "pod", kind: "event", table: "t2", seq: 1, event: damaged("t2", 9) });
+    await flush();
+    expect(store.records.has("room00000001")).toBe(true);
+    t.sock.receive({ v: 1, ch: "room", kind: "closed", reason: "ended" } as never);
+    await flush();
+    expect(store.records.has("room00000001")).toBe(false);
+  });
+
   it("is a new epoch when the organizer's own socket comes back, so table hosts re-send what the room dropped", async () => {
     const t = await organizer();
     t.sock.receive(remoteSync("t2"));

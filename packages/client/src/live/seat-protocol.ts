@@ -53,6 +53,8 @@ export type SeatEvent =
   | { readonly type: "update"; readonly snapshot: SeatSnapshot; readonly divergedAt: number | null }
   /** The host turned the proposal built on `base` down. */
   | { readonly type: "refused"; readonly base: number; readonly reason: SeatRefusal; readonly pid?: number }
+  /** The host applied the proposal `pid` (built on `base`): its command is, or is about to be, in the log. */
+  | { readonly type: "accepted"; readonly base: number; readonly pid?: number }
   | { readonly type: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   /** The game ended (its outcome came, or the room closed): no more commands. */
   | { readonly type: "over"; readonly reason: "ended" | "closed" }

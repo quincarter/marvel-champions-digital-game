@@ -96,6 +96,8 @@ interface Pending {
   readonly command: Command;
   readonly resolve: (result: DispatchResult) => void;
   timer: unknown;
+  /** The host said it applied this proposal (by its `pid`): only then is the command at `base` in the log mine. */
+  accepted: boolean;
 }
 
 export class SeatEngineHost implements EngineHost {
@@ -174,6 +176,7 @@ export class SeatEngineHost implements EngineHost {
         base,
         command,
         resolve,
+        accepted: false,
         timer: setTimer(() => {
           this.#settle(pending, this.#failed(command, t("seat.msg.noAnswer")));
         }, this.#o.proposalTimeoutMs ?? PROPOSAL_TIMEOUT_MS),
@@ -247,6 +250,16 @@ export class SeatEngineHost implements EngineHost {
         if (pending) this.#settle(pending, this.#failed(pending.command, refusalMessage(event.reason), event.reason));
         return;
       }
+      case "accepted": {
+        // The host names the proposal it applied; one without an id (an older host) cannot be told from another's.
+        const pending = event.pid === undefined ? undefined : this.#pending.find((p) => p.pid === event.pid);
+        if (!pending) return;
+        const current = this.#current;
+        // The host says it ahead of the log's echo; if the echo is somehow here already, it is this proposal's.
+        if (current && current.version > pending.base) this.#settle(pending, { ok: true, update: current });
+        else pending.accepted = true;
+        return;
+      }
       case "presence":
         this.#setStatus({ ...this.#status, hostConnected: event.hostConnected });
         return;
@@ -263,33 +276,27 @@ export class SeatEngineHost implements EngineHost {
 
   #onUpdate(snapshot: SeatSnapshot, divergedAt: number | null): void {
     const { change } = snapshot;
-    // Which waiting proposal this command is the echo of (the same command at the position it was built on), and which
-    // lost the position to someone else's command (the host will refuse it as stale; no need to wait for that).
-    const landed: { pending: Pending; result: "ok" | "taken" }[] = [];
+    // Which waiting proposals the host accepted: the command at the position one was built on is its own when the host
+    // said so by its `pid`. An identical command from anyone else is not it (the host refuses mine as stale, by its
+    // `pid`), so a command like mine that was not accepted waits for that refusal. A different command at the position
+    // can only have beaten mine to it: that proposal is stale already.
+    const landed: { pending: Pending; ok: boolean }[] = [];
     if (change.type === "append") {
-      // One appended command is one proposal's echo: of several identical proposals built on the same log length only
-      // the oldest is acknowledged (the host takes the first and refuses the rest as stale).
-      const claimed = new Set<number>();
       for (const pending of this.#pending) {
-        const at = pending.base - change.from;
-        const command = change.commands[at];
-        if (at < 0 || command === undefined) continue;
-        const echo = sameCommand(command, pending.command) && !claimed.has(at);
-        if (echo) claimed.add(at);
-        landed.push({ pending, result: echo ? "ok" : "taken" });
+        const command = change.commands[pending.base - change.from];
+        if (pending.base < change.from || command === undefined) continue;
+        if (pending.accepted) landed.push({ pending, ok: true });
+        else if (!sameCommand(command, pending.command)) landed.push({ pending, ok: false });
       }
     }
     const single = change.type === "append" && change.commands.length === 1 ? change.commands[0] : undefined;
     // Someone else's command is the store's to add to its trail; my own it adds itself on the reply.
-    const remote = single && !landed.some((l) => l.result === "ok") ? single : undefined;
+    const remote = single && !landed.some((l) => l.ok) ? single : undefined;
     const update = this.#hydrate(snapshot, remote ? { remote } : {});
     this.#publish(update);
     if (divergedAt !== this.#status.divergedAt) this.#setStatus({ ...this.#status, divergedAt });
-    for (const { pending, result } of landed) {
-      this.#settle(
-        pending,
-        result === "ok" ? { ok: true, update } : this.#failed(pending.command, refusalMessage("stale")),
-      );
+    for (const { pending, ok } of landed) {
+      this.#settle(pending, ok ? { ok: true, update } : this.#failed(pending.command, refusalMessage("stale")));
     }
     // The log was cut back or read again: a proposal waiting on the old log cannot be told apart from its echo.
     if (change.type === "rewind" || change.type === "open" || change.type === "reset") {

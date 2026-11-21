@@ -34,7 +34,7 @@ import {
   type PodOutboundEvent,
   type SharedPodState,
 } from "@mc/engine";
-import { POD_BURST, POD_PER_SECOND, ROOM_IDLE_MS, ROOM_PROTOCOL_VERSION } from "@mc/sync-worker/room-protocol";
+import { POD_BURST, POD_PER_SECOND, ROOM_PROTOCOL_VERSION } from "@mc/sync-worker/room-protocol";
 import type { ClientMessage } from "@mc/sync-worker/room-protocol";
 import {
   isPodSync,
@@ -63,7 +63,15 @@ export interface EpicLogStore {
   clear(roomId: string): Promise<void>;
 }
 
-export const epicLogFresh = (record: EpicLogRecord, now: number): boolean => now - record.savedAt < ROOM_IDLE_MS;
+/**
+ * How long a saved log is kept on this device. The log lives as long as the room does: it is cleared when the server
+ * says the room is gone or ended, so this is only a generous backstop for a room never returned to (like the seat
+ * tokens' keep). `savedAt` only moves when the log grows, so it must not be judged against the room's idle deadline,
+ * which any host or game activity extends.
+ */
+export const EPIC_LOG_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const epicLogFresh = (record: EpicLogRecord, now: number): boolean => now - record.savedAt < EPIC_LOG_KEEP_MS;
 
 export class MemoryEpicLogStore implements EpicLogStore {
   readonly records = new Map<string, EpicLogRecord>();

@@ -164,6 +164,11 @@ export class LiveRoomController {
           this.#live.room?.refuseProposal(message.to, message.reason, message.base, message.pid);
         }
         return;
+      case "accept":
+        if (this.#live?.gameKey === message.gameKey) {
+          this.#live.room?.acceptProposal(message.to, message.base, message.pid);
+        }
+        return;
       case "rewind": {
         if (!this.#live && this.#pending?.gameKey === message.gameKey) {
           // Not streamed yet: the held game just needs its log cut.
