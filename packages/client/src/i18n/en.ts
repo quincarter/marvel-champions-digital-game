@@ -199,6 +199,7 @@ export const en = {
   "scenario.randomScenario": "Random scenario",
   "seats.randomHero": "Random",
   "seats.randomHeroNone": "No other hero fits the filters and the table right now.",
+  "seats.randomHeroSearching": "Waiting for the search to finish.",
   "scenario.clear": "Clear",
   "scenario.selected": "SELECTED",
   "scenario.locked": "LOCKED",

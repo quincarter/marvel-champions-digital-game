@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import type { DeckOption } from "./deck-list-model.js";
-import { randomHeroCandidatesOf, randomHeroDeck, takeableHeroesOf, type RandomHeroCandidate } from "./hero-random.js";
+import {
+  randomHeroCandidatesOf,
+  randomHeroDeck,
+  searchPending,
+  takeableHeroesOf,
+  type RandomHeroCandidate,
+} from "./hero-random.js";
 
 const option = (
   id: string,
@@ -58,7 +64,29 @@ describe("randomHeroCandidatesOf", () => {
 
   test("a search keeps only the decks it ranked", () => {
     const ranking = new Map([["b", 1]]);
-    expect(ids(randomHeroCandidatesOf(all, none, { text: "b" }, ranking, undefined))).toEqual(["b"]);
+    expect(ids(randomHeroCandidatesOf(all, none, { text: "b" }, ranking, undefined, "b"))).toEqual(["b"]);
+  });
+
+  // Code review on #916: the text changes before the search worker answers for it.
+  test("before the worker answers a first search, Random offers nothing", () => {
+    expect(searchPending({ text: "spi" }, null)).toBe(true);
+    expect(randomHeroCandidatesOf(all, none, { text: "spi" }, null, undefined, null)).toEqual([]);
+  });
+
+  test("switching to another query keeps Random waiting until that query's ranking arrives", () => {
+    const forB = new Map([["b", 1]]);
+    // The field now reads "c", but the ranking still answers "b".
+    expect(searchPending({ text: "c" }, "b")).toBe(true);
+    expect(randomHeroCandidatesOf(all, none, { text: "c" }, forB, undefined, "b")).toEqual([]);
+    // Then "c" is answered.
+    const forC = new Map([["c", 1]]);
+    expect(searchPending({ text: "c" }, "c")).toBe(false);
+    expect(ids(randomHeroCandidatesOf(all, none, { text: "c" }, forC, undefined, "c"))).toEqual(["c"]);
+  });
+
+  test("an empty field is never a pending search", () => {
+    expect(searchPending({ text: "" }, null)).toBe(false);
+    expect(searchPending({ text: "  " }, "spi")).toBe(false);
   });
 
   test("a tested community deck is a candidate only while the list is narrowed to TESTED", () => {
