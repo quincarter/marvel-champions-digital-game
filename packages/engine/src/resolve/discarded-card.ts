@@ -316,8 +316,12 @@ export function stillDiscardedTargets(state: GameState, events: readonly Trigger
 
 /**
  * Whether every part of a "choose one" option acts on the discarded card (`everyPartNeedsCard`): once another response
- * has moved it before this ability was initiated, `executeChooseOne` does not offer the option (#928).
+ * has moved it before this ability was initiated, `executeChooseOne` does not offer the option (#928). `slots`: the
+ * ability's choices made before the option that chose among "that card" and so hold nothing now.
  */
-export function optionNeedsDiscardedCard(option: { readonly effects: readonly EffectSpec[] }): boolean {
-  return everyPartNeedsCard(inline(option.effects));
+export function optionNeedsDiscardedCard(
+  option: { readonly effects: readonly EffectSpec[] },
+  slots: readonly string[] = [],
+): boolean {
+  return everyPartNeedsCard(inline(option.effects), slots);
 }
