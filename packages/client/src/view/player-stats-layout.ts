@@ -1,6 +1,7 @@
 /**
  * The Stats dashboard's tabs and rows (`scenes/player-stats.ts`): which tabs there are, and each tab's content as rows
- * of a scrolling list. The Overview packs its tiles into rows of a column grid (four across, two on a phone); a hero's
+ * of a scrolling list. The Overview packs its tiles into rows of a column grid (four across, two on a phone); on a wide
+ * screen the favorite hero stands tall at the left with the other tiles stacked beside it (`overviewRowsOf`). A hero's
  * cards come as strips of card pictures, as many across as fit. Pure: sizes and positions only, no Phaser.
  */
 import type { Rect } from "./layout.js";
@@ -63,6 +64,12 @@ export interface PlacedTile {
   /** From the row's left edge, in px. */
   readonly x: number;
   readonly width: number;
+  /** From the row's top, in px, for a tile stacked below others in a showcase row; absent: the row's top. */
+  readonly y?: number;
+  /** The tile's own height; absent: the row's, less the gap under it. */
+  readonly height?: number;
+  /** The favorite hero standing tall, its art filling the tile (the wide Overview's showcase). */
+  readonly tall?: boolean;
 }
 
 export interface PlacedCard {
@@ -131,9 +138,18 @@ function heightOf(tile: OverviewTile, phone: boolean): number {
 
 /** Packs tiles into rows, left to right, a new row when the next one does not fit. */
 export function tileRowsOf(tiles: readonly OverviewTile[], width: number, phone: boolean): DashRow[] {
-  const columns = phone ? 2 : 4;
+  return packTiles(tiles, width, phone ? 2 : 4, phone, "tiles");
+}
+
+function packTiles(
+  tiles: readonly OverviewTile[],
+  width: number,
+  columns: number,
+  phone: boolean,
+  idPrefix: string,
+): Extract<DashRow, { kind: "tiles" }>[] {
   const column = (width - TILE_GAP * (columns - 1)) / columns;
-  const rows: DashRow[] = [];
+  const rows: Extract<DashRow, { kind: "tiles" }>[] = [];
   let current: { tile: OverviewTile; span: number }[] = [];
   let used = 0;
   const flush = (): void => {
@@ -147,7 +163,7 @@ export function tileRowsOf(tiles: readonly OverviewTile[], width: number, phone:
     });
     rows.push({
       kind: "tiles",
-      id: `tiles:${rows.length}`,
+      id: `${idPrefix}:${rows.length}`,
       height: Math.max(...current.map(({ tile }) => heightOf(tile, phone))) + TILE_GAP,
       tiles: placed,
     });
@@ -155,13 +171,53 @@ export function tileRowsOf(tiles: readonly OverviewTile[], width: number, phone:
     used = 0;
   };
   for (const tile of tiles) {
-    const span = spanOf(tile, phone);
+    const span = Math.min(columns, spanOf(tile, phone));
     if (used + span > columns) flush();
     current.push({ tile, span });
     used += span;
   }
   flush();
   return rows;
+}
+
+/** The narrowest row the Overview stands the favorite hero tall in; narrower (a phone, a portrait tablet) keeps the grid. */
+export const SHOWCASE_MIN_WIDTH = 960;
+/** The tall hero's width, as a share of the row, within these bounds. */
+const SHOWCASE_SHARE = 0.3;
+const SHOWCASE_MIN_HERO = 300;
+const SHOWCASE_MAX_HERO = 440;
+
+/**
+ * The Overview's tile rows. On a row at least `SHOWCASE_MIN_WIDTH` wide, with a favorite hero, the hero stands tall at
+ * the far left and the other tiles stack beside it, three columns across (the record over two of them), as one tall
+ * row; tiles that would make the stack much taller than the hero's portrait continue below in the four-column grid.
+ * Otherwise the plain grid (`tileRowsOf`).
+ */
+export function overviewRowsOf(tiles: readonly OverviewTile[], width: number, phone: boolean): DashRow[] {
+  const hero = tiles.find((tile) => tile.kind === "portrait" && tile.wide);
+  if (phone || !hero || width < SHOWCASE_MIN_WIDTH) return tileRowsOf(tiles, width, phone);
+  const heroWidth = Math.round(Math.min(SHOWCASE_MAX_HERO, Math.max(SHOWCASE_MIN_HERO, width * SHOWCASE_SHARE)));
+  const sideX = heroWidth + TILE_GAP;
+  const rest = tiles.filter((tile) => tile !== hero);
+  const sideRows = packTiles(rest, width - sideX, 3, false, "showcase");
+  // The stack may run a little past a card's proportions before the rest goes below, so the art stays a portrait.
+  const maxStack = Math.round(heroWidth * 1.9);
+  const beside: typeof sideRows = [];
+  let stack = 0;
+  for (const row of sideRows) {
+    if (beside.length > 0 && stack + row.height > maxStack) break;
+    beside.push(row);
+    stack += row.height;
+  }
+  const height = Math.max(Math.round(heroWidth * 1.25) + TILE_GAP, stack);
+  const placed: PlacedTile[] = [{ tile: hero, x: 0, y: 0, width: heroWidth, height: height - TILE_GAP, tall: true }];
+  let y = 0;
+  for (const row of beside) {
+    for (const tile of row.tiles) placed.push({ ...tile, x: sideX + tile.x, y, height: row.height - TILE_GAP });
+    y += row.height;
+  }
+  const below = rest.filter((tile) => !beside.some((row) => row.tiles.some((p) => p.tile === tile)));
+  return [{ kind: "tiles", id: "tiles:showcase", height, tiles: placed }, ...tileRowsOf(below, width, false)];
 }
 
 /** Card pictures in strips, as many across as fit `width`. */
@@ -217,7 +273,7 @@ export function dashboardRowsOf(
   const shown = (cards: HeroCardsView["groups"][number]["cards"]) =>
     hideSignature ? cards.filter((card) => !card.signature) : cards;
   if (tab === "overview") {
-    const rows = tileRowsOf(stats.overview.tiles, width, phone);
+    const rows = overviewRowsOf(stats.overview.tiles, width, phone);
     if (stats.overview.note)
       rows.push({ kind: "note", id: "ov:note", height: noteHeight(phone) + 12, text: stats.overview.note });
     return rows;

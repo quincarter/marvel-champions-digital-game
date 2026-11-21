@@ -24,7 +24,9 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
 import { accent, ink, signal, surface, typeRole } from "../tokens.js";
-import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
+import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
+import { TITLE_ART, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
+import { drawnDensity } from "../platform/screen-settings.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { addPressShield } from "../ui/press-shield.js";
@@ -125,6 +127,19 @@ const statBox = (rect: Rect): Rect => ({
   y: rect.y + 3,
   width: rect.width - GUTTER,
   height: rect.height - 6,
+});
+/** The backdrop's wash of the ground: how much of the art it hides at the top of the screen and at the foot. */
+const BACKDROP_WASH_TOP = 0.76;
+const BACKDROP_WASH_FOOT = 0.94;
+/** The last visit's backdrop, so the next one shows another while there is a choice. */
+let lastBackdropKey: string | null = null;
+
+/** A placed Overview tile's box in its list row: its own top and height in a showcase row, else the row's. */
+const tileBox = (placed: PlacedTile, rect: Rect, rowHeight: number): Rect => ({
+  x: rect.x + placed.x,
+  y: rect.y + (placed.y ?? 0),
+  width: placed.width,
+  height: placed.height ?? rowHeight - 14,
 });
 /** The "Other" part of How you lose: a warm grey (the Basic aspect's), with ink text, apart from Wiped's ink. */
 const MUTED_PART = 0x9a948a;
@@ -268,6 +283,14 @@ export class PlayerStatsScene extends Phaser.Scene {
   readonly #scrolls = new Map<string, ListScroll>();
   #offArt: (() => void)[] = [];
   #redrawQueued = false;
+  /** This visit's backdrop (a title wallpaper), picked once per open so a redraw keeps it. */
+  #backdrop: TitleArt | null = null;
+  /** The backdrop's picture as drawn on the last draw (its texture key), or null while it loads (e2e reads it). */
+  #backdropDrawn: string | null = null;
+  /** Draws again once the backdrop has loaded: one function, so the loader waits for it once. */
+  readonly #onBackdrop = (): void => {
+    if (this.#alive) this.#draw();
+  };
   /** Everyone's numbers: read on first use (Everyone shown), never at launch; once per visit unless it failed. */
   #global: GlobalState = { kind: "idle" };
   /** A press on "Share my games" is being saved (a second press waits), or the last one failed. */
@@ -298,6 +321,14 @@ export class PlayerStatsScene extends Phaser.Scene {
       if (under.input.keyboard) under.input.keyboard.enabled = false;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#backdrop = pickTitleArtFor(
+      TITLE_ART,
+      titleArtSizeOf,
+      { width: this.scale.width, height: this.scale.height },
+      drawnDensity(),
+      lastBackdropKey,
+    );
+    lastBackdropKey = this.#backdrop?.key ?? null;
     this.scale.on("resize", this.#draw, this);
     this.#hints = new GlyphHints(this);
     this.#hover = new HoverPreview(this, {
@@ -372,6 +403,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         hoverCards: () => [...this.#hoverCardIds().values()],
         grid: () =>
           this.#grid ? { ...gridPlaceOf(gridKey()), readout: this.#grid.readout, counts: gridCounts } : null,
+        backdrop: () => this.#backdropDrawn,
       };
     }
     this.#draw();
@@ -1007,6 +1039,33 @@ export class PlayerStatsScene extends Phaser.Scene {
     return top + height;
   }
 
+  /**
+   * The art behind every tab: a title wallpaper over the whole screen under a wash of the ground, lightest at the top
+   * and nearly solid at the foot, as the landing page fades its art into the page (`site-nav.css`, `.site-backdrop`).
+   * The tiles and rows are opaque, so it shows around them and under the tabs; text on the ground stays readable.
+   */
+  #drawBackdrop(width: number, height: number): void {
+    const picture = drawPicture(this, this.#backdrop, { x: 0, y: 0, width, height }, this.#onBackdrop, {
+      focusY: 0.3,
+      scaleToSlot: true,
+    });
+    this.#backdropDrawn = picture?.texture.key ?? null;
+    if (!picture) return;
+    const wash = this.add.graphics();
+    const steps = 16;
+    for (let i = 0; i < steps; i++) {
+      wash
+        .fillStyle(surface.paper.hex, BACKDROP_WASH_TOP + ((BACKDROP_WASH_FOOT - BACKDROP_WASH_TOP) * i) / (steps - 1))
+        // Whole-pixel strips that meet without overlapping: an overlap doubles the wash into a visible line.
+        .fillRect(
+          0,
+          Math.round((height * i) / steps),
+          width,
+          Math.round((height * (i + 1)) / steps) - Math.round((height * i) / steps),
+        );
+    }
+  }
+
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
@@ -1023,6 +1082,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     // it would otherwise reach the Board or the Title underneath.
     addPressShield(this, { x: 0, y: 0, width, height });
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
+    this.#drawBackdrop(width, height);
     const backWord = this.#data.overlay ? "BACK" : (BACK_LABELS[this.#data.from ?? SCENES.trophyRoom] ?? "BACK");
     // The You / Everyone switch lives in the bar, to the right of the title (`view/stats-source-bar.ts`), so it costs the
     // content no height. The desktop's "N games played" gives way to it where the two would crowd the dark mode button.
@@ -1347,18 +1407,18 @@ export class PlayerStatsScene extends Phaser.Scene {
         view: listRect,
         activate: activate ?? (cardId ? () => this.#inspectCard(cardId) : () => undefined),
         ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
-        ensureVisible: () => list.scrollIntoView(index),
+        // The stop's own part of the row: a tile stacked low in the Overview's tall showcase row scrolls to itself.
+        ensureVisible: () => {
+          const row = list.rectFor(index);
+          const own = part(row);
+          list.scrollIntoView(index, { y: own.y - row.y, height: own.height });
+        },
       });
     };
     rows.forEach((row, index) => {
       if (row.kind === "tiles") {
         for (const placed of row.tiles) {
-          addStop(`tile:${placed.tile.id}`, index, (r) => ({
-            x: r.x + placed.x,
-            y: r.y,
-            width: placed.width,
-            height: row.height - 14,
-          }));
+          addStop(`tile:${placed.tile.id}`, index, (r) => tileBox(placed, r, row.height));
         }
       } else if (row.kind === "matchup") {
         const { matchup } = row;
@@ -1467,13 +1527,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         break;
       case "tiles":
         for (const placed of row.tiles) {
-          objects.push(
-            ...this.#renderTile(
-              placed,
-              { x: rect.x + placed.x, y: rect.y, width: placed.width, height: row.height - 14 },
-              phone,
-            ),
-          );
+          objects.push(...this.#renderTile(placed, tileBox(placed, rect, row.height), phone));
         }
         break;
       case "heading": {
@@ -1698,6 +1752,53 @@ export class PlayerStatsScene extends Phaser.Scene {
     return [g, legend];
   }
 
+  /**
+   * The wide Overview's favorite hero (`overviewRowsOf`): the art fills the tall tile, and the name and record sit at
+   * its foot over an ink shade that darkens toward the bottom, so the paper text reads on any picture.
+   */
+  #renderTallHero(
+    tile: Extract<OverviewTile, { kind: "portrait" }>,
+    box: Rect,
+    /** The tile's own objects: the art, shade and frame go in before the helpers add the text on top. */
+    objects: Phaser.GameObjects.GameObject[],
+    caption: (text: string, x: number, y: number, color?: number, width?: number) => Phaser.GameObjects.Text,
+    big: (text: string, x: number, y: number, size: number, width: number) => Phaser.GameObjects.Text,
+    body: (text: string, x: number, y: number, width: number, lines?: number) => Phaser.GameObjects.Text,
+  ): void {
+    const art = "hero" in tile.art ? heroArtForIdentity(HERO_ART, tile.art.hero, POOL_CARDS, () => 0) : null;
+    const pictureRect: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
+    objects.push(renderArtThumb(this, pictureRect, art?.url ?? null, 0.2, art?.focus));
+    const pad = 18;
+    const inner = box.width - pad * 2;
+    // Measured from the foot up: the extra line, the detail, the name, the caption.
+    const extraY = box.y + box.height - pad - 18;
+    const detailY = tile.extra ? extraY - 20 : extraY;
+    const nameSize = 40;
+    const nameY = detailY - nameSize - 4;
+    const captionY = nameY - 18;
+    const shadeTop = Math.max(box.y + 2, captionY - 70);
+    const shade = this.add.graphics();
+    const steps = 12;
+    const span = box.y + box.height - 2 - shadeTop;
+    for (let i = 0; i < steps; i++) {
+      // Clear at the top of the shade, nearly solid under the text.
+      const alpha = Math.min(0.9, 0.12 + (0.9 * (i + 1)) / steps);
+      const top = Math.round(shadeTop + (span * i) / steps);
+      const bottom = Math.round(shadeTop + (span * (i + 1)) / steps);
+      shade.fillStyle(surface.ink.hex, alpha).fillRect(pictureRect.x, top, pictureRect.width, bottom - top);
+    }
+    objects.push(shade);
+    // The frame again, over the art and its shade, as every other tile has.
+    const border = this.add.graphics();
+    border.lineStyle(2, surface.ink.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
+    objects.push(border);
+    // The text goes on top (drawn last), into the tile's own list through the helpers.
+    caption(tile.label, box.x + pad, captionY, signal.caution.hex, inner);
+    big(tile.name, box.x + pad, nameY, nameSize, inner);
+    body(tile.detail, box.x + pad, detailY, inner, 1);
+    if (tile.extra) body(tile.extra, box.x + pad, extraY, inner, 1);
+  }
+
   #renderTile(placed: PlacedTile, box: Rect, phone: boolean): Phaser.GameObjects.GameObject[] {
     const tile: OverviewTile = placed.tile;
     const objects: Phaser.GameObjects.GameObject[] = [];
@@ -1816,6 +1917,10 @@ export class PlayerStatsScene extends Phaser.Scene {
         break;
       }
       case "portrait": {
+        if (placed.tall) {
+          this.#renderTallHero(tile, box, objects, caption, big, body);
+          break;
+        }
         const wide = tile.wide;
         const pictureRect: Rect = wide
           ? { x: box.x + 2, y: box.y + 2, width: Math.round(box.width * (phone ? 0.34 : 0.4)), height: box.height - 4 }
