@@ -4,9 +4,9 @@ import { installWave6Helpers, visibleTexts } from "./wave6-helpers-a.js";
 import { openApp } from "./wave6-helpers-b.js";
 
 /**
- * Deck builder (issue #920): the chosen identity sits under the title with its picture, its name and a Hero card
- * button. The button, or a press on the picture or name, opens Inspect on the hero side, and Inspect's side toggle
- * reads the alter-ego, so a player can see what the hero does while building.
+ * Deck builder (issue #920): the chosen identity sits under the title as one row with its picture, its name and a
+ * "Read card" cue. A press on the row, or its pad stop, opens Inspect on the hero side, and Inspect's side toggle reads
+ * the alter-ego, so a player can see what the hero does while building.
  */
 
 interface Rect {
@@ -37,13 +37,13 @@ async function waitForInspect(page: Page): Promise<void> {
   await settle(page);
 }
 
-test("Hero card opens the identity in Inspect, and its toggle reads the alter-ego", async ({ page }) => {
+test("the identity row opens the identity in Inspect, and its toggle reads the alter-ego", async ({ page }) => {
   test.setTimeout(120_000);
   await installWave6Helpers(page);
   // The first precon is the Core Set's Spider-Man (Peter Parker).
   await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
   await page.waitForTimeout(800);
-  const button = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the Hero card button", 15_000);
+  const button = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
   await page.mouse.click(button.x + button.width / 2, button.y + button.height / 2);
   await waitForInspect(page);
   const hero = await inspectTexts(page);

@@ -829,7 +829,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("back", { rect: backRect, activate: goBack });
-    y += Math.max(titleObj.height, phone ? 28 : 38) + 16;
+    // Below the taller of the title and Back, so nothing drawn next sits against Back (issue #920).
+    y += Math.max(titleObj.height, phone ? 28 : 38, backRect.height + 2) + 16;
 
     if (!this.#identity && this.#startFor) {
       this.#identityInput?.destroy();
@@ -3346,17 +3347,27 @@ ${entry.detail}`,
   }
 
   /**
-   * The chosen identity above the builder (issue #920): the hero's picture, its name, and a "Hero card" button. The
-   * button, a tap on the picture or name, and the pad's stop open Inspect on the hero side, whose toggle flips to the
-   * alter-ego (and any other forms), so a player can read what the hero does while building. On desktop the picture
-   * opens the card popover too. Returns the y below the row.
+   * The chosen identity above the builder (issue #920): one card-like row with the hero's picture, its name and a
+   * "Read card" cue. A press on the row (`ui/tap.ts`: press and release on it, never a lift) and the pad's stop open
+   * Inspect on the hero side, whose toggle flips to the alter-ego (and any other forms), so a player can read what the
+   * hero does while building. On desktop the picture opens the card popover too. Returns the y below the row.
    */
   #drawIdentityRow(left: number, top: number, column: number, identity: HeroIdentityCard): number {
-    const height = hit.target;
+    const phone = formFactorFor(this.scale.gameSize.width, this.scale.gameSize.height) === "phone";
+    const inset = 4;
+    const rowRect: Rect = { x: left, y: top, width: phone ? column : Math.min(column, 460), height: hit.target + 8 };
     const open = (): void => {
       this.scene.launch(SCENES.inspect, { card: { cardId: identity.id, face: { kind: "hero" } } });
     };
-    const thumbRect: Rect = { x: left, y: top, width: Math.round(height * IDENTITY_THUMB_ASPECT), height };
+    const frame = this.add.graphics();
+    paintPanel(frame, rowRect, "card", "rest");
+    const thumbHeight = rowRect.height - inset * 2;
+    const thumbRect: Rect = {
+      x: rowRect.x + inset,
+      y: rowRect.y + inset,
+      width: Math.round(thumbHeight * IDENTITY_THUMB_ASPECT),
+      height: thumbHeight,
+    };
     const thumb = renderLiveArtThumb(
       this,
       thumbRect,
@@ -3379,40 +3390,24 @@ ${entry.detail}`,
     }
     noteHoverCardId(this, identity.id as string, thumbRect, true, { kind: "hero" });
 
-    const buttonWidth = 120;
+    const right = rowRect.x + rowRect.width - 12;
+    const cue = label(this, right, rowRect.y + rowRect.height / 2, "Read card ›", typeRole.label, surface.ink.hex);
+    cue.setOrigin(1, 0.5);
     const textX = thumbRect.x + thumbRect.width + 10;
-    const caption = label(this, textX, top + 2, "identity", typeRole.label, surface.ink.hex, ink.label);
-    const name = this.add.text(textX, top + height - 2, qualifiedHeroName(identity), {
+    label(this, textX, rowRect.y + 6, "identity", typeRole.label, surface.ink.hex, ink.label);
+    const name = this.add.text(textX, rowRect.y + rowRect.height - 6, qualifiedHeroName(identity), {
       ...textStyle(typeRole.rowTitle, surface.ink.hex),
     });
     name.setOrigin(0, 1);
-    fitText(name, Math.max(40, left + column - buttonWidth - 16 - textX));
-    // The button follows the name (a wide screen would otherwise leave it far off at the window's edge).
-    const textWidth = Math.max(name.width, caption.width);
-    const buttonRect: Rect = {
-      x: Math.min(textX + textWidth + 16, left + column - buttonWidth),
-      y: top,
-      width: buttonWidth,
-      height,
-    };
-    // The picture and the name open the card too: a press that starts and ends on them (`ui/tap.ts`), never a lift.
+    fitText(name, Math.max(40, cue.x - cue.width - 12 - textX));
+
     const zone = this.add
-      .zone(left, top, textX + textWidth - left, height)
+      .zone(rowRect.x, rowRect.y, rowRect.width, rowRect.height)
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     onTap(zone, open, "identity-card-row");
-
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Hero card",
-        type: typeRole.rowTitle,
-        rect: buttonRect,
-        onClick: open,
-      }),
-    );
-    this.#stops.set("identity-card", { rect: buttonRect, activate: open, inspect: open });
-    return top + height + 12;
+    this.#stops.set("identity-card", { rect: rowRect, activate: open, inspect: open });
+    return rowRect.y + rowRect.height + 12;
   }
 
   /** The identity row's picture: the hero's own art (`art/heroes/`), else the identity card's scan, else none. */
