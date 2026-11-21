@@ -370,7 +370,13 @@ const customScenarioOf = (scenarioId: string, custom: CustomContent): Scenario |
  * A pack scenario set up from its record, as `coreScenario` sets up a Core one (RRG Appendix II). Seats may be any
  * playable starter deck or an explicit identity and deck list (a pack hero's).
  */
-function customScenario(scenario: Scenario, options: PlayableScenarioOptions, custom: CustomContent): GameSetupConfig {
+function customScenario(
+  scenario: Scenario,
+  options: PlayableScenarioOptions,
+  custom: CustomContent,
+  /** Sets shuffled in beside the counted picks (the house rule's), which a set-aside pick must not repeat. */
+  houseSetIds: readonly string[] = [],
+): GameSetupConfig {
   const unsupported: string[] = [];
   if (options.setAsideModularSetIds && setAsideModularSetCountFor(scenario, options.players.length) === 0)
     unsupported.push("setAsideModularSetIds");
@@ -416,7 +422,7 @@ function customScenario(scenario: Scenario, options: PlayableScenarioOptions, cu
     const problem = customModularPickProblem(scenario, id, custom);
     if (problem) throw new Error(`${scenario.name}: ${problem}`);
   }
-  const setAsideModular = customSetAsideModularSetIds(scenario, options, modular, sets, custom);
+  const setAsideModular = customSetAsideModularSetIds(scenario, options, [...modular, ...houseSetIds], sets, custom);
   const ownAndModular = [...scenario.encounterSetIds, ...modular];
   // Standard II / III and Expert II stand in for a pack scenario's plain Standard or Expert set under the base game's
   // rule (The Hood insert p. 2, "Alternative Sets"; Q10 = A for Standard III), checked the same way (#786).
@@ -505,11 +511,16 @@ export function playableScenarioWithCustom(
   if (own) {
     // A pack scenario builds no set-dependent option, so every house set (base or pack) is added after, from its pool.
     const { houseModularSetIds: ownHouse = [], ...ownOptions } = rawOptions;
-    const built = customScenario(own, ownOptions, custom);
+    // The house sets are shuffled in too: never also set aside (`customSetAsideModularSetIds`).
+    const built = customScenario(own, ownOptions, custom, ownHouse);
     checkHouseSets(
       own,
       ownHouse,
-      new Set<string>([...own.encounterSetIds, ...(ownOptions.modularSetIds ?? own.recommendedModularSetIds)]),
+      new Set<string>([
+        ...own.encounterSetIds,
+        ...(ownOptions.modularSetIds ?? own.recommendedModularSetIds),
+        ...(built.setAsideModularSets ?? []).map((set) => set.encounterSetId as string),
+      ]),
       custom,
     );
     return withModularSetContents(built, modularSetContents(ownHouse, built.cards ?? PLAYABLE_CARDS));

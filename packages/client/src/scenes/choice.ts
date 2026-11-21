@@ -619,6 +619,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       .text(x, y, "This decision could not be drawn", textStyle(typeRole.barTitle, surface.paper.hex))
       .setWordWrapWidth(sheetWidth);
     y += title.height + 6;
+    // What is being decided, in the engine's own words where they can be read: the labels alone do not say it.
+    const game = appSession().store.state.game;
+    let question = "";
+    try {
+      question = game ? promptTitleOf(choice.prompt, gameDeps(), choice, game) : "";
+    } catch {
+      question = "";
+    }
+    if (!question) question = `Decision: ${choice.prompt.kind.replace(/([A-Z])/g, " $1").toLowerCase()}`;
+    const prompt = this.add
+      .text(x, y, question, textStyle({ ...typeRole.rowTitle, size: 15 }, surface.paper.hex))
+      .setWordWrapWidth(sheetWidth)
+      .setMaxLines(3);
+    y += prompt.height + 6;
     const message = cause instanceof Error ? cause.message : String(cause);
     const note = this.add
       .text(
