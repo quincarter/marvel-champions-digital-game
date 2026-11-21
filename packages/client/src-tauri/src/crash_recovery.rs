@@ -63,6 +63,12 @@ impl Recoveries {
     self.last = Some((now, next));
     next
   }
+
+  /// The reload WebView2 was asked for was refused, so safe mode was tried at `now` instead: a crash after that is a
+  /// safe page crashing.
+  pub fn escalated(&mut self, now: Instant) {
+    self.last = Some((now, Recovery::SafeMode));
+  }
 }
 
 /// Unresponsive reports, and whether the page has answered since the last one.
@@ -227,32 +233,45 @@ mod windows_impl {
       Recovery::Reload => {
         log::warn!("crash recovery: the page's process exited or hung ({code}); reloading the page");
         if let Err(error) = unsafe { core.Reload() } {
-          log::warn!("crash recovery: reload failed: {error}");
+          // No new event is promised after a refused reload, so go straight on to safe mode rather than wait.
+          log::warn!("crash recovery: reload failed ({error}); trying safe mode now");
+          RECOVERIES
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get_or_insert_with(Recoveries::default)
+            .escalated(Instant::now());
+          safe_mode(core, &code);
         }
       }
-      Recovery::SafeMode => {
-        let mut source = PWSTR::null();
-        let current = match unsafe { core.Source(&mut source) } {
-          Ok(()) => take_pwstr(source),
-          Err(_) => String::new(),
-        };
-        let base = if current.is_empty() {
-          let start = START_URL.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
-          start.unwrap_or_else(|| "http://tauri.localhost/".to_string())
-        } else {
-          current
-        };
-        let url = safe_mode_url(&base);
-        log::warn!("crash recovery: the page failed again ({code}); loading it in safe mode: {url}");
-        let wide: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
-        if let Err(error) = unsafe { core.Navigate(PCWSTR::from_raw(wide.as_ptr())) } {
-          log::warn!("crash recovery: safe mode load failed: {error}");
-        }
-      }
+      Recovery::SafeMode => safe_mode(core, &code),
       Recovery::GiveUp => {
         log::error!("crash recovery: the page failed again in safe mode ({code}); leaving it as it is");
       }
     }
+  }
+
+  /// Loads the page with the Canvas renderer; if WebView2 refuses that, loads the start address as a last try.
+  fn safe_mode(core: &ICoreWebView2, code: &str) {
+    let start = START_URL.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+    let start = start.unwrap_or_else(|| "http://tauri.localhost/".to_string());
+    let mut source = PWSTR::null();
+    let current = match unsafe { core.Source(&mut source) } {
+      Ok(()) => take_pwstr(source),
+      Err(_) => String::new(),
+    };
+    let url = safe_mode_url(if current.is_empty() { &start } else { &current });
+    log::warn!("crash recovery: the page failed again ({code}); loading it in safe mode: {url}");
+    if let Err(error) = navigate(core, &url) {
+      log::warn!("crash recovery: safe mode load failed ({error}); loading the start address instead");
+      if let Err(error) = navigate(core, &safe_mode_url(&start)) {
+        log::error!("crash recovery: could not load the page at all ({error}); leaving it as it is");
+      }
+    }
+  }
+
+  fn navigate(core: &ICoreWebView2, url: &str) -> windows_core::Result<()> {
+    let wide: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe { core.Navigate(PCWSTR::from_raw(wide.as_ptr())) }
   }
 }
 
@@ -274,6 +293,15 @@ mod tests {
     assert_eq!(recoveries.on_crash(start + Duration::from_secs(5)), Recovery::SafeMode);
     assert_eq!(recoveries.on_crash(start + Duration::from_secs(10)), Recovery::GiveUp);
     assert_eq!(recoveries.on_crash(start + Duration::from_secs(20)), Recovery::GiveUp);
+  }
+
+  #[test]
+  fn a_crash_after_a_refused_reload_went_to_safe_mode_gives_up() {
+    let start = Instant::now();
+    let mut recoveries = Recoveries::default();
+    assert_eq!(recoveries.on_crash(start), Recovery::Reload);
+    recoveries.escalated(start); // Reload was refused: safe mode was loaded straight away
+    assert_eq!(recoveries.on_crash(start + Duration::from_secs(5)), Recovery::GiveUp);
   }
 
   #[test]
