@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "../../../dsl/validate.js";
 import {
   P1,
+  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -321,5 +322,31 @@ describe(`${SEARCH}: exhaust Maria Hill, search your deck for a S.H.I.E.L.D. sup
   it("is an alter-ego face ability: not available in hero form", () => {
     const s = mariaHeroGame();
     expect(applyCommand(s, use(P1, identityOf(s), SEARCH), MARIA_DEPS).ok).toBe(false);
+  });
+});
+
+// Issue #911: the two picks say which support the counter leaves and which it goes to, as client message keys the
+// choice sheet translates (`choicePrompt.reassignmentFrom` / `To` in i18n/en.ts and es.ts).
+describe("Reassignment's prompts (issue #911)", () => {
+  it("asks FROM first, then TO", () => {
+    const picks = MARIA_HILL_IDENTITY[REASSIGNMENT]!.effects.filter((e) => e.kind === "chooseTarget");
+    expect(picks.map((e) => (e.kind === "chooseTarget" ? [e.slot, e.prompt] : null))).toEqual([
+      ["from", "choicePrompt.reassignmentFrom"],
+      ["to", "choicePrompt.reassignmentTo"],
+    ]);
+  });
+
+  it("the live pending choices carry those titles, FROM then TO", () => {
+    const { state, a } = staged({ code: ILIAD, counters: { mission: 3 } }, { code: STAFF, counters: { staff: 3 } });
+    const asked = runWith(MARIA_DEPS, state, use(P1, identityOf(state), REASSIGNMENT));
+    expect(asked.pendingChoice!.prompt).toMatchObject({
+      kind: "chooseTarget",
+      title: "choicePrompt.reassignmentFrom",
+    });
+    const next = answer(asked, [a], MARIA_DEPS).pendingChoice;
+    expect(next?.prompt).toMatchObject({
+      kind: "chooseTarget",
+      title: "choicePrompt.reassignmentTo",
+    });
   });
 });

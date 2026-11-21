@@ -355,6 +355,78 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
   }
 });
 
+test("the Overview: the favorite hero stands tall at the left on desktop, over the stats' backdrop", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const stops = await stopsOf(page);
+  const hero = stops.find((s) => s.key === "tile:hero")!.rect;
+  const record = stops.find((s) => s.key === "tile:record")!.rect;
+  if (phone) {
+    // The phone keeps the grid: the record across the top, the hero's banner below it.
+    expect(hero.y, "the hero under the record").toBeGreaterThan(record.y);
+  } else {
+    // A portrait at the far left, the record beside it, level with its top.
+    expect(hero.height, "taller than wide").toBeGreaterThan(hero.width);
+    expect(record.x, "the record to its right").toBeGreaterThan(hero.x + hero.width);
+    expect(Math.abs(record.y - hero.y), "level tops").toBeLessThan(2);
+  }
+  await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcStatsDebug?: { backdrop(): string | null } }).__mcStatsDebug?.backdrop() ?? null,
+      ),
+    "the backdrop picture",
+    20_000,
+  );
+});
+
+test("on a short desktop window, arrows through the Overview's tall showcase bring each tile fully into view", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the showcase is the wide layout's");
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 620 });
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
+  const shownWhole = async (key: string): Promise<void> => {
+    const rect = (await stopsOf(page)).find((s) => s.key === key)!.rect;
+    expect(rect.height, `${key} shown whole`).toBeGreaterThanOrEqual(98);
+    expect(rect.y + rect.height, `${key} above the window's foot`).toBeLessThanOrEqual(620);
+  };
+  const move = async (key: string): Promise<string | null> => {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(150);
+    return statsFocus(page);
+  };
+  // Down to the stack's lowest tile (the list scrolls the record off the top), each tile on the way shown whole.
+  let low: string | null = null;
+  for (let i = 0; i < 16; i++) {
+    const focus = await move("ArrowDown");
+    if (!focus?.startsWith("tile:") || focus === "tile:hero") continue;
+    await shownWhole(focus);
+    low = focus;
+  }
+  // The seeded games' lowest tile in that column is Favorite aspect, under Each game.
+  expect(low, "reached the lowest tile").toBe("tile:aspect");
+  // Back up the column to the record, which the walk down scrolled off the top: every tile on the way shown whole.
+  const path: string[] = [];
+  for (let i = 0; i < 16 && path.at(-1) !== "tile:record"; i++) {
+    const focus = await move("ArrowUp");
+    if (!focus?.startsWith("tile:")) continue;
+    await shownWhole(focus);
+    path.push(focus);
+  }
+  expect(path, "up through Each game to the record").toEqual(["tile:per-game", "tile:record"]);
+});
+
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";

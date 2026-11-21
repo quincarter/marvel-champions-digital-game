@@ -287,6 +287,8 @@ export interface McButtonOptions {
   readonly suppressClick?: () => boolean;
   /** Room kept clear at the button's left edge, the label centering in what's left: a thumbnail drawn there (the deck builder's identity rows). */
   readonly labelInset?: number;
+  /** Room kept clear at the button's right edge, as `labelInset` keeps at the left: the minions on a choose-a-player row. */
+  readonly labelInsetRight?: number;
   /** Wrap a long label onto more lines, centered, instead of shrinking it: a name is never cut off on a narrow screen. */
   readonly wrap?: boolean;
 }
@@ -468,7 +470,7 @@ export class McButton {
       cx: this.#label.x - this.#labelShift,
       width: this.#label.displayWidth,
       minX: rect.x + (this.#options.labelInset ?? 0),
-      maxX: rect.x + rect.width - (this.#value ? 40 : 0),
+      maxX: rect.x + rect.width - (this.#options.labelInsetRight ?? 0) - (this.#value ? 40 : 0),
     };
   }
 
@@ -511,16 +513,17 @@ export class McButton {
 
     const hasValue = this.#value !== null;
     const inset = this.#options.labelInset ?? 0;
+    const insetRight = this.#options.labelInsetRight ?? 0;
     this.#label
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
       .setPosition(
-        rect.x + inset + (rect.width - inset) / 2 - (hasValue ? 10 : 0) + this.#labelShift,
+        rect.x + inset + (rect.width - inset - insetRight) / 2 - (hasValue ? 10 : 0) + this.#labelShift,
         rect.y + rect.height / 2,
       );
     // No label ever runs past its own control: a button that says
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
-    const room = rect.width - inset - (hasValue ? 40 : rect.width <= 44 ? 4 : 16);
+    const room = rect.width - inset - insetRight - (hasValue ? 40 : rect.width <= 44 ? 4 : 16);
     if (this.#options.wrap) this.#label.setWordWrapWidth(room).setAlign("center");
     else fitText(this.#label, room, type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 12, rect.y + rect.height / 2);

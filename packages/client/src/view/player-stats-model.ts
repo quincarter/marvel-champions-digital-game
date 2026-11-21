@@ -15,6 +15,7 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import type { SaveMeta } from "../engine/game-storage.js";
+import { isPastGame } from "./past-games-model.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import { deckKeyOfPlayer, villainNameOf } from "./deck-insights.js";
 import { matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
@@ -58,6 +59,11 @@ export type StatRow =
       readonly highlight?: true;
       /** The card the row is about, for the hover popover; absent on a row about no one card. */
       readonly cardId?: string;
+      /**
+       * The saved game the row's number came from, when it comes from one game that Past games lists: a press opens
+       * that game in Game review. Absent on a row that adds up several games, and on a game Past games leaves out.
+       */
+      readonly gameId?: string;
       /** Why the row's games were lost, for its small stacked bar; absent on a row with no losses to show. */
       readonly losses?: readonly LossPart[];
     }
@@ -240,6 +246,8 @@ export interface StatsFilterOptions {
 
 /** One finished game, reduced to what the stats read. */
 interface GameFacts {
+  /** The save's id when Past games lists it (`isPastGame`), else null: a link to a game must land on that game. */
+  readonly gameId: string | null;
   readonly result: "won" | "lost";
   readonly at: number;
   readonly round: number;
@@ -363,6 +371,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
   const summary = meta.summary ?? null;
   const lossReason = meta.status === "won" ? null : (summary?.lossReason ?? lossReasonOfOutcome(meta));
   return {
+    gameId: isPastGame(meta) ? meta.id : null,
     result: meta.status,
     at: meta.updatedAt,
     round: meta.round,
@@ -519,8 +528,11 @@ const stat = (
   label: string,
   value: string,
   detail = "",
-  extra: { highlight?: true; cardId?: string; losses?: readonly LossPart[] } = {},
+  extra: { highlight?: true; cardId?: string; gameId?: string; losses?: readonly LossPart[] } = {},
 ): StatRow => ({ kind: "stat", id, label, value, detail, ...extra });
+
+/** `{ gameId }` for a record that came from one game Past games lists, else nothing. */
+const gameLink = (game: GameFacts): { gameId?: string } => (game.gameId ? { gameId: game.gameId } : {});
 
 function overviewOf(games: readonly GameFacts[], concessions: number, older: number): StatsSection {
   const { wins, losses } = tallyOf(games);
@@ -534,7 +546,10 @@ function overviewOf(games: readonly GameFacts[], concessions: number, older: num
   ];
   const wonGames = games.filter((g) => g.result === "won");
   const fastest = [...wonGames].sort((a, b) => a.round - b.round || a.at - b.at)[0];
-  if (fastest) rows.push(stat("ov:fastest", "Fastest win", `Round ${fastest.round}`, `Against ${fastest.villain}`));
+  if (fastest)
+    rows.push(
+      stat("ov:fastest", "Fastest win", `Round ${fastest.round}`, `Against ${fastest.villain}`, gameLink(fastest)),
+    );
   if (games.length > 0) {
     const avg = games.reduce((sum, g) => sum + g.round, 0) / games.length;
     rows.push(stat("ov:length", "Average game", `${avg.toFixed(1)} rounds`, ""));
@@ -1547,7 +1562,12 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
   const wins = games.filter((g) => g.result === "won");
   const fastest = [...wins].sort((a, b) => a.round - b.round || a.at - b.at)[0];
   if (fastest)
-    rows.push(stat("rec:fastest", "Fastest win", `Round ${fastest.round}`, fastest.villain, { highlight: true }));
+    rows.push(
+      stat("rec:fastest", "Fastest win", `Round ${fastest.round}`, fastest.villain, {
+        highlight: true,
+        ...gameLink(fastest),
+      }),
+    );
   const longest = [...games].sort((a, b) => b.round - a.round || a.at - b.at)[0];
   if (longest)
     rows.push(
@@ -1556,6 +1576,7 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
         "Longest game",
         plural(longest.round, "round"),
         `${longest.villain} · ${longest.result === "won" ? "won" : "lost"}`,
+        gameLink(longest),
       ),
     );
   const closest = wins
@@ -1571,6 +1592,7 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
         `${name(closest.w.identityCardId)} against ${closest.g.villain}`,
         {
           cardId: closest.w.identityCardId,
+          ...gameLink(closest.g),
         },
       ),
     );
@@ -1587,6 +1609,7 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
         stat(`rec:turn:${key}`, label, String(best.turn[key]), `${name(best.id)} against ${best.g.villain}`, {
           highlight: true,
           cardId: best.id,
+          ...gameLink(best.g),
         }),
       );
   }
@@ -1603,6 +1626,7 @@ function recordsOf(games: readonly GameFacts[], names: StatsNames): StatsSection
         `${name(mostDrawn.id)} against ${mostDrawn.g.villain}`,
         {
           cardId: mostDrawn.id,
+          ...gameLink(mostDrawn.g),
         },
       ),
     );
