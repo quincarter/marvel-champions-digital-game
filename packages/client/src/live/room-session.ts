@@ -825,6 +825,10 @@ export class RoomSession {
     this.#hooks = null;
     this.#clearGapTimer();
     this.#coordinator?.dispose();
+    // The room is gone or ended for good: its pod log has nothing left to resume (a replaced socket keeps it).
+    const epicRoom = this.#model.roomId;
+    if (this.role === "host" && epicRoom && (problem === "gone" || problem.startsWith("closed-")))
+      void this.#deps.epicStore?.clear(epicRoom).catch(() => {});
     // A closed room already reached the watcher as a `closed` message; any other end tells it to stop following.
     this.#feed?.postMessage(
       problem.startsWith("closed-") ? { kind: "connection", connected: false } : { kind: "gone" },

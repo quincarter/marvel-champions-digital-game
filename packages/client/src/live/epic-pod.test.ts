@@ -398,6 +398,28 @@ describe("the pod channel", () => {
     });
   });
 
+  it("keeps a saved log past the room's idle window: room traffic extends the room, not the log's stamp", async () => {
+    const hub = await Hub.make(true);
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 9));
+    await hub.coordinator.flushed();
+    hub.clock += 13 * 60 * 60 * 1000;
+    await hub.startCoordinator();
+    expect(hub.coordinator.state?.shared.villainDamage).toBe(9);
+    expect(hub.store.records.has("room")).toBe(true);
+  });
+
+  it("drops a saved log only past the local backstop of days", async () => {
+    const hub = await Hub.make(true);
+    for (const id of ["t1", "t2", "t3"]) hub.connect(id);
+    hub.emit("t2", damaged("t2", 9));
+    await hub.coordinator.flushed();
+    hub.clock += 8 * 24 * 60 * 60 * 1000;
+    await hub.startCoordinator();
+    expect(hub.coordinator.state).toBeNull();
+    expect(hub.store.records.has("room")).toBe(false);
+  });
+
   it("starts fresh when the saved log belongs to other groups", async () => {
     const hub = await Hub.make(true);
     hub.connect("t1");
