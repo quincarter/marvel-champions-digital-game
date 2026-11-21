@@ -261,6 +261,13 @@ export const ENGINE_ONLY_DSL_EXAMPLES: AbilityRegistry = {
     on.cardUnattached(query("upgrade", { name: "Yaka Arrow" }), { from: query("enemy") }),
     dealDamage(1, eventTarget),
   ),
+  // "After an identity-specific card is discarded by an ability, tuck that card under here from your discard pile"
+  // ("Don't Make Me Angry!", `hulk-angry-bf`; #922): `TriggerEvent cardDiscardedFromHand`, a card an ability discards
+  // from a hand. No base card hears it yet, so without this a pack using it was refused as needing an app update.
+  "engine-only.card-discarded-from-hand": response(
+    on.cardDiscardedFromHand({ card: query([], { classification: "identitySpecific" }), yours: true }),
+    moveCards(cards(eventTarget), "hand"),
+  ),
   // "After you spend this card, treat the next card you spend as if it has double the resources" until the end of the
   // round (`RuleSpec doubleNextCardSpent`; community pack `yondu-dh`, Jackpot!).
   "engine-only.double-next-card-spent": response(
