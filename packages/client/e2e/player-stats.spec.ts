@@ -355,6 +355,61 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
   }
 });
 
+test("the Overview: the favorite hero stands tall at the left on desktop, over the stats' backdrop", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const stops = await stopsOf(page);
+  const hero = stops.find((s) => s.key === "tile:hero")!.rect;
+  const record = stops.find((s) => s.key === "tile:record")!.rect;
+  if (phone) {
+    // The phone keeps the grid: the record across the top, the hero's banner below it.
+    expect(hero.y, "the hero under the record").toBeGreaterThan(record.y);
+  } else {
+    // A portrait at the far left, the record beside it, level with its top.
+    expect(hero.height, "taller than wide").toBeGreaterThan(hero.width);
+    expect(record.x, "the record to its right").toBeGreaterThan(hero.x + hero.width);
+    expect(Math.abs(record.y - hero.y), "level tops").toBeLessThan(2);
+  }
+  await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcStatsDebug?: { backdrop(): string | null } }).__mcStatsDebug?.backdrop() ?? null,
+      ),
+    "the backdrop picture",
+    20_000,
+  );
+});
+
+test("on a short desktop window, arrows through the Overview's tall showcase bring each tile fully into view", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the showcase is the wide layout's");
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 620 });
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const seen = new Set<string>();
+  for (let i = 0; i < 16; i++) {
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(150);
+    const focus = await statsFocus(page);
+    if (!focus?.startsWith("tile:") || focus === "tile:hero") continue;
+    seen.add(focus);
+    const rect = (await stopsOf(page)).find((s) => s.key === focus)!.rect;
+    // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
+    expect(rect.height, `${focus} shown whole`).toBeGreaterThanOrEqual(98);
+    expect(rect.y + rect.height, `${focus} above the window's foot`).toBeLessThanOrEqual(620);
+  }
+  expect(seen.size, "walked several tiles").toBeGreaterThan(2);
+});
+
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";
