@@ -29,7 +29,8 @@ async function press(page: Page, scene: string, key: string): Promise<void> {
   const size = page.viewportSize()!;
   let r = await waitFor(() => stopRect(page, scene, key), `${scene} ${key}`, 15_000);
   for (let i = 0; i < 12 && r.y + r.height > size.height - 110; i++) {
-    await page.mouse.move(size.width / 2, size.height / 2);
+    // Low on the screen, clear of the deck name field (a DOM input takes the wheel itself).
+    await page.mouse.move(size.width / 2, size.height * 0.7);
     await page.mouse.wheel(0, 200);
     await page.waitForTimeout(300);
     r = (await stopRect(page, scene, key)) ?? r;

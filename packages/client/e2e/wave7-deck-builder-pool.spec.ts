@@ -53,7 +53,8 @@ test.describe("Deadpool, 'Pool aspect: flows 1, 7 and 8", () => {
     // 1a. New deck -> Deadpool: the builder opens with exactly his 15 identity cards (RRG p. 50: "the exact quantity of each card").
     await startNewDeck(page, "44001a");
     const opening = await texts(page, "DeckBuilder");
-    expect(opening).toContain("IDENTITY — DEADPOOL");
+    // The identity row (issue #920): its caption, then the hero's name.
+    expect(opening).toEqual(expect.arrayContaining(["IDENTITY", "Deadpool"]));
     expect(opening).toContain("ASPECT (CHOOSE 1)");
     expect(opening).toContain("HERO · 15");
     expect(await deckPanel(page), "his set, by name").toEqual(
@@ -241,7 +242,7 @@ test.describe("Spider-Man (a Core hero) choosing 'Pool: flow 2", () => {
     await openDecks(page);
     await startNewDeck(page, "01001a");
     expect(await texts(page, "DeckBuilder")).toEqual(
-      expect.arrayContaining(["IDENTITY — SPIDER-MAN (PETER PARKER)", "'POOL", "HERO · 15"]),
+      expect.arrayContaining(["IDENTITY", "Spider-Man (Peter Parker)", "'POOL", "HERO · 15"]),
     );
     expect(await stopOf(page, "DeckBuilder", "aspect:pool"), "'Pool is offered as an aspect").toBeDefined();
     expect(await poolIds(page)).not.toContain("44017");
