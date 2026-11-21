@@ -133,11 +133,7 @@ test("the keyboard reaches the identity row and Enter opens it", async ({ page }
     trace.push(String(at));
     const target = (await stopRect(page, "DeckBuilder", "identity-card"))!;
     const here = at ? await stopRect(page, "DeckBuilder", at) : null;
-    const key = at?.startsWith("aspect:")
-      ? "ArrowUp"
-      : here && here.x > target.x + 40
-        ? "ArrowLeft"
-        : "ArrowDown";
+    const key = at?.startsWith("aspect:") ? "ArrowUp" : here && here.x > target.x + 40 ? "ArrowLeft" : "ArrowDown";
     await page.keyboard.press(key);
     await page.waitForTimeout(80);
   }
