@@ -50,6 +50,10 @@ windows-sys = { version = "0.61", features = [
   "Win32_Graphics_Gdi",
   "Win32_UI_WindowsAndMessaging",
 ] }
+# Crash recovery (src/crash_recovery.rs, #932) listens for WebView2's ProcessFailed. The same versions wry uses (see
+# Cargo.lock), so the WebView2 types match the controller Tauri hands out.
+webview2-com = "0.39"
+windows-core = "0.62"
 # The game's own volume in the Windows volume mixer (src/app_volume.rs): Core Audio's COM interfaces.
 windows = { version = "0.61", features = [
   "Win32_Foundation",
