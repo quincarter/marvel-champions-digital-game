@@ -4,14 +4,18 @@
  * WebView2 158 (Windows) crashes the page's process (STATUS_BREAKPOINT) in a dedicated worker that loads the app's
  * fonts and paints on an `OffscreenCanvas`: the text-paint worker, as the game starts. A crashed page can't run any
  * code, so the worker's own error handling never sees it. Instead the page writes a mark just before it starts such a
- * worker and clears it once the worker has done one piece of work. A mark still there on the next start means the
- * last start died with the worker on its way up: that worker is skipped and its work is painted on the main thread,
- * which is slower but doesn't crash.
+ * worker and clears it once the worker has answered. A mark still there on the next start means the last start died
+ * with the worker on its way up: that worker is skipped and its work is painted on the main thread, which is slower
+ * but doesn't crash.
  *
- * The skip holds for this app version on this browser engine (the user agent names the WebView2 version). An update
- * of either tries the worker again, so a WebView2 fix brings it back without anyone clearing anything.
+ * - Desktop app only: the crash is WebView2's, and on the web several tabs share storage, where one tab could read
+ *   another's live mark as a crash.
+ * - A page that is left normally (closed, reloaded) clears its mark on `pagehide`, which a crashed page never fires.
+ * - The skip is decided once per page, and holds for this app version on this browser engine (the user agent names
+ *   the WebView2 version). An update of either tries the worker again, so a WebView2 fix brings it back by itself.
  */
 import { CLIENT_VERSION } from "../version.js";
+import { detectPlatform } from "./platform.js";
 
 /** The part of `Storage` used, so a test can stand in for it. */
 export interface GuardStorage {
@@ -20,76 +24,90 @@ export interface GuardStorage {
   removeItem(key: string): void;
 }
 
+/** What the guard needs from the page, so a test can stand in for it. */
+export interface GuardDeps {
+  readonly storage: GuardStorage | null;
+  /** What a skip is tied to: the app version and the engine running it. */
+  readonly where: string;
+  setTimer(fn: () => void, ms: number): unknown;
+  /** Runs `fn` when the page is left normally (`pagehide`). */
+  onLeave(fn: () => void): void;
+}
+
 const STARTING = "starting";
-/** A page still up this long after the worker started didn't crash with its start, even if it was given no work. */
+/** A page still up this long after the worker started didn't crash with that start, even if it was given no work. */
 export const GUARD_SETTLE_MS = 15_000;
 const KEY_PREFIX = "mc-worker-crash:";
 
-function pageStorage(): GuardStorage | null {
+/** The desktop app's deps, or null (no guard) anywhere else. */
+function pageDeps(): GuardDeps | null {
+  if (detectPlatform() !== "tauri") return null;
+  let storage: GuardStorage | null;
   try {
-    return globalThis.localStorage ?? null;
+    storage = globalThis.localStorage ?? null;
   } catch {
-    return null;
+    storage = null;
   }
+  return {
+    storage,
+    where: `${CLIENT_VERSION}|${globalThis.navigator?.userAgent ?? ""}`,
+    setTimer: (fn, ms) => setTimeout(fn, ms),
+    onLeave: (fn) => globalThis.addEventListener?.("pagehide", fn),
+  };
 }
 
 export class WorkerCrashGuard {
   readonly #key: string;
-  readonly #storage: GuardStorage | null;
-  /** What a skip is tied to: the app version and the engine running it. */
-  readonly #where: string;
-  #armed = false;
-  readonly #setTimer: (fn: () => void, ms: number) => unknown;
+  readonly #deps: GuardDeps | null;
+  /** This page's decision, made at its first start. */
+  #skipping: boolean | null = null;
+  #leaveHooked = false;
 
-  constructor(
-    name: string,
-    storage: GuardStorage | null = pageStorage(),
-    where: string = `${CLIENT_VERSION}|${globalThis.navigator?.userAgent ?? ""}`,
-    setTimer: (fn: () => void, ms: number) => unknown = (fn, ms) => setTimeout(fn, ms),
-  ) {
-    this.#setTimer = setTimer;
+  constructor(name: string, deps: GuardDeps | null = pageDeps()) {
     this.#key = KEY_PREFIX + name;
-    this.#storage = storage;
-    this.#where = where;
+    this.#deps = deps;
   }
 
   /**
-   * Whether to do without the worker: the last start crashed while it was starting, here. Reading a leftover mark
-   * turns it into the skip, so it is decided once and holds until the app or the engine changes.
+   * Whether to do without the worker: the last page crashed while it was starting, here. Decided at the first call
+   * of a page; a leftover mark becomes the skip, which holds until the app or the engine changes.
    */
   skip(): boolean {
+    if (this.#skipping !== null) return this.#skipping;
     const value = this.#read();
-    if (value === null) return false;
     if (value === STARTING) {
-      this.#write(this.#where);
+      this.#write(this.#deps!.where);
       console.info(`Worker ${this.#key.slice(KEY_PREFIX.length)}: skipped, the last start crashed with it (#932).`);
-      return true;
+      this.#skipping = true;
+    } else if (value !== null && value === this.#deps!.where) {
+      this.#skipping = true;
+    } else {
+      // Nothing, or a skip from another version or engine: try the worker again.
+      if (value !== null) this.#remove();
+      this.#skipping = false;
     }
-    if (value === this.#where) return true;
-    // A skip from another version or engine: try the worker again.
-    this.#remove();
-    return false;
+    return this.#skipping;
   }
 
-  /**
-   * Just before the worker starts. Only the first start of a page is watched; later ones have been seen to live. The
-   * mark clears itself after `GUARD_SETTLE_MS`, so a worker that was never given work isn't skipped next time.
-   */
+  /** Just before each start of the worker (a restart after it went idle loads its fonts again, so it is watched too). */
   starting(): void {
-    if (this.#armed) return;
-    this.#armed = true;
+    if (!this.#deps || this.skip()) return;
     this.#write(STARTING);
-    this.#setTimer(() => this.settled(), GUARD_SETTLE_MS);
+    if (!this.#leaveHooked) {
+      this.#leaveHooked = true;
+      this.#deps.onLeave(() => this.settled());
+    }
+    this.#deps.setTimer(() => this.settled(), GUARD_SETTLE_MS);
   }
 
-  /** The worker did its first piece of work, or stopped on its own terms (an error the page saw): no crash. */
+  /** The worker answered, stopped on terms the page saw, or the page outlived its start: no crash. */
   settled(): void {
     if (this.#read() === STARTING) this.#remove();
   }
 
   #read(): string | null {
     try {
-      return this.#storage?.getItem(this.#key) ?? null;
+      return this.#deps?.storage?.getItem(this.#key) ?? null;
     } catch {
       return null;
     }
@@ -97,7 +115,7 @@ export class WorkerCrashGuard {
 
   #write(value: string): void {
     try {
-      this.#storage?.setItem(this.#key, value);
+      this.#deps?.storage?.setItem(this.#key, value);
     } catch {
       // Without storage there is no memory of a crash; the worker is simply used as before.
     }
@@ -105,7 +123,7 @@ export class WorkerCrashGuard {
 
   #remove(): void {
     try {
-      this.#storage?.removeItem(this.#key);
+      this.#deps?.storage?.removeItem(this.#key);
     } catch {
       // As above.
     }

@@ -1,3 +1,3 @@
 kind: Fixed
-body: 'Windows: the game no longer gets stuck on ''Can''t open this page'' (STATUS_BREAKPOINT) under WebView2 158. A start that crashes in the text or card-face worker is remembered, and the next start (or Refresh) draws that text without the worker (#932)'
+body: "Windows: the game no longer opens to 'Can't open this page' (STATUS_BREAKPOINT) after WebView2 updates to 158. Its text and card workers now get the inlined font as bytes, and a font worker that ever crashes the page is skipped on the next start (#932)"
 time: 2026-11-21T00:38:36.4807722-05:00

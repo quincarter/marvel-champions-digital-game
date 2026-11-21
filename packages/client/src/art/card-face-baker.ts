@@ -277,7 +277,7 @@ export class CardFaceBaker {
 /**
  * The page's own `@font-face` rules for `families`, with every `url(…)` made absolute against the stylesheet that
  * declared it — whatever Vite emitted, in dev (inline `<style>`) or a build (hashed files), with nothing to keep in
- * step by hand.
+ * step by hand. A font the build inlined as a `data:` URL goes as its bytes (`inlineFontBytes`).
  */
 export function pageFontSources(families: ReadonlySet<string>): FontSource[] {
   const sources: FontSource[] = [];
@@ -310,8 +310,34 @@ export function pageFontSources(families: ReadonlySet<string>): FontSource[] {
       if (weight) descriptors.weight = weight;
       if (fontStyle) descriptors.style = fontStyle;
       if (unicodeRange) descriptors.unicodeRange = unicodeRange;
-      sources.push({ family, src, descriptors });
+      sources.push({ family, src: inlineFontBytes(src) ?? src, descriptors });
     }
   }
   return sources;
+}
+
+/**
+ * The bytes of a `src` that is one inline `data:` font (`url("data:font/woff2;base64,…") format("woff2")`), or null.
+ * Vite inlines small fonts in a build (Bangers' 7, `fonts/bangers-seven.css`, is 2.6 KB), and WebView2 158 crashes the
+ * whole page (STATUS_BREAKPOINT) when a worker's `FontFace` loads a `data:` URL (#932); bytes load fine everywhere.
+ */
+export function inlineFontBytes(src: string): ArrayBuffer | null {
+  const match = /^\s*url\(\s*(["']?)(data:[^"')]*)\1\s*\)(?:\s+format\([^)]*\))?\s*$/i.exec(src);
+  if (!match) return null;
+  const url = match[2]!;
+  const comma = url.indexOf(",");
+  if (comma < 0) return null;
+  const meta = url.slice(5, comma);
+  const payload = url.slice(comma + 1);
+  try {
+    if (/;base64$/i.test(meta)) {
+      const binary = atob(payload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+    return new TextEncoder().encode(decodeURIComponent(payload)).buffer as ArrayBuffer;
+  } catch {
+    return null;
+  }
 }

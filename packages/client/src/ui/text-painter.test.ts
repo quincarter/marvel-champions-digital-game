@@ -10,6 +10,7 @@ import {
   type PainterDeps,
 } from "./text-painter.js";
 import type { PaintJob, TextPaintRequest, TextPaintResponse } from "./text-paint-protocol.js";
+import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 class FakeWorker implements PaintWorkerLike {
   sent: TextPaintRequest[] = [];
@@ -381,5 +382,34 @@ describe("the crash guard (#932)", () => {
     t.painter.wants();
     t.worker.reply({ type: "ready", ok: false, reason: "no fonts in workers" });
     expect(guard.calls).toEqual(["skip", "starting", "settled"]);
+  });
+});
+
+describe("the crash guard on a real page (#932)", () => {
+  function realGuard() {
+    const values = new Map<string, string>();
+    const guard = new WorkerCrashGuard("text-paint", {
+      storage: {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => void values.set(key, value),
+        removeItem: (key) => void values.delete(key),
+      },
+      where: "0.51.0|Edg/158.0.0.0",
+      setTimer: () => undefined,
+      onLeave: () => undefined,
+    });
+    return { guard, values };
+  }
+
+  it("keeps the worker when it goes idle before painting anything and starts again", () => {
+    const { guard } = realGuard();
+    const t = setup({ guard });
+    t.painter.wants();
+    t.worker.reply({ type: "ready", ok: true });
+    t.fire(TEXT_WORKER_IDLE_MS);
+    expect(t.painter.mode).toBe("idle");
+    expect(t.painter.wants()).toBe(true);
+    expect(t.painter.mode).toBe("starting");
+    expect(t.workers).toHaveLength(2);
   });
 });
