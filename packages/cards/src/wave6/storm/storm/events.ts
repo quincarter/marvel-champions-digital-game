@@ -3,7 +3,7 @@ import type { CardSelector, TargetRef } from "@mc/engine";
 import {
   attackInProgress,
   chooseCards,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chosen,
   chosenPlayer,
   dealDamage,
@@ -100,7 +100,7 @@ export const STORM_EVENTS = defineAbilities({
   ),
 
   "36013.blast-of-wind-action": heroAction(
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     dealDamage(3, theVillain),
     dealDamage(3, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
     resolveSpecials(yourWeatherSupport),

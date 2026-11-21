@@ -140,11 +140,11 @@ describe("Black Panther", () => {
     const withClaws = run(withDaggers, play(P1, claws, payWith(withDaggers, P1, 2, given.ids)));
     const ordering = run(withClaws, play(P1, wakanda, payWith(withClaws, P1, 1, given.ids)));
     expect(ordering.pendingChoice?.prompt.kind).toBe("orderSpecials");
-    const choosingPlayer = answer(ordering, [
+    // The one player with an engaged enemy is chosen without asking (issue #911).
+    const afterDaggers = answer(ordering, [
       `${daggers}:01046.energy-daggers-special`,
       `${claws}:01047.panther-claws-special`,
     ]);
-    const afterDaggers = answer(choosingPlayer, [P1]);
     expect(inst(afterDaggers, activeVillain(afterDaggers).instanceId).damage).toBe(1);
     expect(inst(afterDaggers, mercenary).damage).toBe(1);
     // Panther Claws is an attack: guard leaves only the Mercenary.

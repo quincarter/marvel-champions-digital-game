@@ -152,3 +152,81 @@ test("on a phone a swipe lifting over a row opens nothing; a tap opens the popup
   expect(await activeScenes(page)).toContain("PastGames");
   expect(errors).toEqual([]);
 });
+
+/** Saves a copy of a saved game under a new id as another scenario and an hour older (a second row for the list). */
+async function cloneGame(page: Page, id: string, scenarioId: string, newId: string): Promise<void> {
+  await page.evaluate(
+    async ({ id: from, scenarioId: scenario, newId: to }) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open("mc-saves", 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const tx = db.transaction("games", "readwrite");
+      const store = tx.objectStore("games");
+      const game = await new Promise<{ config: Record<string, unknown>; updatedAt: number }>((resolve) => {
+        const request = store.get(from);
+        request.onsuccess = () => resolve(request.result);
+      });
+      store.put({
+        ...game,
+        id: to,
+        config: { ...game.config, scenarioId: scenario },
+        updatedAt: game.updatedAt - 3_600_000,
+      });
+      await new Promise((resolve) => (tx.oncomplete = resolve));
+      db.close();
+    },
+    { id, scenarioId, newId },
+  );
+}
+
+test("typing a partial, accent-free hero or villain name in the search narrows the list (#911)", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "the desktop's search box sits beside the export button");
+  test.setTimeout(300_000);
+  const errors = trackPageErrors(page);
+  const game = await finishedGame(page);
+  await cloneGame(page, game.id, "ultron", "clone-ultron");
+  await page.goto("/?unlock=all");
+  await waitForScene(page, "Title", 30000);
+  await clickStop(page, "past-games", "Title");
+  await waitForScene(page, "PastGames");
+
+  const gameKeys = async (): Promise<string[]> =>
+    ((await routeStops(page, "PastGames"))?.stops ?? [])
+      .map((stop) => stop.key)
+      .filter((key) => key.startsWith("game:"));
+  const type = async (text: string): Promise<void> => {
+    await clickStop(page, "search", "PastGames");
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Backspace");
+    if (text) await page.keyboard.type(text);
+    await settle(page, { quietMs: 300, maxMs: 2000 });
+  };
+  await waitFor(async () => ((await gameKeys()).length === 2 ? true : null), "both games are listed");
+
+  // A villain's partial name leaves its own game; the hero's partial name (same hero in both) leaves both.
+  await type("ultr");
+  await waitFor(
+    async () => ((await gameKeys()).join() === "game:clone-ultron" ? true : null),
+    "ultr leaves Ultron's game",
+  );
+  await type("rhin");
+  await waitFor(
+    async () => ((await gameKeys()).join() === `game:${game.id}` ? true : null),
+    "rhin leaves Rhino's game",
+  );
+  await type("spid");
+  await waitFor(async () => ((await gameKeys()).length === 2 ? true : null), "spid leaves both Spider-Man games");
+  await type("zzzz");
+  await waitFor(
+    async () => ((await gameKeys()).length === 0 ? true : null),
+    "a search nothing matches empties the list",
+  );
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/past-games-search-none.png` });
+  await type("");
+  await waitFor(async () => ((await gameKeys()).length === 2 ? true : null), "clearing the search brings both back");
+  expect(errors).toEqual([]);
+});

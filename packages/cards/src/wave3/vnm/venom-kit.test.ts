@@ -195,6 +195,38 @@ describe("Venom's hero kit", () => {
     expect((inst(settled, villain).statuses.stunned ?? 0) > 0).toBe(true); // paid with only physical
   });
 
+  /** Pays Grasping Tendrils (cost 2) with Symbiotic Bond's [wild] and the hand card `with`. */
+  const payingWithBondAnd =
+    (withCard: string): Picker =>
+    (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "payForCard") {
+        const card = playerOf(state, P1).hand.find((id) => state.instances[id]?.cardId === withCard);
+        return choice.options
+          .map((o) => o.optionId)
+          .filter((id) => id.endsWith(":20001a.venom-constant-2") || id === `hand:${card}`);
+      }
+      return accepting("20003.grasping-tendrils-interrupt")(state);
+    };
+
+  // Issue #911: a [wild] spent toward the cost may be declared [physical] (RRG 1.8 "Wild Resource", p. 48), so the
+  // [wild] from Symbiotic Bond plus a [physical] card is "paid using only [physical]"; with an [energy] card it is not.
+  it.each([
+    ["20021", "a [physical] card (Side Holster): stuns", 1],
+    ["20010", "an [energy] card (Venom's Pistol): no stun", 0],
+  ])("Grasping Tendrils paid with Symbiotic Bond's [wild] and %s — %s (issue #911)", (card, _label, stunned) => {
+    const hero = runWave3(venomVsRhino(1), toHero());
+    const emptied = { ...hero, players: hero.players.map((p) => ({ ...p, hand: [] })) };
+    const { state: withHand } = moveToHand(emptied, P1, "20003", card);
+    const villain = activeVillain(withHand).instanceId;
+    const identity = identityOf(withHand);
+    const settled = settle(runWith(WAVE3_DEPS, withHand, endTurn()), payingWithBondAnd(card), undefined, WAVE3_DEPS);
+    expect(instancesOf(settled, "20003").every((id) => !playerOf(settled, P1).hand.includes(id))).toBe(true); // played
+    expect(inst(settled, identity).damage).toBeGreaterThanOrEqual(1); // Symbiotic Bond's cost
+    expect(Math.min(inst(settled, villain).statuses.stunned ?? 0, 1)).toBe(stunned);
+  });
+
   it("Locked and Loaded — searches your deck for a weapon upgrade and adds it to hand (20004.locked-and-loaded-constant)", () => {
     const hero = runWave3(venomVsRhino(5), toHero());
     const { state } = playAndAccept(hero, "20004", 0);
@@ -307,6 +339,48 @@ describe("Venom's hero kit", () => {
     const used = useMultiGun(state, multiGun, "Deal 2 damage");
     expect(inst(used, villain).damage).toBe(before + 2);
     expect(inst(used, multiGun).exhausted).toBe(true);
+  });
+
+  // Issue #911, owner answer A (2026-11-20): only a player with an engaged minion can be chosen, and the option needs
+  // one. RRG 1.8 "Choose (Option)" p. 12.
+  it("Multi-Gun: with no engaged minion anywhere, the minion option is not offered (issue #911)", () => {
+    const { state: inPlay, multiGun } = multiGunInPlay(9);
+    const state = patchInstance(inPlay, inPlay.mainScheme.instanceId, { threat: 3 }); // keeps "Remove 2 threat" open
+    const asked = runWith(WAVE3_DEPS, state, use(P1, multiGun, "20008.multi-gun-action"));
+    const choice = asked.pendingChoice;
+    expect(choice?.prompt.kind).toBe("chooseOption");
+    const labels = choice?.options.map((o) => o.label) ?? [];
+    expect(labels.some((l) => l.startsWith("Deal 2 damage"))).toBe(true);
+    expect(labels.some((l) => l.startsWith("Choose a player"))).toBe(false);
+  });
+
+  it("Multi-Gun: in a two-player game, only the player with engaged minions is offered (issue #911)", () => {
+    const start = startWave3Game(
+      venomScenario("rhino", { seed: 9, extraPlayers: [{ starterDeckId: "groot-protection" }] }),
+    );
+    const hero = runWave3(start, toHero());
+    const { state: withCard, ids } = moveToHand(hero, P1, "20008");
+    const [multiGun] = ids as [InstanceId];
+    const inPlay = settle(
+      runWith(WAVE3_DEPS, withCard, play(P1, multiGun, payWith(withCard, P1, 3, [multiGun]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const p2 = inPlay.players[1]!.playerId;
+    const withMinion = engageMinion(inPlay, "01101", "mg-p2-minion", p2);
+    const asked = settleUntil(
+      runWith(WAVE3_DEPS, withMinion, use(P1, multiGun, "20008.multi-gun-action")),
+      "choosePlayer",
+      pickingLabelStartingWith("Choose a player"),
+      WAVE3_DEPS,
+    );
+    // One eligible player is bound without asking; the minion engaged with P2 took the damage, P1 was never offered.
+    const offered =
+      asked.pendingChoice?.prompt.kind === "choosePlayer" ? asked.pendingChoice.options.map((o) => o.optionId) : [p2];
+    expect(offered).toEqual([p2]);
+    const done = settle(asked, firstLegal, undefined, WAVE3_DEPS);
+    expect(inst(done, "mg-p2-minion" as InstanceId).damage).toBe(1);
   });
 
   it("Multi-Gun: choose a player, deal 1 damage to each minion engaged with them (20008.multi-gun-constant-2)", () => {

@@ -10,7 +10,7 @@ import {
   attack,
   chooseCards,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -131,7 +131,7 @@ export const BLACK_PANTHER_SUPPORT_UPGRADES_ALLIES: AbilityRegistry = defineAbil
   ),
 
   "51012.spider-bites-special": special(
-    choosePlayer(),
+    choosePlayerWithEngaged("player"),
     dealDamage(1, theVillain),
     dealDamage(1, each(query("minion", { engagedWithPlayer: chosenPlayer() }))),
     chooseOne(

@@ -6,7 +6,7 @@ import {
   attack,
   bindTargets,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -111,7 +111,7 @@ export const ICEMAN_EVENTS: AbilityRegistry = defineAbilities({
   ),
 
   "46010.ice-blast-action": heroAction(
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     bindTargets("villain", theVillain),
     BLAST_STEPS.flatMap(blastStep),
     dealDamage(3, each(query("enemy", { hasAttachment: FROSTBITE }))),

@@ -5866,6 +5866,13 @@ export type EffectSpec =
       readonly count?: number | ValueSpec;
       readonly upTo?: true;
       readonly optional?: boolean;
+      /**
+       * What the client asks in place of "Choose a target" when the printed text picks two cards for different roles
+       * ("Move a counter FROM which support?" then "... TO which support?", Maria Hill's Reassignment 50001a; issue
+       * #911). Display only: the engine passes it to the pending choice as `title` and never reads it. A message key of the client's
+       * catalog (`choicePrompt.*`) is shown translated; any other text is shown as it is.
+       */
+      readonly prompt?: string;
     }
   | {
       readonly kind: "if";

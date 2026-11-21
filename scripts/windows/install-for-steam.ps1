@@ -168,8 +168,10 @@ function Write-Marker([string]$version) {
 function Find-Steam {
   if ($script:SteamPath -eq "") {
     $key = Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -ErrorAction SilentlyContinue
-    if ($null -ne $key -and $key.SteamPath) { $script:SteamPath = $key.SteamPath }
+    if ($null -ne $key -and $key.SteamPath) { $script:SteamPath = [string]$key.SteamPath }
   }
+  # A registry value or a -SteamPath in its own quotes (#933).
+  $script:SteamPath = $script:SteamPath.Trim().Trim('"').Trim()
   if ($script:SteamPath -eq "") { $script:SteamPath = "${env:ProgramFiles(x86)}\Steam" }
   $script:SteamPath = [System.IO.Path]::GetFullPath($script:SteamPath.Replace("/", "\"))
   if (-not (Test-Path (Join-Path $script:SteamPath "userdata"))) {
@@ -316,6 +318,28 @@ function Update-Shortcuts([string]$file, [string]$quotedExe, $entry) {
 
 # --- The game --------------------------------------------------------------------------------------------------------
 
+# A full path from a registry value, or $null (#933). Some machines keep the value in its own quotes
+# ("C:\...\Marvel Champions"), which Join-Path reads as a drive named `"C`; an UninstallString or DisplayIcon can also
+# carry arguments or an icon index after the path ("C:\...\uninstall.exe" /S, C:\...\game.exe,0).
+function ConvertTo-RegistryPath($value) {
+  if (-not $value) { return $null }
+  $text = ([string]$value).Trim()
+  if ($text.StartsWith('"')) {
+    $end = $text.IndexOf('"', 1)
+    $text = if ($end -gt 0) { $text.Substring(1, $end - 1) } else { $text.Substring(1) }
+  } elseif ($text -match '^(.+?\.exe),\s*-?\d+$') {
+    $text = $Matches[1]
+  }
+  $text = $text.Trim().Trim('"').Trim()
+  if (-not $text -or $text.IndexOfAny([System.IO.Path]::GetInvalidPathChars()) -ge 0) { return $null }
+  try {
+    if (-not [System.IO.Path]::IsPathRooted($text)) { return $null }
+    return [System.IO.Path]::GetFullPath($text)
+  } catch {
+    return $null
+  }
+}
+
 function Find-Game {
   $candidates = New-Object System.Collections.ArrayList
   $uninstall = @(
@@ -325,16 +349,25 @@ function Find-Game {
   )
   $entries = Get-ItemProperty $uninstall -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq $AppName }
   foreach ($entry in $entries) {
-    if ($entry.InstallLocation) { [void]$candidates.Add($entry.InstallLocation) }
+    $location = ConvertTo-RegistryPath $entry.InstallLocation
+    if ($location) { [void]$candidates.Add($location) }
     foreach ($p in @($entry.DisplayIcon, $entry.UninstallString)) {
-      if ($p -and $p -notmatch '^MsiExec') { [void]$candidates.Add((Split-Path ($p.Split(",")[0].Trim('"')))) }
+      if (-not $p -or $p -match '^\s*"?MsiExec') { continue }
+      $file = ConvertTo-RegistryPath $p
+      if ($file) { [void]$candidates.Add([System.IO.Path]::GetDirectoryName($file)) }
     }
   }
   [void]$candidates.Add("$env:LOCALAPPDATA\$AppName")
   [void]$candidates.Add("$env:ProgramFiles\$AppName")
   foreach ($dir in $candidates) {
-    $exe = Join-Path $dir $ExeName
-    if (Test-Path $exe) { return (Resolve-Path $exe).Path }
+    # One unreadable entry is skipped, never the end of the search (#933).
+    try {
+      if (-not $dir) { continue }
+      $exe = Join-Path $dir $ExeName
+      if (Test-Path -LiteralPath $exe) { return (Resolve-Path -LiteralPath $exe).Path }
+    } catch {
+      continue
+    }
   }
   return $null
 }
@@ -351,7 +384,7 @@ function Get-InstallKind([string]$exe) {
     "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
   $msi = @(Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object {
       $_.DisplayName -eq $AppName -and $_.WindowsInstaller -eq 1 -and $_.InstallLocation -and
-      ([string]$_.InstallLocation).TrimEnd("\") -ieq $dir
+      ([string](ConvertTo-RegistryPath $_.InstallLocation)).TrimEnd("\") -ieq $dir
     })
   if ($msi.Count -gt 0) { return "msi" }
   return "unknown"
