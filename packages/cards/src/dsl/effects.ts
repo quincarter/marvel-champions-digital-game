@@ -618,7 +618,10 @@ export const chooseTarget = (
     readonly upTo?: boolean;
     readonly optional?: boolean;
     readonly count?: Amount;
-    /** The question the client asks, for a pick whose role the plain "Choose a target" doesn't say ("FROM" / "TO"). */
+    /**
+     * The question the client asks, for a pick whose role the plain "Choose a target" doesn't say ("FROM" / "TO"): a
+     * client message key (`choicePrompt.*`, translated), or plain text.
+     */
     readonly prompt?: string;
   } = {},
 ): EffectSpec => ({

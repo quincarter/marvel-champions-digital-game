@@ -13,6 +13,7 @@
  */
 
 import type { ChoicePrompt } from "@mc/engine";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { describe, expect, test } from "vitest";
 import { activeVillain, choiceId, frameId, type GameState, type PendingChoice, type StackFrame } from "@mc/engine";
 import { abilityId } from "@mc/content";
@@ -547,7 +548,27 @@ describe("promptTitleOf", () => {
         POOL_DEPS,
       ),
     ).toBe("Move the counter TO which?");
+
     expect(promptTitleOf({ kind: "somethingNew" as never }, POOL_DEPS)).toBe("Choose");
+  });
+
+  it("a card's own question given as a message key is translated (Maria Hill's Reassignment, #911)", () => {
+    const from = {
+      kind: "chooseTarget",
+      slot: "from",
+      abilityId: null,
+      title: "choicePrompt.reassignmentFrom",
+    } as const;
+    const to = { kind: "chooseTarget", slot: "to", abilityId: null, title: "choicePrompt.reassignmentTo" } as const;
+    expect(promptTitleOf(from, POOL_DEPS)).toBe("Move a counter FROM which S.H.I.E.L.D. support?");
+    expect(promptTitleOf(to, POOL_DEPS)).toBe("Move the counter TO which S.H.I.E.L.D. support?");
+    useSpanish();
+    try {
+      expect(promptTitleOf(from, POOL_DEPS)).toBe("¿DESDE qué apoyo S.H.I.E.L.D. mueves un contador?");
+      expect(promptTitleOf(to, POOL_DEPS)).toBe("¿HACIA qué apoyo S.H.I.E.L.D. mueves el contador?");
+    } finally {
+      useEnglish();
+    }
   });
 });
 

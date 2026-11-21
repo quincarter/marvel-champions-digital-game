@@ -45,8 +45,17 @@ export function takeableHeroesOf(
 }
 
 /**
+ * True while the search text has no ranking of its own yet: the worker has not answered for it, so `ranking` is null
+ * or still the previous text's (`rankedFor`, the text the ranking answers). Random then offers nothing rather than a
+ * hero the text may not match (code review, #916).
+ */
+export function searchPending(filter: RosterFilter, rankedFor: string | null): boolean {
+  return filter.text.trim() !== "" && rankedFor !== filter.text;
+}
+
+/**
  * What Random may seat: the takeable decks the roster shows, minus the active seat's own hero so a press always changes
- * it.
+ * it. None while a search is pending (`searchPending`).
  */
 export function randomHeroCandidatesOf(
   deckOptions: readonly DeckOption[],
@@ -54,7 +63,9 @@ export function randomHeroCandidatesOf(
   filter: RosterFilter,
   ranking: ReadonlyMap<string, number> | null,
   ownIdentityCardId: string | undefined,
+  rankedFor: string | null = null,
 ): readonly RandomHeroCandidate[] {
+  if (searchPending(filter, rankedFor)) return [];
   return takeableHeroesOf(deckOptions, blockedBy, filter, ranking)
     .filter(({ shown, option }) => shown && (option.deck.identityCardId as string) !== ownIdentityCardId)
     .map(({ option }) => ({

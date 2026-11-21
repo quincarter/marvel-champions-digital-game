@@ -109,6 +109,7 @@ import { seatOptions, type SeatOption } from "../view/seats.js";
 import {
   heroPassesChips,
   randomHeroCandidatesOf,
+  searchPending,
   randomHeroDeck,
   takeableHeroesOf,
   type RandomHeroCandidate,
@@ -384,6 +385,8 @@ export class SeatsScene extends Phaser.Scene {
   /** Text search runs in a worker (view/deck-search-client.ts); #ranking is its last answer, shown until the next one arrives. Null when no search is active. */
   readonly #search = new DeckSearchClient();
   #ranking: ReadonlyMap<string, number> | null = null;
+  /** The search text #ranking answers; Random waits while the field holds another (`searchPending`, #916 review). */
+  #rankedFor: string | null = null;
   #searchDocsFor: readonly DeckOption[] | null = null;
 
   constructor() {
@@ -857,7 +860,13 @@ export class SeatsScene extends Phaser.Scene {
         rect: layout.random,
         onClick: randomHero,
         enabled: randomAvailable,
-        ...(randomAvailable ? {} : { reason: t("seats.randomHeroNone") }),
+        ...(randomAvailable
+          ? {}
+          : {
+              reason: searchPending(this.#draft.heroFilter, this.#rankedFor)
+                ? t("seats.randomHeroSearching")
+                : t("seats.randomHeroNone"),
+            }),
       }),
     );
     if (randomAvailable) this.#stops.set("hero-random", { rect: layout.random, activate: randomHero });
@@ -1398,6 +1407,7 @@ export class SeatsScene extends Phaser.Scene {
       this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: "" });
       this.#search.cancel();
       this.#ranking = null;
+      this.#rankedFor = null;
     }
     this.#rebuild();
     if (this.#searchOpen) this.#searchInput?.focus();
@@ -1480,12 +1490,14 @@ export class SeatsScene extends Phaser.Scene {
     if (text.trim() === "") {
       this.#search.cancel();
       this.#ranking = null;
+      this.#rankedFor = null;
       this.#rebuild();
       return;
     }
     this.#search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rankedFor = text;
       this.#rebuild();
     });
   }
@@ -1507,6 +1519,7 @@ export class SeatsScene extends Phaser.Scene {
       this.#draft.heroFilter,
       this.#ranking,
       ownDeckId ? this.#identityOfDeck.get(ownDeckId) : undefined,
+      this.#rankedFor,
     );
   }
 

@@ -72,9 +72,9 @@ export const MARIA_HILL_IDENTITY: AbilityRegistry = defineAbilities({
 
   "50001a.reassignment": action(
     { limit: oncePerRound, while: CAN_REASSIGN },
-    chooseTarget("from", SHIELD_SUPPORT_WITH_COUNTER, { prompt: "Move a counter FROM which S.H.I.E.L.D. support?" }),
+    chooseTarget("from", SHIELD_SUPPORT_WITH_COUNTER, { prompt: "choicePrompt.reassignmentFrom" }),
     chooseTarget("to", query("support", { trait: SHIELD, excludeSlots: ["from"] }), {
-      prompt: "Move the counter TO which S.H.I.E.L.D. support?",
+      prompt: "choicePrompt.reassignmentTo",
     }),
     moveCounters(chosen("from"), chosen("to"), "any", 1),
   ),
