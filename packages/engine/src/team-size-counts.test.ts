@@ -310,13 +310,19 @@ describe("a value that belongs to no team keeps the count of the whole table", (
     expect(perPlayerCountAt(state, state.mainScheme.instanceId)).toBe(3);
   });
 
-  it("a value read without its card, a card in an encounter deck, and an area no team plays in", () => {
+  it("a value read without its card, and an area no team plays in", () => {
     expect(scaleIn(state, perPlayerOnly(3))).toBe(9);
     expect(printedCostOf(state, SQUAD)).toBe(6);
-    const inDeck = state.encounterDecks[state.encounterDeckOrder[0]!]!.deck[0]!;
-    expect(perPlayerCountAt(state, inDeck)).toBe(3);
     expect(perPlayerCount(state, null)).toBe(3);
     expect(perPlayerCount(state, { areaId: gameAreaId("a9") })).toBe(3);
+  });
+
+  it("a card in an encounter deck counts the team that faces that deck (MC56 p. 15, competitive plan M1)", () => {
+    // Each team's half of the table holds the encounter deck it faces (MC56 p. 15), so its cards are in that team's
+    // game area (`areaOfCard`); team one (2 players) faces the first leader's deck, team two (1) the second's.
+    const [first, second] = state.encounterDeckOrder.map((deckId) => state.encounterDecks[deckId]!.deck[0]!);
+    expect(perPlayerCountAt(state, first)).toBe(2);
+    expect(perPlayerCountAt(state, second)).toBe(1);
   });
 
   it("the table's own counts: the players who started, and the player side scheme limit", () => {

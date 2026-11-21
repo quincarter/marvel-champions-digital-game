@@ -89,7 +89,9 @@ export function withoutPacks(config: SessionConfig): SessionConfig {
     config.room === undefined &&
     config.roomPlayMode === undefined &&
     config.roomUndo === undefined &&
-    config.roomCheats === undefined
+    config.roomCheats === undefined &&
+    config.roomTeams === undefined &&
+    config.localSeats === undefined
   ) {
     return config;
   }
@@ -100,6 +102,8 @@ export function withoutPacks(config: SessionConfig): SessionConfig {
     roomPlayMode: _roomPlayMode,
     roomUndo: _roomUndo,
     roomCheats: _roomCheats,
+    roomTeams: _roomTeams,
+    localSeats: _localSeats,
     ...rest
   } = config;
   return rest;

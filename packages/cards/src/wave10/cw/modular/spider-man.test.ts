@@ -210,13 +210,11 @@ describe("registry", () => {
     });
   });
 
-  it("the competitive sentences are written in full, not dropped", () => {
-    expect(competitiveOnlyTexts(MODULAR_SPIDER_MAN["56182.when-revealed"]!)).toEqual([
-      "In competitive mode, remove 2 threat from your leader's main scheme.",
-    ]);
-    expect(competitiveOnlyTexts(MODULAR_SPIDER_MAN["56183.when-revealed"]!)).toEqual([
-      "In competitive mode, move 2 threat from your leader's main scheme to this scheme.",
-    ]);
+  it("the competitive sentences are scripted against your leader's main scheme (M3), no marker left", () => {
+    for (const ref of ["56182.when-revealed", "56183.when-revealed"]) {
+      expect(competitiveOnlyTexts(MODULAR_SPIDER_MAN[ref]!)).toEqual([]);
+      expect(JSON.stringify(MODULAR_SPIDER_MAN[ref])).toContain('"of":"yourLeader"');
+    }
   });
 
   it("setup: the encounter deck holds one copy of each card, and two of Tangled Up", () => {

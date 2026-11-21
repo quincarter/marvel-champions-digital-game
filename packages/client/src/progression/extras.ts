@@ -51,7 +51,7 @@ import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
-import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { ACHIEVEMENTS } from "./achievements.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId, type TeamUpTrophy } from "./team-up-trophies.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
@@ -99,7 +99,8 @@ export const NO_EXTRAS_PROGRESS: ExtrasProgress = {
  * The save statuses of a game that has ended. An `active` game is still being played, however many are (#276), so it
  * opens nothing yet: Game over announces the files a game opens when it ends. `incompatible` never loads.
  */
-const ENDED = new Set(["won", "lost", "abandoned"]);
+/** `tie`: a competitive game (issue #883), played and neither won nor lost. */
+const ENDED = new Set(["won", "lost", "tie", "abandoned"]);
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();
 
@@ -150,14 +151,16 @@ export function extrasProgressOf(
   const ended = saves.filter(
     (save) => ENDED.has(save.status) && !isLessonSave(save) && !isCustomSave(save) && !isAdjustedSave(save),
   );
-  const won = ended.filter((save) => save.status === "won");
+  // A competitive game counts as played only: never a win or a loss here (the owner, 2026-11-20; issue #883).
+  const results = ended.filter((save) => !isCompetitiveSave(save));
+  const won = results.filter((save) => save.status === "won");
   return {
     playedHeroIds: unique(
       ended.flatMap((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
     ),
     playedScenarioIds: unique(ended.map((save) => save.config.scenarioId)),
-    wonScenarioIds: unique(ended.filter((save) => save.status === "won").map((save) => save.config.scenarioId)),
-    lostScenarioIds: unique(ended.filter((save) => save.status === "lost").map((save) => save.config.scenarioId)),
+    wonScenarioIds: unique(won.map((save) => save.config.scenarioId)),
+    lostScenarioIds: unique(results.filter((save) => save.status === "lost").map((save) => save.config.scenarioId)),
     reachedIssues: unique(
       campaigns.flatMap((run) => [
         ...Object.keys(run.position.resolved).map((nodeId) => issueKey(run.campaignId, nodeId)),

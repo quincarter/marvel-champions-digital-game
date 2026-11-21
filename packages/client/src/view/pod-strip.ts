@@ -20,6 +20,8 @@ export interface PodStripLine {
   readonly kind: "shared" | "tables" | "time" | "targets" | "wait" | "banner" | "outcome";
   readonly text: string;
   readonly tone: StripTone;
+  /** A wrapped line that carries on the one above it: drawn hanging-indented, with no marker of its own. */
+  readonly continued?: boolean;
 }
 
 export interface PodStrip {
@@ -163,5 +165,40 @@ export function wrapLine(line: PodStripLine, maxChars: number): PodStripLine[] {
     } else current = joined;
   }
   if (current !== "") out.push(current);
-  return out.map((text) => ({ ...line, text }));
+  return out.map((text, index) => (index === 0 ? { ...line, text } : { ...line, text, continued: true }));
+}
+
+/**
+ * `items` joined by `separator` into lines of at most `maxChars`, an item never split across two lines (a leader's
+ * name stays whole); `prefix` ("Registration table:") leads the first line, or stands alone when no item fits beside it.
+ * An item longer than a line on its own is wrapped at its spaces, as `wrapLine` does.
+ */
+export function packItems(items: readonly string[], separator: string, maxChars: number, prefix = ""): string[] {
+  const lines: string[] = [];
+  let current = prefix;
+  for (const item of items) {
+    const joined =
+      current === ""
+        ? item
+        : prefix !== "" && current === prefix
+          ? `${current} ${item}`
+          : `${current}${separator}${item}`;
+    if (current !== "" && joined.length > maxChars) {
+      lines.push(current);
+      current = item;
+    } else current = joined;
+  }
+  if (current !== "") lines.push(current);
+  // An item too long for a line breaks before its parenthesis first ("Spider-Man (Peter Parker) 10/10" / "(6 in hand)"),
+  // then at spaces.
+  return lines.flatMap((text) => {
+    if (text.length <= maxChars) return [text];
+    const at = text.lastIndexOf(" (");
+    const parts = at > 0 ? [text.slice(0, at), text.slice(at + 1)] : [text];
+    return parts.flatMap((part) =>
+      part.length <= maxChars
+        ? [part]
+        : wrapLine({ kind: "shared", text: part, tone: "plain" }, maxChars).map((l) => l.text),
+    );
+  });
 }

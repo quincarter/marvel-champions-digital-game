@@ -1,7 +1,8 @@
 import type { AbilityId, CardId, CoreAspect, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
+import type { CompetitiveClose, CompetitiveTrigger } from "./competitive-outcome.js";
 import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { RulesCardType } from "./card-types.js";
-import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId, TeamId } from "./ids.js";
 import type { CardPosition, ChoiceBehalf, PendingChoice, UnavailableOptions } from "./choices.js";
 import type { Adjustment, DelegableCostPart } from "./commands.js";
 import type { GroupId } from "./ids.js";
@@ -1753,7 +1754,43 @@ export type GameEvent =
    * scenario, and `startingPlayerCount` is the count every per player value reads from now on.
    */
   | { readonly type: "playerSatOut"; readonly playerId: PlayerId; readonly startingPlayerCount: number }
-  | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
+  /**
+   * The first player token passed. `teamId`: in a game with two teams, the team whose own token it is (MC56 p. 16:
+   * "each team has its own first player token"); absent in every other game.
+   */
+  | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId; readonly teamId?: TeamId }
+  /**
+   * Setup made a game with two teams (docs/competitive-mode-plan.md M1; MC56 pp. 14-15): each team, in team order
+   * (registration first), with its seats, the game area it plays in, the leader, main scheme and encounter deck it
+   * faces (the scenario the other team built), its first player, and its own leader's four basic player cards set
+   * aside. Logged once, right after `gameCreated`.
+   */
+  | {
+      readonly type: "teamsFormed";
+      readonly teams: readonly {
+        readonly teamId: TeamId;
+        readonly side: "registration" | "resistance" | null;
+        readonly playerIds: readonly PlayerId[];
+        readonly areaId: GameAreaId;
+        readonly leaderInstanceId: InstanceId;
+        readonly mainSchemeInstanceId: InstanceId;
+        readonly encounterDeckId: EncounterDeckId;
+        readonly firstPlayerId: PlayerId;
+        readonly leaderCardIds: readonly InstanceId[];
+      }[];
+    }
+  /**
+   * Another team's phase begins (`GameState.activeTeamId`; MC56 p. 16), or, during setup, another team's game area
+   * sets up (`GameStep teamScenarioSetup`). `firstPlayerId` and `activeVillainId` are what `GameState.firstPlayerId`
+   * and `GameState.activeVillainId` read from now on: that team's token holder and the leader it faces.
+   */
+  | {
+      readonly type: "activeTeamChanged";
+      readonly teamId: TeamId;
+      readonly phase: "setup" | "player" | "villain";
+      readonly firstPlayerId: PlayerId;
+      readonly activeVillainId: InstanceId;
+    }
   | { readonly type: "choiceRequested"; readonly choice: PendingChoice }
   | {
       readonly type: "choiceResolved";
@@ -2491,7 +2528,16 @@ export type GameEvent =
    * nothing in the rules answers it.
    */
   | { readonly type: "manualAdjustment"; readonly playerId: PlayerId; readonly adjustment: Adjustment }
-  | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
+  | { readonly type: "gameEnded"; readonly outcome: GameOutcome }
+  /**
+   * A competitive team met a win condition (MC56 p. 17; `competitive-outcome.ts`): the game goes on to the end of
+   * `closesAfter`, the phase that gives both sides the same number of phases, and then ends.
+   */
+  | {
+      readonly type: "teamResultRecorded";
+      readonly trigger: CompetitiveTrigger;
+      readonly closesAfter: CompetitiveClose;
+    };
 
 export type GameEventType = GameEvent["type"];
 

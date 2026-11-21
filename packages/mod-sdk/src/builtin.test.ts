@@ -63,20 +63,7 @@ const requiresOf = (pack: BuiltinPack): readonly BuiltinPack[] =>
  * The card abilities a built-in pack leaves unscripted, by pack id. A script dropped from a pack shows up as
  * unscripted and fails the test; a product with known gaps lists them here.
  */
-const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {
-  // Synthezoid Smackdown's competitive leader cards: competitive mode isn't shipped
-  // (`wave10/synthezoid/competitive/leader-cards.ts`).
-  synthezoid: [
-    "57032.youre-out-of-order-interrupt",
-    "57033.she-hulk-smash-action",
-    "57034.make-me-angry-forced-response",
-    "57035.legal-counsel-response",
-    "57074.calculated-risk-action",
-    "57075.synthezoid-strike-action",
-    "57076.phased-out-action",
-    "57077.android-assistance-interrupt",
-  ],
-};
+const KNOWN_UNSCRIPTED: Readonly<Record<string, readonly string[]>> = {};
 
 describe("built-in packs through the SDK", () => {
   it.each(BUILTIN_PACKS.map((pack) => [pack.manifest.id, pack] as const))("%s passes the SDK's checks", (id, pack) => {

@@ -181,6 +181,7 @@ import {
 import { cancelThwartSession, foldThwartInstance, openThwartSession, thwartSessionOf } from "./thwart-session.js";
 import { awaitEnclosingAbility, dropHeldResponses, refreshHeldResponses } from "./initiated-activation.js";
 import { pushUsingAfterWould, startCharacterBoost } from "./villainous.js";
+import { firstPlayerOfCard } from "../team-phases.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   // The attack this `characterAttacked` belongs to ended with its player's elimination (RRG 1.8 p. 34): no retaliate,
@@ -1045,7 +1046,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "phaseEnding":
       // The phase's (and at the villain phase's end, the round's) delayed effects, between the interrupts and the
       // responses (RRG 1.8 "Delayed Effect", p. 16; docs/phase7-wave3.md §3.2).
-      pushPhaseEndDelayed(ctx, event.phase);
+      pushPhaseEndDelayed(ctx, event.phase, event.roundContinues === true);
       return;
     case "surgeResolving":
       resolveSurge(ctx, event.instanceId, event.playerId);
@@ -2813,7 +2814,7 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
     null,
   );
   pushFrames(ctx, [
-    ...gameAbilityFrames(ctx, schemeId, ["whenDefeated"], event, undefined, ctx.state.firstPlayerId),
+    ...gameAbilityFrames(ctx, schemeId, ["whenDefeated"], event, undefined, firstPlayerOfCard(ctx.state, schemeId)),
     effectsFrame,
   ]);
 }

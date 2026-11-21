@@ -4,7 +4,6 @@ import {
   boostCardOf,
   chooseTarget,
   chosen,
-  competitiveOnly,
   constant,
   countOf,
   defineAbilities,
@@ -26,6 +25,13 @@ import {
   whenRevealed,
   you,
   boost,
+  enemyAttacksEnemy,
+  yourLeader,
+  allOf,
+  refCount,
+  valueAtLeast,
+  enemyTeamChooses,
+  atEndOfActivation,
 } from "../../../dsl/index.js";
 import { STREET_DEFENDERS } from "./defenders.js";
 
@@ -60,20 +66,42 @@ const MINION = query("minion");
  * - 56090 Excessive Force (treachery)
  * - 56091 Dangerous Recruits (side_scheme)
  */
+/** "An attachment from your leader": on the other side of the table, which the card names (MC56 p. 16). */
+const ATTACHMENT_ON_YOUR_LEADER = query("attachment", {
+  host: yourLeader,
+  anyGameArea: true,
+  // A permanent card cannot leave play (RRG 1.8 "Permanent", p. 32), so it is no target for a discard.
+  withoutKeyword: "permanent",
+});
+
+/** Whether "your leader" is in play: none in a cooperative game (MC56 p. 6), nor once it has left play. */
+const YOUR_LEADER_IN_PLAY = valueAtLeast(refCount(yourLeader), 1);
+
 export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
   "56087.venom-constant": constant(attacksGainKeywords(["piercing"], { attacker: { self: true } })),
   "56087.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
-      [competitiveOnly("Venom attacks your leader.")],
+      // "Your leader" must be in play to be attacked (as Provoked Response); with none (a cooperative game, MC56 p. 6,
+      // or a leader that has left play) the "Otherwise" sentence resolves.
+      allOf(inCompetitiveMode(), YOUR_LEADER_IN_PLAY),
+      // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
+      // covers leader attacks only. So a plain minion's attack on your leader is dealt none (`getsBoostCard`), and one
+      // that is villainous gets one from the deck of the area it is in (N5), turned by that team's first player.
+      [enemyAttacksEnemy(self, yourLeader, { boost: true })],
       enemyActivates(self, { against: you }),
     ),
   ),
 
   "56088.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
-      [competitiveOnly("The enemy team discards an attachment from your leader.")],
+      // The attachment is on the other side of the table, which the card names (MC56 pp. 16-17, 20 (scenario rules
+      // override RRG per Golden Rule, RRG p. 4)). Otherwise (none there, or a cooperative game with no "your leader")
+      // an upgrade you control.
+      exists(ATTACHMENT_ON_YOUR_LEADER),
+      [
+        chooseTarget("attachment", ATTACHMENT_ON_YOUR_LEADER, { chooser: enemyTeamChooses }),
+        discard(chosen("attachment")),
+      ],
       // No "choose": an encounter card targeting one of several eligible cards; the first player selects
       // (RRG 1.8 "First Player", p. 19).
       [
@@ -87,11 +115,10 @@ export const MODULAR_DANGEROUS_RECRUITS: AbilityRegistry = defineAbilities({
 
   "56090.when-revealed": whenRevealed(ifThen(exists(MINION), placeThreat(countOf(MINION), theMainScheme), surge())),
   "56090.boost": boost(
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly(
-        "The enemy leader attacks your leader (after this activation). Do not give it a boost card for that attack.",
-      ),
-    ]),
+    // "The enemy leader attacks your leader after this activation" with no boost card dealt for it (MC56 pp. 16-17, 20
+    // (scenario rules override RRG per Golden Rule, RRG p. 4)): p. 16 steps 1-3 skipped; boost cards already facedown
+    // on the leader are still turned (owner question pending, built at A).
+    atEndOfActivation(enemyAttacksEnemy(enemyLeader, yourLeader, { boost: "held" })),
   ),
 
   "56091.dangerous-recruits-forced-interrupt": forcedInterrupt(

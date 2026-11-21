@@ -52,6 +52,13 @@ export interface ProposalCheck {
   readonly players: readonly string[];
   /** The proposal, as it came off the wire (anything). */
   readonly command: unknown;
+  /**
+   * Competitive rooms (issue #883): the team of an engine player, from the lobby. Absent in every other room. With it, a
+   * seat of the team that is not on turn may not take an off-turn Action (the cooperative rule that any hero may act in
+   * the hero phase would otherwise let the other team move): only the active player's own team acts, and a choice
+   * addressed to a seat's player is still its answer to give (a card's "enemy team" choice, a triggered ability).
+   */
+  readonly teamOf?: (playerId: string) => string | undefined;
   /** The room's mode: a Manual adjust is never a proposal (it is a request the host performs). */
   readonly strict: boolean;
 }
@@ -70,14 +77,24 @@ const asCommand = (value: unknown): Command | null => {
 
 export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   const { state, count, base, players, strict } = check;
-  if (base !== count) return { ok: false, reason: "stale" };
-  if (check.stamp === undefined || check.stamp !== check.stampNow()) return { ok: false, reason: "stale" };
   const command = asCommand(check.command);
+  // A concession needs no fresh table: giving up holds whatever moved since the proposal was built (#883, N12 A).
+  const concession = command?.type === "concede" && check.teamOf !== undefined && players.includes(command.playerId);
+  if (!concession) {
+    if (base !== count) return { ok: false, reason: "stale" };
+    if (check.stamp === undefined || check.stamp !== check.stampNow()) return { ok: false, reason: "stale" };
+  }
   if (!command) return { ok: false, reason: "illegal" };
   // Adjusting the table is the host's own act, after it accepts a request: a seat never proposes one.
   if (command.type === "adjust") return { ok: false, reason: strict ? "strict" : "illegal" };
   // Giving the game up ends it for the whole table: a seat asks the host for it (a `concede` request), never proposes it.
-  if (command.type === "concede") return { ok: false, reason: "illegal" };
+  // In a Competitive room (#883, plan N12 A) a seat may propose it for itself: the team's forfeit, or `alone` to leave a
+  // 2v2 alone. It is the proposer's own seat's concession only, never another seat's, and the engine decides what it means.
+  if (command.type === "concede") {
+    return check.teamOf !== undefined && players.includes(command.playerId)
+      ? { ok: true, command }
+      : { ok: false, reason: "illegal" };
+  }
   // Authority-only commands (`isAuthorityCommand`): an inbound pod event and a release of a pod wait never come from a seat.
   if (command.type === "externalEvent" || command.type === "podRelease") return { ok: false, reason: "illegal" };
   const acting = actingPlayer(state);
@@ -89,6 +106,11 @@ export function judgeProposal(check: ProposalCheck): ProposalVerdict {
   }
   if (command.playerId === (acting as PlayerId)) return { ok: true, command };
   // A seat the table is not waiting on: only an off-turn Action in a player turn can be legal, and the engine judges it.
-  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn") return { ok: true, command };
+  // In a Competitive room only the active player's own team may: the other team has no actions this phase (Q11 A).
+  const mineTeam = check.teamOf?.(command.playerId);
+  const sameSide = check.teamOf === undefined || (mineTeam !== undefined && mineTeam === check.teamOf(acting));
+  if (!state.pendingChoice && state.step.phase === "player" && state.step.kind === "turn" && sameSide) {
+    return { ok: true, command };
+  }
   return { ok: false, reason: "not-your-turn" };
 }

@@ -6,7 +6,7 @@
  * routing is tested without a room, a worker or an engine.
  */
 import type { CorePlayer } from "@mc/cards";
-import type { DeckRefusalCode, LobbyMod } from "@mc/sync-worker/room-protocol";
+import type { DeckRefusalCode, LobbyMod, RoomDeck } from "@mc/sync-worker/room-protocol";
 import type { SessionConfig } from "../engine/host.js";
 import { playerOfRoomDeck, type RoomDeckCheckInput, type SeatDeckVerdict } from "./room-deck.js";
 import type { RoomState, SeatDeckEntry } from "./room-state.js";
@@ -48,6 +48,11 @@ export interface RoomStartDeps {
    * not the room's host. Absent: every seat of a room's one table, host only.
    */
   readonly seatIds?: readonly string[];
+  /**
+   * A mode's own rules on top of the deck check (Civil War Competitive: a hero may not share a title with its own
+   * team's leader), judged once every deck passed. Each refusal is told to that seat's holder alone.
+   */
+  readonly extraCheck?: (decks: ReadonlyMap<string, RoomDeck>) => readonly SeatDeckRefusal[];
   /** Starts the game on this device (it carries the room, watching and play mode itself) and says why if it failed. */
   readonly start: (config: SessionConfig) => Promise<string | null>;
 }
@@ -83,6 +88,11 @@ export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Pr
   const refused: SeatDeckRefusal[] = [];
   for (const verdict of verdicts) {
     if (!verdict.ok) refused.push({ seat: verdict.seat, code: verdict.code, reason: verdict.reason });
+  }
+  if (refused.length === 0 && deps.extraCheck) {
+    const decks = new Map<string, RoomDeck>();
+    for (const [seat, deck] of byseat) decks.set(seat, deck);
+    refused.push(...deps.extraCheck(decks));
   }
   if (refused.length > 0) {
     for (const refusal of refused) deps.refuse(refusal);

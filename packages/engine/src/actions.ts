@@ -322,9 +322,12 @@ import {
 } from "./form-change-cost.js";
 import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { characterTitledAs } from "./titles.js";
+import { inactiveTeamMessage, teamOf } from "./team.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
 export function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+  const inactive = inactiveTeamMessage(state, playerId);
+  if (inactive) return engineError("inactive_team", inactive, command);
   const step = state.step;
   if (step.phase !== "player" || step.kind !== "turn") {
     return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);
@@ -354,6 +357,9 @@ const TURNS_ENDED_MESSAGE = "the player turns have ended; a Forced Action must b
  * of the command reads the acting player, exactly as on their own turn.
  */
 function requireActionTiming(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
+  // Not even an Action offered during another player's turn: the inactive team takes no action (Q11 A).
+  const inactive = inactiveTeamMessage(state, playerId);
+  if (inactive) return engineError("inactive_team", inactive, command);
   const step = state.step;
   if (step.phase !== "player" || step.kind !== "turn") {
     return engineError("wrong_phase", `cannot act during ${step.phase}/${step.kind}`, command);
@@ -784,7 +790,7 @@ export function playRestrictionFault(
   card: AnyCard,
   instanceId: InstanceId,
 ): PriceFault | null {
-  const teamUp = teamUpFault(state, card);
+  const teamUp = teamUpFault(state, playerId, card);
   if (teamUp) return teamUp;
   const prerequisite = prerequisiteFault(state, deps, playerId, card);
   if (prerequisite) return prerequisite;
@@ -867,17 +873,30 @@ function prerequisiteFault(state: GameState, deps: EngineDeps, playerId: PlayerI
  * "Friendly", p. 21); an identity's title is the face that is up (docs/phase7-wave2.md §3.5). The deckbuilding half is
  * `validateDeck`'s.
  */
-function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
+function teamUpFault(state: GameState, playerId: PlayerId, card: AnyCard): PriceFault | null {
   const keyword = "keywords" in card ? card.keywords.find((k) => k.name === "teamUp") : undefined;
   if (keyword?.name !== "teamUp") return null;
   if (!keyword.names)
     return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
   // Friendly characters: every player's identity and the allies in play they control (`characterTitledAs` reads an
   // identity's faceup title, an ally's title or subtitle, and a "Hero/Alter-ego" name; docs/phase7-wave3.md §3.34).
-  const friendly = playerOrder(state).flatMap((player) => [
-    player.identity.instanceId,
-    ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),
-  ]);
+  // Competitive (MC56 pp. 16, 20): "friendly" = cards your team controls (RRG 1.8 "Friendly" p. 21; "the players" =
+  // your team); the other side's characters do not satisfy Team-Up (RRG p. 43).
+  // Your own leader is no friendly character either: it is not in play on your side (MC56 p. 20; provisional, rules
+  // expert 2026-11-20). With one team (every cooperative game) the team is every player.
+  // Kang separate game areas: Team-Up (RRG 1.8 p. 43) counts only friendly characters in the player's own game area.
+  // Kang insert: "Cards and components in one game area cannot affect another game area" (and "a unique card in one
+  // game area places no limitations on the others"); FFG ruling Mar 6, 2025 (Azazel). Environments / stage 2B are in
+  // every area (RRG 1.8 FAQ p. 60) but are not characters.
+  const team = teamOf(state, playerId).playerIds;
+  const area = areaOfPlayer(state, playerId);
+  const friendly = playerOrder(state)
+    .filter((player) => team.includes(player.playerId))
+    .filter((player) => sameGameArea(area, areaOfPlayer(state, player.playerId)))
+    .flatMap((player) => [
+      player.identity.instanceId,
+      ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),
+    ]);
   const missing = keyword.names.filter((name) => !friendly.some((id) => characterTitledAs(state, id, name)));
   return missing.length === 0
     ? null

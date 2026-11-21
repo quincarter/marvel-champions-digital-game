@@ -1,4 +1,4 @@
-import { modeOnlyFlipped, scale } from "./query.js";
+import { modeOnlyFlipped, scale, sharedMainSchemes } from "./query.js";
 import type {
   AnyCard,
   CardId,
@@ -24,10 +24,27 @@ import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError, type IllegalDeck } from "./errors.js";
 import { runFlow } from "./flow.js";
 import type { OutsideFacts } from "./outside-facts.js";
-import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
+import {
+  encounterDeckId,
+  gameAreaId,
+  instanceId,
+  playerId,
+  teamId,
+  type EncounterDeckId,
+  type InstanceId,
+  type PlayerId,
+} from "./ids.js";
+import type { TeamState } from "./team.js";
 import { linkedKeywordNames, linkedKeywordsOf, linkedNameKey } from "./linked.js";
 import { podSetupFault, type PodSetup, type PodState } from "./pod.js";
 import { COMPETITIVE_MODE_UNAVAILABLE_MESSAGE, type GameMode } from "./game-mode.js";
+import {
+  competitiveAsVillainsConfig,
+  competitiveSetupFault,
+  teamFirstSeat,
+  teamIndexOfSeat,
+  type CompetitiveSetup,
+} from "./competitive-setup.js";
 import { createRng, nextInt, type RngState } from "./rng.js";
 import {
   FIRST_CAMPAIGN_STEP,
@@ -42,6 +59,7 @@ import {
   type CardHome,
   type CardInstance,
   type EncounterDeckState,
+  type GameAreaState,
   type GameState,
   type MainSchemeState,
   type PlayerState,
@@ -423,10 +441,17 @@ export interface GameSetupConfig {
    */
   readonly pod?: PodSetup;
   /**
-   * The game mode (docs/phase7-wave10.md §1.9, §3.4). Absent: cooperative. `"competitive"` is refused with
-   * `mode_unavailable`, before anything else about the config is judged.
+   * The game mode (docs/phase7-wave10.md §1.9, §3.4). Absent: cooperative. `"competitive"` needs `competitive`, the two
+   * teams' traded scenarios; without it (a single scenario's builder) it is refused with `mode_unavailable`, before
+   * anything else about the config is judged.
    */
   readonly gameMode?: GameMode;
+  /**
+   * The two teams of a competitive game and the scenario each faces (`CompetitiveSetup`; docs/competitive-mode-plan.md
+   * M1). Only with `gameMode: "competitive"`. `villainCardId` and `mainSchemeCardId` are then read from the teams'
+   * scenarios, and `encounterDeck` must be empty.
+   */
+  readonly competitive?: CompetitiveSetup;
 }
 
 /**
@@ -968,20 +993,33 @@ function planMainSchemeChoice(
 
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
-  // The mode is judged first, so its message never depends on what else is wrong with the config.
-  if (requested.gameMode === "competitive") {
+  // The mode is judged first, so its message never depends on what else is wrong with the config. A single scenario's
+  // builder cannot make a competitive game: it needs both teams' traded scenarios (`competitive`, MC56 p. 14).
+  if (requested.gameMode === "competitive" && requested.competitive === undefined) {
     return { ok: false, error: engineError("mode_unavailable", COMPETITIVE_MODE_UNAVAILABLE_MESSAGE) };
   }
+  if (requested.competitive !== undefined && requested.gameMode !== "competitive")
+    return invalid('the two teams\' scenarios (`competitive`) need gameMode "competitive"');
   // The input may come from a save file or another device.
-  if (requested.gameMode !== undefined && requested.gameMode !== "cooperative") {
+  if (
+    requested.gameMode !== undefined &&
+    requested.gameMode !== "cooperative" &&
+    requested.gameMode !== "competitive"
+  ) {
     return invalid(`gameMode must be "cooperative" or "competitive", not ${String(requested.gameMode)}`);
   }
   if (requested.heroicLevel !== undefined && (!Number.isInteger(requested.heroicLevel) || requested.heroicLevel < 0)) {
     return invalid(`the heroic level must be a whole number of at least 0, not ${String(requested.heroicLevel)}`);
   }
+  // A competitive game is built as a game with one villain per team (`competitiveAsVillainsConfig`).
+  const competitive: CompetitiveSetup | null = requested.competitive ?? null;
+  if (competitive) {
+    const fault = competitiveSetupFault(requested);
+    if (fault) return invalid(fault);
+  }
   // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
   let rng = createRng(requested.seed);
-  let config = requested;
+  let config = competitive ? competitiveAsVillainsConfig(requested) : requested;
   if (requested.randomStartingVillain) {
     const candidates = [requested.villainCardId, ...(requested.setAsideVillainCardIds ?? [])];
     const [pick, next] = nextInt(rng, candidates.length);
@@ -1071,6 +1109,33 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     ...blankInstance(mainSchemeInstanceId, centralSchemeCard.id, null, ACTIVE_DECK_HOME),
     faceup: true,
   };
+  // The second team's main scheme deck (MC56 pp. 14-15), beside the first team's and homed to its own leader's deck.
+  // It is the only extra main scheme of a competitive game: `pickedSchemes` (a main scheme per player) never exists
+  // alongside it, because `competitiveSetupFault` refuses `mainSchemeChoice`.
+  let secondTeamScheme: MainSchemeState | null = null;
+  if (competitive) {
+    const faces = competitive.teams[1].faces;
+    const card = pool[faces.mainSchemeCardId];
+    if (!card || card.type !== "main_scheme") return invalid(`${faces.mainSchemeCardId} is not a main scheme card`);
+    const order = faces.mainSchemeStageIndexes === undefined ? undefined : [...faces.mainSchemeStageIndexes];
+    const problem = order ? mainSchemeStageIndexesProblem(card, order) : null;
+    if (problem) return invalid(problem);
+    const id = nextId();
+    instances[id] = {
+      ...blankInstance(id, card.id, null, { kind: "encounterDeck", deckId: deckOf(1) }),
+      faceup: true,
+    };
+    secondTeamScheme = {
+      instanceId: id,
+      cardId: card.id,
+      stageIndex: order?.[0] ?? 0,
+      completed: false,
+      accelerationTokens: 0,
+      ...(order ? { stageOrder: order } : {}),
+      faceupSide: "A",
+      gameAreaId: gameAreaId("a2"),
+    };
+  }
   // The other seats' schemes, faceup in play like the central one, then the unused ones, set aside out of play
   // (Protection Racket 1A; docs/phase7-wave11-scenarios.md §S3.1). The set-aside ones join `encounterSetAside` first.
   const pickedSchemes: { readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly pick: SchemePick }[] =
@@ -1091,6 +1156,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
 
   const players: PlayerState[] = [];
   const obligationIds: InstanceId[] = [];
+  /** The seat of each of `obligationIds`, in the same order. */
+  const obligationSeats: number[] = [];
   /**
    * Every identity already seated, in seat order. RRG 1.8 "Unique Icon": "When choosing
    * identities during setup, players cannot choose identities that match." Matching is a
@@ -1232,7 +1299,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       setAside.push(separatedCardInstanceId);
     }
     // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
-    // villain's (ruling, Jan 17, 2026 (5)).
+    // villain's (ruling, Jan 17, 2026 (5)). With two teams, to the deck of the player's own game area, the deck the
+    // obligation is shuffled into (MC56 FAQ p. 20; Q16 A per owner decision 2026-11-20).
+    const identitySetHome: CardHome = competitive
+      ? { kind: "encounterDeck", deckId: deckOf(teamIndexOfSeat(competitive, seatIndex)) }
+      : ACTIVE_DECK_HOME;
     const withObligations = config.includeIdentitySets !== false;
     if (withObligations) {
       const obligation = pool[identityCard.obligationCardId];
@@ -1242,8 +1313,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         // during setup." Scarlet Witch's set holds two copies of Slipping Sanity (FAQ "Slipping Sanity (#23)", p. 61).
         for (let copy = 0; copy < Math.max(1, obligation.quantityInSet); copy++) {
           const obligationInstanceId = nextId();
-          instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, ACTIVE_DECK_HOME);
+          instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, identitySetHome);
           obligationIds.push(obligationInstanceId);
+          obligationSeats.push(seatIndex);
         }
       } else if (config.requireIdentitySets) {
         return invalid(`obligation ${identityCard.obligationCardId} is not in the card pool`);
@@ -1259,7 +1331,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       for (const card of nemesis) {
         for (let copy = 0; copy < card.quantityInSet; copy++) {
           const nemesisInstanceId = nextId();
-          instances[nemesisInstanceId] = blankInstance(nemesisInstanceId, card.id, null, ACTIVE_DECK_HOME);
+          instances[nemesisInstanceId] = blankInstance(nemesisInstanceId, card.id, null, identitySetHome);
           setAside.push(nemesisInstanceId);
         }
       }
@@ -1325,8 +1397,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         autoIncluded.push({ included, deckId, shuffledIn: ids, setAside: [] });
       }
     }
-    // RRG Appendix II step 10: obligations are shuffled into the encounter deck — the first (active) villain's.
-    if (index === 0) deck.push(...obligationIds);
+    // RRG Appendix II step 10: obligations are shuffled into the encounter deck — the first (active) villain's. With two
+    // teams, the deck of each player's own game area (MC56 FAQ p. 20; Q16 A per owner decision 2026-11-20).
+    if (competitive)
+      deck.push(...obligationIds.filter((_, at) => teamIndexOfSeat(competitive, obligationSeats[at]!) === index));
+    else if (index === 0) deck.push(...obligationIds);
     encounterDecks[deckId] = { deck, discard: [] };
   }
 
@@ -1417,6 +1492,20 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     encounterSetAside.push(id);
     if (villainChoice && chosenVillainId === undefined && cardId === villainChoice.chosen) chosenVillainId = id;
   }
+  // Each team's own leader's four basic player cards, set aside (MC56 p. 14), ownerless like a campaign's player cards.
+  const leaderCardIds: InstanceId[][] = [];
+  for (const team of competitive?.teams ?? []) {
+    const ids: InstanceId[] = [];
+    for (const cardId of team.leaderPlayerCardIds ?? []) {
+      const card = pool[cardId];
+      if (!card || !("deckLimit" in card)) return invalid(`${cardId} is not a player card to set aside for a team`);
+      const id = nextId();
+      instances[id] = { ...blankInstance(id, card.id, null, PLAYER_HOME), faceup: true };
+      encounterSetAside.push(id);
+      ids.push(id);
+    }
+    leaderCardIds.push(ids);
+  }
   const villains: VillainState[] = plannedVillains.map((planned, index) => {
     let signatureSideSchemeId: InstanceId | null = null;
     if (planned.signatureSideSchemeCardId) {
@@ -1440,7 +1529,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     };
   });
 
-  const firstIndex = config.firstPlayerIndex ?? 0;
+  const firstIndex = competitive ? teamFirstSeat(competitive, 0) : (config.firstPlayerIndex ?? 0);
   const firstPlayer = players[firstIndex];
   if (!firstPlayer) {
     return invalid(`no player at seat ${firstIndex}`);
@@ -1681,7 +1770,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       faceupSide: "A",
       // In the first seat's play area when each player has one (docs/phase7-wave11-scenarios.md §S3.1).
       ...(firstPick ? { playArea: firstPick.playerId } : {}),
+      // In the first team's game area (MC56 p. 15).
+      ...(competitive ? { gameAreaId: gameAreaId("a1") } : {}),
     },
+    ...(secondTeamScheme ? { extraMainSchemes: [secondTeamScheme] } : {}),
     ...(pickedSchemes.length > 1
       ? {
           extraMainSchemes: pickedSchemes
@@ -1697,8 +1789,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
             })),
         }
       : {}),
-    gameAreas: [],
-    nextGameAreaSeq: 1,
+    ...(competitive
+      ? competitiveTables(competitive, players, villains, leaderCardIds)
+      : { gameAreas: [], nextGameAreaSeq: 1 }),
     // Stages left out of a chosen main scheme deck are back in the box: no effect can reach them (§3.2).
     spentMainSchemeStages: mainSchemeStageOrder
       ? mainSchemeCard.stages.flatMap((_, index) => (mainSchemeStageOrder.includes(index) ? [] : [index]))
@@ -1746,6 +1839,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     // No villain is in play until setup text puts one in; open until Appendix II step 12c (docs/phase7-wave7.md §3.42).
     ...(config.villainsStartSetAside ? { villainsEnteringAtSetup: [] } : {}),
     ...(chosenVillainId !== undefined ? { chosenVillainId } : {}),
+    ...(competitive ? { gameMode: "competitive" as const } : {}),
     pendingChoice: null,
     outcome: null,
     rng,
@@ -1762,8 +1856,15 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     firstPlayerId: firstPlayer.playerId,
     seed: config.seed,
   });
+  if (competitive) emit(ctx, teamsFormedEvent(state));
   if (mainSchemeStageOrder)
     emit(ctx, { type: "mainSchemeStagesChosen", schemeInstanceId: mainSchemeInstanceId, order: mainSchemeStageOrder });
+  if (secondTeamScheme?.stageOrder)
+    emit(ctx, {
+      type: "mainSchemeStagesChosen",
+      schemeInstanceId: secondTeamScheme.instanceId,
+      order: secondTeamScheme.stageOrder,
+    });
   if (pickedSchemes.length > 0)
     emit(ctx, {
       type: "mainSchemesChosen",
@@ -1805,4 +1906,75 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   runFlow(ctx);
 
   return { ok: true, state: ctx.state, events: ctx.events };
+}
+
+/**
+ * The game areas, teams and active team of a competitive game (MC56 pp. 14-16): area `a<n>` holds team `t<n>`'s
+ * players and the leader it faces (villain n, in team order), and team one, the registration team, is active first.
+ * Each team's main scheme is a shared stage tagged with its area (`MainSchemeState.gameAreaId`).
+ */
+function competitiveTables(
+  competitive: CompetitiveSetup,
+  players: readonly PlayerState[],
+  villains: readonly VillainState[],
+  leaderCardIds: readonly (readonly InstanceId[])[],
+): Pick<GameState, "gameAreas" | "nextGameAreaSeq" | "teams" | "activeTeamId" | "competitive"> {
+  const gameAreas: GameAreaState[] = [];
+  const teams: TeamState[] = [];
+  for (const [index, team] of competitive.teams.entries()) {
+    const areaId = gameAreaId(`a${index + 1}`);
+    const leader = villains[index]!.instanceId;
+    const playerIds = players
+      .filter((player) => teamIndexOfSeat(competitive, player.seatIndex) === index)
+      .map((player) => player.playerId);
+    gameAreas.push({
+      areaId,
+      playerIds,
+      mainScheme: null,
+      villainIds: [leader],
+      activeVillainId: leader,
+      sideSchemeIds: [],
+      formerSchemeIds: [],
+    });
+    const ids = leaderCardIds[index] ?? [];
+    teams.push({
+      teamId: teamId(`t${index + 1}`),
+      side: team.side,
+      playerIds,
+      areaId,
+      firstPlayerId: players[teamFirstSeat(competitive, index)]!.playerId,
+      ...(ids.length > 0 ? { leaderCardIds: ids } : {}),
+    });
+  }
+  return {
+    gameAreas,
+    nextGameAreaSeq: gameAreas.length + 1,
+    teams,
+    activeTeamId: teams[0]!.teamId,
+    // MC56 p. 17's tie-breaks are applied unless the table turned them off (Q9 C per owner decision 2026-11-20).
+    competitive: { tieBreaks: competitive.tieBreaks ?? true },
+  };
+}
+
+/** The `teamsFormed` log entry of a competitive game's state, as `createGame` built it. */
+function teamsFormedEvent(state: GameState): GameEvent {
+  const schemes = sharedMainSchemes(state);
+  return {
+    type: "teamsFormed",
+    teams: (state.teams ?? []).map((team) => {
+      const area = state.gameAreas.find((candidate) => candidate.areaId === team.areaId)!;
+      const leader = state.villains.find((villain) => villain.instanceId === area.activeVillainId)!;
+      return {
+        teamId: team.teamId,
+        side: team.side,
+        playerIds: team.playerIds,
+        areaId: area.areaId,
+        leaderInstanceId: leader.instanceId,
+        mainSchemeInstanceId: schemes.find((scheme) => scheme.gameAreaId === area.areaId)!.instanceId,
+        encounterDeckId: leader.encounterDeckId,
+        firstPlayerId: team.firstPlayerId ?? team.playerIds[0]!,
+        leaderCardIds: team.leaderCardIds ?? [],
+      };
+    }),
+  };
 }

@@ -171,9 +171,10 @@ describe("the resistance main scheme: registry", () => {
     }
   });
 
-  it("each 1A Setup carries the printed competitive sentence as a marker", () => {
+  it("each 1A Setup scripts the printed competitive sentence, with no marker left (competitive plan M1)", () => {
     for (const ref of REFS.filter((r) => r.endsWith("a.setup"))) {
-      expect(competitiveOnlyTexts(MAIN_SCHEMES_RESISTANCE[ref]!), ref).toEqual([SETUP_SENTENCE]);
+      expect(competitiveOnlyTexts(MAIN_SCHEMES_RESISTANCE[ref]!), `${ref}: ${SETUP_SENTENCE}`).toEqual([]);
+      expect(JSON.stringify(MAIN_SCHEMES_RESISTANCE[ref]), ref).toContain('"names":["Choosing Sides"]');
     }
   });
 });

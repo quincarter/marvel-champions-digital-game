@@ -618,7 +618,7 @@ function stepRevealKeywords(ctx: Ctx, held: Frame<"reveal">): void {
     if (live.length === 2 && teamworkWouldActivate(ctx, frame.instanceId)) {
       if (!frame.answer) {
         requestChoice(ctx, {
-          playerId: simultaneousOrderer(ctx.state),
+          playerId: simultaneousOrderer(ctx.state, { playerId: frame.playerId, instanceId: frame.instanceId }),
           authority: "firstPlayerOrders",
           prompt: { kind: "orderKeywords", instanceId: frame.instanceId },
           options: live.map((keyword) => ({
@@ -747,7 +747,7 @@ function whenRevealedOrder(
   }
   const self = { kind: "card", instanceId: frame.instanceId } as const;
   requestChoice(ctx, {
-    playerId: simultaneousOrderer(ctx.state),
+    playerId: simultaneousOrderer(ctx.state, { playerId: frame.playerId, instanceId: frame.instanceId }),
     authority: "firstPlayerOrders",
     prompt: { kind: "orderWhenRevealed", instanceId: frame.instanceId },
     options: offered.map((step) =>
@@ -1145,7 +1145,7 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
   const enemyTeam = card?.type === "attachment" && card.hostChosenBy === "enemyTeam";
   const decider = enemyTeam ? enemyTeamDecider(ctx.state, context) : null;
   requestChoice(ctx, {
-    playerId: decider ?? encounterTargetSelector(ctx.state),
+    playerId: decider ?? encounterTargetSelector(ctx.state, { playerId: frame.playerId, instanceId: frame.instanceId }),
     authority: decider ? "enemyTeam" : "firstPlayerTargets",
     prompt: { kind: "chooseAttachmentTarget", instanceId: frame.instanceId },
     options: legal.map((id) => ({

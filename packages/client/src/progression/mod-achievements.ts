@@ -8,7 +8,7 @@
  * nothing stored but which mods were ever installed (`mod-installs.ts`). Pure: no storage, no Phaser.
  */
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
-import { isAdjustedSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCompetitiveSave, isLessonSave } from "../engine/game-storage.js";
 import { parsePackAchievements, type PackAchievement, type PackAchievementWhen } from "@mc/content";
 import type { AchievementCampaign, AchievementProgress, AchievementSave } from "./achievements.js";
 
@@ -129,10 +129,16 @@ export interface ModHistory {
   readonly mods?: { readonly installed: Readonly<Record<string, string>> };
 }
 
-/** Finished, real games: a won or lost row that is not a Try-it lesson. Custom content counts here. */
+/**
+ * Finished, real games: a won or lost row that is not a Try-it lesson. Custom content counts here; a competitive game
+ * (issue #883) does not, being played only, never won or lost.
+ */
 const finishedGames = (saves: readonly AchievementSave[]): ModGame[] =>
   saves
-    .filter((s) => !isLessonSave(s) && !isAdjustedSave(s) && (s.status === "won" || s.status === "lost"))
+    .filter(
+      (s) =>
+        !isLessonSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s) && (s.status === "won" || s.status === "lost"),
+    )
     .map(modGameOf);
 
 export const NO_MOD_FACTS: ModFacts = modFactsOf({ saves: [], campaigns: [] });

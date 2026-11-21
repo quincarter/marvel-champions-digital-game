@@ -49,6 +49,7 @@ import {
   type PanelShape,
   type Rect,
   type StatBlock,
+  panelHasBadges,
 } from "../../view/layout.js";
 import { lerp } from "../../view/motion-math.js";
 import type { BoardDrawContext } from "./context.js";
@@ -56,6 +57,7 @@ import type { DefeatFlashState, ExhaustMotionState, HpTickState, StatusStampStat
 import { dimAlpha, targetState } from "./selection.js";
 import { drawTeamUpBlurb, drawTeamUpRing } from "./team-up-badge.js";
 import { drawTuckedRow, type TuckedRowDrawn } from "./tucked-row.js";
+import { statWords } from "../../view/stat-words.js";
 import { TUCKED_HEADER_HEIGHT } from "../../view/tucked-row-layout.js";
 import { panelRings, ringDiameterFor } from "../../view/team-up-layout.js";
 
@@ -137,6 +139,8 @@ const BADGE_STAT: Record<Exclude<StatTile["label"], "HP">, StatKey> = {
  * then consequence, then a stat triplet"). A panel too short for a band
  * drops it rather than squeezing it — the compact variant in the same sheet.
  */
+const WORDS_INSET = 48;
+
 export function drawCharacter(
   ctx: BoardDrawContext,
   rect: Rect,
@@ -485,7 +489,23 @@ export function drawCharacter(
     }
   }
 
-  drawStatBlock(ctx, statBlock, panel, dim);
+  // A row too short for readable badges says its numbers in words at the right, never a squeezed dot. The inset keeps
+  // clear of the first player token, which sits at a short row's right end.
+  if (panelHasBadges(rect.height)) {
+    drawStatBlock(ctx, statBlock, panel, dim);
+  } else {
+    const words = statWords(panel);
+    if (words !== "")
+      label(
+        scene,
+        rect.x + rect.width - WORDS_INSET,
+        rect.y + rect.height / 2,
+        words,
+        typeRole.label,
+        surface.ink.hex,
+        ink.body * dim,
+      ).setOrigin(1, 0.5);
+  }
 
   // The whole panel nudges on damage and flashes on defeat, the same as a
   // card-shaped panel (`drawCardShapedPanel`) — wrapped from `firstDrawn`, so

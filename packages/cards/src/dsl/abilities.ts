@@ -3512,9 +3512,10 @@ export const on = {
   /**
    * "When/After the round ends": the villain phase's end, or the round's end alone when its villain phase was skipped
    * (`skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md H3.7). `phaseEnding("villain")` is "when the villain phase
-   * ends", which a skipped phase never raises.
+   * ends", which a skipped phase never raises. `"round"` is the round's end only (`resolve/triggers.ts` `endsRound`),
+   * so with two teams it does not hear the first team's villain phase ending (MC56 p. 16, one shared round).
    */
-  roundEnding: (): EventPattern => pattern("phaseEnding", { eventIs: { phase: ["villain", "round"] } }),
+  roundEnding: (): EventPattern => pattern("phaseEnding", { eventIs: { phase: "round" } }),
   /**
    * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): a response-only window, once per
    * villain phase, regardless of how much threat step one placed or whether it placed any. Fixes the wave 2 bug

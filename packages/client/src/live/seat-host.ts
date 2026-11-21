@@ -85,6 +85,8 @@ export interface SeatHostOptions {
    * their seats away, as if they had disconnected. The game goes on; the host may take a seat over or hand it on.
    */
   readonly leaveSeats?: () => void;
+  /** A Competitive room's game: Concede is the seat's proposal (the team's forfeit, or leaving a 2v2 alone), not leaving the seat. */
+  readonly proposesConcede?: () => boolean;
 }
 
 interface Pending {
@@ -164,7 +166,7 @@ export class SeatEngineHost implements EngineHost {
     if (this.#disposed || !current) return Promise.resolve(this.#failed(command, t("seat.msg.notOpen")));
     if (this.#status.over || this.#status.failed) return Promise.resolve(this.#failed(command, t("seat.msg.over")));
     // Never a proposal: a seat's Concede is leaving the seat. The table is shown as it is, without this device's heroes.
-    if (command.type === "concede" && this.#o.leaveSeats) {
+    if (command.type === "concede" && this.#o.leaveSeats && !this.#o.proposesConcede?.()) {
       this.#o.leaveSeats();
       return Promise.resolve({ ok: true, update: current });
     }
@@ -261,8 +263,10 @@ export class SeatEngineHost implements EngineHost {
         const pending = event.pid === undefined ? undefined : this.#pending.find((p) => p.pid === event.pid);
         if (!pending) return;
         const current = this.#current;
-        // The host says it ahead of the log's echo; if the echo is somehow here already, it is this proposal's.
-        if (current && current.version > pending.base) this.#settle(pending, { ok: true, update: current });
+        // The host says it ahead of the log's echo; if the echo is somehow here already, it is this proposal's. A
+        // concession is applied at whatever count the host is at, so the log moving on says nothing about it.
+        if (current && current.version > pending.base && pending.command.type !== "concede")
+          this.#settle(pending, { ok: true, update: current });
         else pending.accepted = true;
         return;
       }
@@ -289,6 +293,16 @@ export class SeatEngineHost implements EngineHost {
     const landed: { pending: Pending; ok: boolean }[] = [];
     if (change.type === "append") {
       for (const pending of this.#pending) {
+        if (pending.command.type === "concede") {
+          // Never stale by position: the host applies a concession at the count it is at (the judge skips the base and
+          // stamp check). It lands with its acceptance, as the first appended command at or after its base that says
+          // the same thing; commands other seats got in first are theirs.
+          const at = change.commands.findIndex(
+            (c, i) => change.from + i >= pending.base && sameCommand(c, pending.command),
+          );
+          if (pending.accepted && at >= 0) landed.push({ pending, ok: true });
+          continue;
+        }
         const command = change.commands[pending.base - change.from];
         if (pending.base < change.from || command === undefined) continue;
         if (pending.accepted) landed.push({ pending, ok: true });

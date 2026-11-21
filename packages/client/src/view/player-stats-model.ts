@@ -14,7 +14,7 @@
  * pass a small stand-in.
  */
 import type { CorePlayer } from "@mc/cards";
-import type { SaveMeta } from "../engine/game-storage.js";
+import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import { isPastGame } from "./past-games-model.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import { deckKeyOfPlayer, villainNameOf } from "./deck-insights.js";
@@ -367,6 +367,8 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
 
 function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
   if (meta.guided || meta.adjusted) return null;
+  // A competitive game counts as played only: no win or loss, no hero win rate (the owner, 2026-11-20; issue #883).
+  if (isCompetitiveSave(meta)) return null;
   if (meta.status !== "won" && meta.status !== "lost") return null;
   const summary = meta.summary ?? null;
   const lossReason = meta.status === "won" ? null : (summary?.lossReason ?? lossReasonOfOutcome(meta));
@@ -383,7 +385,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     tier: winTierOf(meta.config),
     modulars: meta.config.modularSetIds ?? names.scenarioModulars?.(meta.config.scenarioId) ?? [],
     summary,
-    lossReason: lossReason === "conceded" ? "other" : lossReason,
+    lossReason: lossReason === "conceded" || lossReason === "competitive" ? "other" : lossReason,
     lossCause: lossCauseOfMeta(meta),
     heroesDefeated: summary ? summary.heroesDefeated : null,
     seats: seatsOf(meta, names),

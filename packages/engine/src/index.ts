@@ -54,7 +54,35 @@ export type { GameMode } from "./game-mode.js";
 export { COMPETITIVE_MODE_UNAVAILABLE_MESSAGE, gameModeOf } from "./game-mode.js";
 
 export type { TeamSide, TeamState } from "./team.js";
-export { playersOnTeam, SINGLE_TEAM, teamOf, teamSize, teamsOf } from "./team.js";
+export {
+  activeTeamOf,
+  enemyLeaderOf,
+  enemyTeamOf,
+  inactiveTeamMessage,
+  onInactiveTeam,
+  playersOnTeam,
+  SINGLE_TEAM,
+  teamFirstPlayerOf,
+  teamOf,
+  teamSize,
+  teamsOf,
+  yourLeaderOf,
+} from "./team.js";
+export { nextClockwiseTeammate, onActiveSide, phasePlayerOrder } from "./team-phases.js";
+export {
+  competitiveOutcome,
+  tieBreakReport,
+  TIE_BREAK_ORDER,
+  type CompetitiveClose,
+  type CompetitiveCondition,
+  type CompetitiveOutcome,
+  type CompetitiveState,
+  type CompetitiveTeamResult,
+  type CompetitiveTrigger,
+  type TieBreakMeasure,
+  type TieBreakReport,
+} from "./competitive-outcome.js";
+export type { CompetitiveScenarioSetup, CompetitiveSetup, CompetitiveTeamSetup } from "./competitive-setup.js";
 
 export type { RngState } from "./rng.js";
 export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
@@ -632,6 +660,7 @@ export {
   controllerOf,
   deckTopFaceupPlayers,
   enemyTeamDecider,
+  encounterDecksFaceup,
   encounterTopFaceup,
   hitPointFloor,
   ignoredAbilities,

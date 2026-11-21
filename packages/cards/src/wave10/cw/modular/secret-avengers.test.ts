@@ -212,10 +212,8 @@ describe("registry", () => {
     );
   });
 
-  it("Switching Sides writes its competitive sentence in full", () => {
-    expect(competitiveOnlyTexts(MODULAR_SECRET_AVENGERS["56158.when-revealed"]!)).toEqual([
-      "In competitive mode, any player on the enemy team may spend resources equal to that ally's cost to put it into play under their control.",
-    ]);
+  it("Switching Sides scripts its competitive sentence (M3): no marker left", () => {
+    expect(competitiveOnlyTexts(MODULAR_SECRET_AVENGERS["56158.when-revealed"]!)).toEqual([]);
   });
 
   it("setup: the encounter deck holds one copy of each card", () => {

@@ -72,7 +72,8 @@ export function migrateSaveMeta(meta: SaveMeta): SaveMeta {
  * content — a card changed under it. Kept, not deleted, so the log can still be
  * exported; never offered as "Continue".
  */
-export type SaveStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
+/** `tie`: a competitive game (issue #883) this device's team neither won nor lost (`view/team-outcome.ts`). */
+export type SaveStatus = "active" | "won" | "lost" | "tie" | "abandoned" | "incompatible";
 
 /**
  * Which guided run (`docs/guided-mode.md` §3.12) a save was launched as — the tutorial's five lessons, or one
@@ -342,6 +343,19 @@ export const isCustomSave = (meta: { readonly config?: { readonly packs?: readon
  * games list still shows it.
  */
 export const isAdjustedSave = (meta: object): boolean => (meta as { readonly adjusted?: unknown }).adjusted === true;
+
+/**
+ * A Civil War Competitive game (issue #883): its config carries the two teams (`SessionConfig.competitive`, a room's
+ * `roomTeams`), or its outcome is per team. It counts as a game played only (the owner, 2026-11-20): never a win or a
+ * loss for unlocks, achievements, champion points, scenario wins and losses, hero win rates, deck insights, the
+ * previous-game fact or global stats. Its result is kept apart on the summary (`GameSummary.competitive`) for PvP
+ * tracking (#909).
+ */
+export const isCompetitiveSave = (meta: { readonly config?: object; readonly outcome?: unknown }): boolean => {
+  const config = meta.config as { readonly competitive?: unknown; readonly roomTeams?: unknown } | undefined;
+  if (config?.competitive !== undefined || config?.roomTeams !== undefined) return true;
+  return (meta.outcome as { readonly result?: unknown } | null | undefined)?.result === "teams";
+};
 
 export const isLessonSave = (meta: { readonly guided?: { readonly kind: string } }): boolean =>
   meta.guided?.kind === "aspect" || meta.guided?.kind === "mechanic";

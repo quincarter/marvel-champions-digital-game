@@ -19,7 +19,7 @@ import {
   type GlobalResult,
   type GlobalSeat,
 } from "@mc/sync-worker/global-protocol";
-import type { SaveMeta } from "../engine/game-storage.js";
+import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import { villainNameOf } from "../view/deck-insights.js";
 import { lossCauseOfMeta, type StatsNames } from "../view/player-stats-model.js";
 
@@ -43,6 +43,8 @@ export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): G
   if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) return null;
   // A Skirmish game is shorter than the difficulty it would be counted under, so it stays out of the global numbers.
   if (meta.config.modes?.skirmish) return null;
+  // A competitive game counts as played only, never a win or a loss (the owner, 2026-11-20; issue #883).
+  if (isCompetitiveSave(meta)) return null;
   // A game with extra modular sets (the house rule, #761) is a harder deck than the scenario prints, so it stays out too.
   if (meta.config.houseModularSetIds && meta.config.houseModularSetIds.length > 0) return null;
   const summary = meta.summary;

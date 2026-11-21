@@ -41,7 +41,15 @@ import {
   mustPlayer,
   villainOf,
 } from "./query.js";
-import { cardsInPlay, contextArea, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
+import {
+  cardsInPlay,
+  contextArea,
+  matchesQuery,
+  resolvePlayers,
+  resolveRef,
+  triggeringPlayers,
+  type EffectContext,
+} from "./select.js";
 import { createGame, villainsForDifficulty } from "./setup.js";
 import type { EffectSpec, Predicate } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -566,6 +574,9 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
     expect(resolveRef(state, { kind: "villain" }, context(state, p1))).toEqual([mine]);
     expect(resolveRef(state, { kind: "mainScheme" }, context(state, p1))).toEqual([a1!.mainScheme!.instanceId]);
     expect(resolvePlayers(state, { kind: "each" }, context(state, p1))).toEqual([p1]);
+    // "Any player may trigger" on a card in p1's area stays p1's in a cooperative split (only two teams widen it).
+    const anyPlayer = { kind: "action", triggerableBy: { kind: "each" } } as AbilityTriggerSpec;
+    expect(triggeringPlayers(state, deps, state.players[0]!.identity.instanceId, anyPlayer, null)).toEqual([p1]);
     expect(matchesQuery(state, theirKang, { categories: ["enemy"] }, context(state, p1))).toBe(false);
     expect(matchesQuery(state, mine, { categories: ["enemy"] }, context(state, p1))).toBe(true);
   });

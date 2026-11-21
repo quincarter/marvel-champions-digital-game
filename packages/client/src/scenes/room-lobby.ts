@@ -30,6 +30,26 @@ import {
   type RoomState,
 } from "../platform/room.js";
 import { dropTable, setEpic, startEpicGame, startEpicTableRoomGame, watchTable } from "../platform/room.js";
+import { setCompetitive, setTeam, setTeamReady, startCompetitive } from "../platform/room.js";
+import {
+  competitiveStartBlock,
+  expertOn,
+  expertPatch,
+  newCompetitivePlan,
+  otherTeam,
+  perTeamOf,
+  planOf as competitivePlanOf,
+  speakingFor,
+  teamViews,
+  tieBreaksOn,
+  withTeamSize,
+  type CompetitivePlan,
+  type TeamView,
+} from "../view/competitive-lobby-model.js";
+import { startSealing } from "../view/competitive-seal.js";
+import { civilWarSidesOffer } from "@mc/cards";
+import { openBuilderOn } from "../view/civil-war-builder-model.js";
+import type { TeamId } from "../live/room-state.js";
 import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import { copyText } from "../ui/report-export.js";
@@ -93,6 +113,7 @@ import {
   roomDraft,
   seatSpecsOf,
 } from "../view/room-table-setup.js";
+import { appSession } from "../session.js";
 import { setSeatNote } from "../view/room-seat-note.js";
 import { tableRulesOf, type Settings } from "../settings.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -151,6 +172,9 @@ interface RoomApi {
   readonly giveBackSeat: (seat: string) => void;
   readonly say: (text: string) => void;
   readonly setLobby: typeof setLobby;
+  readonly setCompetitive: typeof setCompetitive;
+  readonly setTeam: typeof setTeam;
+  readonly setTeamReady: typeof setTeamReady;
 }
 
 const REAL_API: RoomApi = {
@@ -162,6 +186,9 @@ const REAL_API: RoomApi = {
   giveBackSeat,
   say,
   setLobby,
+  setCompetitive,
+  setTeam,
+  setTeamReady,
 };
 
 /** The dev preview's API: nothing is sent; each call is appended to `globalThis.__mcRoomCalls` for the e2e specs to read. */
@@ -431,6 +458,7 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   #startWords(): Words | null {
     if (this.#state.epic) return epicStartBlock(this.#state);
+    if (this.#state.competitive) return competitiveStartBlock(this.#state);
     const base = this.#base();
     return startBlock(this.#state, { tableReady: base !== null, packsUsed: this.#packsUsed(base) });
   }
@@ -478,6 +506,10 @@ export class RoomLobbyScene extends Phaser.Scene {
       else startEpicGame();
       return;
     }
+    if (this.#state.competitive) {
+      await this.#startCompetitive();
+      return;
+    }
     const base = this.#base();
     if (!base) return;
     this.#starting = true;
@@ -509,6 +541,56 @@ export class RoomLobbyScene extends Phaser.Scene {
       goToScreen(this, SCENES.scenarioIntro, { scenarioId } satisfies ScenarioIntroData);
       return;
     }
+    goToScreen(this, SCENES.setupDeal);
+  }
+
+  /**
+   * Competitive: the host's device deals each seat's own deck through the same check as any room (a refusal is told to
+   * that seat's holder alone), then builds the two-team game from both sealed scenarios (#883).
+   */
+  async #startCompetitive(): Promise<void> {
+    if (this.#preview) {
+      this.#record("startCompetitive()");
+      return;
+    }
+    this.#starting = true;
+    this.#draw();
+    const keys = new Map(this.#state.seats.map((seat) => [seat.id, deckKeyOf(seat.deck)] as const));
+    let failure: string | null = null;
+    try {
+      const result = await startCompetitive({
+        seed: Math.floor(Math.random() * 2 ** 31),
+        expert: expertOn(this.#state),
+      });
+      if (!result.ok) {
+        if (result.reason === "room") {
+          this.#refused =
+            result.result.reason === "decks"
+              ? result.result.refused.map((r) => ({
+                  seat: r.seat,
+                  code: r.code,
+                  reason: r.reason,
+                  deckKey: keys.get(r.seat) ?? "",
+                }))
+              : [];
+          this.#startResult = startResultWords(result.result, this.#state);
+          if (this.#startResult) this.#tab = "seats";
+          failure = "";
+        } else failure = result.reason;
+      }
+    } catch (cause) {
+      failure = cause instanceof Error ? cause.message : String(cause);
+    }
+    if (!this.#alive) return;
+    const { store } = appSession();
+    if (failure === null && store.state.status === "failed") failure = store.state.error ?? t("room.refusal.generic");
+    if (failure !== null) {
+      this.#starting = false;
+      if (failure !== "") this.#say(t("comp.start.failed", { why: failure }));
+      this.#draw();
+      return;
+    }
+    this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.setupDeal);
   }
 
@@ -669,7 +751,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       gutter,
       undefined,
       footerHeight,
-      state.epic ? 0.7 : 0.42,
+      state.epic || state.competitive ? 0.7 : 0.42,
     );
     this.#drawHeader(layout.header, phone);
 
@@ -680,7 +762,12 @@ export class RoomLobbyScene extends Phaser.Scene {
         rect: layout.tabs,
         tabs: ids.map((id) => ({
           id,
-          label: id === "seats" && state.epic ? t("epic.tab.tables") : t(`room.tab.${id}` as const),
+          label:
+            id === "seats" && state.epic
+              ? t("epic.tab.tables")
+              : id === "seats" && state.competitive
+                ? t("comp.tab.teams")
+                : t(`room.tab.${id}` as const),
         })),
         activeId: layout.mode === "stack" && this.#tab === "seats" ? "settings" : this.#tab,
         onSelect: (id) => {
@@ -840,6 +927,7 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   #drawSeatsPanel(rect: Rect, titled: boolean): void {
     if (this.#state.epic) return this.#drawEpicPanel(rect, titled);
+    if (this.#state.competitive) return this.#drawCompetitivePanel(rect, titled);
     const inner = this.#frame(rect, titled ? t("room.seats") : null);
     const state = this.#state;
     this.#scrollPanel("seats", inner, (x, top, w, guard) => {
@@ -1439,6 +1527,159 @@ export class RoomLobbyScene extends Phaser.Scene {
     return y + hit.target + 6;
   }
 
+  // ---- Civil War Competitive (issue #883) ------------------------------------------------------------------------
+
+  /** The host's plan to the room: mode competitive, each seat on its side. Recorded in the dev preview. */
+  #sendCompetitive(plan: CompetitivePlan): void {
+    if (this.#preview) this.#record(`setCompetitive(${plan.length}s)`);
+    else this.#api.setCompetitive(plan, tieBreaksOn(this.#state));
+  }
+
+  /** The side a host with no seat speaks for. */
+  #hostPick: TeamId | null = null;
+
+  #drawCompetitivePanel(rect: Rect, titled: boolean): void {
+    const inner = this.#frame(rect, titled ? t("comp.heading") : null);
+    const state = this.#state;
+    const host = this.#isHost();
+    const plan = competitivePlanOf(state);
+    this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+      let y = top + 2;
+      y += this.#text(x, y, t("comp.mode.detail"), 13, w, { alpha: 0.85 }).height + 8;
+      if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
+      if (host && !state.started) {
+        y = this.#panelPair(
+          x,
+          y,
+          w,
+          {
+            label: `${perTeamOf(plan) === 1 ? "✓ " : ""}${t("comp.size.1v1")}`,
+            run: () => this.#sendCompetitive(withTeamSize(plan, 1)),
+            enabled: perTeamOf(plan) !== 1,
+            key: "comp:size1",
+          },
+          {
+            label: `${perTeamOf(plan) === 2 ? "✓ " : ""}${t("comp.size.2v2")}`,
+            run: () => this.#sendCompetitive(withTeamSize(plan, 2)),
+            enabled: perTeamOf(plan) !== 2,
+            key: "comp:size2",
+          },
+          guard,
+        );
+      }
+      const speaking = speakingFor(state, this.#hostPick ?? "registration");
+      for (const view of teamViews(state, speaking)) {
+        y = this.#drawTeam(view, x, y, w, guard) + 12;
+      }
+      y = this.#heading(x, y, w, t("room.people"));
+      for (const person of participantRows(state)) {
+        const seats = person.seats.length > 0 ? ` · ${person.seats.join(", ")}` : "";
+        const line = `${person.me ? `${person.name} (${t("room.you")})` : person.name} · ${t(person.roleKey)}${seats}`;
+        y += this.#text(x + 4, y, line, 13, w - 8).height + 6;
+      }
+      return y - top + 4;
+    });
+  }
+
+  /** One side's card: its seats and heroes, whether a scenario is sealed for the other side, and Ready. Never the scenario. */
+  #drawTeam(view: TeamView, x: number, y0: number, w: number, guard: PanelGuard): number {
+    const state = this.#state;
+    const host = this.#isHost();
+    const pad = 10;
+    const inW = w - pad * 2;
+    let y = y0 + pad;
+    const g = this.add.graphics();
+    const side = t(view.nameKey);
+    const title = this.add
+      .text(x + pad, y, view.mine ? t("comp.area.you", { side }) : side, textStyle(typeRole.rowTitle, INK))
+      .setFontSize(17);
+    fitText(title, inW, 17);
+    y += title.height + 4;
+    const status = [
+      view.submitted ? t("comp.seal.sealed") : t("comp.seal.none"),
+      view.ready ? t("comp.ready.state") : t("comp.ready.notYet"),
+    ].join(" · ");
+    y += this.#text(x + pad, y, status, 13, inW, { bold: true }).height + 8;
+    const rows = new Map(seatRows(state, { installed: this.#installed() }).map((r) => [r.id, r]));
+    for (const seat of view.seats) {
+      const row = rows.get(seat.id);
+      if (!row) continue;
+      y += this.#drawSeatRow(row, x + pad, y, inW, guard) + 6;
+      if (seat.canSwitch && !state.started) {
+        const to = otherTeam(view.team);
+        y = this.#panelButton(
+          x + pad,
+          y,
+          inW,
+          t("comp.team.moveTo", { side: t(to === "registration" ? "comp.side.registration" : "comp.side.resistance") }),
+          () => (this.#preview ? this.#record(`setTeam(${seat.id},${to})`) : this.#api.setTeam(seat.id, to)),
+          guard,
+          `team:${seat.id}`,
+        );
+      }
+    }
+    if (host && state.mySeats.length === 0 && !state.started) {
+      y = this.#panelButton(
+        x + pad,
+        y,
+        inW,
+        t("comp.side.speak", { side }),
+        () => {
+          this.#hostPick = view.team;
+          this.#draw();
+        },
+        guard,
+        `speak:${view.team}`,
+        { selected: view.mine },
+      );
+    }
+    const block = view.buildBlock;
+    const forSide = t(otherTeam(view.team) === "registration" ? "comp.side.registration" : "comp.side.resistance");
+    y = this.#panelButton(
+      x + pad,
+      y,
+      inW,
+      t(view.submitted ? "comp.seal.rebuild" : "comp.seal.build", { side: forSide }),
+      () => this.#openSeal(view.team),
+      guard,
+      `seal:${view.team}`,
+      { enabled: block === null, ...(block ? { reason: t(block) } : {}), kind: view.mine ? "primary" : "secondary" },
+    );
+    const readyBlock = view.readyBlock;
+    y = this.#panelButton(
+      x + pad,
+      y,
+      inW,
+      t(view.ready ? "comp.ready.undo" : "comp.ready"),
+      () =>
+        this.#preview
+          ? this.#record(`setTeamReady(${view.team},${!view.ready})`)
+          : this.#api.setTeamReady(!view.ready, view.team),
+      guard,
+      `ready:${view.team}`,
+      { enabled: readyBlock === null, ...(readyBlock ? { reason: t(readyBlock) } : {}), selected: view.ready },
+    );
+    const height = y - y0 + pad - 6;
+    g.fillStyle(PARCHMENT, 1).fillRect(x, y0, w, height);
+    g.lineStyle(view.mine ? 4 : 2, INK, 1).strokeRect(x + 1, y0 + 1, w - 2, height - 2);
+    return y0 + height;
+  }
+
+  #record(call: string): void {
+    ((globalThis as { __mcRoomCalls?: string[] }).__mcRoomCalls ??= []).push(call);
+  }
+
+  /** Opens the Civil War builder for the other team's scenario: this side's leaders and sets only. */
+  #openSeal(team: TeamId): void {
+    if (this.#preview) return this.#record(`openSeal(${team})`);
+    const first = civilWarSidesOffer().find((side) => side.side === team)?.leaders[0]?.scenarioId;
+    if (!first) return;
+    startSealing(team);
+    const entry = openBuilderOn(newGameDraft(), first);
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.civilWarBuilder, { draft: entry.draft, step: 1 });
+  }
+
   #epicSheet(data: EpicSheetData): void {
     const given = this.#preview ? ({ ...data, preview: this.#state } as EpicSheetData) : data;
     if (!this.scene.isActive(SCENES.epicSheet)) this.scene.launch(SCENES.epicSheet, given);
@@ -1763,32 +2004,66 @@ export class RoomLobbyScene extends Phaser.Scene {
       y = this.#heading(x, y, w, t("epic.mode.title"));
       const epicOn = this.#state.epic !== null;
       if (host) {
-        const half = (w - 8) / 2;
-        const choose = (epic: boolean): void => {
-          if (epic === epicOn) return;
-          if (epic) this.#sendPlan(newEpicPlan());
+        const modeNow = this.#state.competitive ? "competitive" : epicOn ? "epic" : "standard";
+        const choose = (mode: "standard" | "epic" | "competitive"): void => {
+          if (mode === modeNow) return;
+          if (mode === "epic") this.#sendPlan(newEpicPlan());
+          else if (mode === "competitive") this.#sendCompetitive(newCompetitivePlan(1));
           else this.#api.setLobby({ settings: { mode: "standard" } });
         };
-        for (const [i, epic] of [false, true].entries()) {
-          const btn: Rect = { x: x + i * (half + 8), y, width: half, height: hit.target };
+        const third = (w - 16) / 3;
+        for (const [i, mode] of (["standard", "epic", "competitive"] as const).entries()) {
+          const btn: Rect = { x: x + i * (third + 8), y, width: third, height: hit.target };
           this.#button({
             kind: "secondary",
-            label: t(epic ? "epic.mode.epic" : "epic.mode.standard"),
-            type: typeRole.label,
+            label: t(
+              mode === "epic" ? "epic.mode.epic" : mode === "standard" ? "epic.mode.standard" : "comp.mode.competitive",
+            ),
+            type: { ...typeRole.label, size: 12 },
             rect: btn,
-            selected: epic === epicOn,
-            onClick: () => choose(epic),
+            selected: mode === modeNow,
+            onClick: () => choose(mode),
             clip: guard.clip,
             suppressClick: guard.suppress,
           });
-          guard.stop(`epicmode:${epic}`, btn, () => choose(epic));
+          guard.stop(`epicmode:${mode}`, btn, () => choose(mode));
         }
         y += hit.target + 6;
-        const info = this.#text(x + 4, y, t("epic.mode.epicDetail"), 12, w - 8, { alpha: 0.8 });
+        const info = this.#text(
+          x + 4,
+          y,
+          t(modeNow === "competitive" ? "comp.mode.detail" : "epic.mode.epicDetail"),
+          12,
+          w - 8,
+          { alpha: 0.8 },
+        );
         y += info.height + 10;
+        if (this.#state.competitive) {
+          y += this.#text(x + 4, y, t("comp.friendly"), 12, w - 8, { alpha: 0.8 }).height + 10;
+          const compState = this.#state;
+          toggleRow("comp:tie", t("comp.tiebreaks.title"), t("comp.tiebreaks.detail"), tieBreaksOn(compState), () =>
+            this.#api.setLobby({ settings: { tieBreaks: !tieBreaksOn(compState) } }),
+          );
+          toggleRow("comp:expert", t("comp.expert.title"), t("comp.expert.detail"), expertOn(compState), () =>
+            this.#api.setLobby({ settings: expertPatch(compState) }),
+          );
+        }
       } else {
-        const line = this.#text(x, y, t(epicOn ? "epic.mode.epic" : "epic.mode.standard"), 15, w, { bold: true });
+        const line = this.#text(
+          x,
+          y,
+          t(this.#state.competitive ? "comp.mode.competitive" : epicOn ? "epic.mode.epic" : "epic.mode.standard"),
+          15,
+          w,
+          { bold: true },
+        );
         y += line.height + 8;
+        if (this.#state.competitive) {
+          const on = (v: boolean): string => (v ? t("room.on") : t("room.off"));
+          const opts = `${t("comp.tiebreaks.title")}: ${on(tieBreaksOn(this.#state))} · ${t("comp.expert.title")}: ${on(expertOn(this.#state))}`;
+          y += this.#text(x, y, opts, 13, w, { alpha: 0.85 }).height + 8;
+          y += this.#text(x, y, t("comp.friendly"), 12, w, { alpha: 0.8 }).height + 8;
+        }
       }
 
       // How it's played.

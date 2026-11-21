@@ -151,16 +151,14 @@ describe("registry", () => {
     expect(MODULAR_DANGEROUS_RECRUITS["56089.when-revealed"]).toBe(MODULAR_DEFENDERS["56187.when-revealed"]);
   });
 
-  it("the sentences about your leader are written in full, not dropped", () => {
-    const text = JSON.stringify([
-      MODULAR_DANGEROUS_RECRUITS["56087.when-revealed"],
-      MODULAR_DANGEROUS_RECRUITS["56088.when-revealed"],
-      MODULAR_DANGEROUS_RECRUITS["56090.boost"],
-    ]);
-    expect(text).toContain("Venom attacks your leader.");
-    expect(text).toContain("The enemy team discards an attachment from your leader.");
-    expect(text).toContain(
-      "The enemy leader attacks your leader (after this activation). Do not give it a boost card for that attack.",
+  it("the sentences about your leader are scripted (M3): Venom's attack, Bullseye's discard, the later attack", () => {
+    const text = (ref: string) => JSON.stringify(MODULAR_DANGEROUS_RECRUITS[ref]);
+    expect(text("56087.when-revealed")).toContain('"kind":"enemyAttacksEnemy"');
+    expect(text("56088.when-revealed")).toContain('"anyGameArea":true');
+    expect(text("56090.boost")).toContain('"kind":"atEndOfActivation"');
+    expect(text("56090.boost")).not.toContain('"boost":true');
+    expect(text("56087.when-revealed") + text("56088.when-revealed") + text("56090.boost")).not.toContain(
+      "competitiveOnly",
     );
   });
 

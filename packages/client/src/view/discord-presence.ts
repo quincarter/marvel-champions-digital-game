@@ -61,7 +61,7 @@ export interface PresenceGame {
   /** "Standard", "Expert", "Heroic 2". */
   readonly difficulty?: string | null;
   /** How it ended, on Game over. */
-  readonly result?: "win" | "loss" | "conceded" | null;
+  readonly result?: "win" | "loss" | "tie" | "conceded" | null;
   /** Card art by address in the app (`/card-art/...`) or an absolute URL. */
   readonly villainArt?: string | null;
   readonly heroArt?: string | null;
@@ -138,6 +138,7 @@ function gameState(game: PresenceGame): string {
   if (game.result === "win") return game.villain ? `Won against ${game.villain} in ${plural(game.round)}` : "Won";
   if (game.result === "loss") return game.villain ? `Lost to ${game.villain}` : "Lost";
   if (game.result === "conceded") return game.villain ? `Conceded against ${game.villain}` : "Conceded";
+  if (game.result === "tie") return game.villain ? `Tied against ${game.villain}` : "Tied";
   if (game.phase === "setup") return join(PHASE_WORDS.setup, game.difficulty);
   const phase =
     game.phase === "villain"

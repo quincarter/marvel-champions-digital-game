@@ -9,6 +9,7 @@ import {
   teamsOf,
   type TeamState,
   yourLeaderOf,
+  teamFirstPlayerOf,
 } from "./team.js";
 import { gameModeOf } from "./game-mode.js";
 import {
@@ -23,7 +24,7 @@ import {
 } from "./abilities.js";
 import { isRulesCardType, type RulesCardType } from "./card-types.js";
 import { countersOfType } from "./counter-types.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import {
   activeFormType,
   canTakeStatus,
@@ -37,7 +38,6 @@ import {
   unblankedPrintedKeywordsOf,
 } from "./keywords.js";
 import {
-  activeEncounterDeck,
   activeVillain,
   baseStat,
   cardOf,
@@ -69,6 +69,7 @@ import {
   sharedMainSchemes,
   activationOrderOf,
   activeVillainIdFor,
+  activeEncounterDeckId,
   areaOfCard,
   areaOfPlayer,
   maxHitPoints,
@@ -985,10 +986,16 @@ function readEachChoosableMainScheme<T>(
  * §3.4). RRG 1.8 "Acceleration Token" (p. 5): they "still add threat to the main scheme during step one" — to "the main
  * scheme", so to the glider's when there is one (MC27 p. 17), else the central one.
  */
-export function offSchemeAccelerationTokens(state: GameState): number {
+export function offSchemeAccelerationTokens(state: GameState, area?: GameAreaState): number {
   const schemes = new Set(mainSchemeStates(state).map((s) => s.instanceId));
+  // `area`: only the tokens on cards in that game area or in every area (two teams, MC56 p. 16).
+  const inArea = (id: InstanceId): boolean => {
+    if (!area) return true;
+    const at = areaOfCard(state, id);
+    return at === null || at.areaId === area.areaId;
+  };
   return cardsInPlay(state)
-    .filter((id) => !schemes.has(id))
+    .filter((id) => !schemes.has(id) && inArea(id))
     .reduce((sum, id) => sum + (getInstance(state, id)?.counters["acceleration"] ?? 0), 0);
 }
 
@@ -1108,7 +1115,10 @@ export function isFacedownAttachment(state: GameState, id: InstanceId): boolean 
 /** The walk behind `cardsInPlay`, in table order; `withFacedownAttachments` keeps the out-of-play facedown attachments. */
 function cardsOnTable(state: GameState, withFacedownAttachments: boolean): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
-  const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
+  // A competitive leader defeated during its opponents' hero phase stays in play (MC56 p. 17; `defeatedInPlay`).
+  const villains = state.villains
+    .filter((villain) => !villain.defeated || villain.defeatedInPlay === true)
+    .map((villain) => villain.instanceId);
   const ids: InstanceId[] = [...villains, state.mainScheme.instanceId];
   // A card attached to an attachment is in play too, however deep (docs/phase7-wave5.md §4.1 Q50).
   const attachmentsOf = (id: InstanceId): void => {
@@ -1471,7 +1481,7 @@ export function explainQuery(
   query: TargetQuery,
   context: EffectContext,
 ): QueryExclusion | null {
-  if (!inContextArea(state, id, context)) return "otherGameArea";
+  if (!query.anyGameArea && !inContextArea(state, id, context)) return "otherGameArea";
   const instance = getInstance(state, id);
   if (!instance) return "unknownCard";
   // A stand-in for another group's card is in that group's game area for everything but the power made against it.
@@ -1551,10 +1561,17 @@ export function explainQuery(
     queryHasKeyword(state, id, query.withoutKeyword, context.deps ?? DEFAULT_DEPS, notFrom)
   )
     return "hasExcludedKeyword";
-  if (query.anyOf !== undefined && !query.anyOf.some((alternative) => matchesQuery(state, id, alternative, context)))
+  // An inner query (`anyOf` alternative, `not`) is read in the game area the outer query reaches: the area check above
+  // has passed, so an outer `anyGameArea` carries into it rather than each inner query re-checking the area and
+  // rejecting (or, under `not`, accepting) every card of the other area.
+  const inner = (sub: TargetQuery): TargetQuery => (query.anyGameArea ? { ...sub, anyGameArea: true } : sub);
+  if (
+    query.anyOf !== undefined &&
+    !query.anyOf.some((alternative) => matchesQuery(state, id, inner(alternative), context))
+  )
     return "matchesNoAlternative";
   // The general negation (docs/phase7-wave7.md §3.8): the card must fail the inner query.
-  if (query.not !== undefined && matchesQuery(state, id, query.not, context)) return "matchesNoAlternative";
+  if (query.not !== undefined && matchesQuery(state, id, inner(query.not), context)) return "matchesNoAlternative";
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
@@ -2020,6 +2037,19 @@ export function contextArea(state: GameState, context: EffectContext): GameAreaS
  * no player the team that plays in the game area of the effect's card. Null when neither names a team: an area-neutral
  * card resolving for no player, for which the words name nobody.
  */
+/**
+ * "The encounter deck" for an effect: the active villain's deck, and with two teams the deck of the leader in the
+ * effect's own game area (MC56 p. 16: each side of the table has its own encounter deck; a card on the inactive side
+ * resolves for its own side, Q11 A per owner decision 2026-11-20). The active deck for an effect in no area, and in
+ * every game without stored teams.
+ */
+export function effectEncounterDeckId(state: GameState, context: EffectContext): EncounterDeckId {
+  if (!state.teams) return activeEncounterDeckId(state);
+  const leaderId = contextArea(state, context)?.activeVillainId;
+  const leader = leaderId ? villainOf(state, leaderId) : undefined;
+  return leader?.encounterDeckId ?? activeEncounterDeckId(state);
+}
+
 export function contextTeam(state: GameState, context: EffectContext): TeamState | null {
   if (!state.teams) return teamsOf(state)[0] ?? null;
   const player = context.controllerId ?? context.scopedPlayerId;
@@ -2370,18 +2400,38 @@ export function shownDeckTop(state: GameState, deps: EngineDeps, playerId: Playe
  * docs/phase7-wave9.md §3.42): one rule in force is enough, and a second adds nothing. Read from the rules in force,
  * never from anything stored.
  */
-export const encounterTopFaceup = (state: GameState, deps: EngineDeps): boolean =>
-  activeRules(state, deps, "topOfDeckFaceup").some((active) => active.rule.deck === "encounter");
+export const encounterTopFaceup = (
+  state: GameState,
+  deps: EngineDeps,
+  deckId: EncounterDeckId = activeEncounterDeckId(state),
+): boolean => encounterDecksFaceup(state, deps).includes(deckId);
 
 /**
- * The card showing on top of the encounter deck under that rule: the first card of the active villain's encounter deck
- * while the rule holds, null when it does not or the deck is empty. The single derivation `faceVisible`, the
- * `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ * The encounter decks whose top card is kept faceup right now: each `topOfDeckFaceup { deck: "encounter" }` rule in
+ * force shows "the encounter deck" of its own card's side of the table (`effectEncounterDeckId`; MC56 p. 16: each side
+ * has its own encounter deck, and a card ignores the other side's unless it names it), so with two teams Falcon's
+ * rule shows his own area's deck whichever team is active. Every game without teams: the active villain's deck.
  */
-export function shownEncounterTop(state: GameState, deps: EngineDeps): InstanceId | null {
-  const top = activeEncounterDeck(state).deck[0];
+export function encounterDecksFaceup(state: GameState, deps: EngineDeps): readonly EncounterDeckId[] {
+  const decks = activeRules(state, deps, "topOfDeckFaceup")
+    .filter((active) => active.rule.deck === "encounter")
+    .map((active) => effectEncounterDeckId(state, active.context));
+  return [...new Set(decks)];
+}
+
+/**
+ * The card showing on top of encounter deck `deckId` (the active villain's unless named) under that rule: its first
+ * card while the rule holds for it, null when it does not or the deck is empty. The single derivation `faceVisible`,
+ * the `topOfDeckFaceup` predicate and the log (`announceDeckTops`) agree on.
+ */
+export function shownEncounterTop(
+  state: GameState,
+  deps: EngineDeps,
+  deckId: EncounterDeckId = activeEncounterDeckId(state),
+): InstanceId | null {
+  const top = state.encounterDecks[deckId]?.deck[0];
   if (top === undefined) return null;
-  return encounterTopFaceup(state, deps) ? top : null;
+  return encounterTopFaceup(state, deps, deckId) ? top : null;
 }
 
 /**
@@ -2706,6 +2756,11 @@ export function triggeringPlayers(
   if (trigger.kind !== "action" && trigger.kind !== "interrupt" && trigger.kind !== "response") return null;
   if (trigger.kind !== "action" && trigger.forced) return null;
   if (!trigger.triggerableBy) return null;
+  // 56131 "Any player may trigger": every player of either team (card text over RRG p. 4 "Abilities", which already
+  // lets the controller; MC56 p. 20 limits only "the players/each player/per player"). Actions only in the triggering
+  // player's own team's hero phase (RRG "Action" p. 6; Q11): the inactive-team gate of the command still applies.
+  // A cooperative game, even one split into game areas (Kang), keeps `each` read in the card's own area.
+  if (state.teams && trigger.triggerableBy.kind === "each") return playerOrder(state).map((p) => p.playerId);
   const context: EffectContext = {
     selfInstanceId: instanceId,
     controllerId: controllerOf(state, instanceId) ?? uncontrolledYouOf(state, instanceId),
@@ -2728,8 +2783,14 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const first = resolvePlayers(state, ref.first, context);
       return first.length > 0 ? first : resolvePlayers(state, ref.otherwise, context);
     }
-    case "firstPlayer":
-      return [state.firstPlayerId];
+    case "firstPlayer": {
+      // With two teams, the first player of the team the effect is read for: each team has its own token (MC56 p. 16).
+      const team = state.teams ? contextTeam(state, context) : null;
+      // `of: "enemy"`: the other team's token holder. With one team the enemy team is the players (MC56 p. 6).
+      if (ref.of === "enemy" && state.teams)
+        return team ? [teamFirstPlayerOf(state, enemyTeamOf(state, team.teamId))] : [];
+      return [team ? teamFirstPlayerOf(state, team) : state.firstPlayerId];
+    }
     case "each": {
       // The Once and Future Kang insert, "Rules Clarifications": "'Each player' refers to each player in the same game
       // area" (docs/phase7-wave2.md §3.1).
@@ -2955,6 +3016,13 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
     case "mainScheme": {
       // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
       if (ref.of === "central") return [state.mainScheme.instanceId];
+      // "Your leader's main scheme" (MC56 p. 16): the main scheme of the game area your leader is in; none with one team
+      // (MC56 p. 6: "your leader" cannot be resolved).
+      if (ref.of === "yourLeader") {
+        const [leader] = leaderFor(state, "yours", context, () => []);
+        const scheme = leader ? mainSchemeFor(state, areaOfCard(state, leader)) : null;
+        return scheme ? [scheme.instanceId] : [];
+      }
       // "Your main scheme" (docs/phase7-wave11-scenarios.md §S3.2): the one in your play area, wherever the card is.
       if (ref.of === "yours" && hasPerPlayerMainSchemes(state)) {
         const you = context.scopedPlayerId ?? context.controllerId;
@@ -3865,11 +3933,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     case "topOfDeckFaceup": {
       const deps = context.deps ?? DEFAULT_DEPS;
       if (predicate.deck === "encounter") {
-        if (!encounterTopFaceup(state, deps)) return false;
+        // "The encounter deck" of the predicate's own side of the table (`effectEncounterDeckId`).
+        const deckId = effectEncounterDeckId(state, context);
+        if (!encounterTopFaceup(state, deps, deckId)) return false;
         const { matches, boostAreaIcons } = predicate;
         if (matches === undefined && boostAreaIcons === undefined) return true;
         // Only the card the rule shows is read (wave 8 §4.1 Q26 = B); an empty deck has none.
-        const top = activeEncounterDeck(state).deck[0];
+        const top = state.encounterDecks[deckId]?.deck[0];
         if (top === undefined) return false;
         if (matches !== undefined && !matchesQuery(state, top, matches, context)) return false;
         if (boostAreaIcons === undefined) return true;

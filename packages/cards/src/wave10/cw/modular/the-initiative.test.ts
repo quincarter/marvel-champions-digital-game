@@ -456,12 +456,14 @@ describe("Drafted (56080)", () => {
     expect(run.state.pendingChoice).toBeNull();
   });
 
-  it("the competitive sentence is kept in full as the branch of 'In competitive mode' that a cooperative game never resolves", () => {
+  it("the competitive sentence is scripted (M3) as the branch of 'In competitive mode' a cooperative game never resolves", () => {
     const definition = MODULAR_THE_INITIATIVE["56080.when-revealed"]!;
-    expect(competitiveOnlyTexts(definition)).toEqual([
-      "In competitive mode, the enemy team attaches Drafted to a minion engaged with them and that minion engages you.",
-    ]);
-    expect(definition.effects[0]).toMatchObject({ kind: "if", condition: { kind: "gameMode", is: "competitive" } });
+    expect(competitiveOnlyTexts(definition)).toEqual([]);
+    expect(JSON.stringify(definition)).toContain('"anyGameArea":true');
+    expect(definition.effects[0]).toMatchObject({
+      kind: "if",
+      condition: { kind: "and", of: [{ kind: "gameMode", is: "competitive" }, { kind: "exists" }] },
+    });
   });
 
   it("BOOST: 1 icon on the activating enemy's attack (Rhino ATK 2 + 1)", () => {

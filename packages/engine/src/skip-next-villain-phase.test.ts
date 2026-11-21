@@ -69,14 +69,25 @@ const VILLAIN_ENDS = stubAbility(
 const ROUND_ENDS = stubAbility(
   "watcher.round-ends",
   def({
-    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: "round" } } },
     effects: [tally("roundEnds")],
+  }),
+);
+/**
+ * "When the villain phase or the round ends": the list form, each phase heard on its own. With one team the round ends
+ * once, either as the villain phase ends or alone when the phase was skipped, so it fires once a round either way.
+ */
+const VILLAIN_OR_ROUND = stubAbility(
+  "watcher.villain-or-round",
+  def({
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    effects: [tally("villainOrRound")],
   }),
 );
 const WATCHER = stubSupport({
   id: "watcher",
   cost: 0,
-  abilities: [VILLAIN_BEGINS.ref, VILLAIN_ENDS.ref, ROUND_ENDS.ref],
+  abilities: [VILLAIN_BEGINS.ref, VILLAIN_ENDS.ref, ROUND_ENDS.ref, VILLAIN_OR_ROUND.ref],
 });
 const FLEETING = stubSupport({ id: "fleeting", cost: 0, keywords: [{ name: "temporary" }] });
 const villainWard = (until: "endOfPhase" | "endOfRound"): EffectSpec => ({
@@ -105,6 +116,7 @@ const deps = depsOf(
   VILLAIN_BEGINS,
   VILLAIN_ENDS,
   ROUND_ENDS,
+  VILLAIN_OR_ROUND,
   DUSK,
   LATER.ability,
   ROUND_WARD.ability,
@@ -175,6 +187,7 @@ describe("H3.7 skipping the next villain phase (Q101 A)", () => {
     expect([counter(state, "villainBegins"), counter(state, "villainEnds"), counter(state, "roundEnds")]).toEqual([
       1, 1, 1,
     ]);
+    expect(counter(state, "villainOrRound")).toBe(1);
     expect(temporaryInPlay(state)).toBe(false);
   });
 
@@ -205,6 +218,7 @@ describe("H3.7 skipping the next villain phase (Q101 A)", () => {
     expect([counter(state, "villainBegins"), counter(state, "villainEnds"), counter(state, "roundEnds")]).toEqual([
       0, 0, 1,
     ]);
+    expect(counter(state, "villainOrRound")).toBe(1);
     expect(temporaryInPlay(state)).toBe(false);
   });
 

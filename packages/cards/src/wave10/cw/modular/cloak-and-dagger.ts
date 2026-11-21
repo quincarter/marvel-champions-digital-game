@@ -4,7 +4,6 @@ import {
   boost,
   chooseTarget,
   chosen,
-  competitiveOnly,
   dealDamage,
   dealIndirectDamage,
   defineAbilities,
@@ -17,7 +16,6 @@ import {
   heal,
   host,
   ifThen,
-  inCompetitiveMode,
   placeThreat,
   query,
   revealCard,
@@ -25,6 +23,9 @@ import {
   whenDefeated,
   whenRevealed,
   you,
+  removeThreat,
+  yourLeadersMainScheme,
+  eventAmount,
 } from "../../../dsl/index.js";
 
 const CLOAK = "Cloak";
@@ -70,9 +71,7 @@ export const MODULAR_CLOAK_AND_DAGGER: AbilityRegistry = defineAbilities({
   "56194.when-revealed": whenRevealed(
     A_SCHEME,
     placeThreat(2, chosen("scheme")),
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly("In competitive mode, remove 2 threat from your leader's main scheme."),
-    ]),
+    removeThreat(2, yourLeadersMainScheme),
   ),
   "56194.boost": boost(
     ifThen(exists(query("minion", { name: DAGGER })), revealCard(self), [A_SCHEME, placeThreat(1, chosen("scheme"))]),
@@ -93,7 +92,7 @@ export const MODULAR_CLOAK_AND_DAGGER: AbilityRegistry = defineAbilities({
       sourceIs: { hostOfSelf: true },
       eventAtLeast: { amount: 1 },
     },
-    ifThen(inCompetitiveMode(), [competitiveOnly("remove an equal amount of threat from your leader's main scheme.")]),
+    removeThreat(eventAmount, yourLeadersMainScheme),
     discard(self),
   ),
 

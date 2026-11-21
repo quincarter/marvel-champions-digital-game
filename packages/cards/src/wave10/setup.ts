@@ -1,4 +1,5 @@
 import {
+  encounterSetId,
   CORE_STARTER_DECKS,
   WAVE10_SCENARIOS,
   WAVE10_STARTER_DECKS,
@@ -134,7 +135,20 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
  *   cooperative game, so no seat is refused for it.
  */
 export function wave10Scenario(scenarioId: string, options: Wave10ScenarioOptions): GameSetupConfig {
-  const config = wave10ScenarioConfig(scenarioId, options);
+  return withSideMainSchemeCard(scenarioId, wave10ScenarioConfig(scenarioId, options, "standard"));
+}
+
+/**
+ * The scenario a team builds for the other team to face in competitive mode (MC56 pp. 4-5, 14; docs/competitive-mode-
+ * plan.md M1): the same choices as `wave10Scenario`, with the Standard PvP set of the leader's side in place of the
+ * Standard set (MC56 p. 3: "used instead of the Standard encounter set"; each scenario holds its own copy, Q15).
+ * `options.players` are the players who will face it. Used by `civilWarCompetitive`, never as a game of its own.
+ */
+export function wave10CompetitiveScenario(scenarioId: string, options: Wave10ScenarioOptions): GameSetupConfig {
+  return withSideMainSchemeCard(scenarioId, wave10ScenarioConfig(scenarioId, options, "standardPvp"));
+}
+
+function withSideMainSchemeCard(scenarioId: string, config: GameSetupConfig): GameSetupConfig {
   const mainScheme = wave10MainSchemeCard(wave10ScenarioRecord(scenarioId));
   // The side's stages gathered on the scenario's card (`wave10MainSchemeCard`) replace the printed card in the game's
   // pool, so `mainSchemeStageIndexes` and every later `stageIndex` read that card's stages.
@@ -142,7 +156,11 @@ export function wave10Scenario(scenarioId: string, options: Wave10ScenarioOption
   return { ...config, cards: config.cards.map((card) => (card.id === mainScheme.id ? mainScheme : card)) };
 }
 
-function wave10ScenarioConfig(scenarioId: string, options: Wave10ScenarioOptions): GameSetupConfig {
+function wave10ScenarioConfig(
+  scenarioId: string,
+  options: Wave10ScenarioOptions,
+  standardSet: "standard" | "standardPvp",
+): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const scenario = wave10ScenarioRecord(scenarioId);
   const modes = resolveModes(options.difficulty, options.modes);
@@ -175,11 +193,20 @@ function wave10ScenarioConfig(scenarioId: string, options: Wave10ScenarioOptions
     { cards: WAVE10_CARDS, encounterSets: WAVE10_GAME_ENCOUNTER_SETS },
   );
 
-  const sets = [
-    ...scenario.encounterSetIds,
-    ...modular.modularSetIds,
-    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
-  ];
+  // Competitive mode: the Standard PvP set of the leader's side instead of the Standard set (MC56 p. 3).
+  if (standardSet === "standardPvp" && !scenario.side) throw new Error(`${scenario.name} has no side`);
+  const difficultySets =
+    standardSet === "standard"
+      ? difficultyEncounterSetIds(scenario, difficulty, options.difficultySets)
+      : [
+          encounterSetId(`standard_pvp_${scenario.side}`),
+          ...difficultyEncounterSetIds(
+            { ...scenario, standardEncounterSetIds: [] },
+            difficulty,
+            options.difficultySets,
+          ),
+        ];
+  const sets = [...scenario.encounterSetIds, ...modular.modularSetIds, ...difficultySets];
   // A double-sided encounter card is one card: its front face.
   const encounterDeck = withoutBackFaces([
     ...encounterCardsOf(sets, WAVE10_CARDS),

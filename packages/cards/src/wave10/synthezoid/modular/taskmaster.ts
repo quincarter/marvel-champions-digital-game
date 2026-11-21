@@ -2,7 +2,6 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   attacksGainKeywords,
   boost,
-  competitiveOnly,
   constant,
   defineAbilities,
   discard,
@@ -24,6 +23,9 @@ import {
   whenDefeated,
   whenRevealed,
   you,
+  enemyAttacksEnemy,
+  yourLeader,
+  each,
 } from "../../../dsl/index.js";
 
 const TASKMASTER = "Taskmaster";
@@ -78,7 +80,10 @@ export const SYNTHEZOID_MODULAR_TASKMASTER: AbilityRegistry = defineAbilities({
       inCompetitiveMode(),
       ifThen(
         exists(query("minion", { name: TASKMASTER })),
-        [competitiveOnly("Taskmaster attacks your leader.")],
+        // RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a villain or villainous minion gets a boost; MC56 p. 16
+        // covers leader attacks only. Taskmaster is villainous here (Mimicked Move), so he gets one from the deck of the
+        // area he is in (N5), turned by the first player of the defending leader's team (owner question pending).
+        [enemyAttacksEnemy(each(query("minion", { name: TASKMASTER })), yourLeader, { boost: true })],
         TOUGH_AND_BOOST,
       ),
       TOUGH_AND_BOOST,

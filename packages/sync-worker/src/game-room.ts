@@ -43,6 +43,7 @@ import {
   MAX_TABLE_NAME_CHARS,
   MAX_POD_EVENT_BYTES,
   MAX_POD_STATE_BYTES,
+  TEAMS,
   POD_BURST,
   POD_PER_SECOND,
   MAX_LOG_BYTES,
@@ -73,6 +74,7 @@ import {
   type ServerMessage,
   type TableChecksums,
   type TableInfo,
+  type TeamId,
 } from "./room-protocol.js";
 
 /** A connection as the logic sees it; the Durable Object adapts a real WebSocket to this. */
@@ -101,7 +103,7 @@ export const DEFAULT_GAME_ROOM_LIMITS: GameRoomLimits = {
 /** What a watch room advertises. */
 export const ROOM_CAPS: readonly RoomCapability[] = ["watch"];
 /** What a lobby room advertises. */
-export const LOBBY_ROOM_CAPS: readonly RoomCapability[] = ["watch", "chat", "seats", "play", "tables"];
+export const LOBBY_ROOM_CAPS: readonly RoomCapability[] = ["watch", "chat", "seats", "play", "tables", "teams"];
 
 /** The room's calls to its code's directory entry (`RoomCode`), made when it moves its expiry or closes. */
 export interface RoomCodeHooks {
@@ -148,6 +150,7 @@ interface RoomMeta {
 
 /** A seat as stored: the public `LobbySeat` plus the hash of the token that restores it. */
 interface StoredSeat extends LobbySeatSpec {
+  team?: TeamId;
   holder?: string;
   holderName?: string;
   tokenHash?: string;
@@ -186,8 +189,30 @@ interface StoredTable extends Omit<LobbyTable, "host"> {
   hostTokenHash?: string;
 }
 
+/** Competitive rooms: which teams have a sealed scenario in the `sealed` row, which are ready, and whether it was revealed. */
+interface CompetitiveRow {
+  submitted: Record<TeamId, boolean>;
+  ready: Record<TeamId, boolean>;
+  /** While a game runs: the team each participant held at its start (or first took), so nobody switches sides. */
+  sides?: Record<string, TeamId>;
+  /** The host has been sent both scenarios (any change to teams or submissions takes this back); a `start` needs it. */
+  revealed: boolean;
+}
+
+/** The `sealed` row: each team's scenario, opaque. Read only by `sealed-reveal` and a submission; never broadcast. */
+type SealedRow = Partial<Record<TeamId, unknown>>;
+
+const SEALED_KEY = "sealed";
+const newCompetitive = (): CompetitiveRow => ({
+  submitted: { registration: false, resistance: false },
+  ready: { registration: false, resistance: false },
+  revealed: false,
+});
+
 interface LobbyRow {
   settings: LobbySettings;
+  /** Competitive rooms only. */
+  competitive?: CompetitiveRow;
   seats: StoredSeat[];
   /** Epic rooms only. */
   tables?: StoredTable[];
@@ -385,8 +410,12 @@ export class GameRoomLogic {
   /** `seat-deck` rate per participant, and for the whole room (every accepted deck rewrites the lobby row). Memory only. */
   private readonly deckBuckets = new Map<string, { tokens: number; at: number }>();
   private readonly roomDeckBucket = new Map<string, { tokens: number; at: number }>();
+  /** Sealed submissions each write a row, so they have their own slower bucket. */
+  private readonly sealedBuckets = new Map<string, { tokens: number; at: number }>();
   /** The lobby row, loaded on first use; null for a room without a code. */
   private lobby: LobbyRow | null | undefined;
+  /** The sealed row, read once per lifetime when a submission or a reveal needs it. */
+  private sealed: SealedRow | undefined;
   /** The last chat lines, oldest first. Memory only: a woken room starts with none. */
   private backlog: ChatLine[] = [];
   /** Chat rate: a token bucket per participant (1 a second, burst `CHAT_BURST`). Memory only. */
@@ -439,6 +468,48 @@ export class GameRoomLogic {
 
   private epic(): boolean {
     return this.lobby?.settings.mode === "epic";
+  }
+
+  private competitive(): boolean {
+    return this.lobby?.settings.mode === "competitive";
+  }
+
+  /** A game is running at the table (a Competitive room's teams, scenarios and mode are locked while it is). */
+  private async gameLive(): Promise<boolean> {
+    const t = this.tables.get(FIRST_TABLE);
+    if (!t) return false;
+    await this.ensureLoaded(t);
+    return t.hasHeader && !t.ended;
+  }
+
+  /** Whether the participant holds a seat on the other team than `team` (a Competitive player is on one team). */
+  private holdsOtherTeam(lobby: LobbyRow, id: string, seatId: string, team: TeamId | undefined): boolean {
+    return (
+      lobby.settings.mode === "competitive" &&
+      team !== undefined &&
+      lobby.seats.some((s) => s.holder === id && s.id !== seatId && s.team !== undefined && s.team !== team)
+    );
+  }
+
+  /** Records who is on which team (the holders now), so a running game's sides cannot be swapped. */
+  private noteSides(lobby: LobbyRow): void {
+    const comp = lobby.competitive;
+    if (!comp) return;
+    const sides: Record<string, TeamId> = { ...comp.sides };
+    for (const seat of lobby.seats) if (seat.holder && seat.team) sides[seat.holder] ??= seat.team;
+    comp.sides = sides;
+  }
+
+  /** During a Competitive game: this participant already played the other team, and may not take a seat on `team`. */
+  private async switchesSide(lobby: LobbyRow, id: string, team: TeamId | undefined): Promise<boolean> {
+    if (!lobby.competitive || team === undefined || !(await this.gameLive())) return false;
+    const was = lobby.competitive.sides?.[id];
+    return was !== undefined && was !== team;
+  }
+
+  private async loadSealed(): Promise<SealedRow> {
+    this.sealed ??= (await this.storage.get<SealedRow>(SEALED_KEY)) ?? {};
+    return this.sealed;
   }
 
   /** A room with its organizer (the room token's holder); in a standard room the one host is the organizer. */
@@ -504,11 +575,30 @@ export class GameRoomLogic {
           return { ...t, ...(id !== undefined ? { host: id } : {}) };
         })
       : undefined;
+    const competitive = lobby.settings.mode === "competitive" ? (lobby.competitive ?? newCompetitive()) : undefined;
+    // The tie-break option is a Competitive setting: default on, and not shown in any other mode.
+    const { tieBreaks: _tieBreaks, ...plain } = lobby.settings;
+    const settingsOut: LobbySettings = {
+      ...plain,
+      handover: lobby.settings.handover !== false,
+      ...(competitive ? { tieBreaks: lobby.settings.tieBreaks !== false } : {}),
+    };
     return {
       code: this.meta?.code ?? "",
-      settings: { ...lobby.settings, handover: lobby.settings.handover !== false },
+      settings: settingsOut,
       seats,
       ...(tables ? { tables, pods: [...(lobby.pods ?? [])] } : {}),
+      // Only flags: a team's scenario itself is never part of the lobby.
+      ...(competitive
+        ? {
+            competitive: {
+              teams: {
+                registration: { submitted: competitive.submitted.registration, ready: competitive.ready.registration },
+                resistance: { submitted: competitive.submitted.resistance, ready: competitive.ready.resistance },
+              },
+            },
+          }
+        : {}),
     };
   }
 
@@ -1081,6 +1171,13 @@ export class GameRoomLogic {
   ): Promise<void> {
     switch (message.kind) {
       case "start": {
+        // A Competitive game starts only after the host has had both teams' sealed scenarios (and nobody changed since).
+        if (this.competitive() && this.lobby?.competitive?.revealed !== true)
+          return this.refuse(socket, "out-of-order");
+        if (this.lobby?.competitive) {
+          this.noteSides(this.lobby);
+          await this.saveLobby();
+        }
         // A lobby room hosts one game after another (a rematch): `start` on an ended table reopens it first. Any other
         // room's ended table stays ended.
         if (table.ended) {
@@ -1240,6 +1337,14 @@ export class GameRoomLogic {
       await this.saveMeta({ ended: true, outcome, endedAt: now, ...(overflow ? { overflow: true } : {}) });
     }
     if (all) await this.storage.setAlarm(now + ROOM_END_GRACE_MS);
+    // A Competitive game is over: its scenarios are spent (a rematch builds and submits new ones).
+    if (this.lobby?.competitive) {
+      this.lobby.competitive = newCompetitive();
+      this.sealed = undefined;
+      await this.storage.delete(SEALED_KEY);
+      await this.saveLobby();
+      this.broadcastLobby(this.lobby);
+    }
   }
 
   // ----------------------------------------------------------------------------------------------------------
@@ -1317,6 +1422,10 @@ export class GameRoomLogic {
         this.refuse(socket, "multi-seat");
         continue;
       }
+      if (this.holdsOtherTeam(lobby, you.id, seat.id, seat.team)) {
+        this.refuse(socket, "other-team");
+        continue;
+      }
       seat.holder = you.id;
       seat.holderName = you.name ?? "";
       delete seat.left;
@@ -1381,21 +1490,26 @@ export class GameRoomLogic {
       ...(patch?.handover !== undefined ? { handover: patch.handover } : {}),
       ...(patch?.chat !== undefined ? { chat: patch.chat } : {}),
       ...(patch?.mode !== undefined ? { mode: patch.mode } : {}),
+      ...(patch?.tieBreaks !== undefined ? { tieBreaks: patch.tieBreaks } : {}),
     };
     const wasEpic = settings.mode === "epic";
     const epic = next.mode === "epic";
+    const wasCompetitive = settings.mode === "competitive";
+    const competitive = next.mode === "competitive";
     const refuse = (reason: Refusal): false => {
       this.refuse(socket, reason);
       return false;
     };
     // Whether a table has a game needs its header: read once, only when tables or the mode change, or in an Epic room
-    // (whose topology freezes once a table has started).
+    // (whose topology freezes once a table has started), or in a Competitive room.
     if (
       message.tables !== undefined ||
       message.pods !== undefined ||
       message.seats !== undefined ||
       epic !== wasEpic ||
-      wasEpic
+      wasEpic ||
+      competitive ||
+      wasCompetitive
     ) {
       for (const t of this.tables.values()) await this.ensureLoaded(t);
     }
@@ -1414,6 +1528,21 @@ export class GameRoomLogic {
       if (patch?.tableRules !== undefined && !same(patch.tableRules, settings.tableRules)) {
         return refuse("out-of-order");
       }
+    }
+    // Competitive: the mode, and while a game runs the teams, are locked (a team's scenario was already traded).
+    const live = [...this.tables.values()].some((t) => t.hasHeader && !t.ended);
+    if (live && competitive !== wasCompetitive) return refuse("out-of-order");
+    // What the running game was built on (the rules and the tie-break option) is fixed while it runs; before it, a change
+    // takes both teams' readiness back, since they agreed to other rules.
+    const rulesSig = (s: LobbySettings): string =>
+      JSON.stringify([s.playMode, s.tableRules, s.mods, s.tieBreaks !== false]);
+    const settingsChanged = wasCompetitive && competitive && rulesSig(settings) !== rulesSig(next);
+    if (
+      live &&
+      settingsChanged &&
+      (settings.playMode !== next.playMode || (settings.tieBreaks !== false) !== (next.tieBreaks !== false))
+    ) {
+      return refuse("out-of-order");
     }
 
     let seats = lobby.seats;
@@ -1459,9 +1588,18 @@ export class GameRoomLogic {
           label: _label,
           player: _old,
           table: _table,
+          team: _team,
           ...rest
         } = moved || !kept ? ({ id: spec.id } as StoredSeat) : kept;
-        return { ...rest, ...label, ...player, ...(table !== undefined ? { table } : {}) };
+        // A seat's team is kept when the host's list omits it, so a guest's `team-set` is not undone by the next set.
+        const team = competitive ? (spec.team ?? (moved ? undefined : kept?.team)) : undefined;
+        return {
+          ...rest,
+          ...label,
+          ...player,
+          ...(table !== undefined ? { table } : {}),
+          ...(team !== undefined ? { team } : {}),
+        };
       });
     } else if (!epic && seats.some((s) => this.seatTable(s) !== FIRST_TABLE)) {
       return refuse("bad-message");
@@ -1490,6 +1628,23 @@ export class GameRoomLogic {
         used.set(at, taken);
         return { ...seat, player: id };
       });
+    }
+    if (!competitive) seats = seats.map(({ team: _team, ...rest }) => rest);
+    let teamsChanged = false;
+    if (competitive) {
+      for (const team of TEAMS) if (seats.filter((s) => s.team === team).length > 2) return refuse("team-size");
+      const sig = (list: readonly StoredSeat[]) => list.map((s) => `${s.id}:${s.team ?? ""}`).join();
+      teamsChanged = !wasCompetitive || sig(seats) !== sig(lobby.seats);
+      // Changing who is on which team while a game runs is refused (the engine built its two areas from them).
+      if (live && wasCompetitive && teamsChanged) return refuse("out-of-order");
+      // A player is on one team.
+      const side = new Map<string, TeamId>();
+      for (const seat of seats) {
+        if (!seat.holder || !seat.team) continue;
+        const had = side.get(seat.holder);
+        if (had !== undefined && had !== seat.team) return refuse("other-team");
+        side.set(seat.holder, seat.team);
+      }
     }
     if (!next.multiSeat) {
       // Turning multi-seat off cannot quietly take a seat from someone who holds two.
@@ -1614,6 +1769,17 @@ export class GameRoomLogic {
     // Everything checked: change the lobby.
     lobby.settings = next;
     lobby.seats = seats;
+    if (!competitive) {
+      if (lobby.competitive) await this.storage.delete(SEALED_KEY);
+      delete lobby.competitive;
+      this.sealed = undefined;
+    } else if (!lobby.competitive || !wasCompetitive) {
+      lobby.competitive = newCompetitive();
+      this.sealed = undefined;
+    } else if (teamsChanged || settingsChanged) {
+      lobby.competitive.ready = { registration: false, resistance: false };
+      lobby.competitive.revealed = false;
+    }
     if (epic) {
       lobby.tables = tablesNext!;
       lobby.pods = podsNext!;
@@ -1684,12 +1850,20 @@ export class GameRoomLogic {
     };
     // Only a change of holder, or the host setting the lobby, is stored. A request or its withdrawal is memory only.
     let persist = false;
+    const holdersBefore = lobby.seats.map((s) => s.holder ?? "").join();
 
     switch (message.kind) {
       case "lobby-set": {
         if (!isHost) return this.refuse(socket, "not-allowed");
         if (!(await this.lobbySet(socket, who, lobby, message))) return;
         persist = true;
+        break;
+      }
+      case "team-set":
+      case "team-ready":
+      case "scenario-submit":
+      case "sealed-reveal": {
+        if (!(await this.competitiveMessage(socket, who, lobby, message))) return;
         break;
       }
       case "seat-request": {
@@ -1706,6 +1880,8 @@ export class GameRoomLogic {
         if (seat.holder) return this.refuse(socket, "seat-taken");
         if (this.holdsElsewhere(lobby, who.id, this.seatTable(seat))) return this.refuse(socket, "other-table");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
+        if (this.holdsOtherTeam(lobby, who.id, seat.id, seat.team)) return this.refuse(socket, "other-team");
+        if (await this.switchesSide(lobby, who.id, seat.team)) return this.refuse(socket, "other-team");
         if (isHost) {
           // The host approves their own request.
           await this.grant(seat, who);
@@ -1754,6 +1930,8 @@ export class GameRoomLogic {
         }
         if (this.holdsElsewhere(lobby, target.id, this.seatTable(seat))) return this.refuse(socket, "other-table");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, target.id) > 0) return this.refuse(socket, "multi-seat");
+        if (this.holdsOtherTeam(lobby, target.id, seat.id, seat.team)) return this.refuse(socket, "other-team");
+        if (await this.switchesSide(lobby, target.id, seat.team)) return this.refuse(socket, "other-team");
         await this.grant(seat, target);
         persist = true;
         break;
@@ -1879,12 +2057,100 @@ export class GameRoomLogic {
         break;
       }
     }
+    if (persist && lobby.competitive) {
+      if (await this.gameLive()) this.noteSides(lobby);
+      else if (lobby.seats.map((s) => s.holder ?? "").join() !== holdersBefore) {
+        // Another player on a team is another team: both must say ready again (and the host reveal again).
+        lobby.competitive.ready = { registration: false, resistance: false };
+        lobby.competitive.revealed = false;
+      }
+    }
     if (persist) {
       await this.saveLobby();
       // A holder who plays is not counted as a watcher, so a change of holders changes the roster's count.
       this.broadcastRoster();
     }
     this.broadcastLobby(lobby);
+  }
+
+  /**
+   * The Competitive lobby messages (docs/live-game-rooms.md section 11): `team-set`, `scenario-submit`, `team-ready` and
+   * `sealed-reveal`. Changes the lobby in memory and returns true when the caller should save and broadcast it; `false`
+   * when it refused or only answered the host. A team's scenario goes into its own row and nowhere else, until the host's
+   * reveal sends it to the host alone.
+   */
+  private async competitiveMessage(
+    socket: RoomSocket,
+    who: Participant,
+    lobby: LobbyRow,
+    message: Extract<ClientMessage, { kind: "team-set" | "team-ready" | "scenario-submit" | "sealed-reveal" }>,
+  ): Promise<boolean> {
+    const comp = lobby.competitive;
+    if (lobby.settings.mode !== "competitive" || !comp) return this.refused(socket, "out-of-order");
+    const isHost = this.isOrganizer(who);
+    const live = await this.gameLive();
+    if (message.kind === "sealed-reveal") {
+      if (!isHost) return this.refused(socket, "not-allowed");
+      const count = (team: TeamId) => lobby.seats.filter((seat) => seat.team === team).length;
+      const sized = count("registration") === count("resistance") && [1, 2].includes(count("registration"));
+      if (!sized || lobby.seats.length !== count("registration") * 2) return this.refused(socket, "team-size");
+      if (!TEAMS.every((t) => comp.submitted[t] && comp.ready[t])) return this.refused(socket, "not-ready");
+      const sealed = await this.loadSealed();
+      this.sendTo(who.id, {
+        v: 1,
+        ch: "room",
+        kind: "sealed",
+        registration: sealed.registration,
+        resistance: sealed.resistance,
+      });
+      if (comp.revealed) return false;
+      comp.revealed = true;
+      return true;
+    }
+    // Everything else changes the lobby before the game: a running game's teams and scenarios are fixed.
+    if (live) return this.refused(socket, "out-of-order");
+    const holds = (team: TeamId) => lobby.seats.some((s) => s.holder === who.id && s.team === team);
+    if (message.kind === "team-set") {
+      const seat = lobby.seats.find((s) => s.id === message.seat);
+      if (!seat) return this.refused(socket, "no-such-seat");
+      if (!isHost && seat.holder !== who.id) return this.refused(socket, "not-allowed");
+      if (seat.team === message.team) return false;
+      if (lobby.seats.filter((s) => s.team === message.team).length >= 2) return this.refused(socket, "team-size");
+      if (seat.holder && this.holdsOtherTeam(lobby, seat.holder, seat.id, message.team)) {
+        return this.refused(socket, "other-team");
+      }
+      seat.team = message.team;
+      comp.ready = { registration: false, resistance: false };
+      comp.revealed = false;
+      return true;
+    }
+    // A team's scenario and readiness are its own: the host may speak for a team it sits on, or for either team when it
+    // holds no seat (it only runs the table). Owner question pending; this is the recommended rule.
+    const holdsAny = lobby.seats.some((s) => s.holder === who.id);
+    const allowed = holds(message.team) && (isHost || this.sameBuild(who.build, lobby.settings));
+    if (!allowed && !(isHost && !holdsAny)) return this.refused(socket, "not-seated");
+    if (message.kind === "team-ready") {
+      if (message.ready && !comp.submitted[message.team]) return this.refused(socket, "not-ready");
+      if (comp.ready[message.team] === message.ready) return false;
+      comp.ready[message.team] = message.ready;
+      if (!message.ready) comp.revealed = false;
+      return true;
+    }
+    // scenario-submit: a row per submission, so a slower bucket than the lobby's.
+    if (!takeToken(this.sealedBuckets, who.id, 3, 0.2, this.clock())) return this.refused(socket, "rate-limited");
+    const sealed = await this.loadSealed();
+    const next: SealedRow = { ...sealed, [message.team]: message.scenario };
+    await this.storage.put(SEALED_KEY, next);
+    this.sealed = next;
+    comp.submitted[message.team] = true;
+    comp.ready[message.team] = false;
+    comp.revealed = false;
+    return true;
+  }
+
+  private refused(socket: RoomSocket, reason: Refusal): false {
+    this.refuse(socket, reason);
+    return false;
   }
 
   /** The seat ids `who` holds that may act: builds match and the host has not taken the seat over. */
@@ -2186,6 +2452,8 @@ export class GameRoomLogic {
     this.backlog = [];
     this.chatBuckets.clear();
     this.lobbyBuckets.clear();
+    this.sealedBuckets.clear();
+    this.sealed = undefined;
     this.proposalBuckets.clear();
     this.podBuckets.clear();
     this.podState = undefined;

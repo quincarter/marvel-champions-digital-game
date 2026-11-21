@@ -24,6 +24,7 @@ import {
   type ProposalRefusal,
   type ServerMessage,
   type TableInfo,
+  type TeamId,
 } from "@mc/sync-worker/room-protocol";
 import { EpicCoordinator, type EpicLogStore } from "./epic-coordinator.js";
 import { seatsAt, withEpicStart } from "./epic-start.js";
@@ -94,6 +95,8 @@ export interface RoomSessionDeps {
   /** Where the organizer keeps the pod coordinator's log (Epic Multiplayer). Absent: the coordinator is not saved. */
   readonly epicStore?: EpicLogStore;
   readonly onState: (state: RoomState) => void;
+  /** Competitive host: the room's `sealed` answer (both scenarios). Goes to this device's main thread, never into a state. */
+  readonly onSealed?: (sealed: { readonly registration: unknown; readonly resistance: unknown }) => void;
   readonly now?: () => number;
   readonly fetch?: typeof fetch;
   readonly createRoom?: (deps: CreateRoomDeps) => Promise<CreateRoomResult>;
@@ -101,9 +104,9 @@ export interface RoomSessionDeps {
   readonly socket?: RoomSocketDeps;
 }
 
-const CAPS = ["watch", "chat", "seats", "tables"] as const;
+const CAPS = ["watch", "chat", "seats", "tables", "teams"] as const;
 /** A host also judges seat holders' proposals (issue #881). */
-const HOST_CAPS = ["watch", "chat", "seats", "play", "tables"] as const;
+const HOST_CAPS = ["watch", "chat", "seats", "play", "tables", "teams"] as const;
 /** A table host token is kept beside the seat tokens under this prefix (a seat id never has a colon). */
 const TABLE_KEY = "table:";
 
@@ -158,6 +161,11 @@ export class RoomSession {
   #generation = 0;
   /** Host: callers waiting for the room's `seat-decks` answer. */
   readonly #deckWaiters: { done: (decks: readonly SeatDeckEntry[] | null) => void; timer: unknown }[] = [];
+  /**
+   * A sealed scenario submitted while the socket was down, sent again at the next welcome. Kept here and nowhere else:
+   * never in the state, and dropped once it is sent (the room stores it).
+   */
+  #pendingScenario: { team: TeamId; scenario: unknown } | null = null;
 
   constructor(role: "host" | "guest", name: string, deps: RoomSessionDeps) {
     this.role = role;
@@ -360,6 +368,52 @@ export class RoomSession {
       counts.set(table, index + 1);
       return { ...spec, player: spec.player ?? `p${index + 1}` };
     });
+  }
+
+  // -- Civil War Competitive (issue #883) ----------------------------------------------------------------------------
+
+  /** Host: Competitive mode with these seats (each naming its team) and, optionally, the tie-break option. */
+  setCompetitive(seats: readonly LobbySeatSpec[], tieBreaks?: boolean): void {
+    if (this.role !== "host") return;
+    this.#say({
+      ch: "room",
+      kind: "lobby-set",
+      settings: { mode: "competitive", ...(tieBreaks === undefined ? {} : { tieBreaks }) },
+      seats: this.#withPlayers(seats),
+    });
+  }
+
+  /** Puts a seat on a team: the host's, or its holder's. The room refuses a third seat on a team or a player on both. */
+  setTeam(seat: string, team: TeamId): void {
+    this.#say({ ch: "room", kind: "team-set", seat, team });
+  }
+
+  /**
+   * Seals the scenario `team` built for the other team in the room (the host's, or a holder of a seat on `team`'s).
+   * It goes to the room and nowhere else: not into the state, not echoed. Sent again after a reconnect if the socket
+   * was down.
+   */
+  submitScenario(team: TeamId, scenario: unknown): void {
+    this.#pendingScenario = null;
+    if (!this.#socket?.send({ v: ROOM_PROTOCOL_VERSION, ch: "room", kind: "scenario-submit", team, scenario })) {
+      this.#pendingScenario = { team, scenario };
+    }
+  }
+
+  setTeamReady(team: TeamId, ready: boolean): void {
+    this.#say({ ch: "room", kind: "team-ready", team, ready });
+  }
+
+  /** Host: the tie-break option (default on). */
+  setTieBreaks(on: boolean): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "lobby-set", settings: { tieBreaks: on } });
+  }
+
+  /** Host: asks the room for both teams' scenarios; the answer arrives as `deps.onSealed`. */
+  revealSealed(): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "sealed-reveal" });
   }
 
   // -- Epic Multiplayer (issue #882) -----------------------------------------------------------------------------------
@@ -915,6 +969,17 @@ export class RoomSession {
       const hooks = this.#hooks;
       this.#hooks = null;
       hooks?.onEnded();
+    }
+    if (message.ch === "room" && message.kind === "sealed") {
+      // Only the host's own reveal answer, never a state: the scenarios leave this worker once, to the main thread.
+      if (this.role === "host")
+        this.#deps.onSealed?.({ registration: message.registration, resistance: message.resistance });
+      return;
+    }
+    if (message.ch === "room" && message.kind === "welcome" && this.#pendingScenario) {
+      const { team, scenario } = this.#pendingScenario;
+      this.#pendingScenario = null;
+      this.submitScenario(team, scenario);
     }
     if (message.ch === "room" && message.kind === "table-host-token") {
       // Private to this device: kept and presented as `hello.tableTokens`, never shown. It makes this device a host.

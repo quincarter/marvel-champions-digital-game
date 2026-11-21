@@ -418,3 +418,59 @@ lobby advertises the `tables` capability in every lobby room.
   written only when the lobby, a seat holder or a table host changes; a table's end is one row and the room's end one
   meta write. A woken room reads every table once when someone joins (about one row per 20 commands per table, plus 3 per
   table). Seats are capped by `MAX_ROOM_PARTICIPANTS` (25: 16 players in 4 tables plus 9 watchers fit, 8 tables of 4 do not, so raise the var for those); the organizer, table hosts and anyone presenting a valid seat token are let in even when the room is full.
+
+## 11. Two teams: Civil War Competitive (issue #883, stacked on #882)
+
+Rules: docs/competitive-mode-plan.md §1, with the answers and owner decisions in §1.10 (2026-11-20). Architecture: that
+plan's §3.8, one `GameState` with two game areas and one authority, mapped onto rooms:
+
+- **One table, two teams.** A competitive room has one table whose seats each carry `team: "registration" |
+  "resistance"` (1v1 or 2v2). The room host runs the one engine (host-authoritative as in §9); every other seat
+  proposes. Each team builds and seals a scenario for the other in the lobby (plan M8), and the trade happens at Start.
+- **Whose turn.** Phases alternate by team (registration hero, resistance hero, registration villain, resistance
+  villain; one shared round, Q3 B). The inactive team's seats can't act, except the choices a card gives to the enemy
+  team (routed to that team's first player, N1) and their triggered abilities (Q11 A).
+- **What each team sees.** Hands are private; a team never sees the deck it faces or the opposing scenario's modular
+  list; facedown dealt cards stay hidden until revealed; a search shows the searched deck to the searching seat only.
+  The views blank what a seat may not see. Known limit: in this host-authoritative design every device replays the full
+  log, so hiding is enforced by the client, not by a server (a server-side projection needs a server authority, which
+  the free plan can't run; noted for later). That matches the physical game's trust model and the plan's hot-seat note.
+- **Outcome.** Per-team results with the equal-phases rule (p. 17), the tie-break policy as a lobby option (Q9 C, on by
+  default), and different win conditions in the window as a tie (N4).
+- **Watching.** Watchers see both areas; a watch delay (#887) matters most here, for streams.
+
+### 11.1 Room and protocol (built, `packages/sync-worker`, capability `teams`)
+
+Competitive is a lobby setting (`settings.mode: "competitive"`), one table (`t1`), and the host's engine is the one
+authority (every seat proposes, §9; the room never reads a game, so "whose turn" is the host's engine's call, which
+answers `refused not-your-turn`).
+
+- **Teams.** `LobbySeat.team` (`registration` | `resistance`); at most 2 seats per team (`team-size`), and a participant may
+  hold seats on one team only (`other-team`: hidden hands would be shared). `team-set { seat, team }` is the host's or the
+  seat holder's; a `lobby-set` that omits a seat's `team` keeps it. `lobby.competitive.teams` carries per team only
+  `{ submitted, ready }`. Mode and teams are locked while a game runs (`out-of-order`). Leaving Competitive drops the
+  teams and the stored scenarios.
+- **Sealed scenarios.** Each team builds a scenario for the other. `scenario-submit { team, scenario }` (opaque, at most
+  40 KiB of JSON; the host or a holder of a seat on that team; its own slower rate bucket, burst 3, one per 5 s, since it
+  writes a row) goes into its own `sealed` storage row, never into the `lobby` row, a broadcast or a `welcome`. A new
+  submission clears that team's `ready`; any change of teams clears both. `team-ready { team, ready }` needs a
+  submission (`not-ready`).
+- **The reveal.** The host's `sealed-reveal` is refused `team-size` unless the seats are a 1v1 or a 2v2 with every seat on
+  a team, `not-ready` unless both teams submitted and are ready. The room then sends `sealed { registration, resistance }`
+  to that host alone, and the host's `start` is accepted only after it (any later change takes the reveal back). The
+  host's device builds the two-team game from both and keeps them in its own game save; it may ask again after a reload
+  while the game runs. A game's `end` clears the scenarios, readiness and reveal, so a rematch builds new ones. The stored room row never sends a submission to a guest, but
+  the live game header carries the built config (so both scenarios), and every device replays the full log: hiding the other
+  team's scenario from a guest is client-side only, the accepted limit below.
+- **Known limit (§11).** The host's device sees both scenarios, so a host playing on a team knows the other team's
+  modular list. Hiding it from the host would need a server authority; hot-seat and the physical game have the same trust
+  model.
+- **Tie-breaks.** `settings.tieBreaks` (default on, sent only in Competitive) is stored and relayed; the engine applies it.
+- **Costs.** A row per submission (rate limited as above), a lobby-row write when readiness, a team or a seat holder
+  changes, one `sealed` delete at the game's end; proposals write nothing, as before.
+- **Who speaks for a team (owner question pending; recommended rule built).** A team's scenario and readiness are sent by
+  a holder of a seat on that team; the host may too when it sits on that team, or for either team when it holds no seat.
+  A change of a team seat's holder, of the teams, or of the rules or tie-break option takes both teams' readiness and the
+  reveal back (before the game). While the game runs the play mode and tie-break option are fixed, and a participant who
+  played one team may not take a seat on the other (`other-team`; tracked by participant id, so a fresh reconnect without
+  its seat token is a limit of the design, as with any anonymous guest).

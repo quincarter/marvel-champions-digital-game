@@ -10,6 +10,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { difficultyLabelOf } from "./difficulty-label.js";
 import type { PresenceGame } from "./discord-presence.js";
 import { cardName, playerName } from "./names.js";
+import { seatResultOf } from "./team-outcome.js";
 
 /** A `blob:` URL (a pack picture, were the resolver ever set here) means nothing outside this app: drop it. */
 const publicOnly = (url: string | null | undefined): string | null => (url && !url.startsWith("blob:") ? url : null);
@@ -66,7 +67,7 @@ export function presenceGameOf(state: GameState, config: SessionConfig | null): 
     round: state.round,
     phase,
     difficulty: difficultyLabelOf(config),
-    result: outcome ? (outcome.result === "win" ? "win" : outcome.result === "conceded" ? "conceded" : "loss") : null,
+    result: outcome ? seatResultOf(outcome, state.teams, config?.localSeats) : null,
     villainArt: publicOnly(artFor(villainCard, villainFace)?.url),
     heroArt: leadCard && leadFace ? publicOnly(artFor(leadCard, leadFace)?.url) : null,
     villainArtCodes: packArtCodesOf(villainCard, villainFace),

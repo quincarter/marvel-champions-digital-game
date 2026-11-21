@@ -25,6 +25,9 @@ import { reportedNumberOf } from "./outside-facts.js";
 import { spendPays } from "./payable.js";
 import { externalEvent, haltedFault, podRelease, remotePower, reportPodBoundary } from "./pod-commands.js";
 import { getPlayer, handSize } from "./query.js";
+import { competitiveConcession } from "./competitive-outcome.js";
+import { eliminatePlayer } from "./resolve/defeat.js";
+import { teamOf } from "./team.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
 import { handCountTowardHandSize } from "./select.js";
@@ -145,6 +148,22 @@ function concede(ctx: Ctx, command: Command & { type: "concede" }): EngineError 
   const player = getPlayer(ctx.state, command.playerId);
   if (!player) return engineError("unknown_player", `${command.playerId} is not at this table`, command);
   if (player.eliminated) return engineError("not_active_player", `${command.playerId} is out of the game`, command);
+  if (ctx.state.teams) {
+    // N12 A per owner decision 2026-11-20: a team's forfeit ends the game at once; one seat of a team that plays on is
+    // eliminated alone (RRG 1.8 "Player Elimination", p. 34), firing no defeat effect.
+    const team = teamOf(ctx.state, command.playerId);
+    const teammates = team.playerIds.filter(
+      (id) => id !== command.playerId && getPlayer(ctx.state, id)?.eliminated === false,
+    );
+    if (command.alone && teammates.length > 0) {
+      if (ctx.state.pendingChoice)
+        return engineError("choice_pending", "a choice must be resolved before one seat concedes", command);
+      eliminatePlayer(ctx, command.playerId);
+      return null;
+    }
+    endGame(ctx, competitiveConcession(ctx.state, team.teamId, command.playerId));
+    return null;
+  }
   endGame(ctx, { result: "conceded", reason: "playerConceded", byPlayerId: command.playerId });
   return null;
 }

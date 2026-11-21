@@ -2,7 +2,6 @@ import type { AbilityRegistry } from "@mc/engine";
 import {
   boost,
   chosen,
-  competitiveOnly,
   dealAsEncounterCard,
   defineAbilities,
   discard,
@@ -31,6 +30,11 @@ import {
   varOf,
   whenRevealed,
   you,
+  removeThreat,
+  yourLeadersMainScheme,
+  moveThreat,
+  allOf,
+  refMatches,
 } from "../../../dsl/index.js";
 
 const SPIDER_MAN_MINION = query("minion", { name: "Spider-Man" });
@@ -88,17 +92,19 @@ export const MODULAR_SPIDER_MAN: AbilityRegistry = defineAbilities({
   "56181.tangled-up-forced-interrupt": forcedInterrupt(on.characterWouldAct("host"), instead(discard(self))),
   "56181.boost": boost(ifThen(exists(SPIDER_MAN_MINION), revealCard(self))),
 
-  "56182.when-revealed": whenRevealed(
-    placeThreat(2, theMainScheme),
-    ifThen(inCompetitiveMode(), [
-      competitiveOnly("In competitive mode, remove 2 threat from your leader's main scheme."),
-    ]),
-  ),
+  "56182.when-revealed": whenRevealed(placeThreat(2, theMainScheme), removeThreat(2, yourLeadersMainScheme)),
 
   "56183.when-revealed": whenRevealed(
     ifThen(
-      inCompetitiveMode(),
-      [competitiveOnly("In competitive mode, move 2 threat from your leader's main scheme to this scheme.")],
+      // With no threat on your leader's main scheme nothing can move, so "Otherwise" resolves (RRG 1.8 "Otherwise",
+      // p. 31); with 1, that 1 moves (RRG 1.8 "Move", p. 30: as much as can be).
+      allOf(
+        inCompetitiveMode(),
+        refMatches(yourLeadersMainScheme, { hasThreat: true, anyGameArea: true }, { anywhere: true }),
+      ),
+      // Threat moves across the table (MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4)):
+      // removed there, placed here (RRG 1.8 "Move", p. 30).
+      [moveThreat(yourLeadersMainScheme, self, { amount: 2 })],
       placeThreat(perHero(2), self),
     ),
   ),

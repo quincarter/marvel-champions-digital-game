@@ -57,3 +57,5 @@ export {
   wave10StarterDeckSetup,
 } from "./setup.js";
 export type { Wave10Difficulty, Wave10ScenarioOptions } from "./setup.js";
+export { civilWarCompetitive, competitiveModularSetProblem, leaderPlayerCardIds } from "./competitive.js";
+export type { CivilWarCompetitiveOptions, CivilWarCompetitiveTeam } from "./competitive.js";

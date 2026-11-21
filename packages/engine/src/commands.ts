@@ -287,8 +287,14 @@ export type Command =
    * - **Any seated, non-eliminated player may concede, and it ends the game for the whole table**, because a co-op
    *   table shares one outcome. If a future build wants every seat to confirm first, that is a client/netcode wrapper
    *   that gathers confirmations and then issues this one command — not engine behavior.
+   * - **Competitive play** (N12 A per owner decision 2026-11-20): it is the conceding player's **team's** forfeit, and
+   *   ends the game at once: that team loses and the other wins, with no equal phases and no tie-breaks
+   *   (`competitiveConcession`). With `alone`, a player of a team that still has another seat in the game gives up
+   *   only their own seat: they are eliminated (RRG 1.8 "Player Elimination", p. 34) and their team plays on; the last
+   *   seat of a team conceding alone is its team's forfeit. Neither is a defeat: no "when defeated" effect hears it.
+   *   `alone` is ignored in a cooperative game.
    */
-  | { readonly type: "concede"; readonly playerId: PlayerId }
+  | { readonly type: "concede"; readonly playerId: PlayerId; readonly alone?: true }
   /**
    * A manual correction of the game state, from the pause menu, after a bug or a misclick (issue #791). **Not an RRG
    * rule**: like `concede`, a digital-implementation affordance, and a command for the same reason, so a `GameLog`
