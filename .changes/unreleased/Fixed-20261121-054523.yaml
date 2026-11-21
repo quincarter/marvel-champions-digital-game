@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Windows: if the game''s page crashes, the app reloads it by itself, then tries a safe mode without WebGL, instead of leaving you on ''Can''t open this page'' (#932)'
-time: 2026-11-21T05:45:23.7788681-05:00

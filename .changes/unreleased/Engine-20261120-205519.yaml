@@ -1,3 +1,0 @@
-kind: Engine
-body: New response event for a card discarded from a hand by a card's ability (cardDiscardedFromHand, with the discarding card's side and effect or cost), and on.cardDiscardedFromHand in the card DSL, so one ability can answer discards from a hand, a deck and play under one limit (#922).
-time: 2026-11-20T20:55:19.7294011-05:00
