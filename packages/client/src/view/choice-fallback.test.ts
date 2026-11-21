@@ -32,6 +32,23 @@ describe("the decision sheet's fallback (#943)", () => {
     expect(view.rows[0]?.label).toBe("a");
   });
 
+  it("numbers the picks of an ordered decision in the order made, across pages (Codex review)", () => {
+    const choice = { options: options(9), minSelections: 3, maxSelections: 3, ordered: true };
+    let selected = ["o8", "o0", "o4"] as readonly string[];
+    const view = fallbackChoiceView(choice, selected);
+    expect(view.ordered).toBe(true);
+    expect(view.rows.filter((row) => row.order !== null).map((row) => [row.optionId, row.order])).toEqual([
+      ["o0", 2],
+      ["o4", 3],
+      ["o8", 1],
+    ]);
+    selected = toggleFallbackPick(choice, selected, "o8");
+    expect(fallbackChoiceView(choice, selected).rows.find((row) => row.optionId === "o0")?.order).toBe(1);
+    expect(fallbackChoiceView({ ...choice, ordered: false }, selected).rows.every((row) => row.order === null)).toBe(
+      true,
+    );
+  });
+
   it("pages a list that outruns the room", () => {
     expect(fallbackPages(9, 200, 48)).toEqual({ perPage: 4, pages: 3 });
     expect(fallbackPages(2, 10, 48)).toEqual({ perPage: 1, pages: 2 });

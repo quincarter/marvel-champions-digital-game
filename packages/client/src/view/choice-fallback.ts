@@ -5,7 +5,8 @@
  * own options and labels, so the player still makes the decision and the game can always go on.
  *
  * A pick of one answers on the press. Anything else toggles options and answers with Confirm once the count is legal;
- * Choose none answers at once when the decision allows none. The list pages when it outruns the screen.
+ * Choose none answers at once when the decision allows none. When the order of the picks is the answer, each pick is
+ * numbered in the order it was made and a tap again takes it out. The list pages when it outruns the screen.
  */
 import type { PendingChoice } from "@mc/engine";
 
@@ -13,6 +14,8 @@ export interface FallbackOptionRow {
   readonly optionId: string;
   readonly label: string;
   readonly selected: boolean;
+  /** Its place in the answer (1 first) when the order of the picks is the answer; null otherwise or unpicked. */
+  readonly order: number | null;
 }
 
 export interface FallbackChoiceView {
@@ -23,13 +26,15 @@ export interface FallbackChoiceView {
   readonly confirm: { readonly enabled: boolean; readonly label: string } | null;
   /** "Choose none" answers with nothing: offered only when the decision allows none. */
   readonly canChooseNone: boolean;
+  /** The order of the picks is the answer: say so, and number each pick (a tap again takes it out). */
+  readonly ordered: boolean;
 }
 
 const labelOf = (option: PendingChoice["options"][number]): string =>
   typeof option.label === "string" && option.label.trim() !== "" ? option.label : option.optionId;
 
 export function fallbackChoiceView(
-  choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections">,
+  choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections"> & Partial<Pick<PendingChoice, "ordered">>,
   selected: readonly string[],
 ): FallbackChoiceView {
   const answersOnPress = choice.maxSelections === 1 && choice.minSelections <= 1;
@@ -38,6 +43,8 @@ export function fallbackChoiceView(
     optionId: option.optionId,
     label: labelOf(option),
     selected: !answersOnPress && picked.has(option.optionId),
+    order:
+      !answersOnPress && choice.ordered && picked.has(option.optionId) ? selected.indexOf(option.optionId) + 1 : null,
   }));
   const count = rows.filter((row) => row.selected).length;
   return {
@@ -50,6 +57,7 @@ export function fallbackChoiceView(
           label: `Confirm (${count} of ${choice.minSelections === choice.maxSelections ? choice.maxSelections : `${choice.minSelections}-${choice.maxSelections}`})`,
         },
     canChooseNone: choice.minSelections === 0,
+    ordered: !answersOnPress && choice.ordered === true,
   };
 }
 

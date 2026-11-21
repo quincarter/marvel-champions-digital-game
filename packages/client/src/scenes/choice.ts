@@ -634,11 +634,14 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setMaxLines(3);
     y += prompt.height + 6;
     const message = cause instanceof Error ? cause.message : String(cause);
+    const orderNote = fallbackChoiceView(choice, []).ordered
+      ? "The order you tap is the order they resolve; tap one again to take it out. "
+      : "";
     const note = this.add
       .text(
         x,
         y,
-        `Answer it here to keep playing; the error is saved for an issue report. ${message}`,
+        `${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
         textStyle(typeRole.body, surface.paper.hex, ink.secondary),
       )
       .setWordWrapWidth(sheetWidth)
@@ -660,7 +663,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: row.selected ? "primary" : "onInk",
-          label: row.selected ? `✓ ${row.label}` : row.label,
+          label: row.order !== null ? `${row.order}. ${row.label}` : row.selected ? `✓ ${row.label}` : row.label,
           type: typeRole.label,
           rect,
           onClick: () => {
