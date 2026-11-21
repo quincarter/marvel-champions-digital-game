@@ -229,7 +229,13 @@ export async function stubClipboard(page: Page): Promise<void> {
 export const copiedText = (page: Page): Promise<string | null> =>
   page.evaluate(() => (window as unknown as { __copied?: string | null }).__copied ?? null);
 
-/** `test` with a `room` fixture: a room server for the length of one test, released for the next (one at a time). */
+/**
+ * `test` with a `room` fixture: a room server for the length of one test, released for the next (one at a time).
+ *
+ * The fixture is `auto`: a spec that never names `room` (a two-browser room game starts its own room through the dev
+ * jumps) still needs the server up, and it holds the port while it runs, so another spec's server never counts this
+ * spec's `POST /room` calls (the dev build points every page at the same address).
+ */
 export const test = base.extend<{ room: RoomServer }>({
   room: [
     // eslint-disable-next-line no-empty-pattern -- Playwright needs the destructuring to see there are no dependencies
@@ -241,6 +247,6 @@ export const test = base.extend<{ room: RoomServer }>({
         await server.stop();
       }
     },
-    { timeout: 300_000 },
+    { timeout: 300_000, auto: true },
   ],
 });
