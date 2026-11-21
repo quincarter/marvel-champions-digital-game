@@ -1,9 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, findText, hasText, isSceneUp, settle, waitFor } from "./helpers.js";
-import { communityHeroPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import { serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
 import { installWave6Helpers, visibleTexts, waitForScene } from "./wave6-helpers-a.js";
 import { openApp, quietGuide } from "./wave6-helpers-b.js";
 
@@ -29,16 +29,49 @@ const stopRect = (page: Page, scene: string, key: string): Promise<Rect | null> 
     [scene, key],
   );
 
-async function inspectTexts(page: Page): Promise<string> {
-  return (await visibleTexts(page))
-    .filter((t) => t.scene === "InspectOverlay")
-    .map((t) => t.text)
-    .join("\n");
-}
-
 async function waitForInspect(page: Page): Promise<void> {
   await waitFor(async () => ((await activeScenes(page)).includes("InspectOverlay") ? true : null), "Inspect opens");
   await settle(page);
+}
+
+/** A whole line that reads exactly `text`, any case. */
+const exactly = (text: string): RegExp => new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+
+const SPIDER_MAN = exactly("Spider-Man (Peter Parker)");
+const PETER_PARKER = exactly("Peter Parker");
+
+/**
+ * Inspect shows `side` of the identity whose title line matches `title`: that title, the side's type line ("HERO · …"
+ * or "ALTER-EGO · …") and the toggle to the other side. A name alone could appear elsewhere on the sheet.
+ */
+async function expectFace(page: Page, title: RegExp, side: "hero" | "alterEgo"): Promise<void> {
+  const typeLine = side === "hero" ? /^hero( ·|$)/i : /^alter-ego( ·|$)/i;
+  const toggle = side === "hero" ? /^show alter-ego$/i : /^show hero$/i;
+  await waitFor(async () => {
+    const lines = (await visibleTexts(page)).filter((t) => t.scene === "InspectOverlay").map((t) => t.text.trim());
+    const shown = [title, typeLine, toggle].every((wanted) => lines.some((line) => wanted.test(line)));
+    return shown ? true : null;
+  }, `Inspect on the ${side} side of ${title}`);
+}
+
+/** Presses the Inspect side toggle ("Show …") by its text, by touch on a phone. */
+async function stepSide(page: Page, label: RegExp, touch: boolean): Promise<void> {
+  const toggle = await waitFor(
+    async () =>
+      (await visibleTexts(page)).find((t) => t.scene === "InspectOverlay" && label.test(t.text.trim())) ?? null,
+    "the side toggle",
+  );
+  if (touch) await page.touchscreen.tap(toggle.x, toggle.y);
+  else await page.mouse.click(toggle.x, toggle.y);
+}
+
+/** Hero side, flip to the alter-ego, flip back: each step checked by its title, type line and toggle. */
+async function flipBothWays(page: Page, hero: RegExp, alterEgo: RegExp, touch: boolean): Promise<void> {
+  await expectFace(page, hero, "hero");
+  await stepSide(page, /^show alter-ego$/i, touch);
+  await expectFace(page, alterEgo, "alterEgo");
+  await stepSide(page, /^show hero$/i, touch);
+  await expectFace(page, hero, "hero");
 }
 
 test("the identity row opens the identity in Inspect, and its toggle reads the alter-ego", async ({ page }) => {
@@ -47,23 +80,10 @@ test("the identity row opens the identity in Inspect, and its toggle reads the a
   // The first precon is the Core Set's Spider-Man (Peter Parker).
   await openApp(page, "screen=deck-builder", { landing: "DeckBuilder" });
   await page.waitForTimeout(800);
-  const button = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
-  await page.mouse.click(button.x + button.width / 2, button.y + button.height / 2);
+  const row = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
+  await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2);
   await waitForInspect(page);
-  const hero = await inspectTexts(page);
-  expect(hero).toMatch(/spider-man/i);
-  expect(hero).toMatch(/show alter-ego/i);
-
-  const toggle = (await visibleTexts(page)).find(
-    (t) => t.scene === "InspectOverlay" && /^show alter-ego$/i.test(t.text.trim()),
-  );
-  expect(toggle, "the side toggle").toBeTruthy();
-  await page.mouse.click(toggle!.x, toggle!.y);
-  await waitFor(
-    async () =>
-      /peter parker/i.test(await inspectTexts(page)) && /show hero/i.test(await inspectTexts(page)) ? true : null,
-    "the alter-ego side",
-  );
+  await flipBothWays(page, SPIDER_MAN, PETER_PARKER, false);
 });
 
 test("a press on the identity's name opens it too", async ({ page }) => {
@@ -74,26 +94,13 @@ test("a press on the identity's name opens it too", async ({ page }) => {
   await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
   const name = await waitFor(
     async () =>
-      (await visibleTexts(page)).find(
-        (t) => t.scene === "DeckBuilder" && /^spider-man \(peter parker\)$/i.test(t.text.trim()),
-      ) ?? null,
+      (await visibleTexts(page)).find((t) => t.scene === "DeckBuilder" && SPIDER_MAN.test(t.text.trim())) ?? null,
     "the identity's name",
   );
   await page.mouse.click(name.x, name.y);
   await waitForInspect(page);
-  expect(await inspectTexts(page)).toMatch(/show alter-ego/i);
+  await expectFace(page, SPIDER_MAN, "hero");
 });
-
-/** Clicks the Inspect side toggle ("Show …") by its text, by touch on a phone. */
-async function stepSide(page: Page, label: RegExp, touch: boolean): Promise<void> {
-  const toggle = await waitFor(
-    async () =>
-      (await visibleTexts(page)).find((t) => t.scene === "InspectOverlay" && label.test(t.text.trim())) ?? null,
-    "the side toggle",
-  );
-  if (touch) await page.touchscreen.tap(toggle.x, toggle.y);
-  else await page.mouse.click(toggle.x, toggle.y);
-}
 
 test("on a phone, a touch tap on the row opens Inspect and a tap on the toggle reads the alter-ego", async ({
   page,
@@ -106,9 +113,7 @@ test("on a phone, a touch tap on the row opens Inspect and a tap on the toggle r
   const row = await waitFor(() => stopRect(page, "DeckBuilder", "identity-card"), "the identity row", 15_000);
   await page.touchscreen.tap(row.x + row.width / 2, row.y + row.height / 2);
   await waitForInspect(page);
-  expect(await inspectTexts(page)).toMatch(/spider-man/i);
-  await stepSide(page, /^show alter-ego$/i, true);
-  await waitFor(async () => (/peter parker/i.test(await inspectTexts(page)) ? true : null), "the alter-ego side");
+  await flipBothWays(page, SPIDER_MAN, PETER_PARKER, true);
 });
 
 test("the keyboard reaches the identity row and Enter opens it", async ({ page }, testInfo) => {
@@ -140,8 +145,12 @@ test("the keyboard reaches the identity row and Enter opens it", async ({ page }
   expect(await focus(), trace.join(" > ")).toBe("identity-card");
   await page.keyboard.press("Enter");
   await waitForInspect(page);
-  expect(await inspectTexts(page)).toMatch(/show alter-ego/i);
+  // The deck's own identity, not just any card with a side toggle.
+  await expectFace(page, SPIDER_MAN, "hero");
 });
+
+/** The Mod Store hero this spec installs, pinned so the case never shifts as packs are added upstream. */
+const COMMUNITY_HERO_PACK = "carnage-nep";
 
 /** A community hero pack's identity, read from its card files: its id and both face names. */
 function communityIdentity(packId: string): { id: string; hero: string; alterEgo: string } {
@@ -162,11 +171,13 @@ function communityIdentity(packId: string): { id: string; hero: string; alterEgo
 test("a community pack's hero opens the same way, both sides", async ({ page, baseURL }, testInfo) => {
   test.skip(testInfo.project.name === "phone", "the pack install path runs once, on desktop");
   test.setTimeout(300_000);
-  const packId = communityHeroPackIds()[0];
-  test.skip(!packId, "no community hero pack fetched (pnpm packs:fetch)");
+  const packId = COMMUNITY_HERO_PACK;
+  // Missing, the case fails rather than skipping: the suite needs the community packs fetched.
+  const packDir = fileURLToPath(new URL(`../../../content-packs/community/${packId}`, import.meta.url));
+  if (!existsSync(packDir)) throw new Error(`${packDir} is missing: run \`pnpm packs:fetch\` before the e2e suite`);
   await installWave6Helpers(page);
-  const names = communityIdentity(packId!);
-  const staged = await stageCatalog(baseURL!, [packId!]);
+  const names = communityIdentity(packId);
+  const staged = await stageCatalog(baseURL!, [packId]);
   try {
     await serveCatalog(page, staged);
     await quietGuide(page);
@@ -184,28 +195,42 @@ test("a community pack's hero opens the same way, both sides", async ({ page, ba
       90_000,
     );
 
-    // A new deck, as a player starts one: the hero picker, a search for the pack's hero, its tile, an empty deck. A
-    // fresh load first, so the installed pack is read into the pool at boot as it is for a returning player.
-    await page.goto("/?screen=deck-builder");
-    await waitForScene(page, "DeckBuilder");
+    // A new deck, as a player starts one: a fresh load (the installed pack is read into the pool at boot, as for a
+    // returning player), Decks & Collection's "+ New deck", the hero picker, a search, the hero's tile, an empty deck.
+    await page.goto("/?screen=decks");
+    await waitForScene(page, "Decks");
     await settle(page);
-    await page.evaluate(() => {
-      const game = (
-        window as unknown as { __mcGame: { scene: { stop(k: string): void; start(k: string, d: object): void } } }
-      ).__mcGame;
-      game.scene.start("DeckBuilder", {});
-    });
+    const newDeck = await waitFor(() => stopRect(page, "Decks", "new-deck"), "+ New deck", 15_000);
+    await page.mouse.click(newDeck.x + newDeck.width / 2, newDeck.y + newDeck.height / 2);
     await waitForScene(page, "DeckBuilder");
     await settle(page);
     const search = await waitFor(() => stopRect(page, "DeckBuilder", "identity-search"), "the hero search", 15_000);
     await page.mouse.click(search.x + search.width / 2, search.y + search.height / 2);
     await page.keyboard.type(names.hero);
-    const tile = await waitFor(
-      () => stopRect(page, "DeckBuilder", `identity:${names.id}`),
-      "the pack hero's tile",
+    // The search runs off the main thread: wait until it has narrowed the picker to this one hero before pressing.
+    const heroTiles = (): Promise<string[]> =>
+      page.evaluate(() =>
+        (window as unknown as { __mcFocusRoutes: Record<string, () => { key: string }[]> }).__mcFocusRoutes
+          .DeckBuilder!()
+          .map((stop) => stop.key)
+          .filter((key) => key.startsWith("identity:")),
+      );
+    await waitFor(
+      async () => ((await heroTiles()).join() === `identity:${names.id}` ? true : null),
+      "the search narrows to the pack hero",
       15_000,
     );
-    await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height / 2);
+    await settle(page);
+    // The tile's name bar picks the hero. The first press may only take the caret out of the search field, so press
+    // again until the picker has moved on.
+    const picked = async (): Promise<boolean> =>
+      (await stopRect(page, "DeckBuilder", "start:empty")) !== null ||
+      (await stopRect(page, "DeckBuilder", "identity-card")) !== null;
+    for (let i = 0; i < 3 && !(await picked()); i++) {
+      const tile = await stopRect(page, "DeckBuilder", `identity:${names.id}`);
+      if (tile) await page.mouse.click(tile.x + tile.width / 2, tile.y + tile.height - 20);
+      await page.waitForTimeout(800);
+    }
     const empty = await waitFor(
       async () =>
         (await stopRect(page, "DeckBuilder", "start:empty")) ??
@@ -223,12 +248,9 @@ test("a community pack's hero opens the same way, both sides", async ({ page, ba
     expect(rowText.toLowerCase()).toContain(names.hero.toLowerCase());
     await page.mouse.click(row.x + row.width / 2, row.y + row.height / 2);
     await waitForInspect(page);
-    expect((await inspectTexts(page)).toLowerCase()).toContain(names.hero.toLowerCase());
-    await stepSide(page, /^show alter-ego$/i, false);
-    await waitFor(
-      async () => ((await inspectTexts(page)).toLowerCase().includes(names.alterEgo.toLowerCase()) ? true : null),
-      "the pack hero's alter-ego side",
-    );
+    // The hero's title may carry its alter-ego in brackets, as "Spider-Man (Peter Parker)" does.
+    const heroTitle = new RegExp(`${exactly(names.hero).source.slice(0, -1)}( \\(.+\\))?$`, "i");
+    await flipBothWays(page, heroTitle, exactly(names.alterEgo), false);
   } finally {
     staged.dispose();
   }
