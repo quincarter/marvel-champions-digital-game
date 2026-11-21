@@ -83,7 +83,12 @@ test("a Mod Store scenario that sets a modular set aside offers it on Set the ta
   if (!(await hasStop(page, "scenario-search", "ScenarioSelect")))
     await clickStop(page, "scenario-search-toggle", "ScenarioSelect");
   // A search typed while the installed pack's scenario is still joining the list can come up empty: type it again.
-  for (let attempt = 0; attempt < 4 && !(await hasStop(page, `scenario:${SCENARIO}`, "ScenarioSelect")); attempt++) {
+  // Always narrowed first: a tile far down the unfiltered list is a stop that a press may not reach.
+  for (
+    let attempt = 0;
+    attempt === 0 || (attempt < 4 && !(await hasStop(page, `scenario:${SCENARIO}`, "ScenarioSelect")));
+    attempt++
+  ) {
     await clickStop(page, "scenario-search", "ScenarioSelect");
     await page.keyboard.press("Control+A");
     await page.keyboard.press("Backspace");
