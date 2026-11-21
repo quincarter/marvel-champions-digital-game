@@ -58,6 +58,7 @@ import { installStartupWatchdog, probeWebgl } from "./ui/startup-watchdog.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
 import { applyViewportFit } from "./platform/platform.js";
+import { applyIosInputZoomGuard } from "./platform/ios-input-zoom.js";
 import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler } from "./platform/desktop-window.js";
 import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
@@ -93,6 +94,8 @@ setTextResolution(textResolutionFor(settings, renderScale, drawsAtScreenDensity(
 
 // Before the canvas first takes its parent's size, which depends on whether #game is inset by the safe area.
 applyViewportFit();
+// iOS zooms the page in on a focused text field and never back out (#939).
+applyIosInputZoomGuard();
 installLazyText();
 installDesktopType();
 setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
