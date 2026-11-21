@@ -5,7 +5,7 @@
  * Sources: MC56 p. 16 (scenario rules override RRG per Golden Rule, RRG p. 4): each team plays "their entire hero phase"
  * and villain phase on its own side, each with its own first player token. Q3 B per owner decision 2026-11-20: one
  * shared round, ending after the fourth phase for both teams. Competitive: phase begin/end events are scoped to the
- * active team's area; round end is shared after phase 4 (plan §1.10 Q3). Owner decision pending, A recommended.
+ * active team's area; round end is shared after phase 4 (plan §1.10 Q3 B, decided 2026-11-20).
  */
 
 import type { CardId } from "@mc/content";
