@@ -69,7 +69,7 @@ const VILLAIN_ENDS = stubAbility(
 const ROUND_ENDS = stubAbility(
   "watcher.round-ends",
   def({
-    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: "round" } } },
     effects: [tally("roundEnds")],
   }),
 );

@@ -364,10 +364,21 @@ function hearsTeamPhase(
   if (state.activeTeamId === undefined) return true;
   if (event.kind !== "phaseBeginning" && event.kind !== "phaseEnding") return onActiveSide(state, selfId);
   const phases = pattern.eventIs?.phase;
-  const roundEnd =
-    event.kind === "phaseEnding" && event.phase !== "player" && !event.roundContinues && Array.isArray(phases);
-  if (roundEnd && phases.includes("round")) return true;
+  const hearsRound = phases === "round" || (Array.isArray(phases) && phases.includes("round"));
+  if (hearsRound && event.kind === "phaseEnding" && endsRound(event)) return true;
   return onActiveSide(state, selfId);
+}
+
+/**
+ * Whether a phase end is the round's end, the one `"round"` among a pattern's phases hears ("when the round ends":
+ * `on.roundEnding()`, the temporary keyword): the villain phase's end (RRG 1.8 "Villain Phase", p. 47, step 6b), or the
+ * round's alone when its villain phase was skipped (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7). Not a
+ * villain phase that leaves the round going: the first team's, with two teams (`roundContinues`; MC56 p. 16, one shared
+ * round, Q3 B per owner decision 2026-11-20). The round's `"round"` is read on its own, never instead of another phase
+ * the pattern lists: `["villain", "round"]` hears both teams' villain phases ending.
+ */
+function endsRound(event: Extract<TriggerEvent, { kind: "phaseEnding" }>): boolean {
+  return event.phase !== "player" && event.roundContinues !== true;
 }
 
 /** A pattern's own fields, without its `anyOf` alternatives. */
@@ -640,17 +651,15 @@ function matchesRest(
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;
     for (const [key, expected] of Object.entries(pattern.eventIs)) {
-      // A list: any one of its values (docs/phase7-wave4.md §3.36).
-      const matches =
-        typeof expected === "string" ? carried[key] === expected : expected.includes(carried[key] as string);
+      // A list: any one of its values (docs/phase7-wave4.md §3.36). A phase end's `"round"` is the round's end
+      // (`endsRound`), each value read on its own, so `["villain", "round"]` still hears every villain phase's end.
+      const one = (value: string): boolean =>
+        event.kind === "phaseEnding" && key === "phase" && value === "round"
+          ? endsRound(event)
+          : carried[key] === value;
+      const matches = typeof expected === "string" ? one(expected) : expected.some(one);
       if (!matches) return false;
     }
-    // "When the round ends" (`"round"` among the phases it hears: `on.roundEnding()`, the temporary keyword) does not
-    // hear a villain phase that leaves the round going: the first team's, with two teams (MC56 p. 16; Q3 B per owner
-    // decision 2026-11-20).
-    const phases = pattern.eventIs.phase;
-    if (event.kind === "phaseEnding" && event.roundContinues && Array.isArray(phases) && phases.includes("round"))
-      return false;
   }
   // "You cannot trigger Echo's 'Watch and Learn' ability for that event" (docs/phase7-wave11.md §3.9).
   if (pattern.playedVia) {

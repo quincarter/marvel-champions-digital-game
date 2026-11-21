@@ -8,6 +8,7 @@
  * active team's area; round end is shared after phase 4 (plan §1.10 Q3). Owner decision pending, A recommended.
  */
 
+import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { createCtx } from "./ctx.js";
@@ -35,7 +36,7 @@ const hit = (n: number): EffectSpec => ({
 });
 /** "Forced Interrupt: When the round ends, …" and "… When the villain phase ends, …", on a support. */
 const ROUND_END = stubAbility("listener.round-end", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+  trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["round"] } } },
   effects: [hit(1)],
 });
 const VILLAIN_END = stubAbility("listener.villain-end", {
@@ -51,6 +52,12 @@ const LISTENER = stubSupport({
   cost: 0,
   abilities: [ROUND_END.ref, VILLAIN_END.ref, PLAYER_BEGINS.ref],
 });
+/** "When the villain phase or the round ends, …": each listed phase heard on its own (PR #923 review). */
+const VILLAIN_OR_ROUND = stubAbility("listener.villain-or-round", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+  effects: [hit(1)],
+});
+const EITHER_LISTENER = stubSupport({ id: "either-listener", cost: 0, abilities: [VILLAIN_OR_ROUND.ref] });
 /** "At the end of the round, deal 1 damage to your hero." and "Skip the next villain phase." */
 const DELAYED = stubAbility("delayed.action", {
   trigger: { kind: "action" },
@@ -67,10 +74,15 @@ const ONCE = stubAbility("once.action", {
 });
 const ONCE_CARD = stubSupport({ id: "once", cost: 0, abilities: [ONCE.ref] });
 
-const deps: EngineDeps = depsOf(ROUND_END, VILLAIN_END, PLAYER_BEGINS, DELAYED, SKIP, ONCE);
+const deps: EngineDeps = depsOf(ROUND_END, VILLAIN_END, PLAYER_BEGINS, VILLAIN_OR_ROUND, DELAYED, SKIP, ONCE);
 const CARDS = [LISTENER, DELAYED_CARD, SKIP_CARD, ONCE_CARD];
-const game = (sizes: readonly [number, number] = [1, 1]): GameState =>
-  competitiveGame({ sizes, deps, extraCards: CARDS, deck: [...DEFAULT_DECK, ...CARDS.flatMap((c) => [c.id, c.id])] });
+const game = (sizes: readonly [number, number] = [1, 1], extra: readonly CardId[] = []): GameState =>
+  competitiveGame({
+    sizes,
+    deps,
+    extraCards: [...CARDS, EITHER_LISTENER],
+    deck: [...DEFAULT_DECK, ...CARDS.flatMap((c) => [c.id, c.id]), ...extra],
+  });
 
 /** Ends turns (answering every choice by default) until the next round's first turn; returns every event. */
 function finishRound(state: GameState): { readonly state: GameState; readonly events: readonly GameEvent[] } {
@@ -100,6 +112,14 @@ function finishRound(state: GameState): { readonly state: GameState; readonly ev
   return { state: session.state, events };
 }
 
+const handoverToTeamTwoVillain = (events: readonly GameEvent[]): number => {
+  const index = events.findIndex(
+    (event) => event.type === "activeTeamChanged" && event.teamId === TEAM_TWO && event.phase === "villain",
+  );
+  expect(index).toBeGreaterThan(0);
+  return index;
+};
+
 const resolvedBy = (events: readonly GameEvent[], abilityId: string) =>
   events.flatMap((event) =>
     event.type === "abilityResolved" && event.abilityId === abilityId ? [event.controllerId] : [],
@@ -124,6 +144,23 @@ describe("phase begin and end are heard on the active side only; the round's end
       (event) => event.type === "abilityResolved" && event.abilityId === ROUND_END.ref.id,
     );
     expect(firstRoundEnd).toBeGreaterThan(teamTwoVillain);
+  });
+
+  it("['round'] is heard only at the round's end, after the second team's villain phase, by both sides", () => {
+    const teamTwoVillain = handoverToTeamTwoVillain(events);
+    expect(resolvedBy(events.slice(0, teamTwoVillain), ROUND_END.ref.id)).toEqual([]);
+    expect(resolvedBy(events.slice(teamTwoVillain), ROUND_END.ref.id).sort()).toEqual([P1, P2]);
+  });
+
+  it("['villain', 'round'] hears both teams' villain phases ending: the first through 'villain', the last as the round's end", () => {
+    let both = game([1, 1], [EITHER_LISTENER.id]);
+    for (const player of [P1, P2]) both = playerCardIntoPlay(both, EITHER_LISTENER.id, player).state;
+    const heard = finishRound(both).events;
+    const teamTwoVillain = handoverToTeamTwoVillain(heard);
+    // Team one's villain phase ends with the round going on: heard on its own side, as a villain phase's end.
+    expect(resolvedBy(heard.slice(0, teamTwoVillain), VILLAIN_OR_ROUND.ref.id)).toEqual([P1]);
+    // Team two's ends the round: the round's end is heard on both sides, each card once.
+    expect(resolvedBy(heard.slice(teamTwoVillain), VILLAIN_OR_ROUND.ref.id).sort()).toEqual([P1, P2]);
   });
 
   it("'when the player phase begins' is heard by the team whose phase it is", () => {

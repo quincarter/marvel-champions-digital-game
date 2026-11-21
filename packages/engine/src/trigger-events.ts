@@ -2018,13 +2018,16 @@ export type TriggerEventBody =
    * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
    *
    * `"round"`: the round ends with no villain phase, which was skipped (`EffectSpec skipNextVillainPhase`,
-   * docs/phase7-wave11-hero-packs.md H3.7, Q101). "When the round ends" hears it (`eventIs: { phase: ["villain",
-   * "round"] }`, the DSL's `on.roundEnding()`, the temporary keyword); "when the villain phase ends" does not.
+   * docs/phase7-wave11-hero-packs.md H3.7, Q101). "When the round ends" hears it (`eventIs: { phase: "round" }`, the
+   * DSL's `on.roundEnding()`, the temporary keyword); "when the villain phase ends" does not. A pattern's `"round"`
+   * hears the round's end whichever event carries it: this one, or a villain phase's end with no `roundContinues`
+   * (`resolve/triggers.ts` `endsRound`).
    *
    * `roundContinues`: a villain phase that does not end the round, in a game with two teams: the first team's, which
    * the second team's villain phase follows within the same round (MC56 p. 16; one shared round, Q3 B per owner
-   * decision 2026-11-20). "When the villain phase ends" hears it; a pattern that hears the round's end (`"round"` among
-   * its phases) does not (`resolve/triggers.ts`). Absent in every other game.
+   * decision 2026-11-20). "When the villain phase ends" hears it; "when the round ends" (`"round"`) does not, though a
+   * pattern listing both (`["villain", "round"]`) hears it through `"villain"` (`resolve/triggers.ts` `endsRound`).
+   * Absent in every other game.
    */
   | {
       readonly kind: "phaseEnding";
