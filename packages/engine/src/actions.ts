@@ -880,12 +880,19 @@ function teamUpFault(state: GameState, playerId: PlayerId, card: AnyCard): Price
     return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
   // Friendly characters: every player's identity and the allies in play they control (`characterTitledAs` reads an
   // identity's faceup title, an ally's title or subtitle, and a "Hero/Alter-ego" name; docs/phase7-wave3.md §3.34).
-  // Competitive (MC56 pp. 16, 20): "friendly" = cards your team controls (RRG 1.8 "Friendly" p. 21; "the players" = your team); the other side's characters do not satisfy Team-Up (RRG p. 43).
+  // Competitive (MC56 pp. 16, 20): "friendly" = cards your team controls (RRG 1.8 "Friendly" p. 21; "the players" =
+  // your team); the other side's characters do not satisfy Team-Up (RRG p. 43).
   // Your own leader is no friendly character either: it is not in play on your side (MC56 p. 20; provisional, rules
   // expert 2026-11-20). With one team (every cooperative game) the team is every player.
+  // Kang separate game areas: Team-Up (RRG 1.8 p. 43) counts only friendly characters in the player's own game area.
+  // Kang insert: "Cards and components in one game area cannot affect another game area" (and "a unique card in one
+  // game area places no limitations on the others"); FFG ruling Mar 6, 2025 (Azazel). Environments / stage 2B are in
+  // every area (RRG 1.8 FAQ p. 60) but are not characters.
   const team = teamOf(state, playerId).playerIds;
+  const area = areaOfPlayer(state, playerId);
   const friendly = playerOrder(state)
     .filter((player) => team.includes(player.playerId))
+    .filter((player) => sameGameArea(area, areaOfPlayer(state, player.playerId)))
     .flatMap((player) => [
       player.identity.instanceId,
       ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),

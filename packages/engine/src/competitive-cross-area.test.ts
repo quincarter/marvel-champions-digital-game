@@ -18,11 +18,12 @@ import { matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
 import { DEFAULT_DECK, defaultPick, giveCard, settle, TREACHERY } from "./testing/scenario.js";
 import { competitiveGame } from "./testing/team.js";
 import { stepOneThreats } from "./villain/step-one-threat.js";
 import { hasCandidates } from "./resolve/triggers.js";
+import { playRestrictionFault } from "./actions.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { playerCardIntoPlay } from "./testing/wave3.js";
 
@@ -369,5 +370,58 @@ describe("which side an event trigger hears (`heardOnThisSide`)", () => {
     expect(kang.gameAreas.length).toBe(2);
     expect(hasCandidates(kang, hearDeps, flipOf(kang, P2), "response")).toBe(false);
     expect(hasCandidates(kang, hearDeps, flipOf(kang, P1), "response")).toBe(true);
+  });
+});
+
+// Kang separate game areas: Team-Up (RRG 1.8 p. 43) counts only friendly characters in the player's own game area.
+// Kang insert: "Cards and components in one game area cannot affect another game area"; FFG ruling Mar 6, 2025 (Azazel).
+describe("Team-Up across Kang-shaped split game areas (no teams)", () => {
+  const SHADOWCAT = stubAlly({ id: "Shadowcat", cost: 0, atk: 1, thw: 1, hp: 3 });
+  const TEAM_UP = stubEvent({
+    id: "team-up",
+    cost: 0,
+    keywords: [{ name: "teamUp", names: ["Colossus", "Shadowcat"] }],
+  });
+  const teamUpDeps: EngineDeps = depsOf();
+  /** A split table with no teams: p1 in area one, p2 in area two; p1's hero is Colossus; a Team-Up event in p1's hand. */
+  function kangTable(shadowcatWith: typeof P1) {
+    const game = competitiveGame({
+      deps: teamUpDeps,
+      extraCards: [SHADOWCAT, TEAM_UP],
+      deck: [...DEFAULT_DECK, SHADOWCAT.id, TEAM_UP.id],
+    });
+    const { teams: _teams, activeTeamId: _active, ...rest } = game;
+    let state = rest as GameState;
+    const identity = state.players.find((p) => p.playerId === P1)!.identity.instanceId;
+    const card = state.cardPool[state.instances[identity]!.cardId]! as unknown as { hero: { faceName: string } };
+    // In hero form, so the identity's title is its (retitled) hero face.
+    state = {
+      ...state,
+      players: state.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" as const } })),
+      cardPool: {
+        ...state.cardPool,
+        [state.instances[identity]!.cardId]: { ...card, hero: { ...card.hero, faceName: "Colossus" } },
+      },
+    } as GameState;
+    state = playerCardIntoPlay(state, SHADOWCAT.id, shadowcatWith).state;
+    const event = giveCard(state, P1, TEAM_UP.id);
+    return { state: event.state, event: event.id };
+  }
+
+  it("Colossus in area one and Shadowcat in area two: refused", () => {
+    const { state, event } = kangTable(P2);
+    expect(state.gameAreas).toHaveLength(2);
+    expect(playRestrictionFault(state, teamUpDeps, P1, TEAM_UP, event)).toMatchObject({ code: "no_valid_target" });
+  });
+
+  it("both in area one: allowed", () => {
+    const { state, event } = kangTable(P1);
+    expect(playRestrictionFault(state, teamUpDeps, P1, TEAM_UP, event)).toBeNull();
+  });
+
+  it("one shared game area (no split): Shadowcat with the other player still counts", () => {
+    const { state, event } = kangTable(P2);
+    const shared = { ...state, gameAreas: [] } as GameState;
+    expect(playRestrictionFault(shared, teamUpDeps, P1, TEAM_UP, event)).toBeNull();
   });
 });
