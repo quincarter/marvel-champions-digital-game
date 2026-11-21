@@ -223,7 +223,9 @@ for (const size of sizes) {
       const after = await view(page);
       expect(after.modeOptions.find((m) => m.id === "cooperative")!.selected).toBe(true);
       expect(after.modeOptions.find((m) => m.id === "competitive")!.selected).toBe(false);
-      expect(await status(page)).toBe("Competitive mode is played in an online room. Play this scenario cooperatively here.");
+      expect(await status(page)).toBe(
+        "Competitive mode is played in an online room. Play this scenario cooperatively here.",
+      );
       expect(errors).toEqual([]);
     });
 
