@@ -11,9 +11,18 @@ import { bringIntoView, facts, playFromHand, press } from "./x-men-helpers.js";
  * drew it nowhere: it is in no hand, and Inspect showed "Use as resource" only for a hand card. Now the payment strip
  * beside the hand shows it, tagged "tucked", a tap spends it, and Inspect offers "Use as resource" / "Pay with" for it.
  */
+/** Phone and desktop; with `E2E_SHOTS` set, also the PR's screenshot sizes (iPhone SE, Pixel 10, tablets). */
 const SIZES = [
   { name: "phone-390x844", width: 390, height: 844, touch: true },
   { name: "desktop-1440x900", width: 1440, height: 900, touch: false },
+  ...(SHOTS
+    ? [
+        { name: "se-375x667", width: 375, height: 667, touch: true },
+        { name: "pixel-412x924", width: 412, height: 924, touch: true },
+        { name: "tablet-820x1180", width: 820, height: 1180, touch: true },
+        { name: "tablet-1180x820", width: 1180, height: 820, touch: true },
+      ]
+    : []),
 ] as const;
 
 const RESERVE = "53021";
