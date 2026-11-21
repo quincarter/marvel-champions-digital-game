@@ -264,7 +264,9 @@ hears only events on its own side of the table, read where the event happened wh
 other team and defeated there left play on that side, though it goes to its origin's discard pile; MC56 pp. 16-17, 20);
 the same holds in The Once and Future Kang's separate game areas (rules expert, option A: the Kang insert's "Cards and
 components in one game area cannot affect another game area", FFG ruling Mar 6, 2025 (Azazel); environments and stage
-2B are in every area, RRG 1.8 FAQ p. 60). Inactive = the team whose round segment is not
+2B are in every area, RRG 1.8 FAQ p. 60). Team-Up: "friendly" means your own team only (RRG 1.8 "Friendly" p. 21; MC56
+pp. 16, 20, "the players" = your team), so the other side's characters do not meet a Team-Up (RRG p. 43); your own
+leader does not count either, as it is not in play on your side (MC56 p. 20; provisional). Inactive = the team whose round segment is not
 being played (MC56 p. 16); in a team's own villain phase its responses are ordinary. Synthezoid Strike 57075 (rules
 expert, 2026-11-20, reading A): its bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast /
 Erratic Teleportation), so the face is checked once: a Dense Vision gets the card's +1 ATK and piercing for the attack;

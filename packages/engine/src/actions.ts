@@ -322,7 +322,7 @@ import {
 } from "./form-change-cost.js";
 import { mainSchemeInPlayAreaOf } from "./per-player-main-schemes.js";
 import { characterTitledAs } from "./titles.js";
-import { inactiveTeamMessage } from "./team.js";
+import { inactiveTeamMessage, teamOf } from "./team.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessageIn } from "./unique.js";
 
 export function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
@@ -790,7 +790,7 @@ export function playRestrictionFault(
   card: AnyCard,
   instanceId: InstanceId,
 ): PriceFault | null {
-  const teamUp = teamUpFault(state, card);
+  const teamUp = teamUpFault(state, playerId, card);
   if (teamUp) return teamUp;
   const prerequisite = prerequisiteFault(state, deps, playerId, card);
   if (prerequisite) return prerequisite;
@@ -873,17 +873,23 @@ function prerequisiteFault(state: GameState, deps: EngineDeps, playerId: PlayerI
  * "Friendly", p. 21); an identity's title is the face that is up (docs/phase7-wave2.md §3.5). The deckbuilding half is
  * `validateDeck`'s.
  */
-function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
+function teamUpFault(state: GameState, playerId: PlayerId, card: AnyCard): PriceFault | null {
   const keyword = "keywords" in card ? card.keywords.find((k) => k.name === "teamUp") : undefined;
   if (keyword?.name !== "teamUp") return null;
   if (!keyword.names)
     return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
   // Friendly characters: every player's identity and the allies in play they control (`characterTitledAs` reads an
   // identity's faceup title, an ally's title or subtitle, and a "Hero/Alter-ego" name; docs/phase7-wave3.md §3.34).
-  const friendly = playerOrder(state).flatMap((player) => [
-    player.identity.instanceId,
-    ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),
-  ]);
+  // Competitive (MC56 pp. 16, 20): "friendly" = cards your team controls (RRG 1.8 "Friendly" p. 21; "the players" = your team); the other side's characters do not satisfy Team-Up (RRG p. 43).
+  // Your own leader is no friendly character either: it is not in play on your side (MC56 p. 20; provisional, rules
+  // expert 2026-11-20). With one team (every cooperative game) the team is every player.
+  const team = teamOf(state, playerId).playerIds;
+  const friendly = playerOrder(state)
+    .filter((player) => team.includes(player.playerId))
+    .flatMap((player) => [
+      player.identity.instanceId,
+      ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),
+    ]);
   const missing = keyword.names.filter((name) => !friendly.some((id) => characterTitledAs(state, id, name)));
   return missing.length === 0
     ? null

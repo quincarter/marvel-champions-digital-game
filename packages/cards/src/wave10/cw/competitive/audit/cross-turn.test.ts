@@ -530,9 +530,9 @@ function defenseGame() {
   });
 }
 
-/** p1's hero is Colossus (its identity card retitled) and the minion from deck one is engaged with p1 (surgery). */
-function withColossusAndMinion(state: GameState): { state: GameState; minion: InstanceId } {
-  const identity = playerOf(state, P1).identity.instanceId;
+/** `player`'s hero is Colossus: its identity card retitled (each seat's identity is a card of its own). */
+function asColossus(state: GameState, player: typeof P1 | typeof P2): GameState {
+  const identity = playerOf(state, player).identity.instanceId;
   const card = state.cardPool[state.instances[identity]!.cardId] as unknown as {
     hero: { faceName: string };
     heroFaces?: readonly { faceName: string }[];
@@ -542,15 +542,23 @@ function withColossusAndMinion(state: GameState): { state: GameState; minion: In
     hero: { ...card.hero, faceName: "Colossus" },
     ...(card.heroFaces ? { heroFaces: card.heroFaces.map((face) => ({ ...face, faceName: "Colossus" })) } : {}),
   };
-  const { one } = leadersOf(state);
-  const deckId = state.villains.find((v) => v.instanceId === one)!.encounterDeckId;
-  const piles = state.encounterDecks[deckId]!;
-  const minion = piles.deck.find((i) => state.instances[i]!.cardId === cardId(MINION_ID))!;
+  return { ...state, cardPool: { ...state.cardPool, [state.instances[identity]!.cardId]: retitled } } as GameState;
+}
+
+/** p1's hero is Colossus and the minion from deck one is engaged with p1 (surgery). */
+function withColossusAndMinion(state: GameState): { state: GameState; minion: InstanceId } {
+  const colossus = asColossus(state, P1);
+  const { one } = leadersOf(colossus);
+  const deckId = colossus.villains.find((v) => v.instanceId === one)!.encounterDeckId;
+  const piles = colossus.encounterDecks[deckId]!;
+  const minion = piles.deck.find((i) => colossus.instances[i]!.cardId === cardId(MINION_ID))!;
   const next = {
-    ...state,
-    cardPool: { ...state.cardPool, [state.instances[identity]!.cardId]: retitled },
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== minion) } },
-    players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, minion] } : p)),
+    ...colossus,
+    encounterDecks: {
+      ...colossus.encounterDecks,
+      [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== minion) },
+    },
+    players: colossus.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, minion] } : p)),
   } as GameState;
   return { state: patch(next, minion, { engagedWith: P1, faceup: true }), minion };
 }
@@ -580,5 +588,37 @@ describe("(attack/defense) cards against a leader-vs-leader attack (N11): a defe
     // Control on the same board: in p1's villain phase the minion engaged with p1 attacks.
     run(g.deps, cross.state, picker(log, never), endTurn(P2));
     expect(offeredAgainst(log, "p1", SHADOW_AND_STEEL, MINION_ID)).toBe(1);
+  });
+});
+
+// Competitive (MC56 pp. 16, 20): "friendly" = cards your team controls (RRG 1.8 "Friendly" p. 21; "the players" = your
+// team); the other side's characters do not satisfy Team-Up (RRG p. 43). Rules expert, 2026-11-20.
+describe("Team-Up in competitive play: only your own team's characters are friendly (Shadow and Steel 32021)", () => {
+  /** `colossus`'s hero is Colossus, a Shadowcat ally is in `shadowcat`'s play area, and both seats hold Shadow and Steel. */
+  function board(colossus: typeof P1 | typeof P2, shadowcat: typeof P1 | typeof P2) {
+    const g = defenseGame();
+    const held = hold(hold(toResistance(g), P1, SHADOW_AND_STEEL), P2, SHADOW_AND_STEEL);
+    return { g, state: asColossus(intoPlay(held, shadowcat, SHADOWCAT_ID).state, colossus) };
+  }
+  /** Both villain phases (leader one attacks p1, leader two attacks p2); how often each seat was offered the card. */
+  function offers(colossus: typeof P1 | typeof P2, shadowcat: typeof P1 | typeof P2) {
+    const { g, state } = board(colossus, shadowcat);
+    const { one, two } = leadersOf(state);
+    const log: Log = [];
+    run(g.deps, state, picker(log, never), endTurn(P2));
+    return {
+      p1: offeredAgainst(log, "p1", SHADOW_AND_STEEL, inst(state, one).cardId as string),
+      p2: offeredAgainst(log, "p2", SHADOW_AND_STEEL, inst(state, two).cardId as string),
+    };
+  }
+
+  it("team one: p1 (Colossus) with a Shadowcat on its own side is offered it when leader one attacks; with p2's Shadowcat it is not", () => {
+    expect(offers(P1, P1).p1).toBe(1);
+    expect(offers(P1, P2).p1).toBe(0);
+  });
+
+  it("team two: p2 (Colossus) with a Shadowcat on its own side is offered it when leader two attacks; with p1's Shadowcat it is not", () => {
+    expect(offers(P2, P2).p2).toBe(1);
+    expect(offers(P2, P1).p2).toBe(0);
   });
 });
