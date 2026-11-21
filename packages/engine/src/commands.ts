@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
-import type { ChoiceId, InstanceId, PlayerId } from "./ids.js";
+import type { ChoiceId, GroupId, InstanceId, PlayerId } from "./ids.js";
+import type { PodInboundEvent, RemotePower } from "./pod.js";
 import type { ResourceType } from "./resources.js";
 
 /**
@@ -300,7 +301,50 @@ export type Command =
       readonly playerId: PlayerId;
       readonly choiceId: ChoiceId;
       readonly selectedOptionIds: readonly string[];
-    };
+    }
+  /**
+   * An event of the pod's coordinator for this group (Epic Multiplayer; docs/phase7-wave9.md §3.68,
+   * docs/epic-multiplayer-plan.md §2 option B): recorded in this group's log at its place, so the group replays alone.
+   * Issued only by the group's authority, never by a seat (`isAuthorityCommand`); `legalActions` never offers it.
+   * `playerId` is the group's first player, the seat it is recorded under and who resolves what it brings as "you"
+   * (plan §1.8 M2). `sequence` is the coordinator's number for this group: exactly one more than the last accepted.
+   * Refused in a game without a remote coordinator. Exempt from the pending-choice gate: it waits in state for the
+   * resolution in progress to finish (MC55 p. 20), except as `PodInboundEvent` says.
+   */
+  | {
+      readonly type: "externalEvent";
+      readonly playerId: PlayerId;
+      readonly sequence: number;
+      readonly event: PodInboundEvent;
+    }
+  /**
+   * A basic attack or thwart on a card in another group's area of the pod "as if it were in their game area" (The
+   * Mangog 55041, Door Between Worlds 55046; MC55 p. 16; plan §1.8 M6: only these two powers): a real basic power made
+   * here, against a stand-in for the card (`pod-commands.ts` `remotePower`), with the basic power's own `payment` and
+   * `costChoices`. `targetInstanceId` is the card's id in the owning group, as `PodState.reachable` reports it.
+   */
+  | {
+      readonly type: "remotePower";
+      readonly playerId: PlayerId;
+      readonly characterInstanceId: InstanceId;
+      readonly power: RemotePower;
+      readonly toGroupId: GroupId;
+      readonly targetInstanceId: InstanceId;
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
+    }
+  /**
+   * The group's authority ends a wait for a pod coordinator that is gone (`PodState.awaiting`; docs/live-game-rooms.md
+   * §10). Issued only by the authority after a timeout (`isAuthorityCommand`), under the first player's seat.
+   */
+  | { readonly type: "podRelease"; readonly playerId: PlayerId };
+
+/**
+ * A command only a group's authority (its host) issues, never a seat: `externalEvent` and `podRelease`. The engine has
+ * no notion of who sent a command; a host refuses these from a seat (docs/phase7-wave9.md §3.68).
+ */
+export const isAuthorityCommand = (command: Command): boolean =>
+  command.type === "externalEvent" || command.type === "podRelease";
 
 export type CommandType = Command["type"];
 

@@ -158,6 +158,7 @@ import {
   pushEvents,
   pushEventsJoiningResponses,
 } from "./frames.js";
+import { divertToRemote, reportRemoteHit, sendOverkillExcess } from "./pod.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { continueActivation } from "../villain/phase.js";
 import { applyEncounterCardBeingDealt, resolveSurge } from "./reveal.js";
@@ -1002,6 +1003,20 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "dealDamage": {
       // The response window reads the frame's event: it carries the target as it took the damage.
       const stamped = asDamaged(ctx, withUsedStat(ctx.state, event));
+      // Aimed at a stand-in for another group's card (`CardInstance.remoteOf`): dealt there, not here.
+      if (
+        divertToRemote(
+          ctx,
+          stamped.targetInstanceId,
+          "attack",
+          stamped.amount,
+          { overkill: stamped.overkill === true, piercing: stamped.piercing === true },
+          { sourceInstanceId: stamped.sourceInstanceId, fromAttack: stamped.fromAttack },
+        )
+      )
+        return;
+      // An accepted remote attack's hit applies now: its answer goes back to the attacker's group.
+      if (stamped.remoteHit) reportRemoteHit(ctx, stamped.remoteHit, stamped.targetInstanceId, "attack");
       if (stamped !== event)
         updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, event: stamped } : f));
       stampAttackTarget(ctx, stamped);
@@ -1334,7 +1349,11 @@ function beginOneDefeat(
   }
   addFrameVars(ctx, event.spilledFromFrameId, { [spillDefeatedKey(id)]: 1 });
   let spill: DefeatFollowUp["spill"];
-  if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
+  // A remote attack's excess (owner question pending, option A: the attacker's own Avatar of Loki), measured after its
+  // damage resolved, is sent to the attacker's group instead of spilling here.
+  if (event.overkill?.remote && !ctx.state.outcome)
+    sendOverkillExcess(ctx, event.overkill.remote, event.overkill.amount);
+  else if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {
       type: "overkillSpilled",
       fromInstanceId: id,
@@ -2148,7 +2167,9 @@ export function applyDamage(
   const excess = overkill ? excessDealt : 0;
   const recipient =
     excess > 0
-      ? (overkillRecipient(ctx.state, event.targetInstanceId) ?? playerAttackOverkillRecipient(ctx.state, event))
+      ? event.remoteHit
+        ? event.targetInstanceId
+        : (overkillRecipient(ctx.state, event.targetInstanceId) ?? playerAttackOverkillRecipient(ctx.state, event))
       : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
 
@@ -2172,6 +2193,8 @@ export function applyDamage(
           // …and the stat it was made with: overkill damage of an attack that used ATK triggers "uses their ATK to
           // attack and damage" on the character it spills to (rulings January 11, 2026 (1) and (2); wave 10 §3.17).
           ...(damageUsedStat(ctx.state, event) === "atk" ? { usedStat: "atk" as const } : {}),
+          // A remote attack's excess goes back to the attacker's group at the defeat (`sendOverkillExcess`).
+          ...(event.remoteHit ? { remote: event.remoteHit } : {}),
         }
       : undefined,
     // Damage redirected by a player's card (`redirectedBy`) defeats as that card (and its controller) does.
@@ -2644,6 +2667,19 @@ export function removalBlockedOf(
 }
 
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
+  // Threat removed from a stand-in for another group's card (`CardInstance.remoteOf`) is removed there, not here.
+  if (
+    divertToRemote(
+      ctx,
+      event.schemeInstanceId,
+      "thwart",
+      event.amount,
+      { overkill: false, piercing: false },
+      { sourceInstanceId: event.sourceInstanceId, fromAttack: false },
+    )
+  )
+    return;
+  if (event.remoteHit) reportRemoteHit(ctx, event.remoteHit, event.schemeInstanceId, "thwart");
   const scheme = getInstance(ctx.state, event.schemeInstanceId);
   if (!scheme) return;
   const thwart = thwartOfRemoval(ctx.state, event);

@@ -5,12 +5,16 @@
  *
  * The UI words everything itself: `connection`, `problem` and `refusal` are codes, never sentences.
  */
+import type { ReachableCard, SharedPodState } from "@mc/engine";
 import type {
   ChatLine,
+  LobbyMode,
+  LobbyPod,
   DeckRefusalCode,
   LobbySeatSpec,
   LobbySettings,
   LobbySettingsPatch,
+  LobbyTableSpec,
   RefusalReason,
   RoomBuild,
   RoomDeck,
@@ -21,9 +25,12 @@ import type {
 export type {
   ChatLine,
   DeckRefusalCode,
+  LobbyMode,
+  LobbyPod,
   LobbySeatSpec,
   LobbySettings,
   LobbySettingsPatch,
+  LobbyTableSpec,
   RefusalReason,
   RoomBuild,
   RoomDeck,
@@ -183,6 +190,108 @@ export interface RoomRefusal {
   readonly seq: number;
 }
 
+/**
+ * Where an Epic table stands, in words the UI shows beside its name (Epic Multiplayer, issue #882):
+ * - `lobby`: its game has not started; `setup`, `player`, `villain`: the phase its group is in;
+ * - `halted`: the group stopped play after the shared scheme's completion (MC55 p. 21) and waits for the others;
+ * - `waiting`: its host is not connected (the table waits for them to come back; the organizer may `dropTable`);
+ * - `dropped`: the organizer gave the table up and the game goes on without it (plan Q-C);
+ * - `over`: its game ended.
+ * `dropped` beats `over`, `over` beats `waiting`, `waiting` beats `halted`, which beats the phase.
+ */
+export type EpicTableStatus = "lobby" | "setup" | "player" | "villain" | "halted" | "waiting" | "dropped" | "over";
+
+/** What I am at an Epic table: I run its game (`host`), I hold a seat there (`player`), or I may only watch it. */
+export type EpicTableRole = "host" | "player" | "watcher";
+
+export interface EpicTable {
+  readonly id: string;
+  readonly name: string;
+  /** The id of the pod it is in (`EpicPod.id`). */
+  readonly pod: string;
+  /** The table's difficulty as the organizer set it (opaque JSON; the UI reads what it put there). */
+  readonly difficulty: unknown;
+  /** The participant who runs the table's game, or null while it has none. */
+  readonly host: string | null;
+  readonly hostName: string | null;
+  readonly hostConnected: boolean;
+  /** Ids of the seats at this table (`RoomState.seats`), in order. */
+  readonly seats: readonly string[];
+  readonly myRole: EpicTableRole;
+  readonly status: EpicTableStatus;
+  /** Its group's round, 0 before setup ends. */
+  readonly round: number;
+  /** The table has a game (its host started it). */
+  readonly started: boolean;
+  /** Commands in its log, as the room last counted. */
+  readonly commands: number;
+  /** Watchers (not seat holders) following it. */
+  readonly watching: number;
+  /** I receive this table's log (`followTables`); a table I hold a seat at is always followed. */
+  readonly followed: boolean;
+}
+
+export interface EpicPod {
+  readonly id: string;
+  readonly name: string;
+  /** Ids of its tables, in the order the organizer listed them (the order "your pod" lists groups in). */
+  readonly tables: readonly string[];
+}
+
+/**
+ * The organizer's "start the game" signal, in `LobbySettings.tableRules.epic.start`. When it appears, every table host
+ * starts its own group's game (`startEpicTable`); `seed` is the one the tables' own seeds are made from.
+ */
+export interface EpicStart {
+  readonly id: string;
+  readonly seed: number;
+  /** The organizer's clock (ms since the epoch) when it started the game; the time-limit clock counts from it. */
+  readonly at?: number;
+}
+
+/** A card of another table in my pod that I may attack or thwart as if it were in my game area (M6; 55041, 55046). */
+export interface RemoteTarget {
+  readonly table: string;
+  readonly tableName: string;
+  /** The card, as its owning group last reported it (`ReachableCard.by` says attack or thwart). */
+  readonly card: ReachableCard;
+}
+
+/** The shared record and the game's outcome, as the organizer last broadcast them (`pod:state`). */
+export interface EpicShared {
+  readonly shared: SharedPodState;
+  /** The game's outcome: every group wins or loses together (MC55 p. 21). */
+  readonly outcome: "playing" | "won" | "lost";
+}
+
+/** An Epic room's part of `RoomState`; `RoomState.epic` is null in a standard room. */
+export interface EpicState {
+  /** I am the organizer (the room's host: owns the lobby and the pod coordinator). */
+  readonly organizer: boolean;
+  /** The table I run (organizer or table host), or null. */
+  readonly hostsTable: string | null;
+  /** The table I hold a seat at or run, or null. */
+  readonly myTable: string | null;
+  readonly tables: readonly EpicTable[];
+  readonly pods: readonly EpicPod[];
+  /** Null until the organizer starts the game. A table host starts its table when this appears (`startEpicTable`). */
+  readonly start: EpicStart | null;
+  /** The optional time limit in minutes (display only, plan Q-D); null when none is set. */
+  readonly timeLimitMinutes: number | null;
+  /** Null until the first `pod:state` arrives (the organizer broadcasts after each change and on return). */
+  readonly pod: EpicShared | null;
+  /** What I may attack or thwart in other tables of my pod: from the pod state, empty before it or with no table. */
+  readonly remoteTargets: readonly RemoteTarget[];
+  /** The tables whose logs I receive: `"all"` or their ids (a table I hold a seat at is always included). */
+  readonly following: "all" | readonly string[];
+  /**
+   * Table host only: this table has waited too long for the pod coordinator (an unconfirmed event, a `sharedAck` that
+   * never comes). Offer the host `releasePod()`: the group plays on, and its unanswered event is re-sent when a
+   * coordinator returns. False otherwise.
+   */
+  readonly podStuck: boolean;
+}
+
 export interface RoomState {
   readonly role: RoomRole;
   readonly connection: RoomConnection;
@@ -214,6 +323,10 @@ export interface RoomState {
   readonly started: boolean;
   /** The game's outcome is in or the host ended it. */
   readonly gameOver: boolean;
+  /** `standard` (one table) or `epic` (several, issue #882): `LobbySettings.mode`, `standard` until the lobby says. */
+  readonly mode: LobbyMode;
+  /** Epic rooms only; null in a standard room. */
+  readonly epic: EpicState | null;
 }
 
 export const NO_ROOM: RoomState = {
@@ -235,6 +348,8 @@ export const NO_ROOM: RoomState = {
   buildMatches: true,
   started: false,
   gameOver: false,
+  mode: "standard",
+  epic: null,
 };
 
 /** At most this many chat lines are kept in `RoomState.chat`. */

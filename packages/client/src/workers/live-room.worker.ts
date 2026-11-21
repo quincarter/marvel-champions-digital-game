@@ -5,6 +5,7 @@
  */
 import { IdbRoomStore } from "../live/live-room-store.js";
 import { IdbSeatTokenStore } from "../live/room-seat-store.js";
+import { IdbEpicLogStore } from "../live/epic-coordinator.js";
 import { LiveRoomController } from "../live/live-room-controller.js";
 import type {
   LiveControlMessage,
@@ -39,6 +40,8 @@ worker.addEventListener("message", (event) => {
       onEnabledChange: (on) => gamePort?.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
       onResync: () => gamePort?.postMessage({ kind: "resync" } satisfies LiveControlMessage),
       onProposal: (proposal) => gamePort?.postMessage(proposal satisfies LiveControlMessage),
+      // Epic Multiplayer: the pod coordinator's inbound events go to the engine worker as commands.
+      onPodInbound: (inbound) => gamePort?.postMessage(inbound satisfies LiveControlMessage),
       // Rooms and the lobby (issue #880): the seat tokens live in this worker's IndexedDB, never on the main thread.
       ...(build
         ? {
@@ -47,6 +50,7 @@ worker.addEventListener("message", (event) => {
               ...(device ? { device } : {}),
               onlineName: onlineName ?? "",
               seatStore: new IdbSeatTokenStore(),
+              epicStore: new IdbEpicLogStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
             },

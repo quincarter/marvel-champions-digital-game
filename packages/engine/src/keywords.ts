@@ -67,6 +67,7 @@ export function printedKeywordsOf(
 export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
+  if (state.instances[id]?.remoteOf) return [];
   if (textGoneByTreatment(state, id)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
@@ -331,6 +332,8 @@ export function keywordsOf(
   deps: EngineDeps = DEFAULT_DEPS,
   notFrom: InstanceId | null = null,
 ): readonly KeywordInstance[] {
+  // A stand-in for another group's card has no keywords here: the card's own apply where it is (`CardInstance.remoteOf`).
+  if (state.instances[id]?.remoteOf) return [];
   const printed = printedKeywordsOf(state, id, deps);
   const { granted, lost } = grantedKeywords(state, deps, id, notFrom);
   const all = granted.length === 0 ? printed : [...printed, ...granted];

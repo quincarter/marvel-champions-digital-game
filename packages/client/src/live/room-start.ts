@@ -43,6 +43,11 @@ export interface RoomStartDeps {
   readonly check: (
     input: Omit<RoomDeckCheckInput, "basePool" | "loaded">,
   ) => Promise<readonly SeatDeckVerdict[] | null>;
+  /**
+   * An Epic table host's Start: only these seats (a table's, in its player order) are dealt, and the host of a table is
+   * not the room's host. Absent: every seat of a room's one table, host only.
+   */
+  readonly seatIds?: readonly string[];
   /** Starts the game on this device (it carries the room, watching and play mode itself) and says why if it failed. */
   readonly start: (config: SessionConfig) => Promise<string | null>;
 }
@@ -51,8 +56,11 @@ export interface RoomStartDeps {
 export type RoomGameBase = Omit<SessionConfig, "players">;
 
 export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Promise<RoomStartResult> {
-  const state = deps.state();
-  if (state.role !== "host") return { ok: false, reason: "not-host" };
+  const room = deps.state();
+  if (room.role !== "host" && deps.seatIds === undefined) return { ok: false, reason: "not-host" };
+  const state = deps.seatIds
+    ? { ...room, seats: deps.seatIds.flatMap((id) => room.seats.filter((seat) => seat.id === id)) }
+    : room;
   if (state.seats.length === 0) return { ok: false, reason: "no-seats" };
   const empty = state.seats.filter((seat) => seat.holder === null).map((seat) => seat.id);
   if (empty.length > 0) return { ok: false, reason: "unfilled", seats: empty };

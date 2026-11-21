@@ -118,6 +118,18 @@
 //     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
 //     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
 //     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
+//   - Several tables in one room (Epic mode, docs/live-game-rooms.md section 10) add no new kind of cost: each table keeps its
+//     own header row, one chunk row per 20 commands and one tail row (refreshed at most once a minute while its host
+//     streams, and when its host drops or the table ends), so a table costs what a one-table room does and N tables N times
+//     that. A table's end is one `<table>:end` row and the room's end one meta write. The lobby row grows by the tables,
+//     pods and the table-host token hashes and is written only when the organizer sets the lobby, a seat changes hands or a
+//     table host returns with its token. The pod channel (pod event, inbound, state) writes no row: it is relayed
+//     in memory, each message capped at 16 KiB (state 32 KiB) and limited to 30 then 10 a second per participant, and
+//     the last pod state is kept in memory for joiners. A joining participant makes a woken room read every table once
+//     (header, chunks, tail, end: about one row per 20 commands per table, plus 3 per table), which is the same
+//     once-per-wake cost as a one-table room times the table count. Seats are capped by MAX_ROOM_PARTICIPANTS, and the organizer, table
+//     hosts and anyone with a valid seat token always get in; 16 players plus 9 watchers fit in the default 25, but
+//     8 tables of 4 do not (raise the var for them).
 //     Seat decks (`seat-deck`, each player brings their own hero and deck, 2026-11-20) are stored in the same `lobby` row,
 //     with their seat: an accepted, changed deck rewrites that one row (the same deck again writes nothing), a change of
 //     holder that clears a holder's own deck is already a row write for the holder change, and a `deck-refused` or a

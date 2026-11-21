@@ -23,6 +23,7 @@ import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
 import { reportedNumberOf } from "./outside-facts.js";
 import { spendPays } from "./payable.js";
+import { externalEvent, haltedFault, podRelease, remotePower, reportPodBoundary } from "./pod-commands.js";
 import { getPlayer, handSize } from "./query.js";
 import { pairSelectionFault } from "./resolve/pair-cards.js";
 import { poolTotal, requirementOf, wildDeclarationFault, wildTypesFromOptionIds } from "./resources.js";
@@ -74,14 +75,24 @@ export function applyCommand(
     // mid-prompt (the defend prompt of a villain phase that has already decided the game), and there is no rules
     // reason a concession has to wait for an answer. The `state.outcome` guard above still makes a second concede an
     // error, correctly.
-    if (state.pendingChoice && command.type !== "resolveChoice" && command.type !== "concede") {
+    // An inbound pod event waits in state for what is resolving (`externalEvent`), so it too passes this gate.
+    if (
+      state.pendingChoice &&
+      command.type !== "resolveChoice" &&
+      command.type !== "concede" &&
+      command.type !== "externalEvent" &&
+      command.type !== "podRelease"
+    ) {
       return { ok: false, error: engineError("choice_pending", "a choice must be resolved first", command) };
     }
     const ctx = createCtx(state, deps);
     if (options.recordStates) ctx.recording = { pick: options.recordStates, states: [] };
+    const halted = haltedFault(state, command);
+    if (halted) return { ok: false, error: halted };
     const error = dispatch(ctx, command);
     if (error) return { ok: false, error };
     runFlow(ctx);
+    reportPodBoundary(ctx, state, deps);
     return {
       ok: true,
       state: ctx.state,
@@ -116,6 +127,12 @@ function dispatch(ctx: Ctx, command: Command): EngineError | null {
       return concede(ctx, command);
     case "adjust":
       return adjust(ctx, command);
+    case "externalEvent":
+      return externalEvent(ctx, command);
+    case "remotePower":
+      return remotePower(ctx, command);
+    case "podRelease":
+      return podRelease(ctx, command);
   }
 }
 

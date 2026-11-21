@@ -7,8 +7,8 @@
  * `Ctx`, no card names, no randomness, so the reducer can move into a pod coordinator unchanged.
  */
 
-import type { CardId, ScalingValue } from "@mc/content";
-import { groupId, type GroupId, type InstanceId } from "./ids.js";
+import type { AbilityId, CardId, ScalingValue } from "@mc/content";
+import { groupId, type GroupId, type InstanceId, type PlayerId } from "./ids.js";
 
 export { groupId, type GroupId };
 
@@ -157,6 +157,209 @@ export interface PodState {
    * group in the middle of a player phase may finish that phase as normal"). Absent otherwise.
    */
   readonly finalPlayerPhase?: true;
+  /**
+   * Inbound events a pod coordinator sent (`Command externalEvent`) waiting for the resolution in progress to finish
+   * (MC55 p. 20, as `pendingResults`), oldest first. Absent when none waits.
+   */
+  readonly pendingInbound?: readonly PodInboundEvent[];
+  /**
+   * This group has stopped play after the shared scheme's completion (MC55 p. 21: "stop play immediately", or a player
+   * phase finished "as normal"). Every command but `externalEvent` and `concede` is refused (`pod_halted`) until the
+   * coordinator ends the game. Absent while the group plays.
+   */
+  readonly halted?: true;
+  /**
+   * The outbound number of this group's last shared event the coordinator has not yet acknowledged (`sharedAck`).
+   * While set, play pauses at the next quiet point: the ability resolving finishes, but no further step is taken and
+   * actions are refused (`pod_waiting`), so what the event brought about (a flip, the shared scheme's completion) is
+   * heard before this group plays on (MC55 p. 20: the group must "immediately inform the event organizer"; p. 21: a
+   * group in a villain phase "stop[s] play immediately"). Absent otherwise; never set with a local coordinator.
+   */
+  readonly awaiting?: number;
+  /**
+   * The cards of the other groups of this pod that this group's players may attack or thwart (their last reports,
+   * relayed by the coordinator as `podReachable`), by group id: what `Command remotePower` checks before anything is
+   * paid. Absent until a report arrives.
+   */
+  readonly reachable?: Readonly<Record<string, readonly ReachableCard[]>>;
+  /**
+   * Remote powers made here and not yet answered by the owning group, oldest first: what a refusal refunds. Absent when
+   * none is waiting.
+   */
+  readonly inFlight?: readonly RemotePowerInFlight[];
+}
+
+/** A remote power this group made, until the owning group answers (`PodState.inFlight`). */
+export interface RemotePowerInFlight {
+  /** The stand-in it was made against (`CardInstance.remoteOf`), which names it in the answer. */
+  readonly ref: InstanceId;
+  readonly characterInstanceId: InstanceId;
+  /** The player who made the power (the character's controller). */
+  readonly playerId: PlayerId;
+  readonly toGroupId: GroupId;
+  /** The consequential damage the power put on the character (an ally), refunded with the exhaust on a refusal. */
+  readonly consequential: number;
+  /** Hand cards spent paying the power's costs, returned on a refusal if still in their discard pile. */
+  readonly spent: readonly InstanceId[];
+  /** Whether its damage or threat removal was sent; one never sent (a stunned attacker's) is dropped when quiet. */
+  readonly sent: boolean;
+}
+
+/** Where a group of a pod stands, as its coordinator reads it (MC55 p. 21; the stop rule M4). */
+export interface GroupStatus {
+  readonly phase: "setup" | "player" | "villain" | "over";
+  readonly round: number;
+  /** `PodState.halted`: the group stopped play after the shared scheme's completion. */
+  readonly halted: boolean;
+}
+
+/** A remote basic power: "attack" or "thwart" (M6: the only two another group may use; 55041, 55046, MC55 p. 12). */
+export type RemotePower = "attack" | "thwart";
+
+/**
+ * A card in this group's game area that players of other groups of the pod may attack or thwart "as if it were in
+ * their game area" (`RuleSpec reachableFromPod`; The Mangog 55041, Door Between Worlds 55046; MC55 p. 16).
+ */
+export interface ReachableCard {
+  readonly instanceId: InstanceId;
+  readonly cardId: CardId;
+  readonly by: RemotePower;
+  /** An attackable card's hit points left; absent for a thwartable one. */
+  readonly remainingHitPoints?: number;
+  /** A thwartable card's threat; absent for an attackable one. */
+  readonly threat?: number;
+}
+
+/**
+ * What a group tells its pod's coordinator (docs/epic-multiplayer-plan.md §2 option B, §4 items 1 and 3). Each is
+ * numbered by the group (`PodState.outboundSeq`), so the coordinator applies it once however often it is re-sent. Only
+ * a group with a remote coordinator emits any; `podOutboundOf` reads them from a command's events.
+ */
+export type PodOutboundEvent =
+  | SharedEvent
+  /** An `inGroup` block for another group of the pod (`GameEvent podEffectRequested`; a synergy offer). */
+  | {
+      readonly type: "podEffectRequested";
+      readonly groupId: GroupId;
+      readonly toGroupId: GroupId;
+      readonly sourceCardId: CardId;
+      readonly abilityId: AbilityId;
+      readonly block: number;
+    }
+  /** The group's phase, round or halt changed over the command. */
+  | { readonly type: "groupStatus"; readonly groupId: GroupId; readonly status: GroupStatus }
+  /** The cards of this group's area the pod may reach changed over the command (entered, left, damage or threat). */
+  | { readonly type: "reachableCards"; readonly groupId: GroupId; readonly cards: readonly ReachableCard[] }
+  /**
+   * A basic attack or thwart made here against a stand-in for another group's card reached that card: the damage the
+   * attack deals it (after this group's modifiers) with the attack's keywords, or the threat the thwart removes.
+   */
+  | {
+      readonly type: "remotePowerUsed";
+      readonly groupId: GroupId;
+      readonly playerId: PlayerId;
+      readonly toGroupId: GroupId;
+      readonly targetInstanceId: InstanceId;
+      readonly ref: InstanceId;
+      readonly power: RemotePower;
+      readonly amount: number;
+      readonly overkill: boolean;
+      readonly piercing: boolean;
+    }
+  /** This group dealt another group's remote power to its card (inbound `remotePower`), or refused it. */
+  | {
+      readonly type: "remotePowerResolved";
+      readonly groupId: GroupId;
+      readonly toGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly power: RemotePower;
+      /** The attacked card's retaliate, owed to the attacker (RRG 1.8 "Retaliate X", p. 37); 0 for a thwart. */
+      readonly retaliate: number;
+      /** Why the card could not be reached any more (it left play, or no longer allows it); absent when it was. */
+      readonly refused?: string;
+      /** The card left play while the accepted hit was resolving (`reportRemoteHit`): costs stand, no consequential damage. */
+      readonly lost?: true;
+    }
+  /**
+   * A remote attack with Overkill defeated the card here: the excess, measured after its damage resolved (RRG 1.8
+   * "Overkill", p. 31), owed to the attacker's group (owner question pending, option A: the attacker's own Avatar of
+   * Loki).
+   */
+  | {
+      readonly type: "overkillExcess";
+      readonly groupId: GroupId;
+      readonly toGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly amount: number;
+    };
+
+/**
+ * What a pod coordinator tells one group (`Command externalEvent`; docs/live-game-rooms.md §10's `lokiFlipped`,
+ * `gameWon`, `gameLost`, `synergyGranted` and `stopAfterPhase`, in the engine's card-neutral words). Each waits for
+ * the group's next quiet point, after what is resolving has finished (MC55 p. 20; M3), except as `externalEvent` says.
+ */
+export type PodInboundEvent =
+  /** The coordinator's shared record changed: this group's copy is replaced (bookkeeping only, takes no draw). */
+  | { readonly kind: "sharedStateChanged"; readonly shared: SharedPodState }
+  /** The shared villain flipped (MC55 p. 20; Q5: every group resolves its When Revealed). */
+  | { readonly kind: "sharedVillainFlipped" }
+  /** The shared scheme was completed: stop play, or finish the player phase first (MC55 p. 21; M4). */
+  | { readonly kind: "stopAfterPhase" }
+  /** The shared villain was defeated: all players in all groups win (55027b; MC55 p. 21; Q6). */
+  | { readonly kind: "gameWon" }
+  /** Every player phase ended with the shared scheme complete: all players in all groups lose (MC55 p. 21). */
+  | { readonly kind: "gameLost" }
+  /**
+   * The coordinator has applied this group's shared event `seq` and sent everything it brought about (sent after
+   * those): the pause of `PodState.awaiting` ends once it is applied.
+   */
+  | { readonly kind: "sharedAck"; readonly seq: number }
+  /** Another group of the pod reported its reachable cards (bookkeeping, `PodState.reachable`; takes no draw). */
+  | { readonly kind: "podReachable"; readonly groupId: GroupId; readonly cards: readonly ReachableCard[] }
+  /** Resolve block `block` of `abilityId` in this group's area (`GameEvent podEffectRequested`; a synergy grant). */
+  | {
+      readonly kind: "podEffect";
+      readonly fromGroupId: GroupId;
+      readonly sourceCardId: CardId;
+      readonly abilityId: AbilityId;
+      readonly block: number;
+    }
+  /** A player of another group attacked or thwarted a reachable card here "as if it were in their game area" (M6). */
+  | {
+      readonly kind: "remotePower";
+      readonly fromGroupId: GroupId;
+      readonly playerId: PlayerId;
+      readonly targetInstanceId: InstanceId;
+      readonly ref: InstanceId;
+      readonly power: RemotePower;
+      readonly amount: number;
+      readonly overkill: boolean;
+      readonly piercing: boolean;
+    }
+  /** This group's remote power was dealt where its target is (with the target's retaliate), or refused. */
+  | {
+      readonly kind: "remotePowerResolved";
+      readonly fromGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly power: RemotePower;
+      readonly retaliate: number;
+      readonly refused?: string;
+      readonly lost?: true;
+    }
+  /** Overkill's excess from this group's remote attack, dealt to this group's villain (owner question, option A). */
+  | {
+      readonly kind: "overkillExcess";
+      readonly fromGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly amount: number;
+    };
+
+/** A numbered outbound event, as a host forwards it: `seq` is the group's own count, from 1. */
+export interface PodOutbound {
+  readonly seq: number;
+  readonly event: PodOutboundEvent;
 }
 
 /** The pod's neutral cards as a setup config names them (`Scenario.neutralCards`). */

@@ -154,6 +154,11 @@ export function runFlow(ctx: Ctx): void {
     // Nothing is resolving: what a shared event of the pod brought about is applied now (docs/phase7-wave9.md §3.66;
     // MC55 p. 20: "first finishing any actions or abilities that are currently resolving"). No pod, nothing done.
     if (settlePod(ctx)) continue;
+    // The group has stopped play after the shared scheme's completion (MC55 p. 21: "stop play immediately"): what was
+    // resolving has finished, and no further step of the round is taken. It waits for the coordinator's verdict.
+    if (ctx.state.pod?.halted) return;
+    // A shared event of this group awaits the coordinator's answer (`PodState.awaiting`): no further step until it comes.
+    if (ctx.state.pod?.awaiting !== undefined) return;
     const step = ctx.state.step;
     if (step.phase === "gameOver") return;
     if (step.phase === "player" && step.kind === "turn") {

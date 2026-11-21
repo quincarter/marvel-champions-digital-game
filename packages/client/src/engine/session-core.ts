@@ -41,6 +41,9 @@ import { scenarioWithPacks } from "@mc/mod-sdk/game";
 import {
   applyCommand,
   createGame,
+  groupId,
+  inboundCommand,
+  podOutboundOf,
   legalActions as queryLegalActions,
   sessionApply,
   startSession,
@@ -55,7 +58,11 @@ import {
   type IllegalDeck,
   type LegalActions,
   type PlayerId,
+  type PodInboundEvent,
+  type PodOutbound,
+  type PodSetup,
   type SealedGameState,
+  type SharedPodState,
 } from "@mc/engine";
 import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
@@ -92,6 +99,7 @@ import {
 } from "./game-storage.js";
 import type {
   CardPool,
+  EpicGroupPlacement,
   LegalActionsFor,
   RewindOptions,
   SavedGame,
@@ -140,6 +148,7 @@ export type CoreDispatch =
 /** A rewind worked out for an older table than the game now has (a seat's command landed first). */
 export const MOVED_REFUSAL = "The table moved on while this was being decided";
 export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+export const POD_REFUSAL = "Epic Multiplayer: the pod has already heard what this move did, so it cannot be taken back";
 /** A room whose Undo setting is Off (`SessionConfig.roomUndo`) takes no Undo or Back out either. */
 export const UNDO_OFF_REFUSAL = "The host turned Undo off";
 
@@ -303,8 +312,30 @@ const scenarioFor = (config: SessionConfig) => {
       }
     : seated;
   const withCampaign = config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
-  return config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
+  const withRules = config.tableRules ? { ...withCampaign, tableRules: config.tableRules } : withCampaign;
+  return config.epic ? withEpicPlacement(withRules, config.epic) : withRules;
 };
+
+/**
+ * One group of an Epic Multiplayer game (issue #882): `@mc/cards`' `epicGroupScenario`'s last step (the pod record of a
+ * scenario with neutral cards, made a group of a pod with a coordinator outside this engine), applied to a scenario
+ * already built here so packs, tables rules and the rest of the setup go through the one `scenarioFor`.
+ */
+function withEpicPlacement<T extends { readonly pod?: PodSetup }>(setup: T, epic: EpicGroupPlacement): T {
+  if (!setup.pod) throw new Error("this scenario has no neutral cards: it has no Epic Multiplayer Mode");
+  return {
+    ...setup,
+    pod: {
+      ...setup.pod,
+      groupId: groupId(epic.groupId),
+      coordinator: "remote",
+      groupsInPod: epic.groupIdsInPod.length,
+      groupsInGame: epic.groupsInGame,
+      playersInGame: epic.playersInGame,
+      groupIdsInPod: epic.groupIdsInPod.map((id) => groupId(id)),
+    },
+  };
+}
 
 /** Whether a game's scenario or one of its modular picks belongs to one of its packs. */
 const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): boolean =>
@@ -643,6 +674,15 @@ export class EngineSessionCore {
       if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
       record = recordEvents(record, result.events, result.state, depsOf(config));
       state = result.state;
+    }
+    // Epic Multiplayer: the pod has already been told, and has answered, what the cut commands did; the sequence numbers
+    // of a group with a remote coordinator never go back. (Undo past a reveal and Back out reach here.)
+    const now = session.state.pod;
+    if (
+      now?.coordinator === "remote" &&
+      (state.pod?.outboundSeq !== now.outboundSeq || state.pod?.inboundSeq !== now.inboundSeq)
+    ) {
+      throw new Error(POD_REFUSAL);
     }
     this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
     this.#version = truncated.length;
@@ -992,6 +1032,75 @@ export class EngineSessionCore {
       if (isChecksumPosition(index + 1)) out[String(index + 1)] = replayChecksum(state);
     }
     return out;
+  }
+
+  /**
+   * Epic Multiplayer: where this group stands for its pod link when the game begins or resumes, or null when the game
+   * has no remote coordinator.
+   */
+  livePodGame(): {
+    readonly groupId: string;
+    readonly inboundSeq: number;
+    readonly shared: SharedPodState | null;
+    readonly players: number;
+    readonly outbox: readonly PodOutbound[];
+    readonly awaiting: boolean;
+  } | null {
+    const session = this.#session;
+    const state = session?.state;
+    if (!session || state?.pod?.coordinator !== "remote") return null;
+    return {
+      groupId: state.pod.groupId,
+      inboundSeq: state.pod.inboundSeq,
+      shared: state.pod.shared,
+      players: state.startingPlayerCount,
+      outbox: this.#podOutbox(session),
+      awaiting: state.pod.awaiting !== undefined,
+    };
+  }
+
+  /**
+   * Every outbound pod event the log produced, by replaying it from its baseline: what a reloaded table host re-sends
+   * to a coordinator that lacks some (the engine numbered them when they happened and a saved game keeps the log).
+   */
+  #podOutbox(session: GameSession): readonly PodOutbound[] {
+    const out: PodOutbound[] = [];
+    let state = session.log.initialState;
+    for (const command of session.log.commands) {
+      const result = applyCommand(state, command, depsOf(this.#config));
+      if (!result.ok) break;
+      state = result.state;
+      out.push(...podOutboundOf(state, result.events));
+    }
+    return out;
+  }
+
+  /**
+   * Epic Multiplayer: what the command that produced `events` told the pod (the group's outbound events, numbered by
+   * the engine) and how many inbound events the group has applied now. Null with no remote coordinator.
+   */
+  livePod(
+    events: readonly GameEvent[],
+  ): { readonly outbound: readonly PodOutbound[]; readonly inboundSeq: number; readonly awaiting: boolean } | null {
+    const state = this.#session?.state;
+    if (state?.pod?.coordinator !== "remote") return null;
+    return {
+      outbound: podOutboundOf(state, events),
+      inboundSeq: state.pod.inboundSeq,
+      awaiting: state.pod.awaiting !== undefined,
+    };
+  }
+
+  /** The `podRelease` command: ends the wait for a coordinator that is gone (recorded under the first player). */
+  podReleaseCommand(): Command | null {
+    const state = this.#session?.state;
+    return state?.pod?.coordinator === "remote" ? { type: "podRelease", playerId: state.firstPlayerId } : null;
+  }
+
+  /** The `externalEvent` command for inbound event `sequence` of the pod coordinator (recorded under the first player). */
+  podInboundCommand(sequence: number, event: PodInboundEvent): Command | null {
+    const state = this.#session?.state;
+    return state?.pod?.coordinator === "remote" ? inboundCommand(state, sequence, event) : null;
   }
 
   /** `replayChecksum` of the current state: the live stream sends one every `CHECKSUM_EVERY` commands. */
