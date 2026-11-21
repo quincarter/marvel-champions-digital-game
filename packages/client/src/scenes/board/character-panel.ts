@@ -654,7 +654,8 @@ function drawCardShapedPanel(
   // rotation and stays square to the slot — see `turnSideways`.
   const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
   const key = ctx.art.request(scene, panel.art);
-  if (!drawArt(scene, key, inner, { fit: "cover", alpha: dim })) {
+  const scan = drawArt(scene, key, inner, { fit: "cover", alpha: dim });
+  if (!scan) {
     const ground = scene.add.graphics();
     ground.fillStyle(surface.parchment.hex, dim).fillRect(inner.x, inner.y, inner.width, inner.height);
     scene.add
@@ -781,10 +782,13 @@ function drawCardShapedPanel(
   // Live stats over the printed icons, where the eye already looks for them on
   // this card, and hit points along the foot. Same widgets as the wide panel.
   if (panel.stats.length > 0 && rect.height > 60) {
+    const labels = panel.stats.filter((tile) => tile.label !== "HP").map((tile) => tile.label);
+    // On the printed bursts when the scan is there to line up with (issue #935).
     const column = cardStatColumn(
       { ...inner, height: inner.height - reserved },
-      panel.stats.filter((tile) => tile.label !== "HP").length,
+      labels.length,
       panel.hp !== null,
+      scan ? { labels, card: scannedCard(scan), face: inner } : undefined,
     );
     drawStatBlock(ctx, column, panel, dim);
   }
@@ -1318,4 +1322,10 @@ function drawArtSlot(
       ink.meta * dim,
     ).setOrigin(0.5);
   }
+}
+
+/** The whole printed card as `drawArt` placed it, overhang included: a cropped image keeps its full frame's origin. */
+function scannedCard(image: Phaser.GameObjects.Image): Rect {
+  const source = image.texture.getSourceImage();
+  return { x: image.x, y: image.y, width: source.width * image.scaleX, height: source.height * image.scaleY };
 }

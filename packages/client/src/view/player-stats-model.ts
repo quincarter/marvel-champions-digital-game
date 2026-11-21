@@ -41,6 +41,11 @@ export interface StatsNames {
   /** The whole pool, for the Matchups grids' axes. Absent: only what the games hold. */
   readonly matchupAxes?: () => MatchupAxes;
   /**
+   * Who made a custom pack's hero, scenario or encounter set ("PermaKarma"), or undefined for official content and for
+   * a pack that names no author. The Matchups grids tag custom rows and columns with it (issue #937).
+   */
+  readonly designerOf?: (id: string) => string | undefined;
+  /**
    * The names as one saved game knew them (its own embedded packs), for the facts read per game: a seat's hero and
    * aspects from a precon id. Absent: the same names for every game.
    */
@@ -1848,6 +1853,10 @@ function markSignature(view: HeroCardsView, names: StatsNames): HeroCardsView {
   };
 }
 
+/** "The Rose (by PermaKarma)": a custom pack's content tagged with its designer, so it never reads as an official card. */
+export const byDesigner = (name: string, designer: string | undefined): string =>
+  designer ? `${name} (by ${designer})` : name;
+
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
@@ -1948,9 +1957,9 @@ export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, fil
       })),
       names.matchupAxes?.() ?? { scenarios: [], heroes: [], modulars: [] },
       {
-        scenario: (id) => names.scenarioName(id) ?? id,
-        hero: (id) => names.cardName(id) ?? id,
-        modular: (id) => names.setName?.(id) ?? id,
+        scenario: (id) => byDesigner(names.scenarioName(id) ?? id, names.designerOf?.(id)),
+        hero: (id) => byDesigner(names.cardName(id) ?? id, names.designerOf?.(id)),
+        modular: (id) => byDesigner(names.setName?.(id) ?? id, names.designerOf?.(id)),
       },
     ),
     filter,

@@ -68,6 +68,7 @@ export function loadPackRuntime(
         id: manifest.id,
         version: manifest.version,
         name: manifest.name,
+        ...((manifest.authors?.length ?? 0) > 0 ? { authors: manifest.authors } : {}),
         requires: manifest.requires?.packs ?? [],
         cards: input.cards,
         abilities: input.abilities,

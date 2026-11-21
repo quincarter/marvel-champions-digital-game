@@ -23,6 +23,8 @@ export interface PackRuntime {
   readonly id: string;
   readonly version: string;
   readonly name: string;
+  /** Who made it (`pack.json`'s `authors`); absent when it names none, and in a pack saved before this was kept. */
+  readonly authors?: readonly string[];
   /** Ids of the packs this one needs loaded (`requires.packs`): a game that uses it carries them too. */
   readonly requires: readonly string[];
   readonly cards: readonly AnyCard[];

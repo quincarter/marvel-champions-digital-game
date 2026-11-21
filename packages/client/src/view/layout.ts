@@ -1122,12 +1122,31 @@ function stackedStatBlock(rect: Rect, count: number, withHp: boolean): StatBlock
  * an opaque badge in the same spot replaces a stale printed value with the
  * live one instead of leaving two numbers for one stat. A short card shrinks
  * its badges until the stack clears the HP plate, rather than overrunning it.
+ *
+ * Given the stats' `labels`, the whole printed `card` as its scan is drawn (overhang included) and the `face` it shows
+ * in (strips and all), an ally's or a minion's
+ * badges sit on the printed bursts themselves and scale with the card (`printedStatSlots`, issue #935), so the printed
+ * consequential damage under each stat stays in sight at any card size; otherwise, or when that does not fit above
+ * the strips, they stack down from the top as before.
  */
-export function cardStatColumn(inner: Rect, count: number, withHp: boolean): StatBlock {
+export function cardStatColumn(
+  inner: Rect,
+  count: number,
+  withHp: boolean,
+  printed?: { readonly labels: readonly string[]; readonly card: Rect; readonly face: Rect },
+): StatBlock {
   // 20px is the least that holds "HP 5/6" at the plate's own type; a card under 100px tall can't spare it.
   const hpFloor = inner.height >= 100 ? 20 : 14;
   const hpHeight = withHp ? Math.max(hpFloor, Math.min(28, Math.round(inner.height * 0.13))) : 0;
   const hpTop = inner.y + inner.height - hpHeight;
+  const hp = withHp ? { x: inner.x, y: hpTop, width: inner.width, height: hpHeight } : null;
+  const onPrint = printed
+    ? printedStatSlots(printed.card, printed.face, printed.labels, withHp ? hpTop - 4 : hpTop)
+    : null;
+  if (onPrint && onPrint.length === count) {
+    const top = Math.min(...onPrint.map((slot) => slot.cy - badgeExtent(slot.size).above));
+    return { badges: onPrint, hp, height: inner.y + inner.height - top, top };
+  }
   const startTop = inner.y + Math.round(inner.height * 0.18);
   const bottom = withHp ? hpTop - 4 : inner.y + inner.height;
   const room = Math.max(0, bottom - startTop);
@@ -1144,6 +1163,53 @@ export function cardStatColumn(inner: Rect, count: number, withHp: boolean): Sta
     cy: startTop + above + index * (above + below + 3),
     size,
   }));
-  const hp = withHp ? { x: inner.x, y: hpTop, width: inner.width, height: hpHeight } : null;
   return { badges, hp, height: inner.y + inner.height - startTop, top: startTop };
+}
+
+/**
+ * Where a card prints its stat bursts, as fractions of the card face, measured on the scans (issue #935): the
+ * column's center, and each stat's burst center. An ally prints THW over ATK, with its consequential damage icon under
+ * each name; a minion (and a villain stage, Rhino's measured the same) prints SCH over ATK.
+ */
+const PRINTED_STAT_X = 0.1;
+/**
+ * `badge` is a badge's starburst against the card face's width: big enough to hide the printed number and, with its
+ * ribbon, the stat's printed name; short enough to end above an ally's consequential damage icon under that name, and
+ * for a minion, whose stats sit closer together, to clear the next stat down.
+ */
+const PRINTED_STAT_COLUMNS: readonly { readonly ys: Readonly<Record<string, number>>; readonly badge: number }[] = [
+  { ys: { THW: 0.235, ATK: 0.444 }, badge: 0.17 },
+  { ys: { SCH: 0.222, ATK: 0.347 }, badge: 0.15 },
+];
+
+/**
+ * Badge slots over a card's printed stats, in `labels` order, or null when the card does not print these stats in a
+ * known column (a card-shaped identity) or a badge would run past `bottom` (the HP plate, the strips above it).
+ *
+ * The fractions are taken against `card`, the whole printed card where `drawArt` put it: a "cover" fit can overhang
+ * the visible `face` on one axis, cropped off-center vertically, so the caller passes the drawn image's own bounds.
+ */
+export function printedStatSlots(
+  card: Rect,
+  face: Rect,
+  labels: readonly string[],
+  bottom: number,
+): BadgeSlot[] | null {
+  const column = PRINTED_STAT_COLUMNS.find(
+    ({ ys }) => labels.length === Object.keys(ys).length && labels.every((label) => ys[label] !== undefined),
+  );
+  if (!column || card.width <= 0 || card.height <= 0) return null;
+  const { x: left, y: top, width, height } = card;
+  const size = Math.max(BADGE_FLOOR, Math.round(width * column.badge));
+  const { above, below } = badgeExtent(size);
+  const slots = labels.map((label) => ({
+    cx: left + width * PRINTED_STAT_X,
+    cy: top + height * column.ys[label]!,
+    size,
+  }));
+  const inside = slots.every((slot) => slot.cy - above >= face.y && slot.cy + below <= bottom);
+  // A small card's ribbon has a floor height, so its badges can outgrow the printed spacing (a minion's SCH over ATK).
+  const centers = slots.map((slot) => slot.cy).sort((a, b) => a - b);
+  const apart = centers.every((cy, index) => index === 0 || cy - centers[index - 1]! >= above + below);
+  return inside && apart ? slots : null;
 }

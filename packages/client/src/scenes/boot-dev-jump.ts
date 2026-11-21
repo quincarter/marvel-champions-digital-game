@@ -295,6 +295,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // where the fastest and longest game link to their game in Past games (#911).
   if (screen === "stats") {
     if (params.get("fixture") === "demo") await (await import("../store/dev-past-games.js")).seedDemoPastGames();
+    // `&fixture=custom`: a won game of a custom scenario pack, for its name and designer on the Matchups grid (#937).
+    if (params.get("fixture") === "custom") await (await import("../store/dev-past-games.js")).seedCustomScenarioGame();
     const tab = params.get("tab");
     return { key: SCENES.playerStats, data: tab ? { tab: tab as StatsTab } : {} };
   }
@@ -509,6 +511,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       const { startSyncRatioGame } = await import("../store/dev-sync-ratio-game.js");
       await startSyncRatioGame(store);
     }
+    return { key: SCENES.board, data: {} };
+  }
+  // `&fixture=stat-stars&ally=cypher|chamber|clea`: one ally with printed consequential damage in play on turn 1, for
+  // the stat badges against the printed card (`store/dev-stat-stars-game.ts`, issue #935).
+  if (screen === "board" && params.get("fixture") === "stat-stars") {
+    const { store } = appSession();
+    const { isStatStarAlly, startStatStarsGame } = await import("../store/dev-stat-stars-game.js");
+    const ally = params.get("ally");
+    if (!gameRunning(store)) await startStatStarsGame(store, isStatStarAlly(ally) ? ally : "cypher");
     return { key: SCENES.board, data: {} };
   }
   // `&fixture=crowded`: three seats (Doctor Strange first) with the table full, for the Card size QA

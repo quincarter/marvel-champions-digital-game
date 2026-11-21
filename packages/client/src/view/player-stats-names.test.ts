@@ -92,6 +92,53 @@ describe("statsNamesForSaves", () => {
   });
 });
 
+describe("custom scenarios on the Matchups grids (issue #937)", () => {
+  const SCENARIO = "the-rose-bf-the-rose";
+  const SET = "the-rose-bf-goons";
+  const roseSave = (authors?: readonly string[]): SaveMeta => {
+    const base = save() as unknown as SaveMeta & { config: Record<string, unknown> };
+    const pack = {
+      ...PACK,
+      ...(authors ? { authors } : {}),
+      scenarios: [{ id: SCENARIO, name: "The Rose", recommendedModularSetIds: [SET] }],
+      encounterSets: [{ id: SET, name: "Rose Goons" }],
+    };
+    return {
+      ...base,
+      config: { ...base.config, scenarioId: SCENARIO, modularSetIds: [SET], packs: [pack] },
+    } as never;
+  };
+  const rowsOf = (stats: ReturnType<typeof playerStatsOf>) => stats.matchups!.heroes.rows.map((row) => row.name);
+
+  test("names a pack's scenario and encounter set from the save, never by its id", () => {
+    setLoadedPacks([]);
+    const names = statsNamesForSaves([roseSave()]);
+    expect(names.scenarioName(SCENARIO)).toBe("The Rose");
+    expect(names.setName?.(SET)).toBe("Rose Goons");
+    expect(names.scenarioModulars?.(SCENARIO)).toEqual([SET]);
+    expect(rowsOf(playerStatsOf([roseSave()], names))).toContain("The Rose");
+    expect(rowsOf(playerStatsOf([roseSave()], names))).not.toContain(SCENARIO);
+  });
+
+  test("tags custom rows and columns with the pack's designer", () => {
+    setLoadedPacks([]);
+    const saves = [roseSave(["PermaKarma"])];
+    const stats = playerStatsOf(saves, statsNamesForSaves(saves));
+    expect(rowsOf(stats)).toContain("The Rose (by PermaKarma)");
+    expect(stats.matchups!.heroes.columns.map((column) => column.name)).toContain("Sample (by PermaKarma)");
+    expect(stats.matchups!.modulars.columns.map((column) => column.name)).toContain("Rose Goons (by PermaKarma)");
+    // An official scenario keeps its plain name.
+    expect(rowsOf(stats)).toContain("Rhino");
+  });
+
+  test("a pack saved before its authors were kept takes them from the installed pack", () => {
+    setLoadedPacks([]);
+    const saves = [roseSave()];
+    const stats = playerStatsOf(saves, statsNamesForSaves(saves, undefined, { sample: ["PermaKarma", "Bob"] }));
+    expect(rowsOf(stats)).toContain("The Rose (by PermaKarma & Bob)");
+  });
+});
+
 describe("two versions of one pack", () => {
   const versioned = (id: string, at: number, aspect: string, name: string): SaveMeta => {
     const base = save() as unknown as SaveMeta & { config: { packs: unknown[] } };
