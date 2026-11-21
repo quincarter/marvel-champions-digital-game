@@ -32,7 +32,7 @@ import {
 } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
+import { cardOf, deckDiscardStillThere, getInstance, getPlayer, handDiscardStillThere, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -821,6 +821,8 @@ function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTimin
   // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
   // its discard (docs/phase7-wave7.md §3.55).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return true;
+  // So does a card discarded from a hand that a response has since taken out of the discard pile (issue #922).
+  if (event.kind === "cardDiscardedFromHand" && !handDiscardStillThere(state, event)) return true;
   return false;
 }
 
@@ -1449,6 +1451,7 @@ export function stillOffered(
   if (candidateDefenseBar(state, deps, candidate) !== null) return false;
   // Not a condition read again but a card that is gone: a response moved the discarded card (`candidatesFor`).
   if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return false;
+  if (event.kind === "cardDiscardedFromHand" && !handDiscardStillThere(state, event)) return false;
   const id = candidate.instanceId;
   const controllerId = candidate.controllerId;
   const trigger = definition.trigger;

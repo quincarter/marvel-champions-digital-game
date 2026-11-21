@@ -1,0 +1,3 @@
+kind: Engine
+body: A card discarded from a player's deck now says which side's card discarded it and whether as an effect or a cost (cardDiscardedFromDeck by and how), as an encounter deck's discard already did (#922).
+time: 2026-11-20T20:55:23.3563125-05:00

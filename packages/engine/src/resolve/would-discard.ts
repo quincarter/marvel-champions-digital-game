@@ -162,7 +162,11 @@ export function applyWouldDiscard(ctx: Ctx, event: BeingDiscarded): boolean {
     return false;
   }
   if (event.discard.kind === "hand") {
-    discardFromHand(ctx, event.playerId, event.instanceId);
+    discardFromHand(ctx, event.playerId, event.instanceId, {
+      sourceInstanceId: event.sourceInstanceId,
+      ...(event.sourceCardId !== undefined ? { sourceCardId: event.sourceCardId } : {}),
+      how: "effect",
+    });
     return true;
   }
   const { boundOn } = event.discard;
