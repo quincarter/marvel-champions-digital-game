@@ -395,19 +395,32 @@ test("on a short desktop window, arrows through the Overview's tall showcase bri
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  const seen = new Set<string>();
-  for (let i = 0; i < 16; i++) {
-    await page.keyboard.press("ArrowDown");
+  // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
+  const shownWhole = async (key: string): Promise<void> => {
+    const rect = (await stopsOf(page)).find((s) => s.key === key)!.rect;
+    expect(rect.height, `${key} shown whole`).toBeGreaterThanOrEqual(98);
+    expect(rect.y + rect.height, `${key} above the window's foot`).toBeLessThanOrEqual(620);
+  };
+  const move = async (key: string): Promise<string | null> => {
+    await page.keyboard.press(key);
     await page.waitForTimeout(150);
-    const focus = await statsFocus(page);
+    return statsFocus(page);
+  };
+  // Down to the stack's lowest tile (the list scrolls the record off the top), each tile on the way shown whole.
+  let low: string | null = null;
+  for (let i = 0; i < 16; i++) {
+    const focus = await move("ArrowDown");
     if (!focus?.startsWith("tile:") || focus === "tile:hero") continue;
-    seen.add(focus);
-    const rect = (await stopsOf(page)).find((s) => s.key === focus)!.rect;
-    // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
-    expect(rect.height, `${focus} shown whole`).toBeGreaterThanOrEqual(98);
-    expect(rect.y + rect.height, `${focus} above the window's foot`).toBeLessThanOrEqual(620);
+    await shownWhole(focus);
+    low = focus;
   }
-  expect(seen.size, "walked several tiles").toBeGreaterThan(2);
+  expect(low, "reached a tile beside the hero").not.toBeNull();
+  expect(low, "below the record").not.toBe("tile:record");
+  // Back up to the record: it comes back into view whole.
+  let up: string | null = null;
+  for (let i = 0; i < 16 && up !== "tile:record"; i++) up = await move("ArrowUp");
+  expect(up, "back on the record").toBe("tile:record");
+  await shownWhole("tile:record");
 });
 
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
