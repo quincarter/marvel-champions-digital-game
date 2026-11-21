@@ -113,7 +113,11 @@ export class WorkerCrashGuard {
 
   /** The worker was handed its first job of this start: from now on only its answer (or `pagehide`) clears the mark. */
   working(): void {
+    if (this.#working || !this.#deps || this.#skipping !== false) return;
     this.#working = true;
+    // The settle timer may have cleared the mark already (a worker started, then left without work past
+    // `GUARD_SETTLE_MS`): the first job puts it back, so a crash in it is still remembered.
+    if (this.#read() !== STARTING) this.#write(STARTING);
   }
 
   /** The worker answered, stopped on terms the page saw, or the page outlived its start: no crash. */
