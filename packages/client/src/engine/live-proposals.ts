@@ -50,6 +50,15 @@ export function handleProposal(
     return;
   }
   // The command is in the log now: nothing after this may turn it into a refusal.
+  // Said before the log's own echo goes out, so the proposer holds it when the command arrives: that is how it tells
+  // its own accepted proposal from an identical command someone else got into the log first.
+  deps.liveSend({
+    kind: "accept",
+    gameKey: proposal.gameKey,
+    to: proposal.from,
+    base: proposal.base,
+    ...(proposal.pid === undefined ? {} : { pid: proposal.pid }),
+  });
   deps.remote(result.command, result.snapshot);
   for (const after of deps.after) {
     try {

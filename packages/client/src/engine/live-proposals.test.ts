@@ -57,7 +57,8 @@ describe("a proposal in the engine worker", () => {
     expect(t.dispatchProposal).toHaveBeenCalledWith(proposal.command, 3, "S", ["p1"]);
     expect(t.remote).toHaveBeenCalledWith(command, snapshot);
     expect(t.after).toHaveBeenCalledWith(command, snapshot);
-    expect(t.sent).toEqual([]);
+    // The proposer is told, by its own id, that this proposal was the one applied.
+    expect(t.sent).toEqual([{ kind: "accept", gameKey: "g1", to: "ava", base: 3 }]);
   });
 
   it("passes the engine's reason on, and calls an engine throw illegal", () => {
@@ -88,6 +89,6 @@ describe("a proposal in the engine worker", () => {
     handleProposal(failing, proposal);
     expect(t.remote).toHaveBeenCalledTimes(1);
     expect(t.after).toHaveBeenCalledTimes(1);
-    expect(t.sent).toEqual([]);
+    expect(t.sent).toEqual([{ kind: "accept", gameKey: "g1", to: "ava", base: 3 }]);
   });
 });

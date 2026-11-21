@@ -160,6 +160,14 @@ export type LiveGameMessage =
       readonly base: number;
       readonly pid?: number;
     }
+  /** A seat holder's proposal was applied (issue #881): the room tells `to` alone, ahead of the command's own echo. */
+  | {
+      readonly kind: "accept";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly base: number;
+      readonly pid?: number;
+    }
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
 
