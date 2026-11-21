@@ -87,6 +87,7 @@ describe("deck builder narrow focus order", () => {
     const order = deckBuilderNarrowFocusOrder(base);
     expect(order).toEqual([
       "back",
+      "identity-card",
       "tab:pool",
       "tab:deck",
       "tab:games",
@@ -123,6 +124,7 @@ describe("deck builder narrow focus order", () => {
   test("the games tab has only its own rows", () => {
     expect(deckBuilderNarrowFocusOrder({ ...base, tab: "games" })).toEqual([
       "back",
+      "identity-card",
       "tab:pool",
       "tab:deck",
       "tab:games",
@@ -141,6 +143,7 @@ describe("deck builder narrow focus order", () => {
     });
     expect(order).toEqual([
       "back",
+      "identity-card",
       "tab:pool",
       "tab:deck",
       "tab:games",

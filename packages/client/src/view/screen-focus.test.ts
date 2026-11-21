@@ -278,6 +278,7 @@ describe("screen focus routes", () => {
     });
     expect(building).toEqual([
       "back",
+      "identity-card",
       "aspect:justice",
       "aspect:aggression",
       "type:all",
@@ -1072,7 +1073,14 @@ describe("the deck builder's filters behind the Filters chip", () => {
   };
 
   test("folded, the route skips them", () => {
-    expect(deckBuilderFocusOrder(input)).toEqual(["back", "save", "filter-text", "filters-toggle", "card:01001"]);
+    expect(deckBuilderFocusOrder(input)).toEqual([
+      "back",
+      "identity-card",
+      "save",
+      "filter-text",
+      "filters-toggle",
+      "card:01001",
+    ]);
   });
 
   test("open, they follow the chip", () => {
