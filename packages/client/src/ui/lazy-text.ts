@@ -39,6 +39,7 @@ import { layoutText, WidthCache, workerCanPaint, type LayoutInput } from "./text
 import { TextPainter, type PaintTarget, type PainterDeps } from "./text-painter.js";
 import type { PaintJob } from "./text-paint-protocol.js";
 import { LabelBitmapCache, labelKeyOf } from "./label-bitmap-cache.js";
+import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 /** The faces the text worker is given: the ones `main.ts` bundles. A label in any other family is painted here. */
 const WORKER_FAMILIES: ReadonlySet<string> = new Set(["Bangers", "Public Sans", "IBM Plex Mono"]);
@@ -68,6 +69,7 @@ const painterDeps: PainterDeps = {
   nextFrame: (fn) => requestAnimationFrame(fn),
   setTimer: (fn, ms) => setTimeout(fn, ms),
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  guard: new WorkerCrashGuard("text-paint"),
 };
 
 let painter: TextPainter | null = null;

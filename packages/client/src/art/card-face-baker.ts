@@ -22,6 +22,7 @@ import { ArtBitmaps, bakeCardFace } from "./card-face-bake.js";
 import { cardFaceKey, type CardFaceSpec } from "./card-face.js";
 import type { CardFaceRequest, CardFaceResponse, FontSource } from "./card-face-protocol.js";
 import { faceBudgetBytes } from "./memory-budget.js";
+import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 /** Decoded bytes of baked faces allowed resident: 96 MB, half that on iOS (`memory-budget.ts`, #871). */
 const FACE_BUDGET_BYTES = faceBudgetBytes();
@@ -68,6 +69,8 @@ export class CardFaceBaker {
   #nextId = 1;
   #tick = 0;
   #notifyQueued = false;
+  /** Skips the worker after a start that crashed the page (`platform/worker-crash-guard.ts`, #932). */
+  readonly #guard = new WorkerCrashGuard("card-faces");
 
   constructor(game: Phaser.Game) {
     this.#game = game;
@@ -120,8 +123,13 @@ export class CardFaceBaker {
   }
 
   #start(): void {
+    if (this.#guard.skip()) {
+      this.#goInline("the last start crashed with the worker");
+      return;
+    }
     let worker: Worker;
     try {
+      this.#guard.starting();
       worker = new Worker(new URL("./card-face.worker.ts", import.meta.url), { type: "module", name: "mc-card-faces" });
     } catch (error) {
       this.#goInline(`no worker: ${String(error)}`);
@@ -154,6 +162,8 @@ export class CardFaceBaker {
       for (const entry of waiting) this.#dispatch(entry);
       return;
     }
+    // A face came back (baked or not): the worker lived through its first piece of work.
+    this.#guard.settled();
     const entry = this.#inflight.get(message.id);
     this.#inflight.delete(message.id);
     if (!entry) {
@@ -167,6 +177,8 @@ export class CardFaceBaker {
   /** Stops using the worker; everything it was asked for is painted here instead. */
   #goInline(reason: string): void {
     if (this.#mode === "inline") return;
+    // The page saw the worker stop (or never start it): not the crash the guard watches for.
+    this.#guard.settled();
     // Worth knowing when a device scrolls worse than expected; says nothing when the worker is doing its job.
     console.info(`Card faces: painting on the main thread (${reason}).`);
     this.#mode = "inline";
