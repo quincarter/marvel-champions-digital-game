@@ -92,6 +92,7 @@ import {
   changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
+  listensForHandDiscard,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import { changeFormTarget } from "../form-change-target.js";
@@ -2223,13 +2224,19 @@ function executeDiscardFromHand(
       // docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`) waits for that window; the next player is asked
       // once those have resolved, when this effect is run again.
       const self = frame.selfInstanceId;
+      const by = {
+        sourceInstanceId: self,
+        sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined,
+        how: "effect",
+        ...(listensForHandDiscard(ctx.deps) ? { madeBy: frame.frameId } : {}),
+      } as const;
       const { now, waiting } = splitWouldDiscard(
         ctx,
         frame.answer.map((optionId) => asInstanceId(optionId)),
-        { sourceInstanceId: self, sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined },
-        { kind: "hand" },
+        by,
+        { kind: "hand", ...(by.madeBy !== undefined ? { madeBy: by.madeBy } : {}) },
       );
-      for (const id of now) discardFromHand(ctx, answering, id);
+      for (const id of now) discardFromHand(ctx, answering, id, by);
       if (waiting.length > 0) {
         setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
         pushEvents(ctx, waiting);
@@ -2370,6 +2377,12 @@ function orderedActivation(
  * (`authority: "firstPlayerOrders"`, as every simultaneous ordering is); then each player's pass resolves in turn, as
  * `forEachPlayer` resolves in player order. One player (or none) is not asked, and an answer that does not name every
  * player exactly once falls back to player order, so a replay always resolves the same way.
+ *
+ * Nor is the order asked when at most one player's pass would do anything: a pass that is a single `if` with no
+ * `otherwise` does nothing for a player whose condition fails ("Each player in hero form must choose …", Hunting Down
+ * Heroes 04096b, issue #911). Every player still gets a pass in player order, and each pass checks its condition again
+ * as it resolves. Engine reading (authority step 5): an order among passes that do nothing is no decision. A condition
+ * that only an earlier pass could make true resolves in player order instead of the first player's.
  */
 function executeForEachPlayerOrdered(
   ctx: Ctx,
@@ -2378,7 +2391,7 @@ function executeForEachPlayerOrdered(
   context: EffectContext,
 ): void {
   const players = resolvePlayers(ctx.state, effect.players, context);
-  if (frame.answer === null && players.length > 1) {
+  if (frame.answer === null && playersWithAPass(ctx, effect, context, players) > 1) {
     requestChoice(ctx, {
       playerId: simultaneousOrderer(ctx.state),
       authority: "firstPlayerOrders",
@@ -2396,6 +2409,19 @@ function executeForEachPlayerOrdered(
   const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1 };
   setFrame(ctx, next);
   pushEachPlayerPass(ctx, next, effect.effects, order, effect.bind);
+}
+
+/** How many of `players` an ordered `forEachPlayer` pass would do anything for (`executeForEachPlayerOrdered`). */
+function playersWithAPass(
+  ctx: Ctx,
+  effect: Extract<EffectSpec, { kind: "forEachPlayer" }>,
+  context: EffectContext,
+  players: readonly PlayerId[],
+): number {
+  const [only, ...more] = effect.effects;
+  if (only?.kind !== "if" || more.length > 0 || (only.otherwise?.length ?? 0) > 0) return players.length;
+  return players.filter((playerId) => evaluate(ctx.state, only.condition, { ...context, scopedPlayerId: playerId }))
+    .length;
 }
 
 /**
@@ -4365,7 +4391,12 @@ function requestTargetChoice(
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
-    prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
+    prompt: {
+      kind: "chooseTarget",
+      slot: effect.slot,
+      abilityId: null,
+      ...(effect.prompt !== undefined ? { title: effect.prompt } : {}),
+    },
     options: legal.map((id) => ({
       optionId: id,
       label: displayNameOf(ctx.state, id),

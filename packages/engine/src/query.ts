@@ -1441,6 +1441,18 @@ export function deckDiscardStillThere(
   return (discard.at === "deck" ? player.deck : player.discard).includes(discard.instanceId);
 }
 
+/** The discard piles a card discarded from a hand can land in. */
+const HAND_DISCARD_LANDINGS: readonly ZoneId["kind"][] = ["discard", "encounterDiscard", "separateDiscard"];
+
+/**
+ * Whether a card discarded from a hand is still in a discard pile (`TriggerEvent cardDiscardedFromHand`, issue #922): a
+ * response that took it away leaves nothing for another response to act on.
+ */
+export function handDiscardStillThere(state: GameState, discard: { readonly instanceId: InstanceId }): boolean {
+  const at = locateCard(state, discard.instanceId)?.kind;
+  return at !== undefined && HAND_DISCARD_LANDINGS.includes(at);
+}
+
 /** Where a card currently is. Linear scan; the number of cards in a game is small. */
 export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
   for (const player of state.players) {

@@ -604,6 +604,7 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     // each seat card's own "✕") skip both, as does a shut disclosure for the second.
     ...(input.narrow ? ["seat-details-toggle"] : []),
     "clear-seat",
+    "hero-random",
     "hero-art",
     "use-preconstructed",
     // Narrow only, likewise: the search toggle at the head of the chip rail.
@@ -682,8 +683,8 @@ export function setupWalkthroughFocusOrder(input: SetupWalkthroughFocusInput): r
 }
 
 /**
- * Past games (#706): Back, the three filter tabs and "Open a replay file", each game's row top to bottom, then the
- * details' Watch, Share, Export and Log. (A phone's popup routes only its own close button and actions.)
+ * Past games (#706): Back, the three filter tabs, "Open a replay file", the export button and the search box (#911),
+ * each game's row top to bottom, then the details' Watch, Share, Export and Log. (A phone's popup routes only its own close button and actions.)
  */
 export function pastGamesFocusOrder(gameIds: readonly string[]): readonly string[] {
   return [
@@ -693,6 +694,7 @@ export function pastGamesFocusOrder(gameIds: readonly string[]): readonly string
     "filter:lost",
     "open-file",
     "export-tracker",
+    "search",
     ...gameIds.map((id) => `game:${id}`),
     "action:watch",
     "action:share",

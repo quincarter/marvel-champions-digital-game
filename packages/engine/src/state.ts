@@ -491,6 +491,14 @@ export interface ScenarioDeckState {
 /** A tucked card that was discarded, waiting to be announced: the fields of `TriggerEvent tuckedCardDiscarded`. */
 export type TuckedDiscard = Omit<Extract<TriggerEvent, { kind: "tuckedCardDiscarded" }>, "kind">;
 
+/**
+ * A card discarded from a hand by an ability, waiting to be announced: the fields of `cardDiscardedFromHand`, and the
+ * effects frame that made it (`madeBy`), whose other discards it waits for (issue #922). Absent for a cost.
+ */
+export type HandDiscard = Omit<Extract<TriggerEvent, { kind: "cardDiscardedFromHand" }>, "kind"> & {
+  readonly madeBy?: FrameId;
+};
+
 /** A facedown encounter card dealt to a player, waiting to be announced (`TriggerEvent encounterCardDealt`). */
 export interface DealtEncounterCard {
   readonly playerId: PlayerId;
@@ -1237,6 +1245,13 @@ export interface GameState {
    * shared response window, and empties the list. Absent until one is first recorded. docs/phase7-wave9.md §3.40.
    */
   readonly pendingTuckedDiscards?: readonly TuckedDiscard[];
+  /**
+   * Cards discarded from a hand by a card's ability since the flow last looked, oldest first, recorded by
+   * `recordHandDiscard` only when some ability in the registry triggers on it: the flow announces them as
+   * `cardDiscardedFromHand` between frames, in one shared response window, and empties the list. Absent until one is
+   * first recorded. Issue #922.
+   */
+  readonly pendingHandDiscards?: readonly HandDiscard[];
   /**
    * Facedown boost cards given since the flow last looked, oldest first, recorded by `recordBoostGiven` only when some
    * ability in the registry triggers on it: the flow announces each as `boostCardGiven` between frames, with a

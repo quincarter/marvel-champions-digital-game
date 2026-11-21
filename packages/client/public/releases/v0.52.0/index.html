@@ -1,0 +1,1068 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v0.52.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v0.52.0 of the fan-made Marvel Champions digital game: the Windows app opens again on WebView2 158, a new Your stats Overview, records that open their game, a search box in Past games, a Random hero on Take your seats, smarter choose-a-player cards and a fixed Install for Steam."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v0.52.0" />
+    <meta
+      property="og:description"
+      content="Smash the Crash: the Windows app opens again, Your stats gets its hero, and every record opens its game."
+    />
+    <meta property="og:image" content="https://champions-digital-game.com/releases/v0.52.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v0.52.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill.feat {
+        display: inline-flex;
+        border-width: 2px;
+        padding: 10px 18px 10px 12px;
+        margin: 0 0 24px;
+        max-width: 100%;
+      }
+      .pill.feat .star {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+      }
+      .pill.feat span {
+        font-size: 18px;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      .tracks {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .tracks li {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2px 14px;
+        border-bottom: 1px dashed var(--line);
+        padding-bottom: 7px;
+        font-weight: 700;
+        line-height: 1.4;
+      }
+      .tracks li span {
+        font: 12px/1.6 var(--m);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .s-cards {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+        align-items: start;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .s-cards,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Smash<br /><span class="g">the Crash</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v0.52.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/931">#931</a><br />after v0.51.0
+          (Nov 20)<br />Android · iOS · Web · Windows · macOS · Linux<br />Nov 21, 2026<span data-history-link
+            ><br /><a href="../index.html#v0.52.0">All releases</a> ·
+            <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star">★</div>
+          <div><small>Achievement unlocked</small><span>Back on Its Feet</span></div>
+        </div>
+        <p>
+          <b>The Windows app opens again for everyone.</b> Once Windows updated WebView2 to version 158, v0.51.0 crashed
+          on start with "Can't open this page". This release fixes it, and Install for Steam no longer stops on some
+          Windows PCs. Your stats gets a new Overview with your favorite hero standing tall, its records open the game
+          they came from, and Past games has a search box. Take your seats has a Random hero, and the cards that choose
+          a player to hit their engaged minions now offer only players who have one.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>Cards that choose smarter</h4>
+          <div class="n">11</div>
+          <p>Multi-Gun, Explosive Arrow, Rocket Launcher and eight more offer only players with an engaged minion.</p>
+        </div>
+        <div class="tile">
+          <h4>Changes from one report</h4>
+          <div class="n c-blue">9</div>
+          <p>all from @bluefireF5ran's play notes, #911.</p>
+        </div>
+        <div class="tile">
+          <h4>Windows fixes</h4>
+          <div class="n c-green">2</div>
+          <p>the start crash and Install for Steam, both reported on Discord.</p>
+        </div>
+      </section>
+
+      <!-- ============ WINDOWS ============ -->
+      <div class="band gold">
+        <h2>The Windows app opens again</h2>
+        <div class="lab">Issue #932 · PRs #936, #945</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Hulk Smashes the Bug</span></div>
+      </div>
+      <p class="lead">
+        <b>If the Windows app showed "Can't open this page" with STATUS_BREAKPOINT, this release fixes it.</b> Windows
+        draws the app with Microsoft's WebView2, and version 158 of it crashes when a background worker loads a font the
+        way the game's build packed one of its fonts. The game now hands that font over another way, which WebView2 158
+        loads fine.
+      </p>
+      <div class="cols">
+        <div class="box">
+          <h3>What happened</h3>
+          <ul class="ck">
+            <li>The game starts two background workers that paint text and card faces, so the screen stays smooth.</li>
+            <li>
+              Both load the game's comic font. On WebView2 158, one small piece of that font, packed straight into the
+              game's files, took the whole page down.
+            </li>
+            <li>
+              The web version and WebView2 157 kept working. It showed up only after Windows updated WebView2 on its
+              own.
+            </li>
+          </ul>
+        </div>
+        <div class="box">
+          <h3>A safety net, too</h3>
+          <ul class="ck">
+            <li>
+              On the desktop apps, if the game ever crashes while one of those workers starts, the next start skips that
+              worker and paints its text the slower way instead, so you still reach the Title.
+            </li>
+            <li>It tries the worker again after the next game update or WebView2 update.</li>
+            <li>
+              If the Windows app's page ever crashes or hangs, the app reloads it by itself instead of leaving you on
+              "Can't open this page". If it crashes again within a minute, it opens in a safe mode without WebGL, and
+              after a third crash it stops trying. Safe mode lasts until you close the game.
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="box" style="margin-top: 24px">
+        <p>
+          <b>Stuck on v0.51.0?</b> Install v0.52.0 over it from the website's Download section. Your saves stay where
+          they are. Thanks to Dreadheart on Discord for the report and the crash files that pinned it down.
+        </p>
+      </div>
+
+      <!-- ============ STATS ============ -->
+      <div class="band gold">
+        <h2>Your stats, with a hero</h2>
+        <div class="lab">Issues #911, #926 · PRs #917, #929</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>She-Hulk Takes the Stand</span></div>
+      </div>
+      <p class="lead">
+        <b>On a wide screen, the Overview now stands your favorite hero's art tall at the left,</b> with your record,
+        how you lose, each game's averages and the villains beside it. Every stats tab sits on a faded wallpaper of the
+        game's art. On a phone or a tablet held upright, the Overview keeps its grid.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/stats-overview.webp"
+            alt="Your stats, Overview on a desktop: She-Hulk's art stands tall at the left as the favorite hero, with Wins-Losses 6-18, How you lose, Each game, Beaten by most Klaw and Wiped the table most Rhino beside it, over a faded wallpaper"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The new Overview on a desktop, with a test player's games</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/stats-overview-phone.webp"
+            alt="The Overview on an iPhone SE, with the favorite hero banner and the grid of tiles"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+
+      <div class="pill feat" style="margin-top: 32px">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Nick Fury Pulls the File</span></div>
+      </div>
+      <p class="lead">
+        <b>Records that come from a single game now open that game.</b> Fastest win, longest game, closest win, your
+        best turn and most cards drawn show <b>View game ▸</b>. Press it and Past games opens with that game picked and
+        its details showing. Back takes you to the same Stats tab. Suggested by @bluefireF5ran.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/stats-records.webp"
+            alt="Your stats, Records: Fastest win Round 4 and Longest game 8 rounds, each with View game"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Records with View game (shot before the stats wallpaper)</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/past-games-search.webp"
+            alt="Past games searched for hulk: two Klaw games with She-Hulk, and LDR and AGG aspect chips on the hero pictures, with the lost game's details at the right"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Past games, searched for "hulk"</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <div class="box">
+          <h3>Past games, easier to dig through</h3>
+          <ul class="ck">
+            <li>
+              A <b>search box</b> finds games by hero, villain, scenario, deck, campaign or aspect. It forgives typos
+              and accents, and works with the All, Wins and Losses tabs, whose counts follow it.
+            </li>
+            <li>
+              Each hero picture carries its <b>aspect chips</b> in the aspect's colour. A hero with two or four aspects
+              splits the picture between them.
+            </li>
+            <li>Only games Past games lists get a link, and adjusted games stay out of your stats as before.</li>
+            <li>On a phone, Past games no longer drops the game you picked while your saves are still loading.</li>
+          </ul>
+          <p style="margin-top: 12px">Suggested by @bluefireF5ran in #911.</p>
+        </div>
+        <figure class="a">
+          <img
+            src="img/past-games-phone.webp"
+            alt="Past games on an iPhone SE, with the search box on its own row and aspect chips on the hero pictures"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ RANDOM ============ -->
+      <div class="band">
+        <h2>A Random hero</h2>
+        <div class="lab">Issue #911 · PR #916</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Madame Web Picks for You</span></div>
+      </div>
+      <p class="lead">
+        <b>Take your seats has a Random button.</b> It seats a random hero in the active seat, from the heroes the
+        screen offers right now. Each press picks a different hero, and a hero with many decks is no likelier than one
+        with a single precon.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/random-hero.webp"
+            alt="Take your seats with Spider-Man and Captain Marvel seated, and the Random button beside Game art and Use preconstructed"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Random sits beside Game art and Use preconstructed</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            It never picks a hero that isn't ready yet, one already seated, or a deck that can't be played, and it
+            follows the aspect chips and the search box.
+          </li>
+          <li>With nothing left to pick, the button is disabled and says why.</li>
+          <li>
+            In the deck builder, the aspect info tip now opens only once the mouse rests on it, so a fast sweep across
+            the aspect chips no longer pops tips open. Both suggested by @bluefireF5ran.
+          </li>
+        </ul>
+      </div>
+
+      <!-- ============ FIXED ============ -->
+      <div class="band">
+        <h2>You asked, we fixed</h2>
+        <div class="lab">Issues #911, #922, #933, #939 · PRs #914, #927, #934, #940</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Venom Picks a Target</span></div>
+      </div>
+      <p class="lead">
+        <b>Cards that choose a player to hit their engaged minions now offer only players who have one.</b> With one
+        such player, the game picks them without asking. With none, nobody is asked and the rest of the card still
+        resolves. Reported by @bluefireF5ran.
+      </p>
+      <div class="shots s-cards">
+        <figure class="a">
+          <img
+            src="img/multi-gun.webp"
+            alt="Multi-Gun: Choose a player, with Venom's and Spider-Man's rows each showing their engaged minions, and the card hover for Hydra Mercenary"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Each player's engaged minions, with the card hover on one</figcaption>
+        </figure>
+        <div class="box">
+          <h3>The cards</h3>
+          <p>
+            Multi-Gun, Explosive Arrow, Rocket Launcher, Blast of Wind, Bombs Away, Sunspot, Ice Blast, The Bellerophon,
+            Spray Fire, Energy Daggers and Spider Bites.
+          </p>
+          <p>
+            Choosing a player now shows each player's engaged minions at the end of their row. On a desktop, hovering
+            one opens its card hover with its hit points and statuses. Multi-Gun offers its minion option only while a
+            minion is engaged.
+          </p>
+        </div>
+      </div>
+      <div class="cols" style="margin-top: 24px">
+        <div class="box">
+          <h3>Hunting Down Heroes asks less</h3>
+          <p>
+            With only one player in hero form, the game no longer asks for a player order first: that player is asked
+            right away. With two or more, the first player still picks the order.
+          </p>
+          <p>Issue #911 from @bluefireF5ran · PR #914</p>
+        </div>
+        <div class="box">
+          <h3>Maria Hill says FROM and TO</h3>
+          <p>
+            Reassignment's two picks now read "Move a counter FROM which S.H.I.E.L.D. support?" and "Move the counter TO
+            which S.H.I.E.L.D. support?", so it's clear which is which.
+          </p>
+          <p>Issue #911 from @bluefireF5ran · PR #914</p>
+        </div>
+        <div class="box">
+          <h3>Install for Steam finds the game</h3>
+          <p>
+            On some Windows PCs, Install for Steam stopped and said a drive "C didn't exist, because the game's registry
+            entry kept its folder in quotes. It now reads quoted paths, and one odd entry no longer stops the search.
+            Get the fixed script from this release's downloads.
+          </p>
+          <p>Issue #933 from Dreadheart on Discord · PR #934</p>
+        </div>
+        <div class="box">
+          <h3>Tucked cards pay</h3>
+          <p>
+            A card tucked under a card that lets you spend it, like Falcon's Resource Reserve, couldn't be picked when
+            you paid. It now shows in the payment strip beside your hand, tagged tucked, and Inspect offers
+            <b>Use as resource</b> for it.
+          </p>
+          <p>Issue #922 from @bluefireF5ran · PR #927</p>
+        </div>
+        <div class="box">
+          <h3>No more zoom on iPhone</h3>
+          <p>
+            On an iPhone or iPad, tapping a text field like a search box or the MarvelCDB import zoomed the whole page
+            in, and it stayed zoomed. It no longer does, and you can still pinch to zoom yourself.
+          </p>
+          <p>Issue #939 from GarethMagis on Discord · PR #940</p>
+        </div>
+        <div class="box">
+          <h3>Symbiotic Bond pays as Physical</h3>
+          <p>
+            Grasping Tendrils paid with Symbiotic Bond's wild resource already counted it as Physical, so the villain is
+            stunned. A test now covers it, so it stays that way.
+          </p>
+          <p>Issue #911 from @bluefireF5ran · PR #914</p>
+        </div>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v0.52.0</h2>
+        <div class="lab">PRs #919, #927, #930, #942</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Wong Tidies the Sanctum</span></div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            The website's Download stats page counts iPhone and iPad downloads, with its own tile and share (#941).
+          </li>
+          <li>
+            For pack makers: the Mod SDK can answer a card discarded from a hand by a card's ability, so one Response
+            can cover discards from a hand, a deck and play under one limit (#922).
+          </li>
+          <li>The README's download buttons point at v0.51.0.</li>
+          <li>The stats Overview's keyboard test walks down to the lowest tile and back up to the record.</li>
+          <li>This report, in English and Spanish.</li>
+        </ul>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Keep the ideas and reports coming from Pause ▸ Report a problem, a GitHub issue or the community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person wide">
+            <h3>@bluefireF5ran</h3>
+            <p>
+              Played a run of games and wrote it all up in <b>#911</b>: the choose-a-player cards, Hunting Down Heroes,
+              Maria Hill's prompts, the aspect tip, the Random hero, Past games search and records that open their game.
+              Also reported the tucked cards that couldn't pay, <b>#922</b>.
+            </p>
+          </div>
+          <div class="person wide">
+            <h3>Dreadheart</h3>
+            <p>
+              Reported the Windows start crash, <b>#932</b>, sent the crash files that found it, and reported Install
+              for Steam stopping, <b>#933</b>, on Discord.
+            </p>
+          </div>
+          <div class="person wide">
+            <h3>GarethMagis</h3>
+            <p>Reported iPhone text fields zooming the page in, <b>#939</b>, on Discord.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.51.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.51.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">13</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">169</div>
+          <p>across the engine, the cards, the client, the Steam script and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">6,283</div>
+          <p>the crash fix, the stats screens, the card prompts, their tests and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">238</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v0.52.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.52.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>

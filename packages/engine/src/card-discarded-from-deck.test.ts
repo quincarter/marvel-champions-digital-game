@@ -350,7 +350,16 @@ const shuffles = (events: readonly GameEvent[]): number =>
 const seat = (state: GameState) => mustPlayer(state, P1);
 const counters = (state: GameState, id: InstanceId | undefined, type: string): number =>
   (id ? mustInstance(state, id).counters[type] : undefined) ?? 0;
-const discarded = (id: InstanceId | undefined, by: InstanceId, at: "discard" | "deck" = "discard"): TriggerEvent => ({
+/** `cause`: the side of the discarding card and effect or cost (issue #922). */
+const discarded = (
+  id: InstanceId | undefined,
+  by: InstanceId,
+  at: "discard" | "deck" = "discard",
+  cause: { readonly by: "playerCard" | "encounterCard"; readonly how: "effect" | "cost" } = {
+    by: "playerCard",
+    how: "effect",
+  },
+): TriggerEvent => ({
   kind: "cardDiscardedFromDeck",
   instanceId: id!,
   playerId: P1,
@@ -358,6 +367,7 @@ const discarded = (id: InstanceId | undefined, by: InstanceId, at: "discard" | "
   fromTop: true,
   sourceInstanceId: by,
   at,
+  ...cause,
 });
 
 describe("`EventPattern.together`: 'after you discard cards' answers the whole discard once", () => {
@@ -426,7 +436,10 @@ describe("§3.55 every discard from a player's deck is announced once per card (
       abilityId: COSTLY_ACTION.ref.id,
       payment: [],
     });
-    expect(heardDiscards(result.events)).toEqual([discarded(table.top[0], costly), discarded(table.top[1], costly)]);
+    expect(heardDiscards(result.events)).toEqual([
+      discarded(table.top[0], costly, "discard", { by: "playerCard", how: "cost" }),
+      discarded(table.top[1], costly, "discard", { by: "playerCard", how: "cost" }),
+    ]);
     expect(windows(result.events)).toHaveLength(1);
     expect(counters(result.state, table.inPlay.tally, "seen")).toBe(2);
     expect(seat(result.state).deck[0]).toBe(table.top[2]);
@@ -438,7 +451,9 @@ describe("§3.55 every discard from a player's deck is announced once per card (
     const state = onTopOfEncounterDeck(table.state, DRAIN.id);
     const drain = state.encounterDecks[state.encounterDeckOrder[0]!]!.deck[0]!;
     const result = run({ ...table, state }, defaultPick, { type: "endTurn", playerId: P1 });
-    expect(heardDiscards(result.events)).toEqual(table.top.map((id) => discarded(id, drain)));
+    expect(heardDiscards(result.events)).toEqual(
+      table.top.map((id) => discarded(id, drain, "discard", { by: "encounterCard", how: "effect" })),
+    );
     // Still one window, now the end-of-reveal one the discards' responses wait for, shared with "after this card is
     // revealed" (RRG v1.8 p.38; owner decision 2026-10-16 (audit finding 18)).
     const held = result.events.filter(

@@ -5,7 +5,7 @@ import {
   attack,
   changeAdditionalForm,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chosen,
   chosenPlayer,
   dealDamage,
@@ -78,7 +78,7 @@ export const NICK_FURY_EVENTS: AbilityRegistry = defineAbilities({
 
   "50039.spray-fire-action": heroAction(
     { label: "attack" },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     attack(3, theVillain, { keywords: ["ranged"] }),
     dealDamage(3, each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),

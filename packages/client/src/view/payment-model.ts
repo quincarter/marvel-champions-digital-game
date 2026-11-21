@@ -695,7 +695,9 @@ export function paymentView(
     tableSources: [
       ...sources.filter(
         (source) =>
-          (source.kind === "resourceAbility" || source.helperName !== null) &&
+          // A card spent from under its host (`spendableFromTucked`: Falcon's Resource Reserve) is in no hand, so the
+          // hand row never draws it; the strip does (issue #922).
+          (source.kind === "resourceAbility" || source.helperName !== null || source.tuckedUnder !== undefined) &&
           !exhaustPickOptions(query.sources, source.instanceId).some((way) => way.optionId === source.optionId),
       ),
       ...exhaustTiles,
@@ -844,7 +846,7 @@ export function sourceTagText(source: PaymentSourceView, compact = false): strin
   if (source.helperName !== null) return source.helperName;
   if (source.amountNote !== null) return source.amountNote;
   if (source.overpayOnly) return compact ? "extra" : "overpay only";
-  if (source.pickedTucked) return "tucked";
+  if (source.pickedTucked || source.tuckedUnder !== undefined) return "tucked";
   return source.spendsHandCard ? "from hand" : "in play";
 }
 

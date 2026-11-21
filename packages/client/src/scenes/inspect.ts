@@ -1593,10 +1593,21 @@ export class InspectOverlay extends Phaser.Scene {
     return game.players.find((player) => player.playerId === perspectiveId)?.hand.includes(instanceId) ?? false;
   }
 
+  /**
+   * True when the subject is a card tucked under a host that lets it be spent as if in hand (`spendableFromTucked`:
+   * Resource Reserve) and the open payment can spend it (issue #922): it is in no hand, and nothing else offers it.
+   */
+  #isSpendableTucked(model: InspectModel): boolean {
+    const instanceId = this.#instanceId;
+    const game = appSession().store.state.game;
+    if (!instanceId || !game || !model.canPayAsResource) return false;
+    return Object.values(game.instances).some((instance) => instance.tucked.includes(instanceId));
+  }
+
   /** PLAY IT / USE AS RESOURCE — the design's own pair (D08), split when both apply, either one full-width alone. */
   #drawPlayAndPayButtons(rect: Rect, model: InspectModel, area: Rect): void {
     const showPlay = model.status.playable === true;
-    const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
+    const showPay = model.resourceIcons.length > 0 && (this.#isHandCard() || this.#isSpendableTucked(model));
     if (!showPlay && !showPay) return;
     const gap = showPlay && showPay ? 9 : 0;
     const width = showPlay && showPay ? (area.width - gap) / 2 : area.width;
@@ -2231,7 +2242,7 @@ export class InspectOverlay extends Phaser.Scene {
     // play for a card already in play and did nothing.
     const canPlay = model.status.playable === true;
     const showPlay = canPlay || (model.status.playable === false && this.#isHandCard());
-    const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
+    const showPay = model.resourceIcons.length > 0 && (this.#isHandCard() || this.#isSpendableTucked(model));
     if (this.#choice) {
       // Opened from an open decision (a campaign briefing's role-building, Seats, Scenario select): the sheet offers
       // that answer directly, the phone's twin of the panels' Select button.

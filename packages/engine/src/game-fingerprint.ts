@@ -60,6 +60,7 @@ export const PROBE_FIELDS: { readonly [K in keyof Required<GameState>]: "game" |
   pendingStatusPlaced: "game",
   pendingDeckDiscards: "game",
   pendingTuckedDiscards: "game",
+  pendingHandDiscards: "game",
   pendingBoostGiven: "game",
   deckDiscardWindows: "game",
   villainArea: "game",

@@ -9,6 +9,11 @@ describe("translated app text (#390)", () => {
     expect(t("title.newGame", undefined, "en")).toBe("New game");
   });
 
+  it("words the Stats record link in both languages (#911)", () => {
+    expect(t("stats.viewGame", undefined, "en")).toBe("View game ▸");
+    expect(t("stats.viewGame", undefined, "es")).toBe("Ver partida ▸");
+  });
+
   it("falls back to English for a key the language has no translation for", () => {
     expect(messageFrom({ "title.campaign": "Campaña" }, "title.newGame")).toBe("New game");
     expect(messageFrom({ "title.campaign": "Campaña" }, "title.campaign")).toBe("Campaña");
