@@ -67,6 +67,7 @@ import {
   type TriggerEvent,
   type TuckHostKind,
 } from "./trigger-events.js";
+import { sidesOf } from "./event-sides.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
@@ -1941,8 +1942,15 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
     ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
     ...(stranded.length > 0 ? { strandedAttachments: stranded } : {}),
+    // The side of a split table it left play on, read while it is still there (`TriggerEvent.sides`; MC56 pp. 16, 20):
+    // a minion defeated on the other team's side goes to its own area's discard pile, but left play over there.
+    ...(state.gameAreas.length > 0
+      ? { sides: sidesOf(state, [id], [controllerId ?? speakerId].filter(isPlayer)) }
+      : {}),
   };
 }
+
+const isPlayer = (id: PlayerId | null): id is PlayerId => id !== null;
 
 /**
  * RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the victory

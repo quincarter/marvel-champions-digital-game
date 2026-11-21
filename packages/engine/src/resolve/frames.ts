@@ -38,6 +38,7 @@ import {
 import { placeExhausted } from "../effects.js";
 import { entersPlayExhausted } from "../rules.js";
 import { hasCandidates } from "./triggers.js";
+import { withSides } from "../event-sides.js";
 
 export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K }>;
 
@@ -56,7 +57,8 @@ export const eventFrame = (
   vars: Vars = {},
 ): StackFrame => {
   if (event.kind === "cardEntersPlay") placeEnteringExhausted(ctx, event.instanceId);
-  return frameOf(ctx, event, reportTo, vars);
+  // On a split table, the sides the event happened on, read now (`TriggerEvent.sides`; MC56 pp. 16, 20).
+  return frameOf(ctx, withSides(ctx.state, event), reportTo, vars);
 };
 
 /**

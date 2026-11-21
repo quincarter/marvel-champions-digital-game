@@ -2190,6 +2190,14 @@ export type TriggerEvent = TriggerEventBody & {
    * `entered-since.ts`). Absent until a card does, which is nearly always.
    */
   readonly enteredPlaySince?: readonly InstanceId[];
+  /**
+   * The game areas (sides of the table) the event happened in, read when it was made (`eventSides`,
+   * `event-sides.ts`): where its cards and players were then, not where a later move left them. A minion moved to
+   * the other team and defeated there left play on that team's side, though its discard pile is on the first
+   * (MC56 pp. 16, 20). Stamped by `eventFrame`, and by the leave-play snapshot while the card is still in play. Absent
+   * in a game whose players share one game area, so such a game serializes as before. Read by `heardOnThisSide`.
+   */
+  readonly sides?: readonly GameAreaId[];
 };
 
 /**
