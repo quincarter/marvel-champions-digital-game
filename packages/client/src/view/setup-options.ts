@@ -28,7 +28,14 @@ import {
 import { encounterSetId, type DifficultySetChoice, type PlayModes, type Scenario } from "@mc/content";
 import { applyPlayModeOption, modesOfChoice, playModeRows, reconcileSkirmish } from "./play-mode-options.js";
 import type { SetupDraft } from "./setup-draft.js";
-import { currentScenarios, isPackEncounterSet, isPackScenario } from "../content/pool.js";
+import { currentEncounterSets, currentScenarios, isPackEncounterSet, isPackScenario } from "../content/pool.js";
+import { ALL_OPEN, type ModularScope } from "./modular-candidates.js";
+import {
+  effectivePackSetAside,
+  packSetAsideCandidates,
+  packSetAsideCountOf,
+  stepPackSetAside,
+} from "./pack-set-aside.js";
 
 /** What every scenario offers when it is not in the playable pool (a draft naming it never builds). */
 const NO_OFFER: PlayableScenarioOffer = {
@@ -225,7 +232,9 @@ export interface SetupOptionRow {
     /** One per seat, `mainScheme:<seat index>`. */
     | `mainScheme:${number}`
     /** One per installed house rule, `houseRule:<pack id>` (docs/custom-content-packs.md §11.11). */
-    | `houseRule:${string}`;
+    | `houseRule:${string}`
+    /** One per modular set a pack scenario sets aside, `setAside:<slot>` (`view/pack-set-aside.ts`, #943). */
+    | `setAside:${number}`;
   /** The card's name: a few words. */
   readonly name: string;
   /** One short line of state under the name; empty when the name and the chips say it all. */
@@ -268,6 +277,8 @@ export function setupOptionRowsOf(
   setNames: ReadonlyMap<string, string>,
   offer: PlayableScenarioOffer = offerOf(draft),
   houseRules: readonly SetupHouseRule[] = [],
+  /** What the player has open, for the set-aside candidates of a pack scenario (the modular picker's own scope). */
+  scope: ModularScope = ALL_OPEN,
 ): readonly SetupOptionRow[] {
   const rows: SetupOptionRow[] = [];
 
@@ -430,6 +441,8 @@ export function setupOptionRowsOf(
     });
   }
 
+  rows.push(...packSetAsideRows(draft, setNames, scope));
+
   if (offer.easierStart) {
     rows.push({
       id: "easierStart",
@@ -454,6 +467,64 @@ export function setupOptionRowsOf(
     });
   }
   return rows;
+}
+
+/** The draft's scenario when it is a pack scenario that sets modular sets aside, with how many (#943). */
+function packSetAsideOf(draft: Pick<SetupDraft, "scenarioId">): { scenario: Scenario; count: number } | null {
+  if (!isPackScenario(draft.scenarioId)) return null;
+  const scenario = currentScenarios().find((candidate) => (candidate.id as string) === draft.scenarioId);
+  const count = packSetAsideCountOf(scenario, true);
+  return scenario && count > 0 ? { scenario, count } : null;
+}
+
+/**
+ * What a game of the draft sends as `setAsideModularSetIds` at a pack scenario that sets sets aside (#943): the pick in
+ * effect, or null to leave it to the builder (the recommendation, else seeded random). Undefined for any other
+ * scenario, whose own rule applies (`toSessionConfig`).
+ */
+export function packSetAsideSessionIds(draft: SetupDraft): readonly string[] | null | undefined {
+  const found = packSetAsideOf(draft);
+  return found ? effectivePackSetAside(draft, found.scenario, found.count) : undefined;
+}
+
+/**
+ * One stepper per modular set a pack scenario sets aside (#943): ‹ the set › over the modular picker's candidates,
+ * the authors' recommendation first. With no pick in effect (no recommendation) the slot reads Random.
+ */
+function packSetAsideRows(
+  draft: SetupDraft,
+  setNames: ReadonlyMap<string, string>,
+  scope: ModularScope,
+): readonly SetupOptionRow[] {
+  const found = packSetAsideOf(draft);
+  if (!found) return [];
+  const { scenario, count } = found;
+  const picks = effectivePackSetAside(draft, scenario, count);
+  const candidates = packSetAsideCandidates(draft, scenario, scope);
+  const recommended = (scenario.recommendedSetAsideModularSetIds ?? []) as readonly string[];
+  const canStep = candidates.length > count;
+  return Array.from({ length: count }, (_, slot): SetupOptionRow => {
+    const id = picks?.[slot];
+    // A pack's own set is in no base name table.
+    const name = id
+      ? (setNames.get(id) ?? currentEncounterSets().find((set) => (set.id as string) === id)?.name ?? id)
+      : "Random";
+    return {
+      id: `setAside:${slot}`,
+      name: count === 1 ? "Set-aside modular set" : `Set-aside modular set ${slot + 1}`,
+      meta: !id ? "Chosen at random" : recommended.includes(id) ? "Recommended" : "Your pick",
+      span: 2,
+      active: id !== undefined && !recommended.includes(id),
+      help: `${scenario.name} sets this modular set aside at setup, out of the encounter deck, for its own cards to bring in later.`,
+      control: {
+        kind: "stepper",
+        down: { action: `setAside:${slot}:prev`, label: "‹", selected: false, enabled: canStep },
+        up: { action: `setAside:${slot}:next`, label: "›", selected: false, enabled: canStep },
+        valueLabel: name,
+        wide: true,
+      },
+    };
+  });
 }
 
 /**
@@ -585,6 +656,7 @@ export function applySetupOption(
   action: string,
   offer: PlayableScenarioOffer = offerOf(draft),
   houseRules: readonly SetupHouseRule[] = [],
+  scope: ModularScope = ALL_OPEN,
 ): SetupDraft {
   const [kind, first, second] = action.split(":");
 
@@ -646,6 +718,12 @@ export function applySetupOption(
     }
     picks[seat] = ids[at]!;
     return { ...draft, mainSchemePicks: picks };
+  }
+
+  if (kind === "setAside") {
+    const found = packSetAsideOf(draft);
+    if (!found || (second !== "next" && second !== "prev")) return draft;
+    return stepPackSetAside(draft, found.scenario, found.count, Number(first), second, scope);
   }
 
   if (kind === "easierStart") {

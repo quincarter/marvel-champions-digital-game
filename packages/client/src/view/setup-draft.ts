@@ -48,6 +48,7 @@ import {
   draftModes,
   effectiveMainSchemePicks,
   offerOf,
+  packSetAsideSessionIds,
   reconcileWithOffer,
   villainSessionFields,
 } from "./setup-options.js";
@@ -615,12 +616,16 @@ export function toSessionConfig(
       ? null
       : draft.modularSetIds;
   // Mojo sets aside exactly 1 + 1 per hero: fewer or more picks than that are not sent either (random).
+  // A pack scenario's set-aside sets (#943) are sent only when whole and none is shuffled in (`view/pack-set-aside.ts`).
+  const packSetAside = packSetAsideSessionIds(draft);
   const setAsideModularSetIds =
-    draft.setAsideModularSetIds &&
-    scenario?.modularSetPool &&
-    draft.setAsideModularSetIds.length !== setAsideModularSetCountFor(scenario, players.length)
-      ? null
-      : draft.setAsideModularSetIds;
+    packSetAside !== undefined
+      ? packSetAside
+      : draft.setAsideModularSetIds &&
+          scenario?.modularSetPool &&
+          draft.setAsideModularSetIds.length !== setAsideModularSetCountFor(scenario, players.length)
+        ? null
+        : draft.setAsideModularSetIds;
   // Only what the scenario offers goes out (`reconcileWithOffer`): a stale choice never reaches a builder that refuses it.
   const options = reconcileWithOffer(draft);
   const schemes = offerOf(draft).mainSchemePicks;

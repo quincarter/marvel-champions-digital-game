@@ -1,0 +1,3 @@
+kind: Added
+body: A pack scenario that sets a modular set aside offers a Set-aside modular set stepper on the setup screen, defaulting to its authors' new recommendedSetAsideModularSetIds instead of a random set (#943)
+time: 2026-11-21T11:42:37.932494-05:00

@@ -1540,7 +1540,27 @@ function wave4ScenarioErrors(scenario: Scenario): string[] {
   const setAside: unknown = scenario.setAsideModularSetCount;
   if (setAside !== undefined && typeof setAside !== "object" && !isPositiveInteger(setAside))
     errors.push("scenario setAsideModularSetCount must be a positive whole number");
+  errors.push(...recommendedSetAsideErrors(scenario));
   errors.push(...modularPoolErrors(scenario));
+  return errors;
+}
+
+/** `recommendedSetAsideModularSetIds` (#943): as many distinct sets as a fixed `setAsideModularSetCount`, none shuffled in. */
+function recommendedSetAsideErrors(scenario: Scenario): string[] {
+  const ids: unknown = scenario.recommendedSetAsideModularSetIds;
+  if (ids === undefined) return [];
+  if (!Array.isArray(ids) || !ids.every((id) => isNonEmptyString(id)))
+    return ["scenario recommendedSetAsideModularSetIds must be a list of encounter set ids"];
+  const errors: string[] = [];
+  const count: unknown = scenario.setAsideModularSetCount;
+  if (typeof count !== "number")
+    errors.push("scenario recommendedSetAsideModularSetIds needs a whole-number setAsideModularSetCount");
+  else if (ids.length !== count)
+    errors.push(`scenario recommendedSetAsideModularSetIds lists ${ids.length} sets, but ${count} are set aside`);
+  if (new Set(ids).size !== ids.length) errors.push("scenario recommendedSetAsideModularSetIds lists a set twice");
+  const shuffled = new Set<string>((scenario.recommendedModularSetIds ?? []).map((id) => id as string));
+  for (const id of ids as readonly string[])
+    if (shuffled.has(id)) errors.push(`scenario recommendedSetAsideModularSetIds: ${id} is also shuffled in`);
   return errors;
 }
 
@@ -1826,6 +1846,7 @@ export function validateScenarioEncounterSets(
   const named = [
     ...scenario.encounterSetIds,
     ...scenario.recommendedModularSetIds,
+    ...(scenario.recommendedSetAsideModularSetIds ?? []),
     ...scenario.standardEncounterSetIds,
     ...scenario.expertEncounterSetIds,
     ...(scenario.multipleVillains?.villains.flatMap((villain) => villain.encounterSetIds) ?? []),
