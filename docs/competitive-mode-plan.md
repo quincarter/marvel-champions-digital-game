@@ -255,7 +255,11 @@ team; defense-labelled and "attacks you" abilities stay excluded (N11). Energy C
 the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20). "Any player may trigger this ability" (High-Tech Suit 56131,
 `triggerableBy: eachPlayer`) is every player of either team, its controller included (card text over RRG p. 4
 "Abilities"; MC56 p. 20 limits only "the players/each player/per player"); as an Action it is taken only in the
-triggering player's own team's hero phase (RRG "Action" p. 6; Q11). Inactive = the team whose round segment is not
+triggering player's own team's hero phase (RRG "Action" p. 6; Q11). An "(attack/defense)" ability is defense-labelled
+under N11 (RRG v1.8 "Labeled Ability" p. 26, multiple labels; FFG ruling July 19, 2023 #49.3, Powerful Punch; MC56
+p. 16 "no player can declare a defender"), so neither team may use one against a leader-vs-leader attack; Shadow and
+Steel 32021 with its Team-Up met (a Colossus hero and a Shadowcat ally on your own team) is not offered against a
+leader-vs-leader attack, and on the same board is offered on a minion's attack. Inactive = the team whose round segment is not
 being played (MC56 p. 16); in a team's own villain phase its responses are ordinary. Synthezoid Strike 57075 (rules
 expert, 2026-11-20, reading A): its bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast /
 Erratic Teleportation), so the face is checked once: a Dense Vision gets the card's +1 ATK and piercing for the attack;

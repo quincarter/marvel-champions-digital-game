@@ -112,22 +112,24 @@ the other side ... unless they specifically refer to them", p. 17, and N8, N11, 
 fires while its team is inactive, or a control (fires for its own area in its own phase) beside a test that it does not
 fire for the other area.
 
-Tested (12 cards, one of them from group 2):
+Tested (14 cards, one of them from group 2):
 
-| Id    | Name                  | Category                                 | Result                                                                                                    |
-| ----- | --------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 37004 | Gambit's Staff        | "When an enemy attacks" interrupt        | passed: fires in p2's hero phase when leader one (p1's enemy) attacks leader two; p2's staff does not     |
-| 37011 | Bishop                | "After an enemy attacks you" response    | passed: not heard for leader one attacking leader two (N11), heard for the attack on p1                   |
-| 01003 | Backflip              | defense-labelled interrupt on damage     | passed: only for the attack on p1; never for leader one's attack on leader two or leader two's on p2      |
-| 09021 | Warning               | "a hero would take damage" interrupt     | passed: offered for p1's hero, not for p2's hero in p2's villain phase                                    |
-| 01009 | Webbed Up             | forced interrupt, attached enemy attacks | passed: p2's Fighting Dirty makes the Webbed Up leader one discard it and be stunned instead of attacking |
-| 01061 | Great Responsibility  | interrupt on threat placed on a scheme   | passed: p1 (inactive) takes p2's Double Agent threat on its own main scheme as damage                     |
-| 08017 | Counterintelligence   | interrupt, threat on the main scheme     | passed: p1's upgrade prevents it; p2's upgrade ignores threat placed in area one                          |
-| 01084 | Nick Fury             | end-of-the-round discard                 | passed: p1's Fury is discarded after phase 4, while p1 is inactive (Q3 B, N8)                             |
-| 01004 | Enhanced Spider-Sense | treachery-reveal cancel                  | passed: cancels in p1's own phase, ignores a treachery revealed in p2's area                              |
-| 01075 | Black Widow           | any-card-revealed cancel (ally, in play) | **bug** (finding 5): offered for a card revealed in p2's area (`it.fails`); control passes                |
-| 01085 | Emergency             | "when the villain schemes" interrupt     | passed: leader one's scheme in p1's phase, not leader two's in p2's phase                                 |
-| 13017 | Lie in Wait           | minion engages you response              | passed (group 2, `resistance-leaders.test.ts`, Recruited by Cap, in p2's hero phase)                      |
+| Id    | Name                  | Category                                 | Result                                                                                                                                      |
+| ----- | --------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 37004 | Gambit's Staff        | "When an enemy attacks" interrupt        | passed: fires in p2's hero phase when leader one (p1's enemy) attacks leader two; p2's staff does not                                       |
+| 37011 | Bishop                | "After an enemy attacks you" response    | passed: not heard for leader one attacking leader two (N11), heard for the attack on p1                                                     |
+| 01003 | Backflip              | defense-labelled interrupt on damage     | passed: only for the attack on p1; never for leader one's attack on leader two or leader two's on p2                                        |
+| 09021 | Warning               | "a hero would take damage" interrupt     | passed: offered for p1's hero, not for p2's hero in p2's villain phase                                                                      |
+| 01009 | Webbed Up             | forced interrupt, attached enemy attacks | passed: p2's Fighting Dirty makes the Webbed Up leader one discard it and be stunned instead of attacking                                   |
+| 01061 | Great Responsibility  | interrupt on threat placed on a scheme   | passed: p1 (inactive) takes p2's Double Agent threat on its own main scheme as damage                                                       |
+| 08017 | Counterintelligence   | interrupt, threat on the main scheme     | passed: p1's upgrade prevents it; p2's upgrade ignores threat placed in area one                                                            |
+| 01084 | Nick Fury             | end-of-the-round discard                 | passed: p1's Fury is discarded after phase 4, while p1 is inactive (Q3 B, N8)                                                               |
+| 01004 | Enhanced Spider-Sense | treachery-reveal cancel                  | passed: cancels in p1's own phase, ignores a treachery revealed in p2's area                                                                |
+| 01075 | Black Widow           | any-card-revealed cancel (ally, in play) | passed once finding 5 was fixed: ignores a card revealed in p2's area; offered for p2's reveal cooperatively                                |
+| 01085 | Emergency             | "when the villain schemes" interrupt     | passed: leader one's scheme in p1's phase, not leader two's in p2's phase                                                                   |
+| 13017 | Lie in Wait           | minion engages you response              | passed (group 2, `resistance-leaders.test.ts`, Recruited by Cap, in p2's hero phase)                                                        |
+| 32014 | Powerful Punch        | (attack/defense) enemy-attacks interrupt | passed: offered to neither p1 nor p2 for leader one's attack on leader two (N11); offered for the attack on p1                              |
+| 32021 | Shadow and Steel      | (attack/defense), Team-Up                | passed: Team-Up met on p1's team (Colossus hero, Shadowcat ally), not offered for the leader-vs-leader attack; offered on a minion's attack |
 
 Not tested, by category (the same selector shapes as the tested ones, but not proven):
 
@@ -135,11 +137,12 @@ Not tested, by category (the same selector shapes as the tested ones, but not pr
   Stance 08032, Side Step 14015, Magic Shield 15008, Booster Boots 16052, In Defiance 16153, Armor Plating 16162, Jet Boots
   17008, Crosscounter 18004, Parry 19006, Deflection 19015, Shield Spell 21061, Stand Together 23034, Protector 26014,
   Bio-Synthetic Wings 13009.
-- **"(attack/defense)" or "(defense)" enemy-attacks interrupts:** Shadow and Steel 32021 / 32050, Brazen Defense 32178,
-  Mutant Protectors 32017, Quick Shift 32040, Aerial Agility 42004, Energy Conversion 45009, Psychic Misdirection 34033,
-  Flash Freeze 36012. Open question for the owner: N11 says defense-labelled abilities stay excluded from a leader attacking
-  a leader; does "(attack/defense)" count as defense-labelled? A probe showed Shadow and Steel not offered to p1 on leader
-  one's attack on leader two (so the exclusion holds in practice), but it is not asserted.
+- **"(attack/defense)" or "(defense)" enemy-attacks interrupts:** Shadow and Steel 32050 (the second printing), Brazen
+  Defense 32178, Mutant Protectors 32017, Quick Shift 32040, Aerial Agility 42004, Energy Conversion 45009, Psychic
+  Misdirection 34033, Flash Freeze 36012. Settled (rules expert, 2026-11-20): "(attack/defense)" is defense-labelled
+  under N11 (RRG v1.8 "Labeled Ability" p. 26, multiple labels; FFG ruling July 19, 2023 #49.3, Powerful Punch; MC56
+  p. 16 "no player can declare a defender"), so neither team may use one against a leader-vs-leader attack. Asserted
+  for Powerful Punch 32014 and Shadow and Steel 32021 above.
 - **"After the villain/an enemy attacks you":** Payback 19007, "You'll Pay for That!" 10016, Morlock 40079, Bishop's
   sibling Counter-Punch (Core).
 - **Reveal cancels:** Get Behind Me! 01078 (same shape as Enhanced Spider-Sense).

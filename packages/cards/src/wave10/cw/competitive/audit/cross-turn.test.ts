@@ -16,6 +16,7 @@
  * something in the other area, beside a control that it does fire for its own area.
  */
 
+import { cardId } from "@mc/content";
 import type { GameEvent, GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it, vi } from "vitest";
 import { firstLegal, inst, playerOf, type Picker } from "../../../../testing/harness.js";
@@ -88,6 +89,8 @@ interface Prompt {
   readonly subject: string;
   /** The player the event names (`playerId`: the revealing player of a reveal), when it names one. */
   readonly eventPlayer: string;
+  /** The attacking enemy of an attack window (`enemyInstanceId`, else `attackerInstanceId`), when the event names one. */
+  readonly attacker: string;
 }
 /** Every optional-trigger prompt shown during a run: who was asked and which cards were offered. */
 type Log = Prompt[];
@@ -110,6 +113,7 @@ function picker(log: Log, accept: (prompt: Prompt) => boolean = () => true): Pic
         codes: choice.options.map(codeOf),
         subject: (subjectId ? codeOfInstance(subjectId) : undefined) ?? "?",
         eventPlayer: (event.playerId as string | undefined) ?? "?",
+        attacker: codeOfInstance((event.enemyInstanceId ?? event.attackerInstanceId)!) ?? "?",
       };
       log.push(prompt);
       return accept(prompt) ? choice.options.map((o) => o.optionId as string) : [];
@@ -485,5 +489,97 @@ describe("Emergency (01085), Interrupt (thwart): when the villain schemes, reduc
     const { events } = run(g.deps, held, picker(log, never), endTurn(P2));
     expect(offered(log, "p1", EMERGENCY)).toBe(1);
     expect(schemeOf(events, two)).toMatchObject({ threatPlaced: 1 });
+  });
+});
+
+const ENGINE_TESTING = new URL("../../../../../../engine/src/testing/", import.meta.url).href;
+const fixtures = (await import(/* @vite-ignore */ `${ENGINE_TESTING}fixtures.ts`)) as {
+  readonly stubMinion: (spec: { id: string; atk: number; sch: number; hp: number; boostIcons?: number }) => never;
+  readonly stubAlly: (spec: { id: string; cost: number; atk: number; thw: number; hp: number }) => never;
+};
+
+const POWERFUL_PUNCH = "32014";
+const SHADOW_AND_STEEL = "32021";
+const MINION_ID = "audit-minion";
+const MINION = fixtures.stubMinion({ id: MINION_ID, atk: 1, sch: 1, hp: 5, boostIcons: 0 });
+/** A Shadowcat ally: the fixture's ally titled "Shadowcat" (a stub's title is its id). */
+const SHADOWCAT_ID = "Shadowcat";
+const SHADOWCAT = fixtures.stubAlly({ id: SHADOWCAT_ID, cost: 0, atk: 1, thw: 1, hp: 3 });
+
+/**
+ * A two-team game whose seats hold Powerful Punch, Shadow and Steel, a Shadowcat ally and Fighting Dirty (with its
+ * energy); a minion in deck one.
+ */
+function defenseGame() {
+  return twoTeamGame({
+    deckOne: [NB_ID, NB_ID, MINION_ID],
+    filler: NB,
+    extraCards: [WILD, ENERGY, MINION, SHADOWCAT, ...realCards(POWERFUL_PUNCH, SHADOW_AND_STEEL, FIGHTING_DIRTY)],
+    seatCards: [
+      POWERFUL_PUNCH,
+      SHADOW_AND_STEEL,
+      SHADOWCAT_ID,
+      FIGHTING_DIRTY,
+      ENERGY_ID,
+      ENERGY_ID,
+      ...Array.from({ length: 10 }, () => WILD_ID),
+    ],
+  });
+}
+
+/** p1's hero is Colossus (its identity card retitled) and the minion from deck one is engaged with p1 (surgery). */
+function withColossusAndMinion(state: GameState): { state: GameState; minion: InstanceId } {
+  const identity = playerOf(state, P1).identity.instanceId;
+  const card = state.cardPool[state.instances[identity]!.cardId] as unknown as {
+    hero: { faceName: string };
+    heroFaces?: readonly { faceName: string }[];
+  };
+  const retitled = {
+    ...card,
+    hero: { ...card.hero, faceName: "Colossus" },
+    ...(card.heroFaces ? { heroFaces: card.heroFaces.map((face) => ({ ...face, faceName: "Colossus" })) } : {}),
+  };
+  const { one } = leadersOf(state);
+  const deckId = state.villains.find((v) => v.instanceId === one)!.encounterDeckId;
+  const piles = state.encounterDecks[deckId]!;
+  const minion = piles.deck.find((i) => state.instances[i]!.cardId === cardId(MINION_ID))!;
+  const next = {
+    ...state,
+    cardPool: { ...state.cardPool, [state.instances[identity]!.cardId]: retitled },
+    encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((i) => i !== minion) } },
+    players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, minion] } : p)),
+  } as GameState;
+  return { state: patch(next, minion, { engagedWith: P1, faceup: true }), minion };
+}
+
+// (attack/defense) is a defense too (RRG v1.8 "Labeled Ability" p. 26, multiple labels; FFG July 19, 2023 #49.3 Powerful Punch); MC56 p. 16 "no player can declare a defender" excludes it from leader-vs-leader attacks (N11)
+describe("(attack/defense) cards against a leader-vs-leader attack (N11): a defense too, so neither team may use one", () => {
+  it("Powerful Punch (32014): not offered to p1 or p2 for leader one's attack on leader two; offered to p1 for leader one's attack on p1", () => {
+    const g = defenseGame();
+    const held = hold(hold(toResistance(g), P1, POWERFUL_PUNCH), P2, POWERFUL_PUNCH);
+    const log: Log = [];
+    const cross = fightingDirty(g, held, picker(log, never));
+    expect(offered(log, "p1", POWERFUL_PUNCH)).toBe(0);
+    expect(offered(log, "p2", POWERFUL_PUNCH)).toBe(0);
+    // Control on the same board: p2 ends its turn, and leader one attacks p1 in p1's own villain phase.
+    run(g.deps, cross.state, picker(log, never), endTurn(P2));
+    expect(log.filter((p) => p.player === "p1" && p.codes.includes(POWERFUL_PUNCH) && p.attacker !== "?").length).toBe(
+      1,
+    );
+  });
+
+  it("Shadow and Steel (32021), Team-Up met (Colossus hero, Shadowcat ally on p1's team): not offered for the leader-vs-leader attack; offered on a minion's attack", () => {
+    const g = defenseGame();
+    const ready = intoPlay(hold(toResistance(g), P1, SHADOW_AND_STEEL), P1, SHADOWCAT_ID).state;
+    const board = withColossusAndMinion(ready);
+    const log: Log = [];
+    const cross = fightingDirty(g, board.state, picker(log, never));
+    expect(offered(log, "p1", SHADOW_AND_STEEL)).toBe(0);
+    // Control on the same board: in p1's villain phase the minion engaged with p1 attacks.
+    run(g.deps, cross.state, picker(log, never), endTurn(P2));
+    const onMinion = log.filter(
+      (p) => p.player === "p1" && p.codes.includes(SHADOW_AND_STEEL) && p.attacker === MINION_ID,
+    );
+    expect(onMinion).toHaveLength(1);
   });
 });
