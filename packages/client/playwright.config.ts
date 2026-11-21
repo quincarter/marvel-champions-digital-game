@@ -109,6 +109,7 @@ export default defineConfig({
         "victory-display.spec.ts",
         "scheme-stack-fan.spec.ts",
         "deck-builder-search-help.spec.ts",
+        "ios-input-zoom.spec.ts",
         "deck-builder-review.spec.ts",
         "ironheart-level-up.spec.ts",
         "tips.spec.ts",

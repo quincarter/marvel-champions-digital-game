@@ -117,6 +117,57 @@ describe("WorkerCrashGuard (#932)", () => {
     expect(storage.getItem(KEY)).toBeNull();
   });
 
+  it("puts the mark back for a first job that comes after the settle timer cleared it", () => {
+    const storage = new MemoryStorage();
+    const { guard, timers } = page(storage);
+    guard.skip();
+    guard.starting();
+    timers[0]!.fn(); // no work for 15 s: the mark goes
+    expect(storage.getItem(KEY)).toBeNull();
+    guard.working(); // the first bake, later on
+    expect(storage.getItem(KEY)).toBe("starting");
+    // It crashes the page: the next page skips the worker.
+    expect(page(storage).guard.skip()).toBe(true);
+  });
+
+  it("keeps the mark up for a later batch after an earlier one was answered", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working(3);
+    guard.answered(3); // the first batch painted
+    expect(storage.getItem(KEY)).toBeNull();
+    guard.working(2); // the next batch, which crashes the page
+    expect(storage.getItem(KEY)).toBe("starting");
+    expect(page(storage).guard.skip()).toBe(true);
+  });
+
+  it("keeps the mark while overlapping batches are out, and drops it when the last is answered", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working(2);
+    guard.working(1);
+    guard.answered(2); // the first batch back, the second still out
+    expect(storage.getItem(KEY)).toBe("starting");
+    guard.answered(1);
+    expect(storage.getItem(KEY)).toBeNull();
+  });
+
+  it("counts a batch answered in two parts (some painted, some failed)", () => {
+    const storage = new MemoryStorage();
+    const { guard } = page(storage);
+    guard.skip();
+    guard.starting();
+    guard.working(4);
+    guard.answered(3); // painted
+    expect(storage.getItem(KEY)).toBe("starting");
+    guard.answered(1); // failed
+    expect(storage.getItem(KEY)).toBeNull();
+  });
+
   it("tries the worker again once the app or WebView2 is updated", () => {
     const storage = new MemoryStorage();
     storage.setItem(KEY, WEBVIEW_158);
