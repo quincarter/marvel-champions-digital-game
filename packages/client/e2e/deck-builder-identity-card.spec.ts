@@ -135,7 +135,7 @@ test("the keyboard reaches the identity row and Enter opens it", async ({ page }
     const here = at ? await stopRect(page, "DeckBuilder", at) : null;
     const key = at?.startsWith("aspect:")
       ? "ArrowUp"
-      : here && here.x > target.x + target.width
+      : here && here.x > target.x + 40
         ? "ArrowLeft"
         : "ArrowDown";
     await page.keyboard.press(key);
