@@ -637,7 +637,8 @@ export class McMatchupGrid {
 /**
  * An axis name on one line, shrunk then clipped to fit. A custom pack's name that would lose its designer to the clip
  * ("The Rose (by PermaKarma)" in a phone's narrow band) goes on two lines instead, the name over "(by PermaKarma)",
- * so the credit telling it from official content stays in sight (issue #937).
+ * so the credit telling it from official content stays in sight (issue #937). Each line is fitted on its own: the
+ * credit keeps its line whole, and a name too long for one line is the part clipped, never the credit.
  */
 function fitAxisLabel(text: Phaser.GameObjects.Text, width: number, size: number): void {
   const name = text.text;
@@ -645,6 +646,13 @@ function fitAxisLabel(text: Phaser.GameObjects.Text, width: number, size: number
   fitText(text, width, size);
   const lines = designerLines(name);
   if (!lines || text.text === name) return;
-  text.setText(lines.join("\n"));
-  fitWrapped(text, width, 2, size);
+  const [title, credit] = lines;
+  // The credit's own fit sets the most both lines may use; the name then fits (and if need be clips) under it.
+  text.setText(credit);
+  fitText(text, width, size);
+  const creditLine = text.text;
+  const creditSize = Number.parseFloat(String(text.style.fontSize));
+  text.setText(title);
+  fitText(text, width, creditSize);
+  text.setText(`${text.text}\n${creditLine}`);
 }
