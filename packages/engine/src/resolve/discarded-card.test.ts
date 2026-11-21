@@ -55,13 +55,15 @@ describe("needsDiscardedCard", () => {
     expect(needsDiscardedCard(ability([choose, attachPicked]))).toBe(true);
   });
 
-  it("a branch is judged by what it does, not by what its condition reads", () => {
+  it("a branch needs the card when its condition reads it, or when each of its branches does", () => {
     const readsThatCard = { kind: "exists", ref: that } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
-    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw] }]))).toBe(false);
-    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [tuck] }]))).toBe(true);
-    expect(
-      needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [tuck], otherwise: [draw] }])),
-    ).toBe(false);
+    const always = { kind: "exists", ref: self } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
+    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw] }]))).toBe(true);
+    expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [draw] }]))).toBe(false);
+    expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck] }]))).toBe(true);
+    expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck], otherwise: [draw] }]))).toBe(
+      false,
+    );
   });
 
   it("a 'choose one' is judged option by option: one that needs nothing of the card keeps it", () => {

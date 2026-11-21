@@ -29,6 +29,7 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 
 /** A discard whose card a response has since taken out of where the discard left it; false for any other event. */
+// `select.ts` `discardMovedOn` reads the same, without importing this module: keep the two in step.
 export function discardedCardGone(state: GameState, event: TriggerEvent): boolean {
   if (event.kind === "cardDiscardedFromDeck") return !deckDiscardStillThere(state, event);
   if (event.kind === "cardDiscardedFromHand") return !handDiscardStillThere(state, event);
@@ -96,8 +97,9 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
 }
 
 /**
- * A branch is judged by what it does, not by what its condition reads ("if that card is an event, draw 1 card" needs
- * nothing of the card's place): every branch with effects in it needs the card.
+ * A branch needs the card when its condition reads it, or when every branch with effects in it does. Engine
+ * interpretation: "that card" names nothing once it moved (`select.ts` `eventTarget`), so a condition on it could only
+ * read false; such a response is dropped rather than offered to do nothing ("if that card is an event, draw 1 card").
  */
 function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
   // "Choose one": an option that needs nothing of the card can still be chosen (RRG 1.8 "Choose", p. 12).
@@ -106,6 +108,7 @@ function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
     return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots));
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
+  if (namesCard(effect.condition, slots)) return true;
   const branches = [effect.then, effect.otherwise ?? []].filter((branch) => branch.length > 0);
   return branches.length > 0 && branches.every((branch) => everyPartNeedsCard(inline(branch), slots));
 }
