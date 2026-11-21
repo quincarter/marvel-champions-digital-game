@@ -121,6 +121,12 @@ export interface SeatsLayout {
    * row where the Filters button leaves room and the roster header has none (a phone).
    */
   readonly heroArt: Rect;
+  /**
+   * The Random hero button (`view/hero-random.ts`, #911): just left of the hero art button, or on the Filters row
+   * between the Filters button and the hero art button where the chips are behind that button (a phone), so the seat
+   * summary keeps its row.
+   */
+  readonly random: Rect;
   /** Narrow only: the active seat's details disclosure, the left part of `rosterHeader`. Null on wide. */
   readonly detailsToggle: Rect | null;
   /** The search field. Zero-height on a narrow layout whose toggle is off (`searchOpen`) — nothing is drawn there. */
@@ -252,11 +258,13 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       height: ROSTER_HEADER_HEIGHT,
     };
     const heroArtWidth = Math.min(170, shelvesWidth * 0.25);
+    const randomWidth = Math.min(104, shelvesWidth * 0.15);
     const heroArt: Rect = {
       ...usePreconstructed,
       x: usePreconstructed.x - heroArtWidth - smallGap,
       width: heroArtWidth,
     };
+    const random: Rect = { ...heroArt, x: heroArt.x - randomWidth - smallGap, width: randomWidth };
     y += ROSTER_HEADER_HEIGHT + smallGap;
 
     const behindButton = input.filtersButton ?? false;
@@ -304,6 +312,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       rosterHeader,
       usePreconstructed,
       heroArt,
+      random,
       detailsToggle: null,
       search,
       searchToggle: null,
@@ -350,10 +359,15 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   };
   const behindButton = input.filtersButton ?? false;
   const heroArtWidth = Math.min(110, shelvesWidth * 0.3);
+  const randomWidth = behindButton ? Math.min(76, shelvesWidth * 0.22) : 100;
   const detailsToggle: Rect = {
     x: left,
     y,
-    width: shelvesWidth - usePreconstructedWidth - smallGap - (behindButton ? 0 : heroArtWidth + smallGap),
+    width:
+      shelvesWidth -
+      usePreconstructedWidth -
+      smallGap -
+      (behindButton ? 0 : heroArtWidth + smallGap + randomWidth + smallGap),
     height: hit.target,
   };
   y += hit.target + smallGap;
@@ -383,13 +397,14 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     ? {
         x: left + hit.target + smallGap,
         y,
-        width: shelvesWidth - hit.target - heroArtWidth - smallGap * 2,
+        width: shelvesWidth - hit.target - heroArtWidth - randomWidth - smallGap * 3,
         height: hit.target,
       }
     : null;
   const heroArt: Rect = behindButton
     ? { x: left + shelvesWidth - heroArtWidth, y, width: heroArtWidth, height: hit.target }
     : { ...usePreconstructed, x: usePreconstructed.x - heroArtWidth - smallGap, width: heroArtWidth };
+  const random: Rect = { ...heroArt, x: heroArt.x - randomWidth - smallGap, width: randomWidth };
   const chips: Rect = behindButton
     ? {
         x: left,
@@ -443,6 +458,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     rosterHeader,
     usePreconstructed,
     heroArt,
+    random,
     detailsToggle,
     search,
     searchToggle,

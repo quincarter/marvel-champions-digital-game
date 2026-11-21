@@ -14,7 +14,7 @@ import {
   cards,
   chooseCards,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -180,7 +180,7 @@ export const NEXT_EVOL_PRECON_CABLE_DECK: AbilityRegistry = defineAbilities({
   "40016.sunspot-response": response(
     after.youPlayThisFromHand(),
     { readsPaidTypes: { amountOf: "energy" } },
-    choosePlayer("player"),
+    choosePlayerWithEngaged("player"),
     dealDamage(varOf("paid.as.energy"), theVillain),
     dealDamage(varOf("paid.as.energy"), each(query("minion", { engagedWithPlayer: chosenPlayer("player") }))),
   ),

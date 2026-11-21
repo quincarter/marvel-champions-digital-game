@@ -1,0 +1,3 @@
+kind: Added
+body: Take your seats has a Random button that seats a random hero in the active seat, from the heroes the roster offers right now (never a hero that isn't ready, one already seated or an illegal deck) (#911).
+time: 2026-11-20T15:40:08.8492846-05:00

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Cards that choose a player to hit the minions engaged with them (Explosive Arrow, Rocket Launcher, Blast of Wind, Bombs Away, Sunspot, Ice Blast, The Bellerophon, Spray Fire, Energy Daggers, Spider Bites, Multi-Gun) offer only players with an engaged minion and choose the only one without asking (#911).
+time: 2026-11-20T15:20:30.3615322-05:00

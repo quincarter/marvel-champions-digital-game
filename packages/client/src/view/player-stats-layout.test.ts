@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import type { OverviewTile, PlayerStats } from "./player-stats-model.js";
-import { cardRowsOf, dashboardRowsOf, heroAt, statRowPicture, statsTabsOf, tileRowsOf } from "./player-stats-layout.js";
+import {
+  SHOWCASE_MIN_WIDTH,
+  cardRowsOf,
+  dashboardRowsOf,
+  heroAt,
+  overviewRowsOf,
+  statRowPicture,
+  statsTabsOf,
+  tileRowsOf,
+} from "./player-stats-layout.js";
 
 const small = (id: string): OverviewTile => ({ kind: "small", id, label: id, value: "1", detail: "" });
 const record: OverviewTile = { kind: "record", id: "record", record: "1–0", rate: "", fraction: 1, detail: "" };
@@ -64,6 +73,78 @@ describe("tileRowsOf", () => {
     }
     const last = row.tiles.at(-1)!;
     expect(last.x + last.width).toBeLessThanOrEqual(1000.001);
+  });
+});
+
+describe("overviewRowsOf", () => {
+  const hero: OverviewTile = {
+    kind: "portrait",
+    id: "hero",
+    label: "Favorite hero",
+    name: "She-Hulk",
+    detail: "",
+    extra: "",
+    art: { hero: "x" },
+    wide: true,
+  };
+  const tiles = [record, small("a"), hero, small("b"), small("c"), small("d"), small("e")];
+  const boxes = (row: ReturnType<typeof overviewRowsOf>[number]) => {
+    if (row.kind !== "tiles") throw new Error("tiles");
+    return row.tiles.map((p) => ({
+      id: p.tile.id,
+      x: p.x,
+      y: p.y ?? 0,
+      width: p.width,
+      height: p.height ?? row.height - 14,
+      tall: p.tall ?? false,
+    }));
+  };
+
+  test("a wide screen stands the favorite hero tall at the far left, with the other tiles stacked beside it", () => {
+    const rows = overviewRowsOf(tiles, 1400, false);
+    const placed = boxes(rows[0]!);
+    const heroBox = placed.find((p) => p.id === "hero")!;
+    expect(heroBox).toMatchObject({ x: 0, y: 0, tall: true });
+    // A portrait: taller than it is wide, and as tall as the stack beside it.
+    expect(heroBox.height).toBeGreaterThan(heroBox.width);
+    const beside = placed.filter((p) => p.id !== "hero");
+    expect(beside.map((p) => p.id)).toEqual(["record", "a", "b", "c", "d", "e"]);
+    for (const p of beside) {
+      expect(p.x).toBeGreaterThan(heroBox.x + heroBox.width);
+      expect(p.x + p.width).toBeLessThanOrEqual(1400.001);
+      expect(p.y + p.height).toBeLessThanOrEqual(heroBox.height + 0.001);
+    }
+    // The record leads the stack, two columns of three.
+    expect(beside[0]).toMatchObject({ id: "record", y: 0 });
+  });
+
+  test("no two tiles in the showcase overlap", () => {
+    const placed = boxes(overviewRowsOf(tiles, 1400, false)[0]!);
+    for (const a of placed)
+      for (const b of placed) {
+        if (a === b) continue;
+        const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+        expect(apart, `${a.id} and ${b.id}`).toBe(true);
+      }
+  });
+
+  test("tiles that would stretch the stack far past the portrait continue below in the four-column grid", () => {
+    const many = [record, hero, ...Array.from({ length: 30 }, (_, i) => small(`s${i}`))];
+    const rows = overviewRowsOf(many, 1400, false);
+    expect(rows.length).toBeGreaterThan(1);
+    const shown = rows.flatMap((row) => (row.kind === "tiles" ? row.tiles.map((p) => p.tile.id) : []));
+    expect(new Set(shown).size).toBe(many.length);
+    const below = rows[1]!;
+    expect(below.kind === "tiles" && below.tiles.length).toBe(4);
+  });
+
+  test("a phone, a narrow window or no favorite hero keeps the plain grid", () => {
+    expect(overviewRowsOf(tiles, 358, true)).toEqual(tileRowsOf(tiles, 358, true));
+    expect(overviewRowsOf(tiles, SHOWCASE_MIN_WIDTH - 1, false)).toEqual(
+      tileRowsOf(tiles, SHOWCASE_MIN_WIDTH - 1, false),
+    );
+    const noHero = tiles.filter((t) => t !== hero);
+    expect(overviewRowsOf(noHero, 1400, false)).toEqual(tileRowsOf(noHero, 1400, false));
   });
 });
 

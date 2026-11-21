@@ -95,7 +95,7 @@ import {
   testedSubtitleOf,
   testedEntryOf,
 } from "../view/community-decks-model.js";
-import { heroAspectsOf, heroSourceMatches, withSelectionPinned, type HeroSourceFilter } from "../view/roster-filter.js";
+import { heroAspectsOf, withSelectionPinned, type HeroSourceFilter } from "../view/roster-filter.js";
 import { packCompactChipsToRows, type ChipInfoToggle } from "../view/chip-layout.js";
 import {
   azShelvesOf,
@@ -106,6 +106,14 @@ import {
 } from "../view/roster-shelves.js";
 import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
 import { seatOptions, type SeatOption } from "../view/seats.js";
+import {
+  heroPassesChips,
+  randomHeroCandidatesOf,
+  searchPending,
+  randomHeroDeck,
+  takeableHeroesOf,
+  type RandomHeroCandidate,
+} from "../view/hero-random.js";
 import {
   activeSeatRosterOf,
   aspectLabelOf,
@@ -377,6 +385,8 @@ export class SeatsScene extends Phaser.Scene {
   /** Text search runs in a worker (view/deck-search-client.ts); #ranking is its last answer, shown until the next one arrives. Null when no search is active. */
   readonly #search = new DeckSearchClient();
   #ranking: ReadonlyMap<string, number> | null = null;
+  /** The search text #ranking answers; Random waits while the field holds another (`searchPending`, #916 review). */
+  #rankedFor: string | null = null;
   #searchDocsFor: readonly DeckOption[] | null = null;
 
   constructor() {
@@ -799,12 +809,12 @@ export class SeatsScene extends Phaser.Scene {
         ink.label,
       );
       rosterLabel.setOrigin(0, 0.5);
-      fitText(rosterLabel, layout.heroArt.x - layout.rosterHeader.x - 12, typeRole.label.size);
+      fitText(rosterLabel, layout.random.x - layout.rosterHeader.x - 12, typeRole.label.size);
       this.#drawHints(
         padMode,
         layout.rosterHeader.y + layout.rosterHeader.height / 2,
         rosterLabel.x + rosterLabel.displayWidth + 18,
-        layout.heroArt.x - 12,
+        layout.random.x - 12,
       );
     }
     const usePreconstructed = (): void => {
@@ -840,6 +850,26 @@ export class SeatsScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("hero-art", { rect: layout.heroArt, activate: stepHeroArt });
+    const randomHero = (): void => this.#randomHero();
+    const randomAvailable = this.#randomHeroCandidates(deckOptions, seating).length > 0;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: t("seats.randomHero"),
+        type: typeRole.label,
+        rect: layout.random,
+        onClick: randomHero,
+        enabled: randomAvailable,
+        ...(randomAvailable
+          ? {}
+          : {
+              reason: searchPending(this.#draft.heroFilter, this.#rankedFor)
+                ? t("seats.randomHeroSearching")
+                : t("seats.randomHeroNone"),
+            }),
+      }),
+    );
+    if (randomAvailable) this.#stops.set("hero-random", { rect: layout.random, activate: randomHero });
 
     if (layout.search.height > 0) {
       this.#searchInput = drawSearchField(
@@ -1162,6 +1192,12 @@ export class SeatsScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __mcSeatsDebug?: unknown }).__mcSeatsDebug = {
         folded: () => [...this.#folded],
+        seats: () => [...this.#draft.seats],
+        unseatable: () =>
+          this.#deckOptions()
+            .filter((o) => !o.seatable)
+            .map((o) => o.deck.id as string),
+        activeSeat: () => this.#draft.activeSeatIndex,
         drilledPack: () => this.#drill.packId,
         listRect: () => this.#roster?.rect ?? null,
         recommended: () => this.#insights?.recommended.map((r) => ({ deckId: r.deckId, reason: r.reason })) ?? [],
@@ -1371,6 +1407,7 @@ export class SeatsScene extends Phaser.Scene {
       this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: "" });
       this.#search.cancel();
       this.#ranking = null;
+      this.#rankedFor = null;
     }
     this.#rebuild();
     if (this.#searchOpen) this.#searchInput?.focus();
@@ -1453,14 +1490,46 @@ export class SeatsScene extends Phaser.Scene {
     if (text.trim() === "") {
       this.#search.cancel();
       this.#ranking = null;
+      this.#rankedFor = null;
       this.#rebuild();
       return;
     }
     this.#search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#ranking = new Map(ranked.map((r) => [r.id, r.score]));
+      this.#rankedFor = text;
       this.#rebuild();
     });
+  }
+
+  /**
+   * Random (#911): seats a random hero in the active seat, from the heroes the roster lets the player take right now.
+   * Nothing is decided here: a deck qualifies by the roster's own checks (`seatable`, so legal and not a hero that is
+   * not ready; `#seatOptionsExcludingActive`, so not a hero already at another seat and not locked; the chips and the
+   * search; a shelf drilled into one pack does not narrow it, as it does not narrow Recommended), and the seat's own hero is left out so Random always changes it.
+   */
+  #randomHeroCandidates(
+    deckOptions: readonly DeckOption[],
+    seating: ReadonlyMap<string, SeatOption>,
+  ): readonly RandomHeroCandidate[] {
+    const ownDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
+    return randomHeroCandidatesOf(
+      deckOptions,
+      (deckId) => seating.get(deckId)?.blockedBy ?? null,
+      this.#draft.heroFilter,
+      this.#ranking,
+      ownDeckId ? this.#identityOfDeck.get(ownDeckId) : undefined,
+      this.#rankedFor,
+    );
+  }
+
+  #randomHero(): void {
+    const deckOptions = this.#deckOptions();
+    const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
+    const deckId = randomHeroDeck(this.#randomHeroCandidates(deckOptions, seating), Math.random);
+    if (deckId === null) return;
+    this.#draft = assignToActiveSeat(this.#draft, deckId);
+    this.#rebuild();
   }
 
   /** A hero tile tapped: one matching deck seats as it always did; several open the deck submenu. */
@@ -2014,16 +2083,12 @@ ${sourceWordsOf(decks)}`
       .map((id) => deckOptions.find((o) => (o.deck.id as string) === id)?.deck)
       .filter((deck): deck is Deck => deck !== undefined);
     const ranking = this.#ranking;
-    const candidates = deckOptions
-      // Only a hero the player could actually take: legal, unlocked, not already at the table.
-      .filter((option) => option.seatable && !seating.get(option.deck.id as string)?.blockedBy)
-      // A tested community deck is recommended only while the list is narrowed to them (TESTED): otherwise a hero's
-      // many community decks would take the shelf from the precon or the player's own deck for that hero.
-      .filter((option) => this.#draft.heroFilter.source === "tested" || !isCommunityDeckId(option.deck.id as string))
-      .map((option) => ({
-        deck: option.deck,
-        shown: this.#heroPassesChips(option, null) && (ranking === null || ranking.has(option.deck.id as string)),
-      }));
+    const candidates = takeableHeroesOf(
+      deckOptions,
+      (deckId) => seating.get(deckId)?.blockedBy ?? null,
+      this.#draft.heroFilter,
+      ranking,
+    ).map(({ option, shown }) => ({ deck: option.deck, shown }));
     return seatInsightsOf({
       seated,
       activeSeatIndex: this.#draft.activeSeatIndex,
@@ -2218,11 +2283,7 @@ ${sourceWordsOf(decks)}`
   }
 
   #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {
-    const filter = this.#draft.heroFilter;
-    if (filter.aspect && !option.deck.aspects.includes(filter.aspect)) return false;
-    if (!heroSourceMatches(option.deck, filter.source)) return false;
-    if (filter.playableOnly && blockedBy !== null) return false;
-    return true;
+    return heroPassesChips(option.deck, this.#draft.heroFilter, blockedBy);
   }
 
   /**

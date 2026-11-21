@@ -6,7 +6,7 @@ import {
   cards,
   chooseCards,
   chooseOne,
-  choosePlayer,
+  choosePlayerWithEngaged,
   chooseTarget,
   chosen,
   chosenPlayer,
@@ -86,7 +86,7 @@ export const BLACK_PANTHER_KIT = defineAbilities({
   // Energy Daggers — Special: Choose a player. Deal 1 damage to the villain and to each enemy engaged with that player
   // (2 damage instead if this is the final step of this sequence). Not an attack.
   "01046.energy-daggers-special": special(
-    choosePlayer(),
+    choosePlayerWithEngaged("player", "enemy"),
     dealDamage(ifElse(finalStep, 2, 1), theVillain),
     dealDamage(ifElse(finalStep, 2, 1), each(query("enemy", { engagedWithPlayer: chosenPlayer() }))),
   ),
