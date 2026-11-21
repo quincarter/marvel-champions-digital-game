@@ -336,7 +336,17 @@ export function inlineFontBytes(src: string): ArrayBuffer | null {
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return bytes.buffer;
     }
-    return new TextEncoder().encode(decodeURIComponent(payload)).buffer as ArrayBuffer;
+    // Percent-encoded: each %XX is one byte (not UTF-8 text), every other character its own code.
+    const bytes: number[] = [];
+    for (let i = 0; i < payload.length; i++) {
+      if (payload[i] === "%" && /^[0-9a-f]{2}$/i.test(payload.slice(i + 1, i + 3))) {
+        bytes.push(parseInt(payload.slice(i + 1, i + 3), 16));
+        i += 2;
+      } else {
+        bytes.push(payload.charCodeAt(i) & 0xff);
+      }
+    }
+    return new Uint8Array(bytes).buffer;
   } catch {
     return null;
   }

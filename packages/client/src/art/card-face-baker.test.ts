@@ -90,6 +90,10 @@ describe("inlineFontBytes (#932: WebView2 158 crashes on a data: font in a worke
     expect(bytesOf(inlineFontBytes("url(data:font/woff2;base64,AAE=)"))).toEqual([0, 1]);
   });
 
+  it("reads a percent-encoded data: URL as bytes, not text", () => {
+    expect(bytesOf(inlineFontBytes("url(data:font/woff2,w%FF%00)"))).toEqual([0x77, 0xff, 0x00]);
+  });
+
   it("leaves a font file's URL to the worker", () => {
     expect(
       inlineFontBytes('url("http://tauri.localhost/assets/bangers-latin-400-normal.woff2") format("woff2")'),
