@@ -286,6 +286,45 @@ describe("SeatEngineHost", () => {
     expect((await mine).ok).toBe(false);
   });
 
+  test("an acceptance that comes after the log's echo settles the proposal at once", async () => {
+    const { game, feed, host, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    const result = host.dispatch(command);
+    game.core.dispatch(command);
+    feed.say(appended(2, [command]));
+    await flush();
+    feed.say({ ch: "game", kind: "proposal-accepted", table: "t1", base: 2, pid: 1 });
+    const done = await result;
+    expect(done.ok).toBe(true);
+    if (done.ok) expect(done.update.version).toBe(3);
+  });
+
+  test("a lost acceptance: the identical command at my base and no refusal is mine when the wait ends", async () => {
+    const { game, feed, host, first, timers } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    const result = host.dispatch(command);
+    const timer = timers.at(-1)!;
+    game.core.dispatch(command);
+    feed.say(appended(2, [command]));
+    await flush();
+    timer.run();
+    expect((await result).ok).toBe(true);
+  });
+
+  test("with no echo and no acceptance the wait still ends as unanswered", async () => {
+    const { host, first, timers } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    const result = host.dispatch(command);
+    timers.at(-1)!.run();
+    expect((await result).ok).toBe(false);
+  });
+
   test("a host refusal names its proposal: the other proposal on the same log length stays pending", async () => {
     const { feed, host, first } = await seatAt(2);
     const acting = actingPlayer(first.state)!;

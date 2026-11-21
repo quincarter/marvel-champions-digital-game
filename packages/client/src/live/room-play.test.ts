@@ -275,6 +275,29 @@ describe("a seat holder's proposal", () => {
     expect(t.sock.of("proposal-refused")).toHaveLength(1);
   });
 
+  it("tells the proposer its proposal was applied, by its id, and ignores a game no longer on the table", async () => {
+    const t = await hosting();
+    t.controller.onGameMessage({ kind: "accept", gameKey: "game-1", to: "ava", base: 3, pid: 5 });
+    expect(t.sock.of("proposal-accepted")).toEqual([
+      expect.objectContaining({ ch: "game", table: "t1", to: "ava", base: 3, pid: 5 }),
+    ]);
+    t.controller.onGameMessage({ kind: "accept", gameKey: "old-game", to: "ava", base: 3, pid: 6 });
+    expect(t.sock.of("proposal-accepted")).toHaveLength(1);
+  });
+
+  it("holds an acceptance the dropped socket lost and sends it again on the next welcome", async () => {
+    const t = await hosting();
+    t.sock.readyState = 3;
+    t.controller.onGameMessage({ kind: "accept", gameKey: "game-1", to: "ava", base: 3, pid: 5 });
+    expect(t.sock.of("proposal-accepted")).toEqual([]);
+    t.sock.readyState = 1;
+    t.sock.receive(welcome([ava]));
+    expect(t.sock.of("proposal-accepted")).toEqual([expect.objectContaining({ to: "ava", base: 3, pid: 5 })]);
+    // Sent once: a later welcome does not repeat it.
+    t.sock.receive(welcome([ava]));
+    expect(t.sock.of("proposal-accepted")).toHaveLength(1);
+  });
+
   it("an accepted command streams like the host's own: it arrives from the engine as an ordinary command", async () => {
     const t = await hosting();
     t.controller.onGameMessage({

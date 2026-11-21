@@ -326,7 +326,9 @@ describe("play together: the host's answers go to their target only", () => {
     const bob = await seated("Bob", "s2");
     await send(ann, { ch: "game", kind: "proposal-refused", table: "t1", to: bob.id, reason: "illegal", base: 0 });
     await send(ann, { ch: "game", kind: "request-answer", table: "t1", to: bob.id, accepted: true });
-    expect(ann.refusals).toEqual(["not-allowed", "not-allowed"]);
+    await send(ann, { ch: "game", kind: "proposal-accepted", table: "t1", to: bob.id, base: 0, pid: 1 });
+    expect(ann.refusals).toEqual(["not-allowed", "not-allowed", "not-allowed"]);
+    expect(bob.of("proposal-accepted")).toEqual([]);
     expect(bob.of("proposal-refused")).toEqual([]);
     expect(bob.of("request-answer")).toEqual([]);
     await room.close(bob);

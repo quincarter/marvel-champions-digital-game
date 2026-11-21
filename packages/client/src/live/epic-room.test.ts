@@ -408,6 +408,12 @@ describe("a table host", () => {
     expect(t.sock.of("game", "proposal-refused").at(-1)).toMatchObject({ table: "t2", to: "ava" });
   });
 
+  it("tells its seats' proposers their proposal was applied on that table, not on t1", async () => {
+    const t = await tableHost();
+    t.controller.onGameMessage({ kind: "accept", gameKey: "g2", to: "ava", base: 0, pid: 3 });
+    expect(t.sock.of("game", "proposal-accepted").at(-1)).toMatchObject({ table: "t2", to: "ava", base: 0, pid: 3 });
+  });
+
   it("tells the pod where it stands on welcome, then sends its events, and applies the answers in order", async () => {
     const t = await tableHost();
     const sync = t.sock.of("pod", "event").at(-1)!;

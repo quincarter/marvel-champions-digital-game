@@ -98,6 +98,8 @@ interface Pending {
   timer: unknown;
   /** The host said it applied this proposal (by its `pid`): only then is the command at `base` in the log mine. */
   accepted: boolean;
+  /** The identical command sits in the log at `base` though no acceptance came: it is mine only if the wait ends unrefused. */
+  echoed: boolean;
 }
 
 export class SeatEngineHost implements EngineHost {
@@ -177,8 +179,14 @@ export class SeatEngineHost implements EngineHost {
         command,
         resolve,
         accepted: false,
+        echoed: false,
         timer: setTimer(() => {
-          this.#settle(pending, this.#failed(command, t("seat.msg.noAnswer")));
+          // A lost acceptance must not turn a move that landed into a failure: the identical command at my position
+          // with no refusal in all this time is mine (a refusal would have named my pid and settled this already).
+          const current = this.#current;
+          if (pending.echoed && current && current.version > pending.base)
+            this.#settle(pending, { ok: true, update: current });
+          else this.#settle(pending, this.#failed(command, t("seat.msg.noAnswer")));
         }, this.#o.proposalTimeoutMs ?? PROPOSAL_TIMEOUT_MS),
       };
       this.#pending.push(pending);
@@ -251,7 +259,7 @@ export class SeatEngineHost implements EngineHost {
         return;
       }
       case "accepted": {
-        // The host names the proposal it applied; one without an id (an older host) cannot be told from another's.
+        // The host names the proposal it applied by its id; one without an id (from an older seat) names none of ours.
         const pending = event.pid === undefined ? undefined : this.#pending.find((p) => p.pid === event.pid);
         if (!pending) return;
         const current = this.#current;
@@ -299,6 +307,7 @@ export class SeatEngineHost implements EngineHost {
         if (pending.base < change.from || command === undefined) continue;
         if (pending.accepted) landed.push({ pending, ok: true });
         else if (!sameCommand(command, pending.command)) landed.push({ pending, ok: false });
+        else pending.echoed = true;
       }
     }
     const single = change.type === "append" && change.commands.length === 1 ? change.commands[0] : undefined;
