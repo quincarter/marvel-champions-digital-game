@@ -58,9 +58,14 @@ export class IdbRoomStore implements LiveRoomStore {
   async #run<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
     const db = await this.#open();
     return new Promise((resolve, reject) => {
-      const request = work(db.transaction(STORE, mode).objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
+      // A request succeeding does not make the write durable: the transaction can still abort (quota, shutdown), which
+      // would roll back the room id and host token after save() resolved. Resolve only when it completes.
+      const tx = db.transaction(STORE, mode);
+      const request = work(tx.objectStore(STORE));
       request.onerror = () => reject(request.error ?? new Error("live room store request failed"));
+      tx.onabort = () => reject(tx.error ?? request.error ?? new Error("live room store transaction aborted"));
+      tx.onerror = () => reject(tx.error ?? request.error ?? new Error("live room store transaction failed"));
+      tx.oncomplete = () => resolve(request.result);
     });
   }
 
