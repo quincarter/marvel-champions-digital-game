@@ -136,3 +136,36 @@ test("a record from one game opens that game in Past games, and Back returns to 
   await stopRect(page, STATS, "row:rec:fastest");
   expect(errors).toEqual([]);
 });
+
+test("a later visit to Past games that does not come from Stats goes back to the Title (#917 review)", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name === "phone", "the back label is an arrow on a phone; the reset is the same code");
+  test.setTimeout(240_000);
+  const errors = trackPageErrors(page);
+  await openApp(page, "unlock=all");
+  await seedGames(page);
+  await page.goto("/?screen=stats&tab=records&unlock=all");
+  await waitForScene(page, STATS, 30_000);
+  await settle(page);
+  await press(page, await stopRect(page, STATS, "row:rec:fastest"));
+  await waitForScene(page, "PastGames", 30_000);
+  await settle(page);
+  expect((await findText(page, "STATS", "PastGames")).length, "opened from Stats: Back says Stats").toBeGreaterThan(0);
+
+  // Leave and come back the way a replay's Exit or the Title does: the same kept scene, started with no `from`.
+  await page.evaluate(() => {
+    const game = (window as unknown as { __mcGame: { scene: { start: (key: string, data?: object) => void } } })
+      .__mcGame;
+    game.scene.start("PastGames", {});
+  });
+  await waitForScene(page, "PastGames", 30_000);
+  await settle(page);
+  await waitFor(
+    async () => ((await findText(page, "TITLE", "PastGames")).length > 0 ? true : null),
+    "Back says Title",
+    15_000,
+  );
+  expect((await findText(page, "STATS", "PastGames")).length).toBe(0);
+  expect(errors).toEqual([]);
+});

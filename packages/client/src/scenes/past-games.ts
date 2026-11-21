@@ -249,7 +249,9 @@ export class PastGamesScene extends Phaser.Scene {
       this.#query = "";
       this.#scroll.reset();
     }
-    if (data?.from) this.#backTo = { from: data.from, backData: data.backData ?? {} };
+    // Only a visit that says where it came from returns there. Phaser keeps the scene, so a later visit without `from`
+    // (from the Title, or back from a replay watched from here) must not keep a Stats return (code review, #917).
+    this.#backTo = data?.from ? { from: data.from, backData: data.backData ?? {} } : null;
   }
 
   create(): void {
