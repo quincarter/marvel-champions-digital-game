@@ -9,9 +9,16 @@
 //!    (`src/platform/renderer-options.ts`), a safe mode without WebGL in case the GPU path is what kills it;
 //! 3. if the safe page crashes within the window too, leaves WebView2's error page up rather than loop.
 //!
-//! A crash after the window has passed starts again at step 1. Every move in the game is already in IndexedDB
-//! (`engine/game-storage.ts`), so the reloaded page opens on Title with the game under "Continue". The same idea as the
-//! Linux hang watchdog (`hang_watchdog.rs`), for crashes rather than hangs. `MC_DISABLE_CRASH_RECOVERY=1` turns it off.
+//! A page that stops answering (WebView2 raises `RENDER_PROCESS_UNRESPONSIVE` again and again while it is hung) goes
+//! the same way once it has been reported twice within `UNRESPONSIVE_AGAIN`: one report can be a long synchronous load,
+//! two in a row are a hang.
+//!
+//! Safe mode lasts the rest of the session (the page's own reloads keep `?renderer=canvas` on the address) and is gone
+//! at the next launch. A crash after the window has passed starts again at step 1.
+//!
+//! Every move in the game is already in IndexedDB (`engine/game-storage.ts`), so the reloaded page opens on Title with
+//! the game under "Continue". The same idea as the Linux hang watchdog (`hang_watchdog.rs`), for WebView2's page process.
+//! `MC_DISABLE_CRASH_RECOVERY=1` turns it off.
 // The decision logic is compiled (and tested) everywhere but only driven on Windows.
 #![cfg_attr(not(windows), allow(dead_code))]
 
@@ -19,6 +26,8 @@ use std::time::{Duration, Instant};
 
 /// A crash this soon after a recovery counts as the recovered page crashing again.
 pub const CRASH_AGAIN_WINDOW: Duration = Duration::from_secs(60);
+/// A second unresponsive report this soon after the first counts as a hang.
+pub const UNRESPONSIVE_AGAIN: Duration = Duration::from_secs(30);
 /// The environment variable that turns recovery off.
 const DISABLE_ENV: &str = "MC_DISABLE_CRASH_RECOVERY";
 
@@ -83,18 +92,22 @@ pub fn start(_app: &tauri::AppHandle) {}
 
 #[cfg(windows)]
 mod windows_impl {
-  use super::{disabled, safe_mode_url, Recoveries, Recovery};
+  use super::{disabled, safe_mode_url, Recoveries, Recovery, UNRESPONSIVE_AGAIN};
   use std::sync::Mutex;
   use std::time::Instant;
   use tauri::Manager;
   use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2, ICoreWebView2ProcessFailedEventArgs2, COREWEBVIEW2_PROCESS_FAILED_KIND,
-    COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED,
+    COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED, COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE,
   };
   use webview2_com::{take_pwstr, ProcessFailedEventHandler};
   use windows_core::{Interface, PCWSTR, PWSTR};
 
   static RECOVERIES: Mutex<Option<Recoveries>> = Mutex::new(None);
+  /// The page's address when watching began: where safe mode goes if WebView2 can't say where the page was.
+  static START_URL: Mutex<Option<String>> = Mutex::new(None);
+  /// The last unresponsive report, if the page has not been recovered since.
+  static LAST_UNRESPONSIVE: Mutex<Option<Instant>> = Mutex::new(None);
 
   /// Hooks `ProcessFailed` on the main window's WebView2.
   pub fn start(app: &tauri::AppHandle) {
@@ -106,6 +119,9 @@ mod windows_impl {
       log::warn!("crash recovery: no main window to watch");
       return;
     };
+    if let Ok(url) = window.url() {
+      *START_URL.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(url.to_string());
+    }
     let result = window.with_webview(|webview| {
       let core = match unsafe { webview.controller().CoreWebView2() } {
         Ok(core) => core,
@@ -117,8 +133,24 @@ mod windows_impl {
         };
         let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
         unsafe { args.ProcessFailedKind(&mut kind)? };
-        // Only the page's own process: a GPU process crash is recovered by WebView2 itself, and a browser process
-        // crash takes the whole WebView2 with it.
+        if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE {
+          let now = Instant::now();
+          let hung = {
+            let mut last = LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let hung = last.is_some_and(|at| now.saturating_duration_since(at) < UNRESPONSIVE_AGAIN);
+            *last = Some(now);
+            hung
+          };
+          if !hung {
+            log::warn!("crash recovery: the page is not responding; waiting to see if it comes back");
+            return Ok(());
+          }
+          recover(&core, None);
+          return Ok(());
+        }
+        // Otherwise only the page's own process exiting: a GPU process crash shows in the page as a lost WebGL context
+        // (ui/startup-watchdog.ts), a frame's process only hosts iframes, and a browser process crash takes the whole
+        // WebView2 with it.
         if kind != COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
           log::warn!("crash recovery: WebView2 process failed (kind {}); left to WebView2", kind.0);
           return Ok(());
@@ -127,7 +159,7 @@ mod windows_impl {
         if let Ok(args2) = args.cast::<ICoreWebView2ProcessFailedEventArgs2>() {
           let _ = unsafe { args2.ExitCode(&mut exit_code) };
         }
-        recover(&core, exit_code);
+        recover(&core, Some(exit_code));
         Ok(())
       }));
       let mut token = 0i64;
@@ -140,17 +172,22 @@ mod windows_impl {
     }
   }
 
-  fn recover(core: &ICoreWebView2, exit_code: i32) {
+  /// `exit_code` is None for a hang rather than an exit.
+  fn recover(core: &ICoreWebView2, exit_code: Option<i32>) {
+    *LAST_UNRESPONSIVE.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
     let decision = RECOVERIES
       .lock()
       .unwrap_or_else(|poisoned| poisoned.into_inner())
       .get_or_insert_with(Recoveries::default)
       .on_crash(Instant::now());
-    // The exit code as Windows writes it (0x80000003 is STATUS_BREAKPOINT).
-    let code = exit_code as u32;
+    // The exit code as Windows writes it (0x80000003 is STATUS_BREAKPOINT), or "hung".
+    let code = match exit_code {
+      Some(code) => format!("{:#010x}", code as u32),
+      None => "hung".to_string(),
+    };
     match decision {
       Recovery::Reload => {
-        log::warn!("crash recovery: the page's process exited ({code:#010x}); reloading the page");
+        log::warn!("crash recovery: the page's process exited or hung ({code}); reloading the page");
         if let Err(error) = unsafe { core.Reload() } {
           log::warn!("crash recovery: reload failed: {error}");
         }
@@ -161,15 +198,21 @@ mod windows_impl {
           Ok(()) => take_pwstr(source),
           Err(_) => String::new(),
         };
-        let url = safe_mode_url(if current.is_empty() { "http://tauri.localhost/" } else { &current });
-        log::warn!("crash recovery: the page crashed again ({code:#010x}); loading it in safe mode: {url}");
+        let base = if current.is_empty() {
+          let start = START_URL.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
+          start.unwrap_or_else(|| "http://tauri.localhost/".to_string())
+        } else {
+          current
+        };
+        let url = safe_mode_url(&base);
+        log::warn!("crash recovery: the page failed again ({code}); loading it in safe mode: {url}");
         let wide: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
         if let Err(error) = unsafe { core.Navigate(PCWSTR::from_raw(wide.as_ptr())) } {
           log::warn!("crash recovery: safe mode load failed: {error}");
         }
       }
       Recovery::GiveUp => {
-        log::error!("crash recovery: the page crashed again in safe mode ({code:#010x}); leaving the error page up");
+        log::error!("crash recovery: the page failed again in safe mode ({code}); leaving it as it is");
       }
     }
   }
