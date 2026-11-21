@@ -352,15 +352,18 @@ export class McVirtualList {
     };
   }
 
-  /** Scrolls the minimum distance to bring row `index` fully on screen. */
-  scrollIntoView(index: number): void {
+  /**
+   * Scrolls the minimum distance to bring row `index` fully on screen, or only `span` of it (its top and height inside
+   * the row), for a row taller than the list that holds several stops stacked (the Stats Overview's showcase).
+   */
+  scrollIntoView(index: number, span?: { readonly y: number; readonly height: number }): void {
     if (!this.#rowHeightOf) {
       if (this.#scroll.scrollIntoView(index, this.#count, this.#rowHeight, this.#rect.height))
         this.#redrawWindow(false);
       return;
     }
-    const top = this.#topOf(index);
-    const bottom = top + this.#heightOf(index);
+    const top = this.#topOf(index) + (span?.y ?? 0);
+    const bottom = top + (span?.height ?? this.#heightOf(index));
     const offset = this.#scroll.offsetPx;
     const delta =
       top < offset ? top - offset : bottom > offset + this.#rect.height ? bottom - offset - this.#rect.height : 0;
