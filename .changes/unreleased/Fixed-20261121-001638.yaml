@@ -1,3 +1,0 @@
-kind: Fixed
-body: Install for Steam on Windows no longer stops with 'drive "C does not exist' when the game's registry entry keeps its install path in quotes (#933)
-time: 2026-11-21T00:16:38.5897547-05:00

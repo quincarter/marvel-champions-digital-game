@@ -1,4 +1,5 @@
 mod app_volume;
+mod crash_recovery;
 mod discord_presence;
 mod display_mode;
 mod gamepad_bridge;
@@ -151,6 +152,8 @@ pub fn run(context: tauri::Context<tauri::Wry>) {
       }
       // Linux: reloads the page if WebKit's web process hangs for good (hang_watchdog.rs).
       hang_watchdog::start(app.handle());
+      // Windows: reloads the page if WebView2's page process crashes, then a safe mode (crash_recovery.rs, #932).
+      crash_recovery::start(app.handle());
       Ok(())
     })
     .build(context)

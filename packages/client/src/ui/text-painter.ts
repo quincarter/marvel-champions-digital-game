@@ -55,7 +55,8 @@ export interface PainterDeps {
 export interface CrashGuardLike {
   skip(): boolean;
   starting(): void;
-  working(): void;
+  working(jobs?: number): void;
+  answered(jobs?: number): void;
   settled(): void;
 }
 
@@ -203,12 +204,12 @@ export class TextPainter {
         this.#armIdle();
         return;
       case "painted":
-        this.#deps.guard?.settled();
+        this.#deps.guard?.answered(message.results.length);
         for (const result of message.results) this.#arrived.push(result);
         this.#scheduleApply();
         return;
       case "failed":
-        this.#deps.guard?.settled();
+        this.#deps.guard?.answered(message.ids.length);
         for (const id of message.ids) this.#paintHere(id);
         this.#armIdle();
         return;
@@ -221,7 +222,7 @@ export class TextPainter {
     const jobs = this.#queue.filter((job) => this.#pending.has(job.id));
     this.#queue = [];
     if (jobs.length === 0) return;
-    this.#deps.guard?.working();
+    this.#deps.guard?.working(jobs.length);
     this.#worker.postMessage({ type: "paint", jobs });
   }
 
