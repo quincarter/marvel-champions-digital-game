@@ -1609,6 +1609,39 @@ export type TriggerEventBody =
       readonly how?: "effect" | "cost";
     }
   /**
+   * A card was discarded from a player's hand by a card's ability (issue #922): "Response: After an identity-specific
+   * card is discarded by an ability, tuck that card under here from your discard pile" (the Hulk house rule pack
+   * `hulk-angry-bf`). The hand's counterpart of `cardDiscardedFromDeck`, and the "after" of `cardBeingDiscarded`'s
+   * "when … would". `instanceId` is the card ("that card", `eventTarget`), now in a discard pile; `playerId` the player
+   * whose hand held it (`eventPlayer`), `sourceInstanceId` the card whose ability discarded it (`eventSource`).
+   *
+   * The cause is two fields, as on `tuckedCardDiscarded`: `by` is the side of the discarding card (`LeaveCauseSide`,
+   * `leaveCauseSide`, read from the source card), **whether as its ability's effect or as its cost**, and `how` says
+   * which. `to` is always `"discard"`, so one `eventIs: { to: "discard", by }` reads this event, `cardBeingDiscarded`
+   * and `cardLeavesPlay` alike.
+   *
+   * Which discards: an `EffectSpec discardFromHand` (chosen or random, the "would" window's discard included), a
+   * `moveCards` to the discard pile of a card in a hand, a cost that discards cards from a hand (chosen or random) and
+   * the "discard this card from your hand to play …" additional cost, each card its own event. **Not** heard: the cards
+   * spent to pay a cost (RRG 1.8 "Resource", p. 37: spent, not discarded by an ability), the discard down to hand size
+   * and a mulligan (the game's own steps), and a manual adjustment.
+   *
+   * Response only: announced after the card has reached its discard pile, between frames (`announceHandDiscards`), so
+   * the cards one effect or one cost discarded share one response window (RRG 1.8 "Discard", p. 16: "Responses to the
+   * discarding of any of those cards are resolved after all discards are made"; "Triggering Condition", p. 45). A
+   * response that takes the card out of the discard pile leaves nothing for another to act on (`handDiscardStillThere`).
+   * Recorded (`recordHandDiscard`) only when an ability in the registry listens.
+   */
+  | {
+      readonly kind: "cardDiscardedFromHand";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly to: "discard";
+      readonly sourceInstanceId: InstanceId | null;
+      readonly by?: LeaveCauseSide;
+      readonly how: "effect" | "cost";
+    }
+  /**
    * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
    * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
    * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
@@ -2282,9 +2315,16 @@ export type LeaveCauseSide = "encounterCard" | "playerCard";
  * through `moveCardsTo`. `boundOn`: the set the discarding ability keeps of the cards "discarded this way"
  * (`DeckDiscard.boundOn`); a card whose discard is replaced leaves it.
  */
-export type OutOfPlayDiscard =
+export type OutOfPlayDiscard = (
   | { readonly kind: "hand"; readonly random?: true }
-  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] };
+  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] }
+) & {
+  /**
+   * The effects frame making this discard, so a response to a card it discards from a hand waits for the effect's
+   * other discards (`cardDiscardedFromHand`, issue #922). Set only when an ability hears that event.
+   */
+  readonly madeBy?: FrameId;
+};
 
 /**
  * What a tucked card's host is (`TriggerEvent cardBeingTucked.under`, `tuckedCardDiscarded.under`): an identity card
@@ -2738,6 +2778,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     // The discarded card is the target ("this card", "that card"); the deck's player is "you"; the discarding card the
     // source.
     case "cardDiscardedFromDeck":
+      return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
+    // The discarded card is the target ("that card"); the hand's player is "you"; the discarding card the source.
+    case "cardDiscardedFromHand":
       return of([event.sourceInstanceId], [event.instanceId], [event.playerId]);
     case "cardLeavesPlay":
       return of([], [event.instanceId], [event.controllerId ?? event.speakerId ?? null]);

@@ -162,11 +162,20 @@ export function applyWouldDiscard(ctx: Ctx, event: BeingDiscarded): boolean {
     return false;
   }
   if (event.discard.kind === "hand") {
-    discardFromHand(ctx, event.playerId, event.instanceId);
+    discardFromHand(ctx, event.playerId, event.instanceId, {
+      sourceInstanceId: event.sourceInstanceId,
+      ...(event.sourceCardId !== undefined ? { sourceCardId: event.sourceCardId } : {}),
+      how: "effect",
+      ...(event.discard.madeBy !== undefined ? { madeBy: event.discard.madeBy } : {}),
+    });
     return true;
   }
   const { boundOn } = event.discard;
-  const by: DeckDiscarder = { sourceInstanceId: event.sourceInstanceId, ...(boundOn ? { boundOn } : {}) };
+  const by: DeckDiscarder = {
+    sourceInstanceId: event.sourceInstanceId,
+    ...(boundOn ? { boundOn } : {}),
+    ...(event.discard.madeBy !== undefined ? { madeBy: event.discard.madeBy } : {}),
+  };
   moveCardsTo(ctx, [event.instanceId], "discard", undefined, event.sourceCardId, by);
   if (boundOn) recountDeckDiscardIcons(ctx, boundOn.frameId, boundOn.slot);
   return true;

@@ -92,6 +92,7 @@ import {
   changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
+  listensForHandDiscard,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import { changeFormTarget } from "../form-change-target.js";
@@ -2223,13 +2224,19 @@ function executeDiscardFromHand(
       // docs/phase7-wave9.md §4.1 Q20; `resolve/would-discard.ts`) waits for that window; the next player is asked
       // once those have resolved, when this effect is run again.
       const self = frame.selfInstanceId;
+      const by = {
+        sourceInstanceId: self,
+        sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined,
+        how: "effect",
+        ...(listensForHandDiscard(ctx.deps) ? { madeBy: frame.frameId } : {}),
+      } as const;
       const { now, waiting } = splitWouldDiscard(
         ctx,
         frame.answer.map((optionId) => asInstanceId(optionId)),
-        { sourceInstanceId: self, sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined },
-        { kind: "hand" },
+        by,
+        { kind: "hand", ...(by.madeBy !== undefined ? { madeBy: by.madeBy } : {}) },
       );
-      for (const id of now) discardFromHand(ctx, answering, id);
+      for (const id of now) discardFromHand(ctx, answering, id, by);
       if (waiting.length > 0) {
         setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
         pushEvents(ctx, waiting);

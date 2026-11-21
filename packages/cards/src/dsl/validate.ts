@@ -814,6 +814,10 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
       );
     if (definition.cost) problems.push("an ability of a tucked card has no cost");
   }
+  // A card discarded from a hand is announced once it is in the discard pile (issue #922): "when … would" is
+  // `cardBeingDiscarded`.
+  if (trigger.kind === "interrupt" && patternKinds(trigger.on).includes("cardDiscardedFromHand"))
+    problems.push("cardDiscardedFromHand is response-only: when a card would be discarded is on.cardBeingDiscarded");
   // A tuck about to happen has no response window (docs/phase7-wave9.md §3.40 (a)): "after" has nothing to answer.
   if (trigger.kind === "response") {
     const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
