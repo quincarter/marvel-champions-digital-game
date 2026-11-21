@@ -63,7 +63,7 @@ const PROMPT_TYPE: TypeSpec = { ...typeRole.emphasis, size: 12 };
 
 /** The Epic pod strip (#882): lines of words under the bar, with a Tables button on its first line. */
 export interface ChromePodStrip {
-  readonly lines: readonly { readonly text: string; readonly alert: boolean }[];
+  readonly lines: readonly { readonly text: string; readonly alert: boolean; readonly continued?: boolean }[];
   readonly lineHeight: number;
   readonly button: { readonly label: string; readonly onPress: () => void; readonly onRect: (rect: Rect) => void };
 }
@@ -354,15 +354,16 @@ function drawPodStrip(scene: Phaser.Scene, row: Rect, strip: ChromePodStrip, but
     const height = index === 0 ? Math.max(strip.lineHeight, STRIP_BUTTON) : strip.lineHeight;
     const right = index === 0 ? buttonRect.x - 6 : row.x + row.width - 8;
     if (line.alert) g.fillStyle(surface.paper.hex, 1).fillRect(row.x + 4, y, row.width - 8, height);
-    const text = scene.add
-      .text(
-        row.x + 10,
-        y + height / 2,
-        (line.alert ? "⚠ " : "") + line.text,
-        textStyle(STRIP_TYPE, line.alert ? surface.ink.hex : surface.paper.hex),
-      )
-      .setOrigin(0, 0.5);
-    clipLine(text, right - row.x - 10);
+    // One marker for a wrapped paragraph: its first line carries it, the others hang-indent under the words.
+    const colour = line.alert ? surface.ink.hex : surface.paper.hex;
+    let textX = row.x + 10;
+    if (line.alert) {
+      const mark = scene.add.text(textX, y + height / 2, "⚠ ", textStyle(STRIP_TYPE, colour)).setOrigin(0, 0.5);
+      if (line.continued) mark.setVisible(false);
+      textX += mark.width;
+    }
+    const text = scene.add.text(textX, y + height / 2, line.text, textStyle(STRIP_TYPE, colour)).setOrigin(0, 0.5);
+    clipLine(text, right - textX);
     scene.add.zone(row.x, y, row.width, height).setOrigin(0, 0).setName(line.text);
     y += height;
   });

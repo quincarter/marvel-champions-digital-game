@@ -50,3 +50,54 @@ describe("competitiveStripOf", () => {
     expect(text).not.toMatch(/cardId|hand":\[/);
   });
 });
+
+describe("competitiveStripOf on a narrow screen", () => {
+  const captain = board({
+    other: {
+      ...board().other,
+      leader: { name: "Captain America", hp: { current: 14, max: 14 }, instanceId: "i1" as never },
+    },
+  });
+
+  test("the leader's name and HP stay on one line, whatever the width", () => {
+    for (const width of [32, 39, 60]) {
+      const lines = competitiveStripOf(captain, width).lines.map((l) => l.text);
+      expect(lines.some((text) => text.includes("Leader: Captain America 14/14 HP"))).toBe(true);
+    }
+  });
+
+  test("the table title stands alone when the leader does not fit beside it", () => {
+    const lines = competitiveStripOf(captain, 39).lines.map((l) => l.text);
+    expect(lines[0]).toBe("Resistance table:");
+    expect(lines[1]).toBe("Leader: Captain America 14/14 HP");
+  });
+
+  test("a wrapped inactive banner marks its first line only, the rest are continued", () => {
+    const lines = competitiveStripOf({ ...captain, inactive: true }, 39).lines.filter((l) => l.tone === "alert");
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines[0]!.continued).toBeUndefined();
+    expect(lines.slice(1).every((l) => l.continued === true)).toBe(true);
+  });
+});
+
+describe("a hero too long for a line breaks before its hand count", () => {
+  test("name and hit points first, then the count", () => {
+    const wide = board({
+      other: {
+        ...board().other,
+        heroes: [
+          {
+            playerId: "p2" as never,
+            name: "Spider-Man (Peter Parker)",
+            hp: { current: 10, max: 10 },
+            handCount: 6,
+            eliminated: false,
+          },
+        ],
+      },
+    });
+    const lines = competitiveStripOf(wide, 33).lines.map((l) => l.text);
+    expect(lines).toContain("Spider-Man (Peter Parker) 10/10");
+    expect(lines).toContain("(6 in hand)");
+  });
+});

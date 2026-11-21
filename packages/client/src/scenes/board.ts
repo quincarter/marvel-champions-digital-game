@@ -1858,7 +1858,11 @@ export class BoardScene extends Phaser.Scene {
         ...(podStrip
           ? {
               podStrip: {
-                lines: podStrip.lines.map((l) => ({ text: l.text, alert: l.tone === "alert" })),
+                lines: podStrip.lines.map((l) => ({
+                  text: l.text,
+                  alert: l.tone === "alert",
+                  ...(l.continued ? { continued: true } : {}),
+                })),
                 lineHeight: POD_LINE,
                 button: {
                   label:

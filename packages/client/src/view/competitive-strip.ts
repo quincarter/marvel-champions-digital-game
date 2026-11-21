@@ -7,7 +7,7 @@
 import { t } from "../i18n/translate.js";
 import type { CompetitiveBoard } from "./board-model.js";
 import { hpFraction } from "./hp-format.js";
-import { wrapLine, type PodStrip, type PodStripLine } from "./pod-strip.js";
+import { packItems, wrapLine, type PodStrip, type PodStripLine } from "./pod-strip.js";
 
 /** A `PodStrip` that also names the leader its button inspects. */
 export interface CompetitiveStrip extends PodStrip {
@@ -25,23 +25,24 @@ export function competitiveStripOf(board: CompetitiveBoard, maxChars: number): C
   const scheme = other.mainScheme
     ? t("comp.area.scheme", { threat: `${other.mainScheme.threat}/${other.mainScheme.target ?? "-"}` })
     : "";
-  const counts = [
+  const facts = [
+    leader,
+    scheme,
     t("comp.area.minions", { count: other.minionCount }),
     t("comp.area.sideSchemes", { count: other.sideSchemeCount }),
-  ].join(" · ");
-  const heroes = other.heroes
-    .map(
-      (hero) =>
-        `${hero.name}${hero.hp ? ` ${hpFraction(hero.hp.current, hero.hp.max)}` : ""} (${t("comp.area.hand", { count: hero.handCount })})`,
-    )
-    .join(", ");
+  ].filter((x) => x !== "");
+  const heroes = other.heroes.map(
+    (hero) =>
+      `${hero.name}${hero.hp ? ` ${hpFraction(hero.hp.current, hero.hp.max)}` : ""} (${t("comp.area.hand", { count: hero.handCount })})`,
+  );
+  // Packed by item, not by word: the leader's name and each hero stay on one line; a narrow screen gets a line per item.
   const lines: PodStripLine[] = [
-    line(`${t("comp.area.title", { side })}: ${[leader, scheme, counts].filter((x) => x !== "").join(" · ")}`),
-    line(heroes),
+    ...packItems(facts, " · ", maxChars, `${t("comp.area.title", { side })}:`).map((text) => line(text)),
+    ...packItems(heroes, ", ", maxChars).map((text) => line(text)),
   ];
-  if (board.inactive) lines.push(line(t("comp.inactive.banner"), "alert"));
+  const alert = board.inactive ? wrapLine(line(t("comp.inactive.banner"), "alert"), maxChars) : [];
   return {
-    lines: lines.flatMap((l) => wrapLine(l, maxChars)),
+    lines: [...lines, ...alert],
     targets: 0,
     flipped: false,
     leaderId: other.leader?.instanceId ?? null,
