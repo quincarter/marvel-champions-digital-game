@@ -83,10 +83,9 @@ const NEEDS = new WeakMap<AbilityDefinition, boolean>();
  * effects does (`partNeedsCard`). An ability with no part is kept. Without `judge`, read from the effects alone and
  * remembered per definition; `lostWithDiscardedCard` passes one, to read a condition on the card as the game stands.
  *
- * Engine interpretation (authority step 5; no source settles it): an amount read from the card ("for each [mental]
- * resource discarded", The Shadow King 45180a) counts as needing it. Those are forced Mission Responses, resolved
- * before any optional response can move the card, so only a forced response that takes a card first (Abyss 45181a)
- * reaches the case: a card printing [wild] and [mental] is then not counted by The Shadow King, as before #928.
+ * An amount read from the card does not make a part need it (`AMOUNT_KINDS`): the part resolves with the amount
+ * left. So The Shadow King (45180a) and Sugar Man (45182a) still resolve after Abyss (45181a) took a card, counting
+ * nothing for it: a mission attempt's card a response took "does not count" (April 30, 2026 - Ruling 4, answer 1).
  */
 export function needsDiscardedCard(definition: AbilityDefinition | undefined, judge?: Judge): boolean {
   if (!definition) return false;
@@ -136,7 +135,7 @@ function partNeedsCard(effect: EffectSpec, slots: readonly string[], judge?: Jud
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
   const otherwise = effect.otherwise ?? [];
-  const told = judge && namesCard(effect.condition, slots) && !readsOwnBindings(effect.condition);
+  const told = judge && conditionReadsCard(effect.condition, slots) && !readsOwnBindings(effect.condition);
   const reachable = told ? [judge(effect.condition) ? effect.then : otherwise] : [effect.then, otherwise];
   if (reachable.every((branch) => branch.length === 0)) return true;
   const branches = reachable.filter((branch) => branch.length > 0);
@@ -162,17 +161,92 @@ function inline(effects: readonly EffectSpec[]): readonly EffectSpec[] {
   );
 }
 
-/** Whether `value` names the discarded card: `eventTarget`, the `together` targets, or one of `slots`. */
-function namesCard(value: unknown, slots: readonly string[]): boolean {
-  if (Array.isArray(value)) return value.some((item) => namesCard(item, slots));
+/**
+ * The `ValueSpec` kinds: an amount. One read from the discarded card ("for each [mental] resource discarded", "1 plus
+ * that card's cost") reads nothing once the card has gone, and the effect still resolves with what is left, so it is
+ * not what makes an effect need the card (#928, Codex review). The effect's own subjects are.
+ */
+const AMOUNT_KINDS: ReadonlySet<string> = new Set([
+  "accelerationTokens",
+  "accusationWrongGuesses",
+  "activationOrder",
+  "boostIcons",
+  "campaignLog",
+  "chosenMainSchemeValue",
+  "conditional",
+  "const",
+  "count",
+  "countInRef",
+  "counters",
+  "damage",
+  "dealtEncounterCount",
+  "deckCount",
+  "defeatExcessDamage",
+  "defeatExcessThreat",
+  "distinctAspects",
+  "distinctCardTypes",
+  "distinctTraits",
+  "eventAmount",
+  "eventResult",
+  "groupPlayerCount",
+  "handCount",
+  "handSize",
+  "hiddenPileCount",
+  "highestStat",
+  "hitPoints",
+  "iconsInPlay",
+  "largestHandTypeGroup",
+  "mainSchemeStageNumber",
+  "max",
+  "min",
+  "paidTypeCount",
+  "perPlayer",
+  "printedCost",
+  "printedHp",
+  "product",
+  "refCount",
+  "remainingHp",
+  "resourceTypes",
+  "revealedPileCardCount",
+  "scaled",
+  "scenarioAreaCount",
+  "setAsideModularSetCount",
+  "starIcons",
+  "stat",
+  "statusCount",
+  "sum",
+  "taggedAbilities",
+  "threat",
+  "totalPrintedCost",
+  "totalPrintedResources",
+  "traitNumber",
+  "tuckedUnder",
+  "var",
+  "victoryCondition",
+  "victoryDisplayCount",
+  "villainStageNumber",
+  "zoneCount",
+]);
+
+/**
+ * Whether `value` names the discarded card as what it acts on: `eventTarget`, the `together` targets, or one of
+ * `slots`. Amounts nested in it are not read (`AMOUNT_KINDS`); the value itself may be a condition (`if`).
+ */
+function namesCard(value: unknown, slots: readonly string[], nested = false, amounts = false): boolean {
+  if (Array.isArray(value)) return value.some((item) => namesCard(item, slots, true, amounts));
   if (value === null || typeof value !== "object") return false;
   const record = value as Readonly<Record<string, unknown>>;
+  if (nested && !amounts && typeof record.kind === "string" && AMOUNT_KINDS.has(record.kind)) return false;
   if (record.kind === "eventTarget") return true;
   if (record.kind === "slot" && (record.slot === TOGETHER_TARGETS_SLOT || slots.includes(record.slot as string)))
     return true;
   if (typeof record.inSlot === "string" && slots.includes(record.inSlot)) return true;
-  return Object.values(record).some((item) => namesCard(item, slots));
+  return Object.values(record).some((item) => namesCard(item, slots, true, amounts));
 }
+
+/** Whether a condition reads the discarded card at all, amounts included ("if that card's cost is 2 or less"). */
+const conditionReadsCard = (condition: unknown, slots: readonly string[]): boolean =>
+  namesCard(condition, slots, false, true);
 
 /** The targets of the discards a `together` answer answers, without those whose cards have since gone (#928). */
 export function stillDiscardedTargets(state: GameState, events: readonly TriggerEvent[]): readonly InstanceId[] {

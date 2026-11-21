@@ -28,6 +28,22 @@ describe("needsDiscardedCard", () => {
     expect(needsDiscardedCard(ability([draw]))).toBe(false);
   });
 
+  it("an amount read from that card is not what needs it: '1 plus that card's cost' still draws", () => {
+    const plusCost: EffectSpec = {
+      kind: "draw",
+      player: you,
+      amount: { kind: "sum", of: [n(1), { kind: "printedCost", of: that }] } as never,
+    };
+    expect(needsDiscardedCard(ability([plusCost]))).toBe(false);
+    const forEachIcon: EffectSpec = {
+      kind: "addCounters",
+      target: self,
+      counterType: "threat",
+      amount: { kind: "totalPrintedResources", of: that, types: ["mental"] } as never,
+    };
+    expect(needsDiscardedCard(ability([forEachIcon]))).toBe(false);
+  });
+
   it("every part must need it: 'draw 1 card and attach that card' keeps its draw", () => {
     expect(needsDiscardedCard(ability([draw, tuck]))).toBe(false);
   });
