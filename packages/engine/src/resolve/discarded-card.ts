@@ -10,7 +10,7 @@
  *   `activeIn: "discard"`), taken out of the pile first. RRG 1.8 FAQ "Honey Badger" (p. 64);
  * - **every part of it needs that card**, and the card is gone: "attach that card facedown here" (The Painted Lady),
  *   "tuck that card under here" (Don't Make Me Angry!), "deal that card as an encounter card" (Serpent Solutions).
- *   RRG 1.8 "Ability" (p. 4: an ability needs the potential to change the game state), "Choose" (p. 12) and the FAQ
+ *   RRG 1.8 "Ability" (p. 4: it "can only be initiated if it has at least one valid target"), "Choose" (p. 12) and the FAQ
  *   "Redwing" (p. 65).
  *
  * A response that does something else ("draw 1 card", "deal 1 damage to an enemy") keeps it, as ruling June 2, 2026 -
@@ -79,6 +79,9 @@ export function lostWithDiscardedCard(
     definition?.cost || (definition?.costEffects ?? 0) > 0
       ? needsDiscardedCard(definition)
       : needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
+  // Forced ones too: RRG 1.8 "Forced" (p. 20), a forced ability with no valid target does not initiate; the card another
+  // response moved is no longer a valid "that card" (Ability p. 4, Target p. 42; She-Hulk Superhuman Strength ruling,
+  // May 25, 2023; Pacification, June 17, 2025: the first forced ability used the targets, the second cannot initiate).
   if (needs) return true;
   // What it does without the card still needs a valid target: an optional response picked in the same window as the
   // one that moved the card is judged again before it is initiated (RRG 1.8 "Ability", p. 4; "Choose", p. 12), "that

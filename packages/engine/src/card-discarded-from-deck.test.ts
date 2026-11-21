@@ -179,6 +179,20 @@ const EITHER_RESPONSE = stubAbility(
     ],
   }),
 );
+// Two forced responses that each act on "that card": once one has moved it, the other has no valid target.
+const forcedOn = (id: string, effect: EffectSpec): StubAbility =>
+  stubAbility(id, def({ trigger: { kind: "response", forced: true, on: youDiscard }, effects: [effect] }));
+const GRAB_RESPONSE = forcedOn("grab.forced-response", {
+  kind: "moveCards",
+  cards: { kind: "ref", ref: { kind: "eventTarget" } },
+  to: "hand",
+});
+const PIN_RESPONSE = forcedOn("pin.forced-response", {
+  kind: "attach",
+  card: { kind: "eventTarget" },
+  to: self,
+  facedown: true,
+});
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -210,6 +224,8 @@ const RELAY = stubSupport({ id: "relay", cost: 0, abilities: [RELAY_RESPONSE.ref
 const MISSED = stubSupport({ id: "missed", cost: 0, abilities: [MISSED_RESPONSE.ref] });
 const THERE = stubSupport({ id: "there", cost: 0, abilities: [THERE_RESPONSE.ref] });
 const EITHER = stubSupport({ id: "either", cost: 0, abilities: [EITHER_RESPONSE.ref] });
+const GRAB = stubSupport({ id: "grab", cost: 0, abilities: [GRAB_RESPONSE.ref] });
+const PIN = stubSupport({ id: "pin", cost: 0, abilities: [PIN_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -295,6 +311,8 @@ const deps: EngineDeps = depsOf(
   MISSED_RESPONSE,
   THERE_RESPONSE,
   EITHER_RESPONSE,
+  GRAB_RESPONSE,
+  PIN_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -312,6 +330,8 @@ type InPlay =
   | "missed"
   | "there"
   | "either"
+  | "grab"
+  | "pin"
   | "batch"
   | "costly"
   | "guard";
@@ -352,6 +372,8 @@ function start(
       MISSED,
       THERE,
       EITHER,
+      GRAB,
+      PIN,
       BATCH,
       METER,
       GUARD,
@@ -376,6 +398,8 @@ function start(
       MISSED.id,
       THERE.id,
       EITHER.id,
+      GRAB.id,
+      PIN.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -823,6 +847,19 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
     expect(resolved(dropped.events, EITHER_RESPONSE)).toEqual([]);
     expectReplays(kept);
     expectReplays(dropped);
+  });
+
+  it("two forced responses on that card: once the first moved it, the second does not initiate", () => {
+    // RRG 1.8 "Forced" (p. 20): a forced ability with no valid target does not initiate.
+    const table = start(["filler", "filler"], { inPlay: ["grab", "pin"] });
+    const card = table.top[0]!;
+    const result = play(table, MILL_1);
+    const ran = [...resolved(result.events, GRAB_RESPONSE), ...resolved(result.events, PIN_RESPONSE)];
+    expect(ran).toHaveLength(1);
+    const inHand = seat(result.state).hand.includes(card);
+    const pinned = mustInstance(result.state, table.inPlay.pin!).attachments.includes(card);
+    expect(inHand !== pinned).toBe(true);
+    expectReplays(result);
   });
 
   it("'attach that card facedown here' still is not, beside one that is (the card it needs is gone)", () => {
