@@ -94,6 +94,18 @@ describe("WorkerCrashGuard (#932)", () => {
     expect(storage.getItem(KEY)).toBeNull();
   });
 
+  it("never lets an earlier start's settle timer clear a restart's mark", () => {
+    const storage = new MemoryStorage();
+    const { guard, timers } = page(storage);
+    guard.starting();
+    guard.settled(); // the first start painted
+    guard.starting(); // restarted after going idle, before the first start's timer fired
+    timers[0]!.fn(); // the first start's timer
+    expect(storage.getItem(KEY)).toBe("starting");
+    // The restart crashes the page: the next page skips the worker.
+    expect(page(storage).guard.skip()).toBe(true);
+  });
+
   it("tries the worker again once the app or WebView2 is updated", () => {
     const storage = new MemoryStorage();
     storage.setItem(KEY, WEBVIEW_158);

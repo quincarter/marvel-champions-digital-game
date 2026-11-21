@@ -62,6 +62,8 @@ export class WorkerCrashGuard {
   /** This page's decision, made at its first start. */
   #skipping: boolean | null = null;
   #leaveHooked = false;
+  /** Starts so far on this page; the latest is the one a settle timer may clear. */
+  #starts = 0;
 
   constructor(name: string, deps: GuardDeps | null = pageDeps()) {
     this.#key = KEY_PREFIX + name;
@@ -97,7 +99,12 @@ export class WorkerCrashGuard {
       this.#leaveHooked = true;
       this.#deps.onLeave(() => this.settled());
     }
-    this.#deps.setTimer(() => this.settled(), GUARD_SETTLE_MS);
+    // Only this start's own timer may settle it: an earlier start's timer firing after a restart must not clear the
+    // restart's mark.
+    const start = ++this.#starts;
+    this.#deps.setTimer(() => {
+      if (start === this.#starts) this.settled();
+    }, GUARD_SETTLE_MS);
   }
 
   /** The worker answered, stopped on terms the page saw, or the page outlived its start: no crash. */
