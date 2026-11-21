@@ -447,6 +447,41 @@ describe("scenarioWithPacks: refusals and options", () => {
       /not offered at a pack scenario/,
     );
   });
+  it("sets aside the authors' recommendedSetAsideModularSetIds when the seat picks none (#943)", () => {
+    const record = pack.scenarios![0] as never as Record<string, unknown>;
+    const content = { cards: pack.cards, encounterSets: pack.encounterSets!, scenarios: [] };
+    const withDefault = {
+      ...record,
+      setAsideModularSetCount: 1,
+      recommendedSetAsideModularSetIds: ["masters_of_evil"],
+    };
+    expect(customScenarioProblems(withDefault as never, content)).toEqual([]);
+    const changed = { ...pack, scenarios: [withDefault] } as unknown as PackInput;
+    const seat = { players: [{ starterDeckId: PRECON }], seed: 1 } as const;
+    for (const seed of [1, 2, 3]) {
+      const config = scenarioWithPacks(SCENARIO, { ...seat, seed }, [changed]);
+      expect(config.setAsideModularSets?.map((set) => set.encounterSetId)).toEqual(["masters_of_evil"]);
+    }
+    // The seat's own pick still wins; a recommended set the table shuffles in falls back to a seeded pick.
+    const picked = scenarioWithPacks(SCENARIO, { ...seat, setAsideModularSetIds: ["bomb_scare"] }, [changed]);
+    expect(picked.setAsideModularSets?.map((set) => set.encounterSetId)).toEqual(["bomb_scare"]);
+    const clash = scenarioWithPacks(SCENARIO, { ...seat, modularSetIds: ["masters_of_evil"] }, [changed]);
+    expect(clash.setAsideModularSets?.map((set) => set.encounterSetId)).not.toEqual(["masters_of_evil"]);
+    // A house-rule set is shuffled in too, so it is never the one set aside (Codex review).
+    for (const seed of [1, 2, 3]) {
+      const house = scenarioWithPacks(SCENARIO, { ...seat, seed, houseModularSetIds: ["masters_of_evil"] }, [changed]);
+      expect(house.setAsideModularSets?.map((set) => set.encounterSetId)).not.toContain("masters_of_evil");
+    }
+    const bad = (extra: Record<string, unknown>) =>
+      customScenarioProblems({ ...withDefault, ...extra } as never, content);
+    expect(bad({ recommendedSetAsideModularSetIds: ["masters_of_evil", "bomb_scare"] })).toContain(
+      "recommendedSetAsideModularSetIds: lists 2 sets, but 1 are set aside",
+    );
+    expect(bad({ recommendedSetAsideModularSetIds: [GEARS] })).toContain(
+      `recommendedSetAsideModularSetIds: "${GEARS}" is also shuffled in`,
+    );
+    expect(bad({ recommendedSetAsideModularSetIds: ["standard"] }).length).toBeGreaterThan(0);
+  });
   it("sets aside only what a modular pick could be: never the scenario's own, Standard or an empty set", () => {
     const record = pack.scenarios![0] as never as Record<string, unknown>;
     const EMPTY = "sample-scenario-empty";

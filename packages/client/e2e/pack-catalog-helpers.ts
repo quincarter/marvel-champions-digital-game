@@ -44,19 +44,25 @@ export interface StagedCatalog {
 }
 
 /** Builds the packs and the catalog that lists them, with every URL under `<origin>/e2e-packs/`. */
-export async function stageCatalog(origin: string, packIds: readonly string[]): Promise<StagedCatalog> {
+export async function stageCatalog(
+  origin: string,
+  packIds: readonly string[],
+  /** A pack's source folder when it is not `content-packs/community/<id>` (a spec's own changed copy). */
+  sourceDirs: Readonly<Record<string, string>> = {},
+): Promise<StagedCatalog> {
   const dir = mkdtempSync(join(tmpdir(), "mc-e2e-packs-"));
   const versions: Record<string, string> = {};
   const heroName: Record<string, string> = {};
   const sources: string[] = [];
   for (const id of packIds) {
-    const manifest = JSON.parse(readFileSync(join(COMMUNITY, id, "pack.json"), "utf8")) as {
+    const source = sourceDirs[id] ?? join(COMMUNITY, id);
+    const manifest = JSON.parse(readFileSync(join(source, "pack.json"), "utf8")) as {
       version: string;
       name: string;
     };
     versions[id] = manifest.version;
     heroName[id] = manifest.name;
-    const staged = stagePackSource(join(COMMUNITY, id), id);
+    const staged = stagePackSource(source, id);
     sources.push(staged.root);
     // The SDK is TypeScript ESM that Playwright's own loader cannot import, so the build runs as the `mc-pack` CLI does.
     execFileSync(process.execPath, [JITI, MC_PACK, "build", staged.src, "--out", join(dir, id, manifest.version)], {

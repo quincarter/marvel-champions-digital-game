@@ -142,7 +142,7 @@ Node-only, for tests (`src/smoke.ts`; `<sdk>/testing` in the published package):
 package's `npx mc-pack` starts in under a second.
 
 ```
-mc-pack validate <dir> [--allow-unscripted]
+mc-pack validate <dir> [--allow-unscripted] [--publish] [--skip-typecheck]
 mc-pack build <dir> --out <dir>
 mc-pack test <dir> [--games <n>] [--scenario rhino|klaw|ultron] [--max-commands <n>]
 mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
@@ -158,6 +158,14 @@ mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
 - Exit codes: 0 success, 1 the pack has a problem (invalid, fails to load, a smoke game failed), 2 a usage error.
 - `validate` lists real problems first and the `unscripted-ability` issues as their own group; `--allow-unscripted`
   passes a pack whose only issues are those. `build` and `test` never allow them.
+- `validate` first type-checks the pack's `abilities/` (`src/typecheck.ts`, issue #943): jiti strips types without
+  checking them, so `gainsKeyword("guard", …)` (a string where the DSL takes `{ name: "guard" }`) once loaded,
+  validated and then crashed a game. It runs `tsc --noEmit` (strict, bundler resolution, `skipLibCheck`) with a
+  tsconfig it writes to a temp folder, whose `paths` map `@mc/mod-sdk` and the published name to the SDK's own types,
+  and reports each error in the pack's own files as a problem at `abilities/<file>:<line>:<col>` (never as
+  unscripted). tsc is found from the SDK first (the published package depends on `typescript`), then from the pack's
+  folder; when there is none, validate fails and says so. `--skip-typecheck` leaves the check out. `build` and `test`
+  do not type-check.
 - `test` plays `--games` (default 3) games, standard mode, with the cards package's greedy driver (the one the sample
   packs' tests use), of: each deck in `decks/` against a Core scenario (default Rhino, with its recommended modular set);
   each of the pack's scenarios, in standard and in expert mode, with a base precon (Core Spider-Man) and the scenario's recommended modular set; each of
@@ -175,7 +183,9 @@ mc-pack import-marvelcdb <src> [--out <dir>] [--id <pack-id>] [--app <range>]
 `dist-npm/<name>-<version>.tgz` (both git-ignored):
 
 - `dist/`: an esbuild ESM bundle (index, build, import, testing and the `mc-pack` bin, sharing chunks) carrying the
-  engine, cards and content code, so it depends on none of the private `@mc/*` packages. Its one dependency is jiti.
+  engine, cards and content code, so it depends on none of the private `@mc/*` packages. Its dependencies are jiti
+  and `typescript` (the root's version, the one that wrote `types/`, for `validate`'s type check; a dependency rather
+  than a peer so a creator's own TypeScript version never conflicts with it).
   The `import` and `mc-pack` entries register the content package's MarvelCDB normalizer up front
   (`npm/register-normalizer.ts`), since a bundle has no `packages/content/scripts` to import at run time.
 - `types/`: tsc's declarations (`tsconfig.npm.json` maps `@mc/*` to the workspace sources so they are emitted too),

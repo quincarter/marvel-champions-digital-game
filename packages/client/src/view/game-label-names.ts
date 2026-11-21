@@ -123,10 +123,13 @@ export const TRACKER_EXPORT_NAMES: TrackerExportNames = {
     return scenario?.recommendedModularSetIds as readonly string[] | undefined;
   },
   // The Hood's builder sets aside the first N candidates (`wave4/setup.ts`); a per-player count (Mojo) is random.
-  defaultSetAsideSets: (scenarioId) => {
+  defaultSetAsideSets: (scenarioId, _players, packs) => {
     const scenario = POOL_SCENARIOS.find((candidate) => (candidate.id as string) === scenarioId);
-    return scenario && hasSetAsideModularChoice(scenario)
-      ? setAsideCandidateIdsFor(scenario).slice(0, scenario.setAsideModularSetCount as number)
-      : undefined;
+    if (scenario && hasSetAsideModularChoice(scenario))
+      return setAsideCandidateIdsFor(scenario).slice(0, scenario.setAsideModularSetCount as number);
+    // A pack scenario sets aside its authors' recommendation when the table picked none (#943).
+    const own = packScenarioRecords((packs ?? []) as readonly PackRuntime[]);
+    const pack = own.find((candidate) => (candidate.id as string) === scenarioId);
+    return pack?.recommendedSetAsideModularSetIds as readonly string[] | undefined;
   },
 };

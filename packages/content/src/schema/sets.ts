@@ -632,6 +632,12 @@ export interface Scenario {
    * is restricted.
    */
   readonly setAsideModularSetCount?: number | PerPlayerCount;
+  /**
+   * The modular sets a scenario's authors set aside by default, as `recommendedModularSetIds` names the shuffled-in ones
+   * (#943: The Rose sets aside Running Interference, its mini-boss Tombstone). Only with a fixed-number
+   * `setAsideModularSetCount`, and exactly that many; the table may still choose others. Absent: chosen at random.
+   */
+  readonly recommendedSetAsideModularSetIds?: readonly EncounterSetId[];
   /** Where the modular sets (and set-aside modular sets) come from. Absent: any modular set. See `ModularSetPool`. */
   readonly modularSetPool?: ModularSetPool;
   /**

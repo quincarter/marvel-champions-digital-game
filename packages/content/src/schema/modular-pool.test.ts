@@ -89,6 +89,24 @@ describe("§3.63 validation", () => {
     );
   });
 
+  it("a recommended set-aside list matches a fixed count, never repeats and is not shuffled in (#943)", () => {
+    const ids = (...names: string[]) => names.map(encounterSetId);
+    const rose = { ...base, setAsideModularSetCount: 1, recommendedModularSetIds: ids("bomb_scare") };
+    expect(validateScenario({ ...rose, recommendedSetAsideModularSetIds: ids("masters_of_evil") }).errors).toEqual([]);
+    expect(validateScenario({ ...rose, recommendedSetAsideModularSetIds: ids("a", "b") }).errors).toContain(
+      "scenario recommendedSetAsideModularSetIds lists 2 sets, but 1 are set aside",
+    );
+    expect(
+      validateScenario({ ...rose, setAsideModularSetCount: 2, recommendedSetAsideModularSetIds: ids("a", "a") }).errors,
+    ).toContain("scenario recommendedSetAsideModularSetIds lists a set twice");
+    expect(validateScenario({ ...rose, recommendedSetAsideModularSetIds: ids("bomb_scare") }).errors).toContain(
+      "scenario recommendedSetAsideModularSetIds: bomb_scare is also shuffled in",
+    );
+    expect(validateScenario({ ...base, recommendedSetAsideModularSetIds: ids("a") }).errors).toContain(
+      "scenario recommendedSetAsideModularSetIds needs a whole-number setAsideModularSetCount",
+    );
+  });
+
   it("a pool is a non-empty list of distinct set ids with a boolean restricted", () => {
     expect(validateScenario({ ...base, modularSetPool: pool([]) }).errors).toContain(
       "scenario modularSetPool.setIds must be a non-empty list of encounter set ids",

@@ -97,6 +97,8 @@ import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import { choiceNoteOf, optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
 import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
+import { fallbackChoiceView, fallbackPages, toggleFallbackPick } from "../view/choice-fallback.js";
+import { recordError } from "../ui/error-log.js";
 import {
   chosenResourcesNoteOf,
   paymentSheetView,
@@ -570,9 +572,243 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     resetHoverCards(this);
     this.#hoverScrolled.clear();
-    this.#draw();
+    this.#fallbackStops = null;
+    this.#fallbackRing = null;
+    try {
+      this.#draw();
+    } catch (cause) {
+      // A draw that throws (a pack card's data the sheet cannot read, #943) has already torn the sheet down, with the
+      // engine still waiting on this decision: record it and offer the plain answers, so the game can go on.
+      recordError(cause, "decision sheet");
+      this.#drawFallback(cause);
+      return;
+    }
     // The draw destroyed the popover with the rest of the sheet: it comes back where the pointer still is.
     this.#hover?.onDraw();
+  }
+
+  /** The fallback's controls in reading order while it is up (null otherwise), and the one the keys have focused. */
+  #fallbackStops: { rect: Rect; press: () => void }[] | null = null;
+  #fallbackFocus = 0;
+  #fallbackFocusShown = false;
+  #fallbackRing: Phaser.GameObjects.Graphics | null = null;
+  /** The fallback's own picks and page, kept for the decision it belongs to across its redraws. */
+  #fallback: { choiceId: string; selected: readonly string[]; page: number } | null = null;
+
+  /**
+   * The sheet when `#draw` threw: the engine's own options as a plain list the player still decides from
+   * (`view/choice-fallback.ts`), paged to the screen so every answer can be reached on a phone.
+   */
+  #drawFallback(cause: unknown): void {
+    const choice = appSession().store.state.game?.pendingChoice;
+    for (const button of this.#buttons) button.destroy();
+    this.#buttons = [];
+    this.#focusRing?.destroy();
+    this.#focusRing = null;
+    this.#focusRects.clear();
+    destroyChildren(this);
+    this.#fallbackRing = null;
+    this.tweens.killAll();
+    this.#motion = new OverlayMotion();
+    if (!choice) return;
+    const choiceId = choice.choiceId as string;
+    if (this.#fallback?.choiceId !== choiceId) this.#fallback = { choiceId, selected: [], page: 0 };
+    const state = this.#fallback;
+    // The keyboard and the pad walk these too (`#onIntent`): a fallback only a pointer can answer is no way out.
+    const stops: { rect: Rect; press: () => void }[] = [];
+    const addButton = (options: ConstructorParameters<typeof McButton>[1]): void => {
+      this.#buttons.push(new McButton(this, options));
+      if (options.enabled !== false && options.onClick) stops.push({ rect: options.rect, press: options.onClick });
+    };
+    const redraw = (): void => this.#drawFallback(cause);
+    const answer = (ids: readonly string[]): void => void appSession().store.resolveChoice(ids);
+
+    const { width, height } = this.scale.gameSize;
+    this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(0, 0, width, height);
+    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
+    const sheetWidth = Math.min(width - 32, 480);
+    const x = (width - sheetWidth) / 2;
+    let y = Math.min(Math.max(16, height * 0.1), 80);
+    const title = this.add
+      .text(x, y, "This decision could not be drawn", textStyle(typeRole.barTitle, surface.paper.hex))
+      .setWordWrapWidth(sheetWidth);
+    y += title.height + 6;
+    // What is being decided, in the engine's own words where they can be read: the labels alone do not say it.
+    const game = appSession().store.state.game;
+    let question = "";
+    try {
+      question = game ? promptTitleOf(choice.prompt, gameDeps(), choice, game) : "";
+    } catch {
+      question = "";
+    }
+    if (!question) question = `Decision: ${choice.prompt.kind.replace(/([A-Z])/g, " $1").toLowerCase()}`;
+    const prompt = this.add
+      .text(x, y, question, textStyle({ ...typeRole.rowTitle, size: 15 }, surface.paper.hex))
+      .setWordWrapWidth(sheetWidth)
+      .setMaxLines(3);
+    y += prompt.height + 6;
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const orderNote = fallbackChoiceView(choice, []).ordered
+      ? "The order you tap is the order they resolve; tap one again to take it out. "
+      : "";
+    const note = this.add
+      .text(
+        x,
+        y,
+        `${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      )
+      .setWordWrapWidth(sheetWidth)
+      .setMaxLines(3);
+    y += note.height + 12;
+
+    const ROW = 40;
+    const GAP = 6;
+    const footerTop = height - 16 - ROW;
+    // A whole-number report (a break's minutes) has no options to list: a − / + stepper and Confirm answer it.
+    const report = reportNumberEntryOf(choice);
+    if (report) {
+      const value = reportValueOf(report, state.selected);
+      const step = (delta: number): void => {
+        state.selected = reportAnswerOf(report, value + delta);
+        redraw();
+      };
+      const side = Math.min(96, sheetWidth / 4);
+      addButton({
+        kind: "onInk",
+        label: "−",
+        type: typeRole.label,
+        rect: { x, y, width: side, height: ROW },
+        onClick: () => step(-1),
+      });
+      this.add
+        .text(
+          x + sheetWidth / 2,
+          y + ROW / 2,
+          `${value} ${report.unit}`,
+          textStyle(typeRole.barTitle, surface.paper.hex),
+        )
+        .setOrigin(0.5);
+      addButton({
+        kind: "onInk",
+        label: "+",
+        type: typeRole.label,
+        rect: { x: x + sheetWidth - side, y, width: side, height: ROW },
+        onClick: () => step(1),
+      });
+      addButton({
+        kind: "primary",
+        label: "Confirm",
+        type: typeRole.label,
+        rect: { x, y: footerTop, width: sheetWidth, height: ROW },
+        onClick: () => answer(reportAnswerOf(report, value)),
+      });
+      this.#fallbackStops = stops;
+      this.#fallbackFocus = Math.min(this.#fallbackFocus, Math.max(0, stops.length - 1));
+      this.#drawFallbackRing();
+      return;
+    }
+    // The engine's own options, never the sheet's display tiles (a spend choice's exhaust tiles answer nothing).
+    const view = fallbackChoiceView(choice, state.selected);
+    const pagerHeight = ROW + GAP;
+    const room = footerTop - GAP - y;
+    let { perPage, pages } = fallbackPages(view.rows.length, room, ROW + GAP);
+    if (pages > 1) ({ perPage, pages } = fallbackPages(view.rows.length, room - pagerHeight, ROW + GAP));
+    state.page = Math.min(state.page, pages - 1);
+    for (const row of view.rows.slice(state.page * perPage, (state.page + 1) * perPage)) {
+      const rect = { x, y, width: sheetWidth, height: ROW };
+      addButton({
+        kind: row.selected ? "primary" : "onInk",
+        label: row.order !== null ? `${row.order}. ${row.label}` : row.selected ? `✓ ${row.label}` : row.label,
+        type: typeRole.label,
+        rect,
+        onClick: () => {
+          if (view.answersOnPress) return answer([row.optionId]);
+          state.selected = toggleFallbackPick(choice, state.selected, row.optionId);
+          redraw();
+        },
+      });
+      y += ROW + GAP;
+    }
+    if (pages > 1) {
+      const third = (sheetWidth - 2 * GAP) / 3;
+      const pager = (index: number, label: string, enabled: boolean, onClick: () => void): void => {
+        addButton({
+          kind: "onInk",
+          label,
+          type: typeRole.label,
+          rect: { x: x + index * (third + GAP), y: footerTop - pagerHeight, width: third, height: ROW },
+          enabled,
+          onClick,
+        });
+      };
+      pager(0, "‹ Back", state.page > 0, () => {
+        state.page -= 1;
+        redraw();
+      });
+      this.add
+        .text(
+          x + third + GAP + third / 2,
+          footerTop - pagerHeight + ROW / 2,
+          `${state.page + 1} of ${pages}`,
+          textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+        )
+        .setOrigin(0.5);
+      pager(2, "More ›", state.page < pages - 1, () => {
+        state.page += 1;
+        redraw();
+      });
+    }
+    const footer: { label: string; enabled: boolean; onClick: () => void }[] = [];
+    if (view.confirm) {
+      const confirm = view.confirm;
+      footer.push({ label: confirm.label, enabled: confirm.enabled, onClick: () => answer(state.selected) });
+    }
+    if (view.canChooseNone) footer.push({ label: "Choose none", enabled: true, onClick: () => answer([]) });
+    const each = footer.length > 0 ? (sheetWidth - (footer.length - 1) * GAP) / footer.length : 0;
+    footer.forEach((button, index) => {
+      addButton({
+        kind: index === 0 && view.confirm ? "primary" : "onInk",
+        label: button.label,
+        type: typeRole.label,
+        rect: { x: x + index * (each + GAP), y: footerTop, width: each, height: ROW },
+        enabled: button.enabled,
+        onClick: button.onClick,
+      });
+    });
+    this.#fallbackStops = stops;
+    this.#fallbackFocus = Math.min(this.#fallbackFocus, Math.max(0, stops.length - 1));
+    this.#drawFallbackRing();
+  }
+
+  /** The focused fallback control's ring (a key or pad in use); none until a key moves focus. */
+  #drawFallbackRing(): void {
+    this.#fallbackRing?.destroy();
+    this.#fallbackRing = null;
+    const stop = this.#fallbackFocusShown ? this.#fallbackStops?.[this.#fallbackFocus] : undefined;
+    if (!stop) return;
+    const { x, y, width, height } = stop.rect;
+    this.#fallbackRing = this.add
+      .graphics()
+      .lineStyle(3, signal.caution.hex, 1)
+      .strokeRect(x - 3, y - 3, width + 6, height + 6);
+  }
+
+  /** A key or pad intent while the fallback is up: walk its controls, press the focused one. */
+  #onFallbackIntent(intent: GamepadIntent): void {
+    const stops = this.#fallbackStops ?? [];
+    if (stops.length === 0) return;
+    if (intent === "activate") {
+      if (this.#fallbackFocusShown) stops[this.#fallbackFocus]?.press();
+      else this.#fallbackFocusShown = true;
+    } else if (["next", "down", "right"].includes(intent)) {
+      if (this.#fallbackFocusShown) this.#fallbackFocus = (this.#fallbackFocus + 1) % stops.length;
+      this.#fallbackFocusShown = true;
+    } else if (["previous", "up", "left"].includes(intent)) {
+      if (this.#fallbackFocusShown) this.#fallbackFocus = (this.#fallbackFocus + stops.length - 1) % stops.length;
+      this.#fallbackFocusShown = true;
+    } else return;
+    this.#drawFallbackRing();
   }
 
   #draw(): void {
@@ -3387,6 +3623,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * the sheet, because an open decision has to be answered.
    */
   #onIntent(intent: GamepadIntent, source?: "key"): void {
+    if (this.#fallbackStops) return this.#onFallbackIntent(intent);
     if (this.#motion.leaving) return;
     const pending = appSession().store.state.game?.pendingChoice;
     if (!pending) return;

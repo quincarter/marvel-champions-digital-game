@@ -143,7 +143,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     await openDecks(page);
     await startNewDeck(page, "41001a");
     expect(await texts(page, "DeckBuilder")).toEqual(
-      expect.arrayContaining(["IDENTITY — PSYLOCKE", "SETUP · 2", "HERO · 15"]),
+      expect.arrayContaining(["IDENTITY", "Psylocke", "SETUP · 2", "HERO · 15"]),
     );
     expect(await deckPanel(page)).toEqual(expect.arrayContaining(["Psi-Knife", "2"]));
     await search(page, "Psi-Knife");
@@ -180,7 +180,7 @@ test.describe("Flow 5: the wave 7 heroes' special starts", () => {
     test.setTimeout(200_000);
     await openDecks(page);
     await startNewDeck(page, "42001a");
-    expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY — ANGEL", "HERO · 15"]));
+    expect(await texts(page, "DeckBuilder")).toEqual(expect.arrayContaining(["IDENTITY", "Angel", "HERO · 15"]));
     expect(await deckPanel(page)).toEqual(
       expect.arrayContaining(["Adaptive Plumage", "Metamorphosis", "Psylocke (Betsy Braddock)"]),
     );
