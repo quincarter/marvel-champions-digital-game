@@ -1407,7 +1407,12 @@ export class PlayerStatsScene extends Phaser.Scene {
         view: listRect,
         activate: activate ?? (cardId ? () => this.#inspectCard(cardId) : () => undefined),
         ...(cardId ? { inspect: () => this.#inspectCard(cardId) } : {}),
-        ensureVisible: () => list.scrollIntoView(index),
+        // The stop's own part of the row: a tile stacked low in the Overview's tall showcase row scrolls to itself.
+        ensureVisible: () => {
+          const row = list.rectFor(index);
+          const own = part(row);
+          list.scrollIntoView(index, { y: own.y - row.y, height: own.height });
+        },
       });
     };
     rows.forEach((row, index) => {
