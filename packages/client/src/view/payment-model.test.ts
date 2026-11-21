@@ -345,6 +345,27 @@ describe("resources on the table", () => {
     expect(settled.tableSources.find((source) => source.optionId === scientist!.optionId)?.spent).toBe(true);
     expect(applyCommand(state, settled.command!, CORE_DEPS).ok).toBe(true);
   });
+
+  test("a card spent from under its host is a table source tagged tucked: it is in no hand, so only the strip shows it (issue #922)", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+    const [card] = opened.query.sources.filter((source) => source.kind === "handCard");
+    // The shape the engine offers for a card under a `spendableFromTucked` host (Resource Reserve, a pack's host).
+    const tucked = { ...card!, optionId: "tucked-option", tuckedUnder: identity } as PaymentSource;
+    const view = paymentView(
+      state,
+      me,
+      { ...opened, query: { ...opened.query, sources: [...opened.query.sources, tucked] } },
+      "test",
+      CORE_DEPS,
+    );
+    const tile = view.tableSources.find((source) => source.optionId === "tucked-option");
+    expect(tile).toBeDefined();
+    expect(sourceTagText(tile!)).toBe("tucked");
+    // The hand's own cards stay in the hand row, not the strip.
+    expect(view.tableSources.some((source) => source.optionId === card!.optionId)).toBe(false);
+  });
 });
 
 /**
