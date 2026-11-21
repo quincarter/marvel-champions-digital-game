@@ -10,7 +10,7 @@
 
 import Phaser from "phaser";
 import type { CardId } from "@mc/content";
-import { CARDS_BY_ID, POOL_ENCOUNTER_SETS } from "../content/pool.js";
+import { currentCardsById, currentEncounterSets } from "../content/pool.js";
 import { accent, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { artFor } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -162,7 +162,7 @@ export class SetCardsOverlay extends Phaser.Scene {
   }
 
   #urlOf(face: FaceRef): string | null {
-    return artFor(CARDS_BY_ID.get(face.cardId), face.face)?.url ?? null;
+    return artFor(currentCardsById().get(face.cardId), face.face)?.url ?? null;
   }
 
   #inspect(face: FaceRef): void {
@@ -200,7 +200,8 @@ export class SetCardsOverlay extends Phaser.Scene {
 
   /** The sets this sheet shows: its sections, or the one set with no heading. */
   #sections(): readonly { readonly section: SetCardsSection | null; readonly sheet: SetSheetView }[] {
-    const ctx = { cards: CARDS_BY_ID, encounterSets: POOL_ENCOUNTER_SETS };
+    // The installed packs' cards and sets too: a Mod Store set's sheet read the base pool alone and showed 0 cards (#951).
+    const ctx = { cards: currentCardsById(), encounterSets: currentEncounterSets() };
     const { sections, setId } = this.#data;
     if (!sections || sections.length === 0) return [{ section: null, sheet: setSheetFor(ctx, setId) }];
     return sections.map((section) => ({ section, sheet: setSheetFor(ctx, section.setId) }));
