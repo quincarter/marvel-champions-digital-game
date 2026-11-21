@@ -4,11 +4,13 @@ import { REVIEW_HANDLE_WIDTH, reviewHandleRect } from "./villain-review.js";
 import {
   BADGE_MAX,
   badgeExtent,
+  type BadgeSlot,
   boardLayout,
   cardChoiceSlots,
   cardRow,
   minionSlots,
   cardStatColumn,
+  printedStatSlots,
   CARD_ASPECT,
   contentSlotHeights,
   formFactorFor,
@@ -813,5 +815,70 @@ describe("minionSlots", () => {
   test("a wide area where the row is already height-bound keeps its row", () => {
     const wide = { x: 0, y: 0, width: 1200, height: 160 };
     expect(minionSlots(wide, 4, 1.5, 8, 14)).toEqual(cardRow(wide, 4, { gap: 8, maxHeight: 160 }));
+  });
+});
+
+describe("printedStatSlots (issue #935)", () => {
+  const face = { x: 10, y: 20, width: 300, height: 423 };
+
+  test("an ally's badges sit on its printed THW and ATK and grow with the card", () => {
+    const slots = printedStatSlots(face, face, ["THW", "ATK"], face.y + face.height - 30)!;
+    expect(slots).toHaveLength(2);
+    const [thw, atk] = slots as [BadgeSlot, BadgeSlot];
+    expect(thw.size).toBe(51);
+    expect(thw.cx).toBeCloseTo(40, 0);
+    expect(thw.cy).toBeCloseTo(face.y + 0.235 * face.height, 0);
+    expect(atk.cy).toBeCloseTo(face.y + 0.444 * face.height, 0);
+    // Each badge ends above the consequential damage icon printed under its stat's name.
+    for (const [slot, icon] of [
+      [thw, 0.333],
+      [atk, 0.539],
+    ] as const) {
+      expect(slot.cy + badgeExtent(slot.size).below).toBeLessThan(face.y + icon * face.height - 0.024 * face.width);
+    }
+    const bigger = printedStatSlots(
+      { ...face, width: 600, height: 846 },
+      { ...face, width: 600, height: 846 },
+      ["THW", "ATK"],
+      2000,
+    )!;
+    expect(bigger[0]!.size).toBeGreaterThan(thw.size);
+  });
+
+  test("a minion's follow its printed SCH over ATK, in the tiles' order", () => {
+    const [atk, sch] = printedStatSlots(face, face, ["ATK", "SCH"], 1000)!;
+    expect(sch!.cy).toBeLessThan(atk!.cy);
+  });
+
+  test("no slots for stats the card does not print in a known column, or that would not fit", () => {
+    expect(printedStatSlots(face, face, ["THW", "ATK", "DEF"], 1000)).toBeNull();
+    expect(printedStatSlots(face, face, ["REC"], 1000)).toBeNull();
+    // A tall strip stack over the foot leaves no room under ATK.
+    expect(printedStatSlots(face, face, ["THW", "ATK"], face.y + face.height * 0.45)).toBeNull();
+    // A small minion's floor-height ribbons would run SCH into ATK.
+    expect(
+      printedStatSlots(
+        { x: 0, y: 0, width: 80, height: 113 },
+        { x: 0, y: 0, width: 80, height: 113 },
+        ["ATK", "SCH"],
+        1000,
+      ),
+    ).toBeNull();
+  });
+
+  test("a slot wider than the card follows the drawn card, cropped off-center, not the slot", () => {
+    // `drawArt` "cover" in a 300x380 slot: the card is 300x423 and 34% of its overhang is cut from the top.
+    const slot = { x: 10, y: 20, width: 300, height: 380 };
+    const card = { x: 10, y: 20 - 43 * 0.34, width: 300, height: 423 };
+    const [thw] = printedStatSlots(card, slot, ["THW", "ATK"], 1000)!;
+    expect(thw!.cy).toBeCloseTo(card.y + 0.235 * card.height, 3);
+  });
+
+  test("cardStatColumn uses them when given the face, and stacks as before otherwise", () => {
+    const inner = { ...face, height: face.height - 20 };
+    const printed = cardStatColumn(inner, 2, true, { labels: ["THW", "ATK"], card: face, face });
+    expect(printed.badges[0]!.cy).toBeCloseTo(face.y + 0.235 * face.height, 0);
+    const stacked = cardStatColumn(inner, 2, true);
+    expect(stacked.badges[0]!.cy).not.toBeCloseTo(printed.badges[0]!.cy, 0);
   });
 });

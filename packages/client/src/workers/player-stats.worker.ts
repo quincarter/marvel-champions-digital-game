@@ -17,8 +17,8 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 worker.onmessage = (event: MessageEvent<StatsRequest>) => {
-  const { saves, kind, filter } = event.data;
-  const names = statsNamesForSaves(saves);
+  const { saves, kind, filter, designers } = event.data;
+  const names = statsNamesForSaves(saves, undefined, designers);
   worker.postMessage(
     kind === "insights" ? { insights: deckInsightsOf(saves, names) } : { stats: playerStatsOf(saves, names, filter) },
   );

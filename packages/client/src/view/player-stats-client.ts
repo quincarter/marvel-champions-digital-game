@@ -7,6 +7,8 @@
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { DeckInsights } from "./deck-insights.js";
 import type { PlayerStats, StatsFilter } from "./player-stats-model.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import type { PackDesigners } from "./player-stats-names.js";
 
 export interface StatsRequest {
   readonly saves: readonly SaveMeta[];
@@ -14,6 +16,8 @@ export interface StatsRequest {
   readonly kind?: "stats" | "insights";
   /** The Stats screen's filter chips. */
   readonly filter?: StatsFilter;
+  /** The installed packs' designers, for a saved pack that predates keeping its authors (issue #937). */
+  readonly designers?: PackDesigners;
 }
 
 export type StatsResponse = { readonly stats: PlayerStats } | { readonly insights: DeckInsights };
@@ -40,12 +44,25 @@ export const spawnStatsWorker: StatsWorkerFactory = () => {
   }
 };
 
-async function statsHere(saves: readonly SaveMeta[], filter: StatsFilter = {}): Promise<PlayerStats> {
+async function statsHere(
+  saves: readonly SaveMeta[],
+  filter: StatsFilter = {},
+  designers: PackDesigners = {},
+): Promise<PlayerStats> {
   const [{ playerStatsOf }, { statsNamesForSaves }] = await Promise.all([
     import("./player-stats-model.js"),
     import("./player-stats-names.js"),
   ]);
-  return playerStatsOf(saves, statsNamesForSaves(saves), filter);
+  return playerStatsOf(saves, statsNamesForSaves(saves, undefined, designers), filter);
+}
+
+/** The installed packs' designers by pack id (`designersOfPacks`, kept here so this module stays light). */
+function installedDesigners(): PackDesigners {
+  return Object.fromEntries(
+    loadedPacks()
+      .filter((pack) => (pack.authors?.length ?? 0) > 0)
+      .map((pack) => [pack.id, pack.authors!]),
+  );
 }
 
 async function insightsHere(saves: readonly SaveMeta[]): Promise<DeckInsights> {
@@ -89,10 +106,11 @@ export function loadPlayerStats(
   factory: StatsWorkerFactory = spawnStatsWorker,
   filter: StatsFilter = {},
 ): Promise<PlayerStats> {
+  const designers = installedDesigners();
   return ask(
-    { saves, filter },
+    { saves, filter, designers },
     (response) => ("stats" in response ? response.stats : undefined),
-    () => statsHere(saves, filter),
+    () => statsHere(saves, filter, designers),
     factory,
   );
 }

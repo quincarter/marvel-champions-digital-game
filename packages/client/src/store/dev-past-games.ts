@@ -98,3 +98,64 @@ export async function seedDemoPastGames(): Promise<void> {
     await storage.create(meta, {} as unknown as StateWithoutPool);
   }
 }
+
+/**
+ * `?screen=stats&fixture=custom&tab=matchups`: one won game of a custom scenario pack, The Rose by PermaKarma, with the
+ * pack's records saved in the game as a real one would carry them (issue #937), so the Matchups grid shows the
+ * scenario's name and designer rather than its id.
+ */
+export async function seedCustomScenarioGame(): Promise<void> {
+  const now = Date.now();
+  const pack = {
+    id: "the-rose-bf",
+    version: "1.0.0",
+    name: "The Rose",
+    authors: ["PermaKarma"],
+    requires: [],
+    cards: [],
+    abilities: {},
+    decks: [],
+    scenarios: [{ id: "the-rose-bf-the-rose", name: "The Rose", recommendedModularSetIds: [] }],
+  };
+  const config = {
+    scenarioId: "the-rose-bf-the-rose",
+    difficulty: "standard",
+    players: [{ identityCardId: "01010a", deck: [], aspects: ["leadership"] }],
+    seed: 9,
+    packs: [pack],
+  } as unknown as SessionConfig;
+  const meta: SaveMeta = {
+    id: "demo-custom-scenario",
+    schema: SAVE_SCHEMA,
+    config,
+    createdAt: now - 40 * 60_000,
+    updatedAt: now,
+    status: "won",
+    round: 6,
+    commandCount: 60,
+    outcome: { result: "win", reason: "villainDefeated" } as never,
+    campaignId: null,
+    campaignNodeId: null,
+    playedMs: 40 * 60_000,
+    summary: {
+      lossReason: null,
+      heroesDefeated: 0,
+      winners: [],
+      alliesPlayed: 0,
+      seats: [
+        {
+          identityCardId: "01010a",
+          aspects: ["leadership"],
+          deck: [],
+          plays: {},
+          activations: {},
+          entered: {},
+          damage: 14,
+          thwart: 6,
+          defeated: false,
+        },
+      ],
+    } as never,
+  };
+  await new IdbGameStorage().create(meta, {} as unknown as StateWithoutPool);
+}

@@ -1734,12 +1734,13 @@ export class McStatBadge {
     this.container.setPosition(cx, cy);
     const radius = size / 2;
 
-    // The printed star beside the stat (issue #766), on the upper-left shoulder: the bonus chip owns the upper right.
-    // White with an ink edge, as the card prints it.
+    // The printed star beside the stat (issue #766), on the right shoulder beside the number, where the card prints it:
+    // the bonus chip owns the upper right, and on a card the upper left lies over the stat above's consequential damage
+    // icon (issue #935). White with an ink edge, as the card prints it.
     this.#star.clear();
     if (star) {
       const points = starPoints(Math.max(5, size * 0.2)).map(
-        (point) => new Phaser.Math.Vector2(point.x - radius * 0.86, point.y - radius * 0.82),
+        (point) => new Phaser.Math.Vector2(point.x + radius * 0.95, point.y + radius * 0.05),
       );
       this.#star.fillStyle(surface.paper.hex, alpha).fillPoints(points, true);
       this.#star.lineStyle(1.5, surface.ink.hex, alpha).strokePoints(points, true, true);

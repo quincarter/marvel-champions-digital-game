@@ -4,7 +4,7 @@
  * the pool loaded already.
  */
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
-import type { AnyCard, StarterDeck } from "@mc/content";
+import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "@mc/content";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { cardDisplayName } from "./hero-names.js";
@@ -67,27 +67,63 @@ export const POOL_STATS_NAMES: StatsNames = {
   setName: (id) => POOL_ENCOUNTER_SETS.find((set) => (set.id as string) === id)?.name,
 };
 
+/** Each pack's designers by pack id (`PackRuntime.authors`), for a saved pack that predates keeping them. */
+export type PackDesigners = Readonly<Record<string, readonly string[]>>;
+
 interface PackRecords {
   readonly cards: ReadonlyMap<string, AnyCard>;
   readonly decks: ReadonlyMap<string, StarterDeck>;
+  readonly scenarios: ReadonlyMap<string, Scenario>;
+  readonly sets: ReadonlyMap<string, EncounterSet>;
+  /** Who made each piece of custom content, by its id: the designers' names joined ("A & B"). */
+  readonly designers: ReadonlyMap<string, string>;
 }
 
-function recordsOf(saves: readonly Pick<SaveMeta, "config">[]): PackRecords {
+function recordsOf(saves: readonly Pick<SaveMeta, "config">[], known: PackDesigners = {}): PackRecords {
   const cards = new Map<string, AnyCard>();
   const decks = new Map<string, StarterDeck>();
+  const scenarios = new Map<string, Scenario>();
+  const sets = new Map<string, EncounterSet>();
+  const designers = new Map<string, string>();
   for (const save of saves) {
     for (const pack of (save.config?.packs ?? []) as readonly PackRuntime[]) {
-      for (const card of pack.cards) cards.set(card.id as string, card);
+      const authors = (pack.authors?.length ?? 0) > 0 ? pack.authors! : (known[pack.id] ?? []);
+      const designer = authors.length > 0 ? authors.join(" & ") : undefined;
+      const mark = (id: string): void => {
+        if (designer) designers.set(id, designer);
+        else designers.delete(id);
+      };
+      for (const card of pack.cards) {
+        cards.set(card.id as string, card);
+        mark(card.id as string);
+      }
       for (const deck of pack.decks) decks.set(deck.id as string, deck);
+      for (const scenario of pack.scenarios ?? []) {
+        scenarios.set(scenario.id as string, scenario);
+        mark(scenario.id as string);
+      }
+      for (const set of pack.encounterSets ?? []) {
+        sets.set(set.id as string, set);
+        mark(set.id as string);
+      }
     }
   }
-  return { cards, decks };
+  return { cards, decks, scenarios, sets, designers };
 }
 
-function layered(base: StatsNames, { cards, decks }: PackRecords): StatsNames {
-  if (cards.size === 0 && decks.size === 0) return base;
+function layered(base: StatsNames, { cards, decks, scenarios, sets, designers }: PackRecords): StatsNames {
+  if (cards.size === 0 && decks.size === 0 && scenarios.size === 0 && sets.size === 0) return base;
   return {
     ...base,
+    scenarioName: (id) => scenarios.get(id)?.name ?? base.scenarioName(id),
+    scenarioModulars: (id) => {
+      const scenario = scenarios.get(id);
+      return scenario
+        ? scenario.recommendedModularSetIds.map((set) => set as string)
+        : (base.scenarioModulars?.(id) ?? []);
+    },
+    setName: (id) => sets.get(id)?.name ?? base.setName?.(id),
+    designerOf: (id) => designers.get(id) ?? base.designerOf?.(id),
     cardName: (id) => {
       const card = cards.get(id);
       return card ? cardDisplayName(card) : base.cardName(id);
@@ -114,10 +150,14 @@ function layered(base: StatsNames, { cards, decks }: PackRecords): StatsNames {
  * that save's own packs through `forSave`. The names shown for an id across games (a card's or a precon's name, a
  * card's type and aspect, the signature mark) follow one policy: the newest save's version wins (`updatedAt`, then
  * `createdAt`, then id), so the answer never depends on the order the saves arrive in.
+ *
+ * `designers` names who made a pack saved before its authors were kept: the installed packs', read on the main thread
+ * in `player-stats-client.ts`.
  */
 export function statsNamesForSaves(
   saves: readonly Pick<SaveMeta, "config" | "updatedAt" | "createdAt" | "id">[],
   base: StatsNames = POOL_STATS_NAMES,
+  designers: PackDesigners = {},
 ): StatsNames {
   if (!saves.some((save) => (save.config?.packs?.length ?? 0) > 0)) return base;
   const oldestFirst = [...saves].sort(
@@ -126,13 +166,13 @@ export function statsNamesForSaves(
       (a.createdAt ?? 0) - (b.createdAt ?? 0) ||
       String(a.id ?? "").localeCompare(String(b.id ?? "")),
   );
-  const aggregate = layered(base, recordsOf(oldestFirst));
+  const aggregate = layered(base, recordsOf(oldestFirst, designers));
   const own = new WeakMap<object, StatsNames>();
   return {
     ...aggregate,
     forSave: (save) => {
       let names = own.get(save);
-      if (!names) own.set(save, (names = layered(base, recordsOf([save]))));
+      if (!names) own.set(save, (names = layered(base, recordsOf([save], designers))));
       return names;
     },
   };
