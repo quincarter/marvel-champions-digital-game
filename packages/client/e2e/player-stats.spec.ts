@@ -355,6 +355,37 @@ test("from the Trophy Room: the record, then a tab with a tap and the next with 
   }
 });
 
+test("the Overview: the favorite hero stands tall at the left on desktop, over the stats' backdrop", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const phone = info.project.name === "phone";
+  await seeded(page, "stats", "PlayerStats");
+  await waitFor(overviewUp(page), "the Overview tiles", 30_000);
+  await settle(page);
+  const stops = await stopsOf(page);
+  const hero = stops.find((s) => s.key === "tile:hero")!.rect;
+  const record = stops.find((s) => s.key === "tile:record")!.rect;
+  if (phone) {
+    // The phone keeps the grid: the record across the top, the hero's banner below it.
+    expect(hero.y, "the hero under the record").toBeGreaterThan(record.y);
+  } else {
+    // A portrait at the far left, the record beside it, level with its top.
+    expect(hero.height, "taller than wide").toBeGreaterThan(hero.width);
+    expect(record.x, "the record to its right").toBeGreaterThan(hero.x + hero.width);
+    expect(Math.abs(record.y - hero.y), "level tops").toBeLessThan(2);
+  }
+  await waitFor(
+    () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __mcStatsDebug?: { backdrop(): string | null } }).__mcStatsDebug?.backdrop() ?? null,
+      ),
+    "the backdrop picture",
+    20_000,
+  );
+});
+
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
   test.setTimeout(120_000);
   const phone = info.project.name === "phone";
