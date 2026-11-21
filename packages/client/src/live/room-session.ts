@@ -101,6 +101,8 @@ const HOST_CAPS = ["watch", "chat", "seats", "play"] as const;
 export const DECKS_REPLY_MS = 8000;
 
 const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed", "refused"]);
+/** Acceptances held for a dropped socket: a host answers a few proposals at a time, so this is never reached in play. */
+const MAX_UNSENT_ACCEPTS = 50;
 const SEAT_REFUSED_TO_CLOSE = new Set(["name-required", "full"]);
 
 export class RoomSession {
@@ -112,6 +114,7 @@ export class RoomSession {
   #socket: RoomSocket | null = null;
   #hostToken: string | null = null;
   #tokens: Record<string, string> = {};
+  readonly #unsentAccepts: Body[] = [];
   #hooks: GameHooks | null = null;
   readonly #mirror = new GameMirror();
   #feed: FeedPort | null = null;
@@ -372,14 +375,20 @@ export class RoomSession {
   /** Host: tells a proposer its proposal was applied (the engine worker's verdict); the room tells the proposer alone. */
   acceptProposal(to: string, base: number, pid?: number): void {
     if (this.role !== "host") return;
-    this.#say({
+    const body: Body = {
       ch: "game",
       kind: "proposal-accepted",
       table: FIRST_TABLE,
       to,
       base,
       ...(pid === undefined ? {} : { pid }),
-    });
+    };
+    // A dropped socket loses it, and the proposer would then report a move that landed as unanswered: it is kept and
+    // sent again on the next welcome, ahead of the publisher's catch-up of the log.
+    if (!this.#trySay(body)) {
+      this.#unsentAccepts.push(body);
+      if (this.#unsentAccepts.length > MAX_UNSENT_ACCEPTS) this.#unsentAccepts.shift();
+    }
   }
 
   /**
@@ -480,7 +489,11 @@ export class RoomSession {
   }
 
   #say(body: Body): void {
-    this.#socket?.send({ v: ROOM_PROTOCOL_VERSION, ...body } as ClientMessage);
+    this.#trySay(body);
+  }
+
+  #trySay(body: Body): boolean {
+    return this.#socket?.send({ v: ROOM_PROTOCOL_VERSION, ...body } as ClientMessage) ?? false;
   }
 
   async #loadTokens(roomId: string): Promise<void> {
@@ -618,7 +631,10 @@ export class RoomSession {
       for (const seat of this.#model.lostRequests()) this.#say({ ch: "room", kind: "seat-request", seat });
     }
     if (this.role === "guest") this.#guestMessage(message);
-    else if (message.ch === "room" && message.kind === "welcome") this.#hooks?.onWelcome(this.#tableInfo());
+    else if (message.ch === "room" && message.kind === "welcome") {
+      for (const body of this.#unsentAccepts.splice(0)) this.#trySay(body);
+      this.#hooks?.onWelcome(this.#tableInfo());
+    }
     this.#hooks?.onMessage(message);
     if (message.ch === "room" && message.kind === "closed") {
       this.#over(this.#model.state().problem ?? "closed-ended");
