@@ -1,13 +1,13 @@
 /**
  * Links into the game that still name the old address: a shared replay (`#replay=`, `replay/replay-link.ts`), a live
- * game (`#watch=`, `live/watch-link.ts`), a save transfer (`#receive=`) or a device-sync link (`#link=`,
+ * game (`#watch=`, `live/watch-link.ts`), a room (`#join=`, `live/join-link.ts`), a save transfer (`#receive=`) or a device-sync link (`#link=`,
  * `save-data/receive-link.ts`). Installed apps and old QR codes
  * keep making them until they update, and once the old address serves the moved page they land there. The moved page
  * offers to carry the link on to the game's new address with its fragment intact, rather than dropping the replay or
  * the transfer the player came for.
  */
 
-export type GameLinkKind = "replay" | "watch" | "receive" | "link";
+export type GameLinkKind = "replay" | "watch" | "join" | "receive" | "link";
 
 export interface GameLink {
   readonly kind: GameLinkKind;
@@ -15,7 +15,7 @@ export interface GameLink {
   readonly url: string;
 }
 
-const GAME_LINK = /^#(replay|watch|receive|link)=[^#\s]+$/;
+const GAME_LINK = /^#(replay|watch|join|receive|link)=[^#\s]+$/;
 
 /** The game link `hash` carries, forwarded to `gameUrl`, or `null` when it carries none. */
 export function gameLinkOf(hash: string, gameUrl: string): GameLink | null {

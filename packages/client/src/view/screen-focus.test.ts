@@ -678,6 +678,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",
@@ -692,6 +693,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",
@@ -714,11 +716,11 @@ describe("screen focus routes", () => {
     expect(order.slice(order.indexOf("settings"), order.indexOf("settings") + 2)).toEqual(["settings", "quit"]);
   });
 
-  test('the Title menu: "civil-war" follows Campaign once the Civil War box is open, and is absent before', () => {
+  test('the Title menu: "civil-war" follows Campaign and Play online once the Civil War box is open, and is absent before', () => {
     expect(titleMenuFocusOrder({ continuable: false })).not.toContain("civil-war");
     expect(titleMenuFocusOrder({ continuable: false, civilWar: false })).not.toContain("civil-war");
     const open = titleMenuFocusOrder({ continuable: true, civilWar: true });
-    expect(open.indexOf("civil-war")).toBe(open.indexOf("campaign") + 1);
+    expect(open.indexOf("civil-war")).toBe(open.indexOf("play-online") + 1);
     expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
   });
 
@@ -793,6 +795,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",

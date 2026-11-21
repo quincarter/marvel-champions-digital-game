@@ -192,6 +192,8 @@ export default defineConfig({
         "controls-hint-slider.spec.ts",
         "chip-info-swipe.spec.ts",
         "deck-builder-tabs.spec.ts",
+        "room-lobby-swipe.spec.ts",
+        "offline-single-player.spec.ts",
       ],
     },
   ],

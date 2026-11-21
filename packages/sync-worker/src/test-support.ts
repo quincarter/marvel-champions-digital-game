@@ -3,7 +3,15 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { GameRoom, GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
+import {
+  GameRoom,
+  GlobalStats,
+  RateLimiter,
+  ReplayQuota,
+  RoomCode,
+  SyncSpace,
+  TransferRoom,
+} from "./durable-objects.js";
 import type {
   DurableObjectNamespaceLike,
   Env,
@@ -145,15 +153,20 @@ export interface TestEnv extends Env {
   REPLAYS: MemoryR2;
   REPLAY_QUOTA: FakeNamespace<ReplayQuota>;
   GAME_ROOM: FakeNamespace<GameRoom>;
+  ROOM_CODE: FakeNamespace<RoomCode>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
-  return {
+  const env = {
     TRANSFER_ROOM: fakeNamespace((storage) => new TransferRoom({ storage })),
     RATE_LIMITER: fakeNamespace((storage) => new RateLimiter({ storage })),
     SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
     GLOBAL_STATS: fakeNamespace((storage) => new GlobalStats({ storage })),
-    GAME_ROOM: fakeNamespace((storage) => new GameRoom({ storage, acceptWebSocket() {}, getWebSockets: () => [] })),
+    // The room gets the env itself, so it reaches the ROOM_CODE binding the way the deployed one does.
+    GAME_ROOM: fakeNamespace(
+      (storage) => new GameRoom({ storage, acceptWebSocket() {}, getWebSockets: () => [] }, env),
+    ),
+    ROOM_CODE: fakeNamespace((storage) => new RoomCode({ storage })),
     REPLAYS: new MemoryR2(),
     REPLAY_QUOTA: fakeNamespace((storage) => new ReplayQuota({ storage })),
     TRANSFERS_ENABLED: "true",
@@ -167,6 +180,7 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
       "https://marvel-champions-digital-game.netlify.app,https://*--marvel-champions-digital-game.netlify.app,http://localhost:*",
     ...overrides,
   } as TestEnv;
+  return env;
 }
 
 export const PROOF = "A".repeat(43);

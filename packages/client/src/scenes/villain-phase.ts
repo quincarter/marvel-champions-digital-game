@@ -118,6 +118,7 @@
 
 import { GlyphHints } from "../ui/glyph-hints.js";
 import type { GlyphGround } from "../ui/input-glyph.js";
+import { roomUndoOffOf } from "../view/room-strict.js";
 import { primaryGlyphShown } from "../view/primary-activation.js";
 import { pickGlyphSpecs } from "../view/input-glyph-model.js";
 import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
@@ -1115,7 +1116,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!this.#gateEligible() || state.game.outcome) return null;
     // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
     if (this.scene.isActive(SCENES.pause) || this.#logView) return null;
-    if (state.inFlight || state.version !== state.commandTrail.length) return null;
+    if (state.inFlight || state.version !== state.commandTrail.length || roomUndoOffOf(state.config)) return null;
     return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
 

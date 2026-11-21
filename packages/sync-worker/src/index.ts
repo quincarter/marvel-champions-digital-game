@@ -5,7 +5,15 @@
 import type { Env } from "./env.js";
 import { handleRequest } from "./handler.js";
 
-export { GameRoom, GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
+export {
+  GameRoom,
+  GlobalStats,
+  RateLimiter,
+  ReplayQuota,
+  RoomCode,
+  SyncSpace,
+  TransferRoom,
+} from "./durable-objects.js";
 
 export default {
   fetch: (request: Request, env: Env): Promise<Response> => handleRequest(request, env),

@@ -229,6 +229,7 @@ export class ReplayCore {
             outcome: source.outcome,
             round: 0,
             playedOn: header.writer,
+            ...(header.adjusted === true ? { adjusted: true as const } : {}),
           },
         };
       }

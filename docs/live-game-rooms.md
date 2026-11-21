@@ -3,6 +3,14 @@
 Owner: `multiplayer-netcode-engineer`. Started 2026-11-19 from Quin's ask for a "Watch this game" button on the
 Discord presence card, built on the same mechanism live multiplayer will use (PLAN.md Phase 5, "the live relay").
 
+## 0. Ground rule: single player stays offline-first (Quin, 2026-11-19)
+
+Nothing in this work may break single player, and the game must keep working fully offline (on a plane). Online
+features are opt-in and lazy: nothing is spawned, fetched or connected until the player picks one. Every online failure
+(no network, the Worker down, a room gone) degrades quietly or with a short message, and never blocks the title,
+setup, a game, saving or resuming. No single-player path waits on the network. Changes to shared paths keep a test
+with the network off.
+
 ## 1. The idea in one paragraph
 
 A **game room** is one Durable Object per live game on the sync Worker. The player whose device runs the engine is the
@@ -140,3 +148,119 @@ For the stacked PRs after this one (2: rooms and lobby, 3: play together):
   host control (the host may allow Manual adjust, Undo and other changes, decide on requests to modify something),
   which rules and house rules are on, and which mods (custom packs) are allowed. A request to change something is the
   host's call. These live on the room as host-only settings, shown to everyone in the lobby.
+
+## 8. Rooms and the lobby (issue #880, stacked on #878)
+
+What a player sees:
+
+- **Title → Play online:** "Host a room" or "Join a room". Joining takes a 6-character code (typed, case-insensitive)
+  or a link `https://marvel.champions-digital-game.com/#join=<code>` (and `marvelchampions://join/<code>`).
+- **Your name:** asked the first time you host or join (a setting, "Online name", changeable later), at most 24
+  characters, shown on your seats and in chat.
+- **Lobby:** the code and a Copy link button; everyone in the room with their name and role; the seats (one per hero
+  the host sets up) with who holds each; chat; the host's settings, read-only for everyone else.
+- **Seats (Quin, 2026-11-20: players bring their own hero and deck):** the host sets the table up (scenario, seat count,
+  difficulty, rules, allowed mods) and the lobby holds that many open seats. Each player picks THEIR OWN hero and deck on
+  their own device (saved, imported, custom and precon decks) and sends it with their seat; the host may preset a deck for
+  a seat, which the holder can replace. The lobby shows each seat's deck as a summary only (hero, aspect, deck name, card
+  count, mods); the full list goes to the host alone. At Start the host's engine judges every deck (legal under
+  `validateDeck`, every card known in the host's pool, mod cards only from allowed mods at the same version) and tells
+  only that seat's holder why theirs fails (`deck-refused`). A participant asks for a seat and the host approves it, or the host gives one out. A participant may hold
+  more than one seat only when the host allows it. The host may hold seats too.
+- **Host controls** (room settings, host-only, broadcast to all):
+  - Play mode: **Strict** (the game as written: no Undo, no Back out, no Manual adjust, no rule changes mid-game) or
+    **Host control** (the host may allow Undo/Manual adjust and decides any change request).
+  - House rules: the table rules the game already has (`TableRules`), chosen by the host.
+  - Mods: which of the host's installed custom packs the game may use; a joiner who lacks one sees which and where to
+    get it, and cannot take a seat until they have it at the same version.
+  - Several seats per person: on or off.
+  - Chat: on or off.
+- **Start:** the host presses Start when every seat is held. The game starts on the host's device as a watchable
+  game; in this PR seated players follow it as watchers with their seats marked (playing it is #881).
+- **Known gap (for #881):** the lobby shows which allowed mods a guest lacks and disables the guest's own Take, but the
+  host can still approve a request or give a seat to a guest who lacks a mod. In this PR seated players only watch, so
+  nothing breaks; #881, where seats play, must refuse or warn at approval and at Start.
+- **A game belongs to one room:** the host's game config carries the lobby's room id (`SessionConfig.room`, left out of
+  live headers and replay files like `watchable`); the room worker attaches a game to the hosted lobby only on a match,
+  so a later single-player game never joins an old lobby. The room is left when the game hands back to the Title, for
+  the host and for a guest leaving the watch.
+
+Room and protocol (built, `packages/sync-worker`; extends `room-protocol.ts`, and a room created without `lobby` behaves
+exactly as watching did):
+
+- `POST /room` takes `{ lobby: true }` and also returns a 6-character `code` (the transfer room-code alphabet). A small
+  `RoomCode` Durable Object per code (`room-code-store.ts`, migration `v6`) maps it to the room id. `GET /room/code/:code`
+  (any case, dashes and spaces ignored) answers `{ roomId }` or 404; it is limited to 60 lookups an hour per IP, a soft limit
+  counted in memory (no row; it resets when the limiter object is evicted, and the 31^6 code space is the real defence). A code collision draws another code (8 tries); the directory entry expires with the room: it is created
+  with the room's 12-hour idle time plus an hour of margin (so the two alarms never race), the room moves it out whenever its own idle alarm moves out, and the room deletes it
+  when it closes (an alarm in the directory drops an entry whose room never came back to say so; a refresh writes a missing entry back for
+  the same room). Only the room a code belongs to may refresh or release it. A failing directory call is tried twice and
+  then ignored.
+- `hello` carries `name` (trimmed, at most 24 code points in a lobby room (a watch room's `hello` may carry up to 32 and ignores it), required in a lobby room: otherwise `refused name-required` and
+  the socket closes; other rooms ignore it), `build { appVersion, contentVersion }` and `seatTokens`. Roster participants
+  carry their `name` and `build`. A lobby room advertises caps `watch`, `chat`, `seats`.
+- The room sends `lobby { code, settings, seats }` after `welcome` to a joiner and to everyone after each change.
+  `settings` is `{ playMode: "strict" | "host", tableRules, mods: [{ id, version }], multiSeat, chat, appVersion,
+  contentVersion }`; the two versions are the host's build, stamped by the room from the host's `hello` (never taken from a
+  `lobby-set`). `seats` is `[{ id, label, holder?, holderName?, requested? }]`, at most 4.
+- Host only: `lobby-set { settings?, seats? }` (a kept seat id keeps its holder, requests and token; turning `multiSeat`
+  off is refused `multi-seat` while someone holds two), `seat-assign { seat, participant }` (a connected participant; the
+  host may also `seat-request` a seat for themselves and it is granted at once), `seat-deny { seat, participant }` (turns
+  down a request, or takes the seat from its holder). Participants: `seat-request { seat }`, `seat-release { seat }` (gives
+  up a seat or withdraws a request). `LobbySeat` gets a `table` field when several tables arrive (step 4). A request or assignment is refused `build-mismatch` unless the participant's `build`
+  equals the host's in both versions (a missing build never matches), `multi-seat` for a second seat while `multiSeat` is
+  off, `seat-taken`, `no-such-seat`, `no-such-participant`. Only `bad-message`, `too-large` and `not-allowed` count toward
+  the room closing a noisy socket.
+- **Seat decks** (`room-protocol.ts` `RoomDeck`: name, identity card id, hero name, aspects, `{ cardId, quantity }`
+  lines, mod refs `{ id, version }`; at most 16 KiB of JSON, 120 lines): a seat's holder sends `seat-deck { seat, deck }`; the host
+  may send one for any seat it does not hold, which is a **preset**. The room stores the deck in the seat's entry of the
+  `lobby` row (rewritten only when it changes) and broadcasts only `seat.deck`, a `RoomDeckSummary`, in `lobby`. The host
+  asks `seat-decks-request` and gets `seat-decks` with every full list, to itself alone. A holder who replaces a preset with their own deck keeps the preset behind it: when they give the seat up (or the host takes
+  it back) the preset comes back, and their own deck goes. A host preset over a deck its holder chose is refused `not-allowed`
+  (take the seat back first); over a preset or an empty seat it is accepted. A seat the host removes loses its deck.
+  `RoomDeck.deckId` is attribution only (the precon's starter deck id, or the player's own deck id), so stats and Past games
+  name a room game's decks like local ones; the deck's own line order is kept so the shuffle matches the local path. At
+  Start the host sends `deck-refused { seat, code, reason }` for each failing seat, which the room relays to that seat's
+  holder alone. `seat-deck` is rate limited per participant (burst 4, then one every 3 s) and for the room (burst 20, then
+  one every 2 s); a refused one is `rate-limited`, `too-large` or `not-allowed`. `LobbySeatSpec.label` is now optional.
+- **Seat decks on the client** (`platform/room.ts`): `chooseDeck(seat, option)` puts one of this device's own `DeckOption`s (saved,
+  imported, custom or precon, which must be seatable here) in a seat I hold; `presetDeck` is the host's version for any seat. Each
+  seat in `RoomState` carries `deck` (the summary) and, on my own seat only, `deckProblem` (`code` and the engine's `reason`, gone
+  once the deck or the allowed mods change or I choose again). The host's `startRoomGame(base)` (`live/room-start.ts`) needs
+  every seat held, asks the room for the full lists, judges them in `workers/room-deck-check.worker.ts` (`live/room-deck.ts`:
+  mod refs first (`mod-missing`, `mod-version`, `mod-not-allowed`), then unknown cards, then `validateDeck`), sends `deck-refused`
+  for each failing seat (a seat the host holds is read from the result instead), and otherwise starts the game with the seats'
+  decks as its players, in seat order. A check that cannot run, or that does not give one verdict per seat, starts nothing.
+  The check also applies the table rules: Unique Icon (a later seat whose hero matches an earlier one is refused, naming the
+  hero; RRG 1.8 p. 45) and the Team-Up replacement for the other seats' heroes (Appendix I, p. 50). Building the room list from
+  a deck and judging decks both run in `workers/room-deck-check.worker.ts`, which keeps the packs main sends it (each once).
+  **Decided gap:** the local Table setup's same-name swaps (`applyDeckSwaps`, `name-conflicts.ts`) are not offered in a room;
+  a card that cannot enter play stays in its deck, as the engine handles it, until the host's room Start offers the swap.
+- A seat whose connected holder runs a build that is not the host's (restored by token after an update, or the host changed
+  build) stays held and is sent with `mismatch: true`; its holder may not act for it until the builds match (the later play
+  step enforces that). Restoring by token also obeys `multiSeat`: an extra seat is refused `multi-seat` and stays with its
+  old holder.
+- Names and chat lines are NFC-normalized, format characters (zero-width, bidi) are removed, controls and line separators
+  become spaces, and they are cut by code points; a name needs at least one visible character; an over-long chat line is
+  cut to 280, not refused.
+- An assignment sends that participant alone `seat-token { seat, token }` (192 random bits; only its SHA-256 is stored).
+  A reconnect is a new participant id: `hello { seatTokens: [...] }` puts the sender back in the seats those tokens open
+  (the token is the credential, so it also takes the seat from the id the same player held before), and the same token
+  keeps working. A disconnected holder keeps the seat (shown with `holderName` and no roster entry) until released or taken
+  back by the host; a disconnect withdraws that participant's pending requests.
+- Chat: `say { text }` (control characters become spaces, 1 to 280 characters, 1 a second with a burst of 5 per
+  participant, `rate-limited` over it, `not-allowed` when chat is off or the room has no lobby) and `said { from, name,
+  text, at }` to everyone including the sender. The last 50 lines are kept in memory and sent to a joiner in a
+  `chat { kind: "backlog", lines }` message after `welcome` (not when empty or chat is off). No chat is stored, so a room
+  that hibernates forgets the backlog.
+- A host's `seat-deny` of a pending request sends the requester `seat-denied { seat }` (the request is memory-only, so the
+  client otherwise re-sends it after a wake). A lobby room hosts one game after another: the host's `start` on an ended
+  table reopens it (a rematch), where any other room refuses it.
+- Storage: the existing `meta` row gains `code` and `roomId` (lobby rooms only); settings, seats (holders, requests) and the
+  seat-token hashes are one separate `lobby` row, not part of `meta` (which also carries the end outcome and the hourly
+  host stamp), written only when the host sets or changes the lobby, a seat's holder changes (assigned, released, taken back, or
+  restored by token) or the host's build is first stamped or changes. Pending seat requests are memory only (a woken room
+  starts with none; the client asks again), and a participant's lobby messages are rate limited (burst 10, then 2 a second),
+  so no loop of requests writes a row. Nothing is written per chat line, join or leave. A socket with 50 soft refusals in
+  10 seconds is closed. The cost notes are in `packages/sync-worker/wrangler.jsonc`.
+- The room's limits and kill switch are the ones #878 set up.

@@ -8,6 +8,8 @@
  * `SeatsScene`.
  */
 import Phaser from "phaser";
+import { leaveRoomSetup, placeholderSeats, roomSeatCount, roomSetupActive } from "../view/room-table-setup.js";
+import type { TableSetupData } from "./table-setup.js";
 import type { CardId, Scenario } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
@@ -356,6 +358,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // Room mode (#880): the host set the table up from the lobby, and Back returns there.
+    if (roomSetupActive()) {
+      leaveRoomSetup();
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     goToScreen(this, SCENES.title);
   }
 
@@ -751,6 +759,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
       }
       this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
+      // Room mode (#880): no hero step, the players bring their own decks; Table setup gets one placeholder per seat.
+      if (roomSetupActive()) {
+        goToScreen(this, SCENES.setup, {
+          draft: { ...this.#draft, seats: placeholderSeats(roomSeatCount()) },
+        } satisfies TableSetupData);
+        return;
+      }
       goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
     const nextButton = new McButton(this, {

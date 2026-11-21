@@ -30,6 +30,7 @@ import {
   VILLAIN_BEAT_SPEED_VALUES,
   CAMPAIGN_FADE_COLOR_VALUES,
   FLIP_ENCOUNTER_SPEED_VALUES,
+  cleanOnlineName,
   clampGlyphSize,
   clampMusicVolume,
   defaultSettings,
@@ -170,6 +171,8 @@ export function parseSettingsOverrides(raw: string | null): SettingsOverrides {
   if (deckListValue !== undefined) out.deckListOnOpen = deckListValue;
   const cardLanguage = source["cardLanguage"];
   if (typeof cardLanguage === "string" && isCardLanguage(cardLanguage)) out.cardLanguage = cardLanguage;
+  const onlineName = source["onlineName"];
+  if (typeof onlineName === "string") out.onlineName = cleanOnlineName(onlineName);
   const resolution = source["textResolution"];
   if (typeof resolution === "number" && Number.isFinite(resolution)) {
     out.textResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, resolution));

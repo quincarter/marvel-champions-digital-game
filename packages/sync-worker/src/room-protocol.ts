@@ -45,14 +45,56 @@ export const MAX_ROOM_REFUSALS = 5;
 /** A starting state and header (or the first part of a log): under the WebSocket's own 1 MiB message cap. */
 export const MAX_LOG_BYTES = 1024 * 1024 - 1024;
 export const DEFAULT_ROOMS_PER_IP_PER_DAY = 20;
-/** A display name's length cap. Names are reserved for chat: the room ignores `hello.name` until then. */
-export const MAX_NAME_LENGTH = 32;
+/**
+ * A display name's length cap, after trimming. A lobby room (`POST /room { lobby: true }`) requires one in `hello`; any
+ * other room ignores `hello.name`, so watching works as it did.
+ */
+export const MAX_NAME_LENGTH = 24;
+/** What `hello` may carry as a name (watch rooms ignore it); a lobby room cuts it to `MAX_NAME_LENGTH` code points. */
+export const MAX_HELLO_NAME_CHARS = 32;
+/** A room code's directory entry outlives the room's own expiry by this much, so the two alarms never race. */
+export const ROOM_CODE_MARGIN_MS = 60 * 60 * 1000;
+/** Seat and lobby messages per participant: a burst of this many, then 2 a second. */
+export const LOBBY_MESSAGE_BURST = 10;
+/** The most characters one chat line may have (`say`). */
+export const MAX_CHAT_LENGTH = 280;
+/** Chat rate per participant: one line a second on average, with a burst of this many. */
+export const CHAT_BURST = 5;
+/** Lines the room keeps in memory for a joiner (`backlog`). Chat is never stored. */
+export const CHAT_BACKLOG_LINES = 50;
+/** A lobby has at most this many seats (Marvel Champions has 1-4 heroes). */
+export const MAX_LOBBY_SEATS = 4;
+/** A seat's id: chosen by the host's client (for example `s1`..`s4`). */
+export const SEAT_ID_PATTERN = /^[A-Za-z0-9_-]{1,16}$/;
+/** A room code: 6 characters of the transfer alphabet (`CODE_ALPHABET`, no look-alikes). */
+export const LOBBY_CODE_LENGTH = 6;
+/** The largest `tableRules` object, in JSON characters. */
+export const MAX_TABLE_RULES_CHARS = 16 * 1024;
+/**
+ * One seat's deck list, in JSON bytes (`seat-deck`): a deck is about 40 lines of card id and count, so this is generous
+ * and still keeps four seats' decks plus the rest of the lobby row well under a storage value's 128 KiB.
+ */
+export const MAX_SEAT_DECK_BYTES = 16 * 1024;
+/** Most card lines (distinct card ids) in one deck list. */
+export const MAX_DECK_LINES = 120;
+/** `seat-deck` per participant: a burst of this many, then one every `DECK_REFILL_SECONDS` (each accepted change writes a row). */
+export const DECK_MESSAGE_BURST = 4;
+export const DECK_REFILL_SECONDS = 3;
+/** The longest `reason` of a `deck-refused`, after the room cleans it. */
+export const MAX_DECK_REFUSAL_CHARS = 400;
+/** A lobby holds at most this many mods. */
+export const MAX_LOBBY_MODS = 64;
+/** Most seat tokens a `hello` may present. */
+export const MAX_HELLO_SEAT_TOKENS = 8;
 /** A room closes this long after any host last sent anything. */
 export const ROOM_IDLE_MS = 12 * 60 * 60 * 1000;
 /** After every table has ended, the room stays open this long. */
 export const ROOM_END_GRACE_MS = 5 * 60 * 1000;
 
-/** Capabilities a side may list in `hello` / `welcome`. Only `watch` is built. */
+/**
+ * Capabilities a side may list in `hello` / `welcome`. `watch` is every room's; a room created with `lobby: true`
+ * also advertises `chat` and `seats`. `tables` is not built.
+ */
 export type RoomCapability = "watch" | "chat" | "seats" | "tables";
 
 /** `POST /room` answers 201 with this: the room, and the token that makes its holder the first table's host. */
@@ -60,6 +102,18 @@ export interface RoomCreated {
   readonly roomId: string;
   readonly hostToken: string;
   readonly table: string;
+  /** Only for a room created with `{ lobby: true }`: the 6-character code that `GET /room/code/:code` resolves. */
+  readonly code?: string;
+}
+
+/** The body of `POST /room`. Optional; a body that is not this (or is empty) creates a plain watch room. */
+export interface RoomCreateRequest {
+  readonly lobby?: boolean;
+}
+
+/** `GET /room/code/:code` answers 200 with this, or 404 `not-found` (an unknown, expired or closed code). */
+export interface RoomCodeResolved {
+  readonly roomId: string;
 }
 
 export type RoomErrorReason =
@@ -84,16 +138,191 @@ export type TableCommand = unknown;
 /** Replay checksums (every `CHECKSUM_EVERY` commands), keyed by command count. Opaque to the room. */
 export type TableChecksums = Readonly<Record<string, string>>;
 
-/** How someone is in the room. `seat` (a player at a table who may propose) is reserved for multiplayer. */
+/**
+ * How someone is in the room. `seat` (a player at a table who may propose) is reserved for multiplayer: a participant
+ * who holds a lobby seat is still a `watcher` here; the seat's `holder` in the `lobby` message says who holds it.
+ */
 export type ParticipantRole = "host" | "seat" | "watcher";
 
+/** The client build a participant runs. A seat requires it to equal the host's. */
+export const DEVICE_PLATFORMS = ["web", "windows", "macos", "linux", "android", "ios"] as const;
+export const DEVICE_FORMS = ["desktop", "tablet", "phone"] as const;
+
+/** What a participant plays on, as two coarse values (no model, OS version or screen size). Shown in the roster. */
+export interface RoomDevice {
+  readonly platform: (typeof DEVICE_PLATFORMS)[number];
+  readonly form: (typeof DEVICE_FORMS)[number];
+}
+
+/** A `device` from a `hello`, or undefined when it is missing or not exactly those two known values. */
+export function cleanDevice(value: unknown): RoomDevice | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const { platform, form } = value as Record<string, unknown>;
+  const p = DEVICE_PLATFORMS.find((x) => x === platform);
+  const f = DEVICE_FORMS.find((x) => x === form);
+  return p && f ? { platform: p, form: f } : undefined;
+}
+
+export interface RoomBuild {
+  readonly appVersion: string;
+  readonly contentVersion: string;
+}
+
 export interface Participant {
-  /** Stable for the connection's life; given by the room. */
+  /** Stable for the connection's life; given by the room. A reconnect is a new id (seats follow the seat token). */
   readonly id: string;
   readonly role: ParticipantRole;
   /** The table a host or seat belongs to; absent for a watcher. */
   readonly table?: string;
+  /** Trimmed, at most `MAX_NAME_LENGTH`; present for every participant of a lobby room, never in another room. */
   readonly name?: string;
+  /** What the participant's `hello` said it runs, so a lobby can show a mismatch. */
+  readonly build?: RoomBuild;
+  /** From the participant's `hello`, in every room (watch rooms too); absent when it sent none or an unknown one. */
+  readonly device?: RoomDevice;
+}
+
+/** How the game is played: `strict` is the game as written, `host` lets the host allow Undo, Manual adjust and so on. */
+export type LobbyPlayMode = "strict" | "host";
+
+/**
+ * Who may Undo in the room's game: `off` nobody, `host` the host alone (guests cannot ask), `ask` the host, and guests
+ * may ask the host. Strict rules force `off`; Host control starts at `ask`. See `lobbyUndoFor`.
+ */
+export type LobbyUndo = "off" | "host" | "ask";
+
+/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`ask` when none was or it is unreadable). */
+export function lobbyUndoFor(playMode: LobbyPlayMode, undo: unknown): LobbyUndo {
+  if (playMode === "strict") return "off";
+  return undo === "off" || undo === "host" || undo === "ask" ? undo : "ask";
+}
+
+export interface LobbyMod {
+  readonly id: string;
+  readonly version: string;
+}
+
+/** The host's room settings, shown to everyone. `appVersion` and `contentVersion` are the host's build, set by the room. */
+export interface LobbySettings {
+  readonly playMode: LobbyPlayMode;
+  /** Who may Undo (`LobbyUndo`); always `off` while `playMode` is `strict`. */
+  readonly undo: LobbyUndo;
+  /**
+   * Cheats on or off (default off). On: the host's own Cheats (Undo past a turn, Manual adjust) work in the room's game
+   * and the game counts for no one's stats or achievements. Fixed once the game starts.
+   */
+  readonly cheats: boolean;
+  /** The game's `TableRules`, opaque to the room (at most `MAX_TABLE_RULES_CHARS` of JSON). */
+  readonly tableRules: Readonly<Record<string, unknown>>;
+  readonly mods: readonly LobbyMod[];
+  /** May one participant hold more than one seat? */
+  readonly multiSeat: boolean;
+  readonly chat: boolean;
+  readonly contentVersion: string;
+  readonly appVersion: string;
+}
+
+/** What the host may change with `lobby-set`; `appVersion` and `contentVersion` are never taken from a client. */
+export type LobbySettingsPatch = Partial<Omit<LobbySettings, "appVersion" | "contentVersion">>;
+
+/** One line of a deck list: a card id and how many copies. */
+export interface RoomDeckLine {
+  readonly cardId: string;
+  readonly quantity: number;
+}
+
+/**
+ * A player's own deck, as a plain list (Quin, 2026-11-20: each player brings their hero and deck). Built on the player's
+ * device from a saved, imported or precon deck. The room stores it with the seat and never reads the cards; only the
+ * host's engine judges it. `mods` names the custom packs the deck's cards come from (id and version), so the host can
+ * tell a missing or different pack apart from an unknown card. At most `MAX_SEAT_DECK_BYTES` of JSON.
+ */
+export interface RoomDeck {
+  /** The deck's name (at most 80 characters). */
+  readonly name: string;
+  /** The identity card id (the hero or alter-ego the deck belongs to). */
+  readonly hero: string;
+  /** The hero's display name, for the lobby (at most 80 characters). */
+  readonly heroName: string;
+  /** The chosen aspect(s), as their ids. */
+  readonly aspects: readonly string[];
+  /** The cards, without the identity card itself (a `Deck`'s own `cards`). */
+  readonly cards: readonly RoomDeckLine[];
+  /** The custom packs the deck's cards or hero come from; empty for a base-game deck. */
+  readonly mods: readonly LobbyMod[];
+  /**
+   * Attribution only, never a rule input (like `CorePlayer.deckId`): the precon's starter deck id, or the player's own
+   * deck id on their device, so stats and Past games can name the deck a room game was played with.
+   */
+  readonly deckId?: string;
+}
+
+/**
+ * What the lobby shows everyone of a seat's deck: no card list. The full list goes only to the host (`seat-decks`), so
+ * a guest cannot read another guest's deck.
+ */
+export interface RoomDeckSummary {
+  readonly hero: string;
+  readonly heroName: string;
+  readonly aspects: readonly string[];
+  readonly name: string;
+  /** Total cards (the sum of the quantities). */
+  readonly cards: number;
+  readonly mods: readonly LobbyMod[];
+  /** The host chose this deck for the seat (the holder may still replace it). */
+  readonly preset?: true;
+}
+
+/** Why a deck was turned down at Start; the `reason` carries the words (from the host's engine) for that player. */
+export const DECK_REFUSAL_CODES = [
+  "no-deck",
+  "illegal",
+  "unknown-card",
+  "mod-missing",
+  "mod-version",
+  "mod-not-allowed",
+] as const;
+export type DeckRefusalCode = (typeof DECK_REFUSAL_CODES)[number];
+
+/** A seat as the host defines it. */
+export interface LobbySeatSpec {
+  readonly id: string;
+  /** An optional label, opaque to the room (at most 80 characters). The host sets a count of open seats; the hero is the deck's. */
+  readonly label?: string;
+}
+
+export interface LobbySeat extends LobbySeatSpec {
+  /** The participant holding the seat. A holder whose id is not in the roster has disconnected and may rejoin by token. */
+  readonly holder?: string;
+  /** The holder's name, kept while they are disconnected. */
+  readonly holderName?: string;
+  /**
+   * The connected holder runs a build that is not the host's (a seat restored by token after an update, or the host
+   * changed build). The seat stays held; its holder may not act for it until the builds match again.
+   * (A later multi-table step adds a `table` field here.)
+   */
+  readonly mismatch?: boolean;
+  /** Participants who asked for the seat and await the host's answer. Memory only: a woken room starts with none. */
+  readonly requested?: readonly string[];
+  /** The seat's deck, summarized: set once the holder (or the host's preset) has sent one. Never the card list. */
+  readonly deck?: RoomDeckSummary;
+}
+
+/** The lobby: its code, the host's settings and the seats. Sent to everyone after each change, and to a joiner. */
+export interface LobbyState {
+  readonly code: string;
+  readonly settings: LobbySettings;
+  readonly seats: readonly LobbySeat[];
+}
+
+/** One line of chat as the room relays it. */
+export interface ChatLine {
+  /** The sender's participant id. */
+  readonly from: string;
+  readonly name?: string;
+  readonly text: string;
+  /** Milliseconds since the epoch, by the room's clock. */
+  readonly at: number;
 }
 
 /** A table as the room reports it. */
@@ -115,14 +344,69 @@ export interface TableInfo {
 // Client to room
 
 export type ClientMessage =
-  /** First message on a socket. A `token` the room issued makes the sender that token's host (later, seat). */
+  /**
+   * First message on a socket. A `token` the room issued makes the sender the host. In a lobby room `name` (trimmed,
+   * at most `MAX_NAME_LENGTH`) is required and `build` is what a seat is checked against; `seatTokens` are seat tokens
+   * from earlier `seat-token` messages, which put the sender back in those seats.
+   */
   | {
       readonly v: 1;
       readonly ch: "room";
       readonly kind: "hello";
       readonly token?: string;
       readonly name?: string;
+      readonly build?: RoomBuild;
+      /** Optional and never refused: an unknown value is ignored. */
+      readonly device?: RoomDevice;
+      readonly seatTokens?: readonly string[];
       readonly caps: readonly RoomCapability[];
+    }
+  /** Host only, lobby rooms only: change settings and/or replace the seat list (holders of kept seat ids stay). */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "lobby-set";
+      readonly settings?: LobbySettingsPatch;
+      readonly seats?: readonly LobbySeatSpec[];
+    }
+  /** Host only: closes the room for everyone (`closed` with reason `host`, every socket closed, the code released). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "room-close" }
+  /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-request"; readonly seat: string }
+  /** Give up a seat you hold, or withdraw a request. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-release"; readonly seat: string }
+  /** Host only: give a seat to a connected participant. The participant gets a private `seat-token`. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "seat-assign";
+      readonly seat: string;
+      readonly participant: string;
+    }
+  /** Host only: turn down a request, or take the seat from its holder. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "seat-deny";
+      readonly seat: string;
+      readonly participant: string;
+    }
+  /**
+   * The seat's holder sets the seat's deck (the full list); the host may send one for any seat as a preset, which stays
+   * through a change of holder where a holder's own deck does not. At most `MAX_SEAT_DECK_BYTES`, rate limited
+   * (`DECK_MESSAGE_BURST`, then one per `DECK_REFILL_SECONDS`). Everyone sees only a summary; the host can ask for the lists.
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-deck"; readonly seat: string; readonly deck: RoomDeck }
+  /** Host only: asks for every seat's full deck list (answered to the host alone with `seat-decks`). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-decks-request" }
+  /** Host only: tells a seat's holder, and only them, why the host's engine refused their deck at Start. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "deck-refused";
+      readonly seat: string;
+      readonly code: DeckRefusalCode;
+      readonly reason: string;
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "start"; readonly table: string; readonly header: TableHeader }
   /** The commands `from` .. `from + commands.length - 1`. A batch that does not continue the table's log is refused. */
@@ -151,7 +435,7 @@ export type ClientMessage =
       readonly checksums?: TableChecksums;
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
-  // Reserved, not built: a seat's proposal for its table's host to judge, and chat.
+  // Reserved, not built: a seat's proposal for its table's host to judge.
   | {
       readonly v: 1;
       readonly ch: "game";
@@ -159,6 +443,7 @@ export type ClientMessage =
       readonly table: string;
       readonly command: TableCommand;
     }
+  /** Lobby rooms with chat on: at most `MAX_CHAT_LENGTH` characters; 1 a second per participant, burst `CHAT_BURST`. */
   | { readonly v: 1; readonly ch: "chat"; readonly kind: "say"; readonly text: string };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -185,14 +470,41 @@ export type ServerMessage =
     }
   | { readonly v: 1; readonly ch: "room"; readonly kind: "table"; readonly table: TableInfo }
   /** The room is closing. */
-  | { readonly v: 1; readonly ch: "room"; readonly kind: "closed"; readonly reason: "ended" | "idle" | "disabled" }
-  /** A message was refused; the socket stays open unless the room closes it. */
   | {
       readonly v: 1;
       readonly ch: "room";
-      readonly kind: "refused";
-      readonly reason: "bad-message" | "too-large" | "not-allowed" | "out-of-order" | "full";
+      readonly kind: "closed";
+      readonly reason: "ended" | "idle" | "disabled" | "host";
     }
+  /** A message was refused; the socket stays open unless the room closes it (or the refusal is `name-required`). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "refused"; readonly reason: RefusalReason }
+  /** Lobby rooms: everyone, after each change (and the joiner, after `welcome`). */
+  | ({ readonly v: 1; readonly ch: "room"; readonly kind: "lobby" } & LobbyState)
+  /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
+  /** To the host alone, answering `seat-decks-request`: the full deck of every seat that has one. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "seat-decks";
+      readonly decks: readonly {
+        readonly seat: string;
+        readonly holder?: string;
+        readonly preset: boolean;
+        readonly deck: RoomDeck;
+      }[];
+    }
+  /** To the holder of `seat` alone: the host's engine refused the seat's deck at Start, and why. */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "deck-refused";
+      readonly seat: string;
+      readonly code: DeckRefusalCode;
+      readonly reason: string;
+    }
+  /** To a participant whose pending request for `seat` the host turned down: stop asking (the request is gone). */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-denied"; readonly seat: string }
   /**
    * To a table's host: the room holds `from` commands of the table (its stored chunks after a wake, or the point a
    * refused batch did not line up with). Answer with ordinary `commands` batches from there, or, when `from` is 0,
@@ -225,7 +537,7 @@ export type ServerMessage =
     }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "rewind"; readonly table: string; readonly to: number }
   | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
-  // Reserved, not built: a proposal forwarded to the table's host, and chat.
+  // Reserved, not built: a proposal forwarded to the table's host.
   | {
       readonly v: 1;
       readonly ch: "game";
@@ -234,17 +546,100 @@ export type ServerMessage =
       readonly from: string;
       readonly command: TableCommand;
     }
-  | {
-      readonly v: 1;
-      readonly ch: "chat";
-      readonly kind: "said";
-      readonly from: string;
-      readonly name?: string;
-      readonly text: string;
-      readonly at: number;
-    };
+  | ({ readonly v: 1; readonly ch: "chat"; readonly kind: "said" } & ChatLine)
+  /** To a joiner of a lobby room with chat on, after `welcome`: the last `CHAT_BACKLOG_LINES` lines, oldest first. */
+  | { readonly v: 1; readonly ch: "chat"; readonly kind: "backlog"; readonly lines: readonly ChatLine[] };
+
+/**
+ * Why a message was refused. `build-mismatch`: the participant's `build` is not the host's (a seat needs both versions
+ * equal). `name-required`: a lobby room's `hello` had no usable name (the socket is closed). `rate-limited`: chat over
+ * its limit. `multi-seat`: a second seat while the host has `multiSeat` off. Only `bad-message`, `too-large` and
+ * `not-allowed` count toward the room closing a noisy socket.
+ */
+export type RefusalReason =
+  | "bad-message"
+  | "too-large"
+  | "not-allowed"
+  | "out-of-order"
+  | "full"
+  | "rate-limited"
+  | "name-required"
+  | "build-mismatch"
+  | "multi-seat"
+  | "seat-taken"
+  | "no-such-seat"
+  | "no-such-participant";
 
 const CHANNELS = new Set(["room", "game", "chat"]);
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const isSeatId = (v: unknown): v is string => typeof v === "string" && SEAT_ID_PATTERN.test(v);
+const shortString = (v: unknown, max: number): v is string => typeof v === "string" && v.length <= max;
+
+function isBuild(v: unknown): v is RoomBuild {
+  return isRecord(v) && shortString(v.appVersion, 64) && shortString(v.contentVersion, 64);
+}
+
+function isSeatSpecs(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_LOBBY_SEATS &&
+    v.every((s) => isRecord(s) && isSeatId(s.id) && (s.label === undefined || shortString(s.label, 80)))
+  );
+}
+
+function isMods(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_LOBBY_MODS &&
+    v.every((m) => isRecord(m) && shortString(m.id, 64) && shortString(m.version, 32))
+  );
+}
+
+/** The shape and limits of a `RoomDeck`; the room cleans the text and checks the byte size after. */
+function isDeck(v: unknown): v is RoomDeck {
+  return (
+    isRecord(v) &&
+    shortString(v.name, 160) &&
+    shortString(v.hero, 64) &&
+    v.hero.length > 0 &&
+    shortString(v.heroName, 160) &&
+    Array.isArray(v.aspects) &&
+    v.aspects.length <= 4 &&
+    v.aspects.every((a) => shortString(a, 24)) &&
+    Array.isArray(v.cards) &&
+    v.cards.length <= MAX_DECK_LINES &&
+    v.cards.every(
+      (c) =>
+        isRecord(c) &&
+        shortString(c.cardId, 64) &&
+        c.cardId.length > 0 &&
+        typeof c.quantity === "number" &&
+        Number.isInteger(c.quantity) &&
+        c.quantity >= 1 &&
+        c.quantity <= 99,
+    ) &&
+    isMods(v.mods) &&
+    (v.deckId === undefined || (shortString(v.deckId, 64) && v.deckId.length > 0))
+  );
+}
+
+function isSettingsPatch(v: unknown): boolean {
+  if (!isRecord(v)) return false;
+  if (v.playMode !== undefined && v.playMode !== "strict" && v.playMode !== "host") return false;
+  if (v.undo !== undefined && v.undo !== "off" && v.undo !== "host" && v.undo !== "ask") return false;
+  if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
+  if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
+  if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
+  if (v.tableRules !== undefined) {
+    if (!isRecord(v.tableRules) || (JSON.stringify(v.tableRules)?.length ?? 0) > MAX_TABLE_RULES_CHARS) return false;
+  }
+  if (v.mods !== undefined) {
+    if (!Array.isArray(v.mods) || v.mods.length > MAX_LOBBY_MODS) return false;
+    if (!v.mods.every((m) => isRecord(m) && shortString(m.id, 64) && shortString(m.version, 32))) return false;
+  }
+  return true;
+}
 
 /**
  * Parses a client message, or null when it is not one this room can read (bad JSON, another protocol version, an
@@ -271,7 +666,36 @@ export function parseClientMessage(text: string): ClientMessage | null {
       return ok(
         Array.isArray(m.caps) &&
           (m.token === undefined || typeof m.token === "string") &&
-          (m.name === undefined || (typeof m.name === "string" && m.name.length <= MAX_NAME_LENGTH)),
+          (m.name === undefined || (typeof m.name === "string" && m.name.trim().length <= MAX_HELLO_NAME_CHARS)) &&
+          (m.build === undefined || isBuild(m.build)) &&
+          (m.seatTokens === undefined ||
+            (Array.isArray(m.seatTokens) &&
+              m.seatTokens.length <= MAX_HELLO_SEAT_TOKENS &&
+              m.seatTokens.every((t) => typeof t === "string" && t.length <= 64))),
+      );
+    case "room:lobby-set":
+      return ok(
+        (m.settings === undefined || isSettingsPatch(m.settings)) &&
+          (m.seats === undefined || isSeatSpecs(m.seats)) &&
+          (m.settings !== undefined || m.seats !== undefined),
+      );
+    case "room:seat-request":
+    case "room:seat-release":
+      return ok(isSeatId(m.seat));
+    case "room:seat-assign":
+    case "room:seat-deny":
+      return ok(isSeatId(m.seat) && typeof m.participant === "string" && m.participant.length <= 32);
+    case "room:seat-deck":
+      return ok(isSeatId(m.seat) && isDeck(m.deck));
+    case "room:seat-decks-request":
+    case "room:room-close":
+      return ok(true);
+    case "room:deck-refused":
+      return ok(
+        isSeatId(m.seat) &&
+          DECK_REFUSAL_CODES.some((c) => c === m.code) &&
+          typeof m.reason === "string" &&
+          m.reason.length <= MAX_DECK_REFUSAL_CHARS * 4,
       );
     case "game:start":
       return ok(isTable(m.table) && "header" in m);
@@ -286,7 +710,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "game:propose":
       return ok(isTable(m.table) && "command" in m);
     case "chat:say":
-      return ok(typeof m.text === "string");
+      return ok(typeof m.text === "string" && m.text.length <= MAX_CHAT_LENGTH * 4);
     default:
       return null;
   }
