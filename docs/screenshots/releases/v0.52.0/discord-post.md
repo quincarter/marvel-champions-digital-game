@@ -11,6 +11,7 @@
 - **Past games** has a search box (typo and accent friendly) and aspect chips on every hero.
 - **Take your seats** has a Random button.
 - **Smarter cards:** Multi-Gun, Explosive Arrow, Rocket Launcher and eight more offer only players with an engaged minion. Hunting Down Heroes and Maria Hill's Reassignment ask clearer questions.
+- **iPhone and iPad:** tapping a text field no longer zooms the page in.
 - **Tucked cards pay:** cards under Falcon's Resource Reserve show in the payment strip and can be spent.
 
 ## Links
@@ -18,7 +19,7 @@
 Full report: https://champions-digital-game.com/releases/v0.52.0/
 Downloads: https://champions-digital-game.com/#download
 
-Thank you @bluefireF5ran for the play notes and reports behind most of this release (#911, #922), and Dreadheart for reporting the Windows crash and the Steam installer, with the crash files that found it.
+Thank you @bluefireF5ran for the play notes and reports behind most of this release (#911, #922), and Dreadheart for reporting the Windows crash and the Steam installer, with the crash files that found it, and GarethMagis for the iPhone zoom report.
 
 ---
 
@@ -35,6 +36,7 @@ Thank you @bluefireF5ran for the play notes and reports behind most of this rele
 - **Past games** tiene un cuadro de búsqueda (tolerante a errores y acentos) y etiquetas de aspecto en cada héroe.
 - **Take your seats** tiene un botón Random.
 - **Cartas que eligen mejor:** Multi-Gun, Explosive Arrow, Rocket Launcher y ocho más solo ofrecen a jugadores con un esbirro enfrentado. Hunting Down Heroes y Reassignment de Maria Hill hacen preguntas más claras.
+- **iPhone y iPad:** tocar un campo de texto ya no acerca la página.
 - **Las cartas guardadas debajo pagan:** las cartas debajo de Resource Reserve de Falcon aparecen en la tira de pago y se pueden gastar.
 
 ## Enlaces
@@ -42,4 +44,4 @@ Thank you @bluefireF5ran for the play notes and reports behind most of this rele
 Informe completo: https://champions-digital-game.com/releases/v0.52.0/index.es.html
 Descargas: https://champions-digital-game.com/#download
 
-Gracias a @bluefireF5ran por las notas de juego y los reportes detrás de casi toda esta versión (#911, #922), y a Dreadheart por reportar el fallo de Windows y el instalador de Steam, con los archivos del fallo que permitieron encontrarlo.
+Gracias a @bluefireF5ran por las notas de juego y los reportes detrás de casi toda esta versión (#911, #922), y a Dreadheart por reportar el fallo de Windows y el instalador de Steam, con los archivos del fallo que permitieron encontrarlo, y a GarethMagis por el reporte del zoom en iPhone.
