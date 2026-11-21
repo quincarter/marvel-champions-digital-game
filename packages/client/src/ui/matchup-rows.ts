@@ -8,6 +8,7 @@ import { surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import {
   TILE_RIBBON_HEIGHT,
+  designerLines,
   shelfPictureRect,
   tilePictureRect,
   type LegendLayout,
@@ -101,7 +102,7 @@ export function renderShelf(
   const name = scene.add
     .text(left, box.y + 8, shelf.name.toUpperCase(), textStyle(bangers(phone ? 18 : 22), surface.ink.hex))
     .setLetterSpacing(0.5);
-  fitText(name, (phone ? right - left : SHELF_NAMES) - 4, phone ? 18 : 22);
+  fitCredited(name, (phone ? right - left : SHELF_NAMES) - 4, phone ? 18 : 22, 1, false);
   const summary = scene.add
     .text(
       left,
@@ -185,7 +186,7 @@ export function renderTile(
     .setOrigin(0.5, 0)
     .setAlign("center")
     .setFontSize(11);
-  fitWrapped(name, box.width - 6, 2, 11);
+  fitCredited(name, box.width - 6, 11, 2, true);
   objects.push(word, name);
   // A dashed edge would be drawn segment by segment for nothing: an unplayed tile just has no ink edge.
   if (won || played)
@@ -213,6 +214,56 @@ export function renderSideRow(
   const label = scene.add
     .text(box.x + 10, box.y + box.height / 2, name, textStyle({ ...typeRole.rowTitle, size: 13 }, fg, 1))
     .setOrigin(0, 0.5);
-  fitText(label, box.width - 28 - score.width, 13);
+  fitCredited(label, box.width - 28 - score.width, 13, 1, false);
   return [g, score, label];
+}
+
+/**
+ * Fits a Match-ups name into `width`, keeping a custom pack's designer credit in sight in every view (issue #937). A
+ * name with no credit fits as the view always did: wrapped over `maxLines` when `wrap`, else shrunk and clipped on one
+ * line. A credited name ("The Rose (by PermaKarma)") that does not fit one line whole keeps its credit apart from the
+ * name, which is the part that wraps or clips: on its own last line with two or more lines, else after the clipped
+ * name on the one line ("The Ro… by PermaKarma").
+ */
+export function fitCredited(
+  text: Phaser.GameObjects.Text,
+  width: number,
+  size: number,
+  maxLines: number,
+  wrap: boolean,
+): void {
+  const label = text.text;
+  text.setWordWrapWidth(null);
+  const parts = designerLines(label);
+  if (!parts) {
+    if (wrap && maxLines > 1) fitWrapped(text, width, maxLines, size);
+    else fitText(text, width, size);
+    return;
+  }
+  fitText(text, width, size);
+  if (text.text === label) return;
+  const [title, credit] = parts;
+  // The credit's fit sets the most the name may use, so the two lines share a size (the name may end smaller).
+  text.setText(credit);
+  fitText(text, width, size);
+  const creditLine = text.text;
+  const creditSize = Number.parseFloat(String(text.style.fontSize));
+  if (maxLines <= 1) {
+    const room = Math.max(0, width - text.width - 4);
+    text.setText(title);
+    fitText(text, room, creditSize);
+    text.setText(`${text.text} ${creditLine}`);
+    return;
+  }
+  text.setText(title);
+  let titleLines: string;
+  if (maxLines > 2) {
+    fitWrapped(text, width, maxLines - 1, creditSize);
+    titleLines = text.getWrappedText().join("\n");
+    text.setWordWrapWidth(null);
+  } else {
+    fitText(text, width, creditSize);
+    titleLines = text.text;
+  }
+  text.setText(`${titleLines}\n${creditLine}`);
 }

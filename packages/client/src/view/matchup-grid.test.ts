@@ -328,8 +328,9 @@ describe("designer credits on the axes (issue #937)", () => {
   test("byDesigner tags custom content and designerLines splits it back for a narrow row or column", () => {
     expect(byDesigner("The Rose", "PermaKarma")).toBe("The Rose (by PermaKarma)");
     expect(byDesigner("Rhino", undefined)).toBe("Rhino");
-    expect(designerLines("The Rose (by PermaKarma)")).toEqual(["The Rose", "(by PermaKarma)"]);
-    expect(designerLines("Throg (by A & B)")).toEqual(["Throg", "(by A & B)"]);
+    expect(designerLines("The Rose (by PermaKarma)")).toEqual(["The Rose", "by PermaKarma"]);
+    expect(designerLines("THE ROSE (BY PERMAKARMA)")).toEqual(["THE ROSE", "BY PERMAKARMA"]);
+    expect(designerLines("Throg (by A & B)")).toEqual(["Throg", "by A & B"]);
     expect(designerLines("Spider-Man (Peter Parker)")).toBeNull();
   });
 });

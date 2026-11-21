@@ -626,8 +626,12 @@ export const pageRows = (shape: GridShape): number =>
 export const byDesigner = (name: string, designer: string | undefined): string =>
   designer ? `${name} (by ${designer})` : name;
 
-/** `byDesigner` read back: "The Rose (by PermaKarma)" over two lines, the name above its credit; null with no credit. */
+/**
+ * `byDesigner` read back (an upper-cased label too): "The Rose (by PermaKarma)" as the name and its credit, "by
+ * PermaKarma", for a view to keep the credit on a line of its own; null with no credit. The credit drops its brackets so
+ * a clip ends it in an ellipsis ("by Perma…") rather than removing it as a trailing aside.
+ */
 export function designerLines(label: string): readonly [string, string] | null {
-  const credit = / (\(by [^)]+\))$/.exec(label);
+  const credit = / \((by [^)]+)\)$/i.exec(label);
   return credit ? [label.slice(0, credit.index), credit[1]!] : null;
 }
