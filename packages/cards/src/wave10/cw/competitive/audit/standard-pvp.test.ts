@@ -297,10 +297,10 @@ describe("Choosing Sides' Forced Response: cleared, the enemy team deals 1 per h
       expect(inst(r.state, cs).cardId).toBe(p.nip);
     });
 
-    // BUG (engine, `relocate` in packages/engine/src/resolve/other-face.ts): a flip to an obligation face falls to the
-    // default case, so Now It's Personal stays in the villain area under nobody's control instead of going to the first
-    // player ("Give to the first player", MC56 p. 16; the script's `flipCard(self, { controller: firstPlayer })`).
-    it.fails(`${p.name} 1v1: the flipped card is given to the first player of the team (p1 controls it, in their play area)`, () => {
+    // Fixed (audit finding 4): a flip to an obligation face puts it in the named player's play area (`relocate` in
+    // packages/engine/src/resolve/other-face.ts; "Give to the first player", MC56 p. 16; `flipCard(self, { controller:
+    // firstPlayer })`).
+    it(`${p.name} 1v1: the flipped card is given to the first player of the team (p1 controls it, in their play area)`, () => {
       const g = choosingSidesGame(p.cs, { deckOne: ["top-a", "top-b", "top-c", "one", "three", "below"] });
       const { state, cs } = readyToClear(g);
       const r = run(g.deps, state, pickCodes(["top-c"], { prompts: [] }), thwartBy(state, P1, cs));
@@ -332,7 +332,7 @@ describe("Choosing Sides' Forced Response: cleared, the enemy team deals 1 per h
 
 describe("Now It's Personal (56128b, 56206b, 57039b, 57081b): used, gives the team's players 2 leader cards each", () => {
   for (const p of PRINTINGS) {
-    // After the real flip (the card sits in the villain area, see the bug above) the Action still resolves for p1.
+    // After the real flip (the card is in p1's play area) the Action resolves for p1.
     it(`${p.name}: after Choosing Sides is cleared, p1 uses it: removed from the game, 2 of team one's leader cards in hand`, () => {
       const g = choosingSidesGame(p.cs, { deckOne: ["top-a", "top-b", "top-c", "one", "three", "below"] });
       const { state, cs } = readyToClear(g);

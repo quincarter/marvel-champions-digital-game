@@ -201,6 +201,15 @@ function relocate(ctx: Ctx, id: InstanceId, to: AnyCard, playerId: PlayerId, dep
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId, engagedWith: null }));
       break;
+    // An obligation lives in a player's play area, never the villain's (RRG 1.8 "Obligation", p. 30; "Play Area"):
+    // the player the flip names (`flipCard.controller`: Now It's Personal's "Give to the first player", MC56 p. 16;
+    // Reactivate Defenses' defeating player, `mut_gen` 32174b), else the flipping effect's player. It holds it as
+    // `putIntoPlay` places one (`controllerId` the holder, so its "you" is that player, p. 30). The card never leaves
+    // play (RRG 1.8 "Flip", p. 20), so an obligation's "stays in hand" text has no say here.
+    case "obligation":
+      if (where?.kind !== "playArea" || where.playerId !== playerId) moveCard(ctx, id, { kind: "playArea", playerId });
+      updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId, engagedWith: null }));
+      break;
     case "attachment": {
       const context = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
       // No "attach to" text (RRG 1.8 "Reveal", p. 38): no host, so it is discarded (RRG 1.8 "Attach To", p. 8).
