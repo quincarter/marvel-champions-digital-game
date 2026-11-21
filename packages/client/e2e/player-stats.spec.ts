@@ -414,13 +414,17 @@ test("on a short desktop window, arrows through the Overview's tall showcase bri
     await shownWhole(focus);
     low = focus;
   }
-  expect(low, "reached a tile beside the hero").not.toBeNull();
-  expect(low, "below the record").not.toBe("tile:record");
-  // Back up to the record: it comes back into view whole.
-  let up: string | null = null;
-  for (let i = 0; i < 16 && up !== "tile:record"; i++) up = await move("ArrowUp");
-  expect(up, "back on the record").toBe("tile:record");
-  await shownWhole("tile:record");
+  // The seeded games' lowest tile in that column is Favorite aspect, under Each game.
+  expect(low, "reached the lowest tile").toBe("tile:aspect");
+  // Back up the column to the record, which the walk down scrolled off the top: every tile on the way shown whole.
+  const path: string[] = [];
+  for (let i = 0; i < 16 && path.at(-1) !== "tile:record"; i++) {
+    const focus = await move("ArrowUp");
+    if (!focus?.startsWith("tile:")) continue;
+    await shownWhole(focus);
+    path.push(focus);
+  }
+  expect(path, "up through Each game to the record").toEqual(["tile:per-game", "tile:record"]);
 });
 
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {
