@@ -4,11 +4,13 @@ import {
   TEXT_WORKER_IDLE_MS,
   TEXT_WORKER_START_MS,
   TextPainter,
+  type CrashGuardLike,
   type PaintTarget,
   type PaintWorkerLike,
   type PainterDeps,
 } from "./text-painter.js";
 import type { PaintJob, TextPaintRequest, TextPaintResponse } from "./text-paint-protocol.js";
+import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 class FakeWorker implements PaintWorkerLike {
   sent: TextPaintRequest[] = [];
@@ -66,7 +68,7 @@ const job = (text = "x"): Omit<PaintJob, "id"> => ({
 });
 const frame = { width: 10.5, height: 5 };
 
-function setup(options: { spawn?: () => FakeWorker | null } = {}) {
+function setup(options: { spawn?: () => FakeWorker | null; guard?: CrashGuardLike } = {}) {
   const workers: FakeWorker[] = [];
   const tasks: (() => void)[] = [];
   const frames: (() => void)[] = [];
@@ -90,6 +92,7 @@ function setup(options: { spawn?: () => FakeWorker | null } = {}) {
     clearTimer: (handle) => {
       timers.delete(handle as number);
     },
+    ...(options.guard ? { guard: options.guard } : {}),
   };
   const painter = new TextPainter(deps);
   return {
@@ -329,5 +332,87 @@ describe("idle", () => {
     t.fire(TEXT_WORKER_IDLE_MS);
     expect(t.worker.terminated).toBe(true);
     expect(t.painter.mode).toBe("idle");
+  });
+});
+
+/** Records what the painter tells the crash guard (#932). */
+class FakeGuard implements CrashGuardLike {
+  skipping = false;
+  calls: string[] = [];
+  skip(): boolean {
+    this.calls.push("skip");
+    return this.skipping;
+  }
+  starting(): void {
+    this.calls.push("starting");
+  }
+  working(): void {
+    this.calls.push("working");
+  }
+  settled(): void {
+    this.calls.push("settled");
+  }
+}
+
+describe("the crash guard (#932)", () => {
+  it("never starts a worker whose last start crashed the page, and paints every label itself", () => {
+    const guard = new FakeGuard();
+    guard.skipping = true;
+    const t = setup({ guard });
+    expect(t.painter.wants()).toBe(false);
+    expect(t.painter.mode).toBe("off");
+    expect(t.workers).toHaveLength(0);
+    expect(guard.calls).toEqual(["skip"]);
+  });
+
+  it("marks the start before the worker exists and clears it once the worker has painted", () => {
+    const guard = new FakeGuard();
+    const t = setup({ guard });
+    t.painter.wants();
+    expect(guard.calls).toEqual(["skip", "starting"]);
+    t.worker.reply({ type: "ready", ok: true });
+    expect(guard.calls).toEqual(["skip", "starting"]); // ready alone doesn't prove painting works
+    const label = new FakeLabel();
+    const id = t.painter.submit(label, undefined, job(), frame);
+    t.endTask();
+    t.worker.reply({ type: "painted", results: [{ id, bitmap: bitmap() }] });
+    expect(guard.calls).toEqual(["skip", "starting", "working", "settled"]);
+  });
+
+  it("clears the mark when the page sees the worker fail, which is not a crash", () => {
+    const guard = new FakeGuard();
+    const t = setup({ guard });
+    t.painter.wants();
+    t.worker.reply({ type: "ready", ok: false, reason: "no fonts in workers" });
+    expect(guard.calls).toEqual(["skip", "starting", "settled"]);
+  });
+});
+
+describe("the crash guard on a real page (#932)", () => {
+  function realGuard() {
+    const values = new Map<string, string>();
+    const guard = new WorkerCrashGuard("text-paint", {
+      storage: {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => void values.set(key, value),
+        removeItem: (key) => void values.delete(key),
+      },
+      where: "0.51.0|Edg/158.0.0.0",
+      setTimer: () => undefined,
+      onLeave: () => undefined,
+    });
+    return { guard, values };
+  }
+
+  it("keeps the worker when it goes idle before painting anything and starts again", () => {
+    const { guard } = realGuard();
+    const t = setup({ guard });
+    t.painter.wants();
+    t.worker.reply({ type: "ready", ok: true });
+    t.fire(TEXT_WORKER_IDLE_MS);
+    expect(t.painter.mode).toBe("idle");
+    expect(t.painter.wants()).toBe(true);
+    expect(t.painter.mode).toBe("starting");
+    expect(t.workers).toHaveLength(2);
   });
 });
