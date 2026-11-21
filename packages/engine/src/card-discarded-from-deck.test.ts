@@ -193,6 +193,53 @@ const PIN_RESPONSE = forcedOn("pin.forced-response", {
   to: self,
   facedown: true,
 });
+// "Set a var, attach that card here, and remove 1 threat from the main scheme": the var is no part of its own.
+const NOTED_RESPONSE = stubAbility(
+  "noted.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      { kind: "setVar", name: "before", value: constant(1) },
+      { kind: "attach", card: { kind: "eventTarget" }, to: self, facedown: true },
+      { kind: "removeThreat", target: { kind: "mainScheme" }, amount: constant(1) },
+    ],
+  }),
+);
+// "Put 1 counter here, plus 1 for each of that card's printed cost": 1 once that card has gone.
+const PLUS_RESPONSE = stubAbility(
+  "plus.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "addCounters",
+        target: self,
+        counterType: "seen",
+        amount: { kind: "sum", values: [constant(1), { kind: "printedCost", of: { kind: "eventTarget" } }] },
+      },
+    ],
+  }),
+);
+// "Set aside that card or the top card of your discard pile": a union with another source.
+const EITHER_CARD_RESPONSE = stubAbility(
+  "either-card.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "moveCards",
+        cards: {
+          kind: "anyOf",
+          of: [
+            { kind: "ref", ref: { kind: "eventTarget" } },
+            { kind: "zone", zone: "discard", player: you, top: constant(1) },
+          ],
+        },
+        to: "setAside",
+      },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -226,6 +273,9 @@ const THERE = stubSupport({ id: "there", cost: 0, abilities: [THERE_RESPONSE.ref
 const EITHER = stubSupport({ id: "either", cost: 0, abilities: [EITHER_RESPONSE.ref] });
 const GRAB = stubSupport({ id: "grab", cost: 0, abilities: [GRAB_RESPONSE.ref] });
 const PIN = stubSupport({ id: "pin", cost: 0, abilities: [PIN_RESPONSE.ref] });
+const NOTED = stubSupport({ id: "noted", cost: 0, abilities: [NOTED_RESPONSE.ref] });
+const PLUS = stubSupport({ id: "plus", cost: 0, abilities: [PLUS_RESPONSE.ref] });
+const EITHER_CARD = stubSupport({ id: "either-card", cost: 0, abilities: [EITHER_CARD_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -313,6 +363,9 @@ const deps: EngineDeps = depsOf(
   EITHER_RESPONSE,
   GRAB_RESPONSE,
   PIN_RESPONSE,
+  NOTED_RESPONSE,
+  PLUS_RESPONSE,
+  EITHER_CARD_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -332,6 +385,9 @@ type InPlay =
   | "either"
   | "grab"
   | "pin"
+  | "noted"
+  | "plus"
+  | "either-card"
   | "batch"
   | "costly"
   | "guard";
@@ -374,6 +430,9 @@ function start(
       EITHER,
       GRAB,
       PIN,
+      NOTED,
+      PLUS,
+      EITHER_CARD,
       BATCH,
       METER,
       GUARD,
@@ -400,6 +459,9 @@ function start(
       EITHER.id,
       GRAB.id,
       PIN.id,
+      NOTED.id,
+      PLUS.id,
+      EITHER_CARD.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -461,6 +523,14 @@ const triggering =
     );
   };
 
+/** The table with the main scheme holding `threat`. */
+const withThreat = (table: Table, scheme: InstanceId, threat: number): Table => ({
+  ...table,
+  state: {
+    ...table.state,
+    instances: { ...table.state.instances, [scheme]: { ...mustInstance(table.state, scheme), threat } },
+  },
+});
 function run(table: Table, pick: Pick, command: Command, using: EngineDeps = deps) {
   return runCommandsPicking(table.state, using, pick, command);
 }
@@ -832,21 +902,51 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
   it("a 'choose one' is offered while its other option can still be chosen, and not once neither can", () => {
     const table = start(["hand", "filler"], { inPlay: ["either"] });
     const scheme = table.state.mainScheme!.instanceId;
-    const withThreat = (threat: number): Table => ({
-      ...table,
-      state: {
-        ...table.state,
-        instances: { ...table.state.instances, [scheme]: { ...mustInstance(table.state, scheme), threat } },
-      },
-    });
-    const kept = play(withThreat(3), MILL_1, triggering(HAND_RESPONSE, EITHER_RESPONSE));
+    // Records the options of each "choose one" asked; otherwise picks as `triggering` does.
+    const asked: string[][] = [];
+    const pick: Pick = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") asked.push(choice.options.map((option) => `${option.label}`));
+      return triggering(HAND_RESPONSE, EITHER_RESPONSE)(state);
+    };
+    const kept = play(withThreat(table, scheme, 3), MILL_1, pick);
     expect(resolved(kept.events, EITHER_RESPONSE)).toEqual([table.inPlay.either]);
+    // "Attach that card" is not offered: the only option left resolves, and the threat is removed.
+    expect(asked.flat()).not.toContain("attach");
+    expect(mustInstance(kept.state, scheme).threat).toBe(2);
     expect(mustInstance(kept.state, table.inPlay.either!).attachments).toEqual([]);
     // No threat on the main scheme: the removal has no target, and "that card" has gone.
-    const dropped = play(withThreat(0), MILL_1, triggering(HAND_RESPONSE, EITHER_RESPONSE));
+    const dropped = play(withThreat(table, scheme, 0), MILL_1, triggering(HAND_RESPONSE, EITHER_RESPONSE));
     expect(resolved(dropped.events, EITHER_RESPONSE)).toEqual([]);
     expectReplays(kept);
     expectReplays(dropped);
+  });
+
+  it("a var set for later effects is no part of its own: with no threat to remove, nothing is left", () => {
+    const table = start(["hand", "filler"], { inPlay: ["noted"] });
+    const scheme = table.state.mainScheme!.instanceId;
+    const dropped = play(withThreat(table, scheme, 0), MILL_1, triggering(HAND_RESPONSE, NOTED_RESPONSE));
+    expect(resolved(dropped.events, NOTED_RESPONSE)).toEqual([]);
+    const kept = play(withThreat(table, scheme, 3), MILL_1, triggering(HAND_RESPONSE, NOTED_RESPONSE));
+    expect(mustInstance(kept.state, scheme).threat).toBe(2);
+    expectReplays(dropped);
+  });
+
+  it("an amount read from that card counts nothing once it has gone: 1 plus its cost puts 1 counter", () => {
+    const table = start(["hand", "filler"], { inPlay: ["plus"] });
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, PLUS_RESPONSE));
+    expect(counters(result.state, table.inPlay.plus, "seen")).toBe(1);
+    expectReplays(result);
+  });
+
+  it("a union with another source still moves that other card", () => {
+    const table = start(["hand", "filler"], { discard: 1, inPlay: ["either-card"] });
+    const before = seat(table.state).discard[0]!;
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, EITHER_CARD_RESPONSE));
+    expect(resolved(result.events, EITHER_CARD_RESPONSE)).toEqual([table.inPlay["either-card"]]);
+    expect(seat(result.state).setAside).toContain(before);
+    expect(seat(result.state).hand).toContain(table.top[0]);
+    expectReplays(result);
   });
 
   it("two forced responses on that card: once the first moved it, the second does not initiate", () => {

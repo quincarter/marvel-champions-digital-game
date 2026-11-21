@@ -35,16 +35,26 @@ describe("needsDiscardedCard", () => {
     const plusCost: EffectSpec = {
       kind: "draw",
       player: you,
-      amount: { kind: "sum", of: [n(1), { kind: "printedCost", of: that }] } as never,
+      amount: { kind: "sum", values: [n(1), { kind: "printedCost", of: that }] },
     };
     expect(needsDiscardedCard(ability([plusCost]))).toBe(false);
     const forEachIcon: EffectSpec = {
       kind: "addCounters",
       target: self,
       counterType: "threat",
-      amount: { kind: "totalPrintedResources", of: that, types: ["mental"] } as never,
+      amount: { kind: "totalPrintedResources", cards: that, types: ["mental"] },
     };
     expect(needsDiscardedCard(ability([forEachIcon]))).toBe(false);
+  });
+
+  it("a union of card selectors needs it only when every alternative does", () => {
+    const union = (...refs: readonly TargetRef[]): EffectSpec => ({
+      kind: "moveCards",
+      cards: { kind: "anyOf", of: refs.map((ref) => ({ kind: "ref", ref }) as const) },
+      to: "hand",
+    });
+    expect(needsDiscardedCard(ability([union(that, self)]))).toBe(false);
+    expect(needsDiscardedCard(ability([union(that, that)]))).toBe(true);
   });
 
   it("every part must need it: 'draw 1 card and attach that card' keeps its draw", () => {

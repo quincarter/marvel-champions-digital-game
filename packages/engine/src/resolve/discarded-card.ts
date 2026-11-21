@@ -111,6 +111,7 @@ function withoutCard(effects: readonly EffectSpec[]): readonly EffectSpec[] {
     if (effect.kind === "then" || effect.kind === "setVar") return [effect];
     if (effect.kind === "chooseOne") {
       const options = effect.options.filter((option) => !everyPartNeedsCard(inline(option.effects), slots));
+      // The options `executeChooseOne` does not offer once the card has gone (`optionNeedsDiscardedCard`).
       return options.length > 0 ? [{ ...effect, options }] : [];
     }
     return partNeedsCard(effect, slots) ? [] : [effect];
@@ -298,6 +299,9 @@ function namesCard(value: unknown, slots: readonly string[], nested = false): bo
   if (value === null || typeof value !== "object") return false;
   const record = value as Readonly<Record<string, unknown>>;
   if (nested && typeof record.kind === "string" && AMOUNT_KINDS.has(record.kind)) return false;
+  // A union of card selectors still names a card when any other alternative does (`selectCards` `anyOf`).
+  if (record.kind === "anyOf" && Array.isArray(record.of))
+    return record.of.every((item) => namesCard(item, slots, true));
   if (record.kind === "eventTarget") return true;
   if (record.kind === "slot" && (record.slot === TOGETHER_TARGETS_SLOT || slots.includes(record.slot as string)))
     return true;
@@ -308,4 +312,12 @@ function namesCard(value: unknown, slots: readonly string[], nested = false): bo
 /** The targets of the discards a `together` answer answers, without those whose cards have since gone (#928). */
 export function stillDiscardedTargets(state: GameState, events: readonly TriggerEvent[]): readonly InstanceId[] {
   return [...new Set(events.flatMap((each) => (discardedCardGone(state, each) ? [] : eventSubjects(each).targets)))];
+}
+
+/**
+ * Whether every part of a "choose one" option acts on the discarded card (`everyPartNeedsCard`): once another response
+ * has moved it before this ability was initiated, `executeChooseOne` does not offer the option (#928).
+ */
+export function optionNeedsDiscardedCard(option: { readonly effects: readonly EffectSpec[] }): boolean {
+  return everyPartNeedsCard(inline(option.effects));
 }

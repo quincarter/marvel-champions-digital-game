@@ -169,7 +169,9 @@ import {
   selectTargets,
   type EffectContext,
   VILLAIN_CHOICE,
+  DISCARD_MOVED_SLOT,
 } from "../select.js";
+import { optionNeedsDiscardedCard } from "./discarded-card.js";
 import type { EffectSpec, PlayerRef, StatusName, TargetQuery, TargetRef, ValueSpec } from "../spec.js";
 import type { Bindings, ResolvedCountVar, StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
@@ -3124,6 +3126,10 @@ function executeChooseOne(
   /** Why this option is not offered, or null when it is; the first rule that bars it, in this order. */
   const barredBy = (option: (typeof effect.options)[number]): OptionUnavailableReason | null => {
     if (option.condition && !evaluate(ctx.state, option.condition, context)) return "condition";
+    // An option that acts only on a discarded card another response moved before this one was initiated: "that card"
+    // names nothing, so it has no target (#928; `DISCARD_MOVED_SLOT`, `optionNeedsDiscardedCard`).
+    if (frame.answer === null && context.bindings[DISCARD_MOVED_SLOT] !== undefined && optionNeedsDiscardedCard(option))
+      return "noTarget";
     // "You cannot choose the 'Avoid' effect" (`RuleSpec cannotChooseOption`): never offered to that chooser.
     if (optionChooser && cannotChooseOption(ctx.state, ctx.deps, optionChooser, context.selfInstanceId, option.tag))
       return "cannotChoose";

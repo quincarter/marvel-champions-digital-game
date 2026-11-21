@@ -950,7 +950,9 @@ function hasIndependentPart(
   ];
   const firstOther = effects.findIndex((effect) => !isChoice(effect));
   return effects.some((effect, index) => {
-    if (effect.kind === "then" || isChoice(effect) || spent.includes(effect) || movesOnlyItself(effect)) return false;
+    // Nor a var set for later effects (`setVar`): it changes no game element (#928 review).
+    if (effect.kind === "then" || effect.kind === "setVar" || isChoice(effect) || spent.includes(effect)) return false;
+    if (movesOnlyItself(effect)) return false;
     if (effect.kind === "if") {
       const { known, branches } = branchesThatCouldRun(judging, effect);
       const [branch] = branches;
