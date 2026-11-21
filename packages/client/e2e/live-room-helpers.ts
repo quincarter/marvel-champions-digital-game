@@ -99,6 +99,9 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
     },
   });
 
+  const codes = new Map<string, string>();
+  const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  const pickCode = (): string => [...randomBytes(6)].map((b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
   const pick = (n: number): string => [...randomBytes(n)].map((b) => ID_ALPHABET[b % ID_ALPHABET.length]).join("");
 
   const server = createServer((request, response) => {
@@ -107,9 +110,18 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
       response.writeHead(204, CORS).end();
     } else if (request.method === "POST" && path === "/room") {
       creates++;
-      request.resume();
+      let text = "";
+      request.on("data", (chunk) => (text += chunk));
       request.on("end", () => {
+        // A lobby room (`{ "lobby": true }`, what Host makes) gets a 6-character code that `GET /room/code/:code` resolves.
+        let lobby = false;
+        try {
+          lobby = (JSON.parse(text) as { lobby?: unknown } | null)?.lobby === true;
+        } catch {
+          lobby = false;
+        }
         const roomId = pick(12);
+        const code = lobby ? pickCode() : null;
         const hostToken = pick(32);
         const limits = {
           maxParticipants: options.maxParticipants ?? 25,
@@ -118,14 +130,25 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
         };
         const logic = new GameRoomLogic(new MemoryStorage(), limits);
         void sha256Hex(hostToken)
-          .then((hash) => logic.create(hash, Date.now()))
+          .then((hash) => logic.create(hash, Date.now(), code ? { code, roomId } : undefined))
           .then(() => {
             rooms.set(roomId, { logic, token: hostToken });
+            if (code) codes.set(code, roomId);
             newest = roomId;
             response.writeHead(201, { ...CORS, "Content-Type": "application/json" });
-            response.end(JSON.stringify({ roomId, hostToken, table: "t1" }));
+            response.end(JSON.stringify({ roomId, hostToken, table: "t1", ...(code ? { code } : {}) }));
           });
       });
+    } else if (request.method === "GET" && /^\/room\/code\/[^/]+$/.test(path)) {
+      const code = decodeURIComponent(path.slice("/room/code/".length)).replace(/[\s-]+/g, "").toUpperCase();
+      const roomId = codes.get(code);
+      if (roomId && rooms.has(roomId)) {
+        response.writeHead(200, { ...CORS, "Content-Type": "application/json" });
+        response.end(JSON.stringify({ roomId }));
+      } else {
+        response.writeHead(404, { ...CORS, "Content-Type": "application/json" });
+        response.end(JSON.stringify({ reason: "not-found", error: "not found" }));
+      }
     } else {
       response.writeHead(404, { ...CORS, "Content-Type": "application/json" });
       response.end(JSON.stringify({ reason: "not-found", error: "not found" }));
