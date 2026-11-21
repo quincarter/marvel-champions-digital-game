@@ -17,6 +17,7 @@
  * The stats are folded in a worker (`view/player-stats-client.ts`) from the saves' rows this scene reads when it opens.
  */
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -96,6 +97,7 @@ import { appSession } from "../session.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { PastGamesSceneData } from "./past-games.js";
 
 /** How the stats were opened: a screen to go back to, or an overlay to close. */
 export interface PlayerStatsData {
@@ -711,6 +713,21 @@ export class PlayerStatsScene extends Phaser.Scene {
     // #draw ignores a scene that has shut down.
     this.#draw();
     if (saved && this.#alive && this.#byFocus) this.#route?.focusKey(`source:${lastSource}`);
+  }
+
+  /** Whether a record's "View game" link shows: it names a game, and the screen is a screen (an overlay would leave a game or Settings behind). */
+  #gameLinkOf(row: { readonly gameId?: string }): boolean {
+    return row.gameId !== undefined && !this.#data.overlay;
+  }
+
+  /** Opens a record's game in Game review (Past games); its Back comes back here, to the same tab. */
+  #openGame(gameId: string): void {
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.pastGames, {
+      gameId,
+      from: SCENES.playerStats,
+      backData: { ...this.#data, tab: lastTab },
+    } satisfies PastGamesSceneData);
   }
 
   /** A card the stats name, opened in Inspect (A or Y on its picture or its row): the pad's way to read it large. */
@@ -1377,14 +1394,17 @@ export class PlayerStatsScene extends Phaser.Scene {
       ),
       background: false,
       renderRow: (index, rect) => this.#renderRow(rows[index]!, rect, phone),
-      ...(onMatchups && lastView === "shelves"
-        ? {
-            onRowActivate: (index: number) => {
-              const row = rows[index]!;
-              if (row.kind === "matchup" && row.matchup.kind === "shelf") this.#openFocus(row.matchup.shelf.row, false);
-            },
-          }
-        : {}),
+      onRowActivate: (index: number) => {
+        const row = rows[index]!;
+        if (onMatchups && lastView === "shelves" && row.kind === "matchup" && row.matchup.kind === "shelf")
+          this.#openFocus(row.matchup.shelf.row, false);
+        else if (row.kind === "stat" && this.#gameLinkOf(row.row)) this.#openGame(row.row.gameId!);
+      },
+      // The hand cursor only over a record that links to its game (a shelf row never had one).
+      rowPressableAt: (index: number) => {
+        const row = rows[index];
+        return row?.kind === "stat" && this.#gameLinkOf(row.row);
+      },
     });
     this.#list = list;
     this.#listRect = listRect;
@@ -1439,7 +1459,13 @@ export class PlayerStatsScene extends Phaser.Scene {
               height: matchup.tileHeight,
             }));
       } else if (row.kind === "stat") {
-        addStop(`row:${row.id}`, index, (r) => ({ ...r, width: r.width - GUTTER }), row.row.cardId);
+        addStop(
+          `row:${row.id}`,
+          index,
+          (r) => ({ ...r, width: r.width - GUTTER }),
+          row.row.cardId,
+          this.#gameLinkOf(row.row) ? () => this.#openGame(row.row.gameId!) : undefined,
+        );
       } else if (row.kind === "cards") {
         for (const card of row.cards) {
           addStop(
@@ -1704,6 +1730,7 @@ export class PlayerStatsScene extends Phaser.Scene {
       if (art) objects.push(art);
       left = pic.x + pic.width + 10;
     }
+    const linked = this.#gameLinkOf(row);
     const value = this.add
       .text(box.x + box.width - 12, box.y + 8, row.value, textStyle(typeRole.rowTitle, fg, 1))
       .setOrigin(1, 0)
@@ -1712,9 +1739,22 @@ export class PlayerStatsScene extends Phaser.Scene {
     const label = this.add.text(left, box.y + 8, row.label, textStyle(typeRole.rowTitle, fg, 1)).setFontSize(15);
     fitText(label, box.x + box.width - 12 - left - value.width - 12, 15);
     objects.push(value, label);
+    // A record from one game says so, and what a press does: an underlined "View game" with an arrow at the right.
+    let detailRight = box.x + box.width - 12;
+    if (linked) {
+      const link = this.add
+        .text(box.x + box.width - 12, box.y + box.height - 10, t("stats.viewGame"), textStyle(typeRole.label, fg, 1))
+        .setOrigin(1, 1)
+        .setFontSize(12);
+      const rule = this.add.graphics();
+      rule.fillStyle(fg === surface.paper.hex ? surface.paper.hex : surface.ink.hex, 1);
+      rule.fillRect(link.x - link.width, link.y + 1, link.width, 2);
+      objects.push(link, rule);
+      detailRight = link.x - link.width - 12;
+    }
     if (row.detail) {
       const detail = this.add.text(left, box.y + 30, row.detail, textStyle(typeRole.body, fg, filled ? 0.85 : 0.75));
-      fitWrapped(detail, box.x + box.width - 12 - left, phone ? 2 : 1, 12);
+      fitWrapped(detail, detailRight - left, phone ? 2 : 1, 12);
       objects.push(detail);
     }
     if (row.losses) objects.push(...this.#renderLossBar(row.losses, left, box, phone));

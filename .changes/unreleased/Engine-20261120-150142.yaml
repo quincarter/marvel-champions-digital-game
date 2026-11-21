@@ -1,0 +1,3 @@
+kind: Engine
+body: An ordered 'each player' effect skips the first player's order prompt when at most one player's pass can do anything (#911).
+time: 2026-11-20T15:01:42.3156353-05:00

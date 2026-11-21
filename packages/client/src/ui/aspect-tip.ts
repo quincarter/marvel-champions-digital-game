@@ -47,6 +47,14 @@ const PANEL_WIDTH = 220;
 const PAD = 10;
 const GAP_FROM_ANCHOR = 8;
 const ARROW_SIZE = 7;
+/**
+ * The tip panel each scene has open (`drawAspectTipPanel`), so its segment's hover can reach across to it: the segment,
+ * the gap and the panel are one region, and the mouse can travel onto the panel's lesson link (code review, #916).
+ */
+const openPanels = new WeakMap<Phaser.Scene, Phaser.GameObjects.Container>();
+
+/** How long the mouse rests on an info segment before its tip opens (issue #911: too eager on fast sweeps). */
+export const ASPECT_TIP_HOVER_DELAY_MS = 350;
 /** The drawn "i" ring inside a segment; the segment itself is the touch target. */
 const GLYPH_RADIUS = 10;
 
@@ -114,13 +122,53 @@ export function drawAspectInfoSegment(
   const zone = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({
     useHandCursor: true,
   });
+  // Hover opens the tip only once the pointer rests on the segment (issue #911): a mouse sweeping across a row of chips
+  // on its way elsewhere used to pop a tip open under it at every chip it crossed.
+  let opening: Phaser.Time.TimerEvent | null = null;
+  const cancelOpening = (): void => {
+    opening?.remove(false);
+    opening = null;
+  };
   zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;
-    if (!isOpen && options.pressOnly !== true) onOpen();
+    if (isOpen || options.pressOnly === true) return;
+    cancelOpening();
+    opening = scene.time.delayedCall(ASPECT_TIP_HOVER_DELAY_MS, () => {
+      opening = null;
+      if (zone.active) onOpen();
+    });
   });
   zone.on("pointerout", (pointer: Phaser.Input.Pointer) => {
     if (pointer.wasTouch) return;
-    if (isOpen) onClose();
+    cancelOpening();
+    // A tip opened by hover closes from the move watch below, which lets the mouse cross to the panel.
+    if (isOpen && options.pressOnly === true) onClose();
+  });
+  // Open, the tip closes once the mouse is off the segment and its panel. The host redraws the screen when the tip opens, and Phaser
+  // checks what is under a pointer only when it moves, so the new segment never learns the pointer was over it: a
+  // flick straight off it after the delayed open would fire no `pointerout` and leave the tip up (code review, #911).
+  // Armed only once the mouse is over the segment (as it is right after a hover opens it): a tip opened from the
+  // keyboard or a pad, with the mouse resting elsewhere, stays open until the mouse has crossed the segment and left it.
+  const over = (pointer: Phaser.Input.Pointer): boolean => {
+    // The clip (a scrolling rail's viewport) limits only the segment: the panel opens outside the rail.
+    const clip = options.clip?.() ?? null;
+    const segment = zone.getBounds();
+    const inClip = !clip || pointInRect(pointer.x, pointer.y, clip);
+    if (inClip && segment.contains(pointer.worldX, pointer.worldY)) return true;
+    // The open panel and the gap between it and the segment: the box around both (code review, #916).
+    const panel = openPanels.get(scene);
+    if (!panel?.active) return false;
+    return Phaser.Geom.Rectangle.Union(segment, panel.getBounds()).contains(pointer.worldX, pointer.worldY);
+  };
+  let armed = false;
+  const offSegment = (pointer: Phaser.Input.Pointer): void => {
+    if (pointer.wasTouch || !zone.active) return;
+    if (over(pointer)) armed = true;
+    else if (armed) onClose();
+  };
+  zone.once(Phaser.GameObjects.Events.DESTROY, () => {
+    cancelOpening();
+    scene.input.off(Phaser.Input.Events.POINTER_MOVE, offSegment);
   });
   onTap(zone, (pointer) => {
     if (options.suppressClick?.()) return;
@@ -130,6 +178,11 @@ export function drawAspectInfoSegment(
     else onOpen();
   });
   options.parent?.add([g, label, zone]);
+  if (isOpen && options.pressOnly !== true) {
+    const pointer = scene.input.activePointer;
+    armed = !pointer.wasTouch && over(pointer);
+    scene.input.on(Phaser.Input.Events.POINTER_MOVE, offSegment);
+  }
   return rect;
 }
 
@@ -225,6 +278,7 @@ export function drawAspectTipPanel(
   }
 
   const container = scene.add.container(0, 0, containerChildren).setDepth(1000);
+  openPanels.set(scene, container);
   scene.children.bringToTop(container);
   return container;
 }

@@ -395,19 +395,36 @@ test("on a short desktop window, arrows through the Overview's tall showcase bri
   await seeded(page, "stats", "PlayerStats");
   await waitFor(overviewUp(page), "the Overview tiles", 30_000);
   await settle(page);
-  const seen = new Set<string>();
-  for (let i = 0; i < 16; i++) {
-    await page.keyboard.press("ArrowDown");
+  // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
+  const shownWhole = async (key: string): Promise<void> => {
+    const rect = (await stopsOf(page)).find((s) => s.key === key)!.rect;
+    expect(rect.height, `${key} shown whole`).toBeGreaterThanOrEqual(98);
+    expect(rect.y + rect.height, `${key} above the window's foot`).toBeLessThanOrEqual(620);
+  };
+  const move = async (key: string): Promise<string | null> => {
+    await page.keyboard.press(key);
     await page.waitForTimeout(150);
-    const focus = await statsFocus(page);
+    return statsFocus(page);
+  };
+  // Down to the stack's lowest tile (the list scrolls the record off the top), each tile on the way shown whole.
+  let low: string | null = null;
+  for (let i = 0; i < 16; i++) {
+    const focus = await move("ArrowDown");
     if (!focus?.startsWith("tile:") || focus === "tile:hero") continue;
-    seen.add(focus);
-    const rect = (await stopsOf(page)).find((s) => s.key === focus)!.rect;
-    // Every tile beside the hero is at least 100 px tall: a smaller rect is one clipped by the list's edge.
-    expect(rect.height, `${focus} shown whole`).toBeGreaterThanOrEqual(98);
-    expect(rect.y + rect.height, `${focus} above the window's foot`).toBeLessThanOrEqual(620);
+    await shownWhole(focus);
+    low = focus;
   }
-  expect(seen.size, "walked several tiles").toBeGreaterThan(2);
+  // The seeded games' lowest tile in that column is Favorite aspect, under Each game.
+  expect(low, "reached the lowest tile").toBe("tile:aspect");
+  // Back up the column to the record, which the walk down scrolled off the top: every tile on the way shown whole.
+  const path: string[] = [];
+  for (let i = 0; i < 16 && path.at(-1) !== "tile:record"; i++) {
+    const focus = await move("ArrowUp");
+    if (!focus?.startsWith("tile:")) continue;
+    await shownWhole(focus);
+    path.push(focus);
+  }
+  expect(path, "up through Each game to the record").toEqual(["tile:per-game", "tile:record"]);
 });
 
 test("the filter chips narrow every tab: Rhino only is 4–1", async ({ page }, info) => {

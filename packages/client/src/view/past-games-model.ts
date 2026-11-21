@@ -16,7 +16,8 @@ import { hit } from "../tokens.js";
 import { isCurrentSchema, isLessonSave, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { CLIENT_VERSION } from "../version.js";
-import { aspectName } from "./aspect-stamp.js";
+import { aspectName, aspectStampOf, type AspectStamp } from "./aspect-stamp.js";
+import { queryScoreOf } from "./deck-search.js";
 import { gameLabelOf } from "./continue-label.js";
 import type { GamesListNames } from "./games-list-model.js";
 import type { Rect } from "./layout.js";
@@ -69,6 +70,8 @@ export interface PastGameSeat {
   readonly thwart: number | null;
   /** The seat's aspects as words ("Justice"), empty when the save does not say or the deck has none. */
   readonly aspects: readonly string[];
+  /** The same aspects as raw ids ("pool"), in the same order, for the chips' colors (`aspectChipsOf`). */
+  readonly aspectIds: readonly string[];
   /** The deck the seat played: a precon's name or the saved deck's name then; null when the save does not say. */
   readonly deckName: string | null;
   /** The cards the seat played most (at most three), most first; empty without card numbers (an older game, or none played). */
@@ -205,6 +208,7 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
               damage: seat.damage,
               thwart: seat.thwart,
               aspects: (seat.aspects ?? []).map((aspect) => aspectWordOf(aspect)),
+              aspectIds: [...(seat.aspects ?? [])],
               deckName: deckNameOf(seat, save.config.players[index], names),
               topCards: topCardsOf(seat.plays ?? {}, names),
             },
@@ -217,6 +221,8 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
     const identity =
       "identityCardId" in player ? (player.identityCardId as string) : names.starterIdentity(player.starterDeckId);
     if (!identity) return [];
+    const ownAspects: readonly string[] =
+      "identityCardId" in player ? (player.aspects ?? []) : (names.starterAspects?.(player.starterDeckId) ?? []);
     return [
       {
         identityCardId: identity,
@@ -224,10 +230,8 @@ function seatsOf(save: SaveMeta, names: PastGameNames): readonly PastGameSeat[] 
         fell: wiped ? true : null,
         damage: null,
         thwart: null,
-        aspects: ("identityCardId" in player
-          ? (player.aspects ?? [])
-          : (names.starterAspects?.(player.starterDeckId) ?? [])
-        ).map((aspect) => aspectWordOf(aspect)),
+        aspects: ownAspects.map((aspect) => aspectWordOf(aspect)),
+        aspectIds: [...ownAspects],
         deckName: deckNameOf(null, player, names),
         topCards: [],
       },
@@ -241,6 +245,7 @@ export function pastGameRowsOf(
   allNames: PastGameNames,
   filter: PastGameFilter = "all",
   appVersion: string = CLIENT_VERSION,
+  query = "",
 ): readonly PastGameRow[] {
   return saves
     .filter((save) => isPastGame(save, appVersion))
@@ -264,14 +269,45 @@ export function pastGameRowsOf(
         seats: seatsOf(save, names),
         save,
       };
-    });
+    })
+    .filter((row) => pastGameMatches(row, query));
+}
+
+/**
+ * Whether a row matches the search box: every word of `query` finds a hero's name, the villain or scenario, the title,
+ * a deck's name, the campaign or an aspect, through the app's one fuzzy matcher (`queryScoreOf`: accents and case
+ * ignored, a typo or a letter left out forgiven, partial words). An empty query matches every row. The names are the
+ * ones the row shows, so they follow the language the screen is in.
+ */
+export function pastGameMatches(row: PastGameRow, query: string): boolean {
+  if (query.trim() === "") return true;
+  return (
+    queryScoreOf(query, {
+      primary: [
+        row.title,
+        row.villainName,
+        ...row.seats.map((seat) => seat.name),
+        ...row.seats.map((seat) => seat.deckName),
+        row.campaign,
+      ],
+      secondary: row.seats.flatMap((seat) => seat.aspects),
+    }) !== null
+  );
 }
 
 /** How many past games each filter holds, for the tabs' counts. */
 export function pastGameCounts(
   saves: readonly SaveMeta[],
   appVersion: string = CLIENT_VERSION,
+  search?: { readonly query: string; readonly names: PastGameNames },
 ): Readonly<Record<PastGameFilter, number>> {
+  // With a search typed, each tab counts what the search leaves it, so the tabs and the list agree.
+  if (search && search.query.trim() !== "") {
+    const rows = pastGameRowsOf(saves, search.names, "all", appVersion, search.query);
+    const won = rows.filter((row) => row.result === "won").length;
+    const lost = rows.filter((row) => row.result === "lost").length;
+    return { all: rows.length, won, lost };
+  }
   const past = saves.filter((save) => isPastGame(save, appVersion));
   return {
     all: past.length,
@@ -303,6 +339,60 @@ export function seatFatesOf(seats: readonly PastGameSeat[]): {
 /** The four per-game actions in the details: Watch, then Share, Export and Log. */
 export const PAST_GAME_ACTIONS = ["watch", "share", "export", "log"] as const;
 export type PastGameAction = (typeof PAST_GAME_ACTIONS)[number];
+
+const CORE_ASPECTS = ["aggression", "justice", "protection", "leadership", "pool", "basic"] as const;
+type CoreAspectId = (typeof CORE_ASPECTS)[number];
+const isCoreAspect = (aspect: string): aspect is CoreAspectId => (CORE_ASPECTS as readonly string[]).includes(aspect);
+
+/** A short code for each aspect, for a chip too narrow to spell it. */
+const ASPECT_CODE: Readonly<Record<CoreAspectId, string>> = {
+  aggression: "AGG",
+  justice: "JUS",
+  protection: "PRO",
+  leadership: "LDR",
+  pool: "'PL",
+  basic: "BAS",
+};
+
+export interface AspectChip {
+  readonly rect: Rect;
+  readonly stamp: AspectStamp;
+  /** What the chip says: the aspect's name, its three-letter code, or its first letter, by the room it has. Never color alone. */
+  readonly text: string;
+  readonly fontSize: number;
+}
+
+/** The chip strip's height, and the width a letter of its upper-case type takes at `CHIP_FONT`. */
+export const CHIP_HEIGHT = 14;
+const CHIP_FONT = 9;
+const CHIP_LETTER = CHIP_FONT * 0.78;
+const CHIP_PAD = 3;
+
+/**
+ * The aspect chips along the bottom of a hero's picture `pic`: one per aspect the seat's deck used, side by side across
+ * the picture's width (two aspects get two halves, Adam Warlock's four get four quarters), each in the aspect's frame
+ * color and saying its name, else a three-letter code, else its first letter, whichever fits. Aspects the app has no
+ * frame color for (a custom hero set's own) and repeats are left out; a seat with none gets no chips.
+ */
+export function aspectChipsOf(pic: Rect, aspectIds: readonly string[]): readonly AspectChip[] {
+  const ids = [...new Set(aspectIds.filter(isCoreAspect))];
+  if (ids.length === 0) return [];
+  const width = pic.width / ids.length;
+  const y = pic.y + pic.height - CHIP_HEIGHT;
+  return ids.map((id, i) => {
+    const stamp = aspectStampOf(id);
+    const room = width - CHIP_PAD * 2;
+    const full = stamp.label.toUpperCase();
+    const code = ASPECT_CODE[id];
+    const text =
+      full.length * CHIP_LETTER <= room
+        ? full
+        : code.length * CHIP_LETTER <= room
+          ? code
+          : stamp.label.replace(/^'/, "").charAt(0).toUpperCase();
+    return { rect: { x: pic.x + i * width, y, width, height: CHIP_HEIGHT }, stamp, text, fontSize: CHIP_FONT };
+  });
+}
 
 /** A card picture's width to height. */
 const CARD_RATIO = 63 / 88;

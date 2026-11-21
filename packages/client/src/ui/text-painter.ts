@@ -47,6 +47,16 @@ export interface PainterDeps {
   nextFrame: (fn: () => void) => void;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
+  /** Skips the worker after a start that crashed the page (`platform/worker-crash-guard.ts`, #932). */
+  guard?: CrashGuardLike;
+}
+
+/** The part of WorkerCrashGuard used. */
+export interface CrashGuardLike {
+  skip(): boolean;
+  starting(): void;
+  working(): void;
+  settled(): void;
 }
 
 /** How long the worker lives after its last result with nothing pending. */
@@ -146,13 +156,20 @@ export class TextPainter {
   }
 
   #start(): void {
+    const guard = this.#deps.guard;
+    if (guard?.skip()) {
+      this.#mode = "off";
+      return;
+    }
     let worker: PaintWorkerLike | null;
     try {
+      guard?.starting();
       worker = this.#deps.spawn();
     } catch {
       worker = null;
     }
     if (!worker) {
+      guard?.settled();
       this.#mode = "off";
       return;
     }
@@ -186,10 +203,12 @@ export class TextPainter {
         this.#armIdle();
         return;
       case "painted":
+        this.#deps.guard?.settled();
         for (const result of message.results) this.#arrived.push(result);
         this.#scheduleApply();
         return;
       case "failed":
+        this.#deps.guard?.settled();
         for (const id of message.ids) this.#paintHere(id);
         this.#armIdle();
         return;
@@ -201,7 +220,9 @@ export class TextPainter {
     if (this.#mode !== "ready" || !this.#worker) return;
     const jobs = this.#queue.filter((job) => this.#pending.has(job.id));
     this.#queue = [];
-    if (jobs.length > 0) this.#worker.postMessage({ type: "paint", jobs });
+    if (jobs.length === 0) return;
+    this.#deps.guard?.working();
+    this.#worker.postMessage({ type: "paint", jobs });
   }
 
   #scheduleApply(): void {
@@ -238,6 +259,8 @@ export class TextPainter {
 
   /** The worker can't paint: do everything waiting on the main thread and stop using it. */
   #giveUp(): void {
+    // The page saw the worker stop (an error, no fonts, too slow): that is not the crash the guard watches for.
+    this.#deps.guard?.settled();
     this.#stopWorker();
     this.#mode = "off";
     this.#fail();

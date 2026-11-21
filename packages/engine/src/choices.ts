@@ -142,7 +142,13 @@ export type ChoicePrompt =
   | { readonly kind: "chooseBottomCards"; readonly deck: "playerDeck"; readonly deckOwner: PlayerId }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
-  | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
+  | {
+      readonly kind: "chooseTarget";
+      readonly slot: string;
+      readonly abilityId: AbilityId | null;
+      /** The card's own question for this pick (`EffectSpec chooseTarget.prompt`, issue #911); absent: "Choose a target". */
+      readonly title?: string;
+    }
   | { readonly kind: "chooseAttachmentTarget"; readonly instanceId: InstanceId }
   /**
    * Cards outside play (a look at the top of a deck, a search, a discard pile), or any cards a ref names.
