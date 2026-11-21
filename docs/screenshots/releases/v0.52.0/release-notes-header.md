@@ -6,18 +6,18 @@ The Windows app opens again: once Windows updated WebView2 to version 158, v0.51
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.52.0/index.es.html)**
 
-![The numbers: 11 cards that choose smarter, 9 changes from one report and 2 Windows fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-01-the-numbers.jpg)
+![The numbers: 11 cards that choose smarter, 9 changes from one report and 2 Windows fixes](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-01-the-numbers.jpg)
 
-![The Windows app opens again: what caused the WebView2 158 crash, the safety net, and how to update](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-02-the-windows-app-opens-again.jpg)
+![The Windows app opens again: what caused the WebView2 158 crash, the safety net, reloading a crashed page and safe mode, and how to update](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-02-the-windows-app-opens-again.jpg)
 
-![Your stats, with a hero: the new Overview on desktop and iPhone SE, records with View game, and Past games search and aspect chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-03-your-stats-with-a-hero.jpg)
+![Your stats, with a hero: the new Overview on desktop and iPhone SE, records with View game, and Past games search and aspect chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-03-your-stats-with-a-hero.jpg)
 
-![A Random hero: Take your seats' Random button and the deck builder's aspect tip delay](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-04-a-random-hero.jpg)
+![A Random hero: Take your seats' Random button and the deck builder's aspect tip delay](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-04-a-random-hero.jpg)
 
-![You asked, we fixed: the choose-a-player cards with each player's engaged minions, Hunting Down Heroes, Maria Hill's Reassignment, Install for Steam and Symbiotic Bond](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-05-you-asked-we-fixed.jpg)
+![You asked, we fixed: the choose-a-player cards with each player's engaged minions, Hunting Down Heroes, Maria Hill's Reassignment, Install for Steam, tucked cards that pay and Symbiotic Bond](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-05-you-asked-we-fixed.jpg)
 
-![Also in v0.52.0: iOS on the download stats page, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-06-also-in-v0-52-0.jpg)
+![Also in v0.52.0: the Mod SDK's hand-discard Response, iOS on the download stats page, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-06-also-in-v0-52-0.jpg)
 
-![Thank you to @bluefireF5ran and Dreadheart](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-07-thank-you.jpg)
+![Thank you to @bluefireF5ran and Dreadheart](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-07-thank-you.jpg)
 
-![Code shipped since v0.51.0: 10 pull requests, 122 files, 4,449 lines added and 194 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/e088cc0071a57ec441c0a031447c1d8418dfabea/docs/screenshots/releases/v0.52.0/v0-52-0-release-08-code-shipped.jpg)
+![Code shipped since v0.51.0: 12 pull requests, 163 files, 6,040 lines added and 238 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/5c09bdb474ec2537f38d02ad679574d4f5b19615/docs/screenshots/releases/v0.52.0/v0-52-0-release-08-code-shipped.jpg)
