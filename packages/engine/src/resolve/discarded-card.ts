@@ -63,8 +63,13 @@ const NEEDS = new WeakMap<AbilityDefinition, boolean>();
  * gone. Its parts are its effects after its printed cost (`costEffects`), sentences read inline. Not parts: a choice
  * (it does nothing until an effect uses what it chose), post-"then" text (it resolves only if the text before it did,
  * RRG 1.8 "'Then'", p. 44). A part needs the card when it names it (`eventTarget`, the `together` targets) or the slot
- * of a choice that does, wherever in it (an amount read from the card counts too). A branch needs it when each of its
- * branches with effects does (`partNeedsCard`). An ability with no part is kept. Remembered per definition.
+ * of a choice that does, wherever in it. A branch or a "choose one" needs it when each of its branches or options with
+ * effects does (`partNeedsCard`). An ability with no part is kept. Remembered per definition.
+ *
+ * Engine interpretation (authority step 5; no source settles it): an amount read from the card ("for each [mental]
+ * resource discarded", The Shadow King 45180a) counts as needing it. Those are forced Mission Responses, resolved
+ * before any optional response can move the card, so only a forced response that takes a card first (Abyss 45181a)
+ * reaches the case: a card printing [wild] and [mental] is then not counted by The Shadow King, as before #928.
  */
 export function needsDiscardedCard(definition: AbilityDefinition | undefined): boolean {
   if (!definition) return false;
@@ -95,6 +100,11 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
  * nothing of the card's place): every branch with effects in it needs the card.
  */
 function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
+  // "Choose one": an option that needs nothing of the card can still be chosen (RRG 1.8 "Choose", p. 12).
+  if (effect.kind === "chooseOne") {
+    const options = effect.options.filter((option) => option.effects.length > 0);
+    return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots));
+  }
   if (effect.kind !== "if") return namesCard(effect, slots);
   const branches = [effect.then, effect.otherwise ?? []].filter((branch) => branch.length > 0);
   return branches.length > 0 && branches.every((branch) => everyPartNeedsCard(inline(branch), slots));

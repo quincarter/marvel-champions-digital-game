@@ -508,7 +508,7 @@ describe("§3.43 (b): Serpent Solutions' shape, and the card a response took awa
     expect(metered(table, state, "found")).toBe(0);
   });
 
-  it("once Serpent Solutions has dealt the minion away, an ability that needs nothing of it still answers its discard", () => {
+  it("once Serpent Solutions has dealt the minion away, one that needs nothing of it still answers", () => {
     // The discard happened (RRG 1.8 "Response", p. 38; "Triggering Condition", p. 45): a counter on the watcher is
     // placed whatever became of the card (issue #928).
     // All forced, ordered by the first player (RRG 1.8 "Simultaneous Timing Priority", p. 5): Serpent Solutions first.

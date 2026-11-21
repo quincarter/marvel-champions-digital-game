@@ -90,6 +90,8 @@ import {
   playerCardOwnerOf,
   hasStat,
   textGoneByTreatment,
+  deckDiscardStillThere,
+  handDiscardStillThere,
 } from "./query.js";
 import type { LogValue } from "./campaign.js";
 import {
@@ -2868,6 +2870,9 @@ function resolveRefAnywhere(state: GameState, ref: TargetRef, context: EffectCon
       return ref.filter ? sources.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : sources;
     }
     case "eventTarget":
+      // "That card" of a discard is the card in the discard pile (or the new deck, §4.1 Q33): once a response has moved
+      // it, a response still offered for the discard does not follow it there (RRG 1.8 FAQ "Redwing", p. 65; #928).
+      if (context.event && discardMovedOn(state, context.event)) return [];
       return context.event ? eventSubjects(context.event).targets : [];
     case "actingCharacter":
       return resolveRef(state, ref.of, context).flatMap((id) => {
@@ -4977,4 +4982,14 @@ function compareStat(own: number, op: StatComparison["op"], against: number): bo
  */
 function countedAwayOf(ref: TargetRef, context: EffectContext): readonly InstanceId[] {
   return ref.kind === "slot" ? (context.bindings[`${ref.slot}${COUNTED_AWAY_SUFFIX}`] ?? []) : [];
+}
+
+/**
+ * Whether this is a discard (`cardDiscardedFromDeck`, `cardDiscardedFromHand`) whose card a response has since taken
+ * out of where the discard left it (`resolve/discarded-card.ts` `discardedCardGone`, read here without the import).
+ */
+function discardMovedOn(state: GameState, event: TriggerEvent): boolean {
+  if (event.kind === "cardDiscardedFromDeck") return !deckDiscardStillThere(state, event);
+  if (event.kind === "cardDiscardedFromHand") return !handDiscardStillThere(state, event);
+  return false;
 }

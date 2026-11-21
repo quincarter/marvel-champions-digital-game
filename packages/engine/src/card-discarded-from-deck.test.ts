@@ -95,6 +95,17 @@ const TICK_RESPONSE = stubAbility(
     effects: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
   }),
 );
+// "Put a counter here and attach that card facedown here": kept once the card is gone, its attach then does nothing.
+const MIXED_RESPONSE = stubAbility(
+  "mixed.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      { kind: "addCounters", target: self, counterType: "seen", amount: constant(1) },
+      { kind: "attach", card: { kind: "eventTarget" }, to: self, facedown: true },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -120,6 +131,7 @@ const FOX = stubAlly({ id: "fox", cost: 2, atk: 1, thw: 1, hp: 2, abilities: [FO
 const LADY = stubSupport({ id: "lady", cost: 0, abilities: [LADY_RESPONSE.ref] });
 const TALLY = stubSupport({ id: "tally", cost: 0, abilities: [TALLY_RESPONSE.ref] });
 const TICK = stubSupport({ id: "tick", cost: 0, abilities: [TICK_RESPONSE.ref] });
+const MIXED = stubSupport({ id: "mixed", cost: 0, abilities: [MIXED_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -199,6 +211,7 @@ const deps: EngineDeps = depsOf(
   LADY_RESPONSE,
   TALLY_RESPONSE,
   TICK_RESPONSE,
+  MIXED_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -206,7 +219,7 @@ const deps: EngineDeps = depsOf(
 const silentDeps: EngineDeps = depsOf(...ACTIONS);
 
 type Name = "filler" | "match" | "back" | "hand" | "fox";
-type InPlay = "lady" | "tally" | "tick" | "batch" | "costly" | "guard";
+type InPlay = "lady" | "tally" | "tick" | "mixed" | "batch" | "costly" | "guard";
 interface Table {
   readonly state: GameState;
   /** The deck's top cards, in order. */
@@ -238,6 +251,7 @@ function start(
       LADY,
       TALLY,
       TICK,
+      MIXED,
       BATCH,
       METER,
       GUARD,
@@ -256,6 +270,7 @@ function start(
       LADY.id,
       TALLY.id,
       TICK.id,
+      MIXED.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -634,6 +649,17 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
     expect(round).toBe(2);
     expect(seat(result.state).hand).toContain(card);
     expect(counters(result.state, table.inPlay.tick, "seen")).toBe(1);
+    expectReplays(result);
+  });
+
+  it("one with a part of its own resolves it, and its 'that card' does not follow the card into the hand", () => {
+    const table = start(["hand", "filler"], { inPlay: ["mixed"] });
+    const card = table.top[0]!;
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, MIXED_RESPONSE));
+    expect(resolved(result.events, MIXED_RESPONSE)).toEqual([table.inPlay.mixed]);
+    expect(counters(result.state, table.inPlay.mixed, "seen")).toBe(1);
+    expect(seat(result.state).hand).toContain(card);
+    expect(mustInstance(result.state, table.inPlay.mixed!).attachments).toEqual([]);
     expectReplays(result);
   });
 

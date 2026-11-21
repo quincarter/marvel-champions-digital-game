@@ -1564,10 +1564,10 @@ export type TriggerEventBody =
    *
    * Response only: the card is already in the discard pile. Recorded only when an ability in the registry listens, and
    * announced between frames, so the cards one effect or cost discarded share one response window (RRG 1.8 "Triggering
-   * Condition", p. 45) that resolves before the discarding ability's next effect. Once a response has taken the card away
-   * (`deckDiscardStillThere`), a response that needs that card is no longer offered for it, and one that does not still
-   * is (`lostWithDiscardedCard`, issue #928); the discarding ability no longer counts it (ruling, April 30, 2026 - Ruling
-   * 4, answer 1; §4.1 Q32; `settleDeckDiscards`), unless the response that took it says it stays counted
+   * Condition", p. 45) that resolves before the discarding ability's next effect. Once a response has taken the card
+   * away (`deckDiscardStillThere`), a response that needs that card is no longer offered for it, and one that does not
+   * still is (`lostWithDiscardedCard`, issue #928); the discarding ability no longer counts it (ruling, April 30, 2026 -
+   * Ruling 4, answer 1; §4.1 Q32; `settleDeckDiscards`), unless the response that took it says it stays counted
    * (`AbilityDefinition.discardsStayCounted`, docs/phase7-wave10-box-heroes.md B3.3).
    *
    * `at`: where the discard left the card. `"discard"`: the player's discard pile. `"deck"`: the discard emptied the

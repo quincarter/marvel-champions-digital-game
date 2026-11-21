@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import type { AbilityDefinition } from "../abilities.js";
 import { TOGETHER_TARGETS_SLOT } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
-import { needsDiscardedCard } from "./discarded-card.js";
+import type { GameState } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
+import { lostWithDiscardedCard, needsDiscardedCard } from "./discarded-card.js";
 
 const that: TargetRef = { kind: "eventTarget" };
 const self: TargetRef = { kind: "self" };
@@ -62,8 +64,63 @@ describe("needsDiscardedCard", () => {
     ).toBe(false);
   });
 
+  it("a 'choose one' is judged option by option: one that needs nothing of the card keeps it", () => {
+    const options = (...effects: readonly EffectSpec[]) => effects.map((e, i) => ({ label: `${i}`, effects: [e] }));
+    expect(needsDiscardedCard(ability([{ kind: "chooseOne", chooser: you, options: options(draw, tuck) }]))).toBe(
+      false,
+    );
+    expect(needsDiscardedCard(ability([{ kind: "chooseOne", chooser: you, options: options(tuck, tuck) }]))).toBe(true);
+  });
+
   it("a sentence is read inline", () => {
     expect(needsDiscardedCard(ability([{ kind: "sentence", effects: [tuck] }]))).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "sentence", effects: [draw, tuck] }]))).toBe(false);
+  });
+});
+
+describe("lostWithDiscardedCard", () => {
+  // p1's discard pile holds only "kept": "taken" was moved out of it by an earlier response.
+  const state = { players: [{ playerId: "p1", deck: [], discard: ["kept"] }] } as unknown as GameState;
+  const discard = (id: string): TriggerEvent =>
+    ({
+      kind: "cardDiscardedFromDeck",
+      instanceId: id,
+      playerId: "p1",
+      deck: "player",
+      fromTop: true,
+      sourceInstanceId: "mill",
+      at: "discard",
+      by: "playerCard",
+      how: "effect",
+    }) as unknown as TriggerEvent;
+  const NEEDS = ability([{ kind: "attach", card: { kind: "slot", slot: TOGETHER_TARGETS_SLOT }, to: self }]);
+  const NEEDS_NOT = ability([draw]);
+  const deps = { abilities: { needs: NEEDS, "needs-not": NEEDS_NOT } } as never;
+  const candidate = (
+    abilityId: string,
+    together?: readonly TriggerEvent[],
+    instanceId = "support",
+  ): Parameters<typeof lostWithDiscardedCard>[2] =>
+    ({ instanceId, abilityId, ...(together ? { together } : {}) }) as Parameters<typeof lostWithDiscardedCard>[2];
+
+  it("a response whose card is still there is never lost", () => {
+    expect(lostWithDiscardedCard(state, deps, candidate("needs"), discard("kept"))).toBe(false);
+  });
+
+  it("gone: lost if it needs the card, kept if it does not", () => {
+    expect(lostWithDiscardedCard(state, deps, candidate("needs"), discard("taken"))).toBe(true);
+    expect(lostWithDiscardedCard(state, deps, candidate("needs-not"), discard("taken"))).toBe(false);
+  });
+
+  it("the discarded card's own response is lost once it is gone, whatever it does", () => {
+    expect(lostWithDiscardedCard(state, deps, candidate("needs-not", undefined, "taken"), discard("taken"))).toBe(true);
+  });
+
+  it("a 'together' answer keeps the cards still there, and is lost only once every card it needs is gone", () => {
+    const both = [discard("taken"), discard("kept")];
+    expect(lostWithDiscardedCard(state, deps, candidate("needs", both), both[0]!)).toBe(false);
+    const gone = [discard("taken"), discard("also-taken")];
+    expect(lostWithDiscardedCard(state, deps, candidate("needs", gone), gone[0]!)).toBe(true);
+    expect(lostWithDiscardedCard(state, deps, candidate("needs-not", gone), gone[0]!)).toBe(false);
   });
 });

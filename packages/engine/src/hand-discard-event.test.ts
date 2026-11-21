@@ -402,7 +402,7 @@ describe("cardDiscardedFromHand: one effect's discards share one window, after a
     expect(hand(out.state)).toContain(heard!.instanceId);
     expectReplays(out.session, TWO_RAGES);
   });
-  it("a response that needs nothing of the card is still offered once the first took the card back (issue #928)", () => {
+  it("one that needs nothing of the card is still offered once the first took it back (issue #928)", () => {
     const one = playerCardIntoPlay(start(RAGE_AND_TICK), RAGE.id, P1).state;
     const placed = playerCardIntoPlay(one, TICK.id, P1);
     const given = giveCard(placed.state, P1, E_CHOSEN.card.id);

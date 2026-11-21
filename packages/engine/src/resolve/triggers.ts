@@ -1450,7 +1450,7 @@ export function stillOffered(
   if (!definition) return false;
   // Another player defended the attack, or used a "(defense)" ability for it, while the forced tier resolved.
   if (candidateDefenseBar(state, deps, candidate) !== null) return false;
-  // Not a condition read again but a card that is gone: a response moved the discarded card this one needed (issue #928).
+  // Not a condition read again but a card that is gone: a response moved the discarded card this one needed (#928).
   if (lostWithDiscardedCard(state, deps, candidate, event)) return false;
   const id = candidate.instanceId;
   const controllerId = candidate.controllerId;
