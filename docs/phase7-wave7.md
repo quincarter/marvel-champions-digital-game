@@ -2148,7 +2148,8 @@ count" for the effect that discarded it.
   Pattern `on.thisDiscardedFromYourDeck()`.
 - `on.youDiscardFromYourDeck()` for The Painted Lady, with the card as `eventTarget`.
 - Several responses to one discard (the card's own and The Painted Lady's): the player orders them; the first to move
-  the card leaves the other with nothing to act on, and it is not offered.
+  the card leaves the other with nothing to act on, and it is not offered. A response that needs nothing of the card
+  ("draw 1 card") is still offered (§4.0, issue #928).
 - Which discards count is §4.2 Q31; what the discarding ability still counts after a response moved the card is
   Q32; the last-card case is Q33.
 - Log `cardDiscardedFromDeck { playerId, instanceId, by }` (new: a mill is today visible only as `cardsMoved`).
@@ -2966,6 +2967,15 @@ Rally the Troops (43039: §3.1; `heal(each ally, 2)`, every player's allies); Li
 ---
 
 ## 4. Open questions (for the user or FFG)
+
+### 4.0 Settled by the authority order
+
+Each reading below was put to the rules sources, built to its verdict, and cited in the code where the behavior is not
+obvious from the card text.
+
+| Question                                                                                                                                | Verdict (built)                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Source                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A response to a discard (`cardDiscardedFromDeck`, `cardDiscardedFromHand`) after another response moved the discarded card (issue #928) | Still offered: the discard happened. Dropped only when its own card left the zone it works from (the card answering its own discard: Jackpot!, White Fox), or when every part of it needs that card (attach, tuck, deal or move "that card"). "Draw 1 card" or "deal 1 damage" stays. The engine reads which parts need the card from the ability's effects (`resolve/discarded-card.ts`): post-"then" text and choices are no parts, a branch is judged by its effects | RRG 1.8 "Response" (p. 38), "Triggering Condition" (p. 45), "Interrupt" (p. 25), "Ability" (p. 4), "Choose" (p. 12); FAQ Honey Badger (p. 64), Redwing (p. 65); June 2, 2026 - Ruling 4 (Energy Channel) |
 
 ### 4.1 Decided by the user
 

@@ -8,6 +8,8 @@
  * - `lady`: "Response: After you discard a card from the top of your deck, attach that card facedown here (to a maximum
  *   of 3)";
  * - `tally`: a forced "after you discard a card from the top of your deck" that counts what it hears;
+ * - `tick`: an optional "after you discard a card from the top of your deck, put a counter here", which needs nothing of
+ *   the discarded card (issue #928);
  * - `batch`: a forced "after you discard cards from the top of your deck, … for each [justice] card discarded", which
  *   answers the whole discard once (`EventPattern.together`).
  *
@@ -85,6 +87,14 @@ const TALLY_RESPONSE = stubAbility(
     effects: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
   }),
 );
+// Needs nothing of the discarded card: still offered once another response has moved it (issue #928).
+const TICK_RESPONSE = stubAbility(
+  "tick.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [{ kind: "addCounters", target: self, counterType: "seen", amount: constant(1) }],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -109,6 +119,7 @@ const HAND = stubResource({ id: "hand", icons: 1, abilities: [HAND_RESPONSE.ref]
 const FOX = stubAlly({ id: "fox", cost: 2, atk: 1, thw: 1, hp: 2, abilities: [FOX_RESPONSE.ref] });
 const LADY = stubSupport({ id: "lady", cost: 0, abilities: [LADY_RESPONSE.ref] });
 const TALLY = stubSupport({ id: "tally", cost: 0, abilities: [TALLY_RESPONSE.ref] });
+const TICK = stubSupport({ id: "tick", cost: 0, abilities: [TICK_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -187,6 +198,7 @@ const deps: EngineDeps = depsOf(
   FOX_RESPONSE,
   LADY_RESPONSE,
   TALLY_RESPONSE,
+  TICK_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -194,7 +206,7 @@ const deps: EngineDeps = depsOf(
 const silentDeps: EngineDeps = depsOf(...ACTIONS);
 
 type Name = "filler" | "match" | "back" | "hand" | "fox";
-type InPlay = "lady" | "tally" | "batch" | "costly" | "guard";
+type InPlay = "lady" | "tally" | "tick" | "batch" | "costly" | "guard";
 interface Table {
   readonly state: GameState;
   /** The deck's top cards, in order. */
@@ -225,6 +237,7 @@ function start(
       FOX,
       LADY,
       TALLY,
+      TICK,
       BATCH,
       METER,
       GUARD,
@@ -242,6 +255,7 @@ function start(
       ...copiesOf(FOX.id, 2),
       LADY.id,
       TALLY.id,
+      TICK.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -591,6 +605,45 @@ describe("§3.55 'attach that card facedown here (to a maximum of 3)'", () => {
     expect(seat(lady.state).hand).not.toContain(hand);
     expectReplays(own);
     expectReplays(lady);
+  });
+});
+
+describe("issue #928: a response that needs nothing of the discarded card stays offered once another moved it", () => {
+  it("picked with the card's own 'add it to your hand': both resolve, the card in hand and the counter placed", () => {
+    const table = start(["hand", "filler"], { inPlay: ["tick"] });
+    const card = table.top[0]!;
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, TICK_RESPONSE));
+    expect(seat(result.state).hand).toContain(card);
+    expect(resolved(result.events, TICK_RESPONSE)).toEqual([table.inPlay.tick]);
+    expect(counters(result.state, table.inPlay.tick, "seen")).toBe(1);
+    expectReplays(result);
+  });
+
+  it("offered again after the card's own response took the card, and resolves", () => {
+    const table = start(["hand", "filler"], { inPlay: ["tick"] });
+    const card = table.top[0]!;
+    // The card's own response alone first; the counter's is picked when the window offers the rest again.
+    let round = 0;
+    const pick: Pick = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind !== "chooseTriggers") return defaultPick(state);
+      round += 1;
+      return triggering(round === 1 ? HAND_RESPONSE : TICK_RESPONSE)(state);
+    };
+    const result = play(table, MILL_1, pick);
+    expect(round).toBe(2);
+    expect(seat(result.state).hand).toContain(card);
+    expect(counters(result.state, table.inPlay.tick, "seen")).toBe(1);
+    expectReplays(result);
+  });
+
+  it("'attach that card facedown here' still is not, beside one that is (the card it needs is gone)", () => {
+    const table = start(["hand", "filler"], { inPlay: ["lady", "tick"] });
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, LADY_RESPONSE, TICK_RESPONSE));
+    expect(resolved(result.events, LADY_RESPONSE)).toEqual([]);
+    expect(mustInstance(result.state, table.inPlay.lady!).attachments).toEqual([]);
+    expect(counters(result.state, table.inPlay.tick, "seen")).toBe(1);
+    expectReplays(result);
   });
 });
 
