@@ -1,41 +1,70 @@
 /**
  * What the decision sheet offers when it could not draw a decision (#943): a draw that throws (a pack card whose data
  * the sheet cannot read) used to leave the sheet torn down with the engine still waiting on the answer, so nothing on
- * the screen could be pressed. The sheet records the error and draws these plain buttons instead, built only from the
- * engine's own option labels, so the game can always go on. It answers with one option, none, or the first ones a
- * decision needs: a payment that needs two resources or more cannot be made here, only declined (Undo stays open).
+ * the screen could be pressed. The sheet records the error and draws a plain list instead, built only from the engine's
+ * own options and labels, so the player still makes the decision and the game can always go on.
+ *
+ * A pick of one answers on the press. Anything else toggles options and answers with Confirm once the count is legal;
+ * Choose none answers at once when the decision allows none. The list pages when it outruns the screen.
  */
 import type { PendingChoice } from "@mc/engine";
 
-export interface FallbackChoiceButton {
+export interface FallbackOptionRow {
+  readonly optionId: string;
   readonly label: string;
-  /** The option ids sent as the answer. */
-  readonly answer: readonly string[];
+  readonly selected: boolean;
 }
 
-/** At most this many options get a button of their own; a longer list is answered by "Let the game pick". */
-export const FALLBACK_OPTION_LIMIT = 6;
+export interface FallbackChoiceView {
+  readonly rows: readonly FallbackOptionRow[];
+  /** One press answers: the decision takes exactly one option. */
+  readonly answersOnPress: boolean;
+  /** Confirm is offered (several may be picked) and enabled when the count is legal. */
+  readonly confirm: { readonly enabled: boolean; readonly label: string } | null;
+  /** "Choose none" answers with nothing: offered only when the decision allows none. */
+  readonly canChooseNone: boolean;
+}
 
-/**
- * One button per option for a pick of one (the player still chooses), "Choose none" when nothing is required, and
- * otherwise "Let the game pick": the first options the decision needs, in the engine's own order.
- */
-export function fallbackChoiceButtons(
+const labelOf = (option: PendingChoice["options"][number]): string =>
+  typeof option.label === "string" && option.label.trim() !== "" ? option.label : option.optionId;
+
+export function fallbackChoiceView(
   choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections">,
-): readonly FallbackChoiceButton[] {
-  const buttons: FallbackChoiceButton[] = [];
-  const single = choice.maxSelections >= 1 && choice.minSelections <= 1;
-  if (single && choice.options.length <= FALLBACK_OPTION_LIMIT) {
-    for (const option of choice.options) {
-      const label = typeof option.label === "string" && option.label.trim() !== "" ? option.label : option.optionId;
-      buttons.push({ label, answer: [option.optionId] });
-    }
-  } else if (choice.minSelections > 0 && choice.options.length >= choice.minSelections) {
-    buttons.push({
-      label: "Let the game pick",
-      answer: choice.options.slice(0, choice.minSelections).map((option) => option.optionId),
-    });
-  }
-  if (choice.minSelections === 0) buttons.push({ label: "Choose none", answer: [] });
-  return buttons;
+  selected: readonly string[],
+): FallbackChoiceView {
+  const answersOnPress = choice.maxSelections === 1 && choice.minSelections <= 1;
+  const picked = new Set(selected);
+  const rows = choice.options.map((option) => ({
+    optionId: option.optionId,
+    label: labelOf(option),
+    selected: !answersOnPress && picked.has(option.optionId),
+  }));
+  const count = rows.filter((row) => row.selected).length;
+  return {
+    rows,
+    answersOnPress,
+    confirm: answersOnPress
+      ? null
+      : {
+          enabled: count >= Math.max(1, choice.minSelections) && count <= choice.maxSelections,
+          label: `Confirm (${count} of ${choice.minSelections === choice.maxSelections ? choice.maxSelections : `${choice.minSelections}-${choice.maxSelections}`})`,
+        },
+    canChooseNone: choice.minSelections === 0,
+  };
+}
+
+/** The selection after a press on `optionId`: toggled, never beyond the decision's maximum. */
+export function toggleFallbackPick(
+  choice: Pick<PendingChoice, "maxSelections">,
+  selected: readonly string[],
+  optionId: string,
+): readonly string[] {
+  if (selected.includes(optionId)) return selected.filter((id) => id !== optionId);
+  return selected.length >= choice.maxSelections ? selected : [...selected, optionId];
+}
+
+/** How many option rows fit on a page of `room` pixels, and how many pages `count` rows need. */
+export function fallbackPages(count: number, room: number, rowHeight: number): { perPage: number; pages: number } {
+  const perPage = Math.max(1, Math.floor(room / rowHeight));
+  return { perPage, pages: Math.max(1, Math.ceil(count / perPage)) };
 }

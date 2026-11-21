@@ -97,7 +97,7 @@ import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
 import { choiceNoteOf, optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
 import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
-import { fallbackChoiceButtons } from "../view/choice-fallback.js";
+import { fallbackChoiceView, fallbackPages, toggleFallbackPick } from "../view/choice-fallback.js";
 import { recordError } from "../ui/error-log.js";
 import {
   chosenResourcesNoteOf,
@@ -585,7 +585,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#hover?.onDraw();
   }
 
-  /** The sheet when `#draw` threw: the engine's own option labels as plain buttons (`view/choice-fallback.ts`). */
+  /** The fallback's own picks and page, kept for the decision it belongs to across its redraws. */
+  #fallback: { choiceId: string; selected: readonly string[]; page: number } | null = null;
+
+  /**
+   * The sheet when `#draw` threw: the engine's own options as a plain list the player still decides from
+   * (`view/choice-fallback.ts`), paged to the screen so every answer can be reached on a phone.
+   */
   #drawFallback(cause: unknown): void {
     const choice = appSession().store.state.game?.pendingChoice;
     for (const button of this.#buttons) button.destroy();
@@ -597,40 +603,111 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.tweens.killAll();
     this.#motion = new OverlayMotion();
     if (!choice) return;
+    const choiceId = choice.choiceId as string;
+    if (this.#fallback?.choiceId !== choiceId) this.#fallback = { choiceId, selected: [], page: 0 };
+    const state = this.#fallback;
+    const redraw = (): void => this.#drawFallback(cause);
+    const answer = (ids: readonly string[]): void => void appSession().store.resolveChoice(ids);
+
     const { width, height } = this.scale.gameSize;
     this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(0, 0, width, height);
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     const sheetWidth = Math.min(width - 32, 480);
     const x = (width - sheetWidth) / 2;
-    let y = Math.max(24, height * 0.15);
+    let y = Math.min(Math.max(16, height * 0.1), 80);
     const title = this.add
       .text(x, y, "This decision could not be drawn", textStyle(typeRole.barTitle, surface.paper.hex))
       .setWordWrapWidth(sheetWidth);
-    y += title.height + 8;
+    y += title.height + 6;
     const message = cause instanceof Error ? cause.message : String(cause);
     const note = this.add
       .text(
         x,
         y,
-        `${message}\n\nAnswer it here to keep playing. The error is saved for an issue report.`,
+        `Answer it here to keep playing; the error is saved for an issue report. ${message}`,
         textStyle(typeRole.body, surface.paper.hex, ink.secondary),
       )
-      .setWordWrapWidth(sheetWidth);
-    y += note.height + 16;
+      .setWordWrapWidth(sheetWidth)
+      .setMaxLines(3);
+    y += note.height + 12;
+
     // The engine's own options, never the sheet's display tiles (a spend choice's exhaust tiles answer nothing).
-    for (const option of fallbackChoiceButtons(choice)) {
-      const rect = { x, y, width: sheetWidth, height: 40 };
+    const view = fallbackChoiceView(choice, state.selected);
+    const ROW = 40;
+    const GAP = 6;
+    const footerTop = height - 16 - ROW;
+    const pagerHeight = ROW + GAP;
+    const room = footerTop - GAP - y;
+    let { perPage, pages } = fallbackPages(view.rows.length, room, ROW + GAP);
+    if (pages > 1) ({ perPage, pages } = fallbackPages(view.rows.length, room - pagerHeight, ROW + GAP));
+    state.page = Math.min(state.page, pages - 1);
+    for (const row of view.rows.slice(state.page * perPage, (state.page + 1) * perPage)) {
+      const rect = { x, y, width: sheetWidth, height: ROW };
       this.#buttons.push(
         new McButton(this, {
-          kind: "onInk",
-          label: option.label,
+          kind: row.selected ? "primary" : "onInk",
+          label: row.selected ? `✓ ${row.label}` : row.label,
           type: typeRole.label,
           rect,
-          onClick: () => void appSession().store.resolveChoice(option.answer),
+          onClick: () => {
+            if (view.answersOnPress) return answer([row.optionId]);
+            state.selected = toggleFallbackPick(choice, state.selected, row.optionId);
+            redraw();
+          },
         }),
       );
-      y += rect.height + 8;
+      y += ROW + GAP;
     }
+    if (pages > 1) {
+      const third = (sheetWidth - 2 * GAP) / 3;
+      const pager = (index: number, label: string, enabled: boolean, onClick: () => void): void => {
+        this.#buttons.push(
+          new McButton(this, {
+            kind: "onInk",
+            label,
+            type: typeRole.label,
+            rect: { x: x + index * (third + GAP), y: footerTop - pagerHeight, width: third, height: ROW },
+            enabled,
+            onClick,
+          }),
+        );
+      };
+      pager(0, "‹ Back", state.page > 0, () => {
+        state.page -= 1;
+        redraw();
+      });
+      this.add
+        .text(
+          x + third + GAP + third / 2,
+          footerTop - pagerHeight + ROW / 2,
+          `${state.page + 1} of ${pages}`,
+          textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+        )
+        .setOrigin(0.5);
+      pager(2, "More ›", state.page < pages - 1, () => {
+        state.page += 1;
+        redraw();
+      });
+    }
+    const footer: { label: string; enabled: boolean; onClick: () => void }[] = [];
+    if (view.confirm) {
+      const confirm = view.confirm;
+      footer.push({ label: confirm.label, enabled: confirm.enabled, onClick: () => answer(state.selected) });
+    }
+    if (view.canChooseNone) footer.push({ label: "Choose none", enabled: true, onClick: () => answer([]) });
+    const each = footer.length > 0 ? (sheetWidth - (footer.length - 1) * GAP) / footer.length : 0;
+    footer.forEach((button, index) => {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: index === 0 && view.confirm ? "primary" : "onInk",
+          label: button.label,
+          type: typeRole.label,
+          rect: { x: x + index * (each + GAP), y: footerTop, width: each, height: ROW },
+          enabled: button.enabled,
+          onClick: button.onClick,
+        }),
+      );
+    });
   }
 
   #draw(): void {
