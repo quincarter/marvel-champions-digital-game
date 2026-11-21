@@ -36,7 +36,8 @@ import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { McButton, McTabs, fitText, paintPanel } from "../ui/widgets.js";
+import { McButton, McTabs, McTextInput, fitText, paintPanel } from "../ui/widgets.js";
+import { bindTextFieldEscape } from "./text-field-escape.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { clipToView } from "../view/focus-list.js";
 import type { Rect } from "../view/layout.js";
@@ -48,6 +49,7 @@ import {
   pastGameCounts,
   pastGameDetailParts,
   pastGameRowHeight,
+  aspectChipsOf,
   aspectsNotInName,
   pastGameRowParts,
   pastGameRowsOf,
@@ -76,7 +78,7 @@ import { ReplayOpenError } from "../replay/replay-core.js";
 import { exportPastGame, sharePastGame, type PastGameActionDeps } from "../replay/past-game-actions.js";
 import { deliverReplayLink, isAbort, shareFailureKey, shareLinkOf } from "../replay/replay-share.js";
 import { appSession, deckStorage } from "../session.js";
-import { renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
+import { drawSearchField, renderLiveArtThumb, type LiveArtThumb } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { introReplay } from "./replay-entry.js";
 import { drawOpenFileIcon } from "../ui/open-file-icon.js";
@@ -154,15 +156,57 @@ function addStandInName(
   return label;
 }
 
+/** Draws the aspect chips along the foot of a hero's picture: the aspect's frame color with its name in words on it. */
+function addAspectChips(scene: Phaser.Scene, pic: Rect, aspectIds: readonly string[]): Phaser.GameObjects.GameObject[] {
+  const objects: Phaser.GameObjects.GameObject[] = [];
+  const chips = aspectChipsOf(pic, aspectIds);
+  if (chips.length === 0) return objects;
+  const g = scene.add.graphics();
+  objects.push(g);
+  for (const chip of chips) {
+    g.fillStyle(chip.stamp.fill, 1).fillRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
+    g.lineStyle(1, surface.ink.hex, 0.9).strokeRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
+    const text = scene.add
+      .text(
+        chip.rect.x + chip.rect.width / 2,
+        chip.rect.y + chip.rect.height / 2,
+        chip.text,
+        textStyle(typeRole.label, chip.stamp.ink),
+      )
+      .setOrigin(0.5, 0.5);
+    text.setFontSize(chip.fontSize);
+    // The model picked the wording by an estimate of the type's width; the measured text shrinks to fit what it chose.
+    fitText(text, chip.rect.width - 4, 6);
+    objects.push(text);
+  }
+  return objects;
+}
+
+/** How Past games was opened. All absent: from the Title, to the list as it was last left. */
+export interface PastGamesSceneData {
+  /** A game to show selected, with its details (a stats record's "View game"); scrolled into view once the saves load. */
+  readonly gameId?: string;
+  /** The screen that opened this one, which Back returns to (with `backData`) instead of the Title. */
+  readonly from?: string;
+  readonly backData?: object;
+}
+
 export class PastGamesScene extends Phaser.Scene {
   /** Every save on the device, or null while they are read. */
   #saves: readonly SaveMeta[] | null = null;
   #rows: readonly PastGameRow[] = [];
+  /** What the search box says. Kept across visits like the filter; the DOM field outlives a redraw (`#draw`). */
+  #query = "";
+  #searchInput: McTextInput | null = null;
   /** Kept across visits (Phaser reuses the instance): a replay's Exit comes back to the same filter, place and game. */
   #filter: PastGameFilter = "all";
   readonly #scroll = new ListScroll();
   /** The game whose details show (the side panel), or whose popup is open (a phone); null for none. */
   #selectedId: string | null = null;
+  /** A game to scroll to once the saves have loaded (`PastGamesSceneData.gameId`). */
+  #revealId: string | null = null;
+  /** Where Back goes: a screen that sent the player here. Cleared by Back, so a visit from the Title (or a replay's Exit) is not sent there. */
+  #backTo: { readonly from: string; readonly backData: object } | null = null;
   #busy: Busy | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -195,6 +239,21 @@ export class PastGamesScene extends Phaser.Scene {
     super(SCENES.pastGames);
   }
 
+  init(data: PastGamesSceneData): void {
+    const gameId = data?.gameId;
+    if (gameId) {
+      this.#selectedId = gameId;
+      this.#revealId = gameId;
+      // The record's game may be under the current filter or search: show everything.
+      this.#filter = "all";
+      this.#query = "";
+      this.#scroll.reset();
+    }
+    // Only a visit that says where it came from returns there. Phaser keeps the scene, so a later visit without `from`
+    // (from the Title, or back from a replay watched from here) must not keep a Stats return (code review, #917).
+    this.#backTo = data?.from ? { from: data.from, backData: data.backData ?? {} } : null;
+  }
+
   create(): void {
     // Back from a replay, which played its scenario's music: the menus' music again (#858). A no-op when it already is.
     appSession().music?.playTitle();
@@ -207,7 +266,14 @@ export class PastGamesScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.#hints = new GlyphHints(this, () => this.#obstacles);
+    // A pad that put the caret in the search box can take it out again. Bound before the route (`text-field-escape.ts`).
+    bindTextFieldEscape(
+      this,
+      () => this.#searchInput,
+      () => this.#popupOpen,
+    );
     this.#route = new FocusRoute(this, {
+      blocked: () => this.#searchInput?.focused ?? false,
       onCancel: () => this.#cancel(),
       onTab: (direction) => {
         if (!this.#popupOpen) this.#stepFilter(direction);
@@ -256,6 +322,8 @@ export class PastGamesScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       this.#hints.dispose();
       this.#destroyWidgets();
+      this.#searchInput?.destroy();
+      this.#searchInput = null;
     });
     this.#draw();
     fadeScreenIn(this);
@@ -278,6 +346,16 @@ export class PastGamesScene extends Phaser.Scene {
     if (!this.#current(visit)) return;
     this.#saves = saves;
     this.#draw();
+    this.#revealSelected();
+  }
+
+  /** Scrolls a linked game (`#revealId`) to the middle of the list, once its row exists. */
+  #revealSelected(): void {
+    const id = this.#revealId;
+    if (!id) return;
+    this.#revealId = null;
+    const index = this.#rows.findIndex((row) => row.id === id);
+    if (index >= 0) this.#list?.scrollIntoView(index);
   }
 
   #back(): void {
@@ -289,7 +367,10 @@ export class PastGamesScene extends Phaser.Scene {
     this.#leaving = true;
     this.#visit += 1;
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.title);
+    const back = this.#backTo;
+    this.#backTo = null;
+    if (back) goToScreen(this, back.from, back.backData);
+    else goToScreen(this, SCENES.title);
   }
 
   /** B / Escape: closes the phone's popup first, then leaves. */
@@ -525,7 +606,11 @@ export class PastGamesScene extends Phaser.Scene {
   #draw(): void {
     if (!this.#alive) return;
     this.#destroyWidgets();
+    // The search box's DOM field outlives a redraw, so its caret and what is typed stay put.
+    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     this.#hints.reset();
     this.#obstacles = [];
 
@@ -534,14 +619,14 @@ export class PastGamesScene extends Phaser.Scene {
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
     const saves = this.#saves ?? [];
-    const counts = pastGameCounts(saves);
-    this.#rows = pastGameRowsOf(saves, PAST_GAME_NAMES, this.#filter);
+    const counts = pastGameCounts(saves, undefined, { query: this.#query, names: PAST_GAME_NAMES });
+    this.#rows = pastGameRowsOf(saves, PAST_GAME_NAMES, this.#filter, undefined, this.#query);
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
     // The file button's room in the bar's right end, so the title stops short of it.
     const fileWidth = phone ? 128 : 220;
     const bar = drawTopBar(this, {
-      backLabel: phone ? "◂" : "◂ TITLE",
+      backLabel: phone ? "◂" : this.#backTo?.from === SCENES.playerStats ? "◂ STATS" : "◂ TITLE",
       onBack: () => this.#back(),
       title: t("pastGames.title"),
       reserveRight: fileWidth + 12,
@@ -636,21 +721,53 @@ export class PastGamesScene extends Phaser.Scene {
     stops.set("export-tracker", { rect: exportRect, activate: exportTracker });
     this.#obstacles.push(exportRect);
 
-    const areaTop = exportRect.y + exportRect.height + 10;
+    // The search box: beside the export button where there is room (leaving the pad's LB / RB hint its corner), else
+    // on a row of its own under it. A DOM field above the canvas, not on the scrolling list.
+    const besideExport = contentWidth >= 720;
+    const searchRect: Rect = besideExport
+      ? {
+          x: exportRect.x + exportRect.width + 10,
+          y: exportRect.y,
+          width: contentWidth - exportRect.width - 10 - 110,
+          height: hit.target,
+        }
+      : { x: left, y: exportRect.y + exportRect.height + 6, width: contentWidth, height: hit.target };
+    this.#searchInput = drawSearchField(
+      this,
+      searchRect,
+      "search",
+      this.#query,
+      t("pastGames.search"),
+      (value) => {
+        this.#query = value;
+        this.#scroll.reset();
+        this.#draw();
+      },
+      this.#searchInput,
+      stops,
+    );
+    this.#obstacles.push(searchRect);
+
+    const areaTop = Math.max(exportRect.y + exportRect.height, searchRect.y + searchRect.height) + 10;
     const area: Rect = { x: left, y: areaTop, width: contentWidth, height: Math.max(80, height - areaTop - gutter) };
     const layout = pastGamesLayout(area, { width, height });
     const rows = this.#rows;
     // The side panel always shows a game: the one picked, else the newest. A phone opens its popup only on a tap.
     let selected = rows.find((row) => row.id === this.#selectedId) ?? null;
     if (!selected && layout.side) selected = rows[0] ?? null;
-    if (!selected) this.#selectedId = null;
+    // Until the saves load there are no rows to find a linked game in: keep the id for the draw that has them.
+    if (!selected && this.#saves !== null) this.#selectedId = null;
     this.#popupOpen = !layout.side && selected !== null;
+    // The popup sits over the screen; the DOM field would show through it.
+    this.#searchInput.setVisible(!this.#popupOpen);
 
     if (this.#saves === null || rows.length === 0) {
       const empty =
         this.#saves === null
           ? t("pastGames.loading")
-          : t(this.#filter === "all" ? "pastGames.empty" : "pastGames.emptyFilter");
+          : this.#query.trim() !== ""
+            ? t("pastGames.emptySearch")
+            : t(this.#filter === "all" ? "pastGames.empty" : "pastGames.emptyFilter");
       this.add
         .text(width / 2, areaTop + 24, empty, textStyle(typeRole.body, surface.ink.hex, 0.8))
         .setOrigin(0.5, 0)
@@ -741,6 +858,8 @@ export class PastGamesScene extends Phaser.Scene {
         objects.push(thumb.object);
         const standIn = addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
         if (standIn) objects.push(standIn);
+        // A hero's aspect chips along the foot of its picture (the villain, picture 0, has none).
+        if (i > 0) objects.push(...addAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []));
       });
       const lines = this.#summaryLines(row);
       const result = this.add.text(
@@ -863,7 +982,10 @@ export class PastGamesScene extends Phaser.Scene {
 
     const urls = picturedUrls(row);
     const thumbs = parts.pictures.map((pic, i) => renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2));
-    parts.pictures.forEach((pic, i) => addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null));
+    parts.pictures.forEach((pic, i) => {
+      addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
+      if (i > 0) addAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []);
+    });
     this.#offBaked = cardFaces(this).onBaked(() => thumbs.forEach((thumb) => thumb.refresh()));
     const cards = picturedCards(row);
     const records = picturedCardRecords(row);

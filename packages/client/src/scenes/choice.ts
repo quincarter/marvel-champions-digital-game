@@ -65,6 +65,7 @@ import {
   type PendingChoice,
   type PlayerId,
 } from "@mc/engine";
+import { minionStripOf, playerRowMinions, type MinionStrip } from "../view/choice-player-minions.js";
 import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import { unavailableOptionReasons } from "../view/ability-refusal.js";
 import { choiceRowsOf } from "../view/choice-option-rows.js";
@@ -1187,8 +1188,21 @@ export class ChoiceOverlay extends Phaser.Scene {
     // the scheme), and its label centres in the rest (`labelInset`).
     const withArt = state.game !== null && choice.options.some((o) => optionArtOf(state.game!, o.ref) !== null);
     const artRoom = withArt ? ROW_ART_INSET : 0;
+    // A choose-a-player row shows the minions engaged with that player at its right end (issue #911), so a card like
+    // Multi-Gun can be decided without leaving the sheet. The strip takes at most a third of the row.
+    const minionsOf = (option: (typeof choice.options)[number]): readonly InstanceId[] =>
+      state.game ? playerRowMinions(state.game, option.ref) : [];
+    const stripMax = Math.floor((sheet.width - 24 - (viewWidth > 0 ? viewWidth + 8 : 0)) / 3);
+    const stripRoom = Math.max(
+      0,
+      ...choice.options.map(
+        (option) =>
+          minionStripOf({ x: 0, y: 0, width: stripMax, height: hit.target }, minionsOf(option).length, stripMax).width,
+      ),
+    );
     const maxChars = Math.floor(
-      (sheet.width - 48 - glyphRoom - artRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) / (typeRole.rowTitle.size * 0.62),
+      (sheet.width - 48 - glyphRoom - artRoom - stripRoom - (viewWidth > 0 ? viewWidth + 8 : 0)) /
+        (typeRole.rowTitle.size * 0.62),
     );
     // Every option on the card is listed: one the engine did not offer is drawn disabled, with why (#412).
     const rows = choiceRowsOf(
@@ -1254,6 +1268,8 @@ export class ChoiceOverlay extends Phaser.Scene {
             )
           : -1;
       const optionRect = seatIndex >= 0 ? { ...rect, width: rect.width - viewWidth - 8 } : rect;
+      const minions = minionsOf(option);
+      const strip = minionStripOf(optionRect, minions.length, stripMax);
       if (seatIndex >= 0) {
         const playerId = state.game!.players[seatIndex]!.playerId;
         const viewRect: Rect = { x: rect.x + rect.width - viewWidth, y: rect.y, width: viewWidth, height: rect.height };
@@ -1287,6 +1303,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         type: typeRole.rowTitle,
         rect: optionRect,
         ...(state.game && optionArtOf(state.game, option.ref) ? { labelInset: ROW_ART_INSET } : {}),
+        ...(strip.width > 0 ? { labelInsetRight: strip.width } : {}),
         selected: order >= 0,
         ...(rowsLayout.scrolls ? { clip: () => viewport } : {}),
         onClick: () => this.#toggle(option.optionId, choice.maxSelections),
@@ -1305,6 +1322,19 @@ export class ChoiceOverlay extends Phaser.Scene {
             rowHovers,
           ),
         );
+        if (strip.width > 0) {
+          rowArt.push(
+            ...this.#drawMinionStrip(
+              state.game,
+              minions,
+              strip,
+              rowsLayout.scrolls,
+              () => this.#toggle(option.optionId, choice.maxSelections),
+              option.optionId,
+              rowHovers,
+            ),
+          );
+        }
       }
       const key = choiceFocusKey({ kind: "option", optionId: option.optionId });
       this.#focusRects.set(key, optionRect);
@@ -1315,6 +1345,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         option.optionId,
         () => this.#toggle(option.optionId, choice.maxSelections),
         "row",
+        strip.width,
       );
     });
     if (viewStops.size > 0) {
@@ -2186,6 +2217,90 @@ export class ChoiceOverlay extends Phaser.Scene {
     return [image, zone];
   }
 
+  /**
+   * The minions engaged with a choose-a-player row's player, at the row's right end (issue #911): a fanned stack of
+   * square crops of their art, the last on top, with a count badge when there are several. Each opens the card hover on
+   * a desktop over the part of it that shows (hit points, damage and statuses, as on the table). A tap picks the row as
+   * the row does; a hold or right-click opens that minion in Inspect. Returns what it drew, for a scrolling list to carry.
+   */
+  #drawMinionStrip(
+    game: GameState,
+    minions: readonly InstanceId[],
+    strip: MinionStrip,
+    scrolls: boolean,
+    pick: () => void,
+    optionKey: string,
+    hovered: Set<InstanceId>,
+  ): Phaser.GameObjects.GameObject[] {
+    const drawn: Phaser.GameObjects.GameObject[] = [];
+    // Bottom of the stack first, so each picture covers the one before it.
+    strip.thumbs.forEach((thumb, index) => {
+      const id = minions[index]!;
+      const shows = strip.visible[index] ?? thumb;
+      if (!hovered.has(id)) {
+        hovered.add(id);
+        noteHoverCard(this, id, shows);
+        if (scrolls) this.#hoverScrolled.add(id);
+      }
+      drawn.push(
+        this.add.graphics().fillStyle(surface.ink.hex, 1).fillRect(thumb.x, thumb.y, thumb.width, thumb.height),
+      );
+      const source = artFor(cardOf(game, id), faceOf(game, id));
+      const key = source ? cardArt(this).request(this, source) : null;
+      if (key && this.textures.exists(key)) {
+        const { width: w, height: h } = this.textures.get(key).getSourceImage();
+        if (w && h) {
+          const visible = Math.min(w, h) * ROW_ART_ZOOM;
+          const scale = thumb.width / visible;
+          const cropX = (w - visible) / 2;
+          const cropY = Math.min(h - visible, h * 0.1);
+          drawn.push(
+            this.add
+              .image(thumb.x - cropX * scale, thumb.y - cropY * scale, key)
+              .setOrigin(0, 0)
+              .setScale(scale)
+              .setCrop(cropX, cropY, visible, visible),
+          );
+        }
+      }
+      drawn.push(
+        this.add
+          .graphics()
+          .lineStyle(1.5, surface.ink.hex, 1)
+          .strokeRect(thumb.x - 0.75, thumb.y - 0.75, thumb.width + 1.5, thumb.height + 1.5),
+      );
+      const zone = this.add
+        .zone(shows.x, shows.y, shows.width, shows.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      const inspect = (): void => {
+        this.scene.launch(SCENES.inspect, { instanceId: id });
+        this.scene.bringToTop(SCENES.inspect);
+      };
+      bindHoldTarget(this, zone, { key: `row-minion:${optionKey}:${id}`, onTap: pick, onInspect: inspect });
+      drawn.push(zone);
+    });
+    if (strip.badge) {
+      const badge = strip.badge;
+      const r = badge.width / 2;
+      drawn.push(
+        this.add
+          .graphics()
+          .fillStyle(surface.ink.hex, 1)
+          .fillCircle(badge.x + r, badge.y + r, r)
+          .lineStyle(1.5, surface.paper.hex, 1)
+          .strokeCircle(badge.x + r, badge.y + r, r),
+        this.add
+          .text(badge.x + r, badge.y + r, String(strip.count), {
+            ...textStyle(typeRole.label, surface.paper.hex),
+            fontSize: "12px",
+          })
+          .setOrigin(0.5, 0.5),
+      );
+    }
+    return drawn;
+  }
+
   #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
     const source = artFor(cardOf(game, instanceId), faceOf(game, instanceId));
     const key = source ? cardArt(this).request(this, source) : null;
@@ -2983,7 +3098,14 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   /** The combo that presses a card tile (`view/pick-assign.ts`): its place among the choice's options, drawn on the tile's corner. */
-  #registerTilePick(tile: Rect, optionId: string, tap: () => void, place: "corner" | "row" = "corner"): void {
+  #registerTilePick(
+    tile: Rect,
+    optionId: string,
+    tap: () => void,
+    place: "corner" | "row" = "corner",
+    /** Room the glyph keeps clear at the row's right end: the minions on a choose-a-player row (issue #911). */
+    insetRight = 0,
+  ): void {
     const slot = this.#pickSlotOf(optionId);
     if (slot === null) return;
     this.#pickTaps.set(slot, tap);
@@ -3000,7 +3122,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         if (!rect || rect.height < glyphHeight + 8) return null;
         // A text row is a strip: the combo is centred on its right end. A tile hangs it in the top-right corner.
         const y = place === "row" ? rect.y + rect.height / 2 : rect.y + 4 + glyphHeight / 2;
-        return { x: rect.x + rect.width - glyphWidth - (place === "row" ? 10 : 4), y };
+        return { x: rect.x + rect.width - insetRight - glyphWidth - (place === "row" ? 10 : 4), y };
       },
       { ground: "ink" },
     );

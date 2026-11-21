@@ -4,7 +4,9 @@ import { hit } from "../tokens.js";
 import type { Rect } from "./layout.js";
 import {
   PAST_GAME_ACTIONS,
+  aspectChipsOf,
   aspectsNotInName,
+  pastGameMatches,
   ROW_SIDE_BY_SIDE_FROM,
   isPastGame,
   pastGameCounts,
@@ -57,7 +59,7 @@ const seat = (identityCardId: string, defeated: boolean, extra: object = {}) => 
 });
 
 /** What a seat the save says nothing about its deck for reads as (#756). */
-const none = { aspects: [], deckName: null, topCards: [] };
+const none = { aspects: [], aspectIds: [], deckName: null, topCards: [] };
 
 describe("every seat's deck in a past game (#756)", () => {
   test("each seat has its aspects, its deck's name and its most played cards, most first", () => {
@@ -275,6 +277,7 @@ describe("seatFatesOf", () => {
     damage: null,
     thwart: null,
     aspects: [],
+    aspectIds: [],
     deckName: null,
     topCards: [],
   });
@@ -381,5 +384,108 @@ describe("aspectsNotInName", () => {
     expect(aspectsNotInName("Spider-Man (justice)", ["Justice", "Aggression"])).toEqual(["Aggression"]);
     expect(aspectsNotInName("Pool party", ["'Pool"])).toEqual([]);
     expect(aspectsNotInName(null, ["Justice"])).toEqual(["Justice"]);
+  });
+});
+
+describe("searching the past games (#911)", () => {
+  const names: PastGameNames = {
+    ...NAMES,
+    scenarioName: (id) => ({ rhino: "Rhino", klaw: "Klaw" })[id],
+    identityName: (id) =>
+      ({ "spider-man": "Spider-Man", "she-hulk": "She-Hulk", "doctor-strange": "Doctor Strange" })[id],
+    scenarioCardId: (id) => `${id}-1`,
+  };
+  const games = [
+    save("a", 300, {
+      config: {
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ identityCardId: "spider-man", deck: [], aspects: ["justice"] }],
+        seed: 1,
+      } as never,
+    }),
+    save("b", 200, {
+      status: "lost",
+      outcome: { result: "loss", reason: "mainSchemeCompleted" } as never,
+      config: {
+        scenarioId: "klaw",
+        difficulty: "standard",
+        players: [{ identityCardId: "doctor-strange", deck: [], deckName: "Sorcerer Supreme" }],
+        seed: 1,
+      } as never,
+    }),
+    save("c", 100, {
+      config: {
+        scenarioId: "rhino",
+        difficulty: "standard",
+        players: [{ identityCardId: "she-hulk", deck: [] }],
+        seed: 1,
+      } as never,
+    }),
+  ];
+  const ids = (query: string, filter: "all" | "won" | "lost" = "all"): string[] =>
+    pastGameRowsOf(games, names, filter, undefined, query).map((row) => row.id);
+
+  test("an empty or blank search keeps every game, newest first", () => {
+    expect(ids("")).toEqual(["a", "b", "c"]);
+    expect(ids("   ")).toEqual(["a", "b", "c"]);
+  });
+
+  test("a partial hero, villain or deck name narrows the list, ignoring case and accents", () => {
+    expect(ids("spid")).toEqual(["a"]);
+    expect(ids("RHI")).toEqual(["a", "c"]);
+    expect(ids("klaw")).toEqual(["b"]);
+    expect(ids("stránge")).toEqual(["b"]);
+    expect(ids("sorcerer")).toEqual(["b"]);
+    expect(ids("justice")).toEqual(["a"]);
+  });
+
+  test("every word must match somewhere, and a typo is forgiven", () => {
+    expect(ids("rhino hulk")).toEqual(["c"]);
+    expect(ids("rhino klaw")).toEqual([]);
+    expect(ids("spidr-man")).toEqual(["a"]);
+  });
+
+  test("it combines with the Won and Lost filter, and the tab counts follow it", () => {
+    expect(ids("rhino", "won")).toEqual(["a", "c"]);
+    expect(ids("klaw", "won")).toEqual([]);
+    expect(ids("klaw", "lost")).toEqual(["b"]);
+    expect(pastGameCounts(games, undefined, { query: "rhino", names })).toEqual({ all: 2, won: 2, lost: 0 });
+    expect(pastGameCounts(games, undefined, { query: "", names })).toEqual({ all: 3, won: 2, lost: 1 });
+  });
+
+  test("pastGameMatches reads the names the row shows (a Spanish row matches its Spanish name)", () => {
+    const [row] = pastGameRowsOf([games[0]!], { ...names, identityName: () => "Hombre Araña" });
+    expect(pastGameMatches(row!, "arana")).toBe(true);
+    expect(pastGameMatches(row!, "hulk")).toBe(false);
+  });
+});
+
+describe("aspect chips on a hero's picture (#911)", () => {
+  const pic: Rect = { x: 10, y: 20, width: 46, height: 64 };
+
+  test("no chips without an aspect; custom hero-set aspects and repeats are left out", () => {
+    expect(aspectChipsOf(pic, [])).toEqual([]);
+    expect(aspectChipsOf(pic, ["hero:spider-ham"])).toEqual([]);
+    expect(aspectChipsOf(pic, ["justice", "justice"])).toHaveLength(1);
+  });
+
+  test("the chips share the picture's width along its foot, in the deck's order, with the aspect's color", () => {
+    const chips = aspectChipsOf({ ...pic, width: 60 }, ["justice", "pool"]);
+    expect(chips.map((chip) => chip.stamp.aspect)).toEqual(["justice", "pool"]);
+    expect(chips.map((chip) => chip.rect.width)).toEqual([30, 30]);
+    for (const chip of chips) {
+      expect(chip.rect.y + chip.rect.height).toBe(20 + 64);
+      expect(chip.rect.x).toBeGreaterThanOrEqual(10);
+      expect(chip.rect.x + chip.rect.width).toBeLessThanOrEqual(70);
+    }
+  });
+
+  test("a chip always says the aspect in words: the full name when it fits, else a code, else a letter", () => {
+    expect(aspectChipsOf({ ...pic, width: 90 }, ["justice"])[0]!.text).toBe("JUSTICE");
+    expect(aspectChipsOf(pic, ["aggression"])[0]!.text).toBe("AGG");
+    const four = aspectChipsOf(pic, ["aggression", "justice", "protection", "leadership"]);
+    expect(four.map((chip) => chip.text)).toEqual(["A", "J", "P", "L"]);
+    for (const chip of four) expect(chip.rect.x + chip.rect.width).toBeLessThanOrEqual(pic.x + pic.width + 1e-9);
   });
 });
