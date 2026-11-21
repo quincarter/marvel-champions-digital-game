@@ -10,9 +10,9 @@
 //! 3. if the safe page crashes within the window too, leaves WebView2's error page up rather than loop.
 //!
 //! A page that stops answering (WebView2 raises `RENDER_PROCESS_UNRESPONSIVE` again and again while it is hung) goes
-//! the same way once it has been reported twice within `UNRESPONSIVE_AGAIN` with no sign of life between: after the
-//! first report the shell runs a tiny script in the page, and an answer clears the report, so two separate slow moments
-//! never add up to a reload. One report alone can be a long synchronous load.
+//! the same way once it has been reported twice with no sign of life between, however far apart the reports come (WebView2
+//! promises no interval): after the first report the shell runs a tiny script in the page, and an answer clears the
+//! report, so two separate slow moments never add up to a reload. One report alone can be a long synchronous load.
 //!
 //! Safe mode lasts the rest of the session (the page's own reloads keep `?renderer=canvas` on the address) and is gone
 //! at the next launch. A crash after the window has passed starts again at step 1.
@@ -27,8 +27,6 @@ use std::time::{Duration, Instant};
 
 /// A crash this soon after a recovery counts as the recovered page crashing again.
 pub const CRASH_AGAIN_WINDOW: Duration = Duration::from_secs(60);
-/// A second unresponsive report this soon after the first counts as a hang.
-pub const UNRESPONSIVE_AGAIN: Duration = Duration::from_secs(30);
 /// The environment variable that turns recovery off.
 const DISABLE_ENV: &str = "MC_DISABLE_CRASH_RECOVERY";
 
@@ -79,11 +77,14 @@ pub struct HangWatch {
 }
 
 impl HangWatch {
-  /// A report at `now`: true when it follows an unanswered one within `UNRESPONSIVE_AGAIN` (a hang).
+  /// A report at `now`: true when an earlier report is still unanswered, however long ago it came (a hang). Otherwise
+  /// this report is the one the page has to answer.
   pub fn report(&mut self, now: Instant) -> bool {
-    let hung = self.open.is_some_and(|at| now.saturating_duration_since(at) < UNRESPONSIVE_AGAIN);
+    if self.open.is_some() {
+      return true;
+    }
     self.open = Some(now);
-    hung
+    false
   }
 
   /// The page answered the probe sent for the report at `at`; true if that report was still open.
@@ -336,14 +337,23 @@ mod tests {
   }
 
   #[test]
-  fn a_late_answer_to_an_older_report_does_not_clear_a_newer_one() {
+  fn reports_far_apart_with_no_answer_between_are_still_a_hang() {
+    let start = Instant::now();
+    let mut watch = HangWatch::default();
+    assert!(!watch.report(start));
+    assert!(watch.report(start + Duration::from_secs(90))); // a busy system: the second report came late
+  }
+
+  #[test]
+  fn an_answer_to_a_report_already_recovered_from_clears_nothing_new() {
     let start = Instant::now();
     let mut watch = HangWatch::default();
     watch.report(start);
-    let newer = start + Duration::from_secs(40); // past the window: a new episode
-    assert!(!watch.report(newer));
-    assert!(!watch.answered(start));
-    assert!(watch.report(newer + Duration::from_secs(5)));
+    watch.clear(); // recovered
+    let next = start + Duration::from_secs(40);
+    assert!(!watch.report(next));
+    assert!(!watch.answered(start)); // the old probe answering late is not the new episode's answer
+    assert!(watch.report(next + Duration::from_secs(5)));
   }
 
   #[test]
