@@ -56,6 +56,10 @@
  */
 
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
+import { seatContext } from "../view/seat-context.js";
+import { heldElsewhere } from "../view/seat-gate.js";
+import { whoseTurnOf } from "../view/whose-turn.js";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -340,6 +344,21 @@ export class SetupDealScene extends Phaser.Scene {
     fadeScreenIn(this);
   }
 
+  /** The words that say who the setup waits for, when the pending choice is another seat's (#881); null otherwise. */
+  #waitingLine: string | null = null;
+
+  #heldChoice(choice: PendingChoice): boolean {
+    const room = seatContext();
+    return room !== null && heldElsewhere(room.room, choice.playerId, room.seatGame);
+  }
+
+  #waitingWords(choice: PendingChoice): string | null {
+    const room = seatContext();
+    if (!room || !this.#heldChoice(choice)) return null;
+    const line = whoseTurnOf(room.room, { playerId: choice.playerId, kind: "choice" });
+    return line ? t(line.key, line.params) : null;
+  }
+
   #onState(state: SessionState): void {
     if (!state.game || this.#handedOff) return;
 
@@ -374,7 +393,8 @@ export class SetupDealScene extends Phaser.Scene {
     // Any other decision that opens during setup (a forced trigger while the villain/scheme's own "Setup:" ability
     // resolves) isn't this scene's to answer — the generic sheet handles it, same as the Board does for every other
     // in-game choice (`BoardScene#syncChoiceOverlay`).
-    const openGeneric = choice !== null && !isMulligan;
+    // A decision for another seat's hero is theirs (#881): this device only waits for it.
+    const openGeneric = choice !== null && !isMulligan && !this.#heldChoice(choice);
     if (openGeneric && !this.#choiceOpen) {
       this.#choiceOpen = true;
       this.scene.launch(SCENES.choice);
@@ -429,7 +449,10 @@ export class SetupDealScene extends Phaser.Scene {
     this.#drawChecklist(layout, checklistRows);
 
     const choice = appSession().store.state.game?.pendingChoice ?? null;
-    const mulliganChoice = choice && choice.prompt.kind === "mulligan" ? choice : null;
+    // A mulligan for another seat's hero is theirs: no controls here, and the screen says who it waits for (#881).
+    const waitingFor = choice ? this.#waitingWords(choice) : null;
+    this.#waitingLine = waitingFor;
+    const mulliganChoice = choice && choice.prompt.kind === "mulligan" && waitingFor === null ? choice : null;
     this.#route = mulliganChoice
       ? setupWalkthroughFocusOrder({ optionIds: cardChoiceDisplayOrder(mulliganChoice.options, this.#selected) })
       : [];
@@ -614,7 +637,7 @@ export class SetupDealScene extends Phaser.Scene {
         .text(
           layout.handRow.x,
           layout.handRow.y,
-          "Waiting on another decision before the mulligan continues…",
+          this.#waitingLine ?? "Waiting on another decision before the mulligan continues…",
           textStyle(typeRole.body, surface.paper.hex, ink.secondary),
         )
         .setWordWrapWidth(layout.handRow.width);

@@ -180,6 +180,7 @@ import { backOutTargetOf } from "../view/back-out.js";
 import { roomUndoOffOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { choiceTakebackOf } from "../view/end-turn-takeback.js";
+import { seatNoRewind } from "../view/seat-context.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
 import type { VillainPhaseOverlay } from "./villain-phase.js";
@@ -833,7 +834,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const takeback = this.#takebackOf(state, choice);
     const backOutTarget =
       takeback ??
-      (state.perspectiveId && !roomUndoOffOf(state.config)
+      (state.perspectiveId && !roomUndoOffOf(state.config) && !seatNoRewind()
         ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId)
         : null);
     let backOutRect: Rect | null = null;
@@ -3728,7 +3729,14 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
   #takebackOf(state: SessionState, choice: PendingChoice): number | null {
-    if (!state.perspectiveId || choice.playerId !== state.perspectiveId || roomUndoOffOf(state.config)) return null;
+    if (
+      !state.perspectiveId ||
+      choice.playerId !== state.perspectiveId ||
+      roomUndoOffOf(state.config) ||
+      seatNoRewind()
+    ) {
+      return null;
+    }
     return choiceTakebackOf(state.commandTrail, choice, state.perspectiveId);
   }
 

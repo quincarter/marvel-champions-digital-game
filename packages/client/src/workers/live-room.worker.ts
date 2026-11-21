@@ -38,6 +38,7 @@ worker.addEventListener("message", (event) => {
       // Tells the engine worker whether to stream at all (nothing is read or sent while off).
       onEnabledChange: (on) => gamePort?.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
       onResync: () => gamePort?.postMessage({ kind: "resync" } satisfies LiveControlMessage),
+      onProposal: (proposal) => gamePort?.postMessage(proposal satisfies LiveControlMessage),
       // Rooms and the lobby (issue #880): the seat tokens live in this worker's IndexedDB, never on the main thread.
       ...(build
         ? {

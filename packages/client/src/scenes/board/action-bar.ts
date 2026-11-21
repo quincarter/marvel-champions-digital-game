@@ -4,6 +4,7 @@
 
 import type Phaser from "phaser";
 import { appSession } from "../../session.js";
+import { seatContext } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
 import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
@@ -165,7 +166,13 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   // Undo (`view/undo.ts`) sits just before End turn: on the commit row's left when stacked, else between the basic
   // powers and End turn. Drawn, greyed with its reason, for as long as it is the hero's own turn.
   const undo = controller.undoOffer();
-  const undoWidth = undo ? (stacked ? Math.min(110, rect.width * 0.3) : Math.min(110, rect.width * 0.14)) : 0;
+  // "Ask host to undo" (a seated guest's Undo, #881) needs more room than "Undo".
+  const asking = undo?.kind === "ask";
+  const undoWidth = undo
+    ? stacked
+      ? Math.min(asking ? 150 : 110, rect.width * (asking ? 0.4 : 0.3))
+      : Math.min(asking ? 150 : 110, rect.width * (asking ? 0.18 : 0.14))
+    : 0;
   const undoGap = undo ? 6 : 0;
   const endTurnWidth = stacked ? rect.width - 20 - undoWidth - undoGap : Math.min(180, rect.width * 0.28);
   const basicsWidth = stacked ? rect.width - 20 : rect.width - endTurnWidth - 30 - undoWidth - undoGap;
@@ -246,10 +253,15 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const undoButton = new McButton(scene, {
       kind: "onInk",
       // Taking the previous hero's End turn back (`view/end-turn-takeback.ts`) reads as what it is.
-      label: undo.kind === "available" && undo.command.type === "endTurn" ? "Nevermind" : "Undo",
+      label:
+        undo.kind === "ask"
+          ? t("ask.undo")
+          : undo.kind === "available" && undo.command.type === "endTurn"
+            ? "Nevermind"
+            : "Undo",
       type: typeRole.label,
       rect: undoRect,
-      enabled: undo.kind === "available",
+      enabled: undo.kind === "available" || undo.kind === "ask",
       ...(undo.kind === "unavailable" ? { reason: undo.reason } : {}),
       // A greyed Undo says why on hover (pointer), on focus (keyboard) and on press (touch, Enter, Z): the label
       // below is drawn hidden when there is nothing to say and toggled here without a redraw.
@@ -285,7 +297,21 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       : selection.kind === "paying"
         ? "" // The payment bar above the hand is already saying it.
         : (appSession().store.state.error ?? "");
-  if (message && !stacked) {
+  if (message && seatContext()) {
+    // A room game's refusal ("The host did not accept that move.") is a plate clear of the screen edge, on every layout.
+    const width = Math.min(rect.width - 16, 460);
+    const text = scene.add
+      .text(0, 0, message, { ...textStyle(typeRole.body, signal.caution.hex), wordWrap: { width: width - 20 } })
+      .setOrigin(0, 0)
+      .setDepth(900);
+    const height = text.height + 14;
+    const x = rect.x + 8;
+    const y = rect.y - height - 8;
+    const plate = scene.add.graphics().setDepth(899);
+    plate.fillStyle(surface.ink.hex, 1).fillRect(x, y, width, height);
+    plate.lineStyle(2, signal.caution.hex, 1).strokeRect(x + 1, y + 1, width - 2, height - 2);
+    text.setPosition(x + 10, y + 7);
+  } else if (message && !stacked) {
     scene.add
       .text(rect.x + 10, rect.y + rect.height - 14, message, textStyle(typeRole.body, signal.caution.hex))
       .setOrigin(0, 0.5)

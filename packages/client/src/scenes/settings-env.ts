@@ -33,6 +33,7 @@ import {
   type GuideRowInfo,
 } from "../view/settings-rows.js";
 import { settingsTabsOf, type SettingsItemId } from "../view/settings-sections.js";
+import { seatNoRewind } from "../view/seat-context.js";
 import type { SettingsRowText } from "../view/settings-search.js";
 import { knownMixerVolume } from "../platform/app-volume.js";
 import { desktopMonitor, resolutionOptionsFor } from "../platform/desktop-window.js";
@@ -178,5 +179,6 @@ export function settingsTabsFor(
       canReadPowerSaving(detectPlatform(), globalThis.navigator?.userAgent ?? "") || powerSavingState().detected,
     screenSettings: screenSettingsShown(),
     controls: controlsShown(),
+    cheats: !seatNoRewind(),
   });
 }

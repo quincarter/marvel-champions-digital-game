@@ -15,22 +15,28 @@ import type { ReplayHost } from "../replay/replay-host.js";
 import { ReplayHost as ReplayHostClass, WorkerReplayBackend } from "../replay/replay-host.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { appSession } from "../session.js";
+import type { PlayerId } from "@mc/engine";
+import { undoOf } from "../view/undo.js";
 import { cleanOnlineName } from "../settings.js";
 import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
 import {
   NO_ROOM,
+  seatOfPlayerIn,
   type LobbySeatSpec,
   type LobbySettingsPatch,
   type RoomState,
   type SeatDeckEntry,
+  type SeatOfPlayer,
 } from "../live/room-state.js";
 import { RoomDeckWorker } from "../live/room-deck-check-client.js";
 import { withRequiredPacks } from "../packs/pack-runtime.js";
 import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult } from "../live/room-start.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
+import { setSeatContextSource } from "../view/seat-context.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 
-export type { RoomState } from "../live/room-state.js";
+export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -74,12 +80,40 @@ function requestSeatDecks(): Promise<readonly SeatDeckEntry[] | null> {
 }
 
 export const roomState = (): RoomState => state;
+setSeatContextSource(() => state);
 
 /** Calls `listener` with the current state at once, then on every change. Returns the unsubscribe. */
 export function onRoomState(listener: (state: RoomState) => void): () => void {
   listeners.add(listener);
   listener(state);
   return () => listeners.delete(listener);
+}
+
+/** The engine players behind the seats a participant holds. */
+function playersOfParticipant(participantId: string): string[] {
+  return state.seats.filter((s) => s.holder === participantId && s.player !== null).map((s) => s.player as string);
+}
+
+/**
+ * The board's Undo (`view/undo.ts`) for the asker's own hero: takes back the last move of one of the heroes the asker
+ * holds, when it is that hero's turn and the move can be taken back without a reveal. Past a reveal (a draw, a shuffle)
+ * Undo needs the host's own acknowledgement at the board, so such a request is declined here. True when a move was taken
+ * back. The rewind carries the version the target was worked out from, so a command that landed meanwhile refuses it.
+ */
+async function undoMoveOf(participantId: string): Promise<boolean> {
+  const { store } = appSession();
+  const { game, commandTrail, version } = store.state;
+  if (!game) return false;
+  for (const player of playersOfParticipant(participantId)) {
+    const offer = undoOf(commandTrail, game, player as PlayerId, { pastReveals: false });
+    if (offer?.kind !== "available" || offer.revealed === true) continue;
+    try {
+      return await store.rewindTo(offer.target, { fromVersion: version });
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 /** The "Online name" setting: empty until the player has been asked. */
@@ -154,6 +188,47 @@ export function assignSeat(seat: string, participant: string): void {
 /** Host only: turns down a request for a seat, or takes it from its holder. */
 export function denySeat(seat: string, participant: string): void {
   postRoomCommand({ kind: "room-seat", op: "deny", seat, participant });
+}
+
+/**
+ * Host only: answers a seat holder's request (`RoomState.requests`). Accepted `undo`: the host performs its usual Undo,
+ * then answers; accepted `adjust`: answers yes and the host uses Manual adjust itself; declined: answers no.
+ * (Stub in the API commit: the behavior follows.)
+ */
+export async function answerRequest(id: string, accepted: boolean): Promise<void> {
+  const request = state.requests.find((r) => r.id === id);
+  if (state.role !== "host" || !request) return;
+  let answer = accepted;
+  // The room's policy decides what may be asked: an undo only under "ask", a change only with cheats on (#904).
+  if (!askAllowedOf(request.what, state.settings)) answer = false;
+  // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
+  if (answer && request.what === "undo") answer = await undoMoveOf(request.from);
+  postRoomCommand({ kind: "room-answer", id, accepted: answer });
+}
+
+/** Guest only (Host control rooms): asks the host to undo, or to change something, with a short note (at most 140 characters). */
+export function askHost(what: "undo" | "adjust", note = ""): void {
+  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140) });
+}
+
+/** Guest only: dismisses the host's answer to my last request. */
+export function dismissAsk(): void {
+  postRoomCommand({ kind: "room-ask-clear" });
+}
+
+/** Host only: acts for a held seat whose holder is away (`RoomSeat.away`), until `giveBackSeat`. */
+export function takeOverSeat(seat: string): void {
+  postRoomCommand({ kind: "room-seat", op: "take-over", seat });
+}
+
+/** Host only: hands a taken-over seat back to its holder. */
+export function giveBackSeat(seat: string): void {
+  postRoomCommand({ kind: "room-seat", op: "give-back", seat });
+}
+
+/** The seat that plays this engine player (`p1`..), who holds it and whether this device acts for it; null with no seat. */
+export function seatOfPlayer(playerId: string): SeatOfPlayer | null {
+  return seatOfPlayerIn(state, playerId);
 }
 
 /**
@@ -236,6 +311,11 @@ export function startRoomGame(base: RoomGameBase): Promise<RoomStartResult> {
  */
 export async function startGame(config: SessionConfig): Promise<void> {
   const playMode = state.settings?.playMode;
+  // Seat n plays engine player p<n> (setup's player order is the lobby's seat order): the room keeps it for the
+  // proposals it forwards, and drops it from any later seat list that omits it.
+  if (state.role === "host" && state.seats.length > 0 && (!state.started || state.gameOver)) {
+    setLobby({ seats: state.seats.map((s, index) => ({ id: s.id, label: s.label, player: `p${index + 1}` })) });
+  }
   await appSession().store.start({
     ...config,
     watchable: true,

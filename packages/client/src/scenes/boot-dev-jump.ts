@@ -4,6 +4,7 @@
  * fixture code it pulls in) from the entry chunk.
  */
 
+import type { Command } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { replacementCandidatesOf } from "../view/replacement-candidates.js";
@@ -343,6 +344,63 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       key: SCENES.roomDeckPicker,
       data: { seat: host ? "s2" : "s1", preset: host, preview: roomLobbyFixture(host ? "host" : "guest", "open") },
     };
+  }
+  // `?screen=room-play-host&name=Mara[&mode=strict][&handover=0]` and `?screen=room-play-guest&code=ABC123&name=Ava` (issue #881,
+  // dev only): a real two-seat room game, the host Spider-Man (s1) and the guest Captain Marvel (s2). The host makes the
+  // room, takes s1, gives s2 to the first person who asks and starts the game (its code is `__mcRoomCode`); the guest joins,
+  // asks for s2 and lands in the lobby, which opens the board once the host has started.
+  if ((screen === "room-play-host" || screen === "room-play-guest") && import.meta.env.DEV) {
+    const room = await import("../platform/room.js");
+    const until = async (done: () => boolean, label: string, ms = 120_000): Promise<void> => {
+      const end = Date.now() + ms;
+      while (!done()) {
+        if (Date.now() > end) throw new Error(`room dev jump: timed out waiting for ${label}`);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+    (globalThis as { __mcRoomState?: unknown }).__mcRoomState = room.roomState;
+    // Lets a spec or a screenshot send a move the room will refuse (a seat acting out of turn).
+    (globalThis as { __mcDispatch?: unknown }).__mcDispatch = (command: Command) =>
+      appSession().store.dispatch(command);
+    const name = params.get("name") ?? (screen === "room-play-host" ? "Mara" : "Ava");
+    if (screen === "room-play-guest") {
+      await room.joinRoom(params.get("code") ?? "", name);
+      await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
+      room.requestSeat("s2");
+      await until(() => room.roomState().mySeats.length > 0, "a seat");
+      return { key: SCENES.roomLobby, data: {} };
+    }
+    await room.hostRoom(name);
+    await until(() => room.roomState().connection === "connected", "the room");
+    (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode = room.roomState().code;
+    room.setLobby({
+      settings: {
+        playMode: params.get("mode") === "strict" ? "strict" : "host",
+        multiSeat: false,
+        chat: true,
+        handover: params.get("handover") !== "0",
+      },
+      seats: [
+        { id: "s1", label: "Spider-Man (Justice) - Core Set starter deck" },
+        { id: "s2", label: "Captain Marvel (Leadership) - Core Set starter deck" },
+      ],
+    });
+    room.requestSeat("s1");
+    await until(
+      () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
+      "a guest asking for s2",
+    );
+    const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+    if (asker) room.assignSeat("s2", asker.participant);
+    await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+    await room.startGame({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }],
+      seed: intParam(params.get("seed"), 7),
+    });
+    // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
+    return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
   // `?screen=online`: Play online.
   if (screen === "online") return { key: SCENES.online, data: {} };

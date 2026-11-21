@@ -125,9 +125,50 @@ export interface RoomSeat {
   readonly mismatch: boolean;
   /** I hold it. */
   readonly mine: boolean;
+  /**
+   * The engine player this seat's hero is (`p1`..`p4`), set by the host at Start; null before that. Read it with
+   * `seatOfPlayer` rather than matching it by hand.
+   */
+  readonly player: string | null;
+  /** The host acts for this seat (its holder was away), until it gives it back. Nobody else may act for it. */
+  readonly takenOver: boolean;
+  /**
+   * Held, but the holder is not connected or has left the seat (handover off): the game waits on it unless the host
+   * takes it over. A seat nobody holds (`holder` null, `player` set, game started) is vacant: its player left and the
+   * host may take it over or hand it on (`settings.handover` off forbids both).
+   */
+  readonly away: boolean;
   /** Who asked for it and awaits the host (what the host's approve and deny buttons act on). */
   readonly requests: readonly RoomSeatRequest[];
   readonly requestedByMe: boolean;
+}
+
+/**
+ * A seat's holder asked the host for something (Host control rooms only; a Strict room refuses requests). The host
+ * answers with `answerRequest(id, accepted)`. Kept in memory by the room worker: it does not survive a reload.
+ */
+export interface RoomRequest {
+  /** Pass this to `answerRequest`. Stable until answered. */
+  readonly id: string;
+  /** The asker's participant id and name. */
+  readonly from: string;
+  readonly name: string;
+  /** `undo`: take back the active hero's last move. `adjust`: a Manual adjust for the table. */
+  readonly what: "undo" | "adjust";
+  /** What the asker wrote, cleaned and at most 140 characters; "" when none. */
+  readonly note: string;
+  /** The asker's id for the ask, echoed in the answer so it lands on that ask (absent from an older client). */
+  readonly rid?: number;
+}
+
+/**
+ * A seated guest's own request to the host (Host control rooms), and what became of it: `waiting` until the host
+ * answers, then `accepted` or `declined`. `seq` rises with each ask, so asking twice still shows. In memory only.
+ */
+export interface RoomAsk {
+  readonly what: "undo" | "adjust";
+  readonly status: "waiting" | "accepted" | "declined";
+  readonly seq: number;
 }
 
 export interface RoomChatLine extends ChatLine {
@@ -163,6 +204,10 @@ export interface RoomState {
   /** The newest chat lines (at most `MAX_CHAT_KEPT`), oldest first. */
   readonly chat: readonly RoomChatLine[];
   readonly refusal: RoomRefusal | null;
+  /** Host only: what seat holders asked for and the host has not answered, oldest first. Empty for a guest. */
+  readonly requests: readonly RoomRequest[];
+  /** Guest only: my last request to the host and its answer; null before the first, or once dismissed. */
+  readonly myRequest: RoomAsk | null;
   /** My own build equals the host's (both versions), so I may take a seat. True while the host's build is unknown. */
   readonly buildMatches: boolean;
   /** The game has started: the host has streamed it (host side), or the room holds its log (guest: `watchRoomGame()` opens it). */
@@ -185,6 +230,8 @@ export const NO_ROOM: RoomState = {
   mySeats: [],
   chat: [],
   refusal: null,
+  requests: [],
+  myRequest: null,
   buildMatches: true,
   started: false,
   gameOver: false,
@@ -192,3 +239,35 @@ export const NO_ROOM: RoomState = {
 
 /** At most this many chat lines are kept in `RoomState.chat`. */
 export const MAX_CHAT_KEPT = 200;
+
+/** An engine player id for a seat's `player` field: an id as given, or a seat index (0-based) as `p<index + 1>`. */
+export const playerIdOfSeat = (player: string | number): string =>
+  typeof player === "number" ? `p${player + 1}` : player;
+
+/** The seat that plays an engine player, and who is behind it, for the whose-turn line. */
+export interface SeatOfPlayer {
+  readonly seat: RoomSeat;
+  /** The holder's name (null for a seat nobody holds). */
+  readonly holderName: string | null;
+  /** This device acts for the seat: I hold it, or I am the host and have taken it over. */
+  readonly mine: boolean;
+  readonly away: boolean;
+  readonly takenOver: boolean;
+}
+
+/** `null` when the room has no seat for `playerId` (a solo game, a watcher before Start, no room). */
+export function seatOfPlayerIn(state: RoomState, playerId: string): SeatOfPlayer | null {
+  const seat = state.seats.find((s) => s.player === playerId);
+  if (!seat) return null;
+  return {
+    seat,
+    holderName: seat.holderName,
+    // A seat I hold but that is away (I left it) is not one I act for until I take it up again.
+    // A guest's seat the host took over, or one on another build, is not theirs to act for.
+    mine:
+      (seat.mine && !seat.away && (state.role === "host" || (!seat.takenOver && !seat.mismatch))) ||
+      (state.role === "host" && seat.takenOver),
+    away: seat.away,
+    takenOver: seat.takenOver,
+  };
+}

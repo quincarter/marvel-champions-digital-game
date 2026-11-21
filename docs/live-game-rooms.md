@@ -264,3 +264,66 @@ exactly as watching did):
   so no loop of requests writes a row. Nothing is written per chat line, join or leave. A socket with 50 soft refusals in
   10 seconds is closed. The cost notes are in `packages/sync-worker/wrangler.jsonc`.
 - The room's limits and kill switch are the ones #878 set up.
+
+## 9. Playing together (issue #881, stacked on #880)
+
+What players get:
+
+- **Seated players act.** A seat's holder plays their hero's decisions on their own device: their turn's actions, their
+  choices in the villain phase, defending, paying, targeting. The host still runs the game.
+- **Whose turn** (Quin, §7): one fixed place in the top bar says "Your turn", "Your choice" or "<Name>'s turn" /
+  "Waiting for <Name>" for everyone, with the hero's name, the same on every device. A watcher sees whose it is.
+- **Several heroes per person** when the host allowed it: the player acts for each seat they hold.
+- **Strict vs Host control** (from #880, already enforced on the host): in a Strict room nobody can Undo, Back out or
+  Manually adjust. In Host control, a player's "Ask the host to undo" or "Ask for a change" goes to the host as a
+  request the host accepts or declines; only the host's device performs it.
+- **Away seats:** a seat whose holder drops shows "away". The host can take the seat over (act for it) after a
+  confirmation, and give it back when the player returns with their seat token.
+- **Version gate:** a seat marked `mismatch` cannot act; its holder sees why.
+
+How it works (host-authoritative, as §2 says):
+
+- Every seat holder's client runs the same engine on the same log, like a watcher, so its table is the live game.
+  Where the engine's legal actions are addressed to a player whose seat the client holds, the board becomes
+  interactive for that player only, exactly as a local game does for the active player.
+- An action becomes `propose { table, command, base }` (`base` = the log length it was built on). The room forwards it
+  to the table's host as `proposal { from, command, base }`. The host's engine dispatches it only when `base` equals
+  its log length and the legal actions belong to a player whose seat the proposer holds; the accepted command then
+  streams to everyone as a normal `commands` batch. Otherwise the host answers `refused { reason, base }` to that seat
+  alone (stale, not-your-turn, illegal), and the proposer's client simply keeps following the log.
+- No optimistic local apply: the proposer's board shows the move as "sent" until the echo arrives (a round trip of a
+  few hundred ms). Optimistic apply with rollback is a later improvement if the latency feels bad.
+- Villain-phase choices addressed to a seat (who defends, which card to discard) are proposals from that seat. A seat
+  that is away blocks the game until it returns or the host takes it over; the host sees a "Waiting for <Name>" prompt
+  with "Take over".
+- Requests (Host control): `request { kind: "undo" | "adjust", note }` from a seat to the host; the host's answer is a
+  normal rewind or command, or `request-declined`. Strict rooms refuse requests outright.
+- Watchers are unchanged. The watcher count excludes seated players.
+
+Not in this step: hidden-information enforcement between seats (co-op lets players talk about their hands; each seat
+sees the table the host's sealed view gives, as replays do), host migration (#884), cross-device seat moves (#886).
+
+Room and protocol (built, `packages/sync-worker`, capability `play`; the lobby room advertises it):
+
+- Seat holder to room: `propose { table, command, base }` and `request { table, what: "undo" | "adjust", note? }` (`what`,
+  because `kind` is the envelope's discriminator). Host to room: `proposal-refused { table, to, reason: "stale" |
+  "not-your-turn" | "illegal" | "strict", base }`, `request-answer { table, to, accepted }`, and on the room channel
+  `take-over { seat }` / `give-back { seat }`.
+- Room to the table's host: `proposal { table, from, seats, command, base }` (`from` is the proposer's participant id,
+  `seats` the seat ids it holds that may act) and `request { table, from, what, note }` (note cleaned, at most 140
+  characters, `""` when none). Room to the participant named by `to`, and to nobody else: `proposal-refused { table,
+  reason, base }` and `request-answer { table, accepted }`.
+- Who may propose or request: a connected participant who holds a seat, the host excepted (the host's engine acts
+  directly), whose build equals the host's, on a seat the host has not taken over. Otherwise a soft refusal:
+  `not-seated`, `build-mismatch` (holds seats but none may act), `out-of-order` (the table has no header or has ended),
+  `no-such-participant` (no host connected), and `strict` for a `request` when `settings.playMode` is `strict`.
+  Proposals are limited to a burst of 10 then 4 a second per participant, requests share the lobby bucket (burst 10,
+  2 a second), both capped at the ordinary message size (`too-large`). Nothing here is stored: no row, no alarm.
+  `proposal-refused` and `request-answer` from anyone but the table's host are refused `not-allowed`, and a `to` that is
+  not connected `no-such-participant`.
+- Seats gain `player` (an engine player id string or a seat index the host sets in `lobby-set`; opaque to the room,
+  dropped when a later `lobby-set` omits it) and `takenOver`. `take-over` is the host's, for a held seat whose holder is
+  not connected (else `not-away`); it is stored with the seat. The returning holder gets the seat back by token but may
+  not act until `give-back`. A seat that changes hands loses `takenOver`.
+- The roster's `watchers` count leaves out seat holders (an assigned holder plays); the roster is re-sent when holders
+  change. The room has no other presence count.
