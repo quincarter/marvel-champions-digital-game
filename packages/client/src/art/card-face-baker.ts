@@ -22,6 +22,7 @@ import { ArtBitmaps, bakeCardFace } from "./card-face-bake.js";
 import { cardFaceKey, type CardFaceSpec } from "./card-face.js";
 import type { CardFaceRequest, CardFaceResponse, FontSource } from "./card-face-protocol.js";
 import { faceBudgetBytes } from "./memory-budget.js";
+import { WorkerCrashGuard } from "../platform/worker-crash-guard.js";
 
 /** Decoded bytes of baked faces allowed resident: 96 MB, half that on iOS (`memory-budget.ts`, #871). */
 const FACE_BUDGET_BYTES = faceBudgetBytes();
@@ -68,6 +69,8 @@ export class CardFaceBaker {
   #nextId = 1;
   #tick = 0;
   #notifyQueued = false;
+  /** Skips the worker after a start that crashed the page (`platform/worker-crash-guard.ts`, #932). */
+  readonly #guard = new WorkerCrashGuard("card-faces");
 
   constructor(game: Phaser.Game) {
     this.#game = game;
@@ -120,8 +123,13 @@ export class CardFaceBaker {
   }
 
   #start(): void {
+    if (this.#guard.skip()) {
+      this.#goInline("the last start crashed with the worker");
+      return;
+    }
     let worker: Worker;
     try {
+      this.#guard.starting();
       worker = new Worker(new URL("./card-face.worker.ts", import.meta.url), { type: "module", name: "mc-card-faces" });
     } catch (error) {
       this.#goInline(`no worker: ${String(error)}`);
@@ -154,6 +162,8 @@ export class CardFaceBaker {
       for (const entry of waiting) this.#dispatch(entry);
       return;
     }
+    // A face came back (baked or not): the worker lived through its first piece of work.
+    this.#guard.settled();
     const entry = this.#inflight.get(message.id);
     this.#inflight.delete(message.id);
     if (!entry) {
@@ -167,6 +177,8 @@ export class CardFaceBaker {
   /** Stops using the worker; everything it was asked for is painted here instead. */
   #goInline(reason: string): void {
     if (this.#mode === "inline") return;
+    // The page saw the worker stop (or never start it): not the crash the guard watches for.
+    this.#guard.settled();
     // Worth knowing when a device scrolls worse than expected; says nothing when the worker is doing its job.
     console.info(`Card faces: painting on the main thread (${reason}).`);
     this.#mode = "inline";
@@ -190,6 +202,7 @@ export class CardFaceBaker {
     const id = this.#nextId++;
     this.#inflight.set(id, entry);
     const message: CardFaceRequest = { type: "bake", id, spec: entry.spec };
+    this.#guard.working();
     this.#worker.postMessage(message);
   }
 
@@ -265,7 +278,7 @@ export class CardFaceBaker {
 /**
  * The page's own `@font-face` rules for `families`, with every `url(…)` made absolute against the stylesheet that
  * declared it — whatever Vite emitted, in dev (inline `<style>`) or a build (hashed files), with nothing to keep in
- * step by hand.
+ * step by hand. A font the build inlined as a `data:` URL goes as its bytes (`inlineFontBytes`).
  */
 export function pageFontSources(families: ReadonlySet<string>): FontSource[] {
   const sources: FontSource[] = [];
@@ -298,8 +311,44 @@ export function pageFontSources(families: ReadonlySet<string>): FontSource[] {
       if (weight) descriptors.weight = weight;
       if (fontStyle) descriptors.style = fontStyle;
       if (unicodeRange) descriptors.unicodeRange = unicodeRange;
-      sources.push({ family, src, descriptors });
+      sources.push({ family, src: inlineFontBytes(src) ?? src, descriptors });
     }
   }
   return sources;
+}
+
+/**
+ * The bytes of a `src` that is one inline `data:` font (`url("data:font/woff2;base64,…") format("woff2")`), or null.
+ * Vite inlines small fonts in a build (Bangers' 7, `fonts/bangers-seven.css`, is 2.6 KB), and WebView2 158 crashes the
+ * whole page (STATUS_BREAKPOINT) when a worker's `FontFace` loads a `data:` URL (#932); bytes load fine everywhere.
+ */
+export function inlineFontBytes(src: string): ArrayBuffer | null {
+  const match = /^\s*url\(\s*(["']?)(data:[^"')]*)\1\s*\)(?:\s+format\([^)]*\))?\s*$/i.exec(src);
+  if (!match) return null;
+  const url = match[2]!;
+  const comma = url.indexOf(",");
+  if (comma < 0) return null;
+  const meta = url.slice(5, comma);
+  const payload = url.slice(comma + 1);
+  try {
+    if (/;base64$/i.test(meta)) {
+      const binary = atob(payload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+    // Percent-encoded: each %XX is one byte (not UTF-8 text), every other character its own code.
+    const bytes: number[] = [];
+    for (let i = 0; i < payload.length; i++) {
+      if (payload[i] === "%" && /^[0-9a-f]{2}$/i.test(payload.slice(i + 1, i + 3))) {
+        bytes.push(parseInt(payload.slice(i + 1, i + 3), 16));
+        i += 2;
+      } else {
+        bytes.push(payload.charCodeAt(i) & 0xff);
+      }
+    }
+    return new Uint8Array(bytes).buffer;
+  } catch {
+    return null;
+  }
 }

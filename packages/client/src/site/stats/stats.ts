@@ -28,12 +28,14 @@ const ADDRESSES: Readonly<Record<string, string>> = { game: GAME_URL, repo: REPO
 
 const PLATFORM_NAMES: Readonly<Record<Platform, string>> = {
   android: "Android",
+  ios: "iOS",
   windows: "Windows",
   mac: "macOS",
   linux: "Linux",
 };
 const FILE_NAMES: Readonly<Record<FileKind, string>> = {
   apk: "apk",
+  ipa: "ipa",
   exe: "Setup.exe",
   msi: "AllUsers.msi",
   dmg: "dmg",
@@ -60,6 +62,12 @@ const day = (iso: string, withYear = false): string =>
         timeZone: "UTC",
       })
     : "";
+
+/** A platform's share as "41%", or "<1%" for a platform with downloads that rounds to nothing (a new one, like iOS). */
+const shareText = (part: number, whole: number): string => {
+  const at = percent(part, whole);
+  return at === 0 && part > 0 ? "<1%" : `${at}%`;
+};
 
 /** A bar split by platform, each part as wide as its share of `scale`. */
 function platformBar(platforms: Readonly<Record<Platform, number>>, scale: number, className: string): HTMLElement {
@@ -136,12 +144,12 @@ function drawShare(stats: DownloadStats): void {
   const share = $("share");
   share.replaceChildren(
     ...PLATFORMS.filter((platform) => stats.platforms[platform] > 0).map((platform) => {
-      const at = percent(stats.platforms[platform], stats.installers);
+      const at = shareText(stats.platforms[platform], stats.installers);
       return element(
         "span",
         { class: `p-${platform}`, style: `flex-grow:${stats.platforms[platform]}` },
         element("b", {}, PLATFORM_NAMES[platform]),
-        element("span", {}, `${at}%`),
+        element("span", {}, at),
       );
     }),
   );
@@ -157,7 +165,7 @@ function drawShare(stats: DownloadStats): void {
           element(
             "span",
             {},
-            `${number(stats.platforms[platform])} · ${percent(stats.platforms[platform], stats.installers)}%`,
+            `${number(stats.platforms[platform])} · ${shareText(stats.platforms[platform], stats.installers)}`,
           ),
         ),
         ...FILE_KINDS[platform].map((kind) =>
