@@ -177,8 +177,9 @@ describe("SeatEngineHost", () => {
     // Nothing is applied before the echo.
     expect(updates.at(-1)!.version).toBe(2);
 
-    // The authoritative engine applied the same command; the room streams it back.
+    // The authoritative engine applied the same command; the room says so, then streams it back.
     game.core.dispatch(command);
+    feed.say({ ch: "game", kind: "proposal-accepted", table: "t1", base: 2, pid: 1 });
     feed.say(appended(2, [command]));
     const done = await result;
     expect(done.ok).toBe(true);
@@ -242,11 +243,12 @@ describe("SeatEngineHost", () => {
     await flush();
     expect(settled).toBe(false);
     game.core.dispatch(command);
+    feed.say({ ch: "game", kind: "proposal-accepted", table: "t1", base: 2, pid: 1 });
     feed.say(appended(2, [command]));
     expect((await result).ok).toBe(true);
   });
 
-  test("two identical proposals built on the same log length: one echo acknowledges only the first", async () => {
+  test("two identical proposals built on the same log length: only the one the host accepted resolves ok, the other gets its refusal", async () => {
     const { game, feed, host, first } = await seatAt(2);
     const acting = actingPlayer(first.state)!;
     await host.setPlayers([acting]);
@@ -254,11 +256,34 @@ describe("SeatEngineHost", () => {
     const one = host.dispatch(command);
     const two = host.dispatch(command);
     expect(feed.sent.map((m) => (m as { pid: number }).pid)).toEqual([1, 2]);
+    // The host took the second and refused the first; the identical command in the log is not the first's.
     game.core.dispatch(command);
+    feed.say({ ch: "game", kind: "proposal-accepted", table: "t1", base: 2, pid: 2 });
     feed.say(appended(2, [command]));
-    const [a, b] = await Promise.all([one, two]);
-    expect(a.ok).toBe(true);
-    expect(b.ok).toBe(false);
+    expect((await two).ok).toBe(true);
+    feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "stale", base: 2, pid: 1 });
+    const loser = await one;
+    expect(loser.ok).toBe(false);
+    if (!loser.ok) expect(loser.error.message).toBe(refusalMessage("stale"));
+  });
+
+  test("an identical command another device got into the log is not my acceptance: I wait for my own refusal", async () => {
+    const { game, feed, host, updates, first } = await seatAt(2);
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = anyLegalCommand(await host.legalActions(acting));
+    let settled = false;
+    const mine = host.dispatch(command).then((r) => ((settled = true), r));
+    game.core.dispatch(command);
+    // Accepted for someone else: no `proposal-accepted` for me.
+    feed.say(appended(2, [command]));
+    await flush();
+    expect(settled).toBe(false);
+    expect(updates.at(-1)!.version).toBe(3);
+    // Someone else's move: the store adds it to its trail.
+    expect(updates.at(-1)!.remote).toEqual(command);
+    feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "stale", base: 2, pid: 1 });
+    expect((await mine).ok).toBe(false);
   });
 
   test("a host refusal names its proposal: the other proposal on the same log length stays pending", async () => {
@@ -314,8 +339,11 @@ describe("SeatEngineHost", () => {
     const applied = game.core.dispatch(theirs);
     expect(applied.ok).toBe(true);
     feed.say(appended(2, [theirs]));
+    // A different command is stale at once; one identical to mine waits for the host's refusal of my proposal.
+    if (JSON.stringify(mine) === JSON.stringify(theirs)) {
+      feed.say({ ch: "game", kind: "proposal-refused", table: "t1", reason: "stale", base: 2, pid: 1 });
+    }
     const done = await result;
-    if (JSON.stringify(mine) === JSON.stringify(theirs)) return;
     expect(done.ok).toBe(false);
     if (!done.ok) expect(done.error.message).toBe(refusalMessage("stale"));
     expect(updates.at(-1)!.version).toBe(3);

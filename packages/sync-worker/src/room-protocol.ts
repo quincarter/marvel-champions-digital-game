@@ -503,6 +503,20 @@ export type ClientMessage =
       readonly pid?: number;
     }
   /**
+   * Host only: the proposal `pid` built on `base` was applied to the log. The room sends it to participant `to` alone,
+   * as `proposal-accepted` without `to`, ahead of the log's own echo of the command (the host says it first). It is
+   * how a proposer knows its own proposal landed, rather than an identical command from someone else.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "proposal-accepted";
+      readonly table: string;
+      readonly to: string;
+      readonly base: number;
+      readonly pid?: number;
+    }
+  /**
    * A seat holder asks the host for an Undo or a Manual adjust (Host control rooms only; Strict refuses `strict`).
    * `what` names it, because `kind` is the message's own discriminator.
    */
@@ -655,6 +669,15 @@ export type ServerMessage =
       readonly kind: "proposal-refused";
       readonly table: string;
       readonly reason: ProposalRefusal;
+      readonly base: number;
+      readonly pid?: number;
+    }
+  /** To the proposer alone: the host applied its proposal (the log's echo of it follows). */
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "proposal-accepted";
+      readonly table: string;
       readonly base: number;
       readonly pid?: number;
     }
@@ -871,6 +894,14 @@ export function parseClientMessage(text: string): ClientMessage | null {
           m.to.length <= 32 &&
           typeof m.reason === "string" &&
           PROPOSAL_REFUSALS.includes(m.reason) &&
+          isCount(m.base) &&
+          (m.pid === undefined || isCount(m.pid)),
+      );
+    case "game:proposal-accepted":
+      return ok(
+        isTable(m.table) &&
+          typeof m.to === "string" &&
+          m.to.length <= 32 &&
           isCount(m.base) &&
           (m.pid === undefined || isCount(m.pid)),
       );

@@ -99,6 +99,7 @@ const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
     "proposal",
     "request",
     "proposal-refused",
+    "proposal-accepted",
     "request-answer",
   ]),
   chat: new Set(["said", "backlog"]),

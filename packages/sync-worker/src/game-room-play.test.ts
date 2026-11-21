@@ -100,6 +100,11 @@ describe("play together: protocol parsing", () => {
       expect(parse({ ...refused, reason })).not.toBeNull();
     }
     expect(parse({ ...refused, reason: "because" })).toBeNull();
+    const accepted = { ch: "game", kind: "proposal-accepted", table: "t1", to: "abc", base: 2 };
+    expect(parse({ ...accepted, pid: 4 })).not.toBeNull();
+    expect(parse(accepted)).not.toBeNull();
+    expect(parse({ ...accepted, base: -1 })).toBeNull();
+    expect(parse({ ...accepted, to: 5 })).toBeNull();
     expect(parse({ ch: "game", kind: "request", table: "t1", what: "adjust", note: "x" })).not.toBeNull();
     expect(parse({ ch: "game", kind: "request", table: "t1", what: "redo" })).toBeNull();
     expect(parse({ ch: "game", kind: "request-answer", table: "t1", to: "a", accepted: true })).not.toBeNull();
@@ -303,6 +308,11 @@ describe("play together: the host's answers go to their target only", () => {
       { v: 1, ch: "game", kind: "proposal-refused", table: "t1", reason: "stale", base: 5 },
     ]);
     expect(ann.of("proposal-refused")).toEqual([]);
+    await send(host, { ch: "game", kind: "proposal-accepted", table: "t1", to: ann.id, base: 5, pid: 3 });
+    expect(ann.of("proposal-accepted")).toEqual([
+      { v: 1, ch: "game", kind: "proposal-accepted", table: "t1", base: 5, pid: 3 },
+    ]);
+    expect(bob.of("proposal-accepted")).toEqual([]);
     expect(ann.of("request-answer")).toEqual([
       { v: 1, ch: "game", kind: "request-answer", table: "t1", accepted: false },
     ]);

@@ -137,6 +137,11 @@ export class SeatFollower implements SeatBackend {
       });
       return;
     }
+    if (message.ch === "game" && message.kind === "proposal-accepted" && message.table === FIRST_TABLE) {
+      if (message.pid !== undefined) this.#outstanding.delete(message.pid);
+      this.#emit({ type: "accepted", base: message.base, ...(message.pid === undefined ? {} : { pid: message.pid }) });
+      return;
+    }
     // The room itself turned the proposal down (not seated, other build, rate limit, no host): it never reached the host,
     // so no `proposal-refused` is coming; the seat fails at once rather than after its wait. Only a refusal that names a
     // proposal of mine counts: a refused chat line or seat request carries no `pid` and is not about any of them.

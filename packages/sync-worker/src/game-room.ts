@@ -743,7 +743,11 @@ export class GameRoomLogic {
     if (message.ch === "chat") return this.say(socket, participant, message.text);
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
     if (message.kind === "propose" || message.kind === "request") return this.fromSeat(socket, participant, message);
-    if (message.kind === "proposal-refused" || message.kind === "request-answer") {
+    if (
+      message.kind === "proposal-refused" ||
+      message.kind === "proposal-accepted" ||
+      message.kind === "request-answer"
+    ) {
       return this.answerSeat(socket, participant, message);
     }
     const table = this.tableOf(message.table);
@@ -884,7 +888,9 @@ export class GameRoomLogic {
     table: Table,
     message: Exclude<
       ClientMessage,
-      { ch: "room" } | { ch: "chat" } | { kind: "propose" | "proposal-refused" | "request" | "request-answer" }
+      | { ch: "room" }
+      | { ch: "chat" }
+      | { kind: "propose" | "proposal-refused" | "proposal-accepted" | "request" | "request-answer" }
     >,
   ): Promise<void> {
     switch (message.kind) {
@@ -1494,11 +1500,11 @@ export class GameRoomLogic {
     });
   }
 
-  /** The host's `proposal-refused` or `request-answer`: relayed to the one participant it names, nobody else. */
+  /** The host's `proposal-refused`, `proposal-accepted` or `request-answer`: relayed to the one participant it names, nobody else. */
   private answerSeat(
     socket: RoomSocket,
     who: Participant,
-    message: Extract<ClientMessage, { kind: "proposal-refused" | "request-answer" }>,
+    message: Extract<ClientMessage, { kind: "proposal-refused" | "proposal-accepted" | "request-answer" }>,
   ): void {
     const table = this.tableOf(message.table);
     if (who.role !== "host" || who.table !== message.table || !table) return this.refuse(socket, "not-allowed");
@@ -1510,6 +1516,15 @@ export class GameRoomLogic {
         kind: "proposal-refused",
         table: table.id,
         reason: message.reason,
+        base: message.base,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
+      });
+    } else if (message.kind === "proposal-accepted") {
+      this.sendTo(message.to, {
+        v: 1,
+        ch: "game",
+        kind: "proposal-accepted",
+        table: table.id,
         base: message.base,
         ...(message.pid === undefined ? {} : { pid: message.pid }),
       });
