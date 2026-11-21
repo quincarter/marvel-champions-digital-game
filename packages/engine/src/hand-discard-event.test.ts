@@ -108,6 +108,20 @@ const WARDEN_INTERRUPT = stubAbility("warden.interrupt", {
   effects: [{ kind: "draw", player: you, amount: n(0) }],
 });
 const WARDEN = stubSupport({ id: "warden", cost: 0, abilities: [WARDEN_INTERRUPT.ref] });
+/**
+ * One support, two abilities: "Action: Discard 1 card from your hand." and "Interrupt: When a card you control would be
+ * discarded, discard 1 card from your hand." (limit once per phase), the inner discard an effect of the same card.
+ */
+const TWIN_ACTION = stubAbility("twin.action", {
+  trigger: { kind: "action" },
+  effects: [{ kind: "discardFromHand", player: you, amount: n(1) }],
+});
+const TWIN_INTERRUPT = stubAbility("twin.interrupt", {
+  trigger: { kind: "interrupt", forced: false, would: true, on: { on: "cardBeingDiscarded", playerIs: "controller" } },
+  limit: { count: 1, period: "phase" },
+  effects: [{ kind: "discardFromHand", player: you, amount: n(1) }],
+});
+const TWIN = stubSupport({ id: "twin", cost: 0, abilities: [TWIN_ACTION.ref, TWIN_INTERRUPT.ref] });
 /** A second Rage, with an ability of its own. */
 const RAGE_TWO_RESPONSE = stubAbility("rage-two.response", { ...RAGE_RESPONSE.definition });
 const RAGE_TWO = stubSupport({ id: "rage-two", cost: 0, abilities: [RAGE_TWO_RESPONSE.ref] });
@@ -121,15 +135,17 @@ const UNHEARD: EngineDeps = depsOf(...OTHERS);
 const WARDED: EngineDeps = depsOf(RAGE_RESPONSE, WARD_INTERRUPT, ...OTHERS);
 /** With an interrupt that pays a hand-discard cost. */
 const WARDEN_GAME: EngineDeps = depsOf(RAGE_RESPONSE, WARDEN_INTERRUPT, ...OTHERS);
+/** With the support whose two abilities both discard. */
+const TWIN_GAME: EngineDeps = depsOf(RAGE_RESPONSE, TWIN_ACTION, TWIN_INTERRUPT, ...OTHERS);
 /** With two Rages. */
 const TWO_RAGES: EngineDeps = depsOf(RAGE_RESPONSE, RAGE_TWO_RESPONSE, ...OTHERS);
 
 function start(deps: EngineDeps, players: 1 | 2 = 1): GameState {
   const game = gameAtFirstTurn({
     players,
-    cards: [RAGE, RAGE_TWO, FURY, WARD, WARDEN, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
+    cards: [RAGE, RAGE_TWO, FURY, WARD, WARDEN, TWIN, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
     deps,
-    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, WARDEN.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, WARDEN.id, TWIN.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
     encounter: [...copiesOf(FILLER.id, 26), TOLL.id, T_CHOSEN.id],
   });
   return game;
@@ -151,7 +167,7 @@ function drive(state: GameState, deps: EngineDeps, ...commands: readonly Command
     const choice = s.pendingChoice!;
     // A hand-discard cost is paid with the first card offered (an empty pick backs out).
     if (choice.prompt.kind === "chooseCostCards") return [choice.options[0]!.optionId];
-    const row = choice.options.find((o) => /rage|warden/.test(o.optionId as string));
+    const row = choice.options.find((o) => /rage|warden|twin/.test(o.optionId as string));
     if (choice.prompt.kind === "chooseTriggers" && !row) return [];
     if (choice.prompt.kind !== "chooseTriggers" || !row) return defaultPick(s);
     if (/rage/.test(row.optionId as string)) offers += 1;
@@ -369,5 +385,23 @@ describe("cardDiscardedFromHand: one effect's discards share one window, after a
     );
     expect(costResponse).toBeLessThan(lastApplied);
     expectReplays(out.session, WARDEN_GAME);
+  });
+  it("a discard by another ability of the same card, inside its 'would' window, is answered at once, not held", () => {
+    const one = playerCardIntoPlay(start(TWIN_GAME), TWIN.id, P1);
+    const base = playerCardIntoPlay(one.state, RAGE.id, P1).state;
+    const out = drive(base, TWIN_GAME, {
+      type: "useAbility",
+      playerId: P1,
+      cardInstanceId: one.id,
+      abilityId: TWIN_ACTION.ref.id,
+      payment: [],
+    });
+    const outerApplied = out.events.findLastIndex(
+      (e) => e.type === "triggerEvent" && e.event.kind === "cardBeingDiscarded" && e.phase === "resolved",
+    );
+    // The interrupt's own discard is answered before the Action's card is discarded.
+    expect(announced(out.events, "cardDiscardedFromHand")).toHaveLength(2);
+    expect(firstIndex(out.events, isHandResponse)).toBeLessThan(outerApplied);
+    expectReplays(out.session, TWIN_GAME);
   });
 });

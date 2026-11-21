@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, focusRect, hasText, pressUntil, settle, waitFor } from "./helpers.js";
 import { installWave6Helpers } from "./wave6-helpers-a.js";
-import { openApp } from "./wave6-helpers-b.js";
+import { inspectAt, openApp } from "./wave6-helpers-b.js";
 import { SHOTS, startOnBoard } from "./qa-wave10-recheck-helpers.js";
 import { bringIntoView, facts, playFromHand, press } from "./x-men-helpers.js";
 
@@ -111,8 +111,10 @@ for (const size of SIZES) {
     }) => {
       test.setTimeout(240_000);
       const { strength, redwing } = await stage(page);
+      // The phone layout below 768 wide (a tap opens Inspect); a tablet plays and spends on a press, as the desktop does.
+      const phone = size.width < 768;
 
-      await playFromHand(page, size.touch, redwing, async () => (await paymentView(page)) !== null);
+      await playFromHand(page, phone, redwing, async () => (await paymentView(page)) !== null);
       await settle(page, { quietMs: 400, maxMs: 2000 });
       const tile = (await paymentView(page))?.tableSources.find((source) => source.instanceId === strength);
       expect(tile, "the tucked Strength is in the payment strip").toBeDefined();
@@ -124,21 +126,8 @@ for (const size of SIZES) {
       const rect = (await focusRect(page, `payment:${tile!.optionId}`))!;
       const cx = rect.x + rect.width / 2;
       const cy = rect.y + rect.height / 2;
-      await pressUntil(
-        page,
-        async () => {
-          if (size.touch) {
-            await page.touchscreen.tap(cx, cy);
-            await page.mouse.move(cx, cy);
-            await page.mouse.down();
-            await new Promise((r) => setTimeout(r, 700));
-            await page.mouse.up();
-          } else await page.mouse.click(cx, cy, { button: "right" });
-        },
-        async () => (await activeScenes(page)).includes("InspectOverlay"),
-        "Inspect opens on the tucked card",
-      );
-      await settle(page, { quietMs: 400, maxMs: 2000 });
+      // A hold on a phone, a right-click elsewhere: a tap would spend it.
+      await inspectAt(page, rect, phone ? "hold" : "right");
       expect(
         (await hasText(page, "Use as resource", "InspectOverlay")) ||
           (await hasText(page, "Pay with", "InspectOverlay")),
@@ -155,7 +144,7 @@ for (const size of SIZES) {
       // A tap on the tile spends it.
       await pressUntil(
         page,
-        () => press(page, size.touch, cx, cy),
+        () => press(page, phone, cx, cy),
         async () =>
           (await paymentView(page))?.tableSources.find((source) => source.instanceId === strength)?.spent === true,
         "a tap on the tucked card's tile spends it",

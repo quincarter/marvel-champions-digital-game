@@ -14,22 +14,21 @@ import type { GameState, HandDiscard } from "../state.js";
 const DISCARD_HAND_VARS = "_discardHand.";
 
 /**
- * Whether the effect that discarded this card is still making its discards on the stack: an effects frame of the same
- * card part way through asking each player for their discard (`executeDiscardFromHand`), or another card of the same
- * effect waiting in its "would be discarded" window (`cardBeingDiscarded`, `resolve/would-discard.ts`). Only that
- * effect's discards wait: a discard by another ability made meanwhile (an interrupt's hand-discard cost inside a
- * "would be discarded" window) is its own discard, with its own response window at once (Codex review of #927).
+ * Whether the effect that discarded this card is still making its discards on the stack: its own effects frame part
+ * way through asking each player for their discard (`executeDiscardFromHand`), or another card of that effect waiting
+ * in its "would be discarded" window (a `cardBeingDiscarded` whose discard it made, `resolve/would-discard.ts`). Only
+ * that effect's discards wait, told apart by the frame that made them (`HandDiscard.madeBy`), not by their card: a
+ * discard by another ability made meanwhile, an interrupt's cost or another ability of the same card, is its own
+ * discard, with its own response window at once (Codex reviews of #927).
  */
 function discardStillMaking(state: GameState, discard: HandDiscard): boolean {
-  if (discard.how !== "effect") return false;
-  const source = discard.sourceInstanceId;
+  const made = discard.madeBy;
+  if (made === undefined) return false;
   return state.stack.some(
     (frame) =>
-      (frame.kind === "event" &&
-        frame.event.kind === "cardBeingDiscarded" &&
-        frame.event.sourceInstanceId === source) ||
+      (frame.kind === "event" && frame.event.kind === "cardBeingDiscarded" && frame.event.discard.madeBy === made) ||
       (frame.kind === "effects" &&
-        frame.selfInstanceId === source &&
+        frame.frameId === made &&
         Object.keys(frame.vars).some((key) => key.startsWith(DISCARD_HAND_VARS))),
   );
 }
@@ -58,7 +57,7 @@ export function announceHandDiscards(ctx: Ctx): boolean {
   const events = pending
     .filter((discard) => !held.includes(discard))
     .filter((discard) => handDiscardStillThere(ctx.state, discard))
-    .map((discard): TriggerEvent => ({ kind: "cardDiscardedFromHand", ...discard }))
+    .map(({ madeBy: _made, ...discard }): TriggerEvent => ({ kind: "cardDiscardedFromHand", ...discard }))
     .filter((event) => heard(ctx.state, ctx.deps, event));
   if (events.length === 0) return false;
   pushEventsSharingResponses(ctx, events);

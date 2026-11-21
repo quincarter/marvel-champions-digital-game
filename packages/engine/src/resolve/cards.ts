@@ -599,6 +599,7 @@ export function moveCardsTo(
           sourceInstanceId: deckDiscardBy.sourceInstanceId,
           ...(sourceCardId !== undefined ? { sourceCardId } : {}),
           how: asCost ? "cost" : "effect",
+          ...(deckDiscardBy.madeBy !== undefined && !asCost ? { madeBy: deckDiscardBy.madeBy } : {}),
         });
       if (fromEncounterDeck?.kind === "encounterDeck")
         recordEncounterDeckDiscard(ctx, fromEncounterDeck.deckId, id, {

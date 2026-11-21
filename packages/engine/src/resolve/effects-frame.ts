@@ -92,6 +92,7 @@ import {
   changeIdentityForm,
   settleAwaitingAttackEffects,
   shuffleZone,
+  listensForHandDiscard,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import { changeFormTarget } from "../form-change-target.js";
@@ -2227,12 +2228,13 @@ function executeDiscardFromHand(
         sourceInstanceId: self,
         sourceCardId: self ? getInstance(ctx.state, self)?.cardId : undefined,
         how: "effect",
+        ...(listensForHandDiscard(ctx.deps) ? { madeBy: frame.frameId } : {}),
       } as const;
       const { now, waiting } = splitWouldDiscard(
         ctx,
         frame.answer.map((optionId) => asInstanceId(optionId)),
         by,
-        { kind: "hand" },
+        { kind: "hand", ...(by.madeBy !== undefined ? { madeBy: by.madeBy } : {}) },
       );
       for (const id of now) discardFromHand(ctx, answering, id, by);
       if (waiting.length > 0) {

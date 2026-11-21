@@ -2315,9 +2315,16 @@ export type LeaveCauseSide = "encounterCard" | "playerCard";
  * through `moveCardsTo`. `boundOn`: the set the discarding ability keeps of the cards "discarded this way"
  * (`DeckDiscard.boundOn`); a card whose discard is replaced leaves it.
  */
-export type OutOfPlayDiscard =
+export type OutOfPlayDiscard = (
   | { readonly kind: "hand"; readonly random?: true }
-  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] };
+  | { readonly kind: "moveCards"; readonly boundOn?: DeckDiscard["boundOn"] }
+) & {
+  /**
+   * The effects frame making this discard, so a response to a card it discards from a hand waits for the effect's
+   * other discards (`cardDiscardedFromHand`, issue #922). Set only when an ability hears that event.
+   */
+  readonly madeBy?: FrameId;
+};
 
 /**
  * What a tucked card's host is (`TriggerEvent cardBeingTucked.under`, `tuckedCardDiscarded.under`): an identity card

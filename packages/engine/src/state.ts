@@ -491,8 +491,13 @@ export interface ScenarioDeckState {
 /** A tucked card that was discarded, waiting to be announced: the fields of `TriggerEvent tuckedCardDiscarded`. */
 export type TuckedDiscard = Omit<Extract<TriggerEvent, { kind: "tuckedCardDiscarded" }>, "kind">;
 
-/** A card discarded from a hand by an ability, waiting to be announced: the fields of `cardDiscardedFromHand`. */
-export type HandDiscard = Omit<Extract<TriggerEvent, { kind: "cardDiscardedFromHand" }>, "kind">;
+/**
+ * A card discarded from a hand by an ability, waiting to be announced: the fields of `cardDiscardedFromHand`, and the
+ * effects frame that made it (`madeBy`), whose other discards it waits for (issue #922). Absent for a cost.
+ */
+export type HandDiscard = Omit<Extract<TriggerEvent, { kind: "cardDiscardedFromHand" }>, "kind"> & {
+  readonly madeBy?: FrameId;
+};
 
 /** A facedown encounter card dealt to a player, waiting to be announced (`TriggerEvent encounterCardDealt`). */
 export interface DealtEncounterCard {

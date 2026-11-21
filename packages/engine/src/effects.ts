@@ -1105,6 +1105,8 @@ export interface DeckDiscarder {
   readonly boundOn?: DeckDiscard["boundOn"];
   /** Whether that card's ability discarded it as its effect or as its cost (`cardDiscardedFromDeck.how`). */
   readonly how?: "effect" | "cost";
+  /** The effects frame making the discard, for a card of a hand it moves (`HandDiscard.madeBy`). */
+  readonly madeBy?: FrameId | undefined;
 }
 
 const LISTENS_FOR_TUCKED_DISCARD = new WeakMap<EngineDeps, boolean>();
@@ -1281,6 +1283,8 @@ export interface HandDiscarder {
   readonly sourceInstanceId: InstanceId | null;
   readonly sourceCardId?: CardId | undefined;
   readonly how: "effect" | "cost";
+  /** The effects frame making the discard (`HandDiscard.madeBy`); absent for a cost. */
+  readonly madeBy?: FrameId | undefined;
 }
 
 /**
@@ -1304,6 +1308,7 @@ export function recordHandDiscard(ctx: Ctx, playerId: PlayerId, id: InstanceId, 
     sourceInstanceId: cause.sourceInstanceId,
     ...(by ? { by } : {}),
     how: cause.how,
+    ...(cause.madeBy !== undefined ? { madeBy: cause.madeBy } : {}),
   };
   ctx.state = { ...ctx.state, pendingHandDiscards: [...(ctx.state.pendingHandDiscards ?? []), discard] };
 }
