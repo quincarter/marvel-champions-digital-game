@@ -17,6 +17,9 @@ const DISCARD_HAND_VARS = "_discardHand.";
  * Whether a discard from a hand is still being made on the stack: an effects frame part way through asking each
  * player for their discard (`executeDiscardFromHand`), or a card waiting in its "would be discarded" window
  * (`cardBeingDiscarded`, `resolve/would-discard.ts`).
+ *
+ * The whole stack is read on purpose: a hand discard made inside such a window (an interrupt's hand-discard cost) waits
+ * for it too, and then shares the outer discards' response window. Rare, and nothing goes unannounced.
  */
 function discardStillMaking(state: GameState): boolean {
   return state.stack.some(
