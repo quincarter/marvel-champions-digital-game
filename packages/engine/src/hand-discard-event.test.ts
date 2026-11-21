@@ -100,6 +100,14 @@ const WARD_INTERRUPT = stubAbility(WARD_ID, {
   effects: [{ kind: "replaceTriggeringEvent", with: [] }],
 });
 const WARD = stubSupport({ id: "ward", cost: 0, abilities: [WARD_INTERRUPT.ref] });
+/** "Interrupt: When a card you control would be discarded, discard 1 card from your hand → draw 0 cards." A cost paid inside a "would" window. */
+const WARDEN_INTERRUPT = stubAbility("warden.interrupt", {
+  trigger: { kind: "interrupt", forced: false, would: true, on: { on: "cardBeingDiscarded", playerIs: "controller" } },
+  limit: { count: 1, period: "phase" },
+  cost: { discardFromHand: { min: 1, max: 1 } },
+  effects: [{ kind: "draw", player: you, amount: n(0) }],
+});
+const WARDEN = stubSupport({ id: "warden", cost: 0, abilities: [WARDEN_INTERRUPT.ref] });
 /** A second Rage, with an ability of its own. */
 const RAGE_TWO_RESPONSE = stubAbility("rage-two.response", { ...RAGE_RESPONSE.definition });
 const RAGE_TWO = stubSupport({ id: "rage-two", cost: 0, abilities: [RAGE_TWO_RESPONSE.ref] });
@@ -111,15 +119,17 @@ const HEARD: EngineDeps = depsOf(RAGE_RESPONSE, ...OTHERS);
 const UNHEARD: EngineDeps = depsOf(...OTHERS);
 /** With a "would be discarded" interrupt too. */
 const WARDED: EngineDeps = depsOf(RAGE_RESPONSE, WARD_INTERRUPT, ...OTHERS);
+/** With an interrupt that pays a hand-discard cost. */
+const WARDEN_GAME: EngineDeps = depsOf(RAGE_RESPONSE, WARDEN_INTERRUPT, ...OTHERS);
 /** With two Rages. */
 const TWO_RAGES: EngineDeps = depsOf(RAGE_RESPONSE, RAGE_TWO_RESPONSE, ...OTHERS);
 
 function start(deps: EngineDeps, players: 1 | 2 = 1): GameState {
   const game = gameAtFirstTurn({
     players,
-    cards: [RAGE, RAGE_TWO, FURY, WARD, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
+    cards: [RAGE, RAGE_TWO, FURY, WARD, WARDEN, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
     deps,
-    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, WARDEN.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
     encounter: [...copiesOf(FILLER.id, 26), TOLL.id, T_CHOSEN.id],
   });
   return game;
@@ -139,10 +149,12 @@ function drive(state: GameState, deps: EngineDeps, ...commands: readonly Command
   let offers = 0;
   const pick = (s: GameState) => {
     const choice = s.pendingChoice!;
-    const row = choice.options.find((o) => /rage/.test(o.optionId as string));
+    // A hand-discard cost is paid with the first card offered (an empty pick backs out).
+    if (choice.prompt.kind === "chooseCostCards") return [choice.options[0]!.optionId];
+    const row = choice.options.find((o) => /rage|warden/.test(o.optionId as string));
     if (choice.prompt.kind === "chooseTriggers" && !row) return [];
     if (choice.prompt.kind !== "chooseTriggers" || !row) return defaultPick(s);
-    offers += 1;
+    if (/rage/.test(row.optionId as string)) offers += 1;
     return [row.optionId];
   };
   const out = runCommandsPicking(state, deps, pick, ...commands);
@@ -342,5 +354,20 @@ describe("cardDiscardedFromHand: one effect's discards share one window, after a
     expect(out.offers).toBe(1);
     expect(hand(out.state)).toContain(heard!.instanceId);
     expectReplays(out.session, TWO_RAGES);
+  });
+  it("a hand-discard cost paid by an interrupt inside another discard's 'would' window is answered at once, not held", () => {
+    const one = playerCardIntoPlay(start(WARDEN_GAME), WARDEN.id, P1).state;
+    const base = playerCardIntoPlay(one, RAGE.id, P1).state;
+    const given = giveCard(base, P1, E_RANDOM.card.id);
+    const out = drive(given.state, WARDEN_GAME, play(given.id));
+    const heard = announced(out.events, "cardDiscardedFromHand");
+    // The Warden's cost card first, by its own window; then the effect's cards.
+    expect(heard[0]).toMatchObject<Partial<HandDiscard>>({ how: "cost" });
+    const costResponse = firstIndex(out.events, isHandResponse);
+    const lastApplied = out.events.findLastIndex(
+      (e) => e.type === "triggerEvent" && e.event.kind === "cardBeingDiscarded" && e.phase === "resolved",
+    );
+    expect(costResponse).toBeLessThan(lastApplied);
+    expectReplays(out.session, WARDEN_GAME);
   });
 });

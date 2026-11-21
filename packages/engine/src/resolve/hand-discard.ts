@@ -8,24 +8,29 @@ import { handDiscardStillThere } from "../query.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { pushEventsSharingResponses } from "./frames.js";
 import { heard } from "./triggers.js";
-import type { GameState } from "../state.js";
+import type { GameState, HandDiscard } from "../state.js";
 
 /** The prefix of the vars a choosing `discardFromHand` keeps while it asks one player after another. */
 const DISCARD_HAND_VARS = "_discardHand.";
 
 /**
- * Whether a discard from a hand is still being made on the stack: an effects frame part way through asking each
- * player for their discard (`executeDiscardFromHand`), or a card waiting in its "would be discarded" window
- * (`cardBeingDiscarded`, `resolve/would-discard.ts`).
- *
- * The whole stack is read on purpose: a hand discard made inside such a window (an interrupt's hand-discard cost) waits
- * for it too, and then shares the outer discards' response window. Rare, and nothing goes unannounced.
+ * Whether the effect that discarded this card is still making its discards on the stack: an effects frame of the same
+ * card part way through asking each player for their discard (`executeDiscardFromHand`), or another card of the same
+ * effect waiting in its "would be discarded" window (`cardBeingDiscarded`, `resolve/would-discard.ts`). Only that
+ * effect's discards wait: a discard by another ability made meanwhile (an interrupt's hand-discard cost inside a
+ * "would be discarded" window) is its own discard, with its own response window at once (Codex review of #927).
  */
-function discardStillMaking(state: GameState): boolean {
+function discardStillMaking(state: GameState, discard: HandDiscard): boolean {
+  if (discard.how !== "effect") return false;
+  const source = discard.sourceInstanceId;
   return state.stack.some(
     (frame) =>
-      (frame.kind === "event" && frame.event.kind === "cardBeingDiscarded") ||
-      (frame.kind === "effects" && Object.keys(frame.vars).some((key) => key.startsWith(DISCARD_HAND_VARS))),
+      (frame.kind === "event" &&
+        frame.event.kind === "cardBeingDiscarded" &&
+        frame.event.sourceInstanceId === source) ||
+      (frame.kind === "effects" &&
+        frame.selfInstanceId === source &&
+        Object.keys(frame.vars).some((key) => key.startsWith(DISCARD_HAND_VARS))),
   );
 }
 
@@ -38,17 +43,20 @@ function discardStillMaking(state: GameState): boolean {
  * effect, or, for a cost, before the ability's effects. A card no longer in a discard pile is not announced. Returns
  * true when it pushed a frame.
  *
- * Held while the discarding effect is still making its discards (`discardStillMaking`): "each player discards" asks
- * one player at a time, and a card some ability may replace waits in its own "would be discarded" window, but the
- * discards are one simultaneous set whose responses come after all of them (RRG 1.8 "Discard", p. 16).
+ * A card whose discarding effect is still making its discards stays recorded for a later look (`discardStillMaking`):
+ * "each player discards" asks one player at a time, and a card some ability may replace waits in its own "would be
+ * discarded" window, but the discards are one simultaneous set whose responses come after all of them (RRG 1.8
+ * "Discard", p. 16).
  */
 export function announceHandDiscards(ctx: Ctx): boolean {
   const pending = ctx.state.pendingHandDiscards;
   if (!pending || pending.length === 0) return false;
-  if (discardStillMaking(ctx.state)) return false;
+  const held = pending.filter((discard) => discardStillMaking(ctx.state, discard));
+  if (held.length === pending.length) return false;
   const { pendingHandDiscards: _, ...rest } = ctx.state;
-  ctx.state = rest;
+  ctx.state = held.length > 0 ? { ...rest, pendingHandDiscards: held } : rest;
   const events = pending
+    .filter((discard) => !held.includes(discard))
     .filter((discard) => handDiscardStillThere(ctx.state, discard))
     .map((discard): TriggerEvent => ({ kind: "cardDiscardedFromHand", ...discard }))
     .filter((event) => heard(ctx.state, ctx.deps, event));
