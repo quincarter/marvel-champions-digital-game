@@ -76,7 +76,8 @@ test.describe("deck builder tabs on a phone", () => {
     // The pool list fills the screen: its first card starts under the search and Filters rows, and the Filters chip is a
     // fold, not an always-open block.
     const firstCard = (await stops(page)).find((s) => s.key.startsWith("card:"))!;
-    expect(firstCard.rect.y).toBeLessThan(260);
+    // Under the identity row (issue #920), the search and the Filters chip.
+    expect(firstCard.rect.y).toBeLessThan(330);
     expect(await hasKey(page, "type:ally")).toBe(false);
 
     // Start the deck small so the count is visibly short of the minimum, then add from the pool.
