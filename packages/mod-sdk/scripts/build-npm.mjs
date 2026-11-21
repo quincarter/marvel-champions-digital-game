@@ -146,7 +146,9 @@ const manifest = {
     "./package.json": "./package.json",
   },
   files: ["dist", "types", "README.md", "LICENSE"],
-  dependencies: { jiti: sdkPkg.dependencies.jiti },
+  // typescript: `mc-pack validate` type-checks a pack's abilities with tsc (src/typecheck.ts). A dependency, not a
+  // peer, so the compiler is the version that wrote types/ and a creator's own TypeScript version never conflicts.
+  dependencies: { jiti: sdkPkg.dependencies.jiti, typescript: rootPkg.devDependencies.typescript },
   publishConfig: { access: "public" },
 };
 writeFileSync(join(PKG, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);

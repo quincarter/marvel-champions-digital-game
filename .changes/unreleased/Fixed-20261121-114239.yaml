@@ -1,0 +1,3 @@
+kind: Fixed
+body: mc-pack validate type-checks a pack's abilities with TypeScript and fails on a type error (pass --skip-typecheck to leave it out), so a mistake like gainsKeyword("guard", …) no longer passes validation and then crashes a game (#943)
+time: 2026-11-21T11:42:39.4253623-05:00

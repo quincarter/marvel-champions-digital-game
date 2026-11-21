@@ -45,7 +45,7 @@ An ability id is `<card code>.<slug>`. `definePackAbilities` checks every defini
 ## `mc-pack`
 
 ```sh
-npx mc-pack validate .                 # check the pack; exit 1 with the problems listed
+npx mc-pack validate .                 # type-check abilities/ and check the pack; exit 1 with the problems listed
 npx mc-pack validate . --allow-unscripted   # pass while only unscripted abilities remain
 npx mc-pack build . --out build        # write the built pack, pack.json and <id>-<version>.zip
 npx mc-pack test .                     # 3 headless games of each deck against Rhino
@@ -55,6 +55,10 @@ npx mc-pack import-marvelcdb ./community-pack --out ./my-pack --id my-pack
 
 Exit codes: 0 success, 1 the pack has a problem, 2 a usage error. Validation lists real problems first and the
 abilities that are not scripted yet as their own group.
+
+`validate` type-checks `abilities/` with the TypeScript this package installs (strict mode) and lists each type error
+as a problem, at `abilities/<file>:<line>:<col>`: the game runs your abilities without checking their types, so a
+type error there is a bug a player would hit. `--skip-typecheck` leaves the check out.
 
 `test` plays each deck in `decks/` with the game's greedy headless player and fails on an engine error, a game that
 does not end (stuck), a prompt left open, or a game log that does not replay to the same state.

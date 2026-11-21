@@ -527,6 +527,9 @@ The mod SDK is one package, built from this repo and versioned with the app. Eve
 - **The ability DSL:** the `@mc/cards` builders, re-exported, so a pack's abilities are written the same way as the
   base game's.
 - **`mc-pack validate`**, which checks:
+  - that the pack's `abilities/` type-check (strict `tsc --noEmit` against the SDK's types; each error is a problem
+    at its file and line, and `--skip-typecheck` leaves the check out). The game runs the abilities without checking
+    their types, so a string where the DSL takes a keyword object once passed validation and crashed a game (#943);
   - the pack against the schema;
   - that every custom card code is `x.<pack-id>.<nn>`;
   - that every ability a card names is defined, and passes `dsl/validate.ts`;

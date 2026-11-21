@@ -11,6 +11,7 @@ import { PackBuildError, assemblePack, buildPack, loadPackSource } from "./build
 import { formatImportReport, importMarvelCdbPack } from "./import-marvelcdb.js";
 import { packModuleImporter } from "./loader.js";
 import { SMOKE_BASE_DECK, SMOKE_SCENARIOS, smokeTestPack, type SmokeGame } from "./smoke.js";
+import { typecheckPack } from "./typecheck.js";
 import { publishIssues, readPackInput, splitIssues, validatePack, type PackInput, type PackIssue } from "./validate.js";
 
 export const EXIT_OK = 0;
@@ -30,9 +31,11 @@ const consoleIo: CliIo = {
 const USAGE = `mc-pack: build, check and test Marvel Champions Digital content packs
 
 Usage:
-  mc-pack validate <dir> [--allow-unscripted] [--publish]
-      Check the pack source in <dir>. --allow-unscripted passes a pack whose only problems are abilities
-      that are not scripted yet (an imported pack being worked on); build and test never allow them.
+  mc-pack validate <dir> [--allow-unscripted] [--publish] [--skip-typecheck]
+      Check the pack source in <dir>, type-checking abilities/ with TypeScript first (a type error is a problem:
+      the game runs the code without checking it); --skip-typecheck leaves that out. --allow-unscripted passes a
+      pack whose only problems are abilities that are not scripted yet (an imported pack being worked on); build
+      and test never allow them.
       --publish also checks the pack may be published: pack.json's permission records the creator's grant
       (status "granted", by, date, evidence, scope, and languages covering every language it ships). A folder
       with a DRAFT file is never published, so --publish skips that check for it.
@@ -59,7 +62,7 @@ interface Parsed {
 }
 
 const VALUE_FLAGS = new Set(["out", "games", "scenario", "max-commands", "id", "app"]);
-const BOOLEAN_FLAGS = new Set(["allow-unscripted", "publish", "help", "version"]);
+const BOOLEAN_FLAGS = new Set(["allow-unscripted", "publish", "skip-typecheck", "help", "version"]);
 
 function parseArgs(argv: readonly string[]): Parsed {
   const positional: string[] = [];
@@ -138,13 +141,25 @@ export function formatIssues(issues: readonly PackIssue[]): string[] {
 }
 
 async function validateCommand(parsed: Parsed, io: CliIo): Promise<number> {
-  allowOnly(parsed, "validate", ["allow-unscripted", "publish"]);
+  allowOnly(parsed, "validate", ["allow-unscripted", "publish", "skip-typecheck"]);
   const dir = packDir(parsed, "validate");
-  const pack = await loadBuilt(dir);
+  // Type errors are defects (never "unscripted"): jiti runs the abilities without checking their types, so a wrong
+  // argument (issue #943: gainsKeyword("guard", ...) for gainsKeyword({ name: "guard" }, ...)) only fails in a game.
+  // Checked before the pack loads, so they are reported even when the mistake also breaks loading.
+  const typeIssues = parsed.flags.has("skip-typecheck") ? [] : typecheckPack(dir);
+  let pack: PackInput;
+  try {
+    pack = await loadBuilt(dir);
+  } catch (error) {
+    if (typeIssues.length === 0) throw error;
+    io.err(`mc-pack validate: ${errorText(error)}`);
+    for (const line of formatIssues(typeIssues)) io.err(line);
+    return EXIT_PACK_PROBLEM;
+  }
   const publish = parsed.flags.has("publish");
   const draft = existsSync(join(dir, "DRAFT"));
   if (publish && draft) io.out(`${pack.manifest.id}: a DRAFT, never published; the publish check is skipped`);
-  const issues = [...validatePack(pack), ...(publish && !draft ? publishIssues(pack.manifest) : [])];
+  const issues = [...typeIssues, ...validatePack(pack), ...(publish && !draft ? publishIssues(pack.manifest) : [])];
   const { defects, unscripted } = splitIssues(issues);
   const name = `${pack.manifest.id}@${pack.manifest.version}`;
   if (issues.length === 0) {

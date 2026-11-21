@@ -68,21 +68,24 @@ describe("mc-pack", () => {
   });
 
   it("--publish requires a granted permission, unless the folder is a DRAFT", async () => {
+    // About the permission gate alone: the type check has its own tests, and each run of it costs about a second.
     const dir = tinyPack();
     const manifestPath = join(dir, "pack.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    expect((await cli("validate", dir)).code).toBe(EXIT_OK);
-    const none = await cli("validate", dir, "--publish");
+    expect((await cli("validate", dir, "--skip-typecheck")).code).toBe(EXIT_OK);
+    const none = await cli("validate", dir, "--publish", "--skip-typecheck");
     expect(none.code).toBe(EXIT_PACK_PROBLEM);
     expect(none.err).toMatch(/pack\.json permission: is required to publish/);
 
     const pending = { by: "Test Author", status: "pending", note: "no date on record" };
     writeFileSync(manifestPath, JSON.stringify({ ...manifest, permission: pending }));
-    expect((await cli("validate", dir)).code).toBe(EXIT_OK);
-    expect((await cli("validate", dir, "--publish")).err).toMatch(/is pending, not granted.*: no date on record/);
+    expect((await cli("validate", dir, "--skip-typecheck")).code).toBe(EXIT_OK);
+    expect((await cli("validate", dir, "--publish", "--skip-typecheck")).err).toMatch(
+      /is pending, not granted.*: no date on record/,
+    );
 
     writeFileSync(join(dir, "DRAFT"), "");
-    const draft = await cli("validate", dir, "--publish");
+    const draft = await cli("validate", dir, "--publish", "--skip-typecheck");
     expect(draft.code).toBe(EXIT_OK);
     expect(draft.out).toMatch(/a DRAFT, never published/);
     rmSync(join(dir, "DRAFT"));
@@ -96,7 +99,7 @@ describe("mc-pack", () => {
       languages: ["en"],
     };
     writeFileSync(manifestPath, JSON.stringify({ ...manifest, permission: granted }));
-    expect((await cli("validate", dir, "--publish")).code).toBe(EXIT_OK);
+    expect((await cli("validate", dir, "--publish", "--skip-typecheck")).code).toBe(EXIT_OK);
   });
 
   it("reports an abilities module that throws as a pack problem", async () => {
@@ -104,6 +107,37 @@ describe("mc-pack", () => {
     const run = await cli("validate", dir);
     expect(run.code).toBe(EXIT_PACK_PROBLEM);
     expect(run.err).toMatch(/invalid pack ability definitions/);
+  });
+
+  // Issue #943: a community pack passed a bare string where gainsKeyword takes a KeywordInstance; jiti ran it without
+  // checking types, so it validated, shipped, and crashed the game when the keyword was drawn.
+  it("rejects an abilities module with a type error (tsc), even with --allow-unscripted", async () => {
+    const dir =
+      tinyPack(`import { constant, definePackAbilities, gainsKeyword, heroAction, thwartAScheme } from "@mc/mod-sdk";
+export default definePackAbilities({
+  "x.tiny-pack.02.test-rally-action": heroAction({ label: "thwart" }, thwartAScheme(2)),
+  "x.tiny-pack.02.guard": constant(gainsKeyword("guard", { hostOfSelf: true })),
+});
+`);
+    const run = await cli("validate", dir);
+    expect(run.code).toBe(EXIT_PACK_PROBLEM);
+    expect(run.err).toMatch(/tiny-pack@1\.0\.0: invalid/);
+    expect(run.err).toMatch(
+      /abilities\/index\.ts:4:\d+: TS2345: Argument of type '(string|"guard")' is not assignable to parameter of type 'KeywordInstance'/,
+    );
+    expect((await cli("validate", dir, "--allow-unscripted")).code).toBe(EXIT_PACK_PROBLEM);
+    // --skip-typecheck leaves the check out: the rest of validate does not see the mistake.
+    expect((await cli("validate", dir, "--skip-typecheck")).code).toBe(EXIT_OK);
+  });
+
+  it("reports type errors alongside a load failure", async () => {
+    const dir = tinyPack(`${TINY_ABILITIES}export const broken: number = "one";
+throw new Error("boom");
+`);
+    const run = await cli("validate", dir);
+    expect(run.code).toBe(EXIT_PACK_PROBLEM);
+    expect(run.err).toMatch(/mc-pack validate: .*boom/);
+    expect(run.err).toMatch(/abilities\/index\.ts:5:14: TS2322: Type 'string' is not assignable to type 'number'/);
   });
 
   it("builds into --out", async () => {
