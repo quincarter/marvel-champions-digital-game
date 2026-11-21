@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import { applyCommand, sessionApply, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
-import { playerId, type InstanceId } from "./ids.js";
+import { playerId, type EncounterDeckId, type InstanceId } from "./ids.js";
 import { mustInstance, sharedMainSchemes } from "./query.js";
 import { matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
 import type { EffectSpec } from "./spec.js";
@@ -22,6 +22,8 @@ import { stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
 import { DEFAULT_DECK, defaultPick, giveCard, settle, TREACHERY } from "./testing/scenario.js";
 import { competitiveGame } from "./testing/team.js";
 import { stepOneThreats } from "./villain/step-one-threat.js";
+import { hasCandidates } from "./resolve/triggers.js";
+import type { TriggerEvent } from "./trigger-events.js";
 import { playerCardIntoPlay } from "./testing/wave3.js";
 
 const P1 = playerId("p1");
@@ -259,5 +261,112 @@ describe("an event is on the side it happened on, not where its card went after 
     expect(resolvedBy(events, defeatedTwo.id)).toBe(1);
     expect(resolvedBy(events, onOne.id)).toBe(0);
     expect(resolvedBy(events, defeatedOne.id)).toBe(0);
+  });
+});
+
+describe("which side an event trigger hears (`heardOnThisSide`)", () => {
+  const FLIP_ANY = stubAbility("flip-any.response", {
+    trigger: { kind: "response", forced: true, on: { on: "cardFlipped" } },
+    effects: [],
+  } as AbilityDefinition);
+  const FLIP_REACHING = stubAbility("flip-reaching.response", {
+    trigger: { kind: "response", forced: true, on: { on: "cardFlipped", targetIs: { anyGameArea: true } } },
+    effects: [],
+  } as AbilityDefinition);
+  /** "After a minion on either side, or any card on this side, flips": only the first alternative reaches across. */
+  const FLIP_EITHER = stubAbility("flip-either.response", {
+    trigger: {
+      kind: "response",
+      forced: true,
+      on: {
+        on: "cardFlipped",
+        anyOf: [{ on: "cardFlipped", targetIs: { anyGameArea: true, categories: ["minion"] } }, { on: "cardFlipped" }],
+      },
+    },
+    effects: [],
+  } as AbilityDefinition);
+  const STAGE = stubAbility("stage.response", {
+    trigger: { kind: "response", forced: true, on: { on: "villainStageAdvanced" } },
+    effects: [],
+  } as AbilityDefinition);
+  const RAN_OUT = stubAbility("ran-out.response", {
+    trigger: { kind: "response", forced: true, on: { on: "deckRanOut" } },
+    effects: [],
+  } as AbilityDefinition);
+  const ALL = [FLIP_ANY, FLIP_REACHING, FLIP_EITHER, STAGE, RAN_OUT];
+  const cards = ALL.map((a) => stubSupport({ id: `${a.ref.id}-card`, cost: 0, abilities: [a.ref] }));
+  const hearDeps: EngineDeps = depsOf(...ALL);
+  const base = competitiveGame({
+    deps: hearDeps,
+    extraCards: cards,
+    deck: [...DEFAULT_DECK, ...cards.map((c) => c.id)],
+  });
+  /** `base` with the listener for `ability` in `player`'s play area, and nothing else listening. */
+  const listening = (ability: (typeof ALL)[number], player: typeof P1): GameState =>
+    playerCardIntoPlay(base, cards[ALL.indexOf(ability)]!.id, player).state;
+  const identity = (state: GameState, player: typeof P1): InstanceId =>
+    state.players.find((p) => p.playerId === player)!.identity.instanceId;
+  const flipOf = (state: GameState, player: typeof P1): Extract<TriggerEvent, { kind: "cardFlipped" }> => ({
+    kind: "cardFlipped",
+    instanceId: identity(state, player),
+  });
+
+  it("a query-less listener hears its own side and ignores the other side", () => {
+    const state = listening(FLIP_ANY, P1);
+    expect(hasCandidates(state, hearDeps, flipOf(state, P1), "response")).toBe(true);
+    expect(hasCandidates(state, hearDeps, flipOf(state, P2), "response")).toBe(false);
+  });
+
+  it("an `anyGameArea` query hears both sides", () => {
+    const state = listening(FLIP_REACHING, P1);
+    expect(hasCandidates(state, hearDeps, flipOf(state, P1), "response")).toBe(true);
+    expect(hasCandidates(state, hearDeps, flipOf(state, P2), "response")).toBe(true);
+  });
+
+  it("an `anyGameArea` query in one `anyOf` alternative exempts that alternative only", () => {
+    const state = listening(FLIP_EITHER, P1);
+    // p2's hero is no minion, so only the query-less alternative matches it, and that one is scoped to p1's side.
+    expect(hasCandidates(state, hearDeps, flipOf(state, P2), "response")).toBe(false);
+    expect(hasCandidates(state, hearDeps, flipOf(state, P1), "response")).toBe(true);
+  });
+
+  it("an event naming both sides is heard on both", () => {
+    // p2's hero flipped by p1's effect: a card on side two and a player on side one.
+    const both = (state: GameState): TriggerEvent => ({ ...flipOf(state, P2), playerId: P1 });
+    const one = listening(FLIP_ANY, P1);
+    const two = listening(FLIP_ANY, P2);
+    expect(hasCandidates(one, hearDeps, both(one), "response")).toBe(true);
+    expect(hasCandidates(two, hearDeps, both(two), "response")).toBe(true);
+  });
+
+  it("a villain's stage advancing is on that villain's side", () => {
+    const state = listening(STAGE, P1);
+    const [one, two] = state.villains;
+    const advanced = (villain: InstanceId): TriggerEvent => ({
+      kind: "villainStageAdvanced",
+      stageIndex: 1,
+      instanceId: villain,
+    });
+    expect(hasCandidates(state, hearDeps, advanced(one!.instanceId), "response")).toBe(true);
+    expect(hasCandidates(state, hearDeps, advanced(two!.instanceId), "response")).toBe(false);
+  });
+
+  it("an encounter deck running out is on the side of the area that deck belongs to", () => {
+    const state = listening(RAN_OUT, P1);
+    const [one, two] = state.villains;
+    const ranOut = (deckId: EncounterDeckId): TriggerEvent => ({
+      kind: "deckRanOut",
+      deck: "encounter",
+      deckId,
+    });
+    expect(hasCandidates(state, hearDeps, ranOut(one!.encounterDeckId), "response")).toBe(true);
+    expect(hasCandidates(state, hearDeps, ranOut(two!.encounterDeckId), "response")).toBe(false);
+  });
+
+  it("Kang-shaped (split game areas, no teams): unchanged, the other area is heard", () => {
+    const { teams: _teams, activeTeamId: _active, ...rest } = listening(FLIP_ANY, P1);
+    const kang = rest as GameState;
+    expect(kang.gameAreas.length).toBe(2);
+    expect(hasCandidates(kang, hearDeps, flipOf(kang, P2), "response")).toBe(true);
   });
 });

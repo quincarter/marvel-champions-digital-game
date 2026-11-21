@@ -265,7 +265,8 @@ function matchesPatternFields(
   if (spillUnheard(pattern, event)) return false;
   if (!matchesOwnFields(state, pattern, event, timing, selfId, deps, controllerOverride)) return false;
   const reaches = exempt || refersToOtherSide(pattern);
-  // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
+  // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well, each with its own
+  // reach: an alternative's `anyGameArea` query exempts that alternative only.
   if (pattern.anyOf === undefined) return reaches || heard();
   return pattern.anyOf.some((alternative) =>
     matchesPatternFields(state, alternative, event, timing, selfId, deps, heard, reaches, controllerOverride),
@@ -285,7 +286,7 @@ function matchesPatternFields(
  * environment, stage 2B) hears everything.
  *
  * Exceptions: a pattern whose own fields hold an `anyGameArea` query "specifically refers to" the other side and hears
- * every event; a leader's attack on the other leader is on both sides,
+ * every event (per `anyOf` alternative, `matchesPatternFields`); a leader's attack on the other leader is on both sides,
  * so both pass here and `onAttackingLeadersSide` narrows "an enemy attacks" to the attacker's side (N11 per owner
  * decision 2026-11-20); phase and villain-step events name no card and keep their own active-team scope
  * (`hearsTeamPhase`, N8). Cooperative games are unchanged, The Once and Future Kang's split areas included (an open
@@ -303,7 +304,10 @@ function heardOnThisSide(state: GameState, event: TriggerEvent, selfId: Instance
 
 const otherSideRefs = new WeakMap<EventPattern, boolean>();
 
-/** Whether a pattern holds a query that reaches the other team's area (`TargetQuery.anyGameArea`), at any depth. */
+/**
+ * Whether a pattern's own fields hold a query that reaches the other side (`TargetQuery.anyGameArea`), at any depth
+ * inside them. Its `anyOf` alternatives are not read here: each is its own (`matchesPatternFields`).
+ */
 function refersToOtherSide(pattern: EventPattern): boolean {
   const known = otherSideRefs.get(pattern);
   if (known !== undefined) return known;
@@ -312,7 +316,7 @@ function refersToOtherSide(pattern: EventPattern): boolean {
     if (value === null || typeof value !== "object") return false;
     return Object.entries(value).some(([key, inner]) => (key === "anyGameArea" && inner === true) || reaches(inner));
   };
-  const found = reaches(pattern);
+  const found = Object.entries(pattern).some(([key, value]) => key !== "anyOf" && reaches(value));
   otherSideRefs.set(pattern, found);
   return found;
 }

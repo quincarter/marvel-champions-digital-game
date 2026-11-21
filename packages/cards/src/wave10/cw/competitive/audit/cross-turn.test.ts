@@ -126,6 +126,9 @@ function picker(log: Log, accept: (prompt: Prompt) => boolean = () => true): Pic
     return acceptAll(s);
   };
 }
+/** How many times `player` was offered `code` against an attack by the enemy with code `attacker`. */
+const offeredAgainst = (log: Log, player: string, code: string, attacker: string) =>
+  log.filter((p) => p.player === player && p.codes.includes(code) && p.attacker === attacker).length;
 const offered = (log: Log, player: string, code: string, subject?: string) =>
   log.filter((p) => p.player === player && p.codes.includes(code) && (subject === undefined || p.subject === subject))
     .length;
@@ -556,6 +559,7 @@ function withColossusAndMinion(state: GameState): { state: GameState; minion: In
 describe("(attack/defense) cards against a leader-vs-leader attack (N11): a defense too, so neither team may use one", () => {
   it("Powerful Punch (32014): not offered to p1 or p2 for leader one's attack on leader two; offered to p1 for leader one's attack on p1", () => {
     const g = defenseGame();
+    const leaderOne = inst(g.state, leadersOf(g.state).one).cardId as string;
     const held = hold(hold(toResistance(g), P1, POWERFUL_PUNCH), P2, POWERFUL_PUNCH);
     const log: Log = [];
     const cross = fightingDirty(g, held, picker(log, never));
@@ -563,9 +567,7 @@ describe("(attack/defense) cards against a leader-vs-leader attack (N11): a defe
     expect(offered(log, "p2", POWERFUL_PUNCH)).toBe(0);
     // Control on the same board: p2 ends its turn, and leader one attacks p1 in p1's own villain phase.
     run(g.deps, cross.state, picker(log, never), endTurn(P2));
-    expect(log.filter((p) => p.player === "p1" && p.codes.includes(POWERFUL_PUNCH) && p.attacker !== "?").length).toBe(
-      1,
-    );
+    expect(offeredAgainst(log, "p1", POWERFUL_PUNCH, leaderOne)).toBe(1);
   });
 
   it("Shadow and Steel (32021), Team-Up met (Colossus hero, Shadowcat ally on p1's team): not offered for the leader-vs-leader attack; offered on a minion's attack", () => {
@@ -577,9 +579,6 @@ describe("(attack/defense) cards against a leader-vs-leader attack (N11): a defe
     expect(offered(log, "p1", SHADOW_AND_STEEL)).toBe(0);
     // Control on the same board: in p1's villain phase the minion engaged with p1 attacks.
     run(g.deps, cross.state, picker(log, never), endTurn(P2));
-    const onMinion = log.filter(
-      (p) => p.player === "p1" && p.codes.includes(SHADOW_AND_STEEL) && p.attacker === MINION_ID,
-    );
-    expect(onMinion).toHaveLength(1);
+    expect(offeredAgainst(log, "p1", SHADOW_AND_STEEL, MINION_ID)).toBe(1);
   });
 });

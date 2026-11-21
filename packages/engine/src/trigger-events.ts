@@ -2803,6 +2803,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.targetInstanceId], [event.playerId]);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
+    // The villain whose stage it is, so the event is on that villain's side of a split table (`eventSides`).
+    case "villainStageAdvanced":
+      return of([], [event.instanceId], []);
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
       return of([], [event.instanceId], []);

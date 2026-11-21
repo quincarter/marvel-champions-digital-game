@@ -4,14 +4,15 @@
  * other side" (MC56 pp. 16-17); in The Once and Future Kang's separate game areas, "cards and components in one game
  * area cannot affect another game area" (Kang insert, docs/phase7-wave2.md §3.1).
  *
- * An event's sides are the game areas of the cards and players it names (`eventSubjects`). A card in every area (an environment, Kang's stage 2B, an encounter
+ * An event's sides are the game areas of the cards and players it names (`eventSubjects`), plus the area of the
+ * encounter deck an encounter `deckRanOut` names. A card in every area (an environment, Kang's stage 2B, an encounter
  * card in a shared deck, a set-aside card: `areaOfCard` null) puts the event on no side. Read when the event is made
  * and stamped on it, so a card that moves afterwards (a defeated minion going to the discard pile of the area it came
  * from) does not move the event with it.
  */
 
 import type { GameAreaId, InstanceId, PlayerId } from "./ids.js";
-import { areaOfCard, areaOfPlayer } from "./query.js";
+import { areaOfCard, areaOfPlayer, encounterDeckArea } from "./query.js";
 import type { GameState } from "./state.js";
 import { eventSubjects, type TriggerEvent } from "./trigger-events.js";
 
@@ -34,7 +35,13 @@ export function eventSides(state: GameState, event: TriggerEvent): readonly Game
   if (event.sides !== undefined) return event.sides;
   if (state.gameAreas.length === 0) return [];
   const subjects = eventSubjects(event);
-  return sidesOf(state, [...subjects.sources, ...subjects.targets], subjects.players);
+  const sides = sidesOf(state, [...subjects.sources, ...subjects.targets], subjects.players);
+  // An encounter deck running out is on the side of the area that deck belongs to (`encounterDeckArea`).
+  const deck =
+    event.kind === "deckRanOut" && event.deck === "encounter" && event.deckId !== undefined
+      ? encounterDeckArea(state, event.deckId)
+      : null;
+  return deck !== null && !sides.includes(deck.areaId) ? [...sides, deck.areaId] : sides;
 }
 
 /** `event` with its sides stamped (`TriggerEvent.sides`), on a split table only; the event itself otherwise. */
