@@ -49,9 +49,14 @@ const PRICED = action("priced", [
     times: { kind: "const", value: 3 },
   },
 ]);
-/** "Forced Response: After an enemy attacks, your identity gains retaliate 1 until the end of the phase." */
+/**
+ * "Forced Response: After an enemy attacks, your identity gains retaliate 1 until the end of the phase." The attacker's
+ * query reaches the other team's area (`anyGameArea`): without it p1's card would not hear leader two attack p2, an
+ * event wholly on the other side of the table (MC56 pp. 16-17; `heardOnThisSide`), and this test needs a lasting
+ * effect p1 makes in team two's phase.
+ */
 const RETALIATE = stubAbility("retaliate.response", {
-  trigger: { kind: "response", forced: true, on: { on: "enemyAttack" } },
+  trigger: { kind: "response", forced: true, on: { on: "enemyAttack", sourceIs: { anyGameArea: true } } },
   effects: [
     {
       kind: "grantKeywordUntil",

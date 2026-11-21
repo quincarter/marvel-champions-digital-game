@@ -24,6 +24,7 @@ import {
   P2,
   acceptAll,
   boost,
+  cooperativeGame,
   endTurn,
   everyTypeResource,
   give,
@@ -85,6 +86,8 @@ interface Prompt {
   readonly codes: readonly string[];
   /** The card the offered window is about (the revealed card, the attacked character), when the event names one. */
   readonly subject: string;
+  /** The player the event names (`playerId`: the revealing player of a reveal), when it names one. */
+  readonly eventPlayer: string;
 }
 /** Every optional-trigger prompt shown during a run: who was asked and which cards were offered. */
 type Log = Prompt[];
@@ -106,6 +109,7 @@ function picker(log: Log, accept: (prompt: Prompt) => boolean = () => true): Pic
         player: choice.playerId as string,
         codes: choice.options.map(codeOf),
         subject: (subjectId ? codeOfInstance(subjectId) : undefined) ?? "?",
+        eventPlayer: (event.playerId as string | undefined) ?? "?",
       };
       log.push(prompt);
       return accept(prompt) ? choice.options.map((o) => o.optionId as string) : [];
@@ -430,10 +434,10 @@ describe("Black Widow (01075), Interrupt: when a card is revealed, exhaust her a
     expect(scheming(events, one)).toBe(0);
   });
 
-  // BUG (engine pattern scope): her trigger `encounterCardRevealedFromEncounterDeck()` names no query, so nothing ties
-  // it to p1's area, and she is offered for a card revealed in p2's area (MC56 pp. 16-17: abilities on your side ignore
-  // the other side; Enhanced Spider-Sense is correctly ignored only because its `query("treachery")` is area-scoped).
-  it.fails("ignores a card revealed in p2's area in p2's villain phase: p1's Widow is not offered, leader two schemes", () => {
+  // Fixed (audit finding 5): her trigger `encounterCardRevealedFromEncounterDeck()` names no query; the engine now
+  // scopes the event itself to the listening card's area (`heardOnThisSide`, resolve/triggers.ts; MC56 pp. 16-17:
+  // abilities on your side ignore the other side), as Enhanced Spider-Sense's `query("treachery")` already was.
+  it("ignores a card revealed in p2's area in p2's villain phase: p1's Widow is not offered, leader two schemes", () => {
     const g = game({ deckTwo: [NB_ID, RIGHTEOUS_CAUSE] });
     const { two } = leadersOf(g.state);
     const widow = inPlay(hold(toResistance(g), P1, WILD_ID, 1, 2), P1, BLACK_WIDOW);
@@ -441,6 +445,22 @@ describe("Black Widow (01075), Interrupt: when a card is revealed, exhaust her a
     const { events } = run(g.deps, widow.state, picker(log, never), endTurn(P2));
     expect(offered(log, "p1", BLACK_WIDOW, RIGHTEOUS_CAUSE)).toBe(0);
     expect(scheming(events, two)).toBe(1);
+  });
+
+  // The area scoping is two-team only: in a cooperative game every seat shares the one game area, so p1's Widow is
+  // offered for the card p2 reveals as well as for p1's own.
+  it("cooperative control: p1's Widow is offered for the card p2 reveals in the villain phase", () => {
+    const g = cooperativeGame({
+      players: 2,
+      filler: NB,
+      extraCards: [WILD, ...realCards(BLACK_WIDOW)],
+      seatCards: [BLACK_WIDOW, ...Array.from({ length: 10 }, () => WILD_ID)],
+    });
+    const widow = inPlay(hold(g.state, P1, WILD_ID, 1, 2), P1, BLACK_WIDOW);
+    const log: Log = [];
+    run(g.deps, widow.state, picker(log, never), endTurn(P1), endTurn(P2));
+    const asked = log.filter((p) => p.player === "p1" && p.codes.includes(BLACK_WIDOW));
+    expect(asked.map((p) => p.eventPlayer)).toEqual(["p1", "p2"]);
   });
 });
 

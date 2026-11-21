@@ -32,7 +32,15 @@ import {
 } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { areaOfCard, cardOf, deckDiscardStillThere, getInstance, getPlayer, playerOrder } from "../query.js";
+import {
+  areaOfCard,
+  areaOfPlayer,
+  cardOf,
+  deckDiscardStillThere,
+  getInstance,
+  getPlayer,
+  playerOrder,
+} from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -243,15 +251,77 @@ function matchesPattern(
   /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
   controllerOverride?: PlayerId,
 ): boolean {
+  if (!heardOnThisSide(state, pattern, event, selfId)) return false;
+  return matchesPatternFields(state, pattern, event, timing, selfId, deps, controllerOverride);
+}
+
+function matchesPatternFields(
+  state: GameState,
+  pattern: EventPattern,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  selfId: InstanceId,
+  deps: EngineDeps,
+  controllerOverride?: PlayerId,
+): boolean {
   if (spillUnheard(pattern, event)) return false;
   if (!matchesOwnFields(state, pattern, event, timing, selfId, deps, controllerOverride)) return false;
   // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
   return (
     pattern.anyOf === undefined ||
     pattern.anyOf.some((alternative) =>
-      matchesPattern(state, alternative, event, timing, selfId, deps, controllerOverride),
+      matchesPatternFields(state, alternative, event, timing, selfId, deps, controllerOverride),
     )
   );
+}
+
+/**
+ * Competitive: an event about the other side of the table is not heard here. MC56 pp. 16-17: "Card abilities on your
+ * side of the table completely ignore cards on the other side of the table unless they specifically refer to them."
+ * A pattern's queries are already limited to the listening card's area (`inContextArea`); this scopes the event itself
+ * the same way, so a pattern that names no query (Black Widow 01075's "when a card is revealed") hears only an event
+ * one of whose cards or players (`eventSubjects`) is on its own side, or one that names nothing on either side (only
+ * an environment, a set-aside card, or no card at all). A card in every area (an environment) hears everything.
+ *
+ * Exceptions: a pattern with an `anyGameArea` query anywhere in it "specifically refers to" the other side and hears
+ * every event; a leader's attack on the other leader names a card on each side, so both sides pass here and
+ * `onAttackingLeadersSide` narrows "an enemy attacks" to the attacker's side (N11 per owner decision 2026-11-20); phase
+ * and villain-step events name no card and keep their own active-team scope (`hearsTeamPhase`, N8).
+ *
+ * Only in a game with two teams. Every cooperative game is unchanged, The Once and Future Kang's split areas
+ * included: its insert's "Cards and components in one game area cannot affect another game area" is today enforced
+ * through queries and targets only (docs/phase7-wave2.md §3.1); whether its event triggers scope the same way is an
+ * open question, not decided here. An Epic Multiplayer pod's groups are separate games with no teams.
+ */
+// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); audit finding 5 (#883)
+function heardOnThisSide(state: GameState, pattern: EventPattern, event: TriggerEvent, selfId: InstanceId): boolean {
+  if (state.teams === undefined || state.gameAreas.length === 0) return true;
+  const selfArea = areaOfCard(state, selfId);
+  if (selfArea === null || refersToOtherSide(pattern)) return true;
+  const subjects = eventSubjects(event);
+  const sides = [
+    ...[...subjects.sources, ...subjects.targets].map((id) => areaOfCard(state, id)),
+    ...subjects.players.map((playerId) => areaOfPlayer(state, playerId)),
+  ].filter((area) => area !== null);
+  // Nothing the event names is on a side: it is not about the other side.
+  if (sides.length === 0) return true;
+  return sides.some((area) => area.areaId === selfArea.areaId);
+}
+
+const otherSideRefs = new WeakMap<EventPattern, boolean>();
+
+/** Whether a pattern holds a query that reaches the other team's area (`TargetQuery.anyGameArea`), at any depth. */
+function refersToOtherSide(pattern: EventPattern): boolean {
+  const known = otherSideRefs.get(pattern);
+  if (known !== undefined) return known;
+  const reaches = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(reaches);
+    if (value === null || typeof value !== "object") return false;
+    return Object.entries(value).some(([key, inner]) => (key === "anyGameArea" && inner === true) || reaches(inner));
+  };
+  const found = reaches(pattern);
+  otherSideRefs.set(pattern, found);
+  return found;
 }
 
 /**

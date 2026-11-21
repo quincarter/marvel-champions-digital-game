@@ -38,6 +38,13 @@ interface Fixtures {
 }
 interface Scenario {
   readonly DEFAULT_DECK: readonly CardId[];
+  readonly newGame: (options?: {
+    readonly players?: number;
+    readonly deps?: EngineDeps;
+    readonly extraCards?: readonly AnyCard[];
+    readonly encounterDeck?: readonly CardId[];
+    readonly deck?: readonly CardId[];
+  }) => GameState;
 }
 const team = (await import(/* @vite-ignore */ `${ENGINE_TESTING}team.ts`)) as Fixture;
 const fixtures = (await import(/* @vite-ignore */ `${ENGINE_TESTING}fixtures.ts`)) as Fixtures;
@@ -113,6 +120,33 @@ export function twoTeamGame(options: GameOptions): { state: GameState; deps: Eng
     players: state.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
   } as GameState;
   return { state: arranged, deps };
+}
+
+/**
+ * The control for the area scoping: a cooperative game of `players` seats sharing one game area (no teams), every seat
+ * in hero form, with an encounter deck of `encounter` cards (one code, repeated) after the listed tops.
+ */
+export function cooperativeGame(options: GameOptions & { readonly players: number }): {
+  state: GameState;
+  deps: EngineDeps;
+} {
+  const deps = depsWith(options.abilities);
+  const state = scenario.newGame({
+    players: options.players,
+    deps,
+    extraCards: [options.filler, ...(options.extraCards ?? [])],
+    encounterDeck: [...(options.deckOne ?? []), ...Array.from({ length: 12 }, () => options.filler.id as string)].map(
+      (code) => cardId(code),
+    ),
+    deck: [...DEFAULT_DECK, ...(options.seatCards ?? []).map((code) => cardId(code))],
+  });
+  return {
+    state: {
+      ...state,
+      players: state.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" } })),
+    } as GameState,
+    deps,
+  };
 }
 
 export const leadersOf = (state: GameState) => {
