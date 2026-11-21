@@ -55,22 +55,38 @@ describe("needsDiscardedCard", () => {
     expect(needsDiscardedCard(ability([choose, attachPicked]))).toBe(true);
   });
 
-  it("a branch needs the card when each branch that could run once the card has gone does", () => {
-    const readsThatCard = { kind: "exists", ref: that } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
+  it("a branch needs the card when each branch that could run does", () => {
     const always = { kind: "exists", ref: self } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
-    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw] }]))).toBe(true);
-    // Once the card has gone the condition reads false: an `otherwise` that needs nothing of it can still run.
-    expect(
-      needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [tuck], otherwise: [draw] }])),
-    ).toBe(false);
-    expect(
-      needsDiscardedCard(ability([{ kind: "if", condition: readsThatCard, then: [draw], otherwise: [tuck] }])),
-    ).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [draw] }]))).toBe(false);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck] }]))).toBe(true);
     expect(needsDiscardedCard(ability([{ kind: "if", condition: always, then: [tuck], otherwise: [draw] }]))).toBe(
       false,
     );
+  });
+
+  it("a condition on that card is read as the game stands once it has gone (`judge`), not assumed", () => {
+    const readsThatCard = { kind: "exists", ref: that } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
+    const drawIf = ability([{ kind: "if", condition: readsThatCard, then: [draw] }]);
+    // Untold, either branch could run: the draw keeps it.
+    expect(needsDiscardedCard(drawIf)).toBe(false);
+    // "If that card is …, draw": false once it has gone, so nothing runs.
+    expect(needsDiscardedCard(drawIf, () => false)).toBe(true);
+    // "If that card is not …, draw" (a negation reads true): the draw runs.
+    expect(needsDiscardedCard(drawIf, () => true)).toBe(false);
+    const tuckElseDraw = ability([{ kind: "if", condition: readsThatCard, then: [tuck], otherwise: [draw] }]);
+    expect(needsDiscardedCard(tuckElseDraw, () => false)).toBe(false);
+    expect(needsDiscardedCard(tuckElseDraw, () => true)).toBe(true);
+  });
+
+  it("a condition that reads what the ability binds is not told before it resolves", () => {
+    const readsBoth = {
+      kind: "and",
+      of: [
+        { kind: "exists", ref: that },
+        { kind: "varAtLeast", name: "x", value: 1 },
+      ],
+    } as unknown as Extract<EffectSpec, { kind: "if" }>["condition"];
+    expect(needsDiscardedCard(ability([{ kind: "if", condition: readsBoth, then: [draw] }]), () => false)).toBe(false);
   });
 
   it("a 'choose one' is judged option by option: one that needs nothing of the card keeps it", () => {

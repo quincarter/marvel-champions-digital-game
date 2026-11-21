@@ -26,10 +26,10 @@
  * `EventPattern.together` answer), or a card a choice of the ability picked from among them.
  */
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
-import type { InstanceId } from "../ids.js";
+import type { InstanceId, PlayerId } from "../ids.js";
 import { deckDiscardStillThere, handDiscardStillThere } from "../query.js";
-import { TOGETHER_TARGETS_SLOT } from "../select.js";
-import type { EffectSpec } from "../spec.js";
+import { evaluate, TOGETHER_TARGETS_SLOT, type EffectContext } from "../select.js";
+import type { EffectSpec, Predicate } from "../spec.js";
 import type { GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 
@@ -52,6 +52,7 @@ export function lostWithDiscardedCard(
   candidate: {
     readonly instanceId: InstanceId;
     readonly abilityId: string;
+    readonly controllerId?: PlayerId | null;
     readonly together?: readonly TriggerEvent[];
   },
   event: TriggerEvent,
@@ -59,7 +60,16 @@ export function lostWithDiscardedCard(
   const answering = candidate.together ?? [event];
   if (answering.length === 0 || !answering.every((each) => discardedCardGone(state, each))) return false;
   if (answering.some((each) => "instanceId" in each && each.instanceId === candidate.instanceId)) return true;
-  return needsDiscardedCard(deps.abilities[candidate.abilityId]);
+  const definition = deps.abilities[candidate.abilityId];
+  // A branch whose condition reads the card is judged by the branch the condition now picks (`partNeedsCard`).
+  const context: EffectContext = {
+    selfInstanceId: candidate.instanceId,
+    controllerId: candidate.controllerId ?? null,
+    event,
+    bindings: candidate.together ? { [TOGETHER_TARGETS_SLOT]: stillDiscardedTargets(state, candidate.together) } : {},
+    deps,
+  };
+  return needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
 }
 
 const NEEDS = new WeakMap<AbilityDefinition, boolean>();
@@ -70,24 +80,34 @@ const NEEDS = new WeakMap<AbilityDefinition, boolean>();
  * (it does nothing until an effect uses what it chose), post-"then" text (it resolves only if the text before it did,
  * RRG 1.8 "'Then'", p. 44). A part needs the card when it names it (`eventTarget`, the `together` targets) or the slot
  * of a choice that does, wherever in it. A branch or a "choose one" needs it when each of its branches or options with
- * effects does (`partNeedsCard`). An ability with no part is kept. Remembered per definition.
+ * effects does (`partNeedsCard`). An ability with no part is kept. Without `judge`, read from the effects alone and
+ * remembered per definition; `lostWithDiscardedCard` passes one, to read a condition on the card as the game stands.
  *
  * Engine interpretation (authority step 5; no source settles it): an amount read from the card ("for each [mental]
  * resource discarded", The Shadow King 45180a) counts as needing it. Those are forced Mission Responses, resolved
  * before any optional response can move the card, so only a forced response that takes a card first (Abyss 45181a)
  * reaches the case: a card printing [wild] and [mental] is then not counted by The Shadow King, as before #928.
  */
-export function needsDiscardedCard(definition: AbilityDefinition | undefined): boolean {
+export function needsDiscardedCard(definition: AbilityDefinition | undefined, judge?: Judge): boolean {
   if (!definition) return false;
+  const parts = () => inline(definition.effects.slice(definition.costEffects ?? 0));
+  // Read with the game as it stands: not remembered.
+  if (judge) return everyPartNeedsCard(parts(), [], judge);
   let known = NEEDS.get(definition);
   if (known === undefined) {
-    known = everyPartNeedsCard(inline(definition.effects.slice(definition.costEffects ?? 0)));
+    known = everyPartNeedsCard(parts());
     NEEDS.set(definition, known);
   }
   return known;
 }
 
-function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly string[] = []): boolean {
+/**
+ * Reads a branch's condition on the game as it stands, once the card has gone. Without one (`needsDiscardedCard`'s
+ * remembered reading) a condition on the card could pick either branch.
+ */
+type Judge = (condition: Predicate) => boolean;
+
+function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly string[] = [], judge?: Judge): boolean {
   const slots: string[] = [...outer];
   const parts: EffectSpec[] = [];
   for (const effect of effects) {
@@ -98,29 +118,41 @@ function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly stri
     if (effect.kind === "then") continue;
     parts.push(effect);
   }
-  return parts.length > 0 && parts.every((part) => partNeedsCard(part, slots));
+  return parts.length > 0 && parts.every((part) => partNeedsCard(part, slots, judge));
 }
 
 /**
- * A branch needs the card when every branch that could run once the card has gone needs it. Engine interpretation:
- * "that card" names nothing once it moved (`select.ts` `eventTarget`), so a condition on it ("if that card is an event")
- * reads false and only `otherwise` can run: with none, the response is dropped rather than offered to do nothing; with
- * one that needs nothing of the card ("otherwise draw 1 card"), it is kept. A condition that does not read the card is
- * judged by both branches.
+ * A branch needs the card when every branch that could run needs it. A condition that does not read the card could
+ * pick either branch. One that reads it is read once the card has gone (`judge`): "that card" then names nothing
+ * (`select.ts` `eventTarget`), so "if that card is an event, draw 1 card" runs nothing and is dropped rather than
+ * offered to do nothing, and "if that card is not an event, draw 1 card" draws and is kept. A condition that reads
+ * what the ability itself binds or how it was paid for cannot be told yet, and could pick either branch.
  */
-function partNeedsCard(effect: EffectSpec, slots: readonly string[]): boolean {
+function partNeedsCard(effect: EffectSpec, slots: readonly string[], judge?: Judge): boolean {
   // "Choose one": an option that needs nothing of the card can still be chosen (RRG 1.8 "Choose", p. 12).
   if (effect.kind === "chooseOne") {
     const options = effect.options.filter((option) => option.effects.length > 0);
-    return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots));
+    return options.length > 0 && options.every((option) => everyPartNeedsCard(inline(option.effects), slots, judge));
   }
   if (effect.kind !== "if") return namesCard(effect, slots);
-  const reachable = namesCard(effect.condition, slots)
-    ? [effect.otherwise ?? []]
-    : [effect.then, effect.otherwise ?? []];
+  const otherwise = effect.otherwise ?? [];
+  const told = judge && namesCard(effect.condition, slots) && !readsOwnBindings(effect.condition);
+  const reachable = told ? [judge(effect.condition) ? effect.then : otherwise] : [effect.then, otherwise];
   if (reachable.every((branch) => branch.length === 0)) return true;
   const branches = reachable.filter((branch) => branch.length > 0);
-  return branches.length > 0 && branches.every((branch) => everyPartNeedsCard(inline(branch), slots));
+  return branches.every((branch) => everyPartNeedsCard(inline(branch), slots, judge));
+}
+
+/** Whether `value` reads a value or card the ability binds as it resolves (a var, a payment, a choice's slot). */
+function readsOwnBindings(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(readsOwnBindings);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "var" || record.kind === "varAtLeast") return true;
+  if (typeof record.kind === "string" && record.kind.startsWith("paid")) return true;
+  if (record.kind === "slot" && record.slot !== TOGETHER_TARGETS_SLOT) return true;
+  if (typeof record.inSlot === "string") return true;
+  return Object.values(record).some(readsOwnBindings);
 }
 
 /** `effects` with every `sentence` replaced by its effects, in place. */

@@ -1042,7 +1042,7 @@ export function unofferedAbilities(
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
-      if (lostWithDiscardedCard(state, deps, { instanceId: id, abilityId: ref.id }, event)) continue;
+      if (lostWithDiscardedCard(state, deps, { instanceId: id, abilityId: ref.id, controllerId }, event)) continue;
       const reason: UnofferedReason | null = abilityLacksValidTarget(state, deps, definition, id, controllerId, event)
         ? "noTarget"
         : !costPayable(state, deps, id, controllerId, definition, false, event)
