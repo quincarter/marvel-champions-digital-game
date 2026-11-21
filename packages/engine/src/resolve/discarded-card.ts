@@ -102,7 +102,7 @@ export function lostWithDiscardedCard(
  * with no threat on it has nothing left to do.
  */
 function withoutCard(effects: readonly EffectSpec[]): readonly EffectSpec[] {
-  const slots: string[] = [];
+  const slots: string[] = [...goneByDefault()];
   return inline(effects).flatMap((effect): readonly EffectSpec[] => {
     if (effect.kind === "chooseTarget" || effect.kind === "chooseCards") {
       if (namesCard(effect, slots)) slots.push(effect.slot);
@@ -137,7 +137,7 @@ export function needsDiscardedCard(definition: AbilityDefinition | undefined, ju
   if (!definition) return false;
   const parts = () => inline(definition.effects.slice(definition.costEffects ?? 0));
   // Read with the game as it stands: not remembered.
-  if (judge) return everyPartNeedsCard(parts(), [], judge);
+  if (judge) return everyPartNeedsCard(parts(), goneByDefault(), judge);
   let known = NEEDS.get(definition);
   if (known === undefined) {
     known = everyPartNeedsCard(parts());
@@ -150,9 +150,21 @@ export function needsDiscardedCard(definition: AbilityDefinition | undefined, ju
  * Reads a branch's condition on the game as it stands, once the card has gone. Without one (`needsDiscardedCard`'s
  * remembered reading) a condition on the card could pick either branch.
  */
-type Judge = (condition: Predicate) => boolean;
+export type Judge = (condition: Predicate) => boolean;
 
-function everyPartNeedsCard(effects: readonly EffectSpec[], outer: readonly string[] = [], judge?: Judge): boolean {
+/**
+ * The slots read as holding only the discarded cards when nothing says otherwise: the `together` targets. At
+ * resolution (`optionNeedsDiscardedCard`) the slots that actually hold nothing are passed instead, so a `together`
+ * answer with cards still in the pile keeps its options on them (#928 review).
+ */
+// A function, not a constant: read at call time, after an import cycle through `select.ts` has settled.
+const goneByDefault = (): readonly string[] => [TOGETHER_TARGETS_SLOT];
+
+function everyPartNeedsCard(
+  effects: readonly EffectSpec[],
+  outer: readonly string[] = goneByDefault(),
+  judge?: Judge,
+): boolean {
   const slots: string[] = [...outer];
   const parts: EffectSpec[] = [];
   for (const effect of effects) {
@@ -303,10 +315,10 @@ function namesCard(value: unknown, slots: readonly string[], nested = false): bo
   if (record.kind === "anyOf" && Array.isArray(record.of))
     return record.of.every((item) => namesCard(item, slots, true));
   if (record.kind === "eventTarget") return true;
-  if (record.kind === "slot" && (record.slot === TOGETHER_TARGETS_SLOT || slots.includes(record.slot as string)))
-    return true;
+  if (record.kind === "slot" && slots.includes(record.slot as string)) return true;
   if (typeof record.inSlot === "string" && slots.includes(record.inSlot)) return true;
-  return Object.values(record).some((item) => namesCard(item, slots, true));
+  // "Each other enemy" (`TargetQuery.excluding`): an empty exclusion excludes nothing, so it is no operand.
+  return Object.entries(record).some(([key, item]) => key !== "excluding" && namesCard(item, slots, true));
 }
 
 /** The targets of the discards a `together` answer answers, without those whose cards have since gone (#928). */
@@ -317,11 +329,13 @@ export function stillDiscardedTargets(state: GameState, events: readonly Trigger
 /**
  * Whether every part of a "choose one" option acts on the discarded card (`everyPartNeedsCard`): once another response
  * has moved it before this ability was initiated, `executeChooseOne` does not offer the option (#928). `slots`: the
- * ability's choices made before the option that chose among "that card" and so hold nothing now.
+ * slots that hold nothing now (a choice made among "that card" before the option, the `together` targets once all have
+ * gone). `judge`: reads a condition at the start of the option on the game as it stands.
  */
 export function optionNeedsDiscardedCard(
   option: { readonly effects: readonly EffectSpec[] },
-  slots: readonly string[] = [],
+  slots: readonly string[],
+  judge?: Judge,
 ): boolean {
-  return everyPartNeedsCard(inline(option.effects), slots);
+  return everyPartNeedsCard(inline(option.effects), slots, judge);
 }

@@ -268,6 +268,66 @@ const PICKED_RESPONSE = stubAbility(
     ],
   }),
 );
+const removeOne: EffectSpec = { kind: "removeThreat", target: { kind: "mainScheme" }, amount: constant(1) };
+// Once for the whole discard: "choose one: attach those cards facedown here, or remove 1 threat from the main scheme".
+const GROUP_CHOICE_RESPONSE = stubAbility(
+  "group-choice.response",
+  def({
+    trigger: { kind: "response", forced: false, on: { ...youDiscard, together: true } },
+    effects: [
+      {
+        kind: "chooseOne",
+        chooser: you,
+        options: [
+          {
+            label: "attach",
+            effects: [
+              { kind: "attach", card: { kind: "slot", slot: TOGETHER_TARGETS_SLOT }, to: self, facedown: true },
+            ],
+          },
+          { label: "thwart", effects: [removeOne] },
+        ],
+      },
+    ],
+  }),
+);
+// "Put a counter on each support other than that card": an exclusion is no operand.
+const OTHERS_RESPONSE = stubAbility(
+  "others.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "addCounters",
+        target: { kind: "each", query: { categories: ["support"], excluding: { kind: "eventTarget" } } },
+        counterType: "seen",
+        amount: constant(1),
+      },
+    ],
+  }),
+);
+// "Choose one: if that card is still there, draw 1 card; or remove 1 threat from the main scheme."
+const NESTED_RESPONSE = stubAbility(
+  "nested.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "chooseOne",
+        chooser: you,
+        options: [
+          {
+            label: "draw",
+            effects: [
+              { kind: "if", condition: thatCardThere, then: [{ kind: "draw", player: you, amount: constant(1) }] },
+            ],
+          },
+          { label: "thwart", effects: [removeOne] },
+        ],
+      },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -305,6 +365,9 @@ const NOTED = stubSupport({ id: "noted", cost: 0, abilities: [NOTED_RESPONSE.ref
 const PLUS = stubSupport({ id: "plus", cost: 0, abilities: [PLUS_RESPONSE.ref] });
 const EITHER_CARD = stubSupport({ id: "either-card", cost: 0, abilities: [EITHER_CARD_RESPONSE.ref] });
 const PICKED = stubSupport({ id: "picked", cost: 0, abilities: [PICKED_RESPONSE.ref] });
+const GROUP_CHOICE = stubSupport({ id: "group-choice", cost: 0, abilities: [GROUP_CHOICE_RESPONSE.ref] });
+const OTHERS = stubSupport({ id: "others", cost: 0, abilities: [OTHERS_RESPONSE.ref] });
+const NESTED = stubSupport({ id: "nested", cost: 0, abilities: [NESTED_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -396,6 +459,9 @@ const deps: EngineDeps = depsOf(
   PLUS_RESPONSE,
   EITHER_CARD_RESPONSE,
   PICKED_RESPONSE,
+  GROUP_CHOICE_RESPONSE,
+  OTHERS_RESPONSE,
+  NESTED_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -419,6 +485,9 @@ type InPlay =
   | "plus"
   | "either-card"
   | "picked"
+  | "group-choice"
+  | "others"
+  | "nested"
   | "batch"
   | "costly"
   | "guard";
@@ -465,6 +534,9 @@ function start(
       PLUS,
       EITHER_CARD,
       PICKED,
+      GROUP_CHOICE,
+      OTHERS,
+      NESTED,
       BATCH,
       METER,
       GUARD,
@@ -495,6 +567,9 @@ function start(
       PLUS.id,
       EITHER_CARD.id,
       PICKED.id,
+      GROUP_CHOICE.id,
+      OTHERS.id,
+      NESTED.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -967,6 +1042,61 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
     const result = play(withThreat(table, scheme, 3), MILL_1, pick);
     expect(resolved(result.events, PICKED_RESPONSE)).toEqual([table.inPlay.picked]);
     expect(asked.flat()).not.toContain("attach");
+    expect(mustInstance(result.state, scheme).threat).toBe(2);
+    expectReplays(result);
+  });
+
+  it("a 'together' choose-one keeps its option on the cards still there, and drops it once none is", () => {
+    const table = start(["hand", "filler", "filler"], { inPlay: ["group-choice"] });
+    const scheme = table.state.mainScheme!.instanceId;
+    const [, ...rest] = table.top;
+    const askedIn = (prefer: string) => {
+      const asked: string[][] = [];
+      const pick: Pick = (state) => {
+        const choice = state.pendingChoice;
+        if (choice?.prompt.kind === "chooseOption") {
+          asked.push(choice.options.map((option) => `${option.label}`));
+          const wanted = choice.options.find((option) => option.label === prefer) ?? choice.options[0]!;
+          return [wanted.optionId];
+        }
+        return triggering(HAND_RESPONSE, GROUP_CHOICE_RESPONSE)(state);
+      };
+      return { asked, pick };
+    };
+    // Partly gone: two cards of the three are still in the pile, and "attach" takes them.
+    const partly = askedIn("attach");
+    const kept = play(withThreat(table, scheme, 3), MILL_3, partly.pick);
+    expect(partly.asked.flat()).toContain("attach");
+    expect([...mustInstance(kept.state, table.inPlay["group-choice"]!).attachments].sort()).toEqual([...rest].sort());
+    // Wholly gone: the only card discarded was taken, so only the removal is offered.
+    const alone = start(["hand", "filler"], { inPlay: ["group-choice"] });
+    const wholly = askedIn("attach");
+    const gone = play(withThreat(alone, alone.state.mainScheme!.instanceId, 3), MILL_1, wholly.pick);
+    expect(wholly.asked.flat()).not.toContain("attach");
+    expect(mustInstance(gone.state, alone.state.mainScheme!.instanceId).threat).toBe(2);
+    expectReplays(kept);
+    expectReplays(gone);
+  });
+
+  it("an exclusion of that card is no operand: 'each other support' still gets its counter", () => {
+    const table = start(["hand", "filler"], { inPlay: ["others"] });
+    const result = play(table, MILL_1, triggering(HAND_RESPONSE, OTHERS_RESPONSE));
+    expect(resolved(result.events, OTHERS_RESPONSE)).toEqual([table.inPlay.others]);
+    expect(counters(result.state, table.inPlay.others, "seen")).toBe(1);
+    expectReplays(result);
+  });
+
+  it("an option whose branch can no longer run is not offered beside one that can", () => {
+    const table = start(["hand", "filler"], { inPlay: ["nested"] });
+    const scheme = table.state.mainScheme!.instanceId;
+    const asked: string[][] = [];
+    const pick: Pick = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") asked.push(choice.options.map((option) => `${option.label}`));
+      return triggering(HAND_RESPONSE, NESTED_RESPONSE)(state);
+    };
+    const result = play(withThreat(table, scheme, 3), MILL_1, pick);
+    expect(asked.flat()).not.toContain("draw");
     expect(mustInstance(result.state, scheme).threat).toBe(2);
     expectReplays(result);
   });

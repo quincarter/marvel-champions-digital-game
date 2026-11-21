@@ -57,6 +57,15 @@ describe("needsDiscardedCard", () => {
     expect(needsDiscardedCard(ability([union(that, that)]))).toBe(true);
   });
 
+  it("an exclusion of that card is no operand ('each other enemy')", () => {
+    const others: EffectSpec = {
+      kind: "dealDamage",
+      target: { kind: "each", query: { categories: ["enemy"], excluding: that } },
+      amount: n(1),
+    };
+    expect(needsDiscardedCard(ability([others]))).toBe(false);
+  });
+
   it("every part must need it: 'draw 1 card and attach that card' keeps its draw", () => {
     expect(needsDiscardedCard(ability([draw, tuck]))).toBe(false);
   });

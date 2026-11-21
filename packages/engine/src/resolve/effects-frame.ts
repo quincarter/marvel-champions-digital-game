@@ -3136,7 +3136,7 @@ function executeChooseOne(
     if (
       frame.answer === null &&
       context.bindings[DISCARD_MOVED_SLOT] !== undefined &&
-      optionNeedsDiscardedCard(option, emptySlots)
+      optionNeedsDiscardedCard(option, emptySlots, (condition) => evaluate(ctx.state, condition, context))
     )
       return "noTarget";
     // "You cannot choose the 'Avoid' effect" (`RuleSpec cannotChooseOption`): never offered to that chooser.
