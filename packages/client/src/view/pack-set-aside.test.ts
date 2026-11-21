@@ -96,6 +96,17 @@ describe("a pack scenario's set-aside modular set (#943)", () => {
     expect(effectivePackSetAside(clash, scenario(), 1)).toEqual([RECOMMENDED]);
   });
 
+  it("offers every modular set when the scenario shuffles in none (Codex review)", async () => {
+    await loadWithSetAside([RECOMMENDED]);
+    setLoadedPacks(
+      loadedPacks().map((pack) => ({
+        ...pack,
+        scenarios: (pack.scenarios ?? []).map((one) => ({ ...one, modularSetCount: 0, recommendedModularSetIds: [] })),
+      })) as never,
+    );
+    expect(packSetAsideCandidates(draft(), scenario()).length).toBeGreaterThan(5);
+  });
+
   it("reads Random without a recommendation, and offers nothing at a scenario that sets none aside", async () => {
     await loadWithSetAside();
     expect(setAsideRow(draft())!.control.kind === "stepper" && setAsideRow(draft())!.control).toMatchObject({

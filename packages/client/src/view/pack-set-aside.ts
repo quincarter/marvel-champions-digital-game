@@ -55,7 +55,9 @@ export function packSetAsideCandidates(
   const shuffled = shuffledInOf(draft, scenario);
   const ids = [
     ...((scenario.recommendedSetAsideModularSetIds ?? []) as readonly string[]),
-    ...modularCandidatesFor(scenario, scope)
+    // A scenario that shuffles in no modular set gets the picker's short Core list there; the sets it sets aside are
+    // still any modular set, so the candidates are read as if it took one.
+    ...modularCandidatesFor(scenario.modularSetCount === 0 ? { ...scenario, modularSetCount: 1 } : scenario, scope)
       .filter((candidate) => candidate.disabledReason === undefined)
       .map((candidate) => candidate.id),
   ];

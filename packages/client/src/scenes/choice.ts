@@ -572,6 +572,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #rebuild(): void {
     resetHoverCards(this);
     this.#hoverScrolled.clear();
+    this.#fallbackStops = null;
+    this.#fallbackRing = null;
     try {
       this.#draw();
     } catch (cause) {
@@ -585,6 +587,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#hover?.onDraw();
   }
 
+  /** The fallback's controls in reading order while it is up (null otherwise), and the one the keys have focused. */
+  #fallbackStops: { rect: Rect; press: () => void }[] | null = null;
+  #fallbackFocus = 0;
+  #fallbackFocusShown = false;
+  #fallbackRing: Phaser.GameObjects.Graphics | null = null;
   /** The fallback's own picks and page, kept for the decision it belongs to across its redraws. */
   #fallback: { choiceId: string; selected: readonly string[]; page: number } | null = null;
 
@@ -600,12 +607,19 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing = null;
     this.#focusRects.clear();
     destroyChildren(this);
+    this.#fallbackRing = null;
     this.tweens.killAll();
     this.#motion = new OverlayMotion();
     if (!choice) return;
     const choiceId = choice.choiceId as string;
     if (this.#fallback?.choiceId !== choiceId) this.#fallback = { choiceId, selected: [], page: 0 };
     const state = this.#fallback;
+    // The keyboard and the pad walk these too (`#onIntent`): a fallback only a pointer can answer is no way out.
+    const stops: { rect: Rect; press: () => void }[] = [];
+    const addButton = (options: ConstructorParameters<typeof McButton>[1]): void => {
+      this.#buttons.push(new McButton(this, options));
+      if (options.enabled !== false && options.onClick) stops.push({ rect: options.rect, press: options.onClick });
+    };
     const redraw = (): void => this.#drawFallback(cause);
     const answer = (ids: readonly string[]): void => void appSession().store.resolveChoice(ids);
 
@@ -660,34 +674,30 @@ export class ChoiceOverlay extends Phaser.Scene {
     state.page = Math.min(state.page, pages - 1);
     for (const row of view.rows.slice(state.page * perPage, (state.page + 1) * perPage)) {
       const rect = { x, y, width: sheetWidth, height: ROW };
-      this.#buttons.push(
-        new McButton(this, {
-          kind: row.selected ? "primary" : "onInk",
-          label: row.order !== null ? `${row.order}. ${row.label}` : row.selected ? `✓ ${row.label}` : row.label,
-          type: typeRole.label,
-          rect,
-          onClick: () => {
-            if (view.answersOnPress) return answer([row.optionId]);
-            state.selected = toggleFallbackPick(choice, state.selected, row.optionId);
-            redraw();
-          },
-        }),
-      );
+      addButton({
+        kind: row.selected ? "primary" : "onInk",
+        label: row.order !== null ? `${row.order}. ${row.label}` : row.selected ? `✓ ${row.label}` : row.label,
+        type: typeRole.label,
+        rect,
+        onClick: () => {
+          if (view.answersOnPress) return answer([row.optionId]);
+          state.selected = toggleFallbackPick(choice, state.selected, row.optionId);
+          redraw();
+        },
+      });
       y += ROW + GAP;
     }
     if (pages > 1) {
       const third = (sheetWidth - 2 * GAP) / 3;
       const pager = (index: number, label: string, enabled: boolean, onClick: () => void): void => {
-        this.#buttons.push(
-          new McButton(this, {
-            kind: "onInk",
-            label,
-            type: typeRole.label,
-            rect: { x: x + index * (third + GAP), y: footerTop - pagerHeight, width: third, height: ROW },
-            enabled,
-            onClick,
-          }),
-        );
+        addButton({
+          kind: "onInk",
+          label,
+          type: typeRole.label,
+          rect: { x: x + index * (third + GAP), y: footerTop - pagerHeight, width: third, height: ROW },
+          enabled,
+          onClick,
+        });
       };
       pager(0, "‹ Back", state.page > 0, () => {
         state.page -= 1;
@@ -714,17 +724,48 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (view.canChooseNone) footer.push({ label: "Choose none", enabled: true, onClick: () => answer([]) });
     const each = footer.length > 0 ? (sheetWidth - (footer.length - 1) * GAP) / footer.length : 0;
     footer.forEach((button, index) => {
-      this.#buttons.push(
-        new McButton(this, {
-          kind: index === 0 && view.confirm ? "primary" : "onInk",
-          label: button.label,
-          type: typeRole.label,
-          rect: { x: x + index * (each + GAP), y: footerTop, width: each, height: ROW },
-          enabled: button.enabled,
-          onClick: button.onClick,
-        }),
-      );
+      addButton({
+        kind: index === 0 && view.confirm ? "primary" : "onInk",
+        label: button.label,
+        type: typeRole.label,
+        rect: { x: x + index * (each + GAP), y: footerTop, width: each, height: ROW },
+        enabled: button.enabled,
+        onClick: button.onClick,
+      });
     });
+    this.#fallbackStops = stops;
+    this.#fallbackFocus = Math.min(this.#fallbackFocus, Math.max(0, stops.length - 1));
+    this.#drawFallbackRing();
+  }
+
+  /** The focused fallback control's ring (a key or pad in use); none until a key moves focus. */
+  #drawFallbackRing(): void {
+    this.#fallbackRing?.destroy();
+    this.#fallbackRing = null;
+    const stop = this.#fallbackFocusShown ? this.#fallbackStops?.[this.#fallbackFocus] : undefined;
+    if (!stop) return;
+    const { x, y, width, height } = stop.rect;
+    this.#fallbackRing = this.add
+      .graphics()
+      .lineStyle(3, signal.caution.hex, 1)
+      .strokeRect(x - 3, y - 3, width + 6, height + 6);
+  }
+
+  /** A key or pad intent while the fallback is up: walk its controls, press the focused one. */
+  #onFallbackIntent(intent: GamepadIntent): void {
+    const stops = this.#fallbackStops ?? [];
+    if (stops.length === 0) return;
+    if (intent === "activate") {
+      if (this.#fallbackFocusShown) stops[this.#fallbackFocus]?.press();
+      else this.#fallbackFocusShown = true;
+    } else if (["next", "down", "right"].includes(intent)) {
+      if (this.#fallbackFocusShown) this.#fallbackFocus = (this.#fallbackFocus + 1) % stops.length;
+      this.#fallbackFocusShown = true;
+    } else if (["previous", "up", "left"].includes(intent)) {
+      if (this.#fallbackFocusShown) this.#fallbackFocus = (this.#fallbackFocus + stops.length - 1) % stops.length;
+      this.#fallbackFocusShown = true;
+    } else return;
+    this.#drawFallbackRing();
   }
 
   #draw(): void {
@@ -3539,6 +3580,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * the sheet, because an open decision has to be answered.
    */
   #onIntent(intent: GamepadIntent, source?: "key"): void {
+    if (this.#fallbackStops) return this.#onFallbackIntent(intent);
     if (this.#motion.leaving) return;
     const pending = appSession().store.state.game?.pendingChoice;
     if (!pending) return;
