@@ -930,6 +930,7 @@ describe("screen focus routes", () => {
       "first-player:random",
       "seed",
       "reroll",
+      "watch",
       "deal-it-out",
     ]);
   });
@@ -958,6 +959,7 @@ describe("screen focus routes", () => {
       "first-player:random",
       "seed",
       "reroll",
+      "watch",
       "deal-it-out",
     ]);
   });
@@ -983,6 +985,7 @@ describe("screen focus routes", () => {
       "first-player:random",
       "seed",
       "reroll",
+      "watch",
       "deal-it-out",
     ]);
   });
@@ -1000,6 +1003,7 @@ describe("screen focus routes", () => {
       "first-player:0",
       "seed",
       "reroll",
+      "watch",
       "deal-it-out",
     ]);
   });
@@ -1097,5 +1101,17 @@ describe("the deck builder's rail tabs", () => {
     });
     const save = order.indexOf("save");
     expect(order.slice(save - 3, save)).toEqual(["rail:deck", "rail:games", "games:− Cut:01009"]);
+  });
+});
+
+describe("pauseFocusOrder with a live room (#876)", () => {
+  test("the wide menu's watch link comes after Report and before Manual adjust", () => {
+    const order = pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false, watchLink: true });
+    expect(order.slice(order.indexOf("report"), order.indexOf("concede"))).toEqual([
+      "report",
+      "watch-link",
+      "manual-adjust",
+    ]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).not.toContain("watch-link");
   });
 });

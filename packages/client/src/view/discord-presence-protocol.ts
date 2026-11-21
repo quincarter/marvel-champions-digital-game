@@ -11,6 +11,8 @@ export type PresenceIn =
       readonly campaignNames: Readonly<Record<string, string>>;
       /** The engine worker's end of the channel; game summaries arrive on it. */
       readonly gamePort?: MessagePort;
+      /** The live-room worker's end of its channel; the live room's status arrives on it (#876). */
+      readonly livePort?: MessagePort;
     }
   | { readonly kind: "sceneUp"; readonly key: string; readonly campaignId?: string; readonly runId?: string }
   | { readonly kind: "sceneDown"; readonly key: string }

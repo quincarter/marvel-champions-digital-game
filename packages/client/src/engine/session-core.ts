@@ -61,6 +61,9 @@ import type { BackOutTrailEntry } from "../view/back-out.js";
 import { sealForTable } from "../view/hidden-reverse.js";
 import type { PresenceGame } from "../view/discord-presence.js";
 import { presenceGameOf } from "../view/discord-presence-game.js";
+import { liveGameOf } from "../live/live-game.js";
+import type { LiveGame } from "../live/live-publisher.js";
+import { isChecksumPosition, replayChecksum } from "../replay/replay-file.js";
 import type { PaymentState } from "../view/payment-model.js";
 import { judgePayment, type JudgedPayment } from "../view/payment-verdict.js";
 import { actingPlayer } from "./acting-player.js";
@@ -392,6 +395,10 @@ export class EngineSessionCore {
   #activeAt: number | null = null;
   /** `SaveMeta.adjusted`: a Manual adjust or an Undo past a reveal happened in this game (issue #791). Never cleared. */
   #adjusted = false;
+  /** When the current game was created (a resumed game's stored value), for the live stream's header. */
+  #createdAt = 0;
+  /** The live room's key for this game when no save id exists: the scenario, the seed and when it began. */
+  #liveNonce = "";
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -452,6 +459,8 @@ export class EngineSessionCore {
     this.#adjusted = false;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
+    this.#createdAt = startedAt;
+    this.#liveNonce = `${config.scenarioId}:${config.seed}:${startedAt}`;
 
     if (this.#storage) {
       const id = this.#newId();
@@ -587,6 +596,7 @@ export class EngineSessionCore {
     // nothing in the log, so for that the meta is the only record.
     this.#adjusted = stored.meta.adjusted === true || stored.commands.some((command) => command.type === "adjust");
     this.#activeAt = this.#now();
+    this.#createdAt = stored.meta.createdAt;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
   }
@@ -875,6 +885,57 @@ export class EngineSessionCore {
       game: presenceGameOf(state, config),
       gameKey: this.#gameId ?? `${config?.scenarioId}:${config?.seed}`,
     };
+  }
+
+  /**
+   * The live room's key for this game, or null when nothing is to be streamed (no game, or it is not `watchable`).
+   * Stable across a resume (the save's id), so the same game keeps its room.
+   */
+  liveGameKey(): string | null {
+    if (!this.#session || !this.#config?.watchable) return null;
+    return this.#gameId ?? this.#liveNonce;
+  }
+
+  /** The game as the live room's header and log (`live/`): null with no game or when it is not `watchable`. */
+  liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
+    const session = this.#session;
+    const config = this.#config;
+    const gameKey = this.liveGameKey();
+    if (!session || !config || !gameKey) return null;
+    return {
+      gameKey,
+      game: liveGameOf({
+        writer: {
+          appVersion: this.#writer.appVersion,
+          contentVersion: this.#writer.contentVersion,
+          ...(this.#writer.build ? { build: this.#writer.build } : {}),
+        },
+        config,
+        createdAt: this.#createdAt,
+        initialState: stripPool(session.log.initialState),
+        commands: session.log.commands,
+        outcome: session.state.outcome,
+        checksums: this.#liveChecksums(session),
+      }),
+    };
+  }
+
+  /** The replay checksums of the log so far (`"0"` the starting state), taken by replaying it from its baseline. */
+  #liveChecksums(session: GameSession): Record<string, string> {
+    const out: Record<string, string> = { "0": replayChecksum(session.log.initialState) };
+    let state = session.log.initialState;
+    for (const [index, command] of session.log.commands.entries()) {
+      const result = applyCommand(state, command, depsOf(this.#config));
+      if (!result.ok) break;
+      state = result.state;
+      if (isChecksumPosition(index + 1)) out[String(index + 1)] = replayChecksum(state);
+    }
+    return out;
+  }
+
+  /** `replayChecksum` of the current state: the live stream sends one every `CHECKSUM_EVERY` commands. */
+  liveChecksum(): string {
+    return replayChecksum(this.#require().state);
   }
 
   #require(): GameSession {

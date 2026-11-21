@@ -183,6 +183,9 @@ export interface BoardControllerHost {
   openMusic?(): void;
   /** True while the top bar's dark mode button is drawn (a stop before the note), and what Enter on it does (#735). */
   hasThemeStop?(): boolean;
+  /** True while the top bar's watch eye is drawn (a stop before the dark mode button), and what Enter on it does (#876). */
+  hasWatchStop?(): boolean;
+  shareWatchLink?(): void;
   toggleTheme?(): void;
   /** True while your discard pile has a card to open (a stop after the hand), and what Enter on it does. */
   hasDiscardStop?(): boolean;
@@ -523,6 +526,7 @@ export class BoardController {
         hand: model.hand.map((card) => card.instanceId),
         teamUps: this.#host.teamUpKeys?.() ?? [],
         ...(this.#host.hasMusicStop?.() ? { music: true as const } : {}),
+        ...(this.#host.hasWatchStop?.() ? { watch: true as const } : {}),
         ...(this.#host.hasThemeStop?.() ? { theme: true as const } : {}),
         ...(this.#host.hasDiscardStop?.() ? { discard: true as const } : {}),
         ...(this.#host.hasVictoryDisplayStop?.() ? { victoryDisplay: true as const } : {}),
@@ -584,6 +588,11 @@ export class BoardController {
     // The theme is a setting, not a move: it flips on a replayed board too.
     if (focus.kind === "theme") {
       this.#host.toggleTheme?.();
+      return;
+    }
+    // Sharing the link sends nothing to the game either.
+    if (focus.kind === "watch") {
+      this.#host.shareWatchLink?.();
       return;
     }
     // The pile sends nothing, so it opens on a replayed board too, as a tap does.

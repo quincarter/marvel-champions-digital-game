@@ -6,6 +6,7 @@
 import { IdbCampaignStorage } from "../engine/idb-campaign-storage.js";
 import { PresenceTracker } from "../view/discord-presence-tracker.js";
 import { packBasesOf } from "../view/discord-presence-pack-art.js";
+import type { LiveStatusMessage } from "../live/live-room-protocol.js";
 import type { PresenceGameMessage, PresenceIn, PresenceOut } from "../view/discord-presence-protocol.js";
 
 /** The client compiles with the DOM lib only, so this names the members of the worker global that are used. */
@@ -48,6 +49,14 @@ worker.addEventListener("message", (event) => {
           if (e.data.kind === "game") tracker.setGame(e.data.game, e.data.gameKey);
         });
         message.gamePort.start();
+      }
+      if (message.livePort) {
+        message.livePort.addEventListener("message", (e: MessageEvent<LiveStatusMessage>) => {
+          if (e.data.kind !== "live") return;
+          const { watchUrl, watchers } = e.data.status;
+          tracker.setLive(watchUrl ? { watchUrl, watchers } : null);
+        });
+        message.livePort.start();
       }
       setEnabled(message.enabled);
       return;

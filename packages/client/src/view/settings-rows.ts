@@ -6,6 +6,7 @@
  * still owns the actual toggle (it needs `appSession()`, which view modules never
  * import), keyed by `SettingsRowInfo.id`.
  */
+import { t } from "../i18n/translate.js";
 import { CUSTOM_PLACEMENT_VALUES, type CustomPlacement } from "../packs/custom-content-prefs.js";
 import { couchFactorFits, type CouchSize } from "./couch-mode.js";
 import {
@@ -99,6 +100,7 @@ export type SettingsRowId =
   | "scheme-stack"
   | "faded-campaign-art"
   | "discord-presence"
+  | "live-watch"
   | "custom-unlocked"
   | "manual-adjust"
   | EarnedItemId;
@@ -340,6 +342,16 @@ export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
   };
 }
 
+/** "Let people watch my games" (#876): off until switched on; anyone with the watch link can then watch. */
+export function liveWatchRowInfoOf(settings: Settings): SettingsRowInfo {
+  return {
+    id: "live-watch",
+    title: t("live.setting.title"),
+    detail: t("live.setting.detail"),
+    on: settings.liveWatch,
+  };
+}
+
 /**
  * Settings ▸ More ▸ Earned items (issue #291): one toggle per earned item. One not earned yet is still listed, dim, and
  * says how to earn it instead of what it does.
@@ -415,6 +427,8 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, fadedCampaignArt: !settings.fadedCampaignArt };
     case "discord-presence":
       return { ...settings, discordPresence: !settings.discordPresence };
+    case "live-watch":
+      return { ...settings, liveWatch: !settings.liveWatch };
     case "custom-unlocked":
       return { ...settings, customUnlocked: !settings.customUnlocked };
     case "manual-adjust":

@@ -113,6 +113,8 @@ import {
   toggleHoodIncludedSet,
   type HoodModularSetOption,
 } from "../view/hood-modular-sets.js";
+import { t } from "../i18n/translate.js";
+import { liveWatchDefault } from "../platform/live-watch.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   applySetupOption,
@@ -283,6 +285,8 @@ export class TableSetupScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #savedDecks: readonly Deck[] = [];
   #seedText = "";
+  /** "Let people watch this game" (#876): starts from the Always allow setting; sent on the config at Deal it out. */
+  #watchable = liveWatchDefault();
   #buttons: McButton[] = [];
   #stops = new Map<string, FocusStop>();
   #seedInput: McTextInput | null = null;
@@ -340,6 +344,8 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   init(data: TableSetupData): void {
+    // The scene is reused: the toggle starts from the setting every time, not from the last visit's tick.
+    this.#watchable = liveWatchDefault();
     this.#draft = data.draft;
     this.#seedText = String(data.draft.seed);
   }
@@ -850,6 +856,7 @@ export class TableSetupScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("reroll", { rect: layout.reroll, activate: reroll });
+    this.#drawWatchToggle(layout.watch);
     if (layout.seedHelper.height > 8) {
       this.add
         .text(
@@ -868,7 +875,7 @@ export class TableSetupScene extends Phaser.Scene {
           x: layout.seedHelper.x,
           y: layout.seedHelper.y + 64,
           width: layout.seedHelper.width,
-          height: layout.dealItOut.y - 30 - (layout.seedHelper.y + 64),
+          height: (layout.wide ? layout.watch.y : layout.dealItOut.y) - 30 - (layout.seedHelper.y + 64),
         },
         scenario,
       );
@@ -1267,6 +1274,16 @@ export class TableSetupScene extends Phaser.Scene {
     }
     if (id === "seed") {
       this.#drawCompactSeedRow(rect);
+      return;
+    }
+    if (id === "watch") {
+      this.#drawCompactToggleRow(rect, {
+        selected: this.#watchable,
+        name: t("live.setup.title"),
+        meta: this.#watchable ? t("live.setup.on") : t("live.setup.off"),
+        onClick: () => this.#toggleWatchable(),
+        stopId: "watch",
+      });
       return;
     }
     if (id === "header:encounter") {
@@ -3064,6 +3081,40 @@ export class TableSetupScene extends Phaser.Scene {
     });
   }
 
+  #toggleWatchable(): void {
+    this.#watchable = !this.#watchable;
+    this.#rebuild();
+  }
+
+  /** The wide and narrow layouts' watch toggle: a checkbox card (the check mark and the words, never colour alone). */
+  #drawWatchToggle(rect: Rect): void {
+    if (rect.height <= 0) return;
+    const onClick = (): void => this.#toggleWatchable();
+    this.#buttons.push(new McButton(this, { kind: "onInk", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set("watch", { rect, activate: onClick });
+    const size = 22;
+    const box = this.add.graphics();
+    const bx = rect.x + 10;
+    const by = rect.y + (rect.height - size) / 2;
+    box.lineStyle(2, surface.paper.hex, 1).strokeRect(bx, by, size, size);
+    if (this.#watchable) {
+      box.lineStyle(3, surface.paper.hex, 1);
+      box.beginPath();
+      box.moveTo(bx + 4, by + size / 2);
+      box.lineTo(bx + size / 2 - 1, by + size - 5);
+      box.lineTo(bx + size - 4, by + 5);
+      box.strokePath();
+    }
+    const words = this.add.text(
+      bx + size + 10,
+      rect.y + rect.height / 2,
+      t("live.setup.title"),
+      textStyle(typeRole.label, surface.paper.hex),
+    );
+    words.setOrigin(0, 0.5);
+    fitText(words, rect.width - size - 30, typeRole.label.size);
+  }
+
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
     // A press during a screen change (Back, then Start inside the fade) must not deal a game behind the screen.
     if (this.#starting || this.#leaving) return;
@@ -3076,14 +3127,13 @@ export class TableSetupScene extends Phaser.Scene {
     this.#rebuild();
 
     const { store } = appSession();
-    await store.start(
-      toSessionConfig(
-        this.#draft,
-        players,
-        currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
-        tableRulesOf(appSession().settings),
-      ),
+    const config = toSessionConfig(
+      this.#draft,
+      players,
+      currentScenarios().find((s) => (s.id as string) === this.#draft.scenarioId),
+      tableRulesOf(appSession().settings),
     );
+    await store.start(this.#watchable ? { ...config, watchable: true } : config);
 
     // The screen was left while the game was being made: nothing here is on screen any more.
     if (!this.sys.isActive()) return;
