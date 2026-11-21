@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
+  byDesigner,
+  designerLines,
   bodyOf,
   cellAt,
   cellLookOf,
@@ -319,5 +321,15 @@ describe("the grid's geometry", () => {
 
   test("a cursor left past a smaller grid comes back on it", () => {
     expect(clampCursor({ ...shape, rows: 4, columns: 4 }, { row: 9, column: 9 })).toEqual({ row: 3, column: 3 });
+  });
+});
+
+describe("designer credits on the axes (issue #937)", () => {
+  test("byDesigner tags custom content and designerLines splits it back for a narrow row or column", () => {
+    expect(byDesigner("The Rose", "PermaKarma")).toBe("The Rose (by PermaKarma)");
+    expect(byDesigner("Rhino", undefined)).toBe("Rhino");
+    expect(designerLines("The Rose (by PermaKarma)")).toEqual(["The Rose", "(by PermaKarma)"]);
+    expect(designerLines("Throg (by A & B)")).toEqual(["Throg", "(by A & B)"]);
+    expect(designerLines("Spider-Man (Peter Parker)")).toBeNull();
   });
 });

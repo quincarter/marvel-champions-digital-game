@@ -45,6 +45,7 @@ import {
   type GridStep,
   type MatchupCell,
   type MatchupGrid,
+  designerLines,
 } from "../view/matchup-grid.js";
 import { TIER_COLORS, drawLegend, onTierColor } from "./matchup-rows.js";
 import { renderArtThumb } from "../scenes/roster-panel.js";
@@ -533,7 +534,7 @@ export class McMatchupGrid {
       if (fresh) {
         text.setText(this.#grid.rows[row]!.name);
         if (stamps) fitWrapped(text, textWidth, 2, STAMP_LABEL_SIZE);
-        else fitText(text, textWidth, LABEL_SIZE);
+        else fitAxisLabel(text, textWidth, LABEL_SIZE);
       }
       if (picture) {
         pictures.add(row);
@@ -561,7 +562,7 @@ export class McMatchupGrid {
       if (fresh) {
         text.setText(this.#grid.columns[column]!.name);
         if (stamps) fitWrapped(text, metrics.cell - 4, 2, STAMP_LABEL_SIZE);
-        else fitText(text, metrics.columnHeader - 12, LABEL_SIZE);
+        else fitAxisLabel(text, metrics.columnHeader - 12, LABEL_SIZE);
       }
       if (stamps) {
         pictures.add(column);
@@ -631,4 +632,19 @@ export class McMatchupGrid {
       );
     }
   }
+}
+
+/**
+ * An axis name on one line, shrunk then clipped to fit. A custom pack's name that would lose its designer to the clip
+ * ("The Rose (by PermaKarma)" in a phone's narrow band) goes on two lines instead, the name over "(by PermaKarma)",
+ * so the credit telling it from official content stays in sight (issue #937).
+ */
+function fitAxisLabel(text: Phaser.GameObjects.Text, width: number, size: number): void {
+  const name = text.text;
+  text.setWordWrapWidth(null);
+  fitText(text, width, size);
+  const lines = designerLines(name);
+  if (!lines || text.text === name) return;
+  text.setText(lines.join("\n"));
+  fitWrapped(text, width, 2, size);
 }

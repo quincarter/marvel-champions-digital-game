@@ -621,3 +621,13 @@ export function clampCursor(shape: GridShape, { row, column }: GridCursor): Grid
 /** How many whole rows the body shows, at least one: a page of the keyboard's Page Up and Page Down. */
 export const pageRows = (shape: GridShape): number =>
   Math.max(1, Math.floor(bodyOf(shape).height / shape.metrics.cell));
+
+/** "The Rose (by PermaKarma)": a custom pack's content tagged with its designer, so it never reads as an official card. */
+export const byDesigner = (name: string, designer: string | undefined): string =>
+  designer ? `${name} (by ${designer})` : name;
+
+/** `byDesigner` read back: "The Rose (by PermaKarma)" over two lines, the name above its credit; null with no credit. */
+export function designerLines(label: string): readonly [string, string] | null {
+  const credit = / (\(by [^)]+\))$/.exec(label);
+  return credit ? [label.slice(0, credit.index), credit[1]!] : null;
+}

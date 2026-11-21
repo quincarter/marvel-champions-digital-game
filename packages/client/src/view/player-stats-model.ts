@@ -18,7 +18,7 @@ import type { SaveMeta } from "../engine/game-storage.js";
 import { isPastGame } from "./past-games-model.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
 import { deckKeyOfPlayer, villainNameOf } from "./deck-insights.js";
-import { matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
+import { byDesigner, matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
 
 export interface StatsNames {
   readonly cardName: (cardId: string) => string | undefined;
@@ -1854,10 +1854,6 @@ function markSignature(view: HeroCardsView, names: StatsNames): HeroCardsView {
     })),
   };
 }
-
-/** "The Rose (by PermaKarma)": a custom pack's content tagged with its designer, so it never reads as an official card. */
-export const byDesigner = (name: string, designer: string | undefined): string =>
-  designer ? `${name} (by ${designer})` : name;
 
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);

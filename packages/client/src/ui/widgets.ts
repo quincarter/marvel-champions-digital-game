@@ -1736,15 +1736,15 @@ export class McStatBadge {
 
     // The printed star beside the stat (issue #766), on the right shoulder beside the number, where the card prints it:
     // the bonus chip owns the upper right, and on a card the upper left lies over the stat above's consequential damage
-    // icon (issue #935). White with an ink edge, as the card prints it.
+    // icon (issue #935). With a bonus chip, which reaches down to the right shoulder on a small badge, the star moves
+    // into the chip, ahead of its "+1" (below), so the two never overlap. White with an ink edge, as the card prints it.
     this.#star.clear();
-    if (star) {
-      const points = starPoints(Math.max(5, size * 0.2)).map(
-        (point) => new Phaser.Math.Vector2(point.x + radius * 0.95, point.y + radius * 0.05),
-      );
+    const drawStar = (radiusOf: number, x: number, y: number): void => {
+      const points = starPoints(radiusOf).map((point) => new Phaser.Math.Vector2(point.x + x, point.y + y));
       this.#star.fillStyle(surface.paper.hex, alpha).fillPoints(points, true);
       this.#star.lineStyle(1.5, surface.ink.hex, alpha).strokePoints(points, true, true);
-    }
+    };
+    if (star && bonus === 0) drawStar(Math.max(5, size * 0.2), radius * 0.95, radius * 0.05);
 
     const burst = Array.from({ length: BURST_POINTS * 2 }, (_unused, index) => {
       const reach = index % 2 === 0 ? radius : radius * BURST_INNER;
@@ -1785,8 +1785,11 @@ export class McStatBadge {
         .setText(signed)
         .setFontSize(Math.max(CAPTION_FLOOR, Math.round(size * 0.28)))
         .setColor(cssOf(surface.paper.hex, alpha));
-      const chipWidth = Math.ceil(this.#chipText.width) + 6;
       const chipHeight = Math.ceil(this.#chipText.height) + 2;
+      // A starred stat's star leads the chip ("★+1"), inside its box.
+      const starRadius = star ? Math.max(3, chipHeight * 0.34) : 0;
+      const starRoom = star ? starRadius * 2 + 2 : 0;
+      const chipWidth = Math.ceil(this.#chipText.width) + 6 + starRoom;
       // On the burst's upper-right shoulder, clear of the number (shifted down-left to make room): a +1 chip that
       // covered the figure it modifies hid the very number the player reads.
       const chipX = radius * 0.92;
@@ -1797,7 +1800,8 @@ export class McStatBadge {
       this.#chip
         .lineStyle(1.5, surface.paper.hex, alpha)
         .strokeRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
-      this.#chipText.setPosition(chipX, chipY);
+      this.#chipText.setPosition(chipX + starRoom / 2, chipY);
+      if (star) drawStar(starRadius, chipX - chipWidth / 2 + 3 + starRadius, chipY);
     }
   }
 
