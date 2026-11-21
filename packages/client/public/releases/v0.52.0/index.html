@@ -684,7 +684,7 @@
       <!-- ============ WINDOWS ============ -->
       <div class="band gold">
         <h2>The Windows app opens again</h2>
-        <div class="lab">Issue #932 · PR #936</div>
+        <div class="lab">Issue #932 · PRs #936, #945</div>
       </div>
       <div class="pill feat">
         <div class="star">★</div>
@@ -719,6 +719,11 @@
               worker and paints its text the slower way instead, so you still reach the Title.
             </li>
             <li>It tries the worker again after the next game update or WebView2 update.</li>
+            <li>
+              If the Windows app's page ever crashes or hangs, the app reloads it by itself instead of leaving you on
+              "Can't open this page". If it crashes again within a minute, it opens in a safe mode without WebGL, and
+              after a third crash it stops trying. Safe mode lasts until you close the game.
+            </li>
           </ul>
         </div>
       </div>
@@ -869,7 +874,7 @@
       <!-- ============ FIXED ============ -->
       <div class="band">
         <h2>You asked, we fixed</h2>
-        <div class="lab">Issues #911, #933 · PRs #914, #934</div>
+        <div class="lab">Issues #911, #922, #933 · PRs #914, #927, #934</div>
       </div>
       <div class="pill feat">
         <div class="star">★</div>
@@ -931,6 +936,15 @@
           <p>Issue #933 from Dreadheart on Discord · PR #934</p>
         </div>
         <div class="box">
+          <h3>Tucked cards pay</h3>
+          <p>
+            A card tucked under a card that lets you spend it, like Falcon's Resource Reserve, couldn't be picked when
+            you paid. It now shows in the payment strip beside your hand, tagged tucked, and Inspect offers
+            <b>Use as resource</b> for it.
+          </p>
+          <p>Issue #922 from @bluefireF5ran · PR #927</p>
+        </div>
+        <div class="box">
           <h3>Symbiotic Bond pays as Physical</h3>
           <p>
             Grasping Tendrils paid with Symbiotic Bond's wild resource already counted it as Physical, so the villain is
@@ -943,7 +957,7 @@
       <!-- ============ ALSO ============ -->
       <div class="band">
         <h2>Also in v0.52.0</h2>
-        <div class="lab">PRs #919, #930, #942</div>
+        <div class="lab">PRs #919, #927, #930, #942</div>
       </div>
       <div class="pill feat">
         <div class="star">★</div>
@@ -953,6 +967,10 @@
         <ul class="ck">
           <li>
             The website's Download stats page counts iPhone and iPad downloads, with its own tile and share (#941).
+          </li>
+          <li>
+            For pack makers: the Mod SDK can answer a card discarded from a hand by a card's ability, so one Response
+            can cover discards from a hand, a deck and play under one limit (#922).
           </li>
           <li>The README's download buttons point at v0.51.0.</li>
           <li>The stats Overview's keyboard test walks down to the lowest tile and back up to the record.</li>
@@ -974,6 +992,7 @@
             <p>
               Played a run of games and wrote it all up in <b>#911</b>: the choose-a-player cards, Hunting Down Heroes,
               Maria Hill's prompts, the aspect tip, the Random hero, Past games search and records that open their game.
+              Also reported the tucked cards that couldn't pay, <b>#922</b>.
             </p>
           </div>
           <div class="person wide">
