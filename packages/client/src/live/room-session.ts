@@ -651,11 +651,11 @@ export class RoomSession {
 
   /** Host: tells a proposer its proposal was applied (the engine worker's verdict); the room tells the proposer alone. */
   acceptProposal(to: string, base: number, pid?: number): void {
-    if (this.role !== "host") return;
+    if (!this.hosting) return;
     this.#say({
       ch: "game",
       kind: "proposal-accepted",
-      table: FIRST_TABLE,
+      table: this.hostedTable ?? FIRST_TABLE,
       to,
       base,
       ...(pid === undefined ? {} : { pid }),
