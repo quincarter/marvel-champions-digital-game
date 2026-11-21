@@ -64,8 +64,8 @@ export class WorkerCrashGuard {
   #leaveHooked = false;
   /** Starts so far on this page; the latest is the one a settle timer may clear. */
   #starts = 0;
-  /** The latest start has been given a job it hasn't answered yet. */
-  #working = false;
+  /** Jobs handed to the worker and not answered yet. */
+  #inFlight = 0;
 
   constructor(name: string, deps: GuardDeps | null = pageDeps()) {
     this.#key = KEY_PREFIX + name;
@@ -102,22 +102,34 @@ export class WorkerCrashGuard {
       this.#deps.onLeave(() => this.settled());
     }
     // Only this start's own timer may settle it (an earlier start's timer firing after a restart must not clear the
-    // restart's mark), and only while the worker has been given no work: a job in flight keeps the mark until the
-    // worker answers it, however long that takes.
+    // restart's mark), and only while the worker has no job out: a job in flight keeps the mark until it is answered.
     const start = ++this.#starts;
-    this.#working = false;
+    this.#inFlight = 0;
     this.#deps.setTimer(() => {
-      if (start === this.#starts && !this.#working) this.settled();
+      if (start === this.#starts && this.#inFlight === 0) this.settled();
     }, GUARD_SETTLE_MS);
   }
 
-  /** The worker was handed its first job of this start: from now on only its answer (or `pagehide`) clears the mark. */
-  working(): void {
-    this.#working = true;
+  /**
+   * `jobs` were handed to the worker. The mark is up for as long as any job is out, the first or the hundredth, so a
+   * crash while the worker works is remembered too (the settle timer may have cleared the mark of an idle start).
+   */
+  working(jobs = 1): void {
+    if (!this.#deps || this.#skipping !== false || jobs <= 0) return;
+    if (this.#inFlight === 0 && this.#read() !== STARTING) this.#write(STARTING);
+    this.#inFlight += jobs;
   }
 
-  /** The worker answered, stopped on terms the page saw, or the page outlived its start: no crash. */
+  /** The worker answered `jobs` (painted them or reported them failed): once none is out, the mark comes down. */
+  answered(jobs = 1): void {
+    if (this.#inFlight === 0) return this.settled();
+    this.#inFlight = Math.max(0, this.#inFlight - jobs);
+    if (this.#inFlight === 0) this.settled();
+  }
+
+  /** The worker stopped on terms the page saw (an error, terminated), the page was left, or it outlived its start. */
   settled(): void {
+    this.#inFlight = 0;
     if (this.#read() === STARTING) this.#remove();
   }
 
