@@ -359,7 +359,10 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     };
   }
   // `?screen=online`: Play online.
-  if (screen === "online") return { key: SCENES.online, data: {} };
+  // `&closed=host`: with the "room closed" notice over it (the guest of a room the host closed lands here).
+  if (screen === "online") {
+    return { key: SCENES.online, data: params.get("closed") === "host" ? { closedNotice: "closed-host" } : {} };
+  }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=mod-store&catalog=/packs/fixture.json&pack=fan-x`: the Mod Store, optionally on another catalog and open on a pack.

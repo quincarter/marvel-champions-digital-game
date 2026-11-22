@@ -24,6 +24,21 @@ export function coveredBottom(view: VisibleViewport): number {
 }
 
 /**
+ * The covered strip, from whichever source knows. The Android app drops the keyboard's insets so the WebView never
+ * shrinks (KeyboardOverlay.java, #537): the visual viewport then reports nothing, and the app tells the page the
+ * keyboard's height itself (native, CSS px; null when not the native shell or no report yet). A native report wins
+ * when there is one; the web and iOS read the visual viewport.
+ */
+export function coveredHeight(sources: {
+  readonly native: number | null;
+  readonly viewport: VisibleViewport | null;
+}): number {
+  const { native, viewport } = sources;
+  if (native !== null) return native >= KEYBOARD_MIN_PX ? Math.round(native) : 0;
+  return viewport ? coveredBottom(viewport) : 0;
+}
+
+/**
  * The chat panel while the keyboard is up: the code header and the Start strip give way, and the panel runs from `top`
  * (just under the tab strip) down to the last visible pixel, so the field and the newest lines sit right above the
  * keyboard.

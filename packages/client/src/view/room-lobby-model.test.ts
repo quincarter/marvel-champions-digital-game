@@ -8,6 +8,7 @@ import {
   cheatsOn,
   CHEATS_NOTE_KEY,
   connectionWords,
+  closedUnderPlayer,
   guestModRows,
   hostModRows,
   missingMods,
@@ -442,6 +443,23 @@ describe("build mismatch words", () => {
     expect(start("hostOlder")).toBe("room.start.holderNewer");
     expect(start("rules")).toBe("room.start.differentBuild");
     expect(en["room.start.versionMismatch"]).toBe("{name} needs to update.");
+  });
+});
+
+describe("closedUnderPlayer", () => {
+  it("sends a guest back to Play online for a closed room, but not for a finished game or a live one", () => {
+    expect(closedUnderPlayer("closed-host")).toBe(true);
+    expect(closedUnderPlayer("closed-idle")).toBe(true);
+    expect(closedUnderPlayer("closed-disabled")).toBe(true);
+    expect(closedUnderPlayer("closed-ended")).toBe(false);
+    expect(closedUnderPlayer("unavailable")).toBe(false);
+    expect(closedUnderPlayer(null)).toBe(false);
+  });
+  it("has words for the notice in both languages", () => {
+    for (const key of ["room.closedNotice.title", "room.closedNotice.ok"] as const) {
+      expect(en[key]).toBeTruthy();
+      expect(es[key]).toBeTruthy();
+    }
   });
 });
 
