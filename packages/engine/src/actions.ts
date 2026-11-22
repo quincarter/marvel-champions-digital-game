@@ -1746,6 +1746,12 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
 
 /** Most payment options one resource ability offers for the different cards its cost could pick (a cap, not a rule). */
 const MAX_PICK_OPTIONS = 20;
+/**
+ * Every subset is offered while there are at most this many candidates (2^6 = 64 options): the payment sheet builds an
+ * "any number" pick one card at a time (issue #966, Enhanced Combat Sense), and a set the cap left out could not be
+ * reached from the cards picked so far.
+ */
+const ALL_SUBSETS_UP_TO = 6;
 
 /** Every way to choose `size` of `ids`, in order. */
 function* combinations<T>(ids: readonly T[], size: number, from = 0): Generator<readonly T[]> {
@@ -1791,9 +1797,10 @@ function resourcePickChoices(
     // Weapon or Tech upgrades") can be paid in full and at every size between, however many candidates there are (#890
     // item 2, PR #903 review). Below the cap the list is what it was.
     const options: (readonly InstanceId[])[] = [];
-    for (let size = pick.min; size <= most && options.length < MAX_PICK_OPTIONS; size++) {
+    const cap = candidates.length <= ALL_SUBSETS_UP_TO ? 2 ** candidates.length : MAX_PICK_OPTIONS;
+    for (let size = pick.min; size <= most && options.length < cap; size++) {
       for (const ids of combinations(candidates, size)) {
-        if (options.length >= MAX_PICK_OPTIONS) break;
+        if (options.length >= cap) break;
         if (holdsSelf(ids)) options.push(ids);
       }
     }

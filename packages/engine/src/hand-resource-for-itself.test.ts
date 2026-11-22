@@ -143,6 +143,14 @@ describe("a resource ability in hand that pays for its own card (#890 item 2)", 
         .map((o) => (o.optionId.split("exhausted=")[1] ?? "").split(/[;#]/)[0]!.split(",").filter(Boolean).length),
     );
     for (const size of [1, 2, 3, 4, 5, 6]) expect(sizes.has(size), `a ${size}-upgrade option`).toBe(true);
+    // Every one of the 63 sets is offered (issue #966): the payment sheet builds the pick one upgrade at a time, so a set
+    // the cap left out (the last three upgrades, say) could not be reached from the ones already picked.
+    const sets = new Set(
+      paymentOptions(createCtx(state, deps), P1, null, s.sense)
+        .filter((o) => o.optionId.includes(SENSE_RESOURCE.ref.id))
+        .map((o) => (o.optionId.split("exhausted=")[1] ?? "").split(/[;#]/)[0]!),
+    );
+    expect([...sets].filter(Boolean)).toHaveLength(63);
     const legal = legalActions(state, P1, deps);
     if (legal.kind !== "turn") throw new Error("expected a turn");
     const entry = legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === s.sense);

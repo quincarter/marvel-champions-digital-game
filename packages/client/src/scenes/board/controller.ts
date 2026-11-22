@@ -473,7 +473,10 @@ export class BoardController {
       return focusOrder(
         {
           kind: "paying",
-          sources: this.#selection.payment.query.sources.flatMap((source, _, all) => sourceCardsOf(source, all)),
+          // Each card once: an upgrade a multi-pick ability could exhaust is in many of its options (#966).
+          sources: [
+            ...new Set(this.#selection.payment.query.sources.flatMap((source, _, all) => sourceCardsOf(source, all))),
+          ],
           ...(this.#selection.payment.xRange ? { x: true as const } : {}),
         },
         marks,

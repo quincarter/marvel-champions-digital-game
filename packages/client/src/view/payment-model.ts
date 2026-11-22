@@ -639,7 +639,7 @@ export function pickGroupTiles(state: GameState, payment: PaymentState): readonl
         onTop: false,
         underSubject: null,
         orderNote: null,
-        lockedReason: reachable ? null : "can't exhaust that set of cards",
+        lockedReason: reachable ? null : "not offered with the cards picked so far",
         exhaustFor: ways[0]!.instanceId,
       };
     });
