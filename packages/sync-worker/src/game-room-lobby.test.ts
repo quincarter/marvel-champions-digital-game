@@ -2082,3 +2082,134 @@ describe("host activity", () => {
     expect(parseClientMessage(JSON.stringify({ ...msg, step: "table", scenario: 4 }))).toBeNull();
   });
 });
+
+describe("villain pacing and the host's villain cursor", () => {
+  const cursor = (r: GameRoomLogic, s: RoomSocket, at: number, state = "playing", key = "2", table = "t1") =>
+    r.message(s, JSON.stringify({ v: 1, ch: "room", kind: "villain-cursor", table, key, at, state }));
+
+  it("holds Villain phase pacing: the host leads by default, host-only to set, shown to everyone", async () => {
+    const { room, host, join, lobbySet } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.villainPacing).toBe("host");
+    await lobbySet(w, { settings: { villainPacing: "each" } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { villainPacing: "each" } });
+    expect(h.refusals).toEqual([]);
+    expect(w.last("lobby")!.settings.villainPacing).toBe("each");
+    await lobbySet(h, { settings: { chat: false } });
+    expect(w.last("lobby")!.settings.villainPacing).toBe("each");
+    await lobbySet(h, { settings: { villainPacing: "host" } });
+    expect(w.last("lobby")!.settings.villainPacing).toBe("host");
+  });
+
+  it("refuses a pacing that is not one of the two", () => {
+    const send = (villainPacing: unknown) =>
+      parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "lobby-set", settings: { villainPacing } }));
+    expect(send("host")).not.toBeNull();
+    expect(send("each")).not.toBeNull();
+    expect(send("fast")).toBeNull();
+    expect(send(1)).toBeNull();
+  });
+
+  it("validates a cursor message's shape", () => {
+    const parse = (extra: object) =>
+      parseClientMessage(
+        JSON.stringify({
+          v: 1,
+          ch: "room",
+          kind: "villain-cursor",
+          table: "t1",
+          key: "2",
+          at: 3,
+          state: "playing",
+          ...extra,
+        }),
+      );
+    expect(parse({})).not.toBeNull();
+    expect(parse({ state: "none" })).toBeNull();
+    expect(parse({ at: -1 })).toBeNull();
+    expect(parse({ at: 1.5 })).toBeNull();
+    expect(parse({ at: 100_000 })).toBeNull();
+    expect(parse({ key: "" })).toBeNull();
+    expect(parse({ key: "k".repeat(25) })).toBeNull();
+    expect(parse({ table: "bad table" })).toBeNull();
+  });
+
+  it("relays the host's cursor to guests (not back to the host), and to a joiner afterwards", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await cursor(room, h, 3);
+    expect(a.last("villain-cursor")).toEqual({
+      v: 1,
+      ch: "room",
+      kind: "villain-cursor",
+      table: "t1",
+      key: "2",
+      at: 3,
+      state: "playing",
+    });
+    expect(h.of("villain-cursor")).toHaveLength(0);
+    const late = await join(room, { name: "Late" });
+    expect(late.last("villain-cursor")).toMatchObject({ key: "2", at: 3, state: "playing" });
+  });
+
+  it("is the table host's alone: refused for a guest, and for a host naming another table", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    const b = await join(room, { name: "B" });
+    await cursor(room, a, 1);
+    expect(a.refusals).toEqual(["not-allowed"]);
+    await cursor(room, h, 1, "playing", "2", "t2");
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(b.of("villain-cursor")).toHaveLength(0);
+  });
+
+  it("stores nothing and leaves the lobby revision alone; an unchanged cursor is not relayed again", async () => {
+    const { room, host, join, storage } = await setup();
+    const h = await host();
+    const a = await join(room);
+    const rev = a.last("lobby")!.rev;
+    const before = JSON.stringify([...storage.map.entries()]);
+    await cursor(room, h, 1);
+    await cursor(room, h, 1);
+    await cursor(room, h, 2);
+    expect(a.of("villain-cursor").map((m) => m.at)).toEqual([1, 2]);
+    expect(JSON.stringify([...storage.map.entries()])).toBe(before);
+    expect(a.of("lobby").every((l) => l.rev === rev)).toBe(true);
+  });
+
+  it("relays the newest over-limit cursor once a token frees, and never refuses the host for it", async () => {
+    vi.useFakeTimers();
+    try {
+      const { room, host, join, clock } = await setup();
+      const h = await host();
+      const a = await join(room);
+      for (let at = 1; at <= 20; at++) await cursor(room, h, at);
+      expect(a.of("villain-cursor").length).toBeLessThan(20);
+      expect(a.last("villain-cursor")!.at).toBeLessThan(20);
+      expect(h.refusals).toEqual([]);
+      clock.now += 2_000;
+      await vi.advanceTimersByTimeAsync(600);
+      expect(a.last("villain-cursor")!.at).toBe(20);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the cursor when the game is started over or rewound", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await cursor(room, h, 4);
+    await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "start", table: "t1", header: {} }));
+    expect(a.last("villain-cursor")).toMatchObject({ state: "none" });
+    const late = await join(room, { name: "Late" });
+    expect(late.of("villain-cursor")).toHaveLength(0);
+    await cursor(room, h, 5, "closed");
+    await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "rewind", table: "t1", to: 0 }));
+    expect(a.last("villain-cursor")).toMatchObject({ state: "none" });
+  });
+});

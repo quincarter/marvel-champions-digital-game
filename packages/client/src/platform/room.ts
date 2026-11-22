@@ -9,7 +9,7 @@
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
 import type { EngineHost, SessionConfig } from "../engine/host.js";
-import type { HostActivityStep } from "@mc/sync-worker/room-protocol";
+import type { HostActivityStep, VillainCursorState } from "@mc/sync-worker/room-protocol";
 import type { MessageKey } from "../i18n/translate.js";
 import { currentScenarios } from "../content/pool.js";
 import { loadedPacks } from "../packs/pack-registry.js";
@@ -61,6 +61,7 @@ import {
   type SealedScenarios,
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
+import { cursorToSend } from "../view/villain-pacing.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
@@ -164,6 +165,8 @@ function trackPlay(next: RoomState): void {
 let lastActivity: { readonly step: HostActivityStep; readonly scenario?: string } | null = null;
 /** A dropped socket cleared the room's copy of it: it is sent again once the room is back. */
 let resendActivity = false;
+/** The last villain phase cursor sent to the room (host only), forgotten on leaving it, and sent again after a drop. */
+let lastCursor: { readonly key: string; readonly at: number; readonly state: VillainCursorState } | null = null;
 
 function publish(next: RoomState): void {
   state = next;
@@ -176,6 +179,7 @@ function publish(next: RoomState): void {
   ) {
     lastActivity = null;
     resendActivity = false;
+    lastCursor = null;
   } else if (next.connection === "reconnecting") resendActivity = true;
   else if (next.connection === "connected" && resendActivity) {
     resendActivity = false;
@@ -183,6 +187,7 @@ function publish(next: RoomState): void {
       const { step, scenario } = lastActivity;
       postRoomCommand({ kind: "room-activity", step, ...(scenario ? { scenario } : {}) });
     }
+    if (next.role === "host" && lastCursor) postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
   for (const listener of [...listeners]) listener(state);
@@ -438,6 +443,19 @@ export function reportHostActivity(step: HostActivityStep, scenario?: string): v
   if (lastActivity && lastActivity.step === step && lastActivity.scenario === scenario) return;
   const sent = postRoomCommand({ kind: "room-activity", step, ...(scenario ? { scenario } : {}) });
   if (sent) lastActivity = { step, ...(scenario ? { scenario } : {}) };
+}
+
+/**
+ * Host only: where this device's villain phase screen is (`key` names the phase, `at` the beats shown), so the guests'
+ * screens can follow it when the lobby says the host leads. Does nothing unless this device hosts a room. The room keeps
+ * it in memory only and rate limits it; the same cursor as the last one sent is not sent again, unless `again` (a
+ * heartbeat, for a room that woke and forgot).
+ */
+export function reportVillainCursor(key: string, at: number, phase: VillainCursorState, again = false): void {
+  if (state.role !== "host" || state.connection === "idle") return;
+  if (!again && cursorToSend(lastCursor, { key, at, state: phase }) === null) return;
+  const sent = postRoomCommand({ kind: "room-villain-cursor", key, at, state: phase });
+  if (sent) lastCursor = { key, at, state: phase };
 }
 
 /** A scenario's printed name for the status line, or undefined when it is not in the pool. */

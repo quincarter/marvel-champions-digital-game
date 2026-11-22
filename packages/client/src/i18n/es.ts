@@ -644,6 +644,23 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.handover.title": "El anfitrión puede tomar o ceder un héroe",
   "room.handover.detail":
     "Cuando alguien se va, el anfitrión puede jugar su héroe o dárselo a otra persona. Desactivado: la partida lo espera.",
+  "room.villain.title": "Fase del villano en las pantallas de los invitados",
+  "room.villain.host": "Guía el anfitrión",
+  "room.villain.hostDetail":
+    "La pantalla de la fase del villano de un invitado sigue la del anfitrión: muestra cada paso cuando el anfitrión lo revela y se cierra cuando él la cierra. Una decisión para el héroe de un invitado le llega de inmediato.",
+  "room.villain.each": "Cada jugador a su ritmo",
+  "room.villain.eachDetail":
+    "Cada jugador repasa la fase del villano en su propio dispositivo. Nada de lo que pulse adelanta la partida.",
+  "villain.backToTable": "Volver a la mesa",
+  "villain.follow.waitTitle": "Esperando al anfitrión",
+  "villain.follow.waitText":
+    "El anfitrión inicia la fase del villano. Tu pantalla sigue la suya, y una decisión para tu héroe aparece de inmediato.",
+  "villain.follow.subtitle": "Siguiendo al anfitrión · Omitir para ver la mesa.",
+  "villain.follow.footerTitle": "Guía el anfitrión",
+  "villain.follow.footerLine": "Tu pantalla sigue la del anfitrión.",
+  "villain.follow.recapNote": "El anfitrión inicia la fase de los jugadores. Esto se cierra cuando él lo haga.",
+  "villain.guest.recapNote":
+    "Este resumen sigue abierto hasta que vuelvas a la mesa. El anfitrión inicia la fase de los jugadores.",
   "room.refusal.handoverOff": "El anfitrión desactivó tomar y ceder héroes.",
   "seat.refusal.handoverOff": "El anfitrión desactivó tomar y ceder héroes.",
   "room.refusal.notAway": "Quien ocupa ese asiento sigue aquí.",
