@@ -18,12 +18,14 @@
  */
 import Phaser from "phaser";
 import { t } from "../i18n/translate.js";
-import { CARDS_BY_ID, POOL_CARDS, POOL_SCENARIOS } from "../content/pool.js";
-import { artFor } from "../art/art-source.js";
+import { currentCardsById, currentScenarios } from "../content/pool.js";
+import { loadedPacks } from "../packs/pack-registry.js";
+import { onArtChange } from "../language-change.js";
+import { artFor, type ArtSource } from "../art/art-source.js";
+import type { AnyCard } from "@mc/content";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { cardFaces } from "../art/card-face-baker.js";
-import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
+import { heroFocusOf, heroPictureOf, villainPictureOf } from "../art/matchup-pictures.js";
 import { accent, ink, signal, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawPicture, drawTopBar } from "../ui/campaign-chrome.js";
 import { TITLE_ART, pickTitleArtFor, titleArtSizeOf, type TitleArt } from "../art/title-art.js";
@@ -240,10 +242,26 @@ interface StatsChip {
   width?: number;
 }
 
-/** Each hero's picture by identity, kept while the app runs. */
-const heroPictures = new Map<string, string | null>();
-/** The scenarios by id: a Matchups row's picture hovers as that scenario's card (`scenarioCardIdOf`). */
-const SCENARIOS_BY_ID = new Map<string, (typeof POOL_SCENARIOS)[number]>(POOL_SCENARIOS.map((s) => [s.id, s]));
+/** A scenario by id: the pool's or an installed pack's. A Matchups row's picture hovers as its card (`scenarioCardIdOf`). */
+const scenarioById = (id: string) => currentScenarios().find((scenario) => (scenario.id as string) === id);
+/**
+ * A hero's picture: its artwork, else its card's scan; a Mod Store hero's from its installed pack (#966), the way Past
+ * games shows one (`art/matchup-pictures.ts`).
+ */
+const heroPicture = (identityId: string): string | null => heroPictureOf(identityId, loadedPacks());
+/**
+ * The picture a stats row draws for a card. A hero identity shows its hero side: a separated identity (SP//dr Suit) has
+ * no front scan of its own, only its sides' (#966).
+ */
+const statCardArt = (card: AnyCard | undefined): ArtSource | null =>
+  card?.type === "hero_identity"
+    ? (artFor(card, { kind: "hero" }) ?? artFor(card, { kind: "front" }))
+    : artFor(card, { kind: "front" });
+/** A scenario's villain picture, a custom scenario's from its installed pack (#966). */
+function villainPicture(scenarioId: string): string | null {
+  const scenario = scenarioById(scenarioId);
+  return villainPictureOf(scenarioId, scenario ? scenarioCardIdOf(scenario) : null, loadedPacks());
+}
 /** The Focus view's list of rows, and the screen width it needs beside the tiles; narrower, a stepper takes its place. */
 const SIDE_LIST_WIDTH = 240;
 const SIDE_LIST_MIN_SCREEN = 720;
@@ -354,6 +372,8 @@ export class PlayerStatsScene extends Phaser.Scene {
     this.#offArt = [
       cardArt(this).onArrived(redraw),
       cardFaces(this).onBaked(redraw),
+      // A Mod Store hero's or villain's picture is read from its pack a moment after the first ask (#966).
+      onArtChange(redraw),
       // Older games being filled in (#529): the Overview says how far it has got, and the stats reload when it ends.
       onBackfillProgress((progress) => {
         if (progress.running) redraw();
@@ -554,7 +574,7 @@ export class PlayerStatsScene extends Phaser.Scene {
           note(cardId, `${index}:${tile.column}`, tilePictureRect(box, false), view);
         }
       }
-      if (row.kind === "stat" && row.row.cardId && CARDS_BY_ID.has(row.row.cardId)) {
+      if (row.kind === "stat" && row.row.cardId && currentCardsById().has(row.row.cardId)) {
         const shown = clipHoverRect(statRowPicture(statBox(r)), view);
         if (shown) found.set(hoverSlotOf(row.row.cardId, index), { ...shown, cardId: row.row.cardId, through: true });
       }
@@ -732,7 +752,7 @@ export class PlayerStatsScene extends Phaser.Scene {
 
   /** A card the stats name, opened in Inspect (A or Y on its picture or its row): the pad's way to read it large. */
   #inspectCard(cardId: string): void {
-    if (!CARDS_BY_ID.has(cardId)) return;
+    if (!currentCardsById().has(cardId)) return;
     this.scene.launch(SCENES.inspect, { card: { cardId, face: { kind: "front" } } });
   }
 
@@ -849,19 +869,17 @@ export class PlayerStatsScene extends Phaser.Scene {
   /** A row's or a column's picture: rows are scenarios unless flipped, and a modular set has none. */
   #pictureOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
-    if (scenarios) return villainArtFor(ART_CATALOG, id, () => 0)?.url ?? null;
+    if (scenarios) return villainPicture(id);
     if (lastGrid !== "heroes") return null;
-    // Walks the whole pool, so once per hero.
-    if (!heroPictures.has(id)) heroPictures.set(id, heroArtForIdentity(HERO_ART, id, POOL_CARDS, () => 0)?.url ?? null);
-    return heroPictures.get(id) ?? null;
+    return heroPicture(id);
   }
 
   /** The card a row's or a column's picture stands for, for the hover: the axes read as in `#pictureOf`. */
   #cardOf(axis: "row" | "column", id: string): string | null {
     const scenarios = (axis === "row") !== gridFlipped;
-    const scenario = scenarios ? SCENARIOS_BY_ID.get(id) : undefined;
+    const scenario = scenarios ? scenarioById(id) : undefined;
     const cardId = scenario ? scenarioCardIdOf(scenario) : !scenarios && lastGrid === "heroes" ? id : null;
-    return cardId && CARDS_BY_ID.has(cardId) ? cardId : null;
+    return cardId && currentCardsById().has(cardId) ? cardId : null;
   }
 
   /** Opens the Focus view on `row`. */
@@ -1679,7 +1697,7 @@ export class PlayerStatsScene extends Phaser.Scene {
           const frame = this.add.graphics();
           frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
           objects.push(frame);
-          const key = cardArt(this).request(this, artFor(CARDS_BY_ID.get(card.cardId), { kind: "front" }));
+          const key = cardArt(this).request(this, statCardArt(currentCardsById().get(card.cardId)));
           const art = drawArt(this, key, pic);
           if (art) objects.push(art);
           else {
@@ -1687,7 +1705,7 @@ export class PlayerStatsScene extends Phaser.Scene {
               .text(
                 pic.x + 6,
                 pic.y + 6,
-                CARDS_BY_ID.get(card.cardId)?.name ?? card.cardId,
+                currentCardsById().get(card.cardId)?.name ?? card.cardId,
                 textStyle(typeRole.label, surface.ink.hex, 1),
               )
               .setWordWrapWidth(pic.width - 12);
@@ -1722,11 +1740,11 @@ export class PlayerStatsScene extends Phaser.Scene {
     const objects: Phaser.GameObjects.GameObject[] = [g];
     // A row about a card leads with its picture (the hover popover shows it large).
     let left = box.x + 12;
-    const card = row.cardId ? CARDS_BY_ID.get(row.cardId) : undefined;
+    const card = row.cardId ? currentCardsById().get(row.cardId) : undefined;
     if (card) {
       const pic = statRowPicture(box);
       g.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-      const art = drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+      const art = drawArt(this, cardArt(this).request(this, statCardArt(card)), pic);
       if (art) objects.push(art);
       left = pic.x + pic.width + 10;
     }
@@ -1805,9 +1823,17 @@ export class PlayerStatsScene extends Phaser.Scene {
     big: (text: string, x: number, y: number, size: number, width: number) => Phaser.GameObjects.Text,
     body: (text: string, x: number, y: number, width: number, lines?: number) => Phaser.GameObjects.Text,
   ): void {
-    const art = "hero" in tile.art ? heroArtForIdentity(HERO_ART, tile.art.hero, POOL_CARDS, () => 0) : null;
+    const hero = "hero" in tile.art ? tile.art.hero : null;
     const pictureRect: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
-    objects.push(renderArtThumb(this, pictureRect, art?.url ?? null, 0.2, art?.focus));
+    objects.push(
+      renderArtThumb(
+        this,
+        pictureRect,
+        hero ? heroPicture(hero) : null,
+        0.2,
+        (hero ? heroFocusOf(hero) : null) ?? undefined,
+      ),
+    );
     const pad = 18;
     const inner = box.width - pad * 2;
     // Measured from the foot up: the extra line, the detail, the name, the caption.
@@ -1965,10 +1991,7 @@ export class PlayerStatsScene extends Phaser.Scene {
         const pictureRect: Rect = wide
           ? { x: box.x + 2, y: box.y + 2, width: Math.round(box.width * (phone ? 0.34 : 0.4)), height: box.height - 4 }
           : { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: Math.round(box.height * 0.45) };
-        const url =
-          "hero" in tile.art
-            ? (heroArtForIdentity(HERO_ART, tile.art.hero, POOL_CARDS, () => 0)?.url ?? null)
-            : (villainArtFor(ART_CATALOG, tile.art.scenario, () => 0)?.url ?? null);
+        const url = "hero" in tile.art ? heroPicture(tile.art.hero) : villainPicture(tile.art.scenario);
         objects.push(renderArtThumb(this, pictureRect, url, 0.2));
         const tx = wide ? pictureRect.x + pictureRect.width + pad : box.x + pad;
         const ty = wide ? box.y + pad : pictureRect.y + pictureRect.height + 8;
