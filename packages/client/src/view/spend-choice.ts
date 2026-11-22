@@ -9,10 +9,15 @@
  * picks in its own terms: the hand card's option plus an `exhaust:` tile per card. `spendAnswerOf` turns those picks
  * back into the engine's option ids, the only thing ever sent. A hand card can be spent only once, so picking one way
  * of spending it drops any other (issue #279 again: the engine refuses both, and here that silently played nothing).
+ *
+ * A resource ability (not a hand card) whose cost exhausts any number of cards, one engine option per subset (Enhanced
+ * Combat Sense and its Weapon/Tech upgrades, issue #966), gets the same: a `pick:` tile per card, toggled one by one, and
+ * `spendAnswerOf` sends the one option exhausting exactly the tiles picked (none picked, none sent).
  */
 import type { ChoiceOption, InstanceId, PendingChoice } from "@mc/engine";
 
 const EXHAUST_TILE = "exhaust:";
+const PICK_TILE = "pick:";
 const SPEND_PROMPTS: ReadonlySet<string> = new Set(["spendResources", "payForCard", "payForAbility"]);
 
 export const isSpendChoice = (choice: Pick<PendingChoice, "prompt">): boolean => SPEND_PROMPTS.has(choice.prompt.kind);
@@ -82,12 +87,96 @@ function assignedTiles(
   return rest.length === 0 ? assigned : null;
 }
 
+/** The option id without the cards its own cost picks ("@<slot>=<id>,..."): what is common to one ability's options. */
+const baseOf = (optionId: string): string => optionId.split("@")[0]!;
+
+/** The cards a resource ability's option exhausts: its one "@<slot>=<id>,<id>" part; none with an amount to choose. */
+function abilityPicksOf(optionId: string): readonly InstanceId[] {
+  const at = optionId.indexOf("@");
+  if (at < 0 || !optionId.startsWith("ability:")) return [];
+  const parts = optionId.slice(at + 1).split(";");
+  const [part] = parts;
+  if (parts.length !== 1 || !part || part.startsWith("#")) return [];
+  return part
+    .slice(part.indexOf("=") + 1)
+    .split(",")
+    .filter(Boolean) as InstanceId[];
+}
+
+const groupWays = (choice: Pick<PendingChoice, "options">, base: string): readonly ChoiceOption[] =>
+  choice.options.filter((option) => baseOf(option.optionId) === base && abilityPicksOf(option.optionId).length > 0);
+
+/**
+ * The bases of resource abilities whose options pick any number of cards (one option picks two or more) where each card
+ * can be exhausted alone. A fixed-set cost (`exhaustEachCost`) has no one-card option, so a tile per card could never
+ * build a payable set: it keeps its option tiles. Same test as the pay bar's `pickGroupBases`.
+ */
+function pickGroupBasesOf(choice: Pick<PendingChoice, "options">): readonly string[] {
+  const bases = new Set(
+    choice.options.filter((option) => abilityPicksOf(option.optionId).length >= 2).map((o) => baseOf(o.optionId)),
+  );
+  return [...bases].filter((base) => {
+    const ways = groupWays(choice, base);
+    const alone = new Set(
+      ways.filter((way) => abilityPicksOf(way.optionId).length === 1).map((way) => abilityPicksOf(way.optionId)[0]!),
+    );
+    return ways.flatMap((way) => abilityPicksOf(way.optionId)).every((card) => alone.has(card));
+  });
+}
+
+const pickTileId = (base: string, candidate: InstanceId): string => `${PICK_TILE}${candidate}@${base}`;
+function parsePickTile(id: string): { readonly base: string; readonly candidate: InstanceId } | null {
+  if (!id.startsWith(PICK_TILE)) return null;
+  const at = id.indexOf("@");
+  return at < 0 ? null : { candidate: id.slice(PICK_TILE.length, at) as InstanceId, base: id.slice(at + 1) };
+}
+
+/** The cards of a group's tiles among the picks. */
+const pickedOfGroup = (picks: readonly string[], base: string): readonly InstanceId[] =>
+  picks.flatMap((pick) => {
+    const tile = parsePickTile(pick);
+    return tile && tile.base === base ? [tile.candidate] : [];
+  });
+
+/** The one option of a group exhausting exactly `set`, or undefined. */
+const groupWayFor = (
+  choice: Pick<PendingChoice, "options">,
+  base: string,
+  set: readonly InstanceId[],
+): ChoiceOption | undefined =>
+  groupWays(choice, base).find((way) => setKey(abilityPicksOf(way.optionId)) === setKey(set));
+
+/** The choice with each pick group's subsets replaced by one tile per card, where the group's first subset stood. */
+function withPickGroups(choice: PendingChoice): PendingChoice {
+  const bases = pickGroupBasesOf(choice);
+  if (bases.length === 0) return choice;
+  const options = choice.options.flatMap((option): ChoiceOption[] => {
+    const base = baseOf(option.optionId);
+    if (!bases.includes(base) || abilityPicksOf(option.optionId).length === 0) return [option];
+    const ways = groupWays(choice, base);
+    if (ways[0] !== option) return [];
+    return [...new Set(ways.flatMap((way) => abilityPicksOf(way.optionId)))].map((candidate): ChoiceOption => {
+      const alone = groupWayFor(choice, base, [candidate]);
+      return {
+        optionId: pickTileId(base, candidate),
+        label: `Exhaust ${(alone && spendOptionNote(alone.label)) ?? "this card"}`,
+        ref: { kind: "card", instanceId: candidate },
+      };
+    });
+  });
+  return { ...choice, options, maxSelections: options.length };
+}
+
 /**
  * The choice the sheet draws: the engine's options, with the exhausting cards' sets replaced by one tile per card they
  * could exhaust, right after the first one's plain option. Every other option, and every other choice, is left as it is.
  */
 export function shownSpendChoice(choice: PendingChoice): PendingChoice {
   if (!isSpendChoice(choice)) return choice;
+  return withPickGroups(shownHandExhaust(choice));
+}
+
+function shownHandExhaust(choice: PendingChoice): PendingChoice {
   const [card] = exhaustersOf(choice);
   if (!card) return choice;
   const ways = choice.options.filter((option) => picksOf(option.optionId).length > 0);
@@ -114,6 +203,14 @@ export function shownSpendChoice(choice: PendingChoice): PendingChoice {
  * the cards back too, and a second way of spending a hand card replaces the first.
  */
 export function toggleSpendPick(choice: PendingChoice, picks: readonly string[], id: string): readonly string[] {
+  const group = parsePickTile(id);
+  if (group) {
+    if (picks.includes(id)) return picks.filter((pick) => pick !== id);
+    // A set no option exhausts (past what the ability allows) changes nothing.
+    return groupWayFor(choice, group.base, [...pickedOfGroup(picks, group.base), group.candidate])
+      ? [...picks, id]
+      : picks;
+  }
   if (isExhaustTile(id)) {
     if (picks.includes(id)) return picks.filter((pick) => pick !== id);
     const assigned = assignedTiles(choice, picks, [...picks.filter(isExhaustTile), id]);
@@ -140,14 +237,25 @@ export function spendAnswerOf(choice: PendingChoice, picks: readonly string[]): 
     const way = waysOf(choice, card).find((option) => setKey(picksOf(option.optionId)) === setKey(set));
     return way?.optionId ?? pick;
   };
-  return picks.filter((pick) => !isExhaustTile(pick)).map(wayOf);
+  const hand = picks.filter((pick) => !isExhaustTile(pick) && !parsePickTile(pick)).map(wayOf);
+  const groups = pickGroupBasesOf(choice).flatMap((base) => {
+    const set = pickedOfGroup(picks, base);
+    const way = set.length > 0 ? groupWayFor(choice, base, set) : undefined;
+    return way ? [way.optionId] : [];
+  });
+  return [...hand, ...groups];
 }
 
 /** For a tile, the option ids priced to read what exhausting that one card adds: the way alone, and its plain spending. */
 export function exhaustTileOptionsOf(
   choice: PendingChoice,
   tileId: string,
-): { readonly alone: string; readonly plain: string } | null {
+): { readonly alone: string; readonly plain: string | null } | null {
+  const group = parsePickTile(tileId);
+  if (group) {
+    const way = groupWayFor(choice, group.base, [group.candidate]);
+    return way ? { alone: way.optionId, plain: null } : null;
+  }
   if (!isExhaustTile(tileId)) return null;
   const candidate = candidateOf(tileId);
   const way = choice.options.find((option) => setKey(picksOf(option.optionId)) === candidate);
