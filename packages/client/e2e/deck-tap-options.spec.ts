@@ -353,7 +353,7 @@ test.describe("the deck's options (#958 review)", () => {
 
   test("sideways, a long-named illegal deck shows both notes and keeps every control on screen", async ({ page }) => {
     test.setTimeout(150_000);
-    await page.setViewportSize({ width: 667, height: 375 });
+    // Imported upright, where the paste field has room, then turned sideways.
     await openDecks(page);
     await tap(page, "Decks", "ie-paste-toggle");
     await tap(page, "Decks", "paste-field");
@@ -367,6 +367,8 @@ test.describe("the deck's options (#958 review)", () => {
       async () => (await decks(page)).find((deck) => deck.source === "imported" && deck.selected) ?? null,
       "the imported deck",
     );
+    await page.setViewportSize({ width: 667, height: 375 });
+    await settle(page);
     await openOptions(page, illegal.id);
     await tap(page, SHEET, "action:delete");
     await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
