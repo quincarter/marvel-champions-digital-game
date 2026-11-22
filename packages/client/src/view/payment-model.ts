@@ -25,6 +25,7 @@ import {
   minimumChosenX,
   paymentFor,
   playCostOf,
+  searchFindableIfSpent,
   type ActionRef,
   type Command,
   type CostChoices,
@@ -76,6 +77,13 @@ export interface PaymentState {
   readonly destinationNote?: string;
   /** A basic thwart the player chose to make with ATK (The Red House, `view/thwart-stat-choice.ts`), sent with the payment. */
   readonly useAtk?: true;
+  /**
+   * The cards in hand the card's own search (Dynamic Duo: "Search your deck and discard pile for a Team-Up card") would
+   * find only once spent to pay, when it finds nothing as things stand (`searchFindableIfSpent`, issue #966). A card
+   * paid for is discarded before its effect resolves (RRG 1.8 "Event", p. 18; play sequence, p. 24), so the search then
+   * finds it; the bar says so. Absent when the search finds something already, or the card has none.
+   */
+  readonly searchFindable?: readonly InstanceId[];
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
@@ -208,6 +216,8 @@ export interface PaymentView {
    * as a bare reduction.
    */
   readonly priceNote: string | null;
+  /** The card's search finds nothing unless a card in hand is spent to pay (`searchNoteOf`, issue #966). */
+  readonly searchNote: string | null;
   /** Typed requirements still outstanding, e.g. "1 energy". Empty when only generic is left. */
   readonly outstanding: readonly string[];
   /**
@@ -352,10 +362,58 @@ export function beginPayment(
     ...(abilityId ? { abilityId } : {}),
     ...(into !== undefined ? { into } : {}),
     ...(range ? { x: least, xRange: range } : {}),
+    ...searchFindableOf(state, deps, playerId, action, abilityId, query),
     query,
     picked: [],
     reductions: [],
   };
+}
+
+function searchFindableOf(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: ActionRef,
+  abilityId: AbilityId | undefined,
+  query: PaymentQuery,
+): { readonly searchFindable?: readonly InstanceId[] } {
+  if (action.kind !== "playCard") return {};
+  let answer: ReturnType<typeof searchFindableIfSpent>;
+  try {
+    answer = searchFindableIfSpent(state, deps, playerId, action.instanceId, abilityId);
+  } catch {
+    // Only a hint: a search the query cannot read here (a filter that reads a choice made during the effect) must
+    // never stop the payment opening.
+    return {};
+  }
+  // Only cards the payment can spend: a card the cost already claims, or one the payment does not offer, has no tile.
+  const offered = new Set(query.sources.flatMap((source) => spentHandCardOf(source) ?? []));
+  const findable = answer.findableIfSpent.filter((id) => offered.has(id));
+  return answer.found || findable.length === 0 ? {} : { searchFindable: findable };
+}
+
+/** The hand card a source spends: a plain hand card, or one spent through its own ability ("When you spend this card"). */
+const spentHandCardOf = (source: PaymentSource): InstanceId | null =>
+  source.kind === "handCard" || (source.kind === "resourceAbility" && source.spendsHandCard) ? source.instanceId : null;
+
+/**
+ * "Swarm Tactics is in your hand: pay with it so Dynamic Duo can find it" (issue #966), while no card the search would
+ * find is picked to pay. Null once one is, or when the play has no such search.
+ */
+export function searchNoteOf(state: GameState, payment: PaymentState): string | null {
+  const findable = payment.searchFindable;
+  if (!findable || findable.length === 0 || payment.action.kind !== "playCard") return null;
+  const pickedCards = new Set(
+    payment.query.sources
+      .filter((source) => payment.picked.includes(source.optionId))
+      .flatMap((source) => spentHandCardOf(source) ?? []),
+  );
+  if (findable.some((id) => pickedCards.has(id))) return null;
+  const names = [...new Set(findable.map((id) => cardName(state, id)))];
+  const subject = cardName(state, payment.action.instanceId);
+  if (names.length === 1) return `${names[0]} is in your hand: pay with it so ${subject} can find it`;
+  const listed = names.length === 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+  return `${listed} are in your hand: pay with one so ${subject} can find it`;
 }
 
 /** True for a play of a card printed with an X cost (`specialCost: "X"`), whose X the player names in the pay step. */
@@ -815,6 +873,7 @@ export function paymentView(
     priceNote:
       payment.destinationNote ??
       (subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null),
+    searchNote: searchNoteOf(state, payment),
     outstanding: outstandingTypes({ ...query, requirement }, picked, byOption),
     spendable,
     spent,
