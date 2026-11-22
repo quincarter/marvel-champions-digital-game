@@ -496,6 +496,8 @@ export const en = {
   "room.mods.missing": "Missing at this version. Get it in the Mod Store.",
   "room.multi.title": "Several seats per person",
   "room.multi.detail": "One person may play more than one hero.",
+  "room.askToSit.title": "Ask the host to sit at the table",
+  "room.askToSit.detail": "Guests ask for a seat and you approve them. Off: guests take an open seat themselves.",
   "room.listed.title": "List this room in Live now",
   "room.listed.detail":
     "Anyone can see the room's name, mode, scenario and seats, and join to watch or ask for a seat. The code stays the way in, and anyone who saw it can still use it after you unlist.",
