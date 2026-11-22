@@ -52,7 +52,13 @@ async function installFromPage(page: Page, packId: string): Promise<void> {
     await settle(page);
   }
   await clickText(page, "INSTALL (", { sceneKey: "ModStore", timeoutMs: 30_000 });
-  await waitForTextIn(page, "REMOVE", 90_000);
+  // Text matching ignores case, and a pack's description may say "remove": wait for the Install button to go instead,
+  // so the next page load never cuts an install short.
+  await waitFor(
+    async () => (!(await has(page, "INSTALL (")) && (await has(page, "REMOVE")) ? true : null),
+    `${packId} installs`,
+    90_000,
+  );
 }
 
 interface Setup {
