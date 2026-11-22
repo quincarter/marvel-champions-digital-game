@@ -66,6 +66,7 @@ import sentinelCover from "../../../site/landing/showcase/batch-2/sentinel.webp"
 import spiderPunisherCover from "../../../site/landing/showcase/batch-2/spider-punisher.webp";
 import theRoseCover from "../../../site/landing/showcase/batch-2/the-rose.webp";
 import throgCover from "../../../site/landing/showcase/batch-2/throg.webp";
+import multiplayerArt from "../../../site/landing/showcase/multiplayer-coming-soon.jpg";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -625,6 +626,9 @@ function draw(): void {
 }
 
 const reveal = revealOnScroll(document);
+
+// The multiplayer sneak peek's poster: one picture, the same in every language.
+$<HTMLImageElement>("mp-img").src = multiplayerArt;
 
 $("villains-more").addEventListener("click", () => {
   villainsOpen = !villainsOpen;

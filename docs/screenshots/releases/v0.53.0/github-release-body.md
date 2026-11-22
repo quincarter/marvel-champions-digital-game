@@ -1,0 +1,86 @@
+## Decked Out
+
+On a phone or a tablet, tapping a deck in Decks & Collection now opens everything you can do with it, and Play this deck goes to Scenario select first (#958, #959). The deck builder shows your hero's card, as @PermaKarma asked (#920, #925), and Deck check lists each separate deck, obligation and nemesis set a hero brings, from @bluefireF5ran's report (#960, #965). The Mod Store has an Update all button (#957, #961), a pack's modular set shows its cards on Set the table (#951, #953), and pack scenarios get a Set-aside modular set stepper while `mc-pack validate` now type-checks abilities (#943, #950). From @bluefireF5ran's play notes, Your stats shows Mod Store heroes with their pictures, Enhanced Combat Sense pays one upgrade at a time and the deck list has aspect chips (#966, #969). Take your seats and Deck check read in Spanish, translated by @bluefireF5ran (#390, #963). Ally stat badges no longer cover the small print, reported by @neopolii (#935, #944), Matchups names custom content (#937), and Take a Stand, Hired Gun and Thomas Edison follow the rules more closely, all three reported by @FirePenguin17 (#962, #967, #970). And the report ends with a first look at multiplayer, which is being built now. Thank you for playing!
+
+**[Read the full v0.53.0 report on the site ↗](https://champions-digital-game.com/releases/v0.53.0/)**: the deck options sheet, the hero card in the deck builder, Deck check's separate decks, Update all and the Mod Store fixes, the play notes, Take your seats in Spanish, your reports, a multiplayer sneak peek and the thank-you wall.
+
+**[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.53.0/index.es.html)**
+
+![The numbers: 10 changes from your reports, 7 deck options in one tap and 3 screens in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-01-the-numbers.jpg)
+
+![Your decks, one tap away: the deck builder's Identity row and Inspect, the deck options sheet on an iPhone SE, and Deck check with Doctor Strange's Invocation deck](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-02-your-decks-one-tap-away.jpg)
+
+![Mod Store packs, smoother: Update all, a pack's modular set on Set the table, the Set-aside modular set stepper and mc-pack validate's type check](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-03-mod-store-packs-smoother.jpg)
+
+![From the play notes: Mod Store heroes in Your stats, Enhanced Combat Sense's one tile per upgrade, Dynamic Duo's pay bar, deck aspect chips and scenario chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-04-from-the-play-notes.jpg)
+
+![Toma asiento: Take your seats in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-05-toma-asiento.jpg)
+
+![You asked, we fixed: ally stat badges, Matchups names, Take a Stand, Hired Gun, Thomas Edison and the cards tucked under](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-06-you-asked-we-fixed.jpg)
+
+![Also in v0.53.0: responses to a discard, the Mod SDK's hand-discard event, new tests, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-07-also-in-v0-53-0.jpg)
+
+![Coming soon, multiplayer: a sneak peek at Assemble Online, with co-op rooms, Epic Multiplayer, Civil War team vs team and watching live](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-08-coming-soon-multiplayer.jpg)
+
+![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
+
+![Code shipped since v0.52.0: 19 pull requests, 270 files, 11,207 lines added and 708 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/ea7bbc2f7e92ffe67cdc9cae7df760ff7cbe282f/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
+
+---
+
+## [v0.53.0] - 2026-11-22
+
+### Added
+
+- Deck builder: the chosen hero now sits under the title as one row with its picture and name; a tap on it opens the identity in Inspect, which flips between hero and alter-ego, and the picture opens the card popover on desktop (#920).
+- A pack scenario that sets a modular set aside offers a Set-aside modular set stepper on the setup screen, defaulting to its authors' new recommendedSetAsideModularSetIds instead of a random set (#943)
+- Mod Store: an Update all button updates every installed pack with a newer version, one after another, with one progress bar, a Stop button and a line naming any pack that could not update (#957).
+- Decks & Collection on a phone or tablet: tapping a deck opens its options (Play, Edit, View cards, Stats, Check, Duplicate, Delete) (#958).
+- Decks & Collection: each deck on the list shows its aspect chips along the foot of its picture, as Past games does (#966).
+- The v0.53.0 release report has its own page on the site, at /releases/v0.53.0/
+- The website's landing page has a Multiplayer, coming soon section with a first look at online play
+
+### Changed
+
+- Take your seats, Deck check and the name-conflict sheet read in Spanish (#390)
+- Play this deck (Decks & Collection) now opens Scenario select first, then Take your seats with the deck already in seat one (#958).
+- Decks & Collection on desktop: clicking a deck opens its Check, and Back returns to the list with the deck selected; a pad or the keyboard still only selects (#966).
+
+### Fixed
+
+- Ally stat badges sit on the printed THW and ATK at every card size, so the consequential damage printed under them stays visible and the stat star sits beside the number (#935)
+- Stats > Match-ups names custom scenarios and encounter sets instead of showing their ids, and tags custom content with its designer, such as The Rose (by PermaKarma) (#937)
+- Mod Store: a pack that answers a card discarded from a hand ("Don't Make Me Angry!") is no longer refused as needing an app update (#922).
+- mc-pack validate type-checks a pack's abilities with TypeScript and fails on a type error (pass --skip-typecheck to leave it out), so a mistake like gainsKeyword("guard", …) no longer passes validation and then crashes a game (#943)
+- A decision the game cannot draw (bad pack data) shows plain answer buttons instead of leaving the game stuck, and a bare keyword string in a pack no longer crashes the card sheet (#943)
+- Tapping the UNDER n strip of a host with several tucked cards while paying opens them to choose from, instead of spending the first one (#943)
+- A Mod Store pack's modular set shows its cards on Set the table instead of its id and 0 cards (#951)
+- Deck check shows the identity's separate decks (Invocation, Gift, Labor), its obligation and its nemesis set as their own groups, outside the deck count; the campaign seat picker says custom heroes can't join a campaign yet (#960).
+- Your Stats shows Mod Store heroes' and custom villains' pictures, and SP//dr Suit's card picture on the Heroes rows (#966).
+- Paying with Enhanced Combat Sense (or any resource ability that exhausts any number of cards) shows one tile per upgrade, tapped one by one, instead of one tile per set of upgrades (#966).
+- Choose a scenario: the pack chips follow the shelves, so a Mod Store scenario sits under the chip of the shelf it is on (Mephisto beside Trickster Takeover) and installed packs share one Custom packs chip instead of adding one each (#966).
+- Dynamic Duo, and any card whose search of the discard pile finds nothing unless a card in hand pays for it, names that card on the payment bar until it is picked: "Power Man and Iron Fist is in your hand: pay with it so Dynamic Duo can find it" (#966).
+- Hired Gun no longer offers to place infamy counters on Criminal Enterprise once it has flipped to State of Madness; the villain takes the boost card and the log says why (#967)
+- Enhanced Combat Sense's payment sheet shows one tile per upgrade you can exhaust, with that upgrade's own card, picked one by one, instead of one tile per combination (#966).
+- Take a Stand and other cards whose whole effect lasts until the end of the player phase (or turn) are no longer offered outside it, so they are not played for nothing after a villain-phase defense (#970).
+- Deck builder's From your games rail no longer draws a Cut or Try heading with no card under it, and fits its first Cut row at desktop size on a touch-reporting screen; the dev server pre-bundles the dependencies its lazy screens load, so a cold cache no longer reloads the page mid-session; e2e specs follow Play this deck through Scenario select and answer the Mod Store notice before installing.
+
+### Engine
+
+- A response to a discard from a deck or a hand is still offered after another response moved the discarded card, unless every part of it needs that card (#928).
+- searchFindableIfSpent: which cards in hand a card's discard-pile search would find once spent to pay, for the payment step (#966).
+- A resource ability whose cost picks a set of cards in play lists every set up to eight candidates, and its options carry picksMany so payment screens can show one card per candidate (#966).
+
+### Content
+
+- Thomas Edison: two-player tests pin that he cannot take damage from any player while the player he is engaged with has another minion engaged, per the FFG ruling (#962).
+
+### Special thanks
+
+- @bluefireF5ran reported #922, #943, #960 and #966.
+- @bluefireF5ran wrote #963.
+- @FirePenguin17 reported #962, #967 and #970.
+- @neopolii reported #935.
+- @PermaKarma reported #920, #937 and #951.
+- Carl (The Lone Adventurer) asked for #958 on Discord.
+- Firedudeman750 asked for #957 on Discord.
