@@ -983,7 +983,8 @@ export class RoomSession {
   #over(problem: RoomProblem): void {
     // A guest whose room was closed (not one that was replaced or is gone) keeps the game it holds: the log is complete.
     if (this.role === "guest" && problem.startsWith("closed-") && !this.#closed) {
-      const game = this.#mirror.salvage();
+      // The guest's own table (in an Epic room, the one this device follows) is the game it keeps.
+      const game = this.#mirrorOf(this.#model.view).salvage();
       if (game) this.#deps.onSalvage?.(game);
     }
     this.#model.ended(problem);
