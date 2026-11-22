@@ -13,6 +13,9 @@
 import type { AnyCard, CoreAspect, Deck } from "@mc/content";
 import { identityCardTitledAs } from "@mc/engine";
 import { teamUpPairsOf, type TeamUpPair } from "./team-up-model.js";
+import { aspectName } from "./aspect-stamp.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { t, listAnd } from "../i18n/translate.js";
 
 export type SeatCardPool = ReadonlyMap<string, AnyCard>;
 
@@ -63,10 +66,9 @@ export interface SeatedPair {
   readonly label: string;
 }
 
-const aspectWord = (aspect: CoreAspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
+const aspectWord = (aspect: CoreAspect): string => aspectName(aspect, artLanguageNow());
 
-const listOf = (words: readonly string[]): string =>
-  words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+const listOf = (words: readonly string[]): string => listAnd(words);
 
 function identityOf(deck: Deck, pool: SeatCardPool) {
   const card = pool.get(deck.identityCardId as string);
@@ -148,7 +150,7 @@ export function seatedTeamUps(
       heroNames: [pair.names[a < b ? 0 : 1], pair.names[a < b ? 1 : 0]],
       cardNames: cardNamesOf(ids, pool),
       inDecks,
-      label: `Team-Up: ${pair.label}`,
+      label: t("seats.rec.teamUpLabel", { label: pair.label }),
     });
   }
   return result;
@@ -157,10 +159,10 @@ export function seatedTeamUps(
 function teamUpPhrase(link: TeamUpLink): string {
   const cards = listOf(link.cardNames);
   const holders = new Set(link.inDecks.map((c) => c.seat));
-  if (link.inDecks.length >= 2) return `${cards} is in both decks`;
-  if (holders.size === 0) return "neither deck includes the Team-Up card";
+  if (link.inDecks.length >= 2) return t("seats.rec.inBoth", { cards });
+  if (holders.size === 0) return t("seats.rec.inNeither");
   const only = link.inDecks[0]!;
-  return `${cards} is only in ${only.heroName}'s deck`;
+  return t("seats.rec.onlyIn", { cards, hero: only.heroName });
 }
 
 /**
@@ -216,9 +218,16 @@ export function analyzeSeatCandidates(
         : (teamUps.length > 0 ? 100 + teamUps.length * 10 + bothDecks * 5 + oneDeck * 2 : 0) + addsAspects.length * 10;
 
     const lines: string[] = [
-      ...teamUps.map((link) => `Team-Up with ${link.partner} (seat ${link.partnerSeat}) · ${teamUpPhrase(link)}.`),
+      ...teamUps.map((link) =>
+        t("seats.rec.lineTeamUp", { partner: link.partner, seat: link.partnerSeat, phrase: teamUpPhrase(link) }),
+      ),
       ...(addsAspects.length > 0
-        ? [`Adds ${listOf(addsAspects.map(aspectWord))} · the table has ${listOf(tableAspects.map(aspectWord))}.`]
+        ? [
+            t("seats.rec.lineAdds", {
+              adds: listOf(addsAspects.map(aspectWord)),
+              table: listOf(tableAspects.map(aspectWord)),
+            }),
+          ]
         : []),
     ];
     let reason = "";
@@ -226,26 +235,33 @@ export function analyzeSeatCandidates(
       const names = listOf(teamUps.map((link) => link.partner));
       reason =
         addsAspects.length > 0
-          ? `Team-Up with ${names}, and adds ${listOf(addsAspects.map(aspectWord))}`
+          ? t("seats.rec.reasonTeamUpAdds", { names, adds: listOf(addsAspects.map(aspectWord)) })
           : teamUps.length === 1
-            ? `Team-Up with ${names} · ${teamUpPhrase(teamUps[0]!)}`
-            : `Team-Up with ${names} · ${bothDecks} of ${teamUps.length} Team-Up cards in both decks`;
+            ? t("seats.rec.reasonTeamUpPhrase", { names, phrase: teamUpPhrase(teamUps[0]!) })
+            : t("seats.rec.reasonTeamUpCount", { names, count: bothDecks, total: teamUps.length });
     } else if (addsAspects.length > 0) {
-      reason = `Adds ${listOf(addsAspects.map(aspectWord))} · the table has ${listOf(tableAspects.map(aspectWord))}`;
+      reason = t("seats.rec.reasonAdds", {
+        adds: listOf(addsAspects.map(aspectWord)),
+        table: listOf(tableAspects.map(aspectWord)),
+      });
     }
     const cardsNote =
       bothDecks === teamUps.length
-        ? "Team-Up card in both decks"
+        ? t("seats.rec.cardBoth")
         : bothDecks + oneDeck === 0
-          ? "Team-Up card in neither deck"
-          : "Team-Up card in one deck";
-    const addsNote =
-      addsAspects.length <= 2
-        ? `Adds ${addsAspects.map(aspectWord).join(" + ")}`
-        : `Adds ${addsAspects.length} new aspects`;
+          ? t("seats.rec.cardNeither")
+          : t("seats.rec.cardOne");
+    const fewAdds = addsAspects.length <= 2;
+    const addsWords = addsAspects.map(aspectWord).join(" + ");
+    const addsNote = fewAdds
+      ? t("seats.rec.adds", { adds: addsWords })
+      : t("seats.rec.addsCount", { count: addsAspects.length });
     const caption =
       teamUps.length > 0 && addsAspects.length > 0
-        ? `Team-Up · ${addsNote.toLowerCase()}`
+        ? fewAdds
+          ? // English writes the aspects in lower case after "adds"; Spanish keeps them capitalized (its game terms are).
+            t("seats.rec.teamUpAdds", { adds: artLanguageNow() === "en" ? addsWords.toLowerCase() : addsWords })
+          : t("seats.rec.teamUpAddsCount", { count: addsAspects.length })
         : teamUps.length > 0
           ? cardsNote
           : addsNote;

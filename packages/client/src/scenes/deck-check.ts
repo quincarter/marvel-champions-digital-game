@@ -71,7 +71,7 @@ import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
 import type { CoreAspect, Deck } from "@mc/content";
 import { POOL_VERSION, currentCardsById, currentDeps, currentPool } from "../content/pool.js";
-import { artFor } from "../art/art-source.js";
+import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
 import {
@@ -96,6 +96,7 @@ import {
 } from "../view/deck-faces.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { addCommunityDeck, testedEntryOf } from "../view/community-decks-model.js";
+import { onLanguageChange } from "../language-change.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
 import type { CampaignDeckVerdict } from "../view/campaign-deck-edit-model.js";
@@ -137,6 +138,9 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { drawAspectInfoSegment, drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
+import { t, type MessageKey } from "../i18n/translate.js";
+import { cardTypeWordOf } from "../view/card-type-word.js";
+import { aspectName } from "../view/aspect-stamp.js";
 
 /** The sort control: wide enough for its longest words, "Sort: Aspect". */
 const SORT_WIDTH = 132;
@@ -198,14 +202,18 @@ const TONE_COLOR: Readonly<Record<DeckStatusTone, number>> = {
  * (that constant isn't exported — the builder's own doc comment notes it has no shared layout module to export one
  * from) rather than filtering the deck's own pool of *card types* by name a second, different way.
  */
-const TYPE_FILTERS: readonly { readonly id: string; readonly label: string; readonly type: PlayerCardType | null }[] = [
-  { id: "all", label: "All", type: null },
-  { id: "ally", label: "Ally", type: "ally" },
-  { id: "event", label: "Event", type: "event" },
-  { id: "upgrade", label: "Upgrade", type: "upgrade" },
-  { id: "support", label: "Support", type: "support" },
-  { id: "resource", label: "Resource", type: "resource" },
-  { id: "scheme", label: "Side scheme", type: "player_side_scheme" },
+const TYPE_FILTERS: readonly {
+  readonly id: string;
+  readonly label: MessageKey;
+  readonly type: PlayerCardType | null;
+}[] = [
+  { id: "all", label: "deckCheck.all", type: null },
+  { id: "ally", label: "cardType.ally", type: "ally" },
+  { id: "event", label: "cardType.event", type: "event" },
+  { id: "upgrade", label: "cardType.upgrade", type: "upgrade" },
+  { id: "support", label: "cardType.support", type: "support" },
+  { id: "resource", label: "cardType.resource", type: "resource" },
+  { id: "scheme", label: "cardType.sideScheme", type: "player_side_scheme" },
 ];
 
 /** One flattened, unwrapped line of a card's rules text, for a cell's own short footer strip — the full text is always one tap away, in Inspect. */
@@ -284,9 +292,14 @@ export class DeckCheckScene extends Phaser.Scene {
       },
       area: (pointer) => screenHoverArea(this, pointer),
     });
+    // A language switch (#390): the screen reads again in the new language.
+    const languageOff = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       artOff();
+      languageOff();
       this.#hover?.destroy();
       this.#hover = null;
       this.#hints.dispose();
@@ -352,9 +365,9 @@ export class DeckCheckScene extends Phaser.Scene {
     const option = deckOptionOf(this.#deck, currentPool(), POOL_VERSION, currentDeps());
     const stats = deckStatsOf(this.#deck, currentPool());
     // The Curve and Aspect tabs read the deck by aspect whatever the card list's sort.
-    const groups = deckListGroupsOf(this.#deck, currentPool(), undefined, false);
-    const sorted = deckListGroupsOf(this.#deck, currentPool(), this.#deckSort);
-    const status = this.#verdict?.status ?? deckStatusOf(option);
+    const groups = deckListGroupsOf(this.#deck, currentPool(), undefined, false, artLanguageNow());
+    const sorted = deckListGroupsOf(this.#deck, currentPool(), this.#deckSort, true, artLanguageNow());
+    const status = this.#verdict?.status ?? deckStatusOf(option, artLanguageNow());
     const inFlow = this.#returnTo.scene === SCENES.seats;
 
     // Ground: paper body under the same full-width ink header bar every setup-flow screen shares.
@@ -374,7 +387,7 @@ export class DeckCheckScene extends Phaser.Scene {
       )
       .setOrigin(0, 0);
 
-    const backLabel = this.#returnTo.scene === SCENES.seats ? "◂ Seats" : "◂ Back";
+    const backLabel = this.#returnTo.scene === SCENES.seats ? t("deckCheck.backToSeats") : t("scenario.back");
     const goBack = (): void => {
       goToScreen(this, this.#returnTo.scene, this.#returnTo.data);
     };
@@ -406,9 +419,9 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#tabs = new McTabs(this, {
         rect: layout.tabs!,
         tabs: [
-          { id: "curve", label: "Curve" },
-          { id: "cards", label: "Cards" },
-          { id: "aspect", label: "Aspect" },
+          { id: "curve", label: t("deckCheck.tabCurve") },
+          { id: "cards", label: t("deckCheck.tabCards") },
+          { id: "aspect", label: t("deckCheck.tabAspect") },
         ],
         activeId: this.#activeTab,
         onSelect: (id) => this.#setTab(id as DeckCheckTab),
@@ -451,7 +464,7 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "onInk",
-          label: "Edit deck",
+          label: t("deckCheck.editDeck"),
           type: typeRole.label,
           rect: layout.editDeck,
           onClick: openEdit,
@@ -463,7 +476,7 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
-          label: "Start game ▸",
+          label: t("deckCheck.startGame"),
           type: typeRole.barTitle,
           rect: layout.startGame,
           enabled: canStart,
@@ -500,7 +513,7 @@ export class DeckCheckScene extends Phaser.Scene {
     stats: ReturnType<typeof deckStatsOf>,
     status: ReturnType<typeof deckStatusOf>,
   ): void {
-    const count = this.#verdict?.count ?? deckCountText(stats);
+    const count = this.#verdict?.count ?? deckCountText(stats, artLanguageNow());
     const badgeText = `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
     const badgeTextStyle = { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "18px" };
     // The background graphics object is created (and so z-ordered) *before* the text it sits behind — these two
@@ -520,7 +533,7 @@ export class DeckCheckScene extends Phaser.Scene {
     badgeBg.fillStyle(TONE_COLOR[status.tone], 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
     measure.setPosition(badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2).setOrigin(0.5);
 
-    const title = `${option.identityName ?? "Unknown"} — ${aspectLabelOf(deck.aspects).toUpperCase()}`;
+    const title = `${option.identityName ?? t("deckCheck.unknown")} — ${aspectLabelOf(deck.aspects, artLanguageNow()).toUpperCase()}`;
     const titleText = this.add
       .text(titleX, layout.headerBar.height / 2, title, textStyle(typeRole.pageTitle, surface.paper.hex))
       .setOrigin(0, 0.5);
@@ -538,13 +551,13 @@ export class DeckCheckScene extends Phaser.Scene {
       .text(
         titleX,
         layout.headerBar.height / 2,
-        `Your deck · ${this.#verdict?.counted ?? stats.countedCards}`,
+        t("deckCheck.yourDeckCount", { count: this.#verdict?.counted ?? stats.countedCards }),
         textStyle(typeRole.pageTitle, surface.paper.hex),
       )
       .setOrigin(0, 0.5);
     fitText(title, layout.meta.x - titleX - 12, typeRole.pageTitle.size);
 
-    const count = this.#verdict?.count ?? deckCountText(stats);
+    const count = this.#verdict?.count ?? deckCountText(stats, artLanguageNow());
     const metaWords = inFlow ? "3/4" : `${count.toUpperCase()} · ${status.text.toUpperCase()}`;
     const metaText = this.add
       .text(
@@ -567,7 +580,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const column = rect.width;
     let y = rect.y;
 
-    label(this, left, y, "Aspect", typeRole.label, surface.ink.hex, ink.label);
+    label(this, left, y, t("deckCheck.aspect"), typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const aspectGap = 7;
     let openInfoRect: Rect | null = null;
@@ -589,7 +602,7 @@ export class DeckCheckScene extends Phaser.Scene {
         tileRect.height,
       );
       const text = this.add
-        .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspect.toUpperCase(), {
+        .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspectName(aspect, artLanguageNow()).toUpperCase(), {
           ...textStyle(typeRole.barTitle, chosen ? surface.paper.hex : surface.ink.hex),
           fontSize: "16px",
         })
@@ -624,10 +637,10 @@ export class DeckCheckScene extends Phaser.Scene {
     rule.fillStyle(surface.ink.hex, 1).fillRect(left, y, column, 3);
     y += 16;
 
-    label(this, left, y, "Filter", typeRole.label, surface.ink.hex, ink.label);
+    label(this, left, y, t("deckCheck.filter"), typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const chipRows = wrapChipsToRows(
-      TYPE_FILTERS.map((f) => ({ id: f.id, text: f.label })),
+      TYPE_FILTERS.map((f) => ({ id: f.id, text: t(f.label) })),
       column,
     );
     const activeFilterId = TYPE_FILTERS.find((f) => f.type === this.#typeFilter)?.id ?? "all";
@@ -650,7 +663,7 @@ export class DeckCheckScene extends Phaser.Scene {
         this.#buttons.push(
           new McButton(this, {
             kind: "secondary",
-            label: chipDef.label,
+            label: t(chipDef.label),
             type: typeRole.label,
             rect: chipRect,
             selected,
@@ -665,7 +678,7 @@ export class DeckCheckScene extends Phaser.Scene {
     // (D04's own `margin-top:auto` on this block) — computed bottom-up rather than continuing the `y` cursor.
     const chartHeight = 74;
     const curveBlockTop = rect.y + rect.height - 16 - chartHeight;
-    label(this, left, curveBlockTop, "Cost curve", typeRole.label, surface.ink.hex, ink.label);
+    label(this, left, curveBlockTop, t("deckCheck.costCurve"), typeRole.label, surface.ink.hex, ink.label);
     drawStatCurveBars(
       this,
       { x: left, y: curveBlockTop + 16, width: column, height: chartHeight },
@@ -691,7 +704,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind,
-        label: deckListSortLabel(this.#deckSort),
+        label: deckListSortLabel(this.#deckSort, artLanguageNow()),
         type: typeRole.label,
         rect,
         onClick: sort,
@@ -711,7 +724,7 @@ export class DeckCheckScene extends Phaser.Scene {
 
     const left = rect.x + 16;
     const column = rect.width - 32;
-    label(this, left, rect.y + 16, "Your deck", typeRole.label, surface.paper.hex, ink.secondary);
+    label(this, left, rect.y + 16, t("deckCheck.yourDeck"), typeRole.label, surface.paper.hex, ink.secondary);
     this.#drawSort({ x: left + column - SORT_WIDTH, y: rect.y + 8, width: SORT_WIDTH, height: hit.target }, "onInk");
     // The panel's lines have no zone of their own, so each line's card is `through` to nothing under the pointer.
     drawGroupedCardList(
@@ -726,13 +739,14 @@ export class DeckCheckScene extends Phaser.Scene {
       undefined,
       undefined,
       (entry, lineRect) => noteHoverCardId(this, entry.cardId as string, lineRect, true),
+      artLanguageNow(),
     );
 
     const openEdit = (): void => this.#edit();
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: "Edit deck",
+        label: t("deckCheck.editDeck"),
         type: typeRole.label,
         rect: editDeckRect,
         onClick: openEdit,
@@ -744,7 +758,7 @@ export class DeckCheckScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Start game ▸",
+        label: t("deckCheck.startGame"),
         type: typeRole.barTitle,
         rect: startGameRect,
         enabled: canStart,
@@ -764,7 +778,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const chartRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: CURVE_CARD_HEIGHT };
     const panel = this.add.graphics();
     paintPanel(panel, chartRect, "card", "rest");
-    const heading = this.add.text(chartRect.x + 12, chartRect.y + 10, "RESOURCE CURVE", {
+    const heading = this.add.text(chartRect.x + 12, chartRect.y + 10, t("deckCheck.resourceCurve"), {
       ...textStyle(typeRole.barTitle, surface.ink.hex),
       fontSize: "18px",
     });
@@ -773,7 +787,7 @@ export class DeckCheckScene extends Phaser.Scene {
         this,
         chartRect.x + chartRect.width - 12,
         chartRect.y + 10 + heading.height / 2,
-        `avg ${stats.averageCost.toFixed(1)}`,
+        t("deckCheck.average", { avg: stats.averageCost.toFixed(1) }),
         typeRole.label,
         surface.ink.hex,
         ink.meta,
@@ -787,9 +801,9 @@ export class DeckCheckScene extends Phaser.Scene {
 
     let y = chartRect.y + chartRect.height + 12;
     const threeTiles = [
-      { id: "resource", label: "Resources", count: stats.countsByType.resource ?? 0 },
-      { id: "ally", label: "Allies", count: stats.countsByType.ally ?? 0 },
-      { id: "event", label: "Events", count: stats.countsByType.event ?? 0 },
+      { id: "resource", label: t("deckTypes.resource"), count: stats.countsByType.resource ?? 0 },
+      { id: "ally", label: t("deckTypes.ally"), count: stats.countsByType.ally ?? 0 },
+      { id: "event", label: t("deckTypes.event"), count: stats.countsByType.event ?? 0 },
     ];
     y = drawStatTiles(this, rect.x, y, rect.width, threeTiles, false, 3) + 12;
 
@@ -839,14 +853,9 @@ export class DeckCheckScene extends Phaser.Scene {
   }
 
   #drawAspectTab(rect: Rect, groups: readonly DeckListGroup[]): void {
-    label(this, rect.x, rect.y, "COMPOSITION BY ASPECT", typeRole.label, surface.ink.hex, ink.label);
+    label(this, rect.x, rect.y, t("deckCheck.composition"), typeRole.label, surface.ink.hex, ink.label);
     if (groups.length === 0) {
-      this.add.text(
-        rect.x,
-        rect.y + 20,
-        "This deck has no cards yet.",
-        textStyle(typeRole.body, surface.ink.hex, ink.meta),
-      );
+      this.add.text(rect.x, rect.y + 20, t("deckCheck.noCards"), textStyle(typeRole.body, surface.ink.hex, ink.meta));
       return;
     }
     drawStatTiles(
@@ -886,7 +895,7 @@ export class DeckCheckScene extends Phaser.Scene {
         this.add.text(
           rect.x + 10,
           rect.y + 10,
-          "No cards match this filter.",
+          t("deckCheck.noMatch"),
           textStyle(typeRole.body, surface.ink.hex, ink.meta),
         );
         return [];
@@ -895,7 +904,8 @@ export class DeckCheckScene extends Phaser.Scene {
     }
     // What the identity brings besides the deck (#960): its separate decks, obligation and nemesis set, under the
     // deck's own cards and never counted in it. A type filter narrows to the deck's cards alone, as it does the faces.
-    const outside = this.#typeFilter === null ? outsideDeckGroupsOf(this.#deck.identityCardId, currentPool()) : [];
+    const outside =
+      this.#typeFilter === null ? outsideDeckGroupsOf(this.#deck.identityCardId, currentPool(), artLanguageNow()) : [];
     for (const group of [...groups, ...outside]) {
       slots.push({ kind: "header", group });
       const rows = Math.max(1, Math.ceil(group.entries.length / geometry.columns));
@@ -1040,7 +1050,7 @@ export class DeckCheckScene extends Phaser.Scene {
           this.add.text(
             rect.x + 10,
             rect.y + 10,
-            "No cards match this filter.",
+            t("deckCheck.noMatch"),
             textStyle(typeRole.body, surface.ink.hex, ink.meta),
           ),
         ],
@@ -1122,7 +1132,7 @@ export class DeckCheckScene extends Phaser.Scene {
       this,
       nameX,
       headerRect.y + 2 + Math.ceil(name.height) + 1,
-      entry.type.replace(/_/g, " "),
+      cardTypeWordOf(entry.type),
       typeRole.label,
       surface.ink.hex,
       ink.meta,
@@ -1153,7 +1163,7 @@ export class DeckCheckScene extends Phaser.Scene {
           this,
           artRect.x + artRect.width / 2,
           artRect.y + artRect.height / 2,
-          "no scan",
+          t("deckCheck.noScan"),
           typeRole.label,
           surface.ink.hex,
           ink.meta,
@@ -1195,12 +1205,14 @@ export class DeckCheckScene extends Phaser.Scene {
 
   /**
    * One identity or multi-faced card: a title over a row (wrapping on a narrow screen) of its faces, each a scan with
-   * its label and printed name under it. A missing scan draws "no scan", as the card cells do.
+   * its label and printed name under it. A missing scan draws t("deckCheck.noScan"), as the card cells do.
    */
   #renderFaceGroupRow(rect: Rect, group: DeckFaceGroup, layout: DeckFaceGroupLayout): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const count = group.tiles.length;
-    const title = group.identity ? `IDENTITY · ${count} FACES` : `${group.title.toUpperCase()} · ${count} FACES`;
+    const title = group.identity
+      ? t("deckCheck.identityFaces", { count })
+      : t("deckCheck.cardFaces", { title: group.title.toUpperCase(), count });
     const heading = this.add.text(rect.x + 4, rect.y + 4, title, {
       ...textStyle(typeRole.barTitle, surface.ink.hex),
       fontSize: "19px",
@@ -1208,7 +1220,7 @@ export class DeckCheckScene extends Phaser.Scene {
     fitText(heading, rect.width - 8, 19);
     objects.push(heading);
     group.tiles.forEach((tile, i) => {
-      const t = layout.tiles[i]!;
+      const spot = layout.tiles[i]!;
       const a = layout.art[i]!;
       const x = rect.x + FACES_INSET;
       const artRect: Rect = { x: x + a.x, y: rect.y + a.y, width: a.width, height: a.height };
@@ -1224,19 +1236,21 @@ export class DeckCheckScene extends Phaser.Scene {
             this,
             artRect.x + artRect.width / 2,
             artRect.y + artRect.height / 2,
-            "no scan",
+            t("deckCheck.noScan"),
             typeRole.label,
             surface.ink.hex,
             ink.meta,
           ).setOrigin(0.5),
         );
-      const captionY = rect.y + t.y + a.height + 3;
-      objects.push(label(this, x + t.x, captionY, tile.label.toUpperCase(), typeRole.label, surface.ink.hex, ink.meta));
-      const name = this.add.text(x + t.x, captionY + 14, tile.name, {
+      const captionY = rect.y + spot.y + a.height + 3;
+      objects.push(
+        label(this, x + spot.x, captionY, tile.label.toUpperCase(), typeRole.label, surface.ink.hex, ink.meta),
+      );
+      const name = this.add.text(x + spot.x, captionY + 14, tile.name, {
         ...textStyle(typeRole.barTitle, surface.ink.hex),
         fontSize: "13px",
       });
-      fitWrapped(name, t.width, 1, 13);
+      fitWrapped(name, spot.width, 1, 13);
       objects.push(name);
     });
     return { objects };

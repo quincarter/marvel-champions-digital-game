@@ -36,13 +36,18 @@ export function titleCase(word: string): string {
 export function cardTitleOf(option: DeckOption): string {
   if (option.deck.source.kind !== "precon") return option.deck.name;
   const identity = option.identityName ?? "Unknown";
-  const aspects = option.deck.aspects.map(aspectName).join(" + ");
+  const aspects = option.deck.aspects.map((aspect) => aspectName(aspect)).join(" + ");
   return aspects ? `${identity} / ${aspects}` : identity;
 }
 
 /** "'POOL · " (with its trailing separator) for a deck that chose aspects, "" for one that has none, for a header line to lead with. */
 export function deckAspectsText(deck: Pick<Deck, "aspects">): string {
-  return deck.aspects.length > 0 ? `${deck.aspects.map(aspectName).join(" + ").toUpperCase()} · ` : "";
+  return deck.aspects.length > 0
+    ? `${deck.aspects
+        .map((aspect) => aspectName(aspect))
+        .join(" + ")
+        .toUpperCase()} · `
+    : "";
 }
 
 /**
@@ -74,7 +79,7 @@ export function deckMetaCandidates(option: DeckOption, pool: CardPool): readonly
     return [`${product} · ${count} · ${status}`, `${count} · ${status}`, count];
   }
   // A saved deck's own name never says its aspect (a precon's title does), so the line names hero and aspect(s).
-  const aspects = deck.aspects.map(aspectName).join(" + ");
+  const aspects = deck.aspects.map((aspect) => aspectName(aspect)).join(" + ");
   const who = [option.identityName ?? "unknown identity", ...(aspects ? [aspects] : [])].join(" · ");
   const source = SOURCE_LABEL[deck.source.kind].toLowerCase();
   return [`${who} · ${count} · ${status} · ${source}`, `${who} · ${count} · ${status}`, `${who} · ${count}`, count];

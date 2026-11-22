@@ -9,11 +9,19 @@ import { artFor, type ArtSource } from "../art/art-source.js";
 import type { Picture } from "../art/pictures.js";
 import { promoFaceArt, type PromoSet } from "../art/promo-art.js";
 import type { HeroArt } from "../settings.js";
+import type { MessageKey } from "../i18n/translate.js";
 
 export const HERO_ART_LABELS: Readonly<Record<HeroArt, string>> = {
   game: "Game art",
   card: "Card art",
   promo: "Promo art",
+};
+
+/** The same choices' catalog keys, for a translated screen (#390: Take your seats; Settings is not translated yet). */
+export const HERO_ART_KEYS: Readonly<Record<HeroArt, MessageKey>> = {
+  game: "seats.heroArt.game",
+  card: "seats.heroArt.card",
+  promo: "seats.heroArt.promo",
 };
 
 /** Whether Promo art is on offer: a hero's promo is earned and promo art is on. A villain's or event's is no tile's. */

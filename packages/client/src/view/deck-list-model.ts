@@ -14,6 +14,8 @@ import { unscriptedCards, validateDeck, type CardPool, type DeckProblem, type En
 import { isNotReadyCard } from "@mc/cards";
 import { POOL_VERSION, currentStarterDecks } from "../content/pool.js";
 import { qualifiedHeroName } from "./hero-names.js";
+import { t } from "../i18n/translate.js";
+import type { CardLanguage } from "../art/card-language.js";
 
 export interface DeckOption {
   readonly deck: Deck;
@@ -57,8 +59,8 @@ const unscriptedMessage = (unscripted: readonly CardId[], pool: CardPool): strin
  * The warning as a tile can hold it: "Partly playable" for the unscripted-cards message, whose card names run past a
  * shelf tile's one line (the full sentence stays on `DeckOption.warning` for roomier surfaces). Other text passes through.
  */
-export function shortWarningOf(warning: string | null): string | null {
-  return warning !== null && warning.startsWith("Playable, but") ? "Partly playable" : warning;
+export function shortWarningOf(warning: string | null, lang: CardLanguage = "en"): string | null {
+  return warning !== null && warning.startsWith("Playable, but") ? t("deckStatus.partly", undefined, lang) : warning;
 }
 
 /** The same deck objects every time, so `deckOptionOf` can remember their status. */
@@ -137,7 +139,7 @@ export function pendingDeckOption(deck: Deck, pool: CardPool): DeckOption {
     unscripted: [],
     poolChanged: false,
     seatable: false,
-    blockedReason: "Checking this deck…",
+    blockedReason: CHECKING_REASON,
     warning: null,
     checking: true,
   };
@@ -149,6 +151,12 @@ function checkDeck(deck: Deck, pool: CardPool, currentPoolVersion: string, deps:
 
 /** The short verdict for a deck whose hero's pack is not finished. */
 export const NOT_READY_REASON = "Not ready yet";
+
+/** The blocked reason while a deck is still being checked. */
+export const CHECKING_REASON = "Checking this deck…";
+
+/** The blocked reason of an illegal deck whose check names no problem. */
+export const NOT_LEGAL_REASON = "This deck is not legal.";
 
 export function leadsNotReadyHero(deck: Deck, pool: CardPool): boolean {
   const identityCard = Array.isArray(pool)
@@ -169,11 +177,7 @@ export function verdictOf(deck: Deck, pool: CardPool, currentPoolVersion: string
   // A deck led by a hero from a not-ready pack (`NOT_READY_PACK_CODES`) is never seatable, legal or not.
   const notReady = leadsNotReadyHero(deck, pool);
   const seatable = legal && !notReady;
-  const blockedReason = notReady
-    ? NOT_READY_REASON
-    : legal
-      ? null
-      : (problems[0]?.message ?? "This deck is not legal.");
+  const blockedReason = notReady ? NOT_READY_REASON : legal ? null : (problems[0]?.message ?? NOT_LEGAL_REASON);
   const warning = unscriptedMessage(unscripted, pool);
 
   const identityName = identityNameOf(deck, pool);

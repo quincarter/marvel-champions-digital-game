@@ -26,6 +26,9 @@ export type PartialCatalog = Readonly<Partial<Record<MessageKey, string>>>;
 
 export const CATALOGS: Readonly<Record<CardLanguage, PartialCatalog>> = { en, es };
 
+/** Every language the app text has a catalog for, English first. */
+export const APP_LANGUAGES = Object.keys(CATALOGS) as readonly CardLanguage[];
+
 /** `key`'s message in `catalog`, else the English one. */
 export function messageFrom(catalog: PartialCatalog, key: MessageKey): string {
   return catalog[key] ?? en[key];
@@ -89,4 +92,15 @@ export function pluralFrom(
 /** The `{name}` placeholders a message uses, sorted (the catalog test checks a translation keeps English's). */
 export function placeholdersOf(text: string): string[] {
   return [...new Set([...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!))].sort();
+}
+
+/**
+ * "a, b and c" in the current language. English keeps the app's own form (no serial comma); other languages use
+ * `Intl.ListFormat` (Spanish "a, b y c", with "e" before an "i" sound).
+ */
+export function listAnd(words: readonly string[], lang: CardLanguage = artLanguageNow()): string {
+  if (lang === "en") {
+    return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+  }
+  return new Intl.ListFormat(lang, { style: "long", type: "conjunction" }).format(words);
 }

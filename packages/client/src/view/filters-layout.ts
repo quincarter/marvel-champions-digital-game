@@ -23,7 +23,7 @@ export function filtersBehindButton(gameWidth: number, padMode: boolean): boolea
 
 /**
  * The button's text: "Filters", or "Filters (2)" with filters set, then ▸ shut or ▾ open. In English unless a
- * translated screen asks for its language (#390: Take your seats shares this button and isn't translated yet).
+ * translated screen asks for its language (#390: Choose a scenario and Take your seats do).
  */
 export function filtersLabel(activeCount: number, open: boolean, lang: CardLanguage = "en"): string {
   return t("filters.label", { active: activeCount > 0 ? ` (${activeCount})` : "", arrow: open ? "▾" : "▸" }, lang);

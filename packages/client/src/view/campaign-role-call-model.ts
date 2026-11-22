@@ -133,7 +133,7 @@ export function roleCallOf(
       return {
         id: role.id,
         name: role.name,
-        aspects: aspects.map(aspectStampOf),
+        aspects: aspects.map((aspect) => aspectStampOf(aspect)),
         aspectsLabel: aspects.map(capitalize).join(" + "),
         summary: ROLE_SUMMARIES[role.id] ?? `Draws on ${aspects.map(capitalize).join(" and ")}.`,
         relation: roleRelationOf(aspects, deckAspects),
