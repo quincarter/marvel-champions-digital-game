@@ -20,6 +20,7 @@ import {
   type RoomDeck,
   type RoomBuild,
   type RoomDevice,
+  type ProposalRefusal,
   type ServerMessage,
   type TableInfo,
 } from "@mc/sync-worker/room-protocol";
@@ -38,9 +39,11 @@ import {
 } from "./room-socket.js";
 import { GameMirror } from "./room-game-mirror.js";
 import { RoomModel } from "./room-model.js";
+import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
 import type { LobbySeatSpec, LobbySettingsPatch, RoomProblem, RoomState, SeatDeckEntry } from "./room-state.js";
 import type { RoomFeedIn, RoomFeedOut } from "./live-room-protocol.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 type Body = DistributiveOmit<ClientMessage, "v">;
@@ -54,6 +57,18 @@ export interface GameHooks {
   readonly onMessage: (message: ServerMessage) => void;
   /** The room is over for this device (closed, replaced, gone): stop streaming. */
   readonly onEnded: () => void;
+  /**
+   * A seat holder's proposal, with the engine players behind the seats it may act for (issue #881). Absent: the session
+   * answers `stale` itself.
+   */
+  readonly onProposal?: (proposal: {
+    readonly from: string;
+    readonly players: readonly string[];
+    readonly command: unknown;
+    readonly base: number;
+    readonly pid?: number;
+    readonly stamp?: string;
+  }) => void;
 }
 
 /** The slice of a `MessagePort` a feed uses. */
@@ -80,11 +95,15 @@ export interface RoomSessionDeps {
 }
 
 const CAPS = ["watch", "chat", "seats"] as const;
+/** A host also judges seat holders' proposals (issue #881). */
+const HOST_CAPS = ["watch", "chat", "seats", "play"] as const;
 
 /** How long the host waits for the room to hand over the decks before Start gives up. */
 export const DECKS_REPLY_MS = 8000;
 
-const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed"]);
+const FEED_ROOM_KINDS: ReadonlySet<string> = new Set(["welcome", "roster", "table", "closed", "refused"]);
+/** Acceptances held for a dropped socket: a host answers a few proposals at a time, so this is never reached in play. */
+const MAX_UNSENT_ACCEPTS = 50;
 const SEAT_REFUSED_TO_CLOSE = new Set(["name-required", "full"]);
 
 export class RoomSession {
@@ -96,6 +115,7 @@ export class RoomSession {
   #socket: RoomSocket | null = null;
   #hostToken: string | null = null;
   #tokens: Record<string, string> = {};
+  readonly #unsentAccepts: Body[] = [];
   #hooks: GameHooks | null = null;
   readonly #mirror = new GameMirror();
   #feed: FeedPort | null = null;
@@ -268,17 +288,36 @@ export class RoomSession {
 
   // -- the lobby --------------------------------------------------------------------------------------------------
 
-  lobbySet(change: { readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }): void {
-    if (this.role !== "host" || (!change.settings && !change.seats)) return;
+  lobbySet(change: {
+    readonly settings?: LobbySettingsPatch;
+    readonly seats?: readonly LobbySeatSpec[];
+    readonly ifRev?: number;
+  }): void {
+    // Once the table has its game the seats are fixed, and so is who plays which hero (`player`): a seat list changed
+    // under a running game would repoint proposals at other heroes. Settings stay the host's to change.
+    const frozen = this.#model.state().started && !this.#model.state().gameOver;
+    const seats = frozen ? undefined : change.seats;
+    if (this.role !== "host" || (!change.settings && !seats)) return;
     this.#say({
       ch: "room",
       kind: "lobby-set",
       ...(change.settings ? { settings: change.settings } : {}),
-      ...(change.seats ? { seats: change.seats } : {}),
+      ...(change.ifRev !== undefined ? { ifRev: change.ifRev } : {}),
+      // The room drops a seat's `player` unless every `lobby-set` repeats it: seat n plays engine player p<n> (the order
+      // setup built the game's players in), so a spec without one gets it from its position.
+      ...(seats ? { seats: seats.map((spec, index) => ({ ...spec, player: spec.player ?? `p${index + 1}` })) } : {}),
     });
   }
 
-  seat(op: "request" | "release" | "assign" | "deny", seat: string, participant?: string): void {
+  seat(
+    op: "request" | "release" | "assign" | "deny" | "take-over" | "give-back",
+    seat: string,
+    participant?: string,
+  ): void {
+    if (op === "take-over" || op === "give-back") {
+      if (this.role === "host") this.#say({ ch: "room", kind: op, seat });
+      return;
+    }
     if (op === "request") {
       this.#model.noteRequest(seat);
       this.#model.want(seat, true);
@@ -289,6 +328,82 @@ export class RoomSession {
     } else if (this.role === "host" && participant) {
       if (op === "assign") this.#model.noteRequest(seat);
       this.#say({ ch: "room", kind: op === "assign" ? "seat-assign" : "seat-deny", seat, participant });
+    }
+  }
+
+  /**
+   * Host: answers a seat holder's request (`RoomState.requests`); the caller has already done what an accepted one asks.
+   * A request already gone (answered, or its asker left) is ignored.
+   */
+  answerRequest(id: string, accepted: boolean): void {
+    if (this.role !== "host") return;
+    const request = this.#model.takeRequest(id);
+    if (!request) return;
+    this.#say({
+      ch: "game",
+      kind: "request-answer",
+      table: FIRST_TABLE,
+      to: request.from,
+      accepted,
+      ...(request.rid === undefined ? {} : { rid: request.rid }),
+    });
+    this.#publish();
+  }
+
+  /** Guest: asks the host to undo or change something (Host control rooms; the room refuses it in a Strict one). */
+  askHost(what: "undo" | "adjust", note: string): void {
+    if (this.role !== "guest") return;
+    const rid = this.#model.noteAsk(what);
+    this.#say({ ch: "game", kind: "request", table: FIRST_TABLE, what, note: note.trim().slice(0, 140), rid });
+    this.#publish();
+  }
+
+  /** Guest: dismisses the answer to my last request. */
+  clearAsk(): void {
+    this.#model.clearAsk();
+    this.#publish();
+  }
+
+  /** Host: turns a proposal down (the engine worker's verdict); the room tells the proposer alone. */
+  refuseProposal(to: string, reason: ProposalRefusal, base: number, pid?: number): void {
+    if (this.role !== "host") return;
+    this.#say({
+      ch: "game",
+      kind: "proposal-refused",
+      table: FIRST_TABLE,
+      to,
+      reason,
+      base,
+      ...(pid === undefined ? {} : { pid }),
+    });
+  }
+
+  /**
+   * Host: the log was cut back to `to`. An acceptance still held for a dropped socket names a command at or past the cut,
+   * which no longer exists: sent later it would credit whatever is played at that position next, so it is forgotten.
+   */
+  dropHeldAcceptances(to: number): void {
+    for (let i = this.#unsentAccepts.length - 1; i >= 0; i--) {
+      if ((this.#unsentAccepts[i] as { base: number }).base >= to) this.#unsentAccepts.splice(i, 1);
+    }
+  }
+
+  /** Host: tells a proposer its proposal was applied (the engine worker's verdict); the room tells the proposer alone. */
+  acceptProposal(to: string, base: number, pid?: number): void {
+    if (this.role !== "host") return;
+    const body: Body = {
+      ch: "game",
+      kind: "proposal-accepted",
+      table: FIRST_TABLE,
+      to,
+      base,
+      ...(pid === undefined ? {} : { pid }),
+    };
+    // A dropped socket loses it, and the proposer would then report a move that landed as unanswered: it is kept and
+    // sent again on the next welcome, ahead of the publisher's catch-up of the log.
+    if (!this.#trySay(body)) {
+      this.#unsentAccepts.push(body);
+      if (this.#unsentAccepts.length > MAX_UNSENT_ACCEPTS) this.#unsentAccepts.shift();
     }
   }
 
@@ -349,10 +464,17 @@ export class RoomSession {
     this.#feed = port;
     port.onmessage = (event) => {
       if ((event.data as RoomFeedIn | undefined)?.kind === "resync") this.#sendSnapshot();
+      else this.#sendSeatMessage(event.data);
     };
     port.start?.();
     this.#sendSnapshot();
     if (this.#socket && !this.#socket.connected) port.postMessage({ kind: "connection", connected: false });
+  }
+
+  /** A seated guest's proposal over the feed (`live/seat-protocol.ts`): sent to the room for the table's host to judge. */
+  #sendSeatMessage(data: unknown): void {
+    const message = seatFeedMessage(data);
+    if (message) this.#say(message);
   }
 
   unfollow(): void {
@@ -389,7 +511,11 @@ export class RoomSession {
   }
 
   #say(body: Body): void {
-    this.#socket?.send({ v: ROOM_PROTOCOL_VERSION, ...body } as ClientMessage);
+    this.#trySay(body);
+  }
+
+  #trySay(body: Body): boolean {
+    return this.#socket?.send({ v: ROOM_PROTOCOL_VERSION, ...body } as ClientMessage) ?? false;
   }
 
   async #loadTokens(roomId: string): Promise<void> {
@@ -420,7 +546,7 @@ export class RoomSession {
       baseUrl,
       roomId,
       ...(this.#hostToken ? { token: this.#hostToken } : {}),
-      caps: CAPS,
+      caps: this.role === "host" ? HOST_CAPS : CAPS,
       name: this.#name,
       build: this.#deps.build,
       ...(this.#deps.device ? { device: this.#deps.device } : {}),
@@ -461,6 +587,24 @@ export class RoomSession {
     hooks?.onEnded();
   }
 
+  /** A seat holder's proposal: the engine worker judges it, with the players behind the seats the room named. */
+  #onProposal(message: Extract<ServerMessage, { kind: "proposal" }>): void {
+    const onProposal = this.#hooks?.onProposal;
+    if (!onProposal) {
+      // No game attached to judge it (a reload, or the stream ended): the proposer keeps following the log.
+      this.refuseProposal(message.from, "stale", message.base, message.pid);
+      return;
+    }
+    onProposal({
+      from: message.from,
+      players: this.#model.playersOfSeats(message.seats),
+      command: message.command,
+      base: message.base,
+      ...(message.pid === undefined ? {} : { pid: message.pid }),
+      ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
+    });
+  }
+
   #onMessage(message: ServerMessage): void {
     if (message.ch === "room" && message.kind === "welcome" && this.role === "host" && message.you.role !== "host") {
       // A token the room no longer honours silently joins as a watcher: this room is not ours to stream into.
@@ -483,6 +627,24 @@ export class RoomSession {
       this.#over(message.reason === "full" ? "full" : "no-name");
       return;
     }
+    if (this.role === "host" && message.ch === "game" && message.kind === "proposal") {
+      this.#onProposal(message);
+      return;
+    }
+    if (this.role === "host" && message.ch === "game" && message.kind === "request") {
+      // The room refuses requests in a Strict room itself; one that slips through is declined, never listed.
+      if (!askAllowedOf(message.what, this.#model.state().settings)) {
+        this.#say({
+          ch: "game",
+          kind: "request-answer",
+          table: FIRST_TABLE,
+          to: message.from,
+          accepted: false,
+          ...(message.rid === undefined ? {} : { rid: message.rid }),
+        });
+        return;
+      }
+    }
     const changed = this.#model.onMessage(message);
     if (message.ch === "room" && message.kind === "lobby") {
       this.#pruneTokens();
@@ -491,7 +653,13 @@ export class RoomSession {
       for (const seat of this.#model.lostRequests()) this.#say({ ch: "room", kind: "seat-request", seat });
     }
     if (this.role === "guest") this.#guestMessage(message);
-    else if (message.ch === "room" && message.kind === "welcome") this.#hooks?.onWelcome(this.#tableInfo());
+    else if (message.ch === "room" && message.kind === "welcome") {
+      // Only what went out is dropped: a socket that fails mid-flush keeps that acceptance and the rest for the next one.
+      let sent = 0;
+      while (sent < this.#unsentAccepts.length && this.#trySay(this.#unsentAccepts[sent]!)) sent++;
+      this.#unsentAccepts.splice(0, sent);
+      this.#hooks?.onWelcome(this.#tableInfo());
+    }
     this.#hooks?.onMessage(message);
     if (message.ch === "room" && message.kind === "closed") {
       this.#over(this.#model.state().problem ?? "closed-ended");

@@ -6,6 +6,7 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type {
   DeckRefusalCode,
+  ProposalRefusal,
   HostActivityStep,
   RoomBuild,
   RoomDeck,
@@ -42,14 +43,26 @@ export type LiveRoomIn =
   | { readonly kind: "room-join"; readonly target: string; readonly name: string }
   /** `closeRoom`: a host who confirmed closing the lobby for everyone asks the room to shut down first. */
   | { readonly kind: "room-leave"; readonly closeRoom?: boolean }
-  | { readonly kind: "room-lobby"; readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }
+  | {
+      readonly kind: "room-lobby";
+      readonly settings?: LobbySettingsPatch;
+      readonly seats?: readonly LobbySeatSpec[];
+      /** Compare and swap: the lobby revision the change was worked out against; the room refuses it if it moved on. */
+      readonly ifRev?: number;
+    }
   | {
       readonly kind: "room-seat";
-      readonly op: "request" | "release" | "assign" | "deny";
+      readonly op: "request" | "release" | "assign" | "deny" | "take-over" | "give-back";
       readonly seat: string;
       readonly participant?: string;
     }
   | { readonly kind: "room-say"; readonly text: string }
+  /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
+  | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
+  /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
+  | { readonly kind: "room-ask"; readonly what: "undo" | "adjust"; readonly note: string }
+  /** Guest only: dismisses the answer to the last request. */
+  | { readonly kind: "room-ask-clear" }
   /** Host only: the setup step the host is in (`idle` clears it), shown to everyone as a status line. */
   | { readonly kind: "room-activity"; readonly step: HostActivityStep; readonly scenario?: string }
   /** My deck for a seat I hold, or (host only) a preset for any seat. */
@@ -106,6 +119,23 @@ export type LiveGameMessage =
       readonly outcome?: GameOutcome;
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
+  /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
+  | {
+      readonly kind: "refuse";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly reason: ProposalRefusal;
+      readonly base: number;
+      readonly pid?: number;
+    }
+  /** A seat holder's proposal was applied (issue #881): the room tells `to` alone, ahead of the command's own echo. */
+  | {
+      readonly kind: "accept";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly base: number;
+      readonly pid?: number;
+    }
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
 
@@ -113,4 +143,22 @@ export type LiveGameMessage =
  * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
  * posts the current game if it is watchable), `resync` asks for the whole game again after a gap in its log.
  */
-export type LiveControlMessage = { readonly kind: "enabled"; readonly on: boolean } | { readonly kind: "resync" };
+export type LiveControlMessage =
+  | { readonly kind: "enabled"; readonly on: boolean }
+  | { readonly kind: "resync" }
+  /**
+   * A seat holder's proposal for the engine worker to judge (issue #881). `players` are the engine players behind the
+   * seats the room says the proposer may act for; `command` is untrusted and `base` the log length it was built on.
+   */
+  | {
+      readonly kind: "proposal";
+      readonly gameKey: string;
+      readonly from: string;
+      readonly players: readonly string[];
+      readonly command: unknown;
+      readonly base: number;
+      /** The proposer's id for the proposal, echoed in a refusal of it. */
+      readonly pid?: number;
+      /** The proposer's state identity at `base` (`replayChecksum`); absent means the proposal cannot be judged current. */
+      readonly stamp?: string;
+    };

@@ -62,6 +62,8 @@ import { sealForTable } from "../view/hidden-reverse.js";
 import type { PresenceGame } from "../view/discord-presence.js";
 import { presenceGameOf } from "../view/discord-presence-game.js";
 import { liveGameOf } from "../live/live-game.js";
+import { judgeProposal } from "../live/proposal-judge.js";
+import type { ProposalRefusal } from "@mc/sync-worker/room-protocol";
 import type { LiveGame } from "../live/live-publisher.js";
 import { isChecksumPosition, replayChecksum } from "../replay/replay-file.js";
 import type { PaymentState } from "../view/payment-model.js";
@@ -135,6 +137,8 @@ export type CoreDispatch =
   | { readonly ok: false; readonly error: EngineError };
 
 /** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
+/** A rewind worked out for an older table than the game now has (a seat's command landed first). */
+export const MOVED_REFUSAL = "The table moved on while this was being decided";
 export const STRICT_REFUSAL = "Strict rules: the host turned this off";
 /** A room whose Undo setting is Off (`SessionConfig.roomUndo`) takes no Undo or Back out either. */
 export const UNDO_OFF_REFUSAL = "The host turned Undo off";
@@ -631,6 +635,7 @@ export class EngineSessionCore {
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
     if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
+    if (options.fromVersion !== undefined && options.fromVersion !== this.#version) throw new Error(MOVED_REFUSAL);
     if (config.roomUndo === "off") throw new Error(UNDO_OFF_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
@@ -691,6 +696,49 @@ export class EngineSessionCore {
     this.#persist(command, this.#version - 1, result.session.state, this.#played());
     const states = sealedEventStates(result.states ?? []);
     return { ok: true, snapshot: { ...this.#snapshot(result.events), ...(states.length > 0 ? { states } : {}) } };
+  }
+
+  /**
+   * A seat holder's proposal in a lobby room's game (issue #881): dispatched only when it is built on the current
+   * command count, the table is waiting on a hero the proposer's seats play (`players`), and the command is that
+   * hero's; the engine's own validation still has the last word (a rejection is `illegal`). Accepted, it is applied
+   * exactly as a host's own command is, so it joins the same log and streams the same way.
+   */
+  dispatchProposal(
+    command: unknown,
+    base: number,
+    stamp: string | undefined,
+    players: readonly string[],
+  ):
+    | { readonly ok: true; readonly command: Command; readonly snapshot: Snapshot }
+    | { readonly ok: false; readonly reason: ProposalRefusal } {
+    const session = this.#session;
+    const config = this.#config;
+    // Only a game that belongs to a room takes proposals; any other table has no seats to propose from.
+    if (!session || !config?.room) return { ok: false, reason: "stale" };
+    const verdict = judgeProposal({
+      state: session.state,
+      count: this.#version,
+      base,
+      stamp,
+      stampNow: () => replayChecksum(session.state),
+      players,
+      command,
+      strict: config.roomPlayMode === "strict",
+    });
+    if (!verdict.ok) return verdict;
+    const before = this.#version;
+    try {
+      const result = this.dispatch(verdict.command);
+      return result.ok
+        ? { ok: true, command: verdict.command, snapshot: result.snapshot }
+        : { ok: false, reason: "illegal" };
+    } catch {
+      // A throw after the command was applied (not before) is not the proposer's fault: the game moved, so it was accepted.
+      return this.#version === before
+        ? { ok: false, reason: "illegal" }
+        : { ok: true, command: verdict.command, snapshot: this.#snapshot([]) };
+    }
   }
 
   legalActions(playerId: PlayerId): LegalActions {

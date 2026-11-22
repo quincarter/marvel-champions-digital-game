@@ -93,7 +93,7 @@ async function setup({ lobby = true, hooks }: SetupOptions = {}) {
     return s;
   };
   const host = (r = room, name = "Hosty") => join(r, { token: TOKEN, name });
-  const lobbySet = (s: RoomSocket, patch: { settings?: object; seats?: object[] }, r = room) =>
+  const lobbySet = (s: RoomSocket, patch: { settings?: object; seats?: object[]; ifRev?: number }, r = room) =>
     send(r, s, { ch: "room", kind: "lobby-set", ...patch });
   const seats = (...ids: string[]) => ids.map((id) => ({ id, label: `Hero ${id}` }));
   return { storage, clock, room, make, send, join, host, lobbySet, seats };
@@ -104,7 +104,7 @@ describe("a lobby room: names, build and the lobby message", () => {
     const { host } = await setup();
     const h = await host();
     expect(h.last("welcome")!.caps).toEqual(LOBBY_ROOM_CAPS);
-    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats"]);
+    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play"]);
     expect(h.last("welcome")!.you).toMatchObject({ role: "host", name: "Hosty", build: BUILD });
     expect(h.last("lobby")).toMatchObject({
       code: CODE,
@@ -179,6 +179,24 @@ describe("who may set the lobby", () => {
     expect(w.last("lobby")!.seats.map((s) => s.label)).toEqual(["Hero s1", "Hero s2"]);
   });
 
+  it("holds Host sees every hand: off by default, host-only to set, shown to everyone (#887)", async () => {
+    const { room, host, join, lobbySet } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.hostSeesHands).toBe(false);
+    await lobbySet(w, { settings: { hostSeesHands: true } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { hostSeesHands: true } });
+    expect(h.refusals).toEqual([]);
+    expect(w.last("lobby")!.settings.hostSeesHands).toBe(true);
+    // Strict rules do not touch it, and an unrelated change keeps it.
+    await lobbySet(h, { settings: { playMode: "host" } });
+    await lobbySet(h, { settings: { chat: false } });
+    expect(h.last("lobby")!.settings.hostSeesHands).toBe(true);
+    await lobbySet(h, { settings: { hostSeesHands: false } });
+    expect(w.last("lobby")!.settings.hostSeesHands).toBe(false);
+  });
+
   it("holds the undo policy: Off in Strict, Ask when Host control starts, the host's choice after, host-only to set", async () => {
     const { room, host, join, lobbySet } = await setup();
     const h = await host();
@@ -248,6 +266,32 @@ describe("who may set the lobby", () => {
     expect(h.last("table")!.table).toMatchObject({ hasHeader: true, commands: 0 });
     await lobbySet(h, { settings: { cheats: false } });
     expect(h.refusals).toEqual(["lobby-changed", "not-allowed"]);
+  });
+
+  it("applies a lobby-set only at the revision it names (ifRev): a match bumps by one, a mismatch stores nothing, a no-op does not bump (#881)", async () => {
+    const { room, host, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    const rev = h.last("lobby")!.rev;
+    const mapped = [
+      { id: "s1", label: "Hero s1", player: "p1" },
+      { id: "s2", label: "Hero s2", player: "p2" },
+    ];
+    // A stale revision is refused and nothing is stored.
+    await lobbySet(h, { ifRev: rev - 1, seats: mapped });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.last("lobby")!.rev).toBe(rev);
+    expect(h.last("lobby")!.seats.map((s) => s.player)).toEqual([undefined, undefined]);
+    // The matching revision applies, and the revision is exactly one higher.
+    await lobbySet(h, { ifRev: rev, seats: mapped });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.last("lobby")!.rev).toBe(rev + 1);
+    expect(h.last("lobby")!.seats.map((s) => s.player)).toEqual(["p1", "p2"]);
+    // Setting what is already set stores nothing, so the revision a start was judged at stays.
+    await lobbySet(h, { ifRev: rev + 1, seats: mapped });
+    await lobbySet(h, { seats: mapped });
+    expect(h.last("lobby")!.rev).toBe(rev + 1);
+    expect(room).toBeDefined();
   });
 
   it("tells the host its start was taken, and guards a log replacement with the revision too", async () => {

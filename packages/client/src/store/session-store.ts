@@ -13,6 +13,9 @@
  */
 
 import { roomUndoOffOf } from "../view/room-strict.js";
+import { seatContext } from "../view/seat-context.js";
+import { heldElsewhere } from "../view/seat-gate.js";
+import { t } from "../i18n/translate.js";
 import {
   type ChoiceId,
   type Command,
@@ -279,6 +282,13 @@ export class SessionStore {
    */
   async dispatch(command: Command): Promise<boolean> {
     if (this.#state.inFlight) return false;
+    // A room game (#881): nothing is answered for a hero whose seat this device does not act for, whatever screen asks
+    // (the board, setup, the villain phase). Concede is the one command that is the table's, not a hero's.
+    const room = seatContext();
+    if (room && command.type !== "concede" && heldElsewhere(room.room, command.playerId, room.seatGame)) {
+      this.#set({ ...this.#state, error: t("seat.refusal.notYourTurn") });
+      return false;
+    }
     this.#set({ ...this.#state, inFlight: true });
     try {
       const drawsBefore = this.#state.game?.rng.draws;
@@ -344,7 +354,11 @@ export class SessionStore {
     if (roomUndoOffOf(this.#state.config)) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
-      const update = await this.#host.rewindTo(commandCount, options);
+      // Worked out from this version: a seat's command the engine applied since (not yet absorbed here) refuses it.
+      const update = await this.#host.rewindTo(commandCount, {
+        ...options,
+        fromVersion: options?.fromVersion ?? this.#state.version,
+      });
       // The trail has one entry per command dispatched so far, in the same order `commandTrail.length ===
       // version` already holds elsewhere in this class — truncating it to the rewound version keeps that true.
       this.#absorb(update, { force: true, commandTrail: this.#state.commandTrail.slice(0, update.version) });
@@ -437,13 +451,35 @@ export class SessionStore {
     }
   }
 
+  /**
+   * A command a seat holder proposed and the engine applied (issue #881) never went through `dispatch`, so its trail
+   * entry is added here: `commandTrail.length === version` stays true, which Undo's target counts read.
+   */
+  #withRemote(
+    trail: readonly BackOutTrailEntry[],
+    update: EngineUpdate,
+    before: SessionState["game"],
+  ): readonly BackOutTrailEntry[] {
+    const command = update.remote;
+    if (!command) return trail;
+    return [
+      ...trail,
+      {
+        playerId: command.playerId,
+        command,
+        events: update.events,
+        ...(before ? { rngDraws: { before: before.rng.draws, after: update.state.rng.draws } } : {}),
+      },
+    ];
+  }
+
   #absorb(
     update: EngineUpdate,
     options: { readonly force?: boolean; readonly commandTrail?: readonly BackOutTrailEntry[] } = {},
   ): void {
     // An out-of-order reply for an older command must never overwrite newer state — except a forced absorb
     // (`rewindTo`'s own doc comment), whose entire point is going backwards.
-    if (!options.force && update.version < this.#state.version) return;
+    if (!options.force && !update.rewound && update.version < this.#state.version) return;
     const toAct = actingPlayer(update.state);
     this.#activeLegal = update.legal;
     this.#set({
@@ -459,7 +495,8 @@ export class SessionStore {
       offTurnSeats: [],
       offTurnSeat: null,
       peekSeat: null,
-      inFlight: false,
+      // A seat holder's command lands while this host's own dispatch is still out: that one clears the flag when it returns.
+      inFlight: update.remote ? this.#state.inFlight : false,
       error: null,
       setupError: null,
       record: update.record,
@@ -468,7 +505,8 @@ export class SessionStore {
       gameId: update.gameId !== undefined ? update.gameId : this.#state.gameId,
       // A resumed game's first update carries the replayed commands' own trail, so `commandTrail.length === version`
       // holds from the first frame and a trail index is always a command count (`rewindTo`'s argument).
-      commandTrail: options.commandTrail ?? update.trail ?? this.#state.commandTrail,
+      commandTrail:
+        options.commandTrail ?? update.trail ?? this.#withRemote(this.#state.commandTrail, update, this.#state.game),
       adjusted: update.adjusted === true,
     });
     void this.#findOffTurnSeats(update);

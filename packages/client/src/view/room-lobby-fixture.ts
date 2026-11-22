@@ -85,6 +85,9 @@ export function roomLobbyFixture(
       holderConnected: true,
       mismatch: false,
       mine: !host,
+      player: null,
+      takenOver: false,
+      away: false,
       requests: [],
       requestedByMe: false,
       deck: open ? null : deck("01001a", "Spider-Man", "justice", "Webs and Justice"),
@@ -101,6 +104,9 @@ export function roomLobbyFixture(
       holderConnected: false,
       mismatch: false,
       mine: false,
+      player: null,
+      takenOver: false,
+      away: false,
       requests: open
         ? []
         : [
@@ -119,6 +125,9 @@ export function roomLobbyFixture(
       holderConnected: false,
       mismatch: false,
       mine: false,
+      player: null,
+      takenOver: false,
+      away: true,
       requests: [],
       requestedByMe: false,
       deck: open
@@ -136,6 +145,9 @@ export function roomLobbyFixture(
       holderConnected: !open,
       mismatch: !open,
       mine: false,
+      player: null,
+      takenOver: false,
+      away: false,
       requests: [],
       requestedByMe: false,
       deck: null,

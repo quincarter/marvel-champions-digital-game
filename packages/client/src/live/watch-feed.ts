@@ -44,6 +44,13 @@ export class WatchFeed {
   /** A resync was asked for and its fresh `log` has not come: further gaps wait for it rather than ask again. */
   #resyncing = false;
   #watchers = 0;
+  /** A multi-part `log` being assembled: nothing is emitted until all `total` commands are in, then one open/reset. */
+  #assembling: {
+    readonly total: number;
+    readonly message: Extract<ServerMessage, { kind: "log" }>;
+    commands: Command[];
+    checksums: Record<string, string>;
+  } | null = null;
 
   constructor(table: string = FIRST_TABLE) {
     this.#table = table;
@@ -64,22 +71,35 @@ export class WatchFeed {
     if (message.ch !== "game" || !("table" in message) || message.table !== this.#table) return [];
     switch (message.kind) {
       case "log": {
-        const kind = this.#opened ? "reset" : "open";
-        this.#opened = true;
-        this.#resyncing = false;
-        this.#count = message.commands.length;
-        this.#ended = message.outcome != null;
-        return [
-          {
-            kind,
-            header: message.header,
-            commands: message.commands as readonly Command[],
-            checksums: message.checksums ?? {},
-            outcome: message.outcome,
-          },
-        ];
+        this.#assembling = null;
+        const total = message.total;
+        if (total !== undefined && total > message.commands.length) {
+          this.#assembling = {
+            total,
+            message,
+            commands: [...(message.commands as readonly Command[])],
+            checksums: { ...message.checksums },
+          };
+          return [];
+        }
+        return this.#openWith(message, message.commands as readonly Command[], message.checksums ?? {});
       }
       case "commands": {
+        const assembling = this.#assembling;
+        if (assembling) {
+          if (message.from !== assembling.commands.length) {
+            // Parts out of order: drop the partial log and ask for a fresh one.
+            this.#assembling = null;
+            if (this.#resyncing) return [];
+            this.#resyncing = true;
+            return [{ kind: "resync" }];
+          }
+          assembling.commands.push(...(message.commands as readonly Command[]));
+          Object.assign(assembling.checksums, message.checksums);
+          if (assembling.commands.length < assembling.total) return [];
+          this.#assembling = null;
+          return this.#openWith(assembling.message, assembling.commands, assembling.checksums);
+        }
         if (!this.#opened) return [];
         const from = message.from;
         const end = from + message.commands.length;
@@ -99,6 +119,7 @@ export class WatchFeed {
         ];
       }
       case "rewind":
+        if (this.#assembling) return [];
         // A same-count rewind is how the room reopens an ended table (clearing its outcome): forward it then.
         if (!this.#opened || message.to > this.#count || (message.to === this.#count && !this.#ended)) return [];
         this.#count = message.to;
@@ -111,6 +132,20 @@ export class WatchFeed {
       default:
         return [];
     }
+  }
+
+  /** The one open or reset: from a whole `log`, or from a `log` and its continuations once all have come. */
+  #openWith(
+    message: Extract<ServerMessage, { kind: "log" }>,
+    commands: readonly Command[],
+    checksums: TableChecksums,
+  ): readonly WatchAction[] {
+    const kind = this.#opened ? "reset" : "open";
+    this.#opened = true;
+    this.#resyncing = false;
+    this.#count = commands.length;
+    this.#ended = message.outcome != null;
+    return [{ kind, header: message.header, commands, checksums, outcome: message.outcome }];
   }
 
   #room(message: Extract<ServerMessage, { ch: "room" }>): readonly WatchAction[] {

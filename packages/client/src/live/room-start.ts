@@ -45,6 +45,12 @@ export interface RoomStartDeps {
   readonly check: (
     input: Omit<RoomDeckCheckInput, "basePool" | "loaded">,
   ) => Promise<readonly SeatDeckVerdict[] | null>;
+  /**
+   * Gets the room's seats to show the seat to player mapping the decks were judged against, given the revision they were
+   * judged at, and answers the revision to start at (the same one when nothing needed writing); null when the lobby
+   * changed meanwhile. Optional: without it the game starts at the judged revision.
+   */
+  readonly mapSeats?: (judgedRev: number) => Promise<number | null>;
   /** Starts the game on this device (it carries the room, watching and play mode itself) and says why if it failed. */
   readonly start: (config: SessionConfig) => Promise<string | null>;
 }
@@ -95,6 +101,8 @@ export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Pr
     if (!deck) return { ok: false, reason: "check-failed" };
     players.push(playerOfRoomDeck(deck));
   }
-  const error = await deps.start({ ...base, players, roomLobbyRev: rev });
+  const startRev = deps.mapSeats ? await deps.mapSeats(rev) : rev;
+  if (startRev === null) return { ok: false, reason: "lobby-changed" };
+  const error = await deps.start({ ...base, players, roomLobbyRev: startRev });
   return error === null ? { ok: true } : { ok: false, reason: "start-failed", error };
 }

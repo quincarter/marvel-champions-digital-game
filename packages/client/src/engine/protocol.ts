@@ -67,6 +67,11 @@ export type HostResponse =
    */
   | { readonly kind: "saved"; readonly id: 0; readonly reason: "game" | "round" }
   /**
+   * Unsolicited (`id` is 0): a seat holder's command in a lobby room was accepted and applied (issue #881), so the
+   * host's own table moves with it. `command` is what was applied, for the store's trail.
+   */
+  | { readonly kind: "remoteDispatched"; readonly id: 0; readonly command: Command; readonly snapshot: Snapshot }
+  /**
    * The worker threw: an invariant break, a bad setup, or a save that won't
    * replay. Surfaced, never swallowed. `code`/`illegalDecks` are present when
    * the throw was a `SetupError` (`session-core.ts`), so a `start`/`resume`

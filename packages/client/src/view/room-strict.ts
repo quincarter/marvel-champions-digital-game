@@ -6,6 +6,9 @@
 import type { SessionConfig } from "../engine/host.js";
 import { t } from "../i18n/translate.js";
 import type { UndoPastTurn } from "../settings.js";
+import type { LobbySettings } from "@mc/sync-worker/room-protocol";
+import { seatUndoPolicyOf } from "./room-ask-policy.js";
+import { seatNoRewind } from "./seat-context.js";
 
 /** True for a game started from a lobby room whose rules are Strict. Single-player and plain watchable games: false. */
 export const roomStrictOf = (config: Pick<SessionConfig, "roomPlayMode"> | null | undefined): boolean =>
@@ -41,6 +44,8 @@ export function roomCheatsOf(
   settings: { readonly allowManualAdjust: boolean; readonly undoPastTurn: UndoPastTurn },
   config: Pick<SessionConfig, "room" | "roomPlayMode" | "roomUndo" | "roomCheats"> | null | undefined,
 ): EffectiveCheats {
+  // A seated guest's cheat settings never apply to the room's game (#904): it follows the host's log.
+  if (seatNoRewind()) return { manualAdjust: false, undoPastTurn: "off" };
   // A room's game carries `room` (and a play mode); anything else is the player's own game.
   if (!config || (config.room === undefined && config.roomPlayMode === undefined)) {
     return { manualAdjust: settings.allowManualAdjust, undoPastTurn: settings.undoPastTurn };
@@ -51,3 +56,11 @@ export function roomCheatsOf(
     undoPastTurn: on && !roomUndoOffOf(config) ? settings.undoPastTurn : "off",
   };
 }
+
+/** Why a guest's Undo is off: Strict rules say so, otherwise the host's Undo setting. */
+export const seatUndoReason = (settings: Pick<LobbySettings, "playMode" | "undo"> | null | undefined): string =>
+  settings?.playMode === "strict"
+    ? strictReason()
+    : seatUndoPolicyOf(settings) === "host"
+      ? t("room.undo.hostDetail")
+      : t("room.undo.reason");

@@ -858,6 +858,11 @@ export interface BoardModel {
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
   readonly hand: readonly HandCardView[];
+  /**
+   * This hand is not this device's to read (a room game's other seat, `view/hand-privacy.ts`, #887): `hand` is empty and
+   * the table draws `handLimit` card backs, with no hover or inspect.
+   */
+  readonly handHidden: boolean;
   readonly handLimit: number;
   /** My hand size now (`handSize`): the caption prints it beside the count, so a full hand of 1 reads as full (#150). */
   readonly myHandSize: number;
@@ -1214,6 +1219,8 @@ export function boardModel(
   actions: LegalActions | null = null,
   /** How your play area is laid out (`Settings.playAreaOrder`); the engine's own order is never changed. */
   playAreaOrder: PlayAreaOrder = "played",
+  /** False: draw this seat's hand face down (a room game's other seat); the default shows it. */
+  handVisible = true,
 ): BoardModel {
   const me = getPlayer(state, perspectiveId);
   if (!me) throw new Error(`no seat ${perspectiveId}`);
@@ -1288,13 +1295,16 @@ export function boardModel(
         };
       },
     ).map((id) => characterPanel(state, id, deps)),
-    hand: [
-      ...me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
-      ...playableOutsideHandOf(state, perspectiveId, deps).map(({ id, from }) => ({
-        ...handCardView(state, id, perspectiveId, deps),
-        from,
-      })),
-    ],
+    hand: handVisible
+      ? [
+          ...me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
+          ...playableOutsideHandOf(state, perspectiveId, deps).map(({ id, from }) => ({
+            ...handCardView(state, id, perspectiveId, deps),
+            from,
+          })),
+        ]
+      : [],
+    handHidden: !handVisible,
     handLimit: me.hand.length,
     myHandSize: handSize(state, perspectiveId, deps),
     myPiles: { deck: me.deck.length, discard: me.discard.length },

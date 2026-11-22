@@ -265,6 +265,11 @@ import { villainHandTagsOf } from "../view/villain-hand-tags.js";
 import { SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { endOfTurnLine, type EndOfTurnDraws } from "../view/villain-end-of-turn.js";
 import { gateTakebackOf } from "../view/end-turn-takeback.js";
+import { t } from "../i18n/translate.js";
+import { seatContext, seatNoRewind } from "../view/seat-context.js";
+import { whoseTurnOf } from "../view/whose-turn.js";
+import { handVisibleHere } from "./hand-privacy-here.js";
+import { heldElsewhere } from "../view/seat-gate.js";
 import {
   abilityName,
   drawInterruptAnswer,
@@ -728,7 +733,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #handTags(game: GameState, viewer: PlayerId | null): ReturnType<typeof villainHandTagsOf> {
     // Before START nothing is on offer yet: the window is not shown.
     const choice = this.#shownPause() && !this.#waitingToStart() ? game.pendingChoice : null;
-    const offered = choice ? (inlineInterruptFor(choice, viewer) ?? []) : [];
+    const offered = choice && !this.#heldChoice() ? (inlineInterruptFor(choice, viewer) ?? []) : [];
     // The cards the player drew as their turn ended read "New · …" for the whole phase.
     const fresh = new Set(viewer ? (this.#endOfTurn?.bySeat.get(viewer) ?? []) : []);
     return villainHandTagsOf(game, viewer, gameDeps(), new Set(offered.map((option) => option.instanceId)), fresh);
@@ -742,6 +747,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       viewer,
       (playerId) => seatName(game, playerId, viewer),
       (instanceId) => cardName(game, instanceId),
+      // A hand that is not this device's to read is counted, never named (#887).
+      (playerId) => handVisibleHere(playerId),
     );
   }
 
@@ -795,8 +802,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #picks: readonly string[] = [];
   #picksFor: string | null = null;
 
+  /** The open decision is another seat's hero's, in a room game (#881): this device answers nothing for it. */
+  #heldChoice(): boolean {
+    const room = seatContext();
+    const choice = appSession().store.state.game?.pendingChoice;
+    return room !== null && !!choice && heldElsewhere(room.room, choice.playerId, room.seatGame);
+  }
+
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
   #resolve(selectedOptionIds: readonly string[]): void {
+    if (this.#heldChoice()) return;
     void appSession().store.resolveChoice(selectedOptionIds);
   }
 
@@ -1040,12 +1055,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   /** A defend option picked in the docked panel; picking again leaves it picked. */
   #pickDefender(choiceId: string, optionId: string): void {
+    if (this.#heldChoice()) return;
     this.#defendPick = { choiceId, optionId };
     this.#draw();
   }
 
   /** CONFIRM on the docked defend: the same `resolveChoice` the sheet sends, with the same option id. */
   #confirmDefender(choiceId: string): void {
+    if (this.#heldChoice()) return;
     const pick = this.#defendPick;
     if (!pick || pick.choiceId !== choiceId) return;
     void appSession().store.resolveChoice([pick.optionId]);
@@ -1117,6 +1134,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
     if (this.scene.isActive(SCENES.pause) || this.#logView) return null;
     if (state.inFlight || state.version !== state.commandTrail.length || roomUndoOffOf(state.config)) return null;
+    // A guest's seat game never takes End turn back (#881).
+    if (seatNoRewind()) return null;
     return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
 
@@ -1164,6 +1183,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         lead,
         onPress: () => this.#start(),
         ...(this.#nevermindTarget() !== null ? { onNevermind: () => void this.#nevermind() } : {}),
+      };
+    }
+    // Another seat's decision (a guest's interrupt or defend, #881): the window says who it waits for and offers nothing,
+    // so the cards that player is offered stay off this device (#887).
+    const pending = game.pendingChoice;
+    if (pending && this.#heldChoice() && this.#gateEligible()) {
+      const room = seatContext();
+      const line = room ? whoseTurnOf(room.room, { playerId: pending.playerId, kind: "choice" }) : null;
+      return {
+        kind: "decision",
+        title: line ? t(line.key, line.params) : "Waiting",
+        text: "",
+        cardInstanceId: null,
+        onPress: () => undefined,
+        waiting: true,
       };
     }
     const held = this.#heldChoiceId();
@@ -1543,7 +1577,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
     const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
     const layout = villainPhaseLayout(bounds, formFactor, boostCount);
-    const pausedInline = this.#shownPause() && game.pendingChoice && inlineInterruptFor(game.pendingChoice, viewer);
+    const pausedInline =
+      this.#shownPause() && game.pendingChoice && !this.#heldChoice() && inlineInterruptFor(game.pendingChoice, viewer);
 
     // Docked beside the table (D1/D2) unless the player turned the docked table off, or this form factor's docked
     // shape is not drawn yet; then the full-screen panel below. The recap and the viewer's own defend dock too
@@ -1749,7 +1784,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // phone Spider-Sense prompt during a busy villain-phase beat sequence could sit that way for over a second on
     // the first frame it appeared, tappable only once the cursor happened to catch up on its own.
     const pause = this.#shownPause();
-    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    const inline =
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
     if (logRect) stops.set("log", { rect: logRect, activate: () => this.toggleLog() });
@@ -2089,6 +2125,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): boolean {
     const choice = game.pendingChoice;
     if (!choice) return false;
+    // Another seat's defend decision is theirs (#881): no answer is offered here.
+    if (this.#heldChoice()) return false;
     const picked = this.#defendPick?.choiceId === choice.choiceId ? this.#defendPick.optionId : null;
     const view = defendChoiceViewOf(game, choice, gameDeps(), viewer, picked ? [picked] : []);
     const layout = view ? villainDefendLayout({ panel, kind, optionCount: view.options.length, footer }) : null;
@@ -3106,7 +3144,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   ): void {
     this.#presentation = kind;
     const pause = this.#shownPause();
-    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline =
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
     const subject = (revealing ? strip?.current : null) ?? this.#walkthrough.activation?.enemyInstanceId ?? null;
@@ -3317,7 +3356,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const seats = seatPeekChips(game, store.state.peekSeat ?? home, home, (id) => shortSeatName(game, id, null));
     const layout = peekBannerLayout(area, peekEdge(), footer.width < 600, 720, seats.length);
     const pause = this.#shownPause();
-    let inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+    let inline =
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
     const peekStrip = this.#encounterStrip(reveal, game, viewer);
     const gate = this.#gate(game, viewer, peekStrip?.current ?? this.#walkthrough.activation?.enemyInstanceId ?? null);
     if (gate?.kind === "start") inline = null;

@@ -9,6 +9,8 @@ import { compareVersions } from "../engine/app-version.js";
 import {
   MAX_CHAT_KEPT,
   NO_ROOM,
+  playerIdOfSeat,
+  type RoomAsk,
   type BuildGap,
   type RoomChatLine,
   type RoomHostActivity,
@@ -17,6 +19,7 @@ import {
   type RoomParticipant,
   type RoomProblem,
   type RoomRefusal,
+  type RoomRequest,
   type RoomRole,
   type RoomSeat,
   type RoomState,
@@ -85,6 +88,12 @@ export class RoomModel {
   #welcomed = false;
   /** Seats asked for and not yet answered: the room keeps requests in memory only, so they are sent again after a wake. */
   readonly #wanted = new Set<string>();
+  /** Host: requests from seat holders awaiting its answer (memory only, as the room's own are). */
+  #requests: RoomRequest[] = [];
+  #requestSeq = 0;
+  /** Guest: my last request to the host and its answer. */
+  #ask: RoomAsk | null = null;
+  #askSeq = 0;
   /**
    * The host's engine refused my deck in a seat at Start. Kept with what the seat looked like then (its deck and the
    * lobby's mods), so it disappears once either changes: the verdict may be different now.
@@ -115,6 +124,35 @@ export class RoomModel {
   /** The room's lobby seats, for the session's token upkeep. */
   get lobby(): LobbyState | null {
     return this.#lobby;
+  }
+
+  /** The engine players behind these seat ids (a seat without one yet is left out). */
+  playersOfSeats(seatIds: readonly string[]): string[] {
+    const out: string[] = [];
+    for (const id of seatIds) {
+      const player = this.#lobby?.seats.find((s) => s.id === id)?.player;
+      if (player !== undefined) out.push(playerIdOfSeat(player));
+    }
+    return out;
+  }
+
+  /** Guest: a request to the host went out; its answer fills the status in. */
+  noteAsk(what: "undo" | "adjust"): number {
+    const seq = ++this.#askSeq;
+    this.#ask = { what, status: "waiting", seq };
+    return seq;
+  }
+
+  /** Guest: forgets the last request's answer (the player has read it). */
+  clearAsk(): void {
+    this.#ask = null;
+  }
+
+  /** Removes and returns a pending request (the host answered it), or undefined when it is gone. */
+  takeRequest(id: string): RoomRequest | undefined {
+    const found = this.#requests.find((r) => r.id === id);
+    if (found) this.#requests = this.#requests.filter((r) => r !== found);
+    return found;
   }
 
   /** A `welcome` for a watcher that attaches late (the guest's feed): who is here and what the table holds. */
@@ -215,6 +253,30 @@ export class RoomModel {
       return true;
     }
     if (message.ch === "game") {
+      if (message.kind === "request" && this.#role === "host" && message.table === FIRST_TABLE) {
+        // One pending request of a kind per asker: asking again replaces the note rather than piling up.
+        const kept = this.#requests.filter((r) => !(r.from === message.from && r.what === message.what));
+        const name = this.#participants.find((p) => p.id === message.from)?.name ?? "";
+        this.#requests = [
+          ...kept,
+          {
+            id: `r${++this.#requestSeq}`,
+            from: message.from,
+            name,
+            what: message.what,
+            note: message.note,
+            ...(message.rid === undefined ? {} : { rid: message.rid }),
+          },
+        ];
+        return true;
+      }
+      if (message.kind === "request-answer" && message.table === FIRST_TABLE) {
+        if (this.#ask?.status !== "waiting") return false;
+        // An answer to an earlier ask (I have asked again since) is not an answer to this one.
+        if (message.rid !== undefined && message.rid !== this.#ask.seq) return false;
+        this.#ask = { ...this.#ask, status: message.accepted ? "accepted" : "declined" };
+        return true;
+      }
       if (message.kind === "end" && message.table === FIRST_TABLE && this.#table) {
         this.#table = { ...this.#table, ended: true };
         return true;
@@ -223,6 +285,7 @@ export class RoomModel {
     }
     switch (message.kind) {
       case "welcome":
+        this.#requests = [];
         this.#welcomed = true;
         this.#me = { id: message.you.id, name: message.you.name ?? this.#name };
         this.#participants = message.participants;
@@ -232,6 +295,8 @@ export class RoomModel {
         return true;
       case "roster":
         this.#participants = message.participants;
+        // An asker who left cannot be answered (the room refuses a `to` that is not connected).
+        this.#requests = this.#requests.filter((r) => message.participants.some((p) => p.id === r.from));
         return true;
       case "table":
         if (message.table.id !== FIRST_TABLE) return false;
@@ -261,6 +326,15 @@ export class RoomModel {
       case "refused": {
         const seat = SEAT_REFUSALS.has(message.reason) ? this.#lastSeat : undefined;
         if (seat) this.#wanted.delete(seat);
+        // A turned-down request (a Strict room, no seat) is no longer waiting: the refusal says why.
+        const mine = message.rid === undefined || message.rid === this.#ask?.seq;
+        if (
+          mine &&
+          this.#ask?.status === "waiting" &&
+          (message.reason === "strict" || message.reason === "not-seated")
+        ) {
+          this.#ask = null;
+        }
         this.#refusal = { reason: message.reason, ...(seat ? { seat } : {}), seq: ++this.#refusalSeq };
         return true;
       }
@@ -313,6 +387,10 @@ export class RoomModel {
       mismatch: seat.mismatch === true,
       holderConnected: seat.holder !== undefined && this.#participants.some((p) => p.id === seat.holder),
       mine: meId !== null && seat.holder === meId,
+      player: seat.player === undefined ? null : playerIdOfSeat(seat.player),
+      takenOver: seat.takenOver === true,
+      // Away: the holder is not connected, or (handover off) left the seat mid-game and has not taken it up again.
+      away: seat.holder !== undefined && (seat.left === true || !this.#participants.some((p) => p.id === seat.holder)),
       requests: (seat.requested ?? []).map((id) => ({ participant: id, name: nameOf(id) })),
       requestedByMe: meId !== null && (seat.requested ?? []).includes(meId),
     }));
@@ -349,6 +427,8 @@ export class RoomModel {
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
       refusal: this.#refusal,
+      requests: this.#role === "host" ? this.#requests : [],
+      myRequest: this.#role === "guest" ? this.#ask : null,
       buildMatches: me ? buildMatches(me) : sameBuild(this.#build, hostBuild) || !hostBuild,
       ...(me ? gapOf(me.build, me.role === "host" || buildMatches(me)) : gapOf(this.#build, false)),
       started: this.#hostStarted || (this.#table?.hasHeader ?? false),

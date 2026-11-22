@@ -37,6 +37,9 @@ import {
   LIVE_PUBLISH_MIN_MS,
   type LiveRoomEntry,
   CHAT_BURST,
+  MAX_REQUEST_NOTE_CHARS,
+  PROPOSAL_BURST,
+  PROPOSAL_PER_SECOND,
   DEFAULT_MAX_ROOM_LOG_BYTES,
   DEFAULT_MAX_ROOM_MESSAGE_BYTES,
   DEFAULT_MAX_ROOM_PARTICIPANTS,
@@ -99,7 +102,7 @@ export const DEFAULT_GAME_ROOM_LIMITS: GameRoomLimits = {
 /** What a watch room advertises. */
 export const ROOM_CAPS: readonly RoomCapability[] = ["watch"];
 /** What a lobby room advertises; `tables` is not built. */
-export const LOBBY_ROOM_CAPS: readonly RoomCapability[] = ["watch", "chat", "seats"];
+export const LOBBY_ROOM_CAPS: readonly RoomCapability[] = ["watch", "chat", "seats", "play"];
 
 /** The room's calls to its code's directory entry (`RoomCode`), made when it moves its expiry or closes. */
 export interface RoomCodeHooks {
@@ -107,6 +110,8 @@ export interface RoomCodeHooks {
   release(code: string, roomId: string): Promise<void>;
 }
 
+/** Proposal results kept per seat for a reconnect. */
+const RESULT_LEDGER_SIZE = 32;
 /** The room's calls to the "Live now" directory; the directory stamps `updatedAt`. */
 export interface RoomDirectoryHooks {
   upsert(entry: Omit<LiveRoomEntry, "updatedAt">): Promise<void>;
@@ -121,6 +126,8 @@ export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   tableRules: {},
   mods: [],
   multiSeat: false,
+  handover: true,
+  hostSeesHands: false,
   chat: true,
   contentVersion: "",
   appVersion: "",
@@ -151,6 +158,8 @@ interface StoredSeat extends LobbySeatSpec {
   holder?: string;
   holderName?: string;
   tokenHash?: string;
+  takenOver?: boolean;
+  left?: boolean;
   /** The seat's full deck list: only ever sent to the host (`seat-decks`), never in the lobby broadcast. */
   deck?: RoomDeck;
   /** The host chose `deck`: it stays through a change of holder. */
@@ -242,6 +251,12 @@ interface Table {
    * been in the lost tail), so the host's first accepted batch is preceded by a `rewind` to what the room holds.
    */
   rewindWatchers: boolean;
+  /**
+   * The log's epoch: bumped each time the log under the table is cut back, replaced or started over, so a receipt for
+   * a command (a `proposal-accepted`) can be told apart from one for another log that had the same commands. Stored in
+   * its own row, so it survives a wake.
+   */
+  epoch: number;
 }
 
 export async function sha256Hex(text: string): Promise<string> {
@@ -287,6 +302,7 @@ const newTable = (id: string): Table => ({
   tailStored: false,
   tailAt: undefined,
   rewindWatchers: false,
+  epoch: 0,
 });
 
 const randomId = (): string =>
@@ -407,6 +423,15 @@ export class GameRoomLogic {
   private readonly softRefusals = new WeakMap<RoomSocket, { n: number; since: number }>();
   /** Pending seat requests by seat id. Memory only, so asking and withdrawing never write a row. */
   private readonly requests = new Map<string, string[]>();
+  /** Proposal rate: a bucket per participant (burst `PROPOSAL_BURST`, `PROPOSAL_PER_SECOND` a second). Memory only. */
+  private readonly proposalBuckets = new Map<string, { tokens: number; at: number }>();
+  /**
+   * The host's proposal results per seat id (last `RESULT_LEDGER_SIZE`), kept so a seat's holder who reconnects (a new
+   * participant id, the seat reclaimed by its token) still gets the answer. Memory only; cleared when the seat changes hands.
+   */
+  private readonly resultLedger = new Map<string, ServerMessage[]>();
+  /** A participant id a seat was reclaimed from, to the id that holds it now, so an answer for the old id still arrives. */
+  private readonly successors = new Map<string, string>();
   /**
    * Set when sockets were restored after a hibernation: the pending requests above were lost while the sockets stayed
    * open, so the first message handled sends everyone a fresh lobby and the clients ask again (they do on every lobby).
@@ -627,7 +652,17 @@ export class GameRoomLogic {
         ...(deck ? { deck: summarize(deck, deckPreset === true) } : {}),
       };
     });
-    return { code: this.meta?.code ?? "", rev: lobby.rev ?? 0, settings: lobby.settings, seats };
+    // A lobby stored before `handover` existed has none: handing over is allowed, as it always was.
+    return {
+      code: this.meta?.code ?? "",
+      rev: lobby.rev ?? 0,
+      settings: {
+        ...lobby.settings,
+        handover: lobby.settings.handover !== false,
+        hostSeesHands: lobby.settings.hostSeesHands === true,
+      },
+      seats,
+    };
   }
 
   private broadcastLobby(lobby: LobbyRow): void {
@@ -678,8 +713,9 @@ export class GameRoomLogic {
 
   private async load(table: Table): Promise<void> {
     const meta = await this.loadMeta();
-    const header = await this.storage.get<{ h: unknown; g?: string; sg?: number }>(headerKey(table.id));
+    const header = await this.storage.get<{ h: unknown; g?: string; e?: number; sg?: number }>(headerKey(table.id));
     if (header) {
+      if (typeof header.e === "number") table.epoch = header.e;
       const rows = await this.storage.list<StoredChunk>({ prefix: chunkPrefix(table.id, header.sg) });
       const commands: unknown[] = [];
       const checksums: Record<string, string> = {};
@@ -779,6 +815,7 @@ export class GameRoomLogic {
     const header = {
       h: table.header,
       ...(table.gid !== undefined ? { g: table.gid } : {}),
+      e: table.epoch,
       ...(table.storeGen !== undefined ? { sg: table.storeGen } : {}),
     };
     // A table that ended again meanwhile leaves the lifecycle to its end (flushLifecycle); otherwise the reopened meta
@@ -945,12 +982,15 @@ export class GameRoomLogic {
 
   private broadcastRoster(): void {
     const participants = this.rosterList();
+    const holders = new Set<string>();
+    for (const seat of this.lobby?.seats ?? []) if (seat.holder) holders.add(seat.holder);
     this.broadcast({
       v: 1,
       ch: "room",
       kind: "roster",
       participants,
-      watchers: participants.filter((p) => p.role === "watcher").length,
+      // A seat holder plays; only the others watch (read from the lobby in memory: before it loads, all count).
+      watchers: participants.filter((p) => p.role === "watcher" && !holders.has(p.id)).length,
     });
   }
 
@@ -1005,6 +1045,8 @@ export class GameRoomLogic {
           header: table.header,
           commands: part,
           checksums,
+          epoch: table.epoch,
+          ...(commands.length > index ? { total: commands.length } : {}),
         });
         first = false;
       } else {
@@ -1074,7 +1116,14 @@ export class GameRoomLogic {
     if (message.ch === "room" && message.kind === "host-activity")
       return this.hostActivity(socket, participant, message);
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
-    if (message.kind === "propose") return this.refuse(socket, "not-allowed");
+    if (message.kind === "propose" || message.kind === "request") return this.fromSeat(socket, participant, message);
+    if (
+      message.kind === "proposal-refused" ||
+      message.kind === "proposal-accepted" ||
+      message.kind === "request-answer"
+    ) {
+      return this.answerSeat(socket, participant, message);
+    }
     const table = this.tableOf(message.table);
     if (participant.role !== "host" || participant.table !== message.table || !table) {
       return this.refuse(socket, "not-allowed");
@@ -1098,8 +1147,19 @@ export class GameRoomLogic {
     await this.game(socket, participant, table, message);
   }
 
-  private refuse(socket: RoomSocket, reason: Refusal): void {
-    this.sendSocket(socket, { v: 1, ch: "room", kind: "refused", reason });
+  private refuse(
+    socket: RoomSocket,
+    reason: Refusal,
+    ask: { pid?: number | undefined; rid?: number | undefined } = {},
+  ): void {
+    this.sendSocket(socket, {
+      v: 1,
+      ch: "room",
+      kind: "refused",
+      reason,
+      ...(ask.pid === undefined ? {} : { pid: ask.pid }),
+      ...(ask.rid === undefined ? {} : { rid: ask.rid }),
+    });
     if (!HARD_REFUSALS.has(reason)) {
       const now = this.clock();
       const seen = this.softRefusals.get(socket);
@@ -1201,6 +1261,7 @@ export class GameRoomLogic {
       participants: this.rosterList(),
       tables: [...this.tables.values()].map((t) => this.info(t)),
     });
+    if (lobbyRoom) await this.loadLobby(); // So the roster's watcher count can leave out seat holders.
     this.broadcastRoster();
     if (lobbyRoom) await this.joinLobby(socket, you, seatHashes);
     this.scheduleListing();
@@ -1220,7 +1281,12 @@ export class GameRoomLogic {
     socket: RoomSocket,
     host: Participant,
     table: Table,
-    message: Exclude<ClientMessage, { ch: "room" } | { ch: "chat" } | { kind: "propose" }>,
+    message: Exclude<
+      ClientMessage,
+      | { ch: "room" }
+      | { ch: "chat" }
+      | { kind: "propose" | "proposal-refused" | "proposal-accepted" | "request" | "request-answer" }
+    >,
   ): Promise<void> {
     switch (message.kind) {
       case "start": {
@@ -1256,11 +1322,15 @@ export class GameRoomLogic {
         // The new admission is committed first, under the next generation: a failed put leaves the old game whole
         // (header, rows and lifecycle), and the old rows are deleted only once the new header is stored.
         const storeGen = nextGen(table);
+        // A new game under the table: no result of the old one may settle a proposal against it, and its log is a new
+        // epoch (stored in the header row, so it survives a wake).
+        const epoch = table.epoch + 1;
         const wasEnded = table.ended;
         const oldGen = table.storeGen;
         const newHeader = {
           h: message.header,
           ...(gid !== undefined ? { g: gid } : {}),
+          e: epoch,
           sg: storeGen,
         };
         if (wasEnded && this.meta) {
@@ -1270,7 +1340,9 @@ export class GameRoomLogic {
         } else {
           await this.storage.put(headerKey(table.id), newHeader);
         }
+        this.dropResults(table, 0);
         Object.assign(table, newTable(table.id), {
+          epoch,
           header: message.header,
           hasHeader: true,
           gid,
@@ -1353,6 +1425,21 @@ export class GameRoomLogic {
         this.startedSeen = true;
         this.scheduleListing();
         const gid = message.gid ?? table.gid;
+        // A result for a position at or past where the replaced log first differs (all of them for another game) was
+        // earned against a log that is gone: it may not settle a proposal against the new one.
+        let firstDiff = 0;
+        if (gid === table.gid) {
+          while (
+            firstDiff < table.commands.length &&
+            firstDiff < message.commands.length &&
+            JSON.stringify(table.commands[firstDiff]) === JSON.stringify(message.commands[firstDiff])
+          ) {
+            firstDiff++;
+          }
+        }
+        this.dropResults(table, firstDiff);
+        // The new epoch is stored with the header the repair below writes.
+        if (gid !== table.gid || firstDiff < table.commands.length) table.epoch += 1;
         table.gid = gid;
         table.commands = [...message.commands];
         table.checksums = { ...checksums };
@@ -1413,7 +1500,10 @@ export class GameRoomLogic {
           // Watchers may hold commands the room lost with its tail: cut them back to what the room held, then the
           // host's batch re-appends from there.
           table.rewindWatchers = false;
-          this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.from }, host.id);
+          this.broadcast(
+            { v: 1, ch: "game", kind: "rewind", table: table.id, to: message.from, epoch: table.epoch },
+            host.id,
+          );
         }
         this.unverified = false;
         this.resendAsked.delete(table.id);
@@ -1461,6 +1551,10 @@ export class GameRoomLogic {
           await this.dropChunks(table, keep);
         }
         table.commands.length = message.to;
+        // A held result for a command in the cut range (an acceptance a away seat never saw) must not come back and
+        // credit whatever is played at that position next, even if it is byte-identical.
+        this.dropResults(table, message.to);
+        if (cut) await this.bumpEpoch(table);
         for (const key of Object.keys(table.checksums)) if (Number(key) > message.to) delete table.checksums[key];
         table.bytes = sizeOfAll(table.commands);
         // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
@@ -1468,7 +1562,10 @@ export class GameRoomLogic {
         const reopened = table.ended;
         if (reopened) this.reopenInMemory(table);
         // The room holds the cut log, so watchers are told before any write that may fail.
-        this.broadcast({ v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to }, host.id);
+        this.broadcast(
+          { v: 1, ch: "game", kind: "rewind", table: table.id, to: message.to, epoch: table.epoch },
+          host.id,
+        );
         this.broadcastTable(table);
         // What remains of the cut chunk is the new tail: store it, or an evicted room would serve only the frozen chunks.
         if (reopened) this.lifecycleDirty = true;
@@ -1491,6 +1588,35 @@ export class GameRoomLogic {
   private reopenedMeta(): RoomMeta {
     const { endedAt: _endedAt, ...rest } = this.meta!;
     return { ...rest, ended: false, outcome: null, overflow: false };
+  }
+
+  /** A new epoch for the table's log (it was cut back, replaced or started over); stored before anyone is told. */
+  private async bumpEpoch(table: Table): Promise<void> {
+    table.epoch += 1;
+    // A staged replacement's header is its commit point: it is written (with this epoch) only after its rows are durable.
+    if (table.staging) return;
+    await this.storage.put(headerKey(table.id), {
+      h: table.header,
+      ...(table.gid !== undefined ? { g: table.gid } : {}),
+      e: table.epoch,
+      // The rows stay this game's: a rewind is a new epoch, never a new storage generation.
+      ...(table.storeGen !== undefined ? { sg: table.storeGen } : {}),
+    });
+  }
+
+  /** Forgets the kept `proposal-accepted` / `proposal-refused` results for positions from `from` on (the cut or replaced log). */
+  private dropResults(table: Table, from: number): void {
+    for (const [seatId, ledger] of this.resultLedger) {
+      const kept = ledger.filter(
+        (m) =>
+          !(m.ch === "game" && (m.kind === "proposal-accepted" || m.kind === "proposal-refused")) ||
+          m.table !== table.id ||
+          m.base < from,
+      );
+      if (kept.length === ledger.length) continue;
+      if (kept.length === 0) this.resultLedger.delete(seatId);
+      else this.resultLedger.set(seatId, kept);
+    }
   }
 
   private reopenInMemory(table: Table): void {
@@ -1593,8 +1719,10 @@ export class GameRoomLogic {
     // A change of holder clears the previous holder's own deck; the host's preset stays.
     if (seat.holder !== who.id && !seat.deckPreset) delete seat.deck;
     // Holder first: the hash below is an await, and a second message must already see the seat taken.
+    if (seat.holder !== who.id) this.resultLedger.delete(seat.id);
     seat.holder = who.id;
     seat.holderName = who.name ?? "";
+    delete seat.takenOver;
     this.dropRequest(seat.id, who.id);
     seat.tokenHash = await sha256Hex(token);
     return () => this.sendTo(who.id, { v: 1, ch: "room", kind: "seat-token", seat: seat.id, token });
@@ -1637,10 +1765,18 @@ export class GameRoomLogic {
         this.refuse(socket, "multi-seat");
         continue;
       }
-      if (seat.holder !== undefined && seat.holderName === (you.name ?? "")) reattached = true;
+      if (seat.holder !== undefined && seat.holderName === (you.name ?? "") && seat.left === undefined)
+        reattached = true;
       else changed = true;
+      if (seat.holder && seat.holder !== you.id) {
+        this.successors.set(seat.holder, you.id);
+        while (this.successors.size > 64) this.successors.delete(this.successors.keys().next().value as string);
+      }
       seat.holder = you.id;
       seat.holderName = you.name ?? "";
+      delete seat.left;
+      // The results the host sent while this seat's holder was away (or whose socket died first).
+      for (const result of this.resultLedger.get(seat.id) ?? []) this.sendSocket(socket, result);
     }
     if (changed || reattached) {
       // A failed save leaves the lobby as it was: the joiner is told, and its token reclaims the seat on its next reconnect.
@@ -1648,7 +1784,10 @@ export class GameRoomLogic {
         // Nothing was committed. The joiner is told and sent the lobby as it is, so its view and its kept tokens agree.
         this.refuse(socket, "not-saved");
         this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
-      } else this.broadcastLobby(lobby);
+      } else {
+        this.broadcastRoster();
+        this.broadcastLobby(lobby);
+      }
     } else {
       this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
     }
@@ -1768,13 +1907,17 @@ export class GameRoomLogic {
     // Seat tokens wait here until the lobby row that holds their hashes is saved.
     const tokens: Array<() => void> = [];
     const seatOf = (id: string) => lobby.seats.find((seat) => seat.id === id);
-    const free = (seat: StoredSeat) => {
+    const free = async (seat: StoredSeat) => {
+      this.resultLedger.delete(seat.id);
       delete seat.holder;
       delete seat.holderName;
       delete seat.tokenHash;
+      delete seat.takenOver;
+      delete seat.left;
       // The holder's own deck goes with them (the next holder brings theirs); the host's preset stays, and one the
-      // holder had replaced comes back.
-      if (!seat.deckPreset) {
+      // holder had replaced comes back. During a live game the hero is fixed (the frozen seat-to-player mapping), so the
+      // deck summary stays: a vacant seat still names its hero, and whoever takes it plays that hero.
+      if (!seat.deckPreset && !(await liveFor(FIRST_TABLE))) {
         delete seat.deck;
         if (seat.presetDeck) {
           seat.deck = seat.presetDeck;
@@ -1783,6 +1926,15 @@ export class GameRoomLogic {
         delete seat.presetDeck;
       }
     };
+    const handover = settings.handover !== false;
+    // Whether a game is running on a table. It loads the table first: after a cold wake the header is not in memory
+    // until something loads it, and a policy decision (handover, discarding a deck) must not read an unloaded table.
+    const liveFor = async (tableId: string): Promise<boolean> => {
+      const t = this.tableOf(tableId);
+      if (!t) return false;
+      await this.ensureLoaded(t);
+      return t.hasHeader && !t.ended;
+    };
     // Only a change of holder, or the host setting the lobby, is stored. A request or its withdrawal is memory only.
     let persist = false;
     let clearChat = false;
@@ -1790,6 +1942,9 @@ export class GameRoomLogic {
     switch (message.kind) {
       case "lobby-set": {
         if (!isHost) return this.refuse(socket, "not-allowed");
+        if (message.ifRev !== undefined && (lobby.rev ?? 0) !== message.ifRev) {
+          return this.refuse(socket, "lobby-changed");
+        }
         // Cheats are fixed once the game has started: the table's header is the room's sign of that.
         if (message.settings?.cheats !== undefined && message.settings.cheats !== settings.cheats) {
           const table = this.tableOf(FIRST_TABLE);
@@ -1808,6 +1963,8 @@ export class GameRoomLogic {
           ...(message.settings?.tableRules !== undefined ? { tableRules: message.settings.tableRules } : {}),
           ...(message.settings?.mods !== undefined ? { mods: message.settings.mods.map((m) => ({ ...m })) } : {}),
           ...(message.settings?.multiSeat !== undefined ? { multiSeat: message.settings.multiSeat } : {}),
+          ...(message.settings?.handover !== undefined ? { handover: message.settings.handover } : {}),
+          ...(message.settings?.hostSeesHands !== undefined ? { hostSeesHands: message.settings.hostSeesHands } : {}),
           ...(message.settings?.chat !== undefined ? { chat: message.settings.chat } : {}),
           ...(message.settings?.listed !== undefined ? { listed: message.settings.listed } : {}),
         };
@@ -1815,13 +1972,31 @@ export class GameRoomLogic {
         if (message.seats) {
           const ids = new Set(message.seats.map((s) => s.id));
           if (ids.size !== message.seats.length) return this.refuse(socket, "bad-message");
+          // Once a game is running, the seat-to-player mapping is the host engine's: only labels may change here.
+          // A seat added, removed, reordered or given another player would let a guest be judged against a hero
+          // the engine does not map to that seat. An omitted player keeps the seat's own.
+          const table = this.tableOf(FIRST_TABLE);
+          if (table) await this.ensureLoaded(table);
+          const activeGame = table !== undefined && table.hasHeader && !table.ended;
+          if (activeGame) {
+            const same =
+              message.seats.length === lobby.seats.length &&
+              message.seats.every((spec, i) => {
+                const kept = lobby.seats[i]!;
+                return spec.id === kept.id && (spec.player === undefined || spec.player === kept.player);
+              });
+            if (!same) return this.refuse(socket, "not-allowed");
+          }
           // A seat id that stays keeps its holder, requests and token; its label may change; a removed one is gone.
           seats = message.seats.map((spec) => {
             const kept = lobby.seats.find((s) => s.id === spec.id);
             const label = spec.label === undefined ? {} : { label: spec.label };
-            if (!kept) return { id: spec.id, ...label };
-            const { label: _old, ...rest } = kept;
-            return { ...rest, ...label };
+            const player = spec.player === undefined ? {} : { player: spec.player };
+            if (!kept) return { id: spec.id, ...label, ...player };
+            const { label: _old, player: _oldPlayer, ...rest } = kept;
+            // In a running game the seat keeps its player whatever was sent (checked equal or omitted above).
+            const keep = activeGame && kept.player !== undefined ? { player: kept.player } : player;
+            return { ...rest, ...label, ...keep };
           });
         }
         if (!next.multiSeat) {
@@ -1830,6 +2005,8 @@ export class GameRoomLogic {
           for (const seat of seats) if (seat.holder) counts.set(seat.holder, (counts.get(seat.holder) ?? 0) + 1);
           if ([...counts.values()].some((n) => n > 1)) return this.refuse(socket, "multi-seat");
         }
+        // A change that changes nothing is not stored: it would bump the revision a host's start was judged at (#881).
+        const unchanged = JSON.stringify([lobby.settings, lobby.seats]) === JSON.stringify([next, seats]);
         if (settings.chat && !next.chat) {
           // Chat turned off: the stored lines go with it, so a later turn-on starts clean.
           clearChat = true;
@@ -1838,14 +2015,20 @@ export class GameRoomLogic {
         lobby.settings = next;
         lobby.seats = seats;
         for (const id of [...this.requests.keys()]) if (!seats.some((seat) => seat.id === id)) this.requests.delete(id);
-        persist = true;
+        persist = !unchanged;
         break;
       }
       case "seat-request": {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (!isHost && !this.sameBuild(who.build, settings)) return this.refuse(socket, "build-mismatch");
-        if (seat.holder === who.id) return; // Already theirs.
+        if (seat.holder === who.id) {
+          // Already theirs; a seat they left mid-game (handover off) is theirs to take again.
+          if (!seat.left) return;
+          delete seat.left;
+          persist = true;
+          break;
+        }
         if (seat.holder) return this.refuse(socket, "seat-taken");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
         if (isHost) {
@@ -1863,7 +2046,11 @@ export class GameRoomLogic {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (seat.holder === who.id) {
-          free(seat);
+          if (!handover && (await liveFor(FIRST_TABLE))) {
+            // Leaving a seat mid-game with handover off: it stays reserved for them (their token keeps working).
+            seat.left = true;
+            delete seat.takenOver;
+          } else await free(seat);
           persist = true;
         } else if (!this.dropRequest(seat.id, who.id)) {
           return this.refuse(socket, "not-allowed");
@@ -1879,16 +2066,50 @@ export class GameRoomLogic {
         if (target.role !== "host" && !this.sameBuild(target.build, settings)) {
           return this.refuse(socket, "build-mismatch");
         }
-        if (seat.holder && seat.holder !== target.id) return this.refuse(socket, "seat-taken");
-        if (seat.holder === target.id) return;
+        if (seat.holder && seat.holder !== target.id) {
+          // A seat whose player left it or is away is not the host's to hand on while handover is off.
+          const gone = seat.left === true || !this.participants.has(seat.holder);
+          return this.refuse(socket, !handover && (await liveFor(FIRST_TABLE)) && gone ? "handover-off" : "seat-taken");
+        }
+        if (seat.holder === target.id) {
+          if (!seat.left) return;
+          delete seat.left;
+          persist = true;
+          break;
+        }
         if (!settings.multiSeat && this.seatsHeldBy(lobby, target.id) > 0) return this.refuse(socket, "multi-seat");
         tokens.push(await this.grant(seat, target));
+        persist = true;
+        break;
+      }
+      case "take-over": {
+        if (!isHost) return this.refuse(socket, "not-allowed");
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (!handover) return this.refuse(socket, "handover-off");
+        // An away seat (held, holder not connected) or a vacant one (its holder left it, Quin 2026-11-20: a seated player's
+        // Concede is leaving the seat). A connected holder is the host's to deny instead.
+        if (seat.holder && this.participants.has(seat.holder)) return this.refuse(socket, "not-away");
+        if (seat.takenOver) return;
+        seat.takenOver = true;
+        persist = true;
+        break;
+      }
+      case "give-back": {
+        if (!isHost) return this.refuse(socket, "not-allowed");
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        if (!seat.takenOver) return;
+        delete seat.takenOver;
         persist = true;
         break;
       }
       case "seat-deck": {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
+        // The hero and deck are fixed while a game runs (the engine's player and deck are set at Start): a different
+        // deck waits for the next game, once the table has ended.
+        if (await liveFor(FIRST_TABLE)) return this.refuse(socket, "not-allowed");
         // A holder sets their own seat's deck; the host may set any seat's, which is then a preset.
         if (seat.holder !== who.id && !isHost) return this.refuse(socket, "not-allowed");
         const preset = isHost && seat.holder !== who.id;
@@ -1968,7 +2189,7 @@ export class GameRoomLogic {
           // A pending request: memory only. The requester is told, or it would keep asking after every reconnect.
           this.sendTo(message.participant, { v: 1, ch: "room", kind: "seat-denied", seat: seat.id });
         } else if (seat.holder === message.participant) {
-          free(seat);
+          await free(seat);
           persist = true;
         } else {
           // The request is gone (the room woke from hibernation, or the requester withdrew): not an error, the host
@@ -1987,6 +2208,8 @@ export class GameRoomLogic {
         return;
       }
       for (const send of tokens) send();
+      // A holder who plays is not counted as a watcher, so a change of holders changes the roster's count.
+      this.broadcastRoster();
       if (clearChat) {
         // Only once the lobby that turned chat off is stored: a failed save leaves the lines where they were.
         this.backlog = [];
@@ -2000,6 +2223,132 @@ export class GameRoomLogic {
     }
     this.broadcastLobby(lobby);
     this.scheduleListing();
+  }
+
+  /** The seat ids `who` holds that may act: builds match and the host has not taken the seat over. */
+  private actingSeats(lobby: LobbyRow, who: Participant): { ids: string[]; held: boolean; takenOver: boolean } {
+    const held = lobby.seats.filter((seat) => seat.holder === who.id);
+    const free = held.filter((seat) => !seat.takenOver && !seat.left);
+    const ids = this.sameBuild(who.build, lobby.settings) ? free.map((seat) => seat.id) : [];
+    return { ids, held: free.length > 0, takenOver: held.length > free.length };
+  }
+
+  /**
+   * A seat holder's `propose` or `request`, relayed to the table's host and never stored. Refusals are soft: a flood
+   * only ends in the socket's own refusal limit, and nothing here writes a row.
+   */
+  private async fromSeat(
+    socket: RoomSocket,
+    who: Participant,
+    message: Extract<ClientMessage, { kind: "propose" | "request" }>,
+  ): Promise<void> {
+    const askId = message.kind === "propose" ? { pid: message.pid } : { rid: message.rid };
+    const lobby = await this.loadLobby();
+    if (!lobby) return this.refuse(socket, "not-allowed", askId);
+    const table = this.tableOf(message.table);
+    if (!table) return this.refuse(socket, "not-allowed", askId);
+    if (who.role === "host") return this.refuse(socket, "not-seated", askId);
+    const { ids, held } = this.actingSeats(lobby, who);
+    if (ids.length === 0) return this.refuse(socket, held ? "build-mismatch" : "not-seated", askId);
+    if (message.kind === "request" && lobby.settings.playMode === "strict") return this.refuse(socket, "strict", askId);
+    const propose = message.kind === "propose";
+    const taken = takeToken(
+      propose ? this.proposalBuckets : this.lobbyBuckets,
+      who.id,
+      propose ? PROPOSAL_BURST : LOBBY_MESSAGE_BURST,
+      propose ? PROPOSAL_PER_SECOND : 2,
+      this.clock(),
+    );
+    if (!taken) return this.refuse(socket, "rate-limited", askId);
+    await this.ensureLoaded(table);
+    if (!table.hasHeader || table.ended) return this.refuse(socket, "out-of-order", askId);
+    const host = this.hostOf(table.id);
+    if (!host) return this.refuse(socket, "no-such-participant", askId);
+    if (message.kind === "propose") {
+      this.sendTo(host.id, {
+        v: 1,
+        ch: "game",
+        kind: "proposal",
+        table: table.id,
+        from: who.id,
+        seats: ids,
+        command: message.command,
+        base: message.base,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
+        ...(message.stamp === undefined ? {} : { stamp: message.stamp }),
+      });
+      return;
+    }
+    const note = clip(cleanText(message.note ?? ""), MAX_REQUEST_NOTE_CHARS);
+    this.sendTo(host.id, {
+      v: 1,
+      ch: "game",
+      kind: "request",
+      table: table.id,
+      from: who.id,
+      what: message.what,
+      note,
+      ...(message.rid === undefined ? {} : { rid: message.rid }),
+    });
+  }
+
+  /**
+   * The host's `proposal-refused`, `proposal-accepted` or `request-answer`: relayed to the one participant it names, nobody
+   * else. A proposal result also follows the seat, not only the socket: the seat's current holder gets it even when it
+   * reconnected under a new participant id, and the result is kept per seat for a reclaim that comes later.
+   */
+  private answerSeat(
+    socket: RoomSocket,
+    who: Participant,
+    message: Extract<ClientMessage, { kind: "proposal-refused" | "proposal-accepted" | "request-answer" }>,
+  ): void {
+    const table = this.tableOf(message.table);
+    if (who.role !== "host" || who.table !== message.table || !table) return this.refuse(socket, "not-allowed");
+    let to = message.to;
+    for (let hops = 0; hops < 8 && !this.participants.has(to) && this.successors.has(to); hops++) {
+      to = this.successors.get(to)!;
+    }
+    const seat = this.lobby?.seats.find((s) => s.holder === to);
+    const result = message.kind !== "request-answer";
+    if (!this.participants.has(to) && !(result && seat)) return this.refuse(socket, "no-such-participant");
+    let out: ServerMessage;
+    if (message.kind === "proposal-refused") {
+      out = {
+        v: 1,
+        ch: "game",
+        kind: "proposal-refused",
+        table: table.id,
+        reason: message.reason,
+        base: message.base,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
+      };
+    } else if (message.kind === "proposal-accepted") {
+      out = {
+        v: 1,
+        ch: "game",
+        kind: "proposal-accepted",
+        table: table.id,
+        base: message.base,
+        epoch: table.epoch,
+        ...(message.pid === undefined ? {} : { pid: message.pid }),
+      };
+    } else {
+      out = {
+        v: 1,
+        ch: "game",
+        kind: "request-answer",
+        table: table.id,
+        accepted: message.accepted,
+        ...(message.rid === undefined ? {} : { rid: message.rid }),
+      };
+    }
+    if (result && seat) {
+      const ledger = this.resultLedger.get(seat.id) ?? [];
+      ledger.push(out);
+      if (ledger.length > RESULT_LEDGER_SIZE) ledger.splice(0, ledger.length - RESULT_LEDGER_SIZE);
+      this.resultLedger.set(seat.id, ledger);
+    }
+    this.sendTo(to, out);
   }
 
   /** One line of chat: lobby rooms with chat on, at most 280 characters, 1 a second with a burst of 5 per participant. */
@@ -2031,6 +2380,7 @@ export class GameRoomLogic {
     this.sockets.delete(participant.id);
     this.chatBuckets.delete(participant.id);
     this.lobbyBuckets.delete(participant.id);
+    this.proposalBuckets.delete(participant.id);
     this.deckBuckets.delete(participant.id);
     this.activityBucket.delete(participant.id);
     this.broadcastRoster();
@@ -2134,6 +2484,7 @@ export class GameRoomLogic {
       this.activityBucket.clear();
       this.chatBuckets.clear();
       this.lobbyBuckets.clear();
+      this.proposalBuckets.clear();
       this.deckBuckets.clear();
       this.roomDeckBucket.clear();
       this.requests.clear();

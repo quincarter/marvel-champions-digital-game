@@ -106,7 +106,7 @@ function plausibleSetup(file: ReplayFile): boolean {
  * matches), and its packs are the viewer's own installed copies, by id and version, never pack data from the file
  * (a precon of a billion cards).
  */
-function trustedFile(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
+export function trustedFile(file: ReplayFile, installed: readonly PackRuntime[]): ReplayFile {
   if (!plausibleSetup(file)) throw new ReplayOpenError("damaged");
   let config = withoutPacks(file.config);
   const refs = file.packs ?? [];
@@ -222,7 +222,9 @@ export class ReplayCore {
           kind: "live",
           checksums: source.checksums,
           log: {
-            config: file.config,
+            // `trustedFile` strips the host's room settings; a room game's hidden hands are the one that stays, so
+            // a watcher's board keeps every hand face down (#887). An exported file still drops it (`withoutPacks`).
+            config: header.config.roomHandsHidden === true ? { ...file.config, roomHandsHidden: true } : file.config,
             initialState: file.initialState,
             commands: file.commands,
             createdAt: file.createdAt,

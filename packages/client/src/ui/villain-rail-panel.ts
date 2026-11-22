@@ -119,6 +119,11 @@ export type RailGate =
       /** The card the decision is about (the revealed card, the attacking enemy); null when there is none. */
       readonly cardInstanceId: InstanceId | null;
       readonly onPress: () => void;
+      /**
+       * Another seat's decision in a room game (#887): the window only says who it waits for. No card, no options and no
+       * button, so what that player was offered (their hand cards) is not read off this device.
+       */
+      readonly waiting?: true;
     };
 
 /**
@@ -1089,6 +1094,7 @@ function drawGate(
   const lineHeight = text.height / Math.max(1, text.getWrappedText(body).length);
   text.setMaxLines(Math.max(1, Math.floor(textRect.height / lineHeight)));
 
+  if (gate.kind === "decision" && gate.waiting) return;
   // One wide button: the use and resolve rects together.
   const left = Math.min(layout.use.x, layout.resolve.x);
   const right = Math.max(layout.use.x + layout.use.width, layout.resolve.x + layout.resolve.width);

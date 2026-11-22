@@ -3,13 +3,22 @@
  */
 
 import type Phaser from "phaser";
-import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { onTap } from "../../ui/tap.js";
 import { McButton, McTabs, clipLine } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { lerp } from "../../view/motion-math.js";
-import { CHROME_HEIGHT, CHROME_TICKER_ROW, PHONE_RAIL_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+import {
+  CHROME_HEIGHT,
+  CHROME_TICKER_ROW,
+  PHONE_RAIL_TABS,
+  promptRowHeight,
+  TURN_ROW_HEIGHT,
+  type PhoneTab,
+  type Rect,
+} from "../../view/layout.js";
+import type { TurnTone } from "../../view/whose-turn.js";
 import type { LogTicker } from "../../view/log-dock.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
@@ -33,7 +42,31 @@ const TICKER_GLYPH_ROOM = 76;
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
 const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
 
+/** The whose-turn line (#881): drawn as the title bar's last row, with the same words on every device. */
+export interface ChromeTurn {
+  readonly text: string;
+  readonly tone: TurnTone;
+}
+
+/** A small prompt under the whose-turn line (#881): a request to answer, a seat to take over, my own request's answer. */
+export interface ChromePrompt {
+  readonly text: string;
+  /** A second line (the asker's note, "2 more waiting"); null for none. */
+  readonly detail: string | null;
+  readonly actions: readonly { readonly label: string; readonly primary: boolean; readonly onPress: () => void }[];
+  /** Hears where each button was drawn, for the keyboard and pad focus route. */
+  readonly onRect: (index: number, rect: Rect) => void;
+}
+
+const TURN_TYPE: TypeSpec = { ...typeRole.rowTitle, size: 14 };
+const PROMPT_TYPE: TypeSpec = { ...typeRole.emphasis, size: 12 };
+
 export interface ChromeOptions {
+  /** Room games with chat on (#881): the turn row's Chat control, with a count of lines not yet read. */
+  readonly chat?: { readonly label: string; readonly unread: number; readonly onPress: () => void } | null;
+  /** Room games (#881): whose turn it is, as the bar's last row. */
+  readonly turn?: ChromeTurn | null;
+  readonly prompt?: ChromePrompt | null;
   readonly notSaving?: boolean;
   /** The watcher badge (#876): an eye and the count, while anyone is watching this game live. */
   readonly watchers?: WatchBadge | null;
@@ -90,9 +123,22 @@ export interface ChromeOptions {
  * The game log's latest line runs in the room left of those, or on a row of its own under them on a phone, which has
  * no room beside them.
  */
-export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, options: ChromeOptions): void {
+export function drawChrome(scene: Phaser.Scene, fullWhole: Rect, model: BoardModel, options: ChromeOptions): void {
   const g = scene.add.graphics();
-  g.fillStyle(surface.ink.hex, 1).fillRect(whole.x, whole.y, whole.width, whole.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(fullWhole.x, fullWhole.y, fullWhole.width, fullWhole.height);
+  // The rows below the bar's own (the whose-turn line, a prompt) are taken off first: the rest draws as it always did.
+  const promptHeight = options.prompt ? promptRowHeight(options.prompt.actions.length) : 0;
+  const extra = (options.turn ? TURN_ROW_HEIGHT : 0) + promptHeight;
+  const whole: Rect = extra > 0 ? { ...fullWhole, height: fullWhole.height - extra } : fullWhole;
+  if (options.turn) {
+    const turnRow: Rect = { x: whole.x, y: whole.y + whole.height, width: whole.width, height: TURN_ROW_HEIGHT };
+    // The Esc / Menu glyph hangs under the MENU button on wide bars: the Chat control stays clear of it.
+    drawTurnRow(scene, turnRow, options.turn, options.chat ?? null, fullWhole.width >= 640 ? 80 : 10, options.buttons);
+  }
+  if (options.prompt) {
+    const top = whole.y + whole.height + (options.turn ? TURN_ROW_HEIGHT : 0);
+    drawPromptRow(scene, { x: whole.x, y: top, width: whole.width, height: promptHeight }, options);
+  }
   const ownRow = whole.height >= CHROME_HEIGHT.phone && whole.width < 768;
   const rect: Rect = ownRow ? { ...whole, height: whole.height - CHROME_TICKER_ROW } : whole;
 
@@ -253,6 +299,107 @@ export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, 
       : { x: tickerX, y: chip.y, width: rightEdge - tickerX, height: chip.height },
     options,
   );
+}
+
+/** The whose-turn row: words first (a glyph backs them up), my own turn on paper so it stands out without colour. */
+function drawTurnRow(
+  scene: Phaser.Scene,
+  row: Rect,
+  turn: ChromeTurn,
+  chat: ChromeOptions["chat"],
+  rightInset: number,
+  buttons: McButton[],
+): void {
+  const g = scene.add.graphics();
+  const mine = turn.tone === "mine";
+  if (mine) g.fillStyle(surface.paper.hex, 1).fillRect(row.x, row.y, row.width, row.height);
+  else g.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(row.x, row.y + 0.5, row.x + row.width, row.y + 0.5);
+  const colour = mine ? surface.ink.hex : turn.tone === "away" ? signal.caution.hex : surface.paper.hex;
+  const glyph = mine ? "▶ " : turn.tone === "away" ? "⚠ " : "";
+  const text = scene.add
+    .text(row.x + 10, row.y + row.height / 2, `${glyph}${turn.text}`, textStyle(TURN_TYPE, colour))
+    .setOrigin(0, 0.5);
+  let room = row.width - 20;
+  if (chat) {
+    // Words and a count, never a colour or a dot alone: "CHAT" or "CHAT · 2". A real button, at the touch size.
+    const word = chat.unread > 0 ? `${chat.label} · ${chat.unread}` : chat.label;
+    const buttonWidth = Math.max(84, word.length * 9 + 24);
+    const rect: Rect = {
+      x: row.x + row.width - rightInset + 4 - buttonWidth,
+      y: row.y + 4,
+      width: buttonWidth,
+      height: row.height - 8,
+    };
+    buttons.push(
+      new McButton(scene, {
+        kind: mine ? "secondary" : "onInk",
+        label: word,
+        type: { ...typeRole.label, size: 12 },
+        rect,
+        enabled: true,
+        onClick: chat.onPress,
+      }),
+    );
+    room -= buttonWidth + 8;
+  }
+  clipLine(text, room);
+  // A name to a screen reader or a hover, in the row's own zone.
+  scene.add.zone(row.x, row.y, row.width, row.height).setOrigin(0, 0).setName(turn.text);
+}
+
+/** The prompt row: a paper strip with up to two lines of words and its buttons at the right. */
+function drawPromptRow(scene: Phaser.Scene, row: Rect, options: ChromeOptions): void {
+  const prompt = options.prompt!;
+  const strip: Rect = { x: row.x + 6, y: row.y + 3, width: row.width - 12, height: row.height - 6 };
+  const g = scene.add.graphics();
+  g.fillStyle(surface.paper.hex, 1).fillRect(strip.x, strip.y, strip.width, strip.height);
+  g.lineStyle(2, surface.paper.hex, 1).strokeRect(strip.x, strip.y, strip.width, strip.height);
+  const stacked = prompt.actions.length > 2;
+  const gap = 6;
+  const buttonWidth = stacked
+    ? Math.floor((strip.width - 12 - gap * (prompt.actions.length - 1)) / prompt.actions.length)
+    : strip.width < 420
+      ? 76
+      : 100;
+  const buttonHeight = stacked ? hit.target : strip.height - 10;
+  const buttonTop = stacked ? strip.y + strip.height - 5 - buttonHeight : strip.y + 5;
+  let right = stacked ? strip.x + strip.width - 6 : strip.x + strip.width - 6;
+  const rects: Rect[] = [];
+  for (let index = prompt.actions.length - 1; index >= 0; index -= 1) {
+    const action = prompt.actions[index]!;
+    const rect: Rect = { x: right - buttonWidth, y: buttonTop, width: buttonWidth, height: buttonHeight };
+    rects[index] = rect;
+    options.buttons.push(
+      new McButton(scene, {
+        kind: action.primary ? "primary" : "secondary",
+        label: action.label,
+        type: { ...typeRole.label, size: 10 },
+        rect,
+        enabled: true,
+        onClick: action.onPress,
+      }),
+    );
+    right = rect.x - gap;
+  }
+  rects.forEach((rect, index) => prompt.onRect(index, rect));
+  const textWidth = stacked ? strip.width - 16 : right - (strip.x + 8);
+  const title = scene.add
+    .text(strip.x + 8, strip.y + 5, prompt.text, textStyle(PROMPT_TYPE, surface.ink.hex))
+    .setOrigin(0, 0)
+    .setWordWrapWidth(Math.max(40, textWidth), true)
+    .setMaxLines(prompt.detail ? 1 : 2);
+  if (prompt.detail) {
+    clipLine(title, textWidth);
+    const detail = scene.add
+      .text(
+        strip.x + 8,
+        title.y + title.height + 1,
+        prompt.detail,
+        textStyle({ ...PROMPT_TYPE, weight: 400 }, surface.ink.hex, ink.secondary),
+      )
+      .setOrigin(0, 0);
+    clipLine(detail, textWidth);
+  }
 }
 
 /** Draws the eye and the count with its right edge at `right`; returns the width taken. */

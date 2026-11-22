@@ -326,7 +326,7 @@ describe("who may send", () => {
   it("answers propose and say with not-allowed for now, even from the host", async () => {
     const { host, hello, send } = await setup();
     for (const s of [await host(), await hello()]) {
-      await send(s, { ch: "game", kind: "propose", table: "t1", command: {} });
+      await send(s, { ch: "game", kind: "propose", table: "t1", command: {}, base: 0 });
       expect(s.last("refused")!.reason).toBe("not-allowed");
       await send(s, { ch: "chat", kind: "say", text: "hi" });
       expect(s.last("refused")!.reason).toBe("not-allowed");
@@ -667,7 +667,7 @@ describe("stored log and waking", () => {
       commands: Array.from({ length: 21 }, (_, i) => i),
     });
     expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:b:c:000000"]);
-    expect(storage.map.get("t1:header")).toEqual({ h: 2, sg: 2 });
+    expect(storage.map.get("t1:header")).toEqual({ h: 2, e: 2, sg: 2 });
   });
 
   it("keeps ended and the outcome across a wake", async () => {
@@ -729,6 +729,8 @@ describe("the log cap and parts", () => {
       total += (m as unknown as { commands: unknown[] }).commands.length;
     }
     expect(total).toBe(40);
+    // The first part says how many commands the whole log holds, so a reader can wait for all of it.
+    expect((parts[0] as unknown as { total?: number }).total).toBe(40);
   });
 
   it("sends a joining watcher a log of about 512 KiB, then commands batches, so no message nears 1 MiB", async () => {

@@ -93,14 +93,16 @@ export function endOfTurnLine(
   viewer: PlayerId | null,
   seatNameOf: (playerId: PlayerId) => string,
   cardNameOf: (instanceId: InstanceId) => string,
+  /** Whether this seat's cards may be named on this device (a room game's other seats' may not); default every seat. */
+  mayName: (playerId: PlayerId) => boolean = () => true,
 ): string {
   const parts: string[] = [];
   for (const [playerId, cards] of draws.bySeat) {
     if (cards.length === 0) continue;
-    const who = playerId === viewer ? "You" : seatNameOf(playerId);
+    const who = playerId === viewer && mayName(playerId) ? "You" : seatNameOf(playerId);
     const count = `${cards.length} card${cards.length === 1 ? "" : "s"}`;
-    // A teammate's cards stay private: only how many.
-    if (playerId !== viewer) {
+    // A teammate's cards stay private: only how many (and the viewer's own when its hand is not this device's, #887).
+    if (playerId !== viewer || !mayName(playerId)) {
       parts.push(`${who} drew ${count}.`);
       continue;
     }

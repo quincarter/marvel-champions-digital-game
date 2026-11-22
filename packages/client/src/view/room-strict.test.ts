@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import { roomCheatsOf, roomStrictOf, roomUndoOffOf, strictReason, undoOffReason } from "./room-strict.js";
+import { setSeatContextSource, setSeatGameUp } from "./seat-context.js";
 
 describe("roomStrictOf", () => {
   test("only a strict room's game is strict", () => {
@@ -66,5 +67,21 @@ describe("roomCheatsOf on a game that names only its play mode", () => {
   test("is still a room's game: cheats off turns the settings off", () => {
     const mine = { allowManualAdjust: true, undoPastTurn: "allow" as const };
     expect(roomCheatsOf(mine, { roomPlayMode: "strict" })).toEqual({ manualAdjust: false, undoPastTurn: "off" });
+  });
+});
+
+describe("a seated guest's cheats (#904)", () => {
+  afterEach(() => {
+    setSeatContextSource(null);
+    setSeatGameUp(false);
+  });
+
+  test("never apply to a room game, whatever this device's Settings say", () => {
+    setSeatContextSource(() => ({ role: "guest" }) as never);
+    setSeatGameUp(true);
+    expect(roomCheatsOf({ allowManualAdjust: true, undoPastTurn: "allow" }, null)).toEqual({
+      manualAdjust: false,
+      undoPastTurn: "off",
+    });
   });
 });

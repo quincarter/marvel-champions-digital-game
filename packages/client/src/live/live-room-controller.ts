@@ -21,7 +21,7 @@ import {
 } from "./room-socket.js";
 import { gidOfGame, LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
 import type { RoomBuild, RoomDevice } from "@mc/sync-worker/room-protocol";
-import type { LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
+import type { LiveControlMessage, LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
 import { recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
 import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";
 import type { SeatTokenStore } from "./room-seat-store.js";
@@ -37,6 +37,8 @@ export interface LiveRoomControllerDeps {
   readonly onEnabledChange?: (on: boolean) => void;
   /** Asks the engine worker for the whole game again (a gap in the log). */
   readonly onResync?: () => void;
+  /** Hands a seat holder's proposal to the engine worker to judge (issue #881). */
+  readonly onProposal?: (proposal: Extract<LiveControlMessage, { kind: "proposal" }>) => void;
   /** The room refused the host's game start because the lobby changed first: the game was dropped from the room. */
   readonly onStartRefused?: () => void;
   /** Remembers each game's room, so a resumed game returns to it as the host. Absent: every game gets a new room. */
@@ -151,6 +153,17 @@ export class LiveRoomController {
       case "none":
         this.#leave();
         return;
+      case "refuse":
+        // The engine worker turned a seat holder's proposal down: only the room can reach them.
+        if (this.#live?.gameKey === message.gameKey) {
+          this.#live.room?.refuseProposal(message.to, message.reason, message.base, message.pid);
+        }
+        return;
+      case "accept":
+        if (this.#live?.gameKey === message.gameKey) {
+          this.#live.room?.acceptProposal(message.to, message.base, message.pid);
+        }
+        return;
       case "rewind": {
         if (!this.#live && this.#pending?.gameKey === message.gameKey) {
           // Not streamed yet: the held game just needs its log cut.
@@ -164,7 +177,11 @@ export class LiveRoomController {
           };
           return;
         }
-        if (this.#live?.gameKey === message.gameKey) this.#live.publisher.rewind(message.to);
+        if (this.#live?.gameKey === message.gameKey) {
+          // An acceptance held for a dropped socket for a command this cut removes must not reach the room afterwards.
+          this.#live.room?.dropHeldAcceptances(message.to);
+          this.#live.publisher.rewind(message.to);
+        }
         return;
       }
     }
@@ -198,6 +215,15 @@ export class LiveRoomController {
         return;
       case "room-seat":
         this.#session?.seat(message.op, message.seat, message.participant);
+        return;
+      case "room-answer":
+        this.#session?.answerRequest(message.id, message.accepted);
+        return;
+      case "room-ask":
+        this.#session?.askHost(message.what, message.note);
+        return;
+      case "room-ask-clear":
+        this.#session?.clearAsk();
         return;
       case "room-say":
         this.#session?.chat(message.text);
@@ -445,6 +471,7 @@ export class LiveRoomController {
       onDisconnected: () => live.publisher.onDisconnected(),
       onMessage: (message) => live.publisher.onMessage(message),
       onEnded: () => this.#end(live),
+      onProposal: (proposal) => this.#deps.onProposal?.({ kind: "proposal", gameKey: live.gameKey, ...proposal }),
     };
     room.attachGame(hooks);
   }

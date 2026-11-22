@@ -78,6 +78,11 @@ export interface SetupSeatStatus {
   readonly mulliganedCount: number | null;
   /** This seat's current hand, full information — every seat's hand is already dealt (RRG 1.8 Appendix II step 14) and one human plays every seat, so nothing here is hidden from the operator. */
   readonly hand: readonly HandCardView[];
+  /**
+   * This hand is not this device's to read (a room game's other seat, `view/hand-privacy.ts`, #887): `hand` is empty
+   * and the screen draws `handSize` card backs with no names, art or hover.
+   */
+  readonly handHidden: boolean;
 }
 
 export interface SetupRevealedCard {
@@ -225,6 +230,7 @@ function seatStatusOf(
   deps: EngineDeps,
   cardsById: ReadonlyMap<string, AnyCard>,
   playerId: PlayerId,
+  handVisible: boolean,
 ): SetupSeatStatus {
   const player = getPlayer(state, playerId);
   const step = state.step;
@@ -266,7 +272,8 @@ function seatStatusOf(
     statusLabel,
     handSize,
     mulliganedCount: seatState === "waiting" || seatState === "deciding" ? null : mulliganed,
-    hand: player ? player.hand.map((id) => handCardView(state, id, playerId, deps)) : [],
+    hand: player && handVisible ? player.hand.map((id) => handCardView(state, id, playerId, deps)) : [],
+    handHidden: !handVisible,
   };
 }
 
@@ -353,6 +360,8 @@ export function setupWalkthroughViewOf(
   accumulator: SetupWalkthroughLog,
   deps: EngineDeps,
   cardsById: ReadonlyMap<string, AnyCard>,
+  /** Whether a seat's hand is drawn face up on this device; the default shows every hand (`view/hand-privacy.ts`). */
+  handVisible: (playerId: PlayerId) => boolean = () => true,
 ): SetupWalkthroughView {
   const revealedCount = accumulator.revealedInstanceIds.length;
   const checklist = checklistOf(state, deps, revealedCount);
@@ -369,7 +378,9 @@ export function setupWalkthroughViewOf(
   const mainSchemeName = cardOf(state, state.mainScheme.instanceId)?.name ?? "the main scheme";
   const startingThreat = schemePanel(state, state.mainScheme.instanceId, deps, true).threat;
 
-  const seats = playerOrder(state).map((player) => seatStatusOf(state, accumulator, deps, cardsById, player.playerId));
+  const seats = playerOrder(state).map((player) =>
+    seatStatusOf(state, accumulator, deps, cardsById, player.playerId, handVisible(player.playerId)),
+  );
   const decidingPlayerId = state.pendingChoice?.prompt.kind === "mulligan" ? state.pendingChoice.playerId : null;
 
   return {

@@ -198,6 +198,11 @@ export class WorkerEngineHost implements EngineHost {
       notifySaveDataChanged(response.reason);
       return;
     }
+    // A seat holder's command, applied by the engine worker in a room (issue #881): the table moves with it.
+    if (response.kind === "remoteDispatched") {
+      if (this.#cardPool) this.#publish({ ...this.#hydrate(response.snapshot), remote: response.command });
+      return;
+    }
     const pending = this.#pending.get(response.id);
     if (!pending) return;
     this.#pending.delete(response.id);
