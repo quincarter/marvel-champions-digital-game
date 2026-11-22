@@ -215,7 +215,8 @@ export function compositionTilesOf(stats: DeckStats): readonly CompositionTile[]
 export interface DeckListEntry {
   readonly cardId: CardId;
   readonly name: string;
-  readonly type: PlayerCardType;
+  /** A `PlayerCardType` for a deck's own cards; an encounter card's type in `outsideDeckGroupsOf`'s groups. */
+  readonly type: PlayerCardType | AnyCard["type"];
   readonly cost: number | null;
   readonly quantity: number;
 }
@@ -388,6 +389,54 @@ export function deckListGroupsOf(
 
 /** `deckListGroupsOf`'s group of cards that start the game outside the deck (`isSetupCard`), always first. */
 export const SETUP_GROUP_KEY = "setup";
+
+/**
+ * The cards the identity brings besides its player deck (#960), for Deck check to show under the deck's own groups:
+ * each of its separate decks (Doctor Strange's Invocation deck, Hercules' Gift and Labor decks;
+ * `HeroIdentityCard.separateDecks`), then its obligation and its nemesis set (RRG 1.8 Appendix II, setup steps 4 and
+ * 5). Display only: none of them is a deck entry, so none counts toward deck size (`deckStatsOf` reads `deck.cards`
+ * alone). A card missing from `pool` is skipped, and a group left with no cards is dropped.
+ */
+export function outsideDeckGroupsOf(identityCardId: CardId | string, pool: CardPool): readonly DeckListGroup[] {
+  const all: readonly AnyCard[] = cardsOf(pool);
+  const byId = new Map(all.map((card) => [card.id as string, card]));
+  const identity = byId.get(identityCardId as string);
+  if (identity?.type !== "hero_identity") return [];
+  const entryOf = (card: AnyCard, quantity: number): DeckListEntry => ({
+    cardId: card.id,
+    name: localizedLabelOf(card, artLanguageNow()),
+    type: card.type,
+    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    quantity,
+  });
+  const listed = (entries: readonly { readonly cardId: CardId | string; readonly quantity: number }[]) =>
+    entries.flatMap(({ cardId, quantity }) => {
+      const card = byId.get(cardId as string);
+      return card ? [entryOf(card, quantity)] : [];
+    });
+  const groups: DeckListGroup[] = (identity.separateDecks ?? []).map((deck) =>
+    groupOf(`separate:${deck.name}`, `${deck.name} deck`, listed(deck.cards)),
+  );
+  // Every copy the set prints goes into the encounter deck (Scarlet Witch's Slipping Sanity: two), as setup does.
+  const obligation = byId.get(identity.obligationCardId as string);
+  if (obligation)
+    groups.push(groupOf("obligation", "Obligation", [entryOf(obligation, Math.max(1, obligation.quantityInSet))]));
+  const nemesisSetId = identity.nemesisEncounterSetId as string;
+  const nemesis = all.filter(
+    (card) =>
+      card.id !== identity.obligationCardId &&
+      "encounterSetIds" in card &&
+      (card.encounterSetIds as readonly string[]).includes(nemesisSetId),
+  );
+  groups.push(
+    groupOf(
+      "nemesis",
+      "Nemesis set",
+      nemesis.map((card) => entryOf(card, card.quantityInSet)),
+    ),
+  );
+  return groups.filter((group) => group.entries.length > 0);
+}
 
 /**
  * `groups` (`deckListGroupsOf`'s own output) narrowed to one `PlayerCardType` — Deck check's own left-rail type
