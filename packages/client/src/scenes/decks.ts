@@ -73,6 +73,8 @@
  */
 
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
+import type { DeckActionId } from "../view/deck-actions.js";
+import type { DeckActionsSheetData } from "./deck-actions-sheet.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { aspectStampOf } from "../view/aspect-stamp.js";
@@ -593,6 +595,7 @@ export class DecksScene extends Phaser.Scene {
       onToggle: () => this.#stops.get("player-stats")?.activate(),
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.deckActions) ||
         (this.#pasteInput?.focused ?? false) ||
         (this.#marvelcdbInput?.focused ?? false) ||
         (this.#searchInput?.focused ?? false) ||
@@ -925,6 +928,8 @@ export class DecksScene extends Phaser.Scene {
             cardCount: o.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0),
           })),
         status: () => this.#status,
+        /** The tab shown on a phone or tablet; null on desktop, where every pane is up. */
+        tab: () => (this.#tabs === null ? null : this.#activeTab),
         /** True while any listed deck's status is still on its way from the worker. */
         checking: () => allOptions.some((o) => o.checking === true),
       };
@@ -1338,6 +1343,8 @@ export class DecksScene extends Phaser.Scene {
       this.#selectedDeckId = row.option.deck.id as string;
       this.#paneCard = null;
       this.#rebuild();
+      // One pane at a time (phone, tablet): the deck's actions sit on another tab, so a tap opens them (#958).
+      if (this.#tabs !== null) this.#openDeckActions(row.option, row.offer);
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
@@ -1391,6 +1398,7 @@ export class DecksScene extends Phaser.Scene {
         this.#selectedDeckId = deckId;
         this.#paneCard = null;
         this.#rebuild();
+        if (this.#tabs !== null) this.#openDeckActions(row.option, row.offer);
       };
       const doInspect = (): void => this.#inspectDeck(row.option);
       this.#stops.set(`deck:${deckId}`, {
@@ -3117,6 +3125,55 @@ export class DecksScene extends Phaser.Scene {
       initialSeatDeckId: deck.id as string,
       initialSeatDeck: deck,
     } satisfies TitleSceneData);
+  }
+
+  /**
+   * A deck's options sheet (#958), for the layouts that show one pane at a time: the stats rail's and community rail's
+   * own actions, plus the two panes the tab strip hides. Each press runs the code those rails' buttons run.
+   */
+  #openDeckActions(option: DeckOption, offer: CommunityOffer | undefined): void {
+    if (this.scene.isActive(SCENES.deckActions)) return;
+    const deck = option.deck;
+    const status = deckStatusOf(option);
+    const art = this.#deckArtOf(deck.identityCardId as string);
+    const meta = (offer ? communityMetaCandidates(offer) : deckMetaCandidates(option, currentPool()))[0] ?? "";
+    const onAction = (id: DeckActionId): void => {
+      if (!this.sys.isActive()) return;
+      switch (id) {
+        case "play":
+          return this.#playDeck(deck);
+        case "add":
+          if (offer) this.#addCommunityDeck(offer);
+          return;
+        case "edit":
+          return goToScreen(this, SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData);
+        case "cards":
+          return this.#setTab("cards");
+        case "stats":
+          return this.#setTab("stats");
+        case "check":
+          return this.#openDeckCheck(deck);
+        case "duplicate":
+          return this.#duplicate(deck);
+        case "delete":
+          void this.#delete(deck.id);
+          return;
+      }
+    };
+    this.scene.launch(SCENES.deckActions, {
+      from: this.scene.key,
+      title: cardTitleOf(option),
+      meta,
+      status: {
+        text: offer ? communityStatusText(offer) : status.text,
+        problem: offer ? offer.lock !== null || !option.legal : status.tone === "illegal",
+      },
+      identityCardId: deck.identityCardId as string,
+      artUrl: art.url,
+      ...(art.focus ? { artFocus: art.focus } : {}),
+      actions: { option, ...(offer ? { community: { lock: offer.lock, added: offer.added } } : {}) },
+      onAction,
+    } satisfies DeckActionsSheetData);
   }
 
   /** Opens Deck check (W1) over this deck, returning here on Back. */
