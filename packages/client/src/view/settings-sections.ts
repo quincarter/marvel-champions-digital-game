@@ -198,6 +198,7 @@ export function settingsSectionsOf(input: {
         "save-data",
         ...(input.controls === false ? [] : (["controls"] as const)),
         ...(input.discord ? (["discord-presence"] as const) : []),
+        "live-watch",
         ...(input.steamInstall ? (["steam-install"] as const) : []),
         ...(input.steamAdd ? (["steam-add"] as const) : []),
         "rules",

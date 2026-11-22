@@ -102,6 +102,9 @@ import { detectPlatform } from "../platform/platform.js";
 import { inputDevice, padAvailable } from "../platform/input-device.js";
 import { followsWindowsMixer } from "../platform/app-volume.js";
 import { powerSavingOn } from "../platform/power-saving.js";
+import { t } from "../i18n/translate.js";
+import { liveStatus, onLiveStatus } from "../platform/live-watch.js";
+import { copyWatchLink, pauseWatchLinkOf, watchLinkLabelOf } from "../view/live-watch-ui.js";
 import { readConsent } from "../global-stats/global-consent.js";
 import { applyEarnedItems, earnedItems, earnedPromoSets, unlocks } from "../progression/progression.js";
 import { heroPromoShown } from "../view/hero-art-choice.js";
@@ -171,6 +174,8 @@ export class PauseOverlay extends Phaser.Scene {
   #confirmingConcede = false;
   /** Wide: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). Phone: the "Game log" row swaps the Table/Guide group for the same log box. */
   #logExpanded = false;
+  /** "Link copied" shows on the watch link item for a moment after a copy (#876). */
+  #linkCopied = false;
   /** Phone: the rows under the Reference toggle are open. Closed, the Table and Guide group has the panel. */
   #quickExpanded = false;
   #motion = new OverlayMotion();
@@ -198,6 +203,15 @@ export class PauseOverlay extends Phaser.Scene {
     this.#confirmingConcede = false;
     this.#logExpanded = false;
     this.#quickExpanded = false;
+    // The watch link appearing (or going) while Pause is up adds or drops its item (#876).
+    let linkShown = pauseWatchLinkOf(liveStatus()) !== null;
+    const liveOff = onLiveStatus((status) => {
+      const shown = pauseWatchLinkOf(status) !== null;
+      if (shown === linkShown) return;
+      linkShown = shown;
+      if (this.sys.isActive()) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
     this.#searchClient = new SettingsSearchClient();
     this.#search = new PauseSearchSession(
       this.#searchClient,
@@ -381,6 +395,21 @@ export class PauseOverlay extends Phaser.Scene {
     if (conceded) this.#resume();
   }
 
+  /** Copies the live room's watch link; the item says "Link copied" for a moment after (#876). */
+  #copyWatchLink(): void {
+    const url = pauseWatchLinkOf(liveStatus());
+    if (!url) return;
+    void copyWatchLink(url).then((ok) => {
+      if (!ok || !this.sys.isActive()) return;
+      this.#linkCopied = true;
+      this.#draw();
+      this.time.delayedCall(2500, () => {
+        this.#linkCopied = false;
+        if (this.sys.isActive()) this.#draw();
+      });
+    });
+  }
+
   #openRules(data: RulesSceneData): void {
     this.scene.launch(SCENES.rules, data);
   }
@@ -455,6 +484,18 @@ export class PauseOverlay extends Phaser.Scene {
         open: () => this.#openReport(),
       },
       // The phone apps show Controls only once a controller is connected (the owner, 2026-10-24).
+      // The live room's link (#876), only while one is open: a compact cell beside Music and Report.
+      ...(pauseWatchLinkOf(liveStatus()) !== null
+        ? [
+            {
+              id: "watch-link",
+              title: watchLinkLabelOf(this.#linkCopied, true),
+              detail: t("live.copyLink"),
+              compact: true as const,
+              open: () => this.#copyWatchLink(),
+            },
+          ]
+        : []),
       ...(detectPlatform() !== "capacitor" || padAvailable()
         ? [
             {
@@ -495,6 +536,7 @@ export class PauseOverlay extends Phaser.Scene {
     const guideRows = guideRowInfoOf(guidePrefs());
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
     const guidedRunActive = this.#guidedRunActive();
+    const watchLinkUrl = pauseWatchLinkOf(liveStatus());
     // Phone: the log takes the Table/Guide group's place, so neither group's rows are on screen to focus.
     const phoneLogShown = this.#logExpanded;
 
@@ -514,6 +556,7 @@ export class PauseOverlay extends Phaser.Scene {
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
+        watchLink: watchLinkUrl !== null,
       },
     );
 
@@ -542,6 +585,7 @@ export class PauseOverlay extends Phaser.Scene {
           momentIds: this.#momentIds,
           confirmingConcede: this.#confirmingConcede,
           guidedRunActive,
+          watchLink: layout.watchLink !== null,
         }),
         stops,
       );
@@ -662,6 +706,10 @@ export class PauseOverlay extends Phaser.Scene {
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
     const reportLabel = layout.menu.report.width < 130 ? "Report" : "Report a problem";
     this.#menuButton(stops, "report", "onInk", reportLabel, layout.menu.report, () => this.#openReport());
+    if (layout.watchLink)
+      this.#menuButton(stops, "watch-link", "onInk", watchLinkLabelOf(this.#linkCopied, false), layout.watchLink, () =>
+        this.#copyWatchLink(),
+      );
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
     // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout

@@ -40,6 +40,7 @@ describe("settingsSectionsOf", () => {
       "stats",
       "controls",
       "rules",
+      "live-watch",
       "custom-placement",
       "custom-unlocked",
       "manual-adjust",

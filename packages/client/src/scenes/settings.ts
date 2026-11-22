@@ -74,6 +74,7 @@ import {
   nextSettingsAfterVillainRow,
   settingsRowInfoOf,
   discordRowInfoOf,
+  liveWatchRowInfoOf,
   deckCopyLimitsRowInfoOf,
   showPreconDecksRowInfoOf,
   extraModularSetsRowInfoOf,
@@ -920,6 +921,7 @@ export class SettingsOverlay extends Phaser.Scene {
     for (const row of [
       ...settingsRowInfoOf(settings, powerSavingOn()),
       ...(hasDesktopWindow() ? [discordRowInfoOf(settings)] : []),
+      liveWatchRowInfoOf(settings),
       deckCopyLimitsRowInfoOf(settings),
       showPreconDecksRowInfoOf(settings),
       extraModularSetsRowInfoOf(settings),

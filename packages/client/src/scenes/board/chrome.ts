@@ -13,6 +13,9 @@ import { CHROME_HEIGHT, CHROME_TICKER_ROW, PHONE_RAIL_TABS, type PhoneTab, type 
 import type { LogTicker } from "../../view/log-dock.js";
 import type { GlyphHints } from "../../ui/glyph-hints.js";
 import type { BoardMotion, StatusStampState } from "./motion.js";
+import type { WatchBadge } from "../../view/live-watch-ui.js";
+import type { LivePill } from "../../view/live-pill.js";
+import { appSession } from "../../session.js";
 import { setReportSlot } from "../../ui/report-slot.js";
 import { setMusicSlot } from "../../ui/music-slot.js";
 import { languageSlotBeside } from "../../view/language-button.js";
@@ -32,6 +35,19 @@ const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0
 
 export interface ChromeOptions {
   readonly notSaving?: boolean;
+  /** The watcher badge (#876): an eye and the count, while anyone is watching this game live. */
+  readonly watchers?: WatchBadge | null;
+  /**
+   * A watcher's live marker (#876), in the log line's label in place of "LOG": a pulsing red "● LIVE", a muted "○ HOST
+   * AWAY", or "FEED LOST". Null (an ordinary replay, a game that ended) leaves "LOG".
+   */
+  readonly live?: LivePill | null;
+  /** Pressing the watch control copies or shares the link (#876). */
+  readonly onWatch?: () => void;
+  /** Hears where the control was drawn, for the keyboard and pad focus route. */
+  readonly onWatchRect?: (rect: Rect) => void;
+  /** The line shown under the control right after a press ("Watch link copied"). */
+  readonly watchToast?: string | null;
   /** Opens the Pause overlay (docs/phase4-screen-gaps.md §3 "W4"). Every board layout gets this button. */
   readonly onMenu: () => void;
   /** The menu button is a real `McButton` (it needs a click/hover/focus state), so it's handed back for the caller's own frame bookkeeping — same reason `drawActionBar` pushes onto `ctx.frame.buttons` instead of owning its own list. */
@@ -175,6 +191,13 @@ export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, 
     rightEdge = warning.x - warning.width - 8;
   }
 
+  // The watcher badge sits at the right end of the log's room: an eye drawn with lines and the count in digits, so it
+  // reads without colour. A bar too narrow for it goes without (the pause menu still has the link).
+  if (options.watchers && rightEdge - (chip.x + chip.width) > 260) {
+    const width = drawWatchBadge(scene, options, options.watchers, rightEdge, rect, whole);
+    rightEdge -= width + 10;
+  }
+
   const stepLeft = chip.x + chip.width + 10;
   const step = scene.add
     .text(
@@ -232,6 +255,81 @@ export function drawChrome(scene: Phaser.Scene, whole: Rect, model: BoardModel, 
   );
 }
 
+/** Draws the eye and the count with its right edge at `right`; returns the width taken. */
+function drawWatchBadge(
+  scene: Phaser.Scene,
+  options: ChromeOptions,
+  badge: WatchBadge,
+  right: number,
+  bar: Rect,
+  whole: Rect,
+): number {
+  const middle = bar.y + bar.height / 2;
+  // The count appears once anyone watches; before that the eye stands alone.
+  const count =
+    badge.count > 0
+      ? scene.add
+          .text(right, middle, String(badge.count), textStyle(typeRole.statSmall, surface.paper.hex))
+          .setOrigin(1, 0.5)
+      : null;
+  const eyeWidth = 20;
+  const eyeRight = count ? count.x - count.width - 6 : right;
+  const cx = eyeRight - eyeWidth / 2;
+  const g = scene.add.graphics();
+  g.lineStyle(2, surface.paper.hex, 1);
+  // The lid: two arcs meeting at the corners; the iris: a filled disc.
+  g.beginPath();
+  g.moveTo(cx - eyeWidth / 2, middle);
+  g.lineTo(cx - eyeWidth / 4, middle - 5);
+  g.lineTo(cx + eyeWidth / 4, middle - 5);
+  g.lineTo(cx + eyeWidth / 2, middle);
+  g.lineTo(cx + eyeWidth / 4, middle + 5);
+  g.lineTo(cx - eyeWidth / 4, middle + 5);
+  g.closePath();
+  g.strokePath();
+  g.fillStyle(surface.paper.hex, 1).fillCircle(cx, middle, 3);
+  // A hit zone so a hover or long press names it: "3 watching".
+  const left = cx - eyeWidth / 2;
+  options.onWatchRect?.({ x: left - 4, y: bar.y, width: right - left + 8, height: bar.height });
+  const zone = scene.add.zone(left - 4, bar.y, right - left + 8, bar.height).setOrigin(0, 0);
+  zone.setName(badge.label);
+  if (options.onWatch) {
+    zone.setInteractive({ useHandCursor: true });
+    onTap(zone, options.onWatch, "chrome-watch");
+  }
+  if (options.watchToast) {
+    // A chip just under the bar, right-aligned to the control; words, never colour alone.
+    const toast = scene.add
+      .text(right, whole.y + whole.height + 6, options.watchToast, textStyle(typeRole.label, surface.ink.hex))
+      .setOrigin(1, 0)
+      .setPadding(8, 5, 8, 5)
+      .setBackgroundColor(cssOf(surface.paper.hex))
+      .setDepth(50);
+    toast.setWordWrapWidth(Math.max(120, right - whole.x - 16));
+  }
+  return right - left;
+}
+
+/**
+ * A live game's label for the log line (#876), words and a glyph so colour never carries it alone: a red "● LIVE" whose
+ * dot pulses (steady under reduced motion), a muted "○ HOST AWAY", a caution-coloured "FEED LOST". Returns the object
+ * that ends the label, so the line starts after it.
+ */
+function drawLiveWord(scene: Phaser.Scene, live: LivePill, x: number, middle: number): Phaser.GameObjects.Text {
+  const colour =
+    live.tone === "live" ? accent.heroRed.hex : live.tone === "failed" ? signal.caution.hex : surface.paper.hex;
+  const alpha = live.tone === "away" ? ink.meta : 1;
+  let at = x;
+  if (live.glyph) {
+    const dot = scene.add.text(at, middle, live.glyph, textStyle(TICKER_WORD, colour, alpha)).setOrigin(0, 0.5);
+    if (live.tone === "live" && !appSession().settings.reducedMotion) {
+      scene.tweens.add({ targets: dot, alpha: 0.25, duration: 700, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    }
+    at += dot.width + 4;
+  }
+  return scene.add.text(at, middle, live.word, textStyle(TICKER_WORD, colour, alpha)).setOrigin(0, 0.5);
+}
+
 /** The log's line: LOG, the newest thing that happened cut with an ellipsis, and a press that opens the log. */
 function drawLogTicker(scene: Phaser.Scene, rect: Rect, options: ChromeOptions): void {
   const { log, hints } = options;
@@ -241,9 +339,11 @@ function drawLogTicker(scene: Phaser.Scene, rect: Rect, options: ChromeOptions):
   if (log.open) g.fillStyle(surface.paper.hex, 0.14).fillRect(rect.x, rect.y, rect.width, rect.height);
   const middle = rect.y + rect.height / 2;
   const alpha = log.enabled ? ink.body : ink.meta;
-  const word = scene.add
-    .text(rect.x + 8, middle, `${log.open ? "▾" : "▸"} LOG`, textStyle(TICKER_WORD, signal.caution.hex, alpha))
-    .setOrigin(0, 0.5);
+  const word = options.live
+    ? drawLiveWord(scene, options.live, rect.x + 8, middle)
+    : scene.add
+        .text(rect.x + 8, middle, `${log.open ? "▾" : "▸"} LOG`, textStyle(TICKER_WORD, signal.caution.hex, alpha))
+        .setOrigin(0, 0.5);
   const textX = word.x + word.width + 8;
   const glyphRoom = hints && rect.width > 360 ? TICKER_GLYPH_ROOM : 0;
   const line = scene.add

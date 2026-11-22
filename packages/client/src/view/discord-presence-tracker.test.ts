@@ -185,3 +185,36 @@ describe("the main thread's part", () => {
     expect(source).not.toMatch(/setInterval|setTimeout|\.subscribe\(|presenceKey|presenceOf|presenceGameOf/);
   });
 });
+
+describe("the live room's status (#876)", () => {
+  const live = { watchUrl: "https://marvel.champions-digital-game.com/#watch=abc", watchers: 1 };
+
+  test("in a game the card gets Watch live and the count, and a new count is sent", () => {
+    const { tracker, sent, advance } = rig();
+    tracker.sceneUp("Board");
+    tracker.setGame(GAME, "g1");
+    tracker.setLive(live);
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[0]?.buttons?.map((b) => b.label)).toEqual(["Get the game", "Watch live"]);
+    expect(sent[0]?.state).toBe("Round 1 · Hero form · 1 watching");
+    tracker.setLive({ ...live, watchers: 2 });
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[1]?.state).toBe("Round 1 · Hero form · 2 watching");
+  });
+
+  test("the room closing (no link) takes the button away; the menus never show it", () => {
+    const { tracker, sent, advance } = rig();
+    tracker.sceneUp("Title");
+    tracker.setLive(live);
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[0]?.buttons).toHaveLength(1);
+    tracker.sceneDown("Title");
+    tracker.sceneUp("Board");
+    tracker.setGame(GAME, "g1");
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[1]?.buttons).toHaveLength(2);
+    tracker.setLive(null);
+    advance(PRESENCE_DEBOUNCE_MS);
+    expect(sent[2]?.buttons).toHaveLength(1);
+  });
+});

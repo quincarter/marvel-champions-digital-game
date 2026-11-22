@@ -487,7 +487,18 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             pnpm exec wrangler deploy --env=""
           else
-            pnpm exec wrangler deploy --env staging
+            # One staging Worker serves every pull request. A stacked pull request lower in a stack than one already
+            # deployed has fewer Durable Object migrations than the staging script, and Cloudflare refuses to step it
+            # back (code 10074). The higher pull request's Worker is a superset, so keep it rather than fail.
+            set +e
+            pnpm exec wrangler deploy --env staging 2>&1 | tee deploy.log
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -ne 0 ] && grep -q "code: 10074" deploy.log && grep -q "was not found in your wrangler" deploy.log; then
+              echo "::notice::The staging Worker already carries newer migrations from another pull request; keeping it."
+              exit 0
+            fi
+            exit "$status"
           fi
 
   # The site pages (site/, vite.site.config.ts): the moved page the old Netlify address serves once SITE_MOVED is set,
