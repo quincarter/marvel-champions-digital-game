@@ -493,6 +493,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.mods.missing": "Falta en esta versión. Consíguelo en la Tienda de mods.",
   "room.multi.title": "Varios asientos por persona",
   "room.multi.detail": "Una persona puede llevar más de un héroe.",
+  "room.seatsSetting.heading": "Asientos",
   "room.askToSit.title": "Pedir permiso al anfitrión para sentarse",
   "room.askToSit.detail":
     "Los invitados piden un asiento y tú los apruebas. Desactivado: los invitados ocupan un asiento libre ellos mismos antes de empezar la partida.",
