@@ -710,7 +710,8 @@ describe("seat requests and assignments", () => {
       const { storage, room, send, h, make, join } = await completedGame();
       const put = storage.put.bind(storage);
       storage.put = ((...args: Parameters<typeof put>) => {
-        if ((args[0] as unknown) === "t1:header") return Promise.reject(new Error("put failed"));
+        if ((args[0] as unknown) === "t1:header" || "t1:header" in (args[0] as object))
+          return Promise.reject(new Error("put failed"));
         return put(...(args.map((x) => structuredClone(x)) as Parameters<typeof put>));
       }) as typeof storage.put;
       const commands = Array.from({ length: 50 }, (_, i) => ({ n: i }));
@@ -738,6 +739,7 @@ describe("seat requests and assignments", () => {
       for (const [name, match] of [
         ["first chunk put", (k: string) => k.startsWith("t1:b:c:")],
         ["tail put", (k: string) => k === "t1:b:tail"],
+        ["header and reopened meta put", (k: string) => k === "meta"],
       ] as const) {
         it(`a failed ${name} after the replacement started leaves the 45 committed commands for a wake, and a retry commits all 55`, async () => {
           const { storage, room, send, h, make, join } = await completedGame();
@@ -745,11 +747,20 @@ describe("seat requests and assignments", () => {
           await send(room, h, repair).catch(() => undefined);
           expect(storage.map.get("t1:header")).toMatchObject({ g: "A", sg: 1 });
           const woken = await join(make(), { token: TOKEN, name: "Hosty" });
-          expect(woken.last("welcome")!.tables[0]).toMatchObject({ hasHeader: true, gid: "A", commands: 45 });
+          // One committed game: its header, its 45 commands, and the ended lifecycle with its outcome, never a mix.
+          expect(woken.last("welcome")!.tables[0]).toMatchObject({
+            hasHeader: true,
+            gid: "A",
+            commands: 45,
+            ended: true,
+          });
+          expect(storage.map.get("meta")).toMatchObject({ ended: true, outcome: 1 });
           heal();
           await send(room, h, repair);
           const done = await join(make(), { token: TOKEN, name: "Hosty" });
           expect(done.last("welcome")!.tables[0]).toMatchObject({ gid: "A", commands: 55 });
+          expect(done.last("welcome")!.tables[0]!.ended).toBeFalsy();
+          expect(storage.map.get("meta")).toMatchObject({ ended: false });
           expect(storage.map.get("t1:header")).toMatchObject({ sg: 2 });
           // The previous generation's rows are gone once the switch has committed.
           expect([...storage.map.keys()].filter((k) => k.startsWith("t1:c:") || k === "t1:tail")).toEqual([]);

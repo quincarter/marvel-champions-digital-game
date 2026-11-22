@@ -62,10 +62,17 @@ export class GameMirror {
         this.#commands.push(...m.commands);
         this.#dropChecksumsAfter(m.from);
         Object.assign(this.#checksums, m.checksums);
+        // A batch after the end means the game went on (the room clears its own end the same way): never snapshot a
+        // finished game that has since taken commands.
+        this.#ended = false;
+        this.#outcome = null;
         return "applied";
       }
       case "rewind":
-        if (!this.#has || m.to >= this.#commands.length) return "ignored";
+        // A rewind to the current count cuts nothing, but it reopens a finished game (a resumed host whose game is not
+        // over says so that way): the end is cleared, as the room and `WatchFeed` do.
+        if (!this.#has || m.to > this.#commands.length || (m.to === this.#commands.length && !this.#ended))
+          return "ignored";
         this.#commands.length = m.to;
         this.#dropChecksumsAfter(m.to);
         this.#ended = false;
