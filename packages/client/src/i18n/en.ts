@@ -490,6 +490,7 @@ export const en = {
   "room.mods.missing": "Missing at this version. Get it in the Mod Store.",
   "room.multi.title": "Several seats per person",
   "room.multi.detail": "One person may play more than one hero.",
+  "room.seatsSetting.heading": "Seats",
   "room.askToSit.title": "Ask the host to sit at the table",
   "room.askToSit.detail":
     "Guests ask for a seat and you approve them. Off: guests take an open seat themselves before the game starts.",
