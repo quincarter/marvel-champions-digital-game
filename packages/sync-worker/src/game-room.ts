@@ -2044,7 +2044,7 @@ export class GameRoomLogic {
 
   /** The room's meta once its game is open again (no end, outcome or end time). */
   private reopenedMeta(): RoomMeta {
-    const { endedAt: _endedAt, roomEndedAt: _roomEndedAt, ...rest } = this.meta!;
+    const { endedAt: _endedAt, roomEndedAt: _roomEndedAt, adjusted: _adjusted, ...rest } = this.meta!;
     // Several tables keep their ends in their own rows (flushLifecycle); the room-level fields are a single table's.
     return this.tables.size > 1 ? { ...rest } : { ...rest, ended: false, outcome: null, overflow: false };
   }
