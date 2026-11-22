@@ -24,6 +24,13 @@ describe("LatestRead", () => {
     expect(again.keep(r)).toBe(false);
   });
 
+  it("lets an older read that succeeds be kept after a newer one failed (a failed read is never kept)", () => {
+    const reads = new LatestRead();
+    const load = reads.issue();
+    reads.issue(); // a refresh whose read failed: the scene never calls keep for it
+    expect(reads.keep(load)).toBe(true);
+  });
+
   it("keeps reads that do not overlap", () => {
     const reads = new LatestRead();
     expect(reads.keep(reads.issue())).toBe(true);

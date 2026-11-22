@@ -401,7 +401,7 @@ export class ModStoreScene extends Phaser.Scene {
       this.#offline = catalog.offline;
       // A newer read was kept while this load waited (an update landed): its list stands, and the badge is counted
       // from it too, never from this older read.
-      const current = this.#keep(read.ticket, installed ?? []);
+      const current = this.#keep(read.ticket, installed);
       // A dev catalog override is not the real store's, so it never sets the Title's update badge.
       if (!this.#catalogUrl && installed) {
         notePackUpdates(catalog.index, current ? installed : [...this.#installed.values()], catalog.offline);
@@ -410,7 +410,7 @@ export class ModStoreScene extends Phaser.Scene {
     } catch {
       // No network and no saved copy: still show what is installed.
       const read = await this.#readInstalled();
-      this.#keep(read.ticket, read.installed ?? []);
+      this.#keep(read.ticket, read.installed);
       this.#status = "failed";
     }
     this.#requestRedraw();
@@ -431,16 +431,19 @@ export class ModStoreScene extends Phaser.Scene {
     return { ticket, installed };
   }
 
-  /** Keeps a read's list unless a read issued after it was kept already; true when kept. */
-  #keep(ticket: number, installed: readonly InstalledPack[]): boolean {
-    if (!this.#installedReads.keep(ticket)) return false;
+  /**
+   * Keeps a read's list unless a read issued after it was kept already; true when kept. A failed read (`null`) keeps
+   * nothing and moves nothing on: the last list read stands, and an older read that succeeds later may still be kept.
+   */
+  #keep(ticket: number, installed: readonly InstalledPack[] | null): boolean {
+    if (installed === null || !this.#installedReads.keep(ticket)) return false;
     this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
     return true;
   }
 
   async #refreshInstalled(): Promise<void> {
     const { ticket, installed } = await this.#readInstalled();
-    if (!this.#keep(ticket, installed ?? [])) return;
+    if (!this.#keep(ticket, installed)) return;
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
     // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
     void refreshActivePacks();
