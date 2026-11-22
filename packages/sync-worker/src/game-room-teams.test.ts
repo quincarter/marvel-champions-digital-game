@@ -239,6 +239,25 @@ describe("Competitive lobby: teams", () => {
   });
 });
 
+describe("Competitive lobby: villain phase pacing", () => {
+  it("one table, one engine: the room host leads both teams' guests, and a guest may not send a cursor", async () => {
+    const h = await setup();
+    // The pacing setting is stored in a competitive lobby like in any other.
+    await h.send(h.host, { ch: "room", kind: "lobby-set", settings: { villainPacing: "each" } });
+    expect(h.host.last("lobby")!.settings.villainPacing).toBe("each");
+    await h.readyBoth();
+    await h.reveal(h.host);
+    await h.start();
+    const cursor = { ch: "room", kind: "villain-cursor", table: "t1", key: "r3", at: 2, state: "playing" };
+    await h.send(h.host, cursor);
+    // Both teams' seat holders (a on registration, b and c on resistance) and a watcher follow the one host.
+    for (const s of [h.a, h.b, h.c, h.watcher]) expect(s.of("villain-cursor")).toMatchObject([{ table: "t1", at: 2 }]);
+    expect(h.host.of("villain-cursor")).toEqual([]);
+    await h.send(h.a, cursor);
+    expect(h.a.refusals).toContain("not-allowed");
+  });
+});
+
 describe("Competitive lobby: sealed scenarios", () => {
   it("never sends a submission to anyone: the lobby shows only that it exists", async () => {
     const h = await setup();

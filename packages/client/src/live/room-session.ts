@@ -19,6 +19,7 @@ import {
   type LobbyTableSpec,
   type DeckRefusalCode,
   type HostActivityStep,
+  type VillainCursorState,
   type RoomDeck,
   type RoomBuild,
   type RoomDevice,
@@ -900,6 +901,13 @@ export class RoomSession {
   hostActivity(step: HostActivityStep, scenario?: string): void {
     if (this.role !== "host") return;
     this.#say({ ch: "room", kind: "host-activity", step, ...(scenario ? { scenario } : {}) });
+  }
+
+  /** Host only: where my villain phase screen is. Ephemeral: the room relays it to the guests, memory only, never stored. */
+  villainCursor(key: string, at: number, state: VillainCursorState): void {
+    if (this.role !== "host") return;
+    // The host of an Epic table leads that table; a standard room's host leads the first (only) one.
+    this.#say({ ch: "room", kind: "villain-cursor", table: this.hostedTable ?? FIRST_TABLE, key, at, state });
   }
 
   chat(text: string): void {

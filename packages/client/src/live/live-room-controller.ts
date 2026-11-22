@@ -288,6 +288,9 @@ export class LiveRoomController {
       case "room-activity":
         this.#session?.hostActivity(message.step, message.scenario);
         return;
+      case "room-villain-cursor":
+        this.#session?.villainCursor(message.key, message.at, message.state);
+        return;
       case "room-deck":
         this.#session?.chooseDeck(message.seat, message.deck);
         return;

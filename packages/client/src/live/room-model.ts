@@ -14,6 +14,7 @@ import {
   type BuildGap,
   type RoomChatLine,
   type RoomHostActivity,
+  type RoomVillainCursor,
   type RoomDeckProblem,
   type RoomConnection,
   type RoomParticipant,
@@ -109,6 +110,7 @@ export class RoomModel {
   #chat: RoomChatLine[] = [];
   #chatLive = 0;
   #hostActivity: RoomHostActivity | null = null;
+  #villainCursor: RoomVillainCursor | null = null;
   #refusal: RoomRefusal | null = null;
   #refusalSeq = 0;
   #lastSeat: string | undefined;
@@ -183,6 +185,7 @@ export class RoomModel {
 
   /** Follows `table` as this device's game (its own table in an Epic room). */
   setView(table: string): void {
+    if (table !== this.#view) this.#villainCursor = null;
     this.#view = table;
     this.#table = this.#tableInfos.get(table) ?? null;
   }
@@ -319,6 +322,8 @@ export class RoomModel {
   dropped(): void {
     // The room resends the host's step to a rejoining socket; an old one must not outlive the connection.
     this.#hostActivity = null;
+    // The room resends the host's cursor to a rejoining guest; an old one must not outlive the connection.
+    this.#villainCursor = null;
     if (this.#connection === "ended") return;
     this.#connection = this.#welcomed ? "reconnecting" : "connecting";
   }
@@ -425,6 +430,13 @@ export class RoomModel {
           message.step === "idle"
             ? null
             : { step: message.step, ...(message.scenario ? { scenario: message.scenario } : {}) };
+        return true;
+      case "villain-cursor":
+        // The host of a table leads that table: a guest follows the cursor of the table it is viewing (an Epic room's
+        // other tables keep their own cursors).
+        if (message.table !== this.#view) return false;
+        this.#villainCursor =
+          message.state === "none" ? null : { key: message.key, at: message.at, state: message.state };
         return true;
       case "lobby":
         this.#lobby = {
@@ -542,6 +554,7 @@ export class RoomModel {
       chat: this.#chat,
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
+      villainCursor: this.#villainCursor,
       refusal: this.#refusal,
       requests: this.#role === "host" || this.isHost ? this.#requests : [],
       myRequest: this.#role === "guest" && !this.isHost ? this.#ask : null,

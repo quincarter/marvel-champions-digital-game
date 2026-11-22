@@ -30,6 +30,10 @@ import { REPLAY_ID_ALPHABET } from "./replay-protocol.js";
 import {
   CHAT_BACKLOG_LINES,
   HOST_ACTIVITY_BURST,
+  VILLAIN_CURSOR_BURST,
+  VILLAIN_CURSOR_PER_SECOND,
+  type VillainCursorState,
+  type VillainPacing,
   LOBBY_MESSAGE_BURST,
   MAX_ACTIVITY_SCENARIO_CHARS,
   type HostActivityStep,
@@ -139,6 +143,7 @@ export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   multiSeat: false,
   handover: true,
   hostSeesHands: false,
+  villainPacing: "host",
   chat: true,
   contentVersion: "",
   appVersion: "",
@@ -466,6 +471,16 @@ function cleanDeck(deck: RoomDeck): RoomDeck | null {
   };
 }
 
+/** The host's villain phase screen as the room keeps it (`villain-cursor`). */
+interface VillainCursor {
+  readonly key: string;
+  readonly at: number;
+  readonly state: VillainCursorState;
+}
+
+const sameCursor = (a: VillainCursor, b: VillainCursor): boolean =>
+  a.key === b.key && a.at === b.at && a.state === b.state;
+
 /** A token bucket in a map: true when one token was taken. Memory only. */
 function takeToken(
   buckets: Map<string, { tokens: number; at: number }>,
@@ -541,6 +556,12 @@ export class GameRoomLogic {
   private pendingActivity: { who: string; step: { step: HostActivityStep; scenario?: string } } | null = null;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly activityBucket = new Map<string, { tokens: number; at: number }>();
+  /** Each table host's villain phase cursor (memory only, never stored, no lobby revision): the newest. */
+  private readonly cursors = new Map<string, VillainCursor>();
+  /** The newest cursor per table that arrived over the limit: relayed once a token is free, so the last is never lost. */
+  private readonly pendingCursors = new Map<string, { who: string; cursor: VillainCursor }>();
+  private cursorTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly cursorBucket = new Map<string, { tokens: number; at: number }>();
   /** Chat rate: a token bucket per participant (1 a second, burst `CHAT_BURST`). Memory only. */
   private readonly chatBuckets = new Map<string, { tokens: number; at: number }>();
 
@@ -868,6 +889,8 @@ export class GameRoomLogic {
       ...plain,
       handover: lobby.settings.handover !== false,
       hostSeesHands: lobby.settings.hostSeesHands === true,
+      // A lobby stored before the setting existed has none: the host leads, the new default.
+      villainPacing: (lobby.settings.villainPacing === "each" ? "each" : "host") satisfies VillainPacing,
       ...(competitive ? { tieBreaks: lobby.settings.tieBreaks !== false } : {}),
     };
     return {
@@ -1387,6 +1410,7 @@ export class GameRoomLogic {
     if (message.ch === "chat") return this.say(socket, who, message.text);
     if (message.ch === "pod") return this.pod(socket, who, message);
     if (message.ch === "room" && message.kind === "host-activity") return this.hostActivity(socket, who, message);
+    if (message.ch === "room" && message.kind === "villain-cursor") return this.villainCursor(socket, who, message);
     if (message.ch === "room" && message.kind === "follow") return this.follow(socket, who, message.tables);
     if (message.ch === "room") return this.lobbyMessage(socket, who, message);
     if (message.kind === "propose" || message.kind === "request") return this.fromSeat(socket, who, message);
@@ -1400,6 +1424,10 @@ export class GameRoomLogic {
     const table = this.tableOf(message.table);
     if (who.role !== "host" || who.table !== message.table || !table) {
       return this.refuse(socket, "not-allowed");
+    }
+    // A phase's cursor belongs to the game it was shown in: a new game, a rewound one or a finished one has none.
+    if (message.kind === "start" || message.kind === "rewind" || message.kind === "end") {
+      this.clearCursor(message.table, participant.id);
     }
     const isLog = message.kind === "start" || message.kind === "log";
     if (bytes > this.limits.maxMessageBytes && !isLog) return this.refuse(socket, "too-large");
@@ -2301,6 +2329,14 @@ export class GameRoomLogic {
       this.sendSocket(socket, { v: 1, ch: "chat", kind: "backlog", lines: [...this.backlog] });
     }
     if (this.activity) this.sendSocket(socket, { v: 1, ch: "room", kind: "host-activity", ...this.activity });
+    // A joiner (or a guest that reconnected) is told where the host's villain phase screen is.
+    if (you.role !== "host") {
+      for (const [table, cursor] of this.cursors) {
+        // An Epic room: only the tables this joiner follows (its own table's host leads it).
+        if (!this.follows(you.id, table)) continue;
+        this.sendSocket(socket, { v: 1, ch: "room", kind: "villain-cursor", table, ...cursor });
+      }
+    }
   }
 
   /** Loads the stored chat backlog once per lifetime; lines said since the wake (already in memory) stay last. */
@@ -2368,6 +2404,62 @@ export class GameRoomLogic {
     this.broadcast({ v: 1, ch: "room", kind: "host-activity", ...(next ?? { step: "idle" }) });
   }
 
+  /**
+   * The table host's villain phase cursor, relayed to everyone but the host (guests follow it when the lobby says the
+   * host leads). Memory only: no row, no lobby revision. Rate limited per host; over the limit the newest is kept and
+   * relayed when a token is free, never refused. An unchanged cursor is not relayed again. Only the host of the table
+   * it names may send one.
+   */
+  private villainCursor(
+    socket: RoomSocket,
+    who: Participant,
+    message: Extract<ClientMessage, { kind: "villain-cursor" }>,
+  ): void {
+    if (who.role !== "host" || who.table !== message.table || !this.tables.has(message.table)) {
+      return this.refuse(socket, "not-allowed");
+    }
+    const next: VillainCursor = { key: message.key, at: message.at, state: message.state };
+    const kept = this.cursors.get(message.table);
+    if (kept && sameCursor(kept, next)) {
+      this.pendingCursors.delete(message.table);
+      return;
+    }
+    if (!takeToken(this.cursorBucket, who.id, VILLAIN_CURSOR_BURST, VILLAIN_CURSOR_PER_SECOND, this.clock())) {
+      this.pendingCursors.set(message.table, { who: who.id, cursor: next });
+      this.cursorTimer ??= setTimeout(() => this.flushCursors(), 500);
+      return;
+    }
+    this.pendingCursors.delete(message.table);
+    this.setCursor(message.table, next, who.id);
+  }
+
+  private flushCursors(): void {
+    this.cursorTimer = null;
+    if (this.meta === null) return;
+    for (const [table, pending] of [...this.pendingCursors]) {
+      if (!takeToken(this.cursorBucket, pending.who, VILLAIN_CURSOR_BURST, VILLAIN_CURSOR_PER_SECOND, this.clock())) {
+        continue;
+      }
+      this.pendingCursors.delete(table);
+      this.setCursor(table, pending.cursor, pending.who);
+    }
+    if (this.pendingCursors.size > 0) this.cursorTimer = setTimeout(() => this.flushCursors(), 500);
+  }
+
+  private setCursor(table: string, cursor: VillainCursor, host: string): void {
+    const kept = this.cursors.get(table);
+    if (kept && sameCursor(kept, cursor)) return;
+    this.cursors.set(table, cursor);
+    this.sendGame(table, { v: 1, ch: "room", kind: "villain-cursor", table, ...cursor }, host);
+  }
+
+  /** The table's game was started over, rewound or ended: the cursor belongs to a phase that is gone. */
+  private clearCursor(table: string, except?: string): void {
+    this.pendingCursors.delete(table);
+    if (!this.cursors.delete(table)) return;
+    this.sendGame(table, { v: 1, ch: "room", kind: "villain-cursor", table, key: "-", at: 0, state: "none" }, except);
+  }
+
   /** A participant left: whatever seats it asked for are no longer asked for. Its held seats stay, for a token rejoin. */
   private withdrawRequests(id: string): Promise<void> {
     // Under the lock, so a rollback never restores a request a leaving participant withdrew.
@@ -2421,6 +2513,7 @@ export class GameRoomLogic {
       ...(patch?.multiSeat !== undefined ? { multiSeat: patch.multiSeat } : {}),
       ...(patch?.handover !== undefined ? { handover: patch.handover } : {}),
       ...(patch?.hostSeesHands !== undefined ? { hostSeesHands: patch.hostSeesHands } : {}),
+      ...(patch?.villainPacing !== undefined ? { villainPacing: patch.villainPacing } : {}),
       ...(patch?.listed !== undefined ? { listed: patch.listed } : {}),
       ...(patch?.chat !== undefined ? { chat: patch.chat } : {}),
       ...(patch?.mode !== undefined ? { mode: patch.mode } : {}),
@@ -2749,7 +2842,10 @@ export class GameRoomLogic {
   private lobbyMessage(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" | "host-activity" }>,
+    message: Exclude<
+      Extract<ClientMessage, { ch: "room" }>,
+      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" }
+    >,
   ): Promise<void> {
     return this.lobbyLock(() => this.lobbyMessageLocked(socket, who, message));
   }
@@ -2757,7 +2853,10 @@ export class GameRoomLogic {
   private async lobbyMessageLocked(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" | "host-activity" }>,
+    message: Exclude<
+      Extract<ClientMessage, { ch: "room" }>,
+      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" }
+    >,
   ): Promise<void> {
     // A turn that waited for the lock may belong to a participant who has left since: it must not add a request.
     if (!this.participants.has(who.id)) return;
@@ -3355,6 +3454,9 @@ export class GameRoomLogic {
       if (!now || was) continue;
       await this.ensureLoaded(table);
       if (table.hasHeader) this.sendLog(socket, table);
+      // The table host's villain phase screen, for a table this participant has just started to follow.
+      const cursor = this.cursors.get(table.id);
+      if (cursor) this.sendSocket(socket, { v: 1, ch: "room", kind: "villain-cursor", table: table.id, ...cursor });
       if (table.unverified) this.askResend(table.id, table.hasHeader ? table.commands.length : 0);
     }
   }
@@ -3447,6 +3549,7 @@ export class GameRoomLogic {
     this.podBuckets.delete(participant.id);
     this.deckBuckets.delete(participant.id);
     this.activityBucket.delete(participant.id);
+    this.cursorBucket.delete(participant.id);
     this.broadcastRoster();
     // The host leaving ends its setup status line and its listing.
     if (participant.role === "host") this.setActivity(null);
@@ -3548,6 +3651,11 @@ export class GameRoomLogic {
       this.activity = null;
       this.dropPendingActivity();
       this.activityBucket.clear();
+      this.cursors.clear();
+      this.pendingCursors.clear();
+      this.cursorBucket.clear();
+      if (this.cursorTimer !== null) clearTimeout(this.cursorTimer);
+      this.cursorTimer = null;
       this.chatBuckets.clear();
       this.lobbyBuckets.clear();
       this.sealedBuckets.clear();

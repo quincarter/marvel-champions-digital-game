@@ -67,6 +67,18 @@ export const HOST_ACTIVITY_STEPS = ["scenario", "table", "modular", "decks", "st
 export type HostActivityStep = (typeof HOST_ACTIVITY_STEPS)[number];
 /** Host activity messages: a burst of this many, then one a second. Memory only, never stored. */
 export const HOST_ACTIVITY_BURST = 4;
+/** Who paces a game's villain phase screen on a seated guest's device (`LobbySettings.villainPacing`). */
+export const VILLAIN_PACINGS = ["host", "each"] as const;
+export type VillainPacing = (typeof VILLAIN_PACINGS)[number];
+/** Where the host is in its villain phase screen (`villain-cursor`): on the Start gate, showing beats, or closed. */
+export const VILLAIN_CURSOR_STATES = ["gate", "playing", "closed"] as const;
+export type VillainCursorState = (typeof VILLAIN_CURSOR_STATES)[number];
+/** Villain cursor messages: a burst of this many, then `VILLAIN_CURSOR_PER_SECOND` a second. Memory only, never stored. */
+export const VILLAIN_CURSOR_BURST = 8;
+export const VILLAIN_CURSOR_PER_SECOND = 2;
+/** The longest phase key and the highest beat count a cursor may carry. */
+export const MAX_VILLAIN_KEY_CHARS = 24;
+export const MAX_VILLAIN_CURSOR_AT = 5000;
 /** The longest scenario name a host activity carries. */
 export const MAX_ACTIVITY_SCENARIO_CHARS = 120;
 /** A table has at most this many seats (Marvel Champions has 1-4 heroes); a standard lobby is one table. */
@@ -358,6 +370,12 @@ export interface LobbySettings {
    * keeps every hand. Strict rules do not change it.
    */
   readonly hostSeesHands?: boolean;
+  /**
+   * Who paces the villain phase screen on a seated guest's device. `host` (default; absent reads as `host`): the guest's
+   * screen follows the host's reveal (`villain-cursor`) and has no controls to move on by itself. `each`: every player
+   * steps through at their own pace. Presentation only: the engine's villain phase has already resolved either way.
+   */
+  readonly villainPacing?: VillainPacing;
   readonly chat: boolean;
   /**
    * The host's opt-in to the public "Live now" list (`GET /rooms/live`). Absent reads as off; a room is never listed
@@ -669,6 +687,20 @@ export type ClientMessage =
       readonly step: HostActivityStep;
       readonly scenario?: string;
     }
+  /**
+   * The table's host only: where its villain phase screen is, for the guests' screens to follow (`villainPacing`
+   * `host`). Relayed to everyone else as it is, kept in memory (the newest), never stored, never part of the lobby
+   * revision. `key` names the phase (its round), `at` is how many beats the host has shown.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "villain-cursor";
+      readonly table: string;
+      readonly key: string;
+      readonly at: number;
+      readonly state: VillainCursorState;
+    }
   /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-request"; readonly seat: string }
   /** Give up a seat you hold, or withdraw a request. */
@@ -920,6 +952,19 @@ export type ServerMessage =
       readonly kind: "host-activity";
       readonly step: HostActivityStep;
       readonly scenario?: string;
+    }
+  /**
+   * The host's villain phase cursor, to every guest when it changes and to a joiner. `state: "none"` clears it (the
+   * table's game was started over or rewound). Memory only; it does not touch the lobby revision.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "villain-cursor";
+      readonly table: string;
+      readonly key: string;
+      readonly at: number;
+      readonly state: VillainCursorState | "none";
     }
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
@@ -1241,6 +1286,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic" && v.mode !== "competitive") return false;
   if (v.tieBreaks !== undefined && typeof v.tieBreaks !== "boolean") return false;
   if (v.hostSeesHands !== undefined && typeof v.hostSeesHands !== "boolean") return false;
+  if (v.villainPacing !== undefined && !VILLAIN_PACINGS.some((x) => x === v.villainPacing)) return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.listed !== undefined && typeof v.listed !== "boolean") return false;
   if (v.tableRules !== undefined) {
@@ -1325,6 +1371,16 @@ export function parseClientMessage(text: string): ClientMessage | null {
         HOST_ACTIVITY_STEPS.some((x) => x === m.step) &&
           (m.scenario === undefined ||
             (typeof m.scenario === "string" && m.scenario.length <= MAX_ACTIVITY_SCENARIO_CHARS * 4)),
+      );
+    case "room:villain-cursor":
+      return ok(
+        isTable(m.table) &&
+          typeof m.key === "string" &&
+          m.key.length > 0 &&
+          m.key.length <= MAX_VILLAIN_KEY_CHARS &&
+          isCount(m.at) &&
+          m.at <= MAX_VILLAIN_CURSOR_AT &&
+          VILLAIN_CURSOR_STATES.some((x) => x === m.state),
       );
     case "room:seat-decks-request":
     case "room:room-close":
