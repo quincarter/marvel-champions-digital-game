@@ -26,6 +26,8 @@ import {
   clearPayment,
   exhaustPickOptionId,
   exhaustPickTiles,
+  pickGroupTiles,
+  sourceCardsOf,
   paymentView,
   sourceTagText,
   spentTagText,
@@ -638,5 +640,104 @@ describe("Organizational Support's cards to exhaust, one tile per card (issue #3
   test("a tap on the card in hand takes back the interrupt with all its exhausted cards", () => {
     const two = tap(tap(opened, "a"), "c");
     expect(togglePayment(two, cardTapOption(two, org)!).picked).toEqual([]);
+  });
+});
+
+// Enhanced Combat Sense (issue #966): a resource ability, not spending a hand card, whose cost exhausts any number of
+// upgrades is one engine option per subset; the strip shows one tile per upgrade.
+describe("a resource ability whose cost exhausts any number of cards", () => {
+  const ecs = "ecs" as InstanceId;
+  const ups = ["u1", "u2", "u3"];
+  const base = `ability:${ecs}:ecs-resource`;
+  const subsets = [[], ["u1"], ["u2"], ["u3"], ["u1", "u2"], ["u1", "u3"], ["u2", "u3"], ["u1", "u2", "u3"]];
+  const ways = subsets.map((set) => ({
+    optionId: set.length ? `${base}@exhaust=${set.join(",")}` : base,
+    kind: "resourceAbility",
+    instanceId: ecs,
+    label: "Enhanced Combat Sense",
+    pool: { physical: 0, mental: 0, energy: set.length, wild: 0 },
+    costChoices: { exhaust: set },
+    // The engine marks every option of a cost that picks a set of cards (`PaymentSource.picksMany`).
+    picksMany: true,
+  }));
+  const wayOf = (...set: string[]) => ways.find((way) => way.costChoices.exhaust.join(",") === set.join(","))!;
+  const opened = {
+    action: { kind: "playCard", instanceId: "victoria" },
+    target: null,
+    controllerId: null,
+    query: { requirement: { generic: 2 }, sources: ways, suggested: [] },
+    picked: [],
+    reductions: [],
+  } as unknown as PaymentState;
+  const noGame = { instances: {} } as unknown as GameState;
+  const tap = (payment: PaymentState, card: string) => togglePayment(payment, `pick:${card}@${base}`);
+
+  test("one tile per upgrade, each showing that upgrade with what exhausting it alone generates", () => {
+    const tiles = pickGroupTiles(noGame, opened);
+    expect(tiles.map((tile) => tile.instanceId)).toEqual(ups);
+    expect(tiles.every((tile) => tile.exhaustFor === ecs && tile.pool.energy === 1 && !tile.spent)).toBe(true);
+  });
+
+  test("each tap adds or removes one upgrade, and the last one out leaves nothing picked", () => {
+    const one = tap(opened, "u2");
+    expect(one.picked).toEqual([wayOf("u2").optionId]);
+    const two = tap(one, "u1");
+    expect(two.picked).toEqual([wayOf("u1", "u2").optionId]);
+    expect(
+      pickGroupTiles(noGame, two)
+        .filter((tile) => tile.spent)
+        .map((tile) => tile.instanceId),
+    ).toEqual(["u1", "u2"]);
+    expect(tap(two, "u3").picked).toEqual([wayOf("u1", "u2", "u3").optionId]);
+    expect(tap(tap(two, "u1"), "u2").picked).toEqual([]);
+  });
+
+  test("a tap leaves the other sources of the payment picked", () => {
+    const other = { ...opened, picked: ["hand:x"] } as PaymentState;
+    expect(tap(other, "u1").picked).toEqual(["hand:x", wayOf("u1").optionId]);
+    expect(tap(tap(other, "u1"), "u1").picked).toEqual(["hand:x"]);
+  });
+
+  test("a set no option exhausts holds its tile", () => {
+    const capped = {
+      ...opened,
+      query: { ...opened.query, sources: ways.filter((way) => way.costChoices.exhaust.length <= 2) },
+    } as unknown as PaymentState;
+    const full = tap(tap(capped, "u1"), "u2");
+    expect(tap(full, "u3")).toBe(full);
+    expect(pickGroupTiles(noGame, full).find((tile) => tile.instanceId === "u3")?.lockedReason).not.toBeNull();
+  });
+
+  test("the focus route and spendable cards are the upgrades, and a tap on an upgrade toggles it", () => {
+    expect([...new Set(ways.flatMap((way) => sourceCardsOf(way as never, ways as never)))].sort()).toEqual(
+      [...ups, ecs].sort(),
+    );
+    expect(sourceCardsOf(wayOf("u1", "u2") as never, ways as never)).toEqual(["u1", "u2"]);
+    const two = tap(opened, "u1");
+    expect(togglePayment(two, cardTapOption(two, "u1" as InstanceId)!).picked).toEqual([]);
+  });
+
+  test("a single pick (Sync Ratio) stays one source per card, with no group tiles", () => {
+    const single = ups.map((card) => ({ ...wayOf(card), optionId: `${base}@suit=${card}`, picksMany: undefined }));
+    const payment = { ...opened, query: { ...opened.query, sources: single } } as unknown as PaymentState;
+    expect(pickGroupTiles(noGame, payment)).toEqual([]);
+    expect(sourceCardsOf(single[0] as never, single as never)).toEqual(["u1"]);
+  });
+
+  test("with one upgrade to exhaust, its tile is that upgrade (PR #969 review)", () => {
+    const lone = [wayOf("u1")];
+    const payment = { ...opened, query: { ...opened.query, sources: lone } } as unknown as PaymentState;
+    expect(pickGroupTiles(noGame, payment).map((tile) => tile.instanceId)).toEqual(["u1"]);
+  });
+
+  test("a cost that exhausts a fixed set (one card per slot) keeps one tile per set", () => {
+    // Not a set to build (no `picksMany`): its options stay one tile each.
+    const pairs = [wayOf("u1", "u2"), wayOf("u1", "u3"), wayOf("u2", "u3")].map((way) => ({
+      ...way,
+      picksMany: undefined,
+    }));
+    const payment = { ...opened, query: { ...opened.query, sources: pairs } } as unknown as PaymentState;
+    expect(pickGroupTiles(noGame, payment)).toEqual([]);
+    expect(sourceCardsOf(pairs[0] as never, pairs as never)).toEqual([ecs]);
   });
 });
