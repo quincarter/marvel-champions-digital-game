@@ -551,6 +551,27 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=dynamic-duo`: Luke Cage with Dynamic Duo and every Team-Up card of his deck in hand, for the pay bar's
+  // "pay with it so Dynamic Duo can find it" (issue #966).
+  if (screen === "board" && params.get("fixture") === "dynamic-duo") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startDynamicDuoGame } = await import("../store/dev-dynamic-duo-game.js");
+      await startDynamicDuoGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
+  // `&fixture=combat-sense`: the Mod Store's Spider-Punisher (installed first) with two Weapon upgrades in play and
+  // Enhanced Combat Sense in hand, for its one-tile-per-upgrade payment (issue #966).
+  if (screen === "board" && params.get("fixture") === "combat-sense") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      await (await import("../packs/active-packs.js")).refreshActivePacks();
+      const { startCombatSenseGame } = await import("../store/dev-combat-sense-game.js");
+      await startCombatSenseGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=stat-stars&ally=cypher|chamber|clea`: one ally with printed consequential damage in play on turn 1, for
   // the stat badges against the printed card (`store/dev-stat-stars-game.ts`, issue #935).
   if (screen === "board" && params.get("fixture") === "stat-stars") {
