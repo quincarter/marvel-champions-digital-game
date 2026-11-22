@@ -97,7 +97,7 @@ import {
   statusActive,
 } from "../keywords.js";
 import { permanentStopsLeaving } from "../effects.js";
-import { areaOfPlayer, getInstance, getPlayer, isScheme } from "../query.js";
+import { areaOfPlayer, endOfPlayerPhaseCanStart, getInstance, getPlayer, isScheme, turnInProgress } from "../query.js";
 import { tuckRoom } from "../tuck-limit.js";
 import {
   cannotBeHealed,
@@ -1080,7 +1080,7 @@ function choiceCandidates(
  * could take the threat from (`moveThreatLacksSource`); `tuckFull`, the card it tucks under holds its maximum
  * (`tuckUnderFullHost`).
  */
-export type TargetFault = "target" | "moveSource" | "tuckFull";
+export type TargetFault = "target" | "moveSource" | "tuckFull" | "period";
 
 /**
  * Why this player-initiated ability cannot be initiated for want of a valid target, or null: RRG 1.8 "Target" (p. 42),
@@ -1107,6 +1107,7 @@ export function abilityTargetFault(
   event: TriggerEvent | null = null,
 ): TargetFault | null {
   if (!definition) return null;
+  if (playerId !== null && lastingPeriodClosed(state, definition) !== null) return "period";
   // RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
   // has no valid target for a thwart." The attempt discards the confused card (`labelCancels`, `resolve/ability.ts`).
   if (definition.label?.includes("thwart") && playerId !== null) {
@@ -1145,6 +1146,56 @@ export function abilityTargetFault(
     ...(definition.label?.includes("attack") && playerId !== null ? { attackLabeled: true } : {}),
   };
   return effectsTargetFault(state, deps, definition.effects, context, playerId, definition.costEffects ?? 0);
+}
+
+/** The effect kinds that make a lasting effect with an `until`, each made only while its period is in progress. */
+const LASTING_KINDS: ReadonlySet<EffectSpec["kind"]> = new Set<EffectSpec["kind"]>([
+  "modifyStatUntil",
+  "grantTraitUntil",
+  "grantKeywordUntil",
+  "applyRuleUntil",
+  "eachTimeUntil",
+  "blankTextBox",
+]);
+
+/** The period a lasting effect lasts to the end of, when that period is not in progress now; else null. */
+function closedPeriodOf(state: GameState, effect: EffectSpec): "endOfTurn" | "endOfPlayerPhase" | null {
+  if (!LASTING_KINDS.has(effect.kind) || !("until" in effect)) return null;
+  if (effect.until === "endOfTurn" && !turnInProgress(state)) return "endOfTurn";
+  if (effect.until === "endOfPlayerPhase" && !endOfPlayerPhaseCanStart(state)) return "endOfPlayerPhase";
+  return null;
+}
+
+/**
+ * Why an optional ability a player initiates cannot be initiated now: every part of its effect is a lasting effect
+ * whose period is not in progress (issue #970, Take a Stand used after a villain-phase defense). RRG 1.8 "Lasting
+ * Effects" (p. 26): "A lasting effect that expires at the end of a specified time period can only be initiated during
+ * that time period", so such an effect is not made (`apply-effect.ts`), and an ability made only of them would change
+ * nothing; it is not offered rather than played for nothing. "Until the end of the player phase" outside one follows
+ * owner answer Q104 = B (`endOfPlayerPhaseCanStart`). The card is not played either (p. 24, step 2: "can the card be
+ * played, or the ability initiated, at this time?"); older FFG rulings agree that an ability that cannot change the game
+ * state cannot be initiated (Flow Like Water; Boggs on War Machine's Gauntlet). A forced ability resolves as far as it
+ * can and is not judged.
+ * Returns the period, or null when the ability can be initiated.
+ */
+export function lastingPeriodClosed(
+  state: GameState,
+  definition: AbilityDefinition | undefined,
+): "endOfTurn" | "endOfPlayerPhase" | null {
+  if (!definition) return null;
+  const trigger = definition.trigger;
+  if ("forced" in trigger && trigger.forced === true) return null;
+  const costs = definition.costEffects ?? 0;
+  const leading = costs > 0 ? inlineSentences(definition.effects.slice(0, costs)).length : 0;
+  const effects = inlineSentences(definition.effects).slice(leading);
+  if (effects.length === 0) return null;
+  let period: "endOfTurn" | "endOfPlayerPhase" | null = null;
+  for (const effect of effects) {
+    const closed = closedPeriodOf(state, effect);
+    if (closed === null) return null;
+    period ??= closed;
+  }
+  return period;
 }
 
 /**
@@ -1279,6 +1330,8 @@ export const TARGET_FAULT_MESSAGE: Readonly<Record<TargetFault, string>> = {
   target: "that ability has no valid target",
   moveSource: "there is no scheme this could move threat from: threat cannot be removed from it, or it has none",
   tuckFull: "no more cards can be tucked under that card: it holds its maximum",
+  period:
+    "what it gives lasts to the end of a turn or player phase that is not in progress, so it can only be used then",
 };
 
 /**

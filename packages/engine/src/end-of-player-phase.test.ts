@@ -16,12 +16,15 @@ import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { replay, startSession } from "./engine.js";
 import { characterStat, mustPlayer } from "./query.js";
+import { lastingPeriodClosed } from "./resolve/target-validity.js";
 import type { EffectSpec, LastingUntil, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubEvent, stubSupport } from "./testing/fixtures.js";
 import { gameAtFirstTurn, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
+import { giveCard } from "./testing/scenario.js";
+import { runCommandsPicking } from "./testing/drive.js";
 
 const def = (definition: AbilityDefinition) => definition;
 const yourHero: TargetRef = { kind: "identityOf", player: { kind: "controller" } };
@@ -130,5 +133,100 @@ describe("H3.9 'until the end of the player phase'", () => {
     const next = endRound(game).state;
     expect(heroStat(next, "atk")).toBe(0);
     expect(next.lastingEffects).toEqual([]);
+  });
+});
+
+/**
+ * #970: an optional ability a player initiates whose whole effect is such a lasting effect, outside a player phase, would
+ * make nothing, so it is not initiated at all (RRG 1.8 "Lasting Effects", p. 26: "can only be initiated during that time
+ * period"; Q104 = B). An ability with another part, and a forced ability, are still initiated.
+ */
+describe("#970 an ability made only of lasting effects whose period is not in progress", () => {
+  const response = (effects: readonly EffectSpec[], forced = false): AbilityDefinition => ({
+    trigger: { kind: "response", forced, on: { on: "phaseBeginning", eventIs: { phase: "villain" } } },
+    effects,
+  });
+  const villainStep = (state: GameState): GameState => ({
+    ...state,
+    step: { ...state.step, phase: "villain" } as never,
+  });
+
+  it("is closed outside the player phase and open in it", () => {
+    const game = start();
+    const onlyPlayerPhase = response([plusOne("atk", "endOfPlayerPhase"), plusOne("thw", "endOfPlayerPhase")]);
+    expect(lastingPeriodClosed(game, onlyPlayerPhase)).toBeNull();
+    expect(lastingPeriodClosed(villainStep(game), onlyPlayerPhase)).toBe("endOfPlayerPhase");
+    expect(lastingPeriodClosed(villainStep(game), response([plusOne("atk", "endOfTurn")]))).toBe("endOfTurn");
+  });
+
+  it("stays open with a part of its own, or when forced", () => {
+    const villain = villainStep(start());
+    const mixed = response([plusOne("atk", "endOfPlayerPhase"), plusOne("thw", "endOfPhase")]);
+    expect(lastingPeriodClosed(villain, mixed)).toBeNull();
+    expect(lastingPeriodClosed(villain, response([plusOne("atk", "endOfPlayerPhase")], true))).toBeNull();
+  });
+});
+
+/**
+ * #970 review: the event itself is not played, so nothing that answers an event being played fires either. RRG 1.8
+ * "Initiating Abilities" (p. 24) step 2, "can the card be played, or the ability initiated, at this time?", read with
+ * "Lasting Effects" (p. 26) under Q104 = B; older FFG rulings agree that an ability that cannot change the game state
+ * cannot be initiated (Flow Like Water). A control event whose bonus lasts "until the end of the phase" is played from
+ * hand at the same moment, and the watcher answers it.
+ */
+describe("#970 a hand event made only of a closed lasting effect is not played", () => {
+  const atVillainPhase = (effects: readonly EffectSpec[]) =>
+    def({
+      trigger: { kind: "response", forced: false, on: { on: "phaseBeginning", eventIs: { phase: "villain" } } },
+      effects,
+    });
+  const STAND = stubAbility("stand.response", atVillainPhase([plusOne("atk", "endOfPlayerPhase")]));
+  const BRACE = stubAbility("brace.response", atVillainPhase([plusOne("atk", "endOfPhase")]));
+  const WATCH = stubAbility(
+    "watch.response",
+    def({
+      trigger: { kind: "response", forced: true, on: { on: "cardPlayed", playerIs: "controller" } },
+      effects: [plusOne("thw", "endOfRound")],
+    }),
+  );
+  const STAND_CARD = stubEvent({ id: "stand", cost: 0, abilities: [STAND.ref] });
+  const BRACE_CARD = stubEvent({ id: "brace", cost: 0, abilities: [BRACE.ref] });
+  const WATCHER = stubSupport({ id: "watcher", cost: 0, abilities: [WATCH.ref] });
+  const handDeps = depsOf(STAND, BRACE, WATCH);
+
+  /** Ends the turn with `card` in hand and the watcher in play; takes every optional ability offered. */
+  function run(card: typeof STAND_CARD) {
+    const cards = [STAND_CARD, BRACE_CARD, WATCHER];
+    let state = gameAtFirstTurn({
+      cards,
+      deps: handDeps,
+      deck: [...cards.map((c) => c.id), ...cards.map((c) => c.id)],
+    });
+    state = playerCardIntoPlay(state, WATCHER.id).state;
+    const given = giveCard(state, P1, card.id);
+    const offered: string[] = [];
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice!;
+      const ids = choice.options.map((o) => o.optionId as string);
+      if (choice.prompt.kind === "chooseTriggers") offered.push(...ids);
+      const take = ids.find((i) => i.includes(".response"));
+      return take ? [take] : ids.slice(0, Math.max(1, choice.minSelections));
+    };
+    const { events } = runCommandsPicking(given.state, handDeps, pick, { type: "endTurn", playerId: P1 });
+    return { id: given.id, offered, events };
+  }
+
+  it("is not offered, stays unplayed, and no 'after you play' response fires", () => {
+    const { offered, events } = run(STAND_CARD);
+    expect(offered.some((o) => o.includes("stand.response"))).toBe(false);
+    expect(events.some((e) => e.type === "cardPlayed")).toBe(false);
+    expect(JSON.stringify(events)).not.toContain("watch.response");
+  });
+
+  it("control: an event whose bonus lasts to the end of the phase is played, and the watcher answers it", () => {
+    const { offered, events } = run(BRACE_CARD);
+    expect(offered.some((o) => o.includes("brace.response"))).toBe(true);
+    expect(events.some((e) => e.type === "cardPlayed")).toBe(true);
+    expect(JSON.stringify(events)).toContain("watch.response");
   });
 });
