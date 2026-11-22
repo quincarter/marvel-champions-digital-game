@@ -5,6 +5,10 @@
  *
  * A pack joins the run when its page would offer an Update button (`tile.state === "update"`), the same rule as the
  * Title's count badge (`packs/pack-updates.ts`): one this game is too old for, or a withdrawn one, is left out.
+ *
+ * A pack that fails keeps its old version. The bar only counts the failures (a phone's bar has no room for eight names);
+ * each failed pack's own tile is marked instead (`failedIdsOf`), so every one can be found and retried. A failure the
+ * player has since fixed (a retry from the pack's page) drops out of both, since it no longer has an update.
  */
 import type { CardLanguage } from "../art/card-language.js";
 import { t, tPlural } from "../i18n/translate.js";
@@ -22,8 +26,8 @@ export interface UpdateAllRun {
   /** How many of `queue` have finished, updated or not. `queue[done]` is the one updating now. */
   readonly done: number;
   readonly updated: number;
-  /** The names of the packs that failed to update (each keeps its old version). */
-  readonly failed: readonly string[];
+  /** The packs that failed to update (each keeps its old version). */
+  readonly failed: readonly UpdateAllItem[];
   /** Stop was pressed: the run ends once the pack updating now finishes. */
   readonly stopping: boolean;
 }
@@ -31,7 +35,7 @@ export interface UpdateAllRun {
 /** How the last run ended, shown on the bar until the next one starts or the player leaves the store. */
 export interface UpdateAllResult {
   readonly updated: number;
-  readonly failed: readonly string[];
+  readonly failed: readonly UpdateAllItem[];
   readonly stopped: boolean;
 }
 
@@ -64,7 +68,7 @@ export function stepRun(run: UpdateAllRun, ok: boolean): UpdateAllRun {
     ...run,
     done: run.done + 1,
     updated: run.updated + (ok ? 1 : 0),
-    failed: ok || !current ? run.failed : [...run.failed, current.name],
+    failed: ok || !current ? run.failed : [...run.failed, current],
   };
 }
 
@@ -78,9 +82,22 @@ export function resultOf(run: UpdateAllRun): UpdateAllResult {
   return { updated: run.updated, failed: run.failed, stopped: run.done < run.queue.length };
 }
 
+/**
+ * The packs the last run failed to update that still have an update now: the ones whose tiles are marked. One updated
+ * since (a retry from its page) or removed is no longer a failure.
+ */
+export function failedIdsOf(
+  result: UpdateAllResult | null,
+  pending: readonly Pick<UpdateAllItem, "id">[],
+): ReadonlySet<string> {
+  if (!result) return new Set();
+  const still = new Set(pending.map((item) => item.id));
+  return new Set(result.failed.map((item) => item.id).filter((id) => still.has(id)));
+}
+
 export interface UpdateAllBarInput {
-  /** How many installed packs have an update now. */
-  readonly pending: number;
+  /** The installed packs that have an update now (`updateAllQueueOf`). */
+  readonly pending: readonly UpdateAllItem[];
   readonly run: UpdateAllRun | null;
   /** The current pack's latest progress report, while a run is going. */
   readonly progress: InstallProgress | null;
@@ -106,22 +123,25 @@ export function updateAllBarOf({ pending, run, progress, result, busy, lang }: U
     };
   }
   const lines: string[] = [];
+  const failed = failedIdsOf(result, pending).size;
   if (result) {
     if (result.updated > 0) lines.push(tPlural("modStore.updateAll.updated", result.updated, undefined, lang));
-    if (result.failed.length > 0) {
-      lines.push(t("modStore.updateAll.failed", { names: result.failed.join(", ") }, lang));
-    } else if (result.stopped && pending > 0) {
+    if (failed > 0) {
+      lines.push(tPlural("modStore.updateAll.failed", failed, undefined, lang));
+    } else if (result.stopped && pending.length > 0) {
       lines.push(t("modStore.updateAll.stopped", undefined, lang));
     }
   }
-  if (pending > 0 && !(result && (result.failed.length > 0 || result.stopped))) {
-    lines.push(tPlural("modStore.updateAll.ready", pending, undefined, lang));
+  if (pending.length > 0 && !(result && (failed > 0 || result.stopped))) {
+    lines.push(tPlural("modStore.updateAll.ready", pending.length, undefined, lang));
   }
   if (lines.length === 0) return null;
   return {
     text: lines.join(" "),
     fraction: null,
     action:
-      pending > 0 ? { id: "update-all", label: t("modStore.updateAll.button", undefined, lang), enabled: !busy } : null,
+      pending.length > 0
+        ? { id: "update-all", label: t("modStore.updateAll.button", undefined, lang), enabled: !busy }
+        : null,
   };
 }

@@ -3,15 +3,30 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
-import { clickText, hasText, installPageHelpers, isSceneUp, settle, trackPageErrors, waitFor } from "./helpers.js";
-import { communityPackIds, serveCatalog, stageCatalog } from "./pack-catalog-helpers.js";
+import {
+  activeScenes,
+  clickText,
+  hasText,
+  installPageHelpers,
+  isSceneUp,
+  settle,
+  trackPageErrors,
+  waitFor,
+} from "./helpers.js";
+import { communityHeroPackIds, serveCatalog, stageCatalog, type StagedCatalog } from "./pack-catalog-helpers.js";
 import { waitForScene } from "./wave6-helpers-a.js";
 import { quietGuide } from "./wave6-helpers-b.js";
+
+/**
+ * Update all (issue #957), from the Mod Store's browse view. Each test installs two community hero packs, then serves a
+ * catalog listing a newer version of both (built from copies of their sources with the version bumped, since an
+ * install checks the version inside the zip). The packs are taken in the order Update all takes them (by name), and
+ * each one's zip downloads are recorded, so the order and what was never fetched can be checked.
+ */
 
 const COMMUNITY = fileURLToPath(new URL("../../../content-packs/community", import.meta.url));
 const NEXT = "99.0.0";
 
-/** A copy of a community pack's source with its version bumped to `NEXT`: the store's "newer version". */
 function bumpedCopy(packId: string): string {
   const dir = mkdtempSync(join(tmpdir(), `mc-e2e-bump-${packId}-`));
   cpSync(join(COMMUNITY, packId), dir, { recursive: true });
@@ -22,8 +37,10 @@ function bumpedCopy(packId: string): string {
   return dir;
 }
 
+const has = (page: Page, text: string): Promise<boolean> => hasText(page, text, "ModStore");
+
 const waitForTextIn = (page: Page, text: string, timeoutMs = 30_000): Promise<true> =>
-  waitFor(async () => ((await hasText(page, text, "ModStore")) ? true : null), `"${text}" in the store`, timeoutMs);
+  waitFor(async () => ((await has(page, text)) ? true : null), `"${text}" in the store`, timeoutMs);
 
 async function installFromPage(page: Page, packId: string): Promise<void> {
   await page.goto(`/?screen=mod-store&pack=${packId}`);
@@ -38,53 +55,149 @@ async function installFromPage(page: Page, packId: string): Promise<void> {
   await waitForTextIn(page, "REMOVE", 90_000);
 }
 
-/**
- * Update all (issue #957): two installed packs the store has a newer version of. The browse view's bar counts them and
- * its Update all button updates them one after another; one whose download is broken keeps its old version and is
- * named on the bar, while the other is updated.
- */
-test("Update all updates every installed pack with an update, and names one that fails", async ({ page, baseURL }) => {
-  test.setTimeout(360_000);
-  const [first, second] = communityPackIds();
-  expect(second, "two community packs (pnpm packs:fetch)").toBeTruthy();
-  const errors = trackPageErrors(page);
-  const before = await stageCatalog(baseURL!, [first!, second!]);
-  const copies = [bumpedCopy(first!), bumpedCopy(second!)];
-  const after = await stageCatalog(baseURL!, [first!, second!], { [first!]: copies[0]!, [second!]: copies[1]! });
+interface Setup {
+  /** The two packs in the order Update all takes them. */
+  readonly ids: readonly [string, string];
+  readonly names: Readonly<Record<string, string>>;
+  /** Every request for a pack's new zip, by pack id, in the order made. */
+  readonly zipRequests: string[];
+  dispose(): void;
+}
+
+/** Installs two packs at their own versions, then serves a catalog with `NEXT` of both and opens the store. */
+async function setUp(page: Page, baseURL: string): Promise<Setup> {
+  const picked = communityHeroPackIds().slice(0, 2);
+  expect(picked.length, "two community hero packs (pnpm packs:fetch)").toBe(2);
+  const before = await stageCatalog(baseURL, picked);
+  const copies = picked.map(bumpedCopy);
+  let after: StagedCatalog | undefined;
+  const dispose = (): void => {
+    before.dispose();
+    after?.dispose();
+    for (const dir of copies) rmSync(dir, { recursive: true, force: true });
+  };
   try {
+    after = await stageCatalog(baseURL, picked, Object.fromEntries(picked.map((id, i) => [id, copies[i]!])));
+    const names = after.heroName;
+    const ids = [...picked].sort((a, b) => names[a]!.localeCompare(names[b]!)) as [string, string];
     await serveCatalog(page, before);
     await installPageHelpers(page);
     await quietGuide(page);
-    await installFromPage(page, first!);
-    await installFromPage(page, second!);
+    for (const id of ids) await installFromPage(page, id);
 
-    // The store now lists a newer version of both; the second's download is not the size the store lists.
-    const index = after.index as { packs: { id: string; versions: Record<string, { zipBytes: number }> }[] };
-    index.packs.find((pack) => pack.id === second)!.versions[NEXT]!.zipBytes += 1;
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await serveCatalog(page, after);
+    const zipRequests: string[] = [];
+    page.on("request", (request) => {
+      const match = new RegExp(`/e2e-packs/([^/]+)/${NEXT.replace(/\./g, "\\.")}/[^/]+\\.zip`).exec(request.url());
+      if (match) zipRequests.push(match[1]!);
+    });
     await page.goto("/?screen=mod-store");
     await waitForScene(page, "ModStore");
     await waitForTextIn(page, "2 installed packs have updates.");
+    return { ids, names, zipRequests, dispose };
+  } catch (error) {
+    dispose();
+    throw error;
+  }
+}
+
+/** The zip requests with repeats of one pack in a row folded (a download may be tried again). */
+const order = (requests: readonly string[]): string[] => requests.filter((id, i) => id !== requests[i - 1]);
+
+test("Update all goes on past a pack that fails, marks it, and forgets it once it is retried", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  const errors = trackPageErrors(page);
+  const setup = await setUp(page, baseURL!);
+  try {
+    const [failing, other] = setup.ids;
+    // The first pack in the run cannot be downloaded until the retry, so the run must go on to the second.
+    let reachable = false;
+    await page.route(new RegExp(`/e2e-packs/${failing}/${NEXT.replace(/\./g, "\\.")}/[^/]+\\.zip`), (route) =>
+      reachable ? route.fallback() : route.abort("failed"),
+    );
 
     await clickText(page, "UPDATE ALL", { sceneKey: "ModStore" });
     await waitForTextIn(page, "1 pack updated.", 180_000);
-    expect(await hasText(page, `Could not update: ${after.heroName[second!]}`, "ModStore")).toBe(true);
-    // The failed one can still update, so the button stays.
-    expect(await hasText(page, "UPDATE ALL", "ModStore")).toBe(true);
+    expect(order(setup.zipRequests)).toEqual([failing, other]);
+    expect(await has(page, "1 pack could not update")).toBe(true);
+    // The failed pack's tile says so, and Update all is still offered for it.
+    expect(await has(page, "Retry update")).toBe(true);
+    expect(await has(page, "UPDATE ALL")).toBe(true);
 
-    // The first is on the new version; the second still offers its update.
-    await page.goto(`/?screen=mod-store&pack=${first}`);
-    await waitForScene(page, "ModStore");
-    await waitForTextIn(page, "REMOVE");
-    expect(await hasText(page, "UPDATE TO", "ModStore")).toBe(false);
-    await page.goto(`/?screen=mod-store&pack=${second}`);
-    await waitForScene(page, "ModStore");
-    await waitForTextIn(page, `UPDATE TO ${NEXT}`);
+    // Retried from its own page in the same visit: it updates, and the bar no longer reports it.
+    reachable = true;
+    await clickText(page, setup.names[failing]!, { sceneKey: "ModStore" });
+    await clickText(page, `UPDATE TO ${NEXT}`, { sceneKey: "ModStore", timeoutMs: 30_000 });
+    await waitFor(
+      async () => ((await has(page, "REMOVE")) && !(await has(page, "UPDATE TO")) ? true : null),
+      `${failing} updates from its page`,
+      120_000,
+    );
+    await page.keyboard.press("Escape");
+    await waitForTextIn(page, "1 pack updated.");
+    expect(await has(page, "could not update")).toBe(false);
+    expect(await has(page, "Retry update")).toBe(false);
+    expect(await has(page, "UPDATE ALL")).toBe(false);
     expect(errors).toEqual([]);
   } finally {
-    before.dispose();
-    after.dispose();
-    for (const dir of copies) rmSync(dir, { recursive: true, force: true });
+    setup.dispose();
+  }
+});
+
+test("Update all keeps going when the player leaves the store, and Stop ends it after the current pack", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  const errors = trackPageErrors(page);
+  const setup = await setUp(page, baseURL!);
+  try {
+    const [first, second] = setup.ids;
+    // The first pack's download is held until the test lets it through.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(new RegExp(`/e2e-packs/${first}/${NEXT.replace(/\./g, "\\.")}/[^/]+\\.zip`), async (route) => {
+      await held;
+      await route.fallback();
+    });
+
+    await clickText(page, "UPDATE ALL", { sceneKey: "ModStore" });
+    await waitForTextIn(page, "Updating 1 of 2");
+
+    // Out to the Title and back while the first pack downloads: the run is still going.
+    await page.keyboard.press("Escape");
+    await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "the Title");
+    await settle(page);
+    await clickText(page, "Mod Store", { sceneKey: "Title" });
+    await waitForScene(page, "ModStore");
+    await waitForTextIn(page, "Updating 1 of 2");
+
+    await clickText(page, "STOP", { sceneKey: "ModStore" });
+    await waitForTextIn(page, "STOPPING AFTER THIS ONE");
+    release();
+    await waitForTextIn(page, "Stopped. The rest can still update.", 120_000);
+    expect(await has(page, "1 pack updated.")).toBe(true);
+    // The pack after Stop was never downloaded, and still has its update.
+    expect(setup.zipRequests).not.toContain(second);
+    expect((await has(page, "1 installed pack")) || (await has(page, "UPDATE ALL"))).toBe(true);
+
+    // Update all again takes what is left.
+    await clickText(page, "UPDATE ALL", { sceneKey: "ModStore" });
+    await waitFor(
+      async () =>
+        (await has(page, "1 pack updated.")) && !(await has(page, "Stopped")) && !(await has(page, "UPDATE ALL"))
+          ? true
+          : null,
+      "the second run finishes",
+      180_000,
+    );
+    expect(order(setup.zipRequests)).toEqual([first, second]);
+    expect(errors).toEqual([]);
+  } finally {
+    setup.dispose();
   }
 });

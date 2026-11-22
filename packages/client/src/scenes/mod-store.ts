@@ -96,6 +96,7 @@ import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { notePackUpdates } from "../packs/pack-updates.js";
 import {
+  failedIdsOf,
   nextOf,
   resultOf,
   startRun,
@@ -582,11 +583,17 @@ export class ModStoreScene extends Phaser.Scene {
     this.#requestRedraw();
   }
 
+  /** The packs the last Update all could not update that still can be: their tiles say so. */
+  #failedIds(): ReadonlySet<string> {
+    if (!this.#updateResult) return new Set();
+    return failedIdsOf(this.#updateResult, updateAllQueueOf(tilesOf(this.#index, this.#context(), "all")));
+  }
+
   #updateAllBar(): UpdateAllBar | null {
     const run = this.#updateRun;
     const current = run ? run.queue[run.done]?.id : undefined;
     return updateAllBarOf({
-      pending: updateAllQueueOf(tilesOf(this.#index, this.#context(), "all")).length,
+      pending: updateAllQueueOf(tilesOf(this.#index, this.#context(), "all")),
       run,
       progress: current !== undefined && this.#install?.id === current ? this.#install.progress : null,
       result: this.#updateResult,
@@ -1333,14 +1340,18 @@ export class ModStoreScene extends Phaser.Scene {
     fromLeft = false,
   ): Phaser.GameObjects.GameObject[] {
     // A symbol and the words: the state never rests on color alone.
-    const mark = { install: "+", installed: "✓", update: "↑", "needs-app-update": "!", withdrawn: "✕" }[tile.state];
+    // A pack Update all could not update says so on its own tile (issue #957), so every failure can be found.
+    const failed = tile.state === "update" && this.#failedIds().has(tile.id);
+    const mark = failed
+      ? "!"
+      : { install: "+", installed: "✓", update: "↑", "needs-app-update": "!", withdrawn: "✕" }[tile.state];
     const solid = tile.state === "install" || tile.state === "update";
     const g = this.add.graphics();
     const text = this.add
       .text(
         0,
         0,
-        `${mark} ${tile.stateLabel}`,
+        `${mark} ${failed ? t("modStore.updateAll.retry") : tile.stateLabel}`,
         textStyle(typeRole.label, solid ? surface.paper.hex : surface.ink.hex, 1),
       )
       .setOrigin(0, 0);

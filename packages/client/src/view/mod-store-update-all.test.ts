@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PackState } from "../packs/pack-state.js";
 import type { ModStoreTile } from "./mod-store-model.js";
 import {
+  failedIdsOf,
   nextOf,
   resultOf,
   startRun,
@@ -13,8 +14,11 @@ import {
 
 const tile = (id: string, state: PackState, name = id): ModStoreTile => ({ id, name, state }) as ModStoreTile;
 
+/** `count` pending packs: p0, p1, ... */
+const packs = (count: number) => Array.from({ length: count }, (_, i) => ({ id: `p${i}`, name: `Pack ${i}` }));
+
 const bar = (over: Partial<UpdateAllBarInput>) =>
-  updateAllBarOf({ pending: 0, run: null, progress: null, result: null, busy: false, lang: "en", ...over });
+  updateAllBarOf({ pending: [], run: null, progress: null, result: null, busy: false, lang: "en", ...over });
 
 describe("updateAllQueueOf", () => {
   it("takes only the packs with an installable update, by name", () => {
@@ -48,7 +52,7 @@ describe("a run", () => {
     run = stepRun(run, false);
     run = stepRun(run, true);
     expect(nextOf(run)).toBeNull();
-    expect(resultOf(run)).toEqual({ updated: 2, failed: ["Beta"], stopped: false });
+    expect(resultOf(run)).toEqual({ updated: 2, failed: [{ id: "b", name: "Beta" }], stopped: false });
   });
 
   it("ends after the current pack once Stop is pressed", () => {
@@ -65,13 +69,13 @@ describe("updateAllBarOf", () => {
   });
 
   it("offers Update all with the count, held while another install runs", () => {
-    expect(bar({ pending: 8 })).toEqual({
+    expect(bar({ pending: packs(8) })).toEqual({
       text: "8 installed packs have updates.",
       fraction: null,
       action: { id: "update-all", label: "Update all", enabled: true },
     });
-    expect(bar({ pending: 1 })?.text).toBe("1 installed pack has an update.");
-    expect(bar({ pending: 2, busy: true })?.action?.enabled).toBe(false);
+    expect(bar({ pending: packs(1) })?.text).toBe("1 installed pack has an update.");
+    expect(bar({ pending: packs(2), busy: true })?.action?.enabled).toBe(false);
   });
 
   it("names the pack updating now and fills across the whole run", () => {
@@ -82,12 +86,12 @@ describe("updateAllBarOf", () => {
       ]),
       true,
     );
-    const shown = bar({ pending: 1, run, progress: { phase: "done" } });
+    const shown = bar({ pending: packs(1), run, progress: { phase: "done" } });
     expect(shown?.text).toBe("Updating 2 of 2: Beta");
     expect(shown?.fraction).toBe(1);
     expect(shown?.action).toEqual({ id: "stop", label: "Stop", enabled: true });
-    expect(bar({ pending: 1, run, progress: null })?.fraction).toBe(0.5);
-    expect(bar({ pending: 1, run: { ...run, stopping: true }, progress: null })?.action).toEqual({
+    expect(bar({ pending: packs(1), run, progress: null })?.fraction).toBe(0.5);
+    expect(bar({ pending: packs(1), run: { ...run, stopping: true }, progress: null })?.action).toEqual({
       id: "stop",
       label: "Stopping after this one",
       enabled: false,
@@ -100,16 +104,32 @@ describe("updateAllBarOf", () => {
       fraction: null,
       action: null,
     });
-    const failed = bar({ pending: 1, result: { updated: 7, failed: ["Beta"], stopped: false } });
-    expect(failed?.text).toBe("7 packs updated. Could not update: Beta. Open a pack to try it again.");
+    // Failures are counted, not listed: their tiles are marked, so eight long names never crowd a phone's bar.
+    const result = { updated: 6, failed: packs(2), stopped: false };
+    const failed = bar({ pending: packs(2), result });
+    expect(failed?.text).toBe(
+      "6 packs updated. 2 packs could not update and kept their old versions. They are marked ! below: open one to try again.",
+    );
     expect(failed?.action?.id).toBe("update-all");
-    expect(bar({ pending: 3, result: { updated: 1, failed: [], stopped: true } })?.text).toBe(
+    expect(bar({ pending: packs(1), result })?.text).toBe(
+      "6 packs updated. 1 pack could not update and kept its old version. It is marked ! below: open it to try again.",
+    );
+    expect(bar({ pending: packs(3), result: { updated: 1, failed: [], stopped: true } })?.text).toBe(
       "1 pack updated. Stopped. The rest can still update.",
     );
   });
 
+  it("drops a failure once it has been retried from its page", () => {
+    const result = { updated: 1, failed: [{ id: "p0", name: "Pack 0" }], stopped: false };
+    expect(failedIdsOf(result, packs(2))).toEqual(new Set(["p0"]));
+    // p0 updated since: it no longer has an update, so it is neither marked nor counted, and nothing is left to do.
+    expect(failedIdsOf(result, [])).toEqual(new Set());
+    expect(bar({ pending: [], result })).toEqual({ text: "1 pack updated.", fraction: null, action: null });
+    expect(failedIdsOf(null, packs(2)).size).toBe(0);
+  });
+
   it("speaks Spanish", () => {
-    expect(updateAllBarOf({ pending: 8, run: null, progress: null, result: null, busy: false, lang: "es" })).toEqual({
+    expect(bar({ pending: packs(8), lang: "es" })).toEqual({
       text: "8 paquetes instalados tienen actualizaciones.",
       fraction: null,
       action: { id: "update-all", label: "Actualizar todo", enabled: true },

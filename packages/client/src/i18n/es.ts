@@ -326,6 +326,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.updateAll.running": "Actualizando {at} de {total}: {name}",
   "modStore.updateAll.updated_one": "{count} paquete actualizado.",
   "modStore.updateAll.updated_other": "{count} paquetes actualizados.",
-  "modStore.updateAll.failed": "No se pudo actualizar: {names}. Abre un paquete para intentarlo de nuevo.",
+  "modStore.updateAll.failed_one":
+    "{count} paquete no se pudo actualizar y conserva su versión anterior. Está marcado con ! abajo: ábrelo para intentarlo de nuevo.",
+  "modStore.updateAll.failed_other":
+    "{count} paquetes no se pudieron actualizar y conservan su versión anterior. Están marcados con ! abajo: abre uno para intentarlo de nuevo.",
+  "modStore.updateAll.retry": "Reintentar",
   "modStore.updateAll.stopped": "Detenido. El resto aún se puede actualizar.",
 };

@@ -326,6 +326,10 @@ export const en = {
   "modStore.updateAll.running": "Updating {at} of {total}: {name}",
   "modStore.updateAll.updated_one": "{count} pack updated.",
   "modStore.updateAll.updated_other": "{count} packs updated.",
-  "modStore.updateAll.failed": "Could not update: {names}. Open a pack to try it again.",
+  "modStore.updateAll.failed_one":
+    "{count} pack could not update and kept its old version. It is marked ! below: open it to try again.",
+  "modStore.updateAll.failed_other":
+    "{count} packs could not update and kept their old versions. They are marked ! below: open one to try again.",
+  "modStore.updateAll.retry": "Retry update",
   "modStore.updateAll.stopped": "Stopped. The rest can still update.",
 } as const;
