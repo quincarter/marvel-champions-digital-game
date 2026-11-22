@@ -4,7 +4,8 @@
  * feeds these from `onRoomState` and plays the sounds; `scenes/room-toast.ts` draws the toasts; the lobby's Chat tab
  * shows the unread count. No timers or Phaser here, so every rule is a plain test.
  */
-import type { RoomChatLine, RoomDevice, RoomState } from "../live/room-state.js";
+import type { RoomChatLine, RoomDevice, RoomProblem, RoomState } from "../live/room-state.js";
+import { closedUnderPlayer } from "./room-lobby-model.js";
 
 /** One person arriving in or leaving the room I am in. */
 export interface ParticipantChange {
@@ -60,6 +61,32 @@ export class ChatSoundGate {
     this.#last = now;
     return true;
   }
+}
+
+/** The scenes of a game in progress, whose player is taken out when the room is closed under them. */
+export const IN_GAME_SCENES: ReadonlySet<string> = new Set([
+  "SetupDeal",
+  "ScenarioIntro",
+  "ReplayVersus",
+  "Board",
+  "VillainPhaseOverlay",
+]);
+
+/**
+ * The room just closed under a player who is in a game (the host closed it, it sat idle, or rooms were switched off):
+ * the problem to show on Play online, else null. The lobby, Play online and the deck picker deal with their own
+ * endings, and a game that is over (Game Over up) keeps its own end-of-game screen, so this fires only while a game
+ * scene is up and no Game Over is. Only the moment of ending counts (not each later state of an ended room).
+ */
+export function roomClosedInGame(
+  before: Pick<RoomState, "connection">,
+  next: Pick<RoomState, "connection"> & { readonly problem?: RoomState["problem"] },
+  activeScenes: readonly string[],
+): RoomProblem | null {
+  if (before.connection === "ended" || next.connection !== "ended" || !closedUnderPlayer(next.problem ?? null))
+    return null;
+  if (activeScenes.includes("GameOver")) return null;
+  return activeScenes.some((key) => IN_GAME_SCENES.has(key)) ? (next.problem ?? null) : null;
 }
 
 /** Whether this window is in front of the player: focused and visible. Read from the document, never from Phaser. */
