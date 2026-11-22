@@ -357,7 +357,7 @@ describe("who may set the lobby", () => {
     const put = storage.put.bind(storage);
     let failing = true;
     storage.put = ((...args: Parameters<typeof put>) => {
-      if (failing && (args[0] as unknown) === "t1:tail") return Promise.reject(new Error("put failed"));
+      if (failing && (args[0] as unknown) === "t1:b:tail") return Promise.reject(new Error("put failed"));
       return put(...(args.map((x) => structuredClone(x)) as Parameters<typeof put>));
     }) as typeof storage.put;
     // A full-log repair under the same gid (no admission revision) whose tail write fails.
@@ -676,7 +676,8 @@ describe("seat requests and assignments", () => {
       const { storage, room, send, h, make, join } = await completedGame();
       const put = storage.put.bind(storage);
       storage.put = ((...args: Parameters<typeof put>) => {
-        if ((args[0] as unknown) === "t1:header") return Promise.reject(new Error("put failed"));
+        if ((args[0] as unknown) === "t1:header" || "t1:header" in (args[0] as object))
+          return Promise.reject(new Error("put failed"));
         return put(...(args.map((x) => structuredClone(x)) as Parameters<typeof put>));
       }) as typeof storage.put;
       await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: "B" }, gid: "B" }).catch(
@@ -718,6 +719,70 @@ describe("seat requests and assignments", () => {
       );
       const back = await join(make(), { token: TOKEN, name: "Hosty" });
       expect(back.last("welcome")!.tables[0]).toMatchObject({ hasHeader: true, gid: "A", commands: 45 });
+    });
+
+    describe("a replacement log commits only once its rows are durable", () => {
+      const failing = (storage: { put: unknown }, match: (key: string) => boolean) => {
+        const real = (storage as { put: (...a: unknown[]) => Promise<unknown> }).put.bind(storage);
+        let on = true;
+        (storage as { put: unknown }).put = (...args: unknown[]) => {
+          const keys = typeof args[0] === "string" ? [args[0]] : Object.keys(args[0] as object);
+          if (on && keys.some(match)) return Promise.reject(new Error("put failed"));
+          return real(...args.map((x) => structuredClone(x)));
+        };
+        return () => (on = false);
+      };
+      const replacement = Array.from({ length: 55 }, (_, i) => ({ n: i }));
+      const repair = { ch: "game", kind: "log", table: "t1", header: { g: "A" }, commands: replacement, gid: "A" };
+
+      for (const [name, match] of [
+        ["first chunk put", (k: string) => k.startsWith("t1:b:c:")],
+        ["tail put", (k: string) => k === "t1:b:tail"],
+      ] as const) {
+        it(`a failed ${name} after the replacement started leaves the 45 committed commands for a wake, and a retry commits all 55`, async () => {
+          const { storage, room, send, h, make, join } = await completedGame();
+          const heal = failing(storage, match);
+          await send(room, h, repair).catch(() => undefined);
+          expect(storage.map.get("t1:header")).toMatchObject({ g: "A", sg: 1 });
+          const woken = await join(make(), { token: TOKEN, name: "Hosty" });
+          expect(woken.last("welcome")!.tables[0]).toMatchObject({ hasHeader: true, gid: "A", commands: 45 });
+          heal();
+          await send(room, h, repair);
+          const done = await join(make(), { token: TOKEN, name: "Hosty" });
+          expect(done.last("welcome")!.tables[0]).toMatchObject({ gid: "A", commands: 55 });
+          expect(storage.map.get("t1:header")).toMatchObject({ sg: 2 });
+          // The previous generation's rows are gone once the switch has committed.
+          expect([...storage.map.keys()].filter((k) => k.startsWith("t1:c:") || k === "t1:tail")).toEqual([]);
+        });
+      }
+    });
+
+    it("a rematch whose reopened lifecycle cannot be stored is not acknowledged, and a wake finds the ended game", async () => {
+      const { storage, room, send, h, make, join } = await completedGame();
+      const real = storage.put.bind(storage);
+      storage.put = ((...args: Parameters<typeof real>) => {
+        if (typeof args[0] === "object" && "meta" in (args[0] as object))
+          return Promise.reject(new Error("put failed"));
+        return real(...(args.map((x) => structuredClone(x)) as Parameters<typeof real>));
+      }) as typeof storage.put;
+      await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: "B" }, gid: "B" }).catch(
+        () => undefined,
+      );
+      expect(h.of("started")).toHaveLength(1);
+      const back = await join(make(), { token: TOKEN, name: "Hosty" });
+      expect(back.last("welcome")!.tables[0]).toMatchObject({ gid: "A", commands: 45, ended: true });
+    });
+
+    it("a rematch whose alarm swap fails is stored open: a wake does not find it ended", async () => {
+      const { storage, room, send, h, make, join } = await completedGame();
+      storage.setAlarm = () => Promise.reject(new Error("alarm failed"));
+      await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: "B" }, gid: "B" });
+      expect(h.of("started")).toHaveLength(2);
+      const back = await join(make(), { token: TOKEN, name: "Hosty" });
+      const table = back.last("welcome")!.tables[0]!;
+      expect(table).toMatchObject({ gid: "B", commands: 0 });
+      expect(table.ended).toBeFalsy();
+      expect(storage.map.get("meta")).toMatchObject({ ended: false });
     });
   });
 

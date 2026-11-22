@@ -201,8 +201,11 @@ export class FaultStorage {
    */
   savedLog(table = "t1", strict = false): unknown[] {
     const log: unknown[] = [];
+    // The rows live in the slot of the stored header's storage generation (even: the `b` keys).
+    const sg = (this.map.get(`${table}:header`) as { sg?: number } | undefined)?.sg;
+    const slot = sg !== undefined && sg % 2 === 0 ? "b:" : "";
     // As the room loads: chunks while they run gapless from 0, then the tail minus what the chunks already hold.
-    const chunks = [...this.map.keys()].filter((k) => k.startsWith(`${table}:c:`)).sort();
+    const chunks = [...this.map.keys()].filter((k) => k.startsWith(`${table}:${slot}c:`)).sort();
     let n = 0;
     for (const key of chunks) {
       if (!key.endsWith(String(n).padStart(6, "0"))) {
@@ -212,7 +215,7 @@ export class FaultStorage {
       log.push(...(this.map.get(key) as { commands: unknown[] }).commands);
       n += 1;
     }
-    const tail = this.map.get(`${table}:tail`) as { commands: unknown[]; from?: number } | undefined;
+    const tail = this.map.get(`${table}:${slot}tail`) as { commands: unknown[]; from?: number } | undefined;
     const from = tail?.from ?? n * 20;
     if (strict && tail && from !== log.length)
       throw new Error(`tail starts at ${from} but the chunks hold ${log.length}`);

@@ -4,7 +4,7 @@
  * must not be confused: what was SENT, what was durably SAVED, and what each watcher APPLIED.
  */
 import { describe, expect, it } from "vitest";
-import type { ClientMessage } from "@mc/sync-worker/room-protocol";
+import type { ClientMessage, ServerMessage } from "@mc/sync-worker/room-protocol";
 import { FaultBus, cmds, liveGame } from "./test-support/fault-bus.js";
 
 const isCommands = (m: ClientMessage) => m.ch === "game" && m.kind === "commands";
@@ -732,5 +732,85 @@ describe("an end whose final tail write fails", () => {
     await bus.settle();
     expect(fresh.applied.commands).toEqual(cmds(0, 5));
     expect(fresh.applied.ended).toBe(true);
+  });
+});
+
+describe("a replacement log commits only once its rows are durable", () => {
+  for (const [name, match] of [
+    ["chunk", (k: string) => /^t1:(b:)?c:/.test(k)],
+    ["tail", (k: string) => /^t1:(b:)?tail$/.test(k)],
+  ] as const) {
+    it(`a ${name} write that fails after the replacement began: a wake serves the previous game whole, never a mix`, async () => {
+      const bus = await FaultBus.create();
+      const host = bus.host(liveGame());
+      host.connect();
+      await bus.settle();
+      for (const c of cmds(0, 45)) host.command(c);
+      await bus.settle();
+      // The host leaving writes the tail, so 45 commands are durable.
+      await host.disconnect();
+      expect(bus.storage.savedLog("t1", true)).toEqual(cmds(0, 45));
+      host.connect();
+      await bus.settle();
+      // Ten more commands whose batches are lost: the host holds 55, the room 45.
+      host.up.drop((m) => m.ch === "game" && m.kind === "commands", 10);
+      for (const c of cmds(45, 55)) host.command(c);
+      await bus.settle();
+
+      // The room asks for the whole log again (a repair): its rows are written, and one of those writes fails.
+      bus.storage.failPut(match);
+      host.publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      await bus.settle();
+      expect(bus.roomErrors).toHaveLength(1);
+
+      // SAVED: the stored header still points at the 45-command game and its rows are untouched.
+      expect(bus.storage.map.get("t1:header")).toMatchObject({ sg: 1 });
+      expect(bus.storage.savedLog("t1", true)).toEqual(cmds(0, 45));
+      await bus.restartRoom();
+      const watcher = bus.watcher();
+      watcher.connect();
+      await bus.settle();
+      // APPLIED: a prefix of the host's log (the old game or the new one, never a mixed or empty one).
+      expect(watcher.applied.commands.length).toBeGreaterThanOrEqual(40);
+      expect(watcher.applied.commands).toEqual(cmds(0, watcher.applied.commands.length));
+    });
+  }
+});
+
+describe("a rematch is acknowledged only with its reopened lifecycle durable", () => {
+  it("a start whose meta write fails is not acknowledged, and a wake finds the ended game, not an ended rematch", async () => {
+    const bus = await FaultBus.create();
+    const host = bus.host(liveGame());
+    host.connect();
+    await bus.settle();
+    for (const c of cmds(0, 5)) host.command(c);
+    host.command(cmds(5, 6)[0]!, { result: "win" } as never);
+    await bus.settle();
+    expect(bus.storage.map.get("meta")).toMatchObject({ ended: true });
+    // A lobby room (one with a code) hosts a rematch: a `start` on its ended table reopens it.
+    bus.storage.map.set("meta", { ...(bus.storage.map.get("meta") as object), code: "ABCDE", roomId: bus.roomId });
+    await bus.restartRoom();
+    const startedBefore = host.down.sent.filter((m) => m.kind === "started").length;
+
+    bus.storage.failPut((k) => k === "meta");
+    host.up.push({ v: 1, ch: "game", kind: "start", table: "t1", header: { g: "B" }, gid: "B" } as ClientMessage);
+    await bus.settle();
+    expect(bus.roomErrors).toHaveLength(1);
+    // SENT/ACKED: no `started` for the rematch. SAVED: the ended game's header and meta are as they were.
+    expect(host.down.sent.filter((m) => m.kind === "started")).toHaveLength(startedBefore);
+    expect(bus.storage.map.get("meta")).toMatchObject({ ended: true });
+    // The room code is only there to allow the rematch (the harness's watchers send no name): take it off for the wake.
+    const { code: _code, roomId: _roomId, ...plain } = bus.storage.map.get("meta") as Record<string, unknown>;
+    bus.storage.map.set("meta", plain);
+    await bus.restartRoom();
+    const fresh = bus.watcher();
+    fresh.connect();
+    await bus.settle();
+    // What a joining client is told is the ended 6-command game, not a rematch that is over before it began.
+    const welcome = fresh.down.sent.find((m) => m.ch === "room" && m.kind === "welcome") as
+      | Extract<ServerMessage, { kind: "welcome" }>
+      | undefined;
+    expect(welcome!.tables[0]).toMatchObject({ commands: 6, ended: true });
+    expect(welcome!.tables[0]!.gid).not.toBe("B");
   });
 });
