@@ -74,7 +74,7 @@
 
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { DeckActionId } from "../view/deck-actions.js";
-import type { DeckActionsSheetData } from "./deck-actions-sheet.js";
+import type { DeckActionsSheet, DeckActionsSheetData } from "./deck-actions-sheet.js";
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { aspectStampOf } from "../view/aspect-stamp.js";
@@ -759,6 +759,9 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    // The deck's options, when up, redraw with this draw's statuses (#958 review).
+    if (this.scene.isActive(SCENES.deckActions))
+      this.time.delayedCall(0, () => (this.scene.get(SCENES.deckActions) as DeckActionsSheet | null)?.refresh());
     resetHoverCards(this);
     this.#hoverLists = [];
     this.#thumbInRow.clear();
@@ -1344,7 +1347,7 @@ export class DecksScene extends Phaser.Scene {
       this.#paneCard = null;
       this.#rebuild();
       // One pane at a time (phone, tablet): the deck's actions sit on another tab, so a tap opens them (#958).
-      if (this.#tabs !== null) this.#openDeckActions(row.option, row.offer);
+      if (this.#tabs !== null) this.#openDeckActions(row.option.deck.id as string);
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
@@ -1398,7 +1401,7 @@ export class DecksScene extends Phaser.Scene {
         this.#selectedDeckId = deckId;
         this.#paneCard = null;
         this.#rebuild();
-        if (this.#tabs !== null) this.#openDeckActions(row.option, row.offer);
+        if (this.#tabs !== null) this.#openDeckActions(row.option.deck.id as string);
       };
       const doInspect = (): void => this.#inspectDeck(row.option);
       this.#stops.set(`deck:${deckId}`, {
@@ -3131,20 +3134,27 @@ export class DecksScene extends Phaser.Scene {
    * A deck's options sheet (#958), for the layouts that show one pane at a time: the stats rail's and community rail's
    * own actions, plus the two panes the tab strip hides. Each press runs the code those rails' buttons run.
    */
-  #openDeckActions(option: DeckOption, offer: CommunityOffer | undefined): void {
+  #openDeckActions(deckId: string): void {
     if (this.scene.isActive(SCENES.deckActions)) return;
+    // Read after the select's rebuild, which checked this deck at once: the row's own option may still be "Checking…".
+    const now = this.#deckActionsFor(deckId);
+    if (!now) return;
+    const { option } = now;
     const deck = option.deck;
-    const status = deckStatusOf(option);
     const art = this.#deckArtOf(deck.identityCardId as string);
-    const meta = (offer ? communityMetaCandidates(offer) : deckMetaCandidates(option, currentPool()))[0] ?? "";
     const onAction = (id: DeckActionId): void => {
       if (!this.sys.isActive()) return;
       switch (id) {
-        case "play":
-          return this.#playDeck(deck);
-        case "add":
-          if (offer) this.#addCommunityDeck(offer);
+        case "play": {
+          const latest = this.#deckActionsFor(deckId)?.option;
+          if (latest?.seatable) this.#playDeck(latest.deck);
           return;
+        }
+        case "add": {
+          const latest = this.#deckActionsFor(deckId)?.offer;
+          if (latest && latest.lock === null && latest.option.legal) this.#addCommunityDeck(latest);
+          return;
+        }
         case "edit":
           return goToScreen(this, SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData);
         case "cards":
@@ -3162,18 +3172,41 @@ export class DecksScene extends Phaser.Scene {
     };
     this.scene.launch(SCENES.deckActions, {
       from: this.scene.key,
-      title: cardTitleOf(option),
-      meta,
-      status: {
-        text: offer ? communityStatusText(offer) : status.text,
-        problem: offer ? offer.lock !== null || !option.legal : status.tone === "illegal",
-      },
       identityCardId: deck.identityCardId as string,
       artUrl: art.url,
       ...(art.focus ? { artFocus: art.focus } : {}),
-      actions: { option, ...(offer ? { community: { lock: offer.lock, added: offer.added } } : {}) },
+      // Read on every draw of the sheet: a status the worker sends, or an unlock, while it is up shows at once.
+      current: () => {
+        const latest = this.#deckActionsFor(deckId);
+        if (!latest) return null;
+        const status = deckStatusOf(latest.option);
+        return {
+          title: cardTitleOf(latest.option),
+          meta:
+            (latest.offer
+              ? communityMetaCandidates(latest.offer)
+              : deckMetaCandidates(latest.option, currentPool())
+            )[0] ?? "",
+          status: {
+            text: latest.offer ? communityStatusText(latest.offer) : status.text,
+            problem: latest.offer ? latest.offer.lock !== null || !latest.option.legal : status.tone === "illegal",
+          },
+          actions: {
+            option: latest.option,
+            ...(latest.offer ? { community: { lock: latest.offer.lock, added: latest.offer.added } } : {}),
+          },
+        };
+      },
       onAction,
     } satisfies DeckActionsSheetData);
+  }
+
+  /** A listed deck's current option (and its community offer, for one), by id; null once it is gone. */
+  #deckActionsFor(deckId: string): { readonly option: DeckOption; readonly offer?: CommunityOffer } | null {
+    const offer = this.#communityOffers().find((o) => (o.option.deck.id as string) === deckId);
+    if (offer) return { option: offer.option, offer };
+    const option = this.#deckOptions().find((o) => (o.deck.id as string) === deckId);
+    return option ? { option } : null;
   }
 
   /** Opens Deck check (W1) over this deck, returning here on Back. */
@@ -3195,8 +3228,10 @@ export class DecksScene extends Phaser.Scene {
       await deckStorage().put(copy);
       this.#savedDecks = await deckStorage().list();
       this.#selectedDeckId = copy.id as string;
-      // Saved decks list after every precon: bring the copy into view, as an import does.
+      // Saved decks list after every precon: bring the copy into view, as an import does, on a list that holds it
+      // (Preconstructed alone would hide it).
       this.#scrollToDeckId = copy.id as string;
+      this.#setList(null);
       this.#status = { text: `Duplicated as "${copy.name}".`, tone: "success" };
       this.#busy = false;
       this.#rebuild();

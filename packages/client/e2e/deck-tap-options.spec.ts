@@ -158,3 +158,182 @@ test.describe("tapping a deck (#958)", () => {
     expect(errors).toEqual([]);
   });
 });
+
+interface SheetAction {
+  readonly id: string;
+  readonly enabled: boolean;
+  readonly reason?: string;
+}
+
+const sheetHook = <T>(page: Page, method: string): Promise<T | null> => hook<T>(page, "__mcDeckActionsDebug", method);
+const sheetAction = async (page: Page, id: string): Promise<SheetAction | undefined> =>
+  ((await sheetHook<SheetAction[]>(page, "actions")) ?? []).find((action) => action.id === id);
+const sheetKeys = async (page: Page): Promise<readonly string[]> =>
+  ((await routeStops(page, SHEET))?.stops ?? []).map((stop) => stop.key);
+
+/** Opens a deck's options from its row. */
+async function openOptions(page: Page, deckId: string): Promise<void> {
+  await tap(page, "Decks", `deck:${deckId}`);
+  await waitForSheet(page, true);
+  await settle(page, { quietMs: 200, maxMs: 1000 });
+}
+
+/** Shows one of the deck lists alone (Preconstructed, Your decks, Community) from behind the Filters button. */
+async function showList(page: Page, chip: string): Promise<void> {
+  if (!(await routeStops(page, "Decks"))?.stops.some((stop) => stop.key === `deck-chip:${chip}`))
+    await tap(page, "Decks", "filters-toggle");
+  await tap(page, "Decks", `deck-chip:${chip}`);
+  await settle(page);
+}
+
+/** Duplicates `deckId` from its options and returns the copy, which the list selects and brings into view. */
+async function duplicate(page: Page, deckId: string): Promise<DeckRow> {
+  const before = new Set((await decks(page)).map((deck) => deck.id));
+  await openOptions(page, deckId);
+  await tap(page, SHEET, "action:duplicate");
+  await waitForSheet(page, false);
+  return waitFor(
+    async () => (await decks(page)).find((deck) => !before.has(deck.id) && deck.selected) ?? null,
+    "the copy, selected",
+  );
+}
+
+test.describe("the deck's options (#958 review)", () => {
+  test.beforeEach(({ browserName: _browser }, info) => test.skip(info.project.name !== "phone", "touch layout"));
+
+  test("a deck still being checked opens with Play ready", async ({ page }) => {
+    // Hold back the worker that checks the whole list, so every other deck still reads Checking… when it is tapped.
+    await page.route(/deck-search\.worker/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 25_000));
+      await route.continue().catch(() => undefined);
+    });
+    const errors = trackErrors(page);
+    const list = await openDecks(page);
+    const target = list.find((deck) => deck.source === "precon" && !deck.selected)!;
+    expect(await hook(page, "__mcDecksDebug", "checking"), "the list is still being checked").toBe(true);
+    await openOptions(page, target.id);
+    expect(await sheetAction(page, "play")).toMatchObject({ enabled: true });
+    expect(errors).toEqual([]);
+  });
+
+  test("Play seats the deck it was opened on", async ({ page }) => {
+    const list = await openDecks(page);
+    const target = list.find((deck) => deck.source === "precon" && !deck.selected)!;
+    await openOptions(page, target.id);
+    await tap(page, SHEET, "action:play");
+    await waitForScene(page, "Seats");
+    await waitFor(
+      async () => ((await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? []).includes(target.id) || null,
+      "the deck in seat one",
+    );
+  });
+
+  test("an illegal deck: Play stays shut and says why, the delete warning stays up, Escape closes", async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+    const errors = trackErrors(page);
+    await openDecks(page);
+    await tap(page, "Decks", "ie-paste-toggle");
+    await tap(page, "Decks", "paste-field");
+    await page.keyboard.type("Hero: Gambit\nAspect: Justice\n2x Energy");
+    await settle(page);
+    await tap(page, "Decks", "paste-import");
+    const illegal = await waitFor(
+      async () => (await decks(page)).find((deck) => deck.source === "imported" && deck.selected) ?? null,
+      "the imported deck",
+    );
+    await openOptions(page, illegal.id);
+    expect(await sheetAction(page, "play")).toMatchObject({ enabled: false });
+
+    await tap(page, SHEET, "action:delete");
+    await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
+    const warning = await sheetHook<string>(page, "warning");
+    expect(warning).toContain("can't be undone");
+    await tap(page, SHEET, "action:play");
+    await settle(page);
+    expect(await sheetUp(page), "a press on a Play that can't go only says why").toBe(true);
+    expect(await sheetHook<string>(page, "note")).toBeTruthy();
+    expect(await sheetHook<string>(page, "warning"), "the delete warning is still up").toBe(warning);
+
+    await page.keyboard.press("Escape");
+    await waitForSheet(page, false);
+    expect(await activeScenes(page)).toContain("Decks");
+    expect(
+      (await decks(page)).some((deck) => deck.id === illegal.id),
+      "nothing was deleted",
+    ).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test("keys reach the sheet, not the screen under it", async ({ page }) => {
+    const list = await openDecks(page);
+    await openOptions(page, list[1]!.id);
+    // G opens Your stats from Decks & Collection; with the sheet up it must not.
+    await page.keyboard.press("g");
+    await settle(page);
+    expect(await activeScenes(page)).not.toContain("PlayerStats");
+    expect(await sheetUp(page)).toBe(true);
+    await page.keyboard.press("Escape");
+    await waitForSheet(page, false);
+    expect(await hook(page, "__mcDecksDebug", "tab")).toBe("decks");
+  });
+
+  test("a community deck's Add saves that deck", async ({ page }) => {
+    interface Offer {
+      readonly id: string;
+      readonly lock: string | null;
+      readonly added: boolean;
+    }
+    await openDecks(page);
+    const offers = async (): Promise<readonly Offer[]> =>
+      (await hook<Offer[]>(page, "__mcDecksDebug", "community")) ?? [];
+    await showList(page, "community");
+    const offer = await waitFor(
+      async () => (await offers()).find((o) => o.lock === null && !o.added) ?? null,
+      "an open community deck",
+    );
+    await openOptions(page, offer.id);
+    expect(await sheetKeys(page)).toEqual(["action:add", "action:cards", "action:check", "back"]);
+    const before = (await decks(page)).length;
+    await tap(page, SHEET, "action:add");
+    await waitForSheet(page, false);
+    await waitFor(
+      async () => (await offers()).find((o) => o.id === offer.id)?.added || null,
+      "the community deck added",
+    );
+    expect((await decks(page)).length).toBe(before + 1);
+  });
+
+  test("Duplicate with Preconstructed alone shown brings the copy into view", async ({ page }) => {
+    await openDecks(page);
+    await showList(page, "list:precon");
+    const precon = (await decks(page)).find((deck) => deck.source === "precon" && !deck.selected)!;
+    const copy = await duplicate(page, precon.id);
+    await openOptions(page, copy.id);
+    expect(await sheetKeys(page)).toContain("action:delete");
+  });
+
+  test("a phone held sideways reaches every action and Back, with Delete armed too", async ({ page }) => {
+    await page.setViewportSize({ width: 667, height: 375 });
+    const list = await openDecks(page);
+    const inView = async (): Promise<void> => {
+      const stops = (await routeStops(page, SHEET))!.stops;
+      expect(stops.map((stop) => stop.key)).toContain("back");
+      for (const { key, rect } of stops) {
+        expect(rect.y, `${key} starts on screen`).toBeGreaterThanOrEqual(0);
+        expect(rect.y + rect.height, `${key} ends on screen`).toBeLessThanOrEqual(375);
+        expect(rect.x + rect.width, `${key} fits across`).toBeLessThanOrEqual(667);
+      }
+    };
+    const copy = await duplicate(page, list[0]!.id);
+    await openOptions(page, copy.id);
+    await inView();
+    await tap(page, SHEET, "action:delete");
+    await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
+    await settle(page);
+    await inView();
+    await tap(page, SHEET, "back");
+    await waitForSheet(page, false);
+  });
+});

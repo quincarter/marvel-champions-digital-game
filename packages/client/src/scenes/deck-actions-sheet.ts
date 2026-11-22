@@ -3,13 +3,15 @@
  * picture, name and status, then one button per action (`view/deck-actions.ts`): Play (or Add, for a community deck),
  * Edit, View cards, Stats, Check, Duplicate and Delete, and Back.
  *
- * It decides nothing and changes nothing itself: the Decks screen words the header, and a press closes the sheet and
- * hands the action back to the code the stats rail's own buttons run. The one thing kept here is Delete's second
- * press, so a deck is never deleted by a single tap. Like the other sheets it switches off the screen under it while up.
+ * It decides nothing and changes nothing itself: the Decks screen words the header and is asked again on every draw
+ * (`current`), and a press closes the sheet and hands the action back to the code the stats rail's own buttons run.
+ * The one thing kept here is Delete's second press, so a deck is never deleted by a single tap. The layout steps down
+ * to more columns and smaller buttons on a short screen (`deckActionsPlan`), so every action and Back stay reachable
+ * on a phone held sideways. Like the other sheets it switches off the screen under it while up.
  */
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
-import { accent, hit, ink, surface, typeRole } from "../tokens.js";
+import { accent, ink, surface, typeRole } from "../tokens.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
@@ -18,33 +20,47 @@ import { GlyphHints } from "../ui/glyph-hints.js";
 import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
 import { onTap } from "../ui/tap.js";
 import { hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
-import { deckActionsOf, type DeckActionId, type DeckActionsInput } from "../view/deck-actions.js";
+import {
+  DECK_ACTIONS_GAP,
+  DECK_ACTIONS_PAD,
+  deckActionsHeight,
+  deckActionsOf,
+  deckActionsPlan,
+  type DeckActionId,
+  type DeckActionsInput,
+} from "../view/deck-actions.js";
 import type { Rect } from "../view/layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { SCENES } from "./keys.js";
 
-export interface DeckActionsSheetData {
-  /** The scene that asked: its pointer input is off while this is up. */
-  readonly from: string;
+/** What the sheet shows for its deck now: read on every draw, so a status or an unlock that lands while it is up shows. */
+export interface DeckActionsNow {
   readonly title: string;
   /** The deck's hero, aspects and card count, in one line. */
   readonly meta: string;
   /** The deck's status chip words ("Legal", "Illegal"…), and whether they are a problem. */
   readonly status: { readonly text: string; readonly problem: boolean };
+  readonly actions: Omit<DeckActionsInput, "deleteArmed">;
+}
+
+export interface DeckActionsSheetData {
+  /** The scene that asked: its pointer input is off while this is up. */
+  readonly from: string;
   /** The hero's identity card, which the picture's hover popover shows. */
   readonly identityCardId: string;
   readonly artUrl: string | null;
   readonly artFocus?: PictureFocus;
-  readonly actions: Omit<DeckActionsInput, "deleteArmed">;
+  /** The deck as the Decks screen knows it now, or null once it is gone (the sheet closes). */
+  readonly current: () => DeckActionsNow | null;
   /** The player chose an action: the sheet is already closed. */
   readonly onAction: (id: DeckActionId) => void;
 }
 
-const THUMB_WIDTH = 64;
-const THUMB_HEIGHT = 90;
 const BUTTON_TYPE = { ...typeRole.label, size: 14 };
-const GAP = 8;
+const NOTE_SIZE = 13;
+/** The header's picture width at the roomiest plan, for measuring the header's text before a plan is chosen. */
+const WIDEST_THUMB = 64;
 
 export class DeckActionsSheet extends Phaser.Scene {
   #data!: DeckActionsSheetData;
@@ -55,6 +71,8 @@ export class DeckActionsSheet extends Phaser.Scene {
   #thumb: Rect | null = null;
   #box: Rect | null = null;
   #deleteArmed = false;
+  /** Delete's "can't be undone" warning, shown for as long as Delete is armed. */
+  #warning: string | null = null;
   /** Why the last press on an unavailable button did nothing (a touch has no hover to say it). */
   #note: string | null = null;
 
@@ -65,6 +83,7 @@ export class DeckActionsSheet extends Phaser.Scene {
   create(data: DeckActionsSheetData): void {
     this.#data = data;
     this.#deleteArmed = false;
+    this.#warning = null;
     this.#note = null;
     const from = this.scene.get(data.from);
     if (from) from.input.enabled = false;
@@ -92,7 +111,24 @@ export class DeckActionsSheet extends Phaser.Scene {
       this.#buttons = [];
       if (from) from.input.enabled = true;
     });
+    // Dev e2e hook (never referenced by product code): the notes on show and whether Delete is armed.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcDeckActionsDebug?: unknown }).__mcDeckActionsDebug = {
+        warning: () => this.#warning,
+        note: () => this.#note,
+        armed: () => this.#deleteArmed,
+        actions: () => {
+          const now = this.#data.current();
+          return now ? deckActionsOf({ ...now.actions, deleteArmed: this.#deleteArmed }) : [];
+        },
+      };
+    }
     this.#draw();
+  }
+
+  /** The Decks screen redrew (a status arrived, an unlock, a saved deck): show the deck as it is now. */
+  refresh(): void {
+    if (this.sys.isActive()) this.#draw();
   }
 
   #close(): void {
@@ -102,7 +138,8 @@ export class DeckActionsSheet extends Phaser.Scene {
   #press(id: DeckActionId): void {
     if (id === "delete" && !this.#deleteArmed) {
       this.#deleteArmed = true;
-      this.#note = `Press Confirm delete to remove “${this.#data.title}”. This can't be undone.`;
+      const title = this.#data.current()?.title ?? "this deck";
+      this.#warning = `Press Confirm delete to remove “${title}”. This can't be undone.`;
       this.#draw();
       this.#route?.focusKey("action:delete");
       return;
@@ -125,9 +162,13 @@ export class DeckActionsSheet extends Phaser.Scene {
     this.#buttons = [];
     this.#hints.reset();
     destroyChildren(this);
+    const now = this.#data.current();
+    if (!now) {
+      this.#close();
+      return;
+    }
 
     const { width, height } = this.scale.gameSize;
-    // Every press outside the box closes it, the way a phone's own menus do; the box itself swallows its own.
     const backdrop = this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     // A tap outside the box closes it, as a phone's own menus do. `onTap` needs the press and the release both on the
     // backdrop, so a swipe that ends here never closes it (`ui/tap.ts`); the box's own buttons sit above it.
@@ -144,64 +185,70 @@ export class DeckActionsSheet extends Phaser.Scene {
     );
     this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
 
-    const phone = width < 600;
-    const margin = phone ? 12 : 24;
-    const boxWidth = Math.min(520, width - margin * 2);
-    const boxX = Math.round((width - boxWidth) / 2);
-    const innerWidth = boxWidth - 32;
-    const actions = deckActionsOf({ ...this.#data.actions, deleteArmed: this.#deleteArmed });
+    const actions = deckActionsOf({ ...now.actions, deleteArmed: this.#deleteArmed });
     const primary = actions.filter((a) => a.primary);
     const rest = actions.filter((a) => !a.primary);
-    const columns = 2;
-    const restRows = Math.ceil(rest.length / columns);
 
     const ground = this.add.graphics();
-    const textX = boxX + 16 + THUMB_WIDTH + 12;
-    const textWidth = boxX + boxWidth - 16 - textX;
-    const title = this.add
-      .text(textX, 0, this.#data.title, textStyle(typeRole.barTitle, surface.ink.hex))
-      .setWordWrapWidth(textWidth, true);
-    fitWrapped(title, textWidth, 2, typeRole.barTitle.size);
+    const title = this.add.text(0, 0, now.title, textStyle(typeRole.barTitle, surface.ink.hex));
     const meta = this.add
-      .text(textX, 0, this.#data.meta, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-      .setFontSize(13)
-      .setWordWrapWidth(textWidth, true);
-    fitWrapped(meta, textWidth, 2, 13);
+      .text(0, 0, now.meta, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setFontSize(NOTE_SIZE);
     const status = this.add.text(
-      textX,
       0,
-      `${this.#data.status.problem ? "✕" : "✓"} ${this.#data.status.text}`,
-      textStyle(typeRole.label, this.#data.status.problem ? accent.heroRed.hex : surface.ink.hex, 1),
+      0,
+      `${now.status.problem ? "✕" : "✓"} ${now.status.text}`,
+      textStyle(typeRole.label, now.status.problem ? accent.heroRed.hex : surface.ink.hex, 1),
     );
-    fitText(status, textWidth, typeRole.label.size);
-    const note = this.#note
-      ? this.add
-          .text(boxX + 16, 0, this.#note, textStyle(typeRole.body, accent.heroRed.hex))
-          .setFontSize(13)
-          .setWordWrapWidth(innerWidth, true)
-      : null;
-
-    const headerHeight = Math.max(THUMB_HEIGHT, title.height + 4 + meta.height + 6 + status.height);
-    const row = hit.primary;
-    const bodyHeight =
-      primary.length * (row + GAP) + restRows * (row + GAP) + (note ? note.height + GAP : 0) + GAP + row;
-    const boxHeight = Math.min(height - margin * 2, 16 + headerHeight + 16 + bodyHeight + 16);
-    const box: Rect = { x: boxX, y: Math.round((height - boxHeight) / 2), width: boxWidth, height: boxHeight };
+    const notes = [this.#warning, this.#note]
+      .filter((text): text is string => text !== null)
+      .map((text) => this.add.text(0, 0, text, textStyle(typeRole.body, accent.heroRed.hex)).setFontSize(NOTE_SIZE));
+    const fitHeader = (textWidth: number, innerWidth: number): { header: number; notes: number } => {
+      title.setWordWrapWidth(textWidth, true);
+      fitWrapped(title, textWidth, 2, typeRole.barTitle.size);
+      meta.setWordWrapWidth(textWidth, true);
+      fitWrapped(meta, textWidth, 2, NOTE_SIZE);
+      fitText(status, textWidth, typeRole.label.size);
+      for (const note of notes) note.setWordWrapWidth(innerWidth, true);
+      return {
+        header: title.height + 4 + meta.height + 6 + status.height,
+        notes: notes.reduce((sum, note, at) => sum + note.height + (at > 0 ? 4 : 0), 0),
+      };
+    };
+    // Measured at the narrowest box any plan uses, so the plan never undercounts the header; refit once it is chosen.
+    const narrowest = Math.min(520, width - (width < 600 ? 12 : 24) * 2);
+    const measured = fitHeader(narrowest - DECK_ACTIONS_PAD * 2 - WIDEST_THUMB - 12, narrowest - DECK_ACTIONS_PAD * 2);
+    const planInput = { width, height, gridCount: rest.length, headerTextHeight: measured.header };
+    const plan = deckActionsPlan({ ...planInput, notesHeight: measured.notes });
+    const side = plan.sideWidth;
+    const boxX = Math.round((width - plan.boxWidth) / 2);
+    const left = boxX + DECK_ACTIONS_PAD;
+    // The buttons' column: the whole box, or the right-hand part beside the header on a short, wide screen.
+    const buttonsX = side === null ? left : left + side + DECK_ACTIONS_PAD;
+    const innerWidth = boxX + plan.boxWidth - DECK_ACTIONS_PAD - buttonsX;
+    const textX = side === null ? left + plan.thumb.width + 12 : left;
+    const fitted = fitHeader(side ?? boxX + plan.boxWidth - DECK_ACTIONS_PAD - textX, innerWidth);
+    const boxHeight = Math.min(
+      height - plan.margin * 2,
+      deckActionsHeight(plan, { ...planInput, headerTextHeight: fitted.header, notesHeight: fitted.notes }),
+    );
+    const box: Rect = { x: boxX, y: Math.round((height - boxHeight) / 2), width: plan.boxWidth, height: boxHeight };
     this.#box = box;
     ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
     ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
 
-    const top = box.y + 16;
-    this.#thumb = { x: box.x + 16, y: top, width: THUMB_WIDTH, height: THUMB_HEIGHT };
+    const top = box.y + DECK_ACTIONS_PAD;
+    this.#thumb = { x: left, y: top, ...plan.thumb };
     renderArtThumb(this, this.#thumb, this.#data.artUrl, 0.2, this.#data.artFocus);
-    title.setPosition(textX, top);
+    title.setPosition(textX, side === null ? top : top + plan.thumb.height + DECK_ACTIONS_GAP);
     meta.setPosition(textX, title.y + title.height + 4);
     status.setPosition(textX, meta.y + meta.height + 6);
 
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
-    const left = box.x + 16;
-    let y = top + headerHeight + 16;
+    const row = plan.row;
+    const gap = DECK_ACTIONS_GAP;
+    let y = side === null ? top + Math.max(plan.thumb.height, fitted.header) + DECK_ACTIONS_PAD : top;
     const add = (key: string, button: McButton, rect: Rect, activate: () => void): void => {
       this.#buttons.push(button);
       stops.set(key, { rect, activate });
@@ -213,7 +260,7 @@ export class DeckActionsSheet extends Phaser.Scene {
       this.#draw();
     };
     for (const action of primary) {
-      const rect: Rect = { x: left, y, width: innerWidth, height: row };
+      const rect: Rect = { x: buttonsX, y, width: innerWidth, height: row };
       const activate = (): void => (action.enabled ? this.#press(action.id) : unavailable(action.reason)());
       add(
         `action:${action.id}`,
@@ -230,22 +277,23 @@ export class DeckActionsSheet extends Phaser.Scene {
         rect,
         activate,
       );
-      y += row + GAP;
+      y += row + gap;
     }
-    const cellWidth = (innerWidth - GAP * (columns - 1)) / columns;
+    const cellWidth = (innerWidth - gap * (plan.columns - 1)) / plan.columns;
+    const gridTop = y;
+    const cellAt = (index: number): Rect => ({
+      x: buttonsX + (index % plan.columns) * (cellWidth + gap),
+      y: gridTop + Math.floor(index / plan.columns) * (row + gap),
+      width: cellWidth,
+      height: row,
+    });
     rest.forEach((action, index) => {
-      const rect: Rect = {
-        x: left + (index % columns) * (cellWidth + GAP),
-        y: y + Math.floor(index / columns) * (row + GAP),
-        width: cellWidth,
-        height: row,
-      };
-      const armed = action.id === "delete" && this.#deleteArmed;
+      const rect = cellAt(index);
       add(
         `action:${action.id}`,
         new McButton(this, {
           kind: "secondary",
-          selected: armed,
+          selected: action.id === "delete" && this.#deleteArmed,
           label: action.label,
           type: BUTTON_TYPE,
           rect,
@@ -255,14 +303,13 @@ export class DeckActionsSheet extends Phaser.Scene {
         () => this.#press(action.id),
       );
     });
-    y += restRows * (row + GAP);
-    if (note) {
-      note.setPosition(left, y);
-      y += note.height + GAP;
+    y = gridTop + Math.ceil((rest.length + (plan.backInGrid ? 1 : 0)) / plan.columns) * (row + gap);
+    for (const note of notes) {
+      note.setPosition(buttonsX, y);
+      y += note.height + 4;
     }
-    y += GAP;
-
-    const backRect: Rect = { x: left, y, width: innerWidth, height: row };
+    if (notes.length > 0) y += gap - 4;
+    const backRect: Rect = plan.backInGrid ? cellAt(rest.length) : { x: buttonsX, y, width: innerWidth, height: row };
     const back = new McButton(this, {
       kind: "secondary",
       label: "Back",
