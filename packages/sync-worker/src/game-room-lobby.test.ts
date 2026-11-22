@@ -65,9 +65,14 @@ class FakeSocket implements RoomSocket {
 interface SetupOptions {
   lobby?: boolean;
   hooks?: RoomCodeHooks;
+  /**
+   * The host's "Ask the host to sit at the table" setting, sent with every `lobbySet` here. On by default in these tests,
+   * which cover the request, approve and deny flow; the claim flow (the room's default) has its own tests.
+   */
+  askToSit?: boolean;
 }
 
-async function setup({ lobby = true, hooks }: SetupOptions = {}) {
+async function setup({ lobby = true, hooks, askToSit = true }: SetupOptions = {}) {
   const storage = new MemoryStorage();
   const clock = { now: 1_000 };
   const limits = { maxParticipants: 25, maxMessageBytes: 64 * 1024, maxLogBytes: 8 * 1024 * 1024 };
@@ -94,7 +99,12 @@ async function setup({ lobby = true, hooks }: SetupOptions = {}) {
   };
   const host = (r = room, name = "Hosty") => join(r, { token: TOKEN, name });
   const lobbySet = (s: RoomSocket, patch: { settings?: object; seats?: object[]; ifRev?: number }, r = room) =>
-    send(r, s, { ch: "room", kind: "lobby-set", ...patch });
+    send(r, s, {
+      ch: "room",
+      kind: "lobby-set",
+      ...patch,
+      ...(patch.settings || patch.seats ? { settings: { askToSit, ...patch.settings } } : {}),
+    });
   const seats = (...ids: string[]) => ids.map((id) => ({ id, label: `Hero ${id}` }));
   return { storage, clock, room, make, send, join, host, lobbySet, seats };
 }
@@ -2211,5 +2221,58 @@ describe("villain pacing and the host's villain cursor", () => {
     await cursor(room, h, 5, "closed");
     await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "rewind", table: "t1", to: 0 }));
     expect(a.last("villain-cursor")).toMatchObject({ state: "none" });
+  });
+});
+
+describe("guests claim an open seat unless the host has them ask (Quin, 2026-11-22)", () => {
+  it("by default a guest's request seats them at once, with a token, and nothing waits for the host", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    expect(h.last("lobby")!.settings.askToSit).toBe(false);
+    const a = await join(room, { name: "Ann" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(a.refusals).toEqual([]);
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", holder: a.id, holderName: "Ann" });
+    expect(h.last("lobby")!.seats[0]!.requested).toBeUndefined();
+    expect(a.last("seat-token")).toMatchObject({ seat: "s1" });
+  });
+
+  it("a claim still obeys a taken seat, one seat each and the host's build", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    const a = await join(room, { name: "Ann" });
+    const b = await join(room, { name: "Bo" });
+    const old = await join(room, { name: "Cy", build: { appVersion: "1.2.2", contentVersion: "c9" } });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    await send(room, b, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(b.refusals).toEqual(["seat-taken"]);
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s2" });
+    expect(a.refusals).toEqual(["multi-seat"]);
+    await send(room, old, { ch: "room", kind: "seat-request", seat: "s2" });
+    expect(old.refusals).toEqual(["build-mismatch"]);
+    expect(h.last("lobby")!.seats[1]!.holder).toBeUndefined();
+  });
+
+  it("with Ask the host to sit on, a request waits for the host; turning it off lets the next one claim", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2"), settings: { askToSit: true } });
+    const a = await join(room, { name: "Ann" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", requested: [a.id] });
+    expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
+    await lobbySet(h, { settings: { askToSit: false } });
+    const b = await join(room, { name: "Bo" });
+    await send(room, b, { ch: "room", kind: "seat-request", seat: "s2" });
+    expect(h.last("lobby")!.seats[1]).toMatchObject({ id: "s2", holder: b.id });
+  });
+
+  it("refuses a lobby-set whose askToSit is not a boolean", async () => {
+    const { host, lobbySet } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { settings: { askToSit: "yes" } });
+    expect(h.refusals).toEqual(["bad-message"]);
   });
 });

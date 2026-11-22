@@ -499,6 +499,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.mods.missing": "Falta en esta versión. Consíguelo en la Tienda de mods.",
   "room.multi.title": "Varios asientos por persona",
   "room.multi.detail": "Una persona puede llevar más de un héroe.",
+  "room.askToSit.title": "Pedir permiso al anfitrión para sentarse",
+  "room.askToSit.detail":
+    "Los invitados piden un asiento y tú los apruebas. Desactivado: los invitados ocupan un asiento libre ellos mismos.",
   "room.listed.title": "Listar esta sala en En vivo",
   "room.listed.detail":
     "Cualquiera puede ver el nombre de la sala, el modo, el escenario y los asientos, y entrar a mirar o pedir un asiento. El código sigue siendo la forma de entrar, y quien lo haya visto puede seguir usándolo después de quitarla de la lista.",

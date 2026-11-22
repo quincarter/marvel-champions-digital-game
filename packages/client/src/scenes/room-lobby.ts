@@ -2417,6 +2417,9 @@ export class RoomLobbyScene extends Phaser.Scene {
       toggleRow("multi", t("room.multi.title"), t("room.multi.detail"), settings.multiSeat, () =>
         this.#api.setLobby({ settings: { multiSeat: !settings.multiSeat } }),
       );
+      toggleRow("askToSit", t("room.askToSit.title"), t("room.askToSit.detail"), settings.askToSit === true, () =>
+        this.#api.setLobby({ settings: { askToSit: settings.askToSit !== true } }),
+      );
       toggleRow("chat", t("room.chatSetting.title"), t("room.chatSetting.detail"), settings.chat, () =>
         this.#api.setLobby({ settings: { chat: !settings.chat } }),
       );
