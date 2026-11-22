@@ -59,6 +59,20 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [cardArtPlugin(), marvelcdbImportPlugin(), releaseHistoryPlugin()],
   worker: { format: "es" },
+  optimizeDeps: {
+    // Scenes load by dynamic import, so on a cold cache the dev server finds these only when a screen first opens,
+    // re-bundles them and reloads the page under the player (and under an e2e spec that just opened Settings).
+    // Listing them pre-bundles everything at start-up instead.
+    include: [
+      "@tauri-apps/plugin-http",
+      "fflate",
+      "uqr",
+      "phaser4-rex-plugins/plugins/utils/mask/MaskMethods.js",
+      "phaser4-rex-plugins/templates/ui/inputtext/InputText.js",
+      "phaser4-rex-plugins/templates/ui/textarea/TextArea.js",
+      "phaser4-rex-plugins/templates/ui/textareainput/TextAreaInput.js",
+    ],
+  },
   build: {
     target: "es2022",
     // Phaser is large and ships as one chunk; the warning adds nothing here.
