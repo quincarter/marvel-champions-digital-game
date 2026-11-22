@@ -152,7 +152,18 @@ export class GameMirror {
       checksums: { ...this.#checksums },
       ...(this.#pendingTotal !== null ? { total: this.#pendingTotal } : {}),
       ...(this.#ended ? { outcome: this.#outcome } : {}),
+      // The latch goes with the game: a seat attached after the flagged rewind or end must still see it (#909).
+      ...(this.#adjusted ? { adjusted: true as const } : {}),
     };
-    return this.#ended ? [log, { v: 1, ch: "game", kind: "end", table: this.#table, outcome: this.#outcome }] : [log];
+    if (!this.#ended) return [log];
+    const end: ServerMessage = {
+      v: 1,
+      ch: "game",
+      kind: "end",
+      table: this.#table,
+      outcome: this.#outcome,
+      ...(this.#adjusted ? { adjusted: true as const } : {}),
+    };
+    return [log, end];
   }
 }

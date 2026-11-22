@@ -18,6 +18,8 @@ export type WatchAction =
       readonly commands: readonly Command[];
       readonly checksums: TableChecksums;
       readonly outcome: unknown;
+      /** The room says the game was adjusted (its sticky flag on the `log`, #909). */
+      readonly adjusted?: true;
     }
   | {
       readonly kind: "append";
@@ -151,7 +153,16 @@ export class WatchFeed {
     this.#resyncing = false;
     this.#count = commands.length;
     this.#ended = message.outcome != null;
-    return [{ kind, header: message.header, commands, checksums, outcome: message.outcome }];
+    return [
+      {
+        kind,
+        header: message.header,
+        commands,
+        checksums,
+        outcome: message.outcome,
+        ...(message.adjusted === true ? { adjusted: true as const } : {}),
+      },
+    ];
   }
 
   #room(message: Extract<ServerMessage, { ch: "room" }>): readonly WatchAction[] {

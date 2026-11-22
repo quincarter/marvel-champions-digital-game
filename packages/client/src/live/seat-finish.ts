@@ -45,7 +45,8 @@ export function logPrint(commands: readonly unknown[]): string {
 export type SeatFinishResult = "written" | "repeat" | "waiting" | "none";
 
 export async function writeGuestFinished(
-  core: SeatCore,
+  /** The seat's core, or an earlier admission's finished game frozen when a rematch replaced it. */
+  core: Pick<SeatCore, "finishedInput">,
   record: RoomPlayRecord,
   deps: SeatFinishDeps,
   /** The stream said the host's game was adjusted (header, rewind or end flag). */

@@ -5,6 +5,7 @@ import type { RoomPlayRecord } from "../engine/room-play.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import type { SessionConfig } from "../engine/host.js";
 import { LIVE_HEADER_FORMAT, LIVE_HEADER_VERSION } from "./live-publisher.js";
+import { GameMirror } from "./room-game-mirror.js";
 import { SeatFollower, type SeatFeedPort } from "./seat-follower.js";
 import type { SeatEvent } from "./seat-protocol.js";
 
@@ -702,5 +703,167 @@ describe("a guest's finished row (#909)", () => {
     feed.say({ ch: "game", kind: "log", table: "t1", header: game.header, commands: game.commands, checksums: {} });
     await opening;
     await expect(follower.finish(RECORD)).resolves.toBe(false);
+  });
+});
+
+describe("a rematch on the same seat feed, and a seat attached late (#909)", () => {
+  const KEY_A = `${RECORD.roomId}:main:gid-a`;
+  const KEY_B = `${RECORD.roomId}:main:gid-b`;
+  const recordA: RoomPlayRecord = { ...RECORD, gameKey: KEY_A, gid: "gid-a" };
+  const recordB: RoomPlayRecord = { ...RECORD, gameKey: KEY_B, gid: "gid-b" };
+
+  /** Game B: game A's setup, started again later (a new admission at the same table). */
+  async function rematchOf() {
+    const game = await endedGame();
+    return { header: { ...game.header, createdAt: 2 }, commands: game.commands };
+  }
+
+  test("B's log is a new admission: A's row stands, adjusted, and B gets its own unadjusted row", async () => {
+    const { storage, follower, feed, events } = await seat("all", true);
+    await expect(follower.finish(recordA)).resolves.toBe(true);
+    const rowA = (await storage.list())[0]!;
+    expect(rowA.adjusted).toBe(true);
+    const setStatus = vi.spyOn(storage, "setStatus");
+    const b = await rematchOf();
+    feed.say({ ch: "game", kind: "log", table: "t1", header: b.header, commands: b.commands, checksums: {} });
+    feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+    await expect(follower.finish(recordB)).resolves.toBe(true);
+    const rows = await storage.list();
+    expect(rows).toHaveLength(2);
+    const a = rows.find((row) => row.roomPlay?.gameKey === KEY_A)!;
+    expect(a.status).toBe(rowA.status);
+    expect(a.adjusted).toBe(true);
+    const own = rows.find((row) => row.roomPlay?.gameKey === KEY_B)!;
+    expect(own.id).not.toBe(a.id);
+    expect(own.adjusted).toBeUndefined();
+    // Nothing set A's row aside.
+    expect(setStatus).not.toHaveBeenCalled();
+    expect(events.filter((event) => event.type === "saved")).toHaveLength(0);
+  });
+
+  test("A's finish that arrives after B's log writes A's game, not B's", async () => {
+    const { storage, follower, feed, game } = await seat("all", true);
+    const b = await rematchOf();
+    feed.say({ ch: "room", kind: "table", table: { ...welcome.tables[0], gid: "gid-b" } });
+    feed.say({ ch: "game", kind: "log", table: "t1", header: b.header, commands: [], checksums: {} });
+    await expect(follower.finish(recordA)).resolves.toBe(true);
+    const rows = await storage.list();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.roomPlay?.gameKey).toBe(KEY_A);
+    expect(rows[0]!.adjusted).toBe(true);
+    expect(rows[0]!.commandCount).toBe(game.commands.length);
+    // B then finishes on its own, unadjusted.
+    feed.say({ ch: "game", kind: "commands", table: "t1", from: 0, commands: b.commands, checksums: {} });
+    feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+    await expect(follower.finish(recordB)).resolves.toBe(true);
+    const own = (await storage.list()).find((row) => row.roomPlay?.gameKey === KEY_B)!;
+    expect(own.adjusted).toBeUndefined();
+  });
+
+  test("A's write still pending when B arrives lands as A's game", async () => {
+    const storage = new MemoryGameStorage();
+    let fail = true;
+    const createFinished = storage.createFinished.bind(storage);
+    storage.createFinished = (...args: Parameters<typeof createFinished>) =>
+      fail ? Promise.reject(new Error("disk full")) : createFinished(...args);
+    const { follower, feed, game } = await seat("all", true, false, true, storage);
+    await expect(follower.finish(recordA)).resolves.toBe(false);
+    const b = await rematchOf();
+    feed.say({ ch: "game", kind: "log", table: "t1", header: b.header, commands: [], checksums: {} });
+    fail = false;
+    feed.say({ ch: "game", kind: "commands", table: "t1", from: 0, commands: b.commands.slice(0, 1), checksums: {} });
+    await vi.waitFor(async () => expect(await storage.list()).toHaveLength(1));
+    const row = (await storage.list())[0]!;
+    expect(row.roomPlay?.gameKey).toBe(KEY_A);
+    expect(row.adjusted).toBe(true);
+    expect(row.commandCount).toBe(game.commands.length);
+  });
+
+  test("the same game's log again with its setup rebuilt (a resumed host) is a reopen, not a rematch", async () => {
+    const { storage, follower, feed, game } = await seat("all");
+    await expect(follower.finish(recordA)).resolves.toBe(true);
+    // The host reloaded: the header keeps its creation time but its config was rebuilt from the save.
+    const header = { ...game.header, config: { ...(game.header.config as object), extra: 1 } };
+    feed.say({ ch: "game", kind: "log", table: "t1", header, commands: game.commands.slice(0, -1), checksums: {} });
+    await vi.waitFor(async () => expect((await storage.list())[0]!.status).toBe("abandoned"));
+    feed.say({
+      ch: "game",
+      kind: "commands",
+      table: "t1",
+      from: game.commands.length - 1,
+      commands: game.commands.slice(-1),
+      checksums: {},
+    });
+    feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" }, adjusted: true });
+    await vi.waitFor(async () => expect((await storage.list())[0]!.adjusted).toBe(true));
+    expect(await storage.list()).toHaveLength(1);
+  });
+
+  test("with no admission ids, A's late finish never binds to B, and B is written once", async () => {
+    const plainA: RoomPlayRecord = { ...RECORD, gameKey: KEY_A };
+    const plainB: RoomPlayRecord = { ...RECORD, gameKey: KEY_B };
+    const { storage, follower, feed, game } = await seat("all", true);
+    const b = await rematchOf();
+    feed.say({ ch: "game", kind: "log", table: "t1", header: b.header, commands: [], checksums: {} });
+    await expect(follower.finish(plainA)).resolves.toBe(true);
+    feed.say({ ch: "game", kind: "commands", table: "t1", from: 0, commands: b.commands, checksums: {} });
+    feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+    await expect(follower.finish(plainB)).resolves.toBe(true);
+    const rows = await storage.list();
+    expect(rows).toHaveLength(2);
+    const a = rows.find((row) => row.roomPlay?.gameKey === KEY_A)!;
+    expect(a.adjusted).toBe(true);
+    expect(a.commandCount).toBe(game.commands.length);
+    expect(rows.find((row) => row.roomPlay?.gameKey === KEY_B)!.adjusted).toBeUndefined();
+  });
+
+  test("a seat attached from the mirror after a flagged rewind and end writes an adjusted row", async () => {
+    const game = await endedGame();
+    const mirror = new GameMirror("t1");
+    const n = game.commands.length;
+    mirror.apply({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: "t1",
+      header: game.header,
+      commands: game.commands,
+      checksums: {},
+    });
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: "t1", to: n, adjusted: true });
+    mirror.apply({ v: 1, ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" }, adjusted: true });
+    const snapshot = mirror.snapshot();
+    expect(snapshot.map((message) => (message as { adjusted?: true }).adjusted)).toEqual([true, true]);
+    const storage = new MemoryGameStorage();
+    const feed = new FakeFeed();
+    const follower = new SeatFollower({ feed, packs: [], finishDeps: { storage, now: () => 1, newId: () => "g" } });
+    const opening = follower.open();
+    feed.say(welcome);
+    for (const message of snapshot) feed.say(message);
+    await opening;
+    await expect(follower.finish(RECORD)).resolves.toBe(true);
+    expect((await storage.list())[0]!.adjusted).toBe(true);
+  });
+
+  test("a log that carries the room's adjusted flag latches it", async () => {
+    const game = await endedGame();
+    const storage = new MemoryGameStorage();
+    const feed = new FakeFeed();
+    const follower = new SeatFollower({ feed, packs: [], finishDeps: { storage, now: () => 1, newId: () => "g" } });
+    const opening = follower.open();
+    feed.say(welcome);
+    feed.say({
+      ch: "game",
+      kind: "log",
+      table: "t1",
+      header: game.header,
+      commands: game.commands,
+      checksums: {},
+      adjusted: true,
+    });
+    await opening;
+    feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+    await expect(follower.finish(RECORD)).resolves.toBe(true);
+    expect((await storage.list())[0]!.adjusted).toBe(true);
   });
 });
