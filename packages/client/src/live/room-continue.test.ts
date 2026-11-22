@@ -138,6 +138,30 @@ describe("a guest's log as a local saved game", () => {
     expect(isAdjustedSave(meta)).toBe(true);
   });
 
+  test("a guest that missed the flagged rewind in a reconnect gap latches adjusted from the room's log frame", async () => {
+    const { mirror } = await hostedGame(4);
+    const before = mirror.salvage()!;
+    // The link drops; the host's flagged rewind goes out while the guest is away. The reconnect brings the room's log.
+    mirror.clear(true);
+    mirror.apply({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: FIRST_TABLE,
+      header: before.header,
+      commands: before.commands.slice(0, 3),
+      checksums: {},
+      adjusted: true,
+    } as ServerMessage);
+    const salvage = mirror.salvage()!;
+    expect(salvage.adjusted).toBe(true);
+    const save = roomGameSave(salvage, ROOM, deps());
+    expect(save.ok && save.meta.adjusted).toBe(true);
+    // Without the flag on the log (a game played by the rules), nothing is latched.
+    const plain = (await hostedGame(4)).mirror;
+    expect(plain.salvage()!.adjusted).toBeUndefined();
+  });
+
   test("an ordinary cutting rewind, without the flag, does not mark the game adjusted", async () => {
     const { mirror } = await hostedGame(4);
     mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);

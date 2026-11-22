@@ -73,6 +73,8 @@ export class GameMirror {
         // The same game's log again (a reconnect) keeps what was latched; another game's header starts clean.
         const stamp = (m.header as { createdAt?: unknown } | null)?.createdAt;
         if (stamp === undefined || stamp !== this.#gameStamp) this.#adjusted = false;
+        // The room remembers the latch with the table: a guest that missed the flagged frame (a reconnect gap) gets it here.
+        if (m.adjusted === true) this.#adjusted = true;
         this.#gameStamp = stamp;
         this.#has = true;
         this.#header = m.header;

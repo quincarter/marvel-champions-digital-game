@@ -214,6 +214,48 @@ describe("play together: an adjusted game (#909)", () => {
   });
 });
 
+describe("play together: the adjusted latch is the table's, not a frame's (#909)", () => {
+  const wake = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    const woken = new GameRoomLogic(ctx.storage, undefined, () => ctx.clock.now);
+    const s = new FakeSocket();
+    await ctx.send(s, { ch: "room", kind: "hello", caps: ["watch"], name: "Late", build: BUILD }, woken);
+    return s;
+  };
+
+  for (const cut of [true, false]) {
+    it(`a flagged rewind that ${cut ? "cuts the log" : "cuts nothing"} survives a wake: the log frame and the welcome carry adjusted`, async () => {
+      const ctx = await setup();
+      await ctx.send(ctx.host, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2, 3] });
+      await ctx.send(ctx.host, { ch: "game", kind: "rewind", table: "t1", to: cut ? 2 : 3, adjusted: true });
+      const late = await wake(ctx);
+      expect(late.last("log")).toMatchObject({ kind: "log", adjusted: true });
+      expect(late.last("welcome")!.tables[0]).toMatchObject({ adjusted: true });
+    });
+  }
+
+  it("an adjusted end survives a wake the same way, and a game played by the rules never carries the flag", async () => {
+    const ended = await setup();
+    await ended.send(ended.host, { ch: "game", kind: "end", table: "t1", outcome: {}, adjusted: true });
+    expect((await wake(ended)).last("log")).toMatchObject({ adjusted: true });
+
+    const plain = await setup();
+    await plain.send(plain.host, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2] });
+    await plain.send(plain.host, { ch: "game", kind: "rewind", table: "t1", to: 1 });
+    const late = await wake(plain);
+    expect(late.last("log")).not.toHaveProperty("adjusted");
+    expect(late.last("welcome")!.tables[0]).not.toHaveProperty("adjusted");
+  });
+
+  it("a new game replacing the table starts un-adjusted, in memory and after a wake", async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "game", kind: "rewind", table: "t1", to: 0, adjusted: true });
+    await ctx.send(ctx.host, { ch: "game", kind: "end", table: "t1", outcome: {}, adjusted: true });
+    await ctx.send(ctx.host, { ch: "game", kind: "start", table: "t1", header: { h: 2 }, gid: "B" });
+    const late = await wake(ctx);
+    expect(late.last("log")).not.toHaveProperty("adjusted");
+  });
+});
+
 describe("play together: proposal and request ids", () => {
   it("echoes the proposal id in the room's refusal of it and in what it relays to the host and back", async () => {
     const { host, send, join, seated, propose, request } = await setup();

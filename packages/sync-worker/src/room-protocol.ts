@@ -584,6 +584,8 @@ export interface TableInfo {
    * (a repair, not a new admission); any other host sees a game that is not its own.
    */
   readonly dirty?: true;
+  /** The game at this table was adjusted (sticky until a new game replaces it, issue #909). Absent otherwise. */
+  readonly adjusted?: true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1000,6 +1002,11 @@ export type ServerMessage =
        * seat accepts a `proposal-accepted` only for the epoch of the log it holds. Absent from an older room.
        */
       readonly epoch?: number;
+      /**
+       * The game was adjusted (a host `rewind {adjusted}` or an adjusted `end`, issue #909): sticky for the game, so a
+       * reader that missed the flagged frame still latches it. Absent otherwise.
+       */
+      readonly adjusted?: true;
       /**
        * The table's full command count when the log goes out in parts: this `log` holds the first of them and `commands`
        * batches carry the rest up to `total`. A reader that must see the whole log (a seat, a watcher) waits for all of
