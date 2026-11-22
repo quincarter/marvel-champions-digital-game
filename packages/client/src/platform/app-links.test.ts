@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   appReplayLinkOf,
+  appWatchLinkOf,
   gameFragmentOf,
   hasAppPlugin,
   offersDesktopApp,
@@ -36,6 +37,15 @@ describe("gameFragmentOf (#862)", () => {
   it("makes the desktop app's replay link", () => {
     expect(appReplayLinkOf("xqfaQSjheyfI")).toBe("marvelchampions://replay/xqfaQSjheyfI");
     expect(gameFragmentOf(appReplayLinkOf("xqfaQSjheyfI"))).toBe("#replay=xqfaQSjheyfI");
+  });
+});
+
+describe("watch links (#876)", () => {
+  it("reads a live game's links as the #watch fragment", () => {
+    expect(gameFragmentOf("marvelchampions://watch/xqfaQSjheyfI")).toBe("#watch=xqfaQSjheyfI");
+    expect(gameFragmentOf("https://marvel.champions-digital-game.com/#watch=xqfaQSjheyfI")).toBe("#watch=xqfaQSjheyfI");
+    expect(gameFragmentOf(appWatchLinkOf("xqfaQSjheyfI"))).toBe("#watch=xqfaQSjheyfI");
+    expect(gameFragmentOf("marvelchampions://watch/")).toBeNull();
   });
 });
 

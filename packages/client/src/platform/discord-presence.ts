@@ -16,6 +16,7 @@ import { CATALOG_CACHE_KEY, onCatalogCached } from "../packs/catalog.js";
 import { campaignNameTable } from "../view/discord-campaign-name.js";
 import type { PresenceIn, PresenceOut } from "../view/discord-presence-protocol.js";
 import { watchScenes } from "./discord-scene-watch.js";
+import { takePresenceEnd } from "./live-presence-link.js";
 import { detectPlatform } from "./platform.js";
 
 interface DiscordStatus {
@@ -79,9 +80,17 @@ async function begin(game: Phaser.Game): Promise<void> {
     host.attachPresencePort(channel.port1);
     gamePort = channel.port2;
   }
+  // The live-room worker's status (watch link, watcher count) arrives on this one (#876).
+  const livePort = takePresenceEnd();
   send(
-    { kind: "init", enabled, campaignNames: campaignNameTable(), ...(gamePort ? { gamePort } : {}) },
-    gamePort ? [gamePort] : [],
+    {
+      kind: "init",
+      enabled,
+      campaignNames: campaignNameTable(),
+      ...(gamePort ? { gamePort } : {}),
+      ...(livePort ? { livePort } : {}),
+    },
+    [...(gamePort ? [gamePort] : []), ...(livePort ? [livePort] : [])],
   );
 
   // The loaded packs and the cached store catalog, so a mod villain or hero shows its Mod Store picture (issue #840).

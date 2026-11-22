@@ -96,6 +96,7 @@ export const SETTINGS_KEYWORDS: Partial<Readonly<Record<SettingsItemId, readonly
   "large-card-text": ["font", "text size", "readable", "accessibility", "bigger text"],
   "reduced-motion": ["animation", "motion sickness", "accessibility", "faster", "skip animation"],
   "sharper-text": ["blurry", "crisp", "fuzzy", "resolution", "font"],
+  "live-watch": ["spectate", "share", "stream", "live", "link", "viewers", "discord"],
   "dark-mode": ["theme", "night", "colours", "colors", "light mode"],
   sound: ["audio", "mute", "music", "effects", "quiet"],
   "music-volume": ["audio", "loud", "quiet", "mute", "soundtrack"],

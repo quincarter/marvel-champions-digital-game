@@ -3,7 +3,7 @@
  * directly (one instance per name, like the real thing). Not part of the Worker bundle.
  */
 
-import { GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
+import { GameRoom, GlobalStats, RateLimiter, ReplayQuota, SyncSpace, TransferRoom } from "./durable-objects.js";
 import type {
   DurableObjectNamespaceLike,
   Env,
@@ -144,6 +144,7 @@ export interface TestEnv extends Env {
   GLOBAL_STATS: FakeNamespace<GlobalStats>;
   REPLAYS: MemoryR2;
   REPLAY_QUOTA: FakeNamespace<ReplayQuota>;
+  GAME_ROOM: FakeNamespace<GameRoom>;
 }
 
 export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
@@ -152,10 +153,12 @@ export function makeEnv(overrides: Partial<Env> = {}): TestEnv {
     RATE_LIMITER: fakeNamespace((storage) => new RateLimiter({ storage })),
     SYNC_SPACE: fakeNamespace((storage) => new SyncSpace({ storage })),
     GLOBAL_STATS: fakeNamespace((storage) => new GlobalStats({ storage })),
+    GAME_ROOM: fakeNamespace((storage) => new GameRoom({ storage, acceptWebSocket() {}, getWebSockets: () => [] })),
     REPLAYS: new MemoryR2(),
     REPLAY_QUOTA: fakeNamespace((storage) => new ReplayQuota({ storage })),
     TRANSFERS_ENABLED: "true",
     REPLAYS_ENABLED: "true",
+    ROOMS_ENABLED: "true",
     MAX_REPLAY_BYTES: "1000",
     SYNC_ENABLED: "true",
     GLOBAL_STATS_ENABLED: "true",

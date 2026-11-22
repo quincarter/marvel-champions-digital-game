@@ -267,6 +267,12 @@ describe("a decision's bar on the route", () => {
   test("the dark mode button sits just before the note (#735)", () => {
     const route = focusOrder({ kind: "idle", hand: [id("a")], music: true, theme: true }, marksWith([]));
     expect(route.slice(-2)).toEqual([{ kind: "theme" }, { kind: "music" }]);
+    // The watch eye (#876) comes just before the dark mode button, and only while a live room draws it.
+    const withWatch = focusOrder(
+      { kind: "idle", hand: [id("a")], watch: true, theme: true, music: true },
+      marksWith([]),
+    );
+    expect(withWatch.slice(-3)).toEqual([{ kind: "watch" }, { kind: "theme" }, { kind: "music" }]);
     expect(focusOrder({ kind: "idle", hand: [id("a")] }, marksWith([])).some((t) => t.kind === "theme")).toBe(false);
   });
 

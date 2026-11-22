@@ -5,7 +5,13 @@
  * A change schedules one trailing look a second later (so a burst is one send); the look builds the activity and emits
  * it only when it differs from the last one emitted. Turning the setting off clears at once.
  */
-import { presenceKey, presenceOf, type DiscordActivity, type PresenceGame } from "./discord-presence.js";
+import {
+  presenceKey,
+  presenceOf,
+  type DiscordActivity,
+  type PresenceGame,
+  type PresenceLive,
+} from "./discord-presence.js";
 import { namesCampaign, screenOf } from "./discord-presence-screen.js";
 import { publicPackArtUrl, type PresencePack, type PresencePackBases } from "./discord-presence-pack-art.js";
 
@@ -42,6 +48,7 @@ export class PresenceTracker {
   #packs: ReadonlyMap<string, PresencePack> = new Map();
   #packBases: PresencePackBases = new Map();
   #trustUnrecorded = false;
+  #live: PresenceLive | null = null;
 
   constructor(deps: PresenceTrackerDeps, enabled = true) {
     this.#deps = deps;
@@ -68,6 +75,12 @@ export class PresenceTracker {
 
   sceneDown(key: string): void {
     this.#scenes.delete(key);
+    this.#schedule();
+  }
+
+  /** The live room's link and watcher count (null while there is no room), from the live-room worker (#876). */
+  setLive(live: PresenceLive | null): void {
+    this.#live = live;
     this.#schedule();
   }
 
@@ -170,6 +183,7 @@ export class PresenceTracker {
       startedAt: inGame ? this.#gameSince : this.#menuSince,
       campaignName: screen === "campaign" ? this.#campaignName() : null,
       game: game ? { ...this.#withPackArt(game), campaignName } : null,
+      live: inGame ? this.#live : null,
     });
   }
 }

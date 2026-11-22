@@ -25,6 +25,7 @@ import { ReplayCursor, type ReplayFailure, type ReplayMoment } from "../view/rep
 import {
   ChecksumCheck,
   ChecksumWriter,
+  LiveChecksumCheck,
   REPLAY_FORMAT,
   REPLAY_VERSION,
   writtenElsewhere,
@@ -51,7 +52,9 @@ export interface ReplayLog {
 
 export type ReplaySource =
   | { readonly kind: "file"; readonly file: ReplayFile }
-  | { readonly kind: "log"; readonly log: ReplayLog };
+  | { readonly kind: "log"; readonly log: ReplayLog }
+  /** A game still being played, followed live (issue #876): the host's checksums are keyed by command count. */
+  | { readonly kind: "live"; readonly log: ReplayLog; readonly checksums: Readonly<Record<string, string>> };
 
 /** What the replay screen shows about the game as a whole. */
 export interface ReplayInfo {
@@ -79,39 +82,58 @@ export interface ReplayInfo {
 
 /** A setup without its packs' data, which a replay file never carries (`ReplayFile.config`). */
 export function withoutPacks(config: SessionConfig): SessionConfig {
-  if (config.packs === undefined) return config;
-  const { packs: _packs, ...rest } = config;
+  // `watchable` is the host's own setting for the game being streamed, not part of the game: never written to a file.
+  if (config.packs === undefined && config.watchable === undefined) return config;
+  const { packs: _packs, watchable: _watchable, ...rest } = config;
   return rest;
 }
 
 /** How many commands apart a replay keeps the game's record (what Game over reports) for seeking. */
 export const RECORD_EVERY = 20;
 
+/** What a live replay keeps beside the cursor (issue #876). */
+interface LiveTracking {
+  readonly check: LiveChecksumCheck;
+  readonly written: ChecksumWriter;
+  record: GameRecord;
+  /** The commands that applied: the log's own copy, which `toFile` and the snapshots read. */
+  readonly commands: Command[];
+  round: number;
+}
+
 export class ReplaySession {
   readonly #cursor: ReplayCursor;
   readonly #source: ReplayLog;
   readonly #writer: ReplayWriter;
   readonly #checksums: { readonly regular: readonly string[]; readonly final: string | undefined };
-  readonly #records: ReadonlyMap<number, GameRecord>;
+  readonly #records: Map<number, GameRecord>;
   readonly #deps: EngineDeps;
-  readonly info: ReplayInfo;
+  #info: ReplayInfo;
+  /** Set for a live source: what appends and rewinds check and write into (issue #876). */
+  readonly #live: LiveTracking | null;
 
   private constructor(
     cursor: ReplayCursor,
     source: ReplayLog,
     writer: ReplayWriter,
     checksums: { readonly regular: readonly string[]; readonly final: string | undefined },
-    records: ReadonlyMap<number, GameRecord>,
+    records: Map<number, GameRecord>,
     info: ReplayInfo,
     deps: EngineDeps,
+    live: LiveTracking | null,
   ) {
     this.#cursor = cursor;
     this.#source = source;
     this.#writer = writer;
     this.#checksums = checksums;
     this.#records = records;
-    this.info = info;
+    this.#info = info;
     this.#deps = deps;
+    this.#live = live;
+  }
+
+  get info(): ReplayInfo {
+    return this.#info;
   }
 
   /**
@@ -122,8 +144,11 @@ export class ReplaySession {
     const log: ReplayLog = source.kind === "file" ? source.file : source.log;
     // A game with custom packs plays with their cards and scripts, which its config carries (`SessionConfig.packs`).
     const deps = given ?? poolViewOfPacks(log.config.packs).deps;
-    const writer = source.kind === "file" ? source.file.writer : here;
+    const writer =
+      source.kind === "file" ? source.file.writer : source.kind === "live" ? (source.log.playedOn ?? here) : here;
     const finalChecksum = source.kind === "file" ? source.file.finalChecksum : undefined;
+    const liveCheck = source.kind === "live" ? new LiveChecksumCheck() : null;
+    if (source.kind === "live") liveCheck?.add(source.checksums);
     const check =
       source.kind === "file"
         ? new ChecksumCheck(
@@ -131,7 +156,7 @@ export class ReplaySession {
             finalChecksum === undefined ? undefined : { at: log.commands.length, checksum: finalChecksum },
           )
         : null;
-    const written = source.kind === "log" ? new ChecksumWriter() : null;
+    const written = source.kind !== "file" ? new ChecksumWriter() : null;
     // The record folded as the cursor's one forward pass goes, kept only every RECORD_EVERY positions and at the end: a
     // seek folds the few commands after the nearest one (`#recordAt`), so a long game holds a bounded number of records.
     const records = new Map<number, GameRecord>();
@@ -141,6 +166,7 @@ export class ReplaySession {
       lenient: true,
       observe: (_index, state, events) => {
         check?.observe(_index, state);
+        liveCheck?.observe(_index, state);
         written?.observe(_index, state);
         record = recordEvents(record, events, state, deps);
         if (_index % RECORD_EVERY === 0) records.set(_index, record);
@@ -152,9 +178,9 @@ export class ReplaySession {
       length: cursor.length,
       total: log.commands.length,
       moments: cursor.moments,
-      divergedAt: check?.divergedAt ?? null,
+      divergedAt: check?.divergedAt ?? liveCheck?.divergedAt ?? null,
       failure: cursor.failure,
-      otherBuild: writtenElsewhere(source.kind === "log" ? (source.log.playedOn ?? here) : writer, here),
+      otherBuild: writtenElsewhere(source.kind === "file" ? writer : (source.log.playedOn ?? here), here),
       writer,
       config: log.config,
       createdAt: log.createdAt,
@@ -164,7 +190,80 @@ export class ReplaySession {
     };
     const checksums = source.kind === "file" ? source.file.checksums : (written?.values ?? []);
     const final = source.kind === "file" ? finalChecksum : written?.final;
-    return new ReplaySession(cursor, log, writer, { regular: checksums, final }, records, info, deps);
+    // A live log is the session's own copy: appends push onto it, and a lenient build may have cut it short.
+    const tracking: LiveTracking | null =
+      liveCheck && written
+        ? { check: liveCheck, written, record, commands: log.commands.slice(0, cursor.length), round: info.round }
+        : null;
+    const own: ReplayLog = tracking ? { ...log, commands: tracking.commands } : log;
+    return new ReplaySession(cursor, own, writer, { regular: checksums, final }, records, info, deps, tracking);
+  }
+
+  /**
+   * Live watching (issue #876): the host's next commands, with the checksums it took. Applied on the end state, folded
+   * into the records and checked. Answers how many applied (fewer than given when one no longer applies here).
+   */
+  liveAppend(commands: readonly Command[], checksums?: Readonly<Record<string, string>>): number {
+    const live = this.#requireLive();
+    live.check.add(checksums);
+    const total = this.#info.total + commands.length;
+    const applied = this.#cursor.append(commands, (index, state, events) => {
+      live.check.observe(index, state);
+      live.written.observe(index, state);
+      live.record = recordEvents(live.record, events, state, this.#deps);
+      // Only every RECORD_EVERY records and the newest are kept.
+      if ((index - 1) % RECORD_EVERY !== 0) this.#records.delete(index - 1);
+      this.#records.set(index, live.record);
+      live.round = state.round;
+    });
+    const taken = commands.slice(0, applied);
+    live.commands.push(...taken);
+    // Only what arrived is scanned, never the whole log.
+    if (taken.some((command) => command.type === "adjust")) this.#info = { ...this.#info, adjusted: true };
+    this.#refresh(total);
+    return applied;
+  }
+
+  /** The host cut its log to the first `to` commands (an Undo or Back out). */
+  liveRewind(to: number): void {
+    const live = this.#requireLive();
+    const target = Math.max(0, Math.min(Math.floor(to), this.#cursor.length));
+    this.#cursor.truncate(target);
+    live.commands.length = target;
+    live.check.truncateTo(target);
+    for (const key of [...this.#records.keys()]) if (key > target) this.#records.delete(key);
+    live.record = this.#recordAt(target);
+    this.#records.set(target, live.record);
+    const { state } = this.#cursor.at(target);
+    live.written.truncateTo(target, state);
+    live.round = state.round;
+    this.#info = { ...this.#info, outcome: null };
+    this.#refresh(target);
+  }
+
+  /** The game ended: from here the replay is an ordinary one. */
+  liveEnd(outcome: GameOutcome | null): void {
+    this.#requireLive();
+    this.#info = { ...this.#info, outcome };
+  }
+
+  #requireLive(): LiveTracking {
+    if (!this.#live) throw new Error("this replay is not a live game");
+    return this.#live;
+  }
+
+  /** Rebuilds `info`'s moving parts after the log changed. `total`: commands the host has, which may exceed what applied. */
+  #refresh(total: number): void {
+    const live = this.#live;
+    this.#info = {
+      ...this.#info,
+      length: this.#cursor.length,
+      total: Math.max(total, this.#cursor.length),
+      moments: this.#cursor.moments,
+      divergedAt: live?.check.divergedAt ?? this.#info.divergedAt,
+      failure: this.#cursor.failure,
+      round: live?.round ?? this.#info.round,
+    };
   }
 
   /**
@@ -239,6 +338,7 @@ export class ReplaySession {
   /** The replay as a file: the one it was opened from, or a new one stamped by this build. */
   toFile(exportedAt: number): ReplayFile {
     const log = this.#source;
+    const final = this.#live ? this.#live.written.final : this.#checksums.final;
     return {
       format: REPLAY_FORMAT,
       version: REPLAY_VERSION,
@@ -247,13 +347,13 @@ export class ReplaySession {
       config: withoutDeckNames(withoutPacks(log.config)),
       ...(log.config.packs?.length ? { packs: log.config.packs.map(({ id, version }) => ({ id, version })) } : {}),
       createdAt: log.createdAt,
-      outcome: log.outcome,
-      round: log.round,
+      outcome: this.info.outcome,
+      round: this.info.round,
       ...(this.info.adjusted ? { adjusted: true as const } : {}),
       initialState: log.initialState,
       commands: log.commands,
-      checksums: this.#checksums.regular,
-      ...(this.#checksums.final === undefined ? {} : { finalChecksum: this.#checksums.final }),
+      checksums: this.#live ? this.#live.written.values : this.#checksums.regular,
+      ...(final === undefined ? {} : { finalChecksum: final }),
     };
   }
 }

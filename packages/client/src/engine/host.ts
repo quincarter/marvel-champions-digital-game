@@ -82,6 +82,12 @@ export interface SessionConfig {
    * pack) and keeps only those it embedded. Absent: no house rule, and every save written before they existed.
    */
   readonly houseRules?: readonly string[];
+  /**
+   * "Let people watch this game" (issue #876, docs/live-game-rooms.md): the game streams to a live room on the sync
+   * Worker. Chosen per game in setup (the `liveWatch` setting only pre-ticks it). It never reaches the rules: the pool
+   * and the scenario ignore it, and the live header and replay files leave it out. Absent: not streamed.
+   */
+  readonly watchable?: true;
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */

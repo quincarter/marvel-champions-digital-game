@@ -33,7 +33,9 @@ export type HostRequest =
   | { readonly kind: "listSaves"; readonly id: number }
   | { readonly kind: "backfillSummaries"; readonly id: number; readonly ids?: readonly string[] }
   /** Fire and forget: the port the worker posts the Discord presence summary to (no reply). */
-  | { readonly kind: "presencePort"; readonly id: 0; readonly port: MessagePort };
+  | { readonly kind: "presencePort"; readonly id: 0; readonly port: MessagePort }
+  /** Fire and forget: the port the worker streams the game to the live-room worker over, while watching is on. */
+  | { readonly kind: "livePort"; readonly id: 0; readonly port: MessagePort };
 
 /** A save as it crosses the boundary: the baseline state without its card pool. */
 export interface SerializedSave {

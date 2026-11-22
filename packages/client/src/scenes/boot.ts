@@ -19,9 +19,11 @@ import type { SeatsData } from "./seats.js";
 import type { SetCardsData } from "./set-cards.js";
 import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
+import { takeWatchLink } from "../live/watch-link.js";
+import { loadLiveWatch } from "../live/watch-open.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
 import type { ReplayVersusData } from "./replay-versus.js";
-import { appReplayLinkOf, launchAppLink, offersDesktopApp } from "../platform/app-links.js";
+import { appReplayLinkOf, appWatchLinkOf, launchAppLink, offersDesktopApp } from "../platform/app-links.js";
 import { SharedReplayLoading } from "../ui/replay-link-loading.js";
 import { sceneLoader } from "./scene-loader.js";
 import { needed } from "./scene-order.js";
@@ -50,16 +52,23 @@ export class BootScene extends Phaser.Scene {
     // Opened from a shared replay's link (issues #693, #858): read (and cleared) once, here rather than on Title, so the
     // link shows its own loading screen and goes straight to the board instead of passing through the title menu.
     const replayLink = takeReplayLink();
+    // A live game's watch link (#876) opens the same way, on a replay that follows the game.
+    const watchLink = replayLink ? null : takeWatchLink();
+    const sharedLink = replayLink ?? watchLink;
     // On the web version on a desktop, the replay can open in the installed app instead (#862).
     const openInApp =
-      replayLink && replayLink !== "invalid" && offersDesktopApp()
-        ? () => launchAppLink(appReplayLinkOf(replayLink))
+      sharedLink && sharedLink !== "invalid" && offersDesktopApp()
+        ? () => launchAppLink(replayLink ? appReplayLinkOf(sharedLink) : appWatchLinkOf(sharedLink))
         : null;
-    const replayScreen = replayLink
-      ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title), openInApp)
+    const replayScreen = sharedLink
+      ? new SharedReplayLoading(this, () => goToScreen(this, SCENES.title), openInApp, watchLink !== null)
       : null;
-    const replay = replayLink ? loadSharedReplay(replayLink, undefined, () => replayScreen?.loadingMods()) : null;
-    if (replayLink && replayLink !== "invalid") this.#preloadBoard();
+    const replay = replayLink
+      ? loadSharedReplay(replayLink, undefined, () => replayScreen?.loadingMods())
+      : watchLink
+        ? loadLiveWatch(watchLink, undefined, () => replayScreen?.loadingMods())
+        : null;
+    if (sharedLink && sharedLink !== "invalid") this.#preloadBoard();
     if (!replayScreen) {
       this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);
     }
