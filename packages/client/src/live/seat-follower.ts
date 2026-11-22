@@ -326,9 +326,12 @@ export class SeatFollower implements SeatBackend {
       this.#record ??= row.roomPlay;
       this.#finishing ??= this.#record;
       this.#armed++;
-      if (row.status === "abandoned") return;
-      await deps.storage.setStatus(row.id, "abandoned", deps.now());
-      this.#emit({ type: "saved" });
+      if (row.status !== "abandoned") {
+        await deps.storage.setStatus(row.id, "abandoned", deps.now());
+        this.#emit({ type: "saved" });
+      }
+      // The room's end may have arrived while the row was being found: nothing was waiting to write it then.
+      if (this.#ended) void this.#tryFinish();
     });
   }
 

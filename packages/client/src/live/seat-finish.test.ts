@@ -601,6 +601,33 @@ describe("a guest's finished row (#909)", () => {
         expect(await first.storage.list()).toHaveLength(1);
       });
 
+      test("the game ends while the join lookup is pending: the old win is replaced by the new result", async () => {
+        const first = await seat("all");
+        await first.follower.finish(RECORD);
+        const row = (await first.storage.list())[0]!;
+        await first.storage.setStatus(row.id, "won", 1);
+        first.follower.dispose();
+        let release!: () => void;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        const realLoad = first.storage.load.bind(first.storage);
+        first.storage.load = async (id) => {
+          await held;
+          return realLoad(id);
+        };
+        // The table is running when this follower joins; the final end arrives while the lookup is parked.
+        const second = await rejoin(first.storage, first.game, first.game.commands, false);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        second.feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+        release();
+        // No further room traffic: the finish write follows the reconciliation by itself.
+        const saved = () => second.events.filter((event) => event.type === "saved").length;
+        // One saved for setting the old win aside, one for the new result replacing it.
+        await vi.waitFor(() => expect(saved()).toBe(2));
+        const rows = await first.storage.list();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.updatedAt).toBeGreaterThan(1);
+      });
+
       test("the identical ended log leaves the row untouched", async () => {
         const first = await seat("all");
         await first.follower.finish(RECORD);
