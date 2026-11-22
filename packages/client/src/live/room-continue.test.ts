@@ -118,6 +118,51 @@ describe("a guest's log as a local saved game", () => {
     expect(save.ok && save.meta.config).not.toHaveProperty("roomCheats");
   });
 
+  test("a host Undo past a reveal (a rewind) keeps the continued game adjusted even though the log shows nothing (#904 review)", async () => {
+    const { mirror } = await hostedGame(4);
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 3, adjusted: true } as ServerMessage);
+    const salvage = mirror.salvage()!;
+    expect(salvage.commands).toHaveLength(3);
+    const storage = new MemoryGameStorage();
+    const id = (await saveRoomGame(salvage, ROOM, storage, deps()))!;
+    // Offline, as the guest's device would open it: the replay is unchanged, the row stays adjusted, and the readers skip it.
+    const guest = new EngineSessionCore({ storage });
+    await guest.resume(id);
+    const meta = (await storage.list())[0]!;
+    expect(meta.adjusted).toBe(true);
+    expect(isAdjustedSave(meta)).toBe(true);
+  });
+
+  test("a reconnect that brings the same game's log again keeps the latch; a rewind to the same count cuts nothing", async () => {
+    const { mirror } = await hostedGame(4);
+    const before = mirror.salvage()!;
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 4 } as ServerMessage);
+    expect(mirror.salvage()!.adjusted).toBeUndefined();
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);
+    mirror.clear(true);
+    mirror.apply({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: FIRST_TABLE,
+      header: before.header,
+      commands: before.commands.slice(0, 2),
+      checksums: {},
+    } as ServerMessage);
+    expect(mirror.salvage()!.adjusted).toBe(true);
+    // A different game's header starts clean.
+    mirror.apply({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: FIRST_TABLE,
+      header: { ...(before.header as object), createdAt: 1 },
+      commands: [],
+      checksums: {},
+    } as ServerMessage);
+    expect(mirror.salvage()!.adjusted).toBeUndefined();
+  });
+
   test("a game with a Manual adjust in its log is adjusted too", async () => {
     const { mirror } = await hostedGame(1);
     const salvage = mirror.salvage()!;

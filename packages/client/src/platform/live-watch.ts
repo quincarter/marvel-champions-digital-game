@@ -134,7 +134,11 @@ function spawn(): boolean {
       return;
     }
     if (event.data.kind === "room-salvage") {
-      salvaged = { header: event.data.header, commands: event.data.commands };
+      salvaged = {
+        header: event.data.header,
+        commands: event.data.commands,
+        ...(event.data.adjusted ? { adjusted: true as const } : {}),
+      };
       return;
     }
     if (event.data.kind === "room-start-refused") {

@@ -51,13 +51,13 @@ const commands = (from: number, list: unknown[]): ServerMessage =>
   ({ v: 1, ch: "game", kind: "commands", table: T, from, commands: list }) as ServerMessage;
 
 describe("GameMirror salvage for a guest whose room closed (#904)", () => {
-  test("a held game gives its header and every command, after rewinds and batches", () => {
+  test("a held game gives its header and every command; a rewind that cut the log marks it adjusted", () => {
     const mirror = new GameMirror(T);
     expect(mirror.salvage()).toBeNull();
     mirror.apply(log([1, 2, 3]));
     mirror.apply(commands(3, [4, 5]));
     mirror.apply({ v: 1, ch: "game", kind: "rewind", table: T, to: 4 } as ServerMessage);
-    expect(mirror.salvage()).toEqual({ header: { h: 1 }, commands: [1, 2, 3, 4] });
+    expect(mirror.salvage()).toEqual({ header: { h: 1 }, commands: [1, 2, 3, 4], adjusted: true });
   });
 
   test("a finished game, a log still arriving and a cleared mirror give nothing to continue from", () => {

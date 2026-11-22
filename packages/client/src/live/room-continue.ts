@@ -102,7 +102,8 @@ export function roomGameSave(salvage: RoomGameSalvage, roomId: string, deps: Roo
     config = { ...config, packs: found as PackRuntime[] };
   }
   const at = deps.now();
-  const adjusted = header.adjusted === true || commands.some((command) => command.type === "adjust");
+  const adjusted =
+    header.adjusted === true || salvage.adjusted === true || commands.some((command) => command.type === "adjust");
   const meta: SaveMeta = {
     id: deps.newId(),
     schema: SAVE_SCHEMA,

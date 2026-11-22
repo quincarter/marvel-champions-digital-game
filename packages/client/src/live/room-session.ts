@@ -726,7 +726,7 @@ export class RoomSession {
     const roomId = this.#model.roomId;
     this.#socket?.close();
     this.#socket = null;
-    this.#mirror.clear();
+    this.#mirror.clear(true);
     this.#model.dropped();
     this.#publish();
     this.#feed?.postMessage({ kind: "connection", connected: false });
