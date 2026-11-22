@@ -595,11 +595,12 @@ export class GameRoomLogic {
    * broadcast) goes out before this returns true. When the put fails the lobby in memory goes back to `before`, so the
    * room never holds a seat or a token hash the stored row lacks, and the caller refuses.
    */
-  private async saveLobby(before: LobbySnapshot): Promise<boolean> {
+  private async saveLobby(before: LobbySnapshot, bump = true): Promise<boolean> {
     const lobby = this.lobby;
     if (!lobby) return false;
-    // Under the lobby lock the revision in memory is the stored one, so each save is strictly one higher.
-    lobby.rev = (lobby.rev ?? 0) + 1;
+    // Under the lobby lock the revision in memory is the stored one, so each save is strictly one higher. A re-attach
+    // (`bump` false) stores the new holder id without moving the revision: nothing a start judged has changed.
+    if (bump) lobby.rev = (lobby.rev ?? 0) + 1;
     try {
       await this.storage.put("lobby", lobby);
     } catch {
@@ -1613,6 +1614,9 @@ export class GameRoomLogic {
     if (!lobby) return;
     const before = this.lobbyBefore(lobby);
     let changed = false;
+    // A seat its holder (same name, not away) takes back on a reconnect: only the participant id is new, so the lobby
+    // is stored and sent but its revision stays, or a host's Start judged just before the drop is refused `lobby-changed`.
+    let reattached = false;
     if (you.role === "host" && you.build) {
       const { appVersion, contentVersion, rules } = you.build;
       if (
@@ -1633,13 +1637,14 @@ export class GameRoomLogic {
         this.refuse(socket, "multi-seat");
         continue;
       }
+      if (seat.holder !== undefined && seat.holderName === (you.name ?? "")) reattached = true;
+      else changed = true;
       seat.holder = you.id;
       seat.holderName = you.name ?? "";
-      changed = true;
     }
-    if (changed) {
+    if (changed || reattached) {
       // A failed save leaves the lobby as it was: the joiner is told, and its token reclaims the seat on its next reconnect.
-      if (!(await this.saveLobby(before))) {
+      if (!(await this.saveLobby(before, changed))) {
         // Nothing was committed. The joiner is told and sent the lobby as it is, so its view and its kept tokens agree.
         this.refuse(socket, "not-saved");
         this.sendSocket(socket, { v: 1, ch: "room", kind: "lobby", ...this.lobbyState(lobby) });
