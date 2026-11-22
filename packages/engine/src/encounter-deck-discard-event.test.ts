@@ -508,7 +508,9 @@ describe("§3.43 (b): Serpent Solutions' shape, and the card a response took awa
     expect(metered(table, state, "found")).toBe(0);
   });
 
-  it("once Serpent Solutions has dealt the minion away, no other ability answers its discard", () => {
+  it("once Serpent Solutions has dealt the minion away, one that needs nothing of it still answers", () => {
+    // The discard happened (RRG 1.8 "Response", p. 38; "Triggering Condition", p. 45): a counter on the watcher is
+    // placed whatever became of the card (issue #928).
     // All forced, ordered by the first player (RRG 1.8 "Simultaneous Timing Priority", p. 5): Serpent Solutions first.
     const solutionsFirst: Pick = (state) => {
       const choice = state.pendingChoice;
@@ -520,8 +522,9 @@ describe("§3.43 (b): Serpent Solutions' shape, and the card a response took awa
     const table = start([SOLDIER], { solutions: true, inPlay: [WATCH, EYE] });
     const { state, events } = useEye(table, solutionsFirst);
     const order = events.flatMap((e) => (e.type === "abilityResolved" ? [`${e.abilityId}`] : []));
-    expect(order).toEqual([SOLUTIONS_RESPONSE.ref.id, EYE_ACTION.ref.id]);
-    expect(watched(table, state, "seen")).toBe(0);
+    expect(order).toEqual([SOLUTIONS_RESPONSE.ref.id, WATCH_ALL.ref.id, WATCH_COST.ref.id, EYE_ACTION.ref.id]);
+    expect(watched(table, state, "seen")).toBe(1);
+    expect(watched(table, state, "cost")).toBe(1);
     expect(mustPlayer(state, P1).dealtEncounter).toEqual([table.top[0]]);
   });
 });
