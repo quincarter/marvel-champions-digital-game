@@ -318,4 +318,19 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.credits.packs_one": "{count} paquete",
   "modStore.credits.packs_other": "{count} paquetes",
   "modStore.credits.intro": "Quienes crean los paquetes de la tienda. Elige un nombre para ver lo que ha hecho.",
+  "modStore.updateAll.ready_one": "{count} paquete instalado tiene una actualización.",
+  "modStore.updateAll.ready_other": "{count} paquetes instalados tienen actualizaciones.",
+  "modStore.updateAll.button": "Actualizar todo",
+  "modStore.updateAll.stop": "Detener",
+  "modStore.updateAll.stopping": "Se detendrá tras este",
+  "modStore.updateAll.running": "Actualizando {at} de {total}: {name}",
+  "modStore.updateAll.updated_one": "{count} paquete actualizado.",
+  "modStore.updateAll.updated_other": "{count} paquetes actualizados.",
+  "modStore.updateAll.failed_one":
+    "{count} paquete no se pudo actualizar y conserva su versión anterior. Está marcado con ! abajo: ábrelo para intentarlo de nuevo.",
+  "modStore.updateAll.failed_other":
+    "{count} paquetes no se pudieron actualizar y conservan su versión anterior. Están marcados con ! abajo: abre uno para intentarlo de nuevo.",
+  "modStore.updateAll.retry": "Reintentar",
+  "modStore.updateAll.show": "Verlos",
+  "modStore.updateAll.stopped": "Detenido. El resto aún se puede actualizar.",
 };

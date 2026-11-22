@@ -318,4 +318,19 @@ export const en = {
   "modStore.credits.packs_one": "{count} pack",
   "modStore.credits.packs_other": "{count} packs",
   "modStore.credits.intro": "The people who make the store's packs. Pick a name to see what they made.",
+  "modStore.updateAll.ready_one": "{count} installed pack has an update.",
+  "modStore.updateAll.ready_other": "{count} installed packs have updates.",
+  "modStore.updateAll.button": "Update all",
+  "modStore.updateAll.stop": "Stop",
+  "modStore.updateAll.stopping": "Stopping after this one",
+  "modStore.updateAll.running": "Updating {at} of {total}: {name}",
+  "modStore.updateAll.updated_one": "{count} pack updated.",
+  "modStore.updateAll.updated_other": "{count} packs updated.",
+  "modStore.updateAll.failed_one":
+    "{count} pack could not update and kept its old version. It is marked ! below: open it to try again.",
+  "modStore.updateAll.failed_other":
+    "{count} packs could not update and kept their old versions. They are marked ! below: open one to try again.",
+  "modStore.updateAll.retry": "Retry update",
+  "modStore.updateAll.show": "Show them",
+  "modStore.updateAll.stopped": "Stopped. The rest can still update.",
 } as const;

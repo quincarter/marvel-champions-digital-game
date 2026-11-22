@@ -95,6 +95,21 @@ import { RailScroll } from "../view/rail-scroll.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { notePackUpdates } from "../packs/pack-updates.js";
+import { LatestRead } from "../view/latest-read.js";
+import {
+  failedIdsOf,
+  failureOf,
+  nextOf,
+  resultOf,
+  startRun,
+  stepRun,
+  updateAllBarOf,
+  updateAllQueueOf,
+  type UpdateAllAction,
+  type UpdateAllBar,
+  type UpdateAllResult,
+  type UpdateAllRun,
+} from "../view/mod-store-update-all.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { installPack, type InstallProgress } from "../packs/install-pack.js";
 import {
@@ -201,6 +216,17 @@ export class ModStoreScene extends Phaser.Scene {
   #installToken = 0;
   /** A removal is running: the buttons stay disabled until it ends. */
   #removing = false;
+  /** Update all (issue #957): the run going now, and how the last one ended. A run carries on across visits. */
+  #updateRun: UpdateAllRun | null = null;
+  #updateResult: UpdateAllResult | null = null;
+  /** The Update all bar's words and progress bar, so a progress report redraws only these. */
+  #updateBarObjects: Phaser.GameObjects.GameObject[] = [];
+  #updateBarRect: Rect | null = null;
+  /**
+   * The installed-pack reads (`view/latest-read.ts`): a load started before or during an Update all's refresh never
+   * puts an older list back over a newer one.
+   */
+  readonly #installedReads = new LatestRead();
   /** The progress bar's objects, so a report redraws only these (the text panel keeps its scroll position). */
   #statusObjects: Phaser.GameObjects.GameObject[] = [];
   #statusRect: Rect | null = null;
@@ -247,6 +273,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#packId = data.packId ?? null;
     // An install still running from an earlier visit carries on (the scene instance is reused); only a stale failure goes.
     if (this.#install?.error) this.#install = null;
+    // How the last Update all ended is news for the visit it ran in; a run still going carries on.
+    if (!this.#updateRun) this.#updateResult = null;
     this.#confirmingRemove = false;
     this.#removing = false;
     this.#statusQueued = false;
@@ -362,22 +390,27 @@ export class ModStoreScene extends Phaser.Scene {
   async #load(): Promise<void> {
     this.#status = "loading";
     try {
-      const [catalog, installed] = await Promise.all([
+      const [catalog, read] = await Promise.all([
         // A dev override must never overwrite the real catalog's saved copy.
         loadCatalog(this.#catalogUrl ? { url: this.#catalogUrl, storage: null } : {}),
-        // `null` when the read failed: the store shows nothing installed, but the Title's count is left as it was.
-        this.#store.list().catch(() => null),
+        this.#readInstalled(),
       ]);
+      // `null` when the read failed: the store shows nothing installed, but the Title's count is left as it was.
+      const installed = read.installed;
       this.#index = catalog.index;
       this.#offline = catalog.offline;
-      this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
+      // A newer read was kept while this load waited (an update landed): its list stands, and the badge is counted
+      // from it too, never from this older read.
+      const current = this.#keep(read.ticket, installed);
       // A dev catalog override is not the real store's, so it never sets the Title's update badge.
-      if (!this.#catalogUrl && installed) notePackUpdates(catalog.index, installed, catalog.offline);
+      if (!this.#catalogUrl && installed) {
+        notePackUpdates(catalog.index, current ? installed : [...this.#installed.values()], catalog.offline);
+      }
       this.#status = "ready";
     } catch {
       // No network and no saved copy: still show what is installed.
-      const installed = await this.#store.list().catch(() => [] as InstalledPack[]);
-      this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+      const read = await this.#readInstalled();
+      this.#keep(read.ticket, read.installed);
       this.#status = "failed";
     }
     this.#requestRedraw();
@@ -391,12 +424,43 @@ export class ModStoreScene extends Phaser.Scene {
     void this.#load();
   }
 
-  async #refreshInstalled(): Promise<void> {
+  /**
+   * Reads the installed packs with a ticket taken as the read is issued; `null` when it failed. `afterChange` (after an
+   * install, update or removal) fences out every earlier read.
+   */
+  async #readInstalled(afterChange = false): Promise<{ ticket: number; installed: readonly InstalledPack[] | null }> {
+    const ticket = this.#installedReads.issue();
+    if (afterChange) this.#installedReads.fence(ticket);
     const installed = await this.#store.list().catch(() => null);
-    this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
-    if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
-    // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
+    return { ticket, installed };
+  }
+
+  /**
+   * Keeps a read's list unless a read issued after it was kept already; true when kept. A failed read (`null`) keeps
+   * nothing and moves nothing on: the last list read stands, and an older read that succeeds later may still be kept.
+   */
+  #keep(ticket: number, installed: readonly InstalledPack[] | null): boolean {
+    if (installed === null || !this.#installedReads.keep(ticket)) return false;
+    this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+    return true;
+  }
+
+  async #refreshInstalled(retry = true): Promise<void> {
+    // Installed packs join the running game's pool (not awaited: the load is validated in a worker), after every change
+    // to the store, whatever becomes of the list read below.
     void refreshActivePacks();
+    // The store has changed: no read issued before this one may be kept now, even if this one fails.
+    const { ticket, installed } = await this.#readInstalled(true);
+    if (installed === null && retry) {
+      // A failed read leaves the last list standing (stale): read once more shortly.
+      this.time.delayedCall(1000, () => void this.#refreshInstalled(false));
+      return;
+    }
+    // A failed read, or one a newer read has already replaced, leaves the list (and the badge) to that one.
+    if (!this.#keep(ticket, installed)) return;
+    if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
+    // The retry lands on its own, after the install has redrawn from the old list: draw the new one.
+    if (!retry) this.#requestRedraw();
   }
 
   #context(): ModStoreContext {
@@ -492,10 +556,11 @@ export class ModStoreScene extends Phaser.Scene {
     }
   }
 
-  async #installTile(tile: ModStoreTile): Promise<void> {
+  /** Installs or updates one pack; true once it is in. */
+  async #installTile(tile: Pick<ModStoreTile, "id">): Promise<boolean> {
     const entry = this.#index?.packs.find((one) => one.id === tile.id);
     // Only a RUNNING install blocks another; a failed one's error is stale the moment a new run starts.
-    if (!entry || (this.#install && this.#install.error === null)) return;
+    if (!entry || (this.#install && this.#install.error === null)) return false;
     const token = ++this.#installToken;
     const installedVersion = this.#installed.get(tile.id)?.version;
     this.#install = { id: tile.id, progress: null, error: null };
@@ -509,18 +574,104 @@ export class ModStoreScene extends Phaser.Scene {
           this.#requestStatusRepaint();
         },
       });
-      if (token !== this.#installToken) return;
+      if (token !== this.#installToken) return false;
       await this.#refreshInstalled();
       // The install is noted for the "install a mod" achievements (docs/custom-content-packs.md section 11.12).
       void refreshUnlocks().catch(() => false);
-      if (token !== this.#installToken) return;
+      if (token !== this.#installToken) return false;
       this.#install = null;
+      this.#requestRedraw();
+      return true;
     } catch (error) {
-      if (token !== this.#installToken) return;
+      if (token !== this.#installToken) return false;
       // A failed install leaves nothing installed (§7.2.3), and a failed update leaves the old version: say so.
       this.#install = { id: tile.id, progress: null, error: errorTextOf(error, installedVersion) };
+      this.#requestRedraw();
+      return false;
     }
+  }
+
+  /** An install or a removal is running (Update all's own included). */
+  #busy(): boolean {
+    return (this.#install !== null && this.#install.error === null) || this.#removing || this.#updateRun !== null;
+  }
+
+  /**
+   * Update all (issue #957): every installed pack with an update, one after another. A pack that fails keeps its old
+   * version and the run goes on to the next; Stop ends it once the pack updating now is in.
+   */
+  async #updateAll(): Promise<void> {
+    if (this.#busy()) return;
+    const queue = updateAllQueueOf(tilesOf(this.#index, this.#context(), "all"));
+    if (queue.length === 0) return;
+    if (showNoticeBeforeInstall(modNoticeSeen())) {
+      this.#showNotice(() => void this.#updateAll());
+      return;
+    }
+    this.#updateResult = null;
+    this.#updateRun = startRun(queue);
     this.#requestRedraw();
+    for (let item = nextOf(this.#updateRun); item; item = nextOf(this.#updateRun)) {
+      const ok = await this.#installTile(item);
+      // Why it failed, kept with the result: the next pack's install replaces `#install`.
+      const error = !ok && this.#install?.id === item.id ? this.#install.error : null;
+      this.#updateRun = stepRun(this.#updateRun, ok, error);
+      this.#requestRedraw();
+    }
+    this.#updateResult = resultOf(this.#updateRun);
+    this.#updateRun = null;
+    this.#requestRedraw();
+  }
+
+  #stopUpdateAll(): void {
+    if (!this.#updateRun || this.#updateRun.stopping) return;
+    this.#updateRun = { ...this.#updateRun, stopping: true };
+    this.#requestRedraw();
+  }
+
+  /**
+   * The install state a pack's page shows: its own install or update, else (no install of it since) why the last
+   * Update all could not update it, until a retry lands.
+   */
+  #installStateFor(id: string): InstallState | null {
+    if (this.#install?.id === id) return this.#install;
+    const pending = updateAllQueueOf(tilesOf(this.#index, this.#context(), "all"));
+    const error = failureOf(this.#updateResult, pending, id);
+    return error ? { id, progress: null, error } : null;
+  }
+
+  /** The packs the last Update all could not update that still can be: their tiles say so. */
+  #failedIds(): ReadonlySet<string> {
+    if (!this.#updateResult) return new Set();
+    return failedIdsOf(this.#updateResult, updateAllQueueOf(tilesOf(this.#index, this.#context(), "all")));
+  }
+
+  #updateAllBar(): UpdateAllBar | null {
+    const run = this.#updateRun;
+    const current = run ? run.queue[run.done]?.id : undefined;
+    return updateAllBarOf({
+      pending: updateAllQueueOf(tilesOf(this.#index, this.#context(), "all")),
+      run,
+      progress: current !== undefined && this.#install?.id === current ? this.#install.progress : null,
+      result: this.#updateResult,
+      busy: this.#busy(),
+      shown: new Set(
+        filterTiles(tilesOf(this.#index, this.#context(), this.#tab), this.#filter).map((tile) => tile.id),
+      ),
+    });
+  }
+
+  /**
+   * "Show them" on the Update all bar: failed packs the tab or the search hid. Installed lists every one of them, so it
+   * opens with the search, tags and creator cleared (the sort stays), from its top.
+   */
+  #showFailed(): void {
+    this.#searchInput?.setValue("");
+    this.#filter = { ...EMPTY_FILTER, sort: this.#filter.sort };
+    this.#findersOpen = false;
+    this.#tab = "installed";
+    this.#scroll("installed").reset();
+    this.#draw();
   }
 
   async #remove(tile: ModStoreTile): Promise<void> {
@@ -547,6 +698,7 @@ export class ModStoreScene extends Phaser.Scene {
     this.time.delayedCall(0, () => {
       this.#statusQueued = false;
       this.#paintStatus();
+      this.#paintUpdateBar();
     });
   }
 
@@ -555,7 +707,7 @@ export class ModStoreScene extends Phaser.Scene {
     if (!this.#alive || !rect || this.#packId === null) return;
     for (const object of this.#statusObjects) object.destroy();
     const before = this.children.list.length;
-    const running = this.#install?.id === this.#packId ? this.#install : null;
+    const running = this.#packId === null ? null : this.#installStateFor(this.#packId);
     this.#drawStatus(running, this.#error, this.#requirement, rect);
     this.#statusObjects = this.children.list.slice(before);
   }
@@ -576,6 +728,8 @@ export class ModStoreScene extends Phaser.Scene {
     this.#galleryRect = null;
     this.#statusObjects = [];
     this.#statusRect = null;
+    this.#updateBarObjects = [];
+    this.#updateBarRect = null;
   }
 
   #draw(): void {
@@ -836,6 +990,9 @@ export class ModStoreScene extends Phaser.Scene {
         .setFontSize(12);
       fitText(notice, box.width - 24, 12);
       listTop += box.height + 10;
+    }
+    if (this.#status === "ready" && this.#tab !== "credits") {
+      listTop = this.#drawUpdateBar({ x: gutter, y: listTop, width: width - gutter * 2 }, phone, stops, order);
     }
 
     const message = (text: string, at: Rect): void => {
@@ -1256,14 +1413,18 @@ export class ModStoreScene extends Phaser.Scene {
     fromLeft = false,
   ): Phaser.GameObjects.GameObject[] {
     // A symbol and the words: the state never rests on color alone.
-    const mark = { install: "+", installed: "✓", update: "↑", "needs-app-update": "!", withdrawn: "✕" }[tile.state];
+    // A pack Update all could not update says so on its own tile (issue #957), so every failure can be found.
+    const failed = tile.state === "update" && this.#failedIds().has(tile.id);
+    const mark = failed
+      ? "!"
+      : { install: "+", installed: "✓", update: "↑", "needs-app-update": "!", withdrawn: "✕" }[tile.state];
     const solid = tile.state === "install" || tile.state === "update";
     const g = this.add.graphics();
     const text = this.add
       .text(
         0,
         0,
-        `${mark} ${tile.stateLabel}`,
+        `${mark} ${failed ? t("modStore.updateAll.retry") : tile.stateLabel}`,
         textStyle(typeRole.label, solid ? surface.paper.hex : surface.ink.hex, 1),
       )
       .setOrigin(0, 0);
@@ -1336,8 +1497,9 @@ export class ModStoreScene extends Phaser.Scene {
           this.#previewOf(tile)?.achievements ??
           []);
     const page = packPageOf(tile, entry, installed, achievements, this.#previewOf(tile)?.description);
-    const running = this.#install?.id === tile.id ? this.#install : null;
-    const busy = (running !== null && running.error === null) || this.#removing;
+    const running = this.#installStateFor(tile.id);
+    // Update all holds every page's buttons until it ends; the pack it is on shows its own progress.
+    const busy = (running !== null && running.error === null) || this.#removing || this.#updateRun !== null;
 
     // What the page shows of the pack: an installed, loaded pack's own data; before that (or when it did not load) the
     // preview fetched from the store, which is all there is of an uninstalled pack.
@@ -1683,6 +1845,114 @@ export class ModStoreScene extends Phaser.Scene {
       });
     });
     return found;
+  }
+
+  /**
+   * The Update all bar over the grid (issue #957), when an installed pack has an update or a run has news: its words
+   * and progress on the left, Update all or Stop on the right. Returns the y below it.
+   */
+  #drawUpdateBar(
+    at: { x: number; y: number; width: number },
+    phone: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): number {
+    const bar = this.#updateAllBar();
+    if (!bar) return at.y;
+    const pad = 10;
+    const actions = [bar.show, bar.action].filter((action) => action !== null);
+    const widthOf = (action: UpdateAllAction): number =>
+      action.id === "show-failed" ? (phone ? 112 : 150) : phone ? 128 : 200;
+    // A phone with two buttons puts them in a row under the words; otherwise they sit at the bar's right.
+    const below = phone && actions.length > 1;
+    const sideWidth = below ? 0 : actions.reduce((sum, action) => sum + widthOf(action) + pad, 0);
+    const lineRect: Rect = {
+      x: at.x + pad,
+      y: at.y + pad,
+      width: at.width - pad * 2 - sideWidth,
+      height: hit.target,
+    };
+    // The words first, to size the bar: a phone's narrow bar may need a third line.
+    const before = this.children.list.length;
+    const label = this.#drawUpdateBarText(bar, lineRect);
+    const textRect: Rect = { ...lineRect, height: Math.max(hit.target, label.height) };
+    if (bar.fraction === null) label.setY(textRect.y + (textRect.height - label.height) / 2);
+    this.#updateBarObjects = this.children.list.slice(before);
+    this.#updateBarRect = textRect;
+    const rowHeight = below ? hit.target + pad : 0;
+    const box: Rect = { x: at.x, y: at.y, width: at.width, height: textRect.height + pad * 2 + rowHeight };
+    const panel = this.add
+      .rectangle(box.x, box.y, box.width, box.height, surface.card.hex)
+      .setOrigin(0, 0)
+      .setStrokeStyle(2, surface.ink.hex)
+      .setName("update-all-bar");
+    this.children.moveBelow(panel, this.#updateBarObjects[0]!);
+    const rowY = below ? textRect.y + textRect.height + pad : box.y + (box.height - hit.target) / 2;
+    const rowWidth = (box.width - pad * (actions.length + 1)) / actions.length;
+    // Side by side: from the bar's right edge less the buttons' widths, a pad between each.
+    let cursor = box.x + box.width - sideWidth;
+    actions.forEach((action, index) => {
+      const width = below ? rowWidth : widthOf(action);
+      const rect: Rect = {
+        x: below ? box.x + pad + index * (rowWidth + pad) : cursor,
+        y: rowY,
+        width,
+        height: hit.target,
+      };
+      cursor += width + pad;
+      const press = (): void => {
+        if (action.id === "stop") this.#stopUpdateAll();
+        else if (action.id === "show-failed") this.#showFailed();
+        else void this.#updateAll();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: action.id === "update-all" ? "primary" : "secondary",
+          label: action.id === "update-all" ? `↑ ${action.label}` : action.label,
+          type: typeRole.label,
+          rect,
+          enabled: action.enabled,
+          onClick: press,
+        }),
+      );
+      const key = action.id === "show-failed" ? "update-all-show" : "update-all";
+      stops.set(key, { rect, activate: press });
+      order.push(key);
+      this.#obstacles.push(rect);
+    });
+    return box.y + box.height + 10;
+  }
+
+  /** The bar's words (returned), and its progress bar while a run is going. */
+  #drawUpdateBarText(bar: UpdateAllBar, rect: Rect): Phaser.GameObjects.Text {
+    const label = this.add
+      .text(rect.x, rect.y, bar.text, textStyle(typeRole.rowTitle, surface.ink.hex))
+      .setFontSize(13)
+      .setName("update-all-text");
+    if (bar.fraction !== null) {
+      fitText(label, rect.width, 11);
+      const barH = 10;
+      const y = rect.y + rect.height - barH - 1;
+      const g = this.add.graphics();
+      g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, y, rect.width - 2, barH);
+      g.fillStyle(signal.heal.hex, 1).fillRect(rect.x + 3, y + 2, (rect.width - 6) * bar.fraction, barH - 4);
+    } else {
+      fitWrapped(label, rect.width, 3, 11);
+      label.setY(rect.y + (rect.height - label.height) / 2);
+    }
+    return label;
+  }
+
+  /** A progress report redraws the bar's words and fill alone (its button stays as it is). */
+  #paintUpdateBar(): void {
+    const rect = this.#updateBarRect;
+    if (!this.#alive || !rect || this.#packId !== null || !this.#updateRun) return;
+    const bar = this.#updateAllBar();
+    if (!bar) return;
+    for (const object of this.#updateBarObjects) object.destroy();
+    const before = this.children.list.length;
+    this.#drawUpdateBarText(bar, rect);
+    this.#updateBarObjects = this.children.list.slice(before);
   }
 
   /** The progress bar (with its words) while installing, the last failure in words, or a remove failure. */
