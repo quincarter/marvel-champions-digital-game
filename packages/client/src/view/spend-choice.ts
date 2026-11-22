@@ -119,7 +119,12 @@ function pickGroupBasesOf(choice: Pick<PendingChoice, "options">): readonly stri
         .filter((option) => option.picksMany === true && abilityPicksOf(option.optionId).length > 0)
         .map((option) => baseOf(option.optionId)),
     ),
-  ];
+  ].filter((base) => {
+    // Built a card at a time, so every candidate needs a set of its own to start from (PR #969 review).
+    const ways = groupWays(choice, base).map((way) => abilityPicksOf(way.optionId));
+    const alone = new Set(ways.filter((set) => set.length === 1).map((set) => set[0]!));
+    return ways.flat().every((card) => alone.has(card));
+  });
 }
 
 const pickTileId = (base: string, candidate: InstanceId): string => `${PICK_TILE}${candidate}@${base}`;

@@ -173,6 +173,11 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
       expect(shownSpendChoice(single)).toBe(single);
     });
 
+    test("a set with no one-card start keeps its option tiles, even marked as a set", () => {
+      const pairs = choiceOf([sub(["a", "b"], ["EMP", "Armor"]), sub(["a", "c"], ["EMP", "Gun"])], "payForCard");
+      expect(shownSpendChoice(pairs)).toBe(pairs);
+    });
+
     test("one upgrade to exhaust is still its own tile, showing that upgrade", () => {
       const lone = choiceOf([card("x", "Energy"), sub(["a"], ["EMP"])], "payForCard");
       expect(shownSpendChoice(lone).options.map((option) => option.optionId)).toEqual(["hand:x", `pick:a@${base}`]);

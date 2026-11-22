@@ -1745,13 +1745,19 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
 }
 
 /**
- * Whether a resource ability's cost picks more than one card in play: "any number" (no `max`) or "up to N" with N above
- * one, and not an `each` pick (it takes every match, so it is never a choice). Its options are sets of cards
- * (`ChoiceOption.picksMany`).
+ * Whether a resource ability's cost picks a set of cards in play that can be built one card at a time: "any number" (no
+ * `max`) or "up to N" with N above one, from none or one, and not an `each` pick (it takes every match, so it is never
+ * a choice). Its options are sets of cards (`ChoiceOption.picksMany`).
  */
 function picksMany(deps: EngineDeps, abilityId: string): boolean {
-  return inPlayPicksOf(deps.abilities[abilityId]?.cost).some(
-    ({ pick }) => !pick.each && (pick.max === undefined || pick.max > 1),
+  const picks = inPlayPicksOf(deps.abilities[abilityId]?.cost);
+  return (
+    picks.length > 0 &&
+    picks.every(
+      // A pick of at least two (`min` above one) has no one-card set to start from, so it cannot be built a card at a
+      // time: it keeps its one option per set (PR #969 review).
+      ({ pick }) => !pick.each && pick.min <= 1 && (pick.max === undefined || pick.max > 1),
+    )
   );
 }
 

@@ -164,6 +164,22 @@ describe("a resource ability in hand that pays for its own card (#890 item 2)", 
     if (!result.ok) throw new Error(result.error.message);
   });
 
+  it("a pick of at least two is not marked as built one card at a time (PR #969 review)", () => {
+    // The same star needing two upgrades: no one-upgrade set exists to start from, so its sets stay one option each.
+    const pickTwo = {
+      ...SENSE_RESOURCE.definition,
+      cost: { exhaustCards: { ...SENSE_RESOURCE.definition.cost!.exhaustCards!, min: 2 } },
+    } as AbilityDefinition;
+    const twoDeps: EngineDeps = { ...deps, abilities: { ...deps.abilities, [SENSE_RESOURCE.ref.id]: pickTwo } };
+    const s = start();
+    const state = playerCardIntoPlay(s.state, RIFLE.id, P1).state;
+    const options = paymentOptions(createCtx(state, twoDeps), P1, null, s.sense).filter((o) =>
+      o.optionId.includes(SENSE_RESOURCE.ref.id),
+    );
+    expect(options.length).toBeGreaterThan(0);
+    expect(options.some((o) => o.picksMany)).toBe(false);
+  });
+
   it("is offered as a payment option for its own card only", () => {
     const s = start();
     const legal = legalActions(s.state, P1, deps);

@@ -573,7 +573,12 @@ function pickGroupBases(sources: readonly PaymentSource[]): readonly string[] {
         )
         .map((source) => optionBase(source.optionId)),
     ),
-  ];
+  ].filter((base) => {
+    // Built a card at a time, so every candidate needs a set of its own to start from (PR #969 review).
+    const ways = pickGroupWays(sources, base);
+    const alone = new Set(ways.filter((way) => picksOf(way).length === 1).map((way) => picksOf(way)[0]!));
+    return ways.flatMap(picksOf).every((card) => alone.has(card));
+  });
 }
 
 /** Every option of one multi-pick ability, whatever it picks (the empty set included). */
