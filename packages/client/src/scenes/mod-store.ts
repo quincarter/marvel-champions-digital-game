@@ -424,9 +424,13 @@ export class ModStoreScene extends Phaser.Scene {
     void this.#load();
   }
 
-  /** Reads the installed packs with a ticket taken as the read is issued; `null` when it failed. */
-  async #readInstalled(): Promise<{ ticket: number; installed: readonly InstalledPack[] | null }> {
+  /**
+   * Reads the installed packs with a ticket taken as the read is issued; `null` when it failed. `afterChange` (after an
+   * install, update or removal) fences out every earlier read.
+   */
+  async #readInstalled(afterChange = false): Promise<{ ticket: number; installed: readonly InstalledPack[] | null }> {
     const ticket = this.#installedReads.issue();
+    if (afterChange) this.#installedReads.fence(ticket);
     const installed = await this.#store.list().catch(() => null);
     return { ticket, installed };
   }
@@ -441,11 +445,17 @@ export class ModStoreScene extends Phaser.Scene {
     return true;
   }
 
-  async #refreshInstalled(): Promise<void> {
+  async #refreshInstalled(retry = true): Promise<void> {
     // Installed packs join the running game's pool (not awaited: the load is validated in a worker), after every change
     // to the store, whatever becomes of the list read below.
     void refreshActivePacks();
-    const { ticket, installed } = await this.#readInstalled();
+    // The store has changed: no read issued before this one may be kept now, even if this one fails.
+    const { ticket, installed } = await this.#readInstalled(true);
+    if (installed === null && retry) {
+      // A failed read leaves the last list standing (stale): read once more shortly.
+      this.time.delayedCall(1000, () => void this.#refreshInstalled(false));
+      return;
+    }
     // A failed read, or one a newer read has already replaced, leaves the list (and the badge) to that one.
     if (!this.#keep(ticket, installed)) return;
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);

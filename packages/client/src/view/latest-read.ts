@@ -14,6 +14,14 @@ export class LatestRead {
     return ++this.#issued;
   }
 
+  /**
+   * The store changed: every read issued before `ticket` saw the old data and is never kept, even if read `ticket`
+   * itself fails (the last kept answer then stands, stale, until a later read is kept).
+   */
+  fence(ticket: number): void {
+    if (ticket > this.#kept) this.#kept = ticket;
+  }
+
   /** Whether the answer to read `ticket` may be used; marks it kept when so. */
   keep(ticket: number): boolean {
     if (ticket < this.#kept) return false;

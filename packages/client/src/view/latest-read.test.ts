@@ -31,6 +31,16 @@ describe("LatestRead", () => {
     expect(reads.keep(load)).toBe(true);
   });
 
+  it("never keeps a read from before a store change, even when the read after the change fails", () => {
+    const reads = new LatestRead();
+    const load = reads.issue();
+    // An update lands; its own read is fenced in before it is answered, and that answer fails (keep is never called).
+    reads.fence(reads.issue());
+    expect(reads.keep(load)).toBe(false);
+    // The next good read is kept.
+    expect(reads.keep(reads.issue())).toBe(true);
+  });
+
   it("keeps reads that do not overlap", () => {
     const reads = new LatestRead();
     expect(reads.keep(reads.issue())).toBe(true);
