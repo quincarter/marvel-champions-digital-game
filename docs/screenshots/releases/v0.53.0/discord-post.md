@@ -11,6 +11,7 @@
 - **Decks & Collection** shows each deck's aspect chips. On a desktop, a click opens the deck's Check.
 - **Take your seats and Deck check** read in Spanish.
 - **Fixes:** ally stat badges no longer cover the small print, Matchups names custom scenarios, and Take a Stand, Hired Gun and Thomas Edison follow the rules more closely.
+- **Coming soon: multiplayer.** It's being built now. Host a room, invite friends with a code or a link, and each player plays their own hero from their own device. The report has a sneak peek.
 
 ## Links
 
@@ -34,6 +35,7 @@ Thank you @bluefireF5ran for the Spanish, the reports and the play notes, @FireP
 - **Decks & Collection** muestra las etiquetas de aspecto de cada mazo. En escritorio, un clic abre el Check del mazo.
 - **Take your seats y Deck check** se leen en español.
 - **Correcciones:** las insignias de los aliados ya no tapan la letra pequeña, Matchups nombra los escenarios personalizados, y Take a Stand, Hired Gun y Thomas Edison siguen mejor las reglas.
+- **Próximamente: multijugador.** Se está construyendo ahora. Crea una sala, invita a tus amigos con un código o un enlace, y cada jugador juega su propio héroe desde su propio dispositivo. El informe trae un adelanto.
 
 ## Enlaces
 
