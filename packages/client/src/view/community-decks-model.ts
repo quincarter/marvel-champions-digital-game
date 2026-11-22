@@ -211,7 +211,7 @@ export function communityMetaLine(offer: CommunityOffer): string {
 /** `communityMetaLine` from fullest to shortest, for a row that takes the first that fits (see `deckMetaCandidates`). */
 export function communityMetaCandidates(offer: CommunityOffer): readonly string[] {
   const { entry } = offer;
-  const aspects = entry.aspects.map(aspectName).join(" + ");
+  const aspects = entry.aspects.map((aspect) => aspectName(aspect)).join(" + ");
   const who = [entry.heroName, ...(aspects ? [aspects] : [])].join(" · ");
   if (offer.lock) return [`${communityCredit(entry)} · ${offer.lock}`, offer.lock];
   const status = communityStatusText(offer);

@@ -13,7 +13,7 @@
  * header, step rail, review column and sticky foot are fixed. Every control is also a focus stop keyed by its action string.
  */
 import Phaser from "phaser";
-import { WAVE10_SCENARIOS, type CardId } from "@mc/content";
+import { WAVE10_SCENARIOS, type CardId, type Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { dotGrid, ink, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { artFor } from "../art/art-source.js";
@@ -70,6 +70,8 @@ export interface CivilWarBuilderData {
   readonly draft: SetupDraft;
   /** The step to open on: the review for "Customize", the side step for "Build your own". */
   readonly step?: BuilderStep;
+  /** Seated decks Take your seats must know before its own list loads, carried through to it and back (#958). */
+  readonly seedDecks?: readonly Deck[];
 }
 
 const NAME: TypeSpec = typeRole.rowTitle;
@@ -104,6 +106,7 @@ const PICTURE_FOCUS_Y = 0.12;
 
 export class CivilWarBuilderScene extends Phaser.Scene {
   #draft!: SetupDraft;
+  #seedDecks: readonly Deck[] = [];
   #step: BuilderStep = 5;
   #status: string | null = null;
   #otherSideExpanded = false;
@@ -135,6 +138,7 @@ export class CivilWarBuilderScene extends Phaser.Scene {
 
   init(data: CivilWarBuilderData): void {
     this.#draft = data.draft;
+    this.#seedDecks = data.seedDecks ?? [];
     this.#step = data.step ?? 5;
     this.#status = null;
     this.#otherSideExpanded = false;
@@ -244,7 +248,11 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       return false;
     }
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.seats, { draft: handoff.draft, backTo: "civil-war-builder" } satisfies SeatsData);
+    goToScreen(this, SCENES.seats, {
+      draft: handoff.draft,
+      backTo: "civil-war-builder",
+      ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
+    } satisfies SeatsData);
     return true;
   }
 
@@ -255,7 +263,10 @@ export class CivilWarBuilderScene extends Phaser.Scene {
       goToScreen(this, SCENES.title);
       return;
     }
-    goToScreen(this, SCENES.scenarioSelect, { draft: this.#draft } satisfies ScenarioSelectData);
+    goToScreen(this, SCENES.scenarioSelect, {
+      draft: this.#draft,
+      ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
+    } satisfies ScenarioSelectData);
   }
 
   #showNotice(text: string): void {

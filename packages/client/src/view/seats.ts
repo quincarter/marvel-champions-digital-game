@@ -24,6 +24,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import { cardsMatch } from "@mc/engine";
 import type { DeckOption } from "./deck-list-model.js";
+import { t } from "../i18n/translate.js";
 
 export interface SeatOption {
   readonly deckId: string;
@@ -64,7 +65,7 @@ export function seatOptions(
     if (seated) return { deckId, seated, blockedBy: null, warning };
 
     if (!option.seatable) {
-      return { deckId, seated, blockedBy: option.blockedReason ?? "This deck cannot be played.", warning };
+      return { deckId, seated, blockedBy: option.blockedReason ?? t("seats.cannotPlay"), warning };
     }
 
     const card = identityOf(option, cardsById);
@@ -72,10 +73,10 @@ export function seatOptions(
     if (clash) {
       // Named rather than generic: with two Captain Marvel decks on screen,
       // "already taken" without the name doesn't say which one took it.
-      return { deckId, seated, blockedBy: `${clash.name} is already at the table`, warning };
+      return { deckId, seated, blockedBy: t("seats.alreadyAtTable", { name: clash.name }), warning };
     }
     if (seatedDeckIds.length >= maxSeats)
-      return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum`, warning };
+      return { deckId, seated, blockedBy: t("seats.maxSeats", { max: maxSeats }), warning };
     return { deckId, seated, blockedBy: null, warning };
   });
 }

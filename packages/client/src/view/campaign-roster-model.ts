@@ -256,7 +256,11 @@ export function pickerSearchDocumentsOf(
       primary: [pickerHeroNameOf(option, pool), option.deck.name, hero?.hero.faceName, hero?.alterEgo.faceName].filter(
         (t): t is string => typeof t === "string" && t !== "",
       ),
-      secondary: [...option.deck.aspects.map(aspectName), option.sourceLabel, ...(hero?.hero.traits ?? [])],
+      secondary: [
+        ...option.deck.aspects.map((aspect) => aspectName(aspect)),
+        option.sourceLabel,
+        ...(hero?.hero.traits ?? []),
+      ],
     };
   });
 }
@@ -285,7 +289,12 @@ export function pickerEntriesOf(
       const option = options[index]!;
       if (ranking) return ranking.has(option.deck.id as string);
       return matchesSearch(
-        [names[index], option.deck.name, option.sourceLabel, ...option.deck.aspects.map(aspectName)],
+        [
+          names[index],
+          option.deck.name,
+          option.sourceLabel,
+          ...option.deck.aspects.map((aspect) => aspectName(aspect)),
+        ],
         query,
       );
     });

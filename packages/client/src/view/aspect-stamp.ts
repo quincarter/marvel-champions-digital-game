@@ -8,6 +8,8 @@
  * (white on Aggression; black on Justice and 'Pool) and otherwise whichever of black or white contrasts more.
  */
 import type { CoreAspect } from "@mc/content";
+import { t, type MessageKey } from "../i18n/translate.js";
+import type { CardLanguage } from "../art/card-language.js";
 
 export interface AspectStamp {
   readonly aspect: CoreAspect;
@@ -31,22 +33,26 @@ const FILL: Readonly<Record<CoreAspect, number>> = {
 
 const FIXED_INK: Partial<Record<CoreAspect, number>> = { aggression: WHITE, justice: BLACK, pool: BLACK };
 
-const LABEL: Readonly<Record<CoreAspect, string>> = {
-  aggression: "Aggression",
-  justice: "Justice",
-  protection: "Protection",
-  leadership: "Leadership",
-  pool: "'Pool",
-  basic: "Basic",
+const LABEL: Readonly<Record<CoreAspect, MessageKey>> = {
+  aggression: "aspect.aggression",
+  justice: "aspect.justice",
+  protection: "aspect.protection",
+  leadership: "aspect.leadership",
+  pool: "aspect.pool",
+  basic: "aspect.basic",
 };
 
 /**
  * An aspect's printed name, the one place display names come from: "'Pool" (leading apostrophe), never "Pool". Any
  * other word (a hero set's "hero:...", an unknown aspect) is just capitalized.
  */
-export function aspectName(aspect: string): string {
-  const known = (LABEL as Readonly<Record<string, string>>)[aspect];
-  return known ?? (aspect.length === 0 ? aspect : aspect.charAt(0).toUpperCase() + aspect.slice(1));
+export function aspectName(aspect: string, lang: CardLanguage = "en"): string {
+  const known = (LABEL as Readonly<Record<string, MessageKey>>)[aspect];
+  return known
+    ? t(known, undefined, lang)
+    : aspect.length === 0
+      ? aspect
+      : aspect.charAt(0).toUpperCase() + aspect.slice(1);
 }
 
 /** WCAG relative luminance of an 0xRRGGBB color. */
@@ -63,15 +69,15 @@ export function contrastRatio(a: number, b: number): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-export function aspectStampOf(aspect: CoreAspect): AspectStamp {
+export function aspectStampOf(aspect: CoreAspect, lang: CardLanguage = "en"): AspectStamp {
   const fill = FILL[aspect];
   const ink = FIXED_INK[aspect] ?? (contrastRatio(fill, BLACK) >= contrastRatio(fill, WHITE) ? BLACK : WHITE);
-  return { aspect, label: LABEL[aspect], fill, ink };
+  return { aspect, label: t(LABEL[aspect], undefined, lang), fill, ink };
 }
 
 /** One stamp per chosen aspect, in the deck's own order. A deck with none (an identity that builds without one) gets none. */
-export function aspectStampsOf(aspects: readonly CoreAspect[]): readonly AspectStamp[] {
-  return aspects.map(aspectStampOf);
+export function aspectStampsOf(aspects: readonly CoreAspect[], lang: CardLanguage = "en"): readonly AspectStamp[] {
+  return aspects.map((aspect) => aspectStampOf(aspect, lang));
 }
 
 /**

@@ -24,6 +24,7 @@ import { ListScroll } from "../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { SCENES } from "./keys.js";
+import { t } from "../i18n/translate.js";
 
 export interface HeroDecksSheetRow {
   readonly row: HeroDeckRow;
@@ -52,7 +53,7 @@ const BUTTON_TYPE = { ...typeRole.label, size: 12 };
 const STAMP_TYPE = { ...typeRole.label, size: 9 };
 
 /** A status word is never color alone: a leading mark says which kind it is. */
-const STATUS_MARK = { ok: "✓", warning: "!", blocked: "✕", locked: "Locked ·" } as const;
+const STATUS_MARK = { ok: "✓", warning: "!", blocked: "✕", locked: "" } as const;
 
 export class HeroDecksSheet extends Phaser.Scene {
   #data!: HeroDecksSheetData;
@@ -159,7 +160,7 @@ export class HeroDecksSheet extends Phaser.Scene {
       .text(
         boxX + 16,
         0,
-        `${rows.length} decks. Pick the one this seat plays.`,
+        t("seats.decksSheetSubtitle", { count: rows.length }),
         textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       )
       .setFontSize(13)
@@ -246,14 +247,14 @@ export class HeroDecksSheet extends Phaser.Scene {
       const status = this.add.text(
         textX,
         body.y + ROW_PAD + 62,
-        `${STATUS_MARK[row.statusKind]} ${row.status}`,
+        `${row.statusKind === "locked" ? t("seats.lockedMark") : STATUS_MARK[row.statusKind]} ${row.status}`,
         textStyle(typeRole.label, statusColor, 1),
       );
       fitText(status, textWidth, typeRole.label.size);
       objects.push(status);
 
       const seat = new McButton(this, {
-        kind: row.enabled && row.action !== "Seated" ? "primary" : "secondary",
+        kind: row.enabled ? "primary" : "secondary",
         label: row.action,
         type: BUTTON_TYPE,
         rect: buttonRectOf(rect),
@@ -291,7 +292,7 @@ export class HeroDecksSheet extends Phaser.Scene {
     const closeRect: Rect = { x: inner.x, y: footerY, width: inner.width, height: hit.primary };
     const backButton = new McButton(this, {
       kind: "secondary",
-      label: "Back",
+      label: t("common.back"),
       type: BUTTON_TYPE,
       rect: closeRect,
       onClick: () => this.#close(),

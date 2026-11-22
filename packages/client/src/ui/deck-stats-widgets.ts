@@ -29,6 +29,8 @@ import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.j
 import { bindHoldTarget } from "./hold-target.js";
 import { fitText, label, paintPanel } from "./widgets.js";
 import { textStyle } from "./theme.js";
+import { t } from "../i18n/translate.js";
+import type { CardLanguage } from "../art/card-language.js";
 
 /**
  * The colored cost badge a card pool/list row draws (the board's own hand and
@@ -314,6 +316,8 @@ export function drawGroupedCardList(
    * popover's target (`ui/card-hover-preview.ts`). Omitted by a caller with no popover.
    */
   onLine?: (entry: DeckListEntry, rect: Rect) => void,
+  /** The "+ N more" line's language: English unless a translated screen asks (#390). */
+  lang: CardLanguage = "en",
 ): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
@@ -370,7 +374,12 @@ export function drawGroupedCardList(
     y += 4;
   }
   if (overflow > 0) {
-    scene.add.text(left, y, `+ ${overflow} more`, textStyle(typeRole.body, bodyColor, ink.meta));
+    scene.add.text(
+      left,
+      y,
+      t("deckList.more", { count: overflow }, lang),
+      textStyle(typeRole.body, bodyColor, ink.meta),
+    );
     y += 18;
   }
   return y + 8;

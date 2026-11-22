@@ -124,7 +124,6 @@ import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
-import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { setReportSlot } from "../ui/report-slot.js";
@@ -285,10 +284,11 @@ export class TitleScene extends Phaser.Scene {
     this.#problem = null;
     this.#problemLine = null;
     if (data.initialSeatDeckId) {
-      const draft = withSeatOne(this.#freshDraft(true), data.initialSeatDeckId);
+      // The player still picks what to play against first; the deck waits in seat one on Take your seats (#958).
+      const draft = withSeatOne(this.#freshDraft(), data.initialSeatDeckId);
       const seedDecks =
         data.initialSeatDeck && data.initialSeatDeck.id === data.initialSeatDeckId ? [data.initialSeatDeck] : [];
-      goToScreen(this, SCENES.seats, { draft, seedDecks } satisfies SeatsData);
+      goToScreen(this, SCENES.scenarioSelect, { draft, seedDecks } satisfies ScenarioSelectData);
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));

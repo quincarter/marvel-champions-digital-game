@@ -37,6 +37,7 @@ import { instanceId, playerId, type GameEvent } from "@mc/engine";
 import { devAspectOf } from "../guide/aspects.js";
 import { notePadInput } from "../platform/input-device.js";
 import { detectPad } from "../view/pad-family.js";
+import { t } from "../i18n/translate.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -217,7 +218,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
         swaps: [],
         kept: [],
         tableRules: tableRulesOf(appSession().settings),
-        continueLabel: "Play",
+        continueLabel: t("seats.play"),
         onChange: () => undefined,
         onContinue: () => undefined,
       },

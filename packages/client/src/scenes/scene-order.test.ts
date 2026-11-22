@@ -63,7 +63,8 @@ describe("scene order and loader table", () => {
       for (const sheet of sheets) expect(everyKey).toContain(sheet);
     }
     expect(needed(SCENES.settings)).toEqual([SCENES.settings, ...COMPANIONS[SCENES.settings]!]);
-    expect(needed(SCENES.decks)).toEqual([SCENES.decks]);
+    expect(needed(SCENES.decks)).toEqual([SCENES.decks, SCENES.deckActions]);
+    expect(needed(SCENES.credits)).toEqual([SCENES.credits]);
   });
 
   it("has Settings and the Board register every sheet they read right after launching", () => {
