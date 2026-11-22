@@ -103,6 +103,8 @@ interface Plan {
   /** Hand cards that pay for a card played in a response. */
   readonly pay?: readonly InstanceId[];
   readonly windows?: string[][];
+  /** Each `take` entry picked, in order. */
+  readonly taken?: string[];
 }
 /** Answers a prompt: `take` where offered (by id or id suffix), never discarding `keep`, else the first legal choice. */
 const planned =
@@ -119,7 +121,10 @@ const planned =
       return (named.length > 0 ? named : ids.slice(0, 1)).slice(0, choice.maxSelections);
     }
     const hit = (plan.take ?? []).find((t) => ids.some((i) => i === t || i.endsWith(t)));
-    if (hit !== undefined) return [ids.find((i) => i === hit || i.endsWith(hit))!];
+    if (hit !== undefined) {
+      plan.taken?.push(hit);
+      return [ids.find((i) => i === hit || i.endsWith(hit))!];
+    }
     return firstLegal(s);
   };
 const drive = (s: GameState, plan?: Plan, ...commands: Command[]): GameState =>
@@ -305,7 +310,8 @@ describe(`${TAKE_A_STAND_REF}: Hero Response: after your hero defends, each ally
   /**
    * Owner question Q104 = B (the owner, 2026-10-18): RRG 1.8 "Lasting Effects" (p. 26), "A lasting effect that expires at
    * the end of a specified time period can only be initiated during that time period", is read strictly. "Until the end
-   * of the player phase" is created only during a player phase; after a villain-phase defense the card gives nothing.
+   * of the player phase" is created only during a player phase; after a villain-phase defense the card would give
+   * nothing, so it is not offered then and stays in hand (issue #970: it was played for nothing).
    *
    * Misty Knight in play and Take a Stand and an energy resource in hand.
    */
@@ -316,10 +322,18 @@ describe(`${TAKE_A_STAND_REF}: Hero Response: after your hero defends, each ally
     return { event: id, misty: misty.id, energy: energy.ids[0]!, state: energy.state };
   };
 
-  it("used after a villain-phase defense it gives nothing (Q104 = B)", () => {
+  it("is not offered after a villain-phase defense, and stays in hand (Q104 = B; #970)", () => {
     const { state, event, misty, energy } = setup();
     const hero = identityOf(state, P1) as string;
-    const after = villainPhase(state, { take: [hero, TAKE_A_STAND_REF], keep: [event, energy], pay: [energy] });
+    const windows: string[][] = [];
+    const taken: string[] = [];
+    const plan: Plan = { take: [hero, TAKE_A_STAND_REF], keep: [event, energy], pay: [energy], windows, taken };
+    const after = villainPhase(state, plan);
+    // The hero did defend: the defender choice picked it.
+    expect(taken).toContain(hero);
+    expect(windows.flat().some((o) => o.endsWith(TAKE_A_STAND_REF))).toBe(false);
+    expect(playerOf(after, P1).hand).toContain(event);
+    expect(playerOf(after, P1).hand).toContain(energy);
     expect(profile(after, misty)).toMatchObject({ atk: 1, thw: 1 });
   });
 
