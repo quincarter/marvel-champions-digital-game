@@ -68,6 +68,7 @@ import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
 import type { Rect } from "../view/layout.js";
 import { hostSeesHandsOf } from "../view/hand-privacy.js";
+import { pacingOf } from "../view/villain-pacing.js";
 import { lobbyLayout, type LobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import { activityDots, hostActivityWords } from "../view/room-host-activity.js";
 import { ChatSeen, unreadChatCount } from "../view/room-notices.js";
@@ -84,6 +85,7 @@ import {
   participantRows,
   deckKeyOf,
   playModeKeys,
+  villainPacingKeys,
   undoRows,
   cheatsOn,
   CHEATS_NOTE_KEY,
@@ -1953,6 +1955,35 @@ export class RoomLobbyScene extends Phaser.Scene {
             suppressClick: guard.suppress,
           });
           guard.stop(`mode:${mode}`, btn, choose);
+          y += hit.target + 4;
+          const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
+          y += info.height + 10;
+        } else if (selected) {
+          const name = this.#text(x, y, t(words.title), 15, w, { bold: true });
+          const info = this.#text(x, y + name.height + 2, t(words.detail), 12, w, { alpha: 0.85 });
+          y += name.height + info.height + 12;
+        }
+      }
+
+      // Villain phase pacing (#881): who steps a guest's villain phase screen along.
+      y = this.#heading(x, y + 4, w, t("room.villain.title"));
+      for (const value of ["host", "each"] as const) {
+        const words = villainPacingKeys[value];
+        const selected = pacingOf(settings) === value;
+        if (host) {
+          const btn: Rect = { x, y, width: w, height: hit.target };
+          const choose = (): void => this.#api.setLobby({ settings: { villainPacing: value } });
+          this.#button({
+            kind: "secondary",
+            label: t(words.title),
+            type: typeRole.label,
+            rect: btn,
+            selected,
+            onClick: choose,
+            clip: guard.clip,
+            suppressClick: guard.suppress,
+          });
+          guard.stop(`villain:${value}`, btn, choose);
           y += hit.target + 4;
           const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
           y += info.height + 10;

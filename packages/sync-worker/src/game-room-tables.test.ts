@@ -412,6 +412,65 @@ describe("watchers follow tables", () => {
   });
 });
 
+describe("each Epic table's host leads its own table's villain phase screen", () => {
+  const cursor = (table: string, at = 1) => ({
+    ch: "room",
+    kind: "villain-cursor",
+    table,
+    key: "r2",
+    at,
+    state: "playing",
+  });
+
+  it("relays a table host's cursor to that table's followers only, and refuses a cursor for another table", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
+    const only2 = await h.join("Only2", { follow: ["t2"] });
+    const only1 = await h.join("Only1", { follow: ["t1"] });
+    await h.send(h.org, cursor("t1"));
+    // a1 and a2 hold t1 seats; the follower of t1 gets it; the follower of t2 and the sender do not.
+    for (const s of [h.a1, h.a2, only1]) expect(s.of("villain-cursor")).toMatchObject([{ table: "t1", at: 1 }]);
+    for (const s of [only2, h.org]) expect(s.of("villain-cursor")).toEqual([]);
+    // t2's host follows every table by default, so it sees the other table's phase (it does not lead it).
+    expect(h.b1.of("villain-cursor")).toHaveLength(1);
+    // A host may lead only its own table.
+    await h.send(h.org, cursor("t2"));
+    expect(h.org.refusals).toContain("not-allowed");
+    await h.send(h.b1, cursor("t1"));
+    expect(h.b1.refusals).toContain("not-allowed");
+    // t2's host leads t2.
+    await h.send(h.b1, cursor("t2", 3));
+    expect(only2.of("villain-cursor")).toMatchObject([{ table: "t2", at: 3 }]);
+    expect(only1.of("villain-cursor")).toHaveLength(1);
+  });
+
+  it("replays only the followed tables' cursors to a joiner, and a table's start clears only that table's cursor", async () => {
+    const h = await setup();
+    await h.assignHosts();
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    await h.send(h.b1, { ch: "game", kind: "start", table: "t2", header: { h: 2 } });
+    await h.send(h.org, cursor("t1"));
+    await h.send(h.b1, cursor("t2", 4));
+    const late = await h.join("Late", { follow: ["t2"] });
+    expect(late.of("villain-cursor")).toMatchObject([{ table: "t2", at: 4 }]);
+    const both = await h.join("Both");
+    expect(
+      both
+        .of("villain-cursor")
+        .map((m) => m.table)
+        .sort(),
+    ).toEqual(["t1", "t2"]);
+    await h.send(h.org, { ch: "game", kind: "start", table: "t1", header: { h: 9 } });
+    expect(both.of("villain-cursor").at(-1)).toMatchObject({ table: "t1", state: "none" });
+    expect(late.of("villain-cursor")).toHaveLength(1);
+    // Following t1 afterwards finds no cursor there; t2's is still kept.
+    await h.send(late, { ch: "room", kind: "follow", tables: "all" });
+    expect(late.of("villain-cursor").map((m) => m.table)).toEqual(["t2"]);
+  });
+});
+
 describe("proposals and requests go to the host of the seat's table", () => {
   it("routes by table: t1 seat holders reach the organizer, t2's reach b1", async () => {
     const h = await setup();

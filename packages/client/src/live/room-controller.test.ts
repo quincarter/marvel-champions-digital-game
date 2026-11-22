@@ -1100,4 +1100,47 @@ describe("live chat count and the host's setup step (issue #880)", () => {
     socket.closeWith(1006);
     expect(t.last().hostActivity).toBeNull();
   });
+  it("a host sends its villain phase cursor to the room, a guest never does", async () => {
+    const host = setup();
+    host.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const hostSocket = FakeSocket.all[0]!;
+    hostSocket.welcome("host");
+    host.controller.onRoomCommand({ kind: "room-villain-cursor", key: "2", at: 3, state: "playing" });
+    expect(hostSocket.sent.at(-1)).toMatchObject({
+      ch: "room",
+      kind: "villain-cursor",
+      table: "t1",
+      key: "2",
+      at: 3,
+      state: "playing",
+    });
+    const guest = setup();
+    guest.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const guestSocket = FakeSocket.all.at(-1)!;
+    guestSocket.welcome("watcher");
+    const before = guestSocket.sent.length;
+    guest.controller.onRoomCommand({ kind: "room-villain-cursor", key: "2", at: 3, state: "playing" });
+    expect(guestSocket.sent).toHaveLength(before);
+  });
+
+  it("shows the host's villain phase cursor to a guest, clears it on none, and forgets it when the socket drops", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("watcher");
+    expect(t.last().villainCursor).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "2", at: 4, state: "playing" });
+    expect(t.last().villainCursor).toEqual({ key: "2", at: 4, state: "playing" });
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "-", at: 0, state: "none" });
+    expect(t.last().villainCursor).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "2", at: 5, state: "closed" });
+    // Another table's cursor is not this table's.
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t2", key: "9", at: 1, state: "playing" });
+    expect(t.last().villainCursor).toEqual({ key: "2", at: 5, state: "closed" });
+    socket.closeWith(1006);
+    expect(t.last().villainCursor).toBeNull();
+  });
 });

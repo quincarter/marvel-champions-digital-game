@@ -162,6 +162,11 @@ export interface RailPanelArgs {
   /** Flip Encounter Card, while the reveal waits on a facedown card (#287); null otherwise. */
   readonly onFlip?: (() => void) | null;
   readonly autoAdvance: VillainAutoAdvance;
+  /**
+   * A guest whose screen follows the host's (`view/villain-pacing.ts`): the footer says so in place of the
+   * Auto-advance toggle, which a following screen does not have.
+   */
+  readonly followed?: { readonly title: string; readonly line: string };
   readonly buttons: McButton[];
   /** Gives a button its key / pad glyph where the layout has room (`ui/glyph-hints.ts`); absent where there are none. */
   readonly hint?: RailHint;
@@ -248,8 +253,11 @@ export function drawVillainRailPanel(scene: Phaser.Scene, args: RailPanelArgs): 
     args.onGateDrawn?.(scene.children.list.slice(from));
   }
   drawLog(scene, layout.log, args.log);
-  drawFooter(scene, layout, args.autoAdvance, args.onToggle);
-  if (layout.toggle.width > 0) stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
+  if (args.followed) drawFollowedFooter(scene, layout, args.followed);
+  else {
+    drawFooter(scene, layout, args.autoAdvance, args.onToggle);
+    if (layout.toggle.width > 0) stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
+  }
   return stops;
 }
 
@@ -1180,6 +1188,30 @@ function drawFooter(
     drawFooterText(scene, text, mode);
   }
   if (toggle.width > 0) drawToggle(scene, toggle, mode, onToggle);
+}
+
+/** The footer of a screen that follows the host's: no toggle, only who leads. */
+function drawFollowedFooter(
+  scene: Phaser.Scene,
+  layout: VillainRailLayout,
+  words: { readonly title: string; readonly line: string },
+): void {
+  const { footer } = layout;
+  const rect = layout.footerText;
+  if (!rect) return;
+  const g = scene.add.graphics();
+  g.fillStyle(surface.paper.hex, 0.25).fillRect(footer.x + border.object, footer.y, footer.width - border.object, 1);
+  label(scene, rect.x, rect.y + 6, words.title, { ...typeRole.label, size: 12 }, surface.paper.hex, ink.body);
+  const line = label(
+    scene,
+    rect.x,
+    rect.y + 26,
+    words.line,
+    { ...typeRole.body, size: 12, uppercase: false },
+    surface.paper.hex,
+    ink.secondary,
+  );
+  fitText(line, rect.width + (layout.toggle.width > 0 ? layout.toggle.width : 0), 12);
 }
 
 function drawFooterText(scene: Phaser.Scene, rect: Rect, mode: VillainAutoAdvance): void {

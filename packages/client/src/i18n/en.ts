@@ -639,6 +639,22 @@ export const en = {
   "room.handover.title": "Host can take over or hand off a hero",
   "room.handover.detail":
     "When a player leaves, the host may play their hero or give it to someone else. Off: the game waits for them.",
+  "room.villain.title": "Villain phase on guests' screens",
+  "room.villain.host": "Host leads",
+  "room.villain.hostDetail":
+    "A guest's villain phase screen follows the host's: it shows each beat as the host reveals it and closes when the host does. A choice for a guest's own hero still reaches them at once.",
+  "room.villain.each": "Each player at their own pace",
+  "room.villain.eachDetail":
+    "Every player steps through the villain phase on their own device. Nothing they press moves the game on.",
+  "villain.backToTable": "Back to the table",
+  "villain.follow.waitTitle": "Waiting for the host",
+  "villain.follow.waitText":
+    "The host starts the villain phase. Your screen follows theirs, and a choice for your hero comes up at once.",
+  "villain.follow.subtitle": "Following the host · Skip to look at the table.",
+  "villain.follow.footerTitle": "The host leads",
+  "villain.follow.footerLine": "Your screen follows the host's.",
+  "villain.follow.recapNote": "The host starts the player phase. This closes when they do.",
+  "villain.guest.recapNote": "This recap stays open until you go back to the table. The host starts the player phase.",
   "room.refusal.handoverOff": "The host turned off taking over and handing off heroes.",
   "seat.refusal.handoverOff": "The host turned off taking over and handing off heroes.",
   "room.refusal.notAway": "That seat's holder is still here.",

@@ -8,6 +8,7 @@ import type {
   DeckRefusalCode,
   ProposalRefusal,
   HostActivityStep,
+  VillainCursorState,
   RoomBuild,
   RoomDeck,
   RoomDevice,
@@ -90,6 +91,13 @@ export type LiveRoomIn =
   | { readonly kind: "room-ask-clear" }
   /** Host only: the setup step the host is in (`idle` clears it), shown to everyone as a status line. */
   | { readonly kind: "room-activity"; readonly step: HostActivityStep; readonly scenario?: string }
+  /** Host only: where my villain phase screen is, for guests' screens to follow (relayed, memory only). */
+  | {
+      readonly kind: "room-villain-cursor";
+      readonly key: string;
+      readonly at: number;
+      readonly state: VillainCursorState;
+    }
   /** My deck for a seat I hold, or (host only) a preset for any seat. */
   | { readonly kind: "room-deck"; readonly seat: string; readonly deck: RoomDeck }
   /** Host only: the full deck of every seat (answered with a `room-decks` carrying the same `id`). */
