@@ -442,11 +442,13 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   async #refreshInstalled(): Promise<void> {
+    // Installed packs join the running game's pool (not awaited: the load is validated in a worker), after every change
+    // to the store, whatever becomes of the list read below.
+    void refreshActivePacks();
     const { ticket, installed } = await this.#readInstalled();
+    // A failed read, or one a newer read has already replaced, leaves the list (and the badge) to that one.
     if (!this.#keep(ticket, installed)) return;
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
-    // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
-    void refreshActivePacks();
   }
 
   #context(): ModStoreContext {
