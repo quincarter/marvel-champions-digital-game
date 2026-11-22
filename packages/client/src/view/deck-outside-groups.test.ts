@@ -32,6 +32,15 @@ describe("outsideDeckGroupsOf", () => {
     expect(labels).toEqual(["Obligation", "Nemesis set"]);
   });
 
+  test("an obligation printed twice shows both copies (Scarlet Witch's Slipping Sanity)", () => {
+    const scarlet = POOL_CARDS.find(
+      (card) => card.type === "hero_identity" && (card.obligationCardId as string) === "15023",
+    )!;
+    const obligation = outsideDeckGroupsOf(scarlet.id, POOL_CARDS).find((group) => group.key === "obligation")!;
+    expect(obligation.count).toBe(2);
+    expect(obligation.entries).toEqual([expect.objectContaining({ cardId: "15023", quantity: 2 })]);
+  });
+
   test("an id that is not an identity gives nothing", () => {
     expect(outsideDeckGroupsOf(cardId("no-such-card"), POOL_CARDS)).toEqual([]);
   });

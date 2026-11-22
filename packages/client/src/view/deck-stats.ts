@@ -417,7 +417,10 @@ export function outsideDeckGroupsOf(identityCardId: CardId | string, pool: CardP
   const groups: DeckListGroup[] = (identity.separateDecks ?? []).map((deck) =>
     groupOf(`separate:${deck.name}`, `${deck.name} deck`, listed(deck.cards)),
   );
-  groups.push(groupOf("obligation", "Obligation", listed([{ cardId: identity.obligationCardId, quantity: 1 }])));
+  // Every copy the set prints goes into the encounter deck (Scarlet Witch's Slipping Sanity: two), as setup does.
+  const obligation = byId.get(identity.obligationCardId as string);
+  if (obligation)
+    groups.push(groupOf("obligation", "Obligation", [entryOf(obligation, Math.max(1, obligation.quantityInSet))]));
   const nemesisSetId = identity.nemesisEncounterSetId as string;
   const nemesis = all.filter(
     (card) =>

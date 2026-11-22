@@ -332,7 +332,7 @@ describe("customHeroesLeftOut (#960)", () => {
     expect(customHeroesLeftOut(preconDecks(POOL_VERSION), POOL_VERSION)).toBe(false);
   });
 
-  test("a saved deck holding a custom card is left out, so the picker says so", () => {
+  test("a base hero's saved deck holding a custom card is left out, so the picker says so", () => {
     const base = preconDecks(POOL_VERSION)[0]!;
     const custom = { ...base, cards: [...base.cards, { cardId: "x.sample.card" as CardId, quantity: 1 }] } as Deck;
     expect(customHeroesLeftOut([custom], POOL_VERSION)).toBe(true);

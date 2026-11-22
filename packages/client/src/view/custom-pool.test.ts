@@ -20,7 +20,7 @@ import {
 } from "../content/pool.js";
 import { resetPackArt } from "../art/pack-art.js";
 import { loadActivePacks } from "../packs/active-packs.js";
-import { setLoadedPacks } from "../packs/pack-registry.js";
+import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 import { canExportToMarvelCdb, customBadgeOf, deckUsesCustomCards } from "./custom-content.js";
@@ -135,6 +135,13 @@ describe("the pickers and the deck builder read the installed packs", () => {
     const options = rosterDeckOptions([null], 1, [saved], POOL_VERSION);
     expect(options.some((option) => deckUsesCustomCards(option.deck))).toBe(false);
     // The picker says why the pack hero isn't there (#960).
+    expect(customHeroesLeftOut([], POOL_VERSION)).toBe(true);
+  });
+
+  it("explains a left-out pack hero whose pack has no precon (#960)", async () => {
+    await installSample();
+    setLoadedPacks(loadedPacks().map((pack) => ({ ...pack, decks: [] })));
+    expect(preconDecks().some((deck) => deckUsesCustomCards(deck))).toBe(false);
     expect(customHeroesLeftOut([], POOL_VERSION)).toBe(true);
   });
 });
