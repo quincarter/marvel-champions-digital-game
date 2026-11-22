@@ -814,3 +814,42 @@ describe("a rematch is acknowledged only with its reopened lifecycle durable", (
     expect(welcome!.tables[0]!.gid).not.toBe("B");
   });
 });
+
+describe("an ended game replacement log commits with its reopened lifecycle", () => {
+  for (const [name, match] of [
+    ["tail", (k: string) => /^t1:(b:)?tail$/.test(k)],
+    ["header and reopened meta", (k: string) => k === "meta"],
+  ] as const) {
+    it(`a ${name} write that fails: a wake serves the finished game with its outcome, not an open one`, async () => {
+      const bus = await FaultBus.create();
+      const host = bus.host(liveGame());
+      host.connect();
+      await bus.settle();
+      for (const c of cmds(0, 3)) host.command(c);
+      host.command(cmds(3, 4)[0]!, { result: "win" } as never);
+      await bus.settle();
+      expect(bus.storage.map.get("meta")).toMatchObject({ ended: true });
+
+      host.up.drop((m) => m.ch === "game" && m.kind === "rewind");
+      host.publisher.rewind(3);
+      await bus.settle();
+      bus.storage.failPut(match);
+      host.publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      await bus.settle();
+      expect(bus.roomErrors).toHaveLength(1);
+
+      // SAVED: the old game, whole: header, four commands and the ended lifecycle with its outcome.
+      expect(bus.storage.map.get("meta")).toMatchObject({ ended: true, outcome: { result: "win" } });
+      expect(bus.storage.map.get("t1:header")).toMatchObject({ sg: 1 });
+      // The host is not heard from again before the wake (its retry would rewrite the game).
+      host.up.held = true;
+      await bus.restartRoom();
+      const watcher = bus.watcher();
+      watcher.connect();
+      await bus.settle();
+      expect(watcher.applied.commands).toEqual(cmds(0, 4));
+      expect(watcher.applied.ended).toBe(true);
+      expect(watcher.applied.outcome).toEqual({ result: "win" });
+    });
+  }
+});
