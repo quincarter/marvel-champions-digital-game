@@ -666,7 +666,7 @@ describe("stored log and waking", () => {
       header: 2,
       commands: Array.from({ length: 21 }, (_, i) => i),
     });
-    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:c:000000"]);
+    expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:b:c:000000"]);
     expect(storage.map.get("t1:header")).toEqual({ h: 2, sg: 2 });
   });
 
@@ -838,7 +838,7 @@ describe("the tail row on host disconnect", () => {
     expect(storage.map.has("t1:tail")).toBe(true);
     const again = await host();
     await send(again, { ch: "game", kind: "log", table: "t1", header: 2, commands: [1, 2] });
-    expect((storage.map.get("t1:tail") as { commands: unknown[] }).commands).toEqual([1, 2]);
+    expect((storage.map.get("t1:b:tail") as { commands: unknown[] }).commands).toEqual([1, 2]);
   });
 });
 
