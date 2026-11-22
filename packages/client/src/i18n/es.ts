@@ -442,6 +442,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.problem.replaced": "Otro de tus dispositivos ha tomado el control como anfitrión.",
   "room.problem.closedEnded": "La partida terminó y la sala se cerró.",
   "room.problem.closedIdle": "La sala se cerró tras mucho tiempo sin actividad.",
+  "room.closedNotice.title": "Sala cerrada",
+  "room.closedNotice.ok": "Aceptar",
   "room.problem.closedHost": "El anfitrión cerró la sala.",
   "room.problem.closedDisabled": "La sala se cerró porque se desactivaron las salas.",
   "room.refusal.buildMismatch":

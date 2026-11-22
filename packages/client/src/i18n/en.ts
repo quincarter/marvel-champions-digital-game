@@ -439,6 +439,8 @@ export const en = {
   "room.problem.replaced": "Another device of yours took over as host.",
   "room.problem.closedEnded": "The game is over and the room has closed.",
   "room.problem.closedIdle": "The room closed after being idle for a long time.",
+  "room.closedNotice.title": "Room closed",
+  "room.closedNotice.ok": "OK",
   "room.problem.closedHost": "The host closed the room.",
   "room.problem.closedDisabled": "The room was closed because rooms were switched off.",
   "room.refusal.buildMismatch":

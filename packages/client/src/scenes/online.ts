@@ -31,11 +31,14 @@ import {
   type LiveRow,
 } from "../view/online-model.js";
 import { joinTargetFromInput, tidyJoinInput } from "../view/room-join-input.js";
+import type { RoomProblem } from "../live/room-state.js";
+import type { OptionNoticeData } from "./option-notice.js";
 import { problemWords, wordsText } from "../view/room-lobby-model.js";
 import { cssOf } from "../ui/theme.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { sceneLoader } from "./scene-loader.js";
 import type { OnlineNameData } from "./online-name.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
@@ -44,6 +47,8 @@ export interface OnlineData {
   readonly join?: string;
   /** A `#join=` link that named no room. */
   readonly invalidLink?: boolean;
+  /** Why the room the player was in is gone (the host closed it): shown in a notice over this screen. */
+  readonly closedNotice?: RoomProblem;
 }
 
 const PANEL_PAD = 16;
@@ -114,6 +119,27 @@ export class OnlineScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => document.removeEventListener("visibilitychange", onVisible));
     fadeScreenIn(this);
     if (this.#data.join) this.#startJoin(this.#data.join);
+    if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice);
+  }
+
+  /** "Room closed": the reason, in the shared notice sheet (OK, Esc and pad B dismiss it). */
+  #showClosedNotice(problem: RoomProblem): void {
+    const data: OptionNoticeData = {
+      notices: [
+        {
+          title: t("room.closedNotice.title"),
+          lead: wordsText(problemWords(problem)),
+          okLabel: t("room.closedNotice.ok"),
+          rows: [],
+        },
+      ],
+    };
+    const loader = sceneLoader();
+    const start = (): void => {
+      if (this.#alive) this.scene.launch(SCENES.optionNotice, data);
+    };
+    if (loader) void loader.load(SCENES.optionNotice).then(start);
+    else start();
   }
 
   /**

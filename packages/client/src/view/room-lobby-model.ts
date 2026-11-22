@@ -52,6 +52,14 @@ export function connectionWords(state: RoomState): Words | null {
   return null;
 }
 
+/**
+ * The room was closed under the player (the host closed it, it sat idle, or rooms were switched off): the lobby sends
+ * them back to Play online with a notice saying so. A finished game ("closed-ended") is not one of these: its room
+ * closing is the normal end, and the lobby keeps its own "game is over" line and Back to the title button.
+ */
+export const closedUnderPlayer = (problem: RoomProblem | null): boolean =>
+  problem === "closed-host" || problem === "closed-idle" || problem === "closed-disabled";
+
 /** Words for a problem that kept a room from opening (the Play online screen's own line). */
 export const problemWords = (problem: RoomProblem): Words => ({ key: PROBLEM_KEYS[problem] });
 
