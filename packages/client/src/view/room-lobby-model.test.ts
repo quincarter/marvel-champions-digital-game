@@ -101,8 +101,10 @@ describe("participantRows", () => {
 
 describe("seatRows", () => {
   const ctx = { installed: [] };
-  it("offers Ask on an open seat, and Leave on mine", () => {
-    expect(seatRows(room(), ctx)[0]?.action).toMatchObject({ kind: "ask", enabled: true });
+  it("offers Take on an open seat, Ask when the host has guests ask, and Leave on mine", () => {
+    expect(seatRows(room(), ctx)[0]?.action).toMatchObject({ kind: "take", labelKey: "room.seat.take", enabled: true });
+    const asking = room({ settings: { ...settings, askToSit: true } });
+    expect(seatRows(asking, ctx)[0]?.action).toMatchObject({ kind: "ask", labelKey: "room.seat.ask", enabled: true });
     const mine = seatRows(room({ seats: [seat({ holder: "g", holderName: "Guest", mine: true })] }), ctx)[0];
     expect(mine?.action?.kind).toBe("leave");
   });
