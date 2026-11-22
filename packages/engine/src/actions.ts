@@ -4991,6 +4991,12 @@ function eventActionFault(
   const fault = abilityTargetFault(ctx.state, ctx.deps, action.definition, id, playerId);
   if (fault === "moveSource")
     return { code: "no_valid_target", message: TARGET_FAULT_MESSAGE.moveSource, note: "it has no threat to move" };
+  if (fault === "period")
+    return {
+      code: "no_valid_target",
+      message: TARGET_FAULT_MESSAGE.period,
+      note: "what it gives only lasts to the end of a turn or player phase",
+    };
   if (fault !== null)
     return { code: "no_valid_target", message: "this event has no valid target", note: "it has no valid target" };
   return null;

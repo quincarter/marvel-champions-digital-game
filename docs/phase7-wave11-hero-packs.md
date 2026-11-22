@@ -203,8 +203,10 @@ next player phase; damage again from the next phase played.
 **Status: extend.** `LastingUntil` has `endOfPhase` (the current phase) and no player-phase duration. Take a Stand 62015
 lasts "until the end of the player phase" after a defense, mostly in the villain phase. RRG "Lasting Effects" (p. 26):
 it expires "as soon as the timing point specified by its duration is reached"; "Player Phase" (p. 34) names "until the
-end of the [player] phase" as that point. So: the end of the current or the next player phase. Build `endOfPlayerPhase`.
-**Test:** defended in the villain phase, the bonus lasts through the next player phase.
+end of the [player] phase" as that point. Build `endOfPlayerPhase`. Made outside a player phase it is not made at all
+(Q104 = B: "can only be initiated during that time period", p. 26), so an ability made only of such effects is not
+offered there (p. 24, step 2; `lastingPeriodClosed`, issue #970). **Test:** defended in the villain phase, Take a Stand
+is not offered and stays in hand; defended in the player phase, the bonus lasts to that phase's end.
 
 ### H3.10 A stat equal to the highest among the other characters in play
 
