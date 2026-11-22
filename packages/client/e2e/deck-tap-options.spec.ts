@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, settle, waitFor } from "./helpers.js";
-import { routeStops, trackErrors, waitForScene, type Stop } from "./wave6-helpers-a.js";
+import { clickStop, routeStops, scrollStopIntoView, trackErrors, waitForScene, type Stop } from "./wave6-helpers-a.js";
 import { hook, openApp } from "./wave6-helpers-b.js";
 import { swipeOver } from "./global-stats-helpers.js";
 
@@ -396,5 +396,84 @@ test.describe("the deck's options (#958 review)", () => {
     }
     await tap(page, SHEET, "back");
     await waitForSheet(page, false);
+  });
+});
+
+test.describe("Play this deck keeps a saved deck seated (#958 review)", () => {
+  test.beforeEach(({ browserName: _browser }, info) => test.skip(info.project.name !== "desktop", "desktop flow"));
+
+  const seated = async (page: Page): Promise<readonly string[]> =>
+    (await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? [];
+  const holds = (page: Page, deckId: string, label: string): Promise<true> =>
+    waitFor(async () => ((await seated(page)).includes(deckId) ? true : null), label);
+
+  /** A saved deck of the player's own, selected, then Play this deck: on to Scenario select. */
+  async function playSavedDeck(page: Page): Promise<DeckRow> {
+    const list = await openDecks(page);
+    const precon = list.find((deck) => deck.source === "precon" && deck.selected)!;
+    await tap(page, "Decks", "stats-duplicate");
+    const copy = await waitFor(
+      async () => (await decks(page)).find((deck) => deck.selected && deck.id !== precon.id) ?? null,
+      "the copy, selected",
+    );
+    await tap(page, "Decks", "stats-play");
+    await waitForScene(page, "ScenarioSelect");
+    await settle(page);
+    return copy;
+  }
+
+  test("through Scenario select, and back out and in again", async ({ page }) => {
+    const errors = trackErrors(page);
+    const copy = await playSavedDeck(page);
+    await tap(page, "ScenarioSelect", "scenario:rhino");
+    await tap(page, "ScenarioSelect", "next");
+    await waitForScene(page, "Seats");
+    await holds(page, copy.id, "the saved deck in seat one");
+    await settle(page);
+    await tap(page, "Seats", "back");
+    await waitForScene(page, "ScenarioSelect");
+    await settle(page);
+    await tap(page, "ScenarioSelect", "next");
+    await waitForScene(page, "Seats");
+    await settle(page, { quietMs: 400, maxMs: 2500 });
+    await holds(page, copy.id, "still the saved deck after going back and on again");
+    expect(errors).toEqual([]);
+  });
+
+  test("through the Civil War builder, and back to it and on again", async ({ page }) => {
+    test.setTimeout(180_000);
+    const errors = trackErrors(page);
+    const copy = await playSavedDeck(page);
+    const act = (action: string): Promise<void> =>
+      page.evaluate(
+        (a) => (window as unknown as { __mcBuilderDebug: { act: (x: string) => void } }).__mcBuilderDebug.act(a),
+        action,
+      );
+    if (!(await routeStops(page, "ScenarioSelect"))?.stops.some((stop) => stop.key === "scenario-search")) {
+      await clickStop(page, "scenario-search-toggle", "ScenarioSelect");
+      await settle(page);
+    }
+    await clickStop(page, "scenario-search", "ScenarioSelect");
+    await page.keyboard.type("Iron Man");
+    await settle(page);
+    await scrollStopIntoView(page, "scenario:registration-iron-man", "ScenarioSelect");
+    await clickStop(page, "scenario:registration-iron-man", "ScenarioSelect");
+    await settle(page);
+    await clickStop(page, "customize", "ScenarioSelect");
+    await waitForScene(page, "CivilWarBuilder");
+    await waitFor(async () => ((await page.evaluate(() => "__mcBuilderDebug" in window)) ? true : null), "builder");
+    await settle(page);
+    await act("civil:start");
+    await waitForScene(page, "Seats");
+    await holds(page, copy.id, "the saved deck in seat one, past the builder");
+    await settle(page);
+    await tap(page, "Seats", "back");
+    await waitForScene(page, "CivilWarBuilder");
+    await settle(page);
+    await act("civil:start");
+    await waitForScene(page, "Seats");
+    await settle(page, { quietMs: 400, maxMs: 2500 });
+    await holds(page, copy.id, "still the saved deck after the builder and back");
+    expect(errors).toEqual([]);
   });
 });

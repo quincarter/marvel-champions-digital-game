@@ -1432,7 +1432,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const entry = enterBuilder(kind, this.#draft, scenarioId);
     setBuilderOrigin("scenarioSelect");
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.civilWarBuilder, { draft: entry.draft, step: entry.step } satisfies CivilWarBuilderData);
+    goToScreen(this, SCENES.civilWarBuilder, {
+      draft: entry.draft,
+      step: entry.step,
+      ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
+    } satisfies CivilWarBuilderData);
   }
 
   #renderEntry(entry: RosterEntry, rect: Rect): ReturnType<typeof renderShelfCard> {
