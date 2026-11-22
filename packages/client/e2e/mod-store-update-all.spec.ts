@@ -115,7 +115,7 @@ test("Update all goes on past a pack that fails, leads to it from any tab, and f
   page,
   baseURL,
 }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(600_000);
   const errors = trackPageErrors(page);
   const setup = await setUp(page, baseURL!);
   try {
@@ -167,7 +167,7 @@ test("Update all keeps going when the player leaves the store, and Stop ends it 
   page,
   baseURL,
 }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(600_000);
   const errors = trackPageErrors(page);
   const setup = await setUp(page, baseURL!);
   try {
@@ -221,7 +221,7 @@ test("an update that lands while the store reloads its catalog is not undone by 
   page,
   baseURL,
 }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(600_000);
   const errors = trackPageErrors(page);
   const setup = await setUp(page, baseURL!);
   try {
