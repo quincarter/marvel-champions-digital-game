@@ -6,6 +6,7 @@ import {
   CHAT_SOUND_GAP_MS,
   newChatFromOthers,
   participantChanges,
+  roomClosedInGame,
   unreadChatCount,
   windowFocused,
 } from "./room-notices.js";
@@ -32,6 +33,27 @@ function room(overrides: Partial<RoomState> = {}): RoomState {
     ...overrides,
   };
 }
+
+describe("roomClosedInGame", () => {
+  const connected = { connection: "connected" } as const;
+  const closed = { connection: "ended", problem: "closed-host" } as const;
+  it("sends a player in a game scene to Play online when the host closed the room", () => {
+    expect(roomClosedInGame(connected, closed, ["Board", "ChoiceOverlay"])).toBe("closed-host");
+    expect(roomClosedInGame(connected, closed, ["SetupDeal"])).toBe("closed-host");
+    expect(roomClosedInGame(connected, { connection: "ended", problem: "closed-idle" }, ["Board"])).toBe("closed-idle");
+  });
+  it("leaves the lobby, a finished game and other endings to their own screens", () => {
+    expect(roomClosedInGame(connected, closed, ["RoomLobby"])).toBeNull();
+    expect(roomClosedInGame(connected, closed, ["Online"])).toBeNull();
+    expect(roomClosedInGame(connected, closed, ["Board", "GameOver"])).toBeNull();
+    expect(roomClosedInGame(connected, { connection: "ended", problem: "closed-ended" }, ["Board"])).toBeNull();
+    expect(roomClosedInGame(connected, { connection: "ended", problem: "unavailable" }, ["Board"])).toBeNull();
+  });
+  it("fires once, at the moment the room ends", () => {
+    expect(roomClosedInGame(closed, closed, ["Board"])).toBeNull();
+    expect(roomClosedInGame(connected, connected, ["Board"])).toBeNull();
+  });
+});
 
 describe("participantChanges", () => {
   it("names who joined and who left, never me", () => {

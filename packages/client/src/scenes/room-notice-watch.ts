@@ -5,12 +5,43 @@
  * single player and offline play never see it.
  */
 import type Phaser from "phaser";
-import { onRoomState, type RoomState } from "../platform/room.js";
+import { leaveRoom, onRoomState, type RoomState } from "../platform/room.js";
+import { clearRoomTable } from "../view/room-table-setup.js";
+import type { RoomProblem } from "../live/room-state.js";
+import { goToScreen } from "../ui/transitions.js";
+import type { OnlineData } from "./online.js";
 import { appSession } from "../session.js";
-import { ChatSoundGate, newChatFromOthers, participantChanges, windowFocused } from "../view/room-notices.js";
+import {
+  ChatSoundGate,
+  IN_GAME_SCENES,
+  newChatFromOthers,
+  participantChanges,
+  roomClosedInGame,
+  windowFocused,
+} from "../view/room-notices.js";
 import { roomToasts } from "../view/room-toast.js";
-import { SCENES } from "./keys.js";
+import { CHROME_SCENES, SCENES } from "./keys.js";
 import { sceneLoader } from "./scene-loader.js";
+
+/**
+ * The room closed under a player who is in a game: leave the room (the seat follower and the room's connection end
+ * with it; a guest's game is the host's, so nothing of it is saved for them), stop every game scene, and go to Play
+ * online, which says why. Works from any in-game scene because it reads the room, not the screen.
+ */
+function leaveToClosedRoom(game: Phaser.Game, problem: RoomProblem): void {
+  leaveRoom();
+  clearRoomTable();
+  const active = game.scene.getScenes(true);
+  const main =
+    active.find((scene) => scene.scene.key === SCENES.board) ?? active.find((s) => IN_GAME_SCENES.has(s.scene.key));
+  if (!main) return;
+  for (const scene of active) {
+    const key = scene.scene.key;
+    if (scene === main || CHROME_SCENES.has(key) || key === SCENES.music || key === SCENES.boot) continue;
+    scene.scene.stop();
+  }
+  goToScreen(main, SCENES.online, { closedNotice: problem } satisfies OnlineData);
+}
 
 export function startRoomNoticeWatch(game: Phaser.Game): () => void {
   const gate = new ChatSoundGate();
@@ -26,6 +57,14 @@ export function startRoomNoticeWatch(game: Phaser.Game): () => void {
   const off = onRoomState((state) => {
     const before = previous;
     previous = state;
+    if (before) {
+      const active = game.scene.getScenes(true).map((scene) => scene.scene.key);
+      const closed = roomClosedInGame(before, state, active);
+      if (closed) {
+        leaveToClosedRoom(game, closed);
+        return;
+      }
+    }
     if (!before || state.role === "none") {
       if (state.role === "none") roomToasts.clear();
       return;
