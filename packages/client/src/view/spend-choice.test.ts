@@ -129,10 +129,12 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
 
   describe("a resource ability exhausting any number of cards (issue #966)", () => {
     const base = "ability:ecs:interrupt";
-    const sub = (set: readonly string[], labels: readonly string[]): ChoiceOption => ({
+    // `many`: the engine's `picksMany`, set on every option of a cost that picks a set of cards.
+    const sub = (set: readonly string[], labels: readonly string[], many = true): ChoiceOption => ({
       optionId: `${base}@exhausted=${set.join(",")}`,
       label: `Enhanced Combat Sense (${labels.join(", ")})`,
       ref: { kind: "ability", instanceId: "ecs" as InstanceId, abilityId: "interrupt" as never },
+      ...(many ? { picksMany: true as const } : {}),
     });
     const ecs = choiceOf(
       [card("x", "Energy"), sub(["a"], ["EMP"]), sub(["b"], ["Armor"]), sub(["a", "b"], ["EMP", "Armor"])],
@@ -162,10 +164,38 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
     });
 
     test("a fixed-set cost with no one-card option, and a single pick, keep their option tiles", () => {
-      const fixed = choiceOf([sub(["a", "b"], ["EMP", "Armor"]), sub(["a", "c"], ["EMP", "Gun"])], "payForCard");
+      const fixed = choiceOf(
+        [sub(["a", "b"], ["EMP", "Armor"], false), sub(["a", "c"], ["EMP", "Gun"], false)],
+        "payForCard",
+      );
       expect(shownSpendChoice(fixed)).toBe(fixed);
-      const single = choiceOf([sub(["a"], ["A"]), sub(["b"], ["B"])], "payForCard");
+      const single = choiceOf([sub(["a"], ["A"], false), sub(["b"], ["B"], false)], "payForCard");
       expect(shownSpendChoice(single)).toBe(single);
+    });
+
+    test("one upgrade to exhaust is still its own tile, showing that upgrade", () => {
+      const lone = choiceOf([card("x", "Energy"), sub(["a"], ["EMP"])], "payForCard");
+      expect(shownSpendChoice(lone).options.map((option) => option.optionId)).toEqual(["hand:x", `pick:a@${base}`]);
+      expect(spendAnswerOf(lone, toggleSpendPick(lone, [], `pick:a@${base}`))).toEqual([sub(["a"], []).optionId]);
+    });
+
+    test("past what the engine lists, a tap lands on the nearest set it offers (seven upgrades and more)", () => {
+      // Offered: each card alone, a+b, and a+b+c; b+c is not.
+      const capped = choiceOf([
+        sub(["a"], []),
+        sub(["b"], []),
+        sub(["c"], []),
+        sub(["a", "b"], []),
+        sub(["a", "b", "c"], []),
+      ]);
+      const all = [`pick:a@${base}`, `pick:b@${base}`, `pick:c@${base}`];
+      // Taking a out of a+b+c leaves b+c, which is not offered: the largest offered set inside it, one card.
+      const out = toggleSpendPick(capped, all, `pick:a@${base}`);
+      expect(out).toHaveLength(1);
+      expect(spendAnswerOf(capped, out)).toHaveLength(1);
+      // Adding c to b reaches no b+c either: the smallest offered set holding both, a+b+c.
+      const grown = toggleSpendPick(capped, [`pick:b@${base}`], `pick:c@${base}`);
+      expect([...grown].sort()).toEqual([...all].sort());
     });
 
     test("a caption reads the card alone, with no plain spending", () => {

@@ -42,6 +42,7 @@ import { costReductionOptionsFor, costReductionTotal, type CostReductionOption }
 import { actionAbilityCost } from "./cost-choice-model.js";
 import { costHelpLines } from "./cost-help-model.js";
 import { cardName, faceUpName } from "./names.js";
+import { nextPickSet } from "./pick-sets.js";
 import { judgePayment, paymentContext, type PaymentVerdict } from "./payment-verdict.js";
 import { notForReason } from "./resource-limit.js";
 
@@ -557,24 +558,22 @@ const optionBase = (optionId: string): string => optionId.split("@")[0]!;
  * per card) by an option picking two cards or more. A hand card's own spending (`spendsHandCard`) is not one.
  */
 function pickGroupBases(sources: readonly PaymentSource[]): readonly string[] {
-  const bases = new Set(
-    sources
-      .filter(
-        (source) =>
-          source.kind === "resourceAbility" &&
-          !source.spendsHandCard &&
-          source.costSelection === undefined &&
-          picksOf(source).length >= 2,
-      )
-      .map((source) => optionBase(source.optionId)),
-  );
-  // Only an "any number" pick, where each card can be exhausted alone: a cost that picks a fixed set per slot
-  // (`exhaustEachCost`) has no one-card option, so a tile per card could never be built up to a payable set.
-  return [...bases].filter((base) => {
-    const ways = pickGroupWays(sources, base);
-    const alone = new Set(ways.filter((way) => picksOf(way).length === 1).map((way) => picksOf(way)[0]!));
-    return ways.flatMap(picksOf).every((card) => alone.has(card));
-  });
+  // The engine says which costs pick a set (`PaymentSource.picksMany`): with one candidate it is still one tile showing
+  // that card, and a single pick (Sync Ratio) or a fixed set is never a group.
+  return [
+    ...new Set(
+      sources
+        .filter(
+          (source) =>
+            source.kind === "resourceAbility" &&
+            source.picksMany === true &&
+            !source.spendsHandCard &&
+            source.costSelection === undefined &&
+            picksOf(source).length > 0,
+        )
+        .map((source) => optionBase(source.optionId)),
+    ),
+  ];
 }
 
 /** Every option of one multi-pick ability, whatever it picks (the empty set included). */
@@ -602,12 +601,12 @@ function pickGroupNext(
   base: string,
   candidate: InstanceId,
 ): { readonly optionId: string | null } | null {
-  const ways = pickGroupWays(payment.query.sources, base);
-  const set = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
-  if (set.has(candidate)) set.delete(candidate);
-  else set.add(candidate);
-  if (set.size === 0) return { optionId: null };
-  const key = pickKey(set);
+  const ways = pickGroupWays(payment.query.sources, base).filter((way) => picksOf(way).length > 0);
+  const current = picksOf(ways.find((way) => payment.picked.includes(way.optionId)));
+  const next = nextPickSet(ways.map(picksOf), current, candidate);
+  if (!next) return null;
+  if (next.length === 0) return { optionId: null };
+  const key = pickKey(next);
   const way = ways.find((w) => pickKey(picksOf(w)) === key);
   return way ? { optionId: way.optionId } : null;
 }

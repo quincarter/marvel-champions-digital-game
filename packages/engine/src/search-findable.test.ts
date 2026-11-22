@@ -92,10 +92,11 @@ describe("searchFindableIfSpent (#966)", () => {
     expect(after.pendingChoice?.options.map((o) => o.optionId)).toContain(teamUp);
   });
 
-  it("finds the Team-Up card in the deck, and names nothing in hand", () => {
+  it("never reads the deck: a Team-Up card there neither counts as found nor hides the hand's", () => {
     const { state, search, teamUp } = game();
+    // Only in the deck: nothing the player can see is found, and nothing in hand is named.
     const moved = backToDeck(state, teamUp);
-    expect(searchFindableIfSpent(moved, deps, p1, search)).toEqual({ found: true, findableIfSpent: [] });
+    expect(searchFindableIfSpent(moved, deps, p1, search)).toEqual({ found: false, findableIfSpent: [] });
   });
 
   it("answers found with nothing to name for a card with no search", () => {

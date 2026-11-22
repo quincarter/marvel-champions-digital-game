@@ -16,7 +16,7 @@ import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import { createCtx, moveCard } from "./ctx.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, discardZoneFor, getPlayer } from "./query.js";
+import { cardOf, discardZoneFor, getPlayer, locateCard } from "./query.js";
 import { selectCards } from "./resolve/cards.js";
 import { flattenEffects } from "./resolve/target-validity.js";
 import { printedAbilityRefs, type EffectContext } from "./select.js";
@@ -24,7 +24,10 @@ import type { CardSelector, EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 
 export interface SearchFindableIfSpent {
-  /** Whether the search's first choice has at least one candidate as things stand. True when there is no such search. */
+  /**
+   * Whether the search's first choice has a candidate in a discard pile as things stand (the deck is hidden, so it never
+   * counts). True when there is no such search.
+   */
   readonly found: boolean;
   /** Cards in the player's hand (the played card aside) that the choice would find once spent to pay, in hand order. */
   readonly findableIfSpent: readonly InstanceId[];
@@ -103,7 +106,10 @@ export function searchFindableIfSpent(
   };
   const candidates = (s: GameState): readonly InstanceId[] =>
     selectCards(createCtx(s, deps), search.from, context).filter((id) => id !== playedCardInstanceId);
-  const found = candidates(state).length > 0;
+  // Only what the player may look at decides the answer: a discard pile is open, a deck is not. Counting the deck would
+  // tell the player, by the hint showing or not, whether another match is still in their deck before they search it
+  // (PR #969 review).
+  const found = candidates(state).some((id) => locateCard(state, id)?.kind === "discard");
   const findableIfSpent = player.hand.filter((id) => {
     if (id === playedCardInstanceId) return false;
     const ctx = createCtx(state, deps);

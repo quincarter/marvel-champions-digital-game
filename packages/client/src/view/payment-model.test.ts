@@ -657,6 +657,8 @@ describe("a resource ability whose cost exhausts any number of cards", () => {
     label: "Enhanced Combat Sense",
     pool: { physical: 0, mental: 0, energy: set.length, wild: 0 },
     costChoices: { exhaust: set },
+    // The engine marks every option of a cost that picks a set of cards (`PaymentSource.picksMany`).
+    picksMany: true,
   }));
   const wayOf = (...set: string[]) => ways.find((way) => way.costChoices.exhaust.join(",") === set.join(","))!;
   const opened = {
@@ -716,15 +718,24 @@ describe("a resource ability whose cost exhausts any number of cards", () => {
   });
 
   test("a single pick (Sync Ratio) stays one source per card, with no group tiles", () => {
-    const single = ups.map((card) => ({ ...wayOf(card), optionId: `${base}@suit=${card}` }));
+    const single = ups.map((card) => ({ ...wayOf(card), optionId: `${base}@suit=${card}`, picksMany: undefined }));
     const payment = { ...opened, query: { ...opened.query, sources: single } } as unknown as PaymentState;
     expect(pickGroupTiles(noGame, payment)).toEqual([]);
     expect(sourceCardsOf(single[0] as never, single as never)).toEqual(["u1"]);
   });
 
+  test("with one upgrade to exhaust, its tile is that upgrade (PR #969 review)", () => {
+    const lone = [wayOf("u1")];
+    const payment = { ...opened, query: { ...opened.query, sources: lone } } as unknown as PaymentState;
+    expect(pickGroupTiles(noGame, payment).map((tile) => tile.instanceId)).toEqual(["u1"]);
+  });
+
   test("a cost that exhausts a fixed set (one card per slot) keeps one tile per set", () => {
-    // No option exhausts one card alone, so tiles per card could never be built up to a payable set.
-    const pairs = [wayOf("u1", "u2"), wayOf("u1", "u3"), wayOf("u2", "u3")];
+    // Not a set to build (no `picksMany`): its options stay one tile each.
+    const pairs = [wayOf("u1", "u2"), wayOf("u1", "u3"), wayOf("u2", "u3")].map((way) => ({
+      ...way,
+      picksMany: undefined,
+    }));
     const payment = { ...opened, query: { ...opened.query, sources: pairs } } as unknown as PaymentState;
     expect(pickGroupTiles(noGame, payment)).toEqual([]);
     expect(sourceCardsOf(pairs[0] as never, pairs as never)).toEqual([ecs]);

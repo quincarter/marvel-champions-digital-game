@@ -15,6 +15,7 @@
  * `spendAnswerOf` sends the one option exhausting exactly the tiles picked (none picked, none sent).
  */
 import type { ChoiceOption, InstanceId, PendingChoice } from "@mc/engine";
+import { nextPickSet } from "./pick-sets.js";
 
 const EXHAUST_TILE = "exhaust:";
 const PICK_TILE = "pick:";
@@ -112,16 +113,13 @@ const groupWays = (choice: Pick<PendingChoice, "options">, base: string): readon
  * build a payable set: it keeps its option tiles. Same test as the pay bar's `pickGroupBases`.
  */
 function pickGroupBasesOf(choice: Pick<PendingChoice, "options">): readonly string[] {
-  const bases = new Set(
-    choice.options.filter((option) => abilityPicksOf(option.optionId).length >= 2).map((o) => baseOf(o.optionId)),
-  );
-  return [...bases].filter((base) => {
-    const ways = groupWays(choice, base);
-    const alone = new Set(
-      ways.filter((way) => abilityPicksOf(way.optionId).length === 1).map((way) => abilityPicksOf(way.optionId)[0]!),
-    );
-    return ways.flatMap((way) => abilityPicksOf(way.optionId)).every((card) => alone.has(card));
-  });
+  return [
+    ...new Set(
+      choice.options
+        .filter((option) => option.picksMany === true && abilityPicksOf(option.optionId).length > 0)
+        .map((option) => baseOf(option.optionId)),
+    ),
+  ];
 }
 
 const pickTileId = (base: string, candidate: InstanceId): string => `${PICK_TILE}${candidate}@${base}`;
@@ -205,11 +203,15 @@ function shownHandExhaust(choice: PendingChoice): PendingChoice {
 export function toggleSpendPick(choice: PendingChoice, picks: readonly string[], id: string): readonly string[] {
   const group = parsePickTile(id);
   if (group) {
-    if (picks.includes(id)) return picks.filter((pick) => pick !== id);
-    // A set no option exhausts (past what the ability allows) changes nothing.
-    return groupWayFor(choice, group.base, [...pickedOfGroup(picks, group.base), group.candidate])
-      ? [...picks, id]
-      : picks;
+    // The nearest set the engine offers (`nextPickSet`); none holding the card with the ones picked changes nothing.
+    const next = nextPickSet(
+      groupWays(choice, group.base).map((way) => abilityPicksOf(way.optionId)),
+      pickedOfGroup(picks, group.base),
+      group.candidate,
+    );
+    if (!next) return picks;
+    const others = picks.filter((pick) => parsePickTile(pick)?.base !== group.base);
+    return [...others, ...next.map((card) => pickTileId(group.base, card))];
   }
   if (isExhaustTile(id)) {
     if (picks.includes(id)) return picks.filter((pick) => pick !== id);

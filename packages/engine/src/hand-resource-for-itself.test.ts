@@ -151,6 +151,11 @@ describe("a resource ability in hand that pays for its own card (#890 item 2)", 
         .map((o) => (o.optionId.split("exhausted=")[1] ?? "").split(/[;#]/)[0]!),
     );
     expect([...sets].filter(Boolean)).toHaveLength(63);
+    // Each is marked as a set to build, so a sheet can draw one card per candidate (PR #969 review).
+    const many = paymentOptions(createCtx(state, deps), P1, null, s.sense).filter((o) =>
+      o.optionId.includes(SENSE_RESOURCE.ref.id),
+    );
+    expect(many.every((o) => o.picksMany === true)).toBe(true);
     const legal = legalActions(state, P1, deps);
     if (legal.kind !== "turn") throw new Error("expected a turn");
     const entry = legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === s.sense);

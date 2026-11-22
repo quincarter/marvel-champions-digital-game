@@ -1744,6 +1744,17 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
   return inPlayPicksOf(cost).length > 0 && Object.entries(cost).every(([key, v]) => pickKeys.has(key) || !v);
 }
 
+/**
+ * Whether a resource ability's cost picks more than one card in play: "any number" (no `max`) or "up to N" with N above
+ * one, and not an `each` pick (it takes every match, so it is never a choice). Its options are sets of cards
+ * (`ChoiceOption.picksMany`).
+ */
+function picksMany(deps: EngineDeps, abilityId: string): boolean {
+  return inPlayPicksOf(deps.abilities[abilityId]?.cost).some(
+    ({ pick }) => !pick.each && (pick.max === undefined || pick.max > 1),
+  );
+}
+
 /** Most payment options one resource ability offers for the different cards its cost could pick (a cap, not a rule). */
 const MAX_PICK_OPTIONS = 20;
 /**
@@ -2576,6 +2587,7 @@ export function paymentOptions(
             optionId: resourceAbilityOptionId({ instanceId: id, abilityId: ref.id, costChoices: choices }),
             label: `${displayNameOf(ctx.state, id)} (${picked.join(", ")})`,
             ref: { kind: "ability", instanceId: id, abilityId: ref.id },
+            ...(picksMany(ctx.deps, ref.id) ? { picksMany: true as const } : {}),
           });
         }
         continue;
