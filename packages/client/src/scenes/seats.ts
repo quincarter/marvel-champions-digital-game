@@ -580,11 +580,19 @@ export class SeatsScene extends Phaser.Scene {
     if (this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // The seated saved decks go along, so coming back here keeps them seated before the deck list loads (#958).
+    const seated = new Set(this.#draft.seats);
+    const seeds = this.#savedDecks.filter((deck) => seated.has(deck.id as string));
+    const seedDecks = seeds.length > 0 ? { seedDecks: seeds } : {};
     if (this.#backTo === "civil-war-builder") {
-      goToScreen(this, SCENES.civilWarBuilder, { draft: this.#draft, step: 5 } satisfies CivilWarBuilderData);
+      goToScreen(this, SCENES.civilWarBuilder, {
+        draft: this.#draft,
+        step: 5,
+        ...seedDecks,
+      } satisfies CivilWarBuilderData);
       return;
     }
-    goToScreen(this, SCENES.scenarioSelect, { draft: this.#draft } satisfies ScenarioSelectData);
+    goToScreen(this, SCENES.scenarioSelect, { draft: this.#draft, ...seedDecks } satisfies ScenarioSelectData);
   }
 
   #drillOut(): void {

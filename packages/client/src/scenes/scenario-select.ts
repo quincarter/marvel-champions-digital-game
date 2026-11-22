@@ -8,7 +8,7 @@
  * `SeatsScene`.
  */
 import Phaser from "phaser";
-import type { CardId, Scenario } from "@mc/content";
+import type { CardId, Deck, Scenario } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
   POOL_PACKS,
@@ -123,6 +123,8 @@ import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
+  /** Decks Take your seats should know before its own list loads (Decks & Collection's "Play this deck"). */
+  readonly seedDecks?: readonly Deck[];
 }
 
 /** Matches `view/layout.ts`'s own `toggleRowHeight` constants — a conservative per-character estimate for `typeRole.body` at 11px, so a detail line's *real* wrapped height is known before a live text object exists to measure it. */
@@ -193,6 +195,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** Dev e2e hook only: every tile drawn so far (see `create`). */
   readonly #tileDebug = new Map<string, { id: string; title: string; villainArt: boolean; baked: boolean }>();
   readonly #coverCache = new Map<string, Picture | null>();
+  #seedDecks: readonly Deck[] = [];
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
 
@@ -202,6 +205,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   init(data: ScenarioSelectData): void {
     this.#draft = data.draft;
+    this.#seedDecks = data.seedDecks ?? [];
   }
 
   create(): void {
@@ -751,7 +755,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
       }
       this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
+      goToScreen(this, SCENES.seats, {
+        draft: this.#draft,
+        ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
+      } satisfies SeatsData);
     };
     const nextButton = new McButton(this, {
       kind: "primary",
@@ -1425,7 +1432,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const entry = enterBuilder(kind, this.#draft, scenarioId);
     setBuilderOrigin("scenarioSelect");
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.civilWarBuilder, { draft: entry.draft, step: entry.step } satisfies CivilWarBuilderData);
+    goToScreen(this, SCENES.civilWarBuilder, {
+      draft: entry.draft,
+      step: entry.step,
+      ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),
+    } satisfies CivilWarBuilderData);
   }
 
   #renderEntry(entry: RosterEntry, rect: Rect): ReturnType<typeof renderShelfCard> {

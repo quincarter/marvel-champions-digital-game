@@ -40,6 +40,11 @@ test.describe("Decks screen navigation", () => {
     await openApp(page);
     await openDecks(page);
     await pressHookStop(page, "__mcDecksDebug", "stats-play");
+    // The scenario first (#958), then Take your seats with the deck in seat one; back out of both.
+    await waitForScene(page, "ScenarioSelect");
+    await settle(page);
+    await pressHookStop(page, "__mcScenarioSelectDebug", "scenario:rhino");
+    await pressHookStop(page, "__mcScenarioSelectDebug", "next");
     await waitForScene(page, "Seats");
     await settle(page);
     await pressHookStop(page, "__mcSeatsDebug", "back");

@@ -114,6 +114,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.unlockConfirm,
   SCENES.nameConflict,
   SCENES.heroDecks,
+  SCENES.deckActions,
   SCENES.searchHelp,
   SCENES.endTurnConfirm,
   SCENES.tutorialResumeConfirm,

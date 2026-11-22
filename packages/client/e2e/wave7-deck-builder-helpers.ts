@@ -114,6 +114,11 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
   const r = ((await stopOf(page, scene, key)) ?? stop).rect;
   await tap(page, r.x + r.width / 2, r.y + r.height / 2);
   await settle(page, { quietMs: 150, maxMs: 600 });
+  // A tapped deck on the phone Decks screen opens its options sheet (#958); these flows only meant to select it.
+  if (PHONE && scene === "Decks" && key.startsWith("deck:") && (await screens(page)).includes("DeckActionsSheet")) {
+    await page.keyboard.press("Escape");
+    await settle(page, { quietMs: 150, maxMs: 600 });
+  }
 }
 
 /** The pool row's own + (or -) button, by its geometry in `deck-builder.ts#renderCardRow`. */

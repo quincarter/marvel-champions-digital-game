@@ -216,6 +216,15 @@ test.describe("Decks & Collection: community decks", () => {
     );
     await settle(page);
     await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
+    // The scenario is picked first, then the deck waits in seat one (#958).
+    await waitFor(
+      async () => ((await activeScenes(page)).includes("ScenarioSelect") ? true : null),
+      "Scenario select",
+      30000,
+    );
+    await settle(page);
+    await pressHookStop(page, "__mcScenarioSelectDebug", "scenario:rhino");
+    await pressHookStop(page, "__mcScenarioSelectDebug", "next");
     await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 30000);
     await waitFor(
       async () =>

@@ -130,6 +130,8 @@ export const SCENES = {
   nameConflict: "NameConflictOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
+  /** A deck's options (`scenes/deck-actions-sheet.ts`, #958): a tapped deck on a phone or tablet, over Decks & Collection. */
+  deckActions: "DeckActionsSheet",
   /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */
   searchHelp: "SearchHelpSheet",
   /** "Manual adjust" (`scenes/manual-adjust.ts`, #791): correct the table by hand, over Pause. */
