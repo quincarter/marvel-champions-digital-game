@@ -25,6 +25,7 @@
  * them does.
  */
 import Phaser from "phaser";
+import type { OnlineNameData } from "./online-name.js";
 import {
   GUIDE_LEVEL_SEARCH_DETAIL,
   guideRowInfoOf,
@@ -75,6 +76,7 @@ import {
   settingsRowInfoOf,
   discordRowInfoOf,
   liveWatchRowInfoOf,
+  onlineNameRowInfoOf,
   deckCopyLimitsRowInfoOf,
   showPreconDecksRowInfoOf,
   extraModularSetsRowInfoOf,
@@ -976,6 +978,9 @@ export class SettingsOverlay extends Phaser.Scene {
       setVolume(nextSettingsAfterEffectsVolume(appSession().settings, v));
       // A sample at the new level.
       appSession().music?.playEffect("basic-attack");
+    });
+    segmented("online-name", onlineNameRowInfoOf(settings), CARD_HOVER_CONTROL_WIDTH, () => {
+      this.scene.launch(SCENES.onlineName, { onDone: () => this.#redrawIfOpen() } satisfies OnlineNameData);
     });
     segmented("card-language", cardLanguageRowInfoOf(settings), SPEED_CONTROL_WIDTH, (v) => this.#setCardLanguage(v));
     segmented("card-size", cardSizeRowInfoOf(settings), CARD_SIZE_CONTROL_WIDTH, (v) => this.#setCardSize(v));

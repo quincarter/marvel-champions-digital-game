@@ -40,6 +40,8 @@ const HOUR_MS = 60 * 60 * 1000;
 /** Global win rate results one IP may send per 24 hours (a fixed window in the state row), and reads per hour (in memory). */
 export const GLOBAL_RESULTS_PER_IP_PER_DAY = 60;
 export const GLOBAL_READS_PER_IP_PER_HOUR = 120;
+/** Room code lookups (`GET /room/code/:code`) one IP may make per hour, counted in memory like global reads. */
+export const ROOM_LOOKUPS_PER_IP_PER_HOUR = 60;
 
 /** Replay share-link uploads one IP may make per 24 hours (a fixed window in the state row). */
 export const REPLAY_UPLOADS_PER_IP_PER_DAY = 30;
@@ -67,6 +69,7 @@ interface LimiterState {
 
 export class RateLimiterLogic {
   private reads: { s: number; n: number } | undefined;
+  private lookups: { s: number; n: number } | undefined;
 
   constructor(private readonly storage: KeyValueStorage) {}
 
@@ -270,6 +273,18 @@ export class RateLimiterLogic {
       window.n += 1;
     } else {
       this.reads = { s: now, n: 1 };
+    }
+    return { ok: true };
+  }
+
+  /** Takes one of the IP's ROOM_LOOKUPS_PER_IP_PER_HOUR room code lookups; in memory only, so it writes no row. */
+  takeRoomLookup(now: number): { ok: true } | { ok: false; retryAfterMs: number } {
+    const window = this.lookups;
+    if (window && now - window.s < HOUR_MS && now >= window.s) {
+      if (window.n >= ROOM_LOOKUPS_PER_IP_PER_HOUR) return { ok: false, retryAfterMs: window.s + HOUR_MS - now };
+      window.n += 1;
+    } else {
+      this.lookups = { s: now, n: 1 };
     }
     return { ok: true };
   }

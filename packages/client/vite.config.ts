@@ -1,8 +1,10 @@
 import { execSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { bundleMode, cardArtPlugin, cardLanguageOf, carriedLanguagesOf, servedLanguages } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
 import { releaseHistoryPlugin } from "./vite-release-history.js";
+import { RULES_ROOTS, rulesFingerprintOf } from "./src/rules-fingerprint.js";
 
 /**
  * The engine runs in a module worker (PLAN.md Phase 4), so the worker format is
@@ -32,11 +34,18 @@ function buildCommit(): string {
   }
 }
 
+/** The rules fingerprint (`rules-fingerprint.ts`): engine, cards, content, mod SDK and session-to-game client code, for live rooms' build check. */
+function rulesFingerprint(): string {
+  const packages = fileURLToPath(new URL("../", import.meta.url));
+  return rulesFingerprintOf(RULES_ROOTS.map((p) => `${packages}${p}`));
+}
+
 export default defineConfig(({ command }) => ({
   // `__CARD_LANG__`: the build language of the card scans (`MC_CARD_LANG`, `src/art/card-language.ts`).
   // `__CARD_LANGS__`: every language the bundle carries (`MC_CARD_LANGS`), or in dev every one the dev server serves.
   define: {
     __BUILD_COMMIT__: JSON.stringify(buildCommit()),
+    __RULES_FINGERPRINT__: JSON.stringify(rulesFingerprint()),
     __CARD_LANG__: JSON.stringify(cardLanguageOf()),
     // Only a pool copy writes the other languages; `all` and `none` builds offer the build language alone.
     __CARD_LANGS__: JSON.stringify(

@@ -504,14 +504,16 @@ describe("replacement log and rewind reach watchers when the room's writes fail"
     host.publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
     await bus.settle();
     expect(bus.roomErrors).toHaveLength(1);
-    // APPLIED: the watcher follows the room's memory (new log, no outcome); SENT: a reconnecting host adds nothing.
+    // APPLIED: the watcher follows the room's memory (new log, no outcome); SENT: a reconnecting host sends its game again.
     expect(watcher.applied.commands).toEqual(cmds(0, 3));
     expect(watcher.applied.ended).toBe(false);
     const sentBefore = host.up.sent.length;
     await host.disconnect();
     host.connect();
     await bus.settle();
-    expect(host.up.sent.slice(sentBefore).filter((m) => m.ch === "game")).toEqual([]);
+    // The unsaved admission is no proof (the welcome withholds the gid and checkpoint): the host sends its game again.
+    const resent = host.up.sent.slice(sentBefore).filter((m) => m.ch === "game");
+    expect(resent.some((m) => m.kind === "start" || m.kind === "log")).toBe(true);
     expect(watcher.applied.commands).toEqual(cmds(0, 3));
     expect(watcher.applied.ended).toBe(false);
   });

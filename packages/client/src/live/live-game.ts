@@ -17,19 +17,32 @@ export interface LiveGameParts {
   readonly commands: readonly Command[];
   readonly outcome: GameOutcome | null;
   readonly checksums?: Readonly<Record<string, string>>;
+  /** The lobby revision a lobby room's host built the game from (`SessionConfig.roomLobbyRev`). */
+  readonly lobbyRev?: number;
 }
 
 export function liveGameOf(parts: LiveGameParts): LiveGame {
-  const { packs, watchable: _watchable, ...rest } = parts.config;
+  const {
+    packs,
+    watchable: _watchable,
+    room: _room,
+    roomPlayMode: _roomPlayMode,
+    roomUndo: _roomUndo,
+    roomCheats: _roomCheats,
+    ...rest
+  } = parts.config;
   const refs: readonly ReplayPackRef[] = (packs ?? []).map(({ id, version }) => ({ id, version }));
   return {
     writer: parts.writer,
     config: withoutDeckNames(rest as SessionConfig),
+    // The guests' devices mark their record of the game adjusted too (`replay-core.ts`).
+    ...(parts.config.roomCheats ? { adjusted: true as const } : {}),
     ...(refs.length > 0 ? { packs: refs } : {}),
     createdAt: parts.createdAt,
     initialState: parts.initialState,
     commands: parts.commands,
     outcome: parts.outcome,
     ...(parts.checksums ? { checksums: parts.checksums } : {}),
+    ...(parts.lobbyRev !== undefined ? { lobbyRev: parts.lobbyRev } : {}),
   };
 }

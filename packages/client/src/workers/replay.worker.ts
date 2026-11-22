@@ -8,7 +8,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { ReplayCore, ReplayOpenError } from "../replay/replay-core.js";
 import type { ReplayRequest, ReplayResponse } from "../replay/replay-protocol.js";
-import { LiveWatcher } from "../live/watch-controller.js";
+import { LiveWatcher, type LiveFeedPort } from "../live/watch-controller.js";
 
 /** The client compiles with the DOM lib, so this names the members of the worker global actually used. */
 interface WorkerGlobal {
@@ -44,7 +44,10 @@ async function handle(request: ReplayRequest): Promise<void> {
           core,
           baseUrl: request.syncUrl,
           roomId: request.roomId,
+          ...(request.device ? { device: request.device } : {}),
           packs: request.packs,
+          // The browser's MessagePort, narrowed to the few members the watcher uses.
+          ...(request.feed ? { feed: request.feed as unknown as LiveFeedPort } : {}),
           emit: (event) => worker.postMessage({ kind: "live", event }),
         });
         const { cardPool, info } = await watcher.open();

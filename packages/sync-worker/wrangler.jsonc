@@ -101,6 +101,41 @@
 //     games a day. The host is not sent resend on hello; a woken room rewinds its watchers to what it holds before it
 //     takes the host's first batch. One room is a few dozen to a few hundred rows; at 100,000 rows a day, that is hundreds of games a
 //     day shared with sync and global stats, and a flood from many addresses is what ROOMS_ENABLED is for.
+//   - Lobby rooms (POST /room with { "lobby": true }, docs/live-game-rooms.md section 8) add, to the room's own rows:
+//     one RoomCode request that writes 2 rows (the code's mapping and its alarm) when the room is made, and 1 extra
+//     request per code collision (none written; 31^6 is about 887 million codes). The code's expiry is the room's own: the
+//     room moves it with its idle alarm (one RoomCode request, 2 rows, about every 12 hours) and deletes it when it
+//     closes (one request, its rows deleted); an alarm there drops a mapping whose room never came back. A code lookup
+//     (GET /room/code/:code) is one Worker request, one RateLimiter request and one RoomCode request, and writes no row:
+//     the per-IP allowance (60 lookups an hour, ROOM_LOOKUPS_PER_IP_PER_HOUR) is a soft limit: it is counted in memory, so
+//     it resets when the limiter object is evicted, and the real defence against guessing is the 31^6 code space. The
+//     code's expiry is the room's own plus an hour (ROOM_CODE_MARGIN_MS), so the two alarms never race, and a refresh
+//     writes a missing entry back for the same room. The lobby is one `lobby` row (settings, seats, seat-token hashes)
+//     in the room, written only when the host sets or changes it, when a seat's holder changes (assigned, released, taken
+//     back, or a token restores it) and once when the host's build is first stamped or changes: a few dozen rows for a
+//     whole session. Seat requests and their withdrawal are memory only, and a participant's lobby messages are held to
+//     a burst of 10 then 2 a second, so no loop of them writes a row. A socket that piles up 50 soft refusals in 10
+//     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
+//     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
+//     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
+//   - "Live now" list (opt-in, the host's `listed` lobby setting, off by default; GET /rooms/live; one RoomDirectory
+//     Durable Object named "live" holding every entry in ONE row). A listed room publishes when what the list shows
+//     changes (seats taken, mode, scenario, started, host connected), coalesced to at most one publish every 5 seconds
+//     (LIVE_PUBLISH_MIN_MS) and refreshed hourly with the host's stamp: each publish or removal is 1 row written in the
+//     directory (plus the alarm, set only when none is pending, once per 2 hours), none in the room itself. A listed room
+//     in a normal session is a few dozen rows. Entries expire 2 hours after the last publish (hidden on read, dropped by
+//     the directory's alarm), the host leaving or the room closing removes its entry, and the directory holds at most 100.
+//     The list read (30 newest) writes no row and is cached for 10 seconds; a client polls every 20 seconds while its
+//     Play online screen is open.
+//     Seat decks (`seat-deck`, each player brings their own hero and deck, 2026-11-20) are stored in the same `lobby` row,
+//     with their seat: an accepted, changed deck rewrites that one row (the same deck again writes nothing), a change of
+//     holder that clears a holder's own deck is already a row write for the holder change, and a `deck-refused` or a
+//     `seat-decks-request` writes nothing. A deck is at most 16 KiB (MAX_SEAT_DECK_BYTES) so four decks (and the presets they hide) and the
+//     rest of the row stay near a storage value's 128 KiB, which is the conservative figure: a SQLite-backed Durable Object
+//     takes values up to 2 MB. Each participant may send a burst of 4 decks, then one every 3 seconds,
+//     and the whole room a burst of 20 then one every 2 seconds, so no loop of decks writes more than about 1,800 rows an
+//     hour; a normal lobby writes a handful. The lobby broadcast carries only a summary of each deck (hero, aspects, name,
+//     card count, mods), the full lists go to the host alone, on request.
 //   - ROOMS_TURNSTILE ("false" by default) makes POST /room require the Turnstile token as well when TURNSTILE_SECRET is
 //     set; the secret is shared with the other routes, and the game's room client sends no token yet, so setting the
 //     secret alone must not stop rooms.
@@ -128,6 +163,8 @@
       { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
       { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
       { "name": "GAME_ROOM", "class_name": "GameRoom" },
+      { "name": "ROOM_CODE", "class_name": "RoomCode" },
+      { "name": "ROOM_DIRECTORY", "class_name": "RoomDirectory" },
     ],
   },
   "migrations": [
@@ -136,6 +173,8 @@
     { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
     { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
     { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
+    { "tag": "v6", "new_sqlite_classes": ["RoomCode"] },
+    { "tag": "v7", "new_sqlite_classes": ["RoomDirectory"] },
   ],
 
   "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays" }],
@@ -171,6 +210,8 @@
           { "name": "GLOBAL_STATS", "class_name": "GlobalStats" },
           { "name": "REPLAY_QUOTA", "class_name": "ReplayQuota" },
           { "name": "GAME_ROOM", "class_name": "GameRoom" },
+          { "name": "ROOM_CODE", "class_name": "RoomCode" },
+          { "name": "ROOM_DIRECTORY", "class_name": "RoomDirectory" },
         ],
       },
       "migrations": [
@@ -179,6 +220,8 @@
         { "tag": "v3", "new_sqlite_classes": ["GlobalStats"] },
         { "tag": "v4", "new_sqlite_classes": ["ReplayQuota"] },
         { "tag": "v5", "new_sqlite_classes": ["GameRoom"] },
+        { "tag": "v6", "new_sqlite_classes": ["RoomCode"] },
+        { "tag": "v7", "new_sqlite_classes": ["RoomDirectory"] },
       ],
       "r2_buckets": [{ "binding": "REPLAYS", "bucket_name": "mc-replays-staging" }],
       "vars": {

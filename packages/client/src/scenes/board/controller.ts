@@ -60,6 +60,7 @@ import {
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
 import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } from "../../view/focus.js";
+import { roomCheatsOf, roomUndoOffOf, undoOffReason } from "../../view/room-strict.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import {
   undoOf,
@@ -76,7 +77,9 @@ import {
  * "Undo past your turn" is Off. On Warn (the default) the player acknowledges first that the game will then stop
  * counting toward stats and achievements; on Allow it goes without asking, and the game is marked all the same.
  */
-const undoRules = (): UndoRules => ({ pastReveals: appSession().settings.undoPastTurn !== "off" });
+const undoRules = (): UndoRules => ({
+  pastReveals: roomCheatsOf(appSession().settings, appSession().store.state.config).undoPastTurn !== "off",
+});
 
 /** What the warning says before an Undo past a reveal. */
 const UNDO_PAST_REVEAL_SENTENCE =
@@ -2036,8 +2039,12 @@ export class BoardController {
    * and only that, so Undo never does both (the QA's F2: Z cancelled a payment and took the move before it back).
    */
   undoOffer(): UndoOffer | null {
-    const { game, perspectiveId, commandTrail, offTurnSeat } = appSession().store.state;
+    const { game, perspectiveId, commandTrail, offTurnSeat, config } = appSession().store.state;
     if (!game || !perspectiveId || offTurnSeat !== null) return null;
+    // A lobby room that turned Undo off (Strict rules, or the host's Undo setting): Undo stays on the bar, greyed, with why.
+    if (roomUndoOffOf(config)) {
+      return game.outcome || game.pendingChoice ? null : { kind: "unavailable", reason: undoOffReason(config) };
+    }
     // Nevermind after End turn (`view/end-turn-takeback.ts`): the next hero's turn has just begun and nothing else has
     // happened, so the same Undo button takes the End turn back to the hero who pressed it.
     const handover = handoverTakebackOf(commandTrail, game);
@@ -2138,7 +2145,7 @@ export class BoardController {
   #acknowledgeAdjusting(): Promise<boolean> {
     if (
       appSession().store.state.adjusted ||
-      appSession().settings.undoPastTurn === "allow" ||
+      roomCheatsOf(appSession().settings, appSession().store.state.config).undoPastTurn === "allow" ||
       !this.#host.confirmAdjustGame
     ) {
       return Promise.resolve(true);

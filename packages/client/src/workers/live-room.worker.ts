@@ -4,6 +4,7 @@
  * reads the status the worker posts back. Nothing here touches rendering.
  */
 import { IdbRoomStore } from "../live/live-room-store.js";
+import { IdbSeatTokenStore } from "../live/room-seat-store.js";
 import { LiveRoomController } from "../live/live-room-controller.js";
 import type {
   LiveControlMessage,
@@ -25,7 +26,7 @@ let controller: LiveRoomController | null = null;
 worker.addEventListener("message", (event) => {
   const message = event.data;
   if (message.kind === "init") {
-    const { gamePort, presencePort } = message;
+    const { gamePort, presencePort, build, onlineName, device } = message;
     controller = new LiveRoomController({
       syncUrl: message.syncUrl,
       watchBase: message.watchBase,
@@ -35,13 +36,29 @@ worker.addEventListener("message", (event) => {
         presencePort?.postMessage({ kind: "live", status } satisfies LiveStatusMessage);
       },
       // Tells the engine worker whether to stream at all (nothing is read or sent while off).
-      onEnabledChange: (on) => gamePort.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
-      onResync: () => gamePort.postMessage({ kind: "resync" } satisfies LiveControlMessage),
+      onEnabledChange: (on) => gamePort?.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
+      onStartRefused: () => worker.postMessage({ kind: "room-start-refused" }),
+      onResync: () => gamePort?.postMessage({ kind: "resync" } satisfies LiveControlMessage),
+      // Rooms and the lobby (issue #880): the seat tokens live in this worker's IndexedDB, never on the main thread.
+      ...(build
+        ? {
+            room: {
+              build,
+              ...(device ? { device } : {}),
+              onlineName: onlineName ?? "",
+              seatStore: new IdbSeatTokenStore(),
+              onState: (state) => worker.postMessage({ kind: "room", state }),
+              onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
+            },
+          }
+        : {}),
     });
-    gamePort.addEventListener("message", (e: MessageEvent<LiveGameMessage>) => controller?.onGameMessage(e.data));
-    gamePort.start();
+    gamePort?.addEventListener("message", (e: MessageEvent<LiveGameMessage>) => controller?.onGameMessage(e.data));
+    gamePort?.start();
     controller.setEnabled(message.enabled);
   } else if (message.kind === "enabled") {
     controller?.setEnabled(message.on);
+  } else {
+    controller?.onRoomCommand(message);
   }
 });

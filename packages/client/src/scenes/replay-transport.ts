@@ -23,6 +23,7 @@ import Phaser from "phaser";
 import { deliverGameLog, deliverReplayFile } from "../replay/replay-files.js";
 import type { ReplayHost, ReplayPositionState } from "../replay/replay-host.js";
 import { activeReplay } from "../replay/replay-mode.js";
+import { seatNoteFor } from "../view/room-seat-note.js";
 import type { LiveState } from "../live/watch-events.js";
 import {
   onReplayInspectChange,
@@ -1101,7 +1102,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
                   : "replay.banner.otherBuild",
             { n: banner.n },
           )
-        : null;
+        : seatNoteFor(this.#host);
     if (!message) return;
     const rect = layout.banner;
     // Two lines on a narrow screen, so the strip is as tall as it needs to be, growing upward from the bar.

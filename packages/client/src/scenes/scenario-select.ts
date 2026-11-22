@@ -8,6 +8,9 @@
  * `SeatsScene`.
  */
 import Phaser from "phaser";
+import { reportRoomSetup } from "./room-setup-report.js";
+import { leaveRoomSetup, placeholderSeats, roomSeatCount, roomSetupActive } from "../view/room-table-setup.js";
+import type { TableSetupData } from "./table-setup.js";
 import type { CardId, Deck, Scenario } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
@@ -210,6 +213,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   create(): void {
     this.#leaving = false;
+    reportRoomSetup("scenario");
     // The scene is reused: a visit starts on the full shelf list with the stages panel shut.
     this.#drill = ALL_PACKS;
     this.#stagesOpen = false;
@@ -360,6 +364,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // Room mode (#880): the host set the table up from the lobby, and Back returns there.
+    if (roomSetupActive()) {
+      leaveRoomSetup();
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     goToScreen(this, SCENES.title);
   }
 
@@ -755,6 +765,14 @@ export class ScenarioSelectScene extends Phaser.Scene {
       }
       this.#leaving = true;
       this.scale.off("resize", this.#rebuild, this);
+      // Room mode (#880): no hero step, the players bring their own decks; Table setup gets one placeholder per seat.
+      if (roomSetupActive()) {
+        reportRoomSetup("table", this.#draft.scenarioId as string);
+        goToScreen(this, SCENES.setup, {
+          draft: { ...this.#draft, seats: placeholderSeats(roomSeatCount()) },
+        } satisfies TableSetupData);
+        return;
+      }
       goToScreen(this, SCENES.seats, {
         draft: this.#draft,
         ...(this.#seedDecks.length > 0 ? { seedDecks: this.#seedDecks } : {}),

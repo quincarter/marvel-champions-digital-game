@@ -134,6 +134,11 @@ export type CoreDispatch =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly error: EngineError };
 
+/** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
+export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+/** A room whose Undo setting is Off (`SessionConfig.roomUndo`) takes no Undo or Back out either. */
+export const UNDO_OFF_REFUSAL = "The host turned Undo off";
+
 /**
  * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
  * `illegal_deck` — which seat and why, rather than only a flattened message. A
@@ -386,6 +391,8 @@ export class EngineSessionCore {
   #writes: Promise<void> = Promise.resolve();
   #saveError: string | null = null;
   #config: SessionConfig | null = null;
+  /** The lobby revision a new room game was built from (`SessionConfig.roomLobbyRev`); none for a resumed game. */
+  #lobbyRev: number | undefined;
   /**
    * Time played in this game so far (`SaveMeta.playedMs`), this session's and every earlier one's. Undefined for a game
    * resumed from a save made before the field existed: a part of its time would read as all of it.
@@ -431,7 +438,10 @@ export class EngineSessionCore {
 
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(given: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
-    const config = await this.#withHistoryFacts(given);
+    // The lobby revision is for the live stream's first start only: kept out of the config that is saved and replayed.
+    const { roomLobbyRev, ...unrevised } = given;
+    this.#lobbyRev = roomLobbyRev;
+    const config = await this.#withHistoryFacts(unrevised);
     // Backstop for the deck gates (`verdictOf`): a hero from a not-ready pack never starts a new game. Resume and
     // replay (`rebuildBaseline`) are left alone so a game that already exists still loads.
     const view = viewOf(config);
@@ -456,7 +466,8 @@ export class EngineSessionCore {
     this.#saveError = null;
     this.#gameId = null;
     this.#playedMs = 0;
-    this.#adjusted = false;
+    // A room's game with Cheats on counts for nothing from its first command (docs/live-game-rooms.md section 8).
+    this.#adjusted = config.roomCheats === true;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
     this.#createdAt = startedAt;
@@ -482,6 +493,7 @@ export class EngineSessionCore {
         // `exactOptionalPropertyTypes`: `guided` is absent, not `undefined`, on a plain game (`SaveMeta.guided`'s
         // own doc comment — additive, no `SAVE_SCHEMA` bump).
         ...(config.guided ? { guided: config.guided } : {}),
+        ...(config.roomCheats ? { adjusted: true as const } : {}),
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet
@@ -585,6 +597,7 @@ export class EngineSessionCore {
 
     this.#session = { state, log: { initialState, commands: stored.commands } };
     this.#config = stored.meta.config;
+    this.#lobbyRev = undefined;
     this.#version = stored.commands.length;
     this.#record = record;
     this.#gameId = gameId;
@@ -617,6 +630,8 @@ export class EngineSessionCore {
     const session = this.#require();
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
+    if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
+    if (config.roomUndo === "off") throw new Error(UNDO_OFF_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
     }
@@ -664,6 +679,9 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
+    if (command.type === "adjust" && this.#config?.roomPlayMode === "strict") {
+      return { ok: false, error: { code: "internal_error", message: STRICT_REFUSAL, command } };
+    }
     const result = sessionApply(session, command, depsOf(this.#config), { recordStates: inVillainPhase });
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
@@ -897,13 +915,14 @@ export class EngineSessionCore {
   }
 
   /** The game as the live room's header and log (`live/`): null with no game or when it is not `watchable`. */
-  liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
+  liveGame(): { readonly gameKey: string; readonly game: LiveGame; readonly room?: string } | null {
     const session = this.#session;
     const config = this.#config;
     const gameKey = this.liveGameKey();
     if (!session || !config || !gameKey) return null;
     return {
       gameKey,
+      ...(config.room ? { room: config.room } : {}),
       game: liveGameOf({
         writer: {
           appVersion: this.#writer.appVersion,
@@ -916,6 +935,7 @@ export class EngineSessionCore {
         commands: session.log.commands,
         outcome: session.state.outcome,
         checksums: this.#liveChecksums(session),
+        ...(this.#lobbyRev !== undefined ? { lobbyRev: this.#lobbyRev } : {}),
       }),
     };
   }

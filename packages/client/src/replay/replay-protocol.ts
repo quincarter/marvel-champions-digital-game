@@ -1,5 +1,6 @@
 /** The messages between the replay screen and the replay worker. Every request's `id` is echoed by its reply. */
 import type { CardPool } from "../engine/host.js";
+import type { RoomDevice } from "@mc/sync-worker/room-protocol";
 import type { Snapshot } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { LiveWatchEvent } from "../live/watch-events.js";
@@ -15,6 +16,10 @@ export type ReplayRequest =
       readonly roomId: string;
       readonly syncUrl: string;
       readonly packs: readonly PackRuntime[];
+      /** A guest of a lobby room (issue #880): the room worker's end of a `MessagePort`, followed instead of a socket. */
+      readonly feed?: MessagePort;
+      /** This device's platform and form, for the watcher's own hello (read on main, `platform/room-device.ts`). */
+      readonly device?: RoomDevice;
     }
   | { readonly kind: "snapshot"; readonly id: number; readonly n: number; readonly played: boolean }
   | { readonly kind: "export"; readonly id: number }

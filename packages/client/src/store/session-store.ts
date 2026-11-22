@@ -12,6 +12,7 @@
  * what the host reports about that — the game's `record` and any `saveError`.
  */
 
+import { roomUndoOffOf } from "../view/room-strict.js";
 import {
   type ChoiceId,
   type Command,
@@ -339,6 +340,8 @@ export class SessionStore {
    */
   async rewindTo(commandCount: number, options?: RewindOptions): Promise<boolean> {
     if (this.#state.inFlight) return false;
+    // A strict room's game, or one whose Undo is Off, takes nothing back (`view/room-strict.ts`); the engine host refuses it too.
+    if (roomUndoOffOf(this.#state.config)) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
       const update = await this.#host.rewindTo(commandCount, options);

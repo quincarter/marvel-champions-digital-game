@@ -30,6 +30,11 @@ export function buildCommit(): string {
   return typeof __BUILD_COMMIT__ === "string" ? __BUILD_COMMIT__ : "";
 }
 
+/** The rules fingerprint of this bundle (engine, cards, content source), or "" (a test run): `RoomBuild.rules`. */
+export function rulesFingerprint(): string {
+  return typeof __RULES_FINGERPRINT__ === "string" ? __RULES_FINGERPRINT__ : "";
+}
+
 /** The GitHub release page for `version`: what the footer's "Release notes" link opens. */
 export const releaseNotesUrl = (version: string): string =>
   `https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v${version}`;

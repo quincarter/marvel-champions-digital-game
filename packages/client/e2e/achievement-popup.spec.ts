@@ -123,7 +123,16 @@ test("the popup position changes on a tap, never on a swipe's lift, and shows a 
   await openMoreTab(page, (x, y) => page.touchscreen.tap(x, y));
 
   const KEY = "row:achievement-popup-place:bottom";
-  const row = await stopRect(page, KEY);
+  // The More tab's watcher and online-name rows push the position row below a phone's screen: scroll it up into view,
+  // a swipe at a time, before the swipe-then-tap under test.
+  const viewport0 = page.viewportSize()!;
+  let row = await stopRect(page, KEY);
+  // Short swipes, so the row stops below the pinned search bar rather than flying under it.
+  for (let i = 0; i < 12 && row.y + row.height / 2 >= viewport0.height - 120; i++) {
+    await touchSwipe(page, viewport0.width / 2, viewport0.height - 120, viewport0.height - 320);
+    await settle(page, { quietMs: 400, maxMs: 2000 });
+    row = await stopRect(page, KEY);
+  }
   const x = row.x + row.width / 2;
   const y = row.y + row.height / 2;
   await touchSwipe(page, x, Math.min(y + 180, page.viewportSize()!.height - 10), y);

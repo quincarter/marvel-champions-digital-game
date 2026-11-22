@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ClientMessage } from "@mc/sync-worker/room-protocol";
+import type { ClientMessage, ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { Command } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
 import { liveGameOf } from "./live-game.js";
 import {
   BATCH_BYTES,
   LivePublisher,
+  gidOfGame,
   headerOf,
   watchLinkOf,
   type LiveGame,
@@ -353,6 +354,368 @@ describe("live publisher", () => {
     publisher.replaceGame(game([cmd(1), cmd(2)]));
     expect(sent.map((m) => m.kind)).toEqual(["commands"]);
     expect(sent[0]).toMatchObject({ from: 1 });
+  });
+
+  it("sends the lobby revision with the first start only, and drops the game when the room refuses it as stale", () => {
+    const sent: ClientMessage[] = [];
+    const onLobbyChanged = vi.fn();
+    const publisher = new LivePublisher({
+      game: { ...game(), lobbyRev: 7 },
+      watchBase: "https://web.example/",
+      send: (m) => {
+        sent.push(m);
+        return true;
+      },
+      onStatus: () => {},
+      onLobbyChanged,
+    });
+    publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+    expect(sent[0]).toMatchObject({ ch: "game", kind: "start", lobbyRev: 7 });
+    publisher.onMessage({ v: 1, ch: "room", kind: "refused", reason: "lobby-changed" });
+    expect(onLobbyChanged).toHaveBeenCalledTimes(1);
+    // The game is no longer the room's: nothing more is streamed for it.
+    publisher.command(cmd(1), 1);
+    expect(sent).toHaveLength(1);
+    // A game without the revision (an older host, a resume) sends a plain start.
+    const plain = fresh();
+    expect(plain.sent[0]).not.toHaveProperty("lobbyRev");
+  });
+
+  describe("lobby revision admission", () => {
+    function revised(over: { commands?: Command[] } = {}) {
+      const sent: ClientMessage[] = [];
+      const onLobbyChanged = vi.fn();
+      const onGiveUp = vi.fn();
+      const publisher = new LivePublisher({
+        game: { ...game(over.commands), lobbyRev: 7 },
+        watchBase: "https://web.example/",
+        // The socket accepts every frame; whether the room applied it is another matter.
+        send: (m) => {
+          sent.push(m);
+          return true;
+        },
+        onStatus: () => {},
+        onLobbyChanged,
+        onGiveUp,
+      });
+      return { publisher, sent, onLobbyChanged, onGiveUp };
+    }
+    const started: ServerMessage = { v: 1, ch: "game", kind: "started", table: "t1" };
+
+    it("repeats the revision on the retry when the first start was accepted by the socket but never applied", () => {
+      const { publisher, sent, onLobbyChanged } = revised();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      publisher.onDisconnected();
+      // The room applied nothing: the reconnect welcome still shows no header.
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      const starts = sent.filter((m) => m.kind === "start");
+      expect(starts).toHaveLength(2);
+      expect(starts[1]).toMatchObject({ lobbyRev: 7 });
+      publisher.onMessage({ v: 1, ch: "room", kind: "refused", reason: "lobby-changed" });
+      expect(onLobbyChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps streaming on a lobby refusal once the start was admitted, and on a failed lobby save", () => {
+      const { publisher, sent, onLobbyChanged } = revised();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      publisher.onMessage(started);
+      // A later lobby refusal belongs to some other lobby message, not to this game's start.
+      publisher.onMessage({ v: 1, ch: "room", kind: "refused", reason: "lobby-changed" });
+      publisher.onMessage({ v: 1, ch: "room", kind: "refused", reason: "not-saved" });
+      expect(onLobbyChanged).not.toHaveBeenCalled();
+      const before = sent.length;
+      publisher.command(cmd(1), 1);
+      expect(sent.length).toBeGreaterThan(before);
+    });
+
+    it("retries a start the room could not save, with backoff, and tells the host when it never lands", () => {
+      vi.useFakeTimers();
+      try {
+        const { publisher, sent, onGiveUp } = revised();
+        publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+        const starts = () => sent.filter((m) => m.kind === "start").length;
+        expect(starts()).toBe(1);
+        const notSaved: ServerMessage = { v: 1, ch: "room", kind: "refused", reason: "not-saved" };
+        publisher.onMessage(notSaved);
+        // Nothing yet: the retry waits, and a second refusal meanwhile does not queue another.
+        publisher.onMessage(notSaved);
+        expect(starts()).toBe(1);
+        vi.advanceTimersByTime(500);
+        expect(starts()).toBe(2);
+        expect(sent.filter((m) => m.kind === "start").at(-1)).toMatchObject({ lobbyRev: 7 });
+        // An ack ends the retries.
+        publisher.onMessage(started);
+        publisher.onMessage(notSaved);
+        vi.advanceTimersByTime(60_000);
+        expect(starts()).toBe(2);
+        expect(onGiveUp).not.toHaveBeenCalled();
+        // A room that never saves: five retries, then the host is told.
+        const never = revised();
+        never.publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+        for (let i = 0; i < 6; i++) {
+          never.publisher.onMessage(notSaved);
+          vi.advanceTimersByTime(60_000);
+        }
+        expect(never.sent.filter((m) => m.kind === "start")).toHaveLength(6);
+        expect(never.onGiveUp).toHaveBeenCalledTimes(1);
+        expect(never.publisher.gaveUp).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does not trust a header it has no ack for: the start goes out again with the revision", () => {
+      const { publisher, sent } = revised();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      sent.length = 0;
+      publisher.onWelcome({ commands: 3, ended: false, hasHeader: true });
+      expect(sent[0]).toMatchObject({ kind: "start", lobbyRev: 7 });
+    });
+
+    it("drops the revision once the room answers started, and repairs without it", () => {
+      const { publisher, sent } = revised({ commands: [cmd(1)] });
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      publisher.onMessage(started);
+      publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      const log = sent.filter((m) => m.kind === "log");
+      expect(log).toHaveLength(1);
+      expect(log[0]).not.toHaveProperty("lobbyRev");
+      publisher.onDisconnected();
+      publisher.onWelcome({ commands: 1, ended: false, hasHeader: false });
+      expect(sent.filter((m) => m.kind === "start").at(-1)).not.toHaveProperty("lobbyRev");
+    });
+
+    it("a committed start whose ack was lost: the welcome shows this gid, so no retire and nothing resent", () => {
+      const { publisher, sent, onLobbyChanged } = revised({ commands: [cmd(1)] });
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      const start = sent.find((m) => m.kind === "start") as { gid?: string };
+      expect(start.gid).toEqual(expect.any(String));
+      publisher.onDisconnected();
+      sent.length = 0;
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid: start.gid! });
+      expect(sent.map((m) => m.kind)).not.toContain("start");
+      expect(sent.map((m) => m.kind)).not.toContain("log");
+      expect(onLobbyChanged).not.toHaveBeenCalled();
+      expect(publisher.gaveUp).toBe(false);
+      // The revision is spent: the commands stream on, and a later repair carries none.
+      expect(sent.find((m) => m.kind === "commands")).toBeDefined();
+      publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      expect(sent.find((m) => m.kind === "log")).not.toHaveProperty("lobbyRev");
+    });
+
+    it("a header with another gid is distrusted and the start goes out again", () => {
+      const { publisher, sent } = revised();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      sent.length = 0;
+      publisher.onWelcome({ commands: 3, ended: false, hasHeader: true, gid: "someone-else" });
+      expect(sent[0]).toMatchObject({ kind: "start", lobbyRev: 7 });
+    });
+
+    it("carries the revision on a log replacement while the game is unconfirmed", () => {
+      const { publisher, sent } = revised({ commands: [cmd(1)] });
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      expect(sent.find((m) => m.kind === "log")).toMatchObject({ lobbyRev: 7 });
+    });
+
+    it("rematch before the ack: no unguarded rewind reopens the old table, the start carries the revision", () => {
+      const { publisher, sent } = revised();
+      publisher.replaceGame({ ...game([cmd(1)]), lobbyRev: 7 });
+      publisher.onWelcome({ commands: 2, ended: true, hasHeader: true });
+      expect(sent.map((m) => m.kind)).not.toContain("rewind");
+      expect(sent.find((m) => m.kind === "start")).toMatchObject({ lobbyRev: 7 });
+    });
+
+    it("reload after started, before the first command: the persisted gid resumes and streams", () => {
+      const { publisher, sent, onGiveUp } = setup();
+      publisher.adoptGid("g-1");
+      publisher.requireAdmittedRoom();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid: "g-1", checkpoint: null });
+      expect(onGiveUp).not.toHaveBeenCalled();
+      publisher.command(cmd(1), 1);
+      expect(sent.at(-1)).toMatchObject({ kind: "commands" });
+    });
+
+    it("reports the admission id when the room answers started", () => {
+      const onAdmitted = vi.fn();
+      const publisher = new LivePublisher({
+        game: { ...game(), lobbyRev: 7 },
+        watchBase: "https://web.example/",
+        send: () => true,
+        onStatus: () => {},
+        onAdmitted,
+      });
+      publisher.onMessage(started);
+      expect(onAdmitted).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it("saves the gid before the first start goes out", () => {
+      const order: string[] = [];
+      const publisher = new LivePublisher({
+        game: { ...game(), lobbyRev: 7 },
+        watchBase: "https://web.example/",
+        send: (m) => {
+          order.push(m.kind);
+          return true;
+        },
+        onStatus: () => {},
+        onAdmitted: () => order.push("saved"),
+      });
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      expect(order.slice(0, 2)).toEqual(["saved", "start"]);
+    });
+
+    it("lost ack, welcome proof, reload: the saved gid lets the resumed host stream the empty admitted table", () => {
+      const saved: string[] = [];
+      const first = new LivePublisher({
+        game: { ...game(), lobbyRev: 7 },
+        watchBase: "https://web.example/",
+        send: () => true,
+        onStatus: () => {},
+        onAdmitted: (gid) => saved.push(gid),
+      });
+      first.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      const gid = saved[0]!;
+      // The start committed, the ack was lost; the reconnect welcome proves it, and the record holds the gid.
+      saved.length = 0;
+      first.onDisconnected();
+      first.onWelcome({ commands: 0, ended: false, hasHeader: true, gid, checkpoint: null });
+      expect(saved).toEqual([gid]);
+      // Reload before the first command: a resumed publisher adopts the saved gid and recognizes the table.
+      const { publisher, sent, onGiveUp } = setup();
+      publisher.adoptGid(saved[0]!);
+      publisher.requireAdmittedRoom();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid, checkpoint: null });
+      expect(onGiveUp).not.toHaveBeenCalled();
+      publisher.command(cmd(1), 1);
+      expect(sent.at(-1)).toMatchObject({ kind: "commands" });
+    });
+
+    it("a resumed admitted game repairs a dirty room's log under its own gid, and gives up on a foreign gid", () => {
+      const { publisher, sent, onGiveUp } = setup({ commands: [cmd(1), cmd(2)] });
+      publisher.adoptGid("mine");
+      publisher.requireAdmittedRoom();
+      // The room holds this admission but not the log it was given (a failed write): the log goes again, no give-up.
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid: "mine", checkpoint: null, dirty: true });
+      expect(onGiveUp).not.toHaveBeenCalled();
+      expect(sent.find((m) => m.kind === "start")).toMatchObject({ gid: "mine" });
+      expect(sent.find((m) => m.kind === "start")).not.toHaveProperty("lobbyRev");
+      expect(sent.filter((m) => m.kind === "commands").length).toBeGreaterThan(0);
+      // Another game's durable admission is never repaired over.
+      const other = setup({ commands: [cmd(1)] });
+      other.publisher.adoptGid("mine");
+      other.publisher.requireAdmittedRoom();
+      other.publisher.onWelcome({
+        commands: 0,
+        ended: false,
+        hasHeader: true,
+        gid: "foreign",
+        checkpoint: null,
+        dirty: true,
+      });
+      expect(other.onGiveUp).toHaveBeenCalledTimes(1);
+      expect(other.sent.filter((m) => m.kind === "start")).toHaveLength(0);
+    });
+
+    it("keeps its gid on every repair: two reconnects around a divergent log, then a reload", () => {
+      const saved: string[] = [];
+      const sent: ClientMessage[] = [];
+      const publisher = new LivePublisher({
+        game: { ...game([cmd(1), cmd(2)], { "0": "z", "2": "two" }), lobbyRev: 7 },
+        watchBase: "https://web.example/",
+        send: (m) => {
+          sent.push(m);
+          return true;
+        },
+        onStatus: () => {},
+        onAdmitted: (gid) => saved.push(gid),
+      });
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      const gid = (sent.find((m) => m.kind === "start") as { gid?: string }).gid!;
+      publisher.onMessage({ v: 1, ch: "game", kind: "started", table: "t1", gid });
+      for (let i = 0; i < 2; i++) {
+        publisher.onDisconnected();
+        sent.length = 0;
+        publisher.onWelcome({
+          commands: 2,
+          ended: false,
+          hasHeader: true,
+          gid,
+          checkpoint: { count: 2, sum: "other" },
+        });
+        expect(sent.find((m) => m.kind === "start")).toMatchObject({ gid });
+        expect(sent.find((m) => m.kind === "start")).not.toHaveProperty("lobbyRev");
+      }
+      publisher.onMessage({ v: 1, ch: "game", kind: "resend", table: "t1", from: 0 });
+      expect(sent.find((m) => m.kind === "log")).toMatchObject({ gid });
+      expect(new Set(saved)).toEqual(new Set([gid]));
+      // Reload: the saved gid is the one the room still holds.
+      const resumed = setup();
+      resumed.publisher.adoptGid(saved.at(-1)!);
+      resumed.publisher.requireAdmittedRoom();
+      resumed.publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid, checkpoint: null });
+      expect(resumed.onGiveUp).not.toHaveBeenCalled();
+    });
+
+    it("a resumed lobby game whose table carries another gid gives up", () => {
+      const { publisher, sent, onGiveUp } = setup();
+      publisher.adoptGid("g-1");
+      publisher.requireAdmittedRoom();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: true, gid: "g-2", checkpoint: null });
+      expect(onGiveUp).toHaveBeenCalledTimes(1);
+      expect(sent).toEqual([]);
+    });
+
+    it("a resumed lobby game whose foreign table matches its checkpoint still mutates nothing", () => {
+      const { publisher, sent, onGiveUp } = setup({ commands: [cmd(1)], checksums: { "0": "z0", "1": "z1" } });
+      publisher.adoptGid("A");
+      publisher.requireAdmittedRoom();
+      publisher.onWelcome({
+        commands: 1,
+        ended: false,
+        hasHeader: true,
+        gid: "B",
+        checkpoint: { count: 1, sum: "z1" },
+      });
+      expect(onGiveUp).toHaveBeenCalledTimes(1);
+      expect(sent).toEqual([]);
+    });
+
+    it("a foreign gid with a matching checkpoint is replaced on a plain room, never appended to", () => {
+      const { publisher, sent } = setup({ commands: [cmd(1)], checksums: { "0": "z0", "1": "z1" } });
+      publisher.adoptGid("A");
+      publisher.onWelcome({
+        commands: 1,
+        ended: false,
+        hasHeader: true,
+        gid: "B",
+        checkpoint: { count: 1, sum: "z1" },
+      });
+      expect(sent[0]).toMatchObject({ kind: "start", gid: "A" });
+    });
+
+    it("a table without a gid (legacy room data) still falls back to the checkpoint comparison", () => {
+      const { publisher, sent } = setup({ commands: [cmd(1)], checksums: { "0": "z0", "1": "z1" } });
+      publisher.onWelcome({ commands: 1, ended: false, hasHeader: true, checkpoint: { count: 1, sum: "z1" } });
+      expect(sent.map((m) => m.kind)).not.toContain("start");
+      expect(sent.map((m) => m.kind)).not.toContain("log");
+    });
+
+    it("derives the same gid from a game's durable identity, different for another game", () => {
+      expect(gidOfGame("g1", 5)).toBe(gidOfGame("g1", 5));
+      expect(gidOfGame("g1", 5)).not.toBe(gidOfGame("g1", 6));
+      expect(gidOfGame("g1", 5)).not.toBe(gidOfGame("g2", 5));
+      expect(gidOfGame("g1", 5).length).toBeLessThanOrEqual(64);
+    });
+
+    it("a resumed lobby game never installs a header on a headerless table", () => {
+      const { publisher, sent, onGiveUp } = setup();
+      publisher.requireAdmittedRoom();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      expect(sent).toEqual([]);
+      expect(onGiveUp).toHaveBeenCalledTimes(1);
+      expect(publisher.gaveUp).toBe(true);
+    });
   });
 
   it("stops after the room refuses too-large, and answers no resend", () => {

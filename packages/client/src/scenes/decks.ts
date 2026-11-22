@@ -72,6 +72,7 @@
  * never decides whether a deck is legal or what its record is.
  */
 
+import { t } from "../i18n/translate.js";
 import { rebuildOnPackChange } from "../ui/pack-redraw.js";
 import type { DeckActionId } from "../view/deck-actions.js";
 import type { DeckActionsSheet, DeckActionsSheetData } from "./deck-actions-sheet.js";
@@ -1605,7 +1606,8 @@ export class DecksScene extends Phaser.Scene {
     const byScore = <T>(items: readonly T[], optionOf: (item: T) => DeckOption): readonly T[] =>
       ranking === null ? items : [...items].sort((a, b) => scoreOf(optionOf(b)) - scoreOf(optionOf(a)));
     const matches = (option: DeckOption): boolean =>
-      ranked(option) && heroRosterMatches(option.deck, identityOf(option), chips, option.blockedReason);
+      ranked(option) &&
+      heroRosterMatches(option.deck, identityOf(option), chips, option.checking ? "checking" : option.blockedReason);
     const isSelected = (option: DeckOption): boolean => (option.deck.id as string) === this.#selectedDeckId;
 
     // A list chip narrows to that list; a source chip (Imported, Built) narrows to the player's own list, so the
@@ -2807,7 +2809,11 @@ export class DecksScene extends Phaser.Scene {
         type: typeRole.barTitle,
         rect: playRect,
         enabled: canPlay,
-        ...(canPlay ? {} : { reason: option.blockedReason ?? "This deck is not legal." }),
+        ...(canPlay
+          ? {}
+          : {
+              reason: option.checking ? t("room.picker.checking") : (option.blockedReason ?? "This deck is not legal."),
+            }),
         onClick: () => this.#playDeck(deck),
       }),
     );
@@ -2893,7 +2899,12 @@ export class DecksScene extends Phaser.Scene {
 
     if (offer.lock || !option.legal) {
       const why = this.add
-        .text(left, y, offer.lock ?? option.blockedReason ?? "", textStyle(typeRole.body, accent.heroRed.hex))
+        .text(
+          left,
+          y,
+          offer.lock ?? (option.checking ? t("room.picker.checking") : option.blockedReason) ?? "",
+          textStyle(typeRole.body, accent.heroRed.hex),
+        )
         .setWordWrapWidth(column, true);
       y += why.height + 8;
     }
@@ -2934,7 +2945,14 @@ export class DecksScene extends Phaser.Scene {
         type: typeRole.barTitle,
         rect: addRect,
         enabled: canAdd,
-        ...(canAdd ? {} : { reason: offer.lock ?? option.blockedReason ?? "This deck is not legal." }),
+        ...(canAdd
+          ? {}
+          : {
+              reason:
+                offer.lock ??
+                (option.checking ? t("room.picker.checking") : option.blockedReason) ??
+                "This deck is not legal.",
+            }),
         onClick: doAdd,
       }),
     );
@@ -3267,7 +3285,7 @@ export class DecksScene extends Phaser.Scene {
       card?.type === "villain"
         ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
         : ({ kind: "hero" } as const);
-    const note = option.blockedReason ?? option.warning ?? null;
+    const note = (option.checking ? t("room.picker.checking") : option.blockedReason) ?? option.warning ?? null;
     this.scene.launch(SCENES.inspect, {
       card: { cardId: option.deck.identityCardId, face },
       ...(note ? { note } : {}),

@@ -11,6 +11,7 @@ import { applyDeckSwaps } from "../view/name-conflicts.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { tableRulesOf } from "../settings.js";
 import { addSeat, initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
+import type { SessionConfig } from "../engine/host.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
@@ -326,6 +327,39 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
+  if (screen === "room-lobby") {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    return {
+      key: SCENES.roomLobby,
+      data: {
+        preview: roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host", variantOf(params.get("v")), {
+          // `&activity=table&scenario=Rhino` shows the host's setup status line; `&unread=5` marks the latest 5 chat lines unread.
+          ...(params.get("activity")
+            ? {
+                hostActivity: {
+                  step: params.get("activity") as "scenario" | "table" | "modular" | "decks" | "starting",
+                  ...(params.get("scenario") ? { scenario: params.get("scenario")! } : {}),
+                },
+              }
+            : {}),
+          ...(params.get("unread") ? { unread: Number(params.get("unread")) } : {}),
+        }),
+        ...(params.get("result") === "decks" ? { startResult: "decks" } : {}),
+      },
+    };
+  }
+  // `?screen=room-deck-picker&as=guest|host`: the deck picker for a seat of the made-up room (a guest's own seat, or the host's Set deck on seat 2).
+  if (screen === "room-deck-picker") {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const host = params.get("as") === "host";
+    return {
+      key: SCENES.roomDeckPicker,
+      data: { seat: host ? "s2" : "s1", preset: host, preview: roomLobbyFixture(host ? "host" : "guest", "open") },
+    };
+  }
+  // `?screen=online`: Play online.
+  if (screen === "online") return { key: SCENES.online, data: {} };
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };
   // `?screen=mod-store&catalog=/packs/fixture.json&pack=fan-x`: the Mod Store, optionally on another catalog and open on a pack.
@@ -1065,7 +1099,9 @@ async function startDevGame(): Promise<void> {
   });
   const config = toSessionConfig(draft, [corePlayerForSeat(seat)], undefined, tableRulesOf(appSession().settings));
   // `&watch=1`: the game is open to watchers (issue #876), for checking a live room end to end.
-  await store.start(params.get("watch") === "1" ? { ...config, watchable: true } : config);
+  // `&roomstrict=1`: the game of a lobby room on Strict rules (issue #880): no Undo, Back out or Manual adjust.
+  const started: SessionConfig = params.get("watch") === "1" ? { ...config, watchable: true as const } : config;
+  await store.start(params.get("roomstrict") === "1" ? { ...started, roomPlayMode: "strict" as const } : started);
 }
 
 /**
@@ -1340,3 +1376,7 @@ async function startDevSetupGame(): Promise<void> {
     ),
   );
 }
+
+/** `?v=open|decks|problem` of the room lobby preview. */
+const variantOf = (value: string | null): "open" | "decks" | "problem" =>
+  value === "open" || value === "problem" ? value : "decks";

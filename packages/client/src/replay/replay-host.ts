@@ -22,6 +22,7 @@ import type {
   UpdateListener,
 } from "../engine/host.js";
 import type { Snapshot } from "../engine/session-core.js";
+import { currentRoomDevice } from "../platform/room-device.js";
 import { INITIAL_LIVE_STATE, type LiveState, type LiveWatchEvent } from "../live/watch-events.js";
 import { followPlan, isFollowing } from "../live/watch-follow.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -46,7 +47,7 @@ export interface ReplayBackend {
   exportLog(): Promise<ReplayLogExport>;
   dispose(): void;
   /** Follows a live game room (issue #876). Absent on a backend that cannot (it then refuses a watch). */
-  watch?(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayOpened>;
+  watch?(roomId: string, syncUrl: string, packs: readonly PackRuntime[], feed?: MessagePort): Promise<ReplayOpened>;
   /** Hears the live game's changes while one is followed. */
   onLive?(listener: (event: LiveWatchEvent) => void): void;
 }
@@ -147,8 +148,25 @@ export class WorkerReplayBackend implements ReplayBackend {
     return { cardPool: response.cardPool, info: response.info };
   }
 
-  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayOpened> {
-    const response = await this.#request({ kind: "watch", id: this.#nextId++, roomId, syncUrl, packs });
+  async watch(
+    roomId: string,
+    syncUrl: string,
+    packs: readonly PackRuntime[],
+    feed?: MessagePort,
+  ): Promise<ReplayOpened> {
+    const device = currentRoomDevice();
+    const response = await this.#request(
+      {
+        kind: "watch",
+        id: this.#nextId++,
+        roomId,
+        syncUrl,
+        packs,
+        ...(feed ? { feed } : {}),
+        ...(device ? { device } : {}),
+      },
+      feed ? [feed] : [],
+    );
     if (response.kind !== "opened") throw new Error(`unexpected reply ${response.kind}`);
     return { cardPool: response.cardPool, info: response.info };
   }
@@ -182,7 +200,7 @@ export class WorkerReplayBackend implements ReplayBackend {
     this.#pending.clear();
   }
 
-  #request(request: ReplayRequest): Promise<ReplayResponse> {
+  #request(request: ReplayRequest, transfer: Transferable[] = []): Promise<ReplayResponse> {
     return new Promise((resolve, reject) => {
       // A replay that keeps the worker busy past its deadline (a file built to make the engine loop) is stopped: the
       // worker is terminated and the replay can't go on.
@@ -205,7 +223,7 @@ export class WorkerReplayBackend implements ReplayBackend {
           reject(error);
         },
       });
-      this.#worker.postMessage(request);
+      this.#worker.postMessage(request, transfer);
     });
   }
 }
@@ -245,12 +263,12 @@ export class ReplayHost implements EngineHost {
   }
 
   /** Follows a live game room (issue #876): the replay is the game so far, at its newest position, and keeps up. */
-  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[]): Promise<ReplayInfo> {
+  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[], feed?: MessagePort): Promise<ReplayInfo> {
     const watch = this.#backend.watch;
     if (!watch || !this.#backend.onLive) throw new ReplayOpenError("setup", "this backend cannot follow a live game");
     this.#live = INITIAL_LIVE_STATE;
     this.#backend.onLive((event) => this.#onLive(event));
-    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs);
+    const { cardPool, info } = await watch.call(this.#backend, roomId, syncUrl, packs, feed);
     this.#cardPool = cardPool;
     this.#info = info;
     this.#position = info.length;

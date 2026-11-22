@@ -20,6 +20,8 @@ import type { SetCardsData } from "./set-cards.js";
 import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
 import { takeWatchLink } from "../live/watch-link.js";
+import { takeJoinLink } from "../live/join-link.js";
+import type { OnlineData } from "./online.js";
 import { loadLiveWatch } from "../live/watch-open.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
 import type { ReplayVersusData } from "./replay-versus.js";
@@ -55,6 +57,9 @@ export class BootScene extends Phaser.Scene {
     // A live game's watch link (#876) opens the same way, on a replay that follows the game.
     const watchLink = replayLink ? null : takeWatchLink();
     const sharedLink = replayLink ?? watchLink;
+    // A room's join link (#880): read once, here, and opened on the Play online screen, which does the joining. Only the
+    // address is read now; nothing connects until that screen runs.
+    const joinLink = sharedLink ? null : takeJoinLink();
     // On the web version on a desktop, the replay can open in the installed app instead (#862).
     const openInApp =
       sharedLink && sharedLink !== "invalid" && offersDesktopApp()
@@ -114,6 +119,14 @@ export class BootScene extends Phaser.Scene {
           //
           // Always Title. The first-run "New to the fight?" chooser comes after the player presses New game
           // (`scenes/title.ts#newGame`, `docs/guided-mode.md` §3.9), never before Title.
+          if (joinLink) {
+            goToScreen(
+              this,
+              SCENES.online,
+              (joinLink === "invalid" ? { invalidLink: true } : { join: joinLink }) satisfies OnlineData,
+            );
+            return;
+          }
           goToScreen(this, SCENES.title);
           return;
         }

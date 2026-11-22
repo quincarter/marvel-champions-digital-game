@@ -17,6 +17,8 @@ in Settings mutes them with the music.
 | `cloak-of-levitation.mp3`  | Doctor Strange uses Cloak of Levitation's ability                                                                                         |
 | `shield-toss.mp3`          | Captain America plays Shield Toss, in place of `card-played`                                                                              |
 | `versus-whoosh.mp3`        | A replay's versus screen comes up (`scenes/replay-versus.ts`); Dragon Studio's "Dramatic Whoosh Swing" (Pixabay 487667), trimmed to 1.6 s |
+| `room-enter.mp3`           | Someone else joins a room I am in, in its lobby or while its game runs (`view/room-notices.ts`)                                           |
+| `chat-message.mp3`         | A room chat line from someone else arrives while this window is not focused, at most once every 3 s                                       |
 
 When one command makes several, they play in order, each starting as the one before ends (at most 600 ms in): the
 card's sound, then its attack or thwart, then the refill (`tableSoundsOf` in `view/sound-effects.ts`).
