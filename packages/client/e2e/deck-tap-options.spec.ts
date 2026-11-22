@@ -369,6 +369,10 @@ test.describe("the deck's options (#958 review)", () => {
     );
     await page.setViewportSize({ width: 667, height: 375 });
     await settle(page);
+    // The short list has room for about one row: show the player's own decks alone, where this one is first.
+    await showList(page, "list:build");
+    await tap(page, "Decks", "filters-toggle");
+    await settle(page);
     await openOptions(page, illegal.id);
     await tap(page, SHEET, "action:delete");
     await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
