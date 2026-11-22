@@ -495,7 +495,8 @@ export const en = {
   "room.multi.title": "Several seats per person",
   "room.multi.detail": "One person may play more than one hero.",
   "room.askToSit.title": "Ask the host to sit at the table",
-  "room.askToSit.detail": "Guests ask for a seat and you approve them. Off: guests take an open seat themselves.",
+  "room.askToSit.detail":
+    "Guests ask for a seat and you approve them. Off: guests take an open seat themselves before the game starts.",
   "room.listed.title": "List this room in Live now",
   "room.listed.detail":
     "Anyone can see the room's name, mode, scenario and seats, and join to watch or ask for a seat. The code stays the way in, and anyone who saw it can still use it after you unlist.",
@@ -519,6 +520,8 @@ export const en = {
   "room.toast.dismiss": "Dismiss",
   "room.hostHint":
     "Share the code or the link. Players ask for a seat and bring their own deck; you approve them, and can preset a deck for any seat.",
+  "room.hostHintClaim":
+    "Share the code or the link. Players take an open seat and bring their own deck; you can preset a deck for any seat.",
   "room.watch.yourHero": "Your hero: {names}",
   "room.watch.yourHeroes": "Your heroes: {names}",
   "room.opening": "The host started the game. Opening it…",
