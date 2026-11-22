@@ -27,6 +27,17 @@ import {
   type PlayerId,
   type ResourcePool,
 } from "@mc/engine";
+import {
+  actingPlayer,
+  initActor,
+  settleActor,
+  stepActor,
+  type ActorState,
+  type RecordFoldContext,
+} from "./record-actor.js";
+import { boostsFold, type BoostsFoldState } from "./record-boosts.js";
+import { featsFold, type FeatsFoldState } from "./record-feats.js";
+import { togetherFold, type TogetherFoldState } from "./record-together.js";
 
 /** A card with the Team-Up keyword (RRG 1.8 "Team-Up", p. 43). */
 const isTeamUpCard = (card: GameState["cardPool"][string] | undefined): boolean =>
@@ -228,6 +239,12 @@ export interface GameRecord {
    */
   readonly turn?: { readonly playerId: PlayerId; readonly damage: number; readonly thwart: number };
   /**
+   * The phase the game ended in (#909): the step change into `gameOver` (`stepChanged`) records the phase it came from,
+   * so a game ended in the player phase's end steps (discard, draw, ready) after the last turn is still the player
+   * phase. Absent until the game is over, when it ended in setup, and on a record written before the field existed.
+   */
+  readonly lastPhase?: "player" | "villain";
+  /**
    * Allies defending attacks still in progress, by the attacking enemy's instance (`AllyDefense`). The log marks no
    * attack's end, so one is over once it has resolved and the next attack, turn, round or encounter reveal begins.
    * Absent while none.
@@ -242,6 +259,15 @@ export interface GameRecord {
   readonly hurtBy?: Readonly<Record<string, number>>;
   /** The last hit on each character this round (`HitMark`), by the character's instance. Absent while none. */
   readonly lastHits?: Readonly<Record<string, HitMark>>;
+  /**
+   * Who is acting now (`record-actor.ts`), for the counter folds below. Absent on a record written before it existed,
+   * which starts a fresh tracker.
+   */
+  readonly actor?: ActorState;
+  /** The counter folds' running states (#909): `record-together.ts`, `record-feats.ts`, `record-boosts.ts`. */
+  readonly together?: TogetherFoldState;
+  readonly feats?: FeatsFoldState;
+  readonly boosts?: BoostsFoldState;
 }
 
 export const emptyRecord = (): GameRecord => ({
@@ -378,7 +404,11 @@ export function recordEvents(
   } = record;
   let schemeSwaps = record.schemeSwaps ?? [];
   let { sideSchemesSeen, sideSchemesDefeated, sideSchemesInPlay } = record;
-  let { turn, allyDefending, encounterRevealed, hurtBy, lastHits } = record;
+  let { turn, allyDefending, encounterRevealed, hurtBy, lastHits, lastPhase } = record;
+  let actor = record.actor ?? initActor();
+  let together = record.together ?? togetherFold.init();
+  let feats = record.feats ?? featsFold.init();
+  let boosts = record.boosts ?? boostsFold.init();
   /**
    * Each instance's card as the events reach it: a card that flips to its other face in this command
    * (`cardFlippedToOtherFace`) was its `from` face until then, whatever `state` (after the command) says.
@@ -517,7 +547,14 @@ export function recordEvents(
   );
 
   for (const event of events) {
+    const actorBefore = actingPlayer(actor);
+    actor = stepActor(actor, event);
     switch (event.type) {
+      case "stepChanged":
+        if (event.to.phase === "gameOver" && (event.from.phase === "player" || event.from.phase === "villain")) {
+          lastPhase = event.from.phase;
+        }
+        break;
       case "roundStarted":
         round = event.round;
         endAllDefenses();
@@ -764,8 +801,22 @@ export function recordEvents(
       default:
         break;
     }
+    // The counter folds (#909) see the event after the record's own fold of it (the round already turned).
+    const ctx: RecordFoldContext = {
+      actor: actingPlayer(actor),
+      actorBefore,
+      tracker: actor,
+      state,
+      ...(deps ? { deps } : {}),
+      round,
+      cardIdAt,
+    };
+    together = togetherFold.step(together, event, ctx);
+    feats = featsFold.step(feats, event, ctx);
+    boosts = boostsFold.step(boosts, event, ctx);
   }
   if (state.outcome) foldTurn();
+  actor = settleActor(actor, state.stack);
 
   return {
     round,
@@ -784,9 +835,14 @@ export function recordEvents(
     ...(sideSchemesInPlay && Object.keys(sideSchemesInPlay).length > 0 ? { sideSchemesInPlay } : {}),
     activation,
     ...(turn ? { turn } : {}),
+    ...(lastPhase ? { lastPhase } : {}),
     ...(allyDefending && Object.keys(allyDefending).length > 0 ? { allyDefending } : {}),
     ...(encounterRevealed ? { encounterRevealed } : {}),
     ...(hurtBy ? { hurtBy } : {}),
     ...(lastHits && Object.keys(lastHits).length > 0 ? { lastHits } : {}),
+    actor,
+    together,
+    feats,
+    boosts,
   };
 }

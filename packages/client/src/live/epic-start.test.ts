@@ -88,6 +88,11 @@ describe("the table host's game", () => {
     expect(epicTableConfig(CONFIG, EPIC, { roomId: "room00000001" }).seed).toBe(config.seed);
   });
 
+  it("carries room Cheats, so the table's game starts adjusted (#909)", () => {
+    expect(epicTableConfig(CONFIG, EPIC, { roomId: "room00000001", cheats: true }).roomCheats).toBe(true);
+    expect(epicTableConfig(CONFIG, EPIC, { roomId: "room00000001" })).not.toHaveProperty("roomCheats");
+  });
+
   it("says why it cannot start: not a host, not started, the wrong number of heroes", () => {
     const room = { roomId: "room00000001" };
     expect(() => epicTableConfig(CONFIG, { ...EPIC, hostsTable: null }, room)).toThrow(/hosts no table/);

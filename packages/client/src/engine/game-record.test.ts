@@ -164,6 +164,36 @@ describe("game record: main scheme swaps (issue #518)", () => {
   });
 });
 
+describe("game record: the phase the game ended in (#909)", () => {
+  const over = (from: Extract<GameEvent, { type: "stepChanged" }>["from"]): GameEvent => ({
+    type: "stepChanged",
+    from,
+    to: { phase: "gameOver", kind: "gameOver" },
+  });
+
+  test("the step change into game over keeps the phase it came from", async () => {
+    const game = await recordedGame(RHINO_SOLO);
+    const state = game.state();
+    expect(game.record().lastPhase).toBeUndefined();
+    const villain = over({ phase: "villain", kind: "placeThreat", placed: true });
+    expect(recordEvents(emptyRecord(), [villain], state).lastPhase).toBe("villain");
+    // The player phase's end steps, after the last turn has ended, are still the player phase.
+    const discard = over({ phase: "player", kind: "endPhaseDiscard", remainingPlayerIds: [] });
+    expect(recordEvents(emptyRecord(), [discard], state).lastPhase).toBe("player");
+    expect(recordEvents(emptyRecord(), [over({ phase: "player", kind: "endPhaseDraw" })], state).lastPhase).toBe(
+      "player",
+    );
+    // A step change that is not into game over records nothing, and a later command keeps the recorded phase.
+    const toDraw: GameEvent = {
+      type: "stepChanged",
+      from: { phase: "player", kind: "endPhaseDiscard", remainingPlayerIds: [] },
+      to: { phase: "player", kind: "endPhaseDraw" },
+    };
+    expect(recordEvents(emptyRecord(), [toDraw], state).lastPhase).toBeUndefined();
+    expect(recordEvents({ ...emptyRecord(), lastPhase: "villain" }, [], state).lastPhase).toBe("villain");
+  });
+});
+
 describe("game record: what each seat did with its cards", () => {
   test("a card played from hand is counted by its card id", async () => {
     const game = await recordedGame(RHINO_SOLO);

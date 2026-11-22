@@ -10,6 +10,7 @@
 import { withLoadedPacks } from "../packs/game-packs.js";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import type { SaveMeta } from "./game-storage.js";
+import type { RoomPlayRecord } from "./room-play.js";
 import type {
   CardPool,
   DispatchResult,
@@ -129,6 +130,11 @@ export class WorkerEngineHost implements EngineHost {
   async retireSave(gameId: string): Promise<void> {
     const response = await this.#request({ kind: "retireSave", id: this.#id(), gameId });
     if (response.kind !== "retired") throw new Error(`unexpected reply ${response.kind}`);
+  }
+
+  async recordRoomPlay(gameId: string, roomPlay: RoomPlayRecord): Promise<void> {
+    const response = await this.#request({ kind: "recordRoomPlay", id: this.#id(), gameId, roomPlay });
+    if (response.kind !== "roomPlayRecorded") throw new Error(`unexpected reply ${response.kind}`);
   }
 
   async listSaves(): Promise<readonly SaveMeta[]> {

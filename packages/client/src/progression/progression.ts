@@ -13,6 +13,7 @@
 import { setShownPromos, setShownStandIns } from "../art/art-source.js";
 import { PROMO_SETS, promoArtByScan, type PromoSet } from "../art/promo-art.js";
 import { guidePrefs } from "../guide/guide-store.js";
+import { watchedCount } from "../platform/watch-history.js";
 import { howToPlayProgressOf } from "../view/how-to-play-model.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
@@ -193,6 +194,7 @@ export async function refreshUnlocks(): Promise<boolean> {
     howToPlay: howToPlayProgressOf(guidePrefs()),
     // The player's own switch, not the `?unlock=all` dev param.
     unlockedEverything: unlockedEverythingEver((prefs ?? readPrefs()).unlockAll),
+    watched: watchedCount(),
     deckFeats: readDeckFeats(),
     mods: {
       installed: readModInstalls(),

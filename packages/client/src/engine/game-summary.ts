@@ -22,6 +22,10 @@ import {
 } from "@mc/engine";
 import type { CorePlayer } from "@mc/cards";
 import type { GameRecord } from "./game-record.js";
+import { boostsFold, type BoostsCounters } from "./record-boosts.js";
+import { featsFold, type FeatsCounters } from "./record-feats.js";
+import { togetherFold, type TogetherCounters } from "./record-together.js";
+import { endStateOf, type EndStateCounters } from "./summary-end-state.js";
 
 /**
  * The summary's shape version (`GameSummary.version`), bumped when a summary gains numbers a backfill should fill in
@@ -37,8 +41,9 @@ import type { GameRecord } from "./game-record.js";
  * - 5: what dealt the defeating blow at a loss to every hero falling (`defeatedBy`, `defeatedByCardId`).
  * - 6: each seat's deck (`starterDeckId`, `deckId`, `deckName`) and the cards it drew (`drawnCards`), for the per-deck
  *   views of every seat at the table (#756).
+ * - 7: the multiplayer achievements' counters (#909): `together`, `feats`, `boosts` and `endState`.
  */
-export const SUMMARY_VERSION = 6;
+export const SUMMARY_VERSION = 7;
 
 /**
  * Why a game was lost, in the terms the "Read the Room" and "Respawn Pending" achievements care about. `competitive`:
@@ -207,6 +212,14 @@ export interface GameSummary {
   readonly finalBlowCardId?: string | null;
   /** A competitive game's own result (`CompetitiveSummary`); absent for every cooperative game. */
   readonly competitive?: CompetitiveSummary;
+  /** What seats did for or to each other (`record-together.ts`). Absent before version 7. */
+  readonly together?: TogetherCounters;
+  /** One-game feats (`record-feats.ts`). Absent before version 7. */
+  readonly feats?: FeatsCounters;
+  /** Boosts, and Epic and competitive remote moves (`record-boosts.ts`). Absent before version 7. */
+  readonly boosts?: BoostsCounters;
+  /** How the game stood at its end (`summary-end-state.ts`). Absent before version 7. */
+  readonly endState?: EndStateCounters;
 }
 
 /** The four aspects and 'Pool, as a deck's aspect cards name them (`Aspect`); basic and hero cards are neither. */
@@ -362,5 +375,10 @@ export function summarizeGame(
     hurtBy: record.hurtBy ?? {},
     finalBlowCardId: won ? finalBlowCardOf(state, record) : null,
     ...(competitive ? { competitive } : {}),
+    // A record folded before the counters existed has none: each fold's fresh state finishes as no counts.
+    together: togetherFold.finish(record.together ?? togetherFold.init()),
+    feats: featsFold.finish(record.feats ?? featsFold.init()),
+    boosts: boostsFold.finish(record.boosts ?? boostsFold.init()),
+    endState: endStateOf(state, record, deps),
   };
 }

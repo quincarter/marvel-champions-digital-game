@@ -735,7 +735,15 @@ export type ClientMessage =
       readonly checksums?: TableChecksums;
     }
   /** A single-player Undo or Back out cut the log to its first `to` commands (never at a table with seats). */
-  | { readonly v: 1; readonly ch: "game"; readonly kind: "rewind"; readonly table: string; readonly to: number }
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "rewind";
+      readonly table: string;
+      readonly to: number;
+      /** This cut adjusted the game (an acknowledged Undo past a reveal, issue #909): relayed to everyone. */
+      readonly adjusted?: true;
+    }
   /**
    * The table's log from its start, answering `resend { from: 0 }`. It may carry only the first commands: the rest
    * follows as ordinary `commands` batches, each under the message cap.
@@ -753,7 +761,15 @@ export type ClientMessage =
       /** As on `start`. */
       readonly gid?: string;
     }
-  | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "end";
+      readonly table: string;
+      readonly outcome: unknown;
+      /** The game was adjusted (Manual adjust, or an Undo past a reveal, issue #909): counts for nothing. Absent otherwise. */
+      readonly adjusted?: true;
+    }
   /**
    * A seat holder's command for its table's host to judge. `base` is the log length the command was built on. The room
    * forwards it as `proposal`; it is never stored. Lobby rooms only; see `RefusalReason` for the soft refusals.
@@ -1007,9 +1023,19 @@ export type ServerMessage =
       readonly kind: "rewind";
       readonly table: string;
       readonly to: number;
+      /** This cut adjusted the game (an acknowledged Undo past a reveal, issue #909): relayed to everyone. */
+      readonly adjusted?: true;
       readonly epoch?: number;
     }
-  | { readonly v: 1; readonly ch: "game"; readonly kind: "end"; readonly table: string; readonly outcome: unknown }
+  | {
+      readonly v: 1;
+      readonly ch: "game";
+      readonly kind: "end";
+      readonly table: string;
+      readonly outcome: unknown;
+      /** The game was adjusted (Manual adjust, or an Undo past a reveal, issue #909): counts for nothing. Absent otherwise. */
+      readonly adjusted?: true;
+    }
   /**
    * To a table's host: a seat holder's `propose`. `from` is the proposer's participant id; `seats` are the seat ids it
    * holds that may act (not `mismatch`, not taken over), which the host checks against the engine's legal actions.

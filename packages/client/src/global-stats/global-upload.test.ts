@@ -255,3 +255,30 @@ describe("startGlobalUploads", () => {
     stop();
   });
 });
+
+describe("runGlobalUpload: room games (#909)", () => {
+  const room = (role: "host" | "guest") =>
+    ({
+      role,
+      roomId: "r",
+      gameKey: "r:1",
+      mode: "standard",
+      mySeats: ["p1"],
+      friends: [],
+      tookOver: [],
+      chatSent: 0,
+      strict: false,
+      cheats: false,
+    }) as never;
+  test("a guest row is never uploaded; the host row and a solo game are", async () => {
+    const { deps, fetchFn, storage } = setup();
+    turnOnGlobalStats([], storage, 5000);
+    const saves = [
+      meta({ id: "g", updatedAt: 9000, roomPlay: room("guest") }),
+      meta({ id: "h", updatedAt: 9001, roomPlay: room("host") }),
+      meta({ id: "s", updatedAt: 9002 }),
+    ];
+    expect(await runGlobalUpload({ listSaves: async () => saves }, deps)).toBe(2);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+});

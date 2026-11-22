@@ -2154,7 +2154,7 @@ export function applyDamage(
   // of docs/phase7-wave6.md §4.1 Q9; `excessDamageOf`).
   if (landed <= 0) return;
   const excessDealt = excessDamageOf(ctx, event, target.damage, landed, maxHp);
-  recordDamageTaken(ctx, event, frameId, landed);
+  recordDamageTaken(ctx, event, frameId, landed, excessDealt);
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });
@@ -2230,6 +2230,7 @@ function recordDamageTaken(
   event: Extract<TriggerEvent, { kind: "dealDamage" }>,
   frameId: FrameId,
   taken: number,
+  excess = 0,
 ): void {
   // Counted toward "cannot take more than 3 damage each phase" only while such a rule applies (docs/phase7-wave6.md
   // §3.4): damage taken, so prevented, reduced and capped damage never reach here (§4.1 Q9).
@@ -2248,6 +2249,7 @@ function recordDamageTaken(
     ...(event.retaliate ? { retaliate: true as const } : {}),
     ...(event.unpreventable ? { unpreventable: true as const } : {}),
     ...(event.consequentialFrom ? { consequentialFrom: event.consequentialFrom } : {}),
+    ...(excess > 0 ? { excess } : {}),
   });
   addFrameVars(ctx, frameId, { amount: taken });
   // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell

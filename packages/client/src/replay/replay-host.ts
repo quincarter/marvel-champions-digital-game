@@ -23,6 +23,7 @@ import type {
 } from "../engine/host.js";
 import type { Snapshot } from "../engine/session-core.js";
 import { currentRoomDevice } from "../platform/room-device.js";
+import { recordWatchedGame, wasSeatedInGame } from "../platform/watch-history.js";
 import { INITIAL_LIVE_STATE, type LiveState, type LiveWatchEvent } from "../live/watch-events.js";
 import { followPlan, isFollowing } from "../live/watch-follow.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -258,12 +259,32 @@ export class ReplayHost implements EngineHost {
   #live: LiveState | null = null;
   readonly #liveListeners = new Set<(state: LiveState | null) => void>();
 
-  constructor(backend: ReplayBackend) {
+  /** The room being watched, and whether its game's end is a watched game to note (#909). */
+  #watchedRoom: string | null = null;
+  #countsAsWatched = false;
+  #identity: (() => { readonly tableId: string | null; readonly gid: string | null }) | null = null;
+  readonly #recordWatched: typeof recordWatchedGame;
+
+  /** `recordWatched` is where a watched game's end is noted (the local watch history); the tests pass their own. */
+  constructor(backend: ReplayBackend, recordWatched: typeof recordWatchedGame = recordWatchedGame) {
     this.#backend = backend;
+    this.#recordWatched = recordWatched;
   }
 
   /** Follows a live game room (issue #876): the replay is the game so far, at its newest position, and keeps up. */
-  async watch(roomId: string, syncUrl: string, packs: readonly PackRuntime[], feed?: MessagePort): Promise<ReplayInfo> {
+  async watch(
+    roomId: string,
+    syncUrl: string,
+    packs: readonly PackRuntime[],
+    feed?: MessagePort,
+    /** True when the game is this device's own (or one it is seated in): its end is not a watched game. */
+    own = false,
+    /** The watched table and its game's admission id, read when the end arrives; absent for a watch link's own socket. */
+    identity?: () => { readonly tableId: string | null; readonly gid: string | null },
+  ): Promise<ReplayInfo> {
+    this.#watchedRoom = roomId;
+    this.#countsAsWatched = !own;
+    this.#identity = identity ?? null;
     const watch = this.#backend.watch;
     if (!watch || !this.#backend.onLive) throw new ReplayOpenError("setup", "this backend cannot follow a live game");
     this.#live = INITIAL_LIVE_STATE;
@@ -321,6 +342,27 @@ export class ReplayHost implements EngineHost {
     const old = this.#info;
     if (!old) return;
     this.#info = event.info;
+    // A watched game's end, noted when the viewer was at the newest position as it came and the game is not adjusted
+    // (#909, "Front Row Seat"). A game ended with no outcome (a capped table) was not played to its end.
+    const identity = this.#identity?.() ?? { tableId: null, gid: null };
+    const tableId = identity.tableId ?? "main";
+    if (
+      event.change === "end" &&
+      this.#countsAsWatched &&
+      this.#watchedRoom !== null &&
+      !wasSeatedInGame(this.#watchedRoom, tableId, identity.gid) &&
+      event.info.outcome !== null &&
+      !event.info.adjusted &&
+      isFollowing(this.#target, old.length)
+    ) {
+      this.#recordWatched({
+        roomId: this.#watchedRoom,
+        tableId,
+        gid: identity.gid,
+        endedAt: Date.now(),
+        outcome: event.info.outcome.result === "win" ? "win" : "loss",
+      });
+    }
     const plan = followPlan({
       change: event.change,
       target: this.#target,

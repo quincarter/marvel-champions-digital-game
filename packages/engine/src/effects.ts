@@ -363,7 +363,12 @@ export function healDamage(
     return 0;
   }
   updateInstance(ctx, targetId, (i) => ({ ...i, damage: i.damage - healed }));
-  emit(ctx, { type: "damageHealed", targetInstanceId: targetId, amount: healed });
+  emit(ctx, {
+    type: "damageHealed",
+    targetInstanceId: targetId,
+    amount: healed,
+    ...(sourceInstanceId !== null ? { sourceInstanceId } : {}),
+  });
   return healed;
 }
 

@@ -229,3 +229,60 @@ describe("cardPlayOf", () => {
     expect(cardPlayOf(insights, "webs", "cap", NAMES)).toBeNull();
   });
 });
+
+describe("room games (#909)", () => {
+  const room = (over: Record<string, unknown> = {}) =>
+    ({
+      role: "guest",
+      roomId: "r",
+      gameKey: "r:1",
+      mode: "standard",
+      mySeats: ["p2"],
+      friends: [],
+      tookOver: [],
+      chatSent: 0,
+      strict: false,
+      cheats: false,
+      ...over,
+    }) as never;
+  const twoSeats: SessionConfig = {
+    ...CONFIG,
+    players: [{ starterDeckId: "spidey-justice" }, { starterDeckId: "spidey-justice" }],
+  };
+  const two = (extra: Partial<SaveMeta>): SaveMeta => {
+    const base = game(true, seat());
+    return {
+      ...base,
+      config: twoSeats,
+      summary: { ...base.summary!, seats: [seat(), seat({ identityCardId: "cap" })] },
+      ...extra,
+    };
+  };
+
+  test("a room row counts only the heroes of the seats this device held", () => {
+    const insights = deckInsightsOf([two({ roomPlay: room() })], NAMES);
+    expect(Object.keys(insights.heroes)).toEqual(["cap"]);
+    expect(Object.keys(deckInsightsOf([two({})], NAMES).heroes).sort()).toEqual(["cap", "spidey"]);
+  });
+
+  test("a host with no seat adds no hero, and Cheats on adds nothing", () => {
+    expect(deckInsightsOf([two({ roomPlay: room({ role: "host", mySeats: [] }) })], NAMES).heroes).toEqual({});
+    const cheats = room({ cheats: true, mySeats: ["p1", "p2"] });
+    expect(deckInsightsOf([two({ roomPlay: cheats })], NAMES).heroes).toEqual({});
+  });
+
+  test("a game held as a host row and a guest row counts once", () => {
+    const a = two({ roomPlay: room({ role: "host", mySeats: ["p1"] }) });
+    const b = two({ roomPlay: room({ role: "guest", mySeats: ["p1"] }) });
+    expect(deckInsightsOf([a, b], NAMES).heroes["spidey"]!.games).toBe(1);
+  });
+
+  test("a host row and a guest row holding different seats credit both heroes once", () => {
+    const a = two({ roomPlay: room({ role: "host", mySeats: ["p1"] }) });
+    const b = two({ roomPlay: room({ role: "guest", mySeats: ["p2"] }) });
+    const heroes = deckInsightsOf([a, b], NAMES).heroes;
+    expect(Object.keys(heroes).sort()).toEqual(["cap", "spidey"]);
+    expect(heroes["cap"]!.games).toBe(1);
+    expect(heroes["spidey"]!.games).toBe(1);
+  });
+});

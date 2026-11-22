@@ -13,8 +13,21 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
+import { mySeatsOf } from "../engine/room-play.js";
 import type { SeatSummary } from "../engine/game-summary.js";
+import { mergeRoomGames } from "../progression/room-seats.js";
 import type { StatsNames } from "./player-stats-model.js";
+
+/** A room game with Cheats on counts for nothing, like an adjusted one (#909). */
+export const isRoomCheatSave = (meta: Pick<SaveMeta, "roomPlay">): boolean => meta.roomPlay?.cheats === true;
+
+/** Whether the seat at `index` of the game's config is this device's (every seat, unless it is a room row). */
+export function isMySeatIndex(meta: SaveMeta, index: number): boolean {
+  return mySeatsOf(meta).includes(`p${index + 1}` as never);
+}
+
+/** One row per room game, host and guest seats merged (`mergeRoomGames`, #909). */
+export const dedupeRoomGames = mergeRoomGames;
 
 /** A deck's record key, the one `view/results-history.ts` uses (`deckKeyToString`). */
 export type DeckKeyString = string;
@@ -137,8 +150,9 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
     string,
     { wins: number; losses: number; inWins: Record<string, number>; inLosses: Record<string, number> }
   > = {};
-  for (const meta of saves) {
-    if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) continue;
+  for (const meta of dedupeRoomGames(saves)) {
+    if (meta.guided || meta.adjusted || isRoomCheatSave(meta) || (meta.status !== "won" && meta.status !== "lost"))
+      continue;
     // A competitive game is played only, never a win or a loss (issue #883).
     if (isCompetitiveSave(meta)) continue;
     const won = meta.status === "won";
@@ -154,6 +168,8 @@ export function deckInsightsOf(saves: readonly SaveMeta[], names: StatsNames): D
             : "other");
     const villain = villainNameOf(meta, names);
     meta.config.players.forEach((player, index) => {
+      // A room row counts only the heroes of this device's seats (#909).
+      if (!isMySeatIndex(meta, index)) return;
       const seat = summary?.seats?.[index] ?? null;
       if (seat?.satOut) return;
       const identity =

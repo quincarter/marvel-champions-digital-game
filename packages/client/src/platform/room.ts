@@ -8,7 +8,7 @@
  */
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
-import type { SessionConfig } from "../engine/host.js";
+import type { EngineHost, SessionConfig } from "../engine/host.js";
 import type { HostActivityStep } from "@mc/sync-worker/room-protocol";
 import type { MessageKey } from "../i18n/translate.js";
 import { currentScenarios } from "../content/pool.js";
@@ -35,6 +35,11 @@ import {
   type SeatOfPlayer,
   type TeamId,
 } from "../live/room-state.js";
+import { observeSeatedGame } from "./watch-history.js";
+import { RoomPlayBindings } from "./room-play-binding.js";
+import { RoomPlayWriter } from "./room-play-writer.js";
+import { trackChatSent, trackRoomState, type RoomPlayTracker } from "../live/room-play-tracker.js";
+import type { RoomPlayRecord } from "../engine/room-play.js";
 import { epicTableConfig } from "../live/epic-start.js";
 import { RoomDeckWorker } from "../live/room-deck-check-client.js";
 import { withRequiredPacks } from "../packs/pack-runtime.js";
@@ -82,6 +87,79 @@ export type { CompetitiveSetup, SealedScenarios } from "../live/competitive-star
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
 
+/** The room game this device is playing (#909), gathered from the states below; null outside a game. */
+let playTracker: RoomPlayTracker | null = null;
+const playFinished = new Set<(record: RoomPlayRecord) => void>();
+
+/**
+ * Calls `listener` with how this device played each room game, when the game ends (a seat holder only: a guest with no
+ * seat makes none). The host's record is also written to its own save by this module; a guest's is for its own finished
+ * row (#909 R3). Returns the unsubscribe.
+ */
+export function onRoomPlayFinished(listener: (record: RoomPlayRecord) => void): () => void {
+  playFinished.add(listener);
+  return () => playFinished.delete(listener);
+}
+
+/**
+ * Writes the running game's room play to its save, confirmed and retried (`room-play-writer.ts`): a record is not
+ * counted as written before the write resolved, so a failed one is tried again with the next state or a backoff.
+ */
+const playWriter = new RoomPlayWriter<EngineHost>({
+  // The host captured when the record was submitted, not the app's current one (it may be a seat or replay host by the
+  // time of a retry); one that cannot record rejects, so the record stays dirty instead of reading as written.
+  write: (gameId, record, host) => {
+    if (!host.recordRoomPlay) return Promise.reject(new Error("this host cannot record room play"));
+    return host.recordRoomPlay(gameId, record);
+  },
+  load: async (gameId, host) => (await host.listSaves()).find((save) => save.id === gameId)?.roomPlay ?? null,
+});
+
+/** Which save and host each tracked room game writes to, fixed when it starts (`room-play-binding.ts`). */
+const playBindings = new RoomPlayBindings<EngineHost>();
+
+/**
+ * Writes a room game's record to the save it was bound to when it started, through the host that ran it: a late update
+ * of room game A after the app moved to a local game B goes to A's save, never B's. `table` is the game's table.
+ */
+function writeRoomPlay(record: RoomPlayRecord, table: string): void {
+  const bound = playBindings.resolve(
+    record.roomId,
+    table,
+    () => ({ gameId: appSession().store.state.gameId, owner: appSession().host }),
+    record.gid ?? null,
+  );
+  if (!bound) return;
+  playWriter.submit(bound.gameId, record, bound.owner);
+}
+
+function trackPlay(next: RoomState): void {
+  // A game that starts with this device seated is one it played, not watched: a lobby claim that was released before
+  // Start never counts (`observeSeatedGame`).
+  observeSeatedGame({
+    roomId: next.roomId,
+    tableId: next.tableId,
+    gid: next.gid,
+    started: next.started && !next.gameOver,
+    seated: next.seats.some((s) => s.mine || (next.role === "host" && s.takenOver)),
+  });
+  const previous = playTracker;
+  const step = trackRoomState(previous, next);
+  playTracker = step.tracker;
+  playBindings.advance(previous, step.tracker);
+  const table = (step.tracker ?? previous)?.table ?? next.tableId ?? "main";
+  // As soon as the game starts, not only at its end: a refresh or a drop in between still finds it a room game.
+  if (step.progress) writeRoomPlay(step.progress, table);
+  const record = step.finished;
+  if (!record) {
+    if (!step.tracker) playBindings.release();
+    return;
+  }
+  if (record.role === "host") writeRoomPlay(record, table);
+  playBindings.release();
+  for (const listener of [...playFinished]) listener(record);
+}
+
 /** The last host activity sent to the room (step and scenario), forgotten on leaving it. */
 let lastActivity: { readonly step: HostActivityStep; readonly scenario?: string } | null = null;
 /** A dropped socket cleared the room's copy of it: it is sent again once the room is back. */
@@ -89,6 +167,7 @@ let resendActivity = false;
 
 function publish(next: RoomState): void {
   state = next;
+  trackPlay(next);
   if (
     next.role === "none" ||
     next.connection === "idle" ||
@@ -368,7 +447,7 @@ function scenarioName(id: string | undefined): string | undefined {
 
 /** Sends a chat line (the room trims, caps and rate limits it). */
 export function say(text: string): void {
-  postRoomCommand({ kind: "room-say", text });
+  if (postRoomCommand({ kind: "room-say", text }) && text.trim() !== "") playTracker = trackChatSent(playTracker);
 }
 
 /**
@@ -525,7 +604,10 @@ const followDeps: WatchOpenDeps = {
       throw new Error("no room worker");
     }
     try {
-      await host.watch(roomId, syncUrl, loadedPacks(), channel.port2);
+      await host.watch(roomId, syncUrl, loadedPacks(), channel.port2, false, () => ({
+        tableId: state.tableId,
+        gid: state.gid,
+      }));
       // Closing the watch lets the room worker drop the feed (a message port has no close event of its own).
       const dispose = host.dispose.bind(host);
       host.dispose = () => {
@@ -621,7 +703,11 @@ export function startEpicGame(): void {
 export async function startEpicTable(config: SessionConfig): Promise<void> {
   const playMode = state.settings?.playMode;
   await appSession().store.start(
-    epicTableConfig(config, state.epic, { roomId: state.roomId, ...(playMode ? { playMode } : {}) }),
+    epicTableConfig(config, state.epic, {
+      roomId: state.roomId,
+      ...(playMode ? { playMode } : {}),
+      ...(state.settings?.cheats === true ? { cheats: true } : {}),
+    }),
   );
 }
 

@@ -489,3 +489,20 @@ answers `refused not-your-turn`).
   reveal back (before the game). While the game runs the play mode and tie-break option are fixed, and a participant who
   played one team may not take a seat on the other (`other-team`; tracked by participant id, so a fresh reconnect without
   its seat token is a limit of the design, as with any anonymous guest).
+
+## 12. Room points and results (issue #909, 2026-11-21)
+
+Room games now feed the achievements ([`achievements.md`](achievements.md#multiplayer-and-table-feats-909-2026-11-21)).
+Nothing here changes how a room plays or what the Worker stores.
+
+- **`roomPlay` on the host's save.** A device tracks how it played (the seats it held and took over, friends, chat sent,
+  Strict, Cheats, Epic and team details) from the room states it already receives, and the host's finished save row
+  carries it as `SaveMeta.roomPlay`.
+- **A guest's finished row.** A seated guest's device writes one finished result row of its own per game, built from the
+  game it replayed (`live/seat-finish.ts`), keyed by the game key so a reconnect writes it once. It is never offered as
+  Continue, resume or rewind, and it is not uploaded to global stats.
+- **`adjusted` on the stream.** When the host's game is adjusted (Manual adjust, or an acknowledged Undo past a reveal,
+  #791), the rewind and `end` frames carry `adjusted: true`, so every device marks its own row adjusted and it counts
+  for nothing. Epic tables now start with the room's Cheats setting.
+- **Watch history.** A watcher who sees a live game to its `end` frame notes it in a local list
+  (`mc-watch-history`, newest 200), which feeds Front Row Seat. It does not sync.

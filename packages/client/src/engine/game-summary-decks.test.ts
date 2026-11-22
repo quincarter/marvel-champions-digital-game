@@ -111,7 +111,7 @@ describe("summary version 6: the deck and the cards drawn", () => {
     ({ status: "won", schema: 4, config: { players: [] }, summary, lastPlayedOn: { appVersion: "1.0.0" } }) as never;
 
   test("a version 5 summary is replayed again, and keeps its own numbers under the replay's deck and draws", () => {
-    expect(SUMMARY_VERSION).toBe(6);
+    expect(SUMMARY_VERSION).toBe(7);
     expect(needsBackfill(meta(v5), { appVersion: "1.0.0", contentVersion: "x", build: "b" })).toBe(true);
     const replayed: GameSummary = {
       ...v5,

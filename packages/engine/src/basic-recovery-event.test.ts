@@ -113,7 +113,8 @@ describe("§3.40 the basic recovery as an event (Death Factor, Q20)", () => {
     expect(mustInstance(after, identity)).toMatchObject({ damage: 2, exhausted: true });
     expect(mustInstance(after, identity).counters["recovered"]).toBe(1);
     expect(events.filter((e) => e.type === "damageHealed")).toEqual([
-      { type: "damageHealed", targetInstanceId: identity, amount: 3 },
+      // A recovery heals as the identity itself (#909).
+      { type: "damageHealed", targetInstanceId: identity, amount: 3, sourceInstanceId: identity },
     ]);
   });
 

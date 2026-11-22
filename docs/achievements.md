@@ -125,3 +125,138 @@ the loss reason (players defeated, scheme completed, conceded), heroes defeated,
 ## Open for the owner
 
 - The names: every title above is a placeholder, and so are the funny packs' contents.
+
+## Multiplayer and table feats (#909, 2026-11-21)
+
+Issue #909 plus bluefireF5ran's (GitHub) "Together" and "Feats" lists, all taken in by the owner (2026-11-21). The build
+map is [`multiplayer-achievements-plan.md`](multiplayer-achievements-plan.md). Stats pages for Friends, Competitive and
+Epic, unlockable themes and seasonal challenges are later issues.
+
+### Ground rules
+
+- A game with Cheats on, and any adjusted game (#791), earns no points, achievements or stats.
+- Watchers earn only Front Row Seat. A device that held no seat in a room game earns nothing from it but a Game Night
+  Host count.
+- A device earns only for the seats it held at the end of the game, plus any it took over. A game played alone has
+  every seat mine, so single-player results do not change. Only room rows narrow to my seats.
+- A guest's room game counts toward their own hero's stats like a solo game.
+- Competitive games are played-only: no scenario firsts, hero win rates or global stats. They earn only the competitive
+  achievements. A competitive game played hot seat (this device held both teams) earns none (provisional, owner).
+
+### New achievements
+
+Points follow the existing scale. "Funny" ones give no points and unlock a silly pack.
+
+**Playing together (family `together`)**
+
+| id                        | name                       | pts      | how                                                                             |
+| ------------------------- | -------------------------- | -------- | ------------------------------------------------------------------------------- |
+| `room-four-players`       | Assemble!                  | 100      | Win a room game with four players.                                              |
+| `room-tag-team-10`        | Tag Team                   | 150      | Win 10 room games with the same friend (by online name).                        |
+| `room-takeover-away`      | No One Left Behind         | 100      | Win after taking over the seat of a player who stepped away.                    |
+| `room-takeover-left`      | I Got This                 | 100      | Win after taking over the seat of a player who left the room.                   |
+| `room-chat-50`            | Talk It Out                | 50       | Send 50 chat messages in room games.                                            |
+| `room-strict-5`           | Strict Rules Club          | 100      | Win 5 room games played with Strict rules.                                      |
+| `together-avenge-me`      | Avenge Me!                 | 50       | Win after one of your heroes was defeated.                                      |
+| `together-upgrade-given`  | It's Dangerous to Go Alone | 50       | Play an upgrade onto another player's hero.                                     |
+| `together-get-behind-me`  | Get Behind Me!             | 50       | Cancel a treachery revealed for another player.                                 |
+| `together-human-shield`   | Human Shield               | 50       | Defend another player three times in one game.                                  |
+| `together-combat-medic`   | Combat Medic               | 50       | Heal 6 damage from other players' heroes in one game.                           |
+| `together-alliance-paid`  | Assemble the Wallets       | 50       | Play a card two or more players paid for together.                              |
+| `together-kill-steal`     | Kill Steal                 | 25       | Defeat a minion engaged with another player.                                    |
+| `together-care-package`   | Care Package               | 50       | Make other players draw 5 cards in one game.                                    |
+| `together-sticky-fingers` | Sticky Fingers             | 50       | Take a card from another player's deck or discard pile.                         |
+| `together-oops`           | Oops, That One's Yours     | 0, funny | Put a minion into play that then attacks another player's hero.                 |
+| `together-friendly-fire`  | Friendly Fire              | 0, funny | Defeat a side scheme whose damage lands on a friend's hero who was already low. |
+
+The first six read room data. The rest count in a room game and in a game one person plays at several seats: "another
+player" is another seat.
+
+**Epic Multiplayer (family `epic`)**
+
+| id                     | name                 | pts | how                                                    |
+| ---------------------- | -------------------- | --- | ------------------------------------------------------ |
+| `epic-finished`        | Pod Person           | 50  | Finish an Epic Multiplayer game.                       |
+| `epic-loki-final-blow` | Shatter the Illusion | 150 | Your table lands the final blow on the shared Loki.    |
+| `epic-mangog-remote`   | Mangog Hunter        | 100 | Defeat Mangog with a remote attack from another table. |
+| `epic-door-remote`     | Door Stop            | 100 | Clear a door with a remote thwart from another table.  |
+| `epic-three-tables`    | Tables Turned        | 150 | Win an Epic game with three or more tables in the pod. |
+
+**Civil War Competitive (family `competitive`)**
+
+| id                        | name              | pts | how                                                                     |
+| ------------------------- | ----------------- | --- | ----------------------------------------------------------------------- |
+| `competitive-both-sides`  | Pick a Side       | 50  | Play a game on the Registration side and one on the Resistance side.    |
+| `competitive-leader-down` | Leader Down       | 100 | Defeat the enemy leader.                                                |
+| `competitive-tie-break`   | Tie-Breaker       | 100 | Win a game the tie-break decided.                                       |
+| `competitive-no-you-move` | No, You Move!     | 50  | Have the enemy leader's attack on your team moved onto Captain America. |
+| `competitive-veteran`     | Civil War Veteran | 250 | Win 5 games with each of the four leaders.                              |
+
+**Watching and hosting (family `hosting`)**
+
+| id             | name            | pts | how                                                                                         |
+| -------------- | --------------- | --- | ------------------------------------------------------------------------------------------- |
+| `watch-to-end` | Front Row Seat  | 25  | Watch a friend's live game through to the end.                                              |
+| `host-10`      | Game Night Host | 100 | Host 10 finished online games (standard and Epic; Competitive does not count, provisional). |
+
+**Feats (family `feats`)**
+
+| id                       | name                 | pts      | how                                                                              |
+| ------------------------ | -------------------- | -------- | -------------------------------------------------------------------------------- |
+| `feat-full-health`       | Not a Scratch        | 100      | Win with a hero at full hit points.                                              |
+| `feat-over-printed-hp`   | Plenty to Spare      | 100      | Win with a hero above the hit points printed on its card.                        |
+| `feat-surrounded`        | Surrounded           | 50       | Have 3 or more minions engaged with one of your heroes at once.                  |
+| `feat-clean-sweep`       | Clean Sweep          | 50       | Win with no minions left in play.                                                |
+| `feat-case-closed`       | Case Closed          | 50       | Win with no side schemes left in play.                                           |
+| `feat-overkill-5`        | Overkill             | 100      | Deal 5 or more damage beyond what an enemy had left in one hit.                  |
+| `feat-minions-8`         | Bloodthirsty         | 100      | Defeat 8 or more minions in one game.                                            |
+| `feat-trophy-case`       | Trophy Case          | 100      | Finish with 3 or more cards in the victory display.                              |
+| `feat-deck-reset-2`      | Deck Goes Brrr       | 50       | Run your deck out and reset it twice in one game.                                |
+| `feat-stun-defeat`       | Stop, Drop and Punch | 50       | Stun a minion and defeat it in the same turn.                                    |
+| `feat-pacifist`          | Pacifist             | 150      | Win without your heroes defeating a minion.                                      |
+| `feat-big-spender`       | Big Spender          | 50       | Pay 6 or more resources for one card.                                            |
+| `feat-full-supports`     | Saving It for Later  | 100      | Win with 2 or more of your supports still holding all their uses.                |
+| `feat-ally-final-blow`   | Giant Slayer         | 100      | Win with an ally dealing the villain's last damage.                              |
+| `feat-tough-as-nails`    | Tough as Nails       | 150      | Win with none of your heroes dropping below half their hit points.               |
+| `feat-villain-phase-win` | Come at Me, Bro      | 100      | Win during the villain phase.                                                    |
+| `feat-lucky-charm`       | Lucky Charm          | 50       | Have 3 attacks in a row against you where every boost card is blank.             |
+| `feat-own-obligation`    | Not Today, Life      | 50       | Remove your own hero's obligation from the game.                                 |
+| `chain-reaction`         | Chain Reaction       | 0, funny | Reveal 3 encounter cards in a row, each surging into the next.                   |
+| `cursed-boosts`          | Cursed               | 0, funny | Have 2 or more boost cards with 3 or more icons turn up against you in one game. |
+
+### The funny ones and their packs
+
+Four new funny achievements, each with a reward pack id as the older funny ones have: Oops, That One's Yours
+(`pack-oops-thats-yours`), Friendly Fire (`pack-friendly-fire`), Chain Reaction (`pack-chain-reaction`) and Cursed
+(`pack-cursed`). The pack contents are placeholders for the owner to choose, as the older funny packs are.
+
+### First win with friends (provisional, owner choice A)
+
+A champion points bonus for the first room win at each table size, won while holding a seat: 50 for two seats, 100 for
+three, 150 for four, once per size (`POINTS.friendsWin` in `progression/unlocks.ts`, read as `friendsWinTables`). Cheats
+and competitive room games do not count, and a game seen as both a host row and a guest row on one synced account
+counts once, by its game key. It shows in the points breakdown as "First win with friends: N players".
+
+### Rank rescale (provisional, owner choice A)
+
+The existing thresholds are kept. Ranks 3 to 8 are still fractions of the points that existed before #909
+(`LEGACY_MAX_LIFETIME_POINTS`), so nobody drops a rank when the new achievements arrive. The top rank, Ultimate
+Champion, needs the new maximum (`MAX_LIFETIME_POINTS`), which now includes every multiplayer achievement and the
+friends bonus: it needs everything.
+
+### What they read
+
+- **Summary version 7.** A finished game's `summary` gains per-seat counters (`together`, `feats`, `boosts`, who acted)
+  and an `endState` (winners' hit points, minions and side schemes left, victory display, full supports, the phase the
+  game ended in, the table that defeated Loki) and `competitive`. The summary backfill replays older games to fill them
+  in; a save without a counter earns nothing from it.
+- **`roomPlay` on the save row** (`engine/room-play.ts`): role, room and game key, mode, the seats this device held,
+  friends, takeovers, chat sent, Strict, Cheats, and Epic or competitive details. Absent on a game played alone.
+- **A guest's own finished result row** for a room game, so the guest's device has results to read.
+- **The local watch history** (`platform/watch-history.ts`, `mc-watch-history`): the live games this device watched to
+  their end, for Front Row Seat. It is local and does not sync.
+
+### Provisional owner calls (2026-11-21)
+
+Bonus A (the friends-win points), rescale A (the rank thresholds above), hot-seat competitive earns none, and Game Night
+Host excludes competitive games. All four stand until the owner says otherwise.

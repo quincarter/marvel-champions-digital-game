@@ -4,10 +4,27 @@ import { NO_ROOM } from "../live/room-state.js";
 import type { SeatBackend } from "../live/seat-protocol.js";
 
 // `seat-play` reads the app session and the room worker's module at import: neither is wanted here.
-vi.mock("../session.js", () => ({ appSession: () => ({}), swapSessionHost: () => ({}) }));
-vi.mock("./live-watch.js", () => ({ postRoomCommand: () => true }));
+vi.mock("../session.js", () => ({
+  appSession: () => ({}),
+  swapSessionHost: () => ({ store: { dispose: () => undefined } }),
+}));
+const { refreshUnlocks, notifySaveDataChanged } = vi.hoisted(() => ({
+  refreshUnlocks: vi.fn(async () => true),
+  notifySaveDataChanged: vi.fn(),
+}));
+vi.mock("../progression/progression.js", () => ({ refreshUnlocks }));
+vi.mock("../sync/save-data-changed.js", () => ({ notifySaveDataChanged }));
+vi.mock("../store/session-store.js", () => ({
+  SessionStore: class {
+    state = { status: "ready" };
+    async open() {}
+    dispose() {}
+  },
+}));
+vi.mock("./live-watch.js", () => ({ postRoomCommand: () => true, setSeatLeaver: () => undefined }));
+vi.mock("../view/seat-context.js", () => ({ setSeatGameUp: () => undefined }));
 vi.mock("./room.js", () => ({ roomState: () => NO_ROOM, onRoomState: () => () => undefined, watchRoomGame: vi.fn() }));
-const { playRoomGame } = await import("./seat-play.js");
+const { playRoomGame, enterSeatGame, leaveSeatGame } = await import("./seat-play.js");
 
 const seat = (id: string, extra: Partial<RoomSeat>): RoomSeat =>
   ({ id, mine: false, mismatch: false, takenOver: false, player: null, ...extra }) as RoomSeat;
@@ -54,6 +71,7 @@ function backend(): SeatBackend & { readonly players: string[][] } {
     judgePayment: async () => {
       throw new Error("unused");
     },
+    finish: async () => false,
     onEvent: () => undefined,
     dispose: () => undefined,
   };
@@ -129,5 +147,29 @@ describe("playRoomGame", () => {
     const result = await playRoomGame(d as never);
     expect(result.ok).toBe(false);
     expect(posted.map((m) => m.kind)).toEqual(["room-follow", "room-unfollow"]);
+  });
+
+  test("a guest's finished row that is written prompts the sync now and the unlock check once the own store is back", async () => {
+    let finish: (record: unknown) => void = () => undefined;
+    const fakeHost = {
+      finishRoomPlay: vi.fn(async () => true),
+      setPlayers: async () => ({}),
+      dispose: () => undefined,
+    };
+    await enterSeatGame(
+      fakeHost as never,
+      () => () => undefined,
+      (listener) => {
+        finish = listener as never;
+        return () => undefined;
+      },
+    );
+    finish({ role: "guest" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fakeHost.finishRoomPlay).toHaveBeenCalledOnce();
+    expect(notifySaveDataChanged).toHaveBeenCalledWith("game");
+    expect(refreshUnlocks).not.toHaveBeenCalled();
+    leaveSeatGame();
+    expect(refreshUnlocks).toHaveBeenCalledOnce();
   });
 });

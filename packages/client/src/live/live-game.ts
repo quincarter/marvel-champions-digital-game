@@ -19,6 +19,8 @@ export interface LiveGameParts {
   readonly checksums?: Readonly<Record<string, string>>;
   /** The lobby revision a lobby room's host built the game from (`SessionConfig.roomLobbyRev`). */
   readonly lobbyRev?: number;
+  /** The session was adjusted (a Manual adjust or an acknowledged Undo past a reveal, #791): the stream says so (#909). */
+  readonly adjusted?: boolean;
 }
 
 export function liveGameOf(parts: LiveGameParts): LiveGame {
@@ -38,7 +40,7 @@ export function liveGameOf(parts: LiveGameParts): LiveGame {
     writer: parts.writer,
     config: withoutDeckNames(rest as SessionConfig),
     // The guests' devices mark their record of the game adjusted too (`replay-core.ts`).
-    ...(parts.config.roomCheats ? { adjusted: true as const } : {}),
+    ...(parts.config.roomCheats || parts.adjusted ? { adjusted: true as const } : {}),
     ...(refs.length > 0 ? { packs: refs } : {}),
     createdAt: parts.createdAt,
     initialState: parts.initialState,

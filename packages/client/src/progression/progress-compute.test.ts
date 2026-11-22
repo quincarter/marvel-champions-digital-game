@@ -31,6 +31,7 @@ const game = (scenarioId: string, status: "won" | "lost", difficulty = "standard
 const inputs: ProgressInputs = {
   howToPlay: { done: 2, total: 6 },
   unlockedEverything: false,
+  watched: 3,
   deckFeats: NO_DECK_FEATS,
   mods: {
     installed: { "fan-hero": "hero" },
@@ -75,6 +76,10 @@ describe("computeProgress (issue #722)", () => {
   it("a deck built in your decks counts as built, as before", () => {
     expect(historyOf(inputs, reads).decks?.built).toBe(true);
     expect(historyOf(inputs, { ...reads, decksBuilt: false }).decks?.built).toBe(false);
+  });
+
+  it("passes the watched count into the history the achievements read", () => {
+    expect(historyOf(inputs, reads).watched).toBe(3);
   });
 
   it("its result is plain data a worker can post (no functions, no definitions)", () => {

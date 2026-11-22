@@ -195,7 +195,7 @@ export class LiveRoomController {
         if (this.#live?.gameKey === message.gameKey) {
           // An acceptance held for a dropped socket for a command this cut removes must not reach the room afterwards.
           this.#live.room?.dropHeldAcceptances(message.to);
-          this.#live.publisher.rewind(message.to);
+          this.#live.publisher.rewind(message.to, message.adjusted === true);
         }
         return;
       }

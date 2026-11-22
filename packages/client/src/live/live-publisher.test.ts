@@ -264,6 +264,64 @@ describe("live publisher", () => {
     expect(sent).toEqual([{ v: 1, ch: "game", kind: "rewind", table: "t1", to: 1 }]);
   });
 
+  describe("an adjusted game (#909)", () => {
+    it("tells the room on the cut of an acknowledged Undo past a reveal, and on the end", () => {
+      const { publisher, sent } = fresh();
+      publisher.command(cmd(1), 1);
+      publisher.command(cmd(2), 2);
+      sent.length = 0;
+      publisher.rewind(1, true);
+      expect(sent).toEqual([{ v: 1, ch: "game", kind: "rewind", table: "t1", to: 1, adjusted: true }]);
+      expect(publisher.adjusted).toBe(true);
+      sent.length = 0;
+      publisher.command(cmd(2), 2, "f", { result: "win" } as never);
+      expect(sent.map((m) => m.kind)).toEqual(["commands", "end"]);
+      expect(sent[1]).toMatchObject({ kind: "end", adjusted: true });
+    });
+
+    it("sends a cut to the count the room holds when the Undo changes nothing it has", () => {
+      const { publisher, sent } = fresh();
+      publisher.command(cmd(1), 1);
+      sent.length = 0;
+      publisher.rewind(1, true);
+      expect(sent).toEqual([{ v: 1, ch: "game", kind: "rewind", table: "t1", to: 1, adjusted: true }]);
+    });
+
+    it("a Manual adjust in the log marks the end, and a later header carries the flag", () => {
+      const { publisher, sent } = fresh();
+      publisher.command({ type: "adjust" } as unknown as Command, 1, "f", { result: "loss" } as never);
+      expect(sent.at(-1)).toMatchObject({ kind: "end", adjusted: true });
+      publisher.onDisconnected();
+      publisher.onWelcome({ commands: 0, ended: false, hasHeader: false });
+      expect(sent.at(-3)).toMatchObject({ kind: "start", header: { adjusted: true } });
+    });
+
+    it("a replaced game that the session says is adjusted marks the stream; an unadjusted game says nothing", () => {
+      const { publisher, sent } = fresh();
+      publisher.command(cmd(1), 1);
+      sent.length = 0;
+      publisher.replaceGame({ ...game([cmd(1)]), adjusted: true });
+      expect(publisher.adjusted).toBe(true);
+      expect(sent).toMatchObject([{ kind: "rewind", to: 1, adjusted: true }]);
+      const plain = fresh();
+      plain.publisher.command(cmd(1), 1, "f", { result: "win" } as never);
+      expect(plain.sent.at(-1)).not.toHaveProperty("adjusted");
+    });
+
+    it("liveGameOf carries the session's adjusted flag", () => {
+      const parts = {
+        writer: { appVersion: "1", contentVersion: "c" },
+        config,
+        createdAt: 1,
+        initialState: {} as unknown as StateWithoutPool,
+        commands: [],
+        outcome: null,
+      };
+      expect(liveGameOf({ ...parts, adjusted: true }).adjusted).toBe(true);
+      expect(liveGameOf(parts)).not.toHaveProperty("adjusted");
+    });
+  });
+
   describe("a resumed host proves the room's prefix", () => {
     const four = [cmd(1), cmd(2), cmd(3), cmd(4)];
 

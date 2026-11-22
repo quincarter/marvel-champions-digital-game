@@ -194,6 +194,26 @@ describe("play together: who may propose", () => {
   });
 });
 
+describe("play together: an adjusted game (#909)", () => {
+  it("relays the host's adjusted flag on a rewind and on the end, and replays it to a later joiner", async () => {
+    const { send, join, host, seated } = await setup();
+    const ann = await seated("Ann", "s1");
+    await send(host, { ch: "game", kind: "rewind", table: "t1", to: 0, adjusted: true });
+    expect(ann.last("rewind")).toMatchObject({ kind: "rewind", adjusted: true });
+    await send(host, { ch: "game", kind: "end", table: "t1", outcome: { result: "win" }, adjusted: true });
+    expect(ann.last("end")).toMatchObject({ kind: "end", adjusted: true });
+    const late = await join("Late");
+    expect(late.last("end")).toMatchObject({ kind: "end", adjusted: true });
+  });
+
+  it("says nothing of adjusted on a game played by the rules", async () => {
+    const { send, host, seated } = await setup();
+    const ann = await seated("Ann", "s1");
+    await send(host, { ch: "game", kind: "end", table: "t1", outcome: {} });
+    expect(ann.last("end")).not.toHaveProperty("adjusted");
+  });
+});
+
 describe("play together: proposal and request ids", () => {
   it("echoes the proposal id in the room's refusal of it and in what it relays to the host and back", async () => {
     const { host, send, join, seated, propose, request } = await setup();

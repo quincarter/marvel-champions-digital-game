@@ -489,3 +489,28 @@ describe("aspect chips on a hero's picture (#911)", () => {
     for (const chip of four) expect(chip.rect.x + chip.rect.width).toBeLessThanOrEqual(pic.x + pic.width + 1e-9);
   });
 });
+
+describe("a room guest's finished row (#909)", () => {
+  const guest = save("guest", 5, {
+    roomPlay: {
+      role: "guest",
+      roomId: "R".repeat(12),
+      gameKey: "room:1",
+      mode: "standard",
+      mySeats: ["p1"] as never,
+      friends: [],
+      tookOver: [],
+      chatSent: 0,
+      strict: false,
+      cheats: false,
+    },
+  });
+
+  test("shows as a finished result, with only the watch, share, export and log actions", () => {
+    expect(isPastGame(guest)).toBe(true);
+    const [row] = pastGameRowsOf([guest], NAMES);
+    expect(row!.result).toBe("won");
+    expect([...PAST_GAME_ACTIONS]).toEqual(["watch", "share", "export", "log"]);
+    expect(PAST_GAME_ACTIONS.some((action) => /resume|rewind|continue/i.test(action))).toBe(false);
+  });
+});

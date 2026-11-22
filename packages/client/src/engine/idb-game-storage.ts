@@ -21,7 +21,9 @@ import type { Command } from "@mc/engine";
 import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import type { StateWithoutPool } from "./host.js";
 import type { GameSummary } from "./game-summary.js";
+import type { RoomPlayRecord } from "./room-play.js";
 import {
+  finishedRowOf,
   migrateSaveMeta,
   newestActive,
   stampedPlayedOn,
@@ -182,6 +184,61 @@ export class IdbGameStorage implements GameStorage {
 
   async list(): Promise<readonly SaveMeta[]> {
     return (await this.#allGames()).sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  async setRoomPlay(gameId: string, roomPlay: RoomPlayRecord, updatedAt?: number): Promise<void> {
+    const db = await this.#open();
+    const transaction = db.transaction("games", "readwrite");
+    const done = committed(transaction);
+    const games = transaction.objectStore("games");
+    const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
+    if (meta) games.put({ ...meta, roomPlay, updatedAt: Math.max(updatedAt ?? meta.updatedAt, meta.updatedAt) });
+    await done;
+    if (meta) notifySaveDataChanged("game");
+  }
+
+  async createFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    const row = stampedPlayedOn(finishedRowOf(meta, commands), this.#playedOn);
+    const db = await this.#open();
+    const transaction = db.transaction(["games", "baselines", "commands"], "readwrite");
+    const done = committed(transaction);
+    const games = transaction.objectStore("games");
+    if ((await settle(games.get(meta.id) as IDBRequest<SaveMeta | undefined>)) !== undefined) {
+      transaction.abort();
+      await done.catch(() => undefined);
+      throw new Error(`game ${meta.id} is already saved`);
+    }
+    games.put(row);
+    transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
+    const rows = transaction.objectStore("commands");
+    for (const [seq, command] of commands.entries()) rows.put({ gameId: meta.id, seq, command } satisfies CommandRow);
+    await done;
+    notifySaveDataChanged("game");
+  }
+
+  async replaceFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    const row = stampedPlayedOn(finishedRowOf(meta, commands), this.#playedOn);
+    const db = await this.#open();
+    const transaction = db.transaction(["games", "baselines", "commands"], "readwrite");
+    const done = committed(transaction);
+    const rows = transaction.objectStore("commands");
+    // The old log: every row of this game, `[id, 0]` up to `[id, Infinity]`.
+    const cursorRequest = rows.openCursor(IDBKeyRange.bound([meta.id, 0], [meta.id, Infinity]));
+    await new Promise<void>((resolve, reject) => {
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else resolve();
+      };
+      cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("IndexedDB cursor failed"));
+    });
+    transaction.objectStore("games").put(row);
+    transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
+    for (const [seq, command] of commands.entries()) rows.put({ gameId: meta.id, seq, command } satisfies CommandRow);
+    await done;
+    notifySaveDataChanged("game");
   }
 
   async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {

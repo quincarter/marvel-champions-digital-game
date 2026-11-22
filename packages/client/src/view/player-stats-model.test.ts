@@ -828,3 +828,64 @@ describe("playerStatsOf: records link to the game that set them (#911)", () => {
     expect(row(records, "rec:turn:damage")).toMatchObject({ value: "4", gameId: "kept" });
   });
 });
+
+describe("playerStatsOf: room games (#909)", () => {
+  const room = (over: Record<string, unknown> = {}) =>
+    ({
+      role: "guest",
+      roomId: "r",
+      gameKey: "r:1",
+      mode: "standard",
+      mySeats: ["p2"],
+      friends: [],
+      tookOver: [],
+      chatSent: 0,
+      strict: false,
+      cheats: false,
+      ...over,
+    }) as never;
+  const twoSeats: SessionConfig = {
+    ...CONFIG,
+    players: [{ starterDeckId: "spidey-justice" }, { starterDeckId: "cap" }],
+  };
+  const NAMES2: StatsNames = {
+    ...NAMES,
+    starterDeck: (id) => (id === "cap" ? { identityCardId: "cap", aspects: ["protection"] } : NAMES.starterDeck(id)),
+  };
+  const heroIds = (stats: ReturnType<typeof playerStatsOf>) => stats.filterOptions.heroes.map((h) => h.id);
+
+  test("a room row counts only the seats this device held; a row without roomPlay counts every seat", () => {
+    const guest = meta({ config: twoSeats, roomPlay: room() });
+    expect(heroIds(playerStatsOf([guest], NAMES2))).toEqual(["cap"]);
+    expect(heroIds(playerStatsOf([meta({ config: twoSeats })], NAMES2)).sort()).toEqual(["cap", "spidey"]);
+    const host = meta({ config: twoSeats, roomPlay: room({ role: "host", mySeats: ["p1"] }) });
+    expect(heroIds(playerStatsOf([host], NAMES2))).toEqual(["spidey"]);
+  });
+
+  test("a host with no seat contributes no hero stats", () => {
+    const host = meta({ config: twoSeats, roomPlay: room({ role: "host", mySeats: [] }) });
+    const stats = playerStatsOf([host], NAMES2);
+    expect(heroIds(stats)).toEqual([]);
+    expect(stats.header.rate).toBe("No games yet");
+  });
+
+  test("Cheats on counts for nothing, a concession included", () => {
+    const stats = playerStatsOf([meta({ roomPlay: room({ cheats: true, mySeats: ["p1"] }) })], NAMES);
+    expect(stats.header.rate).toBe("No games yet");
+    const conceded = meta({
+      status: "abandoned",
+      outcome: { result: "conceded", reason: "conceded" } as never,
+      roomPlay: room({ cheats: true, mySeats: ["p1"] }),
+    });
+    const sections = playerStatsOf([meta(), conceded], NAMES).sections;
+    expect(row(section(sections, "overview"), "ov:conceded")).toBeUndefined();
+  });
+
+  test("a game held as a host row and a guest row on one account counts once, by gameKey", () => {
+    const a = meta({ roomPlay: room({ role: "host", mySeats: ["p1"] }) });
+    const b = meta({ roomPlay: room({ role: "guest", mySeats: ["p1"] }) });
+    expect(playerStatsOf([a, b], NAMES).header.record).toBe("1–0");
+    const other = meta({ roomPlay: room({ role: "guest", gameKey: "r:2", mySeats: ["p1"] }) });
+    expect(playerStatsOf([a, b, other], NAMES).header.record).toBe("2–0");
+  });
+});

@@ -24,6 +24,7 @@ import type {
   UpdateListener,
 } from "../engine/host.js";
 import { t } from "../i18n/translate.js";
+import type { RoomPlayRecord } from "../engine/room-play.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -113,6 +114,7 @@ export class SeatEngineHost implements EngineHost {
   readonly #o: SeatHostOptions;
   readonly #listeners = new Set<UpdateListener>();
   readonly #statusListeners = new Set<(status: SeatStatus) => void>();
+  readonly #savedListeners = new Set<() => void>();
   readonly #pending: Pending[] = [];
   #cardPool: CardPool | null = null;
   #current: EngineUpdate | null = null;
@@ -245,6 +247,17 @@ export class SeatEngineHost implements EngineHost {
     return [];
   }
 
+  /** A guest's finished row changed after `finishRoomPlay` had answered (the room's end came later, or reopened it). */
+  onSaved(listener: () => void): () => void {
+    this.#savedListeners.add(listener);
+    return () => this.#savedListeners.delete(listener);
+  }
+
+  /** The room's game ended and this device played it as a guest: the seat worker writes its finished row (#909). */
+  async finishRoomPlay(record: RoomPlayRecord): Promise<boolean> {
+    return this.#backend.finish(record);
+  }
+
   async backfillSummaries(): Promise<number> {
     return 0;
   }
@@ -256,6 +269,7 @@ export class SeatEngineHost implements EngineHost {
     }
     this.#listeners.clear();
     this.#statusListeners.clear();
+    this.#savedListeners.clear();
     this.#backend.dispose();
   }
 
@@ -302,6 +316,9 @@ export class SeatEngineHost implements EngineHost {
       case "over":
         this.#setStatus({ ...this.#status, over: true });
         this.#failAll(t("seat.msg.over"));
+        return;
+      case "saved":
+        for (const listener of [...this.#savedListeners]) listener();
         return;
       case "failed":
         this.#setStatus({ ...this.#status, over: true, failed: true, hostConnected: false });
@@ -502,6 +519,7 @@ export class WorkerSeatBackend implements SeatBackend {
   readonly #worker: Worker;
   readonly #feed: MessagePort;
   readonly #packs: readonly PackRuntime[];
+  readonly #gameKey: string | undefined;
   readonly #pending = new Map<number, Pend>();
   #listener: ((event: SeatEvent) => void) | null = null;
   #nextId = 1;
@@ -512,7 +530,9 @@ export class WorkerSeatBackend implements SeatBackend {
     packs: readonly PackRuntime[],
     factory: () => Worker = () =>
       new Worker(new URL("../workers/seat.worker.ts", import.meta.url), { type: "module", name: "mc-seat" }),
+    gameKey?: string,
   ) {
+    this.#gameKey = gameKey;
     this.#feed = feed;
     this.#packs = packs;
     this.#worker = factory();
@@ -538,7 +558,13 @@ export class WorkerSeatBackend implements SeatBackend {
 
   async open(): Promise<{ readonly cardPool: CardPool; readonly snapshot: SeatSnapshot }> {
     const response = await this.#request(
-      { kind: "open", id: this.#nextId++, packs: this.#packs, feed: this.#feed },
+      {
+        kind: "open",
+        id: this.#nextId++,
+        packs: this.#packs,
+        feed: this.#feed,
+        ...(this.#gameKey === undefined ? {} : { gameKey: this.#gameKey }),
+      },
       SEAT_OPEN_DEADLINE_MS,
       [this.#feed],
     );
@@ -572,6 +598,12 @@ export class WorkerSeatBackend implements SeatBackend {
     );
     if (response.kind !== "paymentJudged") throw new Error(`unexpected reply ${response.kind}`);
     return response.judged;
+  }
+
+  async finish(record: RoomPlayRecord): Promise<boolean> {
+    const response = await this.#request({ kind: "finish", id: this.#nextId++, record }, SEAT_QUERY_DEADLINE_MS);
+    if (response.kind !== "finished") throw new Error(`unexpected reply ${response.kind}`);
+    return response.written;
   }
 
   onEvent(listener: (event: SeatEvent) => void): void {

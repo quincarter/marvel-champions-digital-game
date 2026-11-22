@@ -52,6 +52,7 @@ import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
 import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { mergeRoomGames } from "./room-seats.js";
 import { ACHIEVEMENTS } from "./achievements.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId, type TeamUpTrophy } from "./team-up-trophies.js";
 import { SHADOWLAND_COMIC_CREDIT, SHADOWLAND_EXTRAS } from "./shadowland-extras.js";
@@ -133,8 +134,17 @@ export function extrasProgressOf(
       readonly scenarioId: string;
       readonly players: readonly object[];
       readonly packs?: readonly unknown[];
+      /** Set on a game started from a live room: with no `roomPlay` it is a room row with no seat of mine. */
+      readonly room?: unknown;
     };
     readonly summary?: { readonly seats?: readonly { readonly deck: readonly string[] }[] } | null;
+    /** A room game (#909): only this device's seats count, and Cheats on counts for nothing. */
+    readonly roomPlay?: {
+      readonly role: string;
+      readonly gameKey: string;
+      readonly mySeats: readonly string[];
+      readonly cheats: boolean;
+    };
   }[],
   allCampaigns: readonly {
     readonly status: string;
@@ -148,16 +158,27 @@ export function extrasProgressOf(
   earnedAchievementIds: readonly string[] = [],
 ): ExtrasProgress {
   const campaigns = allCampaigns.filter((run) => run.pack === undefined && !isAdjustedCampaign(run));
-  const ended = saves.filter(
-    (save) => ENDED.has(save.status) && !isLessonSave(save) && !isCustomSave(save) && !isAdjustedSave(save),
+  const ended = mergeRoomGames(saves).filter(
+    (save) =>
+      ENDED.has(save.status) &&
+      !isLessonSave(save) &&
+      !isCustomSave(save) &&
+      !isAdjustedSave(save) &&
+      save.roomPlay?.cheats !== true,
   );
+  const isMine = (save: (typeof saves)[number], index: number): boolean =>
+    save.roomPlay ? save.roomPlay.mySeats.includes(`p${index + 1}`) : save.config.room === undefined;
+  /** The heroes of the seats this device held (every seat, outside a room row). */
+  const myHeroes = (save: (typeof saves)[number]): string[] =>
+    save.config.players
+      .filter((_, index) => isMine(save, index))
+      .map(identityOfSeat)
+      .filter((id): id is string => id !== null);
   // A competitive game counts as played only: never a win or a loss here (the owner, 2026-11-20; issue #883).
   const results = ended.filter((save) => !isCompetitiveSave(save));
   const won = results.filter((save) => save.status === "won");
   return {
-    playedHeroIds: unique(
-      ended.flatMap((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
-    ),
+    playedHeroIds: unique(ended.flatMap(myHeroes)),
     playedScenarioIds: unique(ended.map((save) => save.config.scenarioId)),
     wonScenarioIds: unique(won.map((save) => save.config.scenarioId)),
     lostScenarioIds: unique(results.filter((save) => save.status === "lost").map((save) => save.config.scenarioId)),
@@ -170,11 +191,15 @@ export function extrasProgressOf(
     startedCampaignIds: unique(campaigns.map((run) => run.campaignId)),
     wonCampaignIds: unique(campaigns.filter((run) => run.status === "won").map((run) => run.campaignId)),
     earnedAchievementIds: unique(earnedAchievementIds),
-    heroWins: tally(
-      won.map((save) => save.config.players.map(identityOfSeat).filter((id): id is string => id !== null)),
-    ),
+    heroWins: tally(won.map(myHeroes)),
     scenarioWins: tally(won.map((save) => [save.config.scenarioId])),
-    cardWins: tally(won.map((save) => (save.summary?.seats ?? []).flatMap((seat) => seat.deck.map(winCardOf)))),
+    cardWins: tally(
+      won.map((save) =>
+        (save.summary?.seats ?? [])
+          .filter((_, index) => isMine(save, index))
+          .flatMap((seat) => seat.deck.map(winCardOf)),
+      ),
+    ),
     wonGameIds: unique(won.flatMap((save) => (save.id ? [save.id] : []))),
   };
 }

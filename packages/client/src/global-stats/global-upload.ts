@@ -85,6 +85,9 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
         (meta) =>
           !meta.guided &&
           !meta.adjusted &&
+          // A guest's copy of a room game is never uploaded: the host's row sends it (#909).
+          meta.roomPlay?.role !== "guest" &&
+          !meta.roomPlay?.cheats &&
           // A competitive game is played only, never a result (issue #883).
           !isCompetitiveSave(meta) &&
           (meta.status === "won" || meta.status === "lost") &&

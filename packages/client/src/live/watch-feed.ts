@@ -24,8 +24,10 @@ export type WatchAction =
       readonly commands: readonly Command[];
       readonly checksums: TableChecksums | undefined;
     }
-  | { readonly kind: "rewind"; readonly to: number }
-  | { readonly kind: "end"; readonly outcome: unknown }
+  /** `adjusted`: the host says the game counts for nothing now (an Undo past a reveal, #909); `to` may be the count held. */
+  | { readonly kind: "rewind"; readonly to: number; readonly adjusted?: true }
+  /** `adjusted`: the game was adjusted by the time it ended (#909). */
+  | { readonly kind: "end"; readonly outcome: unknown; readonly adjusted?: true }
   | { readonly kind: "resync" }
   /** The room has no game for this table yet (the host has not started it): keep waiting. */
   | { readonly kind: "waiting" }
@@ -120,15 +122,19 @@ export class WatchFeed {
       }
       case "rewind":
         if (this.#assembling) return [];
-        // A same-count rewind is how the room reopens an ended table (clearing its outcome): forward it then.
-        if (!this.#opened || message.to > this.#count || (message.to === this.#count && !this.#ended)) return [];
+        if (!this.#opened || message.to > this.#count) return [];
+        // A cut to the count held changes nothing, unless it carries the adjustment or reopens an ended table (a
+        // same-count rewind is how the room clears an ended table's outcome).
+        if (message.to === this.#count && message.adjusted !== true && !this.#ended) return [];
         this.#count = message.to;
         this.#ended = false;
-        return [{ kind: "rewind", to: message.to }];
+        return [{ kind: "rewind", to: message.to, ...(message.adjusted === true ? { adjusted: true as const } : {}) }];
       case "end":
         if (!this.#opened) return [];
         this.#ended = true;
-        return [{ kind: "end", outcome: message.outcome }];
+        return [
+          { kind: "end", outcome: message.outcome, ...(message.adjusted === true ? { adjusted: true as const } : {}) },
+        ];
       default:
         return [];
     }

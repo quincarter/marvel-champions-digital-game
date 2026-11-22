@@ -248,7 +248,7 @@ describe("a live replay source", () => {
 });
 
 describe("a live replay in the host", () => {
-  async function liveHost(upTo: number) {
+  async function liveHost(upTo: number, own = false) {
     const game = await hostedGame(25);
     const core = new ReplayCore(HERE, null);
     let opened: ReplayOpened | null = null;
@@ -256,15 +256,16 @@ describe("a live replay in the host", () => {
       opened = await openLive(core, game, upTo);
       return opened;
     });
-    const host = new ReplayHost(backend);
-    await host.watch("A".repeat(12), "http://sync", []);
+    const recorded: unknown[] = [];
+    const host = new ReplayHost(backend, (entry) => void recorded.push(entry));
+    await host.watch("A".repeat(12), "http://sync", [], undefined, own);
     const push = (event: LiveWatchEvent) => backend.emitLive(event);
     const grow = (from: number, to: number) => {
       const info = core.liveAppend(game.commands.slice(from, to), game.checksums);
       push({ type: "info", info, change: "append", added: to - from });
       return info;
     };
-    return { host, game, core, push, grow };
+    return { host, game, core, push, grow, recorded };
   }
 
   test("opens at the newest position and follows each new command", async () => {
@@ -326,5 +327,39 @@ describe("a live replay in the host", () => {
     const { host, push } = await liveHost(5);
     push({ type: "failed" });
     expect(host.live).toMatchObject({ over: true, failed: true });
+  });
+
+  describe("the watch history (#909)", () => {
+    const WIN = { result: "win", reason: "villainDefeated" } as never;
+
+    test("a game watched to its end while following is noted once", async () => {
+      const { core, push, recorded } = await liveHost(5);
+      push({ type: "info", info: core.liveEnd(WIN), change: "end", added: 0 });
+      expect(recorded).toEqual([
+        { roomId: "A".repeat(12), tableId: "main", gid: null, endedAt: expect.any(Number), outcome: "win" },
+      ]);
+    });
+
+    test("not noted for an adjusted game", async () => {
+      const { core, push, recorded } = await liveHost(5);
+      push({ type: "info", info: core.liveEnd(WIN, true), change: "end", added: 0 });
+      expect(recorded).toEqual([]);
+    });
+
+    test("not noted for your own or a seated game", async () => {
+      const { core, push, recorded } = await liveHost(5, true);
+      push({ type: "info", info: core.liveEnd(WIN), change: "end", added: 0 });
+      expect(recorded).toEqual([]);
+    });
+
+    test("not noted when the viewer had stepped back, or the end has no outcome", async () => {
+      const behind = await liveHost(5);
+      await behind.host.stepBack();
+      behind.push({ type: "info", info: behind.core.liveEnd(WIN), change: "end", added: 0 });
+      expect(behind.recorded).toEqual([]);
+      const capped = await liveHost(5);
+      capped.push({ type: "info", info: capped.core.liveEnd(null), change: "end", added: 0 });
+      expect(capped.recorded).toEqual([]);
+    });
   });
 });

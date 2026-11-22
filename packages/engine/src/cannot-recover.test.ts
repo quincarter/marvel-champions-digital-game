@@ -161,7 +161,7 @@ describe("§3.14 'cannot recover' (Wrapped in Metal)", () => {
     const { state: after, events } = playMend(state);
     expect(mustInstance(after, identity).damage).toBe(2);
     expect(events.filter((e) => e.type === "damageHealed")).toEqual([
-      { type: "damageHealed", targetInstanceId: identity, amount: 2 },
+      { type: "damageHealed", targetInstanceId: identity, amount: 2, sourceInstanceId: expect.any(String) },
     ]);
   });
 
@@ -188,7 +188,8 @@ describe("§3.14 'cannot recover' (Wrapped in Metal)", () => {
     const { state: after, events } = run(state, [recover(P1)]);
     expect(mustInstance(after, identity)).toMatchObject({ damage: 1, exhausted: true });
     expect(events.filter((e) => e.type === "damageHealed")).toEqual([
-      { type: "damageHealed", targetInstanceId: identity, amount: 3 },
+      // A recovery heals as the identity itself (#909).
+      { type: "damageHealed", targetInstanceId: identity, amount: 3, sourceInstanceId: identity },
     ]);
     // P2's own identity is untouched.
     expect(mustInstance(after, identityOf(after, P2))).toMatchObject({ damage: 4, exhausted: false });

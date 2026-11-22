@@ -113,3 +113,25 @@ describe("globalIdOf", () => {
     expect(a).not.toContain("save");
   });
 });
+
+describe("room games (#909)", () => {
+  const room = (over: Record<string, unknown>) =>
+    ({
+      roomId: "r",
+      gameKey: "r:1",
+      mode: "standard",
+      mySeats: ["p1"],
+      friends: [],
+      tookOver: [],
+      chatSent: 0,
+      strict: false,
+      cheats: false,
+      ...over,
+    }) as never;
+  test("a guest row and a Cheats-on row are never a result; the host row is", () => {
+    expect(globalResultOf(meta({ roomPlay: room({ role: "guest" }) }), NAMES, ID)).toBeNull();
+    expect(globalResultOf(meta({ roomPlay: room({ role: "host", cheats: true }) }), NAMES, ID)).toBeNull();
+    expect(globalResultOf(meta({ roomPlay: room({ role: "host" }) }), NAMES, ID)).not.toBeNull();
+    expect(globalResultOf(meta(), NAMES, ID)).not.toBeNull();
+  });
+});

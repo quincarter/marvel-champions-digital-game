@@ -22,6 +22,7 @@ import type { SessionConfig, StateWithoutPool } from "./host.js";
 import type { GameSummary } from "./game-summary.js";
 import type { PlayPlatform } from "../platform/play-platform.js";
 import { isNewerVersion } from "./app-version.js";
+import type { RoomPlayRecord } from "./room-play.js";
 
 /**
  * Bumped when the stored shape changes, so an old save is recognized instead of misread.
@@ -147,6 +148,12 @@ export interface SaveMeta {
    * purely additive field, no `SAVE_SCHEMA` bump).
    */
   readonly continuedFromRoom?: string;
+  /**
+   * How this device played a room game (#909, `room-play.ts`): role, seats held, friends, takeovers, chat. Absent on a
+   * game played alone and on a save from before it existed (a purely additive field, no `SAVE_SCHEMA` bump).
+   * A `guest` row is a finished copy of a game the host owns: never offered as Continue, resume or rewind.
+   */
+  readonly roomPlay?: RoomPlayRecord;
 }
 
 /**
@@ -244,6 +251,29 @@ export interface GameStorage {
    * backwards.
    */
   setSummary(gameId: string, summary: GameSummary, updatedAt: number, expectedUpdatedAt: number): Promise<boolean>;
+  /**
+   * Records how this device played a room game (`SaveMeta.roomPlay`) and stamps the row as just written (never
+   * backwards), so sync carries it. A game not stored is left alone.
+   */
+  setRoomPlay(gameId: string, roomPlay: RoomPlayRecord, updatedAt?: number): Promise<void>;
+  /**
+   * Writes a game that is already over, whole: a guest's finished copy of a room game (`roomPlay.role` "guest").
+   * `meta.status` must be a finished one (won, lost or tie, from the outcome); `commandCount` is set from the log.
+   * Rejects when the id is already stored, so a repeat of the same game never overwrites a row.
+   */
+  createFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void>;
+  /**
+   * Overwrites a stored game, whole, with a finished one under the same id (`meta.id`): a guest's copy of a room game
+   * that was reopened (rewound) and finished again (#909). The old log is dropped; a game not stored is written as
+   * `createFinished` would.
+   */
+  replaceFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void>;
+}
+
+/** The row `createFinished` writes: the log's length is the command count, and an active status is refused. */
+export function finishedRowOf(meta: SaveMeta, commands: readonly Command[]): SaveMeta {
+  if (meta.status === "active") throw new Error("a finished game cannot have the status active");
+  return { ...meta, commandCount: commands.length };
 }
 
 /** `meta` marked as written on this device: unchanged when the device's platform is not known. */
@@ -317,6 +347,31 @@ export class MemoryGameStorage implements GameStorage {
 
   async list(): Promise<readonly SaveMeta[]> {
     return structuredClone([...this.#games.values()].map(migrateSaveMeta).sort((a, b) => b.updatedAt - a.updatedAt));
+  }
+
+  async setRoomPlay(gameId: string, roomPlay: RoomPlayRecord, updatedAt?: number): Promise<void> {
+    const meta = this.#games.get(gameId);
+    if (!meta) return;
+    this.#games.set(gameId, {
+      ...meta,
+      roomPlay: structuredClone(roomPlay),
+      updatedAt: Math.max(updatedAt ?? meta.updatedAt, meta.updatedAt),
+    });
+  }
+
+  async createFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    if (this.#games.has(meta.id)) throw new Error(`game ${meta.id} is already saved`);
+    const row = finishedRowOf(meta, commands);
+    this.#games.set(meta.id, structuredClone(stampedPlayedOn(row, this.#playedOn)));
+    this.#baselines.set(meta.id, structuredClone(initialState));
+    this.#commands.set(meta.id, structuredClone([...commands]));
+  }
+
+  async replaceFinished(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    const row = finishedRowOf(meta, commands);
+    this.#games.set(meta.id, structuredClone(stampedPlayedOn(row, this.#playedOn)));
+    this.#baselines.set(meta.id, structuredClone(initialState));
+    this.#commands.set(meta.id, structuredClone([...commands]));
   }
 
   async setStatus(gameId: string, status: SaveStatus, updatedAt?: number): Promise<void> {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import {
   DEFAULT_UNLOCK_PREFS,
+  MAX_FRIENDS_WIN_POINTS,
   NO_PROGRESS,
   POINTS,
   UNLOCK_CAMPAIGNS,
@@ -411,5 +412,86 @@ describe("scenarios by hand", () => {
         .pointsSources()
         .some((s) => s.label === "Achievements"),
     ).toBe(false);
+  });
+});
+
+describe("room games (#909)", () => {
+  const room = (over: Record<string, unknown> = {}) => ({
+    role: "host",
+    gameKey: "r1:1",
+    mode: "standard",
+    mySeats: ["p1"],
+    friends: ["Ann"],
+    cheats: false,
+    ...over,
+  });
+  const save = (players: number, roomPlay: ReturnType<typeof room> | undefined, extra: object = {}, id = "rhino") => ({
+    status: "won",
+    config: { scenarioId: id, difficulty: "standard", players: Array.from({ length: players }, () => ({})) },
+    ...(roomPlay ? { roomPlay } : {}),
+    ...extra,
+  });
+  const run = (saves: ReturnType<typeof save>[]) => progressOf(saves, []);
+
+  it("a host who held a seat earns the firsts and the table bonus", () => {
+    const p = run([save(2, room())]);
+    expect(p.wonScenarioIds).toEqual(["rhino"]);
+    expect(p.friendsWinTables).toEqual([2]);
+    expect(new Unlocks({ progress: p, prefs: DEFAULT_UNLOCK_PREFS }).points().earned).toBe(
+      POINTS.firstWin + POINTS.friendsWin[2],
+    );
+  });
+
+  it("a host who held no seat earns nothing", () => {
+    expect(run([save(2, room({ mySeats: [] }))])).toEqual(NO_PROGRESS);
+  });
+
+  it("a guest row earns the same firsts as a solo game", () => {
+    const p = run([save(3, room({ role: "guest", mySeats: ["p2"] }))]);
+    expect(p.wonScenarioIds).toEqual(["rhino"]);
+    expect(p.friendsWinTables).toEqual([3]);
+  });
+
+  it("cheats, adjusted and competitive rows earn nothing", () => {
+    expect(run([save(2, room({ cheats: true }))])).toEqual(NO_PROGRESS);
+    expect(run([save(2, room(), { adjusted: true })])).toEqual(NO_PROGRESS);
+    expect(run([save(2, room({ mode: "competitive" }))])).toEqual(NO_PROGRESS);
+    expect(run([save(2, room(), { config: { scenarioId: "rhino", roomTeams: {}, players: [{}, {}] } })])).toEqual(
+      NO_PROGRESS,
+    );
+  });
+
+  it("pays the friends bonus once per table size", () => {
+    const p = run([
+      save(2, room({ gameKey: "a" })),
+      save(2, room({ gameKey: "b" }), {}, "klaw"),
+      save(4, room({ gameKey: "c", mode: "epic" }), {}, "ultron"),
+    ]);
+    expect(p.friendsWinTables).toEqual([2, 4]);
+    expect(new Unlocks({ progress: p, prefs: DEFAULT_UNLOCK_PREFS }).points().earned).toBe(
+      3 * POINTS.firstWin + POINTS.friendsWin[2] + POINTS.friendsWin[4],
+    );
+  });
+
+  it("counts a game seen as a host row and a guest row once, by its game key", () => {
+    const p = run([save(2, room({ mySeats: [] })), save(2, room({ role: "guest", mySeats: ["p1"] }))]);
+    expect(p.friendsWinTables).toEqual([2]);
+    expect(p.wonScenarioIds).toEqual(["rhino"]);
+  });
+
+  it("pays no friends bonus when no other person held a seat (only watchers)", () => {
+    const p = run([save(2, room({ friends: [] }))]);
+    expect(p.wonScenarioIds).toEqual(["rhino"]);
+    expect(p.friendsWinTables).toBeUndefined();
+  });
+
+  it("leaves single-player progress as it was", () => {
+    const p = run([save(1, undefined), save(2, undefined, {}, "klaw")]);
+    expect(p).toEqual({ ...NO_PROGRESS, wonScenarioIds: ["klaw", "rhino"] });
+    expect(p.friendsWinTables).toBeUndefined();
+  });
+
+  it("caps the friends bonus at every table size once", () => {
+    expect(MAX_FRIENDS_WIN_POINTS).toBe(300);
   });
 });

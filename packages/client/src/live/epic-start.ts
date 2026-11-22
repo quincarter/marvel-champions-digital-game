@@ -94,7 +94,7 @@ export function epicPlacementOf(state: Pick<EpicState, "tables" | "pods">, table
 export function epicTableConfig(
   config: SessionConfig,
   epic: EpicState | null,
-  room: { readonly roomId: string | null; readonly playMode?: "strict" | "host" },
+  room: { readonly roomId: string | null; readonly playMode?: "strict" | "host"; readonly cheats?: boolean },
 ): SessionConfig {
   if (!epic?.hostsTable) throw new Error("this device hosts no table of the game");
   if (!epic.start) throw new Error("the organizer has not started the game");
@@ -113,6 +113,8 @@ export function epicTableConfig(
     watchable: true,
     room: room.roomId,
     ...(room.playMode ? { roomPlayMode: room.playMode } : {}),
+    // Cheats on: the table's game counts for nothing, as in a standard room (#909).
+    ...(room.cheats === true ? { roomCheats: true } : {}),
   };
 }
 

@@ -15,6 +15,7 @@
  */
 import type { MessageKey } from "../i18n/translate.js";
 import type { EngineHost } from "../engine/host.js";
+import type { RoomPlayRecord } from "../engine/room-play.js";
 import { heroesOfSeats, sameHeroes } from "../live/seat-heroes.js";
 import { SeatEngineHost, WorkerSeatBackend } from "../live/seat-host.js";
 import type { SeatBackend } from "../live/seat-protocol.js";
@@ -25,9 +26,12 @@ import { startupPacksLoaded, startupPacksPending } from "../packs/startup-packs.
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { ReplayHost } from "../replay/replay-host.js";
 import { appSession, swapSessionHost, type AppSession } from "../session.js";
+import { refreshUnlocks } from "../progression/progression.js";
+import { notifySaveDataChanged } from "../sync/save-data-changed.js";
 import { SessionStore } from "../store/session-store.js";
 import type { LiveRoomIn } from "../live/live-room-protocol.js";
-import { onRoomState, roomState, watchRoomGame } from "./room.js";
+import { gameKeyOf } from "../live/room-play-tracker.js";
+import { onRoomPlayFinished, onRoomState, roomState, watchRoomGame } from "./room.js";
 import { postRoomCommand, setSeatLeaver } from "./live-watch.js";
 import { setSeatGameUp } from "../view/seat-context.js";
 
@@ -42,7 +46,7 @@ export interface SeatPlayDeps {
   readonly roomState: () => RoomState;
   /** Posts to the room worker; false where there is none. */
   readonly post: (message: LiveRoomIn, transfer?: Transferable[]) => boolean;
-  readonly makeBackend: (feed: MessagePort, packs: readonly PackRuntime[]) => SeatBackend;
+  readonly makeBackend: (feed: MessagePort, packs: readonly PackRuntime[], gameKey?: string) => SeatBackend;
   readonly packs: () => readonly PackRuntime[];
   readonly packsPending: () => boolean;
   readonly packsLoaded: () => Promise<void>;
@@ -52,7 +56,7 @@ export interface SeatPlayDeps {
 const defaultDeps: SeatPlayDeps = {
   roomState,
   post: postRoomCommand,
-  makeBackend: (feed, packs) => new WorkerSeatBackend(feed, packs),
+  makeBackend: (feed, packs, gameKey) => new WorkerSeatBackend(feed, packs, undefined, gameKey),
   packs: loadedPacks,
   packsPending: startupPacksPending,
   packsLoaded: startupPacksLoaded,
@@ -76,14 +80,17 @@ export async function playRoomGame(deps: SeatPlayDeps = defaultDeps): Promise<Pl
   // The room worker follows this end for the log and carries the seat's proposals; the seat worker holds the other.
   if (!deps.post({ kind: "room-follow", port: channel.port1 }, [channel.port1]))
     return { ok: false, message: "watch.link.gone" };
-  const host = new SeatEngineHost(deps.makeBackend(channel.port2, deps.packs()), {
-    // In a Competitive room the Concede sheet proposes the team's forfeit or leaving alone instead (#883).
-    proposesConcede: () => deps.roomState().competitive !== null,
-    // Concede from a seat is leaving it (the game goes on): every seat this device holds is released.
-    leaveSeats: () => {
-      for (const seat of deps.roomState().mySeats) deps.post({ kind: "room-seat", op: "release", seat });
+  const host = new SeatEngineHost(
+    deps.makeBackend(channel.port2, deps.packs(), state.gid === null ? undefined : gameKeyOf(state, null)),
+    {
+      // In a Competitive room the Concede sheet proposes the team's forfeit or leaving alone instead (#883).
+      proposesConcede: () => deps.roomState().competitive !== null,
+      // Concede from a seat is leaving it (the game goes on): every seat this device holds is released.
+      leaveSeats: () => {
+        for (const seat of deps.roomState().mySeats) deps.post({ kind: "room-seat", op: "release", seat });
+      },
     },
-  });
+  );
   const dispose = host.dispose.bind(host);
   host.dispose = () => {
     deps.post({ kind: "room-unfollow" });
@@ -107,6 +114,9 @@ interface Seated {
   readonly gameLog: AppSession["gameLog"];
   readonly villainReview: AppSession["villainReview"];
   readonly stopTracking: () => void;
+  readonly stopFinish: () => void;
+  /** A finished row was written while the seat was up: re-read progress once the device's own store is back. */
+  refreshOnLeave?: boolean;
 }
 
 let seated: Seated | null = null;
@@ -123,6 +133,7 @@ export function activeSeat(): SeatEngineHost | null {
 export async function enterSeatGame(
   host: SeatEngineHost,
   rooms: (listener: (state: RoomState) => void) => () => void = onRoomState,
+  finished: (listener: (record: RoomPlayRecord) => void) => () => void = onRoomPlayFinished,
 ): Promise<SessionStore> {
   if (seated) leaveSeatGame();
   const store = new SessionStore(host);
@@ -135,7 +146,37 @@ export async function enterSeatGame(
     held = next;
     void host.setPlayers(next).catch(() => undefined);
   });
-  seated = { seat: host, ...previous, gameLog, villainReview, stopTracking };
+  // When the room's game ends, a guest's own finished row is written by the seat worker, which holds the game (#909).
+  // A watcher makes no record, so nothing is written for one.
+  // The seat worker's own change notice has no listeners: prompt the sync and the unlock check from here. The seat's
+  // store lists no saves, so the unlock read waits until the device's own store is back.
+  const rowChanged = () => {
+    notifySaveDataChanged("game");
+    if (seated) seated.refreshOnLeave = true;
+    else void refreshUnlocks().catch(() => undefined);
+  };
+  // A row written later than the finish answer (the room's end came after it) or set aside by a reopen says so here.
+  const stopSaved = host.onSaved?.(rowChanged) ?? (() => undefined);
+  const stopFinish = finished((record) => {
+    if (record.role !== "guest") return;
+    void host
+      .finishRoomPlay(record)
+      .then((written) => {
+        if (written) rowChanged();
+      })
+      .catch(() => undefined);
+  });
+  seated = {
+    seat: host,
+    ...previous,
+    gameLog,
+    villainReview,
+    stopTracking,
+    stopFinish: () => {
+      stopFinish();
+      stopSaved();
+    },
+  };
   // The Title ends a room's game for a guest too: it puts the seat away through this (`leaveRoomAtTitle`).
   setSeatLeaver(leaveSeatGame);
   setSeatGameUp(true);
@@ -162,10 +203,12 @@ export function leaveSeatGame(): void {
   setSeatLeaver(null);
   setSeatGameUp(false);
   current.stopTracking();
+  current.stopFinish();
   const { store } = swapSessionHost(current.host, current.store);
   const session = appSession();
   session.gameLog = current.gameLog;
   session.villainReview = current.villainReview;
   store.dispose();
   current.seat.dispose();
+  if (current.refreshOnLeave) void refreshUnlocks().catch(() => undefined);
 }
