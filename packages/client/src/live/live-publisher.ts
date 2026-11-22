@@ -37,6 +37,8 @@ export interface LiveTableHeader {
   readonly packs?: readonly ReplayPackRef[];
   readonly createdAt: number;
   readonly initialState: StateWithoutPool;
+  /** The game counts for nothing (a room with Cheats on): a watcher's record of it is adjusted too. Absent otherwise. */
+  readonly adjusted?: true;
 }
 
 /** What the engine worker knows of a game when the live stream starts (or the setting is switched on mid-game). */
@@ -47,11 +49,15 @@ export interface LiveGame {
   readonly packs?: readonly ReplayPackRef[];
   readonly createdAt: number;
   readonly initialState: StateWithoutPool;
+  /** The game was started with room Cheats on (`SessionConfig.roomCheats`): carried to the header. */
+  readonly adjusted?: true;
   /** The commands so far: none for a new game, the log for a resumed one. */
   readonly commands: readonly Command[];
   readonly outcome?: GameOutcome | null;
   /** `replayChecksum` after `n` commands by `n` (`"0"` is the starting state), at the replay cadence. */
   readonly checksums?: Readonly<Record<string, string>>;
+  /** The lobby revision the game was built from: the first `start` carries it, and the room refuses a stale one. */
+  readonly lobbyRev?: number;
 }
 
 export function headerOf(game: LiveGame): LiveTableHeader {
@@ -63,6 +69,7 @@ export function headerOf(game: LiveGame): LiveTableHeader {
     ...(game.packs?.length ? { packs: game.packs } : {}),
     createdAt: game.createdAt,
     initialState: game.initialState,
+    ...(game.adjusted ? { adjusted: true as const } : {}),
   };
 }
 
@@ -90,8 +97,12 @@ export interface RoomTableState {
   readonly commands: number;
   readonly ended: boolean;
   readonly hasHeader: boolean;
+  /** The admission id of the game the table's header belongs to (absent: none recorded, or an older room). */
+  readonly gid?: string;
   /** The room's latest checksum and its command count (null: none; undefined: the room does not say, so it is trusted). */
   readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
+  /** The room holds a log it has not stored: its `gid` is the durable admission, and its count and checkpoint claim nothing. */
+  readonly dirty?: boolean;
 }
 
 export interface LivePublisherOptions {
@@ -106,7 +117,17 @@ export interface LivePublisherOptions {
   readonly onResync?: () => void;
   /** The room refused the log as too large (past its cap): this game is no longer streamed. */
   readonly onGiveUp?: () => void;
+  /** The room refused the first `start` because the lobby had changed since the game was built (`lobby-changed`). */
+  readonly onLobbyChanged?: () => void;
+  /** The room confirmed it admitted this game (`started`): the host persists the admission id to resume it later. */
+  readonly onAdmitted?: (gid: string) => void;
+  /** The admission id: derive it from the game's durable identity so a resumed host recomputes it (`gidOfGame`). */
+  readonly gid?: string;
 }
+
+/** A `start` the room could not save is sent again this many times, from `START_RETRY_MS` doubling each time. */
+const START_RETRIES = 5;
+const START_RETRY_MS = 500;
 
 const encoder = new TextEncoder();
 /** UTF-8 bytes, as the room measures a frame (`.length` counts UTF-16 units and undercounts non-ASCII text). */
@@ -117,6 +138,28 @@ const sameCommand = (a: unknown, b: unknown): boolean => a === b || JSON.stringi
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
+/**
+ * A game's admission id from its own durable identity (save key and creation time, both fixed before the first start
+ * and kept by a resumed game), so a host that reloads before any record write landed still derives the same id.
+ * 53-bit cyrb53-style hash: an identity, not a secret.
+ */
+export function gidOfGame(gameKey: string, createdAt: number): string {
+  const text = `${gameKey}|${createdAt}`;
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `g-${(h1 >>> 0).toString(16).padStart(8, "0")}${(h2 >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+const randomGid = (): string =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+
 export class LivePublisher {
   readonly #send: (message: ClientMessage) => boolean;
   readonly #onStatus: (status: LiveStatus) => void;
@@ -124,6 +167,26 @@ export class LivePublisher {
   readonly #table: string;
   readonly #onResync: (() => void) | undefined;
   readonly #onGiveUp: (() => void) | undefined;
+  readonly #onLobbyChanged: (() => void) | undefined;
+  readonly #onAdmitted: ((gid: string) => void) | undefined;
+  /**
+   * Sent with every message that would install this game's header (`start`, a `log` replacement) until the room
+   * answers `started`: a socket accepting a frame does not mean the room applied it, so a retry after a drop must
+   * still be refused when the lobby moved on. Cleared by the ack only.
+   */
+  #lobbyRev: number | undefined;
+  /** Retries of a `start` / `log` the room could not save (`not-saved`), and the timer of the next one. */
+  #saveRetries = 0;
+  #retryTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * This game's admission id, sent with `start` / `log` while the lobby revision is unconfirmed. The room stores it
+   * with the header, so a retry after a lost `started` is recognised as the game it already admitted.
+   */
+  #gid: string = randomGid();
+  /** A resumed game in a lobby room: it may join a table that holds its header, but never installs one. */
+  #joinOnly = false;
+  /** The room's durable admission is this game's own and only its log is unstored: resending the log is allowed. */
+  #repair = false;
   #header: LiveTableHeader;
   #commands: Command[];
   /** Checksums by command count (a string key, as the room has them). */
@@ -150,10 +213,24 @@ export class LivePublisher {
     this.#table = options.table ?? FIRST_TABLE;
     this.#onResync = options.onResync;
     this.#onGiveUp = options.onGiveUp;
+    this.#onLobbyChanged = options.onLobbyChanged;
+    this.#onAdmitted = options.onAdmitted;
+    if (options.gid) this.#gid = options.gid;
+    this.#lobbyRev = options.game.lobbyRev;
     this.#header = headerOf(options.game);
     this.#commands = [...options.game.commands];
     this.#checksums = { ...options.game.checksums };
     this.#outcome = options.game.outcome ?? null;
+  }
+
+  /** The admission id the room recorded for this game, kept from before a reload (a resumed host's own record). */
+  adoptGid(gid: string): void {
+    this.#gid = gid;
+  }
+
+  /** This game was resumed into a lobby room: it never installs a header, only continues an admitted table. */
+  requireAdmittedRoom(): void {
+    this.#joinOnly = true;
   }
 
   /** The room was created: from now on the status carries the watch link. */
@@ -211,14 +288,46 @@ export class LivePublisher {
    */
   onWelcome(table: RoomTableState | undefined): void {
     this.#connected = true;
+    this.#repair = false;
     this.#roomHeader = table?.hasHeader ?? false;
     this.#roomCount = this.#roomHeader ? (table?.commands ?? 0) : 0;
     this.#roomEnded = this.#roomHeader ? (table?.ended ?? false) : false;
+    if (this.#roomHeader && this.#lobbyRev !== undefined) {
+      if (table?.gid === this.#gid) {
+        // The room admitted this very game and only its `started` was lost: nothing to resend, the revision is spent.
+        // The welcome is proof of admission like `started`, so the id is persisted the same way.
+        this.#lobbyRev = undefined;
+        this.#onAdmitted?.(this.#gid);
+      } else {
+        // A header that is not known to be this game's (it may be the last game's): the start goes out again with
+        // its revision and the room settles it.
+        this.#roomHeader = false;
+        this.#replaceTable = true;
+      }
+    }
+    // A table that names another game is never ours, whatever its checksum says (two rematches can share setup, seed
+    // and commands, notably at checkpoint 0): replace it (a lobby game gives up instead, in #mayInstall). A table with
+    // no gid is legacy room data from before admission ids, and falls back to the checkpoint comparison below.
+    if (this.#roomHeader && table?.gid !== undefined && table.gid !== this.#gid) {
+      this.#roomHeader = false;
+      this.#replaceTable = true;
+    }
+    // The room holds this very admission but not the log it has since been given (a failed write): the log goes again.
+    // Nothing is installed under a new admission, so a resumed lobby game may do it; another game's gid is never ours.
+    if (this.#roomHeader && table?.dirty === true && table.gid === this.#gid) {
+      this.#roomHeader = false;
+      this.#replaceTable = true;
+      this.#repair = true;
+    }
     // The room's command count does not say it holds this game: a host resumed from a save can meet a room with the
     // same number of different commands, and a rewind the socket took but the room never received leaves the room's old
     // prefix behind a count the host has since reached again. So every welcome checks: the room's latest checksum is compared with ours at the same count; with no
     // proof the table is replaced from our log, and commands past the proven count are cut back and resent.
-    if (this.#roomHeader && table?.checkpoint !== undefined) {
+    // The admitted game before its first command has a header but no checksum yet (checkpoint null, no commands): its
+    // gid is the proof, and only this host's own persisted gid can match it.
+    const admittedEmpty =
+      this.#roomHeader && table?.gid === this.#gid && table.checkpoint === null && this.#roomCount === 0;
+    if (this.#roomHeader && !admittedEmpty && table?.checkpoint !== undefined) {
       const proof = table.checkpoint;
       if (!proof || this.#checksums[String(proof.count)] !== proof.sum) {
         this.#roomHeader = false;
@@ -247,13 +356,57 @@ export class LivePublisher {
     if (message.ch === "room" && message.kind === "roster") {
       this.#watchers = message.watchers;
       this.#report();
+    } else if (message.ch === "game" && message.kind === "started" && message.table === this.#table) {
+      if (message.gid === undefined || message.gid === this.#gid) {
+        this.#lobbyRev = undefined;
+        this.#saveRetries = 0;
+        clearTimeout(this.#retryTimer);
+        this.#onAdmitted?.(this.#gid);
+      }
     } else if (message.ch === "game" && message.kind === "resend" && message.table === this.#table) {
       this.#resend(message.from);
+    } else if (
+      message.ch === "room" &&
+      message.kind === "refused" &&
+      message.reason === "lobby-changed" &&
+      this.#lobbyRev !== undefined
+    ) {
+      // The game this publisher streams was built from an older lobby: it never became the room's table.
+      this.#gaveUp = true;
+      this.#onLobbyChanged?.();
+    } else if (
+      message.ch === "room" &&
+      message.kind === "refused" &&
+      message.reason === "not-saved" &&
+      this.#lobbyRev !== undefined
+    ) {
+      // The room could not store the game's header (or the log): until it answers `started` the game is not the room's
+      // table, so the start goes out again after a pause, and the host is told when it never lands.
+      this.#retryStart();
     } else if (message.ch === "room" && message.kind === "refused" && message.reason === "too-large") {
       // The log is past what the room keeps (or one message was too big and cannot be made smaller): stop streaming.
       this.#gaveUp = true;
       this.#onGiveUp?.();
     }
+  }
+
+  #retryStart(): void {
+    if (this.#gaveUp || this.#retryTimer !== undefined) return;
+    if (this.#saveRetries >= START_RETRIES) {
+      // Never silent: the same signal as a log the room will not keep, so the host sees the game is not being shared.
+      this.#gaveUp = true;
+      this.#onGiveUp?.();
+      return;
+    }
+    const wait = START_RETRY_MS * 2 ** this.#saveRetries;
+    this.#saveRetries += 1;
+    this.#retryTimer = setTimeout(() => {
+      this.#retryTimer = undefined;
+      if (this.#gaveUp || this.#lobbyRev === undefined) return;
+      this.#roomHeader = false;
+      this.#replaceTable = true;
+      this.#flush();
+    }, wait);
   }
 
   /** The game's log as it stands: for tests and a future "save this live game". */
@@ -274,6 +427,7 @@ export class LivePublisher {
     if (from === 0) {
       // Nothing to send but a header the room already holds.
       if (this.#roomHeader && this.#commands.length === 0) return;
+      if (!this.#mayInstall()) return;
       const end = this.#take(0, Math.max(0, LOG_BYTES - ENVELOPE_BYTES - sizeOf(this.#header)), false);
       const ok = this.#sendMessage({
         ch: "game",
@@ -282,6 +436,9 @@ export class LivePublisher {
         header: this.#header,
         commands: this.#commands.slice(0, end),
         checksums: this.#checksumsIn(0, end),
+        // The gid always travels: after admission it marks a same-game repair, so the room keeps the identity.
+        gid: this.#gid,
+        ...(this.#lobbyRev !== undefined ? { lobbyRev: this.#lobbyRev } : {}),
       });
       if (!ok) return;
       this.#roomHeader = true;
@@ -294,6 +451,14 @@ export class LivePublisher {
       this.#roomCount = from;
     }
     this.#flush();
+  }
+
+  /** A resumed lobby game is never the one to put a header on a table: it gives up instead. */
+  #mayInstall(): boolean {
+    if (!this.#joinOnly || this.#repair) return true;
+    this.#gaveUp = true;
+    this.#onGiveUp?.();
+    return false;
   }
 
   /** The index after the last command from `from` that fits in `budget` bytes; `atLeastOne` keeps the stream moving. */
@@ -325,12 +490,26 @@ export class LivePublisher {
   #flush(): void {
     if (!this.#connected || this.#gaveUp) return;
     if (!this.#roomHeader) {
-      // The room refuses a `start` on an ended table: a same-count rewind reopens it first.
-      if (this.#replaceTable && this.#roomEnded) {
+      if (!this.#mayInstall()) return;
+      // The room refuses a `start` on an ended table: a same-count rewind reopens it first. Not for a game whose
+      // lobby revision is unconfirmed: the rewind carries none, and a lobby room's `start` reopens the table itself.
+      if (this.#replaceTable && this.#roomEnded && this.#lobbyRev === undefined) {
         if (!this.#sendMessage({ ch: "game", kind: "rewind", table: this.#table, to: this.#roomCount })) return;
         this.#roomEnded = false;
       }
-      if (!this.#sendMessage({ ch: "game", kind: "start", table: this.#table, header: this.#header })) return;
+      const lobbyRev = this.#lobbyRev;
+      // Saved before the first `start` goes out, so a crash before any proof still leaves the record able to
+      // recognize the table the room may have admitted.
+      this.#onAdmitted?.(this.#gid);
+      const started = this.#sendMessage({
+        ch: "game",
+        kind: "start",
+        table: this.#table,
+        header: this.#header,
+        gid: this.#gid,
+        ...(lobbyRev !== undefined ? { lobbyRev } : {}),
+      });
+      if (!started) return;
       this.#roomHeader = true;
       this.#roomCount = 0;
       this.#roomEnded = false;

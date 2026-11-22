@@ -16,3 +16,10 @@ declare const __CARD_LANG__: string;
  * unset). Read it through `art/card-language.ts`'s `availableCardLanguages()`.
  */
 declare const __CARD_LANGS__: string;
+
+/**
+ * Set the same way: a short hash of the rules source (engine, cards, content, mod SDK, client session code) (`rules-fingerprint.ts`), so live rooms
+ * can tell two builds with the same version strings but different rules code apart. Read it through
+ * `view/app-version.ts`'s `rulesFingerprint()`, which guards for Vitest.
+ */
+declare const __RULES_FINGERPRINT__: string;
