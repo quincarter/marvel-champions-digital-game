@@ -117,6 +117,7 @@ import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
+import { drawPictureAspectChips } from "../ui/aspect-chips.js";
 import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
@@ -1748,6 +1749,15 @@ export class DecksScene extends Phaser.Scene {
     });
     if (dim < 1) (thumb as unknown as Phaser.GameObjects.Components.Alpha).setAlpha?.(dim);
     objects.push(thumb);
+    // The deck's aspect(s) along the foot of its picture, as Past games marks each hero (#917): which aspect a deck
+    // plays reads off the list without opening it (#966).
+    const chips = drawPictureAspectChips(
+      this,
+      { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
+      option.deck.aspects,
+    );
+    if (dim < 1) for (const chip of chips) (chip as unknown as Phaser.GameObjects.Components.Alpha).setAlpha?.(dim);
+    objects.push(...chips);
     const textX = card.x + 6 + thumbWidth + 10;
     const textWidth = card.x + card.width - 10 - textX;
     const name = this.add.text(
