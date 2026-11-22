@@ -50,6 +50,31 @@ const log = (commands: unknown[], extra: object = {}): ServerMessage =>
 const commands = (from: number, list: unknown[]): ServerMessage =>
   ({ v: 1, ch: "game", kind: "commands", table: T, from, commands: list }) as ServerMessage;
 
+describe("GameMirror salvage for a guest whose room closed (#904)", () => {
+  test("a held game gives its header and every command, after rewinds and batches", () => {
+    const mirror = new GameMirror(T);
+    expect(mirror.salvage()).toBeNull();
+    mirror.apply(log([1, 2, 3]));
+    mirror.apply(commands(3, [4, 5]));
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: T, to: 4 } as ServerMessage);
+    expect(mirror.salvage()).toEqual({ header: { h: 1 }, commands: [1, 2, 3, 4] });
+  });
+
+  test("a finished game, a log still arriving and a cleared mirror give nothing to continue from", () => {
+    const over = new GameMirror(T);
+    over.apply(log([1]));
+    over.apply({ v: 1, ch: "game", kind: "end", table: T, outcome: { won: true } } as ServerMessage);
+    expect(over.salvage()).toBeNull();
+    const arriving = new GameMirror(T);
+    arriving.apply(log([1], { total: 4 }));
+    expect(arriving.salvage()).toBeNull();
+    const cleared = new GameMirror(T);
+    cleared.apply(log([1]));
+    cleared.clear();
+    expect(cleared.salvage()).toBeNull();
+  });
+});
+
 describe("GameMirror during a multi-part catch-up", () => {
   test("a snapshot taken mid-assembly carries the server's total; once the parts land it does not", () => {
     const mirror = new GameMirror(T);

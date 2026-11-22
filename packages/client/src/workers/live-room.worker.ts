@@ -50,6 +50,7 @@ worker.addEventListener("message", (event) => {
               seatStore: new IdbSeatTokenStore(),
               onState: (state) => worker.postMessage({ kind: "room", state }),
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
+              onSalvage: (game) => worker.postMessage({ kind: "room-salvage", ...game } satisfies LiveRoomOut),
             },
           }
         : {}),

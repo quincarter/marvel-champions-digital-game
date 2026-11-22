@@ -96,6 +96,28 @@ describe.each<[string, () => GameStorage]>([
     expect("guided" in plain!.meta).toBe(false);
   });
 
+  test("an imported game holds its whole log at once and goes on appending from its end (#904)", async () => {
+    const storage = make();
+    const commands = [command(0), command(1), command(2)];
+    await storage.importGame(meta("room-game", 9, { commandCount: 3, continuedFromRoom: "room1" }), BASELINE, commands);
+    const loaded = (await storage.load("room-game"))!;
+    expect(loaded.commands).toEqual(commands);
+    expect(loaded.initialState).toEqual(BASELINE);
+    expect(loaded.meta).toMatchObject({ commandCount: 3, continuedFromRoom: "room1" });
+    expect((await storage.latestActive())?.id).toBe("room-game");
+    await storage.append("room-game", 3, command(3), {
+      round: 2,
+      commandCount: 4,
+      updatedAt: 10,
+      status: "active",
+      outcome: null,
+    });
+    expect((await storage.load("room-game"))!.commands).toHaveLength(4);
+    // A row that does not match its log is refused, so a replay can never start from a lie.
+    await expect(storage.importGame(meta("bad", 1, { commandCount: 2 }), BASELINE, commands)).rejects.toThrow(/length/);
+    expect(await storage.load("bad")).toBeNull();
+  });
+
   test("an out-of-order command is rejected and leaves the log untouched", async () => {
     const storage = make();
     await storage.create(meta("g1", 1), BASELINE);

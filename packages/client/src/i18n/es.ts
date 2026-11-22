@@ -447,6 +447,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.problem.closedIdle": "La sala se cerró tras mucho tiempo sin actividad.",
   "room.closedNotice.title": "Sala cerrada",
   "room.closedNotice.ok": "Aceptar",
+  "room.closedNotice.continue": "Continuar en solitario",
+  "room.closedNotice.continueLead":
+    "Tu dispositivo guardó la partida tal como estaba. Continúala tú solo, jugando con todos los héroes.",
+  "room.closedNotice.continueFailed": "No se pudo abrir la partida guardada.",
   "room.problem.closedHost": "El anfitrión cerró la sala.",
   "room.problem.closedDisabled": "La sala se cerró porque se desactivaron las salas.",
   "room.refusal.buildMismatch":

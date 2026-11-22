@@ -12,6 +12,12 @@ import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 
 type GameMessage = Extract<ServerMessage, { ch: "game" }>;
 
+/** A room's game as a guest holds it: the table's header as the room carries it (unread, `parseLiveHeader`) and the log. */
+export interface RoomGameSalvage {
+  readonly header: unknown;
+  readonly commands: readonly unknown[];
+}
+
 export class GameMirror {
   readonly #table: string;
   #header: unknown = undefined;
@@ -96,6 +102,15 @@ export class GameMirror {
 
   #dropChecksumsAfter(count: number): void {
     for (const key of Object.keys(this.#checksums)) if (Number(key) > count) delete this.#checksums[key];
+  }
+
+  /**
+   * The game as it stands, for a guest whose room just closed (`live/room-continue.ts`): the header and every command
+   * held, or null when there is nothing to continue from (no game, a multi-part log still arriving, a game that is over).
+   */
+  salvage(): RoomGameSalvage | null {
+    if (!this.#has || this.#header === undefined || this.#pendingTotal !== null || this.#ended) return null;
+    return { header: this.#header, commands: [...this.#commands] };
   }
 
   /** The whole game as the messages a fresh watcher would receive: a `log`, then `end` when the game is over. */

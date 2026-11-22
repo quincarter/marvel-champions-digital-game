@@ -37,7 +37,7 @@ import {
   type ResolveCodeResult,
   type RoomSocketDeps,
 } from "./room-socket.js";
-import { GameMirror } from "./room-game-mirror.js";
+import { GameMirror, type RoomGameSalvage } from "./room-game-mirror.js";
 import { RoomModel } from "./room-model.js";
 import { seatFeedMessage } from "./seat-protocol.js";
 import { seatTokensFresh, type SeatTokenStore } from "./room-seat-store.js";
@@ -92,6 +92,11 @@ export interface RoomSessionDeps {
   readonly createRoom?: (deps: CreateRoomDeps) => Promise<CreateRoomResult>;
   readonly resolveRoomCode?: (deps: CreateRoomDeps, code: string) => Promise<ResolveCodeResult>;
   readonly socket?: RoomSocketDeps;
+  /**
+   * A guest's room was closed under it with a game still being played: the game as this guest holds it, handed over
+   * ahead of the end state so the device can keep it (`live/room-continue.ts`). Absent: nothing is kept.
+   */
+  readonly onSalvage?: (game: RoomGameSalvage) => void;
 }
 
 const CAPS = ["watch", "chat", "seats"] as const;
@@ -572,6 +577,11 @@ export class RoomSession {
 
   /** Nothing more will come from the room: say why, stop the socket and the game's stream. */
   #over(problem: RoomProblem): void {
+    // A guest whose room was closed (not one that was replaced or is gone) keeps the game it holds: the log is complete.
+    if (this.role === "guest" && problem.startsWith("closed-") && !this.#closed) {
+      const game = this.#mirror.salvage();
+      if (game) this.#deps.onSalvage?.(game);
+    }
     this.#model.ended(problem);
     this.#answerDecks(null);
     this.#socket?.close();

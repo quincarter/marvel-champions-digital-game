@@ -82,7 +82,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       onCancel: () => this.#dismiss(),
       primary: () => "ok",
       onToggle: () => {
-        if (this.#notices[0]?.optOut) this.#optOut();
+        if (this.#notices[0]?.optOut && !this.#notices[0].action) this.#optOut();
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -110,6 +110,13 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     session.settings = { ...session.settings, notOfferedNotices: false };
     this.#notices = [this.#notices[0]!, ...this.#notices.slice(1).filter((notice) => !notice.optOut)];
     this.#dismiss();
+  }
+
+  /** The notice's own action (it is dismissed first, so the screen under it is the one the action leaves). */
+  #runAction(): void {
+    const action = this.#notices[0]?.action;
+    this.#dismiss();
+    action?.run();
   }
 
   /** The next notice, or close when this was the last. */
@@ -159,7 +166,19 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     const rowGap = 10;
     const rowsHeight = rows.reduce((sum, text) => sum + text.height + 16 + rowGap, 0);
     const buttonHeight = hit.primary;
-    const boxHeight = 20 + title.height + 8 + lead.height + 14 + rowsHeight + 10 + buttonHeight + 20;
+    // A notice with an action stacks it above OK, full width: its label is long ("Continue in single player") and a half row clips it.
+    const stacked = notice.action !== undefined;
+    const boxHeight =
+      20 +
+      title.height +
+      8 +
+      lead.height +
+      14 +
+      rowsHeight +
+      10 +
+      buttonHeight +
+      (stacked ? buttonHeight + 10 : 0) +
+      20;
     const box: Rect = {
       x: (width - boxWidth) / 2,
       y: Math.max(16, (height - boxHeight) / 2),
@@ -184,12 +203,16 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     const buttonY = box.y + box.height - 20 - buttonHeight;
     // A notice that offers "Don't show again" splits the row: it on the left, OK on the right (`end-turn-confirm.ts`).
     const half = (textWidth - 12) / 2;
-    const neverRect: Rect | null = notice.optOut
-      ? { x: box.x + 20, y: buttonY, width: half, height: buttonHeight }
+    const sideLabel = notice.action ? notice.action.label : notice.optOut ? "Don't show again" : null;
+    const neverRect: Rect | null = sideLabel
+      ? stacked
+        ? { x: box.x + 20, y: buttonY - buttonHeight - 10, width: textWidth, height: buttonHeight }
+        : { x: box.x + 20, y: buttonY, width: half, height: buttonHeight }
       : null;
-    const okRect: Rect = neverRect
-      ? { x: neverRect.x + half + 12, y: buttonY, width: half, height: buttonHeight }
-      : { x: box.x + 20, y: buttonY, width: textWidth, height: buttonHeight };
+    const okRect: Rect =
+      neverRect && !stacked
+        ? { x: neverRect.x + half + 12, y: buttonY, width: half, height: buttonHeight }
+        : { x: box.x + 20, y: buttonY, width: textWidth, height: buttonHeight };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
@@ -215,17 +238,17 @@ export class OptionNoticeOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
-          label: "Don't show again",
+          label: sideLabel!,
           type: buttonType,
           rect: neverRect,
-          onClick: () => this.#optOut(),
+          onClick: () => (notice.action ? this.#runAction() : this.#optOut()),
         }),
       );
-      // X (G / H) presses it from anywhere; A when it has the ring.
-      this.#hints.button(this.#buttons[1]!, ["guide"], "paper", {
-        idsNow: () => (this.#route?.focused === "never" ? ["activate"] : ["guide"]),
+      // X (G / H) presses "Don't show again" from anywhere; A when it has the ring. An action has A only.
+      this.#hints.button(this.#buttons[1]!, [notice.action ? "activate" : "guide"], "paper", {
+        idsNow: () => (this.#route?.focused === "never" ? ["activate"] : notice.action ? [] : ["guide"]),
       });
-      stops.set("never", { rect: neverRect, activate: () => this.#optOut() });
+      stops.set("never", { rect: neverRect, activate: () => (notice.action ? this.#runAction() : this.#optOut()) });
     }
     this.#route?.set(neverRect ? ["never", "ok"] : ["ok"], stops);
     // Opening (and each next notice) puts the ring on OK, so A answers at once.

@@ -13,6 +13,7 @@ import { WorkerEngineHost } from "../engine/worker-host.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
+import type { RoomGameSalvage } from "../live/room-game-mirror.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
 import { currentRoomDevice } from "./room-device.js";
 import { NO_ROOM, type RoomState, type SeatDeckEntry } from "../live/room-state.js";
@@ -40,6 +41,15 @@ let seatLeaver: (() => void) | null = null;
 
 export function setSeatLeaver(leave: (() => void) | null): void {
   seatLeaver = leave;
+}
+/** The game a closed room left this guest (`room-salvage`), until it is taken. */
+let salvaged: RoomGameSalvage | null = null;
+
+/** The game the room that just closed left this device, once: null when it left none (not mid-game, or not a guest). */
+export function takeRoomSalvage(): RoomGameSalvage | null {
+  const game = salvaged;
+  salvaged = null;
+  return game;
 }
 let startRefusedHandler: (() => void) | null = null;
 let decksListener: ((id: number, decks: readonly SeatDeckEntry[] | null) => void) | null = null;
@@ -121,6 +131,10 @@ function spawn(): boolean {
   next.addEventListener("message", (event: MessageEvent<LiveRoomOut>) => {
     if (event.data.kind === "room-decks") {
       decksListener?.(event.data.id, event.data.decks);
+      return;
+    }
+    if (event.data.kind === "room-salvage") {
+      salvaged = { header: event.data.header, commands: event.data.commands };
       return;
     }
     if (event.data.kind === "room-start-refused") {

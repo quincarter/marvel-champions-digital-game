@@ -91,6 +91,19 @@ export class IdbGameStorage implements GameStorage {
     notifySaveDataChanged("game");
   }
 
+  async importGame(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    if (meta.commandCount !== commands.length) throw new Error("the summary row does not match the log's length");
+    const db = await this.#open();
+    const transaction = db.transaction(["games", "baselines", "commands"], "readwrite");
+    const done = committed(transaction);
+    const rows = transaction.objectStore("commands");
+    commands.forEach((command, seq) => rows.put({ gameId: meta.id, seq, command } satisfies CommandRow));
+    transaction.objectStore("baselines").put({ gameId: meta.id, state: initialState } satisfies BaselineRow);
+    transaction.objectStore("games").put(stampedPlayedOn(meta, this.#playedOn));
+    await done;
+    notifySaveDataChanged("game");
+  }
+
   async append(gameId: string, seq: number, command: Command, progress: SaveProgress): Promise<void> {
     const db = await this.#open();
     const transaction = db.transaction(["games", "commands"], "readwrite");

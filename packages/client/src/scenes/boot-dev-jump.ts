@@ -4,6 +4,7 @@
  * fixture code it pulls in) from the entry chunk.
  */
 
+import type { OnlineData } from "./online.js";
 import type { Command } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
@@ -474,8 +475,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   }
   // `?screen=online`: Play online.
   // `&closed=host`: with the "room closed" notice over it (the guest of a room the host closed lands here).
+  // `&continue=1`: the notice also offers "Continue in single player" (for a made-up saved game id; pressing it fails).
   if (screen === "online") {
-    return { key: SCENES.online, data: params.get("closed") === "host" ? { closedNotice: "closed-host" } : {} };
+    const closed = params.get("closed") === "host";
+    const data: OnlineData = closed
+      ? {
+          closedNotice: "closed-host",
+          ...(params.get("continue") === "1" ? { continueGameId: "dev-closed-room-game" } : {}),
+        }
+      : {};
+    return { key: SCENES.online, data };
   }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };

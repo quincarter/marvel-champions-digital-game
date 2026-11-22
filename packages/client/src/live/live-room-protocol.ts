@@ -87,7 +87,9 @@ export type LiveRoomOut =
   /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
   | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null }
   /** The room refused the host's game start as its lobby had changed (`lobby-changed`); the room dropped that game. */
-  | { readonly kind: "room-start-refused" };
+  | { readonly kind: "room-start-refused" }
+  /** A guest's room was closed mid-game: the game it held, sent just ahead of the room's ended state. */
+  | { readonly kind: "room-salvage"; readonly header: unknown; readonly commands: readonly unknown[] };
 
 /** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
 export type RoomFeedOut =

@@ -1,0 +1,3 @@
+kind: Added
+body: When the host closes a room mid-game, a seated guest's device keeps the game as a single-player save, and the Room closed notice offers Continue in single player (#904)
+time: 2026-11-22T11:06:22.7060372-05:00

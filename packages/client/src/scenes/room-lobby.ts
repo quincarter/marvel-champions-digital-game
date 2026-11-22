@@ -42,6 +42,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import type { RoomProblem } from "../live/room-state.js";
 import type { OnlineData } from "./online.js";
+import { keepClosedRoomGame } from "../platform/room-continue.js";
 import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
@@ -629,10 +630,17 @@ export class RoomLobbyScene extends Phaser.Scene {
   /** The room is gone (platform/room.ts already forgot it from recent rooms): drop the connection, show Play online's notice. */
   #leaveClosed(problem: RoomProblem): void {
     this.#alive = false;
+    // A seated guest whose game was running keeps it (the log is taken before the room is left): the notice offers it.
+    const kept = keepClosedRoomGame(this.#state, problem);
     leaveRoom();
     clearRoomTable();
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.online, { closedNotice: problem } satisfies OnlineData);
+    void kept.then((continueGameId) =>
+      goToScreen(this, SCENES.online, {
+        closedNotice: problem,
+        ...(continueGameId ? { continueGameId } : {}),
+      } satisfies OnlineData),
+    );
   }
 
   #goTitle(): void {

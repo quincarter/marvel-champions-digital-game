@@ -59,6 +59,8 @@ export interface LiveRoomControllerDeps {
     readonly onState: (state: RoomState) => void;
     /** The host's Start asked for the decks (`room-decks-request`): the answer, or null. */
     readonly onDecks?: (id: number, decks: readonly SeatDeckEntry[] | null) => void;
+    /** A guest's room was closed mid-game: the game it held (`RoomSessionDeps.onSalvage`). */
+    readonly onSalvage?: RoomSessionDeps["onSalvage"];
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
   };
@@ -282,6 +284,7 @@ export class LiveRoomController {
       ...(room.createRoom ? { createRoom: room.createRoom } : {}),
       ...(room.resolveRoomCode ? { resolveRoomCode: room.resolveRoomCode } : {}),
       ...(this.#deps.socket ? { socket: this.#deps.socket } : {}),
+      ...(room.onSalvage ? { onSalvage: room.onSalvage } : {}),
     });
     this.#session = session;
     return session;

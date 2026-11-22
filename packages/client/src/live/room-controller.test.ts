@@ -106,6 +106,7 @@ function setup(
   FakeSocket.all = [];
   const states: RoomState[] = [];
   const answers: { id: number; decks: readonly SeatDeckEntry[] | null }[] = [];
+  const salvaged: { header: unknown; commands: readonly unknown[] }[] = [];
   const timers: { run: () => void; live: boolean; ms: number }[] = [];
   const socket: RoomSocketDeps = {
     WebSocket: FakeSocket,
@@ -143,6 +144,7 @@ function setup(
       ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
       onState: (s) => states.push(s),
       onDecks: (id, decks) => answers.push({ id, decks }),
+      onSalvage: (game) => salvaged.push(game),
       createRoom,
       resolveRoomCode,
     },
@@ -152,6 +154,7 @@ function setup(
     controller,
     states,
     answers,
+    salvaged,
     createRoom,
     resolveRoomCode,
     seatStore,
@@ -905,6 +908,25 @@ describe("closing and resuming a lobby room (#901 review)", () => {
     expect(s3.kinds).not.toContain("room:room-close");
   });
 
+  it("a host who closes mid-game has sent every command before the close, so guests hold the whole log (#904)", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(2), count: 2 });
+    // Close room pressed right after a move: a streaming game sends each command as it lands, so the move is already on the
+    // socket, ahead of the close.
+    t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
+    const game = socket.kinds.filter((k) => k.startsWith("game:") || k === "room:room-close");
+    expect(game[game.length - 1]).toBe("room:room-close");
+    const sent = socket.sent.filter((m) => m.kind === "commands").flatMap((m) => m["commands"] as unknown[]);
+    expect(sent).toEqual([cmd(1), cmd(2)]);
+  });
+
   it("shows a room the host closed as closed-host", async () => {
     const t = setup();
     t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
@@ -913,6 +935,69 @@ describe("closing and resuming a lobby room (#901 review)", () => {
     socket.welcome("watcher");
     socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
     expect(t.last()).toMatchObject({ connection: "ended", problem: "closed-host" });
+  });
+
+  describe("a guest's game when the room closes under it (#904)", () => {
+    const game = (commands: unknown[] = [{ type: "a" }, { type: "b" }], extra: object = {}) => ({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: "t1",
+      header: { h: 1 },
+      commands,
+      checksums: {},
+      ...extra,
+    });
+    const guest = async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      const socket = FakeSocket.all[0]!;
+      socket.welcome("watcher", { commands: 2, ended: false, hasHeader: true });
+      return { t, socket };
+    };
+
+    it("hands over the header and every command it holds, ahead of the ended state", async () => {
+      const { t, socket } = await guest();
+      socket.receive(game());
+      socket.receive({ v: 1, ch: "game", kind: "commands", table: "t1", from: 2, commands: [{ type: "c" }] });
+      const before = t.states.length;
+      socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(t.salvaged).toEqual([{ header: { h: 1 }, commands: [{ type: "a" }, { type: "b" }, { type: "c" }] }]);
+      expect(t.states.length).toBeGreaterThan(before);
+      expect(t.last()).toMatchObject({ connection: "ended", problem: "closed-host" });
+    });
+
+    it("hands over nothing when the game is over, still arriving, or there was none", async () => {
+      const over = await guest();
+      over.socket.receive(game());
+      over.socket.receive({ v: 1, ch: "game", kind: "end", table: "t1", outcome: { won: true } });
+      over.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(over.t.salvaged).toEqual([]);
+
+      const arriving = await guest();
+      arriving.socket.receive(game([{ type: "a" }], { total: 3 }));
+      arriving.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "idle" });
+      expect(arriving.t.salvaged).toEqual([]);
+
+      const none = await guest();
+      none.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(none.t.salvaged).toEqual([]);
+    });
+
+    it("a guest leaving by itself keeps nothing, and a host is never handed one", async () => {
+      const { t, socket } = await guest();
+      socket.receive(game());
+      t.controller.onRoomCommand({ kind: "room-leave" });
+      expect(t.salvaged).toEqual([]);
+
+      const host = setup();
+      host.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+      await flush();
+      FakeSocket.all[0]!.welcome("host");
+      FakeSocket.all[0]!.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(host.salvaged).toEqual([]);
+    });
   });
 
   it("a resumed host presents its own stored seat tokens in the hello", async () => {

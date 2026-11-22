@@ -444,6 +444,10 @@ export const en = {
   "room.problem.closedIdle": "The room closed after being idle for a long time.",
   "room.closedNotice.title": "Room closed",
   "room.closedNotice.ok": "OK",
+  "room.closedNotice.continue": "Continue in single player",
+  "room.closedNotice.continueLead":
+    "Your device kept the game as it stood. Continue it on your own, playing every hero.",
+  "room.closedNotice.continueFailed": "The saved game could not be opened.",
   "room.problem.closedHost": "The host closed the room.",
   "room.problem.closedDisabled": "The room was closed because rooms were switched off.",
   "room.refusal.buildMismatch":

@@ -139,6 +139,13 @@ export interface SaveMeta {
    * Absent on every other game (a purely additive field, no `SAVE_SCHEMA` bump).
    */
   readonly adjusted?: true;
+  /**
+   * Set on a game continued in single player from a lobby room the host closed mid-game (`live/room-continue.ts`): the
+   * room's id. The game is this device's own save from then on (no room, no seats), and it counts as any single-player
+   * game does, once, on this device; the host's own save of the same game is theirs. Absent on every other game (a
+   * purely additive field, no `SAVE_SCHEMA` bump).
+   */
+  readonly continuedFromRoom?: string;
 }
 
 /**
@@ -198,6 +205,12 @@ export interface StoredGame {
 export interface GameStorage {
   /** Records a new game. Games already in progress stay so: several can be active at once (device sync, #276). */
   create(meta: SaveMeta, initialState: StateWithoutPool): Promise<void>;
+  /**
+   * Records a game that already has a log, as one write: the summary row (whose `commandCount` must be the log's
+   * length), the baseline and every command. For a game this device did not play command by command (a room's game
+   * saved for a guest, `live/room-continue.ts`).
+   */
+  importGame(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void>;
   /**
    * Appends command number `seq` (0-based) and updates the summary row, as one
    * atomic write. Rejects when `seq` isn't the next command, so a lost or
@@ -262,6 +275,13 @@ export class MemoryGameStorage implements GameStorage {
     this.#games.set(meta.id, structuredClone(stampedPlayedOn(meta, this.#playedOn)));
     this.#baselines.set(meta.id, structuredClone(initialState));
     this.#commands.set(meta.id, []);
+  }
+
+  async importGame(meta: SaveMeta, initialState: StateWithoutPool, commands: readonly Command[]): Promise<void> {
+    if (meta.commandCount !== commands.length) throw new Error("the summary row does not match the log's length");
+    this.#games.set(meta.id, structuredClone(stampedPlayedOn(meta, this.#playedOn)));
+    this.#baselines.set(meta.id, structuredClone(initialState));
+    this.#commands.set(meta.id, structuredClone([...commands]));
   }
 
   async append(gameId: string, seq: number, command: Command, progress: SaveProgress): Promise<void> {

@@ -36,6 +36,9 @@ import type { OptionNoticeData } from "./option-notice.js";
 import { problemWords, wordsText } from "../view/room-lobby-model.js";
 import { cssOf } from "../ui/theme.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
+import { setGuideRunLevelOverride } from "../guide/guide-store.js";
+import { leaveSeatGame } from "../platform/seat-play.js";
+import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { sceneLoader } from "./scene-loader.js";
@@ -49,6 +52,8 @@ export interface OnlineData {
   readonly invalidLink?: boolean;
   /** Why the room the player was in is gone (the host closed it): shown in a notice over this screen. */
   readonly closedNotice?: RoomProblem;
+  /** With `closedNotice`: the saved game this device kept of the room's game (`platform/room-continue.ts`); the notice then offers to continue it in single player. */
+  readonly continueGameId?: string;
   /** The Title's "Play online" panel pressed Host (the room starts opening at once, after a name) or Join (the screen opens, where the code is typed). */
   readonly intent?: "host" | "join";
 }
@@ -122,17 +127,27 @@ export class OnlineScene extends Phaser.Scene {
     fadeScreenIn(this);
     if (this.#data.join) this.#startJoin(this.#data.join);
     else if (this.#data.intent === "host") this.#host();
-    if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice);
+    if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice, this.#data.continueGameId);
   }
 
   /** "Room closed": the reason, in the shared notice sheet (OK, Esc and pad B dismiss it). */
-  #showClosedNotice(problem: RoomProblem): void {
+  #showClosedNotice(problem: RoomProblem, continueGameId?: string): void {
     const data: OptionNoticeData = {
       notices: [
         {
           title: t("room.closedNotice.title"),
-          lead: wordsText(problemWords(problem)),
+          lead: continueGameId
+            ? `${wordsText(problemWords(problem))}\n\n${t("room.closedNotice.continueLead")}`
+            : wordsText(problemWords(problem)),
           okLabel: t("room.closedNotice.ok"),
+          ...(continueGameId
+            ? {
+                action: {
+                  label: t("room.closedNotice.continue"),
+                  run: () => void this.#continueSingle(continueGameId),
+                },
+              }
+            : {}),
           rows: [],
         },
       ],
@@ -143,6 +158,27 @@ export class OnlineScene extends Phaser.Scene {
     };
     if (loader) void loader.load(SCENES.optionNotice).then(start);
     else start();
+  }
+
+  /** "Continue in single player": opens the game this device kept of the closed room, as the Title's Continue does. */
+  async #continueSingle(gameId: string): Promise<void> {
+    if (this.#busy) return;
+    const session = appSession();
+    // A seat's host may still be on the session (the room ended under the board): the device's own goes back first.
+    leaveSeatGame();
+    session.guidedRun = false;
+    session.guidedRunKind = undefined;
+    setGuideRunLevelOverride(null);
+    const { store } = session;
+    await store.resume(gameId);
+    if (!this.#alive) return;
+    if (store.state.status === "failed") {
+      this.#message = t("room.closedNotice.continueFailed");
+      this.#draw();
+      return;
+    }
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
   }
 
   /**
