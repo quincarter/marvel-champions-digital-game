@@ -226,6 +226,11 @@ interface Table {
    * stored header (and the previous generation's rows in the other slot) stay whole until then.
    */
   staging: boolean;
+  /**
+   * While `staging`: the replaced game was over, so the staged commit also stores the reopened room lifecycle (meta),
+   * in the same put as the header: a wake never sees the old game open or the new log closed.
+   */
+  reopening: boolean;
   /** While `staging`: the generation the stored header still points at (its rows are deleted once the switch commits). */
   priorGen: number | undefined;
   /** A tail row exists in storage (in the slot of `storeGen`). */
@@ -277,6 +282,7 @@ const newTable = (id: string): Table => ({
   loaded: false,
   headerDirty: false,
   staging: false,
+  reopening: false,
   priorGen: undefined,
   tailStored: false,
   tailAt: undefined,
@@ -769,11 +775,18 @@ export class GameRoomLogic {
       table.tailAt = undefined;
       await this.writeTailRow(table);
     }
-    await this.storage.put(headerKey(table.id), {
+    const header = {
       h: table.header,
       ...(table.gid !== undefined ? { g: table.gid } : {}),
       ...(table.storeGen !== undefined ? { sg: table.storeGen } : {}),
-    });
+    };
+    // A table that ended again meanwhile leaves the lifecycle to its end (flushLifecycle); otherwise the reopened meta
+    // is committed with the header, the single commit point.
+    const reopenedMeta = table.staging && table.reopening && !table.ended ? this.reopenedMeta() : undefined;
+    if (reopenedMeta) await this.storage.put({ [headerKey(table.id)]: header, meta: reopenedMeta });
+    else await this.storage.put(headerKey(table.id), header);
+    if (reopenedMeta) this.meta = reopenedMeta;
+    table.reopening = false;
     table.committedGid = table.gid;
     table.headerDirty = false;
     if (table.staging) {
@@ -1252,9 +1265,7 @@ export class GameRoomLogic {
         if (wasEnded && this.meta) {
           // A rematch's header and its reopened lifecycle are one put: a wake never sees the new game next to the old
           // game's ended meta. (A stale end alarm is harmless: the alarm reads meta, finds it open and moves out.)
-          const { endedAt: _endedAt, ...rest } = this.meta;
-          const reopenedMeta: RoomMeta = { ...rest, ended: false, outcome: null, overflow: false };
-          await this.storage.put({ [headerKey(table.id)]: newHeader, meta: reopenedMeta });
+          await this.storage.put({ [headerKey(table.id)]: newHeader, meta: this.reopenedMeta() });
         } else {
           await this.storage.put(headerKey(table.id), newHeader);
         }
@@ -1359,12 +1370,14 @@ export class GameRoomLogic {
         // The header stays dirty until its put lands: the welcome does not claim a checkpoint meanwhile, and the next
         // chunk or tail write, or the host leaving, stores it first.
         table.headerDirty = true;
-        if (reopened) this.lifecycleDirty = true;
-        try {
-          await this.flushLifecycle();
-        } finally {
-          await this.repairHeader(table);
+        if (reopened) {
+          this.lifecycleDirty = true;
+          table.reopening = true;
         }
+        // The staged rows, the header and the reopened meta commit together (repairHeader); the alarm swap that follows
+        // is best effort (a stale end alarm reads the open meta and moves out) and is retried by flushLifecycle.
+        await this.repairHeader(table);
+        await this.flushLifecycle().catch(() => undefined);
         // The header put committed the staged generation (its chunks and tail were written first, and the old log's
         // rows are deleted after), or it threw and the previous generation is still the stored game.
         table.unsaved = false;
@@ -1473,6 +1486,12 @@ export class GameRoomLogic {
     }
   }
 
+  /** The room's meta once its game is open again (no end, outcome or end time). */
+  private reopenedMeta(): RoomMeta {
+    const { endedAt: _endedAt, ...rest } = this.meta!;
+    return { ...rest, ended: false, outcome: null, overflow: false };
+  }
+
   private reopenInMemory(table: Table): void {
     table.ended = false;
     table.outcome = null;
@@ -1487,6 +1506,8 @@ export class GameRoomLogic {
 
   private async flushLifecycle(): Promise<void> {
     if (!this.lifecycleDirty || !this.meta) return;
+    // A replacement log still being staged commits its reopened lifecycle with its header: nothing earlier.
+    if ([...this.tables.values()].some((t) => t.staging)) return;
     const tables = [...this.tables.values()];
     if (tables.every((t) => t.ended)) {
       // The end is stored only after the log it closed: a failed tail write leaves the game open in storage (and this
