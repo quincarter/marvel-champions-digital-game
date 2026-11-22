@@ -3195,6 +3195,8 @@ export class DecksScene extends Phaser.Scene {
       await deckStorage().put(copy);
       this.#savedDecks = await deckStorage().list();
       this.#selectedDeckId = copy.id as string;
+      // Saved decks list after every precon: bring the copy into view, as an import does.
+      this.#scrollToDeckId = copy.id as string;
       this.#status = { text: `Duplicated as "${copy.name}".`, tone: "success" };
       this.#busy = false;
       this.#rebuild();

@@ -129,8 +129,16 @@ test.describe("tapping a deck (#958)", () => {
       "the copy deleted",
     );
 
-    // Edit opens the deck's card list in the deck builder.
-    await tap(page, "Decks", `deck:${precon.id}`);
+    // Edit opens the deck's card list in the deck builder. The list sits where the copy was: tap a deck in view.
+    const height = page.viewportSize()!.height;
+    const inView = await waitFor(
+      async () =>
+        (await routeStops(page, "Decks"))?.stops.find(
+          (stop) => stop.key.startsWith("deck:") && stop.rect.y > 250 && stop.rect.y + stop.rect.height < height - 180,
+        ) ?? null,
+      "a deck in view",
+    );
+    await tap(page, "Decks", inView.key);
     await waitForSheet(page, true);
     await tap(page, SHEET, "action:edit");
     await waitForScene(page, "DeckBuilder");
