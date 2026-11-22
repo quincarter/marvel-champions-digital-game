@@ -106,6 +106,8 @@ export interface RoomTableState {
   readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
   /** The room holds a log it has not stored: its `gid` is the durable admission, and its count and checkpoint claim nothing. */
   readonly dirty?: boolean;
+  /** The room holds this game as adjusted (its sticky latch). Absent: it does not, or an older room does not say. */
+  readonly adjusted?: boolean;
 }
 
 export interface LivePublisherOptions {
@@ -336,6 +338,10 @@ export class LivePublisher {
       this.#replaceTable = true;
       this.#repair = true;
     }
+    // The room holds this very game but not that it is adjusted (its latch write failed and it restarted, or it is an
+    // older room): the host's own game knows, so it says so again with a rewind to the count the room holds (below).
+    if (this.#roomHeader && this.#adjusted && table?.gid !== undefined && table.gid === this.#gid && !table.adjusted)
+      this.#adjustedUnsent = true;
     // The room's command count does not say it holds this game: a host resumed from a save can meet a room with the
     // same number of different commands, and a rewind the socket took but the room never received leaves the room's old
     // prefix behind a count the host has since reached again. So every welcome checks: the room's latest checksum is compared with ours at the same count; with no

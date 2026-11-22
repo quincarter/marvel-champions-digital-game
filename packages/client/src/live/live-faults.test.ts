@@ -853,3 +853,57 @@ describe("an ended game replacement log commits with its reopened lifecycle", ()
     });
   }
 });
+
+describe("an adjusted game the room lost the latch of", () => {
+  it("the host re-asserts it on the next welcome: a restart after a failed latch write loses nothing for a late guest", async () => {
+    const bus = await FaultBus.create();
+    const host = bus.host(liveGame());
+    host.reportGid = true;
+    host.connect();
+    await bus.settle();
+    for (const c of cmds(0, 3)) host.command(c);
+    await bus.settle();
+
+    // The host's acknowledged Undo past a reveal cuts nothing here (same count); the room's latch writes both fail.
+    bus.storage.failPut((k) => k === "t1:header", 2);
+    host.publisher.rewind(3, true);
+    await bus.settle();
+    expect(bus.storage.map.get("t1:header")).not.toHaveProperty("a");
+
+    // The object is evicted with the link dying under it (no clean close, so no leave-time retry): the latch existed
+    // only in its memory.
+    host.socket!.dead = true;
+    host.publisher.onDisconnected();
+    await bus.restartRoom();
+    host.connect();
+    await bus.settle();
+    // The welcome did not say adjusted, so the host said it again; the room stored it (the writes work now).
+    expect(
+      host.up.sent.filter((m) => m.ch === "game" && m.kind === "rewind" && (m as { adjusted?: true }).adjusted),
+    ).toHaveLength(2);
+    expect(bus.storage.map.get("t1:header")).toMatchObject({ a: true });
+
+    // A late guest is told, from a cold wake too.
+    await bus.restartRoom();
+    const late = bus.watcher();
+    late.connect();
+    await bus.settle();
+    const log = late.down.sent.find((m) => m.ch === "game" && m.kind === "log") as { adjusted?: true } | undefined;
+    expect(log?.adjusted).toBe(true);
+  });
+
+  it("a welcome that already says adjusted gets no second rewind", async () => {
+    const bus = await FaultBus.create();
+    const host = bus.host(liveGame());
+    host.reportGid = true;
+    host.connect();
+    await bus.settle();
+    for (const c of cmds(0, 3)) host.command(c);
+    host.publisher.rewind(3, true);
+    await bus.settle();
+    await host.disconnect();
+    host.connect();
+    await bus.settle();
+    expect(host.up.sent.filter((m) => m.ch === "game" && m.kind === "rewind")).toHaveLength(1);
+  });
+});

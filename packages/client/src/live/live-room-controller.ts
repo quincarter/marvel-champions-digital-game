@@ -710,6 +710,7 @@ export class LiveRoomController {
                   ...(info.gid !== undefined ? { gid: info.gid } : {}),
                   ...(info.checkpoint !== undefined ? { checkpoint: info.checkpoint } : {}),
                   ...(info.dirty ? { dirty: true } : {}),
+                  ...(info.adjusted ? { adjusted: true } : {}),
                 }
               : undefined,
           );
