@@ -282,6 +282,9 @@ function conditionClause(condition: Predicate | undefined): string | null {
   }
   if (condition?.kind !== "exists") return null;
   const query = condition.query as TargetQuery;
+  // An option offered only while a named card is in play (`inPlay(name)`): "Place 2 infamy counters on Criminal
+  // Enterprise" once that card has flipped (Hired Gun `gob` 02007, #967).
+  if (typeof query.name === "string" && Object.keys(query).length === 1) return `${query.name} is not in play`;
   const categories = query.categories ?? [];
   if (
     categories.length === 1 &&
