@@ -304,6 +304,11 @@ interface Table {
    * or meta (`adjusted`) for an end; sent on the `log` and in the welcome so a late reader latches it too.
    */
   gameAdjusted: boolean;
+  /**
+   * `gameAdjusted` was latched but no header write carrying it has landed: retried on every host batch, rewind and end,
+   * when the host leaves, at the alarm and before a joiner is welcomed, until a header row with `a` is stored.
+   */
+  adjustedDirty: boolean;
   overflow: boolean;
   loaded: boolean;
   /** The in-memory header is newer than the stored one (a replacement log whose header put has not landed). */
@@ -377,6 +382,7 @@ const newTable = (id: string): Table => ({
   outcome: null,
   adjusted: false,
   gameAdjusted: false,
+  adjustedDirty: false,
   overflow: false,
   loaded: false,
   headerDirty: false,
@@ -1076,6 +1082,7 @@ export class GameRoomLogic {
       if (this.tables.size > 1) await this.storage.delete(endKey(table.id)).catch(() => undefined);
     }
     table.reopening = false;
+    table.adjustedDirty = false;
     table.committedGid = table.gid;
     table.headerDirty = false;
     if (table.staging) {
@@ -1542,6 +1549,8 @@ export class GameRoomLogic {
       tokenTable = lobby.tables.find((t) => t.hostTokenHash !== undefined && hashes.includes(t.hostTokenHash))?.id;
     }
     for (const table of this.tables.values()) await this.ensureLoaded(table);
+    // A latched adjusted whose header write failed is retried before anyone is welcomed with the table.
+    await this.flushAdjusted();
 
     // A valid host token (the room's, or a table's) is always let in, whatever the room holds, and takes the old host
     // socket's place.
@@ -2016,11 +2025,12 @@ export class GameRoomLogic {
         // A flagged rewind latches the game as adjusted. A cut already rewrites the header (new epoch), which carries the
         // latch; one that cuts nothing writes it best effort, and a failed write still reaches readers in memory (the
         // next header write, or a flagged end, stores it).
-        const latched = message.adjusted === true && !table.gameAdjusted;
-        if (latched) table.gameAdjusted = true;
+        if (message.adjusted === true && !table.gameAdjusted) {
+          table.gameAdjusted = true;
+          table.adjustedDirty = true;
+        }
         if (cut) await this.bumpEpoch(table);
-        else if (latched && !table.staging && table.headerDirty === false)
-          await this.storage.put(headerKey(table.id), this.headerRow(table)).catch(() => undefined);
+        else await this.flushAdjusted();
         for (const key of Object.keys(table.checksums)) if (Number(key) > message.to) delete table.checksums[key];
         table.bytes = sizeOfAll(table.commands);
         // An Undo past the end reopens the game: the end alarm is cancelled and the idle one re-armed.
@@ -2073,6 +2083,23 @@ export class GameRoomLogic {
     if (table.staging) return;
     // The rows stay this game's: a rewind is a new epoch, never a new storage generation.
     await this.storage.put(headerKey(table.id), this.headerRow(table));
+    table.adjustedDirty = false;
+  }
+
+  /**
+   * Stores a latched `adjusted` whose header write has not landed. Never throws: a failure leaves it dirty for the next
+   * call. A staged replacement or a dirty header is written by `repairHeader` (the row carries the latch), not here.
+   */
+  private async flushAdjusted(): Promise<void> {
+    for (const table of this.tables.values()) {
+      if (!table.adjustedDirty || !table.loaded || !table.hasHeader || table.staging || table.headerDirty) continue;
+      try {
+        await this.storage.put(headerKey(table.id), this.headerRow(table));
+        table.adjustedDirty = false;
+      } catch {
+        // Still dirty: the next host message, the alarm or the host leaving tries again.
+      }
+    }
   }
 
   /** The table's header row as stored: the game's header, admission id, log epoch, storage generation and adjusted latch. */
@@ -2119,6 +2146,7 @@ export class GameRoomLogic {
   private readonly tableEndedAt = new Map<string, number>();
 
   private async flushLifecycle(): Promise<void> {
+    await this.flushAdjusted();
     if (!this.lifecycleDirty || !this.meta) return;
     // A replacement log still being staged commits its reopened lifecycle with its header: nothing earlier.
     if ([...this.tables.values()].some((t) => t.staging)) return;
@@ -3520,6 +3548,7 @@ export class GameRoomLogic {
       this.resendAsked.delete(participant.table);
       if (table) {
         this.broadcastTable(table);
+        await this.flushAdjusted();
         await this.writeTail(table);
         // A pending end follows the tail it was waiting for.
         await this.flushLifecycle();

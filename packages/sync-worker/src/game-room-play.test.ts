@@ -256,6 +256,69 @@ describe("play together: the adjusted latch is the table's, not a frame's (#909)
   });
 });
 
+describe("play together: a latched adjusted whose header write failed is retried (#909)", () => {
+  /** A running 3-command game whose header puts fail (the flagged same-count rewind's, and the retries) until `heal()`. */
+  const failedLatch = async () => {
+    const ctx = await setup();
+    await ctx.send(ctx.host, { ch: "game", kind: "commands", table: "t1", from: 0, commands: [1, 2, 3] });
+    const put = ctx.storage.put.bind(ctx.storage) as (...a: unknown[]) => Promise<unknown>;
+    let fail = true;
+    (ctx.storage as { put: unknown }).put = (...args: unknown[]) => {
+      if (fail && args[0] === "t1:header") return Promise.reject(new Error("put failed"));
+      return put(...args.map((x) => structuredClone(x)));
+    };
+    await ctx.send(ctx.host, { ch: "game", kind: "rewind", table: "t1", to: 3, adjusted: true });
+    expect(ctx.storage.map.get("t1:header")).not.toHaveProperty("a");
+    return { ...ctx, heal: () => (fail = false) };
+  };
+  const wake = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    const woken = new GameRoomLogic(ctx.storage, undefined, () => ctx.clock.now);
+    const s = new FakeSocket();
+    await ctx.send(s, { ch: "room", kind: "hello", caps: ["watch"], name: "Late", build: BUILD }, woken);
+    return s;
+  };
+
+  it("a joiner welcomed before any further host move triggers the retry: the header stores the latch and the joiner sees it", async () => {
+    const ctx = await failedLatch();
+    // Not stored yet, but the room never loses the latch: a joiner is told from memory even while the write fails.
+    const early = await ctx.join("Early");
+    expect(early.last("welcome")!.tables[0]).toMatchObject({ adjusted: true });
+    expect(ctx.storage.map.get("t1:header")).not.toHaveProperty("a");
+    ctx.heal();
+    const late = await ctx.join("Late");
+    expect(ctx.storage.map.get("t1:header")).toMatchObject({ a: true });
+    expect(late.last("log")).toMatchObject({ adjusted: true });
+    expect(late.last("welcome")!.tables[0]).toMatchObject({ adjusted: true });
+    // Stored now: a cold wake still tells a later guest.
+    const after = await wake(ctx);
+    expect(after.last("log")).toMatchObject({ adjusted: true });
+    expect(after.last("welcome")!.tables[0]).toMatchObject({ adjusted: true });
+  });
+
+  it("with no further host move, the alarm stores it", async () => {
+    const ctx = await failedLatch();
+    ctx.heal();
+    await ctx.room.alarm(ctx.clock.now);
+    expect(ctx.storage.map.get("t1:header")).toMatchObject({ a: true });
+    expect((await wake(ctx)).last("log")).toMatchObject({ adjusted: true });
+  });
+
+  it("with no further host move, the host leaving stores it", async () => {
+    const ctx = await failedLatch();
+    ctx.heal();
+    await ctx.room.close(ctx.host);
+    expect(ctx.storage.map.get("t1:header")).toMatchObject({ a: true });
+    expect((await wake(ctx)).last("log")).toMatchObject({ adjusted: true });
+  });
+
+  it("the next host batch stores it too", async () => {
+    const ctx = await failedLatch();
+    ctx.heal();
+    await ctx.send(ctx.host, { ch: "game", kind: "commands", table: "t1", from: 3, commands: [4] });
+    expect(ctx.storage.map.get("t1:header")).toMatchObject({ a: true });
+  });
+});
+
 describe("play together: proposal and request ids", () => {
   it("echoes the proposal id in the room's refusal of it and in what it relays to the host and back", async () => {
     const { host, send, join, seated, propose, request } = await setup();
