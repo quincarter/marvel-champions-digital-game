@@ -13,9 +13,21 @@ import { deckUsesCustomCards } from "./custom-content.js";
 import { NOT_READY_REASON, leadsNotReadyHero, preconDecks } from "./deck-list-model.js";
 import { POOL_CARDS } from "../content/pool.js";
 
-/** Campaigns are base content only (docs/custom-content-packs.md §7.4): a pack's precon, or a saved deck holding a custom card, is never offered. */
+/**
+ * Campaigns are base content only (docs/custom-content-packs.md §11.10): a pack's precon, or a saved deck holding a
+ * custom card, is never offered. The campaign screens read the base card pool, and a run would have to carry the hero's
+ * pack the way a pack campaign's run carries its own (`CampaignRecord.pack`) to survive the pack being updated or removed.
+ */
 export const basePreconDecks = (poolVersion: string): readonly Deck[] =>
   preconDecks(poolVersion).filter((deck) => !deckUsesCustomCards(deck));
+
+/** The seat picker's line when an installed or saved custom hero is left out (#960), so the hero doesn't look missing. */
+export const CUSTOM_HEROES_NOTE = "Custom heroes can't join a campaign yet.";
+
+/** Whether any pack precon or saved deck is held back from the picker for holding a custom card (`basePreconDecks`). */
+export function customHeroesLeftOut(savedDecks: readonly Deck[], poolVersion: string): boolean {
+  return preconDecks(poolVersion).some(deckUsesCustomCards) || savedDecks.some(deckUsesCustomCards);
+}
 import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
 import { matchesSearch } from "./roster-filter.js";
