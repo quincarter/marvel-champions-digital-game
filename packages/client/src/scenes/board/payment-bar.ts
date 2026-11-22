@@ -136,11 +136,13 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
   // The price note comes before the instruction: a denominator that isn't the number printed on the card is
   // the first thing a player will question, and "tap cards to spend" can wait behind the answer.
   const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
+  // A search that finds nothing unless a card in hand pays for it says which card, ahead of the instruction (#966).
+  const search = payment.searchNote ? ` ${payment.searchNote}.` : "";
   // What the picks add beyond the cost, and who helped pay: counted from the engine's own query, never worked out here.
   const over = payment.overpaidNote ? ` ${payment.overpaidNote}.` : "";
   const held = payment.lockedNote ? ` ${payment.lockedNote}.` : "";
   const helped = payment.helperLines.map((line) => ` ${line}.`).join("");
-  const prose = `${payment.headline}.${note} Tap cards to spend.${outstanding}`;
+  const prose = `${payment.headline}.${note}${search} Tap cards to spend.${outstanding}`;
   words(layout.prose, layout.inlineNotes ? `${prose}${over}${held}${helped}` : prose, 2);
   if (layout.over && payment.overpaidNote) words(layout.over, `${payment.overpaidNote}.`, 1);
   if (layout.lock && payment.lockedNote) words(layout.lock, `${payment.lockedNote}.`, 2);

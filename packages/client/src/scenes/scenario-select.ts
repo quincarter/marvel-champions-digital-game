@@ -513,9 +513,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // Nothing is picked until the player picks one: the draft is left alone (its scenarioId is only a placeholder).
     if (selection.selectedId !== null) this.#draft = setScenario(this.#draft, scenario, selection.selectedId);
 
-    const chipDefs = scenarioProductsOf(currentScenarios()).map((code) => ({
+    const placement = this.#placement();
+    const chipDefs = scenarioProductsOf(currentScenarios(), placement.shelfOf, placement.order).map((code) => ({
       id: `product:${code}`,
-      text: packNameOf(code),
+      text: code === CUSTOM_SHELF_ID ? "Custom packs" : packNameOf(code),
       selected: this.#draft.scenarioFilter.product === code,
       onClick: () => {
         this.#draft = setScenarioFilter(this.#draft, {
@@ -1373,9 +1374,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
   /** The shelves as last built, for the reveal after a rebuild. */
   #shelvesNow: readonly Shelf<RosterEntry>[] = [];
 
-  #shelves(): readonly Shelf<RosterEntry>[] {
-    const ranking = this.#ranking;
-    // Installed packs' scenarios: on a "Custom packs" shelf first or last, or beside the wave the pack names (issue #734).
+  /**
+   * Where each scenario is shelved: installed packs' scenarios on a "Custom packs" shelf first or last, or beside the
+   * wave the pack names (issue #734). The product chips are these shelves too (issue #966).
+   */
+  #placement(): { readonly order: readonly string[]; readonly shelfOf: (scenario: Scenario) => string } {
     const placed = placeScenarioShelves(
       POOL_PACKS.map((p) => ({ code: p.code as string, cycleId: p.cycleId as string })),
       customContentPrefsNow().placement,
@@ -1383,19 +1386,30 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const packWaves = new Map(
       loadedPacks().flatMap((pack) => (pack.scenarios ?? []).map((one) => [one.id as string, pack.wave] as const)),
     );
+    return {
+      order: placed.order,
+      shelfOf: (scenario) =>
+        isPackScenario(scenario.id as string)
+          ? placed.shelfOf(packWaves.get(scenario.id as string))
+          : (scenario.packCode as string),
+    };
+  }
+
+  #shelves(): readonly Shelf<RosterEntry>[] {
+    const ranking = this.#ranking;
+    const placed = this.#placement();
     const candidates: ShelfCandidate<Scenario>[] = withSelectionPinned(
       currentScenarios(),
       () => true,
       (s) => this.#scenarioPicked() && this.#draft.scenarioId === (s.id as string),
     ).map((s) => {
+      const shelf = placed.shelfOf(s);
       const passesChips =
-        (!this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product) &&
+        (!this.#draft.scenarioFilter.product || shelf === this.#draft.scenarioFilter.product) &&
         (ranking === null || ranking.has(s.id as string));
       return {
         item: s,
-        packCode: isPackScenario(s.id as string)
-          ? placed.shelfOf(packWaves.get(s.id as string))
-          : (s.packCode as string),
+        packCode: shelf,
         searchHaystacks: [],
         passesChips,
       };

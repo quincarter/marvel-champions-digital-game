@@ -7,6 +7,9 @@ import { surface, typeRole } from "../tokens.js";
 import type { AspectStamp } from "../view/aspect-stamp.js";
 import { packChipRows, widestRow } from "../view/aspect-chip-rows.js";
 import { textStyle } from "./theme.js";
+import { fitText } from "./widgets.js";
+import { aspectChipsOf } from "../view/past-games-model.js";
+import type { Rect } from "../view/layout.js";
 
 export interface AspectChipsResult {
   /** The widest line's width. */
@@ -92,4 +95,37 @@ export function drawAspectChips(
     lastWidth: last ? widestRow(widths, [last], CHIP_GAP) : 0,
     objects,
   };
+}
+
+/**
+ * Draws the aspect chips along the foot of a hero's picture: the aspect's frame color with its name in words on it. Past
+ * games' rows (#917) and the Decks list's rows (#966) wear them.
+ */
+export function drawPictureAspectChips(
+  scene: Phaser.Scene,
+  pic: Rect,
+  aspectIds: readonly string[],
+): Phaser.GameObjects.GameObject[] {
+  const objects: Phaser.GameObjects.GameObject[] = [];
+  const chips = aspectChipsOf(pic, aspectIds);
+  if (chips.length === 0) return objects;
+  const g = scene.add.graphics();
+  objects.push(g);
+  for (const chip of chips) {
+    g.fillStyle(chip.stamp.fill, 1).fillRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
+    g.lineStyle(1, surface.ink.hex, 0.9).strokeRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
+    const text = scene.add
+      .text(
+        chip.rect.x + chip.rect.width / 2,
+        chip.rect.y + chip.rect.height / 2,
+        chip.text,
+        textStyle(typeRole.label, chip.stamp.ink),
+      )
+      .setOrigin(0.5, 0.5);
+    text.setFontSize(chip.fontSize);
+    // The model picked the wording by an estimate of the type's width; the measured text shrinks to fit what it chose.
+    fitText(text, chip.rect.width - 4, 6);
+    objects.push(text);
+  }
+  return objects;
 }
