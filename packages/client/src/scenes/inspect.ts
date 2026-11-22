@@ -63,7 +63,7 @@
  * what reappears once Inspect closes.
  */
 
-import { pickedCardOf } from "../view/payment-model.js";
+import { sourceCardsOf } from "../view/payment-model.js";
 import type { PerPlayerCost } from "../view/per-player-cost.js";
 import Phaser from "phaser";
 import { cardOf, getInstance, type InstanceId } from "@mc/engine";
@@ -739,7 +739,9 @@ export class InspectOverlay extends Phaser.Scene {
           // on it: several options can share one instance): "is this card usable at all", which every one of its
           // options being spendable still answers the same way.
           spendableInstanceIds: new Set(
-            [...paymentView.spendable.values()].map((source) => pickedCardOf(source) ?? source.instanceId),
+            [...paymentView.spendable.values()].flatMap((source) =>
+              sourceCardsOf(source, [...paymentView.spendable.values()]),
+            ),
           ),
           notForInstanceIds: new Set(
             paymentView.tableSources.filter((source) => source.notFor).map((source) => source.instanceId),

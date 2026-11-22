@@ -438,6 +438,15 @@ export function setPaymentX(
  * that card (issue #279: the engine refused both, and the bar never said why).
  */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
+  const group = parsePickGroupTile(optionId);
+  if (group) {
+    const next = pickGroupNext(payment, group.base, group.candidate);
+    if (!next) return payment;
+    const others = payment.picked.filter(
+      (id) => !pickGroupWays(payment.query.sources, group.base).some((w) => w.optionId === id),
+    );
+    return { ...payment, picked: next.optionId === null ? others : [...others, next.optionId] };
+  }
   const exhaust = parseExhaustPick(optionId);
   if (exhaust) {
     const next = exhaustPickOptionId(payment, exhaust.card, exhaust.candidate);
@@ -479,6 +488,118 @@ export function pickedCardOf(source: PaymentSource): InstanceId | null {
   if (source.kind !== "resourceAbility" || source.spendsHandCard) return null;
   const picks = picksOf(source);
   return picks.length === 1 ? picks[0]! : null;
+}
+
+/** The option id without the cards its own cost picks ("@<slot>=<id>,..."): what is common to one ability's options. */
+const optionBase = (optionId: string): string => optionId.split("@")[0]!;
+
+/**
+ * The bases (`optionBase`) of resource abilities whose cost picks any number of cards to exhaust, one engine option per
+ * subset (Enhanced Combat Sense: exhaust any Weapon/Tech upgrades). Told from a single pick (`pickedCardOf`: one option
+ * per card) by an option picking two cards or more. A hand card's own spending (`spendsHandCard`) is not one.
+ */
+function pickGroupBases(sources: readonly PaymentSource[]): readonly string[] {
+  const bases = new Set(
+    sources
+      .filter(
+        (source) =>
+          source.kind === "resourceAbility" &&
+          !source.spendsHandCard &&
+          source.costSelection === undefined &&
+          picksOf(source).length >= 2,
+      )
+      .map((source) => optionBase(source.optionId)),
+  );
+  // Only an "any number" pick, where each card can be exhausted alone: a cost that picks a fixed set per slot
+  // (`exhaustEachCost`) has no one-card option, so a tile per card could never be built up to a payable set.
+  return [...bases].filter((base) => {
+    const ways = pickGroupWays(sources, base);
+    const alone = new Set(ways.filter((way) => picksOf(way).length === 1).map((way) => picksOf(way)[0]!));
+    return ways.flatMap(picksOf).every((card) => alone.has(card));
+  });
+}
+
+/** Every option of one multi-pick ability, whatever it picks (the empty set included). */
+function pickGroupWays(sources: readonly PaymentSource[], base: string): readonly PaymentSource[] {
+  return sources.filter(
+    (source) => source.kind === "resourceAbility" && !source.spendsHandCard && optionBase(source.optionId) === base,
+  );
+}
+
+const PICK_GROUP = "pick:";
+const pickGroupTileId = (base: string, candidate: InstanceId): string => `${PICK_GROUP}${candidate}@${base}`;
+function parsePickGroupTile(optionId: string): { readonly base: string; readonly candidate: InstanceId } | null {
+  if (!optionId.startsWith(PICK_GROUP)) return null;
+  const at = optionId.indexOf("@");
+  if (at < 0) return null;
+  return { candidate: optionId.slice(PICK_GROUP.length, at) as InstanceId, base: optionId.slice(at + 1) };
+}
+
+/**
+ * What a tap on one multi-pick tile does: the set of cards the ability's picked option exhausts now, with `candidate`
+ * added or taken out. Null when no option exhausts that set; `optionId` is null for the empty set, which is no pick.
+ */
+function pickGroupNext(
+  payment: PaymentState,
+  base: string,
+  candidate: InstanceId,
+): { readonly optionId: string | null } | null {
+  const ways = pickGroupWays(payment.query.sources, base);
+  const set = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
+  if (set.has(candidate)) set.delete(candidate);
+  else set.add(candidate);
+  if (set.size === 0) return { optionId: null };
+  const key = pickKey(set);
+  const way = ways.find((w) => pickKey(picksOf(w)) === key);
+  return way ? { optionId: way.optionId } : null;
+}
+
+/**
+ * The strip's tiles for a resource ability whose cost picks any number of cards: one tile per card it could exhaust,
+ * showing that card, in place of one per subset. A tap adds the card to the set or takes it out (`togglePayment`).
+ */
+export function pickGroupTiles(state: GameState, payment: PaymentState): readonly PaymentSourceView[] {
+  const { sources } = payment.query;
+  return pickGroupBases(sources).flatMap((base) => {
+    const ways = pickGroupWays(sources, base);
+    const exhausted = new Set(picksOf(ways.find((way) => payment.picked.includes(way.optionId))));
+    const candidates = [...new Set(ways.flatMap(picksOf))];
+    return candidates.map((candidate): PaymentSourceView => {
+      const alone = ways.find((way) => pickKey(picksOf(way)) === candidate);
+      const spent = exhausted.has(candidate);
+      const reachable = spent || pickGroupNext(payment, base, candidate) !== null;
+      return {
+        optionId: pickGroupTileId(base, candidate),
+        kind: "resourceAbility",
+        instanceId: candidate,
+        label: cardName(state, candidate),
+        pool: alone?.pool ?? { physical: 0, mental: 0, energy: 0, wild: 0 },
+        spent,
+        helperName: null,
+        amountNote: "exhaust",
+        discardOrder: null,
+        onTop: false,
+        underSubject: null,
+        orderNote: null,
+        lockedReason: reachable ? null : "can't exhaust that set of cards",
+        exhaustFor: ways[0]!.instanceId,
+      };
+    });
+  });
+}
+
+/**
+ * Every card a source stands for on the board, for the focus route and which cards read as spendable: the one card a
+ * single pick names, each card a multi-pick ability could exhaust (`pickGroupBases` over `sources`, the
+ * payment's options), else the source's own card.
+ */
+export function sourceCardsOf(source: PaymentSource, sources: readonly PaymentSource[]): readonly InstanceId[] {
+  const one = pickedCardOf(source);
+  if (one) return [one];
+  if (picksOf(source).length >= 2 && pickGroupBases(sources).includes(optionBase(source.optionId))) {
+    return picksOf(source);
+  }
+  return [source.instanceId];
 }
 
 /** A set of picked cards as one key: two options exhausting the same cards have the same key. */
@@ -577,6 +698,11 @@ function handCardSpentBy(payment: PaymentState, optionId: string): InstanceId | 
  * one is picked, so the tap takes it back out, else the first way the engine offers.
  */
 export function cardTapOption(payment: PaymentState, instanceId: InstanceId): string | null {
+  // A card a multi-pick ability could exhaust: the tap toggles it in the set, as its tile does.
+  const base = pickGroupBases(payment.query.sources).find((candidate) =>
+    pickGroupWays(payment.query.sources, candidate).some((way) => picksOf(way).includes(instanceId)),
+  );
+  if (base) return pickGroupTileId(base, instanceId);
   const options = payment.query.sources.filter((source) => (pickedCardOf(source) ?? source.instanceId) === instanceId);
   return (options.find((source) => payment.picked.includes(source.optionId)) ?? options[0])?.optionId ?? null;
 }
@@ -675,7 +801,8 @@ export function paymentView(
   });
   // A chosen-size cost (`chosenResources`) spends up to `max` and overpays the rest; any other cost spends what it
   // requires. Only counted once the engine accepts the selection.
-  const exhaustTiles = exhaustPickTiles(state, payment);
+  const exhaustTiles = [...exhaustPickTiles(state, payment), ...pickGroupTiles(state, payment)];
+  const pickGroups = pickGroupBases(query.sources);
   const requiredTotal = poolTotal(requirement) + (query.chosenResources?.max ?? 0);
   const overpaid = accepted ? Math.max(0, paid - requiredTotal) + overpayOnlyPaid : 0;
   return {
@@ -698,7 +825,8 @@ export function paymentView(
           // A card spent from under its host (`spendableFromTucked`: Falcon's Resource Reserve) is in no hand, so the
           // hand row never draws it; the strip does (issue #922).
           (source.kind === "resourceAbility" || source.helperName !== null || source.tuckedUnder !== undefined) &&
-          !exhaustPickOptions(query.sources, source.instanceId).some((way) => way.optionId === source.optionId),
+          !exhaustPickOptions(query.sources, source.instanceId).some((way) => way.optionId === source.optionId) &&
+          !pickGroups.includes(optionBase(source.optionId)),
       ),
       ...exhaustTiles,
       ...notForSources(state, query),

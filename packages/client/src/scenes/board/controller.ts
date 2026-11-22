@@ -94,7 +94,7 @@ import {
   allianceHelpersOf,
   beginPayment,
   cardTapOption,
-  pickedCardOf,
+  sourceCardsOf,
   paymentView,
   setPaymentX,
   toggleCostReduction,
@@ -473,7 +473,7 @@ export class BoardController {
       return focusOrder(
         {
           kind: "paying",
-          sources: this.#selection.payment.query.sources.map((source) => pickedCardOf(source) ?? source.instanceId),
+          sources: this.#selection.payment.query.sources.flatMap((source, _, all) => sourceCardsOf(source, all)),
           ...(this.#selection.payment.xRange ? { x: true as const } : {}),
         },
         marks,
