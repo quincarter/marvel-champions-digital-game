@@ -94,9 +94,18 @@ const slotTotal = (file: string): number =>
     0,
   );
 
-/** Play this deck -> Take your seats (it is seat 1) -> Table setup -> Deal it out -> Keep all -> the Board. */
+/** Play this deck -> Scenario select -> Take your seats (it is seat 1) -> Table setup -> Deal it out -> Keep all -> the Board. */
 async function playImportedDeck(page: Page): Promise<void> {
   await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
+  // Play this deck goes through Scenario select first (#958): pick Rhino, then Take your seats has the deck in seat 1.
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("ScenarioSelect") ? true : null),
+    "Scenario select",
+    30000,
+  );
+  await settle(page);
+  await pressHookStop(page, "__mcScenarioSelectDebug", "scenario:rhino");
+  await pressHookStop(page, "__mcScenarioSelectDebug", "next");
   await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 30000);
   // The seated deck is drawn once the saved decks have loaded: wait for its tile, not for a guessed delay.
   await waitFor(
