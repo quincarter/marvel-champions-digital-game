@@ -300,7 +300,17 @@ export class SeatFollower implements SeatBackend {
       );
       if (!row?.roomPlay) return;
       const stored = await deps.storage.load(row.id);
-      if (stored && logPrint(stored.commands) === print && !running) return;
+      if (stored && logPrint(stored.commands) === print && !running) {
+        // The stored result stands, and this follower adopts it: a later reopen (a rewind, a new command, a different
+        // log, an active welcome) must be able to set the row aside through the normal path, which needs the record.
+        this.#record ??= row.roomPlay;
+        // A reopen that arrived before the row was found had no record to invalidate: do it now.
+        if (hasOutcome && !this.#ended) {
+          this.#ended = true;
+          this.#reopened();
+        }
+        return;
+      }
       this.#replace = true;
       this.#record ??= row.roomPlay;
       this.#finishing ??= this.#record;

@@ -548,6 +548,32 @@ describe("a guest's finished row (#909)", () => {
         await vi.waitFor(async () => expect((await first.storage.list())[0]!.status).toBe("abandoned"));
       });
 
+      test.each([
+        ["a same-count rewind", 0, true],
+        ["a rewind to an earlier move", 1, false],
+      ])(
+        "a saved win, a fresh follower joins the identical ended game, then %s: the row is set aside",
+        async (_n, back, replaced) => {
+          const first = await seat("all");
+          await first.follower.finish(RECORD);
+          const row = (await first.storage.list())[0]!;
+          await first.storage.setStatus(row.id, "won", 1);
+          first.follower.dispose();
+          const second = await rejoin(first.storage, first.game, first.game.commands, true);
+          second.feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          expect((await first.storage.list())[0]!.status).toBe("won");
+          second.feed.say({ ch: "game", kind: "rewind", table: "t1", to: first.game.commands.length - back });
+          await vi.waitFor(async () => expect((await first.storage.list())[0]!.status).toBe("abandoned"));
+          expect(second.events.some((event) => event.type === "saved")).toBe(true);
+          if (!replaced) return;
+          // The next end of the same-count game replaces the row.
+          second.feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" }, adjusted: true });
+          await vi.waitFor(async () => expect((await first.storage.list())[0]!.adjusted).toBe(true));
+          expect(await first.storage.list()).toHaveLength(1);
+        },
+      );
+
       test("the identical ended log leaves the row untouched", async () => {
         const first = await seat("all");
         await first.follower.finish(RECORD);
