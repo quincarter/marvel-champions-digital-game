@@ -1868,6 +1868,10 @@ export class GameRoomLogic {
     if ([...this.tables.values()].some((t) => t.staging)) return;
     const tables = [...this.tables.values()];
     const multi = tables.length > 1;
+    // A table's end (its own row, or the room's ended meta) is stored only after the log it closed: a failed tail write
+    // leaves that game open in storage (and this dirty), so a wake never serves a finished game with a truncated log;
+    // the host's retry completes it.
+    for (const t of tables) if (t.ended) await this.writeTail(t);
     if (multi) {
       for (const t of tables) {
         if (t.ended) {
@@ -1880,9 +1884,6 @@ export class GameRoomLogic {
       }
     }
     if (tables.every((t) => t.ended)) {
-      // The end is stored only after the log it closed: a failed tail write leaves the game open in storage (and this
-      // dirty), so a wake never serves a finished game with a truncated log; the host's retry completes it.
-      for (const t of tables) await this.writeTail(t);
       const first = tables[0]!;
       const endedAt = (multi ? this.meta.roomEndedAt : this.meta.endedAt) ?? this.clock();
       this.meta = multi
