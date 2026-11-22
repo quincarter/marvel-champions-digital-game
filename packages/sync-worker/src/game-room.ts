@@ -220,7 +220,15 @@ interface Table {
   loaded: boolean;
   /** The in-memory header is newer than the stored one (a replacement log whose header put has not landed). */
   headerDirty: boolean;
-  /** A `<table>:tail` row exists in storage. */
+  /**
+   * A replacement `log` is being staged: its rows are written under the next storage generation, in the other row
+   * slot, and `headerDirty` stays set until they are all durable, so the header put is the single commit point. The
+   * stored header (and the previous generation's rows in the other slot) stay whole until then.
+   */
+  staging: boolean;
+  /** While `staging`: the generation the stored header still points at (its rows are deleted once the switch commits). */
+  priorGen: number | undefined;
+  /** A tail row exists in storage (in the slot of `storeGen`). */
   tailStored: boolean;
   /** When the tail row was last written (or this lifetime first saw the table), for the 60 s refresh while streaming. */
   tailAt: number | undefined;
@@ -268,6 +276,8 @@ const newTable = (id: string): Table => ({
   overflow: false,
   loaded: false,
   headerDirty: false,
+  staging: false,
+  priorGen: undefined,
   tailStored: false,
   tailAt: undefined,
   rewindWatchers: false,
@@ -277,8 +287,19 @@ const randomId = (): string =>
   [...crypto.getRandomValues(new Uint8Array(5))].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 const headerKey = (table: string) => `${table}:header`;
-const chunkKey = (table: string, n: number) => `${table}:c:${String(n).padStart(6, "0")}`;
-const tailKey = (table: string) => `${table}:tail`;
+/**
+ * A table's chunk and tail rows live in one of two slots, chosen by the storage generation (odd or unset: the original
+ * keys, even: the `b` keys). A replacement game is written to the other slot than the committed one, so the committed
+ * game's rows survive untouched until the new header (the commit point) is stored.
+ */
+const slotOf = (sg: number | undefined): string => (sg !== undefined && sg % 2 === 0 ? "b:" : "");
+const chunkPrefix = (table: string, sg: number | undefined) => `${table}:${slotOf(sg)}c:`;
+const chunkKey = (table: string, n: number, sg: number | undefined) =>
+  `${chunkPrefix(table, sg)}${String(n).padStart(6, "0")}`;
+const tailKey = (table: string, sg: number | undefined) => `${table}:${slotOf(sg)}tail`;
+/** The generation after `sg`; a header from before generations (no `sg`) used the original slot, so the next is `b`. */
+const nextGen = (table: { hasHeader: boolean; storeGen: number | undefined }): number =>
+  table.hasHeader && table.storeGen === undefined ? 2 : (table.storeGen ?? 0) + 1;
 
 /** The checksums of a message as a plain record, or null when a key is not a command count or a value not a string. */
 function cleanChecksums(value: unknown): Record<string, string> | null {
@@ -652,14 +673,14 @@ export class GameRoomLogic {
     const meta = await this.loadMeta();
     const header = await this.storage.get<{ h: unknown; g?: string; sg?: number }>(headerKey(table.id));
     if (header) {
-      const rows = await this.storage.list<StoredChunk>({ prefix: `${table.id}:c:` });
+      const rows = await this.storage.list<StoredChunk>({ prefix: chunkPrefix(table.id, header.sg) });
       const commands: unknown[] = [];
       const checksums: Record<string, string> = {};
       let bytes = 0;
       let persisted = 0;
       // Chunks count only while they run gapless from 0: a missing index ends them, so a hole never shifts the log.
       for (const [key, chunk] of rows) {
-        if (key !== chunkKey(table.id, persisted) || chunk.sg !== header.sg) break;
+        if (key !== chunkKey(table.id, persisted, header.sg) || chunk.sg !== header.sg) break;
         commands.push(...chunk.commands);
         Object.assign(checksums, chunk.checksums);
         // Recount rather than trust a stored figure, which an older build wrote in UTF-16 units.
@@ -681,7 +702,7 @@ export class GameRoomLogic {
         at?: number;
         from?: number;
         sg?: number;
-      }>(tailKey(table.id));
+      }>(tailKey(table.id, header.sg));
       table.rewindWatchers = true;
       // The tail row says where it starts: a chunk may have landed over it (its delete failed), so the overlap is
       // skipped, and a tail that starts past what the chunks hold (a hole) is ignored. A row from an older build has no
@@ -709,8 +730,18 @@ export class GameRoomLogic {
    */
   private async dropChunks(table: Table, keep: number): Promise<void> {
     table.persisted = keep;
-    const stored = await this.storage.list<StoredChunk>({ prefix: `${table.id}:c:`, start: chunkKey(table.id, keep) });
+    const stored = await this.storage.list<StoredChunk>({
+      prefix: chunkPrefix(table.id, table.storeGen),
+      start: chunkKey(table.id, keep, table.storeGen),
+    });
     const keys = [...stored.keys()];
+    for (let i = 0; i < keys.length; i += 128) await this.storage.delete(keys.slice(i, i + 128));
+  }
+
+  /** Deletes every chunk and the tail row of one generation's slot. */
+  private async clearSlot(tableId: string, sg: number | undefined): Promise<void> {
+    const stored = await this.storage.list<StoredChunk>({ prefix: chunkPrefix(tableId, sg) });
+    const keys = [...stored.keys(), tailKey(tableId, sg)];
     for (let i = 0; i < keys.length; i += 128) await this.storage.delete(keys.slice(i, i + 128));
   }
 
@@ -719,13 +750,25 @@ export class GameRoomLogic {
     // No tail row means no refresh clock: the next batch writes the new remainder at once.
     table.tailAt = undefined;
     if (!table.tailStored) return;
-    await this.storage.delete(tailKey(table.id));
+    await this.storage.delete(tailKey(table.id, table.storeGen));
     table.tailStored = false;
   }
 
-  /** Stores a replacement header that an earlier put failed to store; every write of the log's rows starts here. */
+  /**
+   * Stores a replacement header that is not stored yet; every write of the log's rows starts here. A staged
+   * replacement writes its whole log (chunks, tail) under the new generation first and the header last, so a failure
+   * anywhere before the header put leaves the previous generation intact and still the one a load follows.
+   */
   private async repairHeader(table: Table): Promise<void> {
     if (!table.headerDirty) return;
+    if (table.staging) {
+      await this.clearSlot(table.id, table.storeGen);
+      table.persisted = 0;
+      table.tailStored = false;
+      await this.writeChunks(table);
+      table.tailAt = undefined;
+      await this.writeTailRow(table);
+    }
     await this.storage.put(headerKey(table.id), {
       h: table.header,
       ...(table.gid !== undefined ? { g: table.gid } : {}),
@@ -733,15 +776,28 @@ export class GameRoomLogic {
     });
     table.committedGid = table.gid;
     table.headerDirty = false;
+    if (table.staging) {
+      table.staging = false;
+      const prior = table.priorGen;
+      table.priorGen = undefined;
+      // The switch has committed: the previous game's rows are garbage now, and a failed delete only leaves rows that
+      // a load ignores (another generation).
+      await this.clearSlot(table.id, prior).catch(() => undefined);
+    }
   }
 
   /** Writes the unfinished tail (commands past the last frozen chunk, with their checksums), overwriting the last. */
   private async writeTail(table: Table): Promise<void> {
-    const first = table.persisted * ROOM_CHUNK_COMMANDS;
     if (!table.loaded || !table.hasHeader) return;
     await this.repairHeader(table);
+    await this.writeTailRow(table);
+  }
+
+  /** The tail row itself, without the header repair (a staged replacement writes it before its header). */
+  private async writeTailRow(table: Table): Promise<void> {
+    const first = table.persisted * ROOM_CHUNK_COMMANDS;
     if (table.commands.length <= first) return this.dropTail(table);
-    await this.storage.put(tailKey(table.id), {
+    await this.storage.put(tailKey(table.id, table.storeGen), {
       from: first,
       ...(table.storeGen !== undefined ? { sg: table.storeGen } : {}),
       commands: table.commands.slice(first),
@@ -755,6 +811,11 @@ export class GameRoomLogic {
   /** Writes every chunk that has filled since the last write, each once. */
   private async persistChunks(table: Table): Promise<void> {
     await this.repairHeader(table);
+    await this.writeChunks(table);
+  }
+
+  /** The chunk rows themselves, without the header repair. */
+  private async writeChunks(table: Table): Promise<void> {
     let entries: Record<string, StoredChunk> = {};
     let count = 0;
     let wrote = false;
@@ -770,7 +831,7 @@ export class GameRoomLogic {
         const at = Number(key);
         if ((first === 0 ? at >= 0 : at > first) && at <= first + ROOM_CHUNK_COMMANDS) checksums[key] = sum;
       }
-      entries[chunkKey(table.id, n)] = {
+      entries[chunkKey(table.id, n, table.storeGen)] = {
         commands,
         checksums,
         bytes: sizeOfAll(commands),
@@ -1180,14 +1241,23 @@ export class GameRoomLogic {
         if (table.ended && this.meta?.code === undefined) return this.refuse(socket, "not-allowed");
         // The new admission is committed first, under the next generation: a failed put leaves the old game whole
         // (header, rows and lifecycle), and the old rows are deleted only once the new header is stored.
-        const storeGen = (table.storeGen ?? 0) + 1;
+        const storeGen = nextGen(table);
         const wasEnded = table.ended;
-        await this.storage.put(headerKey(table.id), {
+        const oldGen = table.storeGen;
+        const newHeader = {
           h: message.header,
           ...(gid !== undefined ? { g: gid } : {}),
           sg: storeGen,
-        });
-        const staleTail = table.tailStored;
+        };
+        if (wasEnded && this.meta) {
+          // A rematch's header and its reopened lifecycle are one put: a wake never sees the new game next to the old
+          // game's ended meta. (A stale end alarm is harmless: the alarm reads meta, finds it open and moves out.)
+          const { endedAt: _endedAt, ...rest } = this.meta;
+          const reopenedMeta: RoomMeta = { ...rest, ended: false, outcome: null, overflow: false };
+          await this.storage.put({ [headerKey(table.id)]: newHeader, meta: reopenedMeta });
+        } else {
+          await this.storage.put(headerKey(table.id), newHeader);
+        }
         Object.assign(table, newTable(table.id), {
           header: message.header,
           hasHeader: true,
@@ -1200,12 +1270,11 @@ export class GameRoomLogic {
           this.reopenInMemory(table);
           this.lifecycleDirty = true;
         }
-        // Clearing the old game is best effort: a row of the old generation is ignored by a load, and the new
-        // game's own writes replace it. The reopened lifecycle stays dirty until its write lands.
+        // The reopened meta is already durable with the header; the alarm swap (and the in-memory meta) is retried until
+        // it lands. Clearing the old game is best effort: a row of another generation is ignored by a load.
         await this.flushLifecycle().catch(() => undefined);
-        table.tailStored = staleTail;
-        await this.dropTail(table).catch(() => undefined);
-        await this.dropChunks(table, 0).catch(() => undefined);
+        await this.clearSlot(table.id, oldGen).catch(() => undefined);
+        await this.clearSlot(table.id, storeGen).catch(() => undefined);
         this.unverified = false;
         this.startedSeen = true;
         this.scheduleListing();
@@ -1259,7 +1328,14 @@ export class GameRoomLogic {
         }
         // Cleared only once every write below has landed: until then a retry of this log is not "the same game".
         table.unsaved = true;
-        table.storeGen = (table.storeGen ?? 0) + 1;
+        // The replacement is staged under the next generation (the other row slot) and committed by its header put; a
+        // retry of a staged log reuses its generation, so the committed one's slot is never touched before the switch.
+        if (!table.staging) {
+          table.staging = true;
+          table.priorGen = table.storeGen;
+          table.storeGen = nextGen(table);
+        }
+        table.tailStored = false;
         table.header = message.header;
         table.hasHeader = true;
         this.startedSeen = true;
@@ -1289,13 +1365,8 @@ export class GameRoomLogic {
         } finally {
           await this.repairHeader(table);
         }
-        // The old log's rows go only now that the new header is stored (a failed put above leaves them whole).
-        await this.dropTail(table);
-        await this.dropChunks(table, 0);
-        await this.persistChunks(table);
-        // The replacement's unfinished tail must survive a wake too: chunks only hold complete 20-command runs.
-        table.tailAt = undefined;
-        await this.writeTail(table);
+        // The header put committed the staged generation (its chunks and tail were written first, and the old log's
+        // rows are deleted after), or it threw and the previous generation is still the stored game.
         table.unsaved = false;
         // The proof withheld while unsaved (`info`) is the room's to show now.
         this.broadcastTable(table);
