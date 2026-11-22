@@ -1,0 +1,3 @@
+kind: Added
+body: 'Mod Store: an Update all button updates every installed pack with a newer version, one after another, with one progress bar, a Stop button and a line naming any pack that could not update (#957).'
+time: 2026-11-21T19:25:40.2688809-05:00
