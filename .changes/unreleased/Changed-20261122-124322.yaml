@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Decks & Collection on desktop: clicking a deck opens its Check, and Back returns to the list with the deck selected; a pad or the keyboard still only selects (#966).'
+time: 2026-11-22T12:43:22.1276451-05:00

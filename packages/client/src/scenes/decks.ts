@@ -1349,6 +1349,10 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
       // One pane at a time (phone, tablet): the deck's actions sit on another tab, so a tap opens them (#958).
       if (this.#tabs !== null) this.#openDeckActions(row.option.deck.id as string);
+      // Every pane on screen (desktop): a click opens the deck's Check, the first look at a deck; the card pool is
+      // Edit's (#966, the owner's call). Back returns here with the deck selected. A pad or the keyboard still only
+      // selects (the stop's own `activate`), so walking the list never leaves the screen.
+      else this.#openDeckCheck(row.option.deck);
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
@@ -3221,7 +3225,9 @@ export class DecksScene extends Phaser.Scene {
 
   /** Opens Deck check (W1) over this deck, returning here on Back. */
   #openDeckCheck(deck: Deck): void {
-    goToScreen(this, SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
+    // Back lands on this deck again, selected, wherever it sits in the list.
+    const returnTo = { scene: SCENES.decks, data: { focusDeckId: deck.id as string } satisfies DecksSceneData };
+    goToScreen(this, SCENES.deckCheck, { deck, returnTo } satisfies DeckCheckSceneData);
   }
 
   #duplicate(deck: Deck): void {
