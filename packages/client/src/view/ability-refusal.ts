@@ -412,8 +412,10 @@ export function idleTriggerNotes(state: GameState, instanceId: InstanceId, deps:
 const ENTERING: ReadonlySet<string> = new Set(["cardEntersPlay", "cardPlayed", "cardBeingPlayed"]);
 
 /** What each `abilityNotOffered` reason means, when nothing more specific can be said. */
-const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay", string>> = {
+const UNOFFERED_WORDS: Readonly<Record<"noTarget" | "cannotPay" | "period", string>> = {
   noTarget: "it has no valid target",
+  // RRG 1.8 "Lasting Effects" (p. 26), #970: all it gives would last to the end of a turn or player phase not under way.
+  period: "it only lasts to the end of a turn or player phase, so it can only be used during one",
   cannotPay: "you cannot pay its cost",
 };
 
@@ -427,13 +429,15 @@ export function unofferedReason(
   instanceId: InstanceId,
   controllerId: PlayerId,
   abilityId: AbilityId,
-  reason: "noTarget" | "cannotPay",
+  reason: "noTarget" | "cannotPay" | "period",
   deps: EngineDeps,
 ): string {
   const specific =
     reason === "noTarget"
       ? targetRefusalReason(state, instanceId, controllerId, abilityId, deps)
-      : exhaustCostClause(deps.abilities[abilityId]?.cost, state, instanceId, deps);
+      : reason === "cannotPay"
+        ? exhaustCostClause(deps.abilities[abilityId]?.cost, state, instanceId, deps)
+        : null;
   return specific ?? UNOFFERED_WORDS[reason];
 }
 

@@ -16,6 +16,7 @@ import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { replay, startSession } from "./engine.js";
 import { characterStat, mustPlayer } from "./query.js";
+import { lastingPeriodClosed } from "./resolve/target-validity.js";
 import type { EffectSpec, LastingUntil, TargetRef } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -130,5 +131,36 @@ describe("H3.9 'until the end of the player phase'", () => {
     const next = endRound(game).state;
     expect(heroStat(next, "atk")).toBe(0);
     expect(next.lastingEffects).toEqual([]);
+  });
+});
+
+/**
+ * #970: an optional ability a player initiates whose whole effect is such a lasting effect, outside a player phase, would
+ * make nothing, so it is not initiated at all (RRG 1.8 "Lasting Effects", p. 26: "can only be initiated during that time
+ * period"; Q104 = B). An ability with another part, and a forced ability, are still initiated.
+ */
+describe("#970 an ability made only of lasting effects whose period is not in progress", () => {
+  const response = (effects: readonly EffectSpec[], forced = false): AbilityDefinition => ({
+    trigger: { kind: "response", forced, on: { on: "phaseBeginning", eventIs: { phase: "villain" } } },
+    effects,
+  });
+  const villainStep = (state: GameState): GameState => ({
+    ...state,
+    step: { ...state.step, phase: "villain" } as never,
+  });
+
+  it("is closed outside the player phase and open in it", () => {
+    const game = start();
+    const onlyPlayerPhase = response([plusOne("atk", "endOfPlayerPhase"), plusOne("thw", "endOfPlayerPhase")]);
+    expect(lastingPeriodClosed(game, onlyPlayerPhase)).toBeNull();
+    expect(lastingPeriodClosed(villainStep(game), onlyPlayerPhase)).toBe("endOfPlayerPhase");
+    expect(lastingPeriodClosed(villainStep(game), response([plusOne("atk", "endOfTurn")]))).toBe("endOfTurn");
+  });
+
+  it("stays open with a part of its own, or when forced", () => {
+    const villain = villainStep(start());
+    const mixed = response([plusOne("atk", "endOfPlayerPhase"), plusOne("thw", "endOfPhase")]);
+    expect(lastingPeriodClosed(villain, mixed)).toBeNull();
+    expect(lastingPeriodClosed(villain, response([plusOne("atk", "endOfPlayerPhase")], true))).toBeNull();
   });
 });
