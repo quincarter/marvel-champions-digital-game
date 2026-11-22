@@ -972,7 +972,8 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#scrollPanel("seats", inner, (x, top, w, guard) => {
       let y = top + 2;
       if (this.#isHost()) {
-        const hint = this.#text(x, y, t("room.hostHint"), 13, w, { alpha: 0.85 });
+        const hintKey = this.#state.settings?.askToSit === true ? "room.hostHint" : "room.hostHintClaim";
+        const hint = this.#text(x, y, t(hintKey), 13, w, { alpha: 0.85 });
         y += hint.height + 8;
         const setupRect: Rect = { x, y, width: w, height: hit.target };
         const label = roomDraft() ? t("room.setupAgain") : t("room.setup");

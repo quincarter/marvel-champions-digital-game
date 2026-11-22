@@ -187,6 +187,11 @@ interface StoredSeat extends LobbySeatSpec {
 
 /** Whole-room cap on accepted deck changes (each rewrites the lobby row): a burst of this many, then one every 2 s. */
 const ROOM_DECK_BURST = 20;
+/**
+ * A guest who claims a seat (no host approval, `askToSit` off) may claim again only after this long: a seat change
+ * writes the lobby row, so a loop of take and leave must not turn into a stream of writes.
+ */
+const CLAIM_COOLDOWN_MS = 3_000;
 const ROOM_DECK_REFILL_SECONDS = 2;
 const DECK_BYTES = new TextEncoder();
 
@@ -495,6 +500,8 @@ export class GameRoomLogic {
   private readonly lobbyBuckets = new Map<string, { tokens: number; at: number }>();
   /** `seat-deck` rate per participant, and for the whole room (every accepted deck rewrites the lobby row). Memory only. */
   private readonly deckBuckets = new Map<string, { tokens: number; at: number }>();
+  /** When each participant last claimed a seat without approval (memory only; `CLAIM_COOLDOWN_MS`). */
+  private readonly lastClaim = new Map<string, number>();
   private readonly roomDeckBucket = new Map<string, { tokens: number; at: number }>();
   /** The lobby row, loaded on first use; null for a room without a code. */
   private lobby: LobbyRow | null | undefined;
@@ -2620,6 +2627,7 @@ export class GameRoomLogic {
         const rowBefore = JSON.stringify([lobby.settings, lobby.seats, lobby.tables, lobby.pods, lobby.organizerTable]);
         const chatWasOn = lobby.settings.chat;
         const listedWas = lobby.settings.listed;
+        const askWas = lobby.settings.askToSit;
         const applied = await this.lobbySet(socket, who, lobby, message);
         if (!applied) return;
         applyRoom = applied;
@@ -2628,6 +2636,9 @@ export class GameRoomLogic {
           clearChat = true;
         }
         if (listedWas === true && lobby.settings.listed !== true) this.removalOwed = true;
+        // Asking turned off: pending requests have no one to approve them now. They are dropped, and those guests see
+        // Take on the seats that are still open.
+        if (askWas === true && lobby.settings.askToSit !== true) this.requests.clear();
         persist =
           JSON.stringify([lobby.settings, lobby.seats, lobby.tables, lobby.pods, lobby.organizerTable]) !== rowBefore;
         break;
@@ -2646,8 +2657,18 @@ export class GameRoomLogic {
         if (seat.holder) return this.refuse(socket, "seat-taken");
         if (this.holdsElsewhere(lobby, who.id, this.seatTable(seat))) return this.refuse(socket, "other-table");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
-        if (isHost || settings.askToSit !== true) {
-          // The host approves their own request; a guest claims an open seat unless the host asks to be asked.
+        // A guest claims an open seat at once unless the host has guests ask, or a game is running: a seat that opens
+        // mid-game (its player left) is the host's to take over or give on, so a guest's request then waits for them.
+        let claim = !isHost && settings.askToSit !== true;
+        if (claim && (await gameLive(seat))) claim = false;
+        if (claim) {
+          const now = this.clock();
+          const last = this.lastClaim.get(who.id);
+          if (last !== undefined && now - last < CLAIM_COOLDOWN_MS) return this.refuse(socket, "rate-limited");
+          this.lastClaim.set(who.id, now);
+        }
+        if (isHost || claim) {
+          // The host approves their own request; a guest claims an open seat (above).
           tokens.push(await this.grant(seat, who));
           persist = true;
         } else {
