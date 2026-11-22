@@ -40,7 +40,7 @@ import {
 import { loadRecommendedCollapsed, recommendedStartsCollapsed, saveRecommendedCollapsed } from "../view/seat-prefs.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import {
-  HERO_ART_LABELS,
+  HERO_ART_KEYS,
   heroArtInForce,
   heroPromoShown,
   heroTilePicture,
@@ -62,7 +62,7 @@ import {
   currentPoolKey,
   packNameOf,
 } from "../content/pool.js";
-import { artFor } from "../art/art-source.js";
+import { artFor, artLanguageNow } from "../art/art-source.js";
 import { packPictureFor } from "../art/pack-art.js";
 import { CUSTOM_BADGE, customBadgeOf, isCustomCard } from "../view/custom-content.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -86,7 +86,7 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import { DeckSearchClient } from "../view/deck-search-client.js";
 import { rankShelvesByScore, type SearchDocument } from "../view/deck-search.js";
 import type { HeroDecksSheetData } from "./hero-decks-sheet.js";
-import { blockedTagOf } from "../view/deck-status.js";
+import { reasonLabelOf, blockedTagOf } from "../view/deck-status.js";
 import { seatableDeckOptionsOf, testedCatalog } from "../view/seatable-decks.js";
 import {
   testedDeckLockOf,
@@ -137,6 +137,7 @@ import {
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
+import { onLanguageChange } from "../language-change.js";
 import { tableRulesOf } from "../settings.js";
 import {
   applyDeckSwaps,
@@ -167,7 +168,7 @@ import {
   renderShelfHeader,
 } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural, listAnd } from "../i18n/translate.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { forwardHint } from "./campaign/pad-hints.js";
@@ -192,6 +193,7 @@ import { refreshUnlocks, unlocks } from "../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
 import { drawAspectTipPanel } from "../ui/aspect-tip.js";
 import { aspectTipContentOf } from "../view/aspect-tip-model.js";
+import { seatSearchWordsOf } from "../view/seat-search.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -243,12 +245,12 @@ const seatPairCatalog = (): PairCatalog => {
 function sourceWordsOf(options: readonly DeckOption[]): string {
   const word = (option: DeckOption): string =>
     isCommunityDeckId(option.deck.id as string)
-      ? "Tested"
+      ? t("deckSource.tested")
       : option.deck.source.kind === "precon"
-        ? "Precon"
+        ? t("deckSource.precon")
         : option.deck.source.kind === "imported"
-          ? "Imported"
-          : "Built";
+          ? t("deckSource.imported")
+          : t("deckSource.built");
   return [...new Set(options.map(word))].join(", ");
 }
 
@@ -257,9 +259,12 @@ const REC_LIMIT = 6;
 /** The Recommended shelf's id among the roster's shelves: always the first, and only while there is someone to recommend. */
 const REC_SHELF_ID = "recommended";
 
+/** A blocked reason worded for this screen, or null. */
+const reasonOrNull = (reason: string | null): string | null =>
+  reason === null ? null : reasonLabelOf(reason, artLanguageNow());
+
 /** "a, b and c". */
-const listOf = (words: readonly string[]): string =>
-  words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+const listOf = (words: readonly string[]): string => listAnd(words);
 
 /** The deck id a hero tile's focus stop names (`hero:<id>` or `hero-rec:<id>`), or null for any other stop. */
 function deckIdOfStop(key: string): string | null {
@@ -424,9 +429,14 @@ export class SeatsScene extends Phaser.Scene {
     // card's own scan was still in flight when the last unrelated redraw ran stayed blank forever (found the same
     // way `scenes/scenario-select.ts`'s own identical fix was: fresh-navigating and waiting with no interaction).
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    // A language switch (#390): the screen reads again in the new language.
+    const languageOff = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#rebuild();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
       artOff();
+      languageOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
       this.#roster?.destroy();
@@ -550,7 +560,7 @@ export class SeatsScene extends Phaser.Scene {
       swaps: this.#draft.deckSwaps,
       kept: this.#draft.keptConflicts,
       tableRules: tableRulesOf(appSession().settings),
-      continueLabel: "Play",
+      continueLabel: t("seats.play"),
       onChange: (deckSwaps, keptConflicts) => {
         this.#draft = { ...this.#draft, deckSwaps, keptConflicts };
         this.#rebuild();
@@ -729,7 +739,7 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: "◂ Scenarios",
+        label: t("seats.backToScenarios"),
         type: typeRole.backLabel,
         rect: layout.back,
         onClick: back,
@@ -738,7 +748,7 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops.set("back", { rect: layout.back, activate: back });
     const titleX = layout.back.x + layout.back.width + 16;
     const title = this.add
-      .text(titleX, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex))
+      .text(titleX, layout.headerBar.height / 2, t("seats.title"), textStyle(typeRole.pageTitle, surface.paper.hex))
       .setOrigin(0, 0.5);
     const stepRight = layout.step.x + layout.step.width;
     const seatCount = this.#draft.seats.length;
@@ -746,13 +756,14 @@ export class SeatsScene extends Phaser.Scene {
       .text(
         stepRight,
         layout.headerBar.height / 2,
-        `STEP 2 OF 4 · ${seatCount} SEAT${seatCount === 1 ? "" : "S"} FILLED`,
+        tPlural("seats.stepFilled", seatCount),
         textStyle(typeRole.label, surface.paper.hex, ink.label),
       )
       .setOrigin(1, 0.5);
     // The title keeps its name whole; on a narrow header it is the step line that gives way, to its short form.
-    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText(`STEP 2 OF 4 · ${seatCount}/4`);
-    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText("STEP 2 OF 4");
+    if (titleX + title.width + 12 + stepText.width > stepRight)
+      stepText.setText(t("seats.stepCount", { count: seatCount }));
+    if (titleX + title.width + 12 + stepText.width > stepRight) stepText.setText(t("seats.step"));
     fitText(title, stepRight - stepText.width - titleX - 12, typeRole.pageTitle.size);
     fitText(stepText, layout.step.width, typeRole.label.size);
 
@@ -811,7 +822,7 @@ export class SeatsScene extends Phaser.Scene {
         this,
         layout.rosterHeader.x,
         layout.rosterHeader.y + layout.rosterHeader.height / 2,
-        `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}`,
+        t("seats.heroesHeading", { seat: this.#draft.activeSeatIndex + 1, max: MAX_SEATS }),
         typeRole.label,
         surface.ink.hex,
         ink.label,
@@ -832,7 +843,7 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
-        label: "Use preconstructed",
+        label: t("seats.usePrecon"),
         type: typeRole.label,
         rect: layout.usePreconstructed,
         onClick: usePreconstructed,
@@ -851,7 +862,7 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
-        label: HERO_ART_LABELS[heroArtNow],
+        label: t(HERO_ART_KEYS[heroArtNow]),
         type: typeRole.label,
         rect: layout.heroArt,
         onClick: stepHeroArt,
@@ -885,7 +896,7 @@ export class SeatsScene extends Phaser.Scene {
         searchRectForInspectHint(layout.search, padMode && layout.wide && layout.filtersButton !== null),
         "hero-search",
         this.#draft.heroFilter.text,
-        "search heroes, aspects, decks…",
+        t("seats.search"),
         (value) => {
           this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: value });
           this.#requestSearch(value);
@@ -916,7 +927,7 @@ export class SeatsScene extends Phaser.Scene {
         this,
         this.#hints,
         layout.filtersButton,
-        filtersLabel(active, !folded),
+        filtersLabel(active, !folded, artLanguageNow()),
         padMode && layout.wide,
         () => this.#toggleFilters(),
         this.#buttons,
@@ -969,7 +980,7 @@ export class SeatsScene extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
-          label: "◂ All packs",
+          label: t("scenario.allPacks"),
           type: typeRole.rowTitle,
           rect: backRect,
           onClick: drillBack,
@@ -1021,7 +1032,7 @@ export class SeatsScene extends Phaser.Scene {
         recOptions.length > 0
           ? {
               id: REC_SHELF_ID,
-              title: `Recommended for seat ${this.#draft.activeSeatIndex + 1}`,
+              title: t("seats.recommendedFor", { seat: this.#draft.activeSeatIndex + 1 }),
               items: recOptions,
               ...(recCollapsed ? { collapsed: true } : {}),
             }
@@ -1049,7 +1060,7 @@ export class SeatsScene extends Phaser.Scene {
                 rect,
                 null,
                 () => this.#roster?.refreshVisible(),
-                `${shelf.items.length} ${shelf.items.length === 1 ? "HERO" : "HEROES"}  ·  ${recCollapsed ? "SHOW" : "HIDE"}`,
+                `${tPlural("seats.heroCount", shelf.items.length)}  ·  ${recCollapsed ? t("seats.show") : t("seats.hide")}`,
                 recCollapsed ? "▸" : "▾",
               )
             : renderShelfHeader(
@@ -1058,7 +1069,7 @@ export class SeatsScene extends Phaser.Scene {
                 rect,
                 null,
                 () => this.#roster?.refreshVisible(),
-                `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`,
+                tPlural("seats.identityCount", shelf.items.length),
                 "▸",
                 shelf.collapsed ? "folded" : "open",
                 t("scenario.seeAll"),
@@ -1116,7 +1127,7 @@ export class SeatsScene extends Phaser.Scene {
         subject.deckId === null ? undefined : deckOptions.find((o) => (o.deck.id as string) === subject.deckId);
       const seatNote =
         panelOption && subject.seatIndex !== null && subject.pickingSeatIndex !== null
-          ? `Seat ${subject.seatIndex + 1} is set · pick seat ${subject.pickingSeatIndex + 1} below`
+          ? t("seats.seatSetPickNext", { seat: subject.seatIndex + 1, next: subject.pickingSeatIndex + 1 })
           : null;
       const endY = this.#drawSidePanel(layout.detail, panelOption, detailTextWidth, seatNote);
       this.#insightArea = {
@@ -1154,14 +1165,14 @@ export class SeatsScene extends Phaser.Scene {
     const playButton = new McButton(this, {
       kind: "primary",
       label: tableLock
-        ? "Hero locked"
+        ? t("seats.heroLocked")
         : noHeroes
-          ? "Pick a hero ▸"
-          : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
+          ? t("seats.pickHeroCta")
+          : tPlural("seats.playHeroes", this.#draft.seats.length),
       type: typeRole.barTitle,
       rect: layout.play,
       enabled: tableLock === null && !noHeroes,
-      ...(tableLock ? { reason: tableLock } : noHeroes ? { reason: "Pick a hero first." } : {}),
+      ...(tableLock ? { reason: tableLock } : noHeroes ? { reason: t("seats.pickHeroFirst") } : {}),
       onClick: play,
     });
     this.#buttons.push(playButton);
@@ -1186,12 +1197,12 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: layout.footer ? "onInk" : "secondary",
-        label: "Deck check ▸",
+        label: t("seats.deckCheck"),
         type: typeRole.barTitle,
         rect: layout.deckCheck,
         onClick: deckCheck,
         enabled: !noHeroes,
-        ...(noHeroes ? { reason: "Pick a hero first." } : {}),
+        ...(noHeroes ? { reason: t("seats.pickHeroFirst") } : {}),
       }),
     );
     if (!noHeroes) this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
@@ -1321,9 +1332,9 @@ export class SeatsScene extends Phaser.Scene {
   #yWordFor(key: string | null): string {
     const settings = appSession().settings;
     const pad = glyphSetOf(inputDevice(), settings.inputGlyphs, settings.glyphSource) === "pad";
-    if (pad && this.#padFilters.padMode) return "Filters";
-    if (areaOf(key, this.#areas) === "filters") return "List";
-    return key !== null && /^hero(-rec)?:/.test(key) ? "Inspect" : "Filters";
+    if (pad && this.#padFilters.padMode) return t("seats.hintFilters");
+    if (areaOf(key, this.#areas) === "filters") return t("seats.hintList");
+    return key !== null && /^hero(-rec)?:/.test(key) ? t("seats.hintInspect") : t("seats.hintFilters");
   }
 
   /** LB / RB: the seat being edited steps to the previous or next one; the hero list then fills that seat. */
@@ -1350,8 +1361,8 @@ export class SeatsScene extends Phaser.Scene {
     const word = (text: string): Phaser.GameObjects.Text =>
       label(this, 0, 0, text, typeRole.label, surface.ink.hex, ink.label).setOrigin(0, 0.5);
     const items = [
-      { ids: ["zonePrevious", "zoneNext"] as const, text: "Seat", width: 118 },
-      { ids: ["guide"] as const, text: "Clear seat", width: 132 },
+      { ids: ["zonePrevious", "zoneNext"] as const, text: t("seats.hintSeat"), width: 118 },
+      { ids: ["guide"] as const, text: t("seats.clearSeat"), width: 132 },
       { ids: ["inspect"] as const, text: this.#yWordFor(this.#route?.focused ?? null), width: 112 },
     ];
     let x = fromX;
@@ -1401,10 +1412,10 @@ export class SeatsScene extends Phaser.Scene {
   /** Narrow only: the one line the details disclosure shows while shut — enough to know what's in the seat without opening it. */
   #seatDetailsSummary(option: DeckOption | undefined): string {
     const seatNumber = this.#draft.activeSeatIndex + 1;
-    if (!option) return `Seat ${seatNumber} · tap a hero below`;
+    if (!option) return t("seats.summaryEmpty", { seat: seatNumber });
     const detail = heroCandidateDetailOf(option, currentCardsById(), POOL_ENCOUNTER_SETS);
     // Short enough to read whole beside "Use preconstructed" at 375px; the hand size and the rest are one tap away.
-    return `Seat ${seatNumber} · ${detail.aspectLabel} · HP ${detail.hp ?? "—"}`;
+    return t("seats.summary", { seat: seatNumber, aspect: detail.aspectLabel, hp: detail.hp ?? "—" });
   }
 
   #toggleSearch(): void {
@@ -1450,12 +1461,6 @@ export class SeatsScene extends Phaser.Scene {
     const identity = currentCardsById().get(deck.identityCardId as string);
     const hero = identity?.type === "hero_identity" ? identity : undefined;
     const entry = testedEntryOf(deck, testedCatalog());
-    const sourceWords =
-      deck.source.kind === "precon"
-        ? ["precon", "preconstructed"]
-        : deck.source.kind === "imported"
-          ? ["imported"]
-          : ["built", "mine"];
     const packs = heroPack
       ? [packNameOf(heroPack), currentHeroShelfPacks().find((p) => p.code === heroPack)?.cycleName]
       : [];
@@ -1465,8 +1470,7 @@ export class SeatsScene extends Phaser.Scene {
         (t): t is string => typeof t === "string",
       ),
       secondary: [
-        ...deck.aspects.map((a) => aspectLabelOf([a])),
-        ...sourceWords,
+        ...seatSearchWordsOf(deck.aspects, deck.source.kind, entry !== undefined),
         ...packs.filter((t): t is string => typeof t === "string"),
         ...testedSearchFieldsOf(deck, testedCatalog()),
         ...(entry?.tags ?? []),
@@ -1567,16 +1571,16 @@ export class SeatsScene extends Phaser.Scene {
           sourceKind: deck.source.kind,
           testedCredit: testedSubtitleOf(deck, testedCatalog()),
           cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
-          blockedBy: entry?.blockedBy ?? option.blockedReason,
+          blockedBy: reasonOrNull(entry?.blockedBy ?? option.blockedReason),
           lock: deckLockOf(deck),
-          warning: shortWarningOf(entry?.warning ?? option.warning),
+          warning: shortWarningOf(entry?.warning ?? option.warning, artLanguageNow()),
           activeSeat: entry?.isActiveSeat ?? false,
           otherSeat:
             entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat
               ? entry.seatIndex + 1
               : null,
         }),
-        stamps: aspectStampsOf(deck.aspects),
+        stamps: aspectStampsOf(deck.aspects, artLanguageNow()),
       };
     });
     this.scene.launch(SCENES.heroDecks, {
@@ -1714,8 +1718,8 @@ export class SeatsScene extends Phaser.Scene {
     // "SPIDER-MAN" read as "SPIDER-MA" with the "✕" sitting on top of the rest).
     const topLineWidth = slot.deckId ? textWidth - CLOSE_SIZE - 8 : textWidth;
     const seatText = activeEmpty
-      ? `SEAT ${index + 1} · PICKING`
-      : `SEAT ${index + 1}${index === 0 && slot.deckId ? " · YOU" : ""}`;
+      ? t("seats.seatPicking", { seat: index + 1 })
+      : `${t("seats.seatLabel", { seat: index + 1 })}${index === 0 && slot.deckId ? t("seats.youSuffix") : ""}`;
     const seatLabel = label(this, textX, rect.y + 8, seatText, typeRole.label, accent.heroRed.hex, dim);
     fitText(seatLabel, topLineWidth, typeRole.label.size);
     if (slot.deckId) {
@@ -1730,7 +1734,7 @@ export class SeatsScene extends Phaser.Scene {
       const meta = this.add.text(
         textX,
         rect.y + rect.height - 34,
-        `${slot.aspectLabel ?? ""} · ${slot.hp ?? "—"} HP · hand ${slot.handSize ?? "—"}`,
+        t("seats.slotMeta", { aspect: slot.aspectLabel ?? "", hp: slot.hp ?? "—", hand: slot.handSize ?? "—" }),
         textStyle(typeRole.label, surface.ink.hex, ink.label),
       );
       meta.setWordWrapWidth(textWidth);
@@ -1748,7 +1752,7 @@ export class SeatsScene extends Phaser.Scene {
         new McButton(this, { kind: "quiet", label: "✕", type: typeRole.label, rect: closeRect, onClick: clear }),
       );
     } else {
-      const message = selectable ? "Empty — pick a hero" : `Fill seat ${this.#draft.seats.length + 1} first`;
+      const message = selectable ? t("seats.emptyPick") : t("seats.fillFirst", { seat: this.#draft.seats.length + 1 });
       const empty = this.add.text(
         textX,
         rect.y + rect.height / 2,
@@ -1798,7 +1802,7 @@ export class SeatsScene extends Phaser.Scene {
     const textWidth = rect.width - pad * 2;
     // "· YOU" only where it fits without shrinking "SEAT 1" itself (a tablet-portrait chip; never a phone one).
     const roomy = rect.width >= 120;
-    const seatText = `SEAT ${index + 1}${index === 0 && slot.deckId && roomy ? " · YOU" : ""}`;
+    const seatText = `${t("seats.seatLabel", { seat: index + 1 })}${index === 0 && slot.deckId && roomy ? t("seats.youSuffix") : ""}`;
     const seatLabel = label(this, rect.x + pad, rect.y + pad, seatText, typeRole.label, accent.heroRed.hex, dim);
     fitText(seatLabel, textWidth, typeRole.label.size);
     if (slot.deckId) {
@@ -1815,7 +1819,7 @@ export class SeatsScene extends Phaser.Scene {
           this,
           rect.x + pad,
           rect.y + rect.height - pad - 11,
-          `${slot.aspectLabel ?? ""} · ${slot.hp ?? "—"} HP`,
+          t("seats.slotMetaShort", { aspect: slot.aspectLabel ?? "", hp: slot.hp ?? "—" }),
           typeRole.label,
           surface.ink.hex,
           ink.label,
@@ -1823,7 +1827,7 @@ export class SeatsScene extends Phaser.Scene {
         fitText(meta, textWidth, typeRole.label.size);
       }
     } else {
-      const message = activeEmpty ? "Picking" : "Empty";
+      const message = activeEmpty ? t("seats.picking") : t("seats.empty");
       const empty = label(
         this,
         rect.x + pad,
@@ -1849,7 +1853,7 @@ export class SeatsScene extends Phaser.Scene {
         .text(
           rect.x,
           rect.y + rect.height / 2,
-          `Tap a hero below for seat ${seatNumber}.`,
+          t("seats.tapHeroForSeat", { seat: seatNumber }),
           textStyle(typeRole.body, surface.ink.hex, ink.meta),
         )
         .setOrigin(0, 0.5);
@@ -1861,10 +1865,26 @@ export class SeatsScene extends Phaser.Scene {
     // Four short label lines rather than the wide panel's one long stat line: at a phone's ~240px of text width
     // the single line ellipsized its own DEF ("THW 1 / ATK 2 / DE…").
     const lines: readonly { readonly text: string; readonly alpha: number }[] = [
-      { text: `${detail.aspectLabel} · HP ${detail.hp ?? "—"} · hand ${detail.handSize ?? "—"}`, alpha: 1 },
-      { text: `THW ${detail.thw ?? "—"} / ATK ${detail.atk ?? "—"} / DEF ${detail.def ?? "—"}`, alpha: 1 },
-      { text: `Obligation · ${detail.obligationName ?? "none"}`, alpha: ink.label },
-      { text: `Nemesis · ${detail.nemesisSetName ?? "none"}`, alpha: ink.label },
+      {
+        text: t("seats.detailHpHand", {
+          aspect: detail.aspectLabel,
+          hp: detail.hp ?? "—",
+          hand: detail.handSize ?? "—",
+        }),
+        alpha: 1,
+      },
+      {
+        text: t("seats.detailStats", { thw: detail.thw ?? "—", atk: detail.atk ?? "—", def: detail.def ?? "—" }),
+        alpha: 1,
+      },
+      {
+        text: t("seats.obligationLine", { name: detail.obligationName ?? t("seats.obligationNoneLower") }),
+        alpha: ink.label,
+      },
+      {
+        text: t("seats.nemesisLine", { name: detail.nemesisSetName ?? t("seats.nemesisNoneLower") }),
+        alpha: ink.label,
+      },
     ];
     const lineStep = 12;
     let y = rect.y + (rect.height - lineStep * lines.length) / 2;
@@ -1885,12 +1905,12 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
-        label: "Clear seat",
+        label: t("seats.clearSeat"),
         type: typeRole.label,
         rect: clearRect,
         onClick: clear,
         enabled: canClear,
-        reason: "A game needs at least one hero.",
+        reason: t("seats.needOneHero"),
       }),
     );
     this.#stops.set("clear-seat", { rect: clearRect, activate: clear });
@@ -1928,7 +1948,13 @@ export class SeatsScene extends Phaser.Scene {
     const entry = active.get(option.deck.id as string);
     const sourceText =
       testedSubtitleOf(option.deck, testedCatalog()) ??
-      (option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built");
+      t(
+        option.deck.source.kind === "precon"
+          ? "deckSource.precon"
+          : option.deck.source.kind === "imported"
+            ? "deckSource.imported"
+            : "deckSource.built",
+      );
     const seatedElsewhere = entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat;
     // Second-pass item 12/cosmetic: a deck seated elsewhere gets only its short "SEAT N" tag (no truncated
     // "ALREADY SEATED · SEA…" string); a genuinely illegal/duplicate deck gets "AT THE TABLE" instead of its own
@@ -1942,11 +1968,11 @@ export class SeatsScene extends Phaser.Scene {
     const countTag = deckCountTagOf(decks.length, decks.filter((d) => d.deck.source.kind !== "precon").length);
     const aspects = [...new Set(decks.flatMap((d) => d.deck.aspects))];
     const tag = entry?.isActiveSeat
-      ? `SEAT ${this.#draft.activeSeatIndex + 1}`
+      ? t("seats.seatLabel", { seat: this.#draft.activeSeatIndex + 1 })
       : seatedElsewhere
-        ? `SEAT ${entry!.seatIndex! + 1}`
+        ? t("seats.seatLabel", { seat: entry!.seatIndex! + 1 })
         : lock
-          ? "LOCKED"
+          ? t("scenario.locked")
           : blockedBy
             ? blockedTagOf(blockedBy)
             : // A custom hero says so and still says how many decks it has.
@@ -1968,17 +1994,19 @@ export class SeatsScene extends Phaser.Scene {
         recommended && rec?.caption
           ? rec.caption
           : several
-            ? `${decks.length} decks
-${sourceWordsOf(decks)}`
-            : `${sourceText} · ${option.identityName ?? "unknown identity"}`,
-      stamps: aspectStampsOf(several ? aspects : option.deck.aspects),
-      blockedBy,
+            ? t("seats.decksSummary", { count: decks.length, sources: sourceWordsOf(decks) })
+            : `${sourceText} · ${option.identityName ?? t("seats.unknownIdentity")}`,
+      stamps: aspectStampsOf(several ? aspects : option.deck.aspects, artLanguageNow()),
+      blockedBy: reasonOrNull(blockedBy),
       // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
       warning: seatedElsewhere
         ? null
         : lock
-          ? `${lock} · or ${unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string })} pts`
-          : shortWarningOf(entry?.warning ?? null),
+          ? t("seats.lockOrPoints", {
+              lock,
+              cost: unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string }),
+            })
+          : shortWarningOf(entry?.warning ?? null, artLanguageNow()),
       tag,
       selected: entry?.isActiveSeat ?? false,
       // Every hero tile here keeps a second caption line, so the art window is the same height on every shelf and a
@@ -1994,7 +2022,7 @@ ${sourceWordsOf(decks)}`
         this,
         rect.x + 6,
         rect.y + 6,
-        `Team-Up with ${rec.teamUps.map((link) => link.partner).join(" + ")}`,
+        t("seats.teamUpWith", { names: rec.teamUps.map((link) => link.partner).join(" + ") }),
         typeRole.label,
         surface.paper.hex,
         1,
@@ -2018,7 +2046,7 @@ ${sourceWordsOf(decks)}`
         .text(
           rect.x + 16,
           rect.y + 16,
-          "Select a hero for this seat below.",
+          t("seats.selectHeroBelow"),
           textStyle(typeRole.body, surface.paper.hex, ink.label),
         )
         .setWordWrapWidth(rect.width - 32);
@@ -2054,7 +2082,14 @@ ${sourceWordsOf(decks)}`
     const stat = this.add.text(
       rect.x + 16,
       y,
-      `${detail.aspectLabel} · HP ${detail.hp ?? "—"} · hand ${detail.handSize ?? "—"} · THW ${detail.thw ?? "—"} / ATK ${detail.atk ?? "—"} / DEF ${detail.def ?? "—"}`,
+      t("seats.detailFull", {
+        aspect: detail.aspectLabel,
+        hp: detail.hp ?? "—",
+        hand: detail.handSize ?? "—",
+        thw: detail.thw ?? "—",
+        atk: detail.atk ?? "—",
+        def: detail.def ?? "—",
+      }),
       textStyle(typeRole.label, surface.paper.hex, ink.label),
     );
     stat.setWordWrapWidth(rect.width - 32);
@@ -2062,23 +2097,25 @@ ${sourceWordsOf(decks)}`
     const rule = this.add.graphics();
     rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
     y += 14;
-    label(this, rect.x + 16, y, "Obligation", typeRole.label, surface.paper.hex, ink.label);
+    label(this, rect.x + 16, y, t("seats.obligation"), typeRole.label, surface.paper.hex, ink.label);
     y += 16;
     const obligation = this.add.text(
       rect.x + 16,
       y,
-      detail.obligationName ?? "None.",
+      detail.obligationName ?? t("seats.obligationNone"),
       textStyle(typeRole.body, surface.paper.hex),
     );
     obligation.setWordWrapWidth(detailTextWidth);
     y +=
-      estimateWrappedLines(detail.obligationName ?? "None.", detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX + 12;
-    label(this, rect.x + 16, y, "Nemesis set", typeRole.label, surface.paper.hex, ink.label);
+      estimateWrappedLines(detail.obligationName ?? t("seats.obligationNone"), detailTextWidth, DETAIL_CHAR_WIDTH) *
+        DETAIL_LINE_PX +
+      12;
+    label(this, rect.x + 16, y, t("seats.nemesisSet"), typeRole.label, surface.paper.hex, ink.label);
     y += 16;
     const nemesis = this.add.text(
       rect.x + 16,
       y,
-      detail.nemesisSetName ?? "None.",
+      detail.nemesisSetName ?? t("seats.nemesisNone"),
       textStyle(typeRole.body, surface.paper.hex),
     );
     nemesis.setWordWrapWidth(detailTextWidth);
@@ -2203,10 +2240,10 @@ ${sourceWordsOf(decks)}`
       y += object.height + gap;
     };
     for (const pair of insights.pairs) {
-      put(`${pair.label} · seats ${pair.seats[0]} + ${pair.seats[1]}`, typeRole.label, 1, 2);
-      const held = pair.inDecks.map((d) => `${d.heroName}'s deck has ${d.copies}`);
+      put(t("seats.pairSeats", { label: pair.label, a: pair.seats[0], b: pair.seats[1] }), typeRole.label, 1, 2);
+      const held = pair.inDecks.map((d) => t("seats.deckHas", { hero: d.heroName, copies: d.copies }));
       put(
-        `${listOf(pair.cardNames)}: ${held.length > 0 ? held.join("; ") : "in neither deck"}.`,
+        `${listOf(pair.cardNames)}: ${held.length > 0 ? held.join("; ") : t("seats.inNeitherDeck")}.`,
         typeRole.body,
         ink.label,
         10,
@@ -2216,7 +2253,7 @@ ${sourceWordsOf(decks)}`
     const rec = focusId ? insights.analysis.get(focusId) : undefined;
     const option = focusId ? this.#deckOptions().find((o) => (o.deck.id as string) === focusId) : undefined;
     if (rec && rec.lines.length > 0 && option) {
-      put(`Why ${option.identityName ?? option.deck.name}`, typeRole.label, 1, 2);
+      put(t("seats.why", { name: option.identityName ?? option.deck.name }), typeRole.label, 1, 2);
       for (const line of rec.lines) put(line, typeRole.body, 1, 4);
     }
   }
@@ -2338,7 +2375,7 @@ ${sourceWordsOf(decks)}`
     const aspectChips: HeroChipDef[] = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
       ...withInfo(this.#aspectInfoOf(aspect as CoreAspect)),
       id: `aspect:${aspect}`,
-      text: aspectLabelOf([aspect]),
+      text: aspectLabelOf([aspect], artLanguageNow()),
       selected: this.#draft.heroFilter.aspect === aspect,
       tint: { fill: aspectStampOf(aspect).fill, ink: aspectStampOf(aspect).ink },
       onClick: () => {
@@ -2350,10 +2387,10 @@ ${sourceWordsOf(decks)}`
       },
     }));
     const sources: readonly { kind: HeroSourceFilter; text: string }[] = [
-      { kind: "precon", text: "Precon" },
-      { kind: "imported", text: "Imported" },
-      { kind: "userBuilt", text: "Built" },
-      { kind: "tested", text: "Tested" },
+      { kind: "precon", text: t("deckSource.precon") },
+      { kind: "imported", text: t("deckSource.imported") },
+      { kind: "userBuilt", text: t("deckSource.built") },
+      { kind: "tested", text: t("deckSource.tested") },
     ];
     const sourceChips = sources.map(({ kind, text }) => ({
       id: `source:${kind}`,
@@ -2369,7 +2406,7 @@ ${sourceWordsOf(decks)}`
     }));
     const playableChip = {
       id: "playable-now",
-      text: "Playable now",
+      text: t("seats.playableNow"),
       selected: this.#draft.heroFilter.playableOnly === true,
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, {
@@ -2392,8 +2429,8 @@ ${sourceWordsOf(decks)}`
    */
   #heroSortChipDefs(): readonly HeroChipDef[] {
     const modes: readonly { readonly mode: HeroSortMode; readonly text: string }[] = [
-      { mode: "wave", text: "By wave" },
-      { mode: "az", text: "A–Z" },
+      { mode: "wave", text: t("seats.sortWave") },
+      { mode: "az", text: t("seats.sortAz") },
     ];
     return modes.map(({ mode, text }) => ({
       id: `sort:${mode}`,
@@ -2446,15 +2483,15 @@ ${sourceWordsOf(decks)}`
     this.scene.launch(SCENES.inspect, {
       card: { cardId: option.deck.identityCardId as CardId, face: { kind: "hero" } },
       ...(entry?.blockedBy
-        ? { note: entry.blockedBy }
+        ? { note: reasonLabelOf(entry.blockedBy, artLanguageNow()) }
         : {
             choice: {
               optionId: option.deck.id as string,
               label: entry?.isActiveSeat
-                ? "Already this seat's pick"
+                ? t("seats.alreadyPick")
                 : (this.#groupOf(option)?.decks.length ?? 1) > 1
-                  ? "Pick a deck"
-                  : "Take this seat",
+                  ? t("seats.pickDeck")
+                  : t("seats.takeSeat"),
             },
           }),
     });

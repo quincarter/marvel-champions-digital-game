@@ -9,6 +9,7 @@
  * per hero and words each deck's row in the submenu.
  */
 import type { Shelf } from "./roster-shelves.js";
+import { t, tPlural } from "../i18n/translate.js";
 
 /** One hero's matching decks, in the order they were found, and the one whose picture and state stand for the tile. */
 export interface HeroDeckGroup<T> {
@@ -108,8 +109,8 @@ export function heroGroupKeyOf(searching: boolean, heroKey: string, deckId: stri
  */
 export function deckCountTagOf(count: number, nonPreconCount = 0): string | null {
   if (count <= 1) return null;
-  if (nonPreconCount > 0) return `+${nonPreconCount} ${nonPreconCount === 1 ? "DECK" : "DECKS"}`;
-  return `${count} DECKS`;
+  if (nonPreconCount > 0) return tPlural("seats.moreDecks", nonPreconCount);
+  return t("seats.decksTag", { count });
 }
 
 /** The facts about one deck that its submenu row words; the scene gathers them from the same sources the shelf tile used. */
@@ -148,7 +149,11 @@ export interface HeroDeckRow {
   readonly enabled: boolean;
 }
 
-const SOURCE_WORDS = { precon: "Precon", imported: "Imported", userBuilt: "Built" } as const;
+const SOURCE_KEYS = {
+  precon: "deckSource.precon",
+  imported: "deckSource.imported",
+  userBuilt: "deckSource.built",
+} as const;
 
 /** One submenu row. The decision to seat stays with the scene's own pick code; this only words what the player sees. */
 export function heroDeckRowOf(facts: HeroDeckRowFacts): HeroDeckRow {
@@ -158,17 +163,33 @@ export function heroDeckRowOf(facts: HeroDeckRowFacts): HeroDeckRow {
   const base = {
     deckId: facts.deckId,
     title: facts.name,
-    source: facts.testedCredit ? `Tested · ${facts.testedCredit}` : SOURCE_WORDS[facts.sourceKind],
-    cards: `${facts.cardCount} ${facts.cardCount === 1 ? "card" : "cards"}`,
+    source: facts.testedCredit
+      ? t("deckSource.testedBy", { credit: facts.testedCredit })
+      : t(SOURCE_KEYS[facts.sourceKind]),
+    cards: tPlural("deck.cards", facts.cardCount),
   };
   if (facts.activeSeat) {
-    return { ...base, status: "In this seat", statusKind: "ok", action: "Seated", enabled: false };
+    return {
+      ...base,
+      status: t("seats.inThisSeat"),
+      statusKind: "ok",
+      action: t("seats.actionSeated"),
+      enabled: false,
+    };
   }
   if (seatedElsewhere) {
-    return { ...base, status: `In seat ${facts.otherSeat}`, statusKind: "blocked", action: "Seat", enabled: false };
+    return {
+      ...base,
+      status: t("seats.inSeat", { seat: facts.otherSeat }),
+      statusKind: "blocked",
+      action: t("seats.actionSeat"),
+      enabled: false,
+    };
   }
-  if (lock) return { ...base, status: lock, statusKind: "locked", action: "Unlock", enabled: true };
-  if (blocked) return { ...base, status: blocked, statusKind: "blocked", action: "Seat", enabled: false };
-  if (facts.warning) return { ...base, status: facts.warning, statusKind: "warning", action: "Seat", enabled: true };
-  return { ...base, status: "Legal", statusKind: "ok", action: "Seat", enabled: true };
+  if (lock) return { ...base, status: lock, statusKind: "locked", action: t("seats.actionUnlock"), enabled: true };
+  if (blocked)
+    return { ...base, status: blocked, statusKind: "blocked", action: t("seats.actionSeat"), enabled: false };
+  if (facts.warning)
+    return { ...base, status: facts.warning, statusKind: "warning", action: t("seats.actionSeat"), enabled: true };
+  return { ...base, status: t("deckStatus.legal"), statusKind: "ok", action: t("seats.actionSeat"), enabled: true };
 }

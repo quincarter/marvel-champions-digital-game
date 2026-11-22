@@ -12,6 +12,7 @@ import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { heroFaceNameAt } from "./hero-names.js";
 import { identityFaces } from "./card-side-toggle.js";
 import type { Rect } from "./layout.js";
+import { t } from "../i18n/translate.js";
 
 export interface DeckFaceTile {
   readonly face: CardFace;
@@ -35,11 +36,11 @@ export interface DeckFaceGroup {
 export function identityFaceTiles(card: HeroIdentityCard): readonly DeckFaceTile[] {
   return identityFaces(card).map((face): DeckFaceTile => {
     const art = artFor(card, face);
-    if (face.kind === "alterEgo") return { face, label: "Alter-Ego", name: card.alterEgo.faceName, art };
+    if (face.kind === "alterEgo") return { face, label: t("deckFaces.alterEgo"), name: card.alterEgo.faceName, art };
     const index = face.kind === "heroForm" ? face.index : 0;
     return {
       face,
-      label: index === 0 ? "Hero" : "Hero form",
+      label: index === 0 ? t("aspect.hero") : t("deckFaces.heroForm"),
       name: heroFaceNameAt(card, index) ?? card.hero.faceName,
       art,
     };
@@ -50,14 +51,14 @@ export function identityFaceTiles(card: HeroIdentityCard): readonly DeckFaceTile
 export function cardFaceTiles(card: AnyCard): readonly DeckFaceTile[] {
   const front: DeckFaceTile = {
     face: { kind: "front" },
-    label: "Front",
+    label: t("deckFaces.front"),
     name: card.name,
     art: artFor(card, { kind: "front" }),
   };
   const back = "flipSide" in card ? card.flipSide : undefined;
   if (!back) return [front];
   const flip: CardFace = { kind: "flipSide" };
-  return [front, { face: flip, label: "Back", name: back.name, art: artFor(card, flip) }];
+  return [front, { face: flip, label: t("deckFaces.back"), name: back.name, art: artFor(card, flip) }];
 }
 
 /**

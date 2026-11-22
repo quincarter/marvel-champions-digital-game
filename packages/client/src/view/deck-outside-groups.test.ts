@@ -27,6 +27,11 @@ describe("outsideDeckGroupsOf", () => {
     expect(labels).toEqual(["Labor deck", "Gift deck", "Obligation", "Nemesis set"]);
   });
 
+  test("the titles read in Spanish when Deck check asks (#390), English by default", () => {
+    const labels = outsideDeckGroupsOf(cardId("09001a"), POOL_CARDS, "es").map((group) => group.label);
+    expect(labels).toEqual(["Mazo de Invocation", "Obligación", "Conjunto de Archienemigo"]);
+  });
+
   test("a hero with no separate deck still shows its obligation and nemesis set", () => {
     const labels = outsideDeckGroupsOf(cardId("01001a"), POOL_CARDS).map((group) => group.label);
     expect(labels).toEqual(["Obligation", "Nemesis set"]);

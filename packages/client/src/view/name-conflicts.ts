@@ -16,6 +16,8 @@
 import type { AnyCard, CardId, Deck, DeckCardEntry } from "@mc/content";
 import { cardsMatch, entersPlayWhenPlayed, uniqueLabel, type TableRules } from "@mc/engine";
 import { qualifiedHeroName } from "./hero-names.js";
+import { t, tPlural } from "../i18n/translate.js";
+import { cardTypeWordOf } from "./card-type-word.js";
 
 export type NameConflictPool = ReadonlyMap<string, AnyCard>;
 
@@ -68,7 +70,7 @@ const identityOf = (deck: Deck, pool: NameConflictPool) => {
   return card?.type === "hero_identity" ? card : null;
 };
 
-const typeWord = (card: AnyCard): string => card.type.replace(/_/g, " ");
+const typeWord = (card: AnyCard): string => cardTypeWordOf(card.type);
 
 /** Every card in any seated deck that cannot enter play because it matches a seated hero. */
 export function nameConflictsOf(
@@ -105,7 +107,7 @@ export function nameConflictsOf(
           againstHeroName: against,
           againstSeat: other + 1,
           byTableRule: !cardsMatch(card, hero),
-          line: `${heroName}'s deck: ${uniqueLabel(card)} ${typeWord(card)} · ${against} is seated`,
+          line: t("nameConflict.line", { hero: heroName, card: uniqueLabel(card), type: typeWord(card), against }),
         });
         break;
       }
@@ -127,7 +129,7 @@ export function unresolvedConflicts(
 
 /** "2 cards can't be played with these heroes". */
 export function conflictNoticeOf(count: number): string {
-  return count === 1 ? "1 card can't be played with these heroes" : `${count} cards can't be played with these heroes`;
+  return tPlural("seats.conflictNotice", count);
 }
 
 /** The deck with every swap that names it applied: all copies of `from` become the same number of `to`. */
@@ -165,21 +167,21 @@ export function withKept(kept: readonly KeptConflict[], choice: KeptConflict): r
 export function sheetSubtitle(ownCard: readonly boolean[], teamUp: readonly boolean[] = []): string {
   const keepOnly = ownCard.map((own, i) => own && !teamUp[i]);
   if (keepOnly.length > 0 && keepOnly.every(Boolean)) {
-    return "These are the heroes' own cards, so they stay. Each can still be spent as a resource.";
+    return t("nameConflict.subtitleOwnOnly");
   }
   if (keepOnly.some(Boolean) && teamUp.some(Boolean)) {
-    return "Replace or keep each card. A hero's own card stays, unless a Team-Up card can replace it.";
+    return t("nameConflict.subtitleMixedTeamUp");
   }
-  if (keepOnly.some(Boolean)) return "Replace a card, or keep it as a resource. A hero's own cards can only be kept.";
+  if (keepOnly.some(Boolean)) return t("nameConflict.subtitleMixed");
   if (teamUp.some(Boolean)) {
-    return "Replace a card, or keep it as a resource. A hero's own card can only be replaced by a Team-Up card.";
+    return t("nameConflict.subtitleTeamUp");
   }
-  return "Replace each one, or keep it to spend as a resource.";
+  return t("nameConflict.subtitle");
 }
 
 /** The status line of an unanswered row: a hero's own card says what can be done with it. */
 export function ownCardMark(heroName: string, teamUpReplaceable: boolean): string {
   return teamUpReplaceable
-    ? `${heroName}'s own card · a Team-Up card can replace it`
-    : `${heroName}'s own card · can only be spent as a resource`;
+    ? t("nameConflict.ownTeamUp", { hero: heroName })
+    : t("nameConflict.ownResource", { hero: heroName });
 }

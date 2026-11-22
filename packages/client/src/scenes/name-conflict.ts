@@ -15,11 +15,12 @@ import Phaser from "phaser";
 import type { AnyCard, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
 import { unscriptedCards, type TableRules } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
-import { artFor } from "../art/art-source.js";
+import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { unlocks } from "../progression/progression.js";
 import { hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
+import { onLanguageChange } from "../language-change.js";
 import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -47,6 +48,8 @@ import {
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { SCENES } from "./keys.js";
+import { t } from "../i18n/translate.js";
+import { cardTypeWordOf } from "../view/card-type-word.js";
 
 export interface NameConflictSheetData {
   /** The scene that asked: its pointer input is off while this is up. */
@@ -75,6 +78,7 @@ const ROW_PAD = 10;
 const SHEET_ROW_HEIGHT = 128;
 const PICK_ROW_HEIGHT = 90;
 const BUTTON_TYPE = { ...typeRole.label, size: 12 };
+
 const GAP = 8;
 const THUMB_WIDTH = 52;
 
@@ -136,8 +140,13 @@ export class NameConflictOverlay extends Phaser.Scene {
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onScroll: (_dx, dy) => this.#list?.scrollByPx(dy),
     });
+    // A language switch (#390): the sheet reads again in the new language.
+    const languageOff = onLanguageChange(() => {
+      if (this.sys.isActive()) this.#draw();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      languageOff();
       this.#hints.dispose();
       this.#hover?.destroy();
       this.#hover = null;
@@ -309,7 +318,7 @@ export class NameConflictOverlay extends Phaser.Scene {
     const title = this.add.text(
       boxX + 16,
       0,
-      picker ? `Replace ${picker.entry.conflict.cardName}` : "Cards that can't be played",
+      picker ? t("nameConflict.replaceTitle", { card: picker.entry.conflict.cardName }) : t("nameConflict.title"),
       textStyle(typeRole.barTitle, surface.ink.hex),
     );
     fitText(title, innerWidth, typeRole.barTitle.size);
@@ -318,7 +327,7 @@ export class NameConflictOverlay extends Phaser.Scene {
         boxX + 16,
         0,
         picker
-          ? `In ${picker.entry.conflict.heroName}'s deck. Right-click or hold a card to inspect it.`
+          ? t("nameConflict.inDeck", { hero: picker.entry.conflict.heroName })
           : sheetSubtitle(
               this.#entries.map((entry) => entry.conflict.identitySpecific),
               this.#entries.map((entry) => entry.conflict.identitySpecific && this.#canReplace(entry)),
@@ -352,22 +361,22 @@ export class NameConflictOverlay extends Phaser.Scene {
     if (picker) {
       this.#drawPickerList(listRect, picker, stops, order);
       const pick = picker.selected !== null;
-      this.#addButton("cancel", left, "Back", "secondary", true, () => this.#closePicker(), stops, order);
+      this.#addButton("cancel", left, t("common.back"), "secondary", true, () => this.#closePicker(), stops, order);
       this.#addButton(
         "confirm",
         right,
-        "Replace",
+        t("nameConflict.replace"),
         "primary",
         pick,
         () => this.#confirmPicker(),
         stops,
         order,
-        pick ? undefined : "Choose a card first",
+        pick ? undefined : t("nameConflict.chooseFirst"),
       );
     } else {
       this.#drawSheetList(listRect, stops, order);
       const ready = this.#allAnswered();
-      this.#addButton("back", left, "Back", "secondary", true, () => this.#close(), stops, order);
+      this.#addButton("back", left, t("common.back"), "secondary", true, () => this.#close(), stops, order);
       this.#addButton(
         "continue",
         right,
@@ -377,7 +386,7 @@ export class NameConflictOverlay extends Phaser.Scene {
         () => this.#continue(),
         stops,
         order,
-        ready ? undefined : "Answer every card first",
+        ready ? undefined : t("nameConflict.answerAll"),
       );
     }
     this.#route?.set(order, stops);
@@ -473,10 +482,10 @@ export class NameConflictOverlay extends Phaser.Scene {
         status === "pending" && entry.conflict.identitySpecific
           ? ownCardMark(entry.conflict.heroName, this.#canReplace(entry))
           : status === "replaced"
-            ? `✓ Replaced with ${this.#replacementNameOf(entry)}`
+            ? t("nameConflict.replacedWith", { card: this.#replacementNameOf(entry) })
             : status === "kept"
-              ? "✓ Kept as a resource"
-              : "Not answered yet";
+              ? t("nameConflict.kept")
+              : t("nameConflict.pending");
       const statusText = this.add.text(
         row.x + ROW_PAD,
         row.y + ROW_PAD + 40,
@@ -495,7 +504,11 @@ export class NameConflictOverlay extends Phaser.Scene {
         const replace = new McButton(this, {
           kind: status === "replaced" ? "secondary" : "primary",
           label:
-            status === "replaced" ? "Change" : entry.conflict.identitySpecific ? "Replace with Team-Up" : "Replace",
+            status === "replaced"
+              ? t("nameConflict.change")
+              : entry.conflict.identitySpecific
+                ? t("nameConflict.replaceTeamUp")
+                : t("nameConflict.replace"),
           type: BUTTON_TYPE,
           rect: rects.replace,
           onClick: () => this.#openPicker(entry),
@@ -506,7 +519,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       }
       const keep = new McButton(this, {
         kind: "secondary",
-        label: "Keep as a resource",
+        label: t("nameConflict.keep"),
         type: BUTTON_TYPE,
         rect: rects.keep,
         selected: status === "kept",
@@ -560,12 +573,7 @@ export class NameConflictOverlay extends Phaser.Scene {
     const { candidates } = picker;
     if (candidates.length === 0) {
       this.add
-        .text(
-          listRect.x,
-          listRect.y,
-          "No legal card can replace it.",
-          textStyle(typeRole.body, surface.ink.hex, ink.meta),
-        )
+        .text(listRect.x, listRect.y, t("nameConflict.noLegal"), textStyle(typeRole.body, surface.ink.hex, ink.meta))
         .setFontSize(14);
     }
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderPickRow(rect, picker, index);
@@ -602,7 +610,7 @@ export class NameConflictOverlay extends Phaser.Scene {
     const index = picker.candidates.findIndex(({ card }) => (card.id as string) === picker.selected);
     if (index < 0) return;
     const word = this.add
-      .text(0, 0, "Replace", {
+      .text(0, 0, t("nameConflict.replace"), {
         ...textStyle(typeRole.label, surface.paper.hex),
         backgroundColor: surface.ink.css,
         padding: { x: 4, y: 2 },
@@ -671,7 +679,11 @@ export class NameConflictOverlay extends Phaser.Scene {
     );
     fitText(name, textWidth, 15);
     objects.push(name);
-    const meta = [card.type.replace(/_/g, " "), candidate.teamUp ? "Team-Up" : "", index === 0 ? "recommended" : ""]
+    const meta = [
+      cardTypeWordOf(card.type),
+      candidate.teamUp ? t("nameConflict.teamUp") : "",
+      index === 0 ? t("nameConflict.recommended") : "",
+    ]
       .filter(Boolean)
       .join(" · ");
     const metaText = this.add.text(
@@ -686,13 +698,18 @@ export class NameConflictOverlay extends Phaser.Scene {
     // Cost and aspect, stacked at the right edge.
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
     const costText = this.add
-      .text(row.x + row.width - 8, row.y + 10, `Cost ${cost}`, textStyle(typeRole.emphasis, signal.cost.hex))
+      .text(
+        row.x + row.width - 8,
+        row.y + 10,
+        t("nameConflict.cost", { cost }),
+        textStyle(typeRole.emphasis, signal.cost.hex),
+      )
       .setOrigin(1, 0)
       .setFontSize(14);
     objects.push(costText);
     const aspect = "aspect" in card ? String((card as { aspect: string }).aspect) : "";
     const stamp = ["aggression", "justice", "protection", "leadership", "pool", "basic"].includes(aspect)
-      ? aspectStampOf(aspect as CoreAspect)
+      ? aspectStampOf(aspect as CoreAspect, artLanguageNow())
       : null;
     const badge: Rect = {
       x: row.x + row.width - 8 - rightWidth + 6,
@@ -708,7 +725,7 @@ export class NameConflictOverlay extends Phaser.Scene {
       .text(
         badge.x + badge.width / 2,
         badge.y + badge.height / 2,
-        (stamp?.label ?? "Hero").toUpperCase(),
+        (stamp?.label ?? t("aspect.hero")).toUpperCase(),
         textStyle(typeRole.stamp, stamp?.ink ?? surface.ink.hex),
       )
       .setOrigin(0.5);
