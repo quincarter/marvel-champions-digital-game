@@ -23,6 +23,8 @@ import {
   type RoomRole,
   type RoomSeat,
   type RoomState,
+  type CompetitiveState,
+  type TeamId,
 } from "./room-state.js";
 import type { LobbyState } from "@mc/sync-worker/room-protocol";
 import { epicStateOf, hostedTableOf } from "./epic-view.js";
@@ -64,6 +66,32 @@ export interface RoomModelOptions {
   readonly linkBase: string;
   readonly roomId?: string;
   readonly code?: string;
+}
+
+const TEAM_IDS: readonly TeamId[] = ["registration", "resistance"];
+
+/** A Competitive room's teams, readiness and tie-break option from the lobby; null in any other mode. */
+function competitiveStateOf(lobby: LobbyState | null, seats: readonly RoomSeat[]): CompetitiveState | null {
+  if (lobby?.settings.mode !== "competitive") return null;
+  const status = lobby.competitive?.teams;
+  const team = (id: TeamId) => ({
+    team: id,
+    seats: seats.filter((s) => s.team === id).map((s) => s.id),
+    submitted: status?.[id].submitted ?? false,
+    ready: status?.[id].ready ?? false,
+  });
+  const teams = { registration: team("registration"), resistance: team("resistance") };
+  const size = teams.registration.seats.length;
+  const sized = (size === 1 || size === 2) && teams.resistance.seats.length === size && seats.length === size * 2;
+  const mine = seats.find((s) => s.mine && s.team !== null);
+  return {
+    myTeam: mine?.team ?? null,
+    teams,
+    tieBreaks: lobby.settings.tieBreaks !== false,
+    sized,
+    canStart: sized && TEAM_IDS.every((id) => teams[id].submitted && teams[id].ready),
+    rev: lobby.competitive?.rev ?? 0,
+  };
 }
 
 export class RoomModel {
@@ -406,6 +434,7 @@ export class RoomModel {
           seats: message.seats,
           ...(message.tables ? { tables: message.tables } : {}),
           ...(message.pods ? { pods: message.pods } : {}),
+          ...(message.competitive ? { competitive: message.competitive } : {}),
         };
         this.#code = message.code;
         return true;
@@ -479,6 +508,7 @@ export class RoomModel {
       away: seat.holder !== undefined && (seat.left === true || !this.#participants.some((p) => p.id === seat.holder)),
       requests: (seat.requested ?? []).map((id) => ({ participant: id, name: nameOf(id) })),
       requestedByMe: meId !== null && (seat.requested ?? []).includes(meId),
+      team: seat.team ?? null,
     }));
     const participants: RoomParticipant[] = [...this.#participants]
       .sort((a, b) => Number(b.role === "host") - Number(a.role === "host"))
@@ -520,6 +550,7 @@ export class RoomModel {
       started: this.#hostStarted || (this.#table?.hasHeader ?? false),
       gameOver: this.#table?.ended ?? false,
       mode: lobby?.settings.mode ?? "standard",
+      competitive: competitiveStateOf(lobby, seats),
       epic: epicStateOf({
         lobby,
         participants: this.#participants,

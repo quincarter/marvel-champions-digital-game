@@ -129,3 +129,91 @@ describe("judging a seat holder's proposal", () => {
     expect(judgeProposal(check({ command: inbound }))).toEqual({ ok: false, reason: "illegal" });
   });
 });
+
+describe("judging a proposal in a Competitive room (issue #883)", () => {
+  const teamOf = (id: string): string | undefined =>
+    ({ p1: "registration", p2: "registration", p3: "resistance", p4: "resistance" })[id];
+  const off = (player: string) => ({ type: "playCard", playerId: player });
+
+  it("lets a teammate of the active hero take an off-turn action, and refuses the other team's seat", () => {
+    expect(judgeProposal(check({ state: turn("p1"), players: ["p2"], command: off("p2"), teamOf }))).toMatchObject({
+      ok: true,
+    });
+    expect(judgeProposal(check({ state: turn("p1"), players: ["p3"], command: off("p3"), teamOf }))).toEqual({
+      ok: false,
+      reason: "not-your-turn",
+    });
+    // Without teams (a cooperative room) the same off-turn action is the engine's to judge.
+    expect(judgeProposal(check({ state: turn("p1"), players: ["p3"], command: off("p3") }))).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it("refuses a player the lobby has no team for", () => {
+    expect(judgeProposal(check({ state: turn("p1"), players: ["p9"], command: off("p9"), teamOf }))).toEqual({
+      ok: false,
+      reason: "not-your-turn",
+    });
+  });
+
+  it("still takes the answer to a choice addressed to the inactive team's seat, and no one else's", () => {
+    const answer = { type: "resolveChoice", playerId: "p3", choiceId: "c1", selectedOptionIds: ["a"] };
+    expect(judgeProposal(check({ state: choice("p3"), players: ["p3"], command: answer, teamOf }))).toMatchObject({
+      ok: true,
+    });
+    // Its teammate is not the one asked (the first player answers, N1), and the active team cannot answer for it.
+    const teammate = { ...answer, playerId: "p4" };
+    expect(judgeProposal(check({ state: choice("p3"), players: ["p4"], command: teammate, teamOf }))).toEqual({
+      ok: false,
+      reason: "not-your-turn",
+    });
+    expect(judgeProposal(check({ state: choice("p3"), players: ["p1"], command: off("p1"), teamOf }))).toEqual({
+      ok: false,
+      reason: "not-your-turn",
+    });
+  });
+});
+
+describe("a Competitive room's concede (plan N12 A)", () => {
+  const teamOf = (id: string): string | undefined => ({ p1: "registration", p2: "resistance" })[id];
+  it("takes a seat's own concession, for the team or alone, even off its turn", () => {
+    const team = judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p2" } }));
+    expect(team).toMatchObject({ ok: true, command: { type: "concede", playerId: "p2" } });
+    const alone = judgeProposal(
+      check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p2", alone: true } }),
+    );
+    expect(alone).toMatchObject({ ok: true, command: { alone: true } });
+  });
+
+  it("refuses a concession for a seat the proposer does not hold, and any concede outside Competitive", () => {
+    expect(judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+    expect(judgeProposal(check({ players: ["p2"], command: { type: "concede", playerId: "p2" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+  });
+});
+
+describe("a competitive concede is not stale", () => {
+  const teamOf = (id: string): string | undefined => ({ p1: "registration", p2: "resistance" })[id];
+  it("passes however far the table moved since it was built, while another command is stale", () => {
+    const concede = { type: "concede", playerId: "p2" };
+    expect(judgeProposal(check({ teamOf, players: ["p2"], base: 1, stamp: "OLD", command: concede })).ok).toBe(true);
+    expect(
+      judgeProposal(
+        check({ teamOf, players: ["p2"], base: 1, stamp: "OLD", command: { type: "endTurn", playerId: "p2" } }),
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "stale",
+    });
+    // Still never for a seat the proposer does not hold.
+    expect(judgeProposal(check({ teamOf, players: ["p2"], command: { type: "concede", playerId: "p1" } }))).toEqual({
+      ok: false,
+      reason: "illegal",
+    });
+  });
+});

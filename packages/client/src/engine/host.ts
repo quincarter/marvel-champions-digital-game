@@ -52,6 +52,24 @@ import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
 /** The Four Horsemen's version per villain in printed order (War, Famine, Pestilence, Death): wave 8's own option. */
 export type HorsemanSides = readonly [HorsemanSide, HorsemanSide, HorsemanSide, HorsemanSide];
 
+/** The two teams of a Competitive game as a `SessionConfig` carries them (registration first, then resistance). */
+export interface CompetitiveSessionTeams {
+  readonly teams: readonly [CompetitiveSessionTeam, CompetitiveSessionTeam];
+  /** MC56 p. 17's tie-breaks (plan Q9 C, the lobby option; default on). */
+  readonly tieBreaks: boolean;
+}
+
+export interface CompetitiveSessionTeam {
+  /** The team's leader by scenario id (`registration-iron-man`), the leader the other team fights. */
+  readonly leaderScenarioId: string;
+  /** How many of `SessionConfig.players` are on the team (they follow one another, registration first). */
+  readonly playerCount: number;
+  /** The scenario the team built for the other: modular sets, main scheme stages and any extra sets. */
+  readonly modularSetIds: readonly string[];
+  readonly mainSchemeStageIds: readonly string[];
+  readonly extraModularSetIds?: readonly string[];
+}
+
 export interface SessionConfig {
   readonly scenarioId: string;
   readonly difficulty: "standard" | "expert" | "extreme";
@@ -116,6 +134,25 @@ export interface SessionConfig {
    * unavailable in the room's game. The live header and replay files leave it out (the header carries `adjusted`).
    */
   readonly roomCheats?: boolean;
+  /**
+   * A Competitive lobby room's game (issue #883): the team of each engine player (`p1`..), from the lobby. The host's
+   * proposal judge reads it so a seat of the team whose phase it is not cannot take off-turn actions (a choice addressed
+   * to that seat is still answered). Like `room` it never reaches the rules and headers and replay files leave it out;
+   * the engine's own two-team setup is what carries teams into the game.
+   */
+  readonly roomTeams?: Readonly<Record<string, "registration" | "resistance">>;
+  /**
+   * A Competitive room game (issue #883): the engine players (`p1`..) this device holds, so a competitive result is read
+   * for this device's team (`view/team-outcome.ts`). Absent in a hot-seat game, where one device plays both teams. Like
+   * `roomTeams` it never reaches the rules, and headers and replay files leave it out.
+   */
+  readonly localSeats?: readonly string[];
+  /**
+   * A Civil War Competitive game (issue #883, docs/competitive-mode-plan.md M1): the two teams' scenarios, plain data.
+   * `players` is every seat, registration team first; `scenarioId` names the registration team's leader.
+   * `scenarioFor` builds the game with `@mc/cards`' `civilWarCompetitive`. Absent in every other game.
+   */
+  readonly competitive?: CompetitiveSessionTeams;
   /**
    * Set on every lobby room's game (#887): the live header carries it so a watcher's board draws every hand face
    * down, whatever the host's "Host sees every hand" says. The host's own board reads the room's state instead. Replay
@@ -195,7 +232,7 @@ export interface SessionConfig {
    * is the rulebook's recommended pair, and absent on every other scenario and every older save (additive, like `modes`).
    */
   readonly mainSchemeStageIds?: readonly string[];
-  /** The game mode. Only `"cooperative"` is ever sent (competitive is shown as coming soon); absent is cooperative. */
+  /** The game mode. Only `"cooperative"` is sent here: a competitive game is a room game and carries `competitive` instead; absent is cooperative. */
   readonly gameMode?: "cooperative";
   /**
    * The Civil War builder's blind option: the sets and stages stay hidden until the game reveals them. A display

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMPETITIVE_TAPPED_MESSAGE, GAME_MODE_OPTIONS, gameModeOptionsView, selectMode } from "./game-mode-options.js";
+import { competitiveTappedMessage, GAME_MODE_OPTIONS, gameModeOptionsView, selectMode } from "./game-mode-options.js";
 
 describe("game mode options", () => {
   it("has exactly two options, cooperative first", () => {
@@ -12,8 +12,9 @@ describe("game mode options", () => {
     expect(comp).toMatchObject({
       label: "Competitive",
       enabled: false,
-      note: "Coming soon",
-      reason: "Two teams, each against the other's leader. Not available yet.",
+      note: "Online rooms",
+      reason:
+        "Two teams, each against the other's leader. Pick Competitive when you host an online room; hot-seat play is coming soon.",
     });
   });
 
@@ -30,9 +31,9 @@ describe("game mode options", () => {
     const r = selectMode(draft, "competitive");
     expect(r.ok).toBe(false);
     expect(r.draft).toBe(draft);
-    expect(r).toMatchObject({ message: COMPETITIVE_TAPPED_MESSAGE });
-    expect(COMPETITIVE_TAPPED_MESSAGE).toBe(
-      "Competitive mode is coming soon. Play this scenario cooperatively for now.",
+    expect(r).toMatchObject({ message: competitiveTappedMessage() });
+    expect(competitiveTappedMessage()).toBe(
+      "Competitive mode is played in an online room. Play this scenario cooperatively here.",
     );
   });
 

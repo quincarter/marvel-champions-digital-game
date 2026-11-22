@@ -118,6 +118,12 @@
 //     seconds is closed. Never one row per message. Chat writes nothing: the last 50 lines
 //     and the rate buckets live in memory, and each chat message costs 1/20 of a Durable Object request like any other.
 //     A room that hibernates forgets the chat backlog; its seats, settings and codes survive.
+//   - Two teams (Competitive mode, docs/live-game-rooms.md section 11) add one `sealed` row (both teams' scenarios, at most
+//     40 KiB each): one row written per submission, so at most 1 row per submission and a participant is held to a burst of 3
+//     then one per 5 seconds (memory only), and the lobby row is rewritten (1 row) when a team's readiness, a seat's team or
+//     holder, the rules or the tie-break option change, and once at the game's start (the sides). The first reveal writes the lobby
+//     row once (its flag); a repeat reveal and every proposal write nothing; the `sealed` row is deleted (1 row) when the game ends, and a woken room reads
+//     it once when a submission or a reveal needs it.
 //   - Several tables in one room (Epic mode, docs/live-game-rooms.md section 10) add no new kind of cost: each table keeps its
 //     own header row, one chunk row per 20 commands and one tail row (refreshed at most once a minute while its host
 //     streams, and when its host drops or the table ends), so a table costs what a one-table room does and N tables N times

@@ -22,7 +22,7 @@ import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { CARDS_BY_ID, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
-import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
 import { identityOfSeat } from "./extras.js";
 import {
@@ -218,7 +218,10 @@ const FINALES: ReadonlyMap<string, string> = new Map(
 );
 
 export function factsOf(history: AchievementHistory): Facts {
-  const real = history.saves.filter((s) => !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s));
+  // A competitive game is played only: it earns no achievement and no champion points (the owner, 2026-11-20; #883).
+  const real = history.saves.filter(
+    (s) => !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s),
+  );
   const wonSaves = real.filter((s) => s.status === "won");
   const lostSaves = real.filter((s) => s.status === "lost");
   const heroesOf = (s: AchievementSave): string[] =>

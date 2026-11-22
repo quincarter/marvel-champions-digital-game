@@ -224,8 +224,8 @@ Questions marked **(now)** change how a cooperative card must be scripted in wav
   choose in turn from the four set-aside cards, so each takes two; in 1v1 two stay set aside. B) Shuffle into the deck.
 - **Q13. Expert mode in competitive play** (leaders III and IV, pp. 3, 4). The rules do not say. A) The building team
   picks, and says so at the table. B) Standard only. C) Both teams agree.
-- **Q14. Team sizes.** p. 14 says 1v1 or 2v2. A) The lobby offers exactly those (the engine takes any sizes with each
-  team's own per-hero count). B) Any 1 to 4 against 1 to 4.
+- **Q14. Team sizes.** p. 14 says 1v1 or 2v2. A) The lobby offers exactly those, and the engine refuses uneven teams
+  too (`competitiveSetupFault`: a team of 1 or 2, the same number on each). B) Any 1 to 4 against 1 to 4.
 - **Q15. The two printings of the Standard PvP set** (56125 to 56128 and 56203 to 56206): identical in play? A) Yes; a
   deck uses one printing (five cards: 1, 1, 2, 1), and the data survey confirms what differs.
 - **Q16. Which obligation deck.** The FAQ says the obligation is shuffled in. A) Into the encounter deck in that
@@ -233,6 +233,71 @@ Questions marked **(now)** change how a cooperative card must be scripted in wav
 - **Q17. Drafted (56080) and Switching Sides (56158) move cards between areas.** A) The card keeps its home deck, so a
   defeated or discarded minion returns to the discard pile of its origin (as the FAQ says for Drafted) and an ally
   stolen by Switching Sides goes to its owner's discard pile, not the thief's.
+
+### 1.10 Answers (rules expert and owner, 2026-11-20)
+
+Settled by the sources (rules expert): Q5 (the defending leader's team's first player is "you": MC56 p. 16 step 2; RRG
+"You, Your" p. 49), Q6 (mirrored: the area the attacker sits in), Q7 (p. 17 applies; the quick-reference "resistance
+leader" is the leader in registration's area, so there is no conflict; the game ends when both sides have played an
+equal number of phases), Q8 (A, any cause), Q12 (A), Q14 (1v1 or 2v2), Q15 (identical; each scenario holds its own
+copy), Q16 (A), Q17 (A, origin discard; RRG Ownership p. 31). Also settled: a team that wins keeps playing to the end of
+its current phase (p. 17); in 2v2 elimination hands minions and the token to the teammate (p. 16, p. 20); "the villain"
+for a moved minion is the leader in its new area (p. 20); High-Tech Suit 56131 "any player"; MC56 p. 17 overrides the
+RRG's game-end rules (Golden Rule, RRG p. 4); what each team sees: in-play and discards public, hands private, the
+searching player sees a searched deck, deck sizes may be counted (Jan 11, 2026 Ruling 1), the facing team doesn't see
+the opposing scenario's modular list. An encounter deck that empties reshuffles its discard pile at once and places
+one acceleration token on the main scheme of that team's area; with its deck and discard pile both empty, that team
+loses (the other team's `opponentsLost`), and the game still ends only once both sides have played an equal number of
+phases (RRG v1.8 "Encounter Deck" p. 17; MC56 adds no exception; MC56 p. 17). "An enemy" in a "when/after an enemy
+attacks" ability is the leader you are fighting or a minion on your side (MC56 p. 16), so a leader attacking the other
+leader is heard only by the team whose area holds the attacker (the attacked leader's team), never by the attacking
+team; defense-labelled and "attacks you" abilities stay excluded (N11). Energy Channel 56098 attacking a leader follows
+the p. 16 leader-attacks-leader steps (MC56 FAQ p. 20). "Any player may trigger this ability" (High-Tech Suit 56131,
+`triggerableBy: eachPlayer`) is every player of either team, its controller included (card text over RRG p. 4
+"Abilities"; MC56 p. 20 limits only "the players/each player/per player"); as an Action it is taken only in the
+triggering player's own team's hero phase (RRG "Action" p. 6; Q11). An "(attack/defense)" ability is defense-labelled
+under N11 (RRG v1.8 "Labeled Ability" p. 26, multiple labels; FFG ruling July 19, 2023 #49.3, Powerful Punch; MC56
+p. 16 "no player can declare a defender"), so neither team may use one against a leader-vs-leader attack; Shadow and
+Steel 32021 with its Team-Up met (a Colossus hero and a Shadowcat ally on your own team) is not offered against a
+leader-vs-leader attack, and on the same board is offered on a minion's attack. A trigger with no `anyGameArea` query
+hears only events on its own side of the table, read where the event happened when it was made (a minion moved to the
+other team and defeated there left play on that side, though it goes to its origin's discard pile; MC56 pp. 16-17, 20);
+the same holds in The Once and Future Kang's separate game areas (rules expert, option A: the Kang insert's "Cards and
+components in one game area cannot affect another game area", FFG ruling Mar 6, 2025 (Azazel); environments and stage
+2B are in every area, RRG 1.8 FAQ p. 60). Team-Up: "friendly" means your own team only (RRG 1.8 "Friendly" p. 21; MC56
+pp. 16, 20, "the players" = your team), so the other side's characters do not meet a Team-Up (RRG p. 43); your own
+leader does not count either, as it is not in play on your side (MC56 p. 20; provisional). Inactive = the team whose round segment is not
+being played (MC56 p. 16); in a team's own villain phase its responses are ordinary. Synthezoid Strike 57075 (rules
+expert, 2026-11-20, reading A): its bullets resolve sentence by sentence (FFG ruling Feb 28, 2026 #5, Spell Blast /
+Erratic Teleportation), so the face is checked once: a Dense Vision gets the card's +1 ATK and piercing for the attack;
+an Intangible Vision flips to Dense before the attack (Dense's printed +1 ATK applies) but does not get the card's +1
+ATK or piercing, the same check-then-flip order as 57052 / 57053.
+
+Owner decisions (Quin, 2026-11-20; recommended interpretations, not official rulings):
+
+| Q    | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q3   | **B:** one shared round (registration hero, resistance hero, registration villain, resistance villain); "until the end of the round" ends after the fourth phase, for both teams at once                                                                                                                                                                                                                                                                |
+| Q4   | A: each area sets up on its own; registration first where one order is needed                                                                                                                                                                                                                                                                                                                                                                           |
+| Q9   | **C:** a lobby option, on by default; tie-breaks applied in printed order and the deciding condition reported; off reports a tie                                                                                                                                                                                                                                                                                                                        |
+| Q10  | A: a defeated leader that stays in play keeps its text active but never initiates activations; staying does not reverse its defeat                                                                                                                                                                                                                                                                                                                      |
+| Q11  | A: the inactive team's triggered abilities fire and it answers choices given to it; no actions                                                                                                                                                                                                                                                                                                                                                          |
+| Q11+ | (Quin) Triggers on the inactive team's cards fire in the other team's phases, e.g. No, You Move! 56207 (Forced Interrupt) on the enemy leader's attack, Lie in Wait (Hero Response) when Recruited by Cap 56209 engages a minion with you. M11 adds an audit of every Civil War and Synthezoid Smackdown leader player card and Standard PvP card, plus any pool card whose responses or interrupts can fire on the other team's turn, each with a test |
+| Q13  | A: the whole table agrees on expert in the lobby, for both scenarios                                                                                                                                                                                                                                                                                                                                                                                    |
+| N1   | A: "the enemy team" choices go to their first player; an optional "any player may" offer goes round in player order                                                                                                                                                                                                                                                                                                                                     |
+| N2   | A: simultaneous triggers across areas are ordered by the active team's first player                                                                                                                                                                                                                                                                                                                                                                     |
+| N3   | A: a leader defeated by a leader-vs-leader attack counts for the team whose area holds it                                                                                                                                                                                                                                                                                                                                                               |
+| N4   | A: different win conditions met in the equal-phase window are a tie, decided by the Q9 policy; never by acting first                                                                                                                                                                                                                                                                                                                                    |
+| N5   | A: a moved minion's boost comes from the deck of the area it is in now (its discard still goes to its origin)                                                                                                                                                                                                                                                                                                                                           |
+| N6   | A: Synthezoid Smackdown leaders, main schemes and sided modular sets join the competitive pool, locked to their side                                                                                                                                                                                                                                                                                                                                    |
+| N7   | A: the host may submit or ready only its own team's scenario, or either team's only when it holds no seat                                                                                                                                                                                                                                                                                                                                               |
+| N8   | A: phase begin/end events are heard only by cards in the active team's area; the round ends once, after phase 4, for both                                                                                                                                                                                                                                                                                                                               |
+| N9   | A: a villainous minion's boost when it attacks your leader is turned by the first player of the defending leader's team                                                                                                                                                                                                                                                                                                                                 |
+| N10  | A: boost cards already facedown on the enemy leader are turned too when it attacks your leader (icons add up)                                                                                                                                                                                                                                                                                                                                           |
+| N11  | A: the attacker's own "After [X] attacks…" encounter triggers fire on a leader-vs-leader attack (Captain Marvel's needs a real defeat; an attack trigger is not an activation); wave 3 Q12 stays for other products                                                                                                                                                                                                                                     |
+| N12  | A: a team concession is a forfeit that ends the game at once (no equal phases, no tie-breaks); one 2v2 player conceding removes only that player; conceding fires no defeat effects                                                                                                                                                                                                                                                                     |
+
+Code comment for competitive rules: `// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); <Q#> per owner decision 2026-11-20`.
 
 ## 2. Inventory by card id
 
@@ -629,7 +694,7 @@ one.
 - **Do not let a cheat route enable the mode**: `?unlock=all` and the saved-game loader must not set `gameMode`
   (task 9); the refusal is in the engine, not only in the UI.
 - **Do not put the facing team's deck contents into a view model or a log line that both seats can read.** The engine
-  log is whole; anything a seat sees goes through M7. Until then the mode is unreachable, so no leak exists.
+  log is whole; anything a seat sees goes through M7. Quin chose on 2026-11-20 (Codex finding on PR #923) to ship the mode as friendly play: every guest device receives the whole game and the host sees everything, and the lobby says so ("For friends: the host's device sees the whole game, both scenarios included."). Per-seat hiding (M7) is a later issue.
 - **Rules risks to track:** the p. 20 quick reference and p. 17 disagree or are ambiguous in places (Q7); cards typo or
   omit words (2.5), so any rules answer is checked against the card image; the grim rule (Q1) is a table convention the
   engine cannot enforce, and the first-player choice favours a player who would rather not hurt themselves; a leader

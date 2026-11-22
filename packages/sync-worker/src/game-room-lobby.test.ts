@@ -104,7 +104,7 @@ describe("a lobby room: names, build and the lobby message", () => {
     const { host } = await setup();
     const h = await host();
     expect(h.last("welcome")!.caps).toEqual(LOBBY_ROOM_CAPS);
-    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play", "tables"]);
+    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play", "tables", "teams"]);
     expect(h.last("welcome")!.you).toMatchObject({ role: "host", name: "Hosty", build: BUILD });
     expect(h.last("lobby")).toMatchObject({
       code: CODE,
@@ -266,6 +266,28 @@ describe("who may set the lobby", () => {
     expect(h.last("table")!.table).toMatchObject({ hasHeader: true, commands: 0 });
     await lobbySet(h, { settings: { cheats: false } });
     expect(h.refusals).toEqual(["lobby-changed", "not-allowed"]);
+  });
+
+  it("applies a lobby-set with ifRev only to that lobby revision, else refuses lobby-changed and stores nothing", async () => {
+    const { host, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("a", "b") });
+    const at = h.last("lobby")!.rev;
+    // A stale revision: refused, the lobby is untouched and no new lobby is sent.
+    const sent = h.of("lobby").length;
+    await lobbySet(h, { settings: { chat: false }, ifRev: at - 1 });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.of("lobby")).toHaveLength(sent);
+    expect(h.last("lobby")!.rev).toBe(at);
+    expect(h.last("lobby")!.settings.chat).toBe(true);
+    // The matching revision is taken and bumps it by exactly one.
+    await lobbySet(h, { settings: { chat: false }, ifRev: at });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.last("lobby")!.rev).toBe(at + 1);
+    expect(h.last("lobby")!.settings.chat).toBe(false);
+    // A malformed one is a bad message.
+    await lobbySet(h, { settings: { chat: true }, ifRev: -1 });
+    expect(h.refusals).toEqual(["lobby-changed", "bad-message"]);
   });
 
   it("applies a lobby-set only at the revision it names (ifRev): a match bumps by one, a mismatch stores nothing, a no-op does not bump (#881)", async () => {

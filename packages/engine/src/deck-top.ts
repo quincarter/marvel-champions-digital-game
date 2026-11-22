@@ -23,7 +23,7 @@ import { type Ctx, emit } from "./ctx.js";
 import type { InstanceId } from "./ids.js";
 import type { GameState } from "./state.js";
 import { activeEncounterDeck, activeEncounterDeckId } from "./query.js";
-import { deckTopFaceupPlayers, encounterTopFaceup } from "./select.js";
+import { deckTopFaceupPlayers, encounterDecksFaceup, encounterTopFaceup } from "./select.js";
 
 const NO_ABILITIES: ReadonlySet<string> = new Set();
 const RULE_ABILITIES = new WeakMap<AbilityRegistry, ReadonlySet<string>>();
@@ -96,7 +96,13 @@ export function deckTopRuleCanHold(state: GameState, deps: EngineDeps): boolean 
 export function announceDeckTops(ctx: Ctx): void {
   if ((ctx.deckTopsHeld ?? 0) > 0) return;
   const known = ctx.state.deckTopsAnnounced;
-  if (!known && ctx.state.encounterTopAnnounced === undefined && !deckTopRuleCanHold(ctx.state, ctx.deps)) return;
+  if (
+    !known &&
+    ctx.state.encounterTopAnnounced === undefined &&
+    ctx.state.encounterTopsAnnounced === undefined &&
+    !deckTopRuleCanHold(ctx.state, ctx.deps)
+  )
+    return;
   announceEncounterTop(ctx);
   const faceup = deckTopFaceupPlayers(ctx.state, ctx.deps);
   const next: Record<string, InstanceId> = {};
@@ -135,6 +141,7 @@ export function announceDeckTops(ctx: Ctx): void {
  * (`resetEncounterDeckIfEmpty`).
  */
 function announceEncounterTop(ctx: Ctx): void {
+  if (ctx.state.teams) return announceEncounterTopsPerSide(ctx);
   const was = ctx.state.encounterTopAnnounced;
   const faceup = encounterTopFaceup(ctx.state, ctx.deps);
   const top = faceup ? activeEncounterDeck(ctx.state).deck[0] : undefined;
@@ -148,6 +155,31 @@ function announceEncounterTop(ctx: Ctx): void {
   if (!faceup) emit(ctx, { type: "encounterTopHidden", deckId });
   const { encounterTopAnnounced: _was, ...rest } = ctx.state;
   ctx.state = rest;
+}
+
+/**
+ * `announceEncounterTop` with two teams: each side's encounter deck has its own top and its own rule (MC56 p. 16;
+ * `encounterDecksFaceup`), so each deck is announced on its own, in the table's deck order, and switching the active
+ * team changes nothing that is showing. Recorded in `GameState.encounterTopsAnnounced`.
+ */
+function announceEncounterTopsPerSide(ctx: Ctx): void {
+  const known = ctx.state.encounterTopsAnnounced ?? {};
+  const faceup = encounterDecksFaceup(ctx.state, ctx.deps);
+  const next: Record<string, InstanceId> = {};
+  let changed = false;
+  for (const deckId of ctx.state.encounterDeckOrder) {
+    const was = known[deckId];
+    const top = faceup.includes(deckId) ? ctx.state.encounterDecks[deckId]?.deck[0] : undefined;
+    if (top !== undefined) next[deckId] = top;
+    if (top === was) continue;
+    changed = true;
+    if (top !== undefined)
+      emit(ctx, { type: "encounterTopShown", deckId, instanceId: top, cardId: ctx.state.instances[top]!.cardId });
+    else if (!faceup.includes(deckId)) emit(ctx, { type: "encounterTopHidden", deckId });
+  }
+  if (!changed) return;
+  const { encounterTopsAnnounced: _was, ...rest } = ctx.state;
+  ctx.state = Object.keys(next).length > 0 ? { ...rest, encounterTopsAnnounced: next } : rest;
 }
 
 /**

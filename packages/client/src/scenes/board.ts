@@ -47,6 +47,8 @@ import {
 } from "../platform/room.js";
 import type { RoomState } from "../platform/room.js";
 import { activeSeat } from "../platform/seat-play.js";
+import { localPlayersOf } from "../live/competitive-start.js";
+import { seatContext } from "../view/seat-context.js";
 import { actingOf, inRoomGame, whoseTurnOf, type TurnLine } from "../view/whose-turn.js";
 import { promptViewOf, roomChatOn, roomPromptsOf, type PromptView } from "../view/room-prompts.js";
 import { heldElsewhere } from "../view/seat-gate.js";
@@ -54,6 +56,8 @@ import { handVisibleTo } from "../view/hand-privacy.js";
 import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
 import { TURN_ROW_HEIGHT, promptRowHeight, PROMPT_ROW_HEIGHT } from "../view/layout.js";
 import { justFlipped, podStripOf, podStripHeight, type PodStrip } from "../view/pod-strip.js";
+import { choosingSidesOf } from "../view/choosing-sides.js";
+import { competitiveStripOf, type CompetitiveStrip } from "../view/competitive-strip.js";
 import { gameCardsById as epicCardsById } from "../content/game-deps.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import {
@@ -162,6 +166,7 @@ import { livePillKey, livePillOf } from "../view/live-pill.js";
 import { deliverReplayLink } from "../replay/replay-share.js";
 import { t } from "../i18n/translate.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
+import { firstPlayerFallbackOn } from "../view/first-player-fallback.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
 import {
@@ -249,9 +254,20 @@ const VILLAIN_DOCK_TWEEN_MS = 280;
 /** The form cards' fan-out and fold beside the play area (issue #308). */
 const FORM_FAN_TWEEN_MS = 280;
 
-/** The seat whose side the table draws: a looked-at teammate's (`SessionState.peekSeat`), else the board's own. */
+/**
+ * The seat whose side the table draws: a looked-at teammate's (`SessionState.peekSeat`), else the board's own. In a
+ * two-team game on a device that holds seats (a Competitive room), the board follows whoever must act only while that
+ * seat is one of this device's: a decision for the other team's seat never turns this device's board into their side
+ * (their hand, their "your turn" line); the device's own seat stays on screen, with no actions of its own to take.
+ */
 function shownSeat(state: SessionState): PlayerId | null {
-  return state.peekSeat ?? state.perspectiveId;
+  if (state.peekSeat) return state.peekSeat;
+  const room = seatContext()?.room;
+  const local = room ? (localPlayersOf(room) as readonly PlayerId[]) : [];
+  if (state.game?.teams && state.perspectiveId !== null && local.length > 0 && !local.includes(state.perspectiveId)) {
+    return local[0] ?? state.perspectiveId;
+  }
+  return state.perspectiveId;
 }
 
 /** A card's name and traits, for its sound (`view/sound-effects.ts`). An identity's traits sit on its faces and never count. */
@@ -263,6 +279,9 @@ function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
 }
 
 const POD_LINE = 18;
+
+/** The games (and sides) the Choosing Sides reward sheet already opened for: once each, kept across a scene's reuse (#883). */
+const choosingSidesOpened = new Set<string>();
 
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
@@ -460,6 +479,10 @@ export class BoardScene extends Phaser.Scene {
   readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
   readonly #firstPlayerToken = new BoardFirstPlayerToken();
+  /** The rows under the title bar's own (`chromeExtra`), whether the whose-turn row is one, and whether it carries Chat. */
+  #chromeExtra = 0;
+  #turnRowShown = false;
+  #chatShown = false;
   /** Dev e2e hook only: who the token is drawn for in place of the game's first player, to see a pass without a round. */
   #debugFirstPlayer: PlayerId | null = null;
   /**
@@ -1279,14 +1302,17 @@ export class BoardScene extends Phaser.Scene {
   #modelOf(state: SessionState): BoardModel | null {
     if (!state.game || state.perspectiveId === null) return null;
     // A looked-at teammate's side (`peekSeat`) is drawn with no legal actions: it is there to read.
-    const mine = state.legal?.playerId === state.perspectiveId && state.peekSeat === null ? state.legal.actions : null;
+    const shown = shownSeat(state);
+    const mine =
+      state.legal?.playerId === state.perspectiveId && shown === state.perspectiveId ? state.legal.actions : null;
     return this.#withDebugSideSchemes(
       boardModel(
         state.game,
-        state.peekSeat ?? state.perspectiveId,
+        shown ?? state.perspectiveId,
         gameDeps(),
         mine,
         appSession().settings.playAreaOrder,
+        appSession().store.state.config?.localSeats ?? null,
         this.#handVisible(state.peekSeat ?? state.perspectiveId, state),
       ),
     );
@@ -1660,6 +1686,7 @@ export class BoardScene extends Phaser.Scene {
           gameDeps(),
           null,
           appSession().settings.playAreaOrder,
+          appSession().store.state.config?.localSeats ?? null,
           this.#handVisible(shownSeat(state)!, state),
         ),
       );
@@ -1757,12 +1784,21 @@ export class BoardScene extends Phaser.Scene {
     const cardScale = cardSizeFactor(cardSize);
     this.#scrollDirty = false;
     const roomView = this.#roomView();
-    const podStrip = this.#podStrip();
+    // Civil War Competitive (#883): the whose-turn line is the bar's own row on every device, naming the active side and
+    // saying when this side is inactive, so a phone never truncates it beside the round chip.
+    this.#maybeShowChoosingSides(model);
+    const competitiveTurn = model.competitive
+      ? { text: model.competitive.turnLine, tone: model.competitive.inactive ? ("other" as const) : ("mine" as const) }
+      : null;
+    const podStrip = this.#podStrip() ?? this.#competitiveStrip(model);
     const stuckPrompt = roomView.prompt === null && this.#podStuck();
     const chromeExtra =
-      (roomView.turn ? TURN_ROW_HEIGHT : 0) +
+      (roomView.turn || competitiveTurn ? TURN_ROW_HEIGHT : 0) +
       (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : stuckPrompt ? PROMPT_ROW_HEIGHT : 0) +
       podStripHeight(podStrip, POD_LINE, 44);
+    this.#turnRowShown = Boolean(roomView.turn || competitiveTurn);
+    this.#chatShown = roomView.chatOn;
+    this.#chromeExtra = chromeExtra;
     const atRest = boardLayout(viewport, {
       ...(chromeExtra > 0 ? { chromeExtra } : {}),
       playerCount: model.team.length + 1,
@@ -1840,9 +1876,11 @@ export class BoardScene extends Phaser.Scene {
     const drawTopBand = (): void => {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
-        ...(roomView.turn
-          ? { turn: { text: t(roomView.turn.key, roomView.turn.params), tone: roomView.turn.tone } }
-          : {}),
+        ...(competitiveTurn
+          ? { turn: competitiveTurn }
+          : roomView.turn
+            ? { turn: { text: t(roomView.turn.key, roomView.turn.params), tone: roomView.turn.tone } }
+            : {}),
         ...(roomView.chatOn
           ? {
               chat: {
@@ -1855,14 +1893,23 @@ export class BoardScene extends Phaser.Scene {
         ...(podStrip
           ? {
               podStrip: {
-                lines: podStrip.lines.map((l) => ({ text: l.text, alert: l.tone === "alert" })),
+                lines: podStrip.lines.map((l) => ({
+                  text: l.text,
+                  alert: l.tone === "alert",
+                  ...(l.continued ? { continued: true } : {}),
+                })),
                 lineHeight: POD_LINE,
                 button: {
                   label:
-                    podStrip.targets > 0
-                      ? t("epic.strip.buttonTargets", { count: podStrip.targets })
-                      : t("epic.strip.button"),
-                  onPress: () => this.#openEpicSheet(),
+                    "leaderId" in podStrip
+                      ? t("comp.strip.leader")
+                      : podStrip.targets > 0
+                        ? t("epic.strip.buttonTargets", { count: podStrip.targets })
+                        : t("epic.strip.button"),
+                  onPress: () =>
+                    "leaderId" in podStrip
+                      ? podStrip.leaderId && this.#inspect(podStrip.leaderId as InstanceId)
+                      : this.#openEpicSheet(),
                   onRect: (rect: Rect) => this.#frame.focusRects.set("podStrip", rect),
                 },
               },
@@ -2094,7 +2141,7 @@ export class BoardScene extends Phaser.Scene {
             height: 30,
           }
         : chrome
-          ? { x: chrome.x + chrome.width * 0.5 - 20, y: chrome.y, width: 40, height: chrome.height }
+          ? firstPlayerFallbackOn(chrome, this.#chromeExtra, this.#turnRowShown, this.#chatShown)
           : { x: 8, y: 8, width: 40, height: 40 };
     this.#firstPlayerToken.draw(
       this,
@@ -2854,6 +2901,24 @@ export class BoardScene extends Phaser.Scene {
       prompt: promptViewOf(prompts, room),
       chatOn: !this.#replay && roomChatOn(room),
     };
+  }
+
+  /** Civil War Competitive (#883): when this seat's team earns the Choosing Sides reward, the sheet opens once. */
+  #maybeShowChoosingSides(model: BoardModel): void {
+    if (!model.competitive) return;
+    const { game, perspectiveId, gameId } = appSession().store.state;
+    if (!game || !perspectiveId || !choosingSidesOf(game, perspectiveId)) return;
+    const key = `${gameId ?? "game"}:${model.competitive.mySide}`;
+    if (choosingSidesOpened.has(key) || this.scene.isActive(SCENES.choosingSides)) return;
+    choosingSidesOpened.add(key);
+    this.scene.launch(SCENES.choosingSides);
+  }
+
+  /** Civil War Competitive (#883): the other side's table in brief, as the strip under the bar; null in any other game. */
+  #competitiveStrip(model: BoardModel): CompetitiveStrip | null {
+    if (!model.competitive) return null;
+    const width = this.scale.gameSize.width;
+    return competitiveStripOf(model.competitive, Math.max(24, Math.floor((width - 120) / 6.5)));
   }
 
   /** The Epic pod strip for this table's board (#882), or null outside an Epic game. */
@@ -3685,6 +3750,7 @@ export class BoardScene extends Phaser.Scene {
         gameDeps(),
         null,
         appSession().settings.playAreaOrder,
+        appSession().store.state.config?.localSeats ?? null,
         this.#handVisible(shownSeat(state)!, state),
       ),
     );

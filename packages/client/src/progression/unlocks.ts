@@ -51,7 +51,7 @@ import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS 
 import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
-import { isAdjustedSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import { customEarned, customHeroMode, customLockText, customScenarioMode } from "./custom-unlock.js";
 
 /** What a win is worth, and what opening something by hand costs. */
@@ -357,7 +357,8 @@ export function progressOf(
   }[],
 ): UnlockProgress {
   const wonSaves = saves.filter(
-    (s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s),
+    // A competitive win unlocks nothing: it is a game played, not a scenario won (issue #883).
+    (s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s),
   );
   const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined && !isAdjustedCampaign(c));
   return {

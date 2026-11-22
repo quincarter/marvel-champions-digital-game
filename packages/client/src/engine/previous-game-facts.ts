@@ -10,15 +10,15 @@
  * with several local seats, which share the one profile: every seat gets the profile's result.
  */
 import type { OutsideFacts } from "@mc/engine";
-import { isLessonSave, type SaveMeta } from "./game-storage.js";
+import { isCompetitiveSave, isLessonSave, type SaveMeta } from "./game-storage.js";
 
 /** The profile's last finished game as a win or a loss, or null when it has none. */
 export function lastFinishedResult(saves: readonly SaveMeta[]): "won" | "lost" | null {
   let latest: SaveMeta | null = null;
   for (const meta of saves) {
     if (meta.status !== "won" && meta.status !== "lost") continue;
-    // A Try-it lesson is a teaching game, not a previous game.
-    if (isLessonSave(meta)) continue;
+    // A Try-it lesson is a teaching game, not a previous game; a competitive game is played, never won or lost (#883).
+    if (isLessonSave(meta) || isCompetitiveSave(meta)) continue;
     if (!latest || meta.updatedAt > latest.updatedAt) latest = meta;
   }
   return latest ? (latest.status as "won" | "lost") : null;

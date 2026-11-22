@@ -104,7 +104,10 @@ const appended = (from: number, commands: readonly Command[]) => ({
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-async function seatAt(count: number, options: { leaveSeats?: () => void; pidGeneration?: number } = {}) {
+async function seatAt(
+  count: number,
+  options: { leaveSeats?: () => void; proposesConcede?: () => boolean; pidGeneration?: number } = {},
+) {
   const game = await hostedGame();
   for (let i = 0; i < count; i++) game.next();
   const feed = new FakeFeed();
@@ -425,6 +428,51 @@ describe("SeatEngineHost", () => {
     expect(feed.sent).toEqual([]);
   });
 
+  test("in a competitive room Concede is a proposal to the host, not leaving the seat", async () => {
+    const leaveSeats = vi.fn();
+    const { feed, host, first } = await seatAt(2, { leaveSeats, proposesConcede: () => true });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const command = { type: "concede", playerId: acting, alone: true } as Command;
+    void host.dispatch(command);
+    expect(leaveSeats).not.toHaveBeenCalled();
+    expect(feed.sent).toMatchObject([{ kind: "propose", command, base: 2 }]);
+  });
+
+  test("a concession another seat's command overtook is still its own when it lands: never stale by position", async () => {
+    const { game, feed, host, updates, first } = await seatAt(2, { proposesConcede: () => true, leaveSeats: vi.fn() });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    const concede = { type: "concede", playerId: acting } as Command;
+    const result = host.dispatch(concede);
+    let settled = false;
+    void result.then(() => (settled = true));
+    feed.say({ ch: "game", kind: "proposal-accepted", table: "t1", base: 2, pid: 1 });
+    // Another seat's command took the position the concession was built on: that does not settle it.
+    const other = game.next();
+    feed.say(appended(2, [other]));
+    await flush();
+    expect(settled).toBe(false);
+    expect(updates.at(-1)!.remote).toEqual(other);
+    // The host applies the concession on top of it, and its echo is this seat's own.
+    expect(game.core.dispatch(concede).ok).toBe(true);
+    feed.say(appended(3, [concede]));
+    const done = await result;
+    expect(done.ok).toBe(true);
+    if (done.ok) expect(done.update.version).toBe(4);
+    expect(updates.at(-1)!.remote).toBeUndefined();
+  });
+
+  test("with proposesConcede false the old leave-the-seat Concede holds", async () => {
+    const leaveSeats = vi.fn();
+    const { feed, host, first } = await seatAt(2, { leaveSeats, proposesConcede: () => false });
+    const acting = actingPlayer(first.state)!;
+    await host.setPlayers([acting]);
+    await host.dispatch({ type: "concede", playerId: acting } as Command);
+    expect(leaveSeats).toHaveBeenCalledTimes(1);
+    expect(feed.sent).toEqual([]);
+  });
+
   test("a proposal nobody answers is given up after the timeout", async () => {
     const { host, first, timers } = await seatAt(2);
     const acting = actingPlayer(first.state)!;
@@ -599,6 +647,35 @@ describe("SeatEngineHost", () => {
       feed.say(appended(2, [game.commands[2]!]));
       const done = await result;
       expect(done.ok).toBe(false);
+    });
+
+    test("an accepted concession settles ok on a reset that holds another seat's command at its base", async () => {
+      const ctx = await seatAt(2, { proposesConcede: () => true, leaveSeats: vi.fn() });
+      const acting = actingPlayer(ctx.first.state)!;
+      await ctx.host.setPlayers([acting]);
+      const concede = { type: "concede", playerId: acting } as Command;
+      const result = ctx.host.dispatch(concede);
+      ledger(ctx.feed);
+      // Another seat's command took the base; the host applied the concession after it.
+      ctx.game.next();
+      expect(ctx.game.core.dispatch(concede).ok).toBe(true);
+      ctx.game.commands.push(concede);
+      ctx.feed.say(logOf(ctx.game.header, ctx.game.commands));
+      const done = await result;
+      expect(done.ok).toBe(true);
+    });
+
+    test("a concession echoed before its acceptance settles ok when the acceptance arrives", async () => {
+      const ctx = await seatAt(2, { proposesConcede: () => true, leaveSeats: vi.fn() });
+      const acting = actingPlayer(ctx.first.state)!;
+      await ctx.host.setPlayers([acting]);
+      const concede = { type: "concede", playerId: acting } as Command;
+      const result = ctx.host.dispatch(concede);
+      expect(ctx.game.core.dispatch(concede).ok).toBe(true);
+      ctx.feed.say(appended(2, [concede]));
+      await flush();
+      ledger(ctx.feed);
+      expect((await result).ok).toBe(true);
     });
 
     test("a reset that rewinds below the proposal's base fails it", async () => {

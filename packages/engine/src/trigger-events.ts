@@ -653,6 +653,11 @@ export type TriggerEventBody =
        * controller; FFG ruling January 26, 2026 (4); owner decision 2026-10-16, audit finding 14). Absent: no boost.
        */
       readonly boostPlayerId?: PlayerId;
+      /**
+       * With `boostPlayerId`: no boost card is dealt for this attack, and only the cards already facedown on the
+       * attacker are turned (`EffectSpec enemyAttacksEnemy.boost` `"held"`).
+       */
+      readonly heldBoostOnly?: true;
     }
   /**
    * "After [character] is attacked", named after the attack's damage resolves so
@@ -2047,10 +2052,22 @@ export type TriggerEventBody =
    * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
    *
    * `"round"`: the round ends with no villain phase, which was skipped (`EffectSpec skipNextVillainPhase`,
-   * docs/phase7-wave11-hero-packs.md H3.7, Q101). "When the round ends" hears it (`eventIs: { phase: ["villain",
-   * "round"] }`, the DSL's `on.roundEnding()`, the temporary keyword); "when the villain phase ends" does not.
+   * docs/phase7-wave11-hero-packs.md H3.7, Q101). "When the round ends" hears it (`eventIs: { phase: "round" }`, the
+   * DSL's `on.roundEnding()`, the temporary keyword); "when the villain phase ends" does not. A pattern's `"round"`
+   * hears the round's end whichever event carries it: this one, or a villain phase's end with no `roundContinues`
+   * (`resolve/triggers.ts` `endsRound`).
+   *
+   * `roundContinues`: a villain phase that does not end the round, in a game with two teams: the first team's, which
+   * the second team's villain phase follows within the same round (MC56 p. 16; one shared round, Q3 B per owner
+   * decision 2026-11-20). "When the villain phase ends" hears it; "when the round ends" (`"round"`) does not, though a
+   * pattern listing both (`["villain", "round"]`) hears it through `"villain"` (`resolve/triggers.ts` `endsRound`).
+   * Absent in every other game.
    */
-  | { readonly kind: "phaseEnding"; readonly phase: "player" | "villain" | "round" }
+  | {
+      readonly kind: "phaseEnding";
+      readonly phase: "player" | "villain" | "round";
+      readonly roundContinues?: true;
+    }
   /**
    * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): 36 printed cards, among them
    * Terrestrial Invasion 1B, Protect the Planet 2B and Bombardment (`gmw`). Announced once step one's threat and its
@@ -2210,6 +2227,21 @@ export type TriggerEvent = TriggerEventBody & {
    * `entered-since.ts`). Absent until a card does, which is nearly always.
    */
   readonly enteredPlaySince?: readonly InstanceId[];
+  /**
+   * The game areas (sides of the table) the event happened in, read when it was made (`eventSides`,
+   * `event-sides.ts`): where its cards and players were then, not where a later move left them. A minion moved to
+   * the other team and defeated there left play on that team's side, though its discard pile is on the first
+   * (MC56 pp. 16, 20). Stamped by `eventFrame`, and by the leave-play snapshot while the card is still in play. Absent
+   * in a game whose players share one game area, so such a game serializes as before. Read by `heardOnThisSide`.
+   *
+   * Invariant: the stamp names the occurrence, not its current target. An effect that retargets an event in progress
+   * spreads it and keeps the stamp (a declared defender, `resolve/enemy-activation.ts` and `resolve/friendly-attack.ts`;
+   * an overkill spill, `resolve/event.ts`): the new target is on a side the event already names, since a defender
+   * comes from the attacked player's side (MC56 p. 16; Kang insert: no defending in another game area) and an overkill
+   * spill reaches only characters the attack could (RRG 1.8 "Overkill", p. 31). An effect that would move an event to
+   * another side must drop `sides` and let it be read again.
+   */
+  readonly sides?: readonly GameAreaId[];
 };
 
 /**
@@ -2825,6 +2857,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.targetInstanceId], [event.playerId]);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
+    // The villain whose stage it is, so the event is on that villain's side of a split table (`eventSides`).
+    case "villainStageAdvanced":
+      return of([], [event.instanceId], []);
     // The card the status card was discarded from is the target ("from Colossus").
     case "statusDiscarded":
       return of([], [event.instanceId], []);

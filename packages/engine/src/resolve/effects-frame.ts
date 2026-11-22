@@ -114,7 +114,6 @@ import {
   type PlayerId,
 } from "../ids.js";
 import {
-  activeEncounterDeckId,
   cardOf,
   characterProfile,
   isPlayerCardType,
@@ -128,6 +127,8 @@ import {
   playerOrder,
   printedCostOf,
   undefeatedVillains,
+  areaOfCard,
+  areaOfPlayer,
 } from "../query.js";
 import {
   cannotBeHealed,
@@ -169,6 +170,7 @@ import {
   selectTargets,
   type EffectContext,
   VILLAIN_CHOICE,
+  effectEncounterDeckId,
   DISCARD_MOVED_SLOT,
 } from "../select.js";
 import { EVENT_TARGET, optionNeedsDiscardedCard, readsUnbound, type Judge } from "./discarded-card.js";
@@ -2314,7 +2316,7 @@ function orderEnemies(
   // One ordered choice per group of two or more, villains first, both of the first player.
   const ask = (group: readonly InstanceId[], at: Frame<"effects">): boolean => {
     requestChoice(ctx, {
-      playerId: simultaneousOrderer(ctx.state),
+      playerId: simultaneousOrderer(ctx.state, { playerId: frame.controllerId, instanceId: frame.selfInstanceId }),
       authority: "firstPlayerOrders",
       prompt: { kind: "orderEnemies", activation: orderedActivation(ctx, effect, context, enemies) },
       options: cardOptions(ctx, group),
@@ -2395,7 +2397,7 @@ function executeForEachPlayerOrdered(
   const players = resolvePlayers(ctx.state, effect.players, context);
   if (frame.answer === null && playersWithAPass(ctx, effect, context, players) > 1) {
     requestChoice(ctx, {
-      playerId: simultaneousOrderer(ctx.state),
+      playerId: simultaneousOrderer(ctx.state, { playerId: frame.controllerId, instanceId: frame.selfInstanceId }),
       authority: "firstPlayerOrders",
       prompt: { kind: "orderPlayers", reason: "forEachPlayer" },
       options: players.map((id) => ({ optionId: id, label: id, ref: { kind: "player", playerId: id } as const })),
@@ -2445,7 +2447,7 @@ function executeDealEncounterCards(
   const count = effect.count === undefined ? 1 : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (frame.answer === null && players.length > 1 && count > 0) {
     requestChoice(ctx, {
-      playerId: simultaneousOrderer(ctx.state),
+      playerId: simultaneousOrderer(ctx.state, { playerId: frame.controllerId, instanceId: frame.selfInstanceId }),
       authority: "firstPlayerOrders",
       prompt: { kind: "orderPlayers", reason: "dealEncounterCards" },
       options: players.map((id) => ({ optionId: id, label: id, ref: { kind: "player", playerId: id } as const })),
@@ -2498,7 +2500,7 @@ function executeReorderCards(
   const answered = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => ids.includes(id));
   const order = answered.length === ids.length ? answered : ids;
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  const deckId = activeEncounterDeckId(ctx.state);
+  const deckId = effectEncounterDeckId(ctx.state, context);
   // Placed one at a time on top, last first, so the first card chosen ends up on top.
   for (const id of [...order].reverse()) moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
 }
@@ -2622,7 +2624,7 @@ function placeTarget(
 ): PlaceTarget | null {
   if (effect.to !== "playerDeckTopOrBottom") {
     return {
-      deck: { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) },
+      deck: { kind: "encounterDeck", deckId: effectEncounterDeckId(ctx.state, context) },
       split: { kind: "chooseBottomCards", deck: "encounterDeck" },
       orderTop: { kind: "orderCards", to: "encounterDeckTop" },
       orderBottom: { kind: "orderCards", to: "encounterDeckBottom" },
@@ -3643,7 +3645,12 @@ function executeSpendResources(
 ): void {
   if (effect.x) return executeSpendXResources(ctx, frame, effect, effect.x, context);
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
-  const requirement = combineRequirements(effect.resources, 0);
+  // `times`: "spend resources equal to that ally's cost" (Switching Sides 56158), the price of one taken that often.
+  const times = effect.times === undefined ? 1 : resolveValue(ctx.state, effect.times, context, ctx.deps);
+  const requirement = combineRequirements(
+    effect.times === undefined ? effect.resources : scaledRequirement(effect.resources, times),
+    0,
+  );
   // docs/phase7-wave6.md §3.69: "spend 2 different resources", the cost field's rule (`distinctTypeCount`), shared with
   // the `canPayResources` predicate (`spendPays`).
   const distinctTypes = effect.distinctTypes ?? 0;
@@ -3656,7 +3663,7 @@ function executeSpendResources(
     });
   if (frame.answer === null) {
     const options = playerId ? paymentOptions(ctx, playerId, null) : [];
-    if (!playerId || options.length === 0) return finish(false);
+    if (!playerId || options.length === 0 || times <= 0) return finish(false);
     const required = effect.required === true;
     if (required && !requiredSpendPayable(ctx, effect, context)) return finish(false);
     // A payment in full from the fewest options goes first and sets the minimum (`fewestSpend`), so the first
@@ -4069,7 +4076,12 @@ function asIfActivation(
   const enemy =
     pattern.selfIs === "source"
       ? instanceId
-      : (getInstance(ctx.state, instanceId)?.attachedTo ?? ctx.state.activeVillainId);
+      : (getInstance(ctx.state, instanceId)?.attachedTo ??
+        // With two teams, the villain of the card's own side of the table (MC56 p. 16).
+        (ctx.state.teams
+          ? (areaOfCard(ctx.state, instanceId) ?? areaOfPlayer(ctx.state, player.playerId))?.activeVillainId
+          : null) ??
+        ctx.state.activeVillainId);
   if (!enemy || !cardsInPlay(ctx.state).includes(enemy)) return null;
   if (pattern.sourceIs && !matchesQuery(ctx.state, enemy, pattern.sourceIs, about)) return null;
   return kind === "enemyScheme"
@@ -4211,7 +4223,9 @@ function executeResolveSpecials(
     // player's pick (the first player's for a card nobody controls, as the order is), every candidate a legal one.
     if (frame.answer === null && all.length > 1) {
       requestChoice(ctx, {
-        playerId: frame.controllerId ?? simultaneousOrderer(ctx.state),
+        playerId:
+          frame.controllerId ??
+          simultaneousOrderer(ctx.state, { playerId: frame.controllerId, instanceId: frame.selfInstanceId }),
         ...(frame.controllerId ? {} : { authority: "firstPlayerOrders" as const }),
         prompt: { kind: "chooseOption" },
         options: all.map(option),
@@ -4228,7 +4242,9 @@ function executeResolveSpecials(
     ordered = frame.answer.map((k) => byKey.get(k)).filter((c): c is Step | KeywordStep => c !== undefined);
   } else if (asks && (frame.controllerId || unowned)) {
     requestChoice(ctx, {
-      playerId: unowned ? simultaneousOrderer(ctx.state) : frame.controllerId!,
+      playerId: unowned
+        ? simultaneousOrderer(ctx.state, { playerId: frame.controllerId, instanceId: frame.selfInstanceId })
+        : frame.controllerId!,
       ...(unowned ? { authority: "firstPlayerOrders" as const } : {}),
       prompt: { kind: "orderSpecials" },
       options: all.map(option),

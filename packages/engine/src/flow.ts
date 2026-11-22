@@ -10,6 +10,7 @@ import {
   STEP_AFTER_SCENARIO_SETUP,
   resolveScenarioSetupInstructions,
   resolveVillainSetupAbilities,
+  executeTeamScenarioSetup,
   stepAfterScenarioSetupAbilities,
   stepAfterScenarioSetupInstructions,
   stepAfterVillainSetupAbilities,
@@ -23,13 +24,15 @@ import {
   expireLastingEffects,
   expirePlayerTurnEffects,
   untilNextVillainPhase,
+  closeCompetitiveIfDue,
 } from "./effects.js";
+import { phaseBeingPlayed } from "./competitive-outcome.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError, type EngineError } from "./errors.js";
 import { forcedActionOptionId, outstandingForcedActions } from "./legal.js";
 import { useLateForcedAction } from "./actions.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId, TeamId } from "./ids.js";
 import {
   cardOf,
   getInstance,
@@ -76,7 +79,19 @@ import { describeFrame } from "./stack.js";
 import { putSeparatedCardIntoPlay } from "./separated-identity.js";
 import { offerStartingCard } from "./starting.js";
 import type { GameState, GameStep } from "./state.js";
+import { clearMadeSinceVillainPhaseBegan } from "./villain-phase-begun.js";
 import { patternHearsKind, type TriggerEvent } from "./trigger-events.js";
+import { activeTeamOf, nextTeamAfter, teamsOf, type TeamState } from "./team.js";
+import {
+  announceActiveTeamPhase,
+  onActiveSide,
+  phasePlayerOrder,
+  replacementsWaiting,
+  setTeamVillainPhaseCount,
+  skipsWaiting,
+  switchActiveTeam,
+  teamVillainPhaseCount,
+} from "./team-phases.js";
 import {
   executeDealEncounterCards,
   executeEnemyActivations,
@@ -193,6 +208,8 @@ function executeStep(ctx: Ctx): void {
     case "scenarioSetupInstructions":
       resolveScenarioSetupInstructions(ctx);
       return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
+    case "teamScenarioSetup":
+      return executeTeamScenarioSetup(ctx, step);
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -209,8 +226,19 @@ function executeStep(ctx: Ctx): void {
       return executeEndPhaseReady(ctx, step);
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
-      // A skip made while the player phase's end resolved (`skipsVillainPhaseNow`) is taken before step one.
-      if (!step.placed && (playerPhaseInsteadNow(ctx) || skipsVillainPhaseNow(ctx))) return;
+      // The end of a team's player phase played in place of its villain phase has resolved: the game may close there
+      // (MC56 p. 17), and otherwise another replacement goes first, then a waiting skip (made before or during that
+      // end), and only then does that team's own villain phase begin (`finishPlayerPhase` left all of it to this step).
+      if (!step.placed && ctx.state.playerPhaseInsteadTeamId !== undefined) {
+        if (endPlayerPhaseInstead(ctx) || playerPhaseInsteadNow(ctx) || skipsVillainPhaseNow(ctx)) return;
+        // No handover marks it (the team is already active), so it is marked here for the log and undo.
+        announceActiveTeamPhase(ctx, "villain");
+        pushVillainPhaseBeginning(ctx);
+        return;
+      }
+      // A skip or replacement made while the player phase's end resolved (`skipsVillainPhaseNow`) is taken before step
+      // one; one made once this phase has begun is the next villain phase's and waits (`villain-phase-begun.ts`).
+      if (!step.placed && villainPhaseRequestTakenNow(ctx)) return;
       return executePlaceThreat(ctx);
     case "enemyActivations":
       return executeEnemyActivations(ctx, step);
@@ -222,6 +250,8 @@ function executeStep(ctx: Ctx): void {
       return executePassFirstPlayer(ctx);
     case "endOfRound":
       return executeEndOfRound(ctx, step);
+    case "teamHandover":
+      return executeTeamHandover(ctx, step);
     case "gameOver":
       return;
   }
@@ -407,10 +437,11 @@ export function beginPlayerPhase(ctx: Ctx): void {
   clearPlayedByPlayerThisPhase(ctx);
   // Field Commander's "You take the first turn" (docs/phase7-wave6.md §3.27) is read here, once (§4.1 Q16): the turns
   // after the first are fixed in the step's `remainingPlayerIds`, so gaining or losing it mid-phase waits for the next.
+  // With two teams, the active team's players only (MC56 p. 16).
   const order = playerPhaseTurnOrder(
     ctx.state,
     ctx.deps,
-    playerOrder(ctx.state).map((p) => p.playerId),
+    phasePlayerOrder(ctx.state).map((p) => p.playerId),
   );
   const [first, ...rest] = order;
   if (!first) {
@@ -481,9 +512,11 @@ function pushIfHeard(ctx: Ctx, event: TriggerEvent): boolean {
  * (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7), the "at the end of the round" ones too. RRG 1.8 "Delayed Effect" (p. 16):
  * they resolve "immediately after their specified timing point [...] and before responses to that point".
  */
-export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain" | "round"): void {
+export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain" | "round", roundContinues = false): void {
   const phaseDelayed = takeDelayed(ctx, "endOfPhase");
-  pushDelayed(ctx, phase === "player" ? phaseDelayed : [...phaseDelayed, ...takeDelayed(ctx, "endOfRound")]);
+  // A villain phase that does not end the round (`TriggerEvent phaseEnding.roundContinues`, two teams) is a phase end.
+  const roundEnds = phase !== "player" && !roundContinues;
+  pushDelayed(ctx, roundEnds ? [...phaseDelayed, ...takeDelayed(ctx, "endOfRound")] : phaseDelayed);
 }
 
 /** Ends `playerId`'s turn if it still is theirs: the `endTurn` command, or its `turnEnding` event applying. */
@@ -542,7 +575,7 @@ export function advanceAfterTurn(ctx: Ctx, remainingPlayerIds: readonly PlayerId
   setStep(ctx, {
     phase: "player",
     kind: "endPhaseDiscard",
-    remainingPlayerIds: playerOrder(ctx.state).map((p) => p.playerId),
+    remainingPlayerIds: phasePlayerOrder(ctx.state).map((p) => p.playerId),
   });
 }
 
@@ -556,7 +589,7 @@ export function advanceAfterTurn(ctx: Ctx, remainingPlayerIds: readonly PlayerId
 function requestLateForcedAction(ctx: Ctx): boolean {
   const step = ctx.state.step;
   if (step.phase !== "player" || step.kind !== "turn") return false;
-  const outstanding = playerOrder(ctx.state).flatMap((player) =>
+  const outstanding = phasePlayerOrder(ctx.state).flatMap((player) =>
     outstandingForcedActions(ctx.state, player.playerId, ctx.deps),
   );
   const first = outstanding[0];
@@ -640,7 +673,7 @@ const endPhaseRefill = (playerId: PlayerId): string => `endPhase:${playerId}`;
 
 function executeEndPhaseDraw(ctx: Ctx, step: Extract<GameStep, { kind: "endPhaseDraw" }>): void {
   const resumed = step.remainingPlayerIds;
-  const order = resumed ?? playerOrder(ctx.state).map((player) => player.playerId);
+  const order = resumed ?? phasePlayerOrder(ctx.state).map((player) => player.playerId);
   let drawnSoFar = step.drawn ?? 0;
   for (const [index, playerId] of order.entries()) {
     if (resumed && getPlayer(ctx.state, playerId)?.eliminated !== false) {
@@ -738,7 +771,9 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
     readied.add(id);
     readyOrAnnounce(ctx, id);
   };
-  for (const player of playerOrder(ctx.state)) {
+  // With two teams, the active team's players and the cards on its side of the table (MC56 p. 16: each team plays its
+  // entire hero phase, "including readying"; `onActiveSide` is every card in a game with one team).
+  for (const player of phasePlayerOrder(ctx.state)) {
     ready(player.identity.instanceId);
     for (const id of mustPlayer(ctx.state, player.playerId).playArea) ready(id);
     // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
@@ -747,12 +782,13 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
       if (controllerOf(ctx.state, id) === player.playerId) ready(id);
     }
   }
-  for (const id of ctx.state.villainArea) ready(id);
+  for (const id of ctx.state.villainArea) if (onActiveSide(ctx.state, id)) ready(id);
   // A card in an in-play scenario area is a card in play (MC45 p. 5), so the step readies it though nobody controls it,
   // and each card attached to one (docs/phase7-wave8.md §3.33: game steps are not card abilities).
   if (ctx.state.scenarioPlayAreas)
     for (const id of cardsInPlay(ctx.state)) if (scenarioPlayAreaOf(ctx.state, id) !== null) ready(id);
-  for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
+  for (const villain of undefeatedVillains(ctx.state))
+    if (onActiveSide(ctx.state, villain.instanceId)) ready(villain.instanceId);
   // "Ready each exhausted encounter card" (RRG 1.8 "End of Player Phase", step 3): whatever the lists above did not
   // name, wherever it is in play. An encounter card attached to an identity, an ally or a minion is in its host's
   // `attachments` and under no player's control (a Trance exhausted by its Forced Action, MC55 p. 22), and so is one
@@ -760,7 +796,8 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
   // An encounter card is a card no player owns: a player's card that nobody controls (a captive ally,
   // docs/phase7-wave8.md §3.19) is neither "their card" nor an encounter card, and stays as it is.
   // An encounter card a player owns (a Labor card) is an encounter card too (`playerCardOwnerOf`).
-  for (const id of cardsInPlay(ctx.state)) if (playerCardOwnerOf(ctx.state, id) === null) ready(id);
+  for (const id of cardsInPlay(ctx.state))
+    if (playerCardOwnerOf(ctx.state, id) === null && onActiveSide(ctx.state, id)) ready(id);
   const pushed = ctx.state.stack.length - depth;
   if (pushed === 0) return false;
   // Each push went on top of the last, so the last card readied would be asked first; put them back in ready order
@@ -775,11 +812,23 @@ function readyEveryCard(ctx: Ctx, exhausted?: readonly InstanceId[]): boolean {
 
 /** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
 function finishPlayerPhase(ctx: Ctx): void {
+  // A team's player phase played in place of its villain phase is followed by that team's villain phase, as one table's
+  // is (`playerPhaseInsteadNow`), not by the next team's phase.
+  // `playerPhaseInsteadTeamId` stays set while this end resolves (the phase is still in the team's villain slot) and is
+  // cleared by the step after it (`endPlayerPhaseInstead`).
+  const insteadTeam = ctx.state.playerPhaseInsteadTeamId;
+  // With two teams the next phase is another team's (MC56 p. 16): the second team's hero phase after the first's, then
+  // the first team's villain phase. It begins from the `teamHandover` step once this end has resolved, which reads that
+  // team's skips and replacements (`executeTeamHandover`).
+  const handover = insteadTeam === undefined ? handoverAfterPlayerPhase(ctx.state) : null;
   // A player phase in place of the villain phase (`replaceNextVillainPhaseWithPlayerPhase`) comes first: it begins from
   // step one's place once this end has resolved (`playerPhaseInsteadNow`), and a waiting skip waits for the next one.
-  const replacing = (ctx.state.villainPhasesReplacedByPlayerPhase ?? 0) > 0;
-  const skipping = !replacing && (ctx.state.villainPhasesToSkip ?? 0) > 0;
+  const replacing = replacementsWaiting(ctx.state) > 0;
+  // After a team's extra player phase every choice waits for step one's place (`placeThreat`): this end's effects may
+  // still make a replacement, which goes before a waiting skip there as it does here (PR #923 review).
+  const skipping = !handover && !replacing && insteadTeam === undefined && skipsWaiting(ctx.state) > 0;
   if (skipping) skipVillainPhase(ctx);
+  else if (handover) setStep(ctx, { phase: handover.phase, kind: "teamHandover", teamId: handover.teamId });
   else setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
@@ -797,7 +846,10 @@ function finishPlayerPhase(ctx: Ctx): void {
   // A skipped villain phase never begins (docs/phase7-wave11-hero-packs.md H3.7): no beginning to answer, and "until
   // the next villain phase begins" lasts on to the next one played (H3.8).
   // Nor does one a player phase is played in place of.
-  if (!skipping && !replacing) pushVillainPhaseBeginning(ctx);
+  // A team's villain phase begins at its handover, once the other team is active (`executeTeamHandover`).
+  // After a team's player phase in place of its villain phase, that team's villain phase begins from step one's place
+  // once this end has resolved and the game has not closed (MC56 p. 17; the `placeThreat` step).
+  if (!skipping && !replacing && !handover && insteadTeam === undefined) pushVillainPhaseBeginning(ctx);
   announce(ctx, { kind: "playerPhaseEnded" });
   if (listened) {
     pushEvent(ctx, ending);
@@ -845,19 +897,43 @@ const SKIPPED_VILLAIN_PHASE_PASSES_TOKEN = false;
  * dealt facedown meanwhile wait for the next villain phase played (RRG 1.8 "Deal", p. 15).
  */
 function skipVillainPhase(ctx: Ctx): void {
+  const team = ctx.state.activeTeamId;
+  if (team !== undefined) return skipTeamVillainPhase(ctx, team);
   ctx.state = { ...ctx.state, villainPhasesToSkip: Math.max(0, (ctx.state.villainPhasesToSkip ?? 0) - 1) };
   emit(ctx, { type: "villainPhaseSkipped", round: ctx.state.round, remaining: ctx.state.villainPhasesToSkip ?? 0 });
   setStep(ctx, { phase: "villain", kind: "endOfRound", villainPhaseSkipped: true });
 }
 
 /**
+ * The active team's villain phase is skipped, with two teams. MC56 pp. 16, 20 + N8 (2026-11-20), settled by the rules
+ * expert for PR #923: each team plays its own villain phase, and a skip is the team's own. A skipped phase never begins
+ * (61020 "(unskipped)"; Q101 A, H3.7/H3.8; RRG 1.8 "Lasting Effects", p. 26): no beginning or end is raised, nothing of
+ * steps one to five happens and the team's "until the next villain phase begins" effects last on. The next team's
+ * villain phase follows as it would have; the last team's skipped phase still ends the shared round (`executeEndOfRound`
+ * with `villainPhaseSkipped`, the round's end only).
+ */
+function skipTeamVillainPhase(ctx: Ctx, team: TeamId): void {
+  // The skipped phase fills the team's villain slot for MC56 p. 17: see the slot note at `endPlayerPhaseInstead`.
+  // The handover that follows closes a competitive game whose window names this team's villain phase
+  // (`executeTeamHandover`), and the last team's skipped phase closes it after the round's end effects
+  // (`executeEndOfRound`).
+  const remaining = Math.max(0, teamVillainPhaseCount(ctx.state, "skip", team) - 1);
+  setTeamVillainPhaseCount(ctx, "skip", team, remaining);
+  emit(ctx, { type: "villainPhaseSkipped", round: ctx.state.round, remaining, teamId: team });
+  const next = nextTeamInRound(ctx.state);
+  if (next) setStep(ctx, { phase: "villain", kind: "teamHandover", teamId: next.teamId });
+  else setStep(ctx, { phase: "villain", kind: "endOfRound", villainPhaseSkipped: true });
+}
+
+/**
  * A skip made after the player phase's end was read (by an effect that end resolved, "At the end of the player phase,
  * …"): the next villain phase is the one about to start, so it is skipped from here, before step one's threat. Its
  * beginning was already answered and "until the next villain phase begins" effects already ended (`finishPlayerPhase`
- * pushed both beneath the end's effects); an engine reading, no ruling covers the order.
+ * pushed both beneath the end's effects); an engine reading, no ruling covers the order. A skip made once the phase has
+ * begun (by its beginning) is not taken here: it is the next villain phase's (`villainPhaseRequestTakenNow`).
  */
 function skipsVillainPhaseNow(ctx: Ctx): boolean {
-  if ((ctx.state.villainPhasesToSkip ?? 0) <= 0) return false;
+  if (skipsWaiting(ctx.state) <= 0) return false;
   skipVillainPhase(ctx);
   return true;
 }
@@ -874,13 +950,51 @@ function skipsVillainPhaseNow(ctx: Ctx): boolean {
  * authority for custom cards). Returns false when no replacement is waiting.
  */
 function playerPhaseInsteadNow(ctx: Ctx): boolean {
-  const waiting = ctx.state.villainPhasesReplacedByPlayerPhase ?? 0;
+  const waiting = replacementsWaiting(ctx.state);
   if (waiting <= 0) return false;
-  const { villainPhasesReplacedByPlayerPhase: _used, ...rest } = ctx.state;
-  ctx.state = waiting > 1 ? { ...rest, villainPhasesReplacedByPlayerPhase: waiting - 1 } : rest;
-  emit(ctx, { type: "villainPhaseSkipped", round: ctx.state.round, remaining: waiting - 1, playerPhaseInstead: true });
+  const team = ctx.state.activeTeamId;
+  if (team !== undefined) {
+    // With two teams the replacement is the active team's own (MC56 pp. 16, 20 + N8, settled by the rules expert for
+    // PR #923), and its villain phase follows the extra phase (`playerPhaseInsteadTeamId`, `finishPlayerPhase`).
+    setTeamVillainPhaseCount(ctx, "replace", team, waiting - 1);
+    ctx.state = { ...ctx.state, playerPhaseInsteadTeamId: team };
+  } else {
+    const { villainPhasesReplacedByPlayerPhase: _used, ...rest } = ctx.state;
+    ctx.state = waiting > 1 ? { ...rest, villainPhasesReplacedByPlayerPhase: waiting - 1 } : rest;
+  }
+  emit(ctx, {
+    type: "villainPhaseSkipped",
+    round: ctx.state.round,
+    remaining: waiting - 1,
+    playerPhaseInstead: true,
+    ...(team !== undefined ? { teamId: team } : {}),
+  });
   beginPlayerPhase(ctx);
   return true;
+}
+
+/**
+ * The step after the end of a team's player phase played in place of its villain phase: that phase is over, so
+ * `playerPhaseInsteadTeamId` is cleared, and a competitive game whose window names that team's villain phase closes
+ * now, as it would after the villain phase itself (MC56 p. 17). Returns whether the game ended. Nothing to do (false)
+ * in every other phase.
+ *
+ * The MC56 p. 17 slot note, the one place it is written:
+ * MC56 p. 17 equal phases count the p. 16 round slots: a skipped villain phase (Q101 A) or a player phase in its
+ * place fills that team's villain slot; engine reading, provisional owner call 2026-11-21
+ */
+function endPlayerPhaseInstead(ctx: Ctx): boolean {
+  const team = ctx.state.playerPhaseInsteadTeamId;
+  if (team === undefined) return false;
+  clearPlayerPhaseInstead(ctx);
+  return closeCompetitiveIfDue(ctx, { teamId: team, phase: "villain", round: ctx.state.round });
+}
+
+/** Clears `playerPhaseInsteadTeamId`: the player phase played in place of a villain phase is over. */
+function clearPlayerPhaseInstead(ctx: Ctx): void {
+  if (ctx.state.playerPhaseInsteadTeamId === undefined) return;
+  const { playerPhaseInsteadTeamId: _instead, ...rest } = ctx.state;
+  ctx.state = rest;
 }
 
 /** The delayed effects waiting on this timing point, marked fired (they resolve through the stack next). */
@@ -906,6 +1020,12 @@ function pushDelayed(ctx: Ctx, delayed: readonly Extract<LastingEffect, { kind: 
  * effects resolve through the stack, then the round actually ends.
  */
 function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound" }>): void {
+  // Defensive: a team's player phase played in place of its villain phase is over by now (the `placeThreat` step clears
+  // the flag, and closes a due game, before any skip of that team's villain phase), so no flag outlives the round.
+  if (!step.delayedResolved) clearPlayerPhaseInstead(ctx);
+  // With two teams only the last team's villain phase ends the round (MC56 p. 16, p. 20; one shared round, Q3 B per
+  // owner decision 2026-11-20): the first team's ends its phase alone, and the next team's villain phase follows.
+  const nextTeam = nextTeamInRound(ctx.state);
   if (!step.delayedResolved) {
     // RRG 1.8 "Villain Phase" (p. 47) step 6: "until the end of the phase/round" effects end (6a), then "when/after the
     // [villain] phase ends" and "when/after the round ends" resolve (6b) — one timing point, an event when an ability
@@ -913,13 +1033,17 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     // (H3.7) never began, so only the round ends: `phase: "round"`, which "when the villain phase ends" does not hear.
     const skipped = step.villainPhaseSkipped === true;
     if (skipped && SKIPPED_VILLAIN_PHASE_PASSES_TOKEN) passFirstPlayerToken(ctx);
-    const ending: TriggerEvent = { kind: "phaseEnding", phase: skipped ? "round" : "villain" };
+    const ending: TriggerEvent = {
+      kind: "phaseEnding",
+      phase: skipped ? "round" : "villain",
+      ...(nextTeam ? { roundContinues: true as const } : {}),
+    };
     const listened = heard(ctx.state, ctx.deps, ending);
     // The villain phase and the round end together: "at the end of the phase" effects first, then the round's.
     const phaseDelayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
-    const delayed = listened ? [] : takeDelayed(ctx, "endOfRound");
+    const delayed = listened || nextTeam ? [] : takeDelayed(ctx, "endOfRound");
     expireLastingEffects(ctx, "endOfPhase");
-    expireLastingEffects(ctx, "endOfRound");
+    if (!nextTeam) expireLastingEffects(ctx, "endOfRound");
     setStep(ctx, {
       phase: "villain",
       kind: "endOfRound",
@@ -930,6 +1054,15 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     else pushDelayed(ctx, [...phaseDelayed, ...delayed]);
     return;
   }
+  if (nextTeam) {
+    if (!step.villainPhaseSkipped) announce(ctx, { kind: "villainPhaseEnded" });
+    setStep(ctx, { phase: "villain", kind: "teamHandover", teamId: nextTeam.teamId });
+    return;
+  }
+  // The last team's villain phase is over (MC56 p. 17: both sides have now played the same number of phases).
+  const lastTeam = activeTeamOf(ctx.state);
+  if (lastTeam && closeCompetitiveIfDue(ctx, { teamId: lastTeam.teamId, phase: "villain", round: ctx.state.round }))
+    return;
   for (const player of ctx.state.players) {
     updatePlayer(ctx, player.playerId, (p) => ({
       ...p,
@@ -950,7 +1083,88 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     ...(ctx.state.revealedThisRound ? { revealedThisRound: [] } : {}),
   };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
+  // With two teams the first (registration) team goes first each round (MC56 p. 16).
+  const [firstTeam] = ctx.state.activeTeamId !== undefined ? teamsOf(ctx.state) : [];
+  if (firstTeam) switchActiveTeam(ctx, firstTeam.teamId, "player");
   beginPlayerPhase(ctx);
   // A skipped villain phase (H3.7) did not end: it never began.
   if (!step.villainPhaseSkipped) announce(ctx, { kind: "villainPhaseEnded" });
+}
+
+/**
+ * The team whose phase follows the active team's phase of the same kind within this round, or null when the active
+ * team is the last (or no team is active). MC56 p. 16: the registration team's phase comes first, then the resistance
+ * team's, for the hero phases and again for the villain phases.
+ */
+function nextTeamInRound(state: GameState): TeamState | null {
+  const active = activeTeamOf(state);
+  return active ? nextTeamAfter(state, active.teamId) : null;
+}
+
+/**
+ * The phase that follows the active team's hero phase (MC56 p. 16, p. 20): the next team's hero phase, or after the
+ * last team's, the first team's villain phase. Null with no active team: the villain phase follows as in every game.
+ */
+function handoverAfterPlayerPhase(
+  state: GameState,
+): { readonly teamId: TeamId; readonly phase: "player" | "villain" } | null {
+  const active = activeTeamOf(state);
+  if (!active) return null;
+  const next = nextTeamAfter(state, active.teamId);
+  if (next) return { teamId: next.teamId, phase: "player" };
+  const [first] = teamsOf(state);
+  return first ? { teamId: first.teamId, phase: "villain" } : null;
+}
+
+/**
+ * `GameStep teamHandover`: the ending team's end-of-phase effects have resolved, so the next team becomes the active
+ * team (`switchActiveTeam`: its first player and its leader become the table's) and its phase begins. The phase's own
+ * records start empty (per-phase ability limits and the "this phase" tallies): "until the end of the phase" and "once
+ * per phase" are the acting team's phase (MC56 p. 16; Q3 B per owner decision 2026-11-20).
+ */
+function executeTeamHandover(ctx: Ctx, step: Extract<GameStep, { kind: "teamHandover" }>): void {
+  // The ending team's phase is over: a competitive game whose result is in closes once both sides have played the same
+  // number of phases (MC56 p. 17). The handover after a hero phase names the next hero phase, or the first team's
+  // villain phase after the last team's hero phase; after a villain phase, the next team's villain phase.
+  // A skipped villain phase (`skipTeamVillainPhase`) reaches here as an ended villain phase too, and so does a player
+  // phase played in its place (`endPlayerPhaseInstead`): see the MC56 p. 17 slot note there.
+  if (endPlayerPhaseInstead(ctx)) return;
+  const ending = activeTeamOf(ctx.state);
+  const endedPhase = phaseBeingPlayed(ctx.state);
+  if (ending && closeCompetitiveIfDue(ctx, { teamId: ending.teamId, phase: endedPhase, round: ctx.state.round }))
+    return;
+  clearAbilityUses(ctx, "phase");
+  ctx.state = { ...ctx.state, playedThisPhase: {} };
+  clearDamageTakenThisPhase(ctx);
+  clearCharacterActsThisPhase(ctx);
+  clearPlayedByPlayerThisPhase(ctx);
+  // A team's villain phase a player phase replaces is played as a player phase (`playerPhaseInsteadNow`).
+  const replaced = step.phase === "villain" && teamVillainPhaseCount(ctx.state, "replace", step.teamId) > 0;
+  switchActiveTeam(ctx, step.teamId, replaced ? "player" : step.phase);
+  if (step.phase === "player") {
+    beginPlayerPhase(ctx);
+    return;
+  }
+  // The team's own skips and replacements are read before its villain phase begins, so a skipped phase never begins:
+  // no beginning to answer and no expiry of "until the next villain phase begins" (MC56 pp. 16, 20 + N8, 2026-11-20;
+  // 61020 "(unskipped)"; Q101 A, H3.7/H3.8; RRG 1.8 "Lasting Effects", p. 26; settled by the rules expert for PR #923).
+  if (playerPhaseInsteadNow(ctx) || skipsVillainPhaseNow(ctx)) return;
+  setStep(ctx, { phase: "villain", kind: "placeThreat" });
+  pushVillainPhaseBeginning(ctx);
+}
+
+/**
+ * At step one's place, before its threat: a replacement, then a skip, that this villain phase is to take. Only one made
+ * before the phase began counts (under the player phase's end, `skipsVillainPhaseNow`); one made since, by its
+ * beginning, is the next villain phase's and stays counted for it (`villain-phase-begun.ts`, PR #923 review P1).
+ * Returns whether one was taken. What was noted since the beginning is forgotten once read: here when a phase is taken,
+ * else at step one's threat (`executePlaceThreat`).
+ */
+function villainPhaseRequestTakenNow(ctx: Ctx): boolean {
+  const since = ctx.state.madeSinceVillainPhaseBegan;
+  const taken =
+    (replacementsWaiting(ctx.state) > (since?.replace ?? 0) && playerPhaseInsteadNow(ctx)) ||
+    (skipsWaiting(ctx.state) > (since?.skip ?? 0) && skipsVillainPhaseNow(ctx));
+  if (taken) clearMadeSinceVillainPhaseBegan(ctx);
+  return taken;
 }

@@ -4,7 +4,16 @@ import { announceDeckTops } from "./deck-top.js";
 import type { EngineDeps } from "./abilities.js";
 import { ALL_PURPOSE_COUNTER, ANY_COUNTER, anyCounterTake, definedCounterTypeOrNull } from "./counter-types.js";
 import { counterRoom } from "./counter-limit.js";
-import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, InstanceId, PlayerId, TeamId } from "./ids.js";
+import {
+  competitiveCloseDue,
+  competitiveOutcome,
+  hasTeamOutcome,
+  recordTeamCondition,
+  recordTeamLoss,
+  teamOfSide,
+  type ResultSide,
+} from "./competitive-outcome.js";
 import {
   emit,
   moveCard,
@@ -43,6 +52,8 @@ import {
   playerCardOwnerOf,
   villainOf,
   areaOfPlayer,
+  encounterDeckArea,
+  mainSchemeFor,
 } from "./query.js";
 import { hasPerPlayerMainSchemes } from "./per-player-main-schemes.js";
 import type { GameEvent, StatusDiscardCause } from "./events.js";
@@ -57,6 +68,8 @@ import {
   type TriggerEvent,
   type TuckHostKind,
 } from "./trigger-events.js";
+import { sidesOf } from "./event-sides.js";
+import { creatingTeamOf } from "./team-phases.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
@@ -106,6 +119,7 @@ import type {
 } from "./state.js";
 import type { AttachmentBound, LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 import { noteLeftPlayInLastingEffects } from "./lasting.js";
+import { noteLastingSinceVillainPhaseBegan } from "./villain-phase-begun.js";
 
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
@@ -216,14 +230,59 @@ export function swapIdentity(ctx: Ctx, playerId: PlayerId): boolean {
   return true;
 }
 
-export function endGame(ctx: Ctx, outcome: GameOutcome): void {
+/**
+ * Ends the game with `outcome`. In a competitive game (stored teams) a win or loss belongs to one team (`side` names
+ * where it comes from: the defeated leader, the completed scheme, the eliminated player, the card whose text lost, the
+ * exhausted deck): it is recorded for that team instead, and the game goes on until both sides have played an equal
+ * number of phases (MC56 p. 17; `competitive-outcome.ts`), unless no seat is left to play one.
+ */
+export function endGame(ctx: Ctx, outcome: GameOutcome, side: ResultSide = {}): void {
   if (ctx.state.outcome) return;
+  if (hasTeamOutcome(ctx.state) && (outcome.result === "win" || outcome.result === "loss")) {
+    const team = teamOfSide(ctx.state, side);
+    if (team) {
+      // Every win the engine reports is the enemy leader's defeat (the villain defeated) or a card's own "you win the
+      // game"; MC56 p. 17 names no other win, so a card-text win is recorded as that team's `enemyLeaderDefeated`
+      // (engine reading, authority step 5: it is the one win condition that is that team's own achievement).
+      if (outcome.result === "win")
+        recordTeamCondition(ctx, team.teamId, "enemyLeaderDefeated", side.instanceId ?? undefined);
+      else recordTeamLoss(ctx, team.teamId, TEAM_LOSS_CONDITION[outcome.reason], side.instanceId ?? undefined);
+      closeCompetitiveIfDue(ctx, null);
+      return;
+    }
+  }
   // Nothing more resolves, so a card an ability still held in an eliminated player's hand goes to their discard pile
   // now, before `gameEnded` is logged: no card moves are logged after it (#816 review).
   discardEliminatedHands(ctx);
   ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };
   setStep(ctx, { phase: "gameOver", kind: "gameOver" });
   emit(ctx, { type: "gameEnded", outcome });
+}
+
+/** A team's loss, by its reason, as the other team's win condition (MC56 p. 17). */
+const TEAM_LOSS_CONDITION: Readonly<
+  Record<
+    Extract<GameOutcome, { result: "loss" }>["reason"],
+    "leaderSchemeCompleted" | "opponentsDefeated" | "opponentsLost"
+  >
+> = {
+  mainSchemeCompleted: "leaderSchemeCompleted",
+  allPlayersDefeated: "opponentsDefeated",
+  cardAbility: "opponentsLost",
+  encounterDeckExhausted: "opponentsLost",
+};
+
+/**
+ * Ends a competitive game whose window has closed: after the phase `ended` (the last team's phase the first result
+ * named), or at once when every seat is eliminated (MC56 p. 17). Returns whether it ended.
+ */
+export function closeCompetitiveIfDue(
+  ctx: Ctx,
+  ended: { readonly teamId: TeamId; readonly phase: "player" | "villain"; readonly round: number } | null,
+): boolean {
+  if (ctx.state.outcome || !competitiveCloseDue(ctx.state, ended)) return false;
+  endGame(ctx, competitiveOutcome(ctx.state, ctx.deps));
+  return true;
 }
 
 /**
@@ -648,7 +707,11 @@ export function resetEncounterDeckIfEmpty(ctx: Ctx, deckId: EncounterDeckId): bo
   };
   // The new deck's top card shows at once when the deck is kept faceup (docs/phase7-wave9.md §3.42).
   announceDeckTops(ctx);
-  addAccelerationToken(ctx);
+  // With two teams, on the main scheme of the area this deck is in: each half of the table has its own main scheme
+  // deck and encounter deck (MC56 p. 15; scenario rules override RRG per Golden Rule, RRG p. 4). Every other game: the
+  // main scheme, as before.
+  const deckArea = encounterDeckArea(ctx.state, deckId);
+  addAccelerationToken(ctx, deckArea ? mainSchemeFor(ctx.state, deckArea)?.instanceId : undefined);
   if (listensForDeckRunOut(ctx.deps)) {
     ctx.state = {
       ...ctx.state,
@@ -683,8 +746,11 @@ export function loseIfEncounterCardsExhausted(ctx: Ctx, deckId: EncounterDeckId)
   if (ctx.state.outcome || ctx.state.step.phase === "setup") return false;
   const piles = ctx.state.encounterDecks[deckId];
   if (!piles || piles.deck.length > 0 || piles.discard.length > 0) return false;
-  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" });
-  return true;
+  // RRG v1.8 "Encounter Deck" p. 17: immediate reshuffle + acceleration token; deck and discard both empty = that team loses (MC56 adds no exception; p. 17 equal-phase window applies)
+  // With two teams, `endGame` records the loss for the team whose area holds `deckId` (the other team's
+  // `opponentsLost`) and the game closes once both sides have played an equal number of phases (MC56 p. 17).
+  endGame(ctx, { result: "loss", reason: "encounterDeckExhausted" }, { deckId });
+  return !ctx.state.teams || ctx.state.outcome !== null;
 }
 
 /**
@@ -1962,8 +2028,15 @@ function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
     ...(speakerId !== null ? { speakerId } : {}),
     traits: traitsOf(state, id, deps),
     ...(stranded.length > 0 ? { strandedAttachments: stranded } : {}),
+    // The side of a split table it left play on, read while it is still there (`TriggerEvent.sides`; MC56 pp. 16, 20):
+    // a minion defeated on the other team's side goes to its own area's discard pile, but left play over there.
+    ...(state.gameAreas.length > 0
+      ? { sides: sidesOf(state, [id], [controllerId ?? speakerId].filter(isPlayer)) }
+      : {}),
   };
 }
+
+const isPlayer = (id: PlayerId | null): id is PlayerId => id !== null;
 
 /**
  * RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the victory
@@ -2509,12 +2582,16 @@ function leaveNow(
   // The outcome names the card whose text lost it, and the card that left when that is another card (Robert Kelly
   // under Stalked by Sabretooth; Odin's own rule names only Odin).
   if (losesBy !== null) {
-    endGame(ctx, {
-      result: "loss",
-      reason: "cardAbility",
-      sourceInstanceId: losesBy,
-      ...(losesBy !== id ? { causeInstanceId: id } : {}),
-    });
+    endGame(
+      ctx,
+      {
+        result: "loss",
+        reason: "cardAbility",
+        sourceInstanceId: losesBy,
+        ...(losesBy !== id ? { causeInstanceId: id } : {}),
+      },
+      { instanceId: losesBy },
+    );
   }
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });
@@ -2547,11 +2624,12 @@ export function addLastingEffect(
   body: LastingEffectBody,
   duration: LastingDuration,
   whileAttached?: AttachmentBound,
+  creator?: LastingCreator,
 ): LastingEffect {
   const effect = {
     ...body,
     id: lastingEffectIdOf(ctx.state.nextLastingSeq),
-    duration,
+    duration: withCreatingTeam(ctx.state, duration, creator),
     ...(whileAttached ? { whileAttached } : {}),
   } as LastingEffect;
   ctx.state = {
@@ -2560,6 +2638,9 @@ export function addLastingEffect(
     nextLastingSeq: ctx.state.nextLastingSeq + 1,
   };
   emit(ctx, { type: "lastingEffectAdded", effect });
+  // Made once the villain phase about to start has begun: it lasts to the next one (`villain-phase-begun.ts`).
+  if (effect.duration.kind === "nextVillainPhaseBegins")
+    noteLastingSinceVillainPhaseBegan(ctx, effect.id, effect.duration.teamId);
   return effect;
 }
 
@@ -2586,19 +2667,53 @@ export function expireLastingEffects(
   }
 }
 
-/** The lasting effects that end when the villain phase next begins (`LastingDuration nextVillainPhaseBegins`). */
+/** The ability that made a lasting effect: its controller and its card (`EffectContext`). */
+export interface LastingCreator {
+  readonly controllerId: PlayerId | null;
+  readonly selfInstanceId: InstanceId | null;
+}
+
+/**
+ * "Until the next villain phase begins" made in a game whose phases a team plays is the creating team's (MC56 pp. 16,
+ * 20 + N8, 2026-11-20, settled by the rules expert for PR #923): the team of `creator`, the ability that made it
+ * (`creatingTeamOf`), or, with none given, of the nearest effects frame on the stack. Every other duration, and every
+ * duration in a game without an active team, is kept as given.
+ */
+function withCreatingTeam(state: GameState, duration: LastingDuration, creator?: LastingCreator): LastingDuration {
+  if (duration.kind !== "nextVillainPhaseBegins" || duration.teamId !== undefined) return duration;
+  if (state.activeTeamId === undefined) return duration;
+  const from = creator ?? state.stack.find((candidate) => candidate.kind === "effects");
+  const teamId = from
+    ? creatingTeamOf(state, from.controllerId, from.selfInstanceId)
+    : creatingTeamOf(state, null, null);
+  return teamId === null ? duration : { ...duration, teamId };
+}
+
+/**
+ * The lasting effects that end when the villain phase next begins (`LastingDuration nextVillainPhaseBegins`). With two
+ * teams, those of the team whose villain phase it is (`teamId`): a team's skipped phase never begins, so the effect
+ * lasts to its own next unskipped one (61020 "(unskipped)"; RRG 1.8 "Lasting Effects", p. 26; MC56 pp. 16, 20 + N8).
+ */
 export const untilNextVillainPhase = (state: GameState): readonly LastingEffect[] =>
-  state.lastingEffects.filter((effect) => effect.duration.kind === "nextVillainPhaseBegins");
+  state.lastingEffects.filter(
+    (effect) =>
+      effect.duration.kind === "nextVillainPhaseBegins" &&
+      (effect.duration.teamId === undefined ||
+        state.activeTeamId === undefined ||
+        effect.duration.teamId === state.activeTeamId),
+  );
 
 /**
  * "Until the next villain phase begins" (docs/phase7-wave8.md §3.13): the villain phase is beginning, so every lasting
  * effect waiting on that ends. Reached twice by design, and the second finds nothing unless something was made in
  * between: once beneath the player phase's end (`finishPlayerPhase`, the `villainPhaseBegins` step), so the effect is
  * gone before anything answers the phase beginning; and as step one starts (`executePlaceThreat`), for an effect made
- * while the player phase's end was still resolving.
+ * while the player phase's end was still resolving. `keep` are the ids that call leaves: effects made once the phase
+ * had begun (by its beginning), which last to the next villain phase (`GameState.madeSinceVillainPhaseBegan`).
  */
-export function expireNextVillainPhaseEffects(ctx: Ctx): void {
-  for (const effect of untilNextVillainPhase(ctx.state)) endLastingEffect(ctx, effect.id, "expired");
+export function expireNextVillainPhaseEffects(ctx: Ctx, keep: readonly string[] = []): void {
+  for (const effect of untilNextVillainPhase(ctx.state))
+    if (!keep.includes(effect.id)) endLastingEffect(ctx, effect.id, "expired");
 }
 
 /**

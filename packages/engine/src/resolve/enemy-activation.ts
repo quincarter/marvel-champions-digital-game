@@ -1,6 +1,8 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
 import { displayNameOf } from "../visibility.js";
+import { boostDeckOf } from "../team-phases.js";
+import { teamOf } from "../team.js";
 import { type AbilityDefinition, DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   announceResourcesSpent,
@@ -145,7 +147,8 @@ export const dashedStatSkipsActivation = (
  * `EffectSpec giveBoostCard.forBasicPower`).
  */
 export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation = false, forBasicPower = false): void {
-  const id = drawEncounterCard(ctx);
+  // With two teams, from the deck of the area the enemy is in (`boostDeckOf`; MC56 p. 16, Q6, N5).
+  const id = drawEncounterCard(ctx, boostDeckOf(ctx.state, enemyId));
   if (!id) return;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "boost", hostInstanceId: enemyId });
@@ -1265,6 +1268,8 @@ export function applyEnemyAttacksEnemy(
         stage: "giveBoost",
         eventFrameId: frameId,
         versusEnemy: true,
+        // "Do not give it a boost card" (`enemyAttacksEnemy.boost` "held"): only the cards already on it are turned.
+        ...(event.heldBoostOnly ? { noBoost: true } : {}),
       },
     ]);
     return;
@@ -1333,8 +1338,12 @@ export function legalDefenders(
   // RRG 1.8 "Peril" (p. 32): while a player resolves a peril card, only that player's characters may defend (ruling
   // Jul 9, 2026 (3) #5, Hull Breach: other players cannot defend).
   const perilResolver = perilResolverId(state, deps);
+  // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4): only the attacked player's team defends;
+  // the other side of the table is inactive and its characters are not in play in this area.
+  const defendingTeam = state.teams ? teamOf(state, attackedPlayerId).playerIds : null;
   for (const player of playerOrder(state)) {
     if (perilResolver !== null && player.playerId !== perilResolver) continue;
+    if (defendingTeam !== null && !defendingTeam.includes(player.playerId)) continue;
     // Ready, or under a rule that has it defend without exhausting (`RuleSpec defendsWithoutExhausting`,
     // docs/phase7-wave9.md §3.47; RRG 1.8 "Defend, Defense", p. 15: such an ability "can be used on an exhausted hero").
     const canDeclare = (id: InstanceId, exhausted: boolean): boolean =>

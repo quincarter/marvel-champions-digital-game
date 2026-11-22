@@ -69,14 +69,25 @@ const VILLAIN_ENDS = stubAbility(
 const ROUND_ENDS = stubAbility(
   "watcher.round-ends",
   def({
-    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: "round" } } },
     effects: [tally("roundEnds")],
+  }),
+);
+/**
+ * "When the villain phase or the round ends": the list form, each phase heard on its own. With one team the round ends
+ * once, either as the villain phase ends or alone when the phase was skipped, so it fires once a round either way.
+ */
+const VILLAIN_OR_ROUND = stubAbility(
+  "watcher.villain-or-round",
+  def({
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    effects: [tally("villainOrRound")],
   }),
 );
 const WATCHER = stubSupport({
   id: "watcher",
   cost: 0,
-  abilities: [VILLAIN_BEGINS.ref, VILLAIN_ENDS.ref, ROUND_ENDS.ref],
+  abilities: [VILLAIN_BEGINS.ref, VILLAIN_ENDS.ref, ROUND_ENDS.ref, VILLAIN_OR_ROUND.ref],
 });
 const FLEETING = stubSupport({ id: "fleeting", cost: 0, keywords: [{ name: "temporary" }] });
 const villainWard = (until: "endOfPhase" | "endOfRound"): EffectSpec => ({
@@ -93,6 +104,41 @@ const DUSK = stubAbility(
   }),
 );
 const DUSK_CARD = stubSupport({ id: "dusk", cost: 0, abilities: [DUSK.ref] });
+/** "Forced Interrupt: When the villain phase begins, skip the next villain phase, then remove this card from the game." */
+const DAWN = stubAbility(
+  "dawn.interrupt",
+  def({
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseBeginning", eventIs: { phase: "villain" } } },
+    effects: [
+      { kind: "skipNextVillainPhase" },
+      { kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "removedFromGame" },
+    ],
+  }),
+);
+const DAWN_CARD = stubSupport({ id: "dawn", cost: 0, abilities: [DAWN.ref] });
+/** As DAWN, with "start another player phase" in place of the next villain phase. */
+const DAWN_REPLACE = stubAbility("dawn-replace.interrupt", {
+  ...DAWN.definition,
+  effects: [{ kind: "replaceNextVillainPhaseWithPlayerPhase" }, DAWN.definition.effects[1]!],
+});
+const DAWN_REPLACE_CARD = stubSupport({ id: "dawn-replace", cost: 0, abilities: [DAWN_REPLACE.ref] });
+/** As DAWN, with "the villain cannot take damage until the next villain phase begins". */
+const DAWN_WARD = stubAbility("dawn-ward.interrupt", {
+  ...DAWN.definition,
+  effects: [WARD.ability.definition.effects[0]!, DAWN.definition.effects[1]!],
+});
+const DAWN_WARD_CARD = stubSupport({ id: "dawn-ward", cost: 0, abilities: [DAWN_WARD.ref] });
+/** "Forced Interrupt: When the villain phase begins, cancel that, then remove this card from the game." */
+const CANCEL = stubAbility("cancel.interrupt", {
+  ...DAWN.definition,
+  effects: [{ kind: "cancelTriggeringEvent" }, DAWN.definition.effects[1]!],
+});
+const CANCEL_CARD = stubSupport({ id: "cancel", cost: 0, abilities: [CANCEL.ref] });
+/** "At the end of the phase, start another player phase" in place of the next villain phase. */
+const LATER_REPLACE = action("later-replace", {
+  kind: "atEndOfPhase",
+  effects: [{ kind: "replaceNextVillainPhaseWithPlayerPhase" }],
+});
 /** "At the end of the round, …" (a delayed effect) and "until the end of the round" (a lasting one). */
 const LATER = action("later", { kind: "atEndOfRound", effects: [tally("delayed")] });
 const ROUND_WARD = action("round-ward", villainWard("endOfRound"));
@@ -105,7 +151,13 @@ const deps = depsOf(
   VILLAIN_BEGINS,
   VILLAIN_ENDS,
   ROUND_ENDS,
+  VILLAIN_OR_ROUND,
   DUSK,
+  DAWN,
+  DAWN_REPLACE,
+  DAWN_WARD,
+  CANCEL,
+  LATER_REPLACE.ability,
   LATER.ability,
   ROUND_WARD.ability,
 );
@@ -114,13 +166,32 @@ const deps = depsOf(
 function start(): GameState {
   let state = gameAtFirstTurn({
     players: 2,
-    cards: [SKIP.card, DEAL.card, WARD.card, HIT.card, LATER.card, ROUND_WARD.card, WATCHER, FLEETING, DUSK_CARD],
+    cards: [
+      SKIP.card,
+      DEAL.card,
+      WARD.card,
+      HIT.card,
+      LATER.card,
+      ROUND_WARD.card,
+      WATCHER,
+      FLEETING,
+      DUSK_CARD,
+      DAWN_CARD,
+      DAWN_REPLACE_CARD,
+      DAWN_WARD_CARD,
+      CANCEL_CARD,
+      LATER_REPLACE.card,
+    ],
     deps,
     deck: [
       WATCHER.id,
       FLEETING.id,
       DUSK_CARD.id,
-      ...[SKIP, DEAL, WARD, HIT, LATER, ROUND_WARD].flatMap((e) => copiesOf(e.card.id, 3)),
+      DAWN_CARD.id,
+      DAWN_REPLACE_CARD.id,
+      DAWN_WARD_CARD.id,
+      CANCEL_CARD.id,
+      ...[SKIP, LATER_REPLACE, DEAL, WARD, HIT, LATER, ROUND_WARD].flatMap((e) => copiesOf(e.card.id, 3)),
     ],
     encounter: copiesOf(TREACHERY.id, 30),
   });
@@ -175,6 +246,7 @@ describe("H3.7 skipping the next villain phase (Q101 A)", () => {
     expect([counter(state, "villainBegins"), counter(state, "villainEnds"), counter(state, "roundEnds")]).toEqual([
       1, 1, 1,
     ]);
+    expect(counter(state, "villainOrRound")).toBe(1);
     expect(temporaryInPlay(state)).toBe(false);
   });
 
@@ -205,6 +277,7 @@ describe("H3.7 skipping the next villain phase (Q101 A)", () => {
     expect([counter(state, "villainBegins"), counter(state, "villainEnds"), counter(state, "roundEnds")]).toEqual([
       0, 0, 1,
     ]);
+    expect(counter(state, "villainOrRound")).toBe(1);
     expect(temporaryInPlay(state)).toBe(false);
   });
 
@@ -234,6 +307,122 @@ describe("H3.7 skipping the next villain phase (Q101 A)", () => {
     expect([counter(state, "villainEnds"), counter(state, "roundEnds")]).toEqual([0, 1]);
     // Engine reading (flow.ts `skipsVillainPhaseNow`): its beginning was already answered when the skip was made.
     expect(counter(state, "villainBegins")).toBe(1);
+  });
+
+  it("a skip made as the villain phase begins leaves that phase to run, and skips the next one (PR #923 review P1)", () => {
+    // The phase has begun (`VillainPhaseBegun`), so "the next villain phase" is the following round's.
+    const game = playerCardIntoPlay(start(), DAWN_CARD.id).state;
+    const played = endRound(game);
+    expect(of(played.events, "villainPhaseSkipped")).toEqual([]);
+    expect(of(played.events, "threatPlaced").length).toBeGreaterThan(0);
+    expect(played.state.firstPlayerId).toBe(P2);
+    expect([counter(played.state, "villainBegins"), counter(played.state, "villainEnds")]).toEqual([1, 1]);
+    expect(played.state.villainPhasesToSkip).toBe(1);
+    const skipped = driveSession(startSession(played.state), deps, [
+      { type: "endTurn", playerId: P2 },
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(of(skipped.events, "villainPhaseSkipped")).toEqual([
+      { type: "villainPhaseSkipped", round: played.state.round, remaining: 0 },
+    ]);
+    expect(of(skipped.events, "threatPlaced")).toEqual([]);
+  });
+
+  it("a replacement made as the villain phase begins leaves that phase to run, and replaces the next one", () => {
+    const game = playerCardIntoPlay(start(), DAWN_REPLACE_CARD.id).state;
+    const played = endRound(game);
+    expect(of(played.events, "villainPhaseSkipped")).toEqual([]);
+    expect(of(played.events, "threatPlaced").length).toBeGreaterThan(0);
+    expect([counter(played.state, "villainBegins"), counter(played.state, "villainEnds")]).toEqual([1, 1]);
+    expect(played.state.villainPhasesReplacedByPlayerPhase).toBe(1);
+    expect(played.state.madeSinceVillainPhaseBegan).toBeUndefined();
+    const replaced = driveSession(startSession(played.state), deps, [
+      { type: "endTurn", playerId: P2 },
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(of(replaced.events, "villainPhaseSkipped")).toEqual([
+      { type: "villainPhaseSkipped", round: played.state.round, remaining: 0, playerPhaseInstead: true },
+    ]);
+    expect(of(replaced.events, "threatPlaced")).toEqual([]);
+    expect(replaced.session.state.step).toMatchObject({ phase: "player", kind: "turn" });
+    expect(replaced.session.state.round).toBe(played.state.round);
+  });
+
+  it("a ward a 'when the villain phase begins' ability makes outlasts step one, to the next villain phase", () => {
+    const game = playerCardIntoPlay(start(), DAWN_WARD_CARD.id).state;
+    const played = endRound(game);
+    expect(played.state.lastingEffects).toMatchObject([
+      { kind: "ruleGrant", duration: { kind: "nextVillainPhaseBegins" } },
+    ]);
+    expect(hit(played.state, P2)).toBe("blocked");
+    const next = driveSession(startSession(played.state), deps, [
+      { type: "endTurn", playerId: P2 },
+      { type: "endTurn", playerId: P1 },
+    ]);
+    expect(next.session.state.lastingEffects).toEqual([]);
+  });
+
+  it("a 'when the villain phase begins' listener: one stepChanged to step one's place, and no new state", () => {
+    // The watcher hears the beginning, as Hood or a Kree Fanatic would. Nothing is made for the next villain phase
+    // there, so `madeSinceVillainPhaseBegan` never appears and the round is as it was before PR #923 review P1.
+    const game = start();
+    const driven = driveSession(startSession(game), deps, endTurns);
+    expect(counter(driven.session.state, "villainBegins")).toBe(1);
+    const toStepOne = of(driven.events, "stepChanged").filter((e) => e.to.kind === "placeThreat" && !e.to.placed);
+    expect(toStepOne).toHaveLength(1);
+    expect(JSON.stringify(driven.session.log)).not.toContain("madeSinceVillainPhaseBegan");
+    expect(driven.session.state.madeSinceVillainPhaseBegan).toBeUndefined();
+  });
+
+  it("a cancelled beginning never began: a skip made in its window before the cancel skips this phase", () => {
+    // The skip resolves first (its card entered play first) and is noted as made since the phase began; the cancel
+    // then clears that, so the phase whose beginning never occurred is the one skipped (RRG 1.8 "Cancel", p. 11).
+    let game = playerCardIntoPlay(start(), DAWN_CARD.id).state;
+    game = playerCardIntoPlay(game, CANCEL_CARD.id).state;
+    const { state, events } = endRound(game);
+    expect(of(events, "villainPhaseSkipped")).toEqual([
+      { type: "villainPhaseSkipped", round: game.round, remaining: 0 },
+    ]);
+    expect(of(events, "threatPlaced")).toEqual([]);
+    expect(state.firstPlayerId).toBe(P1);
+    expect(state.villainPhasesToSkip).toBe(0);
+    expect(state.madeSinceVillainPhaseBegan).toBeUndefined();
+  });
+
+  it("a skip from the player phase's end and one from the beginning: this phase is skipped, and the next one", () => {
+    // Dusk's skip is made under the player phase's end (this phase's); Dawn's as the phase begins (the next one's):
+    // two waiting, one of them noted since the beginning, so step one's place takes one and leaves one.
+    let game = playerCardIntoPlay(start(), DUSK_CARD.id).state;
+    game = playerCardIntoPlay(game, DAWN_CARD.id).state;
+    const first = endRound(game);
+    expect(of(first.events, "villainPhaseSkipped")).toEqual([
+      { type: "villainPhaseSkipped", round: game.round, remaining: 1 },
+    ]);
+    expect(of(first.events, "threatPlaced")).toEqual([]);
+    expect(first.state.villainPhasesToSkip).toBe(1);
+    expect(first.state.madeSinceVillainPhaseBegan).toBeUndefined();
+    // The token stayed (Q101 A), so P1 is first again. Dawn's skip takes this round's phase; Dusk makes another.
+    const second = endRound(first.state);
+    expect(of(second.events, "villainPhaseSkipped")).toHaveLength(1);
+    expect(of(second.events, "threatPlaced")).toEqual([]);
+  });
+
+  it("a replacement from the player phase's end and one from the beginning: two player phases, then the villain phase", () => {
+    let game = playerCardIntoPlay(start(), DAWN_REPLACE_CARD.id).state;
+    game = play(game, LATER_REPLACE.card);
+    const driven = driveSession(startSession(game), deps, [...endTurns, ...endTurns, ...endTurns]);
+    const replaced = of(driven.events, "villainPhaseSkipped");
+    expect(replaced).toEqual([
+      { type: "villainPhaseSkipped", round: game.round, remaining: 1, playerPhaseInstead: true },
+      { type: "villainPhaseSkipped", round: game.round, remaining: 0, playerPhaseInstead: true },
+    ]);
+    // The villain phase after the second extra player phase is played, and the round ends.
+    expect(of(driven.events, "threatPlaced").length).toBeGreaterThan(0);
+    // P2 in round one, P1 and P2 in each extra phase, then round two, whose first player is P2.
+    expect(of(driven.events, "turnStarted").map((e) => e.playerId)).toEqual([P2, P1, P2, P1, P2, P2]);
+    expect(driven.session.state.round).toBe(game.round + 1);
+    expect(driven.session.state.villainPhasesReplacedByPlayerPhase).toBeUndefined();
+    expect(driven.session.state.madeSinceVillainPhaseBegan).toBeUndefined();
   });
 
   it("only the next villain phase: the one after is played in full, and the token passes then", () => {

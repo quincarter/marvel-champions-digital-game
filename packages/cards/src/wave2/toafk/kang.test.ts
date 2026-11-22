@@ -14,8 +14,10 @@ import {
   firstLegal,
   identityOf,
   inst,
+  moveToHand,
   instancesOf,
   P1,
+  P2,
   patchInstance,
   playerOf,
   settle,
@@ -23,7 +25,7 @@ import {
 } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { drive, type Picks } from "../../testing/qa-bench.js";
-import { withForm } from "../../testing/staging.js";
+import { driveEventsPicking, withForm } from "../../testing/staging.js";
 import { defeatWithAttack, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { KANG_SET } from "./kang.js";
 
@@ -512,5 +514,54 @@ describe("Kang scenario", () => {
     expect(playerOf(state, P1).setAside).not.toContain(yellowjacket);
     expect(playerOf(state, P1).playArea).toContain(yellowjacket);
     expect(inst(state, yellowjacket).engagedWith).toBe(P1);
+  });
+});
+
+// Kang insert "Playing With Separate Game Areas": cards in one game area cannot affect another (except stage 2B); FFG
+// ruling Mar 6 2025 (Azazel). Environments and stage 2B are in every area (RRG 1.8 FAQ p. 60). Rules expert,
+// 2026-11-20, option A: a trigger hears only events in its own game area (`heardOnThisSide`, engine resolve/triggers.ts).
+describe("Kang's separate game areas: an event trigger hears its own area only", () => {
+  it("Black Widow (01075) in p1's area is offered for the card p1 reveals, not for the card p2 reveals in p2's area", () => {
+    const split = splitGame([BLACK_PANTHER, SPIDER_WOMAN]);
+    // Black Widow into p1's play area, ready, and a [mental] resource (Genius 01089) in p1's hand to pay her cost.
+    const held = moveToHand(split, P1, "01075", "01089");
+    const widow = held.ids[0]!;
+    const state = {
+      ...held.state,
+      players: held.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: p.hand.filter((i) => i !== widow), playArea: [...p.playArea, widow] } : p,
+      ),
+      instances: {
+        ...held.state.instances,
+        [widow]: { ...held.state.instances[widow]!, controllerId: P1, faceup: true, exhausted: false },
+      },
+    } as GameState;
+    expect(areaOf(state, P1).areaId).not.toBe(areaOf(state, P2).areaId);
+    const revealers: string[] = [];
+    let current = state;
+    while (current.round === state.round && !current.outcome && current.step.phase === "player") {
+      if (current.step.kind !== "turn") break;
+      const active = current.step.activePlayerId;
+      current = driveEventsPicking(
+        WAVE2_DEPS,
+        current,
+        (s) => {
+          const choice = s.pendingChoice!;
+          if (choice.prompt.kind === "chooseTriggers") {
+            const offersWidow = choice.options.some(
+              (o) => (o.ref.kind === "card" || o.ref.kind === "ability") && o.ref.instanceId === widow,
+            );
+            const event = choice.prompt.event;
+            if (offersWidow && choice.playerId === P1 && event.kind === "encounterCardRevealing")
+              revealers.push(event.playerId);
+            return [];
+          }
+          return firstLegal(s);
+        },
+        endTurn(active),
+      ).state;
+    }
+    expect(revealers).toContain(P1);
+    expect(revealers).not.toContain(P2);
   });
 });

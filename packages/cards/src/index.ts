@@ -80,7 +80,13 @@ export {
   wave10Scenario,
   wave10StarterDeckSetup,
 } from "./wave10/index.js";
-export type { Wave10Difficulty, Wave10ScenarioOptions } from "./wave10/index.js";
+export { civilWarCompetitive, competitiveModularSetProblem, leaderPlayerCardIds } from "./wave10/index.js";
+export type {
+  CivilWarCompetitiveOptions,
+  CivilWarCompetitiveTeam,
+  Wave10Difficulty,
+  Wave10ScenarioOptions,
+} from "./wave10/index.js";
 // Wave 11 (cycle 11, Jessica Jones and Luke Cage hero packs): scaffold, scripts in progress; its abilities are in `playable/`.
 export { WAVE11_ABILITIES, WAVE11_CARDS, WAVE11_DEPS } from "./wave11/index.js";
 // Fear No Evil's scenarios: the main scheme is the scenario, the villain an option (docs/phase7-wave11-scenarios.md §S3.3).

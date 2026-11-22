@@ -1,24 +1,25 @@
 /**
  * The game-mode choice of the Civil War scenario builder (docs/phase7-wave10-client.md §4): "Cooperative" and
- * "Competitive". Competitive mode does not ship in this wave, so it is shown, disabled, with its reason (the
- * "disabled, not omitted" convention) and can never be selected; the setup config always carries `"cooperative"`.
- * Enabling it later is flipping `enabled` on one row. The engine refuses `"competitive"` too
- * (`COMPETITIVE_MODE_UNAVAILABLE_MESSAGE`); the client never relies on that.
+ * "Competitive". Competitive is played in online rooms (the lobby's Competitive mode), not from this offline builder, so
+ * it is shown here disabled with its reason (the "disabled, not omitted" convention) and can never be selected; the
+ * setup config always carries `"cooperative"`. Hot-seat competitive play is not built. The engine refuses
+ * `"competitive"` without both teams' scenarios too; the client never relies on that.
  */
 import type { GameMode } from "@mc/engine";
+import { t } from "../i18n/translate.js";
 
 export interface GameModeOption {
   readonly id: GameMode;
   readonly label: string;
   readonly enabled: boolean;
-  /** A small tag beside the label ("Coming soon", "Co-op only for now"). */
+  /** A small tag beside the label ("Online rooms", "Co-op only for now"). */
   readonly note: string;
   /** Why a disabled option cannot be picked; announced when it is focused. Present only when disabled. */
   readonly reason?: string;
 }
 
-/** The same sentence as the engine's `mode_unavailable` refusal, for the status line when a disabled option is tapped. */
-export const COMPETITIVE_TAPPED_MESSAGE = "Competitive mode is coming soon. Play this scenario cooperatively for now.";
+/** What the status line says when the disabled Competitive option is tapped: it is played in an online room. */
+export const competitiveTappedMessage = (): string => t("comp.mode.tapped");
 
 export const GAME_MODE_OPTIONS: readonly GameModeOption[] = [
   { id: "cooperative", label: "Cooperative", enabled: true, note: "Co-op only for now" },
@@ -26,8 +27,9 @@ export const GAME_MODE_OPTIONS: readonly GameModeOption[] = [
     id: "competitive",
     label: "Competitive",
     enabled: false,
-    note: "Coming soon",
-    reason: "Two teams, each against the other's leader. Not available yet.",
+    note: "Online rooms",
+    reason:
+      "Two teams, each against the other's leader. Pick Competitive when you host an online room; hot-seat play is coming soon.",
   },
 ];
 
@@ -60,6 +62,6 @@ export type SelectModeResult<T> =
  */
 export function selectMode<T>(draft: T, mode: GameMode): SelectModeResult<T> {
   const option = GAME_MODE_OPTIONS.find((o) => o.id === mode);
-  if (!option || !option.enabled) return { ok: false, draft, message: COMPETITIVE_TAPPED_MESSAGE };
+  if (!option || !option.enabled) return { ok: false, draft, message: competitiveTappedMessage() };
   return { ok: true, draft };
 }

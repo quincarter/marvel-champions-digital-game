@@ -85,6 +85,10 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
   "other-table": "room.refusal.generic",
   "bad-table-host": "room.refusal.generic",
   "no-such-table": "room.refusal.generic",
+  // Civil War Competitive (#883): generic wording until its screens are worded.
+  "team-size": "room.refusal.generic",
+  "not-ready": "room.refusal.generic",
+  "other-team": "room.refusal.generic",
   "lobby-changed": "room.startResult.lobbyChanged",
   "not-saved": "room.refusal.notSaved",
 };

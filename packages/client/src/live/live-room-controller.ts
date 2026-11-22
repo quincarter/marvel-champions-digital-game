@@ -67,6 +67,8 @@ export interface LiveRoomControllerDeps {
     readonly onDecks?: (id: number, decks: readonly SeatDeckEntry[] | null) => void;
     /** A guest's room was closed mid-game: the game it held (`RoomSessionDeps.onSalvage`). */
     readonly onSalvage?: RoomSessionDeps["onSalvage"];
+    /** Competitive host: both teams' sealed scenarios, in answer to `room-reveal`. */
+    readonly onSealed?: RoomSessionDeps["onSealed"];
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
   };
@@ -241,6 +243,24 @@ export class LiveRoomController {
       case "room-say":
         this.#session?.chat(message.text);
         return;
+      case "room-team":
+        this.#session?.setTeam(message.seat, message.team);
+        return;
+      case "room-scenario":
+        this.#session?.submitScenario(message.team, message.scenario);
+        return;
+      case "room-team-ready":
+        this.#session?.setTeamReady(message.team, message.ready);
+        return;
+      case "room-tiebreaks":
+        this.#session?.setTieBreaks(message.on);
+        return;
+      case "room-competitive":
+        this.#session?.setCompetitive(message.seats, message.tieBreaks);
+        return;
+      case "room-reveal":
+        this.#session?.revealSealed();
+        return;
       case "room-epic":
         this.#session?.setEpic(message.tables, message.pods, message.seats);
         return;
@@ -329,6 +349,13 @@ export class LiveRoomController {
       onState: (state) => {
         if (this.#session === session) this.#postRoom(state);
       },
+      ...(room.onSealed
+        ? {
+            onSealed: (sealed: { readonly registration: unknown; readonly resistance: unknown }, rev: number) => {
+              if (this.#session === session) room.onSealed?.(sealed, rev);
+            },
+          }
+        : {}),
       ...(this.#deps.now ? { now: this.#deps.now } : {}),
       ...(this.#deps.fetch ? { fetch: this.#deps.fetch } : {}),
       ...(room.createRoom ? { createRoom: room.createRoom } : {}),

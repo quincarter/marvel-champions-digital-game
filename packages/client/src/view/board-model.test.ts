@@ -74,7 +74,7 @@ describe("boardModel", () => {
     const shown = boardModel(state, viewer, CORE_DEPS);
     expect(shown.handHidden).toBe(false);
     expect(shown.hand.length).toBeGreaterThan(0);
-    const hidden = boardModel(state, viewer, CORE_DEPS, null, "played", false);
+    const hidden = boardModel(state, viewer, CORE_DEPS, null, "played", null, false);
     expect(hidden.handHidden).toBe(true);
     expect(hidden.hand).toEqual([]);
     expect(hidden.handLimit).toBe(shown.handLimit);

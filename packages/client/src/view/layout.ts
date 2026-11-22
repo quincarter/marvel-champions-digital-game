@@ -1179,6 +1179,15 @@ export function cardStatColumn(
   return { badges, hp, height: inner.y + inner.height - startTop, top: startTop };
 }
 
+/** A panel shorter than this is a one-line row (a looked-at hero on a small phone): it has no room for stat badges. */
+export const BADGE_PANEL_MIN_HEIGHT = 48;
+
+/**
+ * Whether a character panel `height` tall draws its numbers as badges. A shorter one (a one-line row) collapsed them
+ * into an unreadable dot, so it says them in words instead (`statWords`).
+ */
+export const panelHasBadges = (height: number): boolean => height >= BADGE_PANEL_MIN_HEIGHT;
+
 /**
  * Where a card prints its stat bursts, as fractions of the card face, measured on the scans (issue #935): the
  * column's center, and each stat's burst center. An ally prints THW over ATK, with its consequential damage icon under

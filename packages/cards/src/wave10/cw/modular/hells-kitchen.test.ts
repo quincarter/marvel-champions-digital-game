@@ -229,12 +229,11 @@ describe("registry", () => {
     expect(MODULAR_HELLS_KITCHEN["56192.when-revealed"]).toBe(MODULAR_DEFENDERS["56187.when-revealed"]);
   });
 
-  it("Iron Fist's competitive-only sentences are written in full, not dropped", () => {
+  it("Iron Fist's competitive sentences are scripted (M3): his attack on your leader, the leader's attack after", () => {
     const text = JSON.stringify([MODULAR_HELLS_KITCHEN["56190.when-revealed"], MODULAR_HELLS_KITCHEN["56190.boost"]]);
-    expect(text).toContain("Iron Fist attacks your leader.");
-    expect(text).toContain(
-      "The enemy leader attacks your leader (after this activation). Do not give it a boost card for this attack.",
-    );
+    expect(text).toContain('"kind":"enemyAttacksEnemy"');
+    expect(text).toContain('"kind":"atEndOfActivation"');
+    expect(text).not.toContain("competitiveOnly");
   });
 
   it("setup: the encounter deck holds one copy of each card", () => {

@@ -8,7 +8,11 @@
  *
  * **Which statuses count, and why** (`SaveStatus`, `engine/game-storage.ts`):
  * - `won` / `lost` are results: they count as a win or a loss, and as a
- *   played game.
+ *   played game. A competitive game's save holds this device's team's result
+ *   (`view/team-outcome.ts`, issue #883), but it counts as a played game only,
+ *   never a win or a loss (`isCompetitiveSave`; the owner, 2026-11-20).
+ * - `tie` (a competitive game neither team won, or one device playing both
+ *   teams) is a played game and neither a win nor a loss.
  * - `abandoned` (a game the player removed from the in-progress list, a campaign
  *   run started over, and later also Concede, per docs/phase4-screen-gaps.md §4)
  *   is **not** a win or a loss —
@@ -32,7 +36,7 @@
  *   flips to `won`/`lost`/`abandoned` — there is no double count, since each
  *   game is one `SaveMeta` row updated in place, never accumulated.
  *
- * So "played" here always means `status === "won" || "lost" || "abandoned" || "active"`.
+ * So "played" here always means `status === "won" || "lost" || "tie" || "abandoned" || "active"`.
  *
  * **Best clear.** `SaveMeta.round` is the round the game's log stands at —
  * for a `won` save, the round the villain was defeated on. "Fewest rounds
@@ -73,7 +77,13 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
-import { isAdjustedSave, isLessonSave, type SaveMeta, type SaveStatus } from "../engine/game-storage.js";
+import {
+  isAdjustedSave,
+  isCompetitiveSave,
+  isLessonSave,
+  type SaveMeta,
+  type SaveStatus,
+} from "../engine/game-storage.js";
 
 export type Difficulty = SessionConfig["difficulty"];
 
@@ -127,18 +137,22 @@ export interface ResultsHistory {
   readonly unattributedSeatCount: number;
 }
 
-const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "abandoned", "active"]);
+const PLAYED_STATUSES: ReadonlySet<SaveStatus> = new Set<SaveStatus>(["won", "lost", "tie", "abandoned", "active"]);
 
 function emptyTally(): ScenarioTally {
   return { wins: 0, losses: 0, gamesPlayed: 0, bestClearRounds: null };
 }
 
+/** A competitive game's status, read as a result: played only, so never a win or a loss (issue #883). */
+const resultStatusOf = (meta: SaveMeta): SaveStatus => (isCompetitiveSave(meta) ? "tie" : meta.status);
+
 function foldInto(tally: ScenarioTally, meta: SaveMeta): ScenarioTally {
-  const wins = tally.wins + (meta.status === "won" ? 1 : 0);
-  const losses = tally.losses + (meta.status === "lost" ? 1 : 0);
+  const status = resultStatusOf(meta);
+  const wins = tally.wins + (status === "won" ? 1 : 0);
+  const losses = tally.losses + (status === "lost" ? 1 : 0);
   const gamesPlayed = tally.gamesPlayed + 1;
   const bestClearRounds =
-    meta.status === "won"
+    status === "won"
       ? tally.bestClearRounds === null
         ? meta.round
         : Math.min(tally.bestClearRounds, meta.round)
@@ -208,8 +222,8 @@ export function resultsHistoryOf(saves: readonly SaveMeta[]): ResultsHistory {
     }
     for (const keyString of keys) {
       const deck = deckTallies.get(keyString) ?? { wins: 0, losses: 0, gamesPlayed: 0, lastPlayedAt: null };
-      deck.wins += meta.status === "won" ? 1 : 0;
-      deck.losses += meta.status === "lost" ? 1 : 0;
+      deck.wins += resultStatusOf(meta) === "won" ? 1 : 0;
+      deck.losses += resultStatusOf(meta) === "lost" ? 1 : 0;
       deck.gamesPlayed += 1;
       deck.lastPlayedAt = deck.lastPlayedAt === null ? meta.updatedAt : Math.max(deck.lastPlayedAt, meta.updatedAt);
       deckTallies.set(keyString, deck);

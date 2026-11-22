@@ -245,11 +245,11 @@ describe("registry", () => {
 
 describe("1A Setup: 'In competitive mode, the enemy team finds the Choosing Sides side scheme ... In cooperative mode, find the chosen leader's side scheme and reveal it.'", () => {
   it.each(STAGE_ONES)(
-    "$setup carries the competitive sentence as a marker (competitive mode is not built)",
+    "$setup scripts the competitive sentence (no marker left): Choosing Sides found and revealed (competitive plan M1)",
     ({ setup }) => {
-      expect(competitiveOnlyTexts(MAIN_SCHEMES_REGISTRATION[setup]!)).toEqual([
-        "In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it.",
-      ]);
+      const definition = MAIN_SCHEMES_REGISTRATION[setup]!;
+      expect(competitiveOnlyTexts(definition)).toEqual([]);
+      expect(JSON.stringify(definition)).toContain('"names":["Choosing Sides"]');
     },
   );
 

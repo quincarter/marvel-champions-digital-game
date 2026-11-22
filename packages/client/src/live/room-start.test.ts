@@ -223,3 +223,30 @@ describe("the host's Start with the players' own decks", () => {
     });
   });
 });
+
+describe("a mode's own check on the seats' decks", () => {
+  it("refuses the seat it names, to that seat alone, once every deck passes, and starts nothing", async () => {
+    const { d, refused, started } = deps(room([seat("s1", "a"), seat("s2", "b")]), [
+      entry("s1", "Iron Man"),
+      entry("s2", "Hulk"),
+    ]);
+    const extraCheck = vi.fn((decks: ReadonlyMap<string, RoomDeck>) =>
+      decks.get("s1")?.hero === "Iron Man"
+        ? [{ seat: "s1", code: "illegal" as const, reason: "Shares a title with your team's leader." }]
+        : [],
+    );
+    const result = await startRoomGame(BASE, { ...d, extraCheck });
+    expect(result).toMatchObject({ ok: false, reason: "decks", refused: [{ seat: "s1" }] });
+    expect(refused.map((r) => r.seat)).toEqual(["s1"]);
+    expect(started).toEqual([]);
+  });
+
+  it("is not asked when a deck already failed the ordinary check", async () => {
+    const { d } = deps(room([seat("s1", "a")]), [entry("s1", "A")], (seats) =>
+      seats.map((s) => ({ seat: s, ok: false, code: "illegal", reason: "28 of 40." })),
+    );
+    const extraCheck = vi.fn(() => []);
+    await startRoomGame(BASE, { ...d, extraCheck });
+    expect(extraCheck).not.toHaveBeenCalled();
+  });
+});

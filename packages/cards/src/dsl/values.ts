@@ -52,6 +52,11 @@ import type {
 /** "You": the ability's controller; on encounter cards, the revealing/attacked/engaged player. */
 export const you: PlayerRef = { kind: "controller" };
 export const firstPlayer: PlayerRef = { kind: "firstPlayer" };
+/**
+ * "The first player on the enemy team": the other team's first player token holder (MC56 p. 16), not who answers the
+ * enemy team's choices (`enemyTeamChooses`). The first player in a cooperative game (MC56 p. 6).
+ */
+export const enemyTeamFirstPlayer: PlayerRef = { kind: "firstPlayer", of: "enemy" };
 export const eachPlayer: PlayerRef = { kind: "each" };
 /** "That player" inside `forEachPlayer`. */
 export const thatPlayer: PlayerRef = { kind: "scoped" };
@@ -224,6 +229,12 @@ export const attackedBy = (attacker: TargetRef = { kind: "self" }): TargetRef =>
  */
 export const activatingEnemy: TargetRef = { kind: "activatingEnemy" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
+/**
+ * "Your leader's main scheme" (Double Agent 56211, Spectacular! 56182, Neighborhood Hero 56183, Cloak 56194,
+ * Darkforce 56196): the main scheme of the game area your leader is in (MC56 p. 16). None in a cooperative game, where
+ * "your leader" cannot be resolved (MC56 p. 6).
+ */
+export const yourLeadersMainScheme: TargetRef = { kind: "mainScheme", of: "yourLeader" };
 /**
  * The central main scheme stage, outside every separate game area (docs/phase7-wave2.md §3.1): "place 1 set-aside
  * Kang's Dominion facedown under stage 4A" while game areas are still split. Distinct from `theMainScheme`, which

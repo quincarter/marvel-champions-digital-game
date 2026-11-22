@@ -6,7 +6,7 @@ import { UNLOCK_WAVES } from "../progression/unlocks.js";
 import { MECHANIC_TRYITS } from "../guide/mechanic-tryits.js";
 import {
   BOXES,
-  COMPETITIVE_NOTICE,
+  competitiveNotice,
   boxPageContentLayout,
   boxPageFocusOrder,
   boxPageHeaderLayout,
@@ -428,14 +428,18 @@ describe("introducedIn is derived from card data, not guessed", () => {
 describe("the Civil War box notice", () => {
   it("has the cycle10 row named Civil War", () => {
     const box = BOXES.find((b) => b.id === "cycle10");
-    expect(box).toMatchObject({ name: "Civil War", unlockKey: "cycle10", notice: "Competitive mode coming soon." });
-    expect(COMPETITIVE_NOTICE).toBe("Competitive mode coming soon.");
+    expect(box).toMatchObject({
+      name: "Civil War",
+      unlockKey: "cycle10",
+      notice: "Competitive mode is in online rooms. Hot-seat is coming soon.",
+    });
+    expect(competitiveNotice()).toBe("Competitive mode is in online rooms. Hot-seat is coming soon.");
   });
 
   it("shows the notice exactly once, with no tagged entry needed, and lays it out", () => {
     const p = page("cycle10");
     expect(p.title).toBe("New in Civil War");
-    expect(p.notice).toBe("Competitive mode coming soon.");
+    expect(p.notice).toBe("Competitive mode is in online rooms. Hot-seat is coming soon.");
     const layout = boxPageContentLayout(800, p);
     expect(layout.noticeRect).not.toBeNull();
     expect(layout.noticeRect!.y + layout.noticeRect!.height).toBeLessThanOrEqual(layout.totalHeight);

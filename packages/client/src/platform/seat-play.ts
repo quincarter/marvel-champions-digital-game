@@ -77,6 +77,8 @@ export async function playRoomGame(deps: SeatPlayDeps = defaultDeps): Promise<Pl
   if (!deps.post({ kind: "room-follow", port: channel.port1 }, [channel.port1]))
     return { ok: false, message: "watch.link.gone" };
   const host = new SeatEngineHost(deps.makeBackend(channel.port2, deps.packs()), {
+    // In a Competitive room the Concede sheet proposes the team's forfeit or leaving alone instead (#883).
+    proposesConcede: () => deps.roomState().competitive !== null,
     // Concede from a seat is leaving it (the game goes on): every seat this device holds is released.
     leaveSeats: () => {
       for (const seat of deps.roomState().mySeats) deps.post({ kind: "room-seat", op: "release", seat });

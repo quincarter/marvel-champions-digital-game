@@ -12,6 +12,7 @@ import type {
   RoomDeck,
   RoomDevice,
   ServerMessage,
+  TeamId,
 } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
 import type {
@@ -82,6 +83,18 @@ export type LiveRoomIn =
   | { readonly kind: "room-epic-drop"; readonly table: string }
   /** Table host: ends a wait for the pod coordinator that has stuck (`RoomState.epic.podStuck`). */
   | { readonly kind: "room-pod-release" }
+  // Civil War Competitive (issue #883). Each is one call of `platform/room.ts`.
+  /** Put a seat on a team (the host's, or the seat's holder's). */
+  | { readonly kind: "room-team"; readonly seat: string; readonly team: TeamId }
+  /** Seal `scenario` (what `team` built for the other team) in the room. Never echoed back into any state. */
+  | { readonly kind: "room-scenario"; readonly team: TeamId; readonly scenario: unknown }
+  | { readonly kind: "room-team-ready"; readonly team: TeamId; readonly ready: boolean }
+  /** Host: the tie-break option. */
+  | { readonly kind: "room-tiebreaks"; readonly on: boolean }
+  /** Host: Competitive mode with these seats (each naming its team). */
+  | { readonly kind: "room-competitive"; readonly seats: readonly LobbySeatSpec[]; readonly tieBreaks?: boolean }
+  /** Host: asks the room for both teams' sealed scenarios (answered by `LiveRoomOut` `sealed`). */
+  | { readonly kind: "room-reveal" }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
@@ -116,6 +129,11 @@ export type LiveRoomOut =
   | { readonly kind: "room"; readonly state: RoomState }
   /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
   | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null }
+  /**
+   * Competitive host only: the room's answer to `room-reveal`, both sealed scenarios. Goes to the host's main thread
+   * once, to build the game from; it is never part of a `RoomState`.
+   */
+  | { readonly kind: "sealed"; readonly registration: unknown; readonly resistance: unknown; readonly rev: number }
   /** The room refused the host's game start as its lobby had changed (`lobby-changed`); the room dropped that game. */
   | { readonly kind: "room-start-refused" }
   /** A guest's room was closed mid-game: the game it held, sent just ahead of the room's ended state. */

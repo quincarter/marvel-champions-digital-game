@@ -14,13 +14,14 @@
 
 import type { CardId } from "@mc/content";
 import type { CampaignWindow } from "./campaign.js";
-import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
+import { emit, moveCard, pushFrames, setStep, updateInstance, type Ctx } from "./ctx.js";
 import { isPermanentCard } from "./deck.js";
 import { applyToughness, shuffleZone } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
   encounterDeckOf,
+  mainSchemeFor,
   mainSchemeValue,
   mustCardOf,
   sharedMainSchemes,
@@ -35,6 +36,8 @@ import { mainSchemeStageFrames } from "./resolve/main-scheme-side.js";
 import { encounterSetupCardEntersPlay, waitingSetupCardsEnterPlay } from "./resolve/setup-cards.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
+import { activeTeamOf, teamsOf, type TeamState } from "./team.js";
+import { firstPlayerFacingDeck, switchActiveTeam } from "./team-phases.js";
 
 /** The step a campaign game starts on: nothing of Appendix II has happened yet (MC60 p. 9 steps 1-7). */
 export const FIRST_CAMPAIGN_STEP: GameStep = { phase: "setup", kind: "campaignWindow", window: "beforeScenarioSetup" };
@@ -117,10 +120,19 @@ export function resolveScenarioSetup(ctx: Ctx): void {
   // frame lists its abilities when it is built: step 12c then waits for its own flow step, built once 12a and 12b have
   // resolved, as in a game whose villains started set aside (`villainsEnteringAtSetup`, `resolveVillainSetupAbilities`).
   // A game with no such ability keeps the step sequence it had.
-  if (encounterSetupFrames.length > 0 && ctx.state.villainsEnteringAtSetup === undefined) {
+  // With two teams each leader's step 12c is in its own area's batch (`teamAreaSetupFrames`), which waits for its turn.
+  if (encounterSetupFrames.length > 0 && ctx.state.villainsEnteringAtSetup === undefined && !ctx.state.activeTeamId) {
     ctx.state = { ...ctx.state, villainsEnteringAtSetup: undefeatedVillains(ctx.state).map((v) => v.instanceId) };
   }
   const villainStep12c = ctx.state.villainsEnteringAtSetup === undefined;
+  const team = activeTeamOf(ctx.state);
+  if (team) {
+    // Two teams: step 12 for the first team's game area now; each other area's waits for its own flow step
+    // (`teamScenarioSetup`), so its abilities read that team's first player and encounter deck (Q4 A).
+    pushFrames(ctx, [...setupOptionFrames(ctx), ...encounterSetupFrames, ...teamAreaSetupFrames(ctx, team)]);
+    ctx.state = { ...ctx.state, stack: [...step11Frames, ...ctx.state.stack] };
+    return;
+  }
   // RRG Appendix II step 12: main scheme 1A setup text, the flip to 1B and its "When Revealed", then each villain's,
   // in printed order. Side 1A is the faceup one through step 11 and step 12a (`MainSchemeState.faceupSide`).
   pushFrames(ctx, [
@@ -188,7 +200,56 @@ function setupOptionFrames(ctx: Ctx): StackFrame[] {
 export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
   state.villainsEnteringAtSetup !== undefined
     ? { phase: "setup", kind: "villainSetupAbilities" }
-    : stepAfterVillainSetupAbilities(state, after);
+    : state.activeTeamId !== undefined
+      ? {
+          phase: "setup",
+          kind: "teamScenarioSetup",
+          remainingTeamIds: teamsOf(state)
+            .slice(1)
+            .map((team) => team.teamId),
+        }
+      : stepAfterVillainSetupAbilities(state, after);
+
+/**
+ * RRG 1.8 Appendix II step 12 (p. 51) for one team's game area (MC56 pp. 14-15; Q4 A per owner decision 2026-11-20:
+ * "each area sets up on its own"): the area's main scheme 1A Setup, its flip to 1B with that side's Setup and When
+ * Revealed (12a, 12b), then the Setup and When Revealed abilities of the leader the team faces (12c). Resolved by the
+ * team's first player, who is `GameState.firstPlayerId` while the team is active.
+ */
+function teamAreaSetupFrames(ctx: Ctx, team: TeamState): StackFrame[] {
+  const area = ctx.state.gameAreas.find((candidate) => candidate.areaId === team.areaId);
+  if (!area) return [];
+  const firstPlayerId = ctx.state.firstPlayerId;
+  const scheme = mainSchemeFor(ctx.state, area);
+  return [
+    ...(scheme ? mainSchemeStageFrames(ctx, scheme.instanceId, "setup", ["setup", "whenRevealed"], firstPlayerId) : []),
+    ...area.villainIds
+      .filter((id) => villainOf(ctx.state, id)?.defeated === false)
+      .flatMap((id) => [
+        ...gameAbilityFrames(ctx, id, ["setup"], null, undefined, firstPlayerId),
+        ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, firstPlayerId),
+      ]),
+  ];
+}
+
+/**
+ * `GameStep teamScenarioSetup`: the next team's game area sets up (it becomes the active team, and its step 12
+ * abilities go on the stack), or, with every area set up, the first team is active again and setup goes on to the
+ * scenario's rulebook instructions or the draw. A competitive game is never a campaign game (`competitiveSetupFault`).
+ */
+export function executeTeamScenarioSetup(ctx: Ctx, step: Extract<GameStep, { kind: "teamScenarioSetup" }>): void {
+  const [next, ...rest] = step.remainingTeamIds;
+  if (next !== undefined) {
+    switchActiveTeam(ctx, next, "setup");
+    setStep(ctx, { phase: "setup", kind: "teamScenarioSetup", remainingTeamIds: rest });
+    const team = activeTeamOf(ctx.state);
+    if (team) pushFrames(ctx, teamAreaSetupFrames(ctx, team));
+    return;
+  }
+  const [first] = teamsOf(ctx.state);
+  if (first) switchActiveTeam(ctx, first.teamId, "setup");
+  setStep(ctx, stepAfterVillainSetupAbilities(ctx.state, FIRST_STANDALONE_STEP));
+}
 
 /**
  * The step after Appendix II step 12 when the scenario has rulebook-printed setup instructions
@@ -345,7 +406,8 @@ function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): readonly 
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       if (!hasKeyword(ctx.state, id, "setup")) continue;
-      encounterSetupCardEntersPlay(ctx, id, revealingPlayerId);
+      // With two teams, the first player of the team facing this deck reveals it (MC56 p. 14; Q4 A, 2026-11-20).
+      encounterSetupCardEntersPlay(ctx, id, firstPlayerFacingDeck(ctx.state, deckId) ?? revealingPlayerId);
       encounterCards.push(id);
     }
   }

@@ -38,9 +38,15 @@ import { difficultyLabelOf } from "./difficulty-label.js";
 import { foeWord } from "./foe-words.js";
 import { hpFraction, hpNumber } from "./hp-format.js";
 import { inspectModel } from "./inspect-model.js";
+import { seatResultOf } from "./team-outcome.js";
 import { cardName, playerName } from "./names.js";
+import { competitiveGameOverOf, type CompetitiveGameOver } from "./competitive-game-over.js";
 
-export type GameOverTone = "win" | "loss";
+/**
+ * The palette and the words a result is drawn in. `tie`: a competitive game (issue #883) this device's team neither won
+ * nor lost (`seatResultOf`), drawn in a neutral palette and never told as a defeat.
+ */
+export type GameOverTone = "win" | "loss" | "tie";
 
 export interface GameOverStat {
   readonly label: string;
@@ -97,6 +103,8 @@ export interface GameOverModel {
   /** The seat that dealt the most damage, on a win — the phone's "Table MVP". */
   readonly mvp: { readonly name: string; readonly detail: string } | null;
   readonly villainInstanceId: InstanceId;
+  /** A Civil War Competitive game (issue #883): the teams' leaders and heroes, which the scene draws in place of the villain's final blow and stats. Absent otherwise. */
+  readonly competitive?: CompetitiveGameOver;
 }
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
@@ -187,7 +195,9 @@ export function gameOverModel(
    * defeated, which is where the distinction actually shows.
    */
   const concededBy = outcome?.result === "conceded" ? outcome.byPlayerId : null;
-  const tone: GameOverTone = outcome?.result === "win" ? "win" : "loss";
+  // A competitive game's tone is this device's team's result (`seatResultOf`): a tie is neither a win nor a loss.
+  const seatResult = outcome ? seatResultOf(outcome, state.teams, config?.localSeats) : null;
+  const tone: GameOverTone = seatResult === "win" ? "win" : seatResult === "tie" ? "tie" : "loss";
   // The villain with the active counter: with several villains, the one still standing last.
   const villainState = activeVillain(state);
   const avatar = cardName(state, villainState.instanceId);
@@ -434,7 +444,8 @@ export function gameOverModel(
       ? { name: playerName(state, topDamage.playerId), detail: `${topDamage.damage} damage` }
       : null;
 
-  return {
+  const competitive = competitiveGameOverOf(state, config, config?.localSeats);
+  const base: GameOverModel = {
     tone,
     kicker,
     headline,
@@ -444,7 +455,8 @@ export function gameOverModel(
     cause,
     stats,
     quickStats,
-    beatsHeading: concededBy ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
+    beatsHeading:
+      concededBy || tone === "tie" ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
     beats: turningPoints(
       state,
       record,
@@ -457,6 +469,22 @@ export function gameOverModel(
     mvp,
     villainInstanceId: lokiId ?? villainState.instanceId,
   };
+  // The two teams' result in the competitive words: the villain's final blow, cause and turning points do not apply.
+  return competitive
+    ? {
+        ...base,
+        kicker: competitive.kicker,
+        headline: competitive.headline,
+        summary: competitive.summary,
+        finalBlow: null,
+        cause: null,
+        // The phone's "Table MVP" row is a cooperative line; two teams have no one MVP, and it would sit under the buttons.
+        mvp: null,
+        beatsHeading: competitive.panel.heading,
+        beats: [],
+        competitive,
+      }
+    : base;
 }
 
 /**

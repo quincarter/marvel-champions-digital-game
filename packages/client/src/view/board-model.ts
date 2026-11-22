@@ -10,6 +10,7 @@
 
 import type { AbilityId, Aspect, AnyCard, ResourceIconType, StatStar } from "@mc/content";
 import { seatContext } from "./seat-context.js";
+import { seatResultLabel, seatResultOf } from "./team-outcome.js";
 import { t } from "../i18n/translate.js";
 import {
   handSize,
@@ -40,6 +41,7 @@ import {
   maxHitPoints,
   activeEncounterDeck,
   activeVillain,
+  areaOfCard,
   isLooseVillainCard,
   isVillain,
   villainOf,
@@ -56,6 +58,7 @@ import {
   sharedScheme,
   sharedVillain,
   type CardInstance,
+  type EncounterDeckId,
   type EngineDeps,
   type Form,
   type GameState,
@@ -807,6 +810,8 @@ export interface PileCounts {
 }
 
 export interface BoardModel {
+  /** Civil War Competitive only: whose phase it is and the other side's area in brief. Null in every other game. */
+  readonly competitive: CompetitiveBoard | null;
   readonly round: number;
   /** "PLAYER" / "VILLAIN", the design's two-state phase toggle. */
   readonly phase: "setup" | "player" | "villain" | "gameOver";
@@ -1023,13 +1028,13 @@ const ROMAN = ["I", "II", "III", "IV", "V"] as const;
  * card ever discarded instead of the latest.
  */
 /** The shown encounter top's face, or null while the deck's top is facedown or the deck is empty. */
-function encounterDeckTopArt(state: GameState, deps: EngineDeps): ArtSource | null {
-  const top = shownEncounterTop(state, deps);
+function encounterDeckTopArt(state: GameState, deps: EngineDeps, deckId?: EncounterDeckId): ArtSource | null {
+  const top = shownEncounterTop(state, deps, deckId);
   return top === null ? null : artFor(cardOf(state, top), { kind: "front" });
 }
 
-function encounterDeckTopView(state: GameState, deps: EngineDeps): EncounterTopView | null {
-  const top = shownEncounterTop(state, deps);
+function encounterDeckTopView(state: GameState, deps: EngineDeps, deckId?: EncounterDeckId): EncounterTopView | null {
+  const top = shownEncounterTop(state, deps, deckId);
   if (top === null) return null;
   const boostIcons = boostIconsFor(state, deps, top);
   const star = hasStarIcon(state, top);
@@ -1221,6 +1226,11 @@ export function boardModel(
   actions: LegalActions | null = null,
   /** How your play area is laid out (`Settings.playAreaOrder`); the engine's own order is never changed. */
   playAreaOrder: PlayAreaOrder = "played",
+  /**
+   * The seats this device holds (`SessionConfig.localSeats`, null in a hot-seat game), for a competitive result read as
+   * the pause screen reads it (`seatResultOf`). Omitted: the perspective seat's own team.
+   */
+  viewerSeats?: readonly string[] | null,
   /** False: draw this seat's hand face down (a room game's other seat); the default shows it. */
   handVisible = true,
 ): BoardModel {
@@ -1242,10 +1252,11 @@ export function boardModel(
   const formCards = formCardGroups(state, me);
   const inFormColumn = new Set(formCards.flatMap((group) => group.cards.map((card) => card.instanceId)));
 
-  return {
+  const model: BoardModel = {
     round: state.round,
     phase: phaseOf(state),
-    stepLabel: stepLabel(state, perspectiveId),
+    stepLabel: stepLabel(state, perspectiveId, viewerSeats === undefined ? [perspectiveId] : viewerSeats),
+    competitive: null,
     meOut: outStatusOf(me),
     firstPlayerId: state.firstPlayerId,
     perspectiveId,
@@ -1339,6 +1350,8 @@ export function boardModel(
         ? { count: state.victoryDisplay.length, target: state.scenarioRules.victoryCondition }
         : null,
   };
+  // Civil War Competitive (issue #883): the main table is the viewer's own game area; the other side is a compact strip.
+  return state.teams ? scopeToViewerArea(model, state, perspectiveId, deps) : model;
 }
 
 const phaseOf = (state: GameState): BoardModel["phase"] => {
@@ -1379,8 +1392,8 @@ function dialValue(state: GameState, id: InstanceId, current: number | undefined
   return isIdentity || isVillain(state, id) ? 0 : current;
 }
 
-function stepLabel(state: GameState, perspectiveId: PlayerId): string {
-  const label = liveStepLabel(state, perspectiveId);
+function stepLabel(state: GameState, perspectiveId: PlayerId, viewer: readonly string[] | null): string {
+  const label = liveStepLabel(state, perspectiveId, viewer);
   if (state.outcome) return label;
   const out = outStatusOf(getPlayer(state, perspectiveId) ?? { eliminated: false });
   if (out === null) return label;
@@ -1394,11 +1407,11 @@ function stepLabel(state: GameState, perspectiveId: PlayerId): string {
   return `${label} · ${tag}`;
 }
 
-function liveStepLabel(state: GameState, perspectiveId: PlayerId): string {
+function liveStepLabel(state: GameState, perspectiveId: PlayerId, viewer: readonly string[] | null): string {
   const { step } = state;
-  // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`).
-  if (state.outcome)
-    return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
+  // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`); a competitive game
+  // reads the result of this device's seats, as the pause screen does (`seatResultOf`), which may be a tie.
+  if (state.outcome) return seatResultLabel(seatResultOf(state.outcome, state.teams, viewer));
   switch (step.phase) {
     case "setup":
       return step.kind === "mulligan" ? "Setup — mulligan" : "Setup — draw starting hands";
@@ -2493,4 +2506,146 @@ export function remoteStandInLabel(state: GameState, id: InstanceId): string | n
   if (!remote) return null;
   const table = seatContext()?.room.epic?.tables.find((x) => x.id === (remote.groupId as string));
   return t("epic.badge.in", { table: table?.name ?? (remote.groupId as string) });
+}
+
+// ---- Civil War Competitive (issue #883, docs/competitive-mode-plan.md M9) ----------------------------------------------
+
+/** One hero on the other side of the table, as much as a physical table shows across it: no hand, no deck. */
+export interface CompetitiveHeroView {
+  readonly playerId: PlayerId;
+  readonly name: string;
+  readonly hp: { readonly current: number; readonly max: number } | null;
+  /** Cards in hand, a count only (hands are private, plan 1.10). */
+  readonly handCount: number;
+  readonly eliminated: boolean;
+}
+
+/** The other team's game area in brief: the leader it fights (the viewer's own leader), its scheme and its heroes. */
+export interface CompetitiveAreaView {
+  readonly side: "registration" | "resistance";
+  readonly leader: { readonly name: string; readonly hp: CharacterPanel["hp"]; readonly instanceId: InstanceId } | null;
+  readonly mainScheme: { readonly name: string; readonly threat: number; readonly target: number | null } | null;
+  readonly minionCount: number;
+  readonly sideSchemeCount: number;
+  readonly heroes: readonly CompetitiveHeroView[];
+  /** The deck that side faces, a count only. */
+  readonly encounterDeck: number;
+}
+
+export interface CompetitiveBoard {
+  /** The viewer's side, and whose phase it is. */
+  readonly mySide: "registration" | "resistance";
+  readonly activeSide: "registration" | "resistance";
+  readonly phase: "hero" | "villain";
+  /** The viewer's side is not the one playing: actions are off, but choices addressed to the viewer still arrive. */
+  readonly inactive: boolean;
+  /** The whose-turn line: "Registration's hero phase: your side is inactive". */
+  readonly turnLine: string;
+  readonly other: CompetitiveAreaView;
+}
+
+const sideWord = (side: "registration" | "resistance"): string =>
+  t(side === "registration" ? "comp.side.registration" : "comp.side.resistance");
+
+/** The whose-turn line in words, for the viewer's side. */
+export function competitiveTurnLine(
+  activeSide: "registration" | "resistance",
+  phase: "hero" | "villain",
+  mine: boolean,
+): string {
+  const params = { side: sideWord(activeSide), phase: t(phase === "hero" ? "comp.phase.hero" : "comp.phase.villain") };
+  return t(mine ? "comp.turn.activeYours" : "comp.turn.inactive", params);
+}
+
+const areaOfCardId = (state: GameState, id: InstanceId): string | null => areaOfCard(state, id)?.areaId ?? null;
+
+/** The minions in a game area: in its villain area, or engaged with, or held by, its players. */
+function minionsInArea(state: GameState, areaId: string): readonly InstanceId[] {
+  return minionsOf(state).filter((id) => areaOfCardId(state, id) === areaId);
+}
+
+function competitiveAreaView(
+  state: GameState,
+  team: NonNullable<GameState["teams"]>[number],
+  deps: EngineDeps,
+): CompetitiveAreaView {
+  const area = state.gameAreas.find((candidate) => candidate.areaId === team.areaId);
+  const leaderId = area?.activeVillainId ?? null;
+  const leader = leaderId ? characterPanel(state, leaderId, deps) : null;
+  const scheme =
+    area?.mainScheme ??
+    [state.mainScheme, ...(state.extraMainSchemes ?? [])].find((candidate) => candidate.gameAreaId === area?.areaId) ??
+    null;
+  const panel = scheme ? schemePanel(state, scheme.instanceId, deps, true) : null;
+  const deckId = leaderId ? villainOf(state, leaderId)?.encounterDeckId : undefined;
+  return {
+    side: team.side ?? "registration",
+    leader: leader ? { name: leader.name, hp: leader.hp, instanceId: leader.instanceId } : null,
+    mainScheme: panel ? { name: panel.name, threat: panel.threat, target: panel.target } : null,
+    minionCount: area ? minionsInArea(state, area.areaId).length : 0,
+    sideSchemeCount: area?.sideSchemeIds.length ?? 0,
+    heroes: team.playerIds.map((playerId) => {
+      const row = seatRow(state, playerId, deps);
+      return { playerId, name: row.name, hp: row.hp, handCount: row.handCount, eliminated: row.eliminated };
+    }),
+    encounterDeck: deckId ? (state.encounterDecks[deckId]?.deck.length ?? 0) : 0,
+  };
+}
+
+/**
+ * The model for a game with two teams: the area-bound parts (the leader and its schemes, the minions, the encounter
+ * deck) are the viewer's own game area's (the scenario their team faces), and the other side is a compact strip. The
+ * engine still holds one flat state; this reads the area each part is in (`areaOfCard`) and never adds a rule.
+ */
+function scopeToViewerArea(model: BoardModel, state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
+  const teams = state.teams ?? [];
+  const mine = teams.find((team) => team.playerIds.includes(perspectiveId));
+  const theirs = teams.find((team) => team !== mine);
+  const area = mine ? state.gameAreas.find((candidate) => candidate.areaId === mine.areaId) : undefined;
+  if (!mine || !theirs || !area || !mine.side || !theirs.side) return model;
+  const schemeOf = (areaId: string) =>
+    [state.mainScheme, ...(state.extraMainSchemes ?? [])].find((scheme) => scheme.gameAreaId === areaId) ?? null;
+  const mainScheme = area.mainScheme ?? schemeOf(area.areaId);
+  const villainIds = new Set<InstanceId>(area.villainIds);
+  const villains = model.villains
+    .filter((v) => villainIds.has(v.panel.instanceId))
+    .map((v) => ({ ...v, active: v.panel.instanceId === area.activeVillainId }));
+  const leaderId = area.activeVillainId;
+  const leader = leaderId ? villainOf(state, leaderId) : undefined;
+  const deckId = leader?.encounterDeckId;
+  const deck = deckId ? state.encounterDecks[deckId] : undefined;
+
+  const activeTeam = teams.find((team) => team.teamId === state.activeTeamId) ?? mine;
+  const phase = state.step.phase === "villain" ? "villain" : "hero";
+  const active = activeTeam === mine;
+  const activeSide = activeTeam.side ?? mine.side;
+  const competitive: CompetitiveBoard = {
+    mySide: mine.side,
+    activeSide,
+    phase,
+    inactive: !active && !state.outcome,
+    turnLine: competitiveTurnLine(activeSide, phase, active),
+    other: competitiveAreaView(state, theirs, deps),
+  };
+  return {
+    ...model,
+    stepLabel: state.outcome ? model.stepLabel : competitive.turnLine,
+    competitive,
+    villain: leaderId && !villainIsOut(state, leaderId) ? characterPanel(state, leaderId, deps) : null,
+    villains,
+    mainScheme: mainScheme ? schemePanel(state, mainScheme.instanceId, deps, true) : model.mainScheme,
+    extraMainSchemes: [],
+    sideSchemes: area.sideSchemeIds.map((id) => schemePanel(state, id, deps, false)),
+    minions: minionsInArea(state, area.areaId).map((id) => characterPanel(state, id, deps)),
+    environments: model.environments.filter((env) => areaOfCardId(state, env.instanceId) === area.areaId),
+    encounterPiles: { deck: deck?.deck.length ?? 0, discard: deck?.discard.length ?? 0 },
+    encounterRunsOut: false,
+    encounterDiscardTop: topOfDiscard(state, deck?.discard ?? []),
+    encounterDeckTopInstanceId: deck?.deck[0] ?? null,
+    encounterDeckTopArt: encounterDeckTopArt(state, deps, deckId),
+    encounterDeckTop: encounterDeckTopView(state, deps, deckId),
+    encounterDiscardTopInstanceId: deck?.discard[0] ?? null,
+    encounterDiscard: deck?.discard ?? [],
+    team: mine.playerIds.filter((id) => id !== perspectiveId).map((id) => seatRow(state, id, deps)),
+  };
 }

@@ -8,7 +8,7 @@
  * Turning it on snapshots the ids of the games already finished into the sent set, so only games finished from then on
  * are ever sent, which is what the prompt promises. The set holds this device's save ids and never leaves it.
  */
-import type { SaveMeta } from "../engine/game-storage.js";
+import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 
 export const GLOBAL_CONSENT_KEY = "global-stats-consent";
 export const GLOBAL_SENT_KEY = "global-stats-sent";
@@ -42,9 +42,11 @@ export function readConsent(storage: ConsentStorage | null = browserStorage()): 
 export const wasAsked = (storage: ConsentStorage | null = browserStorage()): boolean =>
   readConsent(storage) !== "unset";
 
-/** Finished games that count as results: the ones the uploader could ever send. */
+/** Finished games that count as results: the ones the uploader could ever send (never a competitive game, #883). */
 export const finishedIdsOf = (saves: readonly SaveMeta[]): string[] =>
-  saves.filter((m) => !m.guided && !m.adjusted && (m.status === "won" || m.status === "lost")).map((m) => m.id);
+  saves
+    .filter((m) => !m.guided && !m.adjusted && !isCompetitiveSave(m) && (m.status === "won" || m.status === "lost"))
+    .map((m) => m.id);
 
 export function readSent(storage: ConsentStorage | null = browserStorage()): Set<string> {
   try {

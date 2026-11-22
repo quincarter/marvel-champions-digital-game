@@ -31,3 +31,31 @@ describe("several tables: parsing", () => {
     expect(parse({ ch: "pod", kind: "state" })).toBeNull();
   });
 });
+
+describe("two teams: parsing", () => {
+  it("reads the competitive mode, tie-breaks and a seat's team in a lobby-set", () => {
+    expect(
+      parse({
+        ch: "room",
+        kind: "lobby-set",
+        settings: { mode: "competitive", tieBreaks: false },
+        seats: [{ id: "s1", label: "Iron Man", team: "registration" }],
+      }),
+    ).not.toBeNull();
+    expect(parse({ ch: "room", kind: "lobby-set", settings: { tieBreaks: "yes" } })).toBeNull();
+    expect(parse({ ch: "room", kind: "lobby-set", seats: [{ id: "s1", label: "H", team: "villains" }] })).toBeNull();
+  });
+
+  it("reads the team messages and caps a sealed scenario's size", () => {
+    expect(parse({ ch: "room", kind: "team-set", seat: "s1", team: "resistance" })).not.toBeNull();
+    expect(parse({ ch: "room", kind: "team-set", seat: "s1", team: "hydra" })).toBeNull();
+    expect(parse({ ch: "room", kind: "team-ready", team: "registration", ready: true })).not.toBeNull();
+    expect(parse({ ch: "room", kind: "team-ready", team: "registration" })).toBeNull();
+    expect(parse({ ch: "room", kind: "scenario-submit", team: "registration", scenario: { a: 1 } })).not.toBeNull();
+    expect(parse({ ch: "room", kind: "scenario-submit", team: "registration" })).toBeNull();
+    expect(
+      parse({ ch: "room", kind: "scenario-submit", team: "registration", scenario: "x".repeat(41 * 1024) }),
+    ).toBeNull();
+    expect(parse({ ch: "room", kind: "sealed-reveal" })).not.toBeNull();
+  });
+});
