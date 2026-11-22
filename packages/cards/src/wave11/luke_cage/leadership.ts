@@ -62,7 +62,8 @@ const ON_ONE_HP = query("character", { controller: "you", ...remainingHpCompare(
  *
  * **62015 Take a Stand**: "until the end of the player phase" is `endOfPlayerPhase`. Owner question Q104 = B (the owner,
  * 2026-10-18), RRG 1.8 "Lasting Effects" (p. 26): such an effect "can only be initiated during that time period", so
- * used after a villain-phase defense it gives nothing; used in a player phase it lasts to that phase's end. A live
+ * after a villain-phase defense it would give nothing and is not offered (RRG 1.8 "Initiating Abilities", p. 24, step 2;
+ * `lastingPeriodClosed`, issue #970); used in a player phase it lasts to that phase's end. A live
  * query, so allies that arrive later in that phase get the bonus too.
  */
 export const LUKE_CAGE_LEADERSHIP: AbilityRegistry = defineAbilities({
