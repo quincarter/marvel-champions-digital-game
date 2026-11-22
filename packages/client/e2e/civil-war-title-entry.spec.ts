@@ -40,9 +40,10 @@ for (const size of [
       await openApp(page, "unlock=all");
       await settle(page);
       const keys = await stopKeys(page, "Title");
-      // Play online (#880) sits beside Campaign on its row, so the box's own entry is the stop after it.
-      expect(keys[keys.indexOf("campaign") + 1]).toBe("play-online");
-      expect(keys[keys.indexOf("campaign") + 2]).toBe("civil-war");
+      // On a phone Play online (#880) sits beside Campaign on its row, so the box's own entry is the stop after it; a
+      // tablet or desktop has the Play online panel instead (its stops come after the menu rows).
+      const afterCampaign = keys.slice(keys.indexOf("campaign") + 1);
+      expect(afterCampaign[0] === "play-online" ? afterCampaign[1] : afterCampaign[0]).toBe("civil-war");
 
       await clickStop(page, "civil-war", "Title");
       await waitForScene(page, "CivilWarBuilder");

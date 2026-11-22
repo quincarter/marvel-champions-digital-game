@@ -49,6 +49,8 @@ export interface OnlineData {
   readonly invalidLink?: boolean;
   /** Why the room the player was in is gone (the host closed it): shown in a notice over this screen. */
   readonly closedNotice?: RoomProblem;
+  /** The Title's "Play online" panel pressed Host (the room starts opening at once, after a name) or Join (the screen opens, where the code is typed). */
+  readonly intent?: "host" | "join";
 }
 
 const PANEL_PAD = 16;
@@ -119,6 +121,7 @@ export class OnlineScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => document.removeEventListener("visibilitychange", onVisible));
     fadeScreenIn(this);
     if (this.#data.join) this.#startJoin(this.#data.join);
+    else if (this.#data.intent === "host") this.#host();
     if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice);
   }
 

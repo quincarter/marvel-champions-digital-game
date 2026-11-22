@@ -492,6 +492,11 @@ export function titleMenuFocusOrder(input: {
   readonly removeConfirm?: boolean;
   /** The "In-progress games (N)" menu row (a phone) is drawn: a stop after Continue. */
   readonly gamesRow?: boolean;
+  /**
+   * The "Play online" feature panel is drawn (a tablet or desktop) in place of the menu's own "Play online" button: its
+   * Host and Join buttons follow the menu rows, since the panel stands to the side of (or below) them.
+   */
+  readonly onlinePanel?: boolean;
 }): readonly string[] {
   return [
     ...(input.continuable ? ["continue"] : []),
@@ -500,7 +505,7 @@ export function titleMenuFocusOrder(input: {
     "new-game",
     "decks",
     "campaign",
-    "play-online",
+    ...(input.onlinePanel ? [] : ["play-online"]),
     ...(input.civilWar ? ["civil-war"] : []),
     "extras",
     "past-games",
@@ -510,6 +515,7 @@ export function titleMenuFocusOrder(input: {
     "mod-store",
     "settings",
     ...(input.quit ? ["quit"] : []),
+    ...(input.onlinePanel ? ["play-online-host", "play-online-join"] : []),
     ...(input.discord ? ["discord"] : []),
     "release-notes",
     ...(input.updateActions && input.updateActions.length > 0 ? [...input.updateActions, UPDATE_DISMISS_ID] : []),
