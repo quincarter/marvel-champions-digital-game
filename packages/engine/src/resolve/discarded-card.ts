@@ -58,9 +58,19 @@ export function lostWithDiscardedCard(
   },
   event: TriggerEvent,
 ): boolean {
+  // "That card" (`eventTarget`, the first condition's card) and the `together` targets are judged apart: one may have
+  // gone while the other has not (#928 review).
+  const representativeGone = discardedCardGone(state, event);
+  const groupGone = candidate.together
+    ? candidate.together.length > 0 && candidate.together.every((each) => discardedCardGone(state, each))
+    : representativeGone;
+  if (!representativeGone && !groupGone) return false;
   const answering = candidate.together ?? [event];
-  if (answering.length === 0 || !answering.every((each) => discardedCardGone(state, each))) return false;
-  if (answering.some((each) => "instanceId" in each && each.instanceId === candidate.instanceId)) return true;
+  const ownGone = answering.some(
+    (each) => "instanceId" in each && each.instanceId === candidate.instanceId && discardedCardGone(state, each),
+  );
+  if (ownGone) return true;
+  const gone = [...(representativeGone ? [EVENT_TARGET] : []), ...(groupGone ? [TOGETHER_TARGETS_SLOT] : [])];
   const definition = deps.abilities[candidate.abilityId];
   // A branch whose condition reads the card is judged by the branch the condition now picks (`partNeedsCard`).
   const context: EffectContext = {
@@ -68,17 +78,19 @@ export function lostWithDiscardedCard(
     controllerId: candidate.controllerId ?? null,
     event,
     bindings: {
-      [DISCARD_MOVED_SLOT]: [],
+      ...(representativeGone ? { [DISCARD_MOVED_SLOT]: [] } : {}),
       ...(candidate.together ? { [TOGETHER_TARGETS_SLOT]: stillDiscardedTargets(state, candidate.together) } : {}),
     },
     deps,
   };
   // A cost is paid before the effects resolve and can change what a condition reads (exhausting the card): with one,
   // no condition is read now (#928, Codex review).
+  // Initiating, the ability has bound nothing yet: a condition on its own bindings cannot be told.
+  const judge: Judge = (condition) => (readsOwnBindings(condition) ? undefined : evaluate(state, condition, context));
   const needs =
     definition?.cost || (definition?.costEffects ?? 0) > 0
-      ? needsDiscardedCard(definition)
-      : needsDiscardedCard(definition, (condition) => evaluate(state, condition, context));
+      ? needsDiscardedCard(definition, undefined, gone)
+      : needsDiscardedCard(definition, judge, gone);
   // Forced ones too: RRG 1.8 "Forced" (p. 20), a forced ability with no valid target does not initiate; the card another
   // response moved is no longer a valid "that card" (Ability p. 4, Target p. 42; She-Hulk Superhuman Strength ruling,
   // May 25, 2023; Pacification, June 17, 2025: the first forced ability used the targets, the second cannot initiate).
@@ -90,7 +102,7 @@ export function lostWithDiscardedCard(
   const cost = definition.costEffects ?? 0;
   const rest = {
     ...definition,
-    effects: [...definition.effects.slice(0, cost), ...withoutCard(definition.effects.slice(cost))],
+    effects: [...definition.effects.slice(0, cost), ...withoutCard(definition.effects.slice(cost), gone)],
   };
   return abilityLacksValidTarget(state, deps, rest, candidate.instanceId, candidate.controllerId ?? null, event);
 }
@@ -101,8 +113,8 @@ export function lostWithDiscardedCard(
  * ability is (`abilityLacksValidTarget`): "choose one: attach that card here, or remove 1 threat from the main scheme"
  * with no threat on it has nothing left to do.
  */
-function withoutCard(effects: readonly EffectSpec[]): readonly EffectSpec[] {
-  const slots: string[] = [...goneByDefault()];
+function withoutCard(effects: readonly EffectSpec[], gone: readonly string[]): readonly EffectSpec[] {
+  const slots: string[] = [...gone];
   return inline(effects).flatMap((effect): readonly EffectSpec[] => {
     if (effect.kind === "chooseTarget" || effect.kind === "chooseCards") {
       if (namesCard(effect, slots)) slots.push(effect.slot);
@@ -133,11 +145,15 @@ const NEEDS = new WeakMap<AbilityDefinition, boolean>();
  * left. So The Shadow King (45180a) and Sugar Man (45182a) still resolve after Abyss (45181a) took a card, counting
  * nothing for it: a mission attempt's card a response took "does not count" (April 30, 2026 - Ruling 4, answer 1).
  */
-export function needsDiscardedCard(definition: AbilityDefinition | undefined, judge?: Judge): boolean {
+export function needsDiscardedCard(
+  definition: AbilityDefinition | undefined,
+  judge?: Judge,
+  gone?: readonly string[],
+): boolean {
   if (!definition) return false;
   const parts = () => inline(definition.effects.slice(definition.costEffects ?? 0));
   // Read with the game as it stands: not remembered.
-  if (judge) return everyPartNeedsCard(parts(), goneByDefault(), judge);
+  if (judge || gone) return everyPartNeedsCard(parts(), gone ?? goneByDefault(), judge);
   let known = NEEDS.get(definition);
   if (known === undefined) {
     known = everyPartNeedsCard(parts());
@@ -150,7 +166,7 @@ export function needsDiscardedCard(definition: AbilityDefinition | undefined, ju
  * Reads a branch's condition on the game as it stands, once the card has gone. Without one (`needsDiscardedCard`'s
  * remembered reading) a condition on the card could pick either branch.
  */
-export type Judge = (condition: Predicate) => boolean;
+export type Judge = (condition: Predicate) => boolean | undefined;
 
 /**
  * The slots read as holding only the discarded cards when nothing says otherwise: the `together` targets. At
@@ -158,7 +174,10 @@ export type Judge = (condition: Predicate) => boolean;
  * answer with cards still in the pile keeps its options on them (#928 review).
  */
 // A function, not a constant: read at call time, after an import cycle through `select.ts` has settled.
-const goneByDefault = (): readonly string[] => [TOGETHER_TARGETS_SLOT];
+const goneByDefault = (): readonly string[] => [EVENT_TARGET, TOGETHER_TARGETS_SLOT];
+
+/** In a list of slots that hold nothing: "that card" itself (`eventTarget`) names nothing either. */
+export const EVENT_TARGET = "event.target";
 
 function everyPartNeedsCard(
   effects: readonly EffectSpec[],
@@ -212,7 +231,22 @@ function partNeedsCard(effect: EffectSpec, slots: readonly string[], judge?: Jud
  * yet: no `judge` (the remembered reading), or it reads what the ability binds or how it was paid for.
  */
 function told(condition: Predicate, judge: Judge | undefined): boolean | undefined {
-  return judge && !readsOwnBindings(condition) ? judge(condition) : undefined;
+  return judge?.(condition);
+}
+
+/**
+ * Whether a condition reads a binding the ability has not made yet: a var, a slot or a payment `context` does not hold.
+ * At an option (`executeChooseOne`) the ability's earlier choices are known and read; one made inside the option is not.
+ */
+export function readsUnbound(value: unknown, context: EffectContext): boolean {
+  if (Array.isArray(value)) return value.some((item) => readsUnbound(item, context));
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  const vars = context.vars ?? {};
+  if ((record.kind === "var" || record.kind === "varAtLeast") && !(String(record.name) in vars)) return true;
+  if (record.kind === "slot" && context.bindings[String(record.slot)] === undefined) return true;
+  if (typeof record.inSlot === "string" && context.bindings[record.inSlot] === undefined) return true;
+  return Object.values(record).some((item) => readsUnbound(item, context));
 }
 
 /** Whether `value` reads a value or card the ability binds as it resolves (a var, a payment, a choice's slot). */
@@ -314,7 +348,7 @@ function namesCard(value: unknown, slots: readonly string[], nested = false): bo
   // A union of card selectors still names a card when any other alternative does (`selectCards` `anyOf`).
   if (record.kind === "anyOf" && Array.isArray(record.of))
     return record.of.every((item) => namesCard(item, slots, true));
-  if (record.kind === "eventTarget") return true;
+  if (record.kind === "eventTarget") return slots.includes(EVENT_TARGET);
   if (record.kind === "slot" && slots.includes(record.slot as string)) return true;
   if (typeof record.inSlot === "string" && slots.includes(record.inSlot)) return true;
   // "Each other enemy" (`TargetQuery.excluding`): an empty exclusion excludes nothing, so it is no operand.

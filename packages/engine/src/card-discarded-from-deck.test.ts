@@ -328,6 +328,58 @@ const NESTED_RESPONSE = stubAbility(
     ],
   }),
 );
+// Once for the whole discard, paid by exhausting this card: "attach the first card discarded facedown here" / "attach
+// those cards facedown here". The first acts only on "that card" (the first condition's), the second on the group.
+const pairedOn = (id: string, card: TargetRef): StubAbility =>
+  stubAbility(
+    id,
+    def({
+      trigger: { kind: "response", forced: false, on: { ...youDiscard, together: true } },
+      cost: { exhaustSelf: true },
+      effects: [{ kind: "attach", card, to: self, facedown: true }],
+    }),
+  );
+const FIRST_ONLY_RESPONSE = pairedOn("first-only.response", { kind: "eventTarget" });
+const WHOLE_GROUP_RESPONSE = pairedOn("whole-group.response", { kind: "slot", slot: TOGETHER_TARGETS_SLOT });
+// "Choose that card. Choose one: if you chose a card, draw 1 card; or remove 1 threat from the main scheme."
+const PICKED_IF_RESPONSE = stubAbility(
+  "picked-if.response",
+  def({
+    trigger: { kind: "response", forced: false, on: youDiscard },
+    effects: [
+      {
+        kind: "chooseCards",
+        slot: "picked",
+        from: { kind: "ref", ref: { kind: "eventTarget" } },
+        chooser: you,
+        min: 0,
+        max: 1,
+      },
+      {
+        kind: "chooseOne",
+        chooser: you,
+        options: [
+          {
+            label: "draw",
+            effects: [
+              {
+                kind: "if",
+                condition: {
+                  kind: "compare",
+                  left: { kind: "refCount", of: { kind: "slot", slot: "picked" } },
+                  op: "atLeast",
+                  right: constant(1),
+                },
+                then: [{ kind: "draw", player: you, amount: constant(1) }],
+              },
+            ],
+          },
+          { label: "thwart", effects: [removeOne] },
+        ],
+      },
+    ],
+  }),
+);
 // One answer for every [justice] card of the discard: 1 "answers" counter, and 1 "cards" counter for each of them.
 const BATCH_RESPONSE = stubAbility(
   "batch.forced-response",
@@ -368,6 +420,9 @@ const PICKED = stubSupport({ id: "picked", cost: 0, abilities: [PICKED_RESPONSE.
 const GROUP_CHOICE = stubSupport({ id: "group-choice", cost: 0, abilities: [GROUP_CHOICE_RESPONSE.ref] });
 const OTHERS = stubSupport({ id: "others", cost: 0, abilities: [OTHERS_RESPONSE.ref] });
 const NESTED = stubSupport({ id: "nested", cost: 0, abilities: [NESTED_RESPONSE.ref] });
+const FIRST_ONLY = stubSupport({ id: "first-only", cost: 0, abilities: [FIRST_ONLY_RESPONSE.ref] });
+const WHOLE_GROUP = stubSupport({ id: "whole-group", cost: 0, abilities: [WHOLE_GROUP_RESPONSE.ref] });
+const PICKED_IF = stubSupport({ id: "picked-if", cost: 0, abilities: [PICKED_IF_RESPONSE.ref] });
 const BATCH = stubSupport({ id: "batch", cost: 0, abilities: [BATCH_RESPONSE.ref] });
 const METER = stubSupport({ id: "meter", cost: 0 });
 const GUARD = stubAlly({ id: "guard", cost: 0, atk: 1, thw: 1, hp: 2 });
@@ -462,6 +517,9 @@ const deps: EngineDeps = depsOf(
   GROUP_CHOICE_RESPONSE,
   OTHERS_RESPONSE,
   NESTED_RESPONSE,
+  FIRST_ONLY_RESPONSE,
+  WHOLE_GROUP_RESPONSE,
+  PICKED_IF_RESPONSE,
   BATCH_RESPONSE,
   ...ACTIONS,
 );
@@ -488,6 +546,9 @@ type InPlay =
   | "group-choice"
   | "others"
   | "nested"
+  | "first-only"
+  | "whole-group"
+  | "picked-if"
   | "batch"
   | "costly"
   | "guard";
@@ -537,6 +598,9 @@ function start(
       GROUP_CHOICE,
       OTHERS,
       NESTED,
+      FIRST_ONLY,
+      WHOLE_GROUP,
+      PICKED_IF,
       BATCH,
       METER,
       GUARD,
@@ -570,6 +634,9 @@ function start(
       GROUP_CHOICE.id,
       OTHERS.id,
       NESTED.id,
+      FIRST_ONLY.id,
+      WHOLE_GROUP.id,
+      PICKED_IF.id,
       BATCH.id,
       METER.id,
       GUARD.id,
@@ -1094,6 +1161,33 @@ describe("issue #928: a response that needs nothing of the discarded card stays 
       const choice = state.pendingChoice;
       if (choice?.prompt.kind === "chooseOption") asked.push(choice.options.map((option) => `${option.label}`));
       return triggering(HAND_RESPONSE, NESTED_RESPONSE)(state);
+    };
+    const result = play(withThreat(table, scheme, 3), MILL_1, pick);
+    expect(asked.flat()).not.toContain("draw");
+    expect(mustInstance(result.state, scheme).threat).toBe(2);
+    expectReplays(result);
+  });
+
+  it("a paid 'together' answer on the first card alone is not initiated once it moved; one on the group is", () => {
+    const table = start(["hand", "filler", "filler"], { inPlay: ["first-only", "whole-group"] });
+    const [, ...rest] = table.top;
+    const result = play(table, MILL_3, triggering(HAND_RESPONSE, FIRST_ONLY_RESPONSE, WHOLE_GROUP_RESPONSE));
+    // Not initiated, so not paid: the card stays ready.
+    expect(resolved(result.events, FIRST_ONLY_RESPONSE)).toEqual([]);
+    expect(mustInstance(result.state, table.inPlay["first-only"]!).exhausted).toBe(false);
+    expect(resolved(result.events, WHOLE_GROUP_RESPONSE)).toEqual([table.inPlay["whole-group"]]);
+    expect([...mustInstance(result.state, table.inPlay["whole-group"]!).attachments].sort()).toEqual([...rest].sort());
+    expectReplays(result);
+  });
+
+  it("an option on a condition over an earlier, now empty, choice is not offered", () => {
+    const table = start(["hand", "filler"], { inPlay: ["picked-if"] });
+    const scheme = table.state.mainScheme!.instanceId;
+    const asked: string[][] = [];
+    const pick: Pick = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") asked.push(choice.options.map((option) => `${option.label}`));
+      return triggering(HAND_RESPONSE, PICKED_IF_RESPONSE)(state);
     };
     const result = play(withThreat(table, scheme, 3), MILL_1, pick);
     expect(asked.flat()).not.toContain("draw");
