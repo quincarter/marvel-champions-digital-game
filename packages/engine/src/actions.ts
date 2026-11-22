@@ -1744,8 +1744,31 @@ function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
   return inPlayPicksOf(cost).length > 0 && Object.entries(cost).every(([key, v]) => pickKeys.has(key) || !v);
 }
 
+/**
+ * Whether a resource ability's cost picks a set of cards in play that can be built one card at a time: "any number" (no
+ * `max`) or "up to N" with N above one, from none or one, and not an `each` pick (it takes every match, so it is never
+ * a choice). Its options are sets of cards (`ChoiceOption.picksMany`).
+ */
+function picksMany(deps: EngineDeps, abilityId: string): boolean {
+  const picks = inPlayPicksOf(deps.abilities[abilityId]?.cost);
+  return (
+    picks.length > 0 &&
+    picks.every(
+      // A pick of at least two (`min` above one) has no one-card set to start from, so it cannot be built a card at a
+      // time: it keeps its one option per set (PR #969 review).
+      ({ pick }) => !pick.each && pick.min <= 1 && (pick.max === undefined || pick.max > 1),
+    )
+  );
+}
+
 /** Most payment options one resource ability offers for the different cards its cost could pick (a cap, not a rule). */
 const MAX_PICK_OPTIONS = 20;
+/**
+ * Every subset is offered while there are at most this many candidates (2^8 = 256 options): the payment sheet builds an
+ * "any number" pick one card at a time (issue #966, Enhanced Combat Sense), and a set the cap left out could not be
+ * reached from the cards picked so far.
+ */
+const ALL_SUBSETS_UP_TO = 8;
 
 /** Every way to choose `size` of `ids`, in order. */
 function* combinations<T>(ids: readonly T[], size: number, from = 0): Generator<readonly T[]> {
@@ -1791,9 +1814,10 @@ function resourcePickChoices(
     // Weapon or Tech upgrades") can be paid in full and at every size between, however many candidates there are (#890
     // item 2, PR #903 review). Below the cap the list is what it was.
     const options: (readonly InstanceId[])[] = [];
-    for (let size = pick.min; size <= most && options.length < MAX_PICK_OPTIONS; size++) {
+    const cap = candidates.length <= ALL_SUBSETS_UP_TO ? 2 ** candidates.length : MAX_PICK_OPTIONS;
+    for (let size = pick.min; size <= most && options.length < cap; size++) {
       for (const ids of combinations(candidates, size)) {
-        if (options.length >= MAX_PICK_OPTIONS) break;
+        if (options.length >= cap) break;
         if (holdsSelf(ids)) options.push(ids);
       }
     }
@@ -2569,6 +2593,7 @@ export function paymentOptions(
             optionId: resourceAbilityOptionId({ instanceId: id, abilityId: ref.id, costChoices: choices }),
             label: `${displayNameOf(ctx.state, id)} (${picked.join(", ")})`,
             ref: { kind: "ability", instanceId: id, abilityId: ref.id },
+            ...(picksMany(ctx.deps, ref.id) ? { picksMany: true as const } : {}),
           });
         }
         continue;

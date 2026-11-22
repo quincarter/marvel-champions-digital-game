@@ -763,3 +763,4 @@ export {
   type SetupOutsideFact,
 } from "./outside-facts.js";
 export { generatedResources, handCardResources, paymentOptionsPool, resourcesNotFor } from "./actions.js";
+export { searchFindableIfSpent, type SearchFindableIfSpent } from "./search-findable.js";

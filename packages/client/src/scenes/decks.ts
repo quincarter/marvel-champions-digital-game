@@ -119,6 +119,7 @@ import { artFor, artLanguageNow } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
+import { drawPictureAspectChips } from "../ui/aspect-chips.js";
 import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
@@ -1348,6 +1349,11 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
       // One pane at a time (phone, tablet): the deck's actions sit on another tab, so a tap opens them (#958).
       if (this.#tabs !== null) this.#openDeckActions(row.option.deck.id as string);
+      // Every pane on screen (desktop): a click on one of the player's decks or a precon opens its Check, the first look
+      // at a deck; the card pool is Edit's (#966, the owner's call). Back returns here with the deck selected. A
+      // community deck keeps its own pane (Add to my decks first), and a pad or the keyboard still only selects (the
+      // stop's own `activate`), so walking the list never leaves the screen.
+      else if (!row.offer) this.#openDeckCheck(row.option.deck);
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
@@ -1759,6 +1765,15 @@ export class DecksScene extends Phaser.Scene {
     });
     if (dim < 1) (thumb as unknown as Phaser.GameObjects.Components.Alpha).setAlpha?.(dim);
     objects.push(thumb);
+    // The deck's aspect(s) along the foot of its picture, as Past games marks each hero (#917): which aspect a deck
+    // plays reads off the list without opening it (#966).
+    const chips = drawPictureAspectChips(
+      this,
+      { x: card.x + 6, y: card.y + 6, width: thumbWidth, height: thumbHeight },
+      option.deck.aspects,
+    );
+    if (dim < 1) for (const chip of chips) (chip as unknown as Phaser.GameObjects.Components.Alpha).setAlpha?.(dim);
+    objects.push(...chips);
     const textX = card.x + 6 + thumbWidth + 10;
     const textWidth = card.x + card.width - 10 - textX;
     const name = this.add.text(
@@ -3211,7 +3226,9 @@ export class DecksScene extends Phaser.Scene {
 
   /** Opens Deck check (W1) over this deck, returning here on Back. */
   #openDeckCheck(deck: Deck): void {
-    goToScreen(this, SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
+    // Back lands on this deck again, selected, wherever it sits in the list.
+    const returnTo = { scene: SCENES.decks, data: { focusDeckId: deck.id as string } satisfies DecksSceneData };
+    goToScreen(this, SCENES.deckCheck, { deck, returnTo } satisfies DeckCheckSceneData);
   }
 
   #duplicate(deck: Deck): void {
