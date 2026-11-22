@@ -593,6 +593,11 @@ export const playModeKeys: Readonly<Record<"strict" | "host", { title: MessageKe
   host: { title: "room.mode.host", detail: "room.mode.hostDetail" },
 };
 
+export const villainPacingKeys: Readonly<Record<"host" | "each", { title: MessageKey; detail: MessageKey }>> = {
+  host: { title: "room.villain.host", detail: "room.villain.hostDetail" },
+  each: { title: "room.villain.each", detail: "room.villain.eachDetail" },
+};
+
 export const undoKeys: Readonly<Record<LobbyUndo, { title: MessageKey; detail: MessageKey }>> = {
   off: { title: "room.undo.off", detail: "room.undo.offDetail" },
   host: { title: "room.undo.host", detail: "room.undo.hostDetail" },

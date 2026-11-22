@@ -17,6 +17,8 @@ import type {
   RoomDeck,
   RoomDeckSummary,
   RoomDevice,
+  VillainCursorState,
+  VillainPacing,
 } from "@mc/sync-worker/room-protocol";
 
 export type {
@@ -31,6 +33,8 @@ export type {
   RoomDeck,
   RoomDeckSummary,
   RoomDevice,
+  VillainCursorState,
+  VillainPacing,
 };
 
 /** `none`: not in a room. `host`: made it, runs the game. `guest`: joined someone else's. */
@@ -188,6 +192,16 @@ export interface RoomHostActivity {
   readonly scenario?: string;
 }
 
+/**
+ * Where the host's villain phase screen is, for a guest's screen to follow (`LobbySettings.villainPacing` `host`).
+ * Presentation only; memory only. `key` names the phase (its round), `at` is how many beats the host has shown.
+ */
+export interface RoomVillainCursor {
+  readonly key: string;
+  readonly at: number;
+  readonly state: VillainCursorState;
+}
+
 export interface RoomChatLine extends ChatLine {
   readonly mine: boolean;
 }
@@ -226,6 +240,8 @@ export interface RoomState {
   readonly chatLive: number;
   /** The host's setup step, shown as a status line; null while the host is in the lobby or the game has started. */
   readonly hostActivity: RoomHostActivity | null;
+  /** The host's villain phase cursor (the first table's), or null before the host has shown one. */
+  readonly villainCursor: RoomVillainCursor | null;
   readonly refusal: RoomRefusal | null;
   /** Host only: what seat holders asked for and the host has not answered, oldest first. Empty for a guest. */
   readonly requests: readonly RoomRequest[];
@@ -257,6 +273,7 @@ export const NO_ROOM: RoomState = {
   chat: [],
   chatLive: 0,
   hostActivity: null,
+  villainCursor: null,
   refusal: null,
   requests: [],
   myRequest: null,

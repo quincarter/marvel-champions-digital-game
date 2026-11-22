@@ -17,6 +17,7 @@ import {
   type ClientMessage,
   type DeckRefusalCode,
   type HostActivityStep,
+  type VillainCursorState,
   type RoomDeck,
   type RoomBuild,
   type RoomDevice,
@@ -454,6 +455,12 @@ export class RoomSession {
   hostActivity(step: HostActivityStep, scenario?: string): void {
     if (this.role !== "host") return;
     this.#say({ ch: "room", kind: "host-activity", step, ...(scenario ? { scenario } : {}) });
+  }
+
+  /** Host only: where my villain phase screen is. Ephemeral: the room relays it to the guests, memory only, never stored. */
+  villainCursor(key: string, at: number, state: VillainCursorState): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "villain-cursor", table: FIRST_TABLE, key, at, state });
   }
 
   chat(text: string): void {

@@ -14,6 +14,7 @@ import {
   type BuildGap,
   type RoomChatLine,
   type RoomHostActivity,
+  type RoomVillainCursor,
   type RoomDeckProblem,
   type RoomConnection,
   type RoomParticipant,
@@ -79,6 +80,7 @@ export class RoomModel {
   #chat: RoomChatLine[] = [];
   #chatLive = 0;
   #hostActivity: RoomHostActivity | null = null;
+  #villainCursor: RoomVillainCursor | null = null;
   #refusal: RoomRefusal | null = null;
   #refusalSeq = 0;
   #lastSeat: string | undefined;
@@ -230,6 +232,8 @@ export class RoomModel {
   dropped(): void {
     // The room resends the host's step to a rejoining socket; an old one must not outlive the connection.
     this.#hostActivity = null;
+    // The room resends the host's cursor to a rejoining guest; an old one must not outlive the connection.
+    this.#villainCursor = null;
     if (this.#connection === "ended") return;
     this.#connection = this.#welcomed ? "reconnecting" : "connecting";
   }
@@ -318,6 +322,12 @@ export class RoomModel {
           message.step === "idle"
             ? null
             : { step: message.step, ...(message.scenario ? { scenario: message.scenario } : {}) };
+        return true;
+      case "villain-cursor":
+        // The first table's host leads the first table (an Epic pod's other tables keep their own cursors).
+        if (message.table !== FIRST_TABLE) return false;
+        this.#villainCursor =
+          message.state === "none" ? null : { key: message.key, at: message.at, state: message.state };
         return true;
       case "lobby":
         this.#lobby = { code: message.code, rev: message.rev, settings: message.settings, seats: message.seats };
@@ -426,6 +436,7 @@ export class RoomModel {
       chat: this.#chat,
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
+      villainCursor: this.#villainCursor,
       refusal: this.#refusal,
       requests: this.#role === "host" ? this.#requests : [],
       myRequest: this.#role === "guest" ? this.#ask : null,

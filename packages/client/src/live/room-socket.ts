@@ -90,6 +90,7 @@ const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
     "seat-decks",
     "deck-refused",
     "host-activity",
+    "villain-cursor",
   ]),
   game: new Set([
     "resend",

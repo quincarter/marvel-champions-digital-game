@@ -53,6 +53,13 @@ export interface RecapPanelArgs {
   /** The primary button's label: "Start player phase ▸", or "Close" when the recap is reopened for review. */
   readonly ctaLabel?: string;
   /**
+   * A guest whose screen follows the host's (`view/villain-pacing.ts`): no Auto-advance toggle (nothing here closes
+   * the recap on a timer), and this line says who starts the player phase.
+   */
+  readonly followed?: true;
+  /** Replaces the line under the steps ("This recap stays open until you start the player phase."). */
+  readonly note?: string;
+  /**
    * Drawn in the docked panel (`bounds` is the panel): EXPAND takes Hide's place and opens the full-screen recap. On the
    * rail and the band the steps lay out as the story strip (`villainDockedRecapLayout`); on a tab, as the ordinary
    * layout over the panel.
@@ -184,13 +191,16 @@ export function drawVillainRecapPanel(scene: Phaser.Scene, args: RecapPanelArgs)
     scrollHoverCards(scene, hoverMark, scrollRegion.content, region);
   });
 
-  drawToggle(scene, layout.toggle, args.autoAdvance, args.onToggle, phone);
-  stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
+  if (!args.followed) {
+    drawToggle(scene, layout.toggle, args.autoAdvance, args.onToggle, phone);
+    stops.set("toggle", { rect: layout.toggle, activate: args.onToggle });
+  }
   if (layout.hint.width > 40) {
     const hint =
-      args.autoAdvance === "off"
+      args.note ??
+      (args.autoAdvance === "off"
         ? "This recap stays open until you start the player phase."
-        : `This recap closes itself after ${Math.round(VILLAIN_RECAP_PAUSE_MS / 1000)} seconds.`;
+        : `This recap closes itself after ${Math.round(VILLAIN_RECAP_PAUSE_MS / 1000)} seconds.`);
     scene.add
       .text(
         layout.hint.x,

@@ -473,6 +473,42 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     // `&setup=1`: the setup deal and mulligan screen instead of the board.
     return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
   }
+  // `?screen=room-villain-follow[&pacing=each][&at=N]` (issue #881, dev only): a seated guest's villain phase over a
+  // made-up room with no room service. The host leads (or `pacing=each`); `at=N` is the host's cursor, absent while the
+  // host has not started. The game is the surge fixture's Rhino game, whose villain phase has no choice for the guest.
+  if (screen === "room-villain-follow" && import.meta.env.DEV) {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const { previewRoomState } = await import("../platform/room.js");
+    const { setSeatGameUp } = await import("../view/seat-context.js");
+    const { guidePrefs, setGuidePrefs } = await import("../guide/guide-store.js");
+    const { withLevel } = await import("../guide/guide-prefs.js");
+    setGuidePrefs(withLevel(guidePrefs(), "hints"));
+    const base = roomLobbyFixture("guest", "decks");
+    const at = params.get("at");
+    previewRoomState({
+      ...base,
+      started: true,
+      seats: [
+        {
+          ...base.seats[0]!,
+          id: "s1",
+          player: "p1",
+          mine: true,
+          holder: "p1",
+          holderName: "Ava",
+          label: "Spider-Man (Justice)",
+        },
+      ],
+      mySeats: ["s1"],
+      settings: { ...base.settings!, villainPacing: params.get("pacing") === "each" ? "each" : "host" },
+      villainCursor: at === null ? null : { key: "1", at: Number(at), state: "playing" },
+    });
+    setSeatGameUp(true);
+    const { startDevSurgeGame } = await import("../store/dev-order-surge-game.js");
+    const finish = await startDevSurgeGame();
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
   // `?screen=online`: Play online.
   // `&closed=host`: with the "room closed" notice over it (the guest of a room the host closed lands here).
   // `&continue=1`: the notice also offers "Continue in single player" (for a made-up saved game id; pressing it fails).
