@@ -2103,8 +2103,8 @@ export class RoomLobbyScene extends Phaser.Scene {
         }
       }
 
-      // Seats per person, chat.
-      y = this.#heading(x, y + 4, w, t("room.multi.title"));
+      // Seats (how many each, and whether guests ask the host for one), chat.
+      y = this.#heading(x, y + 4, w, t("room.seatsSetting.heading"));
       toggleRow("multi", t("room.multi.title"), t("room.multi.detail"), settings.multiSeat, () =>
         this.#api.setLobby({ settings: { multiSeat: !settings.multiSeat } }),
       );
