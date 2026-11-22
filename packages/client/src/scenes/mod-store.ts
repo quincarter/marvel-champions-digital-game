@@ -97,12 +97,14 @@ import { loadCatalog } from "../packs/catalog.js";
 import { notePackUpdates } from "../packs/pack-updates.js";
 import {
   failedIdsOf,
+  failureOf,
   nextOf,
   resultOf,
   startRun,
   stepRun,
   updateAllBarOf,
   updateAllQueueOf,
+  type UpdateAllAction,
   type UpdateAllBar,
   type UpdateAllResult,
   type UpdateAllRun,
@@ -219,6 +221,11 @@ export class ModStoreScene extends Phaser.Scene {
   /** The Update all bar's words and progress bar, so a progress report redraws only these. */
   #updateBarObjects: Phaser.GameObjects.GameObject[] = [];
   #updateBarRect: Rect | null = null;
+  /**
+   * Bumped by every read of the installed packs that changes `#installed`: a load whose read started before an Update
+   * all run (carrying on across visits) wrote newer versions must not put the older list back.
+   */
+  #installedGeneration = 0;
   /** The progress bar's objects, so a report redraws only these (the text panel keeps its scroll position). */
   #statusObjects: Phaser.GameObjects.GameObject[] = [];
   #statusRect: Rect | null = null;
@@ -381,6 +388,7 @@ export class ModStoreScene extends Phaser.Scene {
 
   async #load(): Promise<void> {
     this.#status = "loading";
+    const generation = this.#installedGeneration;
     try {
       const [catalog, installed] = await Promise.all([
         // A dev override must never overwrite the real catalog's saved copy.
@@ -390,14 +398,19 @@ export class ModStoreScene extends Phaser.Scene {
       ]);
       this.#index = catalog.index;
       this.#offline = catalog.offline;
-      this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
+      // An update landed while this load waited (`#refreshInstalled` read the newer list): its list stands, and the
+      // badge is counted from it too, never from this older read.
+      const current = generation === this.#installedGeneration;
+      if (current) this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
       // A dev catalog override is not the real store's, so it never sets the Title's update badge.
-      if (!this.#catalogUrl && installed) notePackUpdates(catalog.index, installed, catalog.offline);
+      if (!this.#catalogUrl && installed) {
+        notePackUpdates(catalog.index, current ? installed : [...this.#installed.values()], catalog.offline);
+      }
       this.#status = "ready";
     } catch {
       // No network and no saved copy: still show what is installed.
       const installed = await this.#store.list().catch(() => [] as InstalledPack[]);
-      this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+      if (generation === this.#installedGeneration) this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
       this.#status = "failed";
     }
     this.#requestRedraw();
@@ -412,7 +425,11 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   async #refreshInstalled(): Promise<void> {
+    // Taken before the read: a load that started earlier now leaves `#installed` to this one, and a later refresh's
+    // read wins over this one.
+    const generation = ++this.#installedGeneration;
     const installed = await this.#store.list().catch(() => null);
+    if (generation !== this.#installedGeneration) return;
     this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
     // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
@@ -569,7 +586,9 @@ export class ModStoreScene extends Phaser.Scene {
     this.#requestRedraw();
     for (let item = nextOf(this.#updateRun); item; item = nextOf(this.#updateRun)) {
       const ok = await this.#installTile(item);
-      this.#updateRun = stepRun(this.#updateRun, ok);
+      // Why it failed, kept with the result: the next pack's install replaces `#install`.
+      const error = !ok && this.#install?.id === item.id ? this.#install.error : null;
+      this.#updateRun = stepRun(this.#updateRun, ok, error);
       this.#requestRedraw();
     }
     this.#updateResult = resultOf(this.#updateRun);
@@ -581,6 +600,17 @@ export class ModStoreScene extends Phaser.Scene {
     if (!this.#updateRun || this.#updateRun.stopping) return;
     this.#updateRun = { ...this.#updateRun, stopping: true };
     this.#requestRedraw();
+  }
+
+  /**
+   * The install state a pack's page shows: its own install or update, else (no install of it since) why the last
+   * Update all could not update it, until a retry lands.
+   */
+  #installStateFor(id: string): InstallState | null {
+    if (this.#install?.id === id) return this.#install;
+    const pending = updateAllQueueOf(tilesOf(this.#index, this.#context(), "all"));
+    const error = failureOf(this.#updateResult, pending, id);
+    return error ? { id, progress: null, error } : null;
   }
 
   /** The packs the last Update all could not update that still can be: their tiles say so. */
@@ -598,7 +628,23 @@ export class ModStoreScene extends Phaser.Scene {
       progress: current !== undefined && this.#install?.id === current ? this.#install.progress : null,
       result: this.#updateResult,
       busy: this.#busy(),
+      shown: new Set(
+        filterTiles(tilesOf(this.#index, this.#context(), this.#tab), this.#filter).map((tile) => tile.id),
+      ),
     });
+  }
+
+  /**
+   * "Show them" on the Update all bar: failed packs the tab or the search hid. Installed lists every one of them, so it
+   * opens with the search, tags and creator cleared (the sort stays), from its top.
+   */
+  #showFailed(): void {
+    this.#searchInput?.setValue("");
+    this.#filter = { ...EMPTY_FILTER, sort: this.#filter.sort };
+    this.#findersOpen = false;
+    this.#tab = "installed";
+    this.#scroll("installed").reset();
+    this.#draw();
   }
 
   async #remove(tile: ModStoreTile): Promise<void> {
@@ -634,7 +680,7 @@ export class ModStoreScene extends Phaser.Scene {
     if (!this.#alive || !rect || this.#packId === null) return;
     for (const object of this.#statusObjects) object.destroy();
     const before = this.children.list.length;
-    const running = this.#install?.id === this.#packId ? this.#install : null;
+    const running = this.#packId === null ? null : this.#installStateFor(this.#packId);
     this.#drawStatus(running, this.#error, this.#requirement, rect);
     this.#statusObjects = this.children.list.slice(before);
   }
@@ -1424,7 +1470,7 @@ export class ModStoreScene extends Phaser.Scene {
           this.#previewOf(tile)?.achievements ??
           []);
     const page = packPageOf(tile, entry, installed, achievements, this.#previewOf(tile)?.description);
-    const running = this.#install?.id === tile.id ? this.#install : null;
+    const running = this.#installStateFor(tile.id);
     // Update all holds every page's buttons until it ends; the pack it is on shows its own progress.
     const busy = (running !== null && running.error === null) || this.#removing || this.#updateRun !== null;
 
@@ -1787,39 +1833,54 @@ export class ModStoreScene extends Phaser.Scene {
     const bar = this.#updateAllBar();
     if (!bar) return at.y;
     const pad = 10;
-    const buttonWidth = bar.action ? (phone ? 128 : 200) : 0;
+    const actions = [bar.show, bar.action].filter((action) => action !== null);
+    const widthOf = (action: UpdateAllAction): number =>
+      action.id === "show-failed" ? (phone ? 112 : 150) : phone ? 128 : 200;
+    // A phone with two buttons puts them in a row under the words; otherwise they sit at the bar's right.
+    const below = phone && actions.length > 1;
+    const sideWidth = below ? 0 : actions.reduce((sum, action) => sum + widthOf(action) + pad, 0);
     const lineRect: Rect = {
       x: at.x + pad,
       y: at.y + pad,
-      width: at.width - pad * 2 - (buttonWidth > 0 ? buttonWidth + pad : 0),
+      width: at.width - pad * 2 - sideWidth,
       height: hit.target,
     };
-    // The words first, to size the bar: a phone's narrow bar may need a third line for a failed pack's name.
+    // The words first, to size the bar: a phone's narrow bar may need a third line.
     const before = this.children.list.length;
     const label = this.#drawUpdateBarText(bar, lineRect);
     const textRect: Rect = { ...lineRect, height: Math.max(hit.target, label.height) };
     if (bar.fraction === null) label.setY(textRect.y + (textRect.height - label.height) / 2);
     this.#updateBarObjects = this.children.list.slice(before);
     this.#updateBarRect = textRect;
-    const box: Rect = { x: at.x, y: at.y, width: at.width, height: textRect.height + pad * 2 };
+    const rowHeight = below ? hit.target + pad : 0;
+    const box: Rect = { x: at.x, y: at.y, width: at.width, height: textRect.height + pad * 2 + rowHeight };
     const panel = this.add
       .rectangle(box.x, box.y, box.width, box.height, surface.card.hex)
       .setOrigin(0, 0)
       .setStrokeStyle(2, surface.ink.hex)
       .setName("update-all-bar");
     this.children.moveBelow(panel, this.#updateBarObjects[0]!);
-    if (bar.action) {
-      const action = bar.action;
+    const rowY = below ? textRect.y + textRect.height + pad : box.y + (box.height - hit.target) / 2;
+    const rowWidth = (box.width - pad * (actions.length + 1)) / actions.length;
+    // Side by side: from the bar's right edge less the buttons' widths, a pad between each.
+    let cursor = box.x + box.width - sideWidth;
+    actions.forEach((action, index) => {
+      const width = below ? rowWidth : widthOf(action);
       const rect: Rect = {
-        x: box.x + box.width - pad - buttonWidth,
-        y: box.y + (box.height - hit.target) / 2,
-        width: buttonWidth,
+        x: below ? box.x + pad + index * (rowWidth + pad) : cursor,
+        y: rowY,
+        width,
         height: hit.target,
       };
-      const press = (): void => (action.id === "stop" ? this.#stopUpdateAll() : void this.#updateAll());
+      cursor += width + pad;
+      const press = (): void => {
+        if (action.id === "stop") this.#stopUpdateAll();
+        else if (action.id === "show-failed") this.#showFailed();
+        else void this.#updateAll();
+      };
       this.#buttons.push(
         new McButton(this, {
-          kind: action.id === "stop" ? "secondary" : "primary",
+          kind: action.id === "update-all" ? "primary" : "secondary",
           label: action.id === "update-all" ? `↑ ${action.label}` : action.label,
           type: typeRole.label,
           rect,
@@ -1827,10 +1888,11 @@ export class ModStoreScene extends Phaser.Scene {
           onClick: press,
         }),
       );
-      stops.set("update-all", { rect, activate: press });
-      order.push("update-all");
+      const key = action.id === "show-failed" ? "update-all-show" : "update-all";
+      stops.set(key, { rect, activate: press });
+      order.push(key);
       this.#obstacles.push(rect);
-    }
+    });
     return box.y + box.height + 10;
   }
 

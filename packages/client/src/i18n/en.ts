@@ -331,5 +331,6 @@ export const en = {
   "modStore.updateAll.failed_other":
     "{count} packs could not update and kept their old versions. They are marked ! below: open one to try again.",
   "modStore.updateAll.retry": "Retry update",
+  "modStore.updateAll.show": "Show them",
   "modStore.updateAll.stopped": "Stopped. The rest can still update.",
 } as const;

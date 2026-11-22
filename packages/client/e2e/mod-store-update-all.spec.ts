@@ -105,7 +105,7 @@ async function setUp(page: Page, baseURL: string): Promise<Setup> {
 /** The zip requests with repeats of one pack in a row folded (a download may be tried again). */
 const order = (requests: readonly string[]): string[] => requests.filter((id, i) => id !== requests[i - 1]);
 
-test("Update all goes on past a pack that fails, marks it, and forgets it once it is retried", async ({
+test("Update all goes on past a pack that fails, leads to it from any tab, and forgets it once it is retried", async ({
   page,
   baseURL,
 }) => {
@@ -120,17 +120,26 @@ test("Update all goes on past a pack that fails, marks it, and forgets it once i
       reachable ? route.fallback() : route.abort("failed"),
     );
 
+    // Run from Scenarios, which lists neither hero pack: the bar is over every tab.
+    await clickText(page, "SCENARIOS", { sceneKey: "ModStore" });
+    await waitForTextIn(page, "2 installed packs have updates.");
     await clickText(page, "UPDATE ALL", { sceneKey: "ModStore" });
     await waitForTextIn(page, "1 pack updated.", 180_000);
     expect(order(setup.zipRequests)).toEqual([failing, other]);
     expect(await has(page, "1 pack could not update")).toBe(true);
-    // The failed pack's tile says so, and Update all is still offered for it.
-    expect(await has(page, "Retry update")).toBe(true);
+    // Its tile is not on this tab: Show them opens Installed, where the tile says so.
+    expect(await has(page, "Retry update")).toBe(false);
+    await clickText(page, "SHOW THEM", { sceneKey: "ModStore" });
+    await waitForTextIn(page, "Retry update");
+    expect(await has(page, "SHOW THEM")).toBe(false);
+    // Update all is still offered for it.
     expect(await has(page, "UPDATE ALL")).toBe(true);
 
     // Retried from its own page in the same visit: it updates, and the bar no longer reports it.
-    reachable = true;
     await clickText(page, setup.names[failing]!, { sceneKey: "ModStore" });
+    // Its page still says why, though another pack's update ran after it.
+    await waitForTextIn(page, "The download failed");
+    reachable = true;
     await clickText(page, `UPDATE TO ${NEXT}`, { sceneKey: "ModStore", timeoutMs: 30_000 });
     await waitFor(
       async () => ((await has(page, "REMOVE")) && !(await has(page, "UPDATE TO")) ? true : null),
@@ -196,6 +205,58 @@ test("Update all keeps going when the player leaves the store, and Stop ends it 
       180_000,
     );
     expect(order(setup.zipRequests)).toEqual([first, second]);
+    expect(errors).toEqual([]);
+  } finally {
+    setup.dispose();
+  }
+});
+
+test("an update that lands while the store reloads its catalog is not undone by the older list", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  const errors = trackPageErrors(page);
+  const setup = await setUp(page, baseURL!);
+  try {
+    const [first, second] = setup.ids;
+    let releaseZip: () => void = () => {};
+    const zipHeld = new Promise<void>((resolve) => (releaseZip = resolve));
+    await page.route(new RegExp(`/e2e-packs/${first}/${NEXT.replace(/\./g, "\\.")}/[^/]+\\.zip`), async (route) => {
+      await zipHeld;
+      await route.fallback();
+    });
+    await clickText(page, "UPDATE ALL", { sceneKey: "ModStore" });
+    await waitForTextIn(page, "Updating 1 of 2");
+
+    // Out to the Title, then back in with the catalog held: the store reads the installed packs (both old) at once.
+    await page.keyboard.press("Escape");
+    await waitFor(async () => ((await activeScenes(page)).includes("Title") ? true : null), "the Title");
+    await settle(page);
+    let catalogHeld = true;
+    let releaseCatalog: () => void = () => {};
+    const catalogGate = new Promise<void>((resolve) => (releaseCatalog = resolve));
+    await page.route(/\/packs\/index\.json(\?.*)?$/, async (route) => {
+      if (catalogHeld) await catalogGate;
+      await route.fallback();
+    });
+    await clickText(page, "Mod Store", { sceneKey: "Title" });
+    await waitForScene(page, "ModStore");
+
+    // Both updates land while the catalog is still held...
+    const secondDone = page.waitForResponse(
+      (response) => response.url().includes(`/e2e-packs/${second}/${NEXT}/`) && response.url().endsWith(".zip"),
+    );
+    releaseZip();
+    await secondDone;
+    await page.waitForTimeout(8000);
+    // ...and only then does the catalog answer: the store must not offer either update again.
+    catalogHeld = false;
+    releaseCatalog();
+    await waitForTextIn(page, "2 packs updated.", 120_000);
+    expect(await has(page, "UPDATE ALL")).toBe(false);
+    expect(await has(page, "have updates")).toBe(false);
+    expect(await has(page, "has an update")).toBe(false);
     expect(errors).toEqual([]);
   } finally {
     setup.dispose();

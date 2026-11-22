@@ -3,6 +3,7 @@ import type { PackState } from "../packs/pack-state.js";
 import type { ModStoreTile } from "./mod-store-model.js";
 import {
   failedIdsOf,
+  failureOf,
   nextOf,
   resultOf,
   startRun,
@@ -49,10 +50,14 @@ describe("a run", () => {
     expect(nextOf(run)?.id).toBe("a");
     run = stepRun(run, true);
     expect(nextOf(run)?.id).toBe("b");
-    run = stepRun(run, false);
+    run = stepRun(run, false, "The download failed.");
     run = stepRun(run, true);
     expect(nextOf(run)).toBeNull();
-    expect(resultOf(run)).toEqual({ updated: 2, failed: [{ id: "b", name: "Beta" }], stopped: false });
+    expect(resultOf(run)).toEqual({
+      updated: 2,
+      failed: [{ id: "b", name: "Beta", error: "The download failed." }],
+      stopped: false,
+    });
   });
 
   it("ends after the current pack once Stop is pressed", () => {
@@ -73,6 +78,7 @@ describe("updateAllBarOf", () => {
       text: "8 installed packs have updates.",
       fraction: null,
       action: { id: "update-all", label: "Update all", enabled: true },
+      show: null,
     });
     expect(bar({ pending: packs(1) })?.text).toBe("1 installed pack has an update.");
     expect(bar({ pending: packs(2), busy: true })?.action?.enabled).toBe(false);
@@ -103,9 +109,10 @@ describe("updateAllBarOf", () => {
       text: "8 packs updated.",
       fraction: null,
       action: null,
+      show: null,
     });
     // Failures are counted, not listed: their tiles are marked, so eight long names never crowd a phone's bar.
-    const result = { updated: 6, failed: packs(2), stopped: false };
+    const result = { updated: 6, failed: packs(2).map((item) => ({ ...item, error: null })), stopped: false };
     const failed = bar({ pending: packs(2), result });
     expect(failed?.text).toBe(
       "6 packs updated. 2 packs could not update and kept their old versions. They are marked ! below: open one to try again.",
@@ -120,12 +127,37 @@ describe("updateAllBarOf", () => {
   });
 
   it("drops a failure once it has been retried from its page", () => {
-    const result = { updated: 1, failed: [{ id: "p0", name: "Pack 0" }], stopped: false };
+    const result = { updated: 1, failed: [{ id: "p0", name: "Pack 0", error: "No space." }], stopped: false };
     expect(failedIdsOf(result, packs(2))).toEqual(new Set(["p0"]));
     // p0 updated since: it no longer has an update, so it is neither marked nor counted, and nothing is left to do.
     expect(failedIdsOf(result, [])).toEqual(new Set());
-    expect(bar({ pending: [], result })).toEqual({ text: "1 pack updated.", fraction: null, action: null });
+    expect(bar({ pending: [], result })).toEqual({ text: "1 pack updated.", fraction: null, action: null, show: null });
     expect(failedIdsOf(null, packs(2)).size).toBe(0);
+  });
+
+  it("offers Show them when the tab or the search hides a failed pack", () => {
+    const result = { updated: 1, failed: [{ id: "p1", name: "Pack 1", error: null }], stopped: false };
+    const show = { id: "show-failed", label: "Show them", enabled: true };
+    expect(bar({ pending: packs(2), result, shown: new Set(["p0"]) })?.show).toEqual(show);
+    expect(bar({ pending: packs(2), result, shown: new Set(["p0", "p1"]) })?.show).toBeNull();
+    // Nothing failed, or the failure was retried: nothing to show.
+    expect(bar({ pending: packs(2), shown: new Set() })?.show).toBeNull();
+    expect(bar({ pending: [], result, shown: new Set() })?.show).toBeNull();
+  });
+
+  it("keeps why each pack failed for its page, until it is retried", () => {
+    const result = {
+      updated: 0,
+      failed: [
+        { id: "p0", name: "Pack 0", error: "The download failed." },
+        { id: "p1", name: "Pack 1", error: "No space." },
+      ],
+      stopped: false,
+    };
+    expect(failureOf(result, packs(2), "p0")).toBe("The download failed.");
+    expect(failureOf(result, packs(2), "p1")).toBe("No space.");
+    expect(failureOf(result, [{ id: "p1" }], "p0")).toBeNull();
+    expect(failureOf(null, packs(2), "p0")).toBeNull();
   });
 
   it("speaks Spanish", () => {
@@ -133,6 +165,7 @@ describe("updateAllBarOf", () => {
       text: "8 paquetes instalados tienen actualizaciones.",
       fraction: null,
       action: { id: "update-all", label: "Actualizar todo", enabled: true },
+      show: null,
     });
   });
 });

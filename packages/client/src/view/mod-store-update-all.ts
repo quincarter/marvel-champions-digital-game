@@ -20,6 +20,11 @@ export interface UpdateAllItem {
   readonly name: string;
 }
 
+/** A pack the run could not update, and why (the words its page shows until it is retried). */
+export interface UpdateAllFailure extends UpdateAllItem {
+  readonly error: string | null;
+}
+
 /** A run in progress: the packs it set out to update, in order, and how far it has got. */
 export interface UpdateAllRun {
   readonly queue: readonly UpdateAllItem[];
@@ -27,7 +32,7 @@ export interface UpdateAllRun {
   readonly done: number;
   readonly updated: number;
   /** The packs that failed to update (each keeps its old version). */
-  readonly failed: readonly UpdateAllItem[];
+  readonly failed: readonly UpdateAllFailure[];
   /** Stop was pressed: the run ends once the pack updating now finishes. */
   readonly stopping: boolean;
 }
@@ -35,18 +40,29 @@ export interface UpdateAllRun {
 /** How the last run ended, shown on the bar until the next one starts or the player leaves the store. */
 export interface UpdateAllResult {
   readonly updated: number;
-  readonly failed: readonly UpdateAllItem[];
+  readonly failed: readonly UpdateAllFailure[];
   readonly stopped: boolean;
 }
 
-export type UpdateAllActionId = "update-all" | "stop";
+export type UpdateAllActionId = "update-all" | "stop" | "show-failed";
+
+export interface UpdateAllAction {
+  readonly id: UpdateAllActionId;
+  readonly label: string;
+  readonly enabled: boolean;
+}
 
 export interface UpdateAllBar {
   /** One or two short sentences. */
   readonly text: string;
   /** The progress bar's fill (0 to 1) while a run is going, else null. */
   readonly fraction: number | null;
-  readonly action: { readonly id: UpdateAllActionId; readonly label: string; readonly enabled: boolean } | null;
+  readonly action: UpdateAllAction | null;
+  /**
+   * "Show them": failed packs the tab or the search is hiding (the bar sits over every tab), so the count always leads
+   * to their marked tiles. Null when they all show below.
+   */
+  readonly show: UpdateAllAction | null;
 }
 
 /** The packs Update all would update, by name (the order the grid lists them). */
@@ -61,14 +77,14 @@ export function startRun(queue: readonly UpdateAllItem[]): UpdateAllRun {
   return { queue, done: 0, updated: 0, failed: [], stopping: false };
 }
 
-/** The run once its current pack has finished. */
-export function stepRun(run: UpdateAllRun, ok: boolean): UpdateAllRun {
+/** The run once its current pack has finished; `error` is why it failed, kept for its page. */
+export function stepRun(run: UpdateAllRun, ok: boolean, error: string | null = null): UpdateAllRun {
   const current = run.queue[run.done];
   return {
     ...run,
     done: run.done + 1,
     updated: run.updated + (ok ? 1 : 0),
-    failed: ok || !current ? run.failed : [...run.failed, current],
+    failed: ok || !current ? run.failed : [...run.failed, { ...current, error }],
   };
 }
 
@@ -95,6 +111,16 @@ export function failedIdsOf(
   return new Set(result.failed.map((item) => item.id).filter((id) => still.has(id)));
 }
 
+/** Why the last run could not update `id`, while it is still a failure (`failedIdsOf`); else null. */
+export function failureOf(
+  result: UpdateAllResult | null,
+  pending: readonly Pick<UpdateAllItem, "id">[],
+  id: string,
+): string | null {
+  if (!failedIdsOf(result, pending).has(id)) return null;
+  return result?.failed.find((item) => item.id === id)?.error ?? null;
+}
+
 export interface UpdateAllBarInput {
   /** The installed packs that have an update now (`updateAllQueueOf`). */
   readonly pending: readonly UpdateAllItem[];
@@ -104,11 +130,21 @@ export interface UpdateAllBarInput {
   readonly result: UpdateAllResult | null;
   /** Another install or a removal is running: Update all waits for it. */
   readonly busy: boolean;
+  /** The ids the grid below shows now (its tab, search and tags); a failure outside them earns "Show them". */
+  readonly shown?: ReadonlySet<string>;
   readonly lang?: CardLanguage;
 }
 
 /** What the bar says and offers, or null when there is nothing to update and no run to report. */
-export function updateAllBarOf({ pending, run, progress, result, busy, lang }: UpdateAllBarInput): UpdateAllBar | null {
+export function updateAllBarOf({
+  pending,
+  run,
+  progress,
+  result,
+  busy,
+  shown,
+  lang,
+}: UpdateAllBarInput): UpdateAllBar | null {
   if (run) {
     const at = Math.min(run.done, run.queue.length - 1);
     const name = run.queue[at]?.name ?? "";
@@ -120,10 +156,13 @@ export function updateAllBarOf({ pending, run, progress, result, busy, lang }: U
       action: run.stopping
         ? { id: "stop", label: t("modStore.updateAll.stopping", undefined, lang), enabled: false }
         : { id: "stop", label: t("modStore.updateAll.stop", undefined, lang), enabled: true },
+      show: null,
     };
   }
   const lines: string[] = [];
-  const failed = failedIdsOf(result, pending).size;
+  const failedIds = failedIdsOf(result, pending);
+  const failed = failedIds.size;
+  const hidden = shown !== undefined && [...failedIds].some((id) => !shown.has(id));
   if (result) {
     if (result.updated > 0) lines.push(tPlural("modStore.updateAll.updated", result.updated, undefined, lang));
     if (failed > 0) {
@@ -143,5 +182,6 @@ export function updateAllBarOf({ pending, run, progress, result, busy, lang }: U
       pending.length > 0
         ? { id: "update-all", label: t("modStore.updateAll.button", undefined, lang), enabled: !busy }
         : null,
+    show: hidden ? { id: "show-failed", label: t("modStore.updateAll.show", undefined, lang), enabled: true } : null,
   };
 }
