@@ -33,8 +33,10 @@ import { reloadIsSafe, startAppLinks } from "./platform/app-links.js";
 import { setStartupPacksLoad } from "./packs/startup-packs.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
+import { startRoomNoticeWatch } from "./scenes/room-notice-watch.js";
 import { startDiscordPresence } from "./platform/discord-presence.js";
-import { startLiveWatch } from "./platform/live-watch.js";
+import { setRoomStartRefusedHandler, startLiveWatch } from "./platform/live-watch.js";
+import { goToScreen } from "./ui/transitions.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
 import { MusicScene } from "./audio/music-controller.js";
@@ -182,6 +184,16 @@ installColorScheme(game);
 
 // Every other screen is added the first time something starts it (`scenes/scene-loader.ts`), and the rest in idle
 // time once Title has drawn its first frame.
+// The room refused the host's game start (the lobby changed while the decks were checked): back to the lobby, which says so.
+setRoomStartRefusedHandler(() => {
+  const active = game.scene.getScenes(true);
+  const from =
+    active.find((scene) => scene.sys.settings.key === SCENES.board) ??
+    active.find(
+      (scene) => scene.sys.settings.key === SCENES.setupDeal || scene.sys.settings.key === SCENES.scenarioIntro,
+    );
+  if (from) goToScreen(from, SCENES.roomLobby, { startRefused: "lobby-changed" });
+});
 const sceneLoader = installSceneLoader(game, Phaser.Scenes.ScenePlugin);
 // Installed custom packs join the card pool and a new game's engine deps (`packs/active-packs.ts`). Not awaited: the
 // base game is playable at once, and a pack is validated in a worker. A dynamic import keeps the validator out of the first load.
@@ -234,6 +246,8 @@ void desktopLaunchSettings(settings, storedSettingsOverrides().displayMode !== u
 watchStartup(game);
 // The "Controller connected" toast (`scenes/pad-toast.ts`), fed by the browser's gamepad events.
 startPadToastWatch(game);
+// The room's join toasts and sounds (`scenes/room-notice-watch.ts`), idle outside a room.
+startRoomNoticeWatch(game);
 startDiscordPresence(game);
 startLiveWatch();
 

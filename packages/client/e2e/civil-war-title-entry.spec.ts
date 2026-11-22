@@ -33,14 +33,16 @@ for (const size of [
       expect(errors).toEqual([]);
     });
 
-    test("present right after Campaign once the box is unlocked; it opens the builder and Back returns to the Title", async ({
+    test("present right after Campaign and Play online once the box is unlocked; it opens the builder and Back returns to the Title", async ({
       page,
     }) => {
       const errors = trackPageErrors(page);
       await openApp(page, "unlock=all");
       await settle(page);
       const keys = await stopKeys(page, "Title");
-      expect(keys[keys.indexOf("campaign") + 1]).toBe("civil-war");
+      // Play online (#880) sits beside Campaign on its row, so the box's own entry is the stop after it.
+      expect(keys[keys.indexOf("campaign") + 1]).toBe("play-online");
+      expect(keys[keys.indexOf("campaign") + 2]).toBe("civil-war");
 
       await clickStop(page, "civil-war", "Title");
       await waitForScene(page, "CivilWarBuilder");

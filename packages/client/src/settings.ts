@@ -19,6 +19,15 @@ export const SHARP_TEXT_RESOLUTION_CEILING = 2;
 /** The music volume slider's top, as a percent of the music's full level (`Settings.musicVolume`). */
 export const MUSIC_VOLUME_MAX = 100;
 
+/** The most characters an online name has (the room's own cap, `MAX_NAME_LENGTH`, 24). */
+export const MAX_ONLINE_NAME_LENGTH = 24;
+
+/** An online name as it is kept: control characters and runs of spaces collapsed, trimmed, cut to the cap. */
+export function cleanOnlineName(name: string): string {
+  const spaced = Array.from(name, (ch) => (ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? " " : ch)).join("");
+  return spaced.replace(/\s+/g, " ").trim().slice(0, MAX_ONLINE_NAME_LENGTH).trim();
+}
+
 /** A stored or dragged music volume brought into range and to a whole percent. */
 export function clampMusicVolume(volume: number): number {
   if (!Number.isFinite(volume)) return MUSIC_VOLUME_MAX;
@@ -157,6 +166,8 @@ export interface Settings {
   readonly discordPresence: boolean;
   /** "Always allow people to watch my games" (issue #876): pre-ticks "Let people watch this game" in setup (`liveWatchDefault()`). A game streams to a live room only when its setup is `watchable`. Defaults off. */
   readonly liveWatch: boolean;
+  /** "Online name" (issue #880): the display name shown on your seats and in chat when you host or join a live room, at most `MAX_ONLINE_NAME_LENGTH` characters. Empty until asked (`platform/room.ts` reads it). */
+  readonly onlineName: string;
   /** Stop on each encounter card dealt facedown and show its back until the player presses Flip Encounter Card (#287). Defaults on. */
   readonly flipEncounterCards: boolean;
   /** How long Flip Encounter Card takes to turn the card over: 1 s, 0.5 s, or instantly (`flipDurationMs`). Defaults normal. */
@@ -545,6 +556,7 @@ export function defaultSettings(device: DeviceConditions = {}): Settings {
     holdEncounterCards: true,
     discordPresence: true,
     liveWatch: false,
+    onlineName: "",
     flipEncounterCards: true,
     flipEncounterSpeed: "normal",
     villainBeatSpeed: "normal",

@@ -667,7 +667,7 @@ describe("stored log and waking", () => {
       commands: Array.from({ length: 21 }, (_, i) => i),
     });
     expect([...storage.map.keys()].filter((k) => k.includes(":c:"))).toEqual(["t1:c:000000"]);
-    expect(storage.map.get("t1:header")).toEqual({ h: 2 });
+    expect(storage.map.get("t1:header")).toEqual({ h: 2, sg: 2 });
   });
 
   it("keeps ended and the outcome across a wake", async () => {

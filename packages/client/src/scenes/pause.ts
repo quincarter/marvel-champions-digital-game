@@ -88,6 +88,7 @@ import type { ManualAdjustData } from "./manual-adjust.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
+import { roomCheatsOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
@@ -344,9 +345,14 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
+  /** Manual adjust is offered when Settings allows it and the game is not a strict lobby room's (`view/room-strict.ts`). */
+  #manualAdjustOn(): boolean {
+    return roomCheatsOf(appSession().settings, appSession().store.state.config).manualAdjust;
+  }
+
   /** Manual adjust, over this sheet (#791): Done there closes it and Pause takes input again. */
   #openManualAdjust(): void {
-    if (!appSession().settings.allowManualAdjust || this.scene.isActive(SCENES.manualAdjust)) return;
+    if (!this.#manualAdjustOn() || this.scene.isActive(SCENES.manualAdjust)) return;
     this.scene.launch(SCENES.manualAdjust, { from: SCENES.pause } satisfies ManualAdjustData);
   }
 
@@ -459,7 +465,7 @@ export class PauseOverlay extends Phaser.Scene {
         open: () => this.#openStats(),
       },
       // Only once the player has turned it on in Settings > More > Cheats (the owner, 2026-11-19).
-      ...(appSession().settings.allowManualAdjust
+      ...(this.#manualAdjustOn()
         ? [
             {
               id: "manualAdjust",
@@ -740,7 +746,7 @@ export class PauseOverlay extends Phaser.Scene {
     else {
       // Not the primary, and in the slot the concede confirm takes over, so the two never show at once.
       // Off unless the player turned it on in Settings > More > Cheats (the owner, 2026-11-19).
-      if (appSession().settings.allowManualAdjust) {
+      if (this.#manualAdjustOn()) {
         this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
           this.#openManualAdjust(),
         );

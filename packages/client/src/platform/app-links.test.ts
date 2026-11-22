@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   appReplayLinkOf,
+  appJoinLinkOf,
   appWatchLinkOf,
   gameFragmentOf,
   hasAppPlugin,
@@ -46,6 +47,15 @@ describe("watch links (#876)", () => {
     expect(gameFragmentOf("https://marvel.champions-digital-game.com/#watch=xqfaQSjheyfI")).toBe("#watch=xqfaQSjheyfI");
     expect(gameFragmentOf(appWatchLinkOf("xqfaQSjheyfI"))).toBe("#watch=xqfaQSjheyfI");
     expect(gameFragmentOf("marvelchampions://watch/")).toBeNull();
+  });
+});
+
+describe("join links (#880)", () => {
+  it("reads a room's links as the #join fragment", () => {
+    expect(gameFragmentOf("marvelchampions://join/ABC234")).toBe("#join=ABC234");
+    expect(gameFragmentOf("https://marvel.champions-digital-game.com/#join=ABC234")).toBe("#join=ABC234");
+    expect(gameFragmentOf(appJoinLinkOf("ABC234"))).toBe("#join=ABC234");
+    expect(gameFragmentOf("marvelchampions://join/")).toBeNull();
   });
 });
 

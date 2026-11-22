@@ -11,7 +11,9 @@ import { cardOf } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
-import { coverFit, ensurePictureLoaded } from "../art/pictures.js";
+import { graySlotOf } from "../art/grayscale.js";
+import { coverFit, ensureBakedPictureLoaded, ensurePictureLoaded } from "../art/pictures.js";
+import { currentRenderScale } from "./render-scale.js";
 import { POOL_CARDS } from "../content/pool.js";
 import { border, signal, surface } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
@@ -46,13 +48,19 @@ export function drawHeroAvatar(
   identity: AnyCard | undefined,
   frameColor: number = surface.paper.hex,
   alpha = 1,
-): void {
+  /** A grid of many pictures: load a copy baked to the slot (off the main thread) instead of the full-size picture. */
+  scaleToSlot = false,
+  /** True when the hero's own picture was drawn (not the placeholder while it loads). */
+): boolean {
   const g = scene.add.graphics();
   g.fillStyle(signal.spent.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   const picture = identity ? heroArtForIdentity(HERO_ART, identity.id, POOL_CARDS, () => 0) : null;
   let drawn = false;
   if (picture) {
-    const key = ensurePictureLoaded(scene, picture, () => scene.events.emit(SEAT_AVATAR_READY));
+    const ready = (): void => void scene.events.emit(SEAT_AVATAR_READY);
+    const key = scaleToSlot
+      ? ensureBakedPictureLoaded(scene, picture, graySlotOf(rect, currentRenderScale()), false, ready)
+      : ensurePictureLoaded(scene, picture, ready);
     const source = key && scene.textures.exists(key) ? scene.textures.get(key).getSourceImage() : null;
     if (key && source && source.width > 0 && source.height > 0) {
       const fit = coverFit(source, rect, picture.focus);
@@ -74,4 +82,5 @@ export function drawHeroAvatar(
   }
   const frame = scene.add.graphics();
   frame.lineStyle(border.detail, frameColor, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  return drawn;
 }

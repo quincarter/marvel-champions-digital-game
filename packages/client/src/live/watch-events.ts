@@ -12,7 +12,7 @@ export type LiveWatchEvent =
   /** Whether the host is in the room (and this side is connected to it), and how many are watching. */
   | { readonly type: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   /** The room closed: the game is an ordinary replay from here. */
-  | { readonly type: "closed"; readonly reason: "ended" | "idle" | "disabled" }
+  | { readonly type: "closed"; readonly reason: "ended" | "idle" | "disabled" | "host" }
   /** Following stopped for good: the game could not be applied or read (a bad reset, too long a log). */
   | { readonly type: "failed" };
 

@@ -57,6 +57,7 @@ import {
   steamInstall,
   type SteamInstall,
 } from "../platform/steam-install.js";
+import { leaveRoomAtTitle } from "../platform/live-watch.js";
 import { steamAdd } from "../platform/steam-add.js";
 import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
 import type { SteamUpdateSceneData } from "./steam-update.js";
@@ -280,6 +281,8 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(data: TitleSceneData = {}): void {
+    // A room's game hands back here: leave the room (a no-op for every single-player visit).
+    leaveRoomAtTitle();
     this.#readyDismissed = null;
     this.#problem = null;
     this.#problemLine = null;
@@ -757,6 +760,22 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
+
+    // "Play online" (#880): an entry point only. Nothing online starts, and nothing is loaded, until its own screen is used.
+    const openOnline = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.online);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: t("title.playOnline"),
+        type: typeRole.menuButton,
+        rect: layout.playOnline,
+        onClick: openOnline,
+      }),
+    );
+    this.#stops.set("play-online", { rect: layout.playOnline, activate: openOnline });
 
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {

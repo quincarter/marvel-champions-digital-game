@@ -13,7 +13,10 @@ import {
   ROOM_TOKEN_PATTERN,
   TABLE_ID_PATTERN,
   type ClientMessage,
+  type RoomBuild,
   type RoomCapability,
+  type RoomCodeResolved,
+  type RoomDevice,
   type RoomCreated,
   type RoomError,
   type ServerMessage,
@@ -69,10 +72,27 @@ export function reconnectDelay(attempt: number, random: () => number): number {
   return Math.round(raw * (0.5 + 0.5 * random()));
 }
 
+function tokensOf(read: (() => readonly string[]) | undefined): { readonly seatTokens?: readonly string[] } {
+  const tokens = read?.() ?? [];
+  return tokens.length > 0 ? { seatTokens: tokens } : {};
+}
+
 const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
-  room: new Set(["welcome", "roster", "table", "closed", "refused"]),
-  game: new Set(["resend", "log", "commands", "rewind", "end", "proposal"]),
-  chat: new Set(["said"]),
+  room: new Set([
+    "welcome",
+    "roster",
+    "table",
+    "closed",
+    "refused",
+    "lobby",
+    "seat-token",
+    "seat-denied",
+    "seat-decks",
+    "deck-refused",
+    "host-activity",
+  ]),
+  game: new Set(["resend", "started", "log", "commands", "rewind", "end", "proposal"]),
+  chat: new Set(["said", "backlog"]),
 };
 
 /** A server message this build understands, or null (bad JSON, another version, an unknown channel or kind). */
@@ -97,11 +117,18 @@ export interface RoomSocketOptions {
   /** The host token (or, later, a seat's); absent joins as a watcher. */
   readonly token?: string;
   readonly caps?: readonly RoomCapability[];
+  /** A lobby room asks for these in `hello`: the display name, this build, and the seat tokens to be put back in seats. */
+  readonly name?: string;
+  readonly build?: RoomBuild;
+  /** The coarse device (platform and form) shown in the roster; any room's hello may carry it. */
+  readonly device?: RoomDevice;
+  /** Read at each (re)connect, so a token the room gave since the last hello is presented next time. */
+  readonly seatTokens?: () => readonly string[];
   /** The `welcome` arrived (true: game messages may go out) or the socket dropped (false). */
   readonly onConnection: (connected: boolean) => void;
   readonly onMessage: (message: ServerMessage) => void;
   /** The room said it is closing: no reconnect follows. */
-  readonly onClosed?: (reason: "ended" | "idle" | "disabled") => void;
+  readonly onClosed?: (reason: "ended" | "idle" | "disabled" | "host") => void;
   /** Another socket took this one's place as the host (close code 4000 "replaced"): no reconnect follows. */
   readonly onReplaced?: () => void;
   /**
@@ -146,6 +173,10 @@ export class RoomSocket {
         ch: "room",
         kind: "hello",
         ...(this.#options.token ? { token: this.#options.token } : {}),
+        ...(this.#options.name !== undefined ? { name: this.#options.name } : {}),
+        ...(this.#options.build ? { build: this.#options.build } : {}),
+        ...(this.#options.device ? { device: this.#options.device } : {}),
+        ...tokensOf(this.#options.seatTokens),
         caps: this.#options.caps ?? ["watch"],
       };
       socket.send(JSON.stringify(hello));
@@ -249,6 +280,8 @@ export type CreateRoomResult =
 export interface CreateRoomDeps {
   readonly baseUrl: string | null;
   readonly fetch: typeof fetch;
+  /** Makes a lobby room (`{ lobby: true }`): the answer then carries the 6-character `code`. */
+  readonly lobby?: boolean;
 }
 
 /** `POST /room`: makes a room and answers its id, host token and first table. */
@@ -259,7 +292,7 @@ export async function createRoom(deps: CreateRoomDeps): Promise<CreateRoomResult
     response = await deps.fetch(`${deps.baseUrl}/room`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify(deps.lobby ? { lobby: true } : {}),
       signal: AbortSignal.timeout(ROOM_CALL_TIMEOUT_MS),
     });
   } catch {
@@ -285,7 +318,57 @@ export async function createRoom(deps: CreateRoomDeps): Promise<CreateRoomResult
     const room = (await response.json()) as RoomCreated;
     const valid =
       ROOM_ID_PATTERN.test(room.roomId) && ROOM_TOKEN_PATTERN.test(room.hostToken) && TABLE_ID_PATTERN.test(room.table);
-    return valid ? { ok: true, room } : { ok: false, failure: "unavailable" };
+    const codeOk = !deps.lobby || (typeof room.code === "string" && ROOM_CODE_PATTERN.test(room.code));
+    return valid && codeOk ? { ok: true, room } : { ok: false, failure: "unavailable" };
+  } catch {
+    return { ok: false, failure: "unavailable" };
+  }
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+
+/** A code is 6 characters of the transfer alphabet (the server's `CODE_ALPHABET`: no 0, 1, I, L or O). */
+export const ROOM_CODE_PATTERN = /^[2-9A-HJKMNP-Z]{6}$/;
+
+/** A room code typed or pasted: case, dashes and spaces ignored. Null when it is not shaped like one. */
+export function normalizeRoomCode(text: string): string | null {
+  const code = text.replace(/[\s-]+/g, "").toUpperCase();
+  return ROOM_CODE_PATTERN.test(code) ? code : null;
+}
+
+/** What a join names: a room code (to look up) or a room id (a link's own), null when it is neither. */
+export function parseJoinTarget(text: string): { readonly code: string } | { readonly roomId: string } | null {
+  const trimmed = text.trim();
+  if (ROOM_ID_PATTERN.test(trimmed)) return { roomId: trimmed };
+  const code = normalizeRoomCode(trimmed);
+  return code ? { code } : null;
+}
+
+export type ResolveCodeFailure = "not-found" | "rate-limited" | "unavailable";
+
+export type ResolveCodeResult =
+  | { readonly ok: true; readonly roomId: string }
+  | { readonly ok: false; readonly failure: ResolveCodeFailure };
+
+/** `GET /room/code/:code`: the room a code opens, or why not (404: unknown, expired or closed; 429: too many lookups). */
+export async function resolveRoomCode(deps: CreateRoomDeps, code: string): Promise<ResolveCodeResult> {
+  if (!deps.baseUrl) return { ok: false, failure: "unavailable" };
+  let response: Response;
+  try {
+    response = await deps.fetch(`${deps.baseUrl}/room/code/${encodeURIComponent(code)}`, {
+      signal: AbortSignal.timeout(ROOM_CALL_TIMEOUT_MS),
+    });
+  } catch {
+    return { ok: false, failure: "unavailable" };
+  }
+  if (response.status === 404) return { ok: false, failure: "not-found" };
+  if (response.status === 429) return { ok: false, failure: "rate-limited" };
+  if (!response.ok) return { ok: false, failure: "unavailable" };
+  try {
+    const body = (await response.json()) as Partial<RoomCodeResolved>;
+    return typeof body.roomId === "string" && ROOM_ID_PATTERN.test(body.roomId)
+      ? { ok: true, roomId: body.roomId }
+      : { ok: false, failure: "unavailable" };
   } catch {
     return { ok: false, failure: "unavailable" };
   }

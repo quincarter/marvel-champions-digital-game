@@ -6,13 +6,21 @@
  */
 
 import type { DurableObjectStateLike, Env, GameRoomStateLike, WebSocketLike } from "./env.js";
-import { DEFAULT_GAME_ROOM_LIMITS, GameRoomLogic, type RoomSocket } from "./game-room.js";
+import {
+  DEFAULT_GAME_ROOM_LIMITS,
+  GameRoomLogic,
+  type RoomCodeHooks,
+  type RoomDirectoryHooks,
+  type RoomSocket,
+} from "./game-room.js";
 import { parseGlobalResult } from "./global-protocol.js";
 import { GlobalStatsLogic } from "./global-stats.js";
 import { PROOF_HEADER } from "./protocol.js";
 import type { Participant } from "./room-protocol.js";
 import { RateLimiterLogic } from "./rate-limiter.js";
 import { ReplayQuotaLogic } from "./replay-quota.js";
+import { RoomCodeLogic } from "./room-code-store.js";
+import { cleanLiveInput, RoomDirectoryLogic } from "./room-directory.js";
 import { RoomLogic } from "./room.js";
 import { DEFAULT_MAX_SPACE_BYTES } from "./sync-protocol.js";
 import { SyncSpaceLogic, type SyncOutcome } from "./sync-space.js";
@@ -97,6 +105,10 @@ export class RateLimiter {
     }
     if (pathname === "/room-create") {
       const result = await this.limiter.takeRoomCreate(now);
+      return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
+    }
+    if (pathname === "/room-lookup") {
+      const result = this.limiter.takeRoomLookup(now);
       return result.ok ? Response.json({ retryAfterMs: 0 }) : Response.json(result, { status: 429 });
     }
     if (pathname === "/refund") {
@@ -225,10 +237,128 @@ export class ReplayQuota {
   }
 }
 
+/**
+ * One lobby room code (docs/live-game-rooms.md section 8), named by the code. `/claim` carries the room id and expiry in
+ * `X-Room-Id` and `X-Expires` (409 when a live mapping holds the code), `/resolve` answers `{ roomId }` or 404, `/refresh`
+ * and `/release` come from the room itself and need its id.
+ */
+export class RoomCode {
+  private readonly codes: RoomCodeLogic;
+
+  constructor(state: DurableObjectStateLike, _env?: unknown) {
+    this.codes = new RoomCodeLogic(state.storage);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    const now = nowOf(request);
+    const roomId = request.headers.get("X-Room-Id") ?? "";
+    const expires = Number(request.headers.get("X-Expires"));
+    if (pathname === "/claim") {
+      if (!roomId || !Number.isFinite(expires)) return new Response(null, { status: 400 });
+      return new Response(null, { status: (await this.codes.claim(roomId, expires, now)) ? 201 : 409 });
+    }
+    if (pathname === "/resolve") {
+      const found = await this.codes.resolve(now);
+      return found ? Response.json({ roomId: found }) : new Response(null, { status: 404 });
+    }
+    if (pathname === "/refresh") {
+      if (!roomId || !Number.isFinite(expires)) return new Response(null, { status: 400 });
+      return new Response(null, { status: (await this.codes.refresh(roomId, expires)) ? 204 : 404 });
+    }
+    if (pathname === "/release") {
+      return new Response(null, { status: (await this.codes.release(roomId)) ? 204 : 404 });
+    }
+    return new Response(null, { status: 404 });
+  }
+
+  async alarm(): Promise<void> {
+    await this.codes.expire(Date.now());
+  }
+}
+
+/**
+ * The opt-in "Live now" list: one instance, named "live". `/upsert` (a room publishes its entry as JSON), `/remove`
+ * (the room's code in `X-Code`) and `/list` (the newest entries). Only the Worker and the rooms call it.
+ */
+export class RoomDirectory {
+  private readonly directory: RoomDirectoryLogic;
+
+  constructor(state: DurableObjectStateLike, _env?: unknown) {
+    this.directory = new RoomDirectoryLogic(state.storage);
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const { pathname } = new URL(request.url);
+    const now = nowOf(request);
+    if (pathname === "/upsert" && request.method === "POST") {
+      const input = cleanLiveInput(await request.json().catch(() => null));
+      if (!input) return new Response(null, { status: 400 });
+      await this.directory.upsert(input, now);
+      return new Response(null, { status: 204 });
+    }
+    if (pathname === "/remove" && request.method === "POST") {
+      await this.directory.remove(request.headers.get("X-Code") ?? "");
+      return new Response(null, { status: 204 });
+    }
+    if (pathname === "/list") return Response.json({ rooms: await this.directory.list(now) });
+    return new Response(null, { status: 404 });
+  }
+
+  async alarm(): Promise<void> {
+    await this.directory.expire(Date.now());
+  }
+}
+
+/** The room's calls to the directory; absent when the Worker has no `ROOM_DIRECTORY` binding (nothing is listed). */
+function directoryHooks(env: Env | undefined): RoomDirectoryHooks | undefined {
+  const ns = env?.ROOM_DIRECTORY;
+  if (!ns) return undefined;
+  const stub = () => ns.get(ns.idFromName("live"));
+  return {
+    async upsert(entry) {
+      const res = await stub().fetch(
+        new Request("https://directory/upsert", { method: "POST", body: JSON.stringify(entry) }),
+      );
+      if (!res.ok) throw new Error(`room directory upsert failed: ${res.status}`);
+    },
+    async remove(code) {
+      const res = await stub().fetch(
+        new Request("https://directory/remove", { method: "POST", headers: { "X-Code": code } }),
+      );
+      if (!res.ok) throw new Error(`room directory remove failed: ${res.status}`);
+    },
+  };
+}
+
 const positive = (value: string | undefined, fallback: number): number => {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+
+/** The room's calls to its code's directory entry; absent when the Worker has no `ROOM_CODE` binding. */
+function codeHooks(env: Env | undefined): RoomCodeHooks | undefined {
+  const ns = env?.ROOM_CODE;
+  if (!ns) return undefined;
+  // A failed call (an error status, not a 404 for a code that is not ours) is tried once more, then thrown for the
+  // room to ignore: the directory entry has a margin past the room's expiry, so a miss costs nothing at once.
+  const call = async (path: string, code: string, roomId: string, expiresAt?: number) => {
+    for (let attempt = 0; ; attempt++) {
+      const res = await ns.get(ns.idFromName(code)).fetch(
+        new Request(`https://code${path}`, {
+          method: "POST",
+          headers: { "X-Room-Id": roomId, ...(expiresAt === undefined ? {} : { "X-Expires": String(expiresAt) }) },
+        }),
+      );
+      if (res.ok || res.status === 404) return;
+      if (attempt === 1) throw new Error(`room code ${path} failed: ${res.status}`);
+    }
+  };
+  return {
+    refresh: (code, roomId, expiresAt) => call("/refresh", code, roomId, expiresAt),
+    release: (code, roomId) => call("/release", code, roomId),
+  };
+}
 
 /**
  * One live game room (docs/live-game-rooms.md), named by its room id. The Worker's `/create` call makes it; `/ws`
@@ -246,11 +376,17 @@ export class GameRoom {
     const maxParticipants = positive(env?.MAX_ROOM_PARTICIPANTS, DEFAULT_GAME_ROOM_LIMITS.maxParticipants);
     // Sockets that have not said hello yet are not participants; this bounds them.
     this.maxSockets = maxParticipants + 5;
-    this.room = new GameRoomLogic(state.storage, {
-      maxParticipants,
-      maxMessageBytes: positive(env?.MAX_ROOM_MESSAGE_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxMessageBytes),
-      maxLogBytes: positive(env?.MAX_ROOM_LOG_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxLogBytes),
-    });
+    this.room = new GameRoomLogic(
+      state.storage,
+      {
+        maxParticipants,
+        maxMessageBytes: positive(env?.MAX_ROOM_MESSAGE_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxMessageBytes),
+        maxLogBytes: positive(env?.MAX_ROOM_LOG_BYTES, DEFAULT_GAME_ROOM_LIMITS.maxLogBytes),
+      },
+      undefined,
+      codeHooks(env),
+      directoryHooks(env),
+    );
     for (const ws of state.getWebSockets()) this.room.restore(this.socketOf(ws));
   }
 
@@ -272,7 +408,12 @@ export class GameRoom {
   async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
     if (pathname === "/create" && request.method === "POST") {
-      const created = await this.room.create(request.headers.get("X-Host-Hash") ?? "", nowOf(request));
+      const code = request.headers.get("X-Code");
+      const created = await this.room.create(
+        request.headers.get("X-Host-Hash") ?? "",
+        nowOf(request),
+        code ? { code, roomId: request.headers.get("X-Room-Id") ?? "" } : undefined,
+      );
       return new Response(null, { status: created ? 201 : 409 });
     }
     if (pathname.endsWith("/ws")) {

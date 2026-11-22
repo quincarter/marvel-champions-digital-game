@@ -342,6 +342,16 @@ export function discordRowInfoOf(settings: Settings): SettingsRowInfo {
   };
 }
 
+/** Settings > More > Online name (#880): one button showing the name (or asking for one); it opens the name sheet. */
+export function onlineNameRowInfoOf(settings: Settings): AchievementPopupRowInfo<string> {
+  return {
+    title: t("online.nameSetting"),
+    detail: t("online.nameSettingDetail"),
+    options: [{ value: "change", label: settings.onlineName || t("online.nameSettingNone") }],
+    selected: "",
+  };
+}
+
 /** "Let people watch my games" (#876): off until switched on; anyone with the watch link can then watch. */
 export function liveWatchRowInfoOf(settings: Settings): SettingsRowInfo {
   return {

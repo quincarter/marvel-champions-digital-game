@@ -1,0 +1,3 @@
+kind: Added
+body: 'Room deck picker: a grid of hero tiles by default (list remembered as a choice), a details panel with deck stats, card list, Edit deck and Use this deck (slide-out on desktop, sheet on phones), and a faster picker on slow phones (only visible tiles built, hero pictures baked off the main thread, deck checks in a worker, deck worker warmed before Pick)'
+time: 2026-11-21T19:28:15.7033409-05:00
