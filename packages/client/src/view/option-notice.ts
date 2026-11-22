@@ -16,6 +16,8 @@ export interface OptionNotice {
   readonly title: string;
   /** The line under the title; the overlay's own "only one option" line when absent. */
   readonly lead?: string;
+  /** The dismiss button's label on the last notice, when not "OK" (a translated notice). */
+  readonly okLabel?: string;
   /** Offers "Don't show again", which turns these notices off (`Settings.notOfferedNotices`): an ability not offered. */
   readonly optOut?: true;
   readonly rows: readonly OptionNoticeRow[];

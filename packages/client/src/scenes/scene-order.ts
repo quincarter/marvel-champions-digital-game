@@ -206,7 +206,7 @@ export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
     SCENES.unlockConfirm,
     SCENES.onlineName,
   ],
-  [SCENES.online]: [SCENES.onlineName],
+  [SCENES.online]: [SCENES.onlineName, SCENES.optionNotice],
   [SCENES.saveData]: [SCENES.syncData],
   [SCENES.syncSetupPrompt]: [SCENES.syncData],
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],

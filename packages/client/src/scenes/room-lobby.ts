@@ -37,6 +37,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import type { RoomProblem } from "../live/room-state.js";
+import type { OnlineData } from "./online.js";
 import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
@@ -55,11 +57,13 @@ import type { Rect } from "../view/layout.js";
 import { lobbyLayout, type LobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import { activityDots, hostActivityWords } from "../view/room-host-activity.js";
 import { ChatSeen, unreadChatCount } from "../view/room-notices.js";
-import { chatRectAboveKeyboard, coveredBottom } from "../view/room-chat-keyboard.js";
+import { chatRectAboveKeyboard, coveredHeight } from "../view/room-chat-keyboard.js";
+import { nativeKeyboardHeight, onNativeKeyboard } from "../platform/native-keyboard.js";
 import { appSession } from "../session.js";
 import {
   chatOn,
   codeShown,
+  closedUnderPlayer,
   connectionWords,
   guestModRows,
   hostModRows,
@@ -309,21 +313,27 @@ export class RoomLobbyScene extends Phaser.Scene {
    */
   #watchKeyboard(): void {
     const viewport = globalThis.visualViewport;
-    if (!viewport) return;
     const read = (): void => {
       const layoutHeight = globalThis.innerHeight;
-      const css = coveredBottom({ layoutHeight, visibleHeight: viewport.height, offsetTop: viewport.offsetTop });
+      const css = coveredHeight({
+        native: nativeKeyboardHeight(),
+        viewport: viewport ? { layoutHeight, visibleHeight: viewport.height, offsetTop: viewport.offsetTop } : null,
+      });
       const covered = Math.round(css * (this.scale.gameSize.height / Math.max(1, layoutHeight)));
       if (covered === this.#covered || !this.#alive) return;
       this.#covered = covered;
       this.#chatToEnd = true;
       this.#draw();
     };
-    viewport.addEventListener("resize", read);
-    viewport.addEventListener("scroll", read);
+    viewport?.addEventListener("resize", read);
+    viewport?.addEventListener("scroll", read);
+    const offNative = onNativeKeyboard(read);
+    // The app may have reported before this screen opened (the keyboard was already up).
+    read();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      viewport.removeEventListener("resize", read);
-      viewport.removeEventListener("scroll", read);
+      viewport?.removeEventListener("resize", read);
+      viewport?.removeEventListener("scroll", read);
+      offNative();
       this.#covered = 0;
     });
   }
@@ -343,6 +353,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     if (!this.#alive) return;
     this.#state = state;
     if (state.role === "none") return;
+    // The room was closed under this player (not a finished game): back to Play online, which says so.
+    if (state.connection === "ended" && closedUnderPlayer(state.problem) && !this.#opening) {
+      this.#leaveClosed(state.problem!);
+      return;
+    }
     // A new lobby opens with a couple of open seats: the host changes the count with the stepper.
     if (state.role === "host" && state.connection === "connected" && state.settings && state.seats.length === 0) {
       if (!this.#seatsDefaulted) {
@@ -567,6 +582,15 @@ export class RoomLobbyScene extends Phaser.Scene {
       return;
     }
     this.#goTitle();
+  }
+
+  /** The room is gone (platform/room.ts already forgot it from recent rooms): drop the connection, show Play online's notice. */
+  #leaveClosed(problem: RoomProblem): void {
+    this.#alive = false;
+    leaveRoom();
+    clearRoomTable();
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.online, { closedNotice: problem } satisfies OnlineData);
   }
 
   #goTitle(): void {
@@ -1550,13 +1574,23 @@ export class RoomLobbyScene extends Phaser.Scene {
 
   // ---- Chat -------------------------------------------------------------------------------------------------------
 
-  #sendChat(): void {
+  /**
+   * Sends the line and clears the field. `refocus`: the player was typing (Enter, or Send on a mouse device), so the
+   * field keeps focus for the next line; a phone's Send tap does not raise the keyboard again.
+   */
+  #sendChat(refocus = false): void {
     const input = this.#chatInput;
     const text = input?.value.trim() ?? "";
     // A room that has ended hears nothing: Send is off and Enter does nothing.
     if (!input || text === "" || this.#state.connection === "ended") return;
     this.#api.say(text);
     input.setValue("");
+    if (refocus) {
+      // After the redraw the send may cause, and after a button press has taken focus.
+      this.time.delayedCall(0, () => {
+        if (this.#alive && this.#chatInput === input) input.focus();
+      });
+    }
   }
 
   #drawChatPanel(rect: Rect, titled: boolean, phone: boolean): void {
@@ -1628,7 +1662,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#chatBound = true;
       const node = (this.#chatInput.gameObject as unknown as { node: HTMLElement }).node;
       node.addEventListener("keydown", (event: KeyboardEvent) => {
-        if (event.key === "Enter") this.#sendChat();
+        if (event.key === "Enter") this.#sendChat(true);
       });
     }
     this.#button({
@@ -1637,7 +1671,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       type: typeRole.label,
       rect: sendRect,
       enabled: this.#state.connection !== "ended",
-      onClick: () => this.#sendChat(),
+      onClick: () => this.#sendChat(!this.sys.game.device.input.touch),
     });
     this.#addStop("chat-field", fieldRect, () => this.#chatInput?.focus());
     this.#addStop("chat-send", sendRect, () => this.#sendChat());

@@ -25,7 +25,7 @@ export interface OptionNoticeData {
 }
 
 /** The scenes under the notice whose pointer input it turns off while it is up. */
-const BENEATH = [SCENES.board, SCENES.choice] as const;
+const BENEATH = [SCENES.board, SCENES.choice, SCENES.online] as const;
 
 /**
  * Turns the scenes' input back on, but not while a pad button is down. Their pad plugins did not poll while input was
@@ -193,7 +193,7 @@ export class OptionNoticeOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#notices.length > 1 ? "Next" : "OK",
+        label: this.#notices.length > 1 ? "Next" : (notice.okLabel ?? "OK"),
         type: buttonType,
         rect: okRect,
         onClick: () => this.#dismiss(),
