@@ -4243,7 +4243,9 @@ export const on = {
    * "After you discard a card from the top of your deck" (The Painted Lady, `next_evol` 40045; docs/phase7-wave7.md
    * §3.55), on a card in play: each card discarded from its controller's deck, by any card's effect or cost (§4.1
    * Q31). "That card" is `eventTarget`, in the discard pile, or in the new deck when its discard emptied the deck.
-   * Once another response has moved that card (its own "add it to your hand") this one is no longer offered for it.
+   * Once another response has moved that card (its own "add it to your hand") a response whose every part acts on that
+   * card is no longer offered for it; one that does something else ("draw 1 card") still is (issue #928). Nothing to
+   * mark: the engine reads it from the effects.
    */
   youDiscardFromYourDeck: (): EventPattern => pattern("cardDiscardedFromDeck", { playerIs: "controller" }),
   /**
@@ -4270,8 +4272,8 @@ export const on = {
    * A response only, on a card in play. The cards one effect or cost discarded share one response window (RRG 1.8
    * "Triggering Condition", p. 45), which resolves before the discarding ability's next effect, or before its effects
    * for a cost. A card the response moves is no longer among that ability's cards "discarded this way" (wave 7 §4.1
-   * Q32), and no other response is offered for it. The card whose discard emptied the deck is in the new deck when
-   * the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
+   * Q32), and no response whose every part needs it is offered for it (issue #928). The card whose discard emptied
+   * the deck is in the new deck when the response resolves (RRG 1.8 "Encounter Deck", p. 17), and is taken from there.
    */
   /**
    * "When a card is put into Damnation from a player's deck" (Exposing Intentions, community pack `mephisto-nep` 14):

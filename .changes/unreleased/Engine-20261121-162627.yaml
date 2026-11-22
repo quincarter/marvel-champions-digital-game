@@ -1,0 +1,3 @@
+kind: Engine
+body: A response to a discard from a deck or a hand is still offered after another response moved the discarded card, unless every part of it needs that card (#928).
+time: 2026-11-21T16:26:27.0649845-05:00
