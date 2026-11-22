@@ -3,6 +3,7 @@ import type { Command, LegalActions } from "@mc/engine";
 import type { ServerMessage } from "@mc/sync-worker/room-protocol";
 import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 import { MemoryGameStorage, isAdjustedSave } from "../engine/game-storage.js";
+import { isRoomGuestSave, isRoomSave, mySeatsOf } from "../engine/room-play.js";
 import type { SessionConfig } from "../engine/host.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -109,6 +110,10 @@ describe("a guest's log as a local saved game", () => {
     const meta = (await storage.list())[0]!;
     expect(isAdjustedSave(meta)).toBe(false);
     expect(await storage.list()).toHaveLength(1);
+    // The room-play readers (#909) see a plain solo game: not a room row, not a guest copy, every seat this device's.
+    expect(isRoomSave(meta)).toBe(false);
+    expect(isRoomGuestSave(meta)).toBe(false);
+    expect(mySeatsOf(meta)).toEqual(["p1", "p2"]);
   });
 
   test("a room played with Cheats on stays adjusted, so the continued game counts for nothing", async () => {
