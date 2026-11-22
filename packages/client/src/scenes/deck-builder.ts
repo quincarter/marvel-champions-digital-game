@@ -2095,18 +2095,26 @@ export class DeckBuilderScene extends Phaser.Scene {
       shareRoom = hit.target + 6 + probe.height + 8;
       probe.destroy();
     }
-    let limit = bottom - (hit.target + 8) * 2 - shareRoom - 20 - thumb.height - 16;
+    // Touch sizes enlarge both controls, so the slack under the first card is kept small: a rail that cannot show its
+    // Cut row at desktop size on a touch-reporting machine is a rail with a guess too many pixels reserved.
+    let limit = bottom - (hit.target + 8) * 2 - shareRoom - thumb.height - 8;
     const section = (
       title: string,
       cards: readonly SuggestedCard[],
       action: { readonly label: string; readonly run: (cardId: string) => void } | null,
     ): void => {
-      if (cards.length === 0 || y + 20 + thumb.height > limit) return;
+      if (cards.length === 0) return;
       const head = this.add.text(left, y, title.toUpperCase(), {
         ...textStyle(typeRole.barTitle, fg),
         fontSize: "17px",
       });
       fitText(head, column, 17);
+      // The heading advances y by its measured height + 10, so test that, not a guessed 20: a heading with no
+      // card row under it is never drawn.
+      if (y + head.height + 10 + thumb.height > limit) {
+        head.destroy();
+        return;
+      }
       const rule = this.add.graphics();
       rule.fillStyle(fg, 1).fillRect(left, y + head.height + 2, column, 2);
       y += head.height + 10;

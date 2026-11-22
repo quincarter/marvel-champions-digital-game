@@ -89,6 +89,9 @@ async function setUp(page: Page, baseURL: string): Promise<Setup> {
     await serveCatalog(page, before);
     await installPageHelpers(page);
     await quietGuide(page);
+    // The mods heads-up opens over the store once its portraits load, which can be after the first look at the page and
+    // then swallows the Install press: this suite is about Update all, so the heads-up is already answered.
+    await page.addInitScript(() => localStorage.setItem("mc-mod-notice-seen", "1"));
     for (const id of ids) await installFromPage(page, id);
 
     await page.unrouteAll({ behavior: "ignoreErrors" });
