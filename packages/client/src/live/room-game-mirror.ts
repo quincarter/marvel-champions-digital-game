@@ -20,6 +20,8 @@ export class GameMirror {
   #checksums: Record<string, string> = {};
   #ended = false;
   #outcome: unknown = null;
+  /** The server's `total` while a multi-part `log` is still arriving: a snapshot carries it so a follower keeps assembling. */
+  #pendingTotal: number | null = null;
 
   constructor(table: string = FIRST_TABLE) {
     this.#table = table;
@@ -40,6 +42,7 @@ export class GameMirror {
     this.#checksums = {};
     this.#ended = false;
     this.#outcome = null;
+    this.#pendingTotal = null;
   }
 
   /** Applies a game message; `"gap"` when a batch does not line up (the mirror is then not to be trusted). */
@@ -54,6 +57,7 @@ export class GameMirror {
         this.#checksums = { ...m.checksums };
         this.#ended = false;
         this.#outcome = m.outcome ?? null;
+        this.#pendingTotal = m.total !== undefined && m.total > m.commands.length ? m.total : null;
         return "applied";
       case "commands": {
         if (!this.#has) return "ignored";
@@ -66,6 +70,7 @@ export class GameMirror {
         // finished game that has since taken commands.
         this.#ended = false;
         this.#outcome = null;
+        if (this.#pendingTotal !== null && this.#commands.length >= this.#pendingTotal) this.#pendingTotal = null;
         return "applied";
       }
       case "rewind":
@@ -77,6 +82,7 @@ export class GameMirror {
         this.#dropChecksumsAfter(m.to);
         this.#ended = false;
         this.#outcome = null;
+        this.#pendingTotal = null;
         return "applied";
       case "end":
         if (!this.#has) return "ignored";
@@ -101,8 +107,9 @@ export class GameMirror {
       kind: "log",
       table: this.#table,
       header: this.#header,
-      commands: this.#commands,
-      checksums: this.#checksums,
+      commands: [...this.#commands],
+      checksums: { ...this.#checksums },
+      ...(this.#pendingTotal !== null ? { total: this.#pendingTotal } : {}),
       ...(this.#ended ? { outcome: this.#outcome } : {}),
     };
     return this.#ended ? [log, { v: 1, ch: "game", kind: "end", table: this.#table, outcome: this.#outcome }] : [log];
