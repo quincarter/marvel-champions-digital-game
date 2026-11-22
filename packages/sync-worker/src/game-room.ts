@@ -33,6 +33,8 @@ import {
   LOBBY_MESSAGE_BURST,
   MAX_ACTIVITY_SCENARIO_CHARS,
   type HostActivityStep,
+  type TablePlan,
+  TABLE_PLAN_BURST,
   ROOM_CODE_MARGIN_MS,
   LIVE_PUBLISH_MIN_MS,
   type LiveRoomEntry,
@@ -436,6 +438,9 @@ export class GameRoomLogic {
   private activity: { step: HostActivityStep; scenario?: string } | null = null;
   /** The newest step that arrived over the limit: relayed once a token is free, so the last step is never lost. */
   private pendingActivity: { who: string; step: { step: HostActivityStep; scenario?: string } } | null = null;
+  /** The host's table plan (memory only, never part of the lobby revision), or null when none. */
+  private plan: TablePlan | null = null;
+  private readonly planBucket = new Map<string, { tokens: number; at: number }>();
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly activityBucket = new Map<string, { tokens: number; at: number }>();
   /** Chat rate: a token bucket per participant (1 a second, burst `CHAT_BURST`). Memory only. */
@@ -1080,6 +1085,7 @@ export class GameRoomLogic {
     if (message.ch === "chat") return this.say(socket, participant, message.text);
     if (message.ch === "room" && message.kind === "host-activity")
       return this.hostActivity(socket, participant, message);
+    if (message.ch === "room" && message.kind === "table-plan") return this.tablePlan(socket, participant, message);
     if (message.ch === "room") return this.lobbyMessage(socket, participant, message);
     if (message.kind === "propose") return this.refuse(socket, "not-allowed");
     const table = this.tableOf(message.table);
@@ -1300,6 +1306,7 @@ export class GameRoomLogic {
         this.resendAsked.delete(table.id);
         // The game has started: the host's setup status line is over.
         this.setActivity(null);
+        this.setPlan(null);
         this.broadcastLog(table, host.id);
         this.broadcastTable(table);
         this.sendSocket(socket, {
@@ -1664,6 +1671,41 @@ export class GameRoomLogic {
       this.sendSocket(socket, { v: 1, ch: "chat", kind: "backlog", lines: [...this.backlog] });
     }
     if (this.activity) this.sendSocket(socket, { v: 1, ch: "room", kind: "host-activity", ...this.activity });
+    if (this.plan) this.sendSocket(socket, { v: 1, ch: "room", kind: "table-plan", plan: this.plan });
+  }
+
+  /**
+   * The host's table plan, relayed to everyone. Memory only: no row, no lobby revision. Host only and rate limited
+   * (over the limit is refused; the host's client sends its newest plan again on reconnect). An unchanged plan is not
+   * relayed again, and a clear always goes through.
+   */
+  private tablePlan(
+    socket: RoomSocket,
+    who: Participant,
+    message: Extract<ClientMessage, { kind: "table-plan" }>,
+  ): void {
+    if (who.role !== "host" || this.meta?.code === undefined) return this.refuse(socket, "not-allowed");
+    const incoming = message.plan;
+    const next: TablePlan | null = incoming
+      ? {
+          scenarioId: incoming.scenarioId,
+          modularSetIds: [...incoming.modularSetIds],
+          difficulty: incoming.difficulty,
+          ...(incoming.heroicLevel ? { heroicLevel: incoming.heroicLevel } : {}),
+          ...(incoming.skirmish ? { skirmish: true } : {}),
+        }
+      : null;
+    if (JSON.stringify(next) === JSON.stringify(this.plan)) return;
+    if (next !== null && !takeToken(this.planBucket, who.id, TABLE_PLAN_BURST, 0.5, this.clock())) {
+      return this.refuse(socket, "rate-limited");
+    }
+    this.setPlan(next);
+  }
+
+  private setPlan(next: TablePlan | null): void {
+    if (JSON.stringify(next) === JSON.stringify(this.plan)) return;
+    this.plan = next;
+    this.broadcast({ v: 1, ch: "room", kind: "table-plan", plan: next });
   }
 
   /** Loads the stored chat backlog once per lifetime; lines said since the wake (already in memory) stay last. */
@@ -1749,7 +1791,10 @@ export class GameRoomLogic {
   private lobbyMessage(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" | "host-activity" }>,
+    message: Exclude<
+      Extract<ClientMessage, { ch: "room" }>,
+      { kind: "hello" | "room-close" | "host-activity" | "table-plan" }
+    >,
   ): Promise<void> {
     return this.lobbyLock(() => this.lobbyMessageLocked(socket, who, message));
   }
@@ -1757,7 +1802,10 @@ export class GameRoomLogic {
   private async lobbyMessageLocked(
     socket: RoomSocket,
     who: Participant,
-    message: Exclude<Extract<ClientMessage, { ch: "room" }>, { kind: "hello" | "room-close" | "host-activity" }>,
+    message: Exclude<
+      Extract<ClientMessage, { ch: "room" }>,
+      { kind: "hello" | "room-close" | "host-activity" | "table-plan" }
+    >,
   ): Promise<void> {
     // A turn that waited for the lock may belong to a participant who has left since: it must not add a request.
     if (!this.participants.has(who.id)) return;
@@ -2058,9 +2106,13 @@ export class GameRoomLogic {
     this.lobbyBuckets.delete(participant.id);
     this.deckBuckets.delete(participant.id);
     this.activityBucket.delete(participant.id);
+    this.planBucket.delete(participant.id);
     this.broadcastRoster();
     // The host leaving ends its setup status line and its listing.
-    if (participant.role === "host") this.setActivity(null);
+    if (participant.role === "host") {
+      this.setActivity(null);
+      this.setPlan(null);
+    }
     this.scheduleListing();
     if (participant.role === "host" && participant.table) {
       const table = this.tableOf(participant.table);
@@ -2157,6 +2209,8 @@ export class GameRoomLogic {
       this.activity = null;
       this.dropPendingActivity();
       this.activityBucket.clear();
+      this.plan = null;
+      this.planBucket.clear();
       this.chatBuckets.clear();
       this.lobbyBuckets.clear();
       this.deckBuckets.clear();

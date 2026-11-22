@@ -55,6 +55,13 @@ export function leaveRoomSetup(): void {
 export function keepRoomDraft(draft: SetupDraft): void {
   table.draft = draft;
   table.active = false;
+  draftListener?.(draft);
+}
+
+/** Told when the kept draft changes (`null` when forgotten): `platform/room.ts` publishes the plan to the room. */
+let draftListener: ((draft: SetupDraft | null) => void) | null = null;
+export function setRoomDraftListener(listener: ((draft: SetupDraft | null) => void) | null): void {
+  draftListener = listener;
 }
 
 export const roomDraft = (): SetupDraft | null => table.draft;
@@ -62,7 +69,9 @@ export const roomDraft = (): SetupDraft | null => table.draft;
 /** Forgets the table (the room was left or closed). */
 export function clearRoomTable(): void {
   table.active = false;
+  const had = table.draft !== null;
   table.draft = null;
+  if (had) draftListener?.(null);
 }
 
 /** The seats of a lobby with `count` open seats (the room names them `s1`..`s4`; the hero is each deck's own). */

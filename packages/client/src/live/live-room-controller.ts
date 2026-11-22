@@ -205,6 +205,9 @@ export class LiveRoomController {
       case "room-activity":
         this.#session?.hostActivity(message.step, message.scenario);
         return;
+      case "room-table-plan":
+        this.#session?.tablePlan(message.plan);
+        return;
       case "room-deck":
         this.#session?.chooseDeck(message.seat, message.deck);
         return;

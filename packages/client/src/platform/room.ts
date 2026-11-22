@@ -10,6 +10,9 @@ import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { HostActivityStep } from "@mc/sync-worker/room-protocol";
+import { setRoomDraftListener } from "../view/room-table-setup.js";
+import { tablePlanOf } from "../view/room-table-plan.js";
+import type { TablePlan } from "../live/room-state.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { currentScenarios } from "../content/pool.js";
 import { loadedPacks } from "../packs/pack-registry.js";
@@ -42,6 +45,9 @@ const listeners = new Set<(state: RoomState) => void>();
 let lastActivity: { readonly step: HostActivityStep; readonly scenario?: string } | null = null;
 /** A dropped socket cleared the room's copy of it: it is sent again once the room is back. */
 let resendActivity = false;
+/** The table plan the host last published (null when none), sent again when the room socket comes back. */
+let lastPlan: TablePlan | null = null;
+let resendPlan = false;
 
 function publish(next: RoomState): void {
   state = next;
@@ -53,8 +59,16 @@ function publish(next: RoomState): void {
   ) {
     lastActivity = null;
     resendActivity = false;
-  } else if (next.connection === "reconnecting") resendActivity = true;
-  else if (next.connection === "connected" && resendActivity) {
+    lastPlan = null;
+    resendPlan = false;
+  } else if (next.connection === "reconnecting") {
+    resendActivity = true;
+    resendPlan = true;
+  } else if (next.connection === "connected" && resendPlan) {
+    resendPlan = false;
+    if (next.role === "host" && lastPlan) postRoomCommand({ kind: "room-table-plan", plan: lastPlan });
+  }
+  if (next.connection === "connected" && resendActivity) {
     resendActivity = false;
     if (next.role === "host" && lastActivity) {
       const { step, scenario } = lastActivity;
@@ -66,6 +80,23 @@ function publish(next: RoomState): void {
 }
 
 setRoomStateListener(publish);
+
+/**
+ * Host only: publishes the table the host picked (null clears it) so the lobby shows it to everyone. Memory only in the
+ * room; a dropped socket makes `publish` send the last plan again.
+ */
+export function reportTablePlan(plan: TablePlan | null): void {
+  if (state.role !== "host" || state.connection === "idle") return;
+  if (JSON.stringify(plan) === JSON.stringify(lastPlan)) return;
+  if (postRoomCommand({ kind: "room-table-plan", plan })) lastPlan = plan;
+}
+
+setRoomDraftListener((draft) => {
+  const scenario = draft
+    ? currentScenarios().find((s) => (s.id as string) === (draft.scenarioId as string))
+    : undefined;
+  reportTablePlan(draft ? tablePlanOf(draft, scenario) : null);
+});
 
 /** Answers to the host's requests for the seats' full decks, by request id (the room worker posts them back). */
 const deckRequests = new Map<number, (decks: readonly SeatDeckEntry[] | null) => void>();

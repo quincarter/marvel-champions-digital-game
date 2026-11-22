@@ -1015,4 +1015,32 @@ describe("live chat count and the host's setup step (issue #880)", () => {
     socket.closeWith(1006);
     expect(t.last().hostActivity).toBeNull();
   });
+
+  it("carries the host's table plan into the state, clears it on null and on a dropped socket, and ignores guests sending one", async () => {
+    const plan = { scenarioId: "rhino", modularSetIds: ["bomb_scare"], difficulty: "expert" as const, heroicLevel: 2 };
+    const host = setup();
+    host.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const hostSocket = FakeSocket.all[0]!;
+    hostSocket.welcome("host");
+    host.controller.onRoomCommand({ kind: "room-table-plan", plan });
+    expect(hostSocket.sent.at(-1)).toEqual({ v: 1, ch: "room", kind: "table-plan", plan });
+
+    const guest = setup();
+    guest.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all.at(-1)!;
+    socket.welcome("watcher");
+    expect(guest.last().tablePlan).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "table-plan", plan });
+    expect(guest.last().tablePlan).toEqual(plan);
+    socket.receive({ v: 1, ch: "room", kind: "table-plan", plan: null });
+    expect(guest.last().tablePlan).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "table-plan", plan });
+    socket.closeWith(1006);
+    expect(guest.last().tablePlan).toBeNull();
+    const before = socket.sent.length;
+    guest.controller.onRoomCommand({ kind: "room-table-plan", plan });
+    expect(socket.sent).toHaveLength(before);
+  });
 });

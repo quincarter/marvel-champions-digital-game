@@ -17,9 +17,11 @@ import type {
   RoomDeck,
   RoomDeckSummary,
   RoomDevice,
+  TablePlan,
 } from "@mc/sync-worker/room-protocol";
 
 export type {
+  TablePlan,
   ChatLine,
   HostActivityStep,
   DeckRefusalCode,
@@ -185,6 +187,8 @@ export interface RoomState {
   readonly chatLive: number;
   /** The host's setup step, shown as a status line; null while the host is in the lobby or the game has started. */
   readonly hostActivity: RoomHostActivity | null;
+  /** What the host picked for the table (ids), or null until it has. */
+  readonly tablePlan: TablePlan | null;
   readonly refusal: RoomRefusal | null;
   /** My own build equals the host's (both versions), so I may take a seat. True while the host's build is unknown. */
   readonly buildMatches: boolean;
@@ -212,6 +216,7 @@ export const NO_ROOM: RoomState = {
   chat: [],
   chatLive: 0,
   hostActivity: null,
+  tablePlan: null,
   refusal: null,
   buildMatches: true,
   started: false,
