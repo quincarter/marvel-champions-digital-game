@@ -88,6 +88,15 @@ test("a MarvelCDB decklist with no aspect (hero and basic cards only) imports, i
   });
 
   await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
+  // Play this deck goes through Scenario select first (#958): pick Rhino, then Take your seats has the deck in seat 1.
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("ScenarioSelect") ? true : null),
+    "Scenario select",
+    30000,
+  );
+  await settle(page);
+  await pressHookStop(page, "__mcScenarioSelectDebug", "scenario:rhino");
+  await pressHookStop(page, "__mcScenarioSelectDebug", "next");
   await waitFor(async () => ((await activeScenes(page)).includes("Seats") ? true : null), "Take your seats", 30000);
   await waitFor(
     async () =>

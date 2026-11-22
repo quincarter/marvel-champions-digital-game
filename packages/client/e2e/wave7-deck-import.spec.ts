@@ -113,13 +113,9 @@ test("Psylocke's MarvelCDB deck 32089: imported on Decks, seated for Morlock Sie
   await settle(page);
   await shot(page, "1-decks-after-import");
 
-  // Play this deck -> Take your seats (seat 1) -> back to Scenario select for Morlock Siege -> Seats again.
+  // Play this deck -> Scenario select (the deck waits for seat 1, #958) -> Morlock Siege -> Seats.
   await clickText(page, "Play this deck", { sceneKey: "Decks", timeoutMs: 30000 });
-  await waitForScene(page, "Seats", 30000);
-  await waitFor(async () => (await hasStop(page, "back", "Seats")) || null, "Seats controls", 15000);
-  await settle(page);
-  await clickStop(page, "back", "Seats");
-  await waitForScene(page, "ScenarioSelect", 15000);
+  await waitForScene(page, "ScenarioSelect", 30000);
   await waitFor(async () => (await hasStop(page, "next", "ScenarioSelect")) || null, "scenario list", 15000);
   await settle(page);
   await clickStop(page, "scenario-chip:product:next_evol", "ScenarioSelect");
