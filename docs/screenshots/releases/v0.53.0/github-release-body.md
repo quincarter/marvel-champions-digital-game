@@ -24,7 +24,7 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 ![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
 
-![Code shipped since v0.52.0: 17 pull requests, 231 files, 9,765 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
+![Code shipped since v0.52.0: 19 pull requests, 270 files, 11,207 lines added and 708 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
 
 ---
 
@@ -36,6 +36,7 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 - A pack scenario that sets a modular set aside offers a Set-aside modular set stepper on the setup screen, defaulting to its authors' new recommendedSetAsideModularSetIds instead of a random set (#943)
 - Mod Store: an Update all button updates every installed pack with a newer version, one after another, with one progress bar, a Stop button and a line naming any pack that could not update (#957).
 - Decks & Collection on a phone or tablet: tapping a deck opens its options (Play, Edit, View cards, Stats, Check, Duplicate, Delete) (#958).
+- Decks & Collection: each deck on the list shows its aspect chips along the foot of its picture, as Past games does (#966).
 - The v0.53.0 release report has its own page on the site, at /releases/v0.53.0/
 - The website's landing page has a Multiplayer, coming soon section with a first look at online play
 
@@ -43,6 +44,7 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 - Take your seats, Deck check and the name-conflict sheet read in Spanish (#390)
 - Play this deck (Decks & Collection) now opens Scenario select first, then Take your seats with the deck already in seat one (#958).
+- Decks & Collection on desktop: clicking a deck opens its Check, and Back returns to the list with the deck selected; a pad or the keyboard still only selects (#966).
 
 ### Fixed
 
@@ -54,12 +56,20 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 - Tapping the UNDER n strip of a host with several tucked cards while paying opens them to choose from, instead of spending the first one (#943)
 - A Mod Store pack's modular set shows its cards on Set the table instead of its id and 0 cards (#951)
 - Deck check shows the identity's separate decks (Invocation, Gift, Labor), its obligation and its nemesis set as their own groups, outside the deck count; the campaign seat picker says custom heroes can't join a campaign yet (#960).
+- Your Stats shows Mod Store heroes' and custom villains' pictures, and SP//dr Suit's card picture on the Heroes rows (#966).
+- Paying with Enhanced Combat Sense (or any resource ability that exhausts any number of cards) shows one tile per upgrade, tapped one by one, instead of one tile per set of upgrades (#966).
+- Choose a scenario: the pack chips follow the shelves, so a Mod Store scenario sits under the chip of the shelf it is on (Mephisto beside Trickster Takeover) and installed packs share one Custom packs chip instead of adding one each (#966).
+- Dynamic Duo, and any card whose search of the discard pile finds nothing unless a card in hand pays for it, names that card on the payment bar until it is picked: "Power Man and Iron Fist is in your hand: pay with it so Dynamic Duo can find it" (#966).
 - Hired Gun no longer offers to place infamy counters on Criminal Enterprise once it has flipped to State of Madness; the villain takes the boost card and the log says why (#967)
+- Enhanced Combat Sense's payment sheet shows one tile per upgrade you can exhaust, with that upgrade's own card, picked one by one, instead of one tile per combination (#966).
 - Take a Stand and other cards whose whole effect lasts until the end of the player phase (or turn) are no longer offered outside it, so they are not played for nothing after a villain-phase defense (#970).
+- Deck builder's From your games rail no longer draws a Cut or Try heading with no card under it, and fits its first Cut row at desktop size on a touch-reporting screen; the dev server pre-bundles the dependencies its lazy screens load, so a cold cache no longer reloads the page mid-session; e2e specs follow Play this deck through Scenario select and answer the Mod Store notice before installing.
 
 ### Engine
 
 - A response to a discard from a deck or a hand is still offered after another response moved the discarded card, unless every part of it needs that card (#928).
+- searchFindableIfSpent: which cards in hand a card's discard-pile search would find once spent to pay, for the payment step (#966).
+- A resource ability whose cost picks a set of cards in play lists every set up to eight candidates, and its options carry picksMany so payment screens can show one card per candidate (#966).
 
 ### Content
 
@@ -67,7 +77,7 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 ### Special thanks
 
-- @bluefireF5ran reported #922, #943 and #960.
+- @bluefireF5ran reported #922, #943, #960 and #966.
 - @bluefireF5ran wrote #963.
 - @FirePenguin17 reported #962, #967 and #970.
 - @neopolii reported #935.

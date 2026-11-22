@@ -24,4 +24,4 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 ![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
 
-![Code shipped since v0.52.0: 17 pull requests, 231 files, 9,765 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
+![Code shipped since v0.52.0: 19 pull requests, 270 files, 11,207 lines added and 708 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/81862bf5e9cfab30c4808674c739b0033890c1e3/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
