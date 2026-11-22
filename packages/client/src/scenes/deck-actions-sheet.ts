@@ -299,12 +299,18 @@ export class DeckActionsSheet extends Phaser.Scene {
     }
     const cellWidth = (innerWidth - gap * (chosen.columns - 1)) / chosen.columns;
     const gridTop = y;
-    const cellAt = (index: number): Rect => ({
-      x: buttonsX + (index % chosen.columns) * (cellWidth + gap),
-      y: gridTop + Math.floor(index / chosen.columns) * (row + gap),
-      width: cellWidth,
-      height: row,
-    });
+    // The grid's last button takes the rest of its row, so a short last row never leaves a hole beside it.
+    const cells = rest.length + (chosen.backInGrid ? 1 : 0);
+    const cellAt = (index: number): Rect => {
+      const column = index % chosen.columns;
+      const last = index === cells - 1;
+      return {
+        x: buttonsX + column * (cellWidth + gap),
+        y: gridTop + Math.floor(index / chosen.columns) * (row + gap),
+        width: last ? innerWidth - column * (cellWidth + gap) : cellWidth,
+        height: row,
+      };
+    };
     rest.forEach((action, index) => {
       const rect = cellAt(index);
       add(

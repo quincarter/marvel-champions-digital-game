@@ -172,6 +172,14 @@ const sheetAction = async (page: Page, id: string): Promise<SheetAction | undefi
 const sheetKeys = async (page: Page): Promise<readonly string[]> =>
   ((await routeStops(page, SHEET))?.stops ?? []).map((stop) => stop.key);
 
+/** Play this deck opens Scenario select first (#958); Next goes on to Take your seats with the deck in seat one. */
+async function pickScenario(page: Page): Promise<void> {
+  await waitForScene(page, "ScenarioSelect");
+  await tap(page, "ScenarioSelect", "scenario:rhino");
+  await tap(page, "ScenarioSelect", "next");
+  await waitForScene(page, "Seats");
+}
+
 /** Opens a deck's options from its row. */
 async function openOptions(page: Page, deckId: string): Promise<void> {
   await tap(page, "Decks", `deck:${deckId}`);
@@ -222,7 +230,7 @@ test.describe("the deck's options (#958 review)", () => {
     await openOptions(page, target.id);
     // The drawn Play button, pressed for real: it seats this deck.
     await tap(page, SHEET, "action:play");
-    await waitForScene(page, "Seats");
+    await pickScenario(page);
     await waitFor(
       async () => ((await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? []).includes(target.id) || null,
       "the checked deck in seat one",
@@ -235,7 +243,7 @@ test.describe("the deck's options (#958 review)", () => {
     const target = list.find((deck) => deck.source === "precon" && !deck.selected)!;
     await openOptions(page, target.id);
     await tap(page, SHEET, "action:play");
-    await waitForScene(page, "Seats");
+    await pickScenario(page);
     await waitFor(
       async () => ((await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? []).includes(target.id) || null,
       "the deck in seat one",
