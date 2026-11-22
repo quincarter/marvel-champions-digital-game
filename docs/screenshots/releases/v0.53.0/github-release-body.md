@@ -6,25 +6,25 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.53.0/index.es.html)**
 
-![The numbers: 10 changes from your reports, 7 deck options in one tap and 3 screens in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-01-the-numbers.jpg)
+![The numbers: 10 changes from your reports, 7 deck options in one tap and 3 screens in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-01-the-numbers.jpg)
 
-![Your decks, one tap away: the deck builder's Identity row and Inspect, the deck options sheet on an iPhone SE, and Deck check with Doctor Strange's Invocation deck](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-02-your-decks-one-tap-away.jpg)
+![Your decks, one tap away: the deck builder's Identity row and Inspect, the deck options sheet on an iPhone SE, and Deck check with Doctor Strange's Invocation deck](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-02-your-decks-one-tap-away.jpg)
 
-![Mod Store packs, smoother: Update all, a pack's modular set on Set the table, the Set-aside modular set stepper and mc-pack validate's type check](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-03-mod-store-packs-smoother.jpg)
+![Mod Store packs, smoother: Update all, a pack's modular set on Set the table, the Set-aside modular set stepper and mc-pack validate's type check](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-03-mod-store-packs-smoother.jpg)
 
-![From the play notes: Mod Store heroes in Your stats, Enhanced Combat Sense's one tile per upgrade, Dynamic Duo's pay bar, deck aspect chips and scenario chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-04-from-the-play-notes.jpg)
+![From the play notes: Mod Store heroes in Your stats, Enhanced Combat Sense's one tile per upgrade, Dynamic Duo's pay bar, deck aspect chips and scenario chips](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-04-from-the-play-notes.jpg)
 
-![Toma asiento: Take your seats in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-05-toma-asiento.jpg)
+![Toma asiento: Take your seats in Spanish](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-05-toma-asiento.jpg)
 
-![You asked, we fixed: ally stat badges, Matchups names, Take a Stand, Hired Gun, Thomas Edison and the cards tucked under](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-06-you-asked-we-fixed.jpg)
+![You asked, we fixed: ally stat badges, Matchups names, Take a Stand, Hired Gun, Thomas Edison and the cards tucked under](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-06-you-asked-we-fixed.jpg)
 
-![Also in v0.53.0: responses to a discard, the Mod SDK's hand-discard event, new tests, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-07-also-in-v0-53-0.jpg)
+![Also in v0.53.0: responses to a discard, the Mod SDK's hand-discard event, new tests, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-07-also-in-v0-53-0.jpg)
 
-![Coming soon, multiplayer: a sneak peek at a room with seats and chat, Play online with Live now, and choosing a deck for a seat](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-08-coming-soon-multiplayer.jpg)
+![Coming soon, multiplayer: a sneak peek at a room with seats and chat, Play online with Live now, and choosing a deck for a seat](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-08-coming-soon-multiplayer.jpg)
 
-![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
+![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
 
-![Code shipped since v0.52.0: 17 pull requests, 232 files, 9,777 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/3eb20cfdc58c7de6e615fb915eb71d7a89148297/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
+![Code shipped since v0.52.0: 17 pull requests, 232 files, 9,777 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
 
 ---
 
