@@ -37,6 +37,193 @@ describe("titleMenuLayout", () => {
     }
   }
 
+  describe("the Play online panel", () => {
+    const PHONES = [
+      { width: 375, height: 667 },
+      { width: 412, height: 924 },
+    ];
+    const TABLETS = [
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+    ];
+    const DESKTOPS = [
+      { width: 1440, height: 980 },
+      { width: 1920, height: 1080 },
+    ];
+
+    test("a phone keeps the button in the Campaign row and has no panel", () => {
+      for (const size of PHONES) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        expect(layout.onlinePanel).toBeNull();
+        expect(layout.playOnline).not.toBeNull();
+        expect(layout.campaign.width).toBeLessThan(layout.column);
+      }
+    });
+
+    test("a tablet or desktop swaps the button for the panel and gives Campaign the whole row", () => {
+      for (const size of [...TABLETS, ...DESKTOPS]) {
+        for (const noticeBar of [false, true]) {
+          const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, noticeBar });
+          expect(layout.playOnline).toBeNull();
+          expect(layout.onlinePanel).not.toBeNull();
+          expect(layout.campaign.width).toBe(layout.column);
+        }
+      }
+    });
+
+    test("a 1440 desktop stands the panel beside the menu column; a tablet lays it over the art panel", () => {
+      for (const size of DESKTOPS) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        const panel = layout.onlinePanel!;
+        expect(panel.placement).toBe("side");
+        expect(panel.rect.x).toBeGreaterThanOrEqual(layout.left + layout.column);
+        expect(panel.rect.x + panel.rect.width).toBeLessThanOrEqual(layout.menuPanel.x + layout.menuPanel.width);
+        expect(layout.rightEdge).toBe(panel.rect.x + panel.rect.width);
+        // The art panel keeps a third of the screen or more.
+        expect(layout.artPanel!.width).toBeGreaterThanOrEqual(size.width * 0.32);
+      }
+      for (const size of TABLETS) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        const panel = layout.onlinePanel!;
+        expect(panel.placement).toBe("art");
+        expect(panel.rect.x + panel.rect.width).toBeLessThanOrEqual(layout.artPanel!.width);
+        expect(panel.rect.y + panel.rect.height).toBeLessThanOrEqual(layout.rankBadge.y);
+      }
+    });
+
+    test("nothing in the panel overlaps another row, and the buttons keep their touch height", () => {
+      for (const size of [...TABLETS, ...DESKTOPS, { width: 800, height: 600 }, { width: 1280, height: 720 }]) {
+        for (const games of [0, 2]) {
+          for (const update of [false, true]) {
+            const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, games, update });
+            const panel = layout.onlinePanel;
+            if (!panel) continue;
+            const rects = [...titleMenuLayoutRects(layout)];
+            for (let i = 0; i < rects.length; i++) {
+              for (let j = i + 1; j < rects.length; j++) {
+                expect(rectsOverlap(rects[i]!, rects[j]!), `${size.width}x${size.height} ${i}/${j}`).toBe(false);
+              }
+            }
+            for (const button of [panel.host, panel.join]) {
+              expect(button.height).toBeGreaterThanOrEqual(44);
+              expect(button.x).toBeGreaterThanOrEqual(panel.rect.x);
+              expect(button.x + button.width).toBeLessThanOrEqual(panel.rect.x + panel.rect.width + 0.01);
+              expect(button.y + button.height).toBeLessThanOrEqual(panel.rect.y + panel.rect.height + 0.01);
+            }
+          }
+        }
+      }
+    });
+
+    test("a short art panel gives the games panel the room and the plain button comes back", () => {
+      const layout = titleMenuLayout({ width: 800, height: 600, continuable: true, civilWar: true, games: 1 });
+      expect(layout.onlinePanel === null).toBe(layout.playOnline !== null);
+    });
+
+    test("under the release notice bar the panel sits below it and still on screen", () => {
+      for (const size of [...TABLETS, ...DESKTOPS]) {
+        const layout = titleMenuLayout({ ...size, continuable: false, noticeBar: true });
+        const panel = layout.onlinePanel!;
+        expect(panel.rect.y).toBeGreaterThanOrEqual(layout.noticeBar!.height);
+        expect(panel.rect.y + panel.rect.height).toBeLessThanOrEqual(size.height + 0.01);
+        expect(panel.host.y).toBeGreaterThan(panel.rect.y);
+      }
+    });
+  });
+
+  describe("the Play online panel", () => {
+    const PHONES = [
+      { width: 375, height: 667 },
+      { width: 412, height: 924 },
+    ];
+    const TABLETS = [
+      { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
+    ];
+    const DESKTOPS = [
+      { width: 1440, height: 980 },
+      { width: 1920, height: 1080 },
+    ];
+
+    test("a phone keeps the button in the Campaign row and has no panel", () => {
+      for (const size of PHONES) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        expect(layout.onlinePanel).toBeNull();
+        expect(layout.playOnline).not.toBeNull();
+        expect(layout.campaign.width).toBeLessThan(layout.column);
+      }
+    });
+
+    test("a tablet or desktop swaps the button for the panel and gives Campaign the whole row", () => {
+      for (const size of [...TABLETS, ...DESKTOPS]) {
+        for (const noticeBar of [false, true]) {
+          const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, noticeBar });
+          expect(layout.playOnline).toBeNull();
+          expect(layout.onlinePanel).not.toBeNull();
+          expect(layout.campaign.width).toBe(layout.column);
+        }
+      }
+    });
+
+    test("a 1440 desktop stands the panel beside the menu column; a tablet lays it over the art panel", () => {
+      for (const size of DESKTOPS) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        const panel = layout.onlinePanel!;
+        expect(panel.placement).toBe("side");
+        expect(panel.rect.x).toBeGreaterThanOrEqual(layout.left + layout.column);
+        expect(panel.rect.x + panel.rect.width).toBeLessThanOrEqual(layout.menuPanel.x + layout.menuPanel.width);
+        expect(layout.rightEdge).toBe(panel.rect.x + panel.rect.width);
+        // The art panel keeps a third of the screen or more.
+        expect(layout.artPanel!.width).toBeGreaterThanOrEqual(size.width * 0.32);
+      }
+      for (const size of TABLETS) {
+        const layout = titleMenuLayout({ ...size, continuable: false });
+        const panel = layout.onlinePanel!;
+        expect(panel.placement).toBe("art");
+        expect(panel.rect.x + panel.rect.width).toBeLessThanOrEqual(layout.artPanel!.width);
+        expect(panel.rect.y + panel.rect.height).toBeLessThanOrEqual(layout.rankBadge.y);
+      }
+    });
+
+    test("nothing in the panel overlaps another row, and the buttons keep their touch height", () => {
+      for (const size of [...TABLETS, ...DESKTOPS, { width: 800, height: 600 }, { width: 1280, height: 720 }]) {
+        for (const games of [0, 2]) {
+          for (const update of [false, true]) {
+            const layout = titleMenuLayout({ ...size, continuable: true, civilWar: true, games, update });
+            const panel = layout.onlinePanel;
+            if (!panel) continue;
+            const rects = [...titleMenuLayoutRects(layout)];
+            for (let i = 0; i < rects.length; i++) {
+              for (let j = i + 1; j < rects.length; j++) {
+                expect(rectsOverlap(rects[i]!, rects[j]!), `${size.width}x${size.height} ${i}/${j}`).toBe(false);
+              }
+            }
+            for (const button of [panel.host, panel.join]) {
+              expect(button.height).toBeGreaterThanOrEqual(44);
+              expect(button.x).toBeGreaterThanOrEqual(panel.rect.x);
+              expect(button.x + button.width).toBeLessThanOrEqual(panel.rect.x + panel.rect.width + 0.01);
+              expect(button.y + button.height).toBeLessThanOrEqual(panel.rect.y + panel.rect.height + 0.01);
+            }
+          }
+        }
+      }
+    });
+
+    test("a short art panel gives the games panel the room and the plain button comes back", () => {
+      const layout = titleMenuLayout({ width: 800, height: 600, continuable: true, civilWar: true, games: 1 });
+      expect(layout.onlinePanel === null).toBe(layout.playOnline !== null);
+    });
+
+    test("the panel moves down with the release notice bar", () => {
+      const plain = titleMenuLayout({ width: 1440, height: 980, continuable: false });
+      const bar = titleMenuLayout({ width: 1440, height: 980, continuable: false, noticeBar: true });
+      const dy = bar.noticeBar!.height;
+      expect(bar.onlinePanel!.rect.y).toBeGreaterThan(plain.onlinePanel!.rect.y - 1);
+      expect(bar.onlinePanel!.host.y - bar.onlinePanel!.rect.y).toBeGreaterThan(0);
+      expect(dy).toBeGreaterThan(0);
+    });
+  });
+
   describe("the in-progress games list", () => {
     const sizes = [
       ...SIZES,

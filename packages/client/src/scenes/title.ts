@@ -44,6 +44,11 @@ import { DISCORD_INVITE_URL } from "../view/issue-report.js";
 import { onPowerSavingChange, powerSavingState } from "../platform/power-saving.js";
 import { powerSavingFooterOf } from "../view/power-saving-notice.js";
 import { onTap } from "../ui/tap.js";
+import { bangers } from "../ui/campaign-chrome.js";
+import { fetchLiveRooms } from "../platform/live-rooms.js";
+import { syncServiceUrl } from "../save-data/transfer-config.js";
+import { liveCountOf, type OnlinePanelLayout } from "../view/title-online-panel.js";
+import type { OnlineData } from "./online.js";
 import { checkForUpdate, type AvailableUpdate } from "../platform/update-check.js";
 import {
   OLD_SAVE_OPEN_ID,
@@ -230,6 +235,9 @@ export class TitleScene extends Phaser.Scene {
   /** The Trophy Room hand-off drawn this rebuild (its button and the rank tile press it), for the View button. */
   #openTrophies: (() => void) | null = null;
   #stops = new Map<string, FocusStop>();
+  /** How many public rooms were live when the Title opened (one fetch, never polled), or null before an answer. */
+  #liveCount: number | null = null;
+  #liveAsked = false;
   /** The top row's Discord icon (tablet/desktop), for its focus label; rebuilt with the screen. */
   #discordIcon: DiscordIconButton | null = null;
   /** Why a replay didn't open, and until when it is said (`#replayProblem`). */
@@ -319,9 +327,18 @@ export class TitleScene extends Phaser.Scene {
     // comes back, so an update published meanwhile, or a check that failed offline, still reaches the badge.
     void checkPackUpdates();
     this.time.addEvent({ delay: CHECK_INTERVAL_MS, loop: true, callback: () => void checkPackUpdates() });
-    const recheckOnline = (): void => void checkPackUpdates();
+    // The "Play online" panel reads as unavailable while offline, and again as available once the network is back.
+    const onlineChanged = (): void => {
+      if (this.sys.isActive()) this.#rebuild();
+    };
+    const recheckOnline = (): void => {
+      void checkPackUpdates();
+      onlineChanged();
+    };
     globalThis.addEventListener?.("online", recheckOnline);
+    globalThis.addEventListener?.("offline", onlineChanged);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      globalThis.removeEventListener?.("offline", onlineChanged);
       this.scale.off("resize", this.#rebuild, this);
       unsubscribePackUpdates();
       globalThis.removeEventListener?.("online", recheckOnline);
@@ -574,7 +591,7 @@ export class TitleScene extends Phaser.Scene {
     // The Report button's slot (#176): level with the eyebrow, at the menu column's right edge.
     const reportSize = layout.split ? 44 : 40;
     const reportRect = {
-      x: layout.left + layout.column - reportSize,
+      x: layout.rightEdge - reportSize,
       y: Math.max(8, Math.round(layout.eyebrow.y + layout.eyebrow.height / 2 - reportSize / 2)),
       width: reportSize,
       height: reportSize,
@@ -762,20 +779,35 @@ export class TitleScene extends Phaser.Scene {
     this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
 
     // "Play online" (#880): an entry point only. Nothing online starts, and nothing is loaded, until its own screen is used.
-    const openOnline = (): void => {
+    const openOnline = (intent?: OnlineData["intent"]): void => {
       this.scale.off("resize", this.#rebuild, this);
-      goToScreen(this, SCENES.online);
+      goToScreen(this, SCENES.online, intent ? ({ intent } satisfies OnlineData) : undefined);
     };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: menuKind,
-        label: t("title.playOnline"),
-        type: typeRole.menuButton,
-        rect: layout.playOnline,
-        onClick: openOnline,
-      }),
-    );
-    this.#stops.set("play-online", { rect: layout.playOnline, activate: openOnline });
+    if (layout.playOnline) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: menuKind,
+          label: t("title.playOnline"),
+          type: typeRole.menuButton,
+          rect: layout.playOnline,
+          onClick: () => openOnline(),
+        }),
+      );
+      this.#stops.set("play-online", { rect: layout.playOnline, activate: () => openOnline() });
+    }
+    // A tablet or desktop gets the feature panel instead (`view/title-online-panel.ts`): the same two flows, one press away.
+    if (layout.onlinePanel) {
+      this.#drawOnlinePanel(layout.onlinePanel, openOnline);
+      if (!this.#liveAsked) {
+        this.#liveAsked = true;
+        // One fetch when the Title opens, never polled; every failure is an empty answer, so offline just shows no count.
+        void fetchLiveRooms().then((rooms) => {
+          if (rooms.length === 0 || !this.sys.isActive()) return;
+          this.#liveCount = rooms.length;
+          this.#rebuild();
+        });
+      }
+    }
 
     // "Civil War!": the box's own entry, once it is open. The last build, or the first leader as printed.
     if (civilWar && layout.civilWar) {
@@ -1112,6 +1144,7 @@ export class TitleScene extends Phaser.Scene {
           gameIds: gameRows.map((row) => row.id),
           removeConfirm: this.#removing !== null && gameRows.some((row) => row.id === this.#removing),
           gamesRow: layout.gamesRow !== null,
+          onlinePanel: layout.onlinePanel !== null,
         }),
         "rank-badge",
         ...(discordIconFits ? ["chrome:discord"] : []),
@@ -1123,6 +1156,128 @@ export class TitleScene extends Phaser.Scene {
     // `destroyChildren` above took the replay problem's line too.
     this.#problemLine = null;
     this.#drawProblem();
+  }
+
+  /** Whether online play can be tried from here: a connection and a service. Anything else reads as unavailable. */
+  #onlineAvailable(): boolean {
+    const noNetwork = typeof navigator !== "undefined" && navigator.onLine === false;
+    return !noNetwork && syncServiceUrl() !== null;
+  }
+
+  /**
+   * The "Play online" feature panel (tablet and desktop): a comic caption box, an ink halftone header with the title, a
+   * one-line pitch, the "N live" chip when public rooms are up, and Host / Join buttons that open the Play online
+   * screen already on that flow. Borders, not shadows, and no red: New game keeps the screen's one red.
+   */
+  #drawOnlinePanel(panel: OnlinePanelLayout, open: (intent: OnlineData["intent"]) => void): void {
+    const available = this.#onlineAvailable();
+    const { rect, band } = panel;
+    const side = panel.placement === "side";
+    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.paper.hex).setOrigin(0, 0);
+    this.add.rectangle(band.x, band.y, band.width, band.height, surface.ink.hex).setOrigin(0, 0);
+    // The halftone: dots that grow toward the right edge, offset every other row, kept clear of the border.
+    const dots = this.add.graphics();
+    const step = 9;
+    const rows = Math.floor((band.height - 8) / step);
+    const cols = Math.floor((band.width - 8) / step);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const radius = 0.6 + 2.6 * (c / Math.max(1, cols - 1));
+        dots
+          .fillStyle(surface.paper.hex, available ? 0.2 : 0.1)
+          .fillCircle(band.x + 6 + c * step + (r % 2) * (step / 2), band.y + 6 + r * step, radius);
+      }
+    }
+    // The comic's rule under the band.
+    this.add.rectangle(band.x, band.y + band.height, band.width, 3, surface.ink.hex).setOrigin(0, 0);
+
+    const words = t("title.playOnline").toUpperCase();
+    const cut = words.lastIndexOf(" ");
+    const titleText =
+      panel.titleLines === 2 && cut > 0
+        ? `${words.slice(0, cut)}
+${words.slice(cut + 1)}!`
+        : `${words}!`;
+    const titleSize = panel.titleLines === 2 ? 40 : side ? 30 : 26;
+    const title = this.add
+      .text(panel.title.x, panel.title.y + panel.title.height / 2, titleText, {
+        ...textStyle(bangers(titleSize, 0.95), surface.paper.hex),
+        align: "left",
+      })
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1);
+    if (panel.titleLines === 1) fitText(title, panel.title.width, titleSize);
+
+    const count = available ? liveCountOf(this.#liveCount) : null;
+    if (count !== null && panel.live) {
+      const chip = panel.live;
+      const text = this.add
+        .text(
+          0,
+          chip.y + chip.height / 2,
+          t("title.online.live", { count }),
+          textStyle(typeRole.label, surface.ink.hex),
+        )
+        .setOrigin(0, 0.5);
+      const chipWidth = Math.min(chip.width, Math.ceil(text.width) + 32);
+      const chipX = side ? chip.x : chip.x + chip.width - chipWidth;
+      // Paper chip with an ink edge; the green dot is a second cue beside the number, never the only one.
+      this.add
+        .rectangle(chipX, chip.y, chipWidth, chip.height, surface.paper.hex)
+        .setOrigin(0, 0)
+        .setStrokeStyle(2, surface.ink.hex);
+      this.add.circle(chipX + 12, chip.y + chip.height / 2, 4, signal.heal.hex);
+      this.children.bringToTop(text);
+      text.setX(chipX + 22);
+    }
+
+    const pitchLine = available ? t("title.online.pitch") : t("title.online.offline");
+    const pitch = this.add
+      .text(panel.pitch.x, panel.pitch.y, pitchLine, {
+        ...textStyle(typeRole.body, surface.ink.hex, available ? 1 : ink.meta),
+        wordWrap: { width: panel.pitch.width },
+      })
+      .setOrigin(0, 0);
+    let pitchSize = typeRole.body.size + (side ? 4 : 2);
+    pitch.setFontSize(pitchSize);
+    while (pitch.height > panel.pitch.height && pitchSize > 9) pitch.setFontSize(--pitchSize);
+
+    if (panel.seats) this.#drawSeats(panel.seats, available);
+
+    const buttons: Array<[string, Rect, string, "host" | "join"]> = [
+      ["play-online-host", panel.host, t("online.host"), "host"],
+      ["play-online-join", panel.join, t("online.join"), "join"],
+    ];
+    for (const [id, rect2, label, intent] of buttons) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label,
+          type: typeRole.menuButton,
+          rect: rect2,
+          enabled: available,
+          onClick: () => open(intent),
+        }),
+      );
+      this.#stops.set(id, { rect: rect2, activate: () => open(intent) });
+    }
+    // The panel's own frame, last so it sits over the band's edge.
+    this.add.rectangle(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setStrokeStyle(3, surface.ink.hex);
+  }
+
+  /** A table of four seats joined by a line, the first filled (you): decoration for the side panel's spare room. */
+  #drawSeats(area: Rect, available: boolean): void {
+    const g = this.add.graphics();
+    const radius = Math.min(16, Math.floor(area.height / 2) - 4);
+    const spacing = Math.min(64, (area.width - radius * 2) / 3);
+    const cy = area.y + area.height / 2;
+    const x0 = area.x + area.width / 2 - (spacing * 3) / 2;
+    g.lineStyle(3, surface.ink.hex, available ? 1 : 0.4).lineBetween(x0, cy, x0 + spacing * 3, cy);
+    for (let i = 0; i < 4; i++) {
+      const x = x0 + i * spacing;
+      g.fillStyle(i === 0 ? surface.ink.hex : surface.paper.hex, available ? 1 : 0.5).fillCircle(x, cy, radius);
+      g.lineStyle(3, surface.ink.hex, available ? 1 : 0.4).strokeCircle(x, cy, radius);
+    }
   }
 
   /** The "In-progress games" panel in the art panel (split screens): heading, then the list or the remove question. */

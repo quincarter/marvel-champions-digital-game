@@ -725,6 +725,19 @@ describe("screen focus routes", () => {
     expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
   });
 
+  test("the Title's Play online panel replaces the menu button: Host and Join follow the menu rows, before the footer links", () => {
+    const order = titleMenuFocusOrder({ continuable: false, quit: true, discord: true, onlinePanel: true });
+    expect(order).not.toContain("play-online");
+    expect(order.slice(order.indexOf("quit"), order.indexOf("quit") + 4)).toEqual([
+      "quit",
+      "play-online-host",
+      "play-online-join",
+      "discord",
+    ]);
+    expect(titleMenuFocusOrder({ continuable: false })).toContain("play-online");
+    expect(titleMenuFocusOrder({ continuable: false })).not.toContain("play-online-host");
+  });
+
   test("Past games: Back, filters, file button, export, search, each game's row, then the details' actions", () => {
     expect(pastGamesFocusOrder(["a", "b"])).toEqual([
       "back",
