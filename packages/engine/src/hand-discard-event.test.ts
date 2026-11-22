@@ -137,15 +137,46 @@ const WARDED: EngineDeps = depsOf(RAGE_RESPONSE, WARD_INTERRUPT, ...OTHERS);
 const WARDEN_GAME: EngineDeps = depsOf(RAGE_RESPONSE, WARDEN_INTERRUPT, ...OTHERS);
 /** With the support whose two abilities both discard. */
 const TWIN_GAME: EngineDeps = depsOf(RAGE_RESPONSE, TWIN_ACTION, TWIN_INTERRUPT, ...OTHERS);
+/** "Response: After a card is discarded from your hand by an ability, put a counter here." Needs nothing of that card. */
+const TICK_RESPONSE = stubAbility("tick.response", {
+  trigger: { kind: "response", forced: false, on: { on: "cardDiscardedFromHand", playerIs: "controller" } },
+  effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "seen", amount: n(1) }],
+});
+const TICK = stubSupport({ id: "tick", cost: 0, abilities: [TICK_RESPONSE.ref] });
+/** With Rage and the counter. */
+const RAGE_AND_TICK: EngineDeps = depsOf(RAGE_RESPONSE, TICK_RESPONSE, ...OTHERS);
 /** With two Rages. */
 const TWO_RAGES: EngineDeps = depsOf(RAGE_RESPONSE, RAGE_TWO_RESPONSE, ...OTHERS);
 
 function start(deps: EngineDeps, players: 1 | 2 = 1): GameState {
   const game = gameAtFirstTurn({
     players,
-    cards: [RAGE, RAGE_TWO, FURY, WARD, WARDEN, TWIN, TOLL, FILLER, T_CHOSEN, PAYER, ...EVENTS.map((e) => e.card)],
+    cards: [
+      RAGE,
+      RAGE_TWO,
+      TICK,
+      FURY,
+      WARD,
+      WARDEN,
+      TWIN,
+      TOLL,
+      FILLER,
+      T_CHOSEN,
+      PAYER,
+      ...EVENTS.map((e) => e.card),
+    ],
     deps,
-    deck: [RAGE.id, RAGE_TWO.id, FURY.id, WARD.id, WARDEN.id, TWIN.id, PAYER.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [
+      RAGE.id,
+      RAGE_TWO.id,
+      TICK.id,
+      FURY.id,
+      WARD.id,
+      WARDEN.id,
+      TWIN.id,
+      PAYER.id,
+      ...EVENTS.map((e) => e.card.id),
+    ],
     encounter: [...copiesOf(FILLER.id, 26), TOLL.id, T_CHOSEN.id],
   });
   return game;
@@ -370,6 +401,28 @@ describe("cardDiscardedFromHand: one effect's discards share one window, after a
     expect(out.offers).toBe(1);
     expect(hand(out.state)).toContain(heard!.instanceId);
     expectReplays(out.session, TWO_RAGES);
+  });
+  it("one that needs nothing of the card is still offered once the first took it back (issue #928)", () => {
+    const one = playerCardIntoPlay(start(RAGE_AND_TICK), RAGE.id, P1).state;
+    const placed = playerCardIntoPlay(one, TICK.id, P1);
+    const given = giveCard(placed.state, P1, E_CHOSEN.card.id);
+    // Rage first, alone; the counter when the window offers the rest again.
+    const offered: string[][] = [];
+    const pick = (s: GameState) => {
+      const choice = s.pendingChoice!;
+      if (choice.prompt.kind !== "chooseTriggers") return defaultPick(s);
+      const ids = choice.options.map((o) => o.optionId as string);
+      offered.push(ids);
+      const row = ids.find((id) => id.includes("rage")) ?? ids.find((id) => id.includes("tick"));
+      return row ? [row] : [];
+    };
+    const out = runCommandsPicking(given.state, RAGE_AND_TICK, pick, play(given.id));
+    const [heard] = announced(out.events, "cardDiscardedFromHand");
+    expect(hand(out.state)).toContain(heard!.instanceId);
+    expect(offered).toHaveLength(2);
+    expect(offered[1]!.some((id) => id.includes("tick"))).toBe(true);
+    expect(out.state.instances[placed.id]?.counters.seen).toBe(1);
+    expectReplays(out.session, RAGE_AND_TICK);
   });
   it("a hand-discard cost paid by an interrupt inside another discard's 'would' window is answered at once, not held", () => {
     const one = playerCardIntoPlay(start(WARDEN_GAME), WARDEN.id, P1).state;

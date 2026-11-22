@@ -84,6 +84,8 @@
  * target with a tough card (`attackPiercesTough`; ruling Jul 11, 2025).
  */
 
+import { discardedCardGone } from "./discarded-card.js";
+import { DISCARD_MOVED_SLOT } from "../select.js";
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import {
@@ -948,7 +950,9 @@ function hasIndependentPart(
   ];
   const firstOther = effects.findIndex((effect) => !isChoice(effect));
   return effects.some((effect, index) => {
-    if (effect.kind === "then" || isChoice(effect) || spent.includes(effect) || movesOnlyItself(effect)) return false;
+    // Nor a var set for later effects (`setVar`): it changes no game element (#928 review).
+    if (effect.kind === "then" || effect.kind === "setVar" || isChoice(effect) || spent.includes(effect)) return false;
+    if (movesOnlyItself(effect)) return false;
     if (effect.kind === "if") {
       const { known, branches } = branchesThatCouldRun(judging, effect);
       const [branch] = branches;
@@ -1127,7 +1131,12 @@ export function abilityTargetFault(
     selfInstanceId: sourceId,
     controllerId: playerId,
     event,
-    bindings: carriedByEvent(event).bindings,
+    // A discarded card another response has moved: "that card" names nothing here either (#928), so a "choose one"
+    // option or a part acting on it is judged as having no target.
+    bindings: {
+      ...carriedByEvent(event).bindings,
+      ...(event && discardedCardGone(state, event) ? { [DISCARD_MOVED_SLOT]: [] } : {}),
+    },
     vars: carriedByEvent(event).vars,
     deps,
     ...reachOf(definition),

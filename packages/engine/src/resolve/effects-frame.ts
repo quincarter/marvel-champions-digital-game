@@ -169,7 +169,9 @@ import {
   selectTargets,
   type EffectContext,
   VILLAIN_CHOICE,
+  DISCARD_MOVED_SLOT,
 } from "../select.js";
+import { EVENT_TARGET, optionNeedsDiscardedCard, readsUnbound, type Judge } from "./discarded-card.js";
 import type { EffectSpec, PlayerRef, StatusName, TargetQuery, TargetRef, ValueSpec } from "../spec.js";
 import type { Bindings, ResolvedCountVar, StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
@@ -3121,9 +3123,34 @@ function executeChooseOne(
   context: EffectContext,
 ): void {
   const [optionChooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  // A choice made earlier in the ability that holds nothing (one among "that card" once it moved): an option acting
+  // only on it acts on nothing either (#928 review).
+  const emptySlots = [
+    ...Object.entries(context.bindings).flatMap(([slot, ids]) =>
+      slot !== DISCARD_MOVED_SLOT && ids.length === 0 ? [slot] : [],
+    ),
+    // "That card" names nothing for this ability (`DISCARD_MOVED_SLOT`).
+    ...(context.bindings[DISCARD_MOVED_SLOT] !== undefined ? [EVENT_TARGET] : []),
+  ];
+  // Only for a response to a discard (#928): elsewhere an option on an empty choice is left to the target checks.
+  const answersDiscard =
+    context.event?.kind === "cardDiscardedFromDeck" || context.event?.kind === "cardDiscardedFromHand";
+  // A condition at the start of an option is read on the game and the bindings as they are; one on a binding the
+  // option itself makes cannot be told yet.
+  const judgeOption: Judge = (condition) =>
+    readsUnbound(condition, context) ? undefined : evaluate(ctx.state, condition, context);
   /** Why this option is not offered, or null when it is; the first rule that bars it, in this order. */
   const barredBy = (option: (typeof effect.options)[number]): OptionUnavailableReason | null => {
     if (option.condition && !evaluate(ctx.state, option.condition, context)) return "condition";
+    // An option that acts only on a discarded card another response moved before this one was initiated: "that card"
+    // names nothing, so it has no target (#928; `DISCARD_MOVED_SLOT`, `optionNeedsDiscardedCard`).
+    if (
+      frame.answer === null &&
+      answersDiscard &&
+      emptySlots.length > 0 &&
+      optionNeedsDiscardedCard(option, emptySlots, judgeOption)
+    )
+      return "noTarget";
     // "You cannot choose the 'Avoid' effect" (`RuleSpec cannotChooseOption`): never offered to that chooser.
     if (optionChooser && cannotChooseOption(ctx.state, ctx.deps, optionChooser, context.selfInstanceId, option.tag))
       return "cannotChoose";
