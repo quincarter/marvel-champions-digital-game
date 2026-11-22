@@ -87,6 +87,18 @@ const en = {
   "news.notes": "Release notes",
   "news.all": "Every release",
 
+  "mp.kick": "Multiplayer · Coming soon",
+  "mp.title": 'Play <span class="g">together</span>',
+  "mp.text": "Online play is being built now. Here's a sneak peek of what's coming.",
+  "mp.alt":
+    "Multiplayer, coming soon: Assemble online, over a row of hero art, with Co-op rooms, Epic Multiplayer, Civil War: team vs team and Watch live",
+  "mp.rooms": "Host a room and invite friends with a code or a link.",
+  "mp.seats": "One to four players, each on their own device with their own hero and deck, with a lobby and chat.",
+  "mp.watch": "Watch a game live from a link.",
+  "mp.epic": "Trickster Takeover's Epic Multiplayer: several tables against one Loki.",
+  "mp.civilWar": "Civil War, team against team.",
+  "mp.solo": "Single player and offline play stay just as they are.",
+
   "dl.title": "Get the game",
   "dl.stats": "See more download metrics",
 
@@ -197,6 +209,19 @@ const es: Catalog<LandingKey> = {
   "news.report": "Leer el informe de la versión",
   "news.notes": "Notas de la versión",
   "news.all": "Todas las versiones",
+
+  "mp.kick": "Multijugador · Próximamente",
+  "mp.title": 'Juntos <span class="g">en línea</span>',
+  "mp.text": "El juego en línea se está construyendo ahora. Aquí tienes un adelanto de lo que viene.",
+  "mp.alt":
+    "Multijugador, próximamente: Assemble online, sobre una fila de arte de héroes, con Co-op rooms, Epic Multiplayer, Civil War: team vs team y Watch live",
+  "mp.rooms": "Crea una sala e invita a tus amigos con un código o un enlace.",
+  "mp.seats":
+    "De uno a cuatro jugadores, cada uno en su propio dispositivo con su héroe y su mazo, con una sala de espera y chat.",
+  "mp.watch": "Mira una partida en directo desde un enlace.",
+  "mp.epic": "El Epic Multiplayer de Trickster Takeover: varias mesas contra un solo Loki.",
+  "mp.civilWar": "Civil War, equipo contra equipo.",
+  "mp.solo": "Un jugador y el juego sin conexión siguen igual que siempre.",
 
   "dl.title": "Consigue el juego",
   "dl.stats": "Ver más datos de descargas",
