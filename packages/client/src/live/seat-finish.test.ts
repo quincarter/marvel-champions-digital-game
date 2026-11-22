@@ -574,6 +574,33 @@ describe("a guest's finished row (#909)", () => {
         },
       );
 
+      test("a reopen while the stored row is still being looked up invalidates the kept win", async () => {
+        const first = await seat("all");
+        await first.follower.finish(RECORD);
+        const row = (await first.storage.list())[0]!;
+        await first.storage.setStatus(row.id, "won", 1);
+        first.follower.dispose();
+        // The stored game's load is held open until the host has reopened the game.
+        let release!: () => void;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        const realLoad = first.storage.load.bind(first.storage);
+        first.storage.load = async (id) => {
+          await held;
+          return realLoad(id);
+        };
+        const second = await rejoin(first.storage, first.game, first.game.commands, true);
+        // The lookup is now parked on the held load.
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        second.feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" } });
+        second.feed.say({ ch: "game", kind: "rewind", table: "t1", to: first.game.commands.length });
+        release();
+        await vi.waitFor(async () => expect((await first.storage.list())[0]!.status).toBe("abandoned"));
+        expect(second.events.some((event) => event.type === "saved")).toBe(true);
+        second.feed.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" }, adjusted: true });
+        await vi.waitFor(async () => expect((await first.storage.list())[0]!.adjusted).toBe(true));
+        expect(await first.storage.list()).toHaveLength(1);
+      });
+
       test("the identical ended log leaves the row untouched", async () => {
         const first = await seat("all");
         await first.follower.finish(RECORD);

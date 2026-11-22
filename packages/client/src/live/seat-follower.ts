@@ -86,6 +86,8 @@ export class SeatFollower implements SeatBackend {
   #record: RoomPlayRecord | null = null;
   /** The room's end of the game (an `end`, or a `log` that carries an outcome) arrived, not reopened since. */
   #ended = false;
+  /** How many reopens (a rewind, a command after the end, a log or welcome that is not the ended game) were seen. */
+  #reopens = 0;
   /** A reopen invalidated a row: the next end replaces it even when it looks the same. */
   #replace = false;
   /** Fingerprint of the log the room's end was for: a reconnect `log` with the same content is the same game. */
@@ -263,6 +265,7 @@ export class SeatFollower implements SeatBackend {
    * the row in place.
    */
   #reopened(): void {
+    this.#reopens++;
     if (!this.#ended) return;
     this.#ended = false;
     const record = this.#record;
@@ -294,6 +297,8 @@ export class SeatFollower implements SeatBackend {
     if (!deps || gameKey === undefined) return;
     const running = !hasOutcome && this.#tableEnded === false;
     const print = logPrint(commands);
+    // The stored-row lookup is asynchronous: a reopen that lands while it is pending finds no record to invalidate.
+    const reopensAtJoin = this.#reopens;
     this.#queueInvalidation(async () => {
       const row = (await deps.storage.list()).find(
         (meta) => meta.roomPlay?.role === "guest" && meta.roomPlay.gameKey === gameKey,
@@ -304,10 +309,16 @@ export class SeatFollower implements SeatBackend {
         // The stored result stands, and this follower adopts it: a later reopen (a rewind, a new command, a different
         // log, an active welcome) must be able to set the row aside through the normal path, which needs the record.
         this.#record ??= row.roomPlay;
-        // A reopen that arrived before the row was found had no record to invalidate: do it now.
-        if (hasOutcome && !this.#ended) {
+        // A reopen that arrived while the row was being found had no record to invalidate: do it now, and if the room
+        // has ended the game again since, the next write replaces the row.
+        if (this.#reopens !== reopensAtJoin) {
+          const endedAgain = this.#ended;
           this.#ended = true;
           this.#reopened();
+          if (endedAgain) {
+            this.#ended = true;
+            void this.#tryFinish();
+          }
         }
         return;
       }
