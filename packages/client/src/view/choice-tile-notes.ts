@@ -75,7 +75,7 @@ export function spendCaptionsOf(
     const tile = exhaustTileOptionsOf(choice, option.optionId);
     if (tile) {
       const alone = pool(tile.alone);
-      const plain = pool(tile.plain);
+      const plain = tile.plain ? pool(tile.plain) : null;
       const gain = alone
         ? Object.fromEntries(
             Object.entries(alone).map(([type, count]) => [type, count - (plain?.[type as keyof typeof plain] ?? 0)]),

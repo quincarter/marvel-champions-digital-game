@@ -55,18 +55,21 @@ const waitForSheet = (page: Page, up: boolean): Promise<true> =>
   );
 
 test.describe("tapping a deck (#958)", () => {
-  test("desktop: a click selects the deck and opens nothing over it", async ({ page }, info) => {
+  test("desktop: a click opens the deck's Check, and Back returns with it selected (#966)", async ({ page }, info) => {
     test.skip(info.project.name === "phone", "the three-pane layout");
     const errors = trackErrors(page);
     const list = await openDecks(page);
     const other = list.find((deck) => !deck.selected)!;
     await tap(page, "Decks", `deck:${other.id}`);
+    await waitForScene(page, "DeckCheck");
+    expect(await sheetUp(page)).toBe(false);
+    await settle(page);
+    await page.keyboard.press("Escape");
+    await waitForScene(page, "Decks");
     await waitFor(
       async () => ((await decks(page)).find((deck) => deck.id === other.id)?.selected ? true : null),
-      "the clicked deck selected",
+      "the clicked deck still selected",
     );
-    await settle(page);
-    expect(await sheetUp(page)).toBe(false);
     expect(errors).toEqual([]);
   });
 

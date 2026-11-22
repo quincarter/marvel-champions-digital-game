@@ -119,6 +119,13 @@ export async function press(page: Page, scene: string, key: string): Promise<voi
     await page.keyboard.press("Escape");
     await settle(page, { quietMs: 150, maxMs: 600 });
   }
+  // A clicked deck on the desktop opens its Check (#966); Back returns to the list with it selected.
+  if (!PHONE && scene === "Decks" && key.startsWith("deck:")) {
+    await waitFor(async () => ((await screens(page)).includes("DeckCheck") ? true : null), "the deck's Check", 15_000);
+    await page.keyboard.press("Escape");
+    await waitFor(async () => ((await screens(page)).includes("Decks") ? true : null), "back on Decks", 15_000);
+    await settle(page, { quietMs: 150, maxMs: 600 });
+  }
 }
 
 /** The pool row's own + (or -) button, by its geometry in `deck-builder.ts#renderCardRow`. */
