@@ -881,9 +881,7 @@ body {
 }
 .mp {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  gap: 28px;
-  align-items: start;
+  gap: 32px;
 }
 .mp-art {
   display: block;
@@ -898,7 +896,8 @@ body {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 28px;
 }
 .mp-list li {
   border-left: 4px solid var(--gold);
@@ -906,8 +905,13 @@ body {
   font-size: 17px;
   line-height: 1.5;
 }
-@media (max-width: 860px) {
-  .mp {
+@media (max-width: 1000px) {
+  .mp-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .mp-list {
     grid-template-columns: minmax(0, 1fr);
   }
 }
