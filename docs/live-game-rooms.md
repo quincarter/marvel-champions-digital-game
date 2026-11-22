@@ -342,3 +342,94 @@ Room and protocol (built, `packages/sync-worker`, capability `play`; the lobby r
   not act until `give-back`. A seat that changes hands loses `takenOver`.
 - The roster's `watchers` count leaves out seat holders (an assigned holder plays); the roster is re-sent when holders
   change. The room has no other presence count.
+
+## 10. Several tables: Trickster Takeover Epic Multiplayer (issue #882, stacked on #881)
+
+Rules: docs/epic-multiplayer-plan.md §1 (settled 2026-11-20: one Loki, God of Lies and one Worlds Collide for the whole
+game; pods scope only the "your pod" abilities). Architecture: that plan's option B, mapped onto rooms:
+
+- **A table per group.** A room in Epic mode holds 2 or more tables (`t1`, `t2`, ...), each a group of 1 to 4 seats with
+  its own host, engine, log, encounter deck and difficulty. Every game message already names its table. Lobby seats gain
+  `table`; the lobby gains `tables` (id, name, pod, difficulty, host participant) and `pods` (which tables share a pod).
+  Each table's host is one of its seat holders, picked by the room host (the organizer). One device may host only one
+  table.
+- **The coordinator runs on the organizer's device.** A pure `PodCoordinator` reducer (plan §4 item 1) owns the shared
+  state: Loki's hit points and flip, Worlds Collide's threat and target, the game outcome, and each table's status. It
+  runs in a worker on the room host's device, which also hosts its own table.
+- **A `pod` channel.** Table hosts send the coordinator their outbound events (`sharedVillainDamaged`,
+  `sharedSchemeThreat`, `mangogEntered`, `doorEntered`, `synergyOffer`, phase status) as `pod:event { table, seq, event }`;
+  the room relays them to the organizer only. The organizer answers with `pod:inbound { table, seq, event }` (`lokiFlipped`,
+  `gameWon`, `gameLost`, `synergyGranted`, `stopAfterPhase`), which the room relays to that table's host, which applies it
+  as an `externalEvent` command at its next command boundary, so each table's log replays alone. The organizer also
+  broadcasts `pod:state` (the shared numbers and every table's status) for every device's pod strip. Events are
+  idempotent by `(table, seq)` and re-sent after a reconnect. The room stores nothing per event; the coordinator's log
+  lives with the organizer's game save.
+- **Cross-table cards.** A player in another table of the same pod may attack The Mangog or thwart Door Between Worlds
+  "as if it were in their game area": the proposal goes to the owning table's host as an ordinary seat proposal with a
+  `remote` marker, judged by that table's engine; Overkill excess goes to the attacker's own Avatar of Loki (owner
+  question pending, building option A).
+- **Lobby.** The organizer picks Epic mode, the number of tables, pods and per-table difficulty, and the optional time
+  limit (shown, not enforced: plan Q-D). Players pick a table and seat.
+- **Board.** A pod strip: Loki's hit points, Worlds Collide's threat and target, each table's round and status, the time
+  limit, a "choose a group in your pod" sheet, and a Loki-flip banner. Watchers can follow any table.
+- **Drops.** A table whose host drops: the table waits; the organizer can mark it abandoned after a timeout (plan Q-C
+  recommendation). The organizer dropping pauses the pod until they return (host migration is #884).
+- **Coordinator lost.** A table that sent a shared event (Loki damage, threat on Worlds Collide) waits at its next quiet
+  point for the coordinator's `sharedAck` (`PodState.awaiting`; its seats see `pod_waiting`). To recover, the organizer's
+  device rebuilds the coordinator from its saved setup and log (`replayCoordinator(setup, log)`). Each table host then
+  re-forwards its outbound events after the coordinator's `received` for it (duplicates are no-ops), and the coordinator
+  re-sends `inboundSince(state, table, inboundSeq)`. If the coordinator cannot come back, a table host may after a
+  timeout apply `Command podRelease` (authority-only, like `externalEvent`): the table plays on, and its unanswered
+  event keeps its number for a coordinator that returns.
+- **Cross-table timing (engine).** A remote attack or thwart is a real basic power in the attacker's table, made against
+  a blank stand-in for the card. It is initiated when the owning table's engine accepts it: refused there, the attacker's
+  table refunds the exhaust, the consequential damage and the spent hand cards. Each table keeps a copy of its pod's
+  reachable cards (`PodState.reachable`, relayed as `podReachable`), so a card known to be gone is refused before
+  anything is paid.
+
+### 10.1 Room and protocol (built, `packages/sync-worker`, capability `tables`)
+
+Epic mode is a lobby setting (`settings.mode: "epic"`; absent means `standard`, which behaves exactly as before). The
+lobby advertises the `tables` capability in every lobby room.
+
+- **Organizer and table hosts.** The room token's holder is the organizer (`Participant.organizer: true` in an Epic
+  room). Each table has its own host, a participant with role `host` and `table` set. The organizer's `lobby-set` sets
+  `tables: [{ id, name, pod, difficulty, host? }]` (2 to 8, including `t1`), `pods: [{ id, name }]` (derived from the
+  tables' pod ids when omitted) and `seats` that each name their `table` (at most 4 per table). A table's `host` is a
+  participant id: one of that table's seat holders, or the organizer's own id (the organizer hosts at most one table, or
+  none); each participant hosts at most one table (`bad-table-host` otherwise, `no-such-participant` for an unknown id).
+  An absent `host` keeps the table's host, `null` takes it away (the old host becomes a plain participant). A participant
+  holds seats at one table only (`other-table`). The mode and the tables are locked once any table has a game
+  (`out-of-order`).
+- **Table host tokens.** A newly assigned table host is sent `table-host-token { table, token }`, privately (192 random
+  bits, only the SHA-256 is stored in the lobby row, never in any broadcast). `hello.tableTokens` makes the sender that
+  table's host again after a reconnect (the old socket is replaced, the table's tail stored, the lobby's `host` updated).
+  A table host may stream (`start`, `commands`, `rewind`, `log`, `end`) its own table only and receives the proposals
+  for its table's seats; it may `take-over`/`give-back` seats of its own table. It cannot set the lobby, and the room
+  token never changes hands.
+- **Logs.** Every table has its own header, chunk and tail rows and its own ended state (`<table>:end`; a one-table room
+  keeps the end in `meta` as before), and each table's order, resend, rewind and size cap are its own. The room ends
+  5 minutes after the last table ended (`meta.roomEndedAt`), or after 12 hours without a host message.
+- **Watchers pick tables.** `hello.follow` and the `follow { tables: "all" | [ids] }` message choose which tables' logs
+  a participant receives (absent means all); `Participant.follow` shows in the roster, newly followed tables send their log
+  at once, and `roster.watching` counts the watchers (seat holders excluded) per table. `table` info messages go to
+  everyone. A host is not sent its own table's log, but gets the others.
+- A `follow` naming an unknown table is refused `no-such-table` and changes nothing. A seat holder always receives the
+  tables where it holds a seat, whatever it follows. Switching back to `standard` is refused (`out-of-order`) once any
+  table has a log, or while a table host is assigned; leaving Epic clears the kept pod state. Pod size caps are in bytes.
+- **Proposals and requests** go to the host of the table named in the message, and only a holder of a seat at that
+  table (not mismatched, not taken over) may send them. A cross-table `remote` proposal (the Mangog, Door Between Worlds)
+  is not built: it will be a `remote` marker on `propose`, judged by the owning table's engine (see the open owner
+  question about Overkill in plan Q-A).
+- **Pod channel** (`ch: "pod"`, Epic rooms only, `not-allowed` elsewhere): `pod:event { table, seq, event }` from a table's
+  host is relayed to the organizer only (an event from the organizer's own table is dropped: the coordinator is on its
+  device); `pod:inbound { table, seq, event }` from the organizer is relayed to that table's host only
+  (`no-such-participant` when none is connected); `pod:state { state }` from the organizer goes to everyone, and the last
+  one is kept in memory for joiners. Events are opaque, at most 16 KiB (state 32 KiB, `too-large`), limited to 30 then 10
+  a second per participant (`rate-limited`) and never stored. Idempotence by `(table, seq)` and re-sending after a
+  reconnect are the clients' job.
+- **Costs.** No row is written per pod event, per proposal or per follow. Each table costs what a one-table room does
+  (a header row, one chunk row per 20 commands, one tail row at most once a minute while streaming); the lobby row is
+  written only when the lobby, a seat holder or a table host changes; a table's end is one row and the room's end one
+  meta write. A woken room reads every table once when someone joins (about one row per 20 commands per table, plus 3 per
+  table). Seats are capped by `MAX_ROOM_PARTICIPANTS` (25: 16 players in 4 tables plus 9 watchers fit, 8 tables of 4 do not, so raise the var for those); the organizer, table hosts and anyone presenting a valid seat token are let in even when the room is full.

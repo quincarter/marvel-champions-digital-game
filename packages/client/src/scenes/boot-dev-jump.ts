@@ -329,6 +329,67 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=room-lobby&epic=organizer|player[&phase=playing]`: the Epic lobby over a made-up room (`view/epic-room-fixture.ts`).
+  if (screen === "room-lobby" && params.get("epic") !== null) {
+    const { epicRoomFixture } = await import("../view/epic-room-fixture.js");
+    const as = params.get("epic") === "player" ? "player" : "organizer";
+    return {
+      key: SCENES.roomLobby,
+      data: { preview: epicRoomFixture({ as, phase: params.get("phase") === "playing" ? "playing" : "lobby" }) },
+    };
+  }
+  // `?screen=board&fixture=epic[&as=player|watcher][&flip=1][&mangog=1][&away=1][&stuck=1]`: a real Loki game on the board with a
+  // made-up Epic room beside it (the pod strip, the flip banner, a Mangog in the next table). Dev only.
+  if (screen === "board" && params.get("fixture") === "epic" && import.meta.env.DEV) {
+    const { store } = appSession();
+    await store.start({
+      scenarioId: "god-of-lies",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+      // One group of a 3-group, 5-player pod: the game then takes the pod's shared record from a coordinator.
+      epic: { groupId: "t1", groupIdsInPod: ["t1", "t2"], groupsInGame: 3, playersInGame: 5 },
+    });
+    // Keep the first mulligan and setup choices out of the way: the table is what is being looked at.
+    for (let i = 0; i < 6; i++) {
+      const choice = store.state.game?.pendingChoice;
+      if (!choice) break;
+      await store.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [],
+      });
+    }
+    // As the hero, so the basic attack is there for the remote target.
+    const first = store.state.game?.firstPlayerId;
+    if (first && store.state.game?.step.phase === "player")
+      await store.dispatch({ type: "changeForm", playerId: first });
+    // The coordinator's record, as the pod would send it: the game's own panels and the strip read the same numbers.
+    const base = store.state.game?.pod?.shared;
+    let sharedOf: ((flipped: boolean) => unknown) | undefined;
+    if (base && first) {
+      const flipping = params.get("flip") === "1";
+      sharedOf = (flipped) => {
+        const left = flipped ? Math.max(1, (base.villainFlipAtRemaining ?? 10) - 2) : Math.round(base.villainHp * 0.7);
+        return {
+          ...base,
+          villainDamage: base.villainHp - left,
+          villainFlipped: flipped,
+          schemeThreat: 3,
+          status: "playing",
+        };
+      };
+      await store.dispatch({
+        type: "externalEvent",
+        playerId: first,
+        sequence: (store.state.game?.pod?.inboundSeq ?? 0) + 1,
+        event: { kind: "sharedStateChanged", shared: sharedOf(flipping) as never },
+      });
+    }
+    await injectEpicRoom(params, sharedOf as never);
+    return { key: SCENES.board, data: {} };
+  }
   // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
   if (screen === "room-lobby") {
     const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
@@ -426,6 +487,15 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     });
     // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
     return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
+  }
+  // Epic Multiplayer, a real two-host pod (issue #882, dev only; `e2e/epic-pod.spec.ts`):
+  // `?screen=room-epic-host&table=t1[&name=Olga]` makes the room (its code is `__mcRoomCode`), sets up two tables (t1 North,
+  // t2 South, one pod, one seat each), hosts t1 and starts the game; `&table=t2&code=ABC234[&name=Theo]` joins that room, takes
+  // t2's seat, becomes its host and starts t2 when the organizer starts. Both land on the board of their own group.
+  // `?screen=room-epic-watch&code=ABC234[&table=t1]` joins as a watcher of one table and opens it as a live watch.
+  // `__mcEpicDamageLoki(n)` damages Loki from this table's group; `__mcWatchTable(id)` swaps the watched table.
+  if ((screen === "room-epic-host" || screen === "room-epic-watch") && import.meta.env.DEV) {
+    return epicRoomJump(screen, params);
   }
   // `?screen=room-hands-board&as=host|guest&hands=0|1` (issue #887, dev only): a two-hero game on the board with a
   // made-up room around it and no room service. The host holds Captain Marvel (p2), the guest Spider-Man (p1), who acts
@@ -566,6 +636,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=replay[&commands=N][&at=N][&other=1]` (issue #693): plays a short real game in the page, opens it as a replay and
   // shows it on the Board with the transport over it (`store/dev-replay-game.ts`). `at` starts it at that position.
   if (screen === "replay") {
+    if (params.get("epic") !== null) await injectEpicRoom(params);
     const [{ openDevReplay }, { enterReplay }] = await Promise.all([
       import("../store/dev-replay-game.js"),
       import("../replay/replay-mode.js"),
@@ -1183,6 +1254,114 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
 }
 
 /** A whole-number query parameter, or `fallback` when it is absent or not a number (`?corruption=abc`). */
+/** The two-host Epic pod jumps (`room-epic-host`, `room-epic-watch`), driven through the real room worker. */
+async function epicRoomJump(screen: string, params: URLSearchParams): Promise<{ key: string; data: object }> {
+  const [room, live] = await Promise.all([import("../platform/room.js"), import("../platform/live-watch.js")]);
+  const until = async (done: () => boolean, label: string, ms = 120_000): Promise<void> => {
+    const end = Date.now() + ms;
+    while (!done()) {
+      if (Date.now() > end) throw new Error(`epic room jump: timed out waiting for ${label}`);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  };
+  const g = globalThis as Record<string, unknown>;
+  g.__mcRoomState = room.roomState;
+  g.__mcDispatch = (command: Command) => appSession().store.dispatch(command);
+  g.__mcEpicDamageLoki = (amount: number) => live.postRoomCommand({ kind: "room-dev-shared-damage", amount });
+  const code = params.get("code") ?? "";
+
+  if (screen === "room-epic-watch") {
+    const { enterReplay, leaveReplay } = await import("../replay/replay-mode.js");
+    await room.joinRoom(code, params.get("name") ?? "Wes");
+    await until(
+      () => room.roomState().connection === "connected" && (room.roomState().epic?.tables.length ?? 0) > 0,
+      "the lobby",
+    );
+    const watch = async (table: string): Promise<boolean> => {
+      const opened = await room.watchTable(table);
+      if (!opened.ok) return false;
+      leaveReplay();
+      await enterReplay(opened.host);
+      g.__mcWatching = table;
+      return true;
+    };
+    g.__mcWatchTable = watch;
+    // The table's game must exist before it can be opened.
+    const first = params.get("table") ?? "t1";
+    await until(() => room.roomState().epic?.tables.find((t) => t.id === first)?.started === true, "the table's game");
+    if (!(await watch(first))) throw new Error("epic room jump: the watch did not open");
+    return { key: SCENES.board, data: {} };
+  }
+
+  const table = params.get("table") === "t2" ? "t2" : "t1";
+  const settle = async (): Promise<void> => {
+    // The first mulligan and setup choices, out of the way: the table is what is being looked at.
+    const { store } = appSession();
+    for (let i = 0; i < 6; i++) {
+      const choice = store.state.game?.pendingChoice;
+      if (!choice) break;
+      await store.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [],
+      });
+    }
+  };
+  const config = (deck: string) => ({
+    scenarioId: "god-of-lies",
+    difficulty: "standard" as const,
+    players: [{ starterDeckId: deck }],
+    seed: 0,
+  });
+
+  if (table === "t2") {
+    await room.joinRoom(code, params.get("name") ?? "Theo");
+    await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
+    room.requestSeat("s2");
+    await until(() => room.roomState().mySeats.length > 0, "its seat");
+    await until(() => room.roomState().epic?.hostsTable === "t2", "being made the table's host");
+    await until(() => room.roomState().epic?.start != null, "the organizer's start");
+    await room.startEpicTable(config("core-captain-marvel-leadership"));
+    await settle();
+    return { key: SCENES.board, data: {} };
+  }
+
+  await room.hostRoom(params.get("name") ?? "Olga");
+  await until(() => room.roomState().connection === "connected", "the room");
+  g.__mcRoomCode = room.roomState().code;
+  room.setEpic(
+    [
+      { id: "t1", name: "North Table", pod: "a" },
+      { id: "t2", name: "South Table", pod: "a" },
+    ],
+    [{ id: "a", name: "Pod A" }],
+    [
+      { id: "s1", label: "Spider-Man (Justice) - Core Set starter deck", table: "t1" },
+      { id: "s2", label: "Captain Marvel (Leadership) - Core Set starter deck", table: "t2" },
+    ],
+  );
+  await until(() => room.roomState().epic?.tables.length === 2, "the tables");
+  room.requestSeat("s1");
+  await until(() => room.roomState().mySeats.length > 0, "its seat");
+  await until(
+    () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
+    "the other host asking for s2",
+  );
+  const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+  if (asker) room.assignSeat("s2", asker.participant);
+  await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+  const me = room.roomState().me?.id;
+  if (me) room.assignTableHost("t1", me);
+  if (asker) room.assignTableHost("t2", asker.participant);
+  await until(() => room.roomState().epic?.tables.every((t) => t.host !== null) === true, "both tables' hosts");
+  room.startEpicGame();
+  await until(() => room.roomState().epic?.start != null, "the start");
+  await room.startEpicTable(config("core-spider-man-justice"));
+  await settle();
+  return { key: SCENES.board, data: {} };
+}
+
 function intParam(value: string | null, fallback: number): number {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -1501,6 +1680,42 @@ async function startDevSetupGame(): Promise<void> {
       tableRulesOf(appSession().settings),
     ),
   );
+}
+
+/** Dev only: puts a made-up Epic room (`view/epic-room-fixture.ts`) in front of the screens, as the room worker would. */
+async function injectEpicRoom(
+  params: URLSearchParams,
+  sharedOf?: (flipped: boolean) => import("@mc/engine").SharedPodState,
+): Promise<void> {
+  const [{ epicRoomFixture }, room] = await Promise.all([
+    import("../view/epic-room-fixture.js"),
+    import("../platform/room.js"),
+  ]);
+  const raw = params.get("as") ?? params.get("epic");
+  const as = raw === "watcher" ? "watcher" : raw === "organizer" ? "organizer" : "player";
+  const fixture = epicRoomFixture({
+    as,
+    phase: "playing",
+    // A flip is shown as it happens: the room starts unflipped and flips a few seconds after the board opens.
+    flipped: false,
+    hostAway: params.get("away") === "1",
+    mangog: params.get("mangog") === "1",
+    ...(sharedOf ? { sharedOf } : {}),
+  });
+  const withStuck =
+    params.get("stuck") === "1" && fixture.epic ? { ...fixture, epic: { ...fixture.epic, podStuck: true } } : fixture;
+  room.previewRoomState(withStuck);
+  if (params.get("flip") === "1") {
+    const flipped = epicRoomFixture({
+      as,
+      phase: "playing",
+      flipped: true,
+      hostAway: params.get("away") === "1",
+      mangog: params.get("mangog") === "1",
+      ...(sharedOf ? { sharedOf } : {}),
+    });
+    setTimeout(() => room.previewRoomState(flipped), 4000);
+  }
 }
 
 /** `?v=open|decks|problem` of the room lobby preview. */

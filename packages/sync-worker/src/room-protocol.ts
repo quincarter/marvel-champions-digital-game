@@ -69,8 +69,22 @@ export type HostActivityStep = (typeof HOST_ACTIVITY_STEPS)[number];
 export const HOST_ACTIVITY_BURST = 4;
 /** The longest scenario name a host activity carries. */
 export const MAX_ACTIVITY_SCENARIO_CHARS = 120;
-/** A lobby has at most this many seats (Marvel Champions has 1-4 heroes). */
+/** A table has at most this many seats (Marvel Champions has 1-4 heroes); a standard lobby is one table. */
 export const MAX_LOBBY_SEATS = 4;
+/** An Epic lobby has at most this many tables (each up to `MAX_LOBBY_SEATS` seats). */
+export const MAX_LOBBY_TABLES = 8;
+/** Epic lobby pods, table names and difficulty (opaque JSON, in characters). */
+export const MAX_LOBBY_PODS = 8;
+export const MAX_TABLE_NAME_CHARS = 40;
+export const MAX_TABLE_DIFFICULTY_CHARS = 256;
+/** Most table host tokens a `hello` may present. */
+export const MAX_HELLO_TABLE_TOKENS = 4;
+/** The pod channel: one relayed `event` or `inbound` message, and the broadcast `state`, in JSON bytes. */
+export const MAX_POD_EVENT_BYTES = 16 * 1024;
+export const MAX_POD_STATE_BYTES = 32 * 1024;
+/** Pod messages per participant: a burst of this many, then `POD_PER_SECOND` a second. */
+export const POD_BURST = 30;
+export const POD_PER_SECOND = 10;
 /** Proposals per participant: a burst of this many, then `PROPOSAL_PER_SECOND` a second. */
 export const PROPOSAL_BURST = 10;
 export const PROPOSAL_PER_SECOND = 4;
@@ -162,8 +176,8 @@ export function parseLiveRoomEntry(v: unknown): LiveRoomEntry | null {
 
 /**
  * Capabilities a side may list in `hello` / `welcome`. `watch` is every room's; a room created with `lobby: true`
- * also advertises `chat` and `seats`, and `play` (seat holders propose commands to the host, docs/live-game-rooms.md
- * section 9). `tables` is not built.
+ * also advertises `chat`, `seats`, `play` (seat holders propose commands to the host, docs/live-game-rooms.md
+ * section 9) and `tables` (several tables in one room, the Epic mode, section 10).
  */
 export type RoomCapability = "watch" | "chat" | "seats" | "play" | "tables";
 
@@ -248,8 +262,21 @@ export interface Participant {
   /** Stable for the connection's life; given by the room. A reconnect is a new id (seats follow the seat token). */
   readonly id: string;
   readonly role: ParticipantRole;
-  /** The table a host or seat belongs to; absent for a watcher. */
+  /**
+   * The table a host or seat belongs to; absent for a watcher. In an Epic room a host is a table host (or the
+   * organizer, who hosts one table or none).
+   */
   readonly table?: string;
+  /**
+   * Epic rooms only: this host is the room's organizer (the room token's holder), who owns the lobby and the pod
+   * channel's coordinator. Absent in every other room, where the one host is the organizer.
+   */
+  readonly organizer?: true;
+  /**
+   * A watcher's chosen tables in a room with several (`hello.follow`, `follow`): the room sends it those tables' logs
+   * only. Absent means every table.
+   */
+  readonly follow?: readonly string[];
   /** Trimmed, at most `MAX_NAME_LENGTH`; present for every participant of a lobby room, never in another room. */
   readonly name?: string;
   /** What the participant's `hello` said it runs, so a lobby can show a mismatch. */
@@ -257,6 +284,9 @@ export interface Participant {
   /** From the participant's `hello`, in every room (watch rooms too); absent when it sent none or an unknown one. */
   readonly device?: RoomDevice;
 }
+
+/** `standard` is one table; `epic` is several tables in one room (Trickster Takeover Epic Multiplayer). */
+export type LobbyMode = "standard" | "epic";
 
 /** How the game is played: `strict` is the game as written, `host` lets the host allow Undo, Manual adjust and so on. */
 export type LobbyPlayMode = "strict" | "host";
@@ -299,6 +329,8 @@ export interface LobbySettings {
    * stays theirs (`left`), to take again with their token.
    */
   readonly handover?: boolean;
+  /** `epic`: several tables, each with its own host, joined by the pod channel (section 10). Absent means `standard`. */
+  readonly mode?: LobbyMode;
   /**
    * Does the host's board show every seat's hand face up? Default false (#887): in a room game the host's board draws
    * other seats' hands face down, like a guest's, and watchers get the same hidden view. Only what is drawn: the engine
@@ -389,6 +421,43 @@ export interface LobbySeatSpec {
    * room, which only stores and relays it; a seat without one has none yet.
    */
   readonly player?: string | number;
+  /**
+   * Epic rooms: the table the seat belongs to (required there, a known table id). Absent in a standard room, where
+   * every seat is at `t1`.
+   */
+  readonly table?: string;
+}
+
+/** A pod: tables that share a pod's "your pod" abilities. A table names its pod by id. */
+export interface LobbyPod {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** A table as the organizer sets it in `lobby-set`. */
+export interface LobbyTableSpec {
+  readonly id: string;
+  readonly name: string;
+  /** The id of one of the lobby's pods. */
+  readonly pod: string;
+  /** The table's difficulty, opaque to the room (at most `MAX_TABLE_DIFFICULTY_CHARS` of JSON). */
+  readonly difficulty?: unknown;
+  /**
+   * The participant who hosts the table (runs its engine): one of its seat holders, or the organizer; each participant
+   * hosts at most one table. Absent keeps the table's host, `null` takes the host away. The new host is sent
+   * `table-host-token`.
+   */
+  readonly host?: string | null;
+}
+
+/** A table in the lobby as everyone sees it. */
+export interface LobbyTable {
+  readonly id: string;
+  readonly name: string;
+  readonly pod: string;
+  readonly difficulty?: unknown;
+  /** The participant id of the table's host; it may have disconnected (the table's `hostConnected` says). */
+  readonly host?: string;
 }
 
 export interface LobbySeat extends LobbySeatSpec {
@@ -399,7 +468,7 @@ export interface LobbySeat extends LobbySeatSpec {
   /**
    * The connected holder runs a build that is not the host's (a seat restored by token after an update, or the host
    * changed build). The seat stays held; its holder may not act for it until the builds match again.
-   * (A later multi-table step adds a `table` field here.)
+   * Epic rooms: a `table` field on the seat says which table it is at (the room reads a missing one as `t1`).
    */
   readonly mismatch?: boolean;
   /**
@@ -428,6 +497,9 @@ export interface LobbyState {
   readonly rev: number;
   readonly settings: LobbySettings;
   readonly seats: readonly LobbySeat[];
+  /** Epic rooms only: the tables and the pods they belong to. */
+  readonly tables?: readonly LobbyTable[];
+  readonly pods?: readonly LobbyPod[];
 }
 
 /** One line of chat as the room relays it. */
@@ -489,8 +561,14 @@ export type ClientMessage =
       /** Optional and never refused: an unknown value is ignored. */
       readonly device?: RoomDevice;
       readonly seatTokens?: readonly string[];
+      /** Epic rooms: tokens from earlier `table-host-token` messages, which make the sender those tables' host again. */
+      readonly tableTokens?: readonly string[];
+      /** Tables to receive logs of: `all` (the default) or the given ids. */
+      readonly follow?: "all" | readonly string[];
       readonly caps: readonly RoomCapability[];
     }
+  /** Choose which tables' logs you receive (`all` or a list). The room then sends the logs of newly followed tables. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "follow"; readonly tables: "all" | readonly string[] }
   /** Host only, lobby rooms only: change settings and/or replace the seat list (holders of kept seat ids stay). */
   | {
       readonly v: 1;
@@ -498,6 +576,9 @@ export type ClientMessage =
       readonly kind: "lobby-set";
       readonly settings?: LobbySettingsPatch;
       readonly seats?: readonly LobbySeatSpec[];
+      /** Epic rooms (`settings.mode` `epic`): 2 to `MAX_LOBBY_TABLES` tables, each seat naming its table. */
+      readonly tables?: readonly LobbyTableSpec[];
+      readonly pods?: readonly LobbyPod[];
       /**
        * Compare and swap: the lobby revision (`LobbyState.rev`) this change was worked out against. A room whose lobby
        * has moved on refuses it with `lobby-changed` and stores nothing; absent, the change applies as before.
@@ -675,6 +756,30 @@ export type ClientMessage =
   | { readonly v: 1; readonly ch: "room"; readonly kind: "take-over"; readonly seat: string }
   /** Host only: hand a taken-over seat back to its holder. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "give-back"; readonly seat: string }
+  /**
+   * Pod channel, Epic rooms. A table host's outbound coordinator event; the room relays it to the organizer only.
+   * `seq` is the table's own counter (events are idempotent by `(table, seq)` and re-sent after a reconnect). Opaque,
+   * at most `MAX_POD_EVENT_BYTES`, rate limited, never stored.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "pod";
+      readonly kind: "event";
+      readonly table: string;
+      readonly seq: number;
+      readonly event: unknown;
+    }
+  /** Organizer only: the coordinator's answer for `table`; the room relays it to that table's host only. */
+  | {
+      readonly v: 1;
+      readonly ch: "pod";
+      readonly kind: "inbound";
+      readonly table: string;
+      readonly seq: number;
+      readonly event: unknown;
+    }
+  /** Organizer only: the shared state for every device's pod strip; broadcast to everyone, the last one kept in memory. */
+  | { readonly v: 1; readonly ch: "pod"; readonly kind: "state"; readonly state: unknown }
   /** Lobby rooms with chat on: at most `MAX_CHAT_LENGTH` characters; 1 a second per participant, burst `CHAT_BURST`. */
   | { readonly v: 1; readonly ch: "chat"; readonly kind: "say"; readonly text: string };
 
@@ -699,6 +804,8 @@ export type ServerMessage =
       readonly kind: "roster";
       readonly participants: readonly Participant[];
       readonly watchers: number;
+      /** Epic rooms only: watchers (not seat holders) following each table; a watcher following all counts in each. */
+      readonly watching?: Readonly<Record<string, number>>;
     }
   | { readonly v: 1; readonly ch: "room"; readonly kind: "table"; readonly table: TableInfo }
   /** The room is closing. */
@@ -732,6 +839,17 @@ export type ServerMessage =
     }
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
+  /**
+   * To the participant just made a table's host, privately, never broadcast (only its SHA-256 is stored): keep it and
+   * present it in `hello.tableTokens` to host the table again after a reconnect. A host may stream its own table only.
+   */
+  | {
+      readonly v: 1;
+      readonly ch: "room";
+      readonly kind: "table-host-token";
+      readonly table: string;
+      readonly token: string;
+    }
   /** To the host alone, answering `seat-decks-request`: the full deck of every seat that has one. */
   | {
       readonly v: 1;
@@ -866,6 +984,26 @@ export type ServerMessage =
       readonly accepted: boolean;
       readonly rid?: number;
     }
+  /** To the organizer only: a table host's `pod:event`, relayed untouched. */
+  | {
+      readonly v: 1;
+      readonly ch: "pod";
+      readonly kind: "event";
+      readonly table: string;
+      readonly seq: number;
+      readonly event: unknown;
+    }
+  /** To the table's host only: the organizer's `pod:inbound`, relayed untouched. */
+  | {
+      readonly v: 1;
+      readonly ch: "pod";
+      readonly kind: "inbound";
+      readonly table: string;
+      readonly seq: number;
+      readonly event: unknown;
+    }
+  /** To everyone (and a joiner, the last one the room holds): the organizer's shared pod state. */
+  | { readonly v: 1; readonly ch: "pod"; readonly kind: "state"; readonly state: unknown }
   | ({ readonly v: 1; readonly ch: "chat"; readonly kind: "said" } & ChatLine)
   /** To a joiner of a lobby room with chat on, after `welcome`: the last `CHAT_BACKLOG_LINES` lines, oldest first. */
   | { readonly v: 1; readonly ch: "chat"; readonly kind: "backlog"; readonly lines: readonly ChatLine[] };
@@ -876,7 +1014,9 @@ export type ServerMessage =
  * its limit. `multi-seat`: a second seat while the host has `multiSeat` off. `not-seated`: a `propose` or `request` from
  * someone who holds no seat at that table that may act (a mismatched or taken-over seat does not count). `strict`: a
  * `request` in a Strict room. `not-away`: `take-over` of a seat whose holder is connected. Only `bad-message`, `too-large` and
- * `not-allowed` count toward the room closing a noisy socket.
+ * `not-allowed` count toward the room closing a noisy socket. `other-table`: a seat at a second table (a participant plays
+ * at one table). `bad-table-host`: a table host that is neither the organizer nor one of that table's seat holders, or a
+ * participant already hosting another table. `no-such-table`: an unknown table in `follow` or `lobby-set`.
  */
 export type RefusalReason =
   | "bad-message"
@@ -893,13 +1033,16 @@ export type RefusalReason =
   | "not-away"
   | "handover-off"
   | "seat-taken"
+  | "other-table"
+  | "bad-table-host"
+  | "no-such-table"
   | "no-such-seat"
   | "no-such-participant"
   | "lobby-changed"
   /** A lobby change could not be saved: nothing changed, and trying again is safe. */
   | "not-saved";
 
-const CHANNELS = new Set(["room", "game", "chat"]);
+const CHANNELS = new Set(["room", "game", "chat", "pod"]);
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isSeatId = (v: unknown): v is string => typeof v === "string" && SEAT_ID_PATTERN.test(v);
@@ -914,15 +1057,46 @@ function isBuild(v: unknown): v is RoomBuild {
   );
 }
 
+const isTableId = (v: unknown): v is string => typeof v === "string" && TABLE_ID_PATTERN.test(v);
+
+function isFollow(v: unknown): boolean {
+  return v === "all" || (Array.isArray(v) && v.length <= MAX_LOBBY_TABLES && v.every(isTableId));
+}
+
+function isTableSpecs(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_LOBBY_TABLES &&
+    v.every(
+      (t) =>
+        isRecord(t) &&
+        isTableId(t.id) &&
+        shortString(t.name, MAX_TABLE_NAME_CHARS * 4) &&
+        isSeatId(t.pod) &&
+        (JSON.stringify(t.difficulty ?? null)?.length ?? 0) <= MAX_TABLE_DIFFICULTY_CHARS &&
+        (t.host === undefined || t.host === null || (typeof t.host === "string" && t.host.length <= 32)),
+    )
+  );
+}
+
+function isPods(v: unknown): boolean {
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_LOBBY_PODS &&
+    v.every((p) => isRecord(p) && isSeatId(p.id) && shortString(p.name, MAX_TABLE_NAME_CHARS * 4))
+  );
+}
+
 function isSeatSpecs(v: unknown): boolean {
   return (
     Array.isArray(v) &&
-    v.length <= MAX_LOBBY_SEATS &&
+    v.length <= MAX_LOBBY_SEATS * MAX_LOBBY_TABLES &&
     v.every(
       (s) =>
         isRecord(s) &&
         isSeatId(s.id) &&
         (s.label === undefined || shortString(s.label, 80)) &&
+        (s.table === undefined || isTableId(s.table)) &&
         (s.player === undefined ||
           (typeof s.player === "string" && s.player.length > 0 && s.player.length <= MAX_SEAT_PLAYER_CHARS) ||
           (typeof s.player === "number" && Number.isInteger(s.player) && s.player >= 0 && s.player < 1000)),
@@ -973,6 +1147,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
+  if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic") return false;
   if (v.hostSeesHands !== undefined && typeof v.hostSeesHands !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.listed !== undefined && typeof v.listed !== "boolean") return false;
@@ -1017,14 +1192,23 @@ export function parseClientMessage(text: string): ClientMessage | null {
           (m.seatTokens === undefined ||
             (Array.isArray(m.seatTokens) &&
               m.seatTokens.length <= MAX_HELLO_SEAT_TOKENS &&
-              m.seatTokens.every((t) => typeof t === "string" && t.length <= 64))),
+              m.seatTokens.every((t) => typeof t === "string" && t.length <= 64))) &&
+          (m.tableTokens === undefined ||
+            (Array.isArray(m.tableTokens) &&
+              m.tableTokens.length <= MAX_HELLO_TABLE_TOKENS &&
+              m.tableTokens.every((t) => typeof t === "string" && t.length <= 64))) &&
+          (m.follow === undefined || isFollow(m.follow)),
       );
+    case "room:follow":
+      return ok(isFollow(m.tables));
     case "room:lobby-set":
       return ok(
         (m.settings === undefined || isSettingsPatch(m.settings)) &&
           (m.seats === undefined || isSeatSpecs(m.seats)) &&
+          (m.tables === undefined || isTableSpecs(m.tables)) &&
+          (m.pods === undefined || isPods(m.pods)) &&
           (m.ifRev === undefined || isCount(m.ifRev)) &&
-          (m.settings !== undefined || m.seats !== undefined),
+          (m.settings !== undefined || m.seats !== undefined || m.tables !== undefined || m.pods !== undefined),
       );
     case "room:seat-request":
     case "room:seat-release":
@@ -1110,6 +1294,11 @@ export function parseClientMessage(text: string): ClientMessage | null {
           typeof m.accepted === "boolean" &&
           (m.rid === undefined || isCount(m.rid)),
       );
+    case "pod:event":
+    case "pod:inbound":
+      return ok(isTable(m.table) && isCount(m.seq) && "event" in m);
+    case "pod:state":
+      return ok("state" in m);
     case "chat:say":
       return ok(typeof m.text === "string" && m.text.length <= MAX_CHAT_LENGTH * 4);
     default:

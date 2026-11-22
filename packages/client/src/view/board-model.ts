@@ -9,6 +9,8 @@
  */
 
 import type { AbilityId, Aspect, AnyCard, ResourceIconType, StatStar } from "@mc/content";
+import { seatContext } from "./seat-context.js";
+import { t } from "../i18n/translate.js";
 import {
   handSize,
   printedHandSize,
@@ -1487,7 +1489,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
         ? playerName(state, instance.ownerId)
         : null,
-    ownedBy: ownedEncounterLabel(state, id),
+    ownedBy: remoteStandInLabel(state, id) ?? ownedEncounterLabel(state, id),
     countNote: giftReaderNote(state, id, controllerOf(state, id) ?? state.players[0]!.playerId, deps),
     ...(seat && !defeat
       ? { handSize: { value: handSize(state, seat.playerId, deps), printed: printedHandSize(state, seat.playerId) } }
@@ -1934,7 +1936,7 @@ export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, 
   return {
     instanceId: id,
     name: card?.name ?? "Side scheme",
-    subtitle: `Side scheme${crisis ? " · Crisis" : ""}${villainName ? ` · ${villainName}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
+    subtitle: `Side scheme${crisis ? " · Crisis" : ""}${villainName ? ` · ${villainName}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${remoteStandInLabel(state, id) ? ` · ${remoteStandInLabel(state, id)}` : ""}`,
     threat: instance.threat,
     // A side scheme has no threshold: it is defeated when thwarted to 0.
     target: null,
@@ -2479,4 +2481,16 @@ function grantedKeywordLabels(state: GameState, id: InstanceId, deps: EngineDeps
   return keywordsOf(state, id, deps)
     .map(keywordLabel)
     .filter((text) => !printed.has(text));
+}
+
+/**
+ * "In South Table" for a stand-in of a card that sits in another table's game area (a remote attack or thwart, Epic
+ * Multiplayer #882; `CardInstance.remoteOf`): the tile says where the card really is, so it is not read as one in this
+ * area. Null for every other card.
+ */
+export function remoteStandInLabel(state: GameState, id: InstanceId): string | null {
+  const remote = getInstance(state, id)?.remoteOf;
+  if (!remote) return null;
+  const table = seatContext()?.room.epic?.tables.find((x) => x.id === (remote.groupId as string));
+  return t("epic.badge.in", { table: table?.name ?? (remote.groupId as string) });
 }

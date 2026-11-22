@@ -46,6 +46,11 @@ export interface RoomStartDeps {
     input: Omit<RoomDeckCheckInput, "basePool" | "loaded">,
   ) => Promise<readonly SeatDeckVerdict[] | null>;
   /**
+   * An Epic table host's Start: only these seats (a table's, in its player order) are dealt, and the host of a table is
+   * not the room's host. Absent: every seat of a room's one table, host only.
+   */
+  readonly seatIds?: readonly string[];
+  /**
    * Gets the room's seats to show the seat to player mapping the decks were judged against, given the revision they were
    * judged at, and answers the revision to start at (the same one when nothing needed writing); null when the lobby
    * changed meanwhile. Optional: without it the game starts at the judged revision.
@@ -59,8 +64,11 @@ export interface RoomStartDeps {
 export type RoomGameBase = Omit<SessionConfig, "players">;
 
 export async function startRoomGame(base: RoomGameBase, deps: RoomStartDeps): Promise<RoomStartResult> {
-  const state = deps.state();
-  if (state.role !== "host") return { ok: false, reason: "not-host" };
+  const room = deps.state();
+  if (room.role !== "host" && deps.seatIds === undefined) return { ok: false, reason: "not-host" };
+  const state = deps.seatIds
+    ? { ...room, seats: deps.seatIds.flatMap((id) => room.seats.filter((seat) => seat.id === id)) }
+    : room;
   if (state.seats.length === 0) return { ok: false, reason: "no-seats" };
   const empty = state.seats.filter((seat) => seat.holder === null).map((seat) => seat.id);
   if (empty.length > 0) return { ok: false, reason: "unfilled", seats: empty };

@@ -25,6 +25,8 @@ import {
   type RoomState,
 } from "./room-state.js";
 import type { LobbyState } from "@mc/sync-worker/room-protocol";
+import { epicStateOf, hostedTableOf } from "./epic-view.js";
+import { readPodState, type PodStateWire } from "./pod-wire.js";
 
 /** Refusals that name the seat the player just asked for. */
 const SEAT_REFUSALS = new Set(["build-mismatch", "multi-seat", "seat-taken", "no-such-seat", "no-such-participant"]);
@@ -82,7 +84,17 @@ export class RoomModel {
   #refusal: RoomRefusal | null = null;
   #refusalSeq = 0;
   #lastSeat: string | undefined;
+  /** The table this device follows as its game (its own in an Epic room, else the first): `#table` is its info. */
+  #view = FIRST_TABLE;
   #table: TableInfo | null = null;
+  /** Every table the room reported, for an Epic room's tables list. */
+  readonly #tableInfos = new Map<string, TableInfo>();
+  /** Epic rooms: watchers per table (`roster.watching`), the organizer's last `pod:state`, and what this device follows. */
+  #watching: Readonly<Record<string, number>> = {};
+  #podState: PodStateWire | null = null;
+  #follow: "all" | readonly string[] = "all";
+  /** The table host's wait for the pod coordinator is not clearing (`EpicState.podStuck`). */
+  #podStuck = false;
   /** The host's own game is streaming (set by the session): `started` before the room's `table` message says so. */
   #hostStarted = false;
   #welcomed = false;
@@ -124,6 +136,50 @@ export class RoomModel {
   /** The room's lobby seats, for the session's token upkeep. */
   get lobby(): LobbyState | null {
     return this.#lobby;
+  }
+
+  /** The table I run (the organizer's own, or a table host's), or null; in a standard room the host's is the first. */
+  get hostedTable(): string | null {
+    return hostedTableOf(this.#participants.find((p) => p.id === this.meId));
+  }
+
+  /** I am a host of some table: the room has made me one. */
+  get isHost(): boolean {
+    return this.#participants.find((p) => p.id === this.meId)?.role === "host";
+  }
+
+  /** The table whose game this device follows as a player or watcher. */
+  get view(): string {
+    return this.#view;
+  }
+
+  /** Follows `table` as this device's game (its own table in an Epic room). */
+  setView(table: string): void {
+    this.#view = table;
+    this.#table = this.#tableInfos.get(table) ?? null;
+  }
+
+  /** The room's info for any table (the hosted table's, for a host's publisher). */
+  tableInfo(table: string): TableInfo | null {
+    return this.#tableInfos.get(table) ?? null;
+  }
+
+  /** Epic rooms: what this device asked to follow (`follow`); the state shows it. */
+  setFollow(follow: "all" | readonly string[]): void {
+    this.#follow = follow;
+  }
+
+  setPodStuck(stuck: boolean): void {
+    this.#podStuck = stuck;
+  }
+
+  get follow(): "all" | readonly string[] {
+    return this.#follow;
+  }
+
+  /** Epic rooms: the organizer's shared state, as broadcast (or as its own coordinator made it). */
+  setPodState(state: PodStateWire): void {
+    this.#podState = state;
   }
 
   /** The engine players behind these seat ids (a seat without one yet is left out). */
@@ -168,6 +224,11 @@ export class RoomModel {
       participants: this.#participants,
       tables: this.#table ? [this.#table] : [],
     };
+  }
+
+  /** Every table the room knows has ended its game (an Epic game is over: the lobby can start another). */
+  get allTablesEnded(): boolean {
+    return this.#tableInfos.size > 0 && [...this.#tableInfos.values()].every((t) => t.ended);
   }
 
   /** What the room reported of the first table, for a publisher that attaches after the welcome. */
@@ -253,7 +314,11 @@ export class RoomModel {
       return true;
     }
     if (message.ch === "game") {
-      if (message.kind === "request" && this.#role === "host" && message.table === FIRST_TABLE) {
+      if (
+        message.kind === "request" &&
+        (this.#role === "host" || this.isHost) &&
+        message.table === (this.hostedTable ?? FIRST_TABLE)
+      ) {
         // One pending request of a kind per asker: asking again replaces the note rather than piling up.
         const kept = this.#requests.filter((r) => !(r.from === message.from && r.what === message.what));
         const name = this.#participants.find((p) => p.id === message.from)?.name ?? "";
@@ -270,18 +335,28 @@ export class RoomModel {
         ];
         return true;
       }
-      if (message.kind === "request-answer" && message.table === FIRST_TABLE) {
+      if (message.kind === "request-answer" && message.table === this.#view) {
         if (this.#ask?.status !== "waiting") return false;
         // An answer to an earlier ask (I have asked again since) is not an answer to this one.
         if (message.rid !== undefined && message.rid !== this.#ask.seq) return false;
         this.#ask = { ...this.#ask, status: message.accepted ? "accepted" : "declined" };
         return true;
       }
-      if (message.kind === "end" && message.table === FIRST_TABLE && this.#table) {
-        this.#table = { ...this.#table, ended: true };
+      if (message.kind === "end") {
+        const info = this.#tableInfos.get(message.table);
+        if (!info) return false;
+        this.#tableInfos.set(message.table, { ...info, ended: true });
+        if (message.table === this.#view) this.#table = this.#tableInfos.get(message.table) ?? null;
         return true;
       }
       return false;
+    }
+    if (message.ch === "pod") {
+      if (message.kind !== "state") return false;
+      const state = readPodState(message.state);
+      if (!state) return false;
+      this.#podState = state;
+      return true;
     }
     switch (message.kind) {
       case "welcome":
@@ -289,17 +364,21 @@ export class RoomModel {
         this.#welcomed = true;
         this.#me = { id: message.you.id, name: message.you.name ?? this.#name };
         this.#participants = message.participants;
-        this.#table = message.tables.find((t) => t.id === FIRST_TABLE) ?? null;
+        this.#tableInfos.clear();
+        for (const info of message.tables) this.#tableInfos.set(info.id, info);
+        this.#table = this.#tableInfos.get(this.#view) ?? null;
         this.#connection = "connected";
         this.#problem = null;
         return true;
       case "roster":
         this.#participants = message.participants;
+        this.#watching = message.watching ?? {};
         // An asker who left cannot be answered (the room refuses a `to` that is not connected).
         this.#requests = this.#requests.filter((r) => message.participants.some((p) => p.id === r.from));
         return true;
       case "table":
-        if (message.table.id !== FIRST_TABLE) return false;
+        this.#tableInfos.set(message.table.id, message.table);
+        if (message.table.id !== this.#view) return this.#lobby?.settings.mode === "epic";
         this.#table = message.table;
         return true;
       case "deck-refused":
@@ -320,7 +399,14 @@ export class RoomModel {
             : { step: message.step, ...(message.scenario ? { scenario: message.scenario } : {}) };
         return true;
       case "lobby":
-        this.#lobby = { code: message.code, rev: message.rev, settings: message.settings, seats: message.seats };
+        this.#lobby = {
+          code: message.code,
+          rev: message.rev,
+          settings: message.settings,
+          seats: message.seats,
+          ...(message.tables ? { tables: message.tables } : {}),
+          ...(message.pods ? { pods: message.pods } : {}),
+        };
         this.#code = message.code;
         return true;
       case "refused": {
@@ -427,12 +513,24 @@ export class RoomModel {
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
       refusal: this.#refusal,
-      requests: this.#role === "host" ? this.#requests : [],
-      myRequest: this.#role === "guest" ? this.#ask : null,
+      requests: this.#role === "host" || this.isHost ? this.#requests : [],
+      myRequest: this.#role === "guest" && !this.isHost ? this.#ask : null,
       buildMatches: me ? buildMatches(me) : sameBuild(this.#build, hostBuild) || !hostBuild,
       ...(me ? gapOf(me.build, me.role === "host" || buildMatches(me)) : gapOf(this.#build, false)),
       started: this.#hostStarted || (this.#table?.hasHeader ?? false),
       gameOver: this.#table?.ended ?? false,
+      mode: lobby?.settings.mode ?? "standard",
+      epic: epicStateOf({
+        lobby,
+        participants: this.#participants,
+        meId,
+        tableInfos: this.#tableInfos,
+        watching: this.#watching,
+        podState: this.#podState,
+        follow: this.#follow,
+        podStuck: this.#podStuck,
+        mySeats: seats.filter((s) => s.mine).map((s) => s.id),
+      }),
     };
   }
 }

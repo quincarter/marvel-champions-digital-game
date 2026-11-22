@@ -78,6 +78,23 @@ interface TurnMemory {
   readonly maxPerTurn: number;
 }
 
+/** What the driver remembers between commands of one game (`driverCommand`). One per game. */
+export type DriverMemory = TurnMemory;
+
+export const driverMemory = (maxCommandsPerTurn = 60): DriverMemory => ({
+  key: "",
+  used: new Set(),
+  commands: 0,
+  maxPerTurn: maxCommandsPerTurn,
+});
+
+/**
+ * The driver's next command for a game it does not run to the end itself (a pod of several games, interleaved by a
+ * harness): the answer to the pending choice, or the active player's next action. Throws when neither is due.
+ */
+export const driverCommand = (state: GameState, deps: EngineDeps, memory: DriverMemory): Command =>
+  nextCommand(state, deps, memory);
+
 function nextCommand(state: GameState, deps: EngineDeps, memory: TurnMemory): Command {
   const choice = state.pendingChoice;
   if (choice)

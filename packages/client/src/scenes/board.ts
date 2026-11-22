@@ -35,8 +35,16 @@ import { NO_REFILL, trackRefill, type EndOfTurnDraws, type RefillTracker } from 
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession, holdGameArt } from "../session.js";
 import { onArtChange } from "../language-change.js";
-import { activeReplay, leaveReplay } from "../replay/replay-mode.js";
-import { answerRequest, dismissAsk, giveBackSeat, onRoomState, roomState, takeOverSeat } from "../platform/room.js";
+import { activeReplay, enterReplay, leaveReplay } from "../replay/replay-mode.js";
+import {
+  answerRequest,
+  dismissAsk,
+  giveBackSeat,
+  onRoomState,
+  releasePod,
+  roomState,
+  takeOverSeat,
+} from "../platform/room.js";
 import type { RoomState } from "../platform/room.js";
 import { activeSeat } from "../platform/seat-play.js";
 import { actingOf, inRoomGame, whoseTurnOf, type TurnLine } from "../view/whose-turn.js";
@@ -44,7 +52,9 @@ import { promptViewOf, roomChatOn, roomPromptsOf, type PromptView } from "../vie
 import { heldElsewhere } from "../view/seat-gate.js";
 import { handVisibleTo } from "../view/hand-privacy.js";
 import { markChatRead, resetChatRead, unreadChatCount } from "../view/room-chat-unread.js";
-import { TURN_ROW_HEIGHT, promptRowHeight } from "../view/layout.js";
+import { TURN_ROW_HEIGHT, promptRowHeight, PROMPT_ROW_HEIGHT } from "../view/layout.js";
+import { justFlipped, podStripOf, podStripHeight, type PodStrip } from "../view/pod-strip.js";
+import { gameCardsById as epicCardsById } from "../content/game-deps.js";
 import { askToConfirm } from "./end-turn-confirm.js";
 import {
   REPLAY_READING_KEYS,
@@ -123,6 +133,7 @@ import { hoverArea } from "../view/card-hover.js";
 import { zoomCardOf } from "../view/inspect-hold.js";
 import { sheetIsCovered } from "../view/choice-sheet-sync.js";
 import { syncSceneClock } from "../ui/scene-clock.js";
+import { replayReturnTarget } from "./replay-entry.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToAdjustGame, askToEndTurn } from "./end-turn-confirm.js";
 import type { OptionNoticeData, OptionNoticeOverlay } from "./option-notice.js";
@@ -250,6 +261,8 @@ function soundInfoOfCard(cardId: CardId): CardSoundInfo | null {
     | undefined;
   return card ? { name: card.name, traits: card.traits ?? [] } : null;
 }
+
+const POD_LINE = 18;
 
 export class BoardScene extends Phaser.Scene {
   /** Team-Ups present in the latest state (relevant to this game, both characters in play in any form). */
@@ -485,6 +498,9 @@ export class BoardScene extends Phaser.Scene {
   #replay: ReplayHost | null = null;
   /** The room this board plays in (#881): the whose-turn line, the room prompts and who may act read it. */
   #room: RoomState = roomState();
+  /** Epic (#882): Loki's last seen flip state, and until when the flip banner shows. */
+  #flipSeen: boolean | null = null;
+  #flipUntil = 0;
   /** Seats the host chose to wait on, so their "disconnected" prompt stays away until the seat changes. */
   readonly #waiting = new Set<string>();
   /** The line the top bar's watch control shows for a moment after a press (#876). */
@@ -693,6 +709,14 @@ export class BoardScene extends Phaser.Scene {
     let roomShown = this.#roomKey();
     const roomOff = onRoomState((room) => {
       this.#room = room;
+      const flipped = room.epic?.pod?.shared.villainFlipped ?? null;
+      if (justFlipped(this.#flipSeen, flipped === true)) {
+        this.#flipUntil = this.time.now + 12_000;
+        this.time.delayedCall(12_100, () => {
+          if (this.sys.isActive()) this.#refreshRoomPart();
+        });
+      }
+      this.#flipSeen = flipped;
       for (const id of [...this.#waiting]) {
         const seat = room.seats.find((s) => s.id === id);
         if (!seat || (!seat.away && seat.holder !== null)) this.#waiting.delete(id);
@@ -708,8 +732,11 @@ export class BoardScene extends Phaser.Scene {
       this.#syncChoiceOverlay(state);
       this.#draw();
     });
+    // The Epic clock counts down in minutes: look again every 20 seconds.
+    const clockTimer = this.time.addEvent({ delay: 20_000, loop: true, callback: () => this.#refreshRoomPart() });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       roomOff();
+      clockTimer.remove();
     });
     const config = store.state.config;
     // A replay plays its scenario's music too, so it is in the mood of the game it shows (#858).
@@ -784,6 +811,7 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.roomChat) ||
         this.scene.isActive(SCENES.roomAsk) ||
         this.scene.isActive(SCENES.roomGive) ||
+        this.scene.isActive(SCENES.epicSheet) ||
         // The campaign beat splash closes on A, B, Start, View, Y and Enter: the same press must not also act on the table.
         this.scene.isActive(SCENES.campaignBeat) ||
         this.scene.isActive(SCENES.rules) ||
@@ -1729,8 +1757,12 @@ export class BoardScene extends Phaser.Scene {
     const cardScale = cardSizeFactor(cardSize);
     this.#scrollDirty = false;
     const roomView = this.#roomView();
+    const podStrip = this.#podStrip();
+    const stuckPrompt = roomView.prompt === null && this.#podStuck();
     const chromeExtra =
-      (roomView.turn ? TURN_ROW_HEIGHT : 0) + (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : 0);
+      (roomView.turn ? TURN_ROW_HEIGHT : 0) +
+      (roomView.prompt ? promptRowHeight(roomView.prompt.actions.length) : stuckPrompt ? PROMPT_ROW_HEIGHT : 0) +
+      podStripHeight(podStrip, POD_LINE, 44);
     const atRest = boardLayout(viewport, {
       ...(chromeExtra > 0 ? { chromeExtra } : {}),
       playerCount: model.team.length + 1,
@@ -1817,6 +1849,32 @@ export class BoardScene extends Phaser.Scene {
                 label: t("chat.open"),
                 unread: unreadChatCount(this.#room.chat),
                 onPress: () => this.#openChat(),
+              },
+            }
+          : {}),
+        ...(podStrip
+          ? {
+              podStrip: {
+                lines: podStrip.lines.map((l) => ({ text: l.text, alert: l.tone === "alert" })),
+                lineHeight: POD_LINE,
+                button: {
+                  label:
+                    podStrip.targets > 0
+                      ? t("epic.strip.buttonTargets", { count: podStrip.targets })
+                      : t("epic.strip.button"),
+                  onPress: () => this.#openEpicSheet(),
+                  onRect: (rect: Rect) => this.#frame.focusRects.set("podStrip", rect),
+                },
+              },
+            }
+          : {}),
+        ...(stuckPrompt
+          ? {
+              prompt: {
+                text: t("epic.stuck.text"),
+                detail: null,
+                actions: [{ label: t("epic.stuck.go"), primary: true, onPress: () => this.#releasePod() }],
+                onRect: (index: number, rect: Rect) => this.#frame.focusRects.set(`prompt:${index}`, rect),
               },
             }
           : {}),
@@ -2798,6 +2856,44 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  /** The Epic pod strip for this table's board (#882), or null outside an Epic game. */
+  #podStrip(): PodStrip | null {
+    const epic = this.#room.epic;
+    if (!epic) return null;
+    const width = this.scale.gameSize.width;
+    return podStripOf(
+      {
+        epic,
+        game: appSession().store.state.game,
+        now: Date.now(),
+        flipBanner: this.time.now < this.#flipUntil,
+        nameOf: (id) => epicCardsById().get(id)?.name ?? id,
+        compact: this.scale.gameSize.width > this.scale.gameSize.height && this.scale.gameSize.height <= 820,
+      },
+      Math.max(24, Math.floor((width - 120) / 6.5)),
+    );
+  }
+
+  /** A table host whose pod coordinator stopped answering (the connection side sets `podStuck`). */
+  #podStuck(): boolean {
+    return this.#room.epic?.podStuck === true && this.#room.epic.hostsTable !== null;
+  }
+
+  #releasePod(): void {
+    releasePod();
+  }
+
+  #openEpicSheet(): void {
+    if (this.scene.isActive(SCENES.epicSheet)) return;
+    this.scene.launch(SCENES.epicSheet, { kind: "tables" });
+  }
+
+  /** The room part of the board changed on a clock (the Epic timer, the flip banner): draw again when its words did. */
+  #refreshRoomPart(): void {
+    if (!this.#model || !this.sys.isActive()) return;
+    this.#draw();
+  }
+
   /** What the room part of the board shows, as a string: the board draws again only when it changes. */
   #roomKey(): string {
     const view = this.#roomView();
@@ -2805,9 +2901,13 @@ export class BoardScene extends Phaser.Scene {
     const prompt = view.prompt
       ? `${view.prompt.titleKey}|${JSON.stringify(view.prompt.params)}|${view.prompt.detail}|${view.prompt.more}|${view.prompt.actions.map((a) => a.id).join(",")}`
       : "";
+    const strip =
+      this.#podStrip()
+        ?.lines.map((l) => l.text)
+        .join("|") ?? "";
     const state = appSession().store.state;
     const shown = state.perspectiveId !== null ? this.#handVisible(shownSeat(state)!, state) : true;
-    return `${turn}#${prompt}#${view.chatOn ? unreadChatCount(this.#room.chat) : -1}#${this.#held(state)}#${shown}`;
+    return `${turn}#${prompt}#${strip}#${this.#podStuck()}#${view.chatOn ? unreadChatCount(this.#room.chat) : -1}#${this.#held(state)}#${shown}`;
   }
 
   /** True while the hero who must act sits behind a seat this device does not act for (#881). */
@@ -2815,6 +2915,31 @@ export class BoardScene extends Phaser.Scene {
     if (this.#replay) return false;
     const acting = actingOf(state.game);
     return heldElsewhere(this.#room, acting?.playerId ?? null, activeSeat() !== null);
+  }
+
+  /**
+   * Epic (#882): a watcher moves to another table's game without leaving the board. The new replay host replaces the one
+   * under the board (`enterReplay` puts the device's own session back, closes the old host and takes the new one; its
+   * feed has its own id, so closing the old one does not close this one), then the board starts over on it. `#replay` is
+   * cleared first, so the board's shutdown does not leave the replay it is now showing. Resolves false (the new host
+   * disposed) when this board is not showing a replay or is being left.
+   */
+  async swapReplay(host: ReplayHost): Promise<boolean> {
+    if (!this.#replay || this.#leaving || !this.sys.isActive()) {
+      host.dispose();
+      return false;
+    }
+    this.#replay = null;
+    try {
+      await enterReplay(host);
+    } catch {
+      // `enterReplay` already put the device's own session back and closed the old replay: nothing is left to show.
+      host.dispose();
+      goToScreen(this, replayReturnTarget(), {});
+      return false;
+    }
+    this.scene.restart();
+    return true;
   }
 
   /** A guest's seat is being put away (#881): the table takes no more input, so nothing reaches the device's own store. */

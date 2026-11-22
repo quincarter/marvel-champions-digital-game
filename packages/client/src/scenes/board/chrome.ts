@@ -61,7 +61,16 @@ export interface ChromePrompt {
 const TURN_TYPE: TypeSpec = { ...typeRole.rowTitle, size: 14 };
 const PROMPT_TYPE: TypeSpec = { ...typeRole.emphasis, size: 12 };
 
+/** The Epic pod strip (#882): lines of words under the bar, with a Tables button on its first line. */
+export interface ChromePodStrip {
+  readonly lines: readonly { readonly text: string; readonly alert: boolean }[];
+  readonly lineHeight: number;
+  readonly button: { readonly label: string; readonly onPress: () => void; readonly onRect: (rect: Rect) => void };
+}
+
 export interface ChromeOptions {
+  /** Epic games (#882): Loki, Worlds Collide, the tables and the clock, as the bar's last rows. */
+  readonly podStrip?: ChromePodStrip | null;
   /** Room games with chat on (#881): the turn row's Chat control, with a count of lines not yet read. */
   readonly chat?: { readonly label: string; readonly unread: number; readonly onPress: () => void } | null;
   /** Room games (#881): whose turn it is, as the bar's last row. */
@@ -128,7 +137,8 @@ export function drawChrome(scene: Phaser.Scene, fullWhole: Rect, model: BoardMod
   g.fillStyle(surface.ink.hex, 1).fillRect(fullWhole.x, fullWhole.y, fullWhole.width, fullWhole.height);
   // The rows below the bar's own (the whose-turn line, a prompt) are taken off first: the rest draws as it always did.
   const promptHeight = options.prompt ? promptRowHeight(options.prompt.actions.length) : 0;
-  const extra = (options.turn ? TURN_ROW_HEIGHT : 0) + promptHeight;
+  const stripHeight = options.podStrip ? podStripBoxHeight(options.podStrip) : 0;
+  const extra = (options.turn ? TURN_ROW_HEIGHT : 0) + promptHeight + stripHeight;
   const whole: Rect = extra > 0 ? { ...fullWhole, height: fullWhole.height - extra } : fullWhole;
   if (options.turn) {
     const turnRow: Rect = { x: whole.x, y: whole.y + whole.height, width: whole.width, height: TURN_ROW_HEIGHT };
@@ -138,6 +148,15 @@ export function drawChrome(scene: Phaser.Scene, fullWhole: Rect, model: BoardMod
   if (options.prompt) {
     const top = whole.y + whole.height + (options.turn ? TURN_ROW_HEIGHT : 0);
     drawPromptRow(scene, { x: whole.x, y: top, width: whole.width, height: promptHeight }, options);
+  }
+  if (options.podStrip) {
+    const top = whole.y + whole.height + (options.turn ? TURN_ROW_HEIGHT : 0) + promptHeight;
+    drawPodStrip(
+      scene,
+      { x: whole.x, y: top, width: whole.width, height: stripHeight },
+      options.podStrip,
+      options.buttons,
+    );
   }
   const ownRow = whole.height >= CHROME_HEIGHT.phone && whole.width < 768;
   const rect: Rect = ownRow ? { ...whole, height: whole.height - CHROME_TICKER_ROW } : whole;
@@ -299,6 +318,54 @@ export function drawChrome(scene: Phaser.Scene, fullWhole: Rect, model: BoardMod
       : { x: tickerX, y: chip.y, width: rightEdge - tickerX, height: chip.height },
     options,
   );
+}
+
+const STRIP_BUTTON = 44;
+const STRIP_TYPE: TypeSpec = { ...typeRole.rowTitle, size: 12 };
+
+/** The strip's own height: its lines, the first as tall as its button, and a little air. */
+const podStripBoxHeight = (strip: ChromePodStrip): number =>
+  Math.max(strip.lineHeight, STRIP_BUTTON) + (strip.lines.length - 1) * strip.lineHeight + 10;
+
+/** The pod strip: words on ink, an alert line inverted on paper with a warning mark, never colour alone. */
+function drawPodStrip(scene: Phaser.Scene, row: Rect, strip: ChromePodStrip, buttons: McButton[]): void {
+  const g = scene.add.graphics();
+  g.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(row.x, row.y + 0.5, row.x + row.width, row.y + 0.5);
+  const buttonWidth = Math.max(72, strip.button.label.length * 9 + 24);
+  const buttonRect: Rect = {
+    x: row.x + row.width - buttonWidth - 8,
+    y: row.y + 3,
+    width: buttonWidth,
+    height: STRIP_BUTTON - 6,
+  };
+  buttons.push(
+    new McButton(scene, {
+      kind: "onInk",
+      label: strip.button.label,
+      type: { ...typeRole.label, size: 11 },
+      rect: buttonRect,
+      enabled: true,
+      onClick: strip.button.onPress,
+    }),
+  );
+  strip.button.onRect(buttonRect);
+  let y = row.y + 5;
+  strip.lines.forEach((line, index) => {
+    const height = index === 0 ? Math.max(strip.lineHeight, STRIP_BUTTON) : strip.lineHeight;
+    const right = index === 0 ? buttonRect.x - 6 : row.x + row.width - 8;
+    if (line.alert) g.fillStyle(surface.paper.hex, 1).fillRect(row.x + 4, y, row.width - 8, height);
+    const text = scene.add
+      .text(
+        row.x + 10,
+        y + height / 2,
+        (line.alert ? "⚠ " : "") + line.text,
+        textStyle(STRIP_TYPE, line.alert ? surface.ink.hex : surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
+    clipLine(text, right - row.x - 10);
+    scene.add.zone(row.x, y, row.width, height).setOrigin(0, 0).setName(line.text);
+    y += height;
+  });
 }
 
 /** The whose-turn row: words first (a glyph backs them up), my own turn on paper so it stands out without colour. */

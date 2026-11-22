@@ -12,7 +12,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
-import { replay } from "./engine.js";
+import { applyCommand, replay } from "./engine.js";
+import { inboundCommand } from "./pod-commands.js";
 import type { GameEvent } from "./events.js";
 import { groupId } from "./ids.js";
 import { applySharedEvent, podOf, type SharedEvent, type SharedPodState } from "./pod.js";
@@ -140,6 +141,20 @@ const play = (state: GameState, script: PodScript, deps: EngineDeps = scripted) 
   expect(replayed.ok && replayed.state).toEqual(played.session.state);
   return played;
 };
+/**
+ * The pod coordinator's acknowledgement of this group's last shared event (`PodState.awaiting`, `sharedAck`): what a
+ * remote coordinator sends once it has applied the event, after which the group plays on.
+ */
+const acked = (state: GameState, deps: EngineDeps = scripted): GameState => {
+  const pod = podOf(state);
+  const result = applyCommand(
+    state,
+    inboundCommand(state, pod.inboundSeq + 1, { kind: "sharedAck", seq: pod.awaiting ?? pod.outboundSeq }),
+    deps,
+  );
+  if (!result.ok) throw new Error(result.error.message);
+  return result.state;
+};
 const emitted = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "sharedEventEmitted" ? [{ seq: e.seq, event: e.event }] : []));
 const typesOf = (events: readonly GameEvent[], ...types: readonly GameEvent["type"][]) =>
@@ -232,7 +247,7 @@ describe("hand-built: a remote coordinator", () => {
       pod: { ...podOf(local), coordinator: "remote", groupsInPodAtStart: 2, groupsInGameAtStart: 2 },
     };
     const a = play(remote, SHATTER_13);
-    const { state, events } = play(a.state, SHATTER_13);
+    const { state, events } = play(acked(a.state), SHATTER_13);
     expect(emitted([...a.events, ...events])).toEqual([
       { seq: 1, event: { type: "sharedVillainDamaged", groupId: "g1", amount: 13 } },
       { seq: 2, event: { type: "sharedVillainDamaged", groupId: "g1", amount: 13 } },

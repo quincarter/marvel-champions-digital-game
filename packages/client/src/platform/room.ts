@@ -25,21 +25,45 @@ import { loadLiveWatch, type WatchOpenDeps } from "../live/watch-open.js";
 import {
   NO_ROOM,
   seatOfPlayerIn,
+  type LobbyPod,
   type LobbySeatSpec,
   type LobbySettingsPatch,
+  type LobbyTableSpec,
+  type RemoteTarget,
   type RoomState,
   type SeatDeckEntry,
   type SeatOfPlayer,
 } from "../live/room-state.js";
+import { epicTableConfig } from "../live/epic-start.js";
 import { RoomDeckWorker } from "../live/room-deck-check-client.js";
 import { withRequiredPacks } from "../packs/pack-runtime.js";
-import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult } from "../live/room-start.js";
+import {
+  startRoomGame as runRoomStart,
+  type RoomGameBase,
+  type RoomStartDeps,
+  type RoomStartResult,
+} from "../live/room-start.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import { postRoomCommand, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
-export type { RoomAsk, RoomRequest, RoomState, SeatOfPlayer } from "../live/room-state.js";
+export type {
+  EpicPod,
+  EpicShared,
+  EpicStart,
+  EpicState,
+  EpicTable,
+  EpicTableRole,
+  EpicTableStatus,
+  LobbyPod,
+  LobbyTableSpec,
+  RemoteTarget,
+  RoomAsk,
+  RoomRequest,
+  RoomState,
+  SeatOfPlayer,
+} from "../live/room-state.js";
 
 let state: RoomState = NO_ROOM;
 const listeners = new Set<(state: RoomState) => void>();
@@ -106,8 +130,10 @@ function requestSeatDecks(): Promise<readonly SeatDeckEntry[] | null> {
 
 export const roomState = (): RoomState => state;
 
-/** Dev only (`?screen=room-hands-board`): shows a made-up room state with no room service, for screenshots. */
-export const previewRoomState = (next: RoomState): void => publish(next);
+/** Dev only (`scenes/boot-dev-jump.ts`): shows a made-up room to the screens, as if the room worker had sent it. */
+export function previewRoomState(next: RoomState): void {
+  if (import.meta.env.DEV) publish(next);
+}
 setSeatContextSource(() => state);
 
 /** Calls `listener` with the current state at once, then on every change. Returns the unsubscribe. */
@@ -340,8 +366,33 @@ export function say(text: string): void {
  * `refused` but not sent to the room (the host reads it there).
  */
 export async function startRoomGame(base: RoomGameBase): Promise<RoomStartResult> {
+  return withHostActivity(base, () =>
+    runRoomStart(
+      base,
+      roomStartDeps(async (config) => startGame(config), base),
+    ),
+  );
+}
+
+/**
+ * Epic table host only, once `RoomState.epic.start` is set: the same deck path as `startRoomGame` for this table's seats
+ * (their decks fetched from the room, judged in a worker, refusals told to each holder), then `startEpicTable`.
+ */
+export function startEpicTableRoomGame(base: RoomGameBase, seatIds: readonly string[]): Promise<RoomStartResult> {
+  return withHostActivity(base, () => runRoomStart(base, { ...roomStartDeps(startEpicTable, base), seatIds }));
+}
+
+/** A start that did not deal the game leaves the host in the lobby: the status line is over (a game that started
+ * already cleared it in the room). */
+async function withHostActivity(base: RoomGameBase, run: () => Promise<RoomStartResult>): Promise<RoomStartResult> {
+  const result = await run();
+  if (!result.ok) reportHostActivity("idle");
+  return result;
+}
+
+function roomStartDeps(begin: (config: SessionConfig) => Promise<void>, base: RoomGameBase): RoomStartDeps {
   const scenario = base.scenarioId as string | undefined;
-  const result = await runRoomStart(base, {
+  return {
     state: roomState,
     requestDecks: requestSeatDecks,
     refuse: (refusal) => {
@@ -356,15 +407,15 @@ export async function startRoomGame(base: RoomGameBase): Promise<RoomStartResult
     mapSeats: seatMappingAt,
     start: async (config) => {
       reportHostActivity("starting", scenarioName(scenario));
-      await startGame(config);
+      try {
+        await begin(config);
+      } catch (cause) {
+        return cause instanceof Error ? cause.message : String(cause);
+      }
       const { store } = appSession();
       return store.state.status === "failed" ? (store.state.error ?? "failed") : null;
     },
-  });
-  // A start that did not deal the game leaves the host in the lobby: the status line is over (a game that started
-  // already cleared it in the room).
-  if (!result.ok) reportHostActivity("idle");
-  return result;
+  };
 }
 
 /** Seat n plays engine player p<n> (setup's player order is the lobby's seat order). */
@@ -444,6 +495,9 @@ export async function startGame(config: SessionConfig): Promise<void> {
   });
 }
 
+/** Names each watch feed, so closing an old one never closes the feed that replaced it. */
+let lastFeedId = 0;
+
 const followDeps: WatchOpenDeps = {
   syncUrl: syncServiceUrl(),
   packsPending: startupPacksPending,
@@ -451,7 +505,8 @@ const followDeps: WatchOpenDeps = {
   open: async (roomId, syncUrl) => {
     const host = new ReplayHostClass(new WorkerReplayBackend());
     const channel = new MessageChannel();
-    if (!postRoomCommand({ kind: "room-follow", port: channel.port1 }, [channel.port1])) {
+    const feedId = ++lastFeedId;
+    if (!postRoomCommand({ kind: "room-follow", port: channel.port1, feedId }, [channel.port1])) {
       host.dispose();
       throw new Error("no room worker");
     }
@@ -460,13 +515,13 @@ const followDeps: WatchOpenDeps = {
       // Closing the watch lets the room worker drop the feed (a message port has no close event of its own).
       const dispose = host.dispose.bind(host);
       host.dispose = () => {
-        postRoomCommand({ kind: "room-unfollow" });
+        postRoomCommand({ kind: "room-unfollow", feedId });
         dispose();
       };
       return host;
     } catch (cause) {
       host.dispose();
-      postRoomCommand({ kind: "room-unfollow" });
+      postRoomCommand({ kind: "room-unfollow", feedId });
       throw cause;
     }
   },
@@ -480,6 +535,100 @@ export async function watchRoomGame(): Promise<
   { readonly ok: true; readonly host: ReplayHost } | { readonly ok: false; readonly message: MessageKey }
 > {
   const id = state.roomId;
-  if (state.role !== "guest" || !id) return { ok: false, message: "watch.link.gone" };
+  // A guest, or an Epic organizer who runs no table: it watches a table without playing at one.
+  const watcher = state.role === "guest" || (state.role === "host" && state.epic !== null && !state.epic.hostsTable);
+  if (!watcher || !id) return { ok: false, message: "watch.link.gone" };
   return loadLiveWatch(id, followDeps);
+}
+
+/**
+ * Epic: swaps the watched table in place, without leaving the room. Follows only `table`, then opens its game as a live
+ * watch the way `watchRoomGame` does; the caller swaps the returned host into its watch view and disposes the old one
+ * (closing it does not close this feed). `ok: false` for a seat holder or table host (they watch their own table), an
+ * unknown table, or a room that is not Epic. An organizer who hosts no table may watch any table this way.
+ */
+export async function watchTable(
+  table: string,
+): Promise<{ readonly ok: true; readonly host: ReplayHost } | { readonly ok: false; readonly message: MessageKey }> {
+  const epic = state.epic;
+  if (!epic || epic.hostsTable || epic.myTable || !epic.tables.some((t) => t.id === table)) {
+    return { ok: false, message: "watch.link.gone" };
+  }
+  postRoomCommand({ kind: "room-watch-table", table });
+  return watchRoomGame();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Epic Multiplayer (issue #882, docs/live-game-rooms.md section 10). The state is `RoomState.epic`.
+//
+// A seat's remote power (attack The Mangog, thwart Door Between Worlds in another table of its pod) is an ordinary
+// command: `store.dispatch({ type: "remotePower", playerId, characterInstanceId, toGroupId, targetInstanceId, power })`,
+// where `toGroupId` is the other table's id and the target comes from `RoomState.epic.remoteTargets`. A table host
+// dispatches it on its own engine; a seat holder proposes it to its table's host as any command. The attacker's group
+// pays; the owning group's engine judges the card and answers through the pod, and the result shows in both logs.
+
+/**
+ * Organizer only: turns the lobby into an Epic one with these tables (2 to 8, including `t1`; each names its pod and
+ * may name its host), pods and seats (each naming its table; at most 4 per table). Seat n of a table plays that table's
+ * engine player p<n>, as in a standard room. Locked once any table has a game.
+ */
+export function setEpic(
+  tables: readonly LobbyTableSpec[],
+  pods: readonly LobbyPod[],
+  seats: readonly LobbySeatSpec[],
+): void {
+  postRoomCommand({ kind: "room-epic", tables, pods, seats });
+}
+
+/** Organizer only: makes a connected participant (a seat holder of that table, or the organizer) the host of `table`; `null` takes the host away. */
+export function assignTableHost(table: string, participant: string | null): void {
+  postRoomCommand({ kind: "room-table-host", table, participant });
+}
+
+/** Chooses which tables' logs this device receives: `"all"` or a list. A table I hold a seat at is always received. */
+export function followTables(tables: "all" | readonly string[]): void {
+  postRoomCommand({ kind: "room-follow-tables", tables });
+}
+
+/**
+ * Organizer only: starts the game. Sets `RoomState.epic.start`; each table host then starts its own group's game with
+ * `startEpicTable` (the organizer too, if it hosts a table).
+ */
+export function startEpicGame(): void {
+  postRoomCommand({ kind: "room-epic-start" });
+}
+
+/**
+ * Table host only, once `RoomState.epic.start` is set: starts this device's table. `config` is the table's game as a
+ * standard room's (its seats' heroes and decks, the scenario `god-of-lies`, the table's difficulty); this fills in the
+ * seed (made from the start's seed and the table id, so the start is deterministic), the group's place in the pod
+ * (its id is the table id) and the room fields, then starts the engine. Resolves with the engine's `start`.
+ */
+export async function startEpicTable(config: SessionConfig): Promise<void> {
+  const playMode = state.settings?.playMode;
+  await appSession().store.start(
+    epicTableConfig(config, state.epic, { roomId: state.roomId, ...(playMode ? { playMode } : {}) }),
+  );
+}
+
+/**
+ * Organizer only: marks a table dropped (its host did not return; plan Q-C (b)): the game goes on without it and it no
+ * longer holds up the stop rule. Ask the organizer to confirm first; this cannot be undone.
+ */
+export function dropTable(table: string): void {
+  postRoomCommand({ kind: "room-epic-drop", table });
+}
+
+/**
+ * Table host only, when `RoomState.epic.podStuck` is true: gives up waiting for the pod coordinator. The engine refuses
+ * unless the group is waiting for a `sharedAck`; its unanswered shared event keeps its number and is re-sent when a
+ * coordinator returns, whose late answer changes nothing.
+ */
+export function releasePod(): void {
+  postRoomCommand({ kind: "room-pod-release" });
+}
+
+/** What I may attack or thwart in other tables of my pod right now (`RoomState.epic.remoteTargets`). */
+export function reachableRemoteTargets(): readonly RemoteTarget[] {
+  return state.epic?.remoteTargets ?? [];
 }

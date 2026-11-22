@@ -81,6 +81,10 @@ const REFUSAL_KEYS: Readonly<Record<RefusalReason, MessageKey>> = {
   "not-seated": "room.refusal.notSeated",
   strict: "room.refusal.strict",
   "handover-off": "room.refusal.handoverOff",
+  // Epic Multiplayer: generic wording for now.
+  "other-table": "room.refusal.generic",
+  "bad-table-host": "room.refusal.generic",
+  "no-such-table": "room.refusal.generic",
   "lobby-changed": "room.startResult.lobbyChanged",
   "not-saved": "room.refusal.notSaved",
 };
