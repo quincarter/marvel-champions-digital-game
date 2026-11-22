@@ -51,6 +51,9 @@ const TOUCH_EVERY_MS = 60_000;
 /** Tries at reading the saved room before failing closed rather than creating a duplicate. */
 const MAX_LOOKUPS = 5;
 
+/** Tries at saving a new room's record before failing closed without ever publishing its link. */
+const MAX_SAVES = 5;
+
 interface Live {
   readonly gameKey: string;
   readonly publisher: LivePublisher;
@@ -232,8 +235,39 @@ export class LiveRoomController {
       lastActiveAt: at,
     };
     live.touchedAt = at;
-    void this.#deps.store?.save(live.record).catch(() => {});
-    this.#connect(live, result.room.roomId, result.room.hostToken);
+    void this.#persistThenConnect(live, live.record);
+  }
+
+  /**
+   * The new room's record (its host token) is durable before anything is published or the link is shown: a lost token
+   * with a shared link would orphan the spectators, and the next controller would make a different room. A failed save
+   * is retried (the same record, never a second room) with backoff, then this game fails closed unpublished (the
+   * room, never announced, idles out on its own).
+   */
+  async #persistThenConnect(live: Live, record: LiveRoomRecord, saves = 0): Promise<void> {
+    const store = this.#deps.store;
+    if (store) {
+      try {
+        await store.save(record);
+      } catch {
+        if (this.#live !== live || live.record !== record) return;
+        if (saves + 1 >= MAX_SAVES) {
+          live.record = null;
+          live.failed = true;
+          return;
+        }
+        live.retry = this.#timers.setTimer(
+          () => {
+            live.retry = null;
+            if (this.#live === live && live.record === record) void this.#persistThenConnect(live, record, saves + 1);
+          },
+          reconnectDelay(saves, this.#timers.random),
+        );
+        return;
+      }
+    }
+    if (this.#live !== live || live.record !== record) return;
+    this.#connect(live, record.roomId, record.hostToken);
   }
 
   /** Host activity keeps the room alive on the server, so the saved record's stamp follows it (throttled). */

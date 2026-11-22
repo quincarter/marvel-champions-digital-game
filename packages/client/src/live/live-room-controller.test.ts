@@ -437,6 +437,73 @@ describe("live room controller", () => {
       expect(FakeSocket.all[0]!.url).toContain(`/room/${room!.roomId}/ws`);
     });
 
+    it("publishes a new room's link only after its record is saved, retrying a failed save on the same room", async () => {
+      const store = new MemoryRoomStore();
+      const save = vi.spyOn(store, "save").mockRejectedValueOnce(new Error("quota"));
+      const { controller, createRoom, timers, statuses } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      for (let i = 0; i < 5; i++) await settle();
+      // Not saved: no socket, no link, nothing stored.
+      expect(createRoom).toHaveBeenCalledTimes(1);
+      expect(FakeSocket.all).toHaveLength(0);
+      expect(statuses.some((s) => s.watchUrl)).toBe(false);
+      expect(await store.load("g1")).toBeNull();
+      expect(timers).toHaveLength(1);
+      timers[0]!.run();
+      for (let i = 0; i < 5; i++) await settle();
+      expect(save).toHaveBeenCalledTimes(2);
+      expect(createRoom).toHaveBeenCalledTimes(1);
+      const saved = await store.load("g1");
+      expect(FakeSocket.all).toHaveLength(1);
+      expect(FakeSocket.all[0]!.url).toContain(`/room/${saved!.roomId}/ws`);
+      FakeSocket.all[0]!.welcome("host");
+      expect(statuses.at(-1)?.watchUrl).toContain(`#watch=${saved!.roomId}`);
+
+      // A reload right after resumes that same room.
+      const again = setup([], store);
+      again.controller.onGameMessage(gameMessage("g1"));
+      again.controller.onGameMessage(command("g1", 2));
+      await settle();
+      expect(again.createRoom).not.toHaveBeenCalled();
+      expect(FakeSocket.all[0]!.url).toContain(`/room/${saved!.roomId}/ws`);
+    });
+
+    it("a save that is deferred holds the link back until it lands", async () => {
+      const store = new MemoryRoomStore();
+      let land!: () => void;
+      const real = store.save.bind(store);
+      vi.spyOn(store, "save").mockImplementation(
+        (r) => new Promise<void>((resolve) => (land = () => void real(r).then(resolve))),
+      );
+      const { controller } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      for (let i = 0; i < 3; i++) await settle();
+      expect(FakeSocket.all).toHaveLength(0);
+      land();
+      for (let i = 0; i < 3; i++) await settle();
+      expect(FakeSocket.all).toHaveLength(1);
+    });
+
+    it("fails closed, never publishing, when the save keeps failing", async () => {
+      const store = new MemoryRoomStore();
+      vi.spyOn(store, "save").mockRejectedValue(new Error("idb gone"));
+      const { controller, createRoom, timers, statuses } = setup([], store);
+      controller.onGameMessage(gameMessage("g1"));
+      controller.onGameMessage(command("g1", 1));
+      for (let i = 0; i < 12; i++) {
+        await settle();
+        for (const t of timers.filter((x) => x.live)) {
+          t.live = false;
+          t.run();
+        }
+      }
+      expect(createRoom).toHaveBeenCalledTimes(1);
+      expect(FakeSocket.all).toHaveLength(0);
+      expect(statuses.some((s) => s.watchUrl)).toBe(false);
+    });
+
     it("saves a new room's record, and clears it when the game is left or the room closes", async () => {
       const store = new MemoryRoomStore();
       const { controller } = setup([], store);
