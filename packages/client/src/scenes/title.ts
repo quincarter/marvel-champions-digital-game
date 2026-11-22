@@ -351,6 +351,10 @@ export class TitleScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, {
       // The whole icon row beside the menu, not just the note and the bug.
       topRow: true,
+      // The icon row ends over the "Play online" panel on a wide screen: Down from it still goes to the menu column.
+      notBelowChrome: ["play-online-host", "play-online-join"],
+      // Up from the menu's first row reaches the icon row, then the notice bar above it.
+      barAboveChrome: "release-notice",
       // The press glyphs on the top row and the notice bar show on the focused stop.
       onFocusChange: () => {
         this.#hints?.refresh();

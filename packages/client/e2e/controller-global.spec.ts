@@ -201,7 +201,9 @@ test("the whole top row and the notice bar answer the pad on Title", async ({ pa
     await page.keyboard.press("ArrowDown");
     await page.waitForTimeout(150);
   }
-  for (let i = 0; i < 4 && (await focusOf()) !== "chrome:music"; i += 1) {
+  // Up lands on the icon nearest the menu column: the Discord icon, the row's first, on the wide Title, where the
+  // row ends over the Play online panel; Right walks it to the note.
+  for (let i = 0; i < 5 && (await focusOf()) !== "chrome:music"; i += 1) {
     await page.keyboard.press(i === 0 ? "ArrowUp" : "ArrowRight");
     await page.waitForTimeout(150);
   }
