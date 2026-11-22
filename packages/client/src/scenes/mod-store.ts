@@ -95,6 +95,7 @@ import { RailScroll } from "../view/rail-scroll.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { loadCatalog } from "../packs/catalog.js";
 import { notePackUpdates } from "../packs/pack-updates.js";
+import { LatestRead } from "../view/latest-read.js";
 import {
   failedIdsOf,
   failureOf,
@@ -222,10 +223,10 @@ export class ModStoreScene extends Phaser.Scene {
   #updateBarObjects: Phaser.GameObjects.GameObject[] = [];
   #updateBarRect: Rect | null = null;
   /**
-   * Bumped by every read of the installed packs that changes `#installed`: a load whose read started before an Update
-   * all run (carrying on across visits) wrote newer versions must not put the older list back.
+   * The installed-pack reads (`view/latest-read.ts`): a load started before or during an Update all's refresh never
+   * puts an older list back over a newer one.
    */
-  #installedGeneration = 0;
+  readonly #installedReads = new LatestRead();
   /** The progress bar's objects, so a report redraws only these (the text panel keeps its scroll position). */
   #statusObjects: Phaser.GameObjects.GameObject[] = [];
   #statusRect: Rect | null = null;
@@ -388,20 +389,19 @@ export class ModStoreScene extends Phaser.Scene {
 
   async #load(): Promise<void> {
     this.#status = "loading";
-    const generation = this.#installedGeneration;
     try {
-      const [catalog, installed] = await Promise.all([
+      const [catalog, read] = await Promise.all([
         // A dev override must never overwrite the real catalog's saved copy.
         loadCatalog(this.#catalogUrl ? { url: this.#catalogUrl, storage: null } : {}),
-        // `null` when the read failed: the store shows nothing installed, but the Title's count is left as it was.
-        this.#store.list().catch(() => null),
+        this.#readInstalled(),
       ]);
+      // `null` when the read failed: the store shows nothing installed, but the Title's count is left as it was.
+      const installed = read.installed;
       this.#index = catalog.index;
       this.#offline = catalog.offline;
-      // An update landed while this load waited (`#refreshInstalled` read the newer list): its list stands, and the
-      // badge is counted from it too, never from this older read.
-      const current = generation === this.#installedGeneration;
-      if (current) this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
+      // A newer read was kept while this load waited (an update landed): its list stands, and the badge is counted
+      // from it too, never from this older read.
+      const current = this.#keep(read.ticket, installed ?? []);
       // A dev catalog override is not the real store's, so it never sets the Title's update badge.
       if (!this.#catalogUrl && installed) {
         notePackUpdates(catalog.index, current ? installed : [...this.#installed.values()], catalog.offline);
@@ -409,8 +409,8 @@ export class ModStoreScene extends Phaser.Scene {
       this.#status = "ready";
     } catch {
       // No network and no saved copy: still show what is installed.
-      const installed = await this.#store.list().catch(() => [] as InstalledPack[]);
-      if (generation === this.#installedGeneration) this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+      const read = await this.#readInstalled();
+      this.#keep(read.ticket, read.installed ?? []);
       this.#status = "failed";
     }
     this.#requestRedraw();
@@ -424,13 +424,23 @@ export class ModStoreScene extends Phaser.Scene {
     void this.#load();
   }
 
-  async #refreshInstalled(): Promise<void> {
-    // Taken before the read: a load that started earlier now leaves `#installed` to this one, and a later refresh's
-    // read wins over this one.
-    const generation = ++this.#installedGeneration;
+  /** Reads the installed packs with a ticket taken as the read is issued; `null` when it failed. */
+  async #readInstalled(): Promise<{ ticket: number; installed: readonly InstalledPack[] | null }> {
+    const ticket = this.#installedReads.issue();
     const installed = await this.#store.list().catch(() => null);
-    if (generation !== this.#installedGeneration) return;
-    this.#installed = new Map((installed ?? []).map((pack) => [pack.id, pack]));
+    return { ticket, installed };
+  }
+
+  /** Keeps a read's list unless a read issued after it was kept already; true when kept. */
+  #keep(ticket: number, installed: readonly InstalledPack[]): boolean {
+    if (!this.#installedReads.keep(ticket)) return false;
+    this.#installed = new Map(installed.map((pack) => [pack.id, pack]));
+    return true;
+  }
+
+  async #refreshInstalled(): Promise<void> {
+    const { ticket, installed } = await this.#readInstalled();
+    if (!this.#keep(ticket, installed ?? [])) return;
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
     // Installed packs join the running game's pool (not awaited: the load is validated in a worker).
     void refreshActivePacks();
