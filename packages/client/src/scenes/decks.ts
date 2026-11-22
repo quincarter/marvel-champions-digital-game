@@ -1349,10 +1349,11 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
       // One pane at a time (phone, tablet): the deck's actions sit on another tab, so a tap opens them (#958).
       if (this.#tabs !== null) this.#openDeckActions(row.option.deck.id as string);
-      // Every pane on screen (desktop): a click opens the deck's Check, the first look at a deck; the card pool is
-      // Edit's (#966, the owner's call). Back returns here with the deck selected. A pad or the keyboard still only
-      // selects (the stop's own `activate`), so walking the list never leaves the screen.
-      else this.#openDeckCheck(row.option.deck);
+      // Every pane on screen (desktop): a click on one of the player's decks or a precon opens its Check, the first look
+      // at a deck; the card pool is Edit's (#966, the owner's call). Back returns here with the deck selected. A
+      // community deck keeps its own pane (Add to my decks first), and a pad or the keyboard still only selects (the
+      // stop's own `activate`), so walking the list never leaves the screen.
+      else if (!row.offer) this.#openDeckCheck(row.option.deck);
     };
     this.#list = new McVirtualList(this, {
       rect: listRect,
