@@ -17,6 +17,7 @@ import {
   rosterModelOf,
   savedDeckNameOf,
   type PickerEntry,
+  customHeroesLeftOut,
 } from "./campaign-roster-model.js";
 import { pairCatalogOf } from "./seat-recommendations.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
@@ -323,5 +324,17 @@ describe("not-ready heroes in the campaign roster", () => {
     expect(model.seats[0]!.legal).toBe(false);
     expect(model.canSign).toBe(false);
     expect(model.blockedReason).toBe("Not ready yet");
+  });
+});
+
+describe("customHeroesLeftOut (#960)", () => {
+  test("no note for the base game's own heroes", () => {
+    expect(customHeroesLeftOut(preconDecks(POOL_VERSION), POOL_VERSION)).toBe(false);
+  });
+
+  test("a base hero's saved deck holding a custom card is left out, so the picker says so", () => {
+    const base = preconDecks(POOL_VERSION)[0]!;
+    const custom = { ...base, cards: [...base.cards, { cardId: "x.sample.card" as CardId, quantity: 1 }] } as Deck;
+    expect(customHeroesLeftOut([custom], POOL_VERSION)).toBe(true);
   });
 });

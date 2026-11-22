@@ -53,6 +53,8 @@ import {
   pickerRecommendationsOf,
   preconRosterOf,
   rosterDeckOptions,
+  CUSTOM_HEROES_NOTE,
+  customHeroesLeftOut,
   rosterModelOf,
   type PickerEntry,
   type RosterModel,
@@ -782,6 +784,15 @@ export class CampaignRosterScene extends Phaser.Scene {
     const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (deck) =>
       unlocks().deckLock(deck),
     );
+
+    // A custom hero is left out of campaigns for now (#960): say so, rather than let the hero look missing.
+    if (customHeroesLeftOut(this.#savedDecks, POOL_VERSION)) {
+      const note = this.add.text(panelRect.x + 20, y, CUSTOM_HEROES_NOTE, {
+        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        wordWrap: { width: rowWidth, useAdvancedWrap: true },
+      });
+      y += Math.ceil(note.height) + 10;
+    }
 
     if (options.length > 0) {
       const searchRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: 40 };
