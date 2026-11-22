@@ -1172,7 +1172,10 @@ function closedPeriodOf(state: GameState, effect: EffectSpec): "endOfTurn" | "en
  * Effects" (p. 26): "A lasting effect that expires at the end of a specified time period can only be initiated during
  * that time period", so such an effect is not made (`apply-effect.ts`), and an ability made only of them would change
  * nothing; it is not offered rather than played for nothing. "Until the end of the player phase" outside one follows
- * owner answer Q104 = B (`endOfPlayerPhaseCanStart`). A forced ability resolves as far as it can and is not judged.
+ * owner answer Q104 = B (`endOfPlayerPhaseCanStart`). The card is not played either (p. 24, step 2: "can the card be
+ * played, or the ability initiated, at this time?"); older FFG rulings agree that an ability that cannot change the game
+ * state cannot be initiated (Flow Like Water; Boggs on War Machine's Gauntlet). A forced ability resolves as far as it
+ * can and is not judged.
  * Returns the period, or null when the ability can be initiated.
  */
 export function lastingPeriodClosed(
