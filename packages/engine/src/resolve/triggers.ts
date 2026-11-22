@@ -32,7 +32,7 @@ import {
 } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, deckDiscardStillThere, getInstance, getPlayer, handDiscardStillThere, playerOrder } from "../query.js";
+import { cardOf, getInstance, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -69,6 +69,7 @@ import { resourcesChoiceOf, type AbilityCost, type AbilityDefinition } from "../
 import { chosenSizePayments } from "../payable.js";
 import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
+import { lostWithDiscardedCard } from "./discarded-card.js";
 import { interruptBarredByUnpreventable } from "./unpreventable.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
@@ -792,7 +793,8 @@ export function defenseBarredCandidates(
 
 /**
  * Whether nothing of this timing can answer `event` at all, whatever is in play: an interrupt-only timing point asked
- * for responses, nothing left to answer, a discarded card already moved (`gatherCandidates`, `unofferedAbilities`).
+ * for responses, nothing left to answer (`gatherCandidates`, `unofferedAbilities`). A discarded card a response has
+ * since moved is judged per ability (`lostWithDiscardedCard`, issue #928): the discard still happened.
  */
 function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTiming): boolean {
   // The start of a villain phase step is an interrupt-only timing point (docs/phase7-wave6.md §3.61).
@@ -817,13 +819,7 @@ function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTimin
   if (timing === "response" && event.kind === "encounterCardBeingRevealed") return true;
   // And a boost card about to be turned faceup ("after … is turned faceup" answers `boostCardTurnedFaceup`).
   if (timing === "response" && event.kind === "boostCardTurningFaceup") return true;
-  if (nothingToAnswer(event, timing)) return true;
-  // A card discarded from a deck that a response has since moved leaves nothing to act on: no other ability answers
-  // its discard (docs/phase7-wave7.md §3.55).
-  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return true;
-  // So does a card discarded from a hand that a response has since taken out of the discard pile (issue #922).
-  if (event.kind === "cardDiscardedFromHand" && !handDiscardStillThere(state, event)) return true;
-  return false;
+  return nothingToAnswer(event, timing);
 }
 
 function gatherCandidates(
@@ -919,8 +915,12 @@ function gatherCandidates(
   // response on a player card, forced or optional, in play, in hand or out of play, from the first setup step until
   // the first player phase begins; a "Setup" ability is its own trigger kind and never gathered here. Keywords are
   // kept: "entering play during setup triggers Toughness" (ruling, April 30, 2026 (3) #2).
-  const settled =
-    state.step.phase === "setup" ? found.filter((candidate) => !isPlayerCard(state, candidate.instanceId)) : found;
+  const settled = found.filter(
+    (candidate) =>
+      !(state.step.phase === "setup" && isPlayerCard(state, candidate.instanceId)) &&
+      // A response to a discard whose card a response has since moved, that needed that card (issue #928).
+      !lostWithDiscardedCard(state, deps, candidate, event),
+  );
   // In the order they have always been gathered: the in-play abilities, the keywords, then the out-of-play ones.
   const inPlay = settled.filter((candidate) => found.indexOf(candidate) < inPlayCount);
   return [...inPlay, ...keywords, ...settled.slice(inPlay.length)];
@@ -1042,6 +1042,7 @@ export function unofferedAbilities(
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
+      if (lostWithDiscardedCard(state, deps, { instanceId: id, abilityId: ref.id, controllerId }, event)) continue;
       const reason: UnofferedReason | null = abilityLacksValidTarget(state, deps, definition, id, controllerId, event)
         ? "noTarget"
         : !costPayable(state, deps, id, controllerId, definition, false, event)
@@ -1449,9 +1450,8 @@ export function stillOffered(
   if (!definition) return false;
   // Another player defended the attack, or used a "(defense)" ability for it, while the forced tier resolved.
   if (candidateDefenseBar(state, deps, candidate) !== null) return false;
-  // Not a condition read again but a card that is gone: a response moved the discarded card (`candidatesFor`).
-  if (event.kind === "cardDiscardedFromDeck" && !deckDiscardStillThere(state, event)) return false;
-  if (event.kind === "cardDiscardedFromHand" && !handDiscardStillThere(state, event)) return false;
+  // Not a condition read again but a card that is gone: a response moved the discarded card this one needed (#928).
+  if (lostWithDiscardedCard(state, deps, candidate, event)) return false;
   const id = candidate.instanceId;
   const controllerId = candidate.controllerId;
   const trigger = definition.trigger;

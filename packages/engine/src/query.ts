@@ -1421,8 +1421,8 @@ export function encounterDeckDiscardAt(
 /**
  * Whether a card discarded from a player's deck is still where the discard left it: in that player's discard pile, or,
  * when the discard emptied the deck, in the new deck its reset shuffled it into (`at: "deck"`). False once a response
- * moved it: nothing more answers its discard, and the discarding ability no longer counts it (docs/phase7-wave7.md
- * §3.55, §4.1 Q32 and Q33).
+ * moved it: no response that needs the card answers its discard any more (`lostWithDiscardedCard`, issue #928), and
+ * the discarding ability no longer counts it (docs/phase7-wave7.md §3.55, §4.1 Q32 and Q33).
  */
 export function deckDiscardStillThere(
   state: GameState,
@@ -1446,7 +1446,7 @@ const HAND_DISCARD_LANDINGS: readonly ZoneId["kind"][] = ["discard", "encounterD
 
 /**
  * Whether a card discarded from a hand is still in a discard pile (`TriggerEvent cardDiscardedFromHand`, issue #922): a
- * response that took it away leaves nothing for another response to act on.
+ * response that took it away leaves nothing for another response that needs the card (`lostWithDiscardedCard`).
  */
 export function handDiscardStillThere(state: GameState, discard: { readonly instanceId: InstanceId }): boolean {
   const at = locateCard(state, discard.instanceId)?.kind;
