@@ -39,9 +39,14 @@ export interface TracedDeps {
 
 /**
  * Whether the current `.effects` read comes from the engine's offer-time target check rather than from resolving the
- * ability. That check is `abilityLacksValidTarget`'s direct read, so it is within the default stack trace depth.
+ * ability. That check is `abilityLacksValidTarget`'s or `lastingPeriodClosed`'s direct read, so it is within the
+ * default stack trace depth.
  */
-const readForOffer = (): boolean => new Error().stack?.includes("abilityLacksValidTarget") === true;
+const readForOffer = (): boolean => {
+  const stack = new Error().stack ?? "";
+  // `lastingPeriodClosed` is the same check for a lasting effect whose period is not under way (#970).
+  return stack.includes("abilityLacksValidTarget") || stack.includes("lastingPeriodClosed");
+};
 
 /**
  * Wraps `deps` so every ability lookup is recorded. Pass the returned `deps` wherever the test would have
