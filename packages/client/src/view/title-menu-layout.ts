@@ -31,6 +31,17 @@ import type { Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
 import { GAME_ROW_GAP, GAME_ROW_HEIGHT } from "./games-list-model.js";
 import { NOTICE_BAR_HEIGHTS } from "./release-notice.js";
+import {
+  ONLINE_ART_MAX_WIDTH,
+  ONLINE_SIDE_GAP,
+  ONLINE_SIDE_WIDTH,
+  onlineArtHeight,
+  onlinePanelIn,
+  onlineSideFits,
+  shiftOnlinePanel,
+  sideArtWidth,
+  type OnlinePanelLayout,
+} from "./title-online-panel.js";
 
 const TITLE_BLOCK_RATIO = 1.35;
 /** The red divider's own width, and the left art panel's share of a split screen. */
@@ -189,8 +200,16 @@ export interface TitleMenuLayout {
   readonly newGame: Rect;
   readonly decks: Rect;
   readonly campaign: Rect;
-  /** "Play online" (#880), the right half of Campaign's row: host or join a room; only an entry point, nothing connects until a choice is made on its screen. */
-  readonly playOnline: Rect;
+  /**
+   * "Play online" (#880), the right half of Campaign's row on a phone: host or join a room; only an entry point, nothing
+   * connects until a choice is made on its screen. Null where `onlinePanel` stands in for it, and Campaign takes the
+   * whole row.
+   */
+  readonly playOnline: Rect | null;
+  /** The "Play online" feature panel (`view/title-online-panel.ts`) on a split screen with room for it; null on a phone. */
+  readonly onlinePanel: OnlinePanelLayout | null;
+  /** The right end of everything the menu draws (the column's, or the side panel's): the top-row icon buttons end here. */
+  readonly rightEdge: number;
   /** "Civil War!", directly under Campaign; null until the Civil War box is unlocked. */
   readonly civilWar: Rect | null;
   /** "Extras", the left half of its row. */
@@ -235,7 +254,8 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.newGame,
     layout.decks,
     layout.campaign,
-    layout.playOnline,
+    ...(layout.playOnline ? [layout.playOnline] : []),
+    ...(layout.onlinePanel ? [layout.onlinePanel.rect] : []),
     ...(layout.civilWar ? [layout.civilWar] : []),
     layout.extras,
     layout.pastGames,
@@ -286,7 +306,11 @@ function underNoticeBar(input: TitleMenuLayoutInput, inset: number): TitleMenuLa
   const shifted = Object.fromEntries(
     Object.entries(below).map(([key, value]) => [key, isRect(value) ? shift(value) : value]),
   ) as unknown as TitleMenuLayout;
-  return { ...shifted, noticeBar: { x: 0, y: 0, width: input.width, height: inset } };
+  return {
+    ...shifted,
+    onlinePanel: below.onlinePanel ? shiftOnlinePanel(below.onlinePanel, inset) : null,
+    noticeBar: { x: 0, y: 0, width: input.width, height: inset },
+  };
 }
 
 const bottomOf = (layout: TitleMenuLayout): number =>
@@ -342,14 +366,19 @@ function titleMenuLayoutAt(
   const { phone, short, pad } = setupMetrics(width, height);
   const split = !phone;
 
-  const artPanel: Rect | null = split ? { x: 0, y: 0, width: Math.round(width * ART_PANEL_SHARE), height } : null;
+  // A wide screen gives the menu a wider panel for the "Play online" splash to stand beside the column.
+  const sideOnline = split && onlineSideFits(width, height, pad, 520);
+  const artWidth = sideOnline ? sideArtWidth(width, pad, 520) : Math.round(width * ART_PANEL_SHARE);
+  const artPanel: Rect | null = split ? { x: 0, y: 0, width: artWidth, height } : null;
   const divider: Rect | null = split ? { x: artPanel!.width, y: 0, width: DIVIDER_WIDTH, height } : null;
   const menuPanel: Rect = split
     ? { x: artPanel!.width + DIVIDER_WIDTH, y: 0, width: width - artPanel!.width - DIVIDER_WIDTH, height }
     : { x: 0, y: 0, width, height };
 
   const column = Math.min(menuPanel.width - pad * 2, 520);
-  const left = menuPanel.x + (menuPanel.width - column) / 2;
+  const groupWidth = sideOnline ? column + ONLINE_SIDE_GAP + ONLINE_SIDE_WIDTH : column;
+  const left = menuPanel.x + (menuPanel.width - groupWidth) / 2;
+  const rightEdge = left + groupWidth;
 
   const titleSize =
     titleOverride ??
@@ -393,10 +422,28 @@ function titleMenuLayoutAt(
   let gamesPanelList: Rect | null = null;
   let gamesRow: Rect | null = null;
   const rankBadgeTop = height - pad - RANK_BADGE_HEIGHT;
+  // The "Play online" caption box over the art (split screens without the side panel): above the rank badge, with the
+  // games panel stacked over it.
+  const artOnlineWidth = split && !sideOnline ? Math.min(artPanel!.width - pad * 2, ONLINE_ART_MAX_WIDTH) : 0;
+  let artOnline: Rect | null =
+    artOnlineWidth > 0
+      ? (() => {
+          const h = onlineArtHeight(artOnlineWidth);
+          return { x: pad, y: rankBadgeTop - pad - h, width: artOnlineWidth, height: h };
+        })()
+      : null;
+  // The in-progress games panel is the more useful tenant of a short art panel: where it cannot fit above the caption
+  // box, the box gives way and "Play online" is the plain menu button again (the phone's arrangement).
+  const gamesShown = input.games ?? 0;
+  if (artOnline && gamesShown >= 1) {
+    const top = updateBanner ? updateBanner.y + updateBanner.height + pad : pad;
+    const rowsHeight = GAMES_PANEL_MIN_ROWS * (GAME_ROW_HEIGHT + GAME_ROW_GAP) - GAME_ROW_GAP;
+    if (artOnline.y - pad - top < GAMES_PANEL_HEADER + GAMES_PANEL_PAD * 2 + rowsHeight) artOnline = null;
+  }
   if (gameCount >= 1) {
     if (split) {
       const top = updateBanner ? updateBanner.y + updateBanner.height + pad : pad;
-      const bottom = rankBadgeTop - pad;
+      const bottom = (artOnline ? artOnline.y : rankBadgeTop) - pad;
       const rowsHeight = (rows: number): number => rows * (GAME_ROW_HEIGHT + GAME_ROW_GAP) - GAME_ROW_GAP;
       // Never shorter than three rows, so "Remove this game?" (which replaces the list) always has room.
       const rowsNeeded = Math.max(rowsHeight(gameCount), rowsHeight(GAMES_PANEL_MIN_ROWS));
@@ -424,10 +471,14 @@ function titleMenuLayoutAt(
   y += primary + gap;
   const decks: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
-  // Campaign and Play online share a row, so the menu is no taller than before the online screens existed.
+  // A phone: Campaign and Play online share a row, so the menu is no taller than before the online screens existed.
+  // A split screen has the "Play online" panel instead, and Campaign takes the whole row.
   const modeHalf = Math.floor((column - 10) / 2);
-  const campaign: Rect = { x: left, y, width: modeHalf, height: hit.target };
-  const playOnline: Rect = { x: left + column - modeHalf, y, width: modeHalf, height: hit.target };
+  const hasPanel = sideOnline || artOnline !== null;
+  const campaign: Rect = { x: left, y, width: hasPanel ? column : modeHalf, height: hit.target };
+  const playOnline: Rect | null = hasPanel
+    ? null
+    : { x: left + column - modeHalf, y, width: modeHalf, height: hit.target };
   y += hit.target + gap;
   let civilWar: Rect | null = null;
   if (input.civilWar === true) {
@@ -446,6 +497,19 @@ function titleMenuLayoutAt(
   y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  const onlinePanel: OnlinePanelLayout | null = sideOnline
+    ? onlinePanelIn(
+        {
+          x: left + column + ONLINE_SIDE_GAP,
+          y: rule.y,
+          width: ONLINE_SIDE_WIDTH,
+          height: settings.y + settings.height - rule.y,
+        },
+        "side",
+      )
+    : artOnline
+      ? onlinePanelIn(artOnline, "art")
+      : null;
   let quit: Rect | null = null;
   if (input.quit === true) {
     quit = { x: left, y, width: column, height: hit.target };
@@ -504,6 +568,8 @@ function titleMenuLayoutAt(
     decks,
     campaign,
     playOnline,
+    onlinePanel,
+    rightEdge,
     civilWar,
     extras,
     pastGames,
