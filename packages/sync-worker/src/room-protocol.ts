@@ -355,6 +355,11 @@ export interface LobbySettings {
    * steps through at their own pace. Presentation only: the engine's villain phase has already resolved either way.
    */
   readonly villainPacing?: VillainPacing;
+  /**
+   * Guests ask the host for a seat, and the host approves or denies (Quin, 2026-11-22). Absent or false: a guest who
+   * asks for an open seat is seated at once, the room's default.
+   */
+  readonly askToSit?: boolean;
   readonly chat: boolean;
   /**
    * The host's opt-in to the public "Live now" list (`GET /rooms/live`). Absent reads as off; a room is never listed
@@ -1195,6 +1200,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.mode !== undefined && v.mode !== "standard" && v.mode !== "epic") return false;
   if (v.hostSeesHands !== undefined && typeof v.hostSeesHands !== "boolean") return false;
   if (v.villainPacing !== undefined && !VILLAIN_PACINGS.some((x) => x === v.villainPacing)) return false;
+  if (v.askToSit !== undefined && typeof v.askToSit !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.listed !== undefined && typeof v.listed !== "boolean") return false;
   if (v.tableRules !== undefined) {

@@ -348,8 +348,10 @@ function seatAction(state: RoomState, seat: RoomSeat, ctx: SeatContext): SeatAct
   if (seat.holder !== null) {
     return isHost ? { kind: "remove", labelKey: "room.seat.takeBack", enabled: true, participant: seat.holder } : null;
   }
-  const kind = isHost ? "take" : "ask";
-  const labelKey: MessageKey = isHost ? "room.seat.take" : "room.seat.ask";
+  // A guest takes an open seat outright unless the host has them ask first (`askToSit`).
+  const asks = !isHost && state.settings?.askToSit === true;
+  const kind = asks ? "ask" : "take";
+  const labelKey: MessageKey = asks ? "room.seat.ask" : "room.seat.take";
   const multi = state.settings?.multiSeat ?? false;
   let reason: MessageKey | undefined;
   if (state.connection !== "connected") reason = "room.seat.notConnected";
