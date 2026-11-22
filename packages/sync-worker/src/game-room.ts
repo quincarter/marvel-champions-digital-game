@@ -825,6 +825,9 @@ export class GameRoomLogic {
     if (!this.lifecycleDirty || !this.meta) return;
     const tables = [...this.tables.values()];
     if (tables.every((t) => t.ended)) {
+      // The end is stored only after the log it closed: a failed tail write leaves the game open in storage (and this
+      // dirty), so a wake never serves a finished game with a truncated log; the host's retry completes it.
+      for (const t of tables) await this.writeTail(t);
       const first = tables[0]!;
       const endedAt = this.meta.endedAt ?? this.clock();
       this.meta = {
@@ -861,12 +864,8 @@ export class GameRoomLogic {
     // A pending reopen is superseded: the lifecycle written is whatever the tables say now (ended, with this outcome).
     if (this.meta) this.meta = { ...this.meta, endedAt: now };
     this.lifecycleDirty = true;
-    try {
-      // The game is over and the host may never come back: store the tail with the end.
-      await this.writeTail(table);
-    } finally {
-      await this.flushLifecycle();
-    }
+    // The game is over and the host may never come back: the flush stores the tail, then the end.
+    await this.flushLifecycle();
   }
 
   // ----------------------------------------------------------------------------------------------------------
@@ -885,6 +884,8 @@ export class GameRoomLogic {
       if (table) {
         this.broadcastTable(table);
         await this.writeTail(table);
+        // A pending end follows the tail it was waiting for.
+        await this.flushLifecycle();
       }
     }
   }
