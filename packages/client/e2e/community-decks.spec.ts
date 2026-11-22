@@ -90,6 +90,12 @@ async function pressDeckRow(page: Page, key: string, done: () => Promise<boolean
   let last = 0;
   await waitFor(
     async () => {
+      // A desktop click opens the deck's Check (#966): Back returns to the list with the deck selected.
+      if ((await activeScenes(page)).includes("DeckCheck")) {
+        await pressKey(page, "Escape");
+        await settle(page);
+        return null;
+      }
       if (await done()) return true;
       if (Date.now() - last > 2500) {
         last = Date.now();

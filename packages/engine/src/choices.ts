@@ -574,6 +574,12 @@ export interface ChoiceOption {
    * zone (a villain, a main scheme).
    */
   readonly zone?: ZoneId;
+  /**
+   * A resource ability's option whose cost picks "any number" (or "up to N", N > 1) of cards in play: one option per
+   * set (Enhanced Combat Sense: "exhaust any number of Weapon or Tech upgrades"), which a payment sheet shows as one
+   * card per candidate (issue #966). Absent for a single pick (Sync Ratio) and every other option.
+   */
+  readonly picksMany?: true;
 }
 
 /**

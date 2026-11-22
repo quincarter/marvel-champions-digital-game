@@ -175,12 +175,30 @@ export function deckSourcesOf(decks: readonly Deck[]): readonly DeckSourceKind[]
   return ORDER.filter((kind) => present.has(kind));
 }
 
-/** The product chips a Scenario roster shows: every distinct `packCode` present, in first-seen (pool) order. */
-export function scenarioProductsOf(scenarios: readonly Scenario[]): readonly string[] {
+/**
+ * The product chips a Scenario roster shows: every distinct shelf the scenarios sit on, in first-seen (pool) order, or
+ * in `order` when given. `shelfOf` is the shelf a scenario's tile is drawn on (its `packCode` unless said otherwise): a
+ * custom pack's scenario is shelved by the player's placement, beside a wave or on the shared "Custom packs" shelf, so
+ * its chip is that shelf's, never one chip per pack (issue #966: Mephisto sat beside Trickster Takeover but had a chip
+ * of its own, and every installed pack added another).
+ */
+export function scenarioProductsOf(
+  scenarios: readonly Scenario[],
+  shelfOf: (scenario: Scenario) => string = (scenario) => scenario.packCode as string,
+  order?: readonly string[],
+): readonly string[] {
   const seen: string[] = [];
   for (const scenario of scenarios) {
-    const code = scenario.packCode as string;
+    const code = shelfOf(scenario);
     if (!seen.includes(code)) seen.push(code);
   }
-  return seen;
+  if (!order) return seen;
+  const at = (code: string): number => {
+    const index = order.indexOf(code);
+    return index < 0 ? order.length : index;
+  };
+  return seen
+    .map((code, index) => ({ code, index }))
+    .sort((a, b) => at(a.code) - at(b.code) || a.index - b.index)
+    .map((entry) => entry.code);
 }
