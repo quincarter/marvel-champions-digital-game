@@ -667,3 +667,68 @@ describe("a pending reopen never overwrites a newer end", () => {
     expect(fresh.applied.outcome).toEqual({ result: "loss" });
   });
 });
+
+describe("an end whose final tail write fails", () => {
+  it("is never stored as ended over a truncated log: a wake finds an open game and the host retry completes it", async () => {
+    const bus = await FaultBus.create();
+    const host = bus.host(liveGame());
+    const watcher = bus.watcher();
+    host.connect();
+    watcher.connect();
+    await bus.settle();
+    // The first batch writes the tail; the next ones, within the minute, are held in memory only.
+    host.command(cmds(0, 1)[0]!);
+    await bus.settle();
+    for (const c of cmds(1, 4)) host.command(c);
+    await bus.settle();
+    expect(bus.storage.savedLog()).toEqual(cmds(0, 1));
+
+    bus.storage.failPut((k) => k === "t1:tail", 2); // the end's write and the host leaving's write both fail
+    host.command(cmds(4, 5)[0]!, { result: "win" } as never);
+    await bus.settle();
+    expect(bus.roomErrors).toHaveLength(1);
+    expect(watcher.applied.ended).toBe(true);
+    // SAVED: not ended over the short log.
+    expect(bus.storage.map.get("meta")).not.toMatchObject({ ended: true });
+
+    // The room is woken cold with the host gone: an open game, never a finished one with 1 of 5 commands.
+    await host.disconnect().catch(() => undefined);
+    await bus.restartRoom();
+    expect(bus.storage.map.get("meta")).not.toMatchObject({ ended: true });
+    // The host comes back and completes it: all five commands and the outcome are stored.
+    host.connect();
+    await bus.settle();
+    expect(bus.roomLog()).toBe(5);
+    expect(bus.storage.map.get("meta")).toMatchObject({ ended: true, outcome: { result: "win" } });
+    expect(bus.storage.savedLog("t1", true)).toEqual(cmds(0, 5));
+    const fresh = bus.watcher();
+    fresh.connect();
+    await bus.settle();
+    expect(fresh.applied.commands).toEqual(cmds(0, 5));
+    expect(fresh.applied.outcome).toEqual({ result: "win" });
+  });
+
+  it("when the host leaving writes the tail, the end is stored with it: the wake serves all commands and the outcome", async () => {
+    const bus = await FaultBus.create();
+    const host = bus.host(liveGame());
+    host.connect();
+    await bus.settle();
+    host.command(cmds(0, 1)[0]!);
+    await bus.settle();
+    for (const c of cmds(1, 4)) host.command(c);
+    await bus.settle();
+    bus.storage.failPut((k) => k === "t1:tail");
+    host.command(cmds(4, 5)[0]!, { result: "win" } as never);
+    await bus.settle();
+    expect(bus.storage.map.get("meta")).not.toMatchObject({ ended: true });
+    await host.disconnect();
+    expect(bus.storage.map.get("meta")).toMatchObject({ ended: true, outcome: { result: "win" } });
+    expect(bus.storage.savedLog("t1", true)).toEqual(cmds(0, 5));
+    await bus.restartRoom();
+    const fresh = bus.watcher();
+    fresh.connect();
+    await bus.settle();
+    expect(fresh.applied.commands).toEqual(cmds(0, 5));
+    expect(fresh.applied.ended).toBe(true);
+  });
+});
