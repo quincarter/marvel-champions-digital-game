@@ -138,12 +138,30 @@ describe("a guest's log as a local saved game", () => {
     expect(isAdjustedSave(meta)).toBe(true);
   });
 
+  test("an ordinary cutting rewind, without the flag, does not mark the game adjusted", async () => {
+    const { mirror } = await hostedGame(4);
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);
+    expect(mirror.salvage()!.commands).toHaveLength(2);
+    expect(mirror.salvage()!.adjusted).toBeUndefined();
+  });
+
+  test("a rewind to the current count carrying the flag still latches, and an adjusted end does too", async () => {
+    const first = (await hostedGame(3)).mirror;
+    first.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 3, adjusted: true } as ServerMessage);
+    expect(first.salvage()!.adjusted).toBe(true);
+    const second = (await hostedGame(3)).mirror;
+    second.apply({ v: 1, ch: "game", kind: "end", table: FIRST_TABLE, outcome: null, adjusted: true } as ServerMessage);
+    // The game is over, so there is nothing to continue from; reopening it keeps the latch.
+    second.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 3 } as ServerMessage);
+    expect(second.salvage()!.adjusted).toBe(true);
+  });
+
   test("a reconnect that brings the same game's log again keeps the latch; a rewind to the same count cuts nothing", async () => {
     const { mirror } = await hostedGame(4);
     const before = mirror.salvage()!;
     mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 4 } as ServerMessage);
     expect(mirror.salvage()!.adjusted).toBeUndefined();
-    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2, adjusted: true } as ServerMessage);
     mirror.clear(true);
     mirror.apply({
       v: 1,
