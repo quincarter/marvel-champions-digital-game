@@ -285,6 +285,11 @@ export interface LobbySettings {
   readonly mods: readonly LobbyMod[];
   /** May one participant hold more than one seat? */
   readonly multiSeat: boolean;
+  /**
+   * Guests ask the host for a seat, and the host approves or denies (Quin, 2026-11-22). Absent or false: a guest who
+   * asks for an open seat is seated at once, the room's default.
+   */
+  readonly askToSit?: boolean;
   readonly chat: boolean;
   /**
    * The host's opt-in to the public "Live now" list (`GET /rooms/live`). Absent reads as off; a room is never listed
@@ -771,6 +776,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.undo !== undefined && v.undo !== "off" && v.undo !== "host" && v.undo !== "ask") return false;
   if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
+  if (v.askToSit !== undefined && typeof v.askToSit !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
   if (v.listed !== undefined && typeof v.listed !== "boolean") return false;
   if (v.tableRules !== undefined) {
