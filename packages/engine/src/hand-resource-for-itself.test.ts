@@ -143,12 +143,41 @@ describe("a resource ability in hand that pays for its own card (#890 item 2)", 
         .map((o) => (o.optionId.split("exhausted=")[1] ?? "").split(/[;#]/)[0]!.split(",").filter(Boolean).length),
     );
     for (const size of [1, 2, 3, 4, 5, 6]) expect(sizes.has(size), `a ${size}-upgrade option`).toBe(true);
+    // Every one of the 63 sets is offered (issue #966): the payment sheet builds the pick one upgrade at a time, so a set
+    // the cap left out (the last three upgrades, say) could not be reached from the ones already picked.
+    const sets = new Set(
+      paymentOptions(createCtx(state, deps), P1, null, s.sense)
+        .filter((o) => o.optionId.includes(SENSE_RESOURCE.ref.id))
+        .map((o) => (o.optionId.split("exhausted=")[1] ?? "").split(/[;#]/)[0]!),
+    );
+    expect([...sets].filter(Boolean)).toHaveLength(63);
+    // Each is marked as a set to build, so a sheet can draw one card per candidate (PR #969 review).
+    const many = paymentOptions(createCtx(state, deps), P1, null, s.sense).filter((o) =>
+      o.optionId.includes(SENSE_RESOURCE.ref.id),
+    );
+    expect(many.every((o) => o.picksMany === true)).toBe(true);
     const legal = legalActions(state, P1, deps);
     if (legal.kind !== "turn") throw new Error("expected a turn");
     const entry = legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === s.sense);
     if (!entry) throw new Error("expected the event to be playable with six upgrades");
     const result = applyCommand(state, entry.example, deps);
     if (!result.ok) throw new Error(result.error.message);
+  });
+
+  it("a pick of at least two is not marked as built one card at a time (PR #969 review)", () => {
+    // The same star needing two upgrades: no one-upgrade set exists to start from, so its sets stay one option each.
+    const pickTwo = {
+      ...SENSE_RESOURCE.definition,
+      cost: { exhaustCards: { ...SENSE_RESOURCE.definition.cost!.exhaustCards!, min: 2 } },
+    } as AbilityDefinition;
+    const twoDeps: EngineDeps = { ...deps, abilities: { ...deps.abilities, [SENSE_RESOURCE.ref.id]: pickTwo } };
+    const s = start();
+    const state = playerCardIntoPlay(s.state, RIFLE.id, P1).state;
+    const options = paymentOptions(createCtx(state, twoDeps), P1, null, s.sense).filter((o) =>
+      o.optionId.includes(SENSE_RESOURCE.ref.id),
+    );
+    expect(options.length).toBeGreaterThan(0);
+    expect(options.some((o) => o.picksMany)).toBe(false);
   });
 
   it("is offered as a payment option for its own card only", () => {

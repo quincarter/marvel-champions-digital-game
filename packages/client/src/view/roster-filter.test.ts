@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckFromStarterDeck, type Deck } from "@mc/content";
+import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckFromStarterDeck, type Deck, type Scenario } from "@mc/content";
 import { POOL_CARDS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import {
   EMPTY_ROSTER_FILTER,
@@ -233,6 +233,21 @@ describe("scenarioProductsOf", () => {
 
   test("empty with no scenarios", () => {
     expect(scenarioProductsOf([])).toEqual([]);
+  });
+
+  // Issue #966: a custom pack's scenario is chipped by the shelf it sits on, not by its own pack code.
+  test("chips follow the shelves: a custom scenario beside a wave joins that wave's chip, the rest share one", () => {
+    const tt = POOL_SCENARIOS.find((s) => (s.packCode as string) === "tt")!;
+    const custom = (id: string, code: string) => ({ ...tt, id, packCode: code }) as unknown as Scenario;
+    const mephisto = custom("x.mephisto-nep.mephisto", "mephisto-nep");
+    const other = custom("x.other-pack.villain", "other-pack");
+    const shelfOf = (s: Scenario): string =>
+      s === mephisto ? "tt" : s === other ? "custom-packs" : (s.packCode as string);
+    const products = scenarioProductsOf([...POOL_SCENARIOS, mephisto, other], shelfOf, ["custom-packs", "core", "tt"]);
+    expect(products).not.toContain("mephisto-nep");
+    expect(products).not.toContain("other-pack");
+    expect(products.slice(0, 3)).toEqual(["custom-packs", "core", "tt"]);
+    expect(new Set(products).size).toBe(products.length);
   });
 });
 

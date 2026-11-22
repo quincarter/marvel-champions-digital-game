@@ -1906,6 +1906,8 @@ export interface PaymentSource {
    * (`SpentCardAbilityUse.costSelection`); the option id holds it too ("#damageSelf=<n>").
    */
   readonly costSelection?: CostSelection;
+  /** Its ability's cost picks a set of cards, one source per set (`ChoiceOption.picksMany`, issue #966). */
+  readonly picksMany?: true;
   /**
    * This `resourceAbility` source is a card in hand spent with its own "Interrupt: When you spend this card, [cost] →
    * generate …" (`Payment.whenSpent`; option id "hand:<id>:<abilityId>…"): `instanceId` is the hand card, choosing it
@@ -2391,6 +2393,7 @@ export function paymentFor(
           ...(costChoices ? { costChoices } : {}),
           ...(costSelection ? { costSelection } : {}),
           ...(deps.abilities[option.ref.abilityId]?.overpayOnly ? { overpayOnly: true as const } : {}),
+          ...(option.picksMany ? { picksMany: true as const } : {}),
         },
       ];
     },
