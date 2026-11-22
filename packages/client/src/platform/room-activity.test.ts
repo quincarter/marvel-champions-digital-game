@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const posted: { kind: string; step?: string; scenario?: string }[] = [];
+const posted: { kind: string; step?: string; scenario?: string; plan?: unknown }[] = [];
 let listener: ((state: unknown) => void) | null = null;
 
 vi.mock("./live-watch.js", () => ({
@@ -53,6 +53,29 @@ describe("host activity from the client", () => {
     listener!(hostState("connected"));
     room.reportHostActivity("table", "Rhino");
     expect(posted.filter((m) => m.kind === "room-activity")).toHaveLength(3);
+  });
+
+  it("publishes the table plan once, sends it again after a reconnect, sends a clear, and forgets it on leaving", async () => {
+    const room = await import("./room.js");
+    const plan = { scenarioId: "rhino", modularSetIds: ["bomb_scare"], difficulty: "standard" as const };
+    const plans = () => posted.filter((m) => m.kind === "room-table-plan");
+    listener!(hostState("connected"));
+    room.reportTablePlan(plan);
+    room.reportTablePlan({ ...plan });
+    expect(plans()).toEqual([{ kind: "room-table-plan", plan }]);
+    listener!(hostState("reconnecting"));
+    listener!(hostState("connected"));
+    expect(plans()).toHaveLength(2);
+    room.reportTablePlan(null);
+    expect(plans().at(-1)).toEqual({ kind: "room-table-plan", plan: null });
+    // A cleared plan is not sent again after a reconnect.
+    listener!(hostState("reconnecting"));
+    listener!(hostState("connected"));
+    expect(plans()).toHaveLength(3);
+    // A guest never publishes one.
+    listener!({ ...hostState("connected"), role: "guest" });
+    room.reportTablePlan(plan);
+    expect(plans()).toHaveLength(3);
   });
 
   it("forgets a guest's room that ended as closed", async () => {

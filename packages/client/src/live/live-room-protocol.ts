@@ -7,6 +7,7 @@ import type { Command, GameOutcome } from "@mc/engine";
 import type {
   DeckRefusalCode,
   HostActivityStep,
+  TablePlan,
   RoomBuild,
   RoomDeck,
   RoomDevice,
@@ -52,6 +53,8 @@ export type LiveRoomIn =
   | { readonly kind: "room-say"; readonly text: string }
   /** Host only: the setup step the host is in (`idle` clears it), shown to everyone as a status line. */
   | { readonly kind: "room-activity"; readonly step: HostActivityStep; readonly scenario?: string }
+  /** Host only: the table the host picked, as ids (`null` clears it), shown to everyone in the lobby. */
+  | { readonly kind: "room-table-plan"; readonly plan: TablePlan | null }
   /** My deck for a seat I hold, or (host only) a preset for any seat. */
   | { readonly kind: "room-deck"; readonly seat: string; readonly deck: RoomDeck }
   /** Host only: the full deck of every seat (answered with a `room-decks` carrying the same `id`). */

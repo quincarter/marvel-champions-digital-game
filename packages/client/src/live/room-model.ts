@@ -12,6 +12,7 @@ import {
   type BuildGap,
   type RoomChatLine,
   type RoomHostActivity,
+  type TablePlan,
   type RoomDeckProblem,
   type RoomConnection,
   type RoomParticipant,
@@ -76,6 +77,7 @@ export class RoomModel {
   #chat: RoomChatLine[] = [];
   #chatLive = 0;
   #hostActivity: RoomHostActivity | null = null;
+  #tablePlan: TablePlan | null = null;
   #refusal: RoomRefusal | null = null;
   #refusalSeq = 0;
   #lastSeat: string | undefined;
@@ -192,6 +194,8 @@ export class RoomModel {
   dropped(): void {
     // The room resends the host's step to a rejoining socket; an old one must not outlive the connection.
     this.#hostActivity = null;
+    // The room forgets the plan too when it is evicted: the host sends it again once it is back.
+    this.#tablePlan = null;
     if (this.#connection === "ended") return;
     this.#connection = this.#welcomed ? "reconnecting" : "connecting";
   }
@@ -253,6 +257,9 @@ export class RoomModel {
           message.step === "idle"
             ? null
             : { step: message.step, ...(message.scenario ? { scenario: message.scenario } : {}) };
+        return true;
+      case "table-plan":
+        this.#tablePlan = message.plan;
         return true;
       case "lobby":
         this.#lobby = { code: message.code, rev: message.rev, settings: message.settings, seats: message.seats };
@@ -348,6 +355,7 @@ export class RoomModel {
       chat: this.#chat,
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
+      tablePlan: this.#tablePlan,
       refusal: this.#refusal,
       buildMatches: me ? buildMatches(me) : sameBuild(this.#build, hostBuild) || !hostBuild,
       ...(me ? gapOf(me.build, me.role === "host" || buildMatches(me)) : gapOf(this.#build, false)),
