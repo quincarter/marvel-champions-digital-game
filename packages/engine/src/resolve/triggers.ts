@@ -69,7 +69,7 @@ import { removalBlockedOf } from "./event.js";
 import { resourcesChoiceOf, type AbilityCost, type AbilityDefinition } from "../abilities.js";
 import { chosenSizePayments } from "../payable.js";
 import { cannotEnterPlay, cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
-import { abilityLacksValidTarget } from "./target-validity.js";
+import { abilityLacksValidTarget, lastingPeriodClosed } from "./target-validity.js";
 import { lostWithDiscardedCard } from "./discarded-card.js";
 import { interruptBarredByUnpreventable } from "./unpreventable.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
@@ -1149,7 +1149,7 @@ function offeredTo(
 }
 
 /** Why an optional ability that answered an event was not offered (`unofferedAbilities`). */
-export type UnofferedReason = "noTarget" | "cannotPay";
+export type UnofferedReason = "noTarget" | "cannotPay" | "period";
 
 /** An optional interrupt or response that answered an event but could not be initiated (`unofferedAbilities`). */
 export interface UnofferedAbility {
@@ -1209,11 +1209,14 @@ export function unofferedAbilities(
       if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
       if (lostWithDiscardedCard(state, deps, { instanceId: id, abilityId: ref.id, controllerId }, event)) continue;
-      const reason: UnofferedReason | null = abilityLacksValidTarget(state, deps, definition, id, controllerId, event)
-        ? "noTarget"
-        : !costPayable(state, deps, id, controllerId, definition, false, event)
-          ? "cannotPay"
-          : null;
+      const reason: UnofferedReason | null =
+        lastingPeriodClosed(state, definition) !== null
+          ? "period"
+          : abilityLacksValidTarget(state, deps, definition, id, controllerId, event)
+            ? "noTarget"
+            : !costPayable(state, deps, id, controllerId, definition, false, event)
+              ? "cannotPay"
+              : null;
       if (reason === null) continue;
       found.push({ instanceId: id, abilityId: ref.id, playerId: controllerId, reason });
     }

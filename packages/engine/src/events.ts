@@ -1821,7 +1821,9 @@ export type GameEvent =
   | { readonly type: "interruptsPreempted"; readonly event: TriggerEvent; readonly reason: "tough" }
   /**
    * An optional interrupt or response on a player's card in play answered `event` but was not offered: it has no valid
-   * target (`noTarget`) or its cost cannot be paid (`cannotPay`; RRG 1.8 "Initiating Abilities", p. 24, step 2). Said
+   * target (`noTarget`), its cost cannot be paid (`cannotPay`; RRG 1.8 "Initiating Abilities", p. 24, step 2), or all
+   * it gives would last to the end of a turn or player phase not in progress (`period`; RRG 1.8 "Lasting Effects",
+   * p. 26; `lastingPeriodClosed`, #970). Said
    * so the client can tell its player why nothing was asked (#431; `unofferedAbilities`). It changes nothing.
    */
   | {
@@ -1830,7 +1832,7 @@ export type GameEvent =
       readonly abilityId: AbilityId;
       readonly playerId: PlayerId;
       readonly timing: "interrupt" | "response";
-      readonly reason: "noTarget" | "cannotPay";
+      readonly reason: "noTarget" | "cannotPay" | "period";
       readonly event: TriggerEvent;
     }
   /**
