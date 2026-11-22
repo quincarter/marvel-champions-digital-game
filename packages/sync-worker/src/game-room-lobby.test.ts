@@ -2255,7 +2255,7 @@ describe("guests claim an open seat unless the host has them ask (Quin, 2026-11-
     expect(h.last("lobby")!.seats[1]!.holder).toBeUndefined();
   });
 
-  it("with Ask the host to sit on, a request waits for the host; turning it off lets the next one claim", async () => {
+  it("with Ask the host to sit on, a request waits; turning it off drops pending requests and the seat is claimable", async () => {
     const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });
     const h = await host();
     await lobbySet(h, { seats: seats("s1", "s2"), settings: { askToSit: true } });
@@ -2264,9 +2264,44 @@ describe("guests claim an open seat unless the host has them ask (Quin, 2026-11-
     expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", requested: [a.id] });
     expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
     await lobbySet(h, { settings: { askToSit: false } });
+    // Nobody is left waiting for an approval that no longer comes.
+    expect(a.last("lobby")!.seats[0]!.requested).toBeUndefined();
     const b = await join(room, { name: "Bo" });
-    await send(room, b, { ch: "room", kind: "seat-request", seat: "s2" });
-    expect(h.last("lobby")!.seats[1]).toMatchObject({ id: "s2", holder: b.id });
+    await send(room, b, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", holder: b.id });
+    expect(h.last("lobby")!.seats[0]!.requested).toBeUndefined();
+  });
+
+  it("while a game is running, a guest's request for an open seat waits for the host", async () => {
+    const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    const a = await join(room, { name: "Ann" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s2" });
+    expect(a.refusals).toEqual([]);
+    expect(h.last("lobby")!.seats[1]).toMatchObject({ id: "s2", requested: [a.id] });
+    expect(h.last("lobby")!.seats[1]!.holder).toBeUndefined();
+    // Once the game is over, claiming works again.
+    await send(room, h, { ch: "game", kind: "end", table: "t1", outcome: 1 });
+    const b = await join(room, { name: "Bo" });
+    await send(room, b, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", holder: b.id });
+  });
+
+  it("a guest claims at most once every few seconds, so a take and leave loop writes little", async () => {
+    const { room, host, join, send, lobbySet, seats, clock } = await setup({ askToSit: false });
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1") });
+    const a = await join(room, { name: "Ann" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    await send(room, a, { ch: "room", kind: "seat-release", seat: "s1" });
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(a.refusals).toEqual(["rate-limited"]);
+    expect(h.last("lobby")!.seats[0]!.holder).toBeUndefined();
+    clock.now += 3_000;
+    await send(room, a, { ch: "room", kind: "seat-request", seat: "s1" });
+    expect(h.last("lobby")!.seats[0]).toMatchObject({ id: "s1", holder: a.id });
   });
 
   it("refuses a lobby-set whose askToSit is not a boolean", async () => {
