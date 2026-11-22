@@ -23,6 +23,7 @@ import Phaser from "phaser";
 import { deliverGameLog, deliverReplayFile } from "../replay/replay-files.js";
 import type { ReplayHost, ReplayPositionState } from "../replay/replay-host.js";
 import { activeReplay } from "../replay/replay-mode.js";
+import type { LiveState } from "../live/watch-events.js";
 import {
   onReplayInspectChange,
   replayInspectChangedIn,
@@ -121,6 +122,7 @@ const KEYS: Readonly<Partial<Record<TransportControl, string>>> = {
   move: "M",
   share: "L",
   inspect: "↓",
+  live: "End",
 };
 
 const PAD_OF: Readonly<Record<TransportControl, number>> = {
@@ -138,6 +140,7 @@ const PAD_OF: Readonly<Record<TransportControl, number>> = {
   move: PAD.move,
   share: PAD.share,
   inspect: PAD.inspect,
+  live: PAD.end,
 };
 
 const GLYPH_HEIGHT = 12;
@@ -273,6 +276,8 @@ class IconButton {
 export class ReplayTransportOverlay extends Phaser.Scene {
   #host: ReplayHost | null = null;
   #state: ReplayPositionState | null = null;
+  /** The live game's state while one is followed (issue #876), null for an ordinary replay. */
+  #live: LiveState | null = null;
   #auto: AutoPlay = STOPPED;
   #speed: ReplaySpeed = 1;
   #busy = 0;
@@ -331,6 +336,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       this.#state = state;
       this.#draw();
     });
+    this.#live = null;
+    const unLive = host.onLiveState((state) => {
+      this.#live = state;
+      if (this.#alive) this.#draw();
+    });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     const unLanguage = onLanguageChange(() => this.#draw());
@@ -345,6 +355,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
       unPosition();
+      unLive();
       unLanguage();
       unInspect();
       this.scale.off("resize", onResize, this);
@@ -544,6 +555,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         this.#settle(this.#seek(0));
         break;
       case "end":
+      case "live":
         this.#stop();
         if (state) this.#settle(this.#seek(state.info.length));
         break;
@@ -840,6 +852,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
       titleBar,
       onTop,
       ...(onTop ? { bannerHeight: REPLAY_BANNER_HEIGHT } : {}),
+      ...(this.#live && !this.#live.over ? { live: true } : {}),
     });
     this.#layout = layout;
     this.#track = layout.track;
@@ -935,6 +948,7 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     const narrow = layout.kind !== "row" || layout.shortLabel;
     word("share", this.#sharing ? t("replay.link.sharing") : t("replay.share"), "onInk", true);
     word("exportLog", t("replay.exportLog"), "onInk", true);
+    this.#drawLiveButton(layout, state);
     word("export", narrow ? t("replay.exportShort") : t("replay.export"), "onInk", true);
     word("exit", t("replay.exit"));
   }
@@ -987,6 +1001,29 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     if (note.height > bar.height - 4) note.setFontSize(11);
   }
 
+  /**
+   * A live game's way back to the newest move (#876), in Export log's place on the bar: lit while the viewer is behind
+   * it, greyed while they are at it. Words (and the bar's own seek position), so nothing rests on colour.
+   */
+  #drawLiveButton(layout: TransportLayout, state: ReplayPositionState): void {
+    const rect = layout.controls.get("live");
+    if (!rect) return;
+    const behind = state.position < state.info.length;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: behind ? "primary" : "onInk",
+        label: t("watch.liveButton"),
+        type: { ...typeRole.label, size: 12 },
+        rect,
+        wrap: true,
+        enabled: behind,
+        onClick: () => this.#act("live"),
+        onHover: (over: boolean) => this.#showTip(over ? rect : null, t("watch.goLiveTip")),
+      }),
+    );
+    this.#hint("live", rect, true);
+  }
+
   /** What an icon control is called: its tooltip on a desktop, where a pointer hovers. */
   #nameOf(control: TransportControl): string {
     switch (control) {
@@ -1014,6 +1051,8 @@ export class ReplayTransportOverlay extends Phaser.Scene {
         return t("replay.export");
       case "exportLog":
         return t("replay.exportLog");
+      case "live":
+        return t("watch.goLiveTip");
       case "exit":
         return t("replay.exit");
       case "inspect":

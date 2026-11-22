@@ -1084,7 +1084,9 @@ async function startDevGame(): Promise<void> {
     seatDeckId: seat.deck.id as string,
     seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
   });
-  await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)], undefined, tableRulesOf(appSession().settings)));
+  const config = toSessionConfig(draft, [corePlayerForSeat(seat)], undefined, tableRulesOf(appSession().settings));
+  // `&watch=1`: the game is open to watchers (issue #876), for checking a live room end to end.
+  await store.start(params.get("watch") === "1" ? { ...config, watchable: true } : config);
 }
 
 /**

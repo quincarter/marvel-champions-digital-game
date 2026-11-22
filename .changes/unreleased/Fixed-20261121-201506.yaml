@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Live rooms: a chunk write that fails is no longer counted as saved, and a batch that fills a gap after the end re-announces the end; a fault-injection harness covers reconnects, interrupted writes, new games and dropped final acks'
+time: 2026-11-21T20:15:06.2977879-05:00

@@ -100,6 +100,7 @@ export function zoneOfTarget(target: FocusTarget, members: ZoneMembers): BoardZo
       return "villain";
     case "teamUp":
     case "theme":
+    case "watch":
     case "music":
       return null;
   }

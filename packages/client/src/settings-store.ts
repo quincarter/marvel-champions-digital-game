@@ -81,6 +81,7 @@ const BOOLEAN_FIELDS = [
   "nintendoLayout",
   "inputGlyphs",
   "discordPresence",
+  "liveWatch",
 ] as const;
 
 export function parseSettingsOverrides(raw: string | null): SettingsOverrides {

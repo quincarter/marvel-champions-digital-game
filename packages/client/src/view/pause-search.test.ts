@@ -12,7 +12,7 @@ import {
   type PauseSearchClient,
   type PauseSettingsEnv,
 } from "./pause-search.js";
-import { guideRowInfoOf } from "./settings-rows.js";
+import { guideRowInfoOf, liveWatchRowInfoOf } from "./settings-rows.js";
 import { SettingsSearchHost, type SettingsSearchEntry } from "./settings-search.js";
 import { settingsTabsOf } from "./settings-sections.js";
 
@@ -125,6 +125,10 @@ describe("rows Pause has no control for", () => {
       ["display-mode", { title: "Display mode", detail: "Windowed, borderless or fullscreen." }],
       ["resolution", { title: "Resolution", detail: "The window's size." }],
       ["discord-presence", { title: "Show my game on Discord", detail: "Your status says what you are playing." }],
+      [
+        "live-watch",
+        { title: liveWatchRowInfoOf(defaultSettings()).title, detail: liveWatchRowInfoOf(defaultSettings()).detail },
+      ],
     ] as const;
     const searchHost = new SettingsSearchHost();
     searchHost.index({
@@ -146,6 +150,8 @@ describe("rows Pause has no control for", () => {
       ["resolution", "setting:resolution"],
       ["fullscreen", "setting:display-mode"],
       ["discord", "setting:discord-presence"],
+      ["watch", "setting:live-watch"],
+      ["spectate", "setting:live-watch"],
     ] as const) {
       const [best] = groupPauseResults(searchHost.search(query))[0]?.results ?? [];
       expect(best?.entry.id).toBe(id);

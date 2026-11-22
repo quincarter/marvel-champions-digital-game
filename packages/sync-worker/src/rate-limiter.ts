@@ -6,6 +6,7 @@
  */
 
 import type { KeyValueStorage } from "./env.js";
+import { DEFAULT_ROOMS_PER_IP_PER_DAY } from "./room-protocol.js";
 
 export const UPLOADS_PER_HOUR = 10;
 export const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
@@ -60,6 +61,8 @@ interface LimiterState {
   globalResults?: { s: number; n: number };
   /** Replay upload counter, the same shape as `globalResults`. */
   replayUploads?: { s: number; n: number };
+  /** Live game rooms created, the same shape as `globalResults`. */
+  roomCreates?: { s: number; n: number };
 }
 
 export class RateLimiterLogic {
@@ -80,6 +83,7 @@ export class RateLimiterLogic {
       syncRows: (saved?.syncRows ?? []).filter((b) => b.h > now - DAY_MS),
       ...(saved?.globalResults && saved.globalResults.s > now - DAY_MS ? { globalResults: saved.globalResults } : {}),
       ...(saved?.replayUploads && saved.replayUploads.s > now - DAY_MS ? { replayUploads: saved.replayUploads } : {}),
+      ...(saved?.roomCreates && saved.roomCreates.s > now - DAY_MS ? { roomCreates: saved.roomCreates } : {}),
     };
   }
 
@@ -96,6 +100,7 @@ export class RateLimiterLogic {
       ...state.syncRows.map((b) => b.h + DAY_MS),
       ...(state.globalResults ? [state.globalResults.s + DAY_MS] : []),
       ...(state.replayUploads ? [state.replayUploads.s + DAY_MS] : []),
+      ...(state.roomCreates ? [state.roomCreates.s + DAY_MS] : []),
     ].filter((t) => t > 0);
     if (ends.length === 0) {
       await this.storage.deleteAll();
@@ -226,7 +231,7 @@ export class RateLimiterLogic {
 
   private async takeGlobal(
     now: number,
-    field: "globalResults" | "replayUploads",
+    field: "globalResults" | "replayUploads" | "roomCreates",
     limit: number,
     windowMs: number,
   ): Promise<{ ok: true } | { ok: false; retryAfterMs: number }> {
@@ -246,6 +251,11 @@ export class RateLimiterLogic {
   /** Takes one of the IP's REPLAY_UPLOADS_PER_IP_PER_DAY replay uploads; a refusal writes nothing. */
   takeReplayUpload(now: number) {
     return this.takeGlobal(now, "replayUploads", REPLAY_UPLOADS_PER_IP_PER_DAY, DAY_MS);
+  }
+
+  /** Takes one of the IP's DEFAULT_ROOMS_PER_IP_PER_DAY room creations; a refusal writes nothing. */
+  takeRoomCreate(now: number) {
+    return this.takeGlobal(now, "roomCreates", DEFAULT_ROOMS_PER_IP_PER_DAY, DAY_MS);
   }
 
   /**

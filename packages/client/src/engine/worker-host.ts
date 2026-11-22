@@ -45,6 +45,7 @@ export class WorkerEngineHost implements EngineHost {
   #cardPool: CardPool | null = null;
   /** The newest version published. A late reply for an older one is dropped. */
   #version = -1;
+  #gameBegun: ((config: SessionConfig | null) => void) | null = null;
 
   constructor(factory: WorkerFactory) {
     this.#worker = factory();
@@ -147,6 +148,16 @@ export class WorkerEngineHost implements EngineHost {
     this.#worker.postMessage({ kind: "presencePort", id: 0, port } satisfies HostRequest, [port]);
   }
 
+  /** Hands the worker a port to stream the game to the live-room worker over (`live/live-room-protocol.ts`). */
+  attachLivePort(port: MessagePort): void {
+    this.#worker.postMessage({ kind: "livePort", id: 0, port } satisfies HostRequest, [port]);
+  }
+
+  /** Called with the setup of each game this host starts or resumes (the live stream spawns its worker for a watchable one). */
+  onGameBegun(listener: (config: SessionConfig | null) => void): void {
+    this.#gameBegun = listener;
+  }
+
   dispose(): void {
     this.#worker.removeEventListener("message", this.#onMessage);
     this.#worker.removeEventListener("error", this.#onError);
@@ -161,6 +172,7 @@ export class WorkerEngineHost implements EngineHost {
     const response = await this.#request(request);
     if (response.kind !== "started") throw new Error(`unexpected reply ${response.kind}`);
     this.#cardPool = response.cardPool;
+    this.#gameBegun?.(response.snapshot.config);
     // A new game (or a different one) starts its own version count.
     this.#version = -1;
     const update = this.#hydrate(response.snapshot);

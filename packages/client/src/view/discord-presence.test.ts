@@ -6,6 +6,7 @@ import {
   heroesLabel,
   presenceOf,
   publicArtUrl,
+  stateWithWatchers,
   type PresenceGame,
 } from "./discord-presence.js";
 
@@ -145,5 +146,37 @@ describe("helpers", () => {
     expect(publicArtUrl("https://example.com/a.png")).toBe("https://example.com/a.png");
     expect(publicArtUrl("a.png")).toBeNull();
     expect(publicArtUrl(null)).toBeNull();
+  });
+});
+
+describe("a live room (#876)", () => {
+  const live = { watchUrl: "https://marvel.champions-digital-game.com/#watch=abc", watchers: 0 };
+
+  test("a game with a watch link gets a second button, Get the game kept", () => {
+    const activity = presenceOf({ screen: "game", startedAt: 1, game: GAME, live });
+    expect(activity?.buttons).toEqual([
+      { label: "Get the game", url: PRESENCE_DOWNLOAD_URL },
+      { label: "Watch live", url: live.watchUrl },
+    ]);
+    expect(activity?.state).toBe("Round 3 · Hero form · Expert");
+  });
+
+  test("the state line ends in the watcher count only when someone watches", () => {
+    expect(presenceOf({ screen: "game", startedAt: 1, game: GAME, live: { ...live, watchers: 2 } })?.state).toBe(
+      "Round 3 · Hero form · Expert · 2 watching",
+    );
+  });
+
+  test("the menus never carry the button, with or without a room", () => {
+    const activity = presenceOf({ screen: "menus", startedAt: 1, live: { ...live, watchers: 3 } });
+    expect(activity?.buttons).toHaveLength(1);
+    expect(activity?.state).toBeUndefined();
+  });
+
+  test("a long state is trimmed, never the count, and stays within 128 characters", () => {
+    const state = stateWithWatchers("x".repeat(200), 12);
+    expect([...(state ?? "")].length).toBeLessThanOrEqual(128);
+    expect(state?.endsWith("… · 12 watching")).toBe(true);
+    expect(stateWithWatchers("Round 1", 0)).toBe("Round 1");
   });
 });

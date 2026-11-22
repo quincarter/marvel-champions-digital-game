@@ -395,3 +395,30 @@ describe("pauseLayout with a blind Civil War sheet", () => {
     }
   });
 });
+
+describe("the watch link row (#876)", () => {
+  for (const size of WIDE_SIZES) {
+    for (const guidedRunActive of [false, true]) {
+      test(`clears Manual adjust and its confirm line at ${size.name}${guidedRunActive ? ", guided" : ""}`, () => {
+        const layout = pauseLayout(
+          { x: 0, y: 0, width: size.width, height: size.height },
+          { ...input(8), watchLink: true, guidedRunActive },
+        );
+        if (layout.kind !== "wide") throw new Error("expected wide");
+        if (guidedRunActive) return expect(layout.watchLink).toBeNull();
+        const row = layout.watchLink!;
+        expect(row).not.toBeNull();
+        expect(row.y).toBeGreaterThan(layout.menu.report.y);
+        expect(row.y + row.height).toBeLessThanOrEqual(layout.concedeConfirmCancel.y - 34);
+        expect(rectsOverlap(row, layout.concede)).toBe(false);
+        if (layout.guideStopTutorial) expect(rectsOverlap(row, layout.guideStopTutorial)).toBe(false);
+      });
+    }
+  }
+
+  test("is absent while no room is open", () => {
+    const layout = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, input(8));
+    if (layout.kind !== "wide") throw new Error("expected wide");
+    expect(layout.watchLink).toBeNull();
+  });
+});

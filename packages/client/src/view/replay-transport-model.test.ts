@@ -187,3 +187,37 @@ describe("replay transport model, phone and autoplay at the end", () => {
     }
   });
 });
+
+describe("replay transport model, a live game (#876)", () => {
+  const BARS = [
+    { x: 0, y: 700, width: 1280, height: 56 },
+    { x: 0, y: 700, width: 1024, height: 56 },
+    { x: 0, y: 700, width: 667, height: 56 },
+    { x: 0, y: 700, width: 768, height: 96 },
+    { x: 0, y: 700, width: 375, height: 96 },
+  ] as const;
+  const PHONE_TITLE = { x: 0, y: 0, width: 375, height: 44 };
+
+  test("Go live takes Export log's rect on every bar, so nothing else moves and nothing overlaps", () => {
+    const cases = [...BARS.map((bar) => ({ bar, options: {} })), { bar: BARS[4], options: { titleBar: PHONE_TITLE } }];
+    for (const { bar, options } of cases) {
+      const plain = transportLayout(bar, options);
+      const live = transportLayout(bar, { ...options, live: true });
+      expect(live.controls.get("live")).toEqual(plain.controls.get("exportLog"));
+      expect(live.controls.has("exportLog")).toBe(false);
+      expect(live.seek).toEqual(plain.seek);
+      expect(live.label).toEqual(plain.label);
+      const rects = [...live.controls.values(), live.seek];
+      for (const [i, a] of rects.entries())
+        for (const b of rects.slice(i + 1))
+          expect(a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height).toBe(
+            false,
+          );
+      expect(live.controls.get("live")!.height).toBeGreaterThanOrEqual(36);
+    }
+  });
+
+  test("an ordinary replay's bar has no live control", () => {
+    expect(transportLayout(BARS[0]).controls.has("live")).toBe(false);
+  });
+});

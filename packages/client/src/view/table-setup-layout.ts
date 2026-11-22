@@ -229,6 +229,8 @@ export interface TableSetupLayout {
   readonly reroll: Rect;
   /** Room for the seed field's own helper text, right under it — empty (zero height) when there's no room at all. */
   readonly seedHelper: Rect;
+  /** "Let people watch this game" (#876): a full-width toggle row right above Deal it out (wide and narrow; compact scrolls it as a row). */
+  readonly watch: Rect;
   readonly dealItOut: Rect;
 }
 
@@ -267,10 +269,14 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     layout.seed,
     layout.reroll,
     layout.seedHelper,
+    layout.watch,
     layout.dealItOut,
   ];
   return rects;
 }
+
+/** The narrow layout's column width from which the watch toggle sits beside the seed and Reroll. */
+const NARROW_WATCH_INLINE_MIN_COLUMN = 560;
 
 /** The room a scrolling grid leaves for its scrollbar. */
 const MODULAR_SCROLLBAR_ROOM = 10;
@@ -606,7 +612,8 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     width: sWidth,
     height: hit.primary,
   };
-  const seedHelperHeight = Math.max(0, dealItOut.y - 6 - sy);
+  const watch: Rect = { x: sLeft, y: dealItOut.y - 10 - hit.target, width: sWidth, height: hit.target };
+  const seedHelperHeight = Math.max(0, watch.y - 6 - sy);
   const seedHelper: Rect = { x: sLeft, y: sy, width: sWidth, height: seedHelperHeight };
 
   return {
@@ -645,6 +652,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     seed,
     reroll,
     seedHelper,
+    watch,
     dealItOut,
   };
 }
@@ -733,7 +741,11 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   const mandatoryBottom = y;
   const seedHeight = hit.target;
   const rerollWidth = 96;
-  const seedWidth = column - rerollWidth - 10;
+  // The watch toggle (#876) shares the seed's row when the page is wide enough for both (a tablet in portrait); a
+  // narrower page is the phone's compact layout, which scrolls it as a row of its own, so it has no rect here.
+  const watchInline = column >= NARROW_WATCH_INLINE_MIN_COLUMN;
+  const watchWidth = watchInline ? Math.min(340, Math.round(column * 0.42)) : 0;
+  const seedWidth = column - rerollWidth - 10 - (watchInline ? watchWidth + 10 : 0);
   const seedY = dealItOut.y - 10 - seedHeight;
   const roomAbove = Math.max(0, seedY - gap - mandatoryBottom);
 
@@ -804,6 +816,12 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   const seed: Rect = { x: left, y: seedY, width: seedWidth, height: seedHeight };
   const reroll: Rect = { x: left + seedWidth + 10, y: seedY, width: rerollWidth, height: seedHeight };
   const seedHelper: Rect = { x: left, y: 0, width: column, height: 0 };
+  const watch: Rect = {
+    x: left + seedWidth + 10 + rerollWidth + 10,
+    y: seedY,
+    width: watchWidth,
+    height: watchInline ? seedHeight : 0,
+  };
 
   // A final defensive clamp, not a normal case: on a viewport shorter than any this module was designed against
   // (below the "short desktop"/"very short" cases its own tests cover), the flexible blocks' own *fixed* overhead
@@ -868,6 +886,7 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     seed,
     reroll,
     seedHelper,
+    watch,
     dealItOut,
   };
 }
@@ -1115,6 +1134,7 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   rows.push({ id: "firstPlayer", height: COMPACT_FIRST_PLAYER_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:seed", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "seed", height: COMPACT_SEED_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "watch", height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:encounter", height: COMPACT_HEADER_ROW_HEIGHT });
   const encounterRowCount = input.compositionRows + input.whatsInThereRows + (input.hasNemesisStandby ? 1 : 0);
   const encounterPanelHeight =
