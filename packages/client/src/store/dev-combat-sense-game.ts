@@ -76,10 +76,7 @@ async function toCombatSenseWindow(store: SessionStore): Promise<void> {
     if (!game || game.outcome || actions?.kind !== "choice") return;
     const { choice } = actions;
     const ours = choice.options.find((option) => JSON.stringify(option).includes(COMBAT_SENSE));
-    if (ours) {
-      console.log("[966] window", JSON.stringify(choice.prompt).slice(0, 300), JSON.stringify(ours).slice(0, 300));
-      return;
-    }
+    if (ours) return;
     const picks =
       choice.prompt.kind === "discardDownToHandSize"
         ? choice.options.slice(choice.options.length - choice.minSelections)
