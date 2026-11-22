@@ -20,8 +20,8 @@ On a phone or a tablet, tapping a deck in Decks & Collection now opens everythin
 
 ![Also in v0.53.0: responses to a discard, the Mod SDK's hand-discard event, new tests, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-07-also-in-v0-53-0.jpg)
 
-![Coming soon, multiplayer: a sneak peek at a room with seats and chat, Play online with Live now, and choosing a deck for a seat](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-08-coming-soon-multiplayer.jpg)
+![Coming soon, multiplayer: a sneak peek at Assemble Online, with co-op rooms, Epic Multiplayer, Civil War team vs team and watching live](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-08-coming-soon-multiplayer.jpg)
 
 ![Thank you to @bluefireF5ran, @FirePenguin17, @PermaKarma, @neopolii, Firedudeman750 and Carl (The Lone Adventurer)](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-09-thank-you.jpg)
 
-![Code shipped since v0.52.0: 17 pull requests, 232 files, 9,777 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)
+![Code shipped since v0.52.0: 17 pull requests, 231 files, 9,765 lines added and 616 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/46cd05ce42c1183cef80faa173096a026b5d62f1/docs/screenshots/releases/v0.53.0/v0-53-0-release-10-code-shipped.jpg)

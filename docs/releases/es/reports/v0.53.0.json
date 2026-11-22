@@ -96,9 +96,8 @@
   "A sneak peek · Not in this release": "Un adelanto · No está en esta versión",
   "<small>Achievement in progress</small><span>Avengers Assemble Online</span>": "<small>Logro en progreso</small><span>Avengers, reúnanse en línea</span>",
   "<b>Multiplayer is being built now, and it's coming along.</b> Host a room, invite friends with a code or a link, and each player plays their own hero from their own device. It isn't in v0.53.0, but here's a first look at the screens. Single player and offline play stay just as they are.": "<b>El multijugador se está construyendo ahora, y va avanzando.</b> Crea una sala, invita a tus amigos con un código o un enlace, y cada jugador juega su propio héroe desde su propio dispositivo. No está en v0.53.0, pero aquí tienes un primer vistazo a sus pantallas. Un jugador y el juego sin conexión siguen igual que siempre.",
-  "The room: seats, the host's table settings and chat, with test players": "La sala: asientos, los ajustes de mesa del anfitrión y el chat, con jugadores de prueba",
-  "Play online: host a room, join with a code, or watch a game": "Play online: crea una sala, únete con un código o mira una partida",
-  "Each player brings their own deck to their seat": "Cada jugador trae su propio mazo a su asiento",
+  "Multiplayer is on its way": "El multijugador está en camino",
+  "Epic Multiplayer, Choosing Sides and Civil War Competitive, in the works": "Epic Multiplayer, Choosing Sides y Civil War Competitive, en preparación",
   "What's in the works": "Lo que viene en camino",
   "Host a room and invite friends with a code or a link.": "Crea una sala e invita a tus amigos con un código o un enlace.",
   "One to four players, each with their own hero and deck, with a lobby and chat.": "De uno a cuatro jugadores, cada uno con su propio héroe y mazo, con una sala de espera y chat.",
@@ -149,8 +148,7 @@
   "Toma asiento in Spanish: Asiento 1 with Spider-Man seated, the Aleatorio, Arte del juego and Usar preconstruido buttons, and aspect chips Agresividad, Justicia, Liderazgo, Protección and Masacrismo": "Toma asiento en español: Asiento 1 con Spider-Man sentado, los botones Aleatorio, Arte del juego y Usar preconstruido, y las etiquetas de aspecto Agresividad, Justicia, Liderazgo, Protección y Masacrismo",
   "Chamber in play with his THW and ATK badges sitting on the printed stats, so the consequential damage under them shows": "Chamber en juego con sus insignias de THW y ATK sobre las estadísticas impresas, así que se ve el daño consecuente debajo",
   "Your stats, Matchups, by hero: custom scenarios listed by name, with The Rose (by PermaKarma) at the bottom": "Your stats, Matchups, por héroe: escenarios personalizados por nombre, con The Rose (by PermaKarma) al final",
-  "A multiplayer room, code 8F2 CH9: four seats with Spider-Man and She-Hulk, players asking for a seat with Approve and Deny, the table settings and the room chat": "Una sala multijugador, código 8F2 CH9: cuatro asientos con Spider-Man y She-Hulk, jugadores que piden un asiento con Approve y Deny, los ajustes de mesa y el chat de la sala",
-  "Play online: Live now lists rooms to join or watch, beside Host a room and a box to type a room code": "Play online: Live now muestra salas para unirse o mirar, junto a Host a room y un cuadro para escribir el código de una sala",
-  "Choose your deck for seat 1: a grid of hero decks with Spider-Man's Core Set deck open beside it, with its stats and Use this deck": "Choose your deck para el asiento 1: una cuadrícula de mazos de héroes con el mazo Core Set de Spider-Man abierto al lado, con sus estadísticas y Use this deck",
+  "Assemble Online, multiplayer coming soon: a row of hero art over the title, with Co-op rooms, Epic Multiplayer, Civil War: team vs team and Watch live": "Assemble Online, multijugador próximamente: una fila de arte de héroes sobre el título, con Co-op rooms, Epic Multiplayer, Civil War: team vs team y Watch live",
+  "Assemble Online: co-op rooms for 1 to 4 heroes with live chat, Epic Multiplayer with many tables against one Loki, Civil War team vs team with Choosing Sides, and watching any game live, beside screens from each": "Assemble Online: salas cooperativas de 1 a 4 héroes con chat en directo, Epic Multiplayer con muchas mesas contra un solo Loki, Civil War equipo contra equipo con Choosing Sides, y mirar cualquier partida en directo, junto a pantallas de cada uno",
   "Code shipped since v0.52.0": "Código publicado desde v0.52.0"
 }
