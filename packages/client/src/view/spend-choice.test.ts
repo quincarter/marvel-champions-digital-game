@@ -179,7 +179,7 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
       expect(spendAnswerOf(lone, toggleSpendPick(lone, [], `pick:a@${base}`))).toEqual([sub(["a"], []).optionId]);
     });
 
-    test("past what the engine lists, a tap lands on the nearest set it offers (seven upgrades and more)", () => {
+    test("past what the engine lists (nine upgrades and more), a tap never picks a card that was not tapped", () => {
       // Offered: each card alone, a+b, and a+b+c; b+c is not.
       const capped = choiceOf([
         sub(["a"], []),
@@ -189,13 +189,11 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
         sub(["a", "b", "c"], []),
       ]);
       const all = [`pick:a@${base}`, `pick:b@${base}`, `pick:c@${base}`];
-      // Taking a out of a+b+c leaves b+c, which is not offered: the largest offered set inside it, one card.
-      const out = toggleSpendPick(capped, all, `pick:a@${base}`);
-      expect(out).toHaveLength(1);
-      expect(spendAnswerOf(capped, out)).toHaveLength(1);
-      // Adding c to b reaches no b+c either: the smallest offered set holding both, a+b+c.
-      const grown = toggleSpendPick(capped, [`pick:b@${base}`], `pick:c@${base}`);
-      expect([...grown].sort()).toEqual([...all].sort());
+      // Taking a out of a+b+c leaves b+c, which is not listed: the pick clears, and nothing is exhausted by surprise.
+      expect(spendAnswerOf(capped, toggleSpendPick(capped, all, `pick:a@${base}`))).toEqual([]);
+      // Adding c to b makes b+c, not listed either: nothing changes, and a is never added for the player.
+      const b = [`pick:b@${base}`];
+      expect(toggleSpendPick(capped, b, `pick:c@${base}`)).toBe(b);
     });
 
     test("a caption reads the card alone, with no plain spending", () => {

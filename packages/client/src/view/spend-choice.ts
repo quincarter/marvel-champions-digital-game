@@ -203,7 +203,7 @@ function shownHandExhaust(choice: PendingChoice): PendingChoice {
 export function toggleSpendPick(choice: PendingChoice, picks: readonly string[], id: string): readonly string[] {
   const group = parsePickTile(id);
   if (group) {
-    // The nearest set the engine offers (`nextPickSet`); none holding the card with the ones picked changes nothing.
+    // Only the tapped card changes (`nextPickSet`); a set the engine does not list changes nothing, or clears the pick.
     const next = nextPickSet(
       groupWays(choice, group.base).map((way) => abilityPicksOf(way.optionId)),
       pickedOfGroup(picks, group.base),

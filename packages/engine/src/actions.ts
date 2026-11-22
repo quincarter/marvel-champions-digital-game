@@ -1758,11 +1758,11 @@ function picksMany(deps: EngineDeps, abilityId: string): boolean {
 /** Most payment options one resource ability offers for the different cards its cost could pick (a cap, not a rule). */
 const MAX_PICK_OPTIONS = 20;
 /**
- * Every subset is offered while there are at most this many candidates (2^6 = 64 options): the payment sheet builds an
+ * Every subset is offered while there are at most this many candidates (2^8 = 256 options): the payment sheet builds an
  * "any number" pick one card at a time (issue #966, Enhanced Combat Sense), and a set the cap left out could not be
  * reached from the cards picked so far.
  */
-const ALL_SUBSETS_UP_TO = 6;
+const ALL_SUBSETS_UP_TO = 8;
 
 /** Every way to choose `size` of `ids`, in order. */
 function* combinations<T>(ids: readonly T[], size: number, from = 0): Generator<readonly T[]> {

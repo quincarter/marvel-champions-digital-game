@@ -638,7 +638,7 @@ export function pickGroupTiles(state: GameState, payment: PaymentState): readonl
         onTop: false,
         underSubject: null,
         orderNote: null,
-        lockedReason: reachable ? null : "not offered with the cards picked so far",
+        lockedReason: reachable ? null : "the game lists only some sets past eight cards: unpick one first",
         exhaustFor: ways[0]!.instanceId,
       };
     });
