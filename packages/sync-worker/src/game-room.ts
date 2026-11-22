@@ -2063,6 +2063,7 @@ export class GameRoomLogic {
           ...(message.settings?.handover !== undefined ? { handover: message.settings.handover } : {}),
           ...(message.settings?.hostSeesHands !== undefined ? { hostSeesHands: message.settings.hostSeesHands } : {}),
           ...(message.settings?.villainPacing !== undefined ? { villainPacing: message.settings.villainPacing } : {}),
+          ...(message.settings?.askToSit !== undefined ? { askToSit: message.settings.askToSit } : {}),
           ...(message.settings?.chat !== undefined ? { chat: message.settings.chat } : {}),
           ...(message.settings?.listed !== undefined ? { listed: message.settings.listed } : {}),
         };
@@ -2129,8 +2130,8 @@ export class GameRoomLogic {
         }
         if (seat.holder) return this.refuse(socket, "seat-taken");
         if (!settings.multiSeat && this.seatsHeldBy(lobby, who.id) > 0) return this.refuse(socket, "multi-seat");
-        if (isHost) {
-          // The host approves their own request.
+        if (isHost || settings.askToSit !== true) {
+          // The host approves their own request; a guest claims an open seat unless the host asks to be asked.
           tokens.push(await this.grant(seat, who));
           persist = true;
         } else {
