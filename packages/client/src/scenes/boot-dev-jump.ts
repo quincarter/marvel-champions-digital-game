@@ -344,6 +344,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
               }
             : {}),
           ...(params.get("unread") ? { unread: Number(params.get("unread")) } : {}),
+          // `&plan=none` shows a lobby whose host has not picked the table yet.
+          ...(params.get("plan") === "none" ? { tablePlan: null } : {}),
         }),
         ...(params.get("result") === "decks" ? { startResult: "decks" } : {}),
       },

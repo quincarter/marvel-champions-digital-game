@@ -17,6 +17,7 @@ import {
   type ClientMessage,
   type DeckRefusalCode,
   type HostActivityStep,
+  type TablePlan,
   type RoomDeck,
   type RoomBuild,
   type RoomDevice,
@@ -334,6 +335,12 @@ export class RoomSession {
   hostActivity(step: HostActivityStep, scenario?: string): void {
     if (this.role !== "host") return;
     this.#say({ ch: "room", kind: "host-activity", step, ...(scenario ? { scenario } : {}) });
+  }
+
+  /** Host only: the table the host picked (`null` clears it). Memory only in the room, never the lobby revision. */
+  tablePlan(plan: TablePlan | null): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "table-plan", plan });
   }
 
   chat(text: string): void {
