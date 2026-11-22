@@ -96,51 +96,53 @@ export interface DeckActionsPlan {
   readonly sideWidth: number | null;
 }
 
-export interface DeckActionsPlanInput {
-  readonly width: number;
-  readonly height: number;
-  /** The buttons in the grid: every action but the red one. */
-  readonly gridCount: number;
-  /** The header's text column (title, meta, status) as drawn beside the picture. */
-  readonly headerTextHeight: number;
-  /** The warning and the last unavailable press's reason, as drawn across the box, or 0. */
-  readonly notesHeight: number;
+/** Where a plan wraps the sheet's text: the header beside (or under) the picture, and the notes. */
+export interface DeckActionsTextWidths {
+  readonly header: number;
+  readonly notes: number;
+}
+
+/** The sheet's text as drawn at one plan's widths. */
+export interface DeckActionsMeasured {
+  /** The header's text column (title, meta, status). */
+  readonly header: number;
+  /** The warning and the last unavailable press's reason, or 0. */
+  readonly notes: number;
 }
 
 export const DECK_ACTIONS_PAD = 16;
 export const DECK_ACTIONS_GAP = 8;
 const CELL_MIN_WIDTH = 104;
-/** Text in the side column is about this much narrower than across the box, so it wraps to more lines. */
-const SIDE_TEXT_GROWTH = 1.6;
+
+/** The text widths a plan gives the header and the notes. */
+export function deckActionsTextWidths(plan: DeckActionsPlan): DeckActionsTextWidths {
+  const inner = plan.boxWidth - DECK_ACTIONS_PAD * 2;
+  if (plan.sideWidth === null) return { header: inner - plan.thumb.width - 12, notes: inner };
+  return { header: plan.sideWidth, notes: inner - plan.sideWidth - DECK_ACTIONS_PAD };
+}
 
 /** The rows of buttons a plan draws: the red one, the grid, and Back unless it is in the grid. */
 export function deckActionsRows(plan: DeckActionsPlan, gridCount: number): number {
   return 1 + Math.ceil((gridCount + (plan.backInGrid ? 1 : 0)) / plan.columns) + (plan.backInGrid ? 0 : 1);
 }
 
-/** The sheet's whole height for one plan. */
-export function deckActionsHeight(plan: DeckActionsPlan, input: DeckActionsPlanInput): number {
-  const buttons = deckActionsRows(plan, input.gridCount) * (plan.row + DECK_ACTIONS_GAP) - DECK_ACTIONS_GAP;
-  const notes = input.notesHeight > 0 ? input.notesHeight + DECK_ACTIONS_GAP : 0;
+/** The sheet's whole height for one plan, with its text measured at that plan's widths. */
+export function deckActionsHeight(plan: DeckActionsPlan, gridCount: number, measured: DeckActionsMeasured): number {
+  const buttons = deckActionsRows(plan, gridCount) * (plan.row + DECK_ACTIONS_GAP) - DECK_ACTIONS_GAP;
+  const notes = measured.notes > 0 ? measured.notes + DECK_ACTIONS_GAP : 0;
   if (plan.sideWidth !== null) {
     // The notes go under the buttons, across the right-hand column.
-    const side = plan.thumb.height + DECK_ACTIONS_GAP + input.headerTextHeight * SIDE_TEXT_GROWTH;
+    const side = plan.thumb.height + DECK_ACTIONS_GAP + measured.header;
     return DECK_ACTIONS_PAD * 2 + Math.max(side, buttons + notes);
   }
-  const header = Math.max(plan.thumb.height, input.headerTextHeight);
+  const header = Math.max(plan.thumb.height, measured.header);
   return DECK_ACTIONS_PAD * 3 + header + buttons + notes;
 }
 
-/**
- * The roomiest layout that fits the screen: two columns of tall buttons on a phone held upright and a tablet, then
- * three, then four with Back in the grid and a smaller picture, then, for a phone held sideways, the header in a
- * column beside the buttons (#958 review: every action and Back stay on screen, with Delete armed too). The last
- * plan is used when nothing fits.
- */
-export function deckActionsPlan(input: DeckActionsPlanInput): DeckActionsPlan {
-  const margin = input.width < 600 || input.height < 500 ? 12 : 24;
-  const room = input.height - margin * 2;
-  const thumbOf = (height: number) => ({ width: Math.round((height * 64) / 90), height });
+/** Every layout the sheet can take at this screen size, roomiest first. */
+export function deckActionsCandidates(width: number, height: number): readonly DeckActionsPlan[] {
+  const margin = width < 600 || height < 500 ? 12 : 24;
+  const thumbOf = (thumbHeight: number) => ({ width: Math.round((thumbHeight * 64) / 90), height: thumbHeight });
   const candidates: DeckActionsPlan[] = [];
   const fitsCells = (boxWidth: number, columns: number, sideWidth: number | null): boolean => {
     const inner = boxWidth - DECK_ACTIONS_PAD * 2 - (sideWidth === null ? 0 : sideWidth + DECK_ACTIONS_PAD);
@@ -151,16 +153,39 @@ export function deckActionsPlan(input: DeckActionsPlanInput): DeckActionsPlan {
     [3, 44, 62, false, 640],
     [4, 44, 62, true, 720],
   ] as const) {
-    const boxWidth = Math.min(maxWidth, input.width - margin * 2);
+    const boxWidth = Math.min(maxWidth, width - margin * 2);
     if (candidates.length > 0 && !fitsCells(boxWidth, columns, null)) continue;
     candidates.push({ boxWidth, margin, columns, row, thumb: thumbOf(thumbHeight), backInGrid, sideWidth: null });
   }
   for (const columns of [3, 2] as const) {
-    const boxWidth = Math.min(820, input.width - margin * 2);
+    const boxWidth = Math.min(820, width - margin * 2);
     const sideWidth = Math.round(Math.min(240, boxWidth * 0.32));
     if (!fitsCells(boxWidth, columns, sideWidth)) continue;
     candidates.push({ boxWidth, margin, columns, row: 44, thumb: thumbOf(62), backInGrid: true, sideWidth });
     break;
   }
-  return candidates.find((plan) => deckActionsHeight(plan, input) <= room) ?? candidates[candidates.length - 1]!;
+  return candidates;
+}
+
+export interface DeckActionsPlanInput {
+  readonly width: number;
+  readonly height: number;
+  /** The buttons in the grid: every action but the red one. */
+  readonly gridCount: number;
+  /** The sheet's text drawn at a plan's widths (`deckActionsTextWidths`). */
+  readonly measure: (widths: DeckActionsTextWidths) => DeckActionsMeasured;
+}
+
+/**
+ * The roomiest layout whose real text fits the screen: two columns of tall buttons on a phone held upright and a
+ * tablet, then three, then four with Back in the grid and a smaller picture, then, for a phone held sideways, the
+ * header in a column beside the buttons (#958 review: every action and Back stay on screen, with Delete armed too).
+ * Null when none fits: the caller shortens its notes and asks again.
+ */
+export function deckActionsPlan(input: DeckActionsPlanInput): DeckActionsPlan | null {
+  for (const plan of deckActionsCandidates(input.width, input.height)) {
+    const measured = input.measure(deckActionsTextWidths(plan));
+    if (deckActionsHeight(plan, input.gridCount, measured) <= input.height - plan.margin * 2) return plan;
+  }
+  return null;
 }

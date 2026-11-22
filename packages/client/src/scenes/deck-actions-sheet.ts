@@ -17,17 +17,21 @@ import { textStyle } from "../ui/theme.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
-import { McButton, fitText, fitWrapped } from "../ui/widgets.js";
+import { McButton, clampLines, fitText, fitWrapped } from "../ui/widgets.js";
 import { onTap } from "../ui/tap.js";
 import { hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import {
   DECK_ACTIONS_GAP,
   DECK_ACTIONS_PAD,
+  deckActionsCandidates,
   deckActionsHeight,
   deckActionsOf,
   deckActionsPlan,
+  deckActionsTextWidths,
   type DeckActionId,
   type DeckActionsInput,
+  type DeckActionsMeasured,
+  type DeckActionsTextWidths,
 } from "../view/deck-actions.js";
 import type { Rect } from "../view/layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -59,8 +63,6 @@ export interface DeckActionsSheetData {
 
 const BUTTON_TYPE = { ...typeRole.label, size: 14 };
 const NOTE_SIZE = 13;
-/** The header's picture width at the roomiest plan, for measuring the header's text before a plan is chosen. */
-const WIDEST_THUMB = 64;
 
 export class DeckActionsSheet extends Phaser.Scene {
   #data!: DeckActionsSheetData;
@@ -71,7 +73,7 @@ export class DeckActionsSheet extends Phaser.Scene {
   #thumb: Rect | null = null;
   #box: Rect | null = null;
   #deleteArmed = false;
-  /** Delete's "can't be undone" warning, shown for as long as Delete is armed. */
+  /** Delete's "can't be undone" warning as last drawn, shown for as long as Delete is armed. */
   #warning: string | null = null;
   /** Why the last press on an unavailable button did nothing (a touch has no hover to say it). */
   #note: string | null = null;
@@ -138,8 +140,6 @@ export class DeckActionsSheet extends Phaser.Scene {
   #press(id: DeckActionId): void {
     if (id === "delete" && !this.#deleteArmed) {
       this.#deleteArmed = true;
-      const title = this.#data.current()?.title ?? "this deck";
-      this.#warning = `Press Confirm delete to remove “${title}”. This can't be undone.`;
       this.#draw();
       this.#route?.focusKey("action:delete");
       return;
@@ -200,55 +200,73 @@ export class DeckActionsSheet extends Phaser.Scene {
       `${now.status.problem ? "✕" : "✓"} ${now.status.text}`,
       textStyle(typeRole.label, now.status.problem ? accent.heroRed.hex : surface.ink.hex, 1),
     );
-    const notes = [this.#warning, this.#note]
-      .filter((text): text is string => text !== null)
-      .map((text) => this.add.text(0, 0, text, textStyle(typeRole.body, accent.heroRed.hex)).setFontSize(NOTE_SIZE));
-    const fitHeader = (textWidth: number, innerWidth: number): { header: number; notes: number } => {
-      title.setWordWrapWidth(textWidth, true);
-      fitWrapped(title, textWidth, 2, typeRole.barTitle.size);
-      meta.setWordWrapWidth(textWidth, true);
-      fitWrapped(meta, textWidth, 2, NOTE_SIZE);
-      fitText(status, textWidth, typeRole.label.size);
-      for (const note of notes) note.setWordWrapWidth(innerWidth, true);
+    // The notes: Delete's warning for as long as it is armed, and why the last press did nothing. On a screen too
+    // short for them in full, the warning drops the deck's name (it is in the header) and the reason keeps two lines.
+    let notes: Phaser.GameObjects.Text[] = [];
+    let short = false;
+    const makeNotes = (): void => {
+      for (const note of notes) note.destroy();
+      const warning = !this.#deleteArmed
+        ? null
+        : short
+          ? "Press Confirm delete again to delete this deck. This can't be undone."
+          : `Press Confirm delete to remove “${now.title}”. This can't be undone.`;
+      this.#warning = warning;
+      notes = [warning, this.#note]
+        .filter((text): text is string => text !== null)
+        .map((text) => this.add.text(0, 0, text, textStyle(typeRole.body, accent.heroRed.hex)).setFontSize(NOTE_SIZE));
+    };
+    makeNotes();
+    const measure = (widths: DeckActionsTextWidths): DeckActionsMeasured => {
+      title.setWordWrapWidth(widths.header, true);
+      fitWrapped(title, widths.header, 2, typeRole.barTitle.size);
+      meta.setWordWrapWidth(widths.header, true);
+      fitWrapped(meta, widths.header, 2, NOTE_SIZE);
+      fitText(status, widths.header, typeRole.label.size);
+      notes.forEach((note, at) => {
+        note.setWordWrapWidth(widths.notes, true);
+        // The warning is never cut; the reason is, to two lines, when space is short.
+        if (short && at === notes.length - 1 && this.#note !== null) clampLines(note, 2);
+      });
       return {
         header: title.height + 4 + meta.height + 6 + status.height,
         notes: notes.reduce((sum, note, at) => sum + note.height + (at > 0 ? 4 : 0), 0),
       };
     };
-    // Measured at the narrowest box any plan uses, so the plan never undercounts the header; refit once it is chosen.
-    const narrowest = Math.min(520, width - (width < 600 ? 12 : 24) * 2);
-    const measured = fitHeader(narrowest - DECK_ACTIONS_PAD * 2 - WIDEST_THUMB - 12, narrowest - DECK_ACTIONS_PAD * 2);
-    const planInput = { width, height, gridCount: rest.length, headerTextHeight: measured.header };
-    const plan = deckActionsPlan({ ...planInput, notesHeight: measured.notes });
-    const side = plan.sideWidth;
-    const boxX = Math.round((width - plan.boxWidth) / 2);
+    const planInput = { width, height, gridCount: rest.length, measure };
+    let plan = deckActionsPlan(planInput);
+    if (plan === null && notes.length > 0) {
+      short = true;
+      makeNotes();
+      plan = deckActionsPlan(planInput);
+    }
+    const chosen = plan ?? deckActionsCandidates(width, height).at(-1)!;
+    const fitted = measure(deckActionsTextWidths(chosen));
+    const side = chosen.sideWidth;
+    const boxX = Math.round((width - chosen.boxWidth) / 2);
     const left = boxX + DECK_ACTIONS_PAD;
     // The buttons' column: the whole box, or the right-hand part beside the header on a short, wide screen.
     const buttonsX = side === null ? left : left + side + DECK_ACTIONS_PAD;
-    const innerWidth = boxX + plan.boxWidth - DECK_ACTIONS_PAD - buttonsX;
-    const textX = side === null ? left + plan.thumb.width + 12 : left;
-    const fitted = fitHeader(side ?? boxX + plan.boxWidth - DECK_ACTIONS_PAD - textX, innerWidth);
-    const boxHeight = Math.min(
-      height - plan.margin * 2,
-      deckActionsHeight(plan, { ...planInput, headerTextHeight: fitted.header, notesHeight: fitted.notes }),
-    );
-    const box: Rect = { x: boxX, y: Math.round((height - boxHeight) / 2), width: plan.boxWidth, height: boxHeight };
+    const innerWidth = boxX + chosen.boxWidth - DECK_ACTIONS_PAD - buttonsX;
+    const textX = side === null ? left + chosen.thumb.width + 12 : left;
+    const boxHeight = Math.min(height - chosen.margin * 2, deckActionsHeight(chosen, rest.length, fitted));
+    const box: Rect = { x: boxX, y: Math.round((height - boxHeight) / 2), width: chosen.boxWidth, height: boxHeight };
     this.#box = box;
     ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
     ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
 
     const top = box.y + DECK_ACTIONS_PAD;
-    this.#thumb = { x: left, y: top, ...plan.thumb };
+    this.#thumb = { x: left, y: top, ...chosen.thumb };
     renderArtThumb(this, this.#thumb, this.#data.artUrl, 0.2, this.#data.artFocus);
-    title.setPosition(textX, side === null ? top : top + plan.thumb.height + DECK_ACTIONS_GAP);
+    title.setPosition(textX, side === null ? top : top + chosen.thumb.height + DECK_ACTIONS_GAP);
     meta.setPosition(textX, title.y + title.height + 4);
     status.setPosition(textX, meta.y + meta.height + 6);
 
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
-    const row = plan.row;
+    const row = chosen.row;
     const gap = DECK_ACTIONS_GAP;
-    let y = side === null ? top + Math.max(plan.thumb.height, fitted.header) + DECK_ACTIONS_PAD : top;
+    let y = side === null ? top + Math.max(chosen.thumb.height, fitted.header) + DECK_ACTIONS_PAD : top;
     const add = (key: string, button: McButton, rect: Rect, activate: () => void): void => {
       this.#buttons.push(button);
       stops.set(key, { rect, activate });
@@ -279,11 +297,11 @@ export class DeckActionsSheet extends Phaser.Scene {
       );
       y += row + gap;
     }
-    const cellWidth = (innerWidth - gap * (plan.columns - 1)) / plan.columns;
+    const cellWidth = (innerWidth - gap * (chosen.columns - 1)) / chosen.columns;
     const gridTop = y;
     const cellAt = (index: number): Rect => ({
-      x: buttonsX + (index % plan.columns) * (cellWidth + gap),
-      y: gridTop + Math.floor(index / plan.columns) * (row + gap),
+      x: buttonsX + (index % chosen.columns) * (cellWidth + gap),
+      y: gridTop + Math.floor(index / chosen.columns) * (row + gap),
       width: cellWidth,
       height: row,
     });
@@ -303,13 +321,13 @@ export class DeckActionsSheet extends Phaser.Scene {
         () => this.#press(action.id),
       );
     });
-    y = gridTop + Math.ceil((rest.length + (plan.backInGrid ? 1 : 0)) / plan.columns) * (row + gap);
+    y = gridTop + Math.ceil((rest.length + (chosen.backInGrid ? 1 : 0)) / chosen.columns) * (row + gap);
     for (const note of notes) {
       note.setPosition(buttonsX, y);
       y += note.height + 4;
     }
     if (notes.length > 0) y += gap - 4;
-    const backRect: Rect = plan.backInGrid ? cellAt(rest.length) : { x: buttonsX, y, width: innerWidth, height: row };
+    const backRect: Rect = chosen.backInGrid ? cellAt(rest.length) : { x: buttonsX, y, width: innerWidth, height: row };
     const back = new McButton(this, {
       kind: "secondary",
       label: "Back",

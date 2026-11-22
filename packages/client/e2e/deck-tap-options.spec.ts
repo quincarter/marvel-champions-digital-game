@@ -15,6 +15,7 @@ interface DeckRow {
   readonly name: string;
   readonly source: string;
   readonly selected: boolean;
+  readonly status: string;
 }
 
 const SHEET = "DeckActionsSheet";
@@ -201,18 +202,31 @@ async function duplicate(page: Page, deckId: string): Promise<DeckRow> {
 test.describe("the deck's options (#958 review)", () => {
   test.beforeEach(({ browserName: _browser }, info) => test.skip(info.project.name !== "phone", "touch layout"));
 
-  test("a deck still being checked opens with Play ready", async ({ page }) => {
-    // Hold back the worker that checks the whole list, so every other deck still reads Checking… when it is tapped.
+  test("a deck still being checked opens with a Play that seats it", async ({ page }) => {
+    // Hold back the worker that checks the whole list, so the deck tapped still reads Checking… until the tap.
     await page.route(/deck-search\.worker/, async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 25_000));
       await route.continue().catch(() => undefined);
     });
     const errors = trackErrors(page);
-    const list = await openDecks(page);
-    const target = list.find((deck) => deck.source === "precon" && !deck.selected)!;
-    expect(await hook(page, "__mcDecksDebug", "checking"), "the list is still being checked").toBe(true);
+    await openDecks(page);
+    const height = page.viewportSize()!.height;
+    const target = await waitFor(async () => {
+      const stops = (await routeStops(page, "Decks"))?.stops ?? [];
+      const shown = (id: string): boolean =>
+        stops.some(
+          (stop) => stop.key === `deck:${id}` && stop.rect.y > 250 && stop.rect.y + stop.rect.height < height - 180,
+        );
+      return (await decks(page)).find((deck) => deck.status === "Checking…" && shown(deck.id)) ?? null;
+    }, "a deck on screen still being checked");
     await openOptions(page, target.id);
-    expect(await sheetAction(page, "play")).toMatchObject({ enabled: true });
+    // The drawn Play button, pressed for real: it seats this deck.
+    await tap(page, SHEET, "action:play");
+    await waitForScene(page, "Seats");
+    await waitFor(
+      async () => ((await hook<string[]>(page, "__mcSeatsDebug", "seats")) ?? []).includes(target.id) || null,
+      "the checked deck in seat one",
+    );
     expect(errors).toEqual([]);
   });
 
@@ -333,6 +347,39 @@ test.describe("the deck's options (#958 review)", () => {
     await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
     await settle(page);
     await inView();
+    await tap(page, SHEET, "back");
+    await waitForSheet(page, false);
+  });
+
+  test("sideways, a long-named illegal deck shows both notes and keeps every control on screen", async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 667, height: 375 });
+    await openDecks(page);
+    await tap(page, "Decks", "ie-paste-toggle");
+    await tap(page, "Decks", "paste-field");
+    await page.keyboard.type(
+      "Deck name: The Ragin' Cajun's Very Long Kinetic Card Throwing Justice Deck That Is Not Finished Yet\n" +
+        "Hero: Gambit\nAspect: Justice\n2x Energy",
+    );
+    await settle(page);
+    await tap(page, "Decks", "paste-import");
+    const illegal = await waitFor(
+      async () => (await decks(page)).find((deck) => deck.source === "imported" && deck.selected) ?? null,
+      "the imported deck",
+    );
+    await openOptions(page, illegal.id);
+    await tap(page, SHEET, "action:delete");
+    await waitFor(async () => (await sheetHook<boolean>(page, "armed")) || null, "Delete armed");
+    await tap(page, SHEET, "action:play");
+    await waitFor(async () => (await sheetHook<string>(page, "note")) ?? null, "why Play did nothing");
+    await settle(page);
+    expect(await sheetHook<string>(page, "warning")).toContain("can't be undone");
+    const stops = (await routeStops(page, SHEET))!.stops;
+    expect(stops.map((stop) => stop.key)).toContain("back");
+    for (const { key, rect } of stops) {
+      expect(rect.y, `${key} starts on screen`).toBeGreaterThanOrEqual(0);
+      expect(rect.y + rect.height, `${key} ends on screen`).toBeLessThanOrEqual(375);
+    }
     await tap(page, SHEET, "back");
     await waitForSheet(page, false);
   });
