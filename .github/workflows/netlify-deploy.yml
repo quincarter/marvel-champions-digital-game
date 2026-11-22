@@ -457,9 +457,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
-          if grep -q '^packages/sync-worker/' <<< "$files"; then
+          # A pull request with another stacked on it (an open PR whose base is this one's branch) leaves staging to the
+          # top of its stack: the top's Worker carries everything below it, and a lower one that deployed last would
+          # put an older Worker under the top's preview (its start then fails on a room without the newer messages).
+          above=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$HEAD_REF" --state open --json number --jq 'length')
+          if [ "$above" != "0" ]; then
+            echo "::notice::A pull request is stacked on this one; the top of the stack deploys the staging Worker."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          elif grep -q '^packages/sync-worker/' <<< "$files"; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This pull request doesn't change packages/sync-worker; skipping the staging deploy."
