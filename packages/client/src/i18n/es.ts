@@ -495,7 +495,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.multi.detail": "Una persona puede llevar más de un héroe.",
   "room.askToSit.title": "Pedir permiso al anfitrión para sentarse",
   "room.askToSit.detail":
-    "Los invitados piden un asiento y tú los apruebas. Desactivado: los invitados ocupan un asiento libre ellos mismos.",
+    "Los invitados piden un asiento y tú los apruebas. Desactivado: los invitados ocupan un asiento libre ellos mismos antes de empezar la partida.",
   "room.listed.title": "Listar esta sala en En vivo",
   "room.listed.detail":
     "Cualquiera puede ver el nombre de la sala, el modo, el escenario y los asientos, y entrar a mirar o pedir un asiento. El código sigue siendo la forma de entrar, y quien lo haya visto puede seguir usándolo después de quitarla de la lista.",
@@ -519,6 +519,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.toast.dismiss": "Cerrar",
   "room.hostHint":
     "Comparte el código o el enlace. Los jugadores piden un asiento y traen su mazo; tú los apruebas y puedes poner un mazo en cualquier asiento.",
+  "room.hostHintClaim":
+    "Comparte el código o el enlace. Los jugadores ocupan un asiento libre y traen su mazo; puedes poner un mazo en cualquier asiento.",
   "room.watch.yourHero": "Tu héroe: {names}",
   "room.watch.yourHeroes": "Tus héroes: {names}",
   "room.opening": "El anfitrión empezó la partida. Abriéndola…",

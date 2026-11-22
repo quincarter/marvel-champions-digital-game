@@ -105,6 +105,8 @@ describe("seatRows", () => {
     expect(seatRows(room(), ctx)[0]?.action).toMatchObject({ kind: "take", labelKey: "room.seat.take", enabled: true });
     const asking = room({ settings: { ...settings, askToSit: true } });
     expect(seatRows(asking, ctx)[0]?.action).toMatchObject({ kind: "ask", labelKey: "room.seat.ask", enabled: true });
+    // A seat open mid-game is the host's to give: a guest asks for it.
+    expect(seatRows(room({ started: true }), ctx)[0]?.action).toMatchObject({ kind: "ask" });
     const mine = seatRows(room({ seats: [seat({ holder: "g", holderName: "Guest", mine: true })] }), ctx)[0];
     expect(mine?.action?.kind).toBe("leave");
   });
