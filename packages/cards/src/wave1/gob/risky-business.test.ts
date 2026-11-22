@@ -218,6 +218,40 @@ describe("Hired Gun", () => {
     const after = settle(answer(atChoice, [String(placeOption)], GOB_DEPS), firstLegal, undefined, GOB_DEPS);
     expect(inst(after, enterprise).counters.infamy).toBeGreaterThanOrEqual(before + 2);
   });
+
+  // #967: once Criminal Enterprise has flipped to State of Madness, the infamy option has no valid target, so it is not
+  // offered (RRG 1.8 "Choose (Option)", p. 12) and the villain takes the boost card.
+  it("When Revealed: with State of Madness in play, the infamy option is barred and the boost card is given", () => {
+    const start = spiderManVsRiskyBusiness();
+    const enterprise = criminalEnterpriseId(start);
+    const goblin = play(patchInstance(start, enterprise, { counters: { infamy: 1 } }), toHero(), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(start),
+      targetInstanceId: activeVillain(start).instanceId,
+    });
+    expect(currentName(goblin, enterprise)).toBe("State of Madness");
+
+    // Plenty of madness so the pair does not flip back this round; two Hired Guns so one is still dealt to the
+    // player after Green Goblin's activation takes its boost card.
+    const staged = stackEncounterDeck(
+      patchInstance(goblin, enterprise, { counters: { madness: 5 } }),
+      "02007",
+      "02007",
+    );
+    const { state: after, events } = driveEvents(staged, endTurn());
+    expect(currentName(after, enterprise)).toBe("State of Madness");
+    expect(playerOf(after, P1).playArea.some((id) => inst(after, id).cardId === "02007")).toBe(true);
+    const chosen = events.filter((e) => e.type === "optionChosen" && e.label.startsWith("Give the villain"));
+    expect(chosen).not.toHaveLength(0);
+    for (const event of chosen) {
+      expect(event).toMatchObject({
+        onlyOption: true,
+        unavailable: { options: [{ label: "Place 2 infamy counters on Criminal Enterprise", reason: "condition" }] },
+      });
+    }
+    expect(events.some((e) => e.type === "optionChosen" && e.label.startsWith("Place 2 infamy"))).toBe(false);
+  });
 });
 
 describe("Oscorp Manufacturing", () => {

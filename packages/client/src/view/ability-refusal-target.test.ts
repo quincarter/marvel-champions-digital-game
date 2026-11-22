@@ -222,6 +222,18 @@ describe("unavailableOptionLines: each option not offered, and why (#412)", () =
     ]);
   });
 
+  test("an option offered only while a named card is in play says that card is not in play (#967)", () => {
+    const unavailable = {
+      chooserId: me,
+      sourceInstanceId: null,
+      abilityId: "02007.when-revealed" as AbilityId,
+      options: [{ index: 1, label: "Place 2 infamy counters on Criminal Enterprise", reason: "condition" as const }],
+    };
+    expect(unavailableOptionLines(game, unavailable, DEPS)).toEqual([
+      "Place 2 infamy counters on Criminal Enterprise: Criminal Enterprise is not in play",
+    ]);
+  });
+
   test("with an ally and Jessica stalwart, the ally option is taken alone and the log says why confuse was not offered", () => {
     const ally = game.players[0]!.deck[1]!;
     const relabelled = {
