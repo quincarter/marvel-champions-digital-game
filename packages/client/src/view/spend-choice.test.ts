@@ -127,6 +127,85 @@ describe("a payment's ways of spending, as the sheet draws them (issue #569)", (
     expect(toggleSpendPick(amounts, first, "hand:s")).toEqual(["hand:s"]);
   });
 
+  describe("a resource ability exhausting any number of cards (issue #966)", () => {
+    const base = "ability:ecs:interrupt";
+    // `many`: the engine's `picksMany`, set on every option of a cost that picks a set of cards.
+    const sub = (set: readonly string[], labels: readonly string[], many = true): ChoiceOption => ({
+      optionId: `${base}@exhausted=${set.join(",")}`,
+      label: `Enhanced Combat Sense (${labels.join(", ")})`,
+      ref: { kind: "ability", instanceId: "ecs" as InstanceId, abilityId: "interrupt" as never },
+      ...(many ? { picksMany: true as const } : {}),
+    });
+    const ecs = choiceOf(
+      [card("x", "Energy"), sub(["a"], ["EMP"]), sub(["b"], ["Armor"]), sub(["a", "b"], ["EMP", "Armor"])],
+      "payForCard",
+    );
+
+    test("one tile per upgrade, where the first subset stood", () => {
+      const shown = shownSpendChoice(ecs);
+      expect(shown.options.map((option) => option.optionId)).toEqual(["hand:x", `pick:a@${base}`, `pick:b@${base}`]);
+      expect(shown.options[1]).toMatchObject({ label: "Exhaust EMP", ref: { kind: "card", instanceId: "a" } });
+    });
+
+    test("tapping builds the set, and the answer is the one option for it", () => {
+      const one = toggleSpendPick(ecs, ["hand:x"], `pick:a@${base}`);
+      expect(spendAnswerOf(ecs, one)).toEqual(["hand:x", sub(["a"], []).optionId]);
+      const both = toggleSpendPick(ecs, one, `pick:b@${base}`);
+      expect(spendAnswerOf(ecs, both)).toEqual(["hand:x", sub(["a", "b"], []).optionId]);
+      const back = toggleSpendPick(ecs, both, `pick:a@${base}`);
+      expect(spendAnswerOf(ecs, back)).toEqual(["hand:x", sub(["b"], []).optionId]);
+      expect(spendAnswerOf(ecs, toggleSpendPick(ecs, back, `pick:b@${base}`))).toEqual(["hand:x"]);
+    });
+
+    test("a set no option covers changes nothing", () => {
+      const limited = choiceOf([sub(["a"], ["EMP"]), sub(["b"], ["Armor"]), sub(["c"], ["Gun"]), sub(["a", "b"], [])]);
+      const picks = toggleSpendPick(limited, toggleSpendPick(limited, [], `pick:a@${base}`), `pick:b@${base}`);
+      expect(toggleSpendPick(limited, picks, `pick:c@${base}`)).toBe(picks);
+    });
+
+    test("a fixed-set cost with no one-card option, and a single pick, keep their option tiles", () => {
+      const fixed = choiceOf(
+        [sub(["a", "b"], ["EMP", "Armor"], false), sub(["a", "c"], ["EMP", "Gun"], false)],
+        "payForCard",
+      );
+      expect(shownSpendChoice(fixed)).toBe(fixed);
+      const single = choiceOf([sub(["a"], ["A"], false), sub(["b"], ["B"], false)], "payForCard");
+      expect(shownSpendChoice(single)).toBe(single);
+    });
+
+    test("a set with no one-card start keeps its option tiles, even marked as a set", () => {
+      const pairs = choiceOf([sub(["a", "b"], ["EMP", "Armor"]), sub(["a", "c"], ["EMP", "Gun"])], "payForCard");
+      expect(shownSpendChoice(pairs)).toBe(pairs);
+    });
+
+    test("one upgrade to exhaust is still its own tile, showing that upgrade", () => {
+      const lone = choiceOf([card("x", "Energy"), sub(["a"], ["EMP"])], "payForCard");
+      expect(shownSpendChoice(lone).options.map((option) => option.optionId)).toEqual(["hand:x", `pick:a@${base}`]);
+      expect(spendAnswerOf(lone, toggleSpendPick(lone, [], `pick:a@${base}`))).toEqual([sub(["a"], []).optionId]);
+    });
+
+    test("past what the engine lists (nine upgrades and more), a tap never picks a card that was not tapped", () => {
+      // Offered: each card alone, a+b, and a+b+c; b+c is not.
+      const capped = choiceOf([
+        sub(["a"], []),
+        sub(["b"], []),
+        sub(["c"], []),
+        sub(["a", "b"], []),
+        sub(["a", "b", "c"], []),
+      ]);
+      const all = [`pick:a@${base}`, `pick:b@${base}`, `pick:c@${base}`];
+      // Taking a out of a+b+c leaves b+c, which is not listed: the pick clears, and nothing is exhausted by surprise.
+      expect(spendAnswerOf(capped, toggleSpendPick(capped, all, `pick:a@${base}`))).toEqual([]);
+      // Adding c to b makes b+c, not listed either: nothing changes, and a is never added for the player.
+      const b = [`pick:b@${base}`];
+      expect(toggleSpendPick(capped, b, `pick:c@${base}`)).toBe(b);
+    });
+
+    test("a caption reads the card alone, with no plain spending", () => {
+      expect(exhaustTileOptionsOf(ecs, `pick:b@${base}`)).toEqual({ alone: sub(["b"], []).optionId, plain: null });
+    });
+  });
+
   test("the small readers", () => {
     expect(spentHandCardOf("hand:a:b@c=d")).toBe("a");
     expect(spentHandCardOf("ability:a:b")).toBeNull();

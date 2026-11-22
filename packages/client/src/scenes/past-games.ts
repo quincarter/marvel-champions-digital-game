@@ -37,6 +37,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McButton, McTabs, McTextInput, fitText, paintPanel } from "../ui/widgets.js";
+import { drawPictureAspectChips } from "../ui/aspect-chips.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import { clipToView } from "../view/focus-list.js";
@@ -49,7 +50,6 @@ import {
   pastGameCounts,
   pastGameDetailParts,
   pastGameRowHeight,
-  aspectChipsOf,
   aspectsNotInName,
   pastGameRowParts,
   pastGameRowsOf,
@@ -154,32 +154,6 @@ function addStandInName(
     .setOrigin(0.5, 0.5);
   fitText(label, rect.width - 8, 12);
   return label;
-}
-
-/** Draws the aspect chips along the foot of a hero's picture: the aspect's frame color with its name in words on it. */
-function addAspectChips(scene: Phaser.Scene, pic: Rect, aspectIds: readonly string[]): Phaser.GameObjects.GameObject[] {
-  const objects: Phaser.GameObjects.GameObject[] = [];
-  const chips = aspectChipsOf(pic, aspectIds);
-  if (chips.length === 0) return objects;
-  const g = scene.add.graphics();
-  objects.push(g);
-  for (const chip of chips) {
-    g.fillStyle(chip.stamp.fill, 1).fillRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
-    g.lineStyle(1, surface.ink.hex, 0.9).strokeRect(chip.rect.x, chip.rect.y, chip.rect.width, chip.rect.height);
-    const text = scene.add
-      .text(
-        chip.rect.x + chip.rect.width / 2,
-        chip.rect.y + chip.rect.height / 2,
-        chip.text,
-        textStyle(typeRole.label, chip.stamp.ink),
-      )
-      .setOrigin(0.5, 0.5);
-    text.setFontSize(chip.fontSize);
-    // The model picked the wording by an estimate of the type's width; the measured text shrinks to fit what it chose.
-    fitText(text, chip.rect.width - 4, 6);
-    objects.push(text);
-  }
-  return objects;
 }
 
 /** How Past games was opened. All absent: from the Title, to the list as it was last left. */
@@ -859,7 +833,7 @@ export class PastGamesScene extends Phaser.Scene {
         const standIn = addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
         if (standIn) objects.push(standIn);
         // A hero's aspect chips along the foot of its picture (the villain, picture 0, has none).
-        if (i > 0) objects.push(...addAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []));
+        if (i > 0) objects.push(...drawPictureAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []));
       });
       const lines = this.#summaryLines(row);
       const result = this.add.text(
@@ -984,7 +958,7 @@ export class PastGamesScene extends Phaser.Scene {
     const thumbs = parts.pictures.map((pic, i) => renderLiveArtThumb(this, pic, urls[i] ?? null, 0.2));
     parts.pictures.forEach((pic, i) => {
       addStandInName(this, pic, picturedNames(row)[i] ?? null, urls[i] ?? null);
-      if (i > 0) addAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []);
+      if (i > 0) drawPictureAspectChips(this, pic, row.seats[i - 1]?.aspectIds ?? []);
     });
     this.#offBaked = cardFaces(this).onBaked(() => thumbs.forEach((thumb) => thumb.refresh()));
     const cards = picturedCards(row);
