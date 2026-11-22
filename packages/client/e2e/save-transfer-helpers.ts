@@ -35,7 +35,17 @@ export async function fakeSync(page: Page, options: { download?: Buffer | "abort
   await page.route(`${SYNC}/**`, async (route) => {
     const request = route.request();
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
-    requests.push({ method: request.method(), path: new URL(request.url()).pathname });
+    const path = new URL(request.url()).pathname;
+    // The Title's "Play online" panel asks once for the public rooms it counts ("N live"); that is not a transfer
+    // request, so it is answered empty and left out of what a test says the page asked for.
+    if (path === "/rooms/live") {
+      return route.fulfill({
+        status: 200,
+        headers: { ...CORS, "Content-Type": "application/json" },
+        body: JSON.stringify({ rooms: [] }),
+      });
+    }
+    requests.push({ method: request.method(), path });
     if (options.download === "abort") return route.abort("connectionrefused");
     if (request.method() === "POST") {
       return route.fulfill({

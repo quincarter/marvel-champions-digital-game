@@ -182,6 +182,18 @@ export interface FocusRouteOptions {
    * and the d-pad off the screen's own controls): Up from a stop with nothing above it reaches it (#735).
    */
   readonly topRow?: boolean;
+  /**
+   * Stops that Down from the top bar's buttons never lands on: a panel that stands under the top row's right end (the
+   * Title's Host / Join) would otherwise take the press ahead of the menu column the row is the way into. They stay
+   * on the route, reached by Tab and by the arrows from the stops beside them.
+   */
+  readonly notBelowChrome?: readonly string[];
+  /**
+   * A bar across the whole screen above the top row (the Title's release notice): Up from a stop that would land on
+   * it goes to the top row's button nearest that stop instead, so the row stays the first thing above the menu and the
+   * bar is the step after it.
+   */
+  readonly barAboveChrome?: string;
 }
 
 export class FocusRoute {
@@ -191,6 +203,8 @@ export class FocusRoute {
   readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
   readonly #onFocusChange: ((key: string | null) => void) | undefined;
   readonly #onPause: (() => void) | undefined;
+  readonly #notBelowChrome: ReadonlySet<string>;
+  readonly #barAboveChrome: string | undefined;
   readonly #onView: (() => void) | undefined;
   readonly #onLog: (() => void) | undefined;
   readonly #onExpand: (() => void) | undefined;
@@ -229,6 +243,8 @@ export class FocusRoute {
     this.#onFocusChange = options.onFocusChange;
     this.#onPause = options.onPause;
     this.#onView = options.onView;
+    this.#notBelowChrome = new Set(options.notBelowChrome ?? []);
+    this.#barAboveChrome = options.barAboveChrome;
     this.#onLog = options.onLog;
     this.#onExpand = options.onExpand;
     this.#primary = options.primary;
@@ -561,7 +577,9 @@ export class FocusRoute {
         const floating = this.#floatingTheme !== null && !this.#order.includes(CHROME_THEME_STOP);
         const route = floating && this.#focus === CHROME_THEME_STOP ? [...this.#order, CHROME_THEME_STOP] : this.#order;
         const next = spatialStep(
-          route,
+          intent === "down" && this.#focus?.startsWith("chrome:") && this.#notBelowChrome.size > 0
+            ? route.filter((key) => !this.#notBelowChrome.has(key))
+            : route,
           (key) => this.#rectOf(key),
           this.#focus,
           intent,
@@ -579,6 +597,13 @@ export class FocusRoute {
           this.#themeFrom = this.#focus;
           this.#moveTo(CHROME_THEME_STOP);
           break;
+        }
+        if (intent === "up" && this.#barAboveChrome !== undefined && next === this.#barAboveChrome) {
+          const above = this.#chromeAbove();
+          if (above !== null) {
+            this.#moveTo(above);
+            break;
+          }
         }
         const back = this.#themeFrom;
         if (intent === "down" && this.#focus === CHROME_THEME_STOP && back !== null && this.#order.includes(back)) {
@@ -639,6 +664,22 @@ export class FocusRoute {
         }
         break;
     }
+  }
+
+  /** The top row's button nearest (across) the focused stop and wholly above it, or null. */
+  #chromeAbove(): string | null {
+    const from = this.#focus === null ? null : this.#rectOf(this.#focus);
+    if (!from || this.#focus === null || this.#focus.startsWith("chrome:")) return null;
+    const centre = from.x + from.width / 2;
+    let best: { key: string; distance: number } | null = null;
+    for (const key of this.#order) {
+      if (!key.startsWith("chrome:")) continue;
+      const rect = this.#rectOf(key);
+      if (!rect || rect.y + rect.height > from.y) continue;
+      const distance = Math.abs(rect.x + rect.width / 2 - centre);
+      if (!best || distance < best.distance) best = { key, distance };
+    }
+    return best?.key ?? null;
   }
 
   #moveTo(key: string | null): void {
