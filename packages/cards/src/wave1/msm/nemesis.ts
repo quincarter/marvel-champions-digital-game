@@ -55,8 +55,12 @@ export const MSM_NEMESIS = defineAbilities({
   ),
 
   // Thomas Edison — Thomas Edison cannot take damage while you are engaged with another minion. (Ms. Marvel's
-  // nemesis minion.) "You" here is the player engaged with him (RRG "You, Your" reads an encounter card's "you" as
-  // whoever it's speaking to); `engagedPlayerOf(self)` reads that player live.
+  // nemesis minion.) "You" here is the player engaged with him, so no player can damage him while that player has
+  // another minion engaged, whoever attacks (#962). Boggs, FFG Ms. Marvel livestream: players "cant deal damage to
+  // [Thomas Edison] while the engaged player has a minion also engaged with them"
+  // (docs/rulings/rrg-1-0-to-1-4/11-ms-marvel.md). RRG 1.8 "You, Your" (p. 49) does not cover an encounter card's
+  // constant ability; A.I.M. Scientist (50083) later prints the same pattern as "the engaged player".
+  // `engagedPlayerOf(self)` reads that player live.
   "05027.thomas-edison-constant": constant(
     rule({
       kind: "cannotTakeDamage",

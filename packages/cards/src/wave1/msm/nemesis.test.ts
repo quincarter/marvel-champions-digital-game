@@ -1,5 +1,6 @@
 import { cardId } from "@mc/content";
 import {
+  applyCommand,
   activeEncounterDeck,
   activeEncounterDeckId,
   activeVillain,
@@ -18,6 +19,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  P2,
   payWith,
   picking,
   play,
@@ -55,6 +57,7 @@ function putMinionInPlay(
   state: GameState,
   player: PlayerId,
   code: string,
+  engageWith: PlayerId = player,
 ): { readonly state: GameState; readonly id: InstanceId } {
   const setAside = playerOf(state, player).setAside;
   const id = setAside.find((i) => state.instances[i]?.cardId === cardId(code));
@@ -63,14 +66,12 @@ function putMinionInPlay(
     id,
     state: {
       ...state,
-      players: state.players.map((p) =>
-        p.playerId === player
-          ? { ...p, setAside: p.setAside.filter((x) => x !== id), playArea: [...p.playArea, id] }
-          : p,
-      ),
+      players: state.players
+        .map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((x) => x !== id) } : p))
+        .map((p) => (p.playerId === engageWith ? { ...p, playArea: [...p.playArea, id] } : p)),
       instances: {
         ...state.instances,
-        [id]: { ...state.instances[id]!, faceup: true, engagedWith: player, controllerId: null },
+        [id]: { ...state.instances[id]!, faceup: true, engagedWith: engageWith, controllerId: null },
       },
     },
   };
@@ -255,5 +256,57 @@ describe("Ms. Marvel's nemesis set", () => {
     const after = settle(runMsm(damaged, endTurn()), firstLegal, undefined, MSM_DEPS);
     expect(inst(after, aamir).exhausted).toBe(true); // exhausted by Harvest, not by playing him
     expect(remainingHitPoints(after, villain)).toBe(hpBeforeHeal! + 1);
+  });
+});
+
+// Issue #962: "you" on Thomas Edison is the player he is engaged with, not the player attacking him. Boggs, FFG Ms.
+// Marvel livestream: players "cant deal damage to [Thomas Edison] while the engaged player has a minion also engaged
+// with them" (docs/rulings/rrg-1-0-to-1-4/11-ms-marvel.md). RRG 1.8 "You, Your" (p. 49) does not cover an encounter
+// card's constant ability; A.I.M. Scientist (50083) later prints the same pattern as "the engaged player".
+describe("Thomas Edison with two players (#962)", () => {
+  // Ms. Marvel (P1) and Spider-Man (P2) against Rhino; P1 passes so P2 takes their turn in hero form.
+  const atP2Turn = () => {
+    const start = startMsmGame(
+      wave1Scenario("rhino", {
+        players: [{ starterDeckId: "msm-protection" }, { starterDeckId: "core-spider-man-justice" }],
+        seed: 13,
+      }),
+    );
+    return settle(runMsm(start, endTurn(P1), toHero(P2)), firstLegal, (s) => s.pendingChoice === null, MSM_DEPS);
+  };
+  const p2Attacks = (state: GameState, target: InstanceId) =>
+    applyCommand(
+      state,
+      { type: "basicAttack", playerId: P2, attackerInstanceId: identityOf(state, P2), targetInstanceId: target },
+      MSM_DEPS,
+    );
+
+  it("another player cannot damage him while his engaged player is engaged with another minion", () => {
+    const { state: withEdison, id: edison } = putMinionInPlay(atP2Turn(), P1, "05027");
+    const { state: withBoth } = putMinionInPlay(withEdison, P1, "05028"); // a second minion engaged with Ms. Marvel
+    const result = p2Attacks(withBoth, edison);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+  });
+
+  it("another player can damage him once his engaged player has no other minion engaged", () => {
+    const { state: withEdison, id: edison } = putMinionInPlay(atP2Turn(), P1, "05027");
+    const result = p2Attacks(withEdison, edison);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const settled = settle(result.state, firstLegal, undefined, MSM_DEPS);
+      expect(inst(settled, edison).damage).toBeGreaterThan(0);
+    }
+  });
+
+  it("a minion engaged with the attacking player does not protect him", () => {
+    const { state: withEdison, id: edison } = putMinionInPlay(atP2Turn(), P1, "05027");
+    const { state: withRobot } = putMinionInPlay(withEdison, P1, "05028", P2); // engaged with Spider-Man instead
+    const result = p2Attacks(withRobot, edison);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const settled = settle(result.state, firstLegal, undefined, MSM_DEPS);
+      expect(inst(settled, edison).damage).toBeGreaterThan(0);
+    }
   });
 });
