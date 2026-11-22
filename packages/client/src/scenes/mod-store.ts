@@ -459,6 +459,8 @@ export class ModStoreScene extends Phaser.Scene {
     // A failed read, or one a newer read has already replaced, leaves the list (and the badge) to that one.
     if (!this.#keep(ticket, installed)) return;
     if (!this.#catalogUrl && installed) notePackUpdates(this.#index ?? undefined, installed, this.#offline);
+    // The retry lands on its own, after the install has redrawn from the old list: draw the new one.
+    if (!retry) this.#requestRedraw();
   }
 
   #context(): ModStoreContext {
