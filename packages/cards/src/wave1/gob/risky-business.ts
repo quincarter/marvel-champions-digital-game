@@ -184,7 +184,12 @@ export const RISKY_BUSINESS = defineAbilities({
   "02007.when-revealed": whenRevealed(
     chooseOne(
       option("Give the villain 1 facedown boost card", giveBoostCard()),
-      option("Place 2 infamy counters on Criminal Enterprise", addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE))),
+      // Offered only while Criminal Enterprise is in play: once it flips to State of Madness the option has no valid
+      // target, and an encounter card's option without one cannot be chosen (RRG 1.8 "Choose (Option)", p. 12; #967),
+      // which leaves the boost card.
+      option("Place 2 infamy counters on Criminal Enterprise", addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE)), {
+        when: inPlay(CRIMINAL_ENTERPRISE),
+      }),
     ),
   ),
   // [star] Boost: Place 1 infamy counter on Criminal Enterprise. If you cannot, remove 1 madness counter from State
