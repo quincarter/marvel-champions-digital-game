@@ -978,6 +978,47 @@ describe("seat tokens", () => {
     expect(JSON.stringify(h.last("lobby"))).not.toContain("tokenHash");
   });
 
+  it("a seated guest's reconnect stores and sends the new holder but keeps the lobby revision (a Start in flight survives it)", async () => {
+    const { room, join, h, a, token } = await seated();
+    const rev = h.last("lobby")!.rev;
+    await room.close(a);
+    const back = await join(room, { name: "Ann", seatTokens: [token] });
+    expect(h.last("lobby")!.seats[0]!.holder).toBe(back.id);
+    expect(h.last("lobby")!.rev).toBe(rev);
+    expect(back.last("lobby")!.rev).toBe(rev);
+  });
+
+  it("a host's Start built at the lobby revision still lands after a seated guest's socket dropped and came back", async () => {
+    const { room, join, send, h, a, token } = await seated();
+    const built = h.last("lobby")!.rev;
+    await room.close(a);
+    await join(room, { name: "Ann", seatTokens: [token] });
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: { g: 1 }, lobbyRev: built });
+    expect(h.of("refused").map((m) => m.reason)).not.toContain("lobby-changed");
+    expect(h.last("table")!.table).toMatchObject({ hasHeader: true });
+  });
+
+  it("the host's reconnect (its own seat, the same build) keeps the lobby revision", async () => {
+    const { room, join, send, h } = await seated();
+    await send(room, h, { ch: "room", kind: "seat-assign", seat: "s2", participant: h.id });
+    const hostToken = h.last("seat-token")!.token;
+    const rev = h.last("lobby")!.rev;
+    await room.close(h);
+    const back = await join(room, { token: TOKEN, name: "Hosty", seatTokens: [hostToken] });
+    expect(back.last("lobby")!.seats[1]!.holder).toBe(back.id);
+    expect(back.last("lobby")!.rev).toBe(rev);
+  });
+
+  it("a reclaim that is a real change still bumps the revision (another name, a build re-stamp)", async () => {
+    const { room, join, h, a, token } = await seated();
+    const rev = h.last("lobby")!.rev;
+    await room.close(a);
+    const renamed = await join(room, { name: "Anna", seatTokens: [token] });
+    expect(renamed.last("lobby")!.rev).toBe(rev + 1);
+    const host2 = await join(room, { token: TOKEN, build: { ...BUILD, contentVersion: "c10" } });
+    expect(host2.last("lobby")!.rev).toBe(rev + 2);
+  });
+
   it("restores the seat for a reconnecting participant (a new id), keeping the same token", async () => {
     const { room, join, h, a, token } = await seated();
     await room.close(a);
