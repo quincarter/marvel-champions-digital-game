@@ -295,9 +295,12 @@ export class OnlineScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     if (this.#input) this.#code = this.#input.value;
-    this.#input?.destroy();
-    this.#input = null;
+    // The field is a DOM element that keeps its focus and caret across a redraw (a phone's keyboard opening resizes the
+    // page, which redraws): lifted out of the sweep and laid out again, never rebuilt, or the keyboard would close at once.
+    const kept = this.#input ? this.#input.gameObjects : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     this.#hints.reset();
 
     const frame = campaignFrame(this);
@@ -377,18 +380,28 @@ export class OnlineScene extends Phaser.Scene {
     y = this.#paragraph(left, y, column, t("online.joinDetail"));
     const joinWidth = 110;
     const fieldRect: Rect = { x: left, y: y + 8, width: column - joinWidth - 10, height: hit.primary };
-    this.#input = new McTextInput(this, {
-      rect: fieldRect,
-      value: this.#code,
-      type: typeRole.body,
-      placeholder: t("online.codePlaceholder"),
-      maxLength: 80,
-      onChange: (value) => {
-        this.#code = value;
-        const tidy = tidyJoinInput(value);
-        if (tidy !== value) this.#input?.setValue(tidy);
-      },
-    });
+    if (this.#input) {
+      this.#input.layout(fieldRect);
+      this.#input.setVisible(true);
+      for (const node of this.#input.gameObjects) this.children.bringToTop(node);
+    } else {
+      this.#input = new McTextInput(this, {
+        rect: fieldRect,
+        value: this.#code,
+        type: typeRole.body,
+        placeholder: t("online.codePlaceholder"),
+        maxLength: 80,
+        onChange: (value) => {
+          this.#code = value;
+          const tidy = tidyJoinInput(value);
+          if (tidy !== value) this.#input?.setValue(tidy);
+        },
+      });
+      // Enter in the code field joins, as the Join button does (bound once: the field outlives redraws).
+      (this.#input.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") this.#join();
+      });
+    }
     const joinRect: Rect = {
       x: fieldRect.x + fieldRect.width + 10,
       y: fieldRect.y,
@@ -405,10 +418,6 @@ export class OnlineScene extends Phaser.Scene {
         onClick: () => this.#join(),
       }),
     );
-    // Enter in the code field joins, as the Join button does.
-    (this.#input.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") this.#join();
-    });
     stops.set("code", { rect: fieldRect, activate: () => this.#input?.focus() });
     stops.set("join", { rect: joinRect, activate: () => this.#join() });
     order.push("code", "join");
