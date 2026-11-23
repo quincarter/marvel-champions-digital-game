@@ -57,6 +57,14 @@ describe("lobbyLayout", () => {
     expect(chat.y + chat.height).toBeLessThan(open.footer.y);
     expect(chat.y).toBeGreaterThan(open.header.y + open.header.height);
   });
+  it("swaps the pill for a card while the chat is in its own window, and the settings still end above it", () => {
+    const popped = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, true, true);
+    expect(popped.panels.chat).toBeUndefined();
+    const card = popped.chatPill!;
+    expect(card.width).toBeGreaterThan(lobbyLayout(1440, 980, 56, "seats", 24).chatPill!.width);
+    expect(popped.panels.settings!.y + popped.panels.settings!.height).toBeLessThanOrEqual(card.y);
+    expect(card.y + card.height).toBeLessThan(popped.footer.y);
+  });
   it("puts seats, settings and chat in three columns on an ultrawide, with no floating chat", () => {
     const layout = lobbyLayout(2560, 1080, 56, "seats", 24);
     expect(layout.mode).toBe("triple");
