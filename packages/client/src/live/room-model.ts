@@ -15,6 +15,7 @@ import {
   type RoomChatLine,
   type RoomHostActivity,
   type RoomVillainCursor,
+  type TablePlan,
   type RoomDeckProblem,
   type RoomConnection,
   type RoomParticipant,
@@ -111,6 +112,7 @@ export class RoomModel {
   #chatLive = 0;
   #hostActivity: RoomHostActivity | null = null;
   #villainCursor: RoomVillainCursor | null = null;
+  #tablePlan: TablePlan | null = null;
   #refusal: RoomRefusal | null = null;
   #refusalSeq = 0;
   #lastSeat: string | undefined;
@@ -324,6 +326,8 @@ export class RoomModel {
     this.#hostActivity = null;
     // The room resends the host's cursor to a rejoining guest; an old one must not outlive the connection.
     this.#villainCursor = null;
+    // The room forgets the plan too when it is evicted: the host sends it again once it is back.
+    this.#tablePlan = null;
     if (this.#connection === "ended") return;
     this.#connection = this.#welcomed ? "reconnecting" : "connecting";
   }
@@ -437,6 +441,9 @@ export class RoomModel {
         if (message.table !== this.#view) return false;
         this.#villainCursor =
           message.state === "none" ? null : { key: message.key, at: message.at, state: message.state };
+        return true;
+      case "table-plan":
+        this.#tablePlan = message.plan;
         return true;
       case "lobby":
         this.#lobby = {
@@ -557,6 +564,7 @@ export class RoomModel {
       chatLive: this.#chatLive,
       hostActivity: this.#hostActivity,
       villainCursor: this.#villainCursor,
+      tablePlan: this.#tablePlan,
       refusal: this.#refusal,
       requests: this.#role === "host" || this.isHost ? this.#requests : [],
       myRequest: this.#role === "guest" && !this.isHost ? this.#ask : null,

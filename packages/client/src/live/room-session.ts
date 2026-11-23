@@ -20,6 +20,7 @@ import {
   type DeckRefusalCode,
   type HostActivityStep,
   type VillainCursorState,
+  type TablePlan,
   type RoomDeck,
   type RoomBuild,
   type RoomDevice,
@@ -908,6 +909,12 @@ export class RoomSession {
     if (this.role !== "host") return;
     // The host of an Epic table leads that table; a standard room's host leads the first (only) one.
     this.#say({ ch: "room", kind: "villain-cursor", table: this.hostedTable ?? FIRST_TABLE, key, at, state });
+  }
+
+  /** Host only: the table the host picked (`null` clears it). Memory only in the room, never the lobby revision. */
+  tablePlan(plan: TablePlan | null): void {
+    if (this.role !== "host") return;
+    this.#say({ ch: "room", kind: "table-plan", plan });
   }
 
   chat(text: string): void {

@@ -2224,6 +2224,114 @@ describe("villain pacing and the host's villain cursor", () => {
   });
 });
 
+describe("table plan", () => {
+  const plan = { scenarioId: "rhino", modularSetIds: ["bomb_scare"], difficulty: "standard" };
+  const send = (r: GameRoomLogic, s: RoomSocket, value: unknown) =>
+    r.message(s, JSON.stringify({ v: 1, ch: "room", kind: "table-plan", plan: value }));
+
+  it("relays the host's plan to everyone, and to a joiner afterwards", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await send(room, h, { ...plan, heroicLevel: 2, skirmish: true });
+    for (const s of [h, a]) {
+      expect(s.last("table-plan")).toEqual({
+        v: 1,
+        ch: "room",
+        kind: "table-plan",
+        plan: { ...plan, heroicLevel: 2, skirmish: true },
+      });
+    }
+    const late = await join(room, { name: "Late" });
+    expect(late.last("table-plan")).toMatchObject({ plan: { scenarioId: "rhino" } });
+  });
+
+  it("clears with null, and a later joiner gets nothing", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await send(room, h, plan);
+    await send(room, h, null);
+    expect(a.last("table-plan")!.plan).toBeNull();
+    const late = await join(room, { name: "Late" });
+    expect(late.of("table-plan")).toHaveLength(0);
+  });
+
+  it("does not touch the lobby row or revision, and does not repeat an unchanged plan", async () => {
+    const { room, host, join, storage } = await setup();
+    const h = await host();
+    const a = await join(room);
+    const rev = a.last("lobby")!.rev;
+    const rows = () => JSON.stringify([...storage.map.entries()].filter(([key]) => key !== "plan"));
+    const before = rows();
+    await send(room, h, plan);
+    await send(room, h, plan);
+    await send(room, h, { ...plan, difficulty: "expert" });
+    expect(a.of("table-plan")).toHaveLength(2);
+    expect(rows()).toBe(before);
+    expect(a.of("lobby").every((l) => l.rev === rev)).toBe(true);
+  });
+
+  it("survives a hibernation: a joiner of a cold-woken room gets the plan, and a clear removes the row", async () => {
+    const { room, make, host, join, storage } = await setup();
+    const h = await host();
+    await send(room, h, plan);
+    expect(storage.map.has("plan")).toBe(true);
+    const woken = make();
+    const late = await join(woken, { name: "Late" });
+    expect(late.last("table-plan")).toMatchObject({ plan });
+    // The woken room knows it: the same plan is not relayed again, and a clear reaches the guest and the row.
+    const h2 = await host(woken);
+    await send(woken, h2, plan);
+    expect(late.of("table-plan")).toHaveLength(1);
+    await send(woken, h2, null);
+    expect(late.last("table-plan")!.plan).toBeNull();
+    expect(storage.map.has("plan")).toBe(false);
+  });
+
+  it("is host only, and refused in a plain room", async () => {
+    const { room, join } = await setup();
+    const a = await join(room);
+    await send(room, a, plan);
+    expect(a.refusals).toEqual(["not-allowed"]);
+    const plain = await setup({ lobby: false });
+    const h = await plain.host();
+    await send(plain.room, h, plan);
+    expect(h.refusals).toEqual(["not-allowed"]);
+  });
+
+  it("clears when the game starts and when the host leaves", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await send(room, h, plan);
+    await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "start", table: "t1", header: {} }));
+    expect(a.last("table-plan")!.plan).toBeNull();
+    await send(room, h, plan);
+    await room.close(h);
+    expect(a.last("table-plan")!.plan).toBeNull();
+  });
+
+  it("refuses over the limit, and its parser accepts only well formed plans", async () => {
+    const { room, host } = await setup();
+    const h = await host();
+    for (let i = 0; i < 6; i++) await send(room, h, { ...plan, heroicLevel: i + 1 });
+    expect(h.refusals).toContain("rate-limited");
+    const ok = (p: unknown) => parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "table-plan", plan: p }));
+    expect(ok(plan)).not.toBeNull();
+    expect(ok(null)).not.toBeNull();
+    expect(ok({ ...plan, difficulty: "easy" })).toBeNull();
+    expect(ok({ ...plan, scenarioId: "" })).toBeNull();
+    expect(ok({ ...plan, scenarioId: "x".repeat(65) })).toBeNull();
+    expect(ok({ ...plan, modularSetIds: null })).toBeNull();
+    expect(ok({ ...plan, modularSetIds: Array.from({ length: 9 }, (_, i) => `m${i}`) })).toBeNull();
+    expect(ok({ ...plan, modularSetIds: [4] })).toBeNull();
+    expect(ok({ ...plan, heroicLevel: 1.5 })).toBeNull();
+    expect(ok({ ...plan, skirmish: "yes" })).toBeNull();
+    expect(ok(undefined)).toBeNull();
+  });
+});
+
 describe("guests claim an open seat unless the host has them ask (Quin, 2026-11-22)", () => {
   it("by default a guest's request seats them at once, with a token, and nothing waits for the host", async () => {
     const { room, host, join, send, lobbySet, seats } = await setup({ askToSit: false });

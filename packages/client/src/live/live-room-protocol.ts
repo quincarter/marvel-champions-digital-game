@@ -9,6 +9,7 @@ import type {
   ProposalRefusal,
   HostActivityStep,
   VillainCursorState,
+  TablePlan,
   RoomBuild,
   RoomDeck,
   RoomDevice,
@@ -111,6 +112,8 @@ export type LiveRoomIn =
       readonly at: number;
       readonly state: VillainCursorState;
     }
+  /** Host only: the table the host picked, as ids (`null` clears it), shown to everyone in the lobby. */
+  | { readonly kind: "room-table-plan"; readonly plan: TablePlan | null }
   /** My deck for a seat I hold, or (host only) a preset for any seat. */
   | { readonly kind: "room-deck"; readonly seat: string; readonly deck: RoomDeck }
   /** Host only: the full deck of every seat (answered with a `room-decks` carrying the same `id`). */

@@ -12,6 +12,7 @@ import {
   type RoomParticipant,
   type RoomSeat,
   type RoomState,
+  type TablePlan,
 } from "../live/room-state.js";
 
 const NAMES = ["Ava", "Ben", "Cleo", "Dev", "Esi", "Finn", "Gus", "Hana", "Ivo", "Jun", "Kai"];
@@ -32,7 +33,16 @@ export type FixtureVariant = "open" | "decks" | "problem";
 export interface FixtureExtras {
   readonly hostActivity?: RoomHostActivity;
   readonly unread?: number;
+  /** The host's table plan: a made-up one (Rhino, Standard, Bomb Scare) unless `null` (the host has not picked yet). */
+  readonly tablePlan?: TablePlan | null;
 }
+
+/** What the preview shows when it is not told otherwise. */
+export const FIXTURE_TABLE_PLAN: TablePlan = {
+  scenarioId: "rhino",
+  modularSetIds: ["bomb_scare"],
+  difficulty: "standard",
+};
 
 export function roomLobbyFixture(
   as: "host" | "guest",
@@ -186,6 +196,7 @@ export function roomLobbyFixture(
     chat,
     chatLive: extras.unread ?? 0,
     hostActivity: extras.hostActivity ?? null,
+    tablePlan: extras.tablePlan === undefined ? FIXTURE_TABLE_PLAN : extras.tablePlan,
     buildMatches: true,
   };
 }

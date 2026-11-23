@@ -37,6 +37,8 @@ import {
   LOBBY_MESSAGE_BURST,
   MAX_ACTIVITY_SCENARIO_CHARS,
   type HostActivityStep,
+  type TablePlan,
+  TABLE_PLAN_BURST,
   ROOM_CODE_MARGIN_MS,
   LIVE_PUBLISH_MIN_MS,
   type LiveRoomEntry,
@@ -580,6 +582,14 @@ export class GameRoomLogic {
   private activity: { step: HostActivityStep; scenario?: string } | null = null;
   /** The newest step that arrived over the limit: relayed once a token is free, so the last step is never lost. */
   private pendingActivity: { who: string; step: { step: HostActivityStep; scenario?: string } } | null = null;
+  /**
+   * The host's table plan, or null when none. Kept in its own storage row (`plan`), apart from the lobby row, so a woken
+   * room still has it and it never touches the lobby revision a Start compares and swaps on.
+   */
+  private plan: TablePlan | null = null;
+  /** The stored plan was read, or a newer one was set since the wake (so the stored one must not overwrite it). */
+  private planLoad: Promise<void> | null = null;
+  private readonly planBucket = new Map<string, { tokens: number; at: number }>();
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly activityBucket = new Map<string, { tokens: number; at: number }>();
   /** Each table host's villain phase cursor (memory only, never stored, no lobby revision): the newest. */
@@ -1448,6 +1458,7 @@ export class GameRoomLogic {
     if (message.ch === "pod") return this.pod(socket, who, message);
     if (message.ch === "room" && message.kind === "host-activity") return this.hostActivity(socket, who, message);
     if (message.ch === "room" && message.kind === "villain-cursor") return this.villainCursor(socket, who, message);
+    if (message.ch === "room" && message.kind === "table-plan") return this.tablePlan(socket, who, message);
     if (message.ch === "room" && message.kind === "follow") return this.follow(socket, who, message.tables);
     if (message.ch === "room") return this.lobbyMessage(socket, who, message);
     if (message.kind === "propose" || message.kind === "request") return this.fromSeat(socket, who, message);
@@ -1855,6 +1866,7 @@ export class GameRoomLogic {
           this.resendAsked.delete(table.id);
           // The game has started: the host's setup status line is over.
           this.setActivity(null);
+          this.setPlan(null);
           this.broadcastLog(table, host.id);
           this.broadcastTable(table);
           this.sendSocket(socket, {
@@ -2436,6 +2448,55 @@ export class GameRoomLogic {
         this.sendSocket(socket, { v: 1, ch: "room", kind: "villain-cursor", table, ...cursor });
       }
     }
+    await this.loadPlan();
+    if (this.plan) this.sendSocket(socket, { v: 1, ch: "room", kind: "table-plan", plan: this.plan });
+  }
+
+  /** Loads the stored plan once per lifetime, unless a plan was set since the wake. */
+  private loadPlan(): Promise<void> {
+    this.planLoad ??= (async () => {
+      const stored = await this.storage.get<TablePlan>("plan");
+      if (stored && this.plan === null) this.plan = stored;
+    })();
+    return this.planLoad;
+  }
+
+  /**
+   * The host's table plan, relayed to everyone and kept in its own row (never the lobby row or revision). Host only, rate limited
+   * (over the limit is refused; the host's client sends its newest plan again on reconnect). An unchanged plan is not
+   * relayed again, and a clear always goes through.
+   */
+  private async tablePlan(
+    socket: RoomSocket,
+    who: Participant,
+    message: Extract<ClientMessage, { kind: "table-plan" }>,
+  ): Promise<void> {
+    if (who.role !== "host" || this.meta?.code === undefined) return this.refuse(socket, "not-allowed");
+    await this.loadPlan();
+    const incoming = message.plan;
+    const next: TablePlan | null = incoming
+      ? {
+          scenarioId: incoming.scenarioId,
+          modularSetIds: [...incoming.modularSetIds],
+          difficulty: incoming.difficulty,
+          ...(incoming.heroicLevel ? { heroicLevel: incoming.heroicLevel } : {}),
+          ...(incoming.skirmish ? { skirmish: true } : {}),
+        }
+      : null;
+    if (JSON.stringify(next) === JSON.stringify(this.plan)) return;
+    if (next !== null && !takeToken(this.planBucket, who.id, TABLE_PLAN_BURST, 0.5, this.clock())) {
+      return this.refuse(socket, "rate-limited");
+    }
+    this.setPlan(next);
+  }
+
+  private setPlan(next: TablePlan | null): void {
+    if (JSON.stringify(next) === JSON.stringify(this.plan)) return;
+    this.plan = next;
+    // Stored only when it changes (a clear deletes the row); a failed write leaves memory right for this lifetime.
+    this.planLoad ??= Promise.resolve();
+    void (next ? this.storage.put("plan", next) : this.storage.delete("plan")).catch(() => undefined);
+    this.broadcast({ v: 1, ch: "room", kind: "table-plan", plan: next });
   }
 
   /** Loads the stored chat backlog once per lifetime; lines said since the wake (already in memory) stay last. */
@@ -2944,7 +3005,7 @@ export class GameRoomLogic {
     who: Participant,
     message: Exclude<
       Extract<ClientMessage, { ch: "room" }>,
-      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" }
+      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" | "table-plan" }
     >,
   ): Promise<void> {
     return this.lobbyLock(() => this.lobbyMessageLocked(socket, who, message));
@@ -2955,7 +3016,7 @@ export class GameRoomLogic {
     who: Participant,
     message: Exclude<
       Extract<ClientMessage, { ch: "room" }>,
-      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" }
+      { kind: "hello" | "room-close" | "host-activity" | "villain-cursor" | "table-plan" }
     >,
   ): Promise<void> {
     // A turn that waited for the lock may belong to a participant who has left since: it must not add a request.
@@ -3664,9 +3725,13 @@ export class GameRoomLogic {
     this.deckBuckets.delete(participant.id);
     this.activityBucket.delete(participant.id);
     this.cursorBucket.delete(participant.id);
+    this.planBucket.delete(participant.id);
     this.broadcastRoster();
     // The host leaving ends its setup status line and its listing.
-    if (participant.role === "host") this.setActivity(null);
+    if (participant.role === "host") {
+      this.setActivity(null);
+      this.setPlan(null);
+    }
     this.scheduleListing();
     if (participant.role === "host" && participant.table) {
       const table = this.tableOf(participant.table);
@@ -3771,6 +3836,9 @@ export class GameRoomLogic {
       this.cursorBucket.clear();
       if (this.cursorTimer !== null) clearTimeout(this.cursorTimer);
       this.cursorTimer = null;
+      this.plan = null;
+      this.planLoad = Promise.resolve();
+      this.planBucket.clear();
       this.chatBuckets.clear();
       this.lobbyBuckets.clear();
       this.sealedBuckets.clear();
