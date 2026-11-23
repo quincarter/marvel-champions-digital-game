@@ -424,7 +424,6 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.table.heroic": "Heroico {level}",
   "room.table.skirmish": "Escaramuza",
   "room.table.villain": "Villano",
-  "room.table.sets": "Conjuntos modulares",
   "room.table.noSets": "Sin conjuntos modulares",
   "room.setupAgain": "Cambiar la mesa",
   "room.start": "Empezar partida",

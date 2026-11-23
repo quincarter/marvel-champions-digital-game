@@ -76,7 +76,7 @@ export type TablePlanDifficulty = (typeof TABLE_PLAN_DIFFICULTIES)[number];
 export const MAX_PLAN_MODULAR_SETS = 8;
 export const MAX_PLAN_ID_CHARS = 64;
 export const MAX_PLAN_HEROIC_LEVEL = 9;
-/** Table plan messages: a burst of this many, then one every two seconds. Memory only, never stored. */
+/** Table plan messages: a burst of this many, then one every two seconds. */
 export const TABLE_PLAN_BURST = 4;
 
 /**
@@ -499,7 +499,7 @@ export type ClientMessage =
     }
   /**
    * The host only: the scenario, modular sets and difficulty it picked, so the lobby can show what the table is up
-   * against. `plan: null` clears it. Relayed, kept in memory, never stored, never part of the lobby revision.
+   * against. `plan: null` clears it. Relayed and kept in its own storage row (a woken room still has it), never part of the lobby row or revision.
    */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "table-plan"; readonly plan: TablePlan | null }
   /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
@@ -643,7 +643,7 @@ export type ServerMessage =
       readonly step: HostActivityStep;
       readonly scenario?: string;
     }
-  /** The host's table plan to everyone when it changes and to a joiner; `null` means none. Memory only, no lobby revision. */
+  /** The host's table plan to everyone when it changes and to a joiner; `null` means none. Its own storage row; no lobby revision. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "table-plan"; readonly plan: TablePlan | null }
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
