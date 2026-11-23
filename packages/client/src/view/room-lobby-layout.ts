@@ -36,6 +36,7 @@ export const TRIPLE_MIN_WIDTH = 1800;
 export const TRIPLE_MIN_ASPECT = 2.2;
 const FLOAT_WIDTH = 400;
 const FLOAT_MAX_HEIGHT = 520;
+const FLOAT_MIN_HEIGHT = 160;
 const PILL_WIDTH = 132;
 const POPPED_CARD = { width: 300, height: 104 } as const;
 
@@ -55,6 +56,8 @@ export function lobbyLayout(
   chatOpen = false,
   /** Whether the chat is in its own window: a floating chat then shows a small card in the pill's place. */
   chatPopped = false,
+  /** How much of the screen's bottom a soft keyboard covers (`view/room-chat-keyboard.ts`); the open floating chat sits above it. */
+  covered = 0,
 ): LobbyLayout {
   const header: Rect = { x: gutter, y: topBar + GAP, width: width - gutter * 2, height: headerHeight };
   const footer: Rect = {
@@ -93,8 +96,13 @@ export function lobbyLayout(
     const rightX = gutter + left + GAP;
     const rightWidth = bodyWidth - left - GAP;
     const right = rightX + rightWidth;
-    const bottom = footer.y - GAP;
-    const panelHeight = Math.min(FLOAT_MAX_HEIGHT, Math.round(bodyHeight * 0.8));
+    // The panel's bottom edge never sits below the visible bottom: a touch tablet's keyboard lifts it, and it shrinks to
+    // fit what is left under the header (its field and newest lines stay on screen).
+    const bottom = Math.min(footer.y - GAP, height - covered - GAP);
+    const panelHeight = Math.max(
+      FLOAT_MIN_HEIGHT,
+      Math.min(FLOAT_MAX_HEIGHT, Math.round(bodyHeight * 0.8), bottom - bodyTop),
+    );
     // A closed chat's pill sits at the corner of the settings column: the list ends above it, so no row hides behind it.
     const open = chatOpen && !chatPopped;
     const corner = chatPopped ? POPPED_CARD : { width: PILL_WIDTH, height: hit.target };

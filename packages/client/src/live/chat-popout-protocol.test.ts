@@ -4,6 +4,9 @@ import {
   Heartbeat,
   POPOUT_BEAT_MS,
   POPOUT_TIMEOUT_MS,
+  parsePopoutSnapshot,
+  parsePopoutToRoom,
+  parseRoomToPopout,
   popoutChannelName,
   popoutSnapshotOf,
   type PopoutChannel,
@@ -150,6 +153,27 @@ describe("ChatPopoutRelay", () => {
     expect(r.relay.isOpen).toBe(false);
     expect(r.opens).toEqual([true, false]);
   });
+  it("takes a beat from a window it had written off as a hello, so a reloaded tab gets its pop-out back", () => {
+    const r = rig();
+    r.relay.onState(room());
+    r.hear({ kind: "beat" });
+    expect(r.relay.isOpen).toBe(true);
+    expect(r.sent[0]).toMatchObject({ kind: "snapshot" });
+    r.advance(POPOUT_TIMEOUT_MS + 1);
+    expect(r.relay.isOpen).toBe(false);
+    r.hear({ kind: "beat" });
+    expect(r.relay.isOpen).toBe(true);
+    expect(r.opens).toEqual([true, false, true]);
+  });
+  it("drops messages that are not an object or carry an unknown kind", () => {
+    const r = rig();
+    r.relay.onState(room());
+    for (const bad of [null, 7, "hello", [], { kind: "nope" }, { kind: "say" }, { kind: "say", text: 3 }]) {
+      (r.hear as (m: unknown) => void)(bad);
+    }
+    expect(r.relay.isOpen).toBe(false);
+    expect(r.said).toEqual([]);
+  });
   it("recall tells the window to close and shows the chat in the lobby again", () => {
     const r = rig();
     r.relay.onState(room());
@@ -172,5 +196,34 @@ describe("ChatPopoutRelay", () => {
     r.relay.onState(room());
     r.relay.onState(room({ roomId: "r2" }));
     expect(r.names).toEqual([popoutChannelName("r1"), popoutChannelName("r2")]);
+  });
+});
+
+describe("message parsers", () => {
+  const snapshot = {
+    code: "ABC123",
+    lines: [{ name: "Ava", text: "hi", mine: true }],
+    live: 1,
+    chatOn: true,
+    ended: false,
+  };
+  it("accept the known messages and nothing else", () => {
+    expect(parsePopoutToRoom({ kind: "say", text: "x" })).toEqual({ kind: "say", text: "x" });
+    expect(parsePopoutToRoom({ kind: "bye", extra: 1 })).toEqual({ kind: "bye" });
+    expect(parsePopoutToRoom({ kind: "say", text: 1 })).toBeNull();
+    expect(parsePopoutToRoom(undefined)).toBeNull();
+    expect(parseRoomToPopout({ kind: "recall" })).toEqual({ kind: "recall" });
+    expect(parseRoomToPopout({ kind: "snapshot", snapshot })).toEqual({ kind: "snapshot", snapshot });
+    expect(parseRoomToPopout({ kind: "bogus" })).toBeNull();
+    expect(parseRoomToPopout("snapshot")).toBeNull();
+  });
+  it("check a snapshot's shape before it is rendered", () => {
+    expect(parsePopoutSnapshot(snapshot)).toEqual(snapshot);
+    expect(parsePopoutSnapshot({ ...snapshot, lines: "no" })).toBeNull();
+    expect(parsePopoutSnapshot({ ...snapshot, lines: [{ name: "A", text: 1, mine: true }] })).toBeNull();
+    expect(parsePopoutSnapshot({ ...snapshot, lines: [null] })).toBeNull();
+    expect(parsePopoutSnapshot({ ...snapshot, chatOn: "yes" })).toBeNull();
+    expect(parsePopoutSnapshot({ ...snapshot, code: 5 })).toBeNull();
+    expect(parseRoomToPopout({ kind: "snapshot", snapshot: { code: "x" } })).toBeNull();
   });
 });

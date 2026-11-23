@@ -50,6 +50,54 @@ export type RoomToPopout =
   /** This device left the room: the window says so and offers to close. */
   | { readonly kind: "left" };
 
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+/** A snapshot as the window may render it: every field the right type, or null (a stray or newer message is dropped). */
+export function parsePopoutSnapshot(value: unknown): PopoutSnapshot | null {
+  if (!isObject(value) || !Array.isArray(value.lines)) return null;
+  if (typeof value.code !== "string" || typeof value.live !== "number") return null;
+  if (typeof value.chatOn !== "boolean" || typeof value.ended !== "boolean") return null;
+  const lines: PopoutLine[] = [];
+  for (const line of value.lines as unknown[]) {
+    if (!isObject(line) || typeof line.name !== "string" || typeof line.text !== "string") return null;
+    if (typeof line.mine !== "boolean") return null;
+    lines.push({ name: line.name, text: line.text, mine: line.mine });
+  }
+  return { code: value.code, lines, live: value.live, chatOn: value.chatOn, ended: value.ended };
+}
+
+/** A message from the pop-out window, checked before the room acts on it: an object with a known `kind`, or null. */
+export function parsePopoutToRoom(value: unknown): PopoutToRoom | null {
+  if (!isObject(value)) return null;
+  switch (value.kind) {
+    case "hello":
+    case "beat":
+    case "bye":
+      return { kind: value.kind };
+    case "say":
+      return typeof value.text === "string" ? { kind: "say", text: value.text } : null;
+    default:
+      return null;
+  }
+}
+
+/** A message from the room to the window, checked before it is rendered or obeyed. */
+export function parseRoomToPopout(value: unknown): RoomToPopout | null {
+  if (!isObject(value)) return null;
+  switch (value.kind) {
+    case "beat":
+    case "recall":
+    case "left":
+      return { kind: value.kind };
+    case "snapshot": {
+      const snapshot = parsePopoutSnapshot(value.snapshot);
+      return snapshot ? { kind: "snapshot", snapshot } : null;
+    }
+    default:
+      return null;
+  }
+}
+
 export function popoutSnapshotOf(state: RoomState): PopoutSnapshot {
   return {
     code: state.code ?? "",
@@ -163,15 +211,20 @@ export class ChatPopoutRelay {
     this.#snapshot = null;
   }
 
-  #hear(message: PopoutToRoom): void {
+  #hear(raw: unknown): void {
+    const message = parsePopoutToRoom(raw);
+    if (!message) return;
     switch (message.kind) {
       case "hello":
-        this.#heartbeat.beat(this.#deps.now());
-        this.#setOpen(true);
-        if (this.#snapshot) this.#channel?.postMessage({ kind: "snapshot", snapshot: this.#snapshot });
+        this.#hello();
         return;
       case "beat":
-        if (!this.#open) return;
+        // A window the room had written off (this tab reloaded, or was throttled past the timeout) that is still
+        // beating is a window that wants its chat back: a beat while closed is a hello.
+        if (!this.#open) {
+          this.#hello();
+          return;
+        }
         this.#heartbeat.beat(this.#deps.now());
         this.#channel?.postMessage({ kind: "beat" });
         return;
@@ -179,9 +232,15 @@ export class ChatPopoutRelay {
         this.#setOpen(false);
         return;
       case "say":
-        if (this.#open && typeof message.text === "string") this.#deps.say(message.text);
+        if (this.#open) this.#deps.say(message.text);
         return;
     }
+  }
+
+  #hello(): void {
+    this.#heartbeat.beat(this.#deps.now());
+    this.#setOpen(true);
+    if (this.#snapshot) this.#channel?.postMessage({ kind: "snapshot", snapshot: this.#snapshot });
   }
 
   #setOpen(open: boolean): void {
