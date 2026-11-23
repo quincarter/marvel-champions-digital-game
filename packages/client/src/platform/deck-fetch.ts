@@ -1,9 +1,11 @@
 /**
  * Fetching a MarvelCDB deck for import, on whichever shell this is.
  *
- * On the web it asks the dev/preview route (`vite-marvelcdb-import.ts`), which
- * a production web build doesn't have — that 404 is the designed fallback to
- * paste. In a packaged app it asks MarvelCDB directly through native HTTP and
+ * On the web it asks the same-origin `/api/marvelcdb-import/` route: the dev
+ * and preview server's (`vite-marvelcdb-import.ts`), the game's Cloudflare
+ * Worker's in production (`edge/game-routes.ts`) and Netlify's proxy on the
+ * nonprod previews (`netlify.toml`). A 404 is still answered with the paste
+ * fallback where a screen has one. In a packaged app it asks MarvelCDB directly through native HTTP and
  * shapes the answer the same way the route would, so the Decks screen can't
  * tell the two apart.
  */
