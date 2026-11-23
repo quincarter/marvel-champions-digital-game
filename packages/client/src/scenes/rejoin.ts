@@ -25,6 +25,9 @@ import type { Rect } from "../view/layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { resumeLocalSave } from "./resume-save.js";
+import { guidePrefs } from "../guide/guide-store.js";
+import { tutorialResumeDecisionFor } from "../guide/tutorial-resume.js";
+import { appSession } from "../session.js";
 
 export type RejoinData =
   | {
@@ -91,6 +94,16 @@ export class RejoinOverlay extends Phaser.Scene {
 
   /** The same resume as Title's Continue: a local save only, never a guided run, setup deal when the mulligans are not done. */
   async #resume(gameId: string): Promise<void> {
+    // A guided lesson's save opens through Title's own Continue (its resume prompt), never as plain play from here.
+    const saved = await appSession()
+      .store.listSaves()
+      .catch(() => []);
+    const meta = saved.find((save) => save.id === gameId);
+    if (meta && tutorialResumeDecisionFor(meta, guidePrefs()).kind !== "plain") {
+      clearGameAddress();
+      goToScreen(this, SCENES.title);
+      return;
+    }
     const screen = await resumeLocalSave(gameId);
     // A Cancel while it loaded: the game finished loading anyway, so the address it rewrote is cleared again.
     if (this.#cancelled || !this.#alive) {

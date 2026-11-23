@@ -9,12 +9,14 @@ import { SCENES } from "./keys.js";
 
 /** The screen the resumed game opens on, or null when the save could not be resumed (the host has retired it). */
 export async function resumeLocalSave(gameId: string): Promise<string | null> {
+  // A reload resume: this device's own save was the one being played, so the before-resume device sync is skipped and
+  // nothing waits on the network.
   const session = appSession();
   session.guidedRun = false;
   session.guidedRunKind = undefined;
   setGuideRunLevelOverride(null);
   try {
-    await session.store.resume(gameId);
+    await session.store.resume(gameId, { sync: false });
   } catch {
     return null;
   }
