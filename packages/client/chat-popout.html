@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Marvel Champions chat</title>
+    <!-- The chat's pop-out window (src/chat-popout/page.ts): a light DOM page, not a second game. -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0e0c0a;
+        color-scheme: dark;
+      }
+      #chat {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat"></div>
+    <script type="module" src="/src/chat-popout/page.ts"></script>
+  </body>
+</html>

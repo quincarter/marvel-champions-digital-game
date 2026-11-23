@@ -17,6 +17,8 @@ import { withLoadedPacks } from "../packs/game-packs.js";
 import {
   leaveRoom,
   onRoomState,
+  onChatPopout,
+  recallChatPopout,
   reportHostActivity,
   resyncTablePlan,
   releaseSeat,
@@ -65,6 +67,9 @@ import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import type { ModStoreSceneData } from "./mod-store.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
+import { pointInRect } from "../view/drag-gesture.js";
+import { chatPopoutAvailable, openChatPopout } from "../platform/chat-popout.js";
+import { artLanguageNow } from "../art/art-source.js";
 import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -261,6 +266,18 @@ export class RoomLobbyScene extends Phaser.Scene {
   #chatCount = 0;
   /** New chat arrived: the chat list scrolls to its newest line on the next draw. */
   #chatToEnd = true;
+  /** Whether the floating chat (a desktop) is open; it starts closed and keeps its choice across redraws. */
+  #chatOpen = false;
+  /** The chat is open in its own window (`live/chat-popout-protocol.ts`): the lobby's chat shows where it went. */
+  #popped = false;
+  /** The browser blocked the pop-out window: the chat header says so for a few seconds. */
+  #popBlocked = false;
+  /** Desktop only: a phone or a tablet has no window to put the chat in. */
+  readonly #canPopOut = chatPopoutAvailable();
+  #offPopout: (() => void) | null = null;
+  /** Where the open floating chat is, while it is; the lists under it do not scroll there. */
+  #floatRect: Rect | null = null;
+  #layoutMode: LobbyLayout["mode"] = "tabs";
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #alive = false;
@@ -362,6 +379,8 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#alive = false;
       this.#off?.();
       this.#off = null;
+      this.#offPopout?.();
+      this.#offPopout = null;
       this.#hints.dispose();
       this.scale.off("resize", this.#draw, this);
       this.events.off(SEAT_AVATAR_READY, this.#draw, this);
@@ -374,7 +393,14 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
     this.#draw();
     fadeScreenIn(this);
-    if (!this.#preview) this.#off = onRoomState((state) => this.#onState(state));
+    if (!this.#preview) {
+      this.#off = onRoomState((state) => this.#onState(state));
+      this.#offPopout = onChatPopout((open) => {
+        if (open === this.#popped) return;
+        this.#popped = open;
+        if (this.#alive) this.#draw();
+      });
+    }
   }
 
   /** The hero pictures on screen now, each clipped to the scrolled list it sits in. */
@@ -796,16 +822,23 @@ export class RoomLobbyScene extends Phaser.Scene {
       undefined,
       footerHeight,
       state.epic ? 0.7 : 0.42,
+      this.#chatOpen,
+      this.#popped,
+      this.#covered,
     );
     // The keyboard is up over the Chat tab of a narrow layout: the chat gets every pixel above it, and the header and
     // the Start strip give way.
-    const compact = this.#covered > 0 && full.mode !== "wide" && this.#tab === "chat" && chatOn(state);
+    const compact = this.#covered > 0 && full.tabs !== null && this.#tab === "chat" && chatOn(state);
     const layout = compact ? this.#compactLayout(full, bar.height, gutter, width, height) : full;
     this.#activity = null;
+    this.#layoutMode = layout.mode;
+    this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
-    if (layout.panels.chat) chatSeen.markSeen(state.roomId, state.chatLive);
-    const unread = layout.panels.chat ? 0 : unreadChatCount(state, chatSeen.seenFor(state.roomId));
+    // The chat in its own window is read there.
+    const chatShown = layout.panels.chat !== undefined || this.#popped;
+    if (chatShown) chatSeen.markSeen(state.roomId, state.chatLive);
+    const unread = chatShown ? 0 : unreadChatCount(state, chatSeen.seenFor(state.roomId));
 
     if (layout.tabs) {
       const ids = layout.tabIds.filter((id) => id !== "chat" || chatOn(state));
@@ -838,10 +871,28 @@ export class RoomLobbyScene extends Phaser.Scene {
     const titled = layout.mode !== "tabs";
     if (layout.panels.seats) this.#drawSeatsPanel(layout.panels.seats, titled);
     if (layout.panels.settings) this.#drawSettingsPanel(layout.panels.settings, titled);
-    if (layout.panels.chat) this.#drawChatPanel(layout.panels.chat, titled, phone);
+    if (layout.panels.chat) this.#drawChatPanel(layout.panels.chat, titled, phone, layout.mode === "float");
     else this.#chatInput?.setVisible(false);
+    if (layout.chatPill && chatOn(state)) {
+      if (this.#popped) this.#drawPoppedCard(layout.chatPill);
+      else this.#drawChatPill(layout.chatPill, unread);
+    }
     if (!compact) this.#drawFooter(layout.footer, phone);
+    if (this.#floatRect) this.#dropStopsUnder(this.#floatRect);
     this.#route?.set(this.#order, this.#stops);
+  }
+
+  /** The open floating chat covers rows of the lists beneath it: tab and the pad must not reach what the player cannot see. */
+  #dropStopsUnder(panel: Rect): void {
+    for (const key of [...this.#order]) {
+      if (key.startsWith("chat-")) continue;
+      const stop = this.#stops.get(key);
+      if (!stop) continue;
+      const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+      if (!pointInRect(rect.x + rect.width / 2, rect.y + rect.height / 2, panel)) continue;
+      this.#stops.delete(key);
+      this.#order.splice(this.#order.indexOf(key), 1);
+    }
   }
 
   /** The chat-only layout while the keyboard is up: the tab strip just under the top bar, the chat above the keyboard. */
@@ -951,7 +1002,13 @@ export class RoomLobbyScene extends Phaser.Scene {
   ): McScrollRegion {
     const scroll = this.#scrolls[key];
     const heights = [inner.height];
-    const region = new McScrollRegion(this, { rect: inner, heights, scroll, clipInteractive: true });
+    // The floating chat covers part of the lists under it: the wheel and drags there belong to the chat.
+    const enabled = (): boolean => {
+      const over = this.#floatRect;
+      const pointer = this.input.activePointer;
+      return key === "chat" || !over || !pointInRect(pointer.x, pointer.y, over);
+    };
+    const region = new McScrollRegion(this, { rect: inner, heights, scroll, clipInteractive: true, enabled });
     this.#regions.push(region);
     const before = this.children.list.length;
     const guard = {
@@ -2261,9 +2318,142 @@ export class RoomLobbyScene extends Phaser.Scene {
     }
   }
 
-  #drawChatPanel(rect: Rect, titled: boolean, phone: boolean): void {
+  /** Opens or closes the floating chat. Opening shows the newest line; closing leaves the draft in the field. */
+  #setChatOpen(open: boolean): void {
+    this.#chatOpen = open;
+    this.#chatToEnd = open;
+    this.#draw();
+    if (open && !this.sys.game.device.input.touch) this.#chatInput?.focus();
+  }
+
+  /** Opens the chat in its own window. The dev preview has no room worker, so it pretends. */
+  #popOut(): void {
+    if (this.#preview) {
+      this.#popped = true;
+      this.#draw();
+      return;
+    }
+    const roomId = this.#state.roomId;
+    if (!roomId) return;
+    this.#popBlocked = false;
+    void openChatPopout(roomId, artLanguageNow()).then((opened) => {
+      if (opened || !this.#alive) return;
+      // A blocked pop-up: say so in the chat header for a few seconds; the chat stays where it is.
+      this.#popBlocked = true;
+      this.#draw();
+      this.time.delayedCall(6000, () => {
+        if (!this.#alive) return;
+        this.#popBlocked = false;
+        this.#draw();
+      });
+    });
+  }
+
+  /** Brings the chat back from its window. */
+  #bringBack(): void {
+    if (this.#preview) {
+      this.#popped = false;
+      this.#draw();
+      return;
+    }
+    recallChatPopout();
+  }
+
+  /** The Pop out button of a chat panel that has a header to hold it (the floating panel and the ultrawide column). */
+  #drawPopOutButton(rect: Rect, offset: number): void {
+    if (!this.#canPopOut || !chatOn(this.#state)) return;
+    const popRect: Rect = { x: rect.x + rect.width - 12 - offset - 120, y: rect.y + 6, width: 120, height: 30 };
+    const pop = (): void => this.#popOut();
+    this.#button({
+      kind: "secondary",
+      label: t("room.chat.popout"),
+      type: typeRole.label,
+      rect: popRect,
+      onClick: pop,
+    });
+    this.#addStop("chat-popout", popRect, pop);
+  }
+
+  /** What the lobby's chat says while it is in its own window, with the way back. */
+  #drawPoppedNotice(inner: Rect): void {
+    this.#chatInput?.setVisible(false);
+    this.#text(inner.x + 2, inner.y + 4, t("room.chat.popped"), 14, inner.width - 4, { bold: true });
+    const back: Rect = { x: inner.x, y: inner.y + 40, width: Math.min(inner.width, 200), height: hit.target };
+    const bring = (): void => this.#bringBack();
+    this.#button({
+      kind: "primary",
+      label: t("room.chat.bringBack"),
+      type: typeRole.label,
+      rect: back,
+      onClick: bring,
+    });
+    this.#addStop("chat-bring-back", back, bring);
+  }
+
+  /** The floating chat's corner while the chat is in its own window: a small card in the pill's place. */
+  #drawPoppedCard(rect: Rect): void {
+    this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
+    this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    const inner = this.#frame(rect, null);
+    this.add
+      .graphics()
+      .lineStyle(3, INK, 1)
+      .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    this.#drawPoppedNotice({ ...inner, y: inner.y + 2, width: inner.width });
+  }
+
+  /** The closed floating chat: a Chat pill at the corner, with the unread count beside it. */
+  #drawChatPill(rect: Rect, unread: number): void {
+    const open = (): void => this.#setChatOpen(true);
+    this.#button({
+      kind: "primary",
+      label: t("room.tab.chat"),
+      type: typeRole.label,
+      rect,
+      ...(unread > 0 ? { value: unread > 9 ? "9+" : String(unread) } : {}),
+      onClick: open,
+    });
+    this.#addStop("chat-pill", rect, open);
+  }
+
+  #drawChatPanel(rect: Rect, titled: boolean, phone: boolean, floating = false): void {
     const state = this.#state;
-    const inner = this.#frame(rect, titled ? t("room.tab.chat") : null);
+    // A floating panel is opaque and takes the pointer, so nothing under it scrolls or presses through it.
+    if (floating) {
+      // A comic-panel drop shadow (an offset ink rectangle) and a heavier border lift it off the settings.
+      this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
+      this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    }
+    const framed = this.#frame(rect, titled ? t("room.tab.chat") : null);
+    let inner = framed;
+    if (this.#popBlocked && titled && !this.#popped) {
+      this.#text(framed.x + 2, framed.y - 2, t("room.chat.popoutBlocked"), 12, framed.width - 4, { bold: true });
+      inner = { ...framed, y: framed.y + 20, height: framed.height - 20 };
+    }
+    if (floating) {
+      this.add
+        .graphics()
+        .lineStyle(3, INK, 1)
+        .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      const closeRect: Rect = { x: rect.x + rect.width - 12 - 92, y: rect.y + 6, width: 92, height: 30 };
+      const close = (): void => this.#setChatOpen(false);
+      this.#button({
+        kind: "secondary",
+        label: t("room.chat.close"),
+        type: typeRole.label,
+        rect: closeRect,
+        onClick: close,
+      });
+      this.#addStop("chat-close", closeRect, close);
+      this.#drawPopOutButton(rect, 92 + 8);
+    } else if (this.#layoutMode === "triple") {
+      // Only the floating panel and the ultrawide column pop out; the tablet-landscape and stacked layouts do not.
+      this.#drawPopOutButton(rect, 0);
+    }
+    if (this.#popped && chatOn(state)) {
+      this.#drawPoppedNotice(inner);
+      return;
+    }
     if (!chatOn(state)) {
       this.#chatInput?.setVisible(false);
       this.#text(inner.x + 2, inner.y + 4, t("room.chat.off"), 14, inner.width - 4, { alpha: 0.8 });
