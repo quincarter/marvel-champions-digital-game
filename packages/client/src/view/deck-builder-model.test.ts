@@ -16,7 +16,10 @@ import {
   packFilterChoices,
   sortPool,
   stepChoice,
-  withCycle,
+  withCycles,
+  pickSummaryOf,
+  singleChoiceOf,
+  togglePick,
   type PackInfo,
   copyNameOf,
   duplicateDeck,
@@ -140,15 +143,37 @@ const PACKS: readonly PackInfo[] = [
 ];
 
 describe("pack/cycle filter and sort", () => {
-  test("pack filter narrows to one pack; cycle filter to one cycle", () => {
+  test("pack filter narrows to the chosen packs; cycle filter to the chosen cycles (issue #977)", () => {
     const all = browsablePool(WAVE1_CARDS, spiderMan, ["justice"]);
     const packCode = all[0]!.setCode as string;
-    const one = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCode });
+    const one = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCodes: [packCode] });
     expect(one.length).toBeGreaterThan(0);
     expect(one.every((c) => c.setCode === packCode)).toBe(true);
-    const cyc = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { cycleId: all[0]!.cycleId as string });
+    const codes = [...new Set(all.map((c) => c.setCode as string))];
+    expect(codes.length).toBeGreaterThan(1);
+    const two = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCodes: codes.slice(0, 2) });
+    expect(new Set(two.map((c) => c.setCode as string))).toEqual(new Set(codes.slice(0, 2)));
+    const cyc = browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { cycleIds: [all[0]!.cycleId as string] });
     expect(cyc.every((c) => c.cycleId === all[0]!.cycleId)).toBe(true);
-    expect(browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCode: "nope" })).toEqual([]);
+    expect(browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCodes: ["nope"] })).toEqual([]);
+    // An empty choice is every pack, as no choice is.
+    expect(browsablePool(WAVE1_CARDS, spiderMan, ["justice"], { packCodes: [], cycleIds: [] })).toEqual(all);
+  });
+
+  test("the Hero and Basic toggles hide those cards, with any aspect (issue #977)", () => {
+    const aspectOf = (c: AnyCard): string => ("aspect" in c ? (c.aspect as string) : "");
+    const all = browsablePool(CORE_CARDS, spiderMan, ["aggression"]);
+    expect(all.some((c) => aspectOf(c) === "basic")).toBe(true);
+    expect(all.some((c) => aspectOf(c).startsWith("hero:"))).toBe(true);
+    const aspectOnly = browsablePool(CORE_CARDS, spiderMan, ["aggression"], { hideHero: true, hideBasic: true });
+    expect(aspectOnly.length).toBeGreaterThan(0);
+    expect(aspectOnly.every((c) => aspectOf(c) === "aggression")).toBe(true);
+    const noBasic = browsablePool(CORE_CARDS, spiderMan, ["aggression"], { hideBasic: true });
+    expect(noBasic.some((c) => aspectOf(c).startsWith("hero:"))).toBe(true);
+    expect(noBasic.some((c) => aspectOf(c) === "basic")).toBe(false);
+    const heroOnly = browsablePool(CORE_CARDS, spiderMan, [], { hideBasic: true });
+    expect(heroOnly.length).toBeGreaterThan(0);
+    expect(heroOnly.every((c) => aspectOf(c).startsWith("hero:"))).toBe(true);
   });
 
   test("sorts by name, cost, and pack (release order then numeric collector number)", () => {
@@ -247,8 +272,34 @@ describe("pack/cycle filter and sort", () => {
     expect(stepChoice(choices.packs, null, 1)).toBe("core");
     expect(stepChoice(choices.packs, "core", 1)).toBeNull();
     expect(stepChoice(choices.packs, null, -1)).toBe("core");
-    expect(withCycle({ packCode: "core" }, "wave1", PACKS).packCode).toBeNull();
-    expect(withCycle({ packCode: "core" }, "core", PACKS).packCode).toBe("core");
+    // A pack outside every chosen wave stays picked (PR #980 review): the two narrow together.
+    expect(withCycles({ packCodes: ["core"] }, ["wave1"])).toEqual({ packCodes: ["core"], cycleIds: ["wave1"] });
+    expect(browsablePool(CORE_CARDS, spiderMan, ["justice"], withCycles({ packCodes: ["core"] }, ["wave1"]))).toEqual(
+      [],
+    );
+    expect(withCycles({ packCodes: ["core"], cycleIds: ["wave1"] }, [])).toEqual({
+      packCodes: ["core"],
+      cycleIds: null,
+    });
+    expect(choices.packs[0]!.group).toBe("Core");
+  });
+
+  test("the pack and wave buttons' words, the stepper's start and a toggle (issue #977)", () => {
+    const names = new Map([
+      ["core", "Core Set"],
+      ["gob", "Green Goblin"],
+    ]);
+    const several = (count: number): string => `${count} packs`;
+    expect(pickSummaryOf(null, names, "All packs", several)).toBe("All packs");
+    expect(pickSummaryOf([], names, "All packs", several)).toBe("All packs");
+    expect(pickSummaryOf(["gob"], names, "All packs", several)).toBe("Green Goblin");
+    expect(pickSummaryOf(["core", "gob"], names, "All packs", several)).toBe("2 packs");
+    expect(singleChoiceOf(["gob"])).toBe("gob");
+    expect(singleChoiceOf(["core", "gob"])).toBeNull();
+    expect(singleChoiceOf(null)).toBeNull();
+    expect(togglePick(null, "core")).toEqual(["core"]);
+    expect(togglePick(["core"], "gob")).toEqual(["core", "gob"]);
+    expect(togglePick(["core", "gob"], "core")).toEqual(["gob"]);
   });
 });
 

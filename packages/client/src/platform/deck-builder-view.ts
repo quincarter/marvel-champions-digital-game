@@ -19,7 +19,7 @@ export const DECK_BUILDER_VIEW_KEY = "mc-deck-builder-view";
 
 export interface DeckBuilderView {
   readonly sort: PoolSort;
-  /** Only the filter fields that outlive a deck: type, cost, icon, trait, pack and wave. */
+  /** Only the filter fields that outlive a deck: type, cost, icon, trait, pack, wave and the Hero / Basic toggles. */
   readonly filter: PoolFilter;
   readonly poolView: "grid" | "list";
   readonly deckSort: DeckListSort;
@@ -48,6 +48,13 @@ const ICONS: readonly ResourceIconType[] = ["physical", "mental", "energy", "wil
 
 const sortKeyOf = (value: unknown): PoolSortKey | null => SORT_KEYS.find((key) => key === value) ?? null;
 const stringOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
+/** A kept list of ids, or the single id an older view kept (`packCode` / `cycleId`, before issue #977). */
+const stringsOf = (list: unknown, single: unknown): readonly string[] | null => {
+  const ids = Array.isArray(list) ? list.map(stringOf).filter((id): id is string => id !== null) : [];
+  const one = stringOf(single);
+  const all = ids.length ? [...new Set(ids)] : one ? [one] : [];
+  return all.length ? all : null;
+};
 
 /** The kept part of `filter`, as stored. */
 export function keptFilterOf(filter: PoolFilter): PoolFilter {
@@ -56,8 +63,10 @@ export function keptFilterOf(filter: PoolFilter): PoolFilter {
   if (typeof filter.cost === "number") kept.cost = filter.cost;
   if (filter.resource) kept.resource = filter.resource;
   if (filter.trait) kept.trait = filter.trait;
-  if (filter.packCode) kept.packCode = filter.packCode;
-  if (filter.cycleId) kept.cycleId = filter.cycleId;
+  if (filter.packCodes?.length) kept.packCodes = filter.packCodes;
+  if (filter.cycleIds?.length) kept.cycleIds = filter.cycleIds;
+  if (filter.hideHero) kept.hideHero = true;
+  if (filter.hideBasic) kept.hideBasic = true;
   return kept;
 }
 
@@ -82,8 +91,10 @@ export function deckBuilderView(storage: PrefStorage | null = browserStorage()):
           : null,
       resource: ICONS.find((icon) => icon === f["resource"]) ?? null,
       trait: stringOf(f["trait"]) as Trait | null,
-      packCode: stringOf(f["packCode"]),
-      cycleId: stringOf(f["cycleId"]),
+      packCodes: stringsOf(f["packCodes"], f["packCode"]),
+      cycleIds: stringsOf(f["cycleIds"], f["cycleId"]),
+      hideHero: f["hideHero"] === true,
+      hideBasic: f["hideBasic"] === true,
     });
     return {
       sort: { primary, secondary: secondary === primary || secondary === "match" ? null : secondary },
