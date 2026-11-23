@@ -67,3 +67,10 @@ describe("messages", () => {
     expect(importedDeckNote("X", ["a", "b", "c", "d", "e"])).toBe('Imported "X".\na\nb\nc\n…and 2 more lines.');
   });
 });
+
+describe("a screen with no paste field", () => {
+  test("the 404 line does not send the player to paste", () => {
+    expect(marvelCdbFailureMessage(404, "")).toContain("Paste the decklist");
+    expect(marvelCdbFailureMessage(404, "", false)).not.toContain("Paste");
+  });
+});

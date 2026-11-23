@@ -34,7 +34,7 @@ test("Build a deck from the picker: build and save a deck, land back on it, read
   await press(page, "RoomDeckPicker", "build");
   await waitForScene(page, "DeckBuilder", 15_000);
   await settle(page);
-  // A new deck: Spider-Man, from the empty deck (hero cards only), then Save and Back.
+  // A new deck: Spider-Man, from his published precon (a legal deck a seat can take), then Save and Back.
   await press(page, "DeckBuilder", "identity:01001a");
   await waitFor(
     async () =>
@@ -46,7 +46,11 @@ test("Build a deck from the picker: build and save a deck, land back on it, read
     "the builder or its start step",
     15_000,
   );
-  if (await stopOf(page, "DeckBuilder", "start:empty")) await press(page, "DeckBuilder", "start:empty");
+  const precon = (await stopsOf(page, "DeckBuilder")).find(
+    (stop) => stop.key.startsWith("start:") && stop.key !== "start:empty" && stop.key !== "start:back",
+  );
+  if (precon) await press(page, "DeckBuilder", precon.key);
+  else expect(await stopOf(page, "DeckBuilder", "start:empty"), "a start step offering a precon").toBeUndefined();
   await waitFor(
     async () =>
       (await stopOf(page, "DeckBuilder", "save")) || (await stopOf(page, "DeckBuilder", "tab:deck")) ? true : null,
@@ -71,7 +75,35 @@ test("Build a deck from the picker: build and save a deck, land back on it, read
   );
   const added = (await deckKeys(page)).filter((key) => !before.includes(key));
   expect(added, "exactly the new deck").toHaveLength(1);
-  expect(await stopOf(page, "RoomDeckPicker", "panel:use"), "its details are open, with Pick").toBeTruthy();
+  const use = await stopOf(page, "RoomDeckPicker", "panel:use");
+  expect(use, "its details are open, with Pick").toBeTruthy();
+  // The deck is judged by a worker: wait for the verdict, then it is usable (no "Checking" or "Not usable" line anywhere).
+  await waitFor(
+    async () =>
+      (await visibleTexts(page)).some((t) => t.scene === "RoomDeckPicker" && /checking|not usable/i.test(t.text))
+        ? null
+        : true,
+    "the new deck is judged usable",
+    30_000,
+  );
+  // The details open are the added deck's: a name shown on its own row is shown again in the panel.
+  const row = added[0]!;
+  const rowRect = (await stopOf(page, "RoomDeckPicker", row))!.rect;
+  const texts = (await visibleTexts(page)).filter((t) => t.scene === "RoomDeckPicker");
+  const rowNames = texts.filter(
+    (t) =>
+      t.x >= rowRect.x &&
+      t.x < rowRect.x + rowRect.width &&
+      t.y >= rowRect.y &&
+      t.y < rowRect.y + rowRect.height &&
+      t.text.length > 3,
+  );
+  const inPanel = texts.filter((t) => t.x >= use!.rect.x - 1);
+  expect(rowNames.length, "the new deck's row has words").toBeGreaterThan(0);
+  expect(
+    rowNames.some((r) => inPanel.some((p) => p.text.includes(r.text))),
+    "the open details are the new deck's",
+  ).toBe(true);
   expect((await screens(page)).includes("RoomDeckPicker")).toBe(true);
   expect(errors).toEqual([]);
 });

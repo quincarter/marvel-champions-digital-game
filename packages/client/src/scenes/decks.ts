@@ -3328,7 +3328,13 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
       return;
     }
-    await this.#applyImport({ ok: true, deck: result.deck, warnings: result.warnings });
+    try {
+      await this.#applyImport({ ok: true, deck: result.deck, warnings: result.warnings });
+    } catch (cause) {
+      this.#status = { text: cause instanceof Error ? cause.message : String(cause), tone: "error" };
+      this.#busy = false;
+      this.#rebuild();
+    }
   }
 
   #importEnv(): ImportEnv {

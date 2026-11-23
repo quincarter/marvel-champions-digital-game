@@ -91,6 +91,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #importOpen = false;
   #importText = "";
   #importBusy = false;
+  /** Bumped on every import and every visit: an answer for an older one is dropped. */
+  #importGen = 0;
   #importInput: McTextInput | null = null;
   #buttons: McButton[] = [];
   #region: McScrollRegion | null = null;
@@ -151,6 +153,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#importOpen = false;
     this.#importText = "";
     this.#importBusy = false;
+    this.#importGen += 1;
     this.#leaving = false;
     this.#picking = false;
     this.#pickGen += 1;
@@ -175,8 +178,9 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(PAPER));
     this.#hints = new GlyphHints(this);
     bindTextFieldEscape(this, () => this.#input);
+    bindTextFieldEscape(this, () => this.#importInput);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#input?.focused ?? false,
+      blocked: () => (this.#input?.focused ?? false) || (this.#importInput?.focused ?? false),
       onCancel: () => {
         if (!this.#picking) this.#backOrClose();
       },
@@ -190,6 +194,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.events.on(SEAT_AVATAR_READY, this.#avatarReady, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#importGen += 1;
       this.#picking = false;
       this.#pickGen += 1;
       this.#off?.();
@@ -611,8 +616,10 @@ export class RoomDeckPickerScene extends Phaser.Scene {
           .text(gutter, top, note, textStyle(typeRole.rowTitle, surface.inkOnHue.hex))
           .setFontSize(13)
           .setBackgroundColor("#f2b01e")
-          .setPadding(6, 3, 6, 3);
-        fitText(line, right - gutter, 13);
+          .setPadding(6, 3, 6, 3)
+          // Two or three lines on a phone, not one cut line: the words are what the player needs.
+          .setWordWrapWidth(right - gutter - 12, true)
+          .setMaxLines(3);
         top += line.height + 8;
       }
       const listRect: Rect = { x: gutter, y: top, width: right - gutter, height: Math.max(0, height - top - gutter) };
@@ -698,7 +705,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** The deck builder on a new deck; Back (or a Save then Back) returns here on the deck just built, ready to Pick. */
   #build(): void {
-    if (this.#leaving) return;
+    if (this.#leaving || this.#importBusy) return;
     this.#leaving = true;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.deckBuilder, {
@@ -720,7 +727,19 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   async #import(): Promise<void> {
     if (this.#importBusy || this.#leaving) return;
     this.#importBusy = true;
+    const gen = ++this.#importGen;
     this.#draw();
+    try {
+      await this.#runImport(gen);
+    } catch (cause) {
+      if (!this.#alive || gen !== this.#importGen) return;
+      this.#importBusy = false;
+      this.#say(cause instanceof Error ? cause.message : String(cause));
+      this.#draw();
+    }
+  }
+
+  async #runImport(gen: number): Promise<void> {
     const stored = await deckStorage().list();
     const env: ImportEnv = {
       pool: currentPool(),
@@ -729,8 +748,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       newId: () => crypto.randomUUID(),
       existingNames: stored.map((deck) => deck.name),
     };
-    const result = await importMarvelCdbDeck(this.#importText, env);
-    if (!this.#alive) return;
+    const result = await importMarvelCdbDeck(this.#importText, env, undefined, false);
+    if (!this.#alive || gen !== this.#importGen) return;
     this.#importBusy = false;
     if (!result.ok) {
       this.#say(result.message);
@@ -738,7 +757,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       return;
     }
     await deckStorage().put(result.deck);
-    if (!this.#alive) return;
+    if (!this.#alive || gen !== this.#importGen) return;
     this.#importOpen = false;
     this.#importText = "";
     this.#importInput?.setValue("");

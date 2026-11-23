@@ -14,12 +14,12 @@ export type MarvelCdbImportResult =
   | { readonly ok: false; readonly message: string };
 
 /** What a failed fetch says: the server's own words when it sent some, else a line for the 404 or the status. */
-export function marvelCdbFailureMessage(status: number, body: string): string {
+export function marvelCdbFailureMessage(status: number, body: string, canPaste = true): string {
   // A production deploy has no `vite-marvelcdb-import.ts` route at all (dev/preview only) and 404s here with no JSON
   // body: the one case this build cannot tell apart from "MarvelCDB has nothing at that id", so it names the real cause.
   let message =
     status === 404
-      ? "MarvelCDB import by link isn't available in this deployment (or MarvelCDB has nothing at that id). Paste the decklist instead."
+      ? `MarvelCDB import by link isn't available in this deployment (or MarvelCDB has nothing at that id).${canPaste ? " Paste the decklist instead." : ""}`
       : `MarvelCDB import failed (HTTP ${status}).`;
   try {
     const parsed = JSON.parse(body) as { error?: string };
@@ -42,12 +42,15 @@ export async function importMarvelCdbDeck(
   text: string,
   env: ImportEnv,
   fetcher: typeof fetchMarvelCdbDeck = fetchMarvelCdbDeck,
+  /** False where the screen has no paste field to send the player to (the room deck picker). */
+  canPaste = true,
 ): Promise<MarvelCdbImportResult> {
   const ref = parseMarvelCdbReference(text);
   if (!ref) return { ok: false, message: "That doesn't look like a MarvelCDB deck link or id." };
   try {
     const response = await fetcher(ref.kind, ref.id);
-    if (response.status !== 200) return { ok: false, message: marvelCdbFailureMessage(response.status, response.body) };
+    if (response.status !== 200)
+      return { ok: false, message: marvelCdbFailureMessage(response.status, response.body, canPaste) };
     const outcome = importFromMarvelCdbResponseText(
       response.body,
       ref,
