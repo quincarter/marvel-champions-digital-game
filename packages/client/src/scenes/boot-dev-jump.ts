@@ -413,11 +413,13 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       ],
     });
     room.requestSeat("s1");
+    // The guest takes s2 at once when the lobby lets it (no request), or asks for it and waits to be assigned.
     await until(
-      () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
-      "a guest asking for s2",
+      () => room.roomState().seats.some((s) => s.id === "s2" && (s.holder !== null || s.requests.length > 0)),
+      "a guest taking or asking for s2",
     );
-    const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+    const s2 = room.roomState().seats.find((s) => s.id === "s2");
+    const asker = s2?.holder === null ? s2.requests[0] : undefined;
     if (asker) room.assignSeat("s2", asker.participant);
     await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
     await room.startGame({
