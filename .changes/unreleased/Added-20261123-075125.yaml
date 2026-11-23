@@ -1,0 +1,3 @@
+kind: Added
+body: 'Deck builder: Hero and Basic toggles hide those cards from the pool, and the pack and wave buttons open a picker where you choose several at once (#977, thanks benpap24).'
+time: 2026-11-23T07:51:25.5881523-05:00

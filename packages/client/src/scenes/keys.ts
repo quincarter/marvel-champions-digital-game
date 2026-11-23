@@ -150,6 +150,8 @@ export const SCENES = {
   deckActions: "DeckActionsSheet",
   /** The search cheat sheet (`scenes/search-help-sheet.ts`), over the deck builder. */
   searchHelp: "SearchHelpSheet",
+  /** The pack or wave picker (`scenes/pool-pick-sheet.ts`, #977), over the deck builder. */
+  poolPick: "PoolPickSheet",
   /** "Manual adjust" (`scenes/manual-adjust.ts`, #791): correct the table by hand, over Pause. */
   manualAdjust: "ManualAdjustOverlay",
   /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
