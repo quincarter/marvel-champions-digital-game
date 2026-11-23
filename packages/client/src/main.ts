@@ -36,6 +36,7 @@ import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
 import { startRoomNoticeWatch } from "./scenes/room-notice-watch.js";
 import { startDiscordPresence } from "./platform/discord-presence.js";
 import { setRoomStartRefusedHandler, startLiveWatch } from "./platform/live-watch.js";
+import { syncGameAddress } from "./platform/game-address.js";
 import { goToScreen } from "./ui/transitions.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
@@ -250,6 +251,8 @@ startPadToastWatch(game);
 startRoomNoticeWatch(game);
 startDiscordPresence(game);
 startLiveWatch();
+// A single-player game in progress keeps its save id in the address, so a reload resumes it (`platform/game-address.ts`).
+appSession().store.subscribe((state) => syncGameAddress(state, appSession().guidedRun));
 
 // Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
 // syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),

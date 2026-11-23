@@ -41,6 +41,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { sceneLoader } from "./scene-loader.js";
 import type { OnlineNameData } from "./online-name.js";
+import type { RejoinData } from "./rejoin.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
 export interface OnlineData {
@@ -231,6 +232,17 @@ export class OnlineScene extends Phaser.Scene {
       void rejoinRoom(code);
       this.#watchFor();
       this.#draw();
+      // "Rejoining room ABC123…", with Cancel, until the room answers (`#stopWaiting` takes it down).
+      this.scene.launch(SCENES.rejoin, {
+        kind: "room",
+        code,
+        onCancel: () => {
+          this.#stopWaiting();
+          this.#busy = null;
+          this.#joining = null;
+          this.#draw();
+        },
+      } satisfies RejoinData);
     });
   }
 
@@ -271,6 +283,8 @@ export class OnlineScene extends Phaser.Scene {
   #stopWaiting(): void {
     this.#off?.();
     this.#off = null;
+    // Harmless when the sheet is not up.
+    if (this.scene.isActive(SCENES.rejoin)) this.scene.stop(SCENES.rejoin);
   }
 
   #draw(): void {
