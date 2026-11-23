@@ -155,7 +155,8 @@ test.describe("deck builder tabs on a phone", () => {
     expect(await hasKey(page, "pack:sort")).toBe(true);
     expect((await stops(page)).some((s) => s.key.startsWith("card:"))).toBe(false);
     await tapStop(page, "type:ally");
-    await tapStop(page, "pack:sort");
+    // The Hero and Basic toggles (issue #977) sit at the top of the panel; Basic off is the second filter on.
+    await tapStop(page, "type:show-basic");
     expect((await findText(page, "Filters · 2", "DeckBuilder")).length).toBeGreaterThan(0);
     await tapStop(page, "filters-toggle");
     expect((await stops(page)).some((s) => s.key.startsWith("card:"))).toBe(true);

@@ -116,6 +116,7 @@ const COVERING_SCENES: readonly string[] = [
   SCENES.heroDecks,
   SCENES.deckActions,
   SCENES.searchHelp,
+  SCENES.poolPick,
   SCENES.endTurnConfirm,
   SCENES.tutorialResumeConfirm,
   SCENES.holdOn,

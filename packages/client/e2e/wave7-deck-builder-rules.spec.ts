@@ -254,7 +254,9 @@ test.describe("Flow 6: collection search and Inspect in the builder", () => {
     await startNewDeck(page, "44001a");
     await press(page, "DeckBuilder", "aspect:pool");
     const builder = await texts(page, "DeckBuilder");
-    expect(builder).toEqual(expect.arrayContaining(["'POOL", "ALL PACKS", "ALL WAVES", "SORT: MATCH", "THEN: NONE"]));
+    expect(builder).toEqual(
+      expect.arrayContaining(["'POOL", "ALL PACKS ▾", "ALL WAVES ▾", "SORT: MATCH", "THEN: NONE"]),
+    );
 
     // Pack stepper: "<" from ALL PACKS wraps to the newest pack, and every card then listed is from it.
     // (By its stop: the quick filters' trait stepper, issue #531, also reads "< name >", above the pack stepper.)
@@ -263,12 +265,12 @@ test.describe("Flow 6: collection search and Inspect in the builder", () => {
       (t, i, all) => all[i - 1] === "<" && all[i + 1] === ">" && t !== "ALL TRAITS",
     );
     expect(packLabel, "the pack stepper shows a pack name").toBeTruthy();
-    expect(packLabel).not.toBe("ALL PACKS");
+    expect(packLabel).not.toBe("ALL PACKS ▾");
     const inPack = await poolIds(page);
     expect(inPack.length).toBeGreaterThan(0);
     await shot(page, "6-pack-filter");
     await press(page, "DeckBuilder", "pack:next");
-    expect((await texts(page, "DeckBuilder")).some((t) => t === "ALL PACKS")).toBe(true);
+    expect((await texts(page, "DeckBuilder")).some((t) => t === "ALL PACKS ▾")).toBe(true);
 
     // Sort steps from Match (the default) to Name, and Then offers a second key (issue #531).
     await tapText(page, "DeckBuilder", "SORT: MATCH");
