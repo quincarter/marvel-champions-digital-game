@@ -513,6 +513,7 @@ export const en = {
   "room.off": "Off",
   "room.chat.placeholder": "Say something",
   "room.chat.send": "Send",
+  "room.chat.close": "Close",
   "room.chat.empty": "No messages yet.",
   "room.chat.off": "Chat is off in this room.",
   "room.activity.scenario": "The host is picking a scenario",
