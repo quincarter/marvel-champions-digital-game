@@ -88,7 +88,10 @@ import {
   type DeckBuildingRules,
   QUICK_COST_MAX,
   stepChoice,
-  withCycle,
+  withCycles,
+  singleChoiceOf,
+  pickSummaryOf,
+  type FilterChoice,
   browsablePool,
   editableDeckOf,
   hasUnsavedChanges,
@@ -227,6 +230,7 @@ import { DeckSearchClient } from "../view/deck-search-client.js";
 import { parsePoolQuery } from "../view/pool-query.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import type { SearchHelpSheetData } from "./search-help-sheet.js";
+import type { PoolPickSheetData } from "./pool-pick-sheet.js";
 import { deckCopiesOf, drawOdds, oddsGroupsOf, oddsRowsOf, percentText } from "../view/deck-odds.js";
 import { deckBuilderView, rememberDeckBuilderView } from "../platform/deck-builder-view.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
@@ -235,6 +239,7 @@ import type { CardLanguage } from "../art/card-language.js";
 import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 import { localizedLabelOf } from "../view/card-text.js";
+import { t } from "../i18n/translate.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
@@ -399,6 +404,9 @@ const RIGHT_RAIL_WIDTH = 300;
 const RAIL_GAP = 24;
 /** Card view's column cap: enough that a 4K window's pool keeps cards near their usual size instead of blowing them up. */
 const POOL_MAX_COLUMNS = 20;
+
+/** The Hero and Basic show toggles' focus stops (`type:<id>`), drawn before the type chips (issue #977). */
+const SHOW_TOGGLE_IDS = ["show-hero", "show-basic"] as const;
 
 /**
  * W1's type filter chips (docs/phase4-screen-gaps.md §3): "All" plus every `PoolFilter.type` the pool actually
@@ -703,6 +711,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       blocked: () =>
         this.scene.isActive(SCENES.inspect) ||
         this.scene.isActive(SCENES.searchHelp) ||
+        this.scene.isActive(SCENES.poolPick) ||
         (this.#nameInput?.focused ?? false) ||
         (this.#filterInput?.focused ?? false) ||
         (this.#identityInput?.focused ?? false),
@@ -889,7 +898,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           filtersOpen: this.#filtersOpen,
           filterTextEntered: this.#filterText !== "",
           aspectIds: [...SELECTABLE_ASPECTS],
-          typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+          typeFilterIds: [...SHOW_TOGGLE_IDS, ...TYPE_FILTERS.map((f) => f.id)],
           quickFilterIds: QUICK_FILTERS.map((f) => f.id),
           oddsIds: [...this.#stops.keys()].filter((key) => key.startsWith("odds:")),
           poolCardIds: pool.map((card) => card.id as string),
@@ -908,7 +917,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         identityChosen: true,
         identityIds: [],
         aspectIds: [...SELECTABLE_ASPECTS],
-        typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+        typeFilterIds: [...SHOW_TOGGLE_IDS, ...TYPE_FILTERS.map((f) => f.id)],
         quickFilterIds: QUICK_FILTERS.map((f) => f.id),
         chartIds: [...this.#stops.keys()].filter((key) => key.startsWith("chart:") || key.startsWith("odds:")),
         poolCardIds: pool.map((card) => card.id as string),
@@ -1475,7 +1484,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   #drawTypeFilters(left: number, top: number, column: number): number {
-    let y = top;
+    let y = this.#drawShowToggles(left, top, column);
     label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const ground = this.add.graphics();
@@ -1512,6 +1521,47 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     });
     return y + chipStripHeight(typeChipRows.length) + 16;
+  }
+
+  /**
+   * The Hero and Basic toggles (issue #977, benpap24): each one on shows that kind of card in the pool, off hides it, so
+   * an aspect with both off lists that aspect's cards alone. They work beside the aspect buttons, which still choose
+   * the deck's aspect, and either can be on with any aspect.
+   */
+  #drawShowToggles(left: number, top: number, column: number): number {
+    let y = top;
+    label(this, left, y, t("deckBuilder.show"), typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const ground = this.add.graphics();
+    const width = (column - CHIP_GAP) / 2;
+    // Plain chips, filled while on with a tick: a tinted Basic chip read as "on" either way.
+    const toggles = [
+      { id: "show-hero", text: t("deckBuilder.showHero"), key: "hideHero" },
+      { id: "show-basic", text: aspectStampOf("basic").label, key: "hideBasic" },
+    ] as const;
+    toggles.forEach((toggle, index) => {
+      const rect: Rect = { x: left + index * (width + CHIP_GAP), y, width, height: hit.target };
+      const shown = !this.#filter[toggle.key];
+      const flip = (): void => {
+        this.#filter = { ...this.#filter, [toggle.key]: shown };
+        this.#rememberView();
+        this.#listScroll.reset();
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: `${shown ? "✓ " : ""}${toggle.text}`,
+          type: typeRole.label,
+          rect,
+          selected: shown,
+          underlay: ground,
+          onClick: flip,
+        }),
+      );
+      this.#stops.set(`type:${toggle.id}`, { rect, activate: flip });
+    });
+    return y + hit.target + 16;
   }
 
   /**
@@ -1599,10 +1649,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /**
-   * The pool's Pack control, Cycle button and Sort button (PR #88 step 5). One combined control would have hidden
-   * which wave a pack belongs to, so: a full-width pack stepper (◂ name ▸, wrapping through "All packs") over a
-   * half-width cycle button and a half-width sort button — two rows, which is what fits a 375px column. Cycle narrows
-   * the packs the stepper visits; both only offer what the pool holds for this deck's aspects (`packFilterChoices`).
+   * The pool's Pack control, Wave button and Sort button (PR #88 step 5). One combined control would have hidden
+   * which wave a pack belongs to, so: a full-width pack row (◂ name ▸) over a full-width wave button and a half-width
+   * pair of sort buttons, which is what fits a 375px column. A press on the pack name or the wave button opens a picker
+   * where several are chosen at once (issue #977, benpap24); the arrows still step one pack at a time, wrapping through
+   * "All packs". Waves narrow the packs on offer; both only offer what the pool holds for this deck's aspects
+   * (`packFilterChoices`).
    */
   #drawPackAndSort(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
@@ -1623,9 +1675,19 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#rebuild();
     };
     const arrow = hit.target;
-    const packName = packInfos().find((p) => p.code === this.#filter.packCode)?.name ?? "All packs";
-    const stepPack = (dir: 1 | -1) => (): void =>
-      apply({ ...this.#filter, packCode: stepChoice(choices.packs, this.#filter.packCode, dir) });
+    const packNames = new Map(packInfos().map((p) => [p.code, p.name]));
+    const packLabel = pickSummaryOf(this.#filter.packCodes, packNames, t("deckBuilder.allPacks"), (count) =>
+      t("deckBuilder.packsCount", { count }),
+    );
+    // With several packs picked, an arrow steps from "All packs": it goes back to one pack at a time.
+    const stepPack = (dir: 1 | -1) => (): void => {
+      const next = stepChoice(choices.packs, singleChoiceOf(this.#filter.packCodes), dir);
+      apply({ ...this.#filter, packCodes: next ? [next] : null });
+    };
+    const pickPacks = (): void =>
+      this.#openPoolPick(t("deckBuilder.pickPacksTitle"), choices.packs, this.#filter.packCodes, (chosen) =>
+        apply({ ...this.#filter, packCodes: chosen.length ? chosen : null }),
+      );
     const prevRect: Rect = { x: left, y, width: arrow, height: hit.target };
     const nameRect: Rect = {
       x: left + arrow + CHIP_GAP,
@@ -1649,17 +1711,27 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#stops.set(id, { rect, activate: onClick });
     };
     add("pack:prev", prevRect, "<", stepPack(-1));
-    add("pack:name", nameRect, packName, stepPack(1), this.#filter.packCode != null);
+    add("pack:name", nameRect, `${packLabel} ▾`, pickPacks, Boolean(this.#filter.packCodes?.length));
     add("pack:next", nextRect, ">", stepPack(1));
     y += hit.target + CHIP_GAP;
 
-    const cycleName = choices.cycles.find((c) => c.id === this.#filter.cycleId)?.name ?? "All waves";
+    const cycleNames = new Map(choices.cycles.map((c) => [c.id, c.name]));
+    const cycleLabel = pickSummaryOf(this.#filter.cycleIds, cycleNames, t("deckBuilder.allWaves"), (count) =>
+      t("deckBuilder.wavesCount", { count }),
+    );
     add(
       "pack:cycle",
       { x: left, y, width: column, height: hit.target },
-      cycleName,
-      () => apply(withCycle(this.#filter, stepChoice(choices.cycles, this.#filter.cycleId, 1), packInfos())),
-      this.#filter.cycleId != null,
+      `${cycleLabel} ▾`,
+      () => {
+        // Each press applies at once, so judge the packs against the filter the picker opened on: ticking Core and
+        // then Wave 1 keeps a Wave 1 pack that the moment with only Core ticked would have dropped.
+        const opened = this.#filter;
+        this.#openPoolPick(t("deckBuilder.pickWavesTitle"), choices.cycles, opened.cycleIds, (chosen) =>
+          apply(withCycles({ ...this.#filter, packCodes: opened.packCodes ?? null }, chosen, packInfos())),
+        );
+      },
+      Boolean(this.#filter.cycleIds?.length),
     );
     y += hit.target + CHIP_GAP;
 
@@ -2747,6 +2819,37 @@ ${entry.detail}`,
     );
     this.#stops.set("pool-view", { rect: toggleRect, activate: toggle });
     return top + hit.target + 16;
+  }
+
+  /**
+   * The pack or wave picker (issue #977): every press applies at once, so the pool behind it updates. The DOM text
+   * fields sit over the canvas, so they hide while it is up, as they do for the search cheat sheet.
+   */
+  #openPoolPick(
+    title: string,
+    choices: readonly FilterChoice[],
+    chosen: readonly string[] | null | undefined,
+    onChange: (chosen: readonly string[]) => void,
+  ): void {
+    if (this.scene.isActive(SCENES.poolPick)) return;
+    this.#filterInput?.setVisible(false);
+    this.#nameInput?.setVisible(false);
+    this.scene.launch(SCENES.poolPick, {
+      from: this.scene.key,
+      title,
+      choices,
+      chosen: chosen ?? [],
+      onChange: (next) => {
+        if (!this.sys.isActive()) return;
+        onChange(next);
+        this.#filterInput?.setVisible(false);
+        this.#nameInput?.setVisible(false);
+      },
+      onClose: () => {
+        if (!this.sys.isActive()) return;
+        this.#rebuild();
+      },
+    } satisfies PoolPickSheetData);
   }
 
   /** The search cheat sheet (issue #531). The DOM text fields sit over the canvas, so they hide while it is up. */

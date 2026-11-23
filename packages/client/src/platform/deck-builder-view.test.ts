@@ -31,7 +31,9 @@ describe("deck builder view between visits (issue #531)", () => {
           cost: 2,
           resource: "mental",
           trait: "Avenger" as never,
-          packCode: "core",
+          packCodes: ["core", "gob"],
+          cycleIds: ["core", "wave1"],
+          hideBasic: true,
           text: "x",
           aspect: "justice",
         },
@@ -42,7 +44,15 @@ describe("deck builder view between visits (issue #531)", () => {
     );
     expect(deckBuilderView(storage)).toEqual({
       sort: { primary: "aspect", secondary: "type" },
-      filter: { type: "ally", cost: 2, resource: "mental", trait: "Avenger", packCode: "core" },
+      filter: {
+        type: "ally",
+        cost: 2,
+        resource: "mental",
+        trait: "Avenger",
+        packCodes: ["core", "gob"],
+        cycleIds: ["core", "wave1"],
+        hideBasic: true,
+      },
       poolView: "list",
       deckSort: "name",
     });
@@ -62,6 +72,17 @@ describe("deck builder view between visits (issue #531)", () => {
       poolView: "grid",
       deckSort: "aspect",
     });
+  });
+
+  test("a single pack or wave an older view kept comes back as a list of one (issue #977)", () => {
+    const storage = memory({
+      [DECK_BUILDER_VIEW_KEY]: JSON.stringify({ filter: { packCode: "core", cycleId: "wave1", hideHero: "yes" } }),
+    });
+    expect(deckBuilderView(storage).filter).toEqual({ packCodes: ["core"], cycleIds: ["wave1"] });
+    const lists = memory({
+      [DECK_BUILDER_VIEW_KEY]: JSON.stringify({ filter: { packCodes: ["core", 3, "", "core"], cycleIds: [] } }),
+    });
+    expect(deckBuilderView(lists).filter).toEqual({ packCodes: ["core"] });
   });
 
   test("a deck list sort comes back, and setting it leaves the rest of the view alone (issue #594)", () => {
