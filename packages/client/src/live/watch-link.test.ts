@@ -6,20 +6,20 @@ import { clearWatchAddress, takeWatchLink } from "./watch-link.js";
 const ID = "AbCdEf123_-x";
 
 describe("takeWatchLink", () => {
-  test("reads ?watch= and keeps it, so a reload opens the watch again", () => {
-    const p = fakePage(`/?a=1&watch=${ID}`);
+  test("reads ?watching= and keeps it, so a reload opens the watch again", () => {
+    const p = fakePage(`/?a=1&watching=${ID}`);
     expect(takeWatchLink(p.location, p.history)).toBe(ID);
     expect(p.log).toEqual([]);
   });
 
-  test("converts an incoming #watch= link to ?watch= on arrival", () => {
+  test("converts an incoming #watch= link to ?watching= on arrival", () => {
     const p = fakePage(`/?a=1#watch=${ID}`);
     expect(takeWatchLink(p.location, p.history)).toBe(ID);
-    expect(p.url()).toBe(`/?a=1&watch=${ID}`);
+    expect(p.url()).toBe(`/?a=1&watching=${ID}`);
   });
 
   test("clearWatchAddress removes only the watch param", () => {
-    const p = fakePage(`/?a=1&watch=${ID}`);
+    const p = fakePage(`/?a=1&watching=${ID}`);
     clearWatchAddress(p.location, p.history);
     expect(p.url()).toBe("/?a=1");
     const room = fakePage("/?room=ABC234");
@@ -35,7 +35,13 @@ describe("takeWatchLink", () => {
   });
 
   test("calls a link that names no room invalid, and drops it from the address", () => {
-    for (const url of ["/?watch=", "/?watch=short", "/?watch=has%20space!!", `/?watch=${ID}x`, "/#watch=%E0%A4%A"]) {
+    for (const url of [
+      "/?watching=",
+      "/?watching=short",
+      "/?watching=has%20space!!",
+      `/?watching=${ID}x`,
+      "/#watch=%E0%A4%A",
+    ]) {
       const p = fakePage(url);
       expect(takeWatchLink(p.location, p.history)).toBe("invalid");
       expect(p.url()).toBe("/");
