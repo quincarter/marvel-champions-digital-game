@@ -75,6 +75,7 @@ import {
   type NameConflict,
 } from "../../view/name-conflicts.js";
 import { openNameConflictSheet } from "../name-conflict.js";
+import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
 import type { CampaignRosterData } from "./routes.js";
 
 /** The pool's Team-Up pairs, rebuilt when the loaded packs change, so a pack hero's team-up cards are known. */
@@ -224,6 +225,12 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#kept = [];
     this.#model = rosterModelOf(this.#seats, currentPool());
     void this.#loadSavedDecks();
+    // Installed packs load a moment after boot, and again after an install or removal: a pack hero joins the picker
+    // (and its seat's legality is checked again) when they do (#978).
+    rebuildOnPackChange(this, () => {
+      this.#model = rosterModelOf(this.#seats, currentPool());
+      this.#rebuild();
+    });
     this.#rebuild();
     fadeScreenIn(this);
   }

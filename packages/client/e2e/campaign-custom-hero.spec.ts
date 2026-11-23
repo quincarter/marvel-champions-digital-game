@@ -89,10 +89,15 @@ test("issue #978: a Mod Store hero signs a campaign roster and plays issue #1", 
   ).toBe(false);
   await clickStop(page, "pick-search", "CampaignRoster");
   await page.keyboard.type(heroName.split(" ")[0]!);
-  const row = await waitFor(async () => {
-    const found = (await pickerRows(page)).find((r) => r.name.toUpperCase().includes(heroName.toUpperCase()));
-    return found ?? null;
-  }, `${heroName} is in the picker`);
+  // The installed pack loads a moment after the page does (longer under load); the roster redraws when it lands.
+  const row = await waitFor(
+    async () => {
+      const found = (await pickerRows(page)).find((r) => r.name.toUpperCase().includes(heroName.toUpperCase()));
+      return found ?? null;
+    },
+    `${heroName} is in the picker`,
+    30_000,
+  );
   if (SHOT) await page.screenshot({ path: `${SHOT}/campaign-custom-hero-picker-${info.project.name}.png` });
   const at = { x: row.rect.x + row.rect.width / 2, y: row.rect.y + row.rect.height / 2 };
   if (info.project.name === "phone") await page.touchscreen.tap(at.x, at.y);
