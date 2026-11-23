@@ -217,6 +217,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   #offPopout: (() => void) | null = null;
   /** Where the open floating chat is, while it is; the lists under it do not scroll there. */
   #floatRect: Rect | null = null;
+  #layoutMode: LobbyLayout["mode"] = "tabs";
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #alive = false;
@@ -725,6 +726,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const compact = this.#covered > 0 && full.tabs !== null && this.#tab === "chat" && chatOn(state);
     const layout = compact ? this.#compactLayout(full, bar.height, gutter, width, height) : full;
     this.#activity = null;
+    this.#layoutMode = layout.mode;
     this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
@@ -1860,7 +1862,8 @@ export class RoomLobbyScene extends Phaser.Scene {
       });
       this.#addStop("chat-close", closeRect, close);
       this.#drawPopOutButton(rect, 92 + 8);
-    } else if (titled) {
+    } else if (this.#layoutMode === "triple") {
+      // Only the floating panel and the ultrawide column pop out; the tablet-landscape and stacked layouts do not.
       this.#drawPopOutButton(rect, 0);
     }
     if (this.#popped && chatOn(state)) {
