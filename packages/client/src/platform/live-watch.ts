@@ -79,6 +79,13 @@ export function setSealedListener(listener: typeof sealedListener): void {
   sealedListener = listener;
 }
 
+let popoutListener: ((open: boolean) => void) | null = null;
+
+/** `platform/room.ts` hears whether the chat's pop-out window is open through this (one listener). */
+export function setChatPopoutListener(listener: (open: boolean) => void): void {
+  popoutListener = listener;
+}
+
 /** `platform/room.ts` hears the room worker's lobby states through this (one listener). */
 export function setRoomStateListener(listener: (state: RoomState) => void): void {
   roomListener = listener;
@@ -155,6 +162,10 @@ function spawn(): boolean {
       const gameId = store.state.gameId;
       if (gameId) void store.retireSave(gameId).catch(() => {});
       startRefusedHandler?.();
+      return;
+    }
+    if (event.data.kind === "chat-popout") {
+      popoutListener?.(event.data.open);
       return;
     }
     if (event.data.kind === "room") {

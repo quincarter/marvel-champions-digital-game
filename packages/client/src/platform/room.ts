@@ -50,7 +50,13 @@ import {
 } from "../live/room-start.js";
 import { currentCardsById, POOL_SCENARIOS } from "../content/pool.js";
 import type { DeckOption } from "../view/deck-list-model.js";
-import { postRoomCommand, setRoomDecksListener, setRoomStateListener, setSealedListener } from "./live-watch.js";
+import {
+  postRoomCommand,
+  setChatPopoutListener,
+  setRoomDecksListener,
+  setRoomStateListener,
+  setSealedListener,
+} from "./live-watch.js";
 import {
   buildCompetitiveConfig,
   leaderClashRefusals,
@@ -141,6 +147,29 @@ function publish(next: RoomState): void {
 }
 
 setRoomStateListener(publish);
+
+let chatPopout = false;
+const popoutListeners = new Set<(open: boolean) => void>();
+
+setChatPopoutListener((open) => {
+  chatPopout = open;
+  for (const listener of [...popoutListeners]) listener(open);
+});
+
+/** Whether the chat is open in its own window (`live/chat-popout-protocol.ts`). */
+export const chatPopoutOpen = (): boolean => chatPopout;
+
+/** Calls `listener` with the pop-out's state at once, then whenever its window opens or goes away. Returns the unsubscribe. */
+export function onChatPopout(listener: (open: boolean) => void): () => void {
+  popoutListeners.add(listener);
+  listener(chatPopout);
+  return () => popoutListeners.delete(listener);
+}
+
+/** Brings the chat back from its window: the window closes and the lobby shows the chat again. */
+export function recallChatPopout(): void {
+  postRoomCommand({ kind: "chat-popout-recall" });
+}
 
 /**
  * Host only: publishes the table the host picked (null clears it) so the lobby shows it to everyone. Memory only in the
