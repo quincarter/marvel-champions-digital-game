@@ -1,6 +1,6 @@
 /**
  * The query parameters that keep a place across a reload: `?room=<CODE>` (in a room), `?game=<saveId>` (a single-player
- * game in progress) and `?watch=<roomId>` (watching a live game). They are set with `replaceState`, so no history entry
+ * game in progress) and `?watching=<roomId>` (watching a live game; `?watch=1` is already a dev-jump parameter, so the name differs). They are set with `replaceState`, so no history entry
  * is added, and the path, the hash and every other parameter (a dev `?screen=` jump, `?lang=`) are kept as they were.
  * At most one of the three is in the address at a time: setting one takes the others out. A query string is ignored by the
  * hosts' single-page rewrites (Cloudflare assets, Netlify, the Tauri and Capacitor asset servers all route by path), so
@@ -8,7 +8,7 @@
  */
 import type { ReceiveLinkHistory, ReceiveLinkLocation } from "../save-data/receive-link.js";
 
-export const PLACE_PARAMS = ["room", "game", "watch"] as const;
+export const PLACE_PARAMS = ["room", "game", "watching"] as const;
 export type PlaceParam = (typeof PLACE_PARAMS)[number];
 
 type Loc = ReceiveLinkLocation | undefined;
