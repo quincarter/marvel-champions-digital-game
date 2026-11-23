@@ -74,6 +74,15 @@ async function lobbyCode(page: Page): Promise<string> {
   return shown.replace(/\s/g, "");
 }
 
+/** What a player's address looks like: the dev jump's parameters gone (a dev jump wins over the link on a reload). */
+async function dropDevJump(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete("screen");
+    history.replaceState(null, "", `${location.pathname}${params.size ? `?${params}` : ""}${location.hash}`);
+  });
+}
+
 const seatStops = async (page: Page): Promise<string[]> =>
   (await routeStops(page, "RoomLobby"))?.stops.map((s) => s.key) ?? [];
 
@@ -105,6 +114,7 @@ test("a host who reloads in the lobby is back in the same room as its host", asy
 
   // The host refreshes: straight back to the same lobby, as the host, in the same room (no second room made).
   const creates = room.creates();
+  await dropDevJump(host.page);
   await host.page.reload();
   await waitForScene(host.page, "RoomLobby", 30000);
   expect(await lobbyCode(host.page)).toBe(code);
@@ -166,9 +176,11 @@ test("a guest keeps its seat across a reload, and a room that is gone sends it t
     30000,
   );
 
-  // The room closes; the guest's next reload finds it gone: Play online, the address cleaned.
+  // The room closes: the guest is told, and its address no longer names it. A link to the closed room (a bookmark, a
+  // restored tab) then finds it gone: Play online, with the address cleaned.
   await room.room()?.shutdown("ended");
-  await guest.page.reload();
+  await waitFor(async () => ((await roomHash(guest.page)) === "" ? true : null), "?room= cleared on close", 30000);
+  await guest.page.goto(`/?room=${code}`);
   await waitForScene(guest.page, "Online", 30000);
   await waitFor(async () => ((await roomHash(guest.page)) === "" ? true : null), "?room= cleared", 15000);
 
