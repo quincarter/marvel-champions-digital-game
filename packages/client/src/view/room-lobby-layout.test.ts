@@ -68,9 +68,9 @@ describe("lobbyLayout", () => {
     expect(chat.height).toBeGreaterThanOrEqual(160);
     expect(chat.x).toBe(plain.panels.chat!.x);
     // With no keyboard the panel is where it was.
-    expect(lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, undefined, true, false, 0).panels.chat).toEqual(
-      plain.panels.chat,
-    );
+    expect(
+      lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, undefined, true, false, 0).panels.chat,
+    ).toEqual(plain.panels.chat);
   });
   it("swaps the pill for a card while the chat is in its own window, and the settings still end above it", () => {
     const popped = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, undefined, true, true);
