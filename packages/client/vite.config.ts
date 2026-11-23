@@ -75,6 +75,13 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     target: "es2022",
+    // The app, and the chat's light pop-out page (`chat-popout.html`, opened beside the lobby on a desktop).
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        "chat-popout": fileURLToPath(new URL("./chat-popout.html", import.meta.url)),
+      },
+    },
     // Phaser is large and ships as one chunk; the warning adds nothing here.
     chunkSizeWarningLimit: 2000,
   },

@@ -89,7 +89,9 @@ export type LiveRoomIn =
     }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
   | { readonly kind: "room-follow"; readonly port: MessagePort }
-  | { readonly kind: "room-unfollow" };
+  | { readonly kind: "room-unfollow" }
+  /** Brings the chat back from its pop-out window (`live/chat-popout-protocol.ts`): the window is told to close. */
+  | { readonly kind: "chat-popout-recall" };
 
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
 export type LiveRoomOut =
@@ -105,7 +107,9 @@ export type LiveRoomOut =
       readonly header: unknown;
       readonly commands: readonly unknown[];
       readonly adjusted?: true;
-    };
+    }
+  /** The chat's pop-out window opened or went away (closed, brought back, or its heartbeat stopped). */
+  | { readonly kind: "chat-popout"; readonly open: boolean };
 
 /** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
 export type RoomFeedOut =
