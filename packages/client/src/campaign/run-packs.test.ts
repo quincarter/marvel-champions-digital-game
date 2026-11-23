@@ -3,6 +3,7 @@ import type { AnyCard } from "@mc/content";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { poolWithRunPacks, runPacksOf } from "./run-packs.js";
 import { summaryOf, type CampaignRecord } from "../engine/campaign-storage.js";
+import { marketCatalogOf } from "../view/campaign-market-model.js";
 
 const card = (id: string, name = id): AnyCard => ({ id, name, type: "event" }) as unknown as AnyCard;
 
@@ -40,6 +41,14 @@ describe("poolWithRunPacks (#978)", () => {
       heroPacks: [own, pack("hero", [])],
     };
     expect(runPacksOf(record).map((p) => p.id)).toEqual(["camp", "hero"]);
+  });
+});
+
+describe("the Market over a run's pool (#978)", () => {
+  it("sells a priced card from the run's own pack copy, after the pack is removed", () => {
+    const priced = { ...card("x.hero.05", "Gadget"), unitCost: 2 } as unknown as AnyCard;
+    const catalog = marketCatalogOf(poolWithRunPacks([card("01001a")], [pack("hero", [priced])]));
+    expect(ids(catalog)).toEqual(["x.hero.05"]);
   });
 });
 

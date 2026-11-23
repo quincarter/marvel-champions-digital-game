@@ -36,8 +36,7 @@ import type { AnyCard } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
 import { artFor, defaultFaceFor } from "../../art/art-source.js";
 import { cardFaces } from "../../art/card-face-baker.js";
-import { POOL_CARDS } from "../../content/pool.js";
-import { campaignCardsById } from "../../content/campaign-pool.js";
+import { campaignCardsById, campaignPool } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
@@ -86,12 +85,27 @@ import { artThumbSpec } from "../roster-panel.js";
 import type { CampaignMarketData } from "./routes.js";
 
 const cardOf = (id: string): AnyCard | undefined => campaignCardsById().get(id);
-/** Every campaign's Market-priced catalog this build ships, built once (`unitCost` never changes at runtime). */
-const CATALOG = marketCatalogOf(POOL_CARDS);
-/** Every price the stall sells, cheapest first: one "jump to price" chip each, whatever the filter hides. */
-const PRICES = [...new Set(CATALOG.map((card) => (card as { readonly unitCost?: number }).unitCost ?? 0))].sort(
-  (a, b) => a - b,
-);
+/**
+ * The Market-priced catalog of the open run's pool (`campaignPool`: the build's cards plus the run's own copies of any
+ * custom pack it carries, #978), kept until that pool changes (`unitCost` never changes for a given pool).
+ */
+let catalogOf: {
+  readonly pool: readonly AnyCard[];
+  readonly cards: readonly AnyCard[];
+  readonly prices: readonly number[];
+} | null = null;
+function marketCatalog(): { readonly cards: readonly AnyCard[]; readonly prices: readonly number[] } {
+  const pool = campaignPool();
+  if (catalogOf?.pool !== pool) {
+    const cards = marketCatalogOf(pool);
+    // Every price the stall sells, cheapest first: one "jump to price" chip each, whatever the filter hides.
+    const prices = [...new Set(cards.map((card) => (card as { readonly unitCost?: number }).unitCost ?? 0))].sort(
+      (a, b) => a - b,
+    );
+    catalogOf = { pool, cards, prices };
+  }
+  return catalogOf;
+}
 
 /** A campaign log's numeric field, read the same defensive way `campaign-market-model.ts`'s own `numberField` does. */
 const numberField = (value: LogValue | undefined): number => (value?.kind === "number" ? value.value : 0);
@@ -478,10 +492,10 @@ export class CampaignMarketScene extends Phaser.Scene {
       pending,
       this.#answers,
       this.#cart,
-      CATALOG,
+      marketCatalog().cards,
       cardOf,
       this.#heroNameOf,
-      CATALOG.length,
+      marketCatalog().cards.length,
     );
     const tiers = marketTiersOf(view.shelf, this.#onlyAffordable);
     const barTop = height - BAR_HEIGHT[layout];
@@ -832,15 +846,18 @@ export class CampaignMarketScene extends Phaser.Scene {
       x += heading.width + 20;
     }
     const avail = rect.x + rect.width - x;
-    const smallestChips = PRICES.length * 40 + (PRICES.length - 1) * chipGap;
+    const smallestChips = marketCatalog().prices.length * 40 + (marketCatalog().prices.length - 1) * chipGap;
     // An upright tablet has room for the filter beside the chips; elsewhere the chips sit at the right edge, shrunk to
     // fit a narrow column.
     const filterWidth = !phone && avail - smallestChips >= 250 ? 230 : 0;
     const size = Math.min(
       chipSize,
-      Math.floor((avail - (filterWidth > 0 ? filterWidth + 20 : 0) - chipGap * (PRICES.length - 1)) / PRICES.length),
+      Math.floor(
+        (avail - (filterWidth > 0 ? filterWidth + 20 : 0) - chipGap * (marketCatalog().prices.length - 1)) /
+          marketCatalog().prices.length,
+      ),
     );
-    const chipsWidth = PRICES.length * size + (PRICES.length - 1) * chipGap;
+    const chipsWidth = marketCatalog().prices.length * size + (marketCatalog().prices.length - 1) * chipGap;
     const chipsX = phone || filterWidth > 0 ? x : rect.x + rect.width - chipsWidth;
     if (hint && filterWidth === 0 && chipsX - x >= 220) {
       this.add
@@ -907,7 +924,7 @@ export class CampaignMarketScene extends Phaser.Scene {
     size: number,
     gap: number,
   ): void {
-    PRICES.forEach((price, index) => {
+    marketCatalog().prices.forEach((price, index) => {
       this.#drawChip({ x: rect.x + index * (size + gap), y: rect.y, width: size, height: size }, price, tiers, stops);
     });
   }
@@ -916,7 +933,7 @@ export class CampaignMarketScene extends Phaser.Scene {
   #drawChips(rect: Rect, tiers: readonly MarketTier[], stops: Map<string, FocusStop>, perRow: number, height: number) {
     const gap = 8;
     const size = (rect.width - gap * (perRow - 1)) / perRow;
-    PRICES.forEach((price, index) => {
+    marketCatalog().prices.forEach((price, index) => {
       const col = index % perRow;
       const row = Math.floor(index / perRow);
       this.#drawChip(
@@ -926,7 +943,7 @@ export class CampaignMarketScene extends Phaser.Scene {
         stops,
       );
     });
-    return rect.y + Math.ceil(PRICES.length / perRow) * (height + gap);
+    return rect.y + Math.ceil(marketCatalog().prices.length / perRow) * (height + gap);
   }
 
   #drawChip(rect: Rect, price: number, tiers: readonly MarketTier[], stops: Map<string, FocusStop>): void {
