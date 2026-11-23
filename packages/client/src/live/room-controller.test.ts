@@ -101,6 +101,7 @@ function setup(
     onlineName?: string;
     now?: () => number;
     device?: RoomDevice;
+    onResumeGame?: (gameId: string) => void;
   } = {},
 ) {
   FakeSocket.all = [];
@@ -144,6 +145,7 @@ function setup(
       ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
       onState: (s) => states.push(s),
       onDecks: (id, decks) => answers.push({ id, decks }),
+      ...(options.onResumeGame ? { onResumeGame: options.onResumeGame } : {}),
       onSalvage: (game) => salvaged.push(game),
       createRoom,
       resolveRoomCode,
@@ -1266,5 +1268,61 @@ describe("rejoining the room in the address after a reload", () => {
     t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
     await flush();
     expect(await store.load("room:ABC234")).toBeNull();
+  });
+});
+
+describe("a host reloading in the middle of its room's game", () => {
+  it("saves the game in progress on the room's code record, and drops it when the game leaves the room", async () => {
+    const store = new MemoryRoomStore();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    expect(store.records.get("room:ABC234")).toMatchObject({ liveGameKey: "g1", hostToken: "h".repeat(32) });
+    t.controller.onGameMessage({ kind: "none" });
+    await flush();
+    expect(store.records.get("room:ABC234")?.liveGameKey).toBeUndefined();
+    expect(store.records.get("room:ABC234")?.hostToken).toBe("h".repeat(32));
+  });
+
+  it("a rejoin names the save to resume, before the room answers, and the resumed game reattaches to the same room", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+
+    // The page reloads: a new worker over the same storage.
+    const resumed: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => resumed.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    expect(resumed).toEqual(["g1"]);
+    // The save is then resumed: its game message joins the rejoined room as the host, with no second room.
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    expect(t.createRoom).not.toHaveBeenCalled();
+    expect(FakeSocket.all.filter((s) => s.url.includes("room00000001"))).toHaveLength(1);
+    FakeSocket.all[0]!.open();
+    expect(FakeSocket.all[0]!.hello).toMatchObject({ name: "Hosty", token: "h".repeat(32) });
+    expect(store.records.get("g1")).toMatchObject({ roomId: "room00000001", code: "ABC234" });
+  });
+
+  it("a rejoin in the lobby, with no game in progress, names no save", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const resumed: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => resumed.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    expect(resumed).toEqual([]);
   });
 });

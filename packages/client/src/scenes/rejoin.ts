@@ -12,11 +12,9 @@
  */
 import Phaser from "phaser";
 import { t } from "../i18n/translate.js";
-import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { clearGameAddress } from "../platform/game-address.js";
 import { clearRoomAddress } from "../platform/room-address.js";
 import { leaveRoom } from "../platform/room.js";
-import { appSession } from "../session.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -26,6 +24,7 @@ import { McButton } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { resumeLocalSave } from "./resume-save.js";
 
 export type RejoinData =
   | {
@@ -92,27 +91,18 @@ export class RejoinOverlay extends Phaser.Scene {
 
   /** The same resume as Title's Continue: a local save only, never a guided run, setup deal when the mulligans are not done. */
   async #resume(gameId: string): Promise<void> {
-    const session = appSession();
-    session.guidedRun = false;
-    session.guidedRunKind = undefined;
-    setGuideRunLevelOverride(null);
-    try {
-      await session.store.resume(gameId);
-    } catch {
-      // Treated as a failed resume below.
-    }
+    const screen = await resumeLocalSave(gameId);
     // A Cancel while it loaded: the game finished loading anyway, so the address it rewrote is cleared again.
     if (this.#cancelled || !this.#alive) {
       clearGameAddress();
       return;
     }
-    const { store } = session;
-    if (store.state.status === "failed") {
+    if (!screen) {
       clearGameAddress();
       goToScreen(this, SCENES.title);
       return;
     }
-    goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
+    goToScreen(this, screen);
   }
 
   #cancel(): void {

@@ -62,6 +62,8 @@ export interface LiveRoomControllerDeps {
     readonly onDecks?: (id: number, decks: readonly SeatDeckEntry[] | null) => void;
     /** A guest's room was closed mid-game: the game it held (`RoomSessionDeps.onSalvage`). */
     readonly onSalvage?: RoomSessionDeps["onSalvage"];
+    /** A host's rejoin found a game in progress in its room: the save to resume (`room-resume-game`). */
+    readonly onResumeGame?: (gameId: string) => void;
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
   };
@@ -307,6 +309,8 @@ export class LiveRoomController {
     if (record && code && recordFresh(record, now)) {
       const session = this.#newSession("host", name);
       session.resumeHost(record.roomId, record.hostToken, code);
+      // The game in progress for this room: the screen resumes that save before the room even answers.
+      if (record.liveGameKey) this.#deps.room.onResumeGame?.(record.liveGameKey);
       return;
     }
     if (record && code) void this.#deps.store?.clear(lobbyRecordKey(code)).catch(() => {});
@@ -316,7 +320,7 @@ export class LiveRoomController {
   }
 
   /** Remembers a hosted lobby room under its code so a reload can find its host token (see `lobbyRecordKey`). */
-  #saveLobbyRecord(session: RoomSession): void {
+  #saveLobbyRecord(session: RoomSession, liveGameKey?: string): void {
     const store = this.#deps.store;
     const { roomId, hostToken, code } = session;
     if (!store || session.role !== "host" || session.ended || !roomId || !hostToken || !code) return;
@@ -329,6 +333,7 @@ export class LiveRoomController {
       lastActiveAt: at,
       code,
       name: session.name,
+      ...(liveGameKey ? { liveGameKey } : {}),
     };
     void store.save(record).catch(() => {});
   }
@@ -490,7 +495,20 @@ export class LiveRoomController {
       await session.ready;
       if (this.#live !== live) return;
       if (session.roomId && session.hostToken && !session.ended) {
-        this.#attachRoom(live, session);
+        // A resumed game whose room was rejoined after a reload (`room-rejoin`): the room already holds its log, so the
+        // publisher reconciles with it as for any resume instead of starting a log of its own.
+        const saved =
+          record?.code &&
+          record.gameKey === live.gameKey &&
+          record.roomId === session.roomId &&
+          recordFresh(record, now)
+            ? record
+            : null;
+        if (saved) {
+          live.publisher.requireAdmittedRoom();
+          if (saved.gid) live.publisher.adoptGid(saved.gid);
+        }
+        this.#attachRoom(live, session, saved?.gid);
         return;
       }
     }
@@ -550,6 +568,7 @@ export class LiveRoomController {
       live.record = record;
       live.touchedAt = at;
       void this.#deps.store?.save(record).catch(() => {});
+      this.#saveLobbyRecord(room, live.gameKey);
     }
     const hooks: GameHooks = {
       onWelcome: (table) => live.publisher.onWelcome(table),
@@ -638,7 +657,7 @@ export class LiveRoomController {
     live.touchedAt = at;
     live.record = { ...record, lastActiveAt: at };
     void store.save(live.record).catch(() => {});
-    if (live.room) this.#saveLobbyRecord(live.room);
+    if (live.room) this.#saveLobbyRecord(live.room, live.gameKey);
   }
 
   #connect(live: Live, roomId: string, hostToken: string): void {
@@ -713,6 +732,8 @@ export class LiveRoomController {
     live.socket = null;
     if (live.room) {
       live.room.detachGame();
+      // The room is back to its lobby: no game in progress for a reload to resume.
+      this.#saveLobbyRecord(live.room);
       live.room = null;
     }
     if (this.#live !== live) return;

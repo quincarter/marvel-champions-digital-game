@@ -40,7 +40,13 @@ import { RoomDeckWorker } from "../live/room-deck-check-client.js";
 import { withRequiredPacks } from "../packs/pack-runtime.js";
 import { startRoomGame as runRoomStart, type RoomGameBase, type RoomStartResult } from "../live/room-start.js";
 import type { DeckOption } from "../view/deck-list-model.js";
-import { postRoomCommand, setChatPopoutListener, setRoomDecksListener, setRoomStateListener } from "./live-watch.js";
+import {
+  postRoomCommand,
+  setRoomResumeGameListener,
+  setChatPopoutListener,
+  setRoomDecksListener,
+  setRoomStateListener,
+} from "./live-watch.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 import { cursorToSend } from "../view/villain-pacing.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
@@ -282,6 +288,16 @@ export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
 export async function rejoinRoom(code: string, name?: string): Promise<void> {
   publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
   if (!postRoomCommand({ kind: "room-rejoin", code, name: nameFor(name) })) unavailable("guest");
+}
+
+/**
+ * Host, after `rejoinRoom`: calls `listener` with the local save id of the game that was in progress in the room, as soon as
+ * the worker has found it (before the room answers). The screen resumes that save, which reattaches to the same room.
+ * Returns the unsubscribe.
+ */
+export function onRejoinGame(listener: (gameId: string) => void): () => void {
+  setRoomResumeGameListener(listener);
+  return () => setRoomResumeGameListener(null);
 }
 
 /** Leaves the room (a host closes its lobby for everyone). Seat tokens are kept, so joining again restores the seats. */

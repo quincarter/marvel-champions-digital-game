@@ -17,6 +17,11 @@ export interface LiveRoomRecord {
   readonly name?: string;
   /** The admission id of the game the lobby room admitted (from `started`): lets a reloaded host resume it before its first command. */
   readonly gid?: string;
+  /**
+   * On a lobby room's code record (`lobbyRecordKey`): the save id of the game now streaming into the room, so a host who
+   * reloads mid-game finds "the game in progress for room X" and resumes it (`room-resume-game`). Absent in the lobby.
+   */
+  readonly liveGameKey?: string;
   /** When the host last published (written at most once a minute); absent on a record from before this field. */
   readonly lastActiveAt?: number;
 }
