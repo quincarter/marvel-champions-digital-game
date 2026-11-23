@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AnyCard } from "@mc/content";
 import type { PackRuntime } from "../packs/pack-runtime.js";
-import { poolWithRunPacks, runPacksOf } from "./run-packs.js";
+import { packsClashingWithRun, poolWithRunPacks, runPacksOf } from "./run-packs.js";
 import { summaryOf, type CampaignRecord } from "../engine/campaign-storage.js";
 import { marketCatalogOf } from "../view/campaign-market-model.js";
 
@@ -106,5 +106,28 @@ describe("a deck edit that needs a newer copy of a pack the run keeps (#978)", (
       heroPacksOf: () => [newA, b],
     });
     await expect(stubbed.setSeatDeck(run, 1, withB)).rejects.toThrow(/Pack B needs Pack A 2\.0\.0.*Pack A 1\.0\.0/);
+  });
+});
+
+describe("packsClashingWithRun (#978)", () => {
+  const keptA = pack("a", [card("x.a.01")], "1.0.0");
+  const newA = pack("a", [card("x.a.01")], "2.0.0");
+  const b = { ...pack("b", [card("x.b.01")]), requires: ["a"] } as PackRuntime;
+  const c = { ...pack("c", [card("x.c.01")]), requires: ["b"] } as PackRuntime;
+  const free = pack("d", [card("x.d.01")]);
+
+  it("names installed packs that need another version of a kept pack, directly or through another", () => {
+    expect([...packsClashingWithRun([newA, b, c, free], [keptA])].sort()).toEqual(["b", "c"]);
+  });
+
+  it("names none when the installed version is the kept one, or the run keeps no packs", () => {
+    expect(packsClashingWithRun([keptA, b, c], [keptA]).size).toBe(0);
+    expect(packsClashingWithRun([newA, b], []).size).toBe(0);
+  });
+
+  it("leaves a clashing pack's cards out of the run's pool", () => {
+    const installedCards = [card("01001a"), card("x.a.01", "A v2"), card("x.b.01"), card("x.d.01")];
+    const pool = poolWithRunPacks(installedCards, [keptA], packsClashingWithRun([newA, b, free], [keptA]));
+    expect(ids(pool)).toEqual(["01001a", "x.d.01", "x.a.01"]);
   });
 });

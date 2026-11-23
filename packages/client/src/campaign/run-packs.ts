@@ -50,9 +50,14 @@ export function heroPacksForSeats(
  * whatever version of the pack is installed now. Base cards, and installed packs the run doesn't carry, stay as they
  * are.
  */
-export function poolWithRunPacks(base: readonly AnyCard[], packs: readonly PackRuntime[]): readonly AnyCard[] {
-  if (packs.length === 0) return base;
-  const carried = new Set(packs.map((pack) => pack.id));
+export function poolWithRunPacks(
+  base: readonly AnyCard[],
+  packs: readonly PackRuntime[],
+  /** Installed packs to leave out as well (`packsClashingWithRun`): their cards are never offered to this run. */
+  leaveOut: ReadonlySet<string> = new Set(),
+): readonly AnyCard[] {
+  if (packs.length === 0 && leaveOut.size === 0) return base;
+  const carried = new Set([...packs.map((pack) => pack.id), ...leaveOut]);
   const seen = new Set<string>();
   const runCards = packs
     .flatMap((pack) => pack.cards)
@@ -79,4 +84,34 @@ export const openRunPacksNow = (): readonly PackRuntime[] => openRunPacks;
 /** Tests only: no run open. */
 export function forgetRunPacks(): void {
   openRunPacks = [];
+}
+
+/**
+ * The installed packs a run must not take cards from (#978): ones it doesn't carry that need, directly or through
+ * another such pack, a pack the run keeps at a different version than the one installed. The run's copy stays as it
+ * was signed, so such a pack was never checked against it. The campaign's choices and deck editor leave their cards
+ * out, so neither a reward nor a deck edit can copy one in.
+ */
+export function packsClashingWithRun(
+  installed: readonly PackRuntime[],
+  runPacks: readonly PackRuntime[],
+): ReadonlySet<string> {
+  const clashing = new Set<string>();
+  if (runPacks.length === 0) return clashing;
+  const carried = new Map(runPacks.map((pack) => [pack.id, pack] as const));
+  const byId = new Map(installed.map((pack) => [pack.id, pack] as const));
+  const clashes = (id: string): boolean => {
+    const kept = carried.get(id);
+    const now = byId.get(id);
+    return clashing.has(id) || (kept !== undefined && now !== undefined && kept.version !== now.version);
+  };
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const pack of installed) {
+      if (carried.has(pack.id) || clashing.has(pack.id) || !pack.requires.some(clashes)) continue;
+      clashing.add(pack.id);
+      changed = true;
+    }
+  }
+  return clashing;
 }

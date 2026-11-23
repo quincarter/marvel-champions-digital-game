@@ -325,6 +325,7 @@ export function campaignService(): CampaignService {
     packOf: (campaignId) => packRefOf(loadedPacks(), campaignId),
     // A custom hero's pack, and any pack a signed deck's cards come from, rides with the run (#978).
     heroPacksOf: (seats) => heroPacksForSeats(seats, loadedPacks()),
+    installedPacks: loadedPacks,
     engineDeps: gameDeps,
     games: {
       list: () => appSession().store.listSaves(),

@@ -6,7 +6,8 @@
  * (`CampaignService`'s `#depsFor`).
  */
 import type { AnyCard } from "@mc/content";
-import { openRunPacksNow, poolWithRunPacks } from "../campaign/run-packs.js";
+import { openRunPacksNow, packsClashingWithRun, poolWithRunPacks } from "../campaign/run-packs.js";
+import { loadedPacks } from "../packs/pack-registry.js";
 import { currentCardsById, currentPool } from "./pool.js";
 
 interface CampaignPoolView {
@@ -22,7 +23,8 @@ function campaignPoolView(): CampaignPoolView {
   const base = currentPool();
   const run = openRunPacksNow();
   if (view && view.base === base && view.run === run) return view;
-  const cards = poolWithRunPacks(base, run);
+  // The deck editor never offers a card of an installed pack that clashes with the run's copies (#978).
+  const cards = poolWithRunPacks(base, run, packsClashingWithRun(loadedPacks(), run));
   const cardsById =
     cards === base ? currentCardsById() : new Map(cards.map((card) => [card.id as string, card] as const));
   view = { base, run, cards, cardsById };

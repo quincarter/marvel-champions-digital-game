@@ -42,7 +42,7 @@ import {
 } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { embeddedDefinitionOf, rememberRunPack } from "./pack-campaigns.js";
-import { poolWithRunPacks, runPacksOf, setOpenRunPacks } from "./run-packs.js";
+import { packsClashingWithRun, poolWithRunPacks, runPacksOf, setOpenRunPacks } from "./run-packs.js";
 import { t } from "../i18n/translate.js";
 
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -121,6 +121,8 @@ export interface CampaignServiceOptions {
    * packs, #978): copied into the run as `CampaignRecord.heroPacks`. Default: none (a base-cards-only build or test).
    */
   readonly heroPacksOf?: (seats: readonly HeroPackSeat[]) => readonly PackRuntime[];
+  /** The installed packs now (`loadedPacks`), to keep a run's choices off packs that clash with its copies. Default: none. */
+  readonly installedPacks?: () => readonly PackRuntime[];
   /**
    * Where the run's games are kept, through the engine that owns them (`SessionStore.listSaves` / `retireSave`). When
    * given, starting a run over also retires that run's in-progress game, so it doesn't linger in the title's
@@ -140,6 +142,7 @@ export class CampaignService {
   readonly #contentOf: (campaignId: string) => Campaign | undefined;
   readonly #packOf: (campaignId: string) => PackCampaignRef | undefined;
   readonly #heroPacksOf: (seats: readonly HeroPackSeat[]) => readonly PackRuntime[];
+  readonly #installedPacks: () => readonly PackRuntime[];
   readonly #engineDeps: () => EngineDeps;
   readonly #now: () => number;
   readonly #newId: () => string;
@@ -159,6 +162,7 @@ export class CampaignService {
     this.#contentOf = (campaignId) => CAMPAIGN_RECORDS[campaignId] ?? options.contentOf?.(campaignId);
     this.#packOf = options.packOf ?? (() => undefined);
     this.#heroPacksOf = options.heroPacksOf ?? (() => []);
+    this.#installedPacks = options.installedPacks ?? (() => []);
     const deps = options.engineDeps;
     this.#engineDeps = typeof deps === "function" ? deps : () => deps;
     this.#now = options.now ?? Date.now;
@@ -263,7 +267,8 @@ export class CampaignService {
     const packs = runPacksOf(record);
     if (packs.length === 0) return base;
     const pool = Array.isArray(base.pool) ? base.pool : Object.values(base.pool);
-    return { ...base, pool: poolWithRunPacks(pool, packs) };
+    // A choice never offers a card of an installed pack that clashes with the run's copies, so no reward copies one in.
+    return { ...base, pool: poolWithRunPacks(pool, packs, packsClashingWithRun(this.#installedPacks(), packs)) };
   }
 
   /**
