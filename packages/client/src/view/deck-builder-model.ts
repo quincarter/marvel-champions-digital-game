@@ -41,16 +41,22 @@ export interface PoolFilter {
   readonly type?: CardType | null;
   readonly trait?: Trait | null;
   readonly maxCost?: number | null;
-  /** One pack, by `Pack.code` (the card's `setCode`). */
-  readonly packCode?: string | null;
-  /** One release wave/cycle, by `Cycle.id` (the card's `cycleId`). */
-  readonly cycleId?: string | null;
+  /** Packs, by `Pack.code` (the card's `setCode`); none or empty is every pack (issue #977: pick several at once). */
+  readonly packCodes?: readonly string[] | null;
+  /** Release waves/cycles, by `Cycle.id` (the card's `cycleId`); none or empty is every wave. */
+  readonly cycleIds?: readonly string[] | null;
   /** The quick Cost chip: exactly this cost, or `QUICK_COST_MAX` and up. A card with no printed cost never matches. */
   readonly cost?: number | null;
   /** The quick resource chip: a card with at least one of this icon (a resource card's own icons count). */
   readonly resource?: ResourceIconType | null;
   /** Search terms such as `o:2` or `kw:guard` (`pool-query.ts`), each of which a card must meet. */
   readonly clauses?: readonly QueryClause[];
+  /**
+   * The Hero and Basic toggles beside the aspect buttons (issue #977): off hides the hero's own cards or the basic
+   * cards, so "Aggression" with both off lists aggression cards alone. Either can be off with any aspect chosen.
+   */
+  readonly hideHero?: boolean;
+  readonly hideBasic?: boolean;
 }
 
 /** The last quick Cost chip, "5+": this cost and every higher one. */
@@ -95,6 +101,8 @@ export interface PackInfo {
 export interface FilterChoice {
   readonly id: string;
   readonly name: string;
+  /** A pack's wave name: the pack picker lists its packs under their waves (issue #977). */
+  readonly group?: string;
 }
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
@@ -227,11 +235,16 @@ const matchesFilter = (card: AnyCard, filter: PoolFilter, packs: readonly PackIn
   if (filter.trait && !("traits" in card && (card.traits as readonly Trait[]).includes(filter.trait))) return false;
   if ("cost" in card && typeof filter.maxCost === "number" && (card as { cost: number }).cost > filter.maxCost)
     return false;
-  if (filter.packCode && (card.setCode as string) !== filter.packCode) return false;
-  if (filter.cycleId && (card.cycleId as string) !== filter.cycleId) return false;
+  if (filter.packCodes?.length && !filter.packCodes.includes(card.setCode as string)) return false;
+  if (filter.cycleIds?.length && !filter.cycleIds.includes(card.cycleId as string)) return false;
   if (filter.aspect) {
     const aspect = "aspect" in card ? (card as { aspect: string }).aspect : null;
     if (filter.aspect === "identity" ? !aspect?.startsWith("hero:") : aspect !== filter.aspect) return false;
+  }
+  if (filter.hideHero || filter.hideBasic) {
+    const aspect = "aspect" in card ? (card as { aspect: string }).aspect : null;
+    if (filter.hideHero && aspect?.startsWith("hero:")) return false;
+    if (filter.hideBasic && aspect === "basic") return false;
   }
   return true;
 };
@@ -393,7 +406,7 @@ export function packFilterChoices(
   filter: PoolFilter,
   packs: readonly PackInfo[],
 ): { readonly cycles: readonly FilterChoice[]; readonly packs: readonly FilterChoice[] } {
-  const { packCode: _p, cycleId: _c, ...rest } = filter;
+  const { packCodes: _p, cycleIds: _c, ...rest } = filter;
   const present = new Set(
     browsablePool(pool, identity, chosenAspects, rest, DEFAULT_POOL_SORT, packs).map((c) => c.setCode as string),
   );
@@ -403,8 +416,8 @@ export function packFilterChoices(
   return {
     cycles,
     packs: have
-      .filter((p) => !filter.cycleId || p.cycleId === filter.cycleId)
-      .map((p) => ({ id: p.code, name: p.name })),
+      .filter((p) => !filter.cycleIds?.length || filter.cycleIds.includes(p.cycleId))
+      .map((p) => ({ id: p.code, name: p.name, group: p.cycleName })),
   };
 }
 
@@ -464,10 +477,38 @@ export function traitFilterChoices(
 /** A trait as a player reads it: "S.H.I.E.L.D._Agent" is "S.H.I.E.L.D. Agent". */
 export const traitLabelOf = (trait: string): string => trait.replace(/_/g, " ");
 
-/** `filter` with a new cycle: the pack choice is dropped when it isn't in that cycle. */
-export function withCycle(filter: PoolFilter, cycleId: string | null, packs: readonly PackInfo[]): PoolFilter {
-  const keepPack = !cycleId || packs.find((p) => p.code === filter.packCode)?.cycleId === cycleId;
-  return { ...filter, cycleId, packCode: keepPack ? (filter.packCode ?? null) : null };
+/**
+ * `filter` with new waves. Empty `cycleIds` is every wave. Picked packs are kept even when no chosen wave holds them
+ * (PR #980 review): the two narrow together, so the pool may come up empty, but nothing the player picked is dropped
+ * behind their back, and the pack picker still lists those packs ticked so they can be unticked.
+ */
+export function withCycles(filter: PoolFilter, cycleIds: readonly string[]): PoolFilter {
+  return { ...filter, cycleIds: cycleIds.length ? cycleIds : null };
+}
+
+/** The one pack or wave a ◂ ▸ stepper steps from: the single one chosen, else none (= all). */
+export const singleChoiceOf = (ids: readonly string[] | null | undefined): string | null =>
+  ids?.length === 1 ? ids[0]! : null;
+
+/**
+ * The pack or wave button's words (issue #977): `all` with nothing chosen, the name of a single choice, else
+ * `several` (given the count). A choice the pool no longer lists still counts, so an empty pool says why.
+ */
+export function pickSummaryOf(
+  chosen: readonly string[] | null | undefined,
+  names: ReadonlyMap<string, string>,
+  all: string,
+  several: (count: number) => string,
+): string {
+  if (!chosen?.length) return all;
+  if (chosen.length === 1) return names.get(chosen[0]!) ?? chosen[0]!;
+  return several(chosen.length);
+}
+
+/** `chosen` with `id` switched: added at the end when off, removed when on. */
+export function togglePick(chosen: readonly string[] | null | undefined, id: string): readonly string[] {
+  const now = chosen ?? [];
+  return now.includes(id) ? now.filter((other) => other !== id) : [...now, id];
 }
 
 function withQuantity(cards: readonly DeckCardEntry[], cardId: CardId, delta: number): readonly DeckCardEntry[] {
