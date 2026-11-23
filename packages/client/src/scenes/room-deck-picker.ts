@@ -24,17 +24,20 @@ import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { onTap } from "../ui/tap.js";
+import { importedDeckNote, importMarvelCdbDeck } from "../platform/marvelcdb-import.js";
 import { McButton, McTextInput, fitText } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import type { Rect } from "../view/layout.js";
 import { aspectStampsOf } from "../view/aspect-stamp.js";
+import { type ImportEnv } from "../view/deck-import-model.js";
 import { deckDetailsOf, type DeckDetails } from "../view/room-deck-details-model.js";
 import {
   detailsPanelRect,
   detailsPresentationOf,
   gridContentHeight,
   panelOffsetAt,
+  pickerControlsLayout,
   pickerGridLayout,
   readPickerView,
   tileTitleOf,
@@ -73,6 +76,9 @@ export interface RoomDeckPickerData {
   readonly focusDeckId?: string;
 }
 
+/** `data` for the scene as the deck builder hands back to it (the seat, and in a dev preview the made-up room). */
+export type RoomDeckPickerReturn = Pick<RoomDeckPickerData, "seat" | "preset" | "preview" | "focusDeckId">;
+
 export class RoomDeckPickerScene extends Phaser.Scene {
   #seat = "";
   #preset = false;
@@ -81,6 +87,13 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   #options: readonly DeckOption[] | null = null;
   #query = "";
   #input: McTextInput | null = null;
+  /** Import from MarvelCDB: whether its link row is open, what is typed in it, and a fetch is under way. */
+  #importOpen = false;
+  #importText = "";
+  #importBusy = false;
+  /** Bumped on every import and every visit: an answer for an older one is dropped. */
+  #importGen = 0;
+  #importInput: McTextInput | null = null;
   #buttons: McButton[] = [];
   #region: McScrollRegion | null = null;
   readonly #scroll = new VariableListScroll();
@@ -137,6 +150,10 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#options = null;
     this.#query = "";
     this.#note = null;
+    this.#importOpen = false;
+    this.#importText = "";
+    this.#importBusy = false;
+    this.#importGen += 1;
     this.#leaving = false;
     this.#picking = false;
     this.#pickGen += 1;
@@ -161,8 +178,9 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(PAPER));
     this.#hints = new GlyphHints(this);
     bindTextFieldEscape(this, () => this.#input);
+    bindTextFieldEscape(this, () => this.#importInput);
     this.#route = new FocusRoute(this, {
-      blocked: () => this.#input?.focused ?? false,
+      blocked: () => (this.#input?.focused ?? false) || (this.#importInput?.focused ?? false),
       onCancel: () => {
         if (!this.#picking) this.#backOrClose();
       },
@@ -176,6 +194,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.events.on(SEAT_AVATAR_READY, this.#avatarReady, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#alive = false;
+      this.#importGen += 1;
       this.#picking = false;
       this.#pickGen += 1;
       this.#off?.();
@@ -198,6 +217,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       this.#panel = null;
       this.#input?.destroy();
       this.#input = null;
+      this.#importInput?.destroy();
+      this.#importInput = null;
     });
     if (!this.#preview) {
       this.#off = onRoomState((state) => {
@@ -209,20 +230,26 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     }
     this.#draw();
     fadeScreenIn(this);
-    void deckStorage()
-      .list()
-      .then((decks) => {
-        if (!this.#alive) return;
-        // Drawn at once from what is known: each deck's status (judged against the rules) comes from a worker, after.
-        this.#decks = seatableDecksOf(decks, POOL_VERSION);
-        this.#options = seatableOptionsNow(this.#decks, currentPool(), POOL_VERSION, currentDeps());
-        // Back from the deck builder: the deck just edited is open again, already in place.
-        const wanted = this.#focusDeckId;
-        this.#focusDeckId = null;
-        if (wanted !== null && this.#options.some((o) => (o.deck.id as string) === wanted)) this.#selected = wanted;
-        this.#draw();
-        this.#askStatuses();
-      });
+    // Back from the deck builder: the deck just edited or built is open again, already in place.
+    const wanted = this.#focusDeckId;
+    this.#focusDeckId = null;
+    void this.#reloadDecks(wanted);
+  }
+
+  /** Reads the device's decks again and, when `focus` is among them, opens its details. */
+  async #reloadDecks(focus: string | null): Promise<void> {
+    const decks = await deckStorage().list();
+    if (!this.#alive) return;
+    // Drawn at once from what is known: each deck's status (judged against the rules) comes from a worker, after.
+    this.#decks = seatableDecksOf(decks, POOL_VERSION);
+    this.#options = seatableOptionsNow(this.#decks, currentPool(), POOL_VERSION, currentDeps());
+    if (focus !== null && this.#options.some((o) => (o.deck.id as string) === focus)) {
+      this.#selected = focus;
+      this.#panelDetails = null;
+      this.#panelScroll.reset();
+    }
+    this.#draw();
+    this.#askStatuses();
   }
 
   /**
@@ -485,7 +512,10 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#listInner = null;
     this.#region?.destroy();
     this.#region = null;
-    const kept = this.#input ? this.#input.gameObjects : [];
+    const kept = [
+      ...(this.#input ? this.#input.gameObjects : []),
+      ...(this.#importInput ? this.#importInput.gameObjects : []),
+    ];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
@@ -525,12 +555,16 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
     // The search field and the view toggle, then the grid or list.
     const toggleWidth = phone ? 58 : 70;
-    const fieldRect: Rect = {
-      x: gutter,
-      y: bar.height + 12,
-      width: right - gutter - (toggleWidth * 2 + 12),
-      height: hit.primary,
-    };
+    const controls = pickerControlsLayout({
+      left: gutter,
+      right,
+      top: bar.height + 12,
+      toggleWidth,
+      searchHeight: hit.primary,
+      buttonHeight: hit.target,
+      importOpen: this.#importOpen,
+    });
+    const fieldRect = controls.search;
     if (!this.#input) {
       this.#input = new McTextInput(this, {
         rect: fieldRect,
@@ -555,15 +589,11 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       this.#input.setPlaceholder(t("room.picker.search"));
     }
     this.#input.setVisible(!sheet);
+    this.#importInput?.setVisible(!sheet);
     if (!sheet) {
       this.#addStop("search", fieldRect, () => this.#input?.focus());
       (["grid", "list"] as const).forEach((mode, i) => {
-        const rect: Rect = {
-          x: fieldRect.x + fieldRect.width + 6 + i * (toggleWidth + 6),
-          y: fieldRect.y,
-          width: toggleWidth,
-          height: hit.primary,
-        };
+        const rect = controls.toggles[i]!;
         const go = (): void => this.#setView(mode);
         this.#buttons.push(
           new McButton(this, {
@@ -577,16 +607,19 @@ export class RoomDeckPickerScene extends Phaser.Scene {
         );
         this.#addStop(`view:${mode}`, rect, go);
       });
+      this.#drawMakers(controls);
 
-      let top = fieldRect.y + fieldRect.height + 8;
+      let top = controls.bottom + 8;
       const note = this.#note && this.time.now < this.#note.until ? this.#note.text : null;
       if (note) {
         const line = this.add
           .text(gutter, top, note, textStyle(typeRole.rowTitle, surface.inkOnHue.hex))
           .setFontSize(13)
           .setBackgroundColor("#f2b01e")
-          .setPadding(6, 3, 6, 3);
-        fitText(line, right - gutter, 13);
+          .setPadding(6, 3, 6, 3)
+          // Two or three lines on a phone, not one cut line: the words are what the player needs.
+          .setWordWrapWidth(right - gutter - 12, true)
+          .setMaxLines(3);
         top += line.height + 8;
       }
       const listRect: Rect = { x: gutter, y: top, width: right - gutter, height: Math.max(0, height - top - gutter) };
@@ -599,6 +632,137 @@ export class RoomDeckPickerScene extends Phaser.Scene {
       this.#drawPanel(panelRect, open, presentation);
     }
     this.#route?.set(this.#order, this.#stops);
+  }
+
+  /** Build a deck and Import from MarvelCDB, always offered, and the import's link row while it is open. */
+  #drawMakers(controls: ReturnType<typeof pickerControlsLayout>): void {
+    const type = { ...typeRole.label, size: 12 };
+    const build = (): void => this.#build();
+    const toggle = (): void => {
+      this.#importOpen = !this.#importOpen;
+      this.#draw();
+      if (this.#importOpen) this.#importInput?.focus();
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: t("room.picker.build"),
+        type,
+        rect: controls.build,
+        onClick: build,
+      }),
+      new McButton(this, {
+        kind: "secondary",
+        label: t("room.picker.importToggle"),
+        type,
+        rect: controls.importToggle,
+        selected: this.#importOpen,
+        onClick: toggle,
+      }),
+    );
+    this.#addStop("build", controls.build, build);
+    this.#addStop("import", controls.importToggle, toggle);
+    const field = controls.importField;
+    const go = controls.importGo;
+    if (!field || !go) {
+      this.#importInput?.destroy();
+      this.#importInput = null;
+      return;
+    }
+    if (this.#importInput) {
+      this.#importInput.layout(field);
+      for (const node of this.#importInput.gameObjects) this.children.bringToTop(node);
+    } else {
+      this.#importInput = new McTextInput(this, {
+        rect: field,
+        value: this.#importText,
+        type: typeRole.body,
+        placeholder: t("room.picker.importPlaceholder"),
+        maxLength: 200,
+        onChange: (value) => {
+          this.#importText = value;
+        },
+      });
+      (this.#importInput.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
+        // After this key press finishes: a redraw inside the field's own keydown left its DOM box on screen.
+        if (event.key === "Enter") setTimeout(() => void this.#import(), 0);
+      });
+    }
+    this.#addStop("import-field", field, () => this.#importInput?.focus());
+    const doImport = (): void => void this.#import();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: this.#importBusy ? t("room.picker.importing") : t("room.picker.importGo"),
+        type,
+        rect: go,
+        enabled: !this.#importBusy,
+        onClick: doImport,
+      }),
+    );
+    this.#addStop("import-go", go, doImport);
+  }
+
+  /** The deck builder on a new deck; Back (or a Save then Back) returns here on the deck just built, ready to Pick. */
+  #build(): void {
+    if (this.#leaving || this.#importBusy) return;
+    this.#leaving = true;
+    this.scale.off("resize", this.#draw, this);
+    goToScreen(this, SCENES.deckBuilder, {
+      returnTo: { key: SCENES.roomDeckPicker, data: this.#returnData(null) },
+    } satisfies DeckBuilderSceneData);
+  }
+
+  #returnData(focusDeckId: string | null): RoomDeckPickerReturn {
+    return {
+      seat: this.#seat,
+      preset: this.#preset,
+      // A dev preview carries its made-up room through the builder and back; a live room needs nothing: it lives in a worker.
+      ...(this.#preview ? { preview: this.#state } : {}),
+      ...(focusDeckId !== null ? { focusDeckId } : {}),
+    };
+  }
+
+  /** Fetches the MarvelCDB deck typed in the link row, saves it on this device and opens its details. */
+  async #import(): Promise<void> {
+    if (this.#importBusy || this.#leaving) return;
+    this.#importBusy = true;
+    const gen = ++this.#importGen;
+    this.#draw();
+    try {
+      await this.#runImport(gen);
+    } catch (cause) {
+      if (!this.#alive || gen !== this.#importGen) return;
+      this.#importBusy = false;
+      this.#say(cause instanceof Error ? cause.message : String(cause));
+      this.#draw();
+    }
+  }
+
+  async #runImport(gen: number): Promise<void> {
+    const stored = await deckStorage().list();
+    const env: ImportEnv = {
+      pool: currentPool(),
+      poolVersion: POOL_VERSION,
+      now: () => new Date().toISOString(),
+      newId: () => crypto.randomUUID(),
+      existingNames: stored.map((deck) => deck.name),
+    };
+    const result = await importMarvelCdbDeck(this.#importText, env, undefined, false);
+    if (!this.#alive || gen !== this.#importGen) return;
+    this.#importBusy = false;
+    if (!result.ok) {
+      this.#say(result.message);
+      this.#draw();
+      return;
+    }
+    await deckStorage().put(result.deck);
+    if (!this.#alive || gen !== this.#importGen) return;
+    this.#importOpen = false;
+    this.#importText = "";
+    this.#importInput?.setValue("");
+    this.#say(importedDeckNote(result.deck.name, result.warnings));
+    await this.#reloadDecks(result.deck.id as string);
   }
 
   #rowOf(id: string, current: { readonly hero: string; readonly name: string } | null): PickerRow | null {
@@ -639,7 +803,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.deckBuilder, {
       deck: row.option.deck,
-      returnTo: { key: SCENES.roomDeckPicker, data: { seat: this.#seat, preset: this.#preset, focusDeckId: row.id } },
+      returnTo: { key: SCENES.roomDeckPicker, data: this.#returnData(row.id) },
     } satisfies DeckBuilderSceneData);
   }
 

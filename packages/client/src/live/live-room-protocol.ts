@@ -71,6 +71,8 @@ export type LiveRoomIn =
       readonly seat: string;
       readonly participant?: string;
     }
+  /** Show or hide a seat's hand to the table (`seat-show-hand`); the room checks who may. */
+  | { readonly kind: "room-show-hand"; readonly seat: string; readonly on: boolean }
   | { readonly kind: "room-say"; readonly text: string }
   // Epic Multiplayer (issue #882). Each is one call of `platform/room.ts`.
   /** Organizer: Epic mode with these tables, pods and seats (a `lobby-set`). */

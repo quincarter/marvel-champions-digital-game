@@ -141,3 +141,67 @@ export function tileTitleOf(name: string): string {
     .trim();
   return stripped === "" ? name : stripped;
 }
+
+export interface PickerControlsLayout {
+  readonly search: Rect;
+  readonly toggles: readonly [Rect, Rect];
+  /** Build a deck. */
+  readonly build: Rect;
+  /** Import from MarvelCDB: opens (or closes) the link field. */
+  readonly importToggle: Rect;
+  /** The link field and its Import button, a row under the two, only while the import is open. */
+  readonly importField: Rect | null;
+  readonly importGo: Rect | null;
+  /** Where the list may start: the bottom edge of the last control row. */
+  readonly bottom: number;
+}
+
+const CONTROL_GAP = 6;
+const IMPORT_GO_WIDTH = 104;
+
+/**
+ * The picker's control rows above the list, in the width `left` to `right` (the slide-out panel's edge on a wide
+ * screen, the screen's gutter otherwise): search and the Grid / List toggle; under them Build a deck and Import from
+ * MarvelCDB side by side, always there (a player with no deck needs them most); and, while Import is open, the link
+ * field with its own Import button on a third row. Every rect is at least a touch target tall and nothing overlaps, at
+ * any width a phone (343 of content) up to a desktop.
+ */
+export function pickerControlsLayout(args: {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly toggleWidth: number;
+  readonly searchHeight: number;
+  readonly buttonHeight: number;
+  readonly importOpen: boolean;
+}): PickerControlsLayout {
+  const { left, right, top, toggleWidth, searchHeight, buttonHeight, importOpen } = args;
+  const width = Math.max(0, right - left);
+  const search: Rect = { x: left, y: top, width: width - (toggleWidth * 2 + CONTROL_GAP * 2), height: searchHeight };
+  const toggleAt = (i: number): Rect => ({
+    x: search.x + search.width + CONTROL_GAP + i * (toggleWidth + CONTROL_GAP),
+    y: top,
+    width: toggleWidth,
+    height: searchHeight,
+  });
+  const rowTwo = top + searchHeight + CONTROL_GAP;
+  const half = Math.floor((width - CONTROL_GAP) / 2);
+  const build: Rect = { x: left, y: rowTwo, width: half, height: buttonHeight };
+  const importToggle: Rect = {
+    x: left + half + CONTROL_GAP,
+    y: rowTwo,
+    width: width - half - CONTROL_GAP,
+    height: buttonHeight,
+  };
+  let bottom = rowTwo + buttonHeight;
+  let importField: Rect | null = null;
+  let importGo: Rect | null = null;
+  if (importOpen) {
+    const rowThree = bottom + CONTROL_GAP;
+    const goWidth = Math.min(IMPORT_GO_WIDTH, Math.floor(width / 3));
+    importField = { x: left, y: rowThree, width: width - goWidth - CONTROL_GAP, height: searchHeight };
+    importGo = { x: left + width - goWidth, y: rowThree, width: goWidth, height: searchHeight };
+    bottom = rowThree + searchHeight;
+  }
+  return { search, toggles: [toggleAt(0), toggleAt(1)], build, importToggle, importField, importGo, bottom };
+}

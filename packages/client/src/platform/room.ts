@@ -512,6 +512,11 @@ export function giveBackSeat(seat: string): void {
   postRoomCommand({ kind: "room-seat", op: "give-back", seat });
 }
 
+/** Shows (`on`) or hides a seat's hand to the table, for a seat this device holds (the host: also one it runs). */
+export function setSeatShowsHand(seat: string, on: boolean): void {
+  postRoomCommand({ kind: "room-show-hand", seat, on });
+}
+
 /** The seat that plays this engine player (`p1`..), who holds it and whether this device acts for it; null with no seat. */
 export function seatOfPlayer(playerId: string): SeatOfPlayer | null {
   return seatOfPlayerIn(state, playerId);
@@ -731,9 +736,10 @@ export async function startGame(config: SessionConfig): Promise<void> {
     // Strict forces Off; a lobby without the setting (an older Worker) reads as its mode's default.
     ...(playMode ? { roomUndo: lobbyUndoFor(playMode, state.settings?.undo) } : {}),
     ...(state.settings?.cheats === true ? { roomCheats: true } : {}),
-    // Always: the live header carries it, so a watcher's board keeps every hand face down. "Host sees every hand" opens
-    // hands for the host's own board alone (#887).
-    roomHandsHidden: true as const,
+    // The live header carries it, so a watcher's board keeps every hand face down. "Host sees every hand" opens hands for
+    // the host's own board alone (#887). "Everyone sees every hand" is a teaching table: watchers see the hands too.
+    // A seat's "Show my hand" changes mid-game and is not in the header, so a watcher does not get it.
+    ...(state.settings?.openHands === true ? {} : { roomHandsHidden: true as const }),
   });
 }
 

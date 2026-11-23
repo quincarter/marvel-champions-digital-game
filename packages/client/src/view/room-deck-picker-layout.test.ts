@@ -6,12 +6,14 @@ import {
   detailsPresentationOf,
   gridContentHeight,
   panelOffsetAt,
+  pickerControlsLayout,
   pickerGridLayout,
   readPickerView,
   tileRect,
   tileTitleOf,
   writePickerView,
 } from "./room-deck-picker-layout.js";
+import type { Rect } from "./layout.js";
 
 const memory = (initial: Record<string, string> = {}) => {
   const data = new Map(Object.entries(initial));
@@ -114,5 +116,50 @@ describe("tile title", () => {
   it("keeps names with nothing else to say and parentheses that are not aspects", () => {
     expect(tileTitleOf("(Justice)")).toBe("(Justice)");
     expect(tileTitleOf("Iron Man (v2)")).toBe("Iron Man (v2)");
+  });
+});
+
+describe("pickerControlsLayout", () => {
+  const base = { top: 100, toggleWidth: 58, searchHeight: 52, buttonHeight: 44 } as const;
+  const overlap = (a: Rect, b: Rect): boolean =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  // Content widths at phone 375, phone 412, portrait tablet 768, tablet 1024 beside the 360 panel, desktop beside 440.
+  for (const [name, left, right] of [
+    ["phone 375", 16, 359],
+    ["phone 412", 16, 396],
+    ["tablet portrait 768", 32, 736],
+    ["tablet 1024 with the panel open", 32, 1024 - 360 - 12 - 0],
+    ["desktop with the panel open", 40, 1440 - 440 - 12],
+  ] as const) {
+    for (const importOpen of [false, true]) {
+      it(`${name}, import ${importOpen ? "open" : "closed"}: every control is in the width, a touch target and apart`, () => {
+        const layout = pickerControlsLayout({ ...base, left, right, importOpen });
+        const rects = [
+          layout.search,
+          ...layout.toggles,
+          layout.build,
+          layout.importToggle,
+          ...(layout.importField ? [layout.importField] : []),
+          ...(layout.importGo ? [layout.importGo] : []),
+        ];
+        expect(rects.length).toBe(importOpen ? 7 : 5);
+        for (const r of rects) {
+          expect(r.x).toBeGreaterThanOrEqual(left);
+          expect(r.x + r.width).toBeLessThanOrEqual(right);
+          expect(r.height).toBeGreaterThanOrEqual(44);
+          expect(r.width).toBeGreaterThanOrEqual(58);
+        }
+        rects.forEach((a, i) => rects.slice(i + 1).forEach((b) => expect(overlap(a, b)).toBe(false)));
+        expect(layout.bottom).toBe(Math.max(...rects.map((r) => r.y + r.height)));
+        // Build a deck and Import sit side by side, equal within a pixel.
+        expect(Math.abs(layout.build.width - layout.importToggle.width)).toBeLessThanOrEqual(1);
+      });
+    }
+  }
+
+  it("the field has room to type in on a phone", () => {
+    const layout = pickerControlsLayout({ ...base, left: 16, right: 359, importOpen: true });
+    expect(layout.importField!.width).toBeGreaterThanOrEqual(200);
   });
 });
