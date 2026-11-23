@@ -1403,16 +1403,19 @@ async function epicRoomJump(screen: string, params: URLSearchParams): Promise<{ 
   await until(() => room.roomState().epic?.tables.length === 2, "the tables");
   room.requestSeat("s1");
   await until(() => room.roomState().mySeats.length > 0, "its seat");
+  // The other host takes s2 at once when the lobby lets it, or asks for it and waits to be assigned.
   await until(
-    () => room.roomState().seats.some((s) => s.id === "s2" && s.requests.length > 0),
-    "the other host asking for s2",
+    () => room.roomState().seats.some((s) => s.id === "s2" && (s.holder !== null || s.requests.length > 0)),
+    "the other host taking or asking for s2",
   );
-  const asker = room.roomState().seats.find((s) => s.id === "s2")?.requests[0];
+  const s2 = room.roomState().seats.find((s) => s.id === "s2");
+  const asker = s2?.holder === null ? s2.requests[0] : undefined;
   if (asker) room.assignSeat("s2", asker.participant);
+  const other = s2?.holder ?? asker?.participant;
   await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
   const me = room.roomState().me?.id;
   if (me) room.assignTableHost("t1", me);
-  if (asker) room.assignTableHost("t2", asker.participant);
+  if (other) room.assignTableHost("t2", other);
   await until(() => room.roomState().epic?.tables.every((t) => t.host !== null) === true, "both tables' hosts");
   room.startEpicGame();
   await until(() => room.roomState().epic?.start != null, "the start");
