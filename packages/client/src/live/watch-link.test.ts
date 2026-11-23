@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { watchLinkOf } from "./live-publisher.js";
-import { takeWatchLink } from "./watch-link.js";
+import { clearWatchAddress, takeWatchLink } from "./watch-link.js";
 
 const ID = "AbCdEf123_-x";
 
@@ -10,10 +10,19 @@ function at(hash: string) {
 }
 
 describe("takeWatchLink", () => {
-  test("reads the room id and clears the hash from the address", () => {
+  test("reads the room id and keeps the hash, so a reload opens the watch again", () => {
     const { location, history } = at(`#watch=${ID}`);
     expect(takeWatchLink(location, history)).toBe(ID);
+    expect(history.replaceState).not.toHaveBeenCalled();
+  });
+
+  test("clearWatchAddress removes only a watch hash", () => {
+    const { location, history } = at(`#watch=${ID}`);
+    clearWatchAddress(location, history);
     expect(history.replaceState).toHaveBeenCalledWith(null, "", "/?a=1");
+    const other = at("#room=ABC234");
+    clearWatchAddress(other.location, other.history);
+    expect(other.history.replaceState).not.toHaveBeenCalled();
   });
 
   test("is null for any other hash, and leaves the address alone", () => {
@@ -23,10 +32,11 @@ describe("takeWatchLink", () => {
     expect(history.replaceState).not.toHaveBeenCalled();
   });
 
-  test("calls a link that names no room invalid", () => {
+  test("calls a link that names no room invalid, and drops it from the address", () => {
     for (const hash of ["#watch=", "#watch=short", "#watch=has space!!", `#watch=${ID}x`, "#watch=%E0%A4%A"]) {
       const { location, history } = at(hash);
       expect(takeWatchLink(location, history)).toBe("invalid");
+      expect(history.replaceState).toHaveBeenCalledWith(null, "", "/?a=1");
     }
   });
 

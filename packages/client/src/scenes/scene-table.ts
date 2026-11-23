@@ -67,6 +67,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.unlocks]: () => import("./unlocks.js").then((m) => m.UnlocksOverlay),
   [SCENES.unlockConfirm]: () => import("./unlock-confirm.js").then((m) => m.UnlockConfirmOverlay),
   [SCENES.onlineName]: () => import("./online-name.js").then((m) => m.OnlineNameOverlay),
+  [SCENES.rejoin]: () => import("./rejoin.js").then((m) => m.RejoinOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.deckActions]: () => import("./deck-actions-sheet.js").then((m) => m.DeckActionsSheet),
