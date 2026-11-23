@@ -37,6 +37,7 @@ import type { FocusDirection } from "../../view/spatial-nav.js";
 import { notePadInput } from "../../platform/input-device.js";
 import { appSession } from "../../session.js";
 import { SCENES } from "../keys.js";
+import { rendererNoticePending } from "../renderer-notice-launch.js";
 
 export interface IntentBinding {
   /** True while something above the board (a decision overlay, Inspect) owns input. */
@@ -165,6 +166,8 @@ export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   if (key === SCENES.globalStatsPrompt) return false;
   // So is the "Drawing without WebGL" notice over Title: its Enter or B must not also press Title's menu.
   if (key === SCENES.rendererNotice) return false;
+  // Also while it loads, between Title launching it and it coming up (`scenes/renderer-notice-launch.ts`).
+  if (rendererNoticePending()) return true;
   return (
     manager.isActive(SCENES.syncSetupPrompt) === true ||
     manager.isActive(SCENES.globalStatsPrompt) === true ||
