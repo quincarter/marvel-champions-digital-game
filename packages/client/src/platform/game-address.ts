@@ -6,7 +6,7 @@
  *
  * Resuming reads the local save only: nothing here touches the network, and the resume it leads to skips the
  * before-resume device sync (`SessionStore.resume`'s `sync: false`), so single player never waits on the network. The parameter
- * never replaces `?room=` or `?watch=`: a room's game is found through the room, and only an address with neither takes a
+ * never replaces `?room=` or `?watching=`: a room's game is found through the room, and only an address with neither takes a
  * game.
  */
 import type { ReceiveLinkHistory, ReceiveLinkLocation } from "../save-data/receive-link.js";
