@@ -89,7 +89,7 @@ function publish(next: RoomState): void {
     }
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
-  // `#room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
+  // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
   syncRoomAddress(next);
   for (const listener of [...listeners]) listener(state);
 }
@@ -234,7 +234,7 @@ export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
 }
 
 /**
- * Back into the room the address names (`#room=<CODE>`, see `room-address.ts`) after a reload: the host with its saved
+ * Back into the room the address names (`?room=<CODE>`, see `room-address.ts`) after a reload: the host with its saved
  * host token, otherwise a guest with its seat tokens. `name` as for `joinRoom`; empty: `problem: "no-name"`.
  */
 export async function rejoinRoom(code: string, name?: string): Promise<void> {

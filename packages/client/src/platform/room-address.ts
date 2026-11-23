@@ -1,8 +1,8 @@
 /**
  * The room in the address (issue #880, reload rejoin): while this device is in a room, as host or guest, in its lobby or
- * its game, the address carries `#room=<CODE>`, so a refresh (on purpose or by accident) comes back to the same room
- * instead of to Title. It is written with `replaceState`, so it adds no history entry, and removed when the room is left
- * or over. The opposite of `#join=` and `#watch=`, which are read once and cleared: this one has to survive a reload.
+ * its game, the address carries `?room=<CODE>`, so a refresh (on purpose or by accident) comes back to the same room
+ * instead of to Title. It is set with `replaceState` (`address-params.ts`: no history entry, other parameters kept) and
+ * removed when the room is left or over. The opposite of `#join=`, which is read once and converted.
  *
  * Only the code is in the address (it is already the thing a player shares); host and seat tokens stay in the worker's
  * IndexedDB (`live/live-room-store.ts`, `live/room-seat-store.ts`).
@@ -10,58 +10,37 @@
 import type { RoomState } from "../live/room-state.js";
 import type { ReceiveLinkHistory, ReceiveLinkLocation } from "../save-data/receive-link.js";
 import { parseJoinTarget } from "../live/room-socket.js";
+import { clearPlaceParam, paramOf, setPlaceParam } from "./address-params.js";
 
-const ROOM_HASH = /^#?room=(.*)$/;
-
-/** The room code the address names, or null (no `#room=`, or one that is not a 6-character room code). Does not clear it. */
+/** The room code the address names, or null (no `?room=`, or one that is not a room code). Does not clear it. */
 export function roomLinkOf(location: ReceiveLinkLocation | undefined = globalThis.location): string | null {
-  const match = location ? ROOM_HASH.exec(location.hash) : null;
-  if (!match) return null;
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(match[1] ?? "");
-  } catch {
-    return null;
-  }
-  const target = parseJoinTarget(decoded);
+  const raw = paramOf("room", location);
+  if (raw === null) return null;
+  const target = parseJoinTarget(raw);
   return target && "code" in target ? target.code : null;
 }
 
-/** Whether the address holds a `#room=` hash at all (valid or not). */
-const hasRoomHash = (location: ReceiveLinkLocation): boolean => ROOM_HASH.test(location.hash);
-
-/** Puts `#room=<code>` in the address (no new history entry). */
+/** Puts `?room=<code>` in the address (no new history entry). */
 export function writeRoomAddress(
   code: string,
   location: ReceiveLinkLocation | undefined = globalThis.location,
   history: ReceiveLinkHistory | undefined = globalThis.history,
 ): void {
-  if (!location || !history) return;
-  if (roomLinkOf(location) === code) return;
-  try {
-    history.replaceState(history.state, "", `${location.pathname}${location.search}#room=${code}`);
-  } catch {
-    // An address that cannot be rewritten (a sandboxed frame): the room itself still works.
-  }
+  setPlaceParam("room", code, location, history);
 }
 
-/** Takes `#room=` out of the address (no new history entry); leaves any other hash alone. */
+/** Takes `?room=` out of the address (no new history entry); everything else stays. */
 export function clearRoomAddress(
   location: ReceiveLinkLocation | undefined = globalThis.location,
   history: ReceiveLinkHistory | undefined = globalThis.history,
 ): void {
-  if (!location || !history || !hasRoomHash(location)) return;
-  try {
-    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-  } catch {
-    // See writeRoomAddress.
-  }
+  clearPlaceParam("room", location, history);
 }
 
 /**
  * Keeps the address in step with the room's state: the code while this device is in a room (connecting, connected or
  * reconnecting, once the room has a code), nothing once it is left or over. A room that has no code yet leaves the
- * address as it is, so a reload that is still rejoining keeps its `#room=` until the room answers.
+ * address as it is, so a reload that is still rejoining keeps its `?room=` until the room answers.
  */
 export function syncRoomAddress(
   state: Pick<RoomState, "role" | "connection" | "code">,
