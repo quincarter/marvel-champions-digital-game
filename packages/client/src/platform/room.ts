@@ -8,6 +8,7 @@
  */
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
+import { syncRoomAddress } from "./room-address.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { HostActivityStep, VillainCursorState } from "@mc/sync-worker/room-protocol";
 import { roomDraft, setRoomDraftListener } from "../view/room-table-setup.js";
@@ -99,6 +100,8 @@ function publish(next: RoomState): void {
     if (next.role === "host" && lastCursor) postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
+  // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
+  syncRoomAddress(next);
   for (const listener of [...listeners]) listener(state);
 }
 
@@ -270,6 +273,15 @@ export async function hostRoom(name?: string): Promise<void> {
 export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
   publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
   if (!postRoomCommand({ kind: "room-join", target: codeOrId, name: nameFor(name) })) unavailable("guest");
+}
+
+/**
+ * Back into the room the address names (`?room=<CODE>`, see `room-address.ts`) after a reload: the host with its saved
+ * host token, otherwise a guest with its seat tokens. `name` as for `joinRoom`; empty: `problem: "no-name"`.
+ */
+export async function rejoinRoom(code: string, name?: string): Promise<void> {
+  publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
+  if (!postRoomCommand({ kind: "room-rejoin", code, name: nameFor(name) })) unavailable("guest");
 }
 
 /** Leaves the room (a host closes its lobby for everyone). Seat tokens are kept, so joining again restores the seats. */

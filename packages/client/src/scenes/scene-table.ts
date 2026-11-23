@@ -70,6 +70,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.roomChat]: () => import("./room-chat.js").then((m) => m.RoomChatOverlay),
   [SCENES.roomGive]: () => import("./room-give.js").then((m) => m.RoomGiveOverlay),
   [SCENES.roomAsk]: () => import("./room-ask.js").then((m) => m.RoomAskOverlay),
+  [SCENES.rejoin]: () => import("./rejoin.js").then((m) => m.RejoinOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),
   [SCENES.heroDecks]: () => import("./hero-decks-sheet.js").then((m) => m.HeroDecksSheet),
   [SCENES.deckActions]: () => import("./deck-actions-sheet.js").then((m) => m.DeckActionsSheet),

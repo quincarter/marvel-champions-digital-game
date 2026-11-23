@@ -9,10 +9,11 @@
  */
 import Phaser from "phaser";
 import { t } from "../i18n/translate.js";
-import { onRoomState, hostRoom, joinRoom, leaveRoom, onlineName } from "../platform/room.js";
+import { onRoomState, hostRoom, joinRoom, rejoinRoom, leaveRoom, onlineName } from "../platform/room.js";
 import { surface, typeRole, hit } from "../tokens.js";
 import type { LiveRoomEntry } from "@mc/sync-worker/room-protocol";
 import { pollLiveRooms, type LiveRoomsPoll } from "../platform/live-rooms.js";
+import { clearRoomAddress } from "../platform/room-address.js";
 import { forgetRoom, rememberRoom, recentRooms, roomIsOver } from "../platform/recent-rooms.js";
 import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
@@ -43,11 +44,14 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { sceneLoader } from "./scene-loader.js";
 import type { OnlineNameData } from "./online-name.js";
+import type { RejoinData } from "./rejoin.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
 export interface OnlineData {
   /** A room code or id from a `#join=` link: joined as soon as the screen is up (after a name, when none is set). */
   readonly join?: string;
+  /** The room code in the address's `?room=` after a reload: rejoined as the host or a guest once the screen is up (after a name, when none is set). */
+  readonly rejoin?: string;
   /** A `#join=` link that named no room. */
   readonly invalidLink?: boolean;
   /** Why the room the player was in is gone (the host closed it): shown in a notice over this screen. */
@@ -125,7 +129,8 @@ export class OnlineScene extends Phaser.Scene {
     document.addEventListener("visibilitychange", onVisible);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => document.removeEventListener("visibilitychange", onVisible));
     fadeScreenIn(this);
-    if (this.#data.join) this.#startJoin(this.#data.join);
+    if (this.#data.rejoin) this.#startRejoin(this.#data.rejoin);
+    else if (this.#data.join) this.#startJoin(this.#data.join);
     else if (this.#data.intent === "host") this.#host();
     if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice, this.#data.continueGameId);
   }
@@ -201,6 +206,8 @@ export class OnlineScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
+    // Leaving Play online for Title drops a room address that was still waiting for a rejoin (offline, say).
+    clearRoomAddress();
     goToScreen(this, SCENES.title);
   }
 
@@ -251,6 +258,30 @@ export class OnlineScene extends Phaser.Scene {
     this.#startJoin(target);
   }
 
+  /** A reload inside a room: back into it without asking, after a name when none is set. */
+  #startRejoin(code: string): void {
+    if (this.#offline()) return;
+    this.#withName(() => {
+      this.#joining = code;
+      this.#busy = "join";
+      this.#message = null;
+      void rejoinRoom(code);
+      this.#watchFor();
+      this.#draw();
+      // "Rejoining room ABC123…", with Cancel, until the room answers (`#stopWaiting` takes it down).
+      this.scene.launch(SCENES.rejoin, {
+        kind: "room",
+        code,
+        onCancel: () => {
+          this.#stopWaiting();
+          this.#busy = null;
+          this.#joining = null;
+          this.#draw();
+        },
+      } satisfies RejoinData);
+    });
+  }
+
   #startJoin(target: string): void {
     // No connection (or no service): said here before a name is asked for.
     if (this.#offline()) return;
@@ -288,6 +319,8 @@ export class OnlineScene extends Phaser.Scene {
   #stopWaiting(): void {
     this.#off?.();
     this.#off = null;
+    // Harmless when the sheet is not up.
+    if (this.scene.isActive(SCENES.rejoin)) this.scene.stop(SCENES.rejoin);
   }
 
   #draw(): void {

@@ -1172,3 +1172,99 @@ describe("live chat count and the host's setup step (issue #880)", () => {
     expect(socket.sent).toHaveLength(before);
   });
 });
+
+describe("rejoining the room in the address after a reload", () => {
+  it("a hosted lobby room is saved under its code, with no game", async () => {
+    const store = new MemoryRoomStore();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    expect(await store.load("room:ABC234")).toMatchObject({
+      roomId: "room00000001",
+      hostToken: "h".repeat(32),
+      code: "ABC234",
+      name: "Hosty",
+    });
+  });
+
+  it("a reloaded host comes back to the same room with its host token", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    // The page reloads: a new worker, the same IndexedDB.
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "abc-234", name: "Hosty" });
+    await flush();
+    expect(t.createRoom).not.toHaveBeenCalled();
+    expect(t.resolveRoomCode).not.toHaveBeenCalled();
+    const socket = FakeSocket.all[0]!;
+    expect(socket.url).toBe("wss://sync.example/room/room00000001/ws");
+    socket.open();
+    expect(socket.hello).toMatchObject({ name: "Hosty", token: "h".repeat(32) });
+    expect(t.last()).toMatchObject({ role: "host", code: "ABC234" });
+  });
+
+  it("a guest with no host record rejoins by code with its stored seat tokens", async () => {
+    const seatStore = new MemorySeatTokenStore();
+    await seatStore.save({ roomId: "room00000002", tokens: { s1: "T".repeat(32) }, savedAt: Date.now() });
+    const t = setup({ seatStore, store: new MemoryRoomStore() });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Guesty" });
+    await flush();
+    expect(t.resolveRoomCode.mock.calls[0]![1]).toBe("ABC234");
+    const socket = FakeSocket.all[0]!;
+    socket.open();
+    expect(socket.hello).toMatchObject({ name: "Guesty", seatTokens: ["T".repeat(32)] });
+    socket.welcome("watcher", { commands: 0, ended: false, hasHeader: false });
+    socket.receive(lobbyMessage([{ id: "s1", label: "Spider-Man", holder: "me" }]));
+    expect(t.last()).toMatchObject({ role: "guest", mySeats: ["s1"] });
+  });
+
+  it("a host room that is gone ends the session and drops its record", async () => {
+    const store = new MemoryRoomStore();
+    const hosted = setup({ store });
+    hosted.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.closeWith(1011);
+    await flush();
+    expect(t.last().connection).toBe("ended");
+    expect(await store.load("room:ABC234")).toBeNull();
+  });
+
+  it("asks for a name first: no name ends with no-name and opens nothing", async () => {
+    const t = setup({ store: new MemoryRoomStore() });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: " " });
+    await flush();
+    expect(t.last()).toMatchObject({ connection: "ended", problem: "no-name" });
+    expect(FakeSocket.all).toHaveLength(0);
+  });
+
+  it("a stale host record (past the room idle limit) is dropped and the code is joined as a guest", async () => {
+    const store = new MemoryRoomStore();
+    await store.save({
+      gameKey: "room:ABC234",
+      roomId: "room00000001",
+      hostToken: "h".repeat(32),
+      createdAt: 0,
+      code: "ABC234",
+    });
+    const t = setup({ store, now: () => 13 * 60 * 60 * 1000 });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    expect(await store.load("room:ABC234")).toBeNull();
+    expect(t.resolveRoomCode).toHaveBeenCalled();
+  });
+
+  it("a host leaving drops its lobby record", async () => {
+    const store = new MemoryRoomStore();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
+    await flush();
+    expect(await store.load("room:ABC234")).toBeNull();
+  });
+});
