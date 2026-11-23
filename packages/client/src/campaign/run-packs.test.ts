@@ -106,6 +106,15 @@ describe("a deck edit that needs a newer copy of a pack the run keeps (#978)", (
       heroPacksOf: () => [newA, b],
     });
     await expect(stubbed.setSeatDeck(run, 1, withB)).rejects.toThrow(/Pack B needs Pack A 2\.0\.0.*Pack A 1\.0\.0/);
+    // Through another pack too: C needs B, which needs the newer A.
+    const c = { ...pack("c", [card("x.c.01")]), name: "Pack C", requires: ["b"] } as PackRuntime;
+    const chained = new CampaignService({
+      storage: service.storage,
+      campaignDeps: { pool: {} },
+      engineDeps: POOL_DEPS,
+      heroPacksOf: () => [newA, b, c],
+    });
+    await expect(chained.setSeatDeck(run, 1, withB)).rejects.toThrow(/Pack A 2\.0\.0.*Pack A 1\.0\.0/);
   });
 });
 

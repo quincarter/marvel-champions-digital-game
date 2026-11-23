@@ -36,7 +36,9 @@ import type { AnyCard } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
 import { artFor, defaultFaceFor } from "../../art/art-source.js";
 import { cardFaces } from "../../art/card-face-baker.js";
-import { campaignCardsById, campaignPool } from "../../content/campaign-pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
+import { POOL_CARDS } from "../../content/pool.js";
+import { openRunPacksNow, poolWithRunPacks } from "../../campaign/run-packs.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
@@ -86,23 +88,24 @@ import type { CampaignMarketData } from "./routes.js";
 
 const cardOf = (id: string): AnyCard | undefined => campaignCardsById().get(id);
 /**
- * The Market-priced catalog of the open run's pool (`campaignPool`: the build's cards plus the run's own copies of any
- * custom pack it carries, #978), kept until that pool changes (`unitCost` never changes for a given pool).
+ * The Market-priced catalog: the build's cards plus the open run's own copies of any custom pack it carries (#978),
+ * never an installed pack the run doesn't carry, so checkout only ever submits cards the campaign's choice draws from
+ * the run's pool (`CampaignService`'s `#depsFor`). Kept until another run's packs are open (`unitCost` never changes).
  */
 let catalogOf: {
-  readonly pool: readonly AnyCard[];
+  readonly runPacks: readonly unknown[];
   readonly cards: readonly AnyCard[];
   readonly prices: readonly number[];
 } | null = null;
 function marketCatalog(): { readonly cards: readonly AnyCard[]; readonly prices: readonly number[] } {
-  const pool = campaignPool();
-  if (catalogOf?.pool !== pool) {
-    const cards = marketCatalogOf(pool);
+  const runPacks = openRunPacksNow();
+  if (catalogOf?.runPacks !== runPacks) {
+    const cards = marketCatalogOf(poolWithRunPacks(POOL_CARDS, runPacks));
     // Every price the stall sells, cheapest first: one "jump to price" chip each, whatever the filter hides.
     const prices = [...new Set(cards.map((card) => (card as { readonly unitCost?: number }).unitCost ?? 0))].sort(
       (a, b) => a - b,
     );
-    catalogOf = { pool, cards, prices };
+    catalogOf = { runPacks, cards, prices };
   }
   return catalogOf;
 }

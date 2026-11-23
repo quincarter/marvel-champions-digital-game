@@ -540,19 +540,31 @@ export class CampaignService {
    * names and versions for the refusal, or null when the deck adds nothing or everything it adds fits the run's copies.
    */
   #packVersionClash(
-    record: CampaignRecord,
-    deck: Deck,
+    record: Pick<CampaignRecord, "pack" | "heroPacks">,
+    deckOrPack: Deck | PackRuntime,
+    wantedNow?: readonly PackRuntime[],
+    runPacks: readonly PackRuntime[] = runPacksOf(record),
   ): { readonly pack: string; readonly needs: string; readonly kept: string; readonly wanted: string } | null {
-    const carried = new Map(runPacksOf(record).map((pack) => [pack.id, pack] as const));
-    const wanted = this.#heroPacksOf([{ deck }]);
+    const carried = new Map(runPacks.map((pack) => [pack.id, pack] as const));
+    const wanted = wantedNow ?? ("identityCardId" in deckOrPack ? this.#heroPacksOf([{ deck: deckOrPack }]) : []);
     const byId = new Map(wanted.map((pack) => [pack.id, pack] as const));
-    for (const pack of wanted) {
-      if (carried.has(pack.id)) continue;
-      for (const id of pack.requires) {
-        const kept = carried.get(id);
-        const now = byId.get(id);
-        if (kept && now && kept.version !== now.version)
-          return { pack: pack.name, needs: kept.name, kept: kept.version, wanted: now.version };
+    const clashing = packsClashingWithRun(wanted, runPacks);
+    const candidates = "identityCardId" in deckOrPack ? wanted : [deckOrPack];
+    for (const pack of candidates) {
+      if (carried.has(pack.id) || !clashing.has(pack.id)) continue;
+      // Name the kept pack it needs at another version (directly, or the first one down its chain of requirements).
+      for (const queue = [pack], seen = new Set<string>(); queue.length > 0;) {
+        const next = queue.shift()!;
+        for (const id of next.requires) {
+          const kept = carried.get(id);
+          const now = byId.get(id);
+          if (kept && now && kept.version !== now.version)
+            return { pack: pack.name, needs: kept.name, kept: kept.version, wanted: now.version };
+          if (now && !seen.has(id)) {
+            seen.add(id);
+            queue.push(now);
+          }
+        }
       }
     }
     return null;
@@ -569,8 +581,19 @@ export class CampaignService {
     const carried = new Set(
       runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks: had }).map((p) => p.id),
     );
-    const added = this.#heroPacksOf(log.seats).filter((pack) => !carried.has(pack.id));
+    const wanted = this.#heroPacksOf(log.seats);
+    const added = wanted.filter((pack) => !carried.has(pack.id));
     if (added.length === 0) return had;
+    // The last guard before anything is written, whatever path put the card in a deck (an edit, a fixed grant, a
+    // named choice): a pack that needs another version of one the run keeps is never copied in. The write is refused
+    // rather than storing a combination that was never checked together.
+    const runPacks = runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks: had });
+    const clashing = packsClashingWithRun(wanted, runPacks);
+    const bad = added.find((pack) => clashing.has(pack.id));
+    if (bad) {
+      const clash = this.#packVersionClash(previous, bad, wanted, runPacks);
+      throw new Error(clash ? t("campaign.deck.packVersionClash", clash) : `pack "${bad.id}" clashes with this run`);
+    }
     const heroPacks = [...had, ...added];
     setOpenRunPacks(runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks }));
     return heroPacks;
