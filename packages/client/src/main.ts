@@ -62,7 +62,7 @@ import { applyIosInputZoomGuard } from "./platform/ios-input-zoom.js";
 import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler } from "./platform/desktop-window.js";
 import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
-import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
+import { isAndroidEdge, rendererOptionsOf, setCanvasFallback, webglAvailable } from "./platform/renderer-options.js";
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
@@ -110,7 +110,10 @@ const rendererOptions = rendererOptionsOf(
     ? { userAgent: navigator.userAgent, webglRenderer: probeWebgl()?.renderer ?? null }
     : null,
   renderScale,
+  // Phaser's own check: a browser with no WebGL at all plays on Canvas instead of stopping.
+  webglAvailable(),
 );
+setCanvasFallback(rendererOptions.canvasFallback === true);
 
 // Linux desktop app: a 48 kHz, playback-latency context, so the Deck's audio stops crackling (`platform/linux-audio.ts`).
 const inTauri = (globalThis as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined;
@@ -126,7 +129,8 @@ await startAppLinks(undefined, undefined, undefined, undefined, undefined, () =>
 );
 
 const game = new Phaser.Game({
-  // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
+  // Canvas where the browser has no WebGL, and the `?renderer=canvas` and `?gl=…` test links for a device whose WebGL
+  // shows black (`platform/renderer-options.ts`).
   type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
   ...(rendererOptions.transparent ? { transparent: true } : {}),
   render: {

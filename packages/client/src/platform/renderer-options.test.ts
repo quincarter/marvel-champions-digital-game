@@ -69,3 +69,21 @@ describe("drawing at the screen's density (#328)", () => {
     expect(rendererOptionsOf("?gl=aa", null, 3)).toEqual({ canvas: false });
   });
 });
+
+describe("a browser with no WebGL plays on Canvas (Firefox with WebGL off, Discord report)", () => {
+  test("falls back to Canvas by itself, marked as a fallback", () => {
+    expect(rendererOptionsOf("", null, 1, false)).toEqual({ canvas: true, canvasFallback: true });
+  });
+
+  test("?renderer=canvas is a choice, not a fallback", () => {
+    expect(rendererOptionsOf("?renderer=canvas", null, 1, false)).toEqual({ canvas: true });
+  });
+
+  test("?renderer=webgl asks for WebGL anyway, to see Phaser's own error", () => {
+    expect(rendererOptionsOf("?renderer=webgl", null, 1, false)).toEqual({ canvas: false });
+  });
+
+  test("a browser with WebGL keeps it", () => {
+    expect(rendererOptionsOf("", null, 1, true)).toEqual({ canvas: false });
+  });
+});
