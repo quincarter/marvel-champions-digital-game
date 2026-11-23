@@ -1,16 +1,17 @@
 /**
  * The card pool the campaign screens read (#978): the app's pool as it is now (`currentPool`: the base game plus every
- * loaded pack), plus the cards of the packs the runs opened this session carry (`campaign/run-packs.ts`) that the pool
- * does not already hold. A run whose custom hero's pack was updated or removed still names, draws and checks its cards.
- * An installed card wins over a run's older copy of it, as the run's choices read it (`CampaignService`'s `#depsFor`).
+ * loaded pack), with the open run's packs swapped in (`poolWithRunPacks`: the run's own copies win, and an
+ * installed version's newer cards are left out). The open run is the latest one started, loaded or written. A run whose
+ * custom hero's pack was updated or removed names, draws and checks the cards its games are dealt, as its choices do
+ * (`CampaignService`'s `#depsFor`).
  */
 import type { AnyCard } from "@mc/content";
-import { rememberedRunPacks } from "../campaign/run-packs.js";
+import { openRunPacksNow, poolWithRunPacks } from "../campaign/run-packs.js";
 import { currentCardsById, currentPool } from "./pool.js";
 
 interface CampaignPoolView {
   readonly base: readonly AnyCard[];
-  readonly remembered: readonly unknown[];
+  readonly run: readonly unknown[];
   readonly cards: readonly AnyCard[];
   readonly cardsById: ReadonlyMap<string, AnyCard>;
 }
@@ -19,22 +20,16 @@ let view: CampaignPoolView | undefined;
 
 function campaignPoolView(): CampaignPoolView {
   const base = currentPool();
-  const remembered = rememberedRunPacks();
-  if (view && view.base === base && view.remembered === remembered) return view;
-  const byId = currentCardsById();
-  const added = remembered.flatMap((pack) => pack.cards).filter((card) => !byId.has(card.id as string));
-  if (added.length === 0) {
-    view = { base, remembered, cards: base, cardsById: byId };
-  } else {
-    const seen = new Set<string>();
-    const unique = added.filter((card) => !seen.has(card.id as string) && seen.add(card.id as string));
-    const cards = [...base, ...unique];
-    view = { base, remembered, cards, cardsById: new Map(cards.map((card) => [card.id as string, card] as const)) };
-  }
+  const run = openRunPacksNow();
+  if (view && view.base === base && view.run === run) return view;
+  const cards = poolWithRunPacks(base, run);
+  const cardsById =
+    cards === base ? currentCardsById() : new Map(cards.map((card) => [card.id as string, card] as const));
+  view = { base, run, cards, cardsById };
   return view;
 }
 
-/** Every card a campaign screen may name or offer. The same array until the loaded or remembered packs change. */
+/** Every card a campaign screen may name or offer. The same array until the loaded packs or the open run change. */
 export const campaignPool = (): readonly AnyCard[] => campaignPoolView().cards;
 
 /** `campaignPool()` by card id. */

@@ -22,8 +22,7 @@ import {
 } from "./campaign/pack-campaigns.js";
 import { loadedPacks } from "./packs/pack-registry.js";
 import { campaignDepsWithPacks } from "@mc/mod-sdk/game";
-import { heroPacksForSeats, rememberedRunPacks } from "./campaign/run-packs.js";
-import type { PackRuntime } from "./packs/pack-runtime.js";
+import { heroPacksForSeats } from "./campaign/run-packs.js";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
 import { gameDeps } from "./content/game-deps.js";
 import { deckFromStarterDeck } from "@mc/content";
@@ -315,14 +314,6 @@ function campaignDeps(): CampaignDeps {
   return packCampaignPool.deps;
 }
 
-/** The installed packs, then the packs of runs opened this session that are not installed (#978). */
-function packsForCampaignSeats(): readonly PackRuntime[] {
-  const loaded = loadedPacks();
-  const ids = new Set(loaded.map((pack) => pack.id));
-  const kept = rememberedRunPacks().filter((pack) => !ids.has(pack.id));
-  return kept.length === 0 ? loaded : [...loaded, ...kept];
-}
-
 export function campaignService(): CampaignService {
   campaigns ??= new CampaignService({
     storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
@@ -333,9 +324,7 @@ export function campaignService(): CampaignService {
     },
     packOf: (campaignId) => packRefOf(loadedPacks(), campaignId),
     // A custom hero's pack, and any pack a signed deck's cards come from, rides with the run (#978).
-    // A pack a run opened this session still carries, but which is no longer installed, is found too: the campaign deck
-    // editor offers its cards (`campaignPool`), so a run that takes one copies the pack from that run.
-    heroPacksOf: (seats) => heroPacksForSeats(seats, packsForCampaignSeats()),
+    heroPacksOf: (seats) => heroPacksForSeats(seats, loadedPacks()),
     engineDeps: gameDeps,
     games: {
       list: () => appSession().store.listSaves(),

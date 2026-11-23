@@ -10,7 +10,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { IDBFactory } from "fake-indexeddb";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { PackManifest } from "@mc/content";
+import type { AnyCard, PackManifest } from "@mc/content";
 import { buildPack } from "@mc/mod-sdk/build";
 import { POOL_VERSION, currentPool } from "../content/pool.js";
 import { campaignCardsById, campaignPool } from "../content/campaign-pool.js";
@@ -145,7 +145,7 @@ describe("custom heroes in campaigns (#978)", () => {
     expect((await service.load(signed.id))?.heroPacks?.map((pack) => pack.id)).toEqual(["sample-hero"]);
   });
 
-  it("copies a removed pack from another run when a deck edit takes one of its cards", async () => {
+  it("reads the run's own copy of an updated pack, and never another run's packs", async () => {
     await installSample();
     const service = campaignService();
     const deck = customPrecon();
@@ -155,28 +155,41 @@ describe("custom heroes in campaigns (#978)", () => {
       poolVersion: POOL_VERSION,
       seed: 3,
     });
-    setLoadedPacks([]);
+    const identityId = deck.identityCardId as string;
+    const signedName = campaignCardsById().get(identityId)?.name;
+
+    // An update renames the hero and adds a card: run A keeps reading its own copy, without the new card.
+    const [installed] = loadedPacks();
+    const added = { ...installed!.cards[1]!, id: "x.sample-hero.999" } as AnyCard;
+    setLoadedPacks([
+      {
+        ...installed!,
+        version: "9.9.9",
+        cards: [
+          ...installed!.cards.map((card) => ((card.id as string) === identityId ? { ...card, name: "Renamed" } : card)),
+          added,
+        ],
+      },
+    ]);
     forgetRunPacks();
+    const loaded = (await service.load(runA.id))!;
+    expect(campaignCardsById().get(identityId)?.name).toBe(signedName);
+    expect(campaignCardsById().has("x.sample-hero.999")).toBe(false);
+    const composed = await service.compose(loaded);
+    if (composed.kind !== "done") throw new Error("issue 1 asks nothing");
+    expect(withLoadedPacks(service.launchConfig(composed.record)).packs?.map((pack) => pack.version)).toEqual([
+      installed!.version,
+    ]);
+
+    // With the pack removed, opening a base-heroes run B leaves run A's copy out of the campaign pool.
+    setLoadedPacks([]);
     const base = preconDecks(POOL_VERSION).find((d) => !deckUsesCustomCards(d))!;
-    const runB = await service.start({
+    await service.start({
       campaignId: "trors",
       seats: [{ identityCardId: base.identityCardId, deck: base }],
       poolVersion: POOL_VERSION,
       seed: 4,
     });
-    expect(runB.heroPacks).toBeUndefined();
-    // Opening run A remembers its copy, so the campaign deck editor offers that pack's cards to run B too.
-    await service.load(runA.id);
-    const card = deck.cards.find((entry) => entry.cardId !== deck.identityCardId)!;
-    expect(campaignCardsById().has(card.cardId as string)).toBe(true);
-    const edited = await service.setSeatDeck(runB, 1, {
-      ...base,
-      cards: [...base.cards, { cardId: card.cardId, quantity: 1 }],
-    });
-    expect(edited.heroPacks?.map((pack) => pack.id)).toEqual(["sample-hero"]);
-    const composed = await service.compose(edited);
-    if (composed.kind !== "done") throw new Error("issue 1 asks nothing");
-    const config = withLoadedPacks(service.launchConfig(composed.record));
-    expect(config.packs?.map((pack) => pack.id)).toEqual(["sample-hero"]);
+    expect(campaignCardsById().has(identityId)).toBe(false);
   });
 });

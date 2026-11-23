@@ -416,11 +416,12 @@ zip) for players who want it.
   campaign roster like any other deck. Signing copies the packs the seats draw on (with what they require) into the run
   as `CampaignRecord.heroPacks` (`campaign/run-packs.ts`), the way a pack campaign's run keeps `CampaignRecord.pack`.
   Every issue's game carries those copies (`CampaignService.launchConfig`), the campaign's choices draw from them, and
-  the campaign screens and the campaign deck editor read `content/campaign-pool.ts` (the installed pool plus the cards
-  of the runs opened this session). So a run never depends on what is installed: updating the pack changes nothing in
-  it, and removing it leaves the run playing on from its own copy, with no reinstall asked for (a removed pack's card
-  pictures fall back like any missing art). A deck edited between issues draws from the installed pool plus the run's
-  copies; a card from a pack the run doesn't carry yet copies that pack in when the deck is saved.
+  the campaign screens and the campaign deck editor read `content/campaign-pool.ts` (the installed pool with the open
+  run's copies swapped in: its own version of each pack it carries wins, and cards a newer installed version added are
+  left out). So a run never depends on what is installed: updating the pack changes nothing in it, and removing it
+  leaves the run playing on from its own copy, with no reinstall asked for (a removed pack's card pictures fall back
+  like any missing art). A deck edited between issues may also take cards from an installed pack the run doesn't carry
+  yet; saving the deck copies that pack in.
 
 ## 8. Phasing
 

@@ -133,7 +133,15 @@ export interface CampaignSummary {
   readonly status: CampaignStatus;
   readonly modes: PlayModes;
   readonly position: CampaignPosition;
-  readonly seats: readonly { readonly seatNumber: number; readonly identityCardId: string }[];
+  /**
+   * Each seat's hero. `identityName` is set for a custom hero, from the pack copy the run carries (#978), so the shelf
+   * names it without the pack installed or the run open; absent for a base hero, which the pool names.
+   */
+  readonly seats: readonly {
+    readonly seatNumber: number;
+    readonly identityCardId: string;
+    readonly identityName?: string;
+  }[];
   readonly createdAt: number;
   readonly updatedAt: number;
   /** For a pack campaign's run: which pack and how many issues, so the shelf lists it without the pack. */
@@ -155,6 +163,16 @@ function packSummaryOf(pack: PackCampaignRef, campaignId: string): PackCampaignS
   };
 }
 
+/** A custom hero's name from the packs the run carries (`heroPacks`, then the campaign's own), or undefined. */
+function customIdentityNameOf(record: CampaignRecord, identityId: string): string | undefined {
+  if (!identityId.startsWith("x.")) return undefined;
+  for (const pack of [...(record.heroPacks ?? []), ...(record.pack?.packs ?? [])]) {
+    const card = pack.cards.find((candidate) => (candidate.id as string) === identityId);
+    if (card) return card.name;
+  }
+  return undefined;
+}
+
 /** Shared so both storages project a `CampaignRecord` down to a `CampaignSummary` identically. */
 export function summaryOf(record: CampaignRecord): CampaignSummary {
   return {
@@ -168,7 +186,14 @@ export function summaryOf(record: CampaignRecord): CampaignSummary {
     status: record.status,
     modes: record.modes,
     position: record.position,
-    seats: record.seats.map((seat) => ({ seatNumber: seat.seatNumber, identityCardId: seat.identityCardId })),
+    seats: record.seats.map((seat) => {
+      const name = customIdentityNameOf(record, seat.identityCardId as string);
+      return {
+        seatNumber: seat.seatNumber,
+        identityCardId: seat.identityCardId,
+        ...(name ? { identityName: name } : {}),
+      };
+    }),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     ...(record.adjusted === true ? { adjusted: true as const } : {}),

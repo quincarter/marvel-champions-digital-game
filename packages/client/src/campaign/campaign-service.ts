@@ -42,7 +42,7 @@ import {
 } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { embeddedDefinitionOf, rememberRunPack } from "./pack-campaigns.js";
-import { rememberRunPacks, runPacksOf } from "./run-packs.js";
+import { poolWithRunPacks, runPacksOf, setOpenRunPacks } from "./run-packs.js";
 
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
@@ -236,7 +236,7 @@ export class CampaignService {
     };
     await this.storage.create(record);
     if (pack) rememberRunPack(pack, input.campaignId);
-    rememberRunPacks(runPacksOf(record));
+    setOpenRunPacks(runPacksOf(record));
     return record;
   }
 
@@ -248,23 +248,21 @@ export class CampaignService {
   async load(id: string): Promise<CampaignRecord | null> {
     const record = await this.storage.load(id);
     if (record?.pack) rememberRunPack(record.pack, record.campaignId as string);
-    if (record) rememberRunPacks(runPacksOf(record));
+    if (record) setOpenRunPacks(runPacksOf(record));
     return record ? withRemovedCardsOutOfDecks(record) : null;
   }
 
   /**
-   * The card pool a run's choices draw from: the build's, plus the cards of the pack content the run carries (its
-   * campaign's and its heroes', `runPacksOf`) that the pool does not already hold (a removed pack's cards are still
-   * there for a run that needs them).
+   * The card pool a run's choices draw from: the build's, with the pack content the run carries (its campaign's and its
+   * heroes', `runPacksOf`) swapped in (`poolWithRunPacks`): the run's own copies win over an installed version, and a
+   * removed pack's cards are still there for a run that needs them.
    */
   #depsFor(record: Pick<CampaignRecord, "pack" | "heroPacks">): CampaignDeps {
     const base = this.#campaignDeps();
     const packs = runPacksOf(record);
     if (packs.length === 0) return base;
     const pool = Array.isArray(base.pool) ? base.pool : Object.values(base.pool);
-    const have = new Set(pool.map((card) => card.id as string));
-    const added = packs.flatMap((pack) => pack.cards).filter((card) => !have.has(card.id as string));
-    return added.length === 0 ? base : { ...base, pool: [...pool, ...added] };
+    return { ...base, pool: poolWithRunPacks(pool, packs) };
   }
 
   /**
@@ -529,8 +527,8 @@ export class CampaignService {
   }
 
   /**
-   * The packs a run carries for its seats after a write (#978): the ones it had, plus the pack (installed, or kept by a run opened
-   * this session) of any custom card a seat's deck now holds that the run doesn't carry yet (a deck edit or a reward with a card from a pack
+   * The packs a run carries for its seats after a write (#978): the ones it had, plus the installed pack of any custom
+   * card a seat's deck now holds that the run doesn't carry yet (a deck edit or a reward with a card from a pack
    * installed after signing). Copied in once, as at signing, so the next game has it and a later update or removal of
    * that pack never changes the run.
    */
@@ -541,8 +539,9 @@ export class CampaignService {
     );
     const added = this.#heroPacksOf(log.seats).filter((pack) => !carried.has(pack.id));
     if (added.length === 0) return had;
-    rememberRunPacks(added);
-    return [...had, ...added];
+    const heroPacks = [...had, ...added];
+    setOpenRunPacks(runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks }));
+    return heroPacks;
   }
 
   /**

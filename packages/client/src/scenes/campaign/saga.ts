@@ -10,6 +10,7 @@
  * it out and wires taps. Tapping any volume (grid tile, phone row) re-features it; nothing here computes legality
  * or unlock itself.
  */
+import type { CampaignSummary } from "../../engine/campaign-storage.js";
 import Phaser from "phaser";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { customSagaVolumes, packCampaignEntryOf } from "../../campaign/pack-campaigns.js";
@@ -72,10 +73,16 @@ const MIN_TILE_HEIGHT = 100;
 const VOLUME_ROW_HEIGHT = 58;
 const VIEW_STOP = "volumes-view";
 
-const identityNameOf = (id: string): string => {
-  const card = campaignCardsById().get(id);
-  return card ? cardDisplayName(card) : id;
-};
+/** A hero's name from the pool, else the name a run's summary keeps for a custom hero (#978), else its id. */
+const identityNamesOf =
+  (summaries: readonly CampaignSummary[]) =>
+  (id: string): string => {
+    const card = campaignCardsById().get(id);
+    if (card) return cardDisplayName(card);
+    for (const summary of summaries)
+      for (const seat of summary.seats) if (seat.identityCardId === id && seat.identityName) return seat.identityName;
+    return id;
+  };
 
 /**
  * A volume's art: the box's own cover (`art/campaigns/<id>/cover.*`) when it has one, as the Cover screen uses, else its
@@ -175,7 +182,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     const unlocked = unlocks();
     const rows = campaignSagaRows(summaries, {
       customVolumes: customSagaVolumes(loadedPacks(), summaries),
-      identityNameOf,
+      identityNameOf: identityNamesOf(summaries),
       // The Saga is not translated yet: its lock text sits in English sentences.
       waveLockOf: (campaignId) => unlocked.campaignLock(campaignId, "en"),
       openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
