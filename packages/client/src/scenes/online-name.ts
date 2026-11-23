@@ -96,9 +96,12 @@ export class OnlineNameOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     if (this.#input) this.#value = this.#input.value;
-    this.#input?.destroy();
-    this.#input = null;
+    // The field is a DOM element that keeps its focus and caret across a redraw (a phone's keyboard opening resizes the
+    // page, which redraws): lifted out of the sweep and laid out again, never rebuilt, or the keyboard would close at once.
+    const kept = this.#input ? this.#input.gameObjects : [];
+    for (const node of kept) this.children.remove(node);
     destroyChildren(this);
+    for (const node of kept) this.children.add(node);
     this.#hints.reset();
 
     const { width, height } = this.scale.gameSize;
@@ -142,21 +145,26 @@ export class OnlineNameOverlay extends Phaser.Scene {
     body.setPosition(box.x + 20, title.y + title.height + 8);
     const fieldRect: Rect = { x: box.x + 20, y: body.y + body.height + 14, width: textWidth, height: fieldHeight };
     problem?.setPosition(box.x + 20, fieldRect.y + fieldRect.height + 8);
-    this.#input = new McTextInput(this, {
-      rect: fieldRect,
-      value: this.#value,
-      type: typeRole.body,
-      placeholder: t("online.namePlaceholder"),
-      maxLength: MAX_ONLINE_NAME_LENGTH,
-      onChange: (value) => {
-        this.#value = value;
-      },
-    });
-    // Enter in the name field continues, as the Continue button does (the field's own handler only leaves the field).
-    (this.#input.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
-      // After this key press finishes: tearing the field down inside its own keydown left its DOM box on screen.
-      if (event.key === "Enter") setTimeout(() => this.#continue(), 0);
-    });
+    if (this.#input) {
+      this.#input.layout(fieldRect);
+      for (const node of this.#input.gameObjects) this.children.bringToTop(node);
+    } else {
+      this.#input = new McTextInput(this, {
+        rect: fieldRect,
+        value: this.#value,
+        type: typeRole.body,
+        placeholder: t("online.namePlaceholder"),
+        maxLength: MAX_ONLINE_NAME_LENGTH,
+        onChange: (value) => {
+          this.#value = value;
+        },
+      });
+      // Enter in the name field continues, as the Continue button does (the field's own handler only leaves the field).
+      (this.#input.gameObject as unknown as { node: HTMLElement }).node.addEventListener("keydown", (event) => {
+        // After this key press finishes: tearing the field down inside its own keydown left its DOM box on screen.
+        if (event.key === "Enter") setTimeout(() => this.#continue(), 0);
+      });
+    }
     const buttonY = box.y + box.height - 20 - hit.primary;
     const cancelRect: Rect = { x: box.x + 20, y: buttonY, width: half, height: hit.primary };
     const goRect: Rect = { x: cancelRect.x + half + 12, y: buttonY, width: half, height: hit.primary };
