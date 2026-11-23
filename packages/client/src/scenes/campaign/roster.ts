@@ -21,7 +21,6 @@ import {
   drawActionBar,
   drawPicture,
   drawTopBar,
-  heroPicture,
 } from "../../ui/campaign-chrome.js";
 import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
@@ -584,7 +583,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
 
-    const picture = heroPicture(deck.identityCardId as string);
+    const picture = this.#heroPictureFor(deck.identityCardId as string);
     if (picture) drawPicture(this, picture, artRect, this.#onSceneArt, { focusY: 0.1 });
     else this.add.rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex).setOrigin(0, 0);
 

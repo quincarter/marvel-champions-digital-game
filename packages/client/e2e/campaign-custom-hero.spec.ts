@@ -23,6 +23,15 @@ import { SHOT } from "./x-men-helpers.js";
  * roster is signed, and issue #1 opens and reaches round 1 on the Board with the pack's hero at the table.
  */
 
+/** `scripts/shoot-app.mjs`'s sizes. */
+const SHOT_SIZES = {
+  se: { width: 375, height: 667 },
+  pixel: { width: 412, height: 924 },
+  "tablet-portrait": { width: 768, height: 1024 },
+  tablet: { width: 1024, height: 768 },
+  desktop: { width: 1440, height: 980 },
+};
+
 interface RowText {
   name: string;
   rect: Rect;
@@ -99,7 +108,18 @@ test("issue #978: a Mod Store hero signs a campaign roster and plays issue #1", 
     ),
     `${heroName} sits at seat 1`,
   ).toBe(true);
-  if (SHOT) await page.screenshot({ path: `${SHOT}/campaign-custom-hero-roster-${info.project.name}.png` });
+  if (SHOT) {
+    // The PR's screenshots: the seated roster at every size the repo checks a screen at.
+    const original = page.viewportSize();
+    for (const [size, viewport] of Object.entries(SHOT_SIZES)) {
+      await page.setViewportSize(viewport);
+      await settle(page);
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${SHOT}/campaign-custom-hero-roster-${info.project.name}-${size}.png` });
+    }
+    if (original) await page.setViewportSize(original);
+    await settle(page);
+  }
 
   // Sign (answering a name clash, if the seated heroes have one, by keeping every card), skip the opener.
   await clickStop(page, "cta", "CampaignRoster");
@@ -134,6 +154,7 @@ test("issue #978: a Mod Store hero signs a campaign roster and plays issue #1", 
 
   await driveToBoard(page, { timeoutMs: 90_000 });
   expect(await boardRound(page), "the board is in round 1").toBe(1);
+  if (SHOT) await page.screenshot({ path: `${SHOT}/campaign-custom-hero-board-${info.project.name}.png` });
   expect(errors, `no page or console errors (${JSON.stringify(errors)})`).toEqual([]);
   staged.dispose();
 });
