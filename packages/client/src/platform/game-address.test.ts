@@ -55,7 +55,7 @@ describe("the game in the address", () => {
   });
 
   it("never replaces a room or a watch (they own the address)", () => {
-    for (const url of ["/?room=ABC234", `/?watch=${"x".repeat(12)}`]) {
+    for (const url of ["/?room=ABC234", `/?watching=${"x".repeat(12)}`]) {
       const p = fakePage(url);
       syncGameAddress(playing(), false, p.location, p.history);
       expect(p.log).toEqual([]);
