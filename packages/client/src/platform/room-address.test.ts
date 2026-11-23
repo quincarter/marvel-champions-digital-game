@@ -53,7 +53,7 @@ describe("the room in the address", () => {
     const over = fakePage("/?room=ABC234");
     syncRoomAddress(inRoom({ connection: "ended", problem: "not-found", code: "ABC234" }), over.location, over.history);
     expect(over.log).toEqual(["/"]);
-    const other = fakePage("/?watch=xyz");
+    const other = fakePage("/?watching=xyz");
     syncRoomAddress(NO_ROOM, other.location, other.history);
     clearRoomAddress(other.location, other.history);
     expect(other.log).toEqual([]);
