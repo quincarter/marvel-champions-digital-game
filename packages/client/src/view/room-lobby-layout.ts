@@ -37,6 +37,7 @@ export const TRIPLE_MIN_ASPECT = 2.2;
 const FLOAT_WIDTH = 400;
 const FLOAT_MAX_HEIGHT = 520;
 const PILL_WIDTH = 132;
+const POPPED_CARD = { width: 300, height: 104 } as const;
 
 export const LOBBY_HEADER_HEIGHT = 84;
 export const LOBBY_FOOTER_HEIGHT = 92;
@@ -52,6 +53,8 @@ export function lobbyLayout(
   footerHeight: number = LOBBY_FOOTER_HEIGHT,
   /** Whether a floating chat is open. */
   chatOpen = false,
+  /** Whether the chat is in its own window: a floating chat then shows a small card in the pill's place. */
+  chatPopped = false,
 ): LobbyLayout {
   const header: Rect = { x: gutter, y: topBar + GAP, width: width - gutter * 2, height: headerHeight };
   const footer: Rect = {
@@ -93,20 +96,20 @@ export function lobbyLayout(
     const bottom = footer.y - GAP;
     const panelHeight = Math.min(FLOAT_MAX_HEIGHT, Math.round(bodyHeight * 0.8));
     // A closed chat's pill sits at the corner of the settings column: the list ends above it, so no row hides behind it.
-    const settingsHeight = chatOpen ? bodyHeight : bodyHeight - hit.target - GAP;
+    const open = chatOpen && !chatPopped;
+    const corner = chatPopped ? POPPED_CARD : { width: PILL_WIDTH, height: hit.target };
+    const settingsHeight = open ? bodyHeight : bodyHeight - corner.height - GAP;
     return {
       mode: "float",
       header,
       tabs: null,
       tabIds: [],
       footer,
-      chatPill: chatOpen
-        ? null
-        : { x: right - PILL_WIDTH, y: bottom - hit.target, width: PILL_WIDTH, height: hit.target },
+      chatPill: open ? null : { x: right - corner.width, y: bottom - corner.height, ...corner },
       panels: {
         seats: { x: gutter, y: bodyTop, width: left, height: bodyHeight },
         settings: { x: rightX, y: bodyTop, width: rightWidth, height: settingsHeight },
-        ...(chatOpen
+        ...(open
           ? { chat: { x: right - FLOAT_WIDTH, y: bottom - panelHeight, width: FLOAT_WIDTH, height: panelHeight } }
           : {}),
       },
