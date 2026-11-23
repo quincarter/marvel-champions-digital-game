@@ -1281,7 +1281,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     let leftY = top;
     leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck, false);
     if (!folded) {
-      leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
+      // The Hero and Basic toggles go in the middle, on the card count's row: the rail has no height to spare, and they
+      // pushed the cost curve off a 900-high screen (PR #980 review).
+      leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH, false);
       leftY = this.#drawPackAndSort(leftX, leftY, LEFT_RAIL_WIDTH, deck);
     }
     // The cost curve and the odds share the rail's last room behind two tabs (issue #531).
@@ -1370,8 +1372,17 @@ export class DeckBuilderScene extends Phaser.Scene {
       midY = this.#drawFilterInput(midX, midY, midWidth);
       // The quick filters sit under the search here: the left rail has no room left for them.
       midY = this.#drawQuickFilters(midX, midY - 4, midWidth, deck) - 4;
-      label(this, midX, midY, countText, typeRole.label, surface.ink.hex, ink.meta);
-      midY += 16;
+      const next = this.#drawShowToggles(midX, midY, midWidth, true);
+      label(
+        this,
+        midX + midWidth,
+        midY + hit.target / 2,
+        countText,
+        typeRole.label,
+        surface.ink.hex,
+        ink.meta,
+      ).setOrigin(1, 0.5);
+      midY = next;
     }
     const listRect: Rect = {
       x: midX,
@@ -1484,8 +1495,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#onDeckScroll = place;
   }
 
-  #drawTypeFilters(left: number, top: number, column: number): number {
-    let y = this.#drawShowToggles(left, top, column);
+  #drawTypeFilters(left: number, top: number, column: number, withShow = true): number {
+    let y = withShow ? this.#drawShowToggles(left, top, column) : top;
     label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const ground = this.add.graphics();
@@ -1529,19 +1540,33 @@ export class DeckBuilderScene extends Phaser.Scene {
    * an aspect with both off lists that aspect's cards alone. They work beside the aspect buttons, which still choose
    * the deck's aspect, and either can be on with any aspect.
    */
-  #drawShowToggles(left: number, top: number, column: number): number {
+  #drawShowToggles(left: number, top: number, column: number, inline = false): number {
     let y = top;
-    label(this, left, y, t("deckBuilder.show"), typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
+    // Inline (the desktop's pool column), a "show" word and two chips share one row with the card count at its end.
+    const word = inline ? 48 : 0;
+    if (inline) {
+      label(
+        this,
+        left,
+        y + hit.target / 2,
+        t("deckBuilder.show"),
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      ).setOrigin(0, 0.5);
+    } else {
+      label(this, left, y, t("deckBuilder.show"), typeRole.label, surface.ink.hex, ink.label);
+      y += 16;
+    }
     const ground = this.add.graphics();
-    const width = (column - CHIP_GAP) / 2;
+    const width = inline ? Math.min(130, (column - word - CHIP_GAP) / 4) : (column - CHIP_GAP) / 2;
     // Plain chips, filled while on with a tick: a tinted Basic chip read as "on" either way.
     const toggles = [
       { id: "show-hero", text: t("deckBuilder.showHero"), key: "hideHero" },
       { id: "show-basic", text: aspectStampOf("basic").label, key: "hideBasic" },
     ] as const;
     toggles.forEach((toggle, index) => {
-      const rect: Rect = { x: left + index * (width + CHIP_GAP), y, width, height: hit.target };
+      const rect: Rect = { x: left + word + index * (width + CHIP_GAP), y, width, height: hit.target };
       const shown = !this.#filter[toggle.key];
       const flip = (): void => {
         this.#filter = { ...this.#filter, [toggle.key]: shown };
@@ -1562,7 +1587,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       );
       this.#stops.set(`type:${toggle.id}`, { rect, activate: flip });
     });
-    return y + hit.target + 16;
+    return y + hit.target + (inline ? 8 : 16);
   }
 
   /**
@@ -1722,7 +1747,8 @@ export class DeckBuilderScene extends Phaser.Scene {
     add("pack:next", nextRect, ">", stepPack(1));
     y += hit.target + CHIP_GAP;
 
-    const cycleNames = new Map(choices.cycles.map((c) => [c.id, c.name]));
+    // Every wave's name, so a picked wave the other filters have emptied still reads by name (PR #980 review).
+    const cycleNames = new Map(allWaves.map((c) => [c.id, c.name]));
     const cycleLabel = pickSummaryOf(this.#filter.cycleIds, cycleNames, t("deckBuilder.allWaves"), (count) =>
       t("deckBuilder.wavesCount", { count }),
     );
