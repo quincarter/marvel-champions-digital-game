@@ -21,7 +21,7 @@ import {
   packCampaignDefinitions,
   packCampaignRecords,
 } from "./game.js";
-import { playCampaign, smokeTestPack } from "./smoke.js";
+import { playCampaign, smokeTestCampaign } from "./smoke.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
 
 /**
@@ -151,12 +151,14 @@ describe("the sample pack's campaign", () => {
   });
 
   it("plays headlessly through the real campaign runner: every node, to an outcome, with log fields written", () => {
-    const result = smokeTestPack(pack, { games: 2 });
+    // Only the campaign's games: sample-scenario.test.ts plays the pack's scenario and modular set.
+    const [campaign] = packCampaignRecords([pack]);
+    const result = smokeTestCampaign(pack, campaign!, gameDepsWithPack(PLAYABLE_DEPS, pack), { games: 2 });
     const played = result.games.filter((game) => game.campaign === CAMPAIGN);
     expect(played.filter((game) => !game.ok).map((game) => game.error)).toEqual([]);
     expect(new Set(played.map((game) => game.node))).toEqual(new Set(["clockmaker", "street-fight"]));
     expect(played.every((game) => game.outcome !== undefined)).toBe(true);
-    expect(result.ok).toBe(true);
+    expect(played).toHaveLength(result.games.length);
   });
 });
 
@@ -570,8 +572,7 @@ describe("playCampaign: what the smoke run catches", () => {
   });
 
   it("fails the campaign when every seed loses the same node, and says what the driver cannot cover", () => {
-    const result = smokeTestPack({ ...pack, campaigns: [loses()] } as PackInput, { games: 2, failOnAlwaysLost: true });
-    expect(result.ok).toBe(false);
+    const result = smokeTestCampaign(pack, loses(), deps(), { games: 2, failOnAlwaysLost: true });
     expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([
       expect.stringMatching(/every seed lost at node "clockmaker"/),
     ]);

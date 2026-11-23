@@ -100,8 +100,37 @@ export interface SmokeResult {
 
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/** Plays `options.games` headless games per deck the pack can field. Never throws for a broken pack. */
-export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): SmokeResult {
+/** One kind of smoke game: who sits, at which scenario, with which modular pick. Each is played once per seed. */
+export interface SmokePlan {
+  /** The deck seated: a pack precon's id, or the base precon's. */
+  readonly name: string;
+  /** The pack precon seated; absent seats `SMOKE_BASE_DECK`. */
+  readonly deck?: StarterDeck;
+  readonly scenario: string;
+  /** The pack's modular set this plan is about. */
+  readonly modularSet?: string;
+  readonly difficulty?: "expert";
+  /** The modular sets to pick; absent is the scenario's recommendation. */
+  readonly modularSetIds?: readonly string[];
+}
+
+/** What `smokeTestPack` plays for a pack: its game plans and its campaigns, each once per seed `1..games`. */
+export interface SmokeSchedule {
+  readonly scenario: string;
+  readonly games: number;
+  readonly maxCommands: number;
+  readonly plans: readonly SmokePlan[];
+  readonly campaigns: readonly PackCampaign[];
+  /** Not failures: what the plans could not cover (a hero with no deck). */
+  readonly notes: readonly string[];
+}
+
+/**
+ * Plans a pack's smoke run without playing it, so a caller (a test file) can play each game on its own: the pack's hero
+ * precons at the Core scenario, each of its scenarios standard and expert, each of its modular sets at the Core
+ * scenario, and each of its campaigns. Throws on bad options.
+ */
+export function smokeSchedule(pack: PackInput, options: SmokeOptions = {}): SmokeSchedule {
   const games = options.games ?? 3;
   const scenario = options.scenario ?? "rhino";
   const maxCommands = options.maxCommands ?? 4000;
@@ -109,21 +138,9 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
   if (!SMOKE_SCENARIOS.includes(scenario))
     throw new Error(`unknown scenario "${scenario}" (one of ${SMOKE_SCENARIOS.join(", ")})`);
 
-  const prefix = `x.${pack.manifest.id}.`;
   const notes: string[] = [];
-  const deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
   const packDecks: readonly StarterDeck[] = pack.decks ?? [];
-  // One plan per kind of game: who sits, at which scenario, with which modular pick.
-  interface Plan {
-    readonly name: string;
-    readonly deck?: StarterDeck;
-    readonly scenario: string;
-    readonly modularSet?: string;
-    readonly difficulty?: "expert";
-    /** The modular sets to pick; absent is the scenario's recommendation. */
-    readonly modularSetIds?: readonly string[];
-  }
-  const plans: Plan[] = packDecks.map((deck) => ({ name: String(deck.id), deck, scenario }));
+  const plans: SmokePlan[] = packDecks.map((deck) => ({ name: String(deck.id), deck, scenario }));
   if (plans.length === 0 && pack.cards.some((card) => card.type === "hero_identity"))
     notes.push("the pack has a hero but no deck in decks/: add its precon so mc-pack test can play it");
   const ownScenarios: readonly Scenario[] = packScenarioRecords([pack]);
@@ -141,8 +158,40 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
     );
     plans.push({ name: SMOKE_BASE_DECK, scenario });
   }
+  return { scenario, games, maxCommands, plans, campaigns: packCampaignRecords([pack]), notes };
+}
 
-  const open = (plan: Plan, seed: number): GameState => {
+/** The pack's own cards played, or revealed from its encounter sets, among a game's events. */
+const packCardsIn = (events: readonly GameEvent[], prefix: string): string[] => [
+  ...new Set(
+    events.flatMap((e) =>
+      (e.type === "cardPlayed" || e.type === "encounterCardRevealed") && String(e.cardId).startsWith(prefix)
+        ? [String(e.cardId)]
+        : [],
+    ),
+  ),
+];
+
+/**
+ * Plays one smoke game of `plan` at `seed` to an outcome and replays its log. `deps` is
+ * `gameDepsWithPack(PLAYABLE_DEPS, pack)`, made once by the caller for all of the pack's games. Never throws for a
+ * broken pack: the game says what failed.
+ */
+export function playSmokeGame(
+  pack: PackInput,
+  deps: EngineDeps,
+  plan: SmokePlan,
+  seed: number,
+  maxCommands = 4000,
+): SmokeGame {
+  const base = {
+    deck: plan.name,
+    scenario: plan.scenario,
+    ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
+    ...(plan.difficulty ? { difficulty: plan.difficulty } : {}),
+    seed,
+  };
+  try {
     const seat = plan.deck
       ? {
           identityCardId: plan.deck.identityCardId,
@@ -162,103 +211,87 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
     );
     const created = createGame(config, deps);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-    return created.state;
-  };
+    const run = playToOutcome(created.state, deps, { maxCommands });
+    const state = run.session.state;
+    const replayed = replay(run.session.log, deps);
+    let error: string | undefined;
+    if (run.outcome === null) error = `stuck: no outcome after ${run.commands} commands (round ${run.rounds})`;
+    else if (state.pendingChoice !== null) error = "a prompt was still open when the game ended";
+    else if (!replayed.ok) error = `the game's log does not replay: ${replayed.error.message}`;
+    else if (!isDeepStrictEqual(replayed.state, state)) error = "the game's log replays to a different state";
+    return {
+      ...base,
+      rounds: run.rounds,
+      commands: run.commands,
+      ok: error === undefined,
+      ...(run.outcome ? { outcome: `${run.outcome.result} (${run.outcome.reason})` } : {}),
+      ...(error !== undefined ? { error } : {}),
+      packCardsPlayed: replayed.ok ? packCardsIn(replayed.events, `x.${pack.manifest.id}.`) : [],
+    };
+  } catch (caught) {
+    return { ...base, ok: false, rounds: 0, commands: 0, error: errorText(caught), packCardsPlayed: [] };
+  }
+}
 
+/**
+ * Plays a pack campaign once per seed `1..games` through `playCampaign`. With `failOnAlwaysLost`, adds a failed game
+ * when every seed lost at the same node.
+ */
+export function smokeTestCampaign(
+  pack: PackInput,
+  campaign: PackCampaign,
+  deps: EngineDeps,
+  options: Pick<SmokeOptions, "games" | "maxCommands" | "failOnAlwaysLost"> = {},
+): { readonly games: readonly SmokeGame[]; readonly notes: readonly string[] } {
+  const seeds = options.games ?? 3;
+  const games: SmokeGame[] = [];
+  const notes: string[] = [`campaign ${campaign.id}: ${CAMPAIGN_DRIVER_LIMITS}`];
+  const lostAt: (string | null)[] = [];
+  for (let seed = 1; seed <= seeds; seed++) {
+    const run = playCampaign(pack, campaign, seed, deps, options.maxCommands ?? 4000);
+    lostAt.push(run.lostAt);
+    notes.push(...run.notes);
+    games.push(...run.games);
+  }
+  const first = lostAt[0];
+  if (options.failOnAlwaysLost && first !== null && first !== undefined && lostAt.every((node) => node === first)) {
+    games.push({
+      deck: SMOKE_BASE_DECK,
+      scenario: campaign.record.scenarioIds[campaign.definition.graph.nodes.findIndex((n) => n.id === first)] ?? "",
+      campaign: campaign.id,
+      node: first,
+      seed: 0,
+      ok: false,
+      rounds: 0,
+      commands: 0,
+      error: `every seed lost at node "${first}": the greedy driver never won it, so the later nodes were reached only with staged wins`,
+      packCardsPlayed: [],
+    });
+  }
+  return { games, notes };
+}
+
+/** Plays `options.games` headless games per deck the pack can field. Never throws for a broken pack. */
+export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): SmokeResult {
+  const schedule = smokeSchedule(pack, options);
+  const notes = [...schedule.notes];
+  const deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
   const results: SmokeGame[] = [];
-  const everPlayed = new Set<string>();
-  for (const plan of plans) {
-    for (let seed = 1; seed <= games; seed++) {
-      let game: SmokeGame;
-      try {
-        const run = playToOutcome(open(plan, seed), deps, { maxCommands });
-        const state = run.session.state;
-        const base = {
-          deck: plan.name,
-          scenario: plan.scenario,
-          ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
-          ...(plan.difficulty ? { difficulty: plan.difficulty } : {}),
-          seed,
-          rounds: run.rounds,
-          commands: run.commands,
-        };
-        const replayed = replay(run.session.log, deps);
-        const played = replayed.ok
-          ? [
-              ...new Set(
-                replayed.events.flatMap((e) =>
-                  (e.type === "cardPlayed" || e.type === "encounterCardRevealed") && String(e.cardId).startsWith(prefix)
-                    ? [String(e.cardId)]
-                    : [],
-                ),
-              ),
-            ]
-          : [];
-        let error: string | undefined;
-        if (run.outcome === null) error = `stuck: no outcome after ${run.commands} commands (round ${run.rounds})`;
-        else if (state.pendingChoice !== null) error = "a prompt was still open when the game ended";
-        else if (!replayed.ok) error = `the game's log does not replay: ${replayed.error.message}`;
-        else if (!isDeepStrictEqual(replayed.state, state)) error = "the game's log replays to a different state";
-        game = {
-          ...base,
-          ok: error === undefined,
-          ...(run.outcome ? { outcome: `${run.outcome.result} (${run.outcome.reason})` } : {}),
-          ...(error !== undefined ? { error } : {}),
-          packCardsPlayed: played,
-        };
-      } catch (caught) {
-        game = {
-          deck: plan.name,
-          scenario: plan.scenario,
-          ...(plan.modularSet ? { modularSet: plan.modularSet } : {}),
-          ...(plan.difficulty ? { difficulty: plan.difficulty } : {}),
-          seed,
-          ok: false,
-          rounds: 0,
-          commands: 0,
-          error: errorText(caught),
-          packCardsPlayed: [],
-        };
-      }
-      for (const code of game.packCardsPlayed) everPlayed.add(code);
-      results.push(game);
-      options.onGame?.(game);
-    }
+  const record = (game: SmokeGame): void => {
+    results.push(game);
+    options.onGame?.(game);
+  };
+  for (const plan of schedule.plans)
+    for (let seed = 1; seed <= schedule.games; seed++)
+      record(playSmokeGame(pack, deps, plan, seed, schedule.maxCommands));
+  for (const campaign of schedule.campaigns) {
+    const run = smokeTestCampaign(pack, campaign, deps, { ...options, games: schedule.games });
+    notes.push(...run.notes);
+    for (const game of run.games) record(game);
   }
-  for (const campaign of packCampaignRecords([pack])) {
-    const lostAt: (string | null)[] = [];
-    notes.push(`campaign ${campaign.id}: ${CAMPAIGN_DRIVER_LIMITS}`);
-    for (let seed = 1; seed <= games; seed++) {
-      const run = playCampaign(pack, campaign, seed, deps, maxCommands);
-      lostAt.push(run.lostAt);
-      notes.push(...run.notes);
-      for (const game of run.games) {
-        for (const code of game.packCardsPlayed) everPlayed.add(code);
-        results.push(game);
-        options.onGame?.(game);
-      }
-    }
-    const first = lostAt[0];
-    if (options.failOnAlwaysLost && first !== null && first !== undefined && lostAt.every((node) => node === first)) {
-      const failed: SmokeGame = {
-        deck: SMOKE_BASE_DECK,
-        scenario: campaign.record.scenarioIds[campaign.definition.graph.nodes.findIndex((n) => n.id === first)] ?? "",
-        campaign: campaign.id,
-        node: first,
-        seed: 0,
-        ok: false,
-        rounds: 0,
-        commands: 0,
-        error: `every seed lost at node "${first}": the greedy driver never won it, so the later nodes were reached only with staged wins`,
-        packCardsPlayed: [],
-      };
-      results.push(failed);
-      options.onGame?.(failed);
-    }
-  }
-  if (results.length > 0 && everPlayed.size === 0)
+  if (results.length > 0 && results.every((game) => game.packCardsPlayed.length === 0))
     notes.push("no game played or revealed one of the pack's own cards; try more games (--games)");
-  return { ok: results.every((g) => g.ok), scenario, games: results, notes };
+  return { ok: results.every((g) => g.ok), scenario: schedule.scenario, games: results, notes };
 }
 
 /**

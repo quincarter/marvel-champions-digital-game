@@ -9,6 +9,8 @@ export default defineConfig({
   test: {
     globals: true,
     include: ["src/**/*.test.ts"],
+    // A scratch folder for the run's community pack builds, so each pack is built once (src/fixtures/community-pack.ts).
+    globalSetup: ["./src/fixtures/community-pack-builds.setup.ts"],
     // Real-game tests take a few seconds each; the 5 s default times out when several suites run at once.
     testTimeout: 30_000,
   },
