@@ -27,6 +27,7 @@ import { onTap } from "../ui/tap.js";
 import { importedDeckNote, importMarvelCdbDeck } from "../platform/marvelcdb-import.js";
 import { McButton, McTextInput, fitText } from "../ui/widgets.js";
 import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-hover.js";
+import { ImportFlight } from "../view/import-flight.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import type { Rect } from "../view/layout.js";
 import { aspectStampsOf } from "../view/aspect-stamp.js";
@@ -90,7 +91,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
   /** Import from MarvelCDB: whether its link row is open, what is typed in it, and a fetch is under way. */
   #importOpen = false;
   #importText = "";
-  #importBusy = false;
+  readonly #importFlight = new ImportFlight();
   /** Bumped on every import and every visit: an answer for an older one is dropped. */
   #importGen = 0;
   #importInput: McTextInput | null = null;
@@ -152,7 +153,6 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#note = null;
     this.#importOpen = false;
     this.#importText = "";
-    this.#importBusy = false;
     this.#importGen += 1;
     this.#leaving = false;
     this.#picking = false;
@@ -693,10 +693,10 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#importBusy ? t("room.picker.importing") : t("room.picker.importGo"),
+        label: this.#importFlight.busy ? t("room.picker.importing") : t("room.picker.importGo"),
         type,
         rect: go,
-        enabled: !this.#importBusy,
+        enabled: !this.#importFlight.busy,
         onClick: doImport,
       }),
     );
@@ -705,7 +705,7 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** The deck builder on a new deck; Back (or a Save then Back) returns here on the deck just built, ready to Pick. */
   #build(): void {
-    if (this.#leaving || this.#importBusy) return;
+    if (this.#leaving || this.#importFlight.busy) return;
     this.#leaving = true;
     this.scale.off("resize", this.#draw, this);
     goToScreen(this, SCENES.deckBuilder, {
@@ -725,18 +725,20 @@ export class RoomDeckPickerScene extends Phaser.Scene {
 
   /** Fetches the MarvelCDB deck typed in the link row, saves it on this device and opens its details. */
   async #import(): Promise<void> {
-    if (this.#importBusy || this.#leaving) return;
-    this.#importBusy = true;
+    if (this.#importFlight.busy || this.#leaving) return;
     const gen = ++this.#importGen;
-    this.#draw();
-    try {
-      await this.#runImport(gen);
-    } catch (cause) {
-      if (!this.#alive || gen !== this.#importGen) return;
-      this.#importBusy = false;
-      this.#say(cause instanceof Error ? cause.message : String(cause));
+    // Busy until the deck is saved and the list reloaded, not just until MarvelCDB answers: a second Enter during a
+    // slow write would otherwise store the deck twice (`view/import-flight.ts`).
+    await this.#importFlight.run(async () => {
       this.#draw();
-    }
+      try {
+        await this.#runImport(gen);
+      } catch (cause) {
+        if (!this.#alive || gen !== this.#importGen) return;
+        this.#say(cause instanceof Error ? cause.message : String(cause));
+      }
+    });
+    if (this.#alive && gen === this.#importGen) this.#draw();
   }
 
   async #runImport(gen: number): Promise<void> {
@@ -750,10 +752,8 @@ export class RoomDeckPickerScene extends Phaser.Scene {
     };
     const result = await importMarvelCdbDeck(this.#importText, env, undefined, false);
     if (!this.#alive || gen !== this.#importGen) return;
-    this.#importBusy = false;
     if (!result.ok) {
       this.#say(result.message);
-      this.#draw();
       return;
     }
     await deckStorage().put(result.deck);
