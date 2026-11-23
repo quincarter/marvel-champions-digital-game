@@ -1428,3 +1428,36 @@ describe("giving up a mid-game rejoin", () => {
     expect(store.records.has("g1")).toBe(false);
   });
 });
+
+describe("a rejected host token during a mid-game rejoin", () => {
+  it("falls back to a guest, and the save that loads meanwhile never reattaches as host", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+
+    const named: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => named.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    // The save is named before the room answers; the host welcome is slow, then the room rejects the token (gone).
+    expect(named).toEqual(["g1"]);
+    expect(t.last()).toMatchObject({ role: "host", connection: "connecting" });
+    FakeSocket.all[0]!.closeWith(1011);
+    await flush();
+    expect(t.last().role).toBe("guest");
+    // The local save finishes loading only now: it must not reconnect as the host of the room that refused it.
+    const sockets = FakeSocket.all.length;
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    await flush();
+    expect(t.last().role).toBe("guest");
+    expect(FakeSocket.all.filter((s) => s.url.includes("room00000001") && s.sent.some((m) => m.token))).toHaveLength(0);
+    expect(FakeSocket.all.length).toBe(sockets);
+    expect(t.createRoom).not.toHaveBeenCalled();
+  });
+});

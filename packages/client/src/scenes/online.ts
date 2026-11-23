@@ -56,6 +56,7 @@ import { sceneLoader } from "./scene-loader.js";
 import type { OnlineNameData } from "./online-name.js";
 import type { RejoinData } from "./rejoin.js";
 import { resumeLocalSave } from "./resume-save.js";
+import { hostGameStep } from "../view/host-game-resume.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
 export interface OnlineData {
@@ -75,6 +76,13 @@ export interface OnlineData {
 
 const PANEL_PAD = 16;
 
+/** A host game being resumed after a reload: its save id, the screen it opens on once loaded (undefined: still loading, null: could not be resumed), and the room the rejoin named. */
+interface HostGameResume {
+  readonly gameId: string;
+  screen: string | null | undefined;
+  hostRoomId: string | null;
+}
+
 type Busy = null | "host" | "join";
 
 export class OnlineScene extends Phaser.Scene {
@@ -93,7 +101,7 @@ export class OnlineScene extends Phaser.Scene {
   #off: (() => void) | null = null;
   /** The listener for a rejoining host's game in progress, and whether its save is loading. */
   #offGame: (() => void) | null = null;
-  #resumingGame = false;
+  #hostGame: HostGameResume | null = null;
   /** Bumped when a rejoin is given up, so a save still loading for it knows it was abandoned. */
   #resumeTicket = 0;
   /** The public "Live now" rooms last fetched (empty when offline or the fetch failed), and the poll that refreshes them. */
@@ -217,7 +225,7 @@ export class OnlineScene extends Phaser.Scene {
 
   #back(): void {
     if (this.#busy) {
-      this.#resumeTicket++;
+      this.#abandonHostGame();
       this.#stopWaiting();
       leaveRoom();
       this.#busy = null;
@@ -296,7 +304,7 @@ export class OnlineScene extends Phaser.Scene {
         kind: "room",
         code,
         onCancel: () => {
-          this.#resumeTicket++;
+          this.#abandonHostGame();
           this.#stopWaiting();
           this.#busy = null;
           this.#joining = null;
@@ -306,28 +314,71 @@ export class OnlineScene extends Phaser.Scene {
     });
   }
 
-  /** The host's game in progress, resumed from its local save (no network), then the board; a save that is gone falls back to the lobby. */
+  /**
+   * The host's game in progress, resumed from its local save (no network). The worker names it before the room has
+   * answered, so the board waits for two things: the save loaded, and the room confirming this device as the host of the
+   * same room (`#settleHostGame`). A host token the room rejects falls back to a guest session, a gone room ends: the
+   * loaded game is then put away and the player lands in the guest lobby or on Play online, never on a host board.
+   */
   async #resumeHostGame(gameId: string): Promise<void> {
     if (!this.#alive || !this.#busy) return;
-    this.#resumingGame = true;
     const ticket = ++this.#resumeTicket;
+    const pending: HostGameResume = { gameId, screen: undefined, hostRoomId: null };
+    this.#hostGame = pending;
     const screen = await resumeLocalSave(gameId);
-    if (ticket === this.#resumeTicket) this.#resumingGame = false;
     // Cancel, Back or the room ending came while the save loaded: the player has left, so the loaded game is put away
     // (not taken to the board, and kept out of the address). The worker already dropped its room records on the leave.
     if (ticket !== this.#resumeTicket || !this.#alive || !this.#busy) {
-      suppressGameAddress(gameId);
-      clearGameAddress();
+      this.#putAway(gameId);
       return;
     }
-    if (screen) {
-      const state = roomState();
-      if (state.code && state.role !== "none") rememberRoom(state.code, state.role);
+    pending.screen = screen;
+    this.#settleHostGame();
+  }
+
+  /** The loaded game stays where it is, unattached and out of the address (Title's Continue can still pick it up). */
+  #putAway(gameId: string): void {
+    suppressGameAddress(gameId);
+    clearGameAddress();
+  }
+
+  /** Gives up a pending host game (Cancel, Back, the room ending): a save that finished loading is put away. */
+  #abandonHostGame(): void {
+    this.#resumeTicket++;
+    const pending = this.#hostGame;
+    this.#hostGame = null;
+    if (pending && pending.screen !== undefined) this.#putAway(pending.gameId);
+  }
+
+  /**
+   * Runs on every room state and when the save finishes loading. The board opens only once this device is the connected
+   * host of the room the rejoin named; a guest fallback puts the game away and goes to the guest lobby.
+   */
+  #settleHostGame(): void {
+    const pending = this.#hostGame;
+    if (!pending || pending.screen === undefined || !this.#alive || !this.#busy) return;
+    const state = roomState();
+    const { step, hostRoomId } = hostGameStep(
+      { screenLoaded: true, resumed: pending.screen !== null },
+      pending.hostRoomId,
+      state,
+    );
+    pending.hostRoomId = hostRoomId;
+    if (step.kind === "wait") return;
+    this.#hostGame = null;
+    if (step.kind === "open") {
+      if (state.code) rememberRoom(state.code, "host");
       this.#stopWaiting();
       this.scale.off("resize", this.#draw, this);
-      goToScreen(this, screen);
-    } else if (roomState().connection === "connected") {
-      // The save could not be resumed: the room itself still stands, so the host lands in its lobby.
+      // A save that could not be resumed (no screen): the room itself stands, so the host lands in its lobby.
+      goToScreen(this, step.toLobby ? SCENES.roomLobby : (pending.screen ?? SCENES.roomLobby));
+      return;
+    }
+    // The host token was not honoured (or the room changed hands): this device is not the host of that game. The game is
+    // put away; a guest session that is still connecting takes the normal path to the lobby once it is up.
+    this.#putAway(pending.gameId);
+    if (step.toLobby) {
+      if (state.code) rememberRoom(state.code, "guest");
       this.#stopWaiting();
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.roomLobby);
@@ -352,15 +403,19 @@ export class OnlineScene extends Phaser.Scene {
     this.#stopWaiting();
     this.#off = onRoomState((state) => {
       if (!this.#alive || !this.#busy) return;
+      if (this.#hostGame && state.connection !== "connected") this.#settleHostGame();
       if (state.connection === "connected") {
-        // A host's game is being resumed: the board is where it goes, not the lobby.
-        if (this.#resumingGame) return;
+        // A host's game is being resumed: whether it is the board, the lobby or nothing waits on the room's confirmation.
+        if (this.#hostGame) {
+          this.#settleHostGame();
+          return;
+        }
         if (state.code && (state.role === "host" || state.role === "guest")) rememberRoom(state.code, state.role);
         this.#stopWaiting();
         this.scale.off("resize", this.#draw, this);
         goToScreen(this, SCENES.roomLobby);
       } else if (state.connection === "ended") {
-        this.#resumeTicket++;
+        this.#abandonHostGame();
         this.#stopWaiting();
         if (this.#joining && roomIsOver(state.problem)) forgetRoom(this.#joining);
         this.#message = wordsText(problemWords(state.problem ?? "unavailable"));
