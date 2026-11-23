@@ -55,15 +55,18 @@ export function stepDeckBuilderTab(
   return tabs[Math.min(tabs.length - 1, Math.max(0, at + direction))]!;
 }
 
-/** How many of the pool's filters are on, for the "Filters" chip: type, cost, icon, trait, pack, wave and a changed sort. */
+/** How many of the pool's filters are on, for the "Filters" chip: type, cost, icon, trait, pack, wave, a hidden
+ * Hero or Basic and a changed sort. */
 export function activeDeckFilterCount(filter: PoolFilter, sort: PoolSort): number {
   return (
     (filter.type != null ? 1 : 0) +
     (filter.cost != null ? 1 : 0) +
     (filter.resource != null ? 1 : 0) +
     (filter.trait != null ? 1 : 0) +
-    (filter.packCode != null ? 1 : 0) +
-    (filter.cycleId != null ? 1 : 0) +
+    (filter.packCodes?.length ? 1 : 0) +
+    (filter.cycleIds?.length ? 1 : 0) +
+    (filter.hideHero ? 1 : 0) +
+    (filter.hideBasic ? 1 : 0) +
     (sort.primary !== DEFAULT_POOL_SORT.primary || sort.secondary !== null ? 1 : 0)
   );
 }
