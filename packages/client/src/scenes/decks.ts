@@ -79,14 +79,7 @@ import type { DeckActionsSheet, DeckActionsSheetData } from "./deck-actions-shee
 import type { PictureFocus } from "../art/focus.js";
 import Phaser from "phaser";
 import { aspectStampOf } from "../view/aspect-stamp.js";
-import {
-  parseMarvelCdbReference,
-  type AnyCard,
-  type CoreAspect,
-  type Deck,
-  type DeckId,
-  type HeroIdentityCard,
-} from "@mc/content";
+import { type AnyCard, type CoreAspect, type Deck, type DeckId, type HeroIdentityCard } from "@mc/content";
 import { communityDecks } from "@mc/cards";
 import { DECK_MIN_CARDS } from "@mc/engine";
 import {
@@ -125,7 +118,6 @@ import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
   exportDecklistText,
-  importFromMarvelCdbResponseText,
   importFromPasteText,
   MARVELCDB_FIELD_PLACEHOLDER,
   type ImportEnv,
@@ -241,7 +233,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
-import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
+import { importedDeckNote, importMarvelCdbDeck } from "../platform/marvelcdb-import.js";
 import { openExternal } from "../platform/platform.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -3326,52 +3318,17 @@ export class DecksScene extends Phaser.Scene {
 
   async #importMarvelCdb(): Promise<void> {
     if (this.#busy) return;
-    const ref = parseMarvelCdbReference(this.#marvelcdbText);
-    if (!ref) {
-      this.#status = { text: "That doesn't look like a MarvelCDB deck link or id.", tone: "error" };
+    this.#busy = true;
+    this.#rebuild();
+    // The same flow the room deck picker uses (`platform/marvelcdb-import.ts`).
+    const result = await importMarvelCdbDeck(this.#marvelcdbText, this.#importEnv());
+    if (!result.ok) {
+      this.#status = { text: result.message, tone: "error" };
+      this.#busy = false;
       this.#rebuild();
       return;
     }
-    this.#busy = true;
-    this.#rebuild();
-    try {
-      // The dev/preview route on the web, native HTTP in a packaged app — a
-      // 404 on a production web build is the designed fallback, not a bug
-      // (see `vite-marvelcdb-import.ts`).
-      const response = await fetchMarvelCdbDeck(ref.kind, ref.id);
-      const text = response.body;
-      if (response.status !== 200) {
-        // A production deploy has no `vite-marvelcdb-import.ts` route at all
-        // (dev/preview only) and 404s here with no JSON body — the one case
-        // this build genuinely cannot tell apart from "MarvelCDB has nothing
-        // at that id", so it gets its own message naming the real cause.
-        let message =
-          response.status === 404
-            ? "MarvelCDB import by link isn't available in this deployment (or MarvelCDB has nothing at that id). Paste the decklist instead."
-            : `MarvelCDB import failed (HTTP ${response.status}).`;
-        try {
-          const body = JSON.parse(text) as { error?: string };
-          if (body.error) message = body.error;
-        } catch {
-          /* the fallback message above already covers a non-JSON error body */
-        }
-        this.#status = { text: message, tone: "error" };
-        this.#busy = false;
-        this.#rebuild();
-        return;
-      }
-      const outcome = importFromMarvelCdbResponseText(
-        text,
-        ref,
-        `https://marvelcdb.com/${ref.kind}/view/${ref.id}`,
-        this.#importEnv(),
-      );
-      await this.#applyImport(outcome);
-    } catch (cause) {
-      this.#status = { text: cause instanceof Error ? cause.message : String(cause), tone: "error" };
-      this.#busy = false;
-      this.#rebuild();
-    }
+    await this.#applyImport({ ok: true, deck: result.deck, warnings: result.warnings });
   }
 
   #importEnv(): ImportEnv {
@@ -3397,10 +3354,7 @@ export class DecksScene extends Phaser.Scene {
     this.#marvelcdbText = "";
     this.#marvelcdbInput?.setValue("");
     // Unreadable pasted lines are skipped but never silently: each is named by line number under the success line.
-    const shown = outcome.warnings.slice(0, 3);
-    const more = outcome.warnings.length - shown.length;
-    const skipped = shown.length > 0 ? `\n${shown.join("\n")}${more > 0 ? `\n…and ${more} more lines.` : ""}` : "";
-    this.#status = { text: `Imported "${outcome.deck.name}".${skipped}`, tone: "success" };
+    this.#status = { text: importedDeckNote(outcome.deck.name, outcome.warnings), tone: "success" };
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
     this.#scrollToDeckId = outcome.deck.id as string;
