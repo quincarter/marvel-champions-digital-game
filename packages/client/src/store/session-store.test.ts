@@ -14,6 +14,7 @@ import { corePlayerFromDeck } from "../view/deck-seat.js";
 import { appendEvents, emptyLog } from "../view/log-lines.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { SessionStore } from "./session-store.js";
+import { setBeforeResume } from "./resume-hook.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -207,6 +208,28 @@ describe("SessionStore", () => {
     expect(after.lastEvents).toEqual([]);
     expect(after.saveError).toBeNull();
   }, 60_000);
+
+  test("a reload resume skips the before-resume device sync, a Continue runs it", async () => {
+    const storage = new MemoryGameStorage();
+    const firstHost = new LocalEngineHost(storage);
+    const played = new SessionStore(firstHost);
+    await played.start(RHINO_SOLO);
+    await advance(played, 1);
+    await firstHost.flushed();
+    const ran: string[] = [];
+    setBeforeResume(async (id) => {
+      ran.push(id);
+    });
+    try {
+      const id = (await played.latestSave())!.id;
+      await new SessionStore(new LocalEngineHost(storage)).resume(id, { sync: false });
+      expect(ran).toEqual([]);
+      await new SessionStore(new LocalEngineHost(storage)).resume(id);
+      expect(ran).toEqual([id]);
+    } finally {
+      setBeforeResume(null);
+    }
+  });
 
   test("a resumed game carries the game so far, so the Board log opens on recent lines instead of empty", async () => {
     const storage = new MemoryGameStorage();

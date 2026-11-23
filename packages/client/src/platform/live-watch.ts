@@ -79,6 +79,12 @@ export function setSealedListener(listener: typeof sealedListener): void {
   sealedListener = listener;
 }
 
+/** `platform/room.ts` hears a rejoining host's game in progress through this (one listener). */
+let resumeGameListener: ((gameId: string) => void) | null = null;
+export function setRoomResumeGameListener(listener: ((gameId: string) => void) | null): void {
+  resumeGameListener = listener;
+}
+
 let popoutListener: ((open: boolean) => void) | null = null;
 
 /** `platform/room.ts` hears whether the chat's pop-out window is open through this (one listener). */
@@ -147,6 +153,10 @@ function spawn(): boolean {
   next.addEventListener("message", (event: MessageEvent<LiveRoomOut>) => {
     if (event.data.kind === "room-decks") {
       decksListener?.(event.data.id, event.data.decks);
+      return;
+    }
+    if (event.data.kind === "room-resume-game") {
+      resumeGameListener?.(event.data.gameId);
       return;
     }
     if (event.data.kind === "room-salvage") {

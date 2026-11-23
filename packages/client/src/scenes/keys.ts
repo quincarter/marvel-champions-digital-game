@@ -152,6 +152,8 @@ export const SCENES = {
   choosingSides: "ChoosingSidesOverlay",
   /** A seated guest's "Ask for a change" note to the host (`scenes/room-ask.ts`, #881). */
   roomAsk: "RoomAskOverlay",
+  /** "Rejoining room ABC123…" / "Resuming your game…" while a reload reconnects (`scenes/rejoin.ts`). */
+  rejoin: "RejoinOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
   /** A deck's options (`scenes/deck-actions-sheet.ts`, #958): a tapped deck on a phone or tablet, over Decks & Collection. */

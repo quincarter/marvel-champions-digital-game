@@ -21,6 +21,9 @@ import type { devScreenJump as DevScreenJump } from "./boot-dev-jump.js";
 import { takeReplayLink } from "../replay/replay-link.js";
 import { takeWatchLink } from "../live/watch-link.js";
 import { takeJoinLink } from "../live/join-link.js";
+import { clearRoomAddress, roomLinkOf } from "../platform/room-address.js";
+import { gameLinkOf } from "../platform/game-address.js";
+import type { RejoinData } from "./rejoin.js";
 import type { OnlineData } from "./online.js";
 import { loadLiveWatch } from "../live/watch-open.js";
 import { loadSharedReplay, type SharedReplayResult } from "../replay/shared-replay.js";
@@ -60,6 +63,12 @@ export class BootScene extends Phaser.Scene {
     // A room's join link (#880): read once, here, and opened on the Play online screen, which does the joining. Only the
     // address is read now; nothing connects until that screen runs.
     const joinLink = sharedLink ? null : takeJoinLink();
+    // A reload inside a room (`?room=<CODE>`, kept in the address while in one): read, not cleared, and rejoined on the
+    // Play online screen. Any other link wins, and a `?room=` that names no room is dropped.
+    const roomLink = sharedLink || joinLink ? null : roomLinkOf();
+    if (!roomLink && !joinLink) clearRoomAddress();
+    // A reload inside a single-player game (`?game=<saveId>`): the local save resumes straight into the game.
+    const gameLink = sharedLink || joinLink || roomLink ? null : gameLinkOf();
     // On the web version on a desktop, the replay can open in the installed app instead (#862).
     const openInApp =
       sharedLink && sharedLink !== "invalid" && offersDesktopApp()
@@ -125,6 +134,14 @@ export class BootScene extends Phaser.Scene {
               SCENES.online,
               (joinLink === "invalid" ? { invalidLink: true } : { join: joinLink }) satisfies OnlineData,
             );
+            return;
+          }
+          if (roomLink) {
+            goToScreen(this, SCENES.online, { rejoin: roomLink } satisfies OnlineData);
+            return;
+          }
+          if (gameLink) {
+            goToScreen(this, SCENES.rejoin, { kind: "game", gameId: gameLink } satisfies RejoinData);
             return;
           }
           goToScreen(this, SCENES.title);

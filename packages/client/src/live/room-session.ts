@@ -65,7 +65,7 @@ export interface GameHooks {
   /** Every room message, for `resend` and refusals of the log. */
   readonly onMessage: (message: ServerMessage) => void;
   /** The room is over for this device (closed, replaced, gone): stop streaming. */
-  readonly onEnded: () => void;
+  readonly onEnded: (problem: RoomProblem) => void;
   /**
    * A seat holder's proposal, with the engine players behind the seats it may act for (issue #881). Absent: the session
    * answers `stale` itself.
@@ -1074,7 +1074,7 @@ export class RoomSession {
       problem.startsWith("closed-") ? { kind: "connection", connected: false } : { kind: "gone" },
     );
     this.#publish();
-    hooks?.onEnded();
+    hooks?.onEnded(problem);
   }
 
   /**
@@ -1128,7 +1128,7 @@ export class RoomSession {
       this.#saveTokens();
       const hooks = this.#hooks;
       this.#hooks = null;
-      hooks?.onEnded();
+      hooks?.onEnded("gone");
     }
     if (message.ch === "room" && message.kind === "sealed") {
       // Only the host's own reveal answer, never a state: the scenarios leave this worker once, to the main thread.

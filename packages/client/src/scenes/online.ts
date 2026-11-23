@@ -9,10 +9,21 @@
  */
 import Phaser from "phaser";
 import { t } from "../i18n/translate.js";
-import { onRoomState, hostRoom, joinRoom, leaveRoom, onlineName } from "../platform/room.js";
+import {
+  onRoomState,
+  onRejoinGame,
+  hostRoom,
+  joinRoom,
+  rejoinRoom,
+  roomState,
+  leaveRoom,
+  onlineName,
+} from "../platform/room.js";
 import { surface, typeRole, hit } from "../tokens.js";
 import type { LiveRoomEntry } from "@mc/sync-worker/room-protocol";
 import { pollLiveRooms, type LiveRoomsPoll } from "../platform/live-rooms.js";
+import { clearRoomAddress } from "../platform/room-address.js";
+import { clearGameAddress, suppressGameAddress } from "../platform/game-address.js";
 import { forgetRoom, rememberRoom, recentRooms, roomIsOver } from "../platform/recent-rooms.js";
 import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
@@ -43,11 +54,15 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { sceneLoader } from "./scene-loader.js";
 import type { OnlineNameData } from "./online-name.js";
+import type { RejoinData } from "./rejoin.js";
+import { resumeLocalSave } from "./resume-save.js";
 import { bindTextFieldEscape } from "./text-field-escape.js";
 
 export interface OnlineData {
   /** A room code or id from a `#join=` link: joined as soon as the screen is up (after a name, when none is set). */
   readonly join?: string;
+  /** The room code in the address's `?room=` after a reload: rejoined as the host or a guest once the screen is up (after a name, when none is set). */
+  readonly rejoin?: string;
   /** A `#join=` link that named no room. */
   readonly invalidLink?: boolean;
   /** Why the room the player was in is gone (the host closed it): shown in a notice over this screen. */
@@ -76,6 +91,11 @@ export class OnlineScene extends Phaser.Scene {
   #hints!: GlyphHints;
   #alive = false;
   #off: (() => void) | null = null;
+  /** The listener for a rejoining host's game in progress, and whether its save is loading. */
+  #offGame: (() => void) | null = null;
+  #resumingGame = false;
+  /** Bumped when a rejoin is given up, so a save still loading for it knows it was abandoned. */
+  #resumeTicket = 0;
   /** The public "Live now" rooms last fetched (empty when offline or the fetch failed), and the poll that refreshes them. */
   #live: LiveRoomEntry[] = [];
   #stopPoll: LiveRoomsPoll | null = null;
@@ -110,6 +130,8 @@ export class OnlineScene extends Phaser.Scene {
       this.#alive = false;
       this.#off?.();
       this.#off = null;
+      this.#offGame?.();
+      this.#offGame = null;
       this.#stopPoll?.stop();
       this.#stopPoll = null;
       this.#hints.dispose();
@@ -125,7 +147,8 @@ export class OnlineScene extends Phaser.Scene {
     document.addEventListener("visibilitychange", onVisible);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => document.removeEventListener("visibilitychange", onVisible));
     fadeScreenIn(this);
-    if (this.#data.join) this.#startJoin(this.#data.join);
+    if (this.#data.rejoin) this.#startRejoin(this.#data.rejoin);
+    else if (this.#data.join) this.#startJoin(this.#data.join);
     else if (this.#data.intent === "host") this.#host();
     if (this.#data.closedNotice) this.#showClosedNotice(this.#data.closedNotice, this.#data.continueGameId);
   }
@@ -194,6 +217,7 @@ export class OnlineScene extends Phaser.Scene {
 
   #back(): void {
     if (this.#busy) {
+      this.#resumeTicket++;
       this.#stopWaiting();
       leaveRoom();
       this.#busy = null;
@@ -201,6 +225,8 @@ export class OnlineScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#draw, this);
+    // Leaving Play online for Title drops a room address that was still waiting for a rejoin (offline, say).
+    clearRoomAddress();
     goToScreen(this, SCENES.title);
   }
 
@@ -251,6 +277,63 @@ export class OnlineScene extends Phaser.Scene {
     this.#startJoin(target);
   }
 
+  /** A reload inside a room: back into it without asking, after a name when none is set. */
+  #startRejoin(code: string): void {
+    if (this.#offline()) return;
+    this.#withName(() => {
+      this.#joining = code;
+      this.#busy = "join";
+      this.#message = null;
+      // A host who reloaded mid-game: the worker names the save in progress for this room, and the screen goes straight
+      // back to the board with it (which reattaches to the same room) instead of to the lobby.
+      this.#offGame?.();
+      this.#offGame = onRejoinGame((gameId) => void this.#resumeHostGame(gameId));
+      void rejoinRoom(code);
+      this.#watchFor();
+      this.#draw();
+      // "Rejoining room ABC123…", with Cancel, until the room answers (`#stopWaiting` takes it down).
+      this.scene.launch(SCENES.rejoin, {
+        kind: "room",
+        code,
+        onCancel: () => {
+          this.#resumeTicket++;
+          this.#stopWaiting();
+          this.#busy = null;
+          this.#joining = null;
+          this.#draw();
+        },
+      } satisfies RejoinData);
+    });
+  }
+
+  /** The host's game in progress, resumed from its local save (no network), then the board; a save that is gone falls back to the lobby. */
+  async #resumeHostGame(gameId: string): Promise<void> {
+    if (!this.#alive || !this.#busy) return;
+    this.#resumingGame = true;
+    const ticket = ++this.#resumeTicket;
+    const screen = await resumeLocalSave(gameId);
+    if (ticket === this.#resumeTicket) this.#resumingGame = false;
+    // Cancel, Back or the room ending came while the save loaded: the player has left, so the loaded game is put away
+    // (not taken to the board, and kept out of the address). The worker already dropped its room records on the leave.
+    if (ticket !== this.#resumeTicket || !this.#alive || !this.#busy) {
+      suppressGameAddress(gameId);
+      clearGameAddress();
+      return;
+    }
+    if (screen) {
+      const state = roomState();
+      if (state.code && state.role !== "none") rememberRoom(state.code, state.role);
+      this.#stopWaiting();
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, screen);
+    } else if (roomState().connection === "connected") {
+      // The save could not be resumed: the room itself still stands, so the host lands in its lobby.
+      this.#stopWaiting();
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.roomLobby);
+    }
+  }
+
   #startJoin(target: string): void {
     // No connection (or no service): said here before a name is asked for.
     if (this.#offline()) return;
@@ -270,11 +353,14 @@ export class OnlineScene extends Phaser.Scene {
     this.#off = onRoomState((state) => {
       if (!this.#alive || !this.#busy) return;
       if (state.connection === "connected") {
+        // A host's game is being resumed: the board is where it goes, not the lobby.
+        if (this.#resumingGame) return;
         if (state.code && (state.role === "host" || state.role === "guest")) rememberRoom(state.code, state.role);
         this.#stopWaiting();
         this.scale.off("resize", this.#draw, this);
         goToScreen(this, SCENES.roomLobby);
       } else if (state.connection === "ended") {
+        this.#resumeTicket++;
         this.#stopWaiting();
         if (this.#joining && roomIsOver(state.problem)) forgetRoom(this.#joining);
         this.#message = wordsText(problemWords(state.problem ?? "unavailable"));
@@ -288,6 +374,8 @@ export class OnlineScene extends Phaser.Scene {
   #stopWaiting(): void {
     this.#off?.();
     this.#off = null;
+    // Harmless when the sheet is not up.
+    if (this.scene.isActive(SCENES.rejoin)) this.scene.stop(SCENES.rejoin);
   }
 
   #draw(): void {
