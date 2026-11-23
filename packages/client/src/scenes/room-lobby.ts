@@ -52,6 +52,7 @@ import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import type { ModStoreSceneData } from "./mod-store.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
+import { pointInRect } from "../view/drag-gesture.js";
 import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
 import { cardFaces } from "../art/card-face-baker.js";
@@ -205,6 +206,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #chatToEnd = true;
   /** Whether the floating chat (a desktop) is open; it starts closed and keeps its choice across redraws. */
   #chatOpen = false;
+  /** Where the open floating chat is, while it is; the lists under it do not scroll there. */
+  #floatRect: Rect | null = null;
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #alive = false;
@@ -694,6 +697,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const compact = this.#covered > 0 && full.tabs !== null && this.#tab === "chat" && chatOn(state);
     const layout = compact ? this.#compactLayout(full, bar.height, gutter, width, height) : full;
     this.#activity = null;
+    this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
     if (layout.panels.chat) chatSeen.markSeen(state.roomId, state.chatLive);
@@ -844,7 +848,13 @@ export class RoomLobbyScene extends Phaser.Scene {
   ): McScrollRegion {
     const scroll = this.#scrolls[key];
     const heights = [inner.height];
-    const region = new McScrollRegion(this, { rect: inner, heights, scroll, clipInteractive: true });
+    // The floating chat covers part of the lists under it: the wheel and drags there belong to the chat.
+    const enabled = (): boolean => {
+      const over = this.#floatRect;
+      const pointer = this.input.activePointer;
+      return key === "chat" || !over || !pointInRect(pointer.x, pointer.y, over);
+    };
+    const region = new McScrollRegion(this, { rect: inner, heights, scroll, clipInteractive: true, enabled });
     this.#regions.push(region);
     const before = this.children.list.length;
     const guard = {
@@ -1731,10 +1741,18 @@ export class RoomLobbyScene extends Phaser.Scene {
   #drawChatPanel(rect: Rect, titled: boolean, phone: boolean, floating = false): void {
     const state = this.#state;
     // A floating panel is opaque and takes the pointer, so nothing under it scrolls or presses through it.
-    if (floating) this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    if (floating) {
+      // A comic-panel drop shadow (an offset ink rectangle) and a heavier border lift it off the settings.
+      this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
+      this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    }
     const inner = this.#frame(rect, titled ? t("room.tab.chat") : null);
     if (floating) {
-      const closeRect: Rect = { x: rect.x + rect.width - 8 - 92, y: rect.y + 3, width: 92, height: 32 };
+      this.add
+        .graphics()
+        .lineStyle(3, INK, 1)
+        .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      const closeRect: Rect = { x: rect.x + rect.width - 12 - 92, y: rect.y + 6, width: 92, height: 30 };
       const close = (): void => this.#setChatOpen(false);
       this.#button({
         kind: "secondary",

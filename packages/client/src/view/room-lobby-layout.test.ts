@@ -42,14 +42,17 @@ describe("lobbyLayout", () => {
     expect(closed.mode).toBe("float");
     expect(closed.panels.chat).toBeUndefined();
     const { seats, settings } = closed.panels;
-    expect(settings!.height).toBe(seats!.height);
     const pill = closed.chatPill!;
+    // The settings list ends above the pill, not behind it.
+    expect(settings!.y + settings!.height).toBeLessThanOrEqual(pill.y);
+    expect(seats!.x + seats!.width).toBeLessThan(pill.x);
     expect(pill.x + pill.width).toBe(settings!.x + settings!.width);
     expect(pill.y + pill.height).toBeLessThan(closed.footer.y);
 
     const open = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, true);
     expect(open.chatPill).toBeNull();
     const chat = open.panels.chat!;
+    expect(open.panels.settings!.height).toBe(open.panels.seats!.height);
     expect(chat.x + chat.width).toBe(settings!.x + settings!.width);
     expect(chat.y + chat.height).toBeLessThan(open.footer.y);
     expect(chat.y).toBeGreaterThan(open.header.y + open.header.height);
