@@ -166,17 +166,13 @@ test("a pop-out that closes, or dies without a goodbye, gives the chat back to t
   await first.close();
   await waitFor(() => hasStop(host.page, "chat-field"), "the chat in the lobby after the window closed", 10000);
 
-  // Dies without a word: nothing it posts reaches the room (no bye, no beats), as in a crash, so only the heartbeat
+  // Dies without a word: nothing it posts reaches the room (no bye, no beats, no hello), as in a crash, so only the heartbeat
   // timeout can notice. Allow the timeout plus a beat's tick and a margin.
   const second = await popOut(host);
   await waitFor(() => hasText(host.page, /Chat is in its own window/), "the lobby notice again", 15000);
   await second.evaluate(() => {
-    const post = BroadcastChannel.prototype.postMessage;
-    BroadcastChannel.prototype.postMessage = function (message: unknown): void {
-      const kind = (message as { kind?: string } | null)?.kind;
-      if (kind === "bye" || kind === "beat") return;
-      post.call(this, message);
-    };
+    // A dead window posts nothing at all: not a beat, and not the hello a live one sends to reclaim its chat.
+    BroadcastChannel.prototype.postMessage = function (): void {};
   });
   await waitFor(
     () => hasStop(host.page, "chat-field"),
