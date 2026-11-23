@@ -150,6 +150,8 @@ export interface PauseWideLayout {
   readonly guideTurnGuideOff: Rect | null;
   /** "Copy watch link" (#876): a full-width row after the menu, null while no live room is open (and in a guided run, whose two extra rows leave no room; a tutorial is not shared). */
   readonly watchLink: Rect | null;
+  /** "Show my hand to the table" (room games): the row of `watchLink`, shared in halves when both show; null otherwise (and in a guided run). */
+  readonly showHand: Rect | null;
 }
 
 function wideLayout(
@@ -159,6 +161,7 @@ function wideLayout(
   keywordTexts?: readonly PauseKeywordCardText[],
   blindLines = 0,
   watchLinkShown = false,
+  showHandShown = false,
 ): PauseWideLayout {
   const width = Math.min(SHEET_WIDTH, Math.max(1, bounds.width - SHEET_MARGIN * 2));
   const height = Math.min(SHEET_HEIGHT, Math.max(1, bounds.height - SHEET_MARGIN * 2));
@@ -217,7 +220,16 @@ function wideLayout(
     ? { ...menuRect(6), x: title.x + half + MENU_GAP, width: half }
     : null;
 
-  const watchLink: Rect | null = watchLinkShown && !guidedRunActive ? menuRect(6) : null;
+  const linkRow = !guidedRunActive;
+  const shareRow = linkRow && watchLinkShown && showHandShown;
+  const watchLink: Rect | null =
+    linkRow && watchLinkShown ? (shareRow ? { ...menuRect(6), width: half } : menuRect(6)) : null;
+  const showHand: Rect | null =
+    linkRow && showHandShown
+      ? shareRow
+        ? { ...menuRect(6), x: title.x + half + MENU_GAP, width: half }
+        : menuRect(6)
+      : null;
 
   const concede: Rect = {
     x: title.x,
@@ -311,6 +323,7 @@ function wideLayout(
     guideStopTutorial,
     guideTurnGuideOff,
     watchLink,
+    showHand,
   };
 }
 
@@ -669,6 +682,8 @@ export interface PauseLayoutInput {
   readonly blindLineCount?: number;
   /** A live room is open (#876): wide mode adds a "Copy watch link" row. Phone has it as a compact Quick reference cell. */
   readonly watchLink?: boolean;
+  /** A room game has a "Show my hand" control for this device: wide mode adds a row (halved with the watch link). Phone has a compact cell. */
+  readonly showHand?: boolean;
 }
 
 export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout {
@@ -690,6 +705,7 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
     input.keywordTexts,
     input.blindLineCount ?? 0,
     input.watchLink ?? false,
+    input.showHand ?? false,
   );
 }
 
@@ -708,6 +724,7 @@ export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
       ...(layout.guideStopTutorial ? [layout.guideStopTutorial] : []),
       ...(layout.guideTurnGuideOff ? [layout.guideTurnGuideOff] : []),
       ...(layout.watchLink ? [layout.watchLink] : []),
+      ...(layout.showHand ? [layout.showHand] : []),
       ...layout.keywordGrid.cells,
     ];
   }

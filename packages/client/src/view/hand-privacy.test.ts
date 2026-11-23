@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NO_ROOM, type RoomSeat, type RoomState } from "../live/room-state.js";
-import { handVisibleTo, hostSeesHandsOf, type HandPrivacy } from "./hand-privacy.js";
+import { handVisibleTo, hostSeesHandsOf, openHandsOf, showHandToggleOf, type HandPrivacy } from "./hand-privacy.js";
 
 const seat = (over: Partial<RoomSeat> = {}): RoomSeat => ({
   id: "s1",
@@ -89,6 +89,48 @@ describe("handVisibleTo", () => {
   it("host sees every hand: on shows all for the host, never for a guest", () => {
     expect(handVisibleTo(privacy(room("host", hostSeats, true)), "p2")).toBe(true);
     expect(handVisibleTo(privacy(room("guest", guestSeats, true)), "p1")).toBe(false);
+  });
+
+  it("a seat that shows its hand is face up on every device; the others stay face down", () => {
+    const hostSide = [seat({ mine: true }), seat({ id: "s2", player: "p2", holder: "g", showsHand: true })];
+    expect(handVisibleTo(privacy(room("host", hostSide)), "p2")).toBe(true);
+    const guestSide = [seat({ showsHand: true }), seat({ id: "s2", player: "p2", mine: true })];
+    expect(handVisibleTo(privacy(room("guest", guestSide)), "p1")).toBe(true);
+    const hidden = [seat({ mine: true }), seat({ id: "s2", player: "p2", holder: "g", showsHand: false })];
+    expect(handVisibleTo(privacy(room("host", hidden)), "p2")).toBe(false);
+  });
+
+  it("Everyone sees every hand opens all hands for host and guest; a watcher follows the header", () => {
+    const open = (r: RoomState): RoomState => ({ ...r, settings: { ...r.settings!, openHands: true } });
+    expect(handVisibleTo(privacy(open(room("host", hostSeats))), "p2")).toBe(true);
+    expect(handVisibleTo(privacy(open(room("guest", guestSeats))), "p1")).toBe(true);
+    expect(openHandsOf(open(room("host", [])))).toBe(true);
+    expect(openHandsOf(room("host", []))).toBe(false);
+    expect(openHandsOf({ settings: null })).toBe(false);
+    expect(handVisibleTo(privacy(null, { watching: true, handsHidden: true }), "p1")).toBe(false);
+  });
+
+  it("the Show my hand control acts on the seats this device may set, and reads on only when all show", () => {
+    expect(showHandToggleOf(room("guest", guestSeats))).toEqual({ seats: ["s2"], on: false });
+    const shown = [seat(), seat({ id: "s2", player: "p2", mine: true, showsHand: true })];
+    expect(showHandToggleOf(room("guest", shown))).toEqual({ seats: ["s2"], on: true });
+    // The host also runs a taken-over seat and a vacant one, not a connected guest's.
+    const hostSide = [
+      seat({ mine: true }),
+      seat({ id: "s2", player: "p2", holder: "g", takenOver: true }),
+      seat({ id: "s3", player: "p3", holder: null }),
+      seat({ id: "s4", player: "p4", holder: "x" }),
+    ];
+    expect(showHandToggleOf(room("host", hostSide))).toEqual({ seats: ["s1", "s2", "s3"], on: false });
+    // Nothing to flip: no seat, no room game, or every hand already open.
+    expect(showHandToggleOf(room("guest", [seat()]))).toBeNull();
+    expect(showHandToggleOf(room("host", [seat({ player: null, mine: true })]))).toBeNull();
+    const open: RoomState = {
+      ...room("guest", guestSeats),
+      settings: { ...room("guest", []).settings!, openHands: true },
+    };
+    expect(showHandToggleOf(open)).toBeNull();
+    expect(showHandToggleOf(NO_ROOM)).toBeNull();
   });
 
   it("single player, and one person playing every seat, see every hand", () => {

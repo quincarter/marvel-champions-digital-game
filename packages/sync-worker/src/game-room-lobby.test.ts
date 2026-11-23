@@ -253,6 +253,21 @@ describe("who may set the lobby", () => {
     expect(h.refusals).toEqual(["not-allowed", "bad-message"]);
   });
 
+  it("holds openHands: off by default, host-only, fixed once the game has started", async () => {
+    const { room, host, join, lobbySet, send } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.openHands).toBe(false);
+    await lobbySet(w, { settings: { openHands: true } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { openHands: true } });
+    expect(w.last("lobby")!.settings.openHands).toBe(true);
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    await lobbySet(h, { settings: { openHands: false } });
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(w.last("lobby")!.settings.openHands).toBe(true);
+  });
+
   it("refuses a start built from an older lobby revision and stores nothing; a matching one is taken", async () => {
     const { room, host, join, lobbySet, send } = await setup();
     const h = await host();

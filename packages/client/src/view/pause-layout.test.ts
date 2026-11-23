@@ -334,6 +334,26 @@ describe("pauseLayout", () => {
       expect(sixTwoLayout.lowerContent.tableRows).toHaveLength(2);
     });
 
+    test("the four compact cells stay a touch target wide at 375 and 412", () => {
+      const details = [...QUICK_REFERENCE_DETAILS, "Music.", "Report.", "Link.", "Controls."];
+      for (const width of [375, 412]) {
+        const layout = pauseLayout(
+          { x: 0, y: 0, width, height: 700 },
+          {
+            keywordCount: 0,
+            quickReferenceDetails: details,
+            tableDetails: TABLE_DETAILS,
+            quickReferenceCompactTail: 4,
+          },
+        );
+        if (layout.kind !== "phone") throw new Error("expected phone");
+        for (const cell of layout.quickReferenceRows.slice(-4)) {
+          expect(cell.width, `cell width at ${width}`).toBeGreaterThanOrEqual(44);
+          expect(cell.height).toBeGreaterThanOrEqual(44);
+        }
+      }
+    });
+
     test("a compact tail shares one line, so the Table and Guide group keeps the room three full rows would take", () => {
       const details = [...QUICK_REFERENCE_DETAILS, "Music.", "Report.", "Controls."];
       const at = (tail: number) =>
@@ -420,5 +440,37 @@ describe("the watch link row (#876)", () => {
     const layout = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, input(8));
     if (layout.kind !== "wide") throw new Error("expected wide");
     expect(layout.watchLink).toBeNull();
+  });
+});
+
+describe("the Show my hand row (room games)", () => {
+  for (const size of WIDE_SIZES) {
+    for (const watchLink of [false, true]) {
+      test(`clears Manual adjust and the watch link at ${size.name}${watchLink ? ", with the watch link" : ""}`, () => {
+        const layout = pauseLayout(
+          { x: 0, y: 0, width: size.width, height: size.height },
+          { ...input(8), showHand: true, watchLink },
+        );
+        if (layout.kind !== "wide") throw new Error("expected wide");
+        const row = layout.showHand!;
+        expect(row).not.toBeNull();
+        expect(row.y).toBeGreaterThan(layout.menu.report.y);
+        expect(row.y + row.height).toBeLessThanOrEqual(layout.concedeConfirmCancel.y - 34);
+        expect(rectsOverlap(row, layout.concede)).toBe(false);
+        if (watchLink) expect(rectsOverlap(row, layout.watchLink!)).toBe(false);
+      });
+    }
+  }
+
+  test("is absent outside a room game and in a guided run", () => {
+    const wide = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, input(8));
+    if (wide.kind !== "wide") throw new Error("expected wide");
+    expect(wide.showHand).toBeNull();
+    const guided = pauseLayout(
+      { x: 0, y: 0, width: 1440, height: 900 },
+      { ...input(8), showHand: true, guidedRunActive: true },
+    );
+    if (guided.kind !== "wide") throw new Error("expected wide");
+    expect(guided.showHand).toBeNull();
   });
 });

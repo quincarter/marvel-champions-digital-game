@@ -722,6 +722,11 @@ export class RoomSession {
     }
   }
 
+  /** Shows or hides a seat's hand to the table; the room refuses a seat this device may not set. */
+  showHand(seat: string, on: boolean): void {
+    this.#say({ ch: "room", kind: "seat-show-hand", seat, on });
+  }
+
   /**
    * Host: answers a seat holder's request (`RoomState.requests`); the caller has already done what an accepted one asks.
    * A request already gone (answered, or its asker left) is ignored.

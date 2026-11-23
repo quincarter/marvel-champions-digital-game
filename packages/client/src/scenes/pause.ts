@@ -91,7 +91,8 @@ import { appSession } from "../session.js";
 import { roomCheatsOf } from "../view/room-strict.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 import { activeSeat } from "../platform/seat-play.js";
-import { roomState } from "../platform/room.js";
+import { onRoomState, roomState, setSeatShowsHand } from "../platform/room.js";
+import { showHandToggleOf, type ShowHandToggle } from "../view/hand-privacy.js";
 import { handoverOn, roomChatOn } from "../view/room-prompts.js";
 import { inRoomGame } from "../view/whose-turn.js";
 import { leaveSeatForWatch } from "./seat-drop.js";
@@ -219,6 +220,15 @@ export class PauseOverlay extends Phaser.Scene {
       if (this.sys.isActive()) this.#draw();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
+    // The room's echo of a Show my hand press changes the control's label (and a seat gained or lost, its presence).
+    let handKey = JSON.stringify(this.#showHandToggle());
+    const roomOff = onRoomState(() => {
+      const key = JSON.stringify(this.#showHandToggle());
+      if (key === handKey) return;
+      handKey = key;
+      if (this.sys.isActive()) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, roomOff);
     this.#searchClient = new SettingsSearchClient();
     this.#search = new PauseSearchSession(
       this.#searchClient,
@@ -452,6 +462,23 @@ export class PauseOverlay extends Phaser.Scene {
     if (conceded) this.#resume();
   }
 
+  /** The "Show my hand" control in a room game, else null (single player, offline, every hand already open, no seat). */
+  #showHandToggle(): ShowHandToggle | null {
+    return showHandToggleOf(roomState());
+  }
+
+  #showHandLabel(toggle: ShowHandToggle, short: boolean): string {
+    const key = toggle.on ? "room.showHand.hide" : "room.showHand.show";
+    return t(short ? (`${key}Short` as "room.showHand.showShort" | "room.showHand.hideShort") : key);
+  }
+
+  /** Flips the hands this device may show; the room echoes the new lobby state, which redraws Pause. */
+  #flipShowHand(): void {
+    const toggle = this.#showHandToggle();
+    if (!toggle) return;
+    for (const seat of toggle.seats) setSeatShowsHand(seat, !toggle.on);
+  }
+
   /** Copies the live room's watch link; the item says "Link copied" for a moment after (#876). */
   #copyWatchLink(): void {
     const url = pauseWatchLinkOf(liveStatus());
@@ -555,6 +582,18 @@ export class PauseOverlay extends Phaser.Scene {
             },
           ]
         : []),
+      ...(this.#showHandToggle()
+        ? [
+            {
+              id: "show-hand",
+              title: this.#showHandLabel(this.#showHandToggle()!, false),
+              detail: this.#showHandLabel(this.#showHandToggle()!, false),
+              // Its own full-width row in the expanded Quick reference: a fifth compact cell is under the touch
+              // target and cannot hold "Mostrar mano".
+              open: () => this.#flipShowHand(),
+            },
+          ]
+        : []),
       ...(detectPlatform() !== "capacitor" || padAvailable()
         ? [
             {
@@ -616,6 +655,7 @@ export class PauseOverlay extends Phaser.Scene {
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
         watchLink: watchLinkUrl !== null,
+        showHand: this.#showHandToggle() !== null,
       },
     );
 
@@ -645,6 +685,7 @@ export class PauseOverlay extends Phaser.Scene {
           confirmingConcede: this.#confirmingConcede,
           guidedRunActive,
           watchLink: layout.watchLink !== null,
+          showHand: layout.showHand !== null,
         }),
         stops,
       );
@@ -771,6 +812,17 @@ export class PauseOverlay extends Phaser.Scene {
     if (layout.watchLink)
       this.#menuButton(stops, "watch-link", "onInk", watchLinkLabelOf(this.#linkCopied, false), layout.watchLink, () =>
         this.#copyWatchLink(),
+      );
+
+    const showHand = this.#showHandToggle();
+    if (layout.showHand && showHand)
+      this.#menuButton(
+        stops,
+        "show-hand",
+        "onInk",
+        this.#showHandLabel(showHand, layout.showHand.width < 200),
+        layout.showHand,
+        () => this.#flipShowHand(),
       );
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
