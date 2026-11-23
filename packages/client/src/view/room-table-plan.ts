@@ -3,6 +3,7 @@
  * ids only (each client names and draws them from its own content). `modularSetIds` is the resolved list: a draft that
  * leaves it `null` means the scenario's recommended sets. A client that cannot resolve an id shows the id.
  */
+import { MAX_PLAN_ID_CHARS, MAX_PLAN_MODULAR_SETS } from "@mc/sync-worker/room-protocol";
 import type { AnyCard, EncounterSet, Scenario } from "@mc/content";
 import { ART_CATALOG, villainArtFor } from "../art/scenario-art.js";
 import { CARD_BACKS, artFor, type CardFace } from "../art/art-source.js";
@@ -13,10 +14,12 @@ import { scenarioDetailOf } from "./scenario-detail.js";
 import type { SetupDraft } from "./setup-draft.js";
 
 export function tablePlanOf(draft: SetupDraft, scenario: Scenario | undefined): TablePlan {
-  const sets = draft.modularSetIds ?? scenario?.recommendedModularSetIds ?? [];
+  // A modded id over the room's limit, or more sets than it takes, must not make the whole plan fail to parse: over-long
+  // ids are skipped (they show as missing) and the first few sets are kept.
+  const sets = (draft.modularSetIds ?? scenario?.recommendedModularSetIds ?? []).map((id) => id as string);
   return {
     scenarioId: draft.scenarioId as string,
-    modularSetIds: sets.map((id) => id as string),
+    modularSetIds: sets.filter((id) => id.length > 0 && id.length <= MAX_PLAN_ID_CHARS).slice(0, MAX_PLAN_MODULAR_SETS),
     difficulty: draft.difficulty,
     ...(draft.heroicLevel ? { heroicLevel: draft.heroicLevel } : {}),
     ...(draft.skirmish ? { skirmish: true } : {}),
@@ -41,6 +44,25 @@ export interface PlanContent {
   readonly scenarios: readonly Scenario[];
   readonly cards: ReadonlyMap<string, AnyCard>;
   readonly encounterSets: readonly EncounterSet[];
+}
+
+let cached: { readonly key: string; readonly content: PlanContent; readonly value: PlanPictures } | null = null;
+
+/** `planPictures`, remembered for the last plan and content: the lobby redraws often and the plan seldom changes. */
+export function planPicturesCached(plan: TablePlan, content: PlanContent): PlanPictures {
+  const key = JSON.stringify(plan);
+  if (
+    cached &&
+    cached.key === key &&
+    cached.content.cards === content.cards &&
+    cached.content.scenarios === content.scenarios &&
+    cached.content.encounterSets === content.encounterSets
+  ) {
+    return cached.value;
+  }
+  const value = planPictures(plan, content);
+  cached = { key, content, value };
+  return value;
 }
 
 /** The pictures and names for a plan, from this client's own content. Unknown ids fall back to the id and no picture. */

@@ -32,6 +32,16 @@ describe("tablePlanOf", () => {
   });
 });
 
+describe("tablePlanOf limits", () => {
+  it("skips an over-long id and keeps the first eight sets, so the plan still parses", () => {
+    const scenario = currentScenarios().find((s) => (s.id as string) === "rhino")!;
+    const draft = initialSetupDraft({ scenarioId: "rhino", seatDeckId: null, scenarioPicked: true, seed: 1 });
+    const ids = ["x".repeat(65), ...Array.from({ length: 10 }, (_, i) => `set${i}`)] as never[];
+    const plan = tablePlanOf({ ...draft, modularSetIds: ids }, scenario);
+    expect(plan.modularSetIds).toEqual(Array.from({ length: 8 }, (_, i) => `set${i}`));
+  });
+});
+
 describe("planPictures", () => {
   it("names the villain and each set from content, with a hover card for each", () => {
     const { villain, sets } = planPictures(
