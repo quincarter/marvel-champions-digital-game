@@ -70,7 +70,9 @@ export type LiveRoomIn =
   | { readonly kind: "room-follow"; readonly port: MessagePort }
   | { readonly kind: "room-unfollow" }
   /** Brings the chat back from its pop-out window (`live/chat-popout-protocol.ts`): the window is told to close. */
-  | { readonly kind: "chat-popout-recall" };
+  | { readonly kind: "chat-popout-recall" }
+  /** This tab is opening a pop-out window with `token`: its relay listens on that token's channel only. */
+  | { readonly kind: "chat-popout-arm"; readonly token: string };
 
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
 export type LiveRoomOut =

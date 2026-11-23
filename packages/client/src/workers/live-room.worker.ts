@@ -77,6 +77,8 @@ worker.addEventListener("message", (event) => {
     controller?.setEnabled(message.on);
   } else if (message.kind === "chat-popout-recall") {
     popout.recall();
+  } else if (message.kind === "chat-popout-arm") {
+    popout.arm(message.token);
   } else {
     controller?.onRoomCommand(message);
   }

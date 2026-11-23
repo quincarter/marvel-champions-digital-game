@@ -111,6 +111,11 @@ export function onChatPopout(listener: (open: boolean) => void): () => void {
   return () => popoutListeners.delete(listener);
 }
 
+/** Arms this tab's room worker for a pop-out window that carries `token` (call before opening the window). */
+export function armChatPopout(token: string): void {
+  postRoomCommand({ kind: "chat-popout-arm", token });
+}
+
 /** Brings the chat back from its window: the window closes and the lobby shows the chat again. */
 export function recallChatPopout(): void {
   postRoomCommand({ kind: "chat-popout-recall" });

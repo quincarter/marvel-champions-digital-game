@@ -9,6 +9,7 @@ vi.mock("./live-watch.js", () => ({
     return true;
   },
   setRoomDecksListener: () => {},
+  setChatPopoutListener: () => {},
   setRoomStateListener: (l: (state: unknown) => void) => {
     listener = l;
   },

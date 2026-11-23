@@ -14,12 +14,14 @@ describe("chatPopoutAllowed", () => {
 
 describe("chatPopoutUrl", () => {
   it("names the page, the room and the language, escaped", () => {
-    expect(chatPopoutUrl({ roomId: "a b&c", lang: "es" })).toBe("/chat-popout.html?room=a+b%26c&lang=es");
+    expect(chatPopoutUrl({ roomId: "a b&c", token: "t0k", lang: "es" })).toBe(
+      "/chat-popout.html?room=a+b%26c&token=t0k&lang=es",
+    );
   });
 });
 
 describe("chatPopoutLabel", () => {
-  it("is one window per room, in the characters a window label allows", () => {
+  it("is one window per token, in the characters a window label allows", () => {
     expect(chatPopoutLabel("Ab_9-x")).toBe("chat-popout-Ab_9-x");
     expect(chatPopoutLabel("a b/c")).toBe("chat-popout-a_b_c");
     expect(chatPopoutLabel("one")).not.toBe(chatPopoutLabel("two"));

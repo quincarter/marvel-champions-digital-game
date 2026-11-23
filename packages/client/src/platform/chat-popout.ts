@@ -9,20 +9,24 @@ import { detectPlatform } from "./platform.js";
 
 export const POPOUT_PAGE = "/chat-popout.html";
 /**
- * A Tauri pop-out's label starts with this and ends with its room id (`chatPopoutLabel`), so each room has its own
- * window and a window left from an earlier room is never reused for a new one. `src-tauri/capabilities/chat-popout.json`
+ * A pop-out's window name and Tauri label start with this and end with its token (`chatPopoutLabel`): one window per
+ * pop-out, so a window from an earlier room or another tab is never reused. `src-tauri/capabilities/chat-popout.json`
  * matches the prefix.
  */
 export const POPOUT_LABEL_PREFIX = "chat-popout-";
 export const POPOUT_SIZE = { width: 420, height: 640 } as const;
 
-/** The window name for a room: the browser's named window, and the Tauri window label (letters, digits, `-` and `_`). */
-export const chatPopoutLabel = (roomId: string): string =>
-  `${POPOUT_LABEL_PREFIX}${roomId.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+/** The window name for a token: the browser's named window, and the Tauri window label (letters, digits, `-` and `_`). */
+export const chatPopoutLabel = (token: string): string =>
+  `${POPOUT_LABEL_PREFIX}${token.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 
 /** Where the pop-out page lives, with the room it joins (the channel is named for the room id) and the app's language. */
-export function chatPopoutUrl(params: { readonly roomId: string; readonly lang: string }): string {
-  const query = new URLSearchParams({ room: params.roomId, lang: params.lang });
+export function chatPopoutUrl(params: {
+  readonly roomId: string;
+  readonly token: string;
+  readonly lang: string;
+}): string {
+  const query = new URLSearchParams({ room: params.roomId, token: params.token, lang: params.lang });
   return `${POPOUT_PAGE}?${query.toString()}`;
 }
 
@@ -42,9 +46,9 @@ export function chatPopoutAvailable(): boolean {
 }
 
 /** Opens (or focuses) the room's window. Resolves false when it could not open (a blocked pop-up); the chat stays in the lobby. */
-export async function openChatPopout(roomId: string, lang: string): Promise<boolean> {
-  const url = chatPopoutUrl({ roomId, lang });
-  const label = chatPopoutLabel(roomId);
+export async function openChatPopout(roomId: string, token: string, lang: string): Promise<boolean> {
+  const url = chatPopoutUrl({ roomId, token, lang });
+  const label = chatPopoutLabel(token);
   if (detectPlatform() === "tauri") {
     try {
       const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
