@@ -19,6 +19,7 @@ import {
   onRoomState,
   onChatPopout,
   recallChatPopout,
+  armChatPopout,
   reportHostActivity,
   resyncTablePlan,
   releaseSeat,
@@ -60,6 +61,7 @@ import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { chatPopoutAvailable, openChatPopout } from "../platform/chat-popout.js";
+import { mintPopoutToken } from "../live/chat-popout-protocol.js";
 import { artLanguageNow } from "../art/art-source.js";
 import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
@@ -1916,7 +1918,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     const roomId = this.#state.roomId;
     if (!roomId) return;
     this.#popBlocked = false;
-    void openChatPopout(roomId, artLanguageNow()).then((opened) => {
+    // This tab's own token: the window's channel is named for it, so another tab in this browser never joins it.
+    const token = mintPopoutToken();
+    armChatPopout(token);
+    void openChatPopout(roomId, token, artLanguageNow()).then((opened) => {
       if (opened || !this.#alive) return;
       // A blocked pop-up: say so in the chat header for a few seconds; the chat stays where it is.
       this.#popBlocked = true;
