@@ -240,6 +240,7 @@ import { cardSearchDocumentOf } from "../view/card-search-document.js";
 import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-names.js";
 import { localizedLabelOf } from "../view/card-text.js";
 import { t } from "../i18n/translate.js";
+import { choicesWithPicks as withPicks } from "../view/pool-pick-rows.js";
 
 /** How the pool is shown: card pictures in a grid, or the text rows with each card's rules. Kept between visits. */
 type PoolView = "grid" | "list";
@@ -1675,6 +1676,9 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#rebuild();
     };
     const arrow = hit.target;
+    // Every pack and wave, for picks the other filters have emptied: they stay in the picker, ticked (PR #980 review).
+    const allPacks = packInfos().map((p) => ({ id: p.code, name: p.name, group: p.cycleName }));
+    const allWaves = [...new Map(packInfos().map((p) => [p.cycleId, { id: p.cycleId, name: p.cycleName }])).values()];
     const packNames = new Map(packInfos().map((p) => [p.code, p.name]));
     const packLabel = pickSummaryOf(this.#filter.packCodes, packNames, t("deckBuilder.allPacks"), (count) =>
       t("deckBuilder.packsCount", { count }),
@@ -1685,8 +1689,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       apply({ ...this.#filter, packCodes: next ? [next] : null });
     };
     const pickPacks = (): void =>
-      this.#openPoolPick(t("deckBuilder.pickPacksTitle"), choices.packs, this.#filter.packCodes, (chosen) =>
-        apply({ ...this.#filter, packCodes: chosen.length ? chosen : null }),
+      this.#openPoolPick(
+        t("deckBuilder.pickPacksTitle"),
+        withPicks(choices.packs, this.#filter.packCodes, allPacks),
+        this.#filter.packCodes,
+        (chosen) => apply({ ...this.#filter, packCodes: chosen.length ? chosen : null }),
       );
     const prevRect: Rect = { x: left, y, width: arrow, height: hit.target };
     const nameRect: Rect = {
@@ -1727,8 +1734,11 @@ export class DeckBuilderScene extends Phaser.Scene {
         // Each press applies at once, so judge the packs against the filter the picker opened on: ticking Core and
         // then Wave 1 keeps a Wave 1 pack that the moment with only Core ticked would have dropped.
         const opened = this.#filter;
-        this.#openPoolPick(t("deckBuilder.pickWavesTitle"), choices.cycles, opened.cycleIds, (chosen) =>
-          apply(withCycles({ ...this.#filter, packCodes: opened.packCodes ?? null }, chosen, packInfos())),
+        this.#openPoolPick(
+          t("deckBuilder.pickWavesTitle"),
+          withPicks(choices.cycles, opened.cycleIds, allWaves),
+          opened.cycleIds,
+          (chosen) => apply(withCycles({ ...this.#filter, packCodes: opened.packCodes ?? null }, chosen, packInfos())),
         );
       },
       Boolean(this.#filter.cycleIds?.length),

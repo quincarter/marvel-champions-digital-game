@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { offeredPicks, poolPickRowsOf } from "./pool-pick-rows.js";
+import { choicesWithPicks, poolPickRowsOf } from "./pool-pick-rows.js";
 
 const PACKS = [
   { id: "core", name: "Core Set", group: "Core" },
@@ -24,7 +24,10 @@ describe("pack and wave picker rows (issue #977)", () => {
     ]);
   });
 
-  test("a pick the pool no longer offers is dropped, and the rest keep the list's order", () => {
-    expect(offeredPicks(["wak", "gone", "core"], PACKS)).toEqual(["core", "wak"]);
+  test("a pick the pool doesn't offer now stays listed in release order, so it can be unticked (PR #980 review)", () => {
+    const offered = [PACKS[0]!, PACKS[2]!];
+    expect(choicesWithPicks(offered, ["wak"], PACKS)).toBe(offered);
+    expect(choicesWithPicks(offered, null, PACKS)).toBe(offered);
+    expect(choicesWithPicks(offered, ["gob"], PACKS).map((c) => c.id)).toEqual(["core", "gob", "wak"]);
   });
 });

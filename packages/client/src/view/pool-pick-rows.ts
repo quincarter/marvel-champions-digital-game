@@ -25,10 +25,17 @@ export function poolPickRowsOf(
 }
 
 /**
- * The picks that still mean something: those `choices` still offer, in their order. A pick the other filters have
- * since emptied is dropped when the player changes the list, so it never hides cards they can't see to untick.
+ * The picker's choices: what the pool offers, plus any pick it doesn't offer right now (another filter has emptied
+ * that pack or wave), placed where it falls in `all`'s release order. A pick is never dropped behind the player's back:
+ * it stays listed and ticked until they untick it (PR #980 review).
  */
-export function offeredPicks(chosen: readonly string[], choices: readonly FilterChoice[]): readonly string[] {
-  const picked = new Set(chosen);
-  return choices.filter((choice) => picked.has(choice.id)).map((choice) => choice.id);
+export function choicesWithPicks(
+  offered: readonly FilterChoice[],
+  chosen: readonly string[] | null | undefined,
+  all: readonly FilterChoice[],
+): readonly FilterChoice[] {
+  const shown = new Set(offered.map((choice) => choice.id));
+  const picked = new Set(chosen ?? []);
+  if ([...picked].every((id) => shown.has(id))) return offered;
+  return all.filter((choice) => shown.has(choice.id) || picked.has(choice.id));
 }

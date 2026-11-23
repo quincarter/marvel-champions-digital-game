@@ -15,7 +15,7 @@ import type { FilterChoice } from "../view/deck-builder-model.js";
 import { togglePick } from "../view/deck-builder-model.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
-import { offeredPicks, poolPickRowsOf } from "../view/pool-pick-rows.js";
+import { poolPickRowsOf } from "../view/pool-pick-rows.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { t } from "../i18n/translate.js";
@@ -24,7 +24,7 @@ export interface PoolPickSheetData {
   /** The scene that asked: its pointer input is off while this is up. */
   readonly from: string;
   readonly title: string;
-  /** What the pool offers, in release order; a pack's `group` is its wave. */
+  /** What the pool offers plus every current pick, in release order (`choicesWithPicks`); a pack's `group` is its wave. */
   readonly choices: readonly FilterChoice[];
   readonly chosen: readonly string[];
   /** Every press: the new choice (empty is all). */
@@ -51,10 +51,7 @@ export class PoolPickSheet extends Phaser.Scene {
 
   create(data: PoolPickSheetData): void {
     this.#data = data;
-    this.#chosen = offeredPicks(data.chosen, data.choices);
-    // A pick the pool no longer offers (another filter emptied its pack) can't be seen to untick: drop it now, so the
-    // pool and the button stop counting it.
-    if (this.#chosen.length !== data.chosen.length) data.onChange(this.#chosen);
+    this.#chosen = data.chosen;
     this.#scroll = new ListScroll();
     const from = this.scene.get(data.from);
     if (from) from.input.enabled = false;
@@ -161,8 +158,7 @@ export class PoolPickSheet extends Phaser.Scene {
       width: rowRect.width - 10,
       height: hit.target,
     });
-    const toggle = (id: string) => (): void =>
-      this.#set(togglePick(offeredPicks(this.#chosen, this.#data.choices), id));
+    const toggle = (id: string) => (): void => this.#set(togglePick(this.#chosen, id));
 
     const renderRow = (index: number, rect: Rect): VirtualListRow => {
       const row = rows[index]!;
