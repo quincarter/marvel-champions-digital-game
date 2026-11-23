@@ -54,7 +54,7 @@ export interface GameHooks {
   /** Every room message, for `resend` and refusals of the log. */
   readonly onMessage: (message: ServerMessage) => void;
   /** The room is over for this device (closed, replaced, gone): stop streaming. */
-  readonly onEnded: () => void;
+  readonly onEnded: (problem: RoomProblem) => void;
 }
 
 /** The slice of a `MessagePort` a feed uses. */
@@ -465,7 +465,7 @@ export class RoomSession {
       problem.startsWith("closed-") ? { kind: "connection", connected: false } : { kind: "gone" },
     );
     this.#publish();
-    hooks?.onEnded();
+    hooks?.onEnded(problem);
   }
 
   #onMessage(message: ServerMessage): void {

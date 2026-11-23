@@ -67,7 +67,6 @@ export interface LiveRoomControllerDeps {
 const HOST_ROOM_OVER: ReadonlySet<string> = new Set([
   "not-found",
   "gone",
-  "replaced",
   "closed-ended",
   "closed-idle",
   "closed-disabled",
@@ -117,6 +116,10 @@ export class LiveRoomController {
   #lastName = "";
   /** Bumped by every session change, so a rejoin whose record read returns late knows it was overtaken. */
   #rejoinTicket = 0;
+  /** A host session a rejoin resumed: when its room turns out gone, the code is joined as a guest instead. */
+  #hostFallback: { readonly session: RoomSession; readonly name: string; readonly code: string } | null = null;
+  /** When the lobby record's stamp was last written while hosting in the lobby. */
+  #lobbyStampAt = 0;
 
   constructor(deps: LiveRoomControllerDeps) {
     this.#deps = deps;
@@ -212,12 +215,14 @@ export class LiveRoomController {
         return;
       case "room-lobby":
         this.#session?.lobbySet(message);
+        this.#touchLobby();
         return;
       case "room-seat":
         this.#session?.seat(message.op, message.seat, message.participant);
         return;
       case "room-say":
         this.#session?.chat(message.text);
+        this.#touchLobby();
         return;
       case "room-activity":
         this.#session?.hostActivity(message.step, message.scenario);
@@ -275,6 +280,7 @@ export class LiveRoomController {
     const now = (this.#deps.now ?? Date.now)();
     if (record && code && recordFresh(record, now)) {
       const session = this.#newSession("host", name);
+      this.#hostFallback = { session, name, code };
       session.resumeHost(record.roomId, record.hostToken, code);
       return;
     }
@@ -282,6 +288,16 @@ export class LiveRoomController {
     const session = this.#newSession("guest", name);
     if (name === "") session.failWith("no-name");
     else void session.startGuest(code ?? rawCode);
+  }
+
+  /** Host activity in the lobby (settings, chat) keeps the saved record fresh as the room's own idle stamp is, at most once a minute. */
+  #touchLobby(): void {
+    const session = this.#session;
+    if (!session || session.role !== "host" || this.#live?.room === session) return;
+    const at = (this.#deps.now ?? Date.now)();
+    if (at - this.#lobbyStampAt < TOUCH_EVERY_MS) return;
+    this.#lobbyStampAt = at;
+    this.#saveLobbyRecord(session);
   }
 
   /** Remembers a hosted lobby room under its code so a reload can find its host token (see `lobbyRecordKey`). */
@@ -320,6 +336,18 @@ export class LiveRoomController {
       seatStore: room.seatStore,
       onState: (state) => {
         if (this.#session !== session) return;
+        const fallback = this.#hostFallback;
+        if (
+          fallback?.session === session &&
+          state.connection === "ended" &&
+          (state.problem === "gone" || state.problem === "not-found")
+        ) {
+          // The saved host token is no use (the room is gone, or no longer honours it): try the code as a guest.
+          this.#hostFallback = null;
+          void this.#deps.store?.clear(lobbyRecordKey(fallback.code)).catch(() => {});
+          void this.#newSession("guest", fallback.name).startGuest(fallback.code);
+          return;
+        }
         if (role === "host" && state.code && state.connection === "ended" && HOST_ROOM_OVER.has(state.problem ?? "")) {
           void this.#deps.store?.clear(lobbyRecordKey(state.code)).catch(() => {});
         }
@@ -337,6 +365,7 @@ export class LiveRoomController {
 
   #closeSession(closeRoom = false): void {
     this.#rejoinTicket++;
+    this.#hostFallback = null;
     const session = this.#session;
     if (!session) return;
     // A host who leaves closes its room: the saved host token is no use any more.
@@ -523,7 +552,8 @@ export class LiveRoomController {
       onWelcome: (table) => live.publisher.onWelcome(table),
       onDisconnected: () => live.publisher.onDisconnected(),
       onMessage: (message) => live.publisher.onMessage(message),
-      onEnded: () => this.#end(live),
+      // Another tab took the host socket (`replaced`): that tab still depends on the saved records, so they stay.
+      onEnded: (problem) => this.#end(live, problem === "replaced"),
     };
     room.attachGame(hooks);
   }
@@ -673,8 +703,8 @@ export class LiveRoomController {
   }
 
   /** This game's stream is over (the room closed, was taken over, or refused the log): the next game starts clean. */
-  #end(live: Live): void {
-    void this.#deps.store?.clear(live.gameKey).catch(() => {});
+  #end(live: Live, keepRecords = false): void {
+    if (!keepRecords) void this.#deps.store?.clear(live.gameKey).catch(() => {});
     if (live.retry !== null) this.#timers.clearTimer(live.retry);
     live.socket?.close();
     live.socket = null;
