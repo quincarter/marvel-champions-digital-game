@@ -8,6 +8,7 @@
  */
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
+import { clearPopoutToken, PopoutRearm, savePopoutToken } from "./chat-popout-token.js";
 import { syncRoomAddress } from "./room-address.js";
 import { syncGameAddress } from "./game-address.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -109,6 +110,8 @@ function publish(next: RoomState): void {
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
   // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
   syncRoomAddress(next);
+  // This tab's open pop-out window finds its way back to the new worker after a reload (`chat-popout-token.ts`).
+  popoutRearm.onState(next);
   // A host whose room closed under a game in progress keeps playing it alone: the game takes the address at once.
   if (next.connection === "ended" && prev.role === "host" && prev.started) {
     const session = appSession();
@@ -120,10 +123,14 @@ function publish(next: RoomState): void {
 
 setRoomStateListener(publish);
 
+const popoutRearm = new PopoutRearm((token) => void postRoomCommand({ kind: "chat-popout-arm", token }));
+
 let chatPopout = false;
 const popoutListeners = new Set<(open: boolean) => void>();
 
 setChatPopoutListener((open) => {
+  // A window that closed (or was brought back) no longer needs its token kept for a reload.
+  if (chatPopout && !open) clearPopoutToken();
   chatPopout = open;
   for (const listener of [...popoutListeners]) listener(open);
 });
@@ -140,11 +147,14 @@ export function onChatPopout(listener: (open: boolean) => void): () => void {
 
 /** Arms this tab's room worker for a pop-out window that carries `token` (call before opening the window). */
 export function armChatPopout(token: string): void {
+  // Kept for this tab (sessionStorage) so the window survives a reload of this page.
+  if (state.roomId) savePopoutToken(state.roomId, token);
   postRoomCommand({ kind: "chat-popout-arm", token });
 }
 
 /** Brings the chat back from its window: the window closes and the lobby shows the chat again. */
 export function recallChatPopout(): void {
+  clearPopoutToken();
   postRoomCommand({ kind: "chat-popout-recall" });
 }
 
