@@ -86,6 +86,15 @@ export interface CampaignRecord extends CampaignLog {
    * campaigns existed.
    */
   readonly pack?: PackCampaignRef;
+  /**
+   * The custom packs the run's seats draw on (#978): a Mod Store hero's pack, a pack precon's, or the pack of any custom
+   * card in a signed deck, with every pack those require, copied in once when the roster is signed
+   * (`campaign/run-packs.ts`). Every issue's game carries them (`CampaignService.launchConfig`) and the screens read
+   * their cards, so updating or removing the pack never changes or breaks the run: it goes on from its own copy. Absent
+   * for a roster of base cards only, and for every record written before custom heroes could join a campaign. A pack
+   * that is also the campaign's own (`pack`) is listed there, not here.
+   */
+  readonly heroPacks?: readonly PackRuntime[];
 }
 
 /**

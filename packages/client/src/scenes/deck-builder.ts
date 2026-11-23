@@ -59,7 +59,6 @@ import type { CardId } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
   POOL_HERO_SHELF_PACKS,
-  POOL_CARDS,
   POOL_PACKS,
   POOL_VERSION,
   currentCardsById,
@@ -197,6 +196,7 @@ import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { noteDeckFeat } from "../progression/deck-feats.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
+import { campaignPool } from "../content/campaign-pool.js";
 import { cardSizeFactor } from "../settings.js";
 import { deckBuilderRowSizes, type DeckBuilderRowSizes } from "../view/deck-builder-rows.js";
 import {
@@ -600,7 +600,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#heroRanking = null;
     this.#poolSearch = new DeckSearchClient();
     this.#heroSearch = new DeckSearchClient();
-    this.#identity = this.#deck ? (identities().find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
+    // A campaign seat's hero may come from a pack the run carries but that is no longer installed (#978).
+    const heroes = this.#campaign ? identityOptions(campaignPool()) : identities();
+    this.#identity = this.#deck ? (heroes.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     // The sort, kept filters and card/list view the player last left (issue #531).
     const view = deckBuilderView();
     this.#filter = { ...view.filter };
@@ -975,9 +977,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
-  /** The cards this screen builds against: the base pool in a campaign (base content only, docs/custom-content-packs.md §7.4), else everything installed. */
+  /**
+   * The cards this screen builds against: everything installed, and in a campaign the cards of the packs the run carries
+   * too (`campaignPool`, #978), so a custom hero's run edits its deck even after the hero's pack is removed.
+   */
   #pool(): readonly AnyCard[] {
-    return this.#campaign ? POOL_CARDS : poolNow();
+    return this.#campaign ? campaignPool() : poolNow();
   }
 
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {

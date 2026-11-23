@@ -91,7 +91,8 @@ import {
   type EasierStartBriefing,
 } from "../../view/campaign-easier-start-model.js";
 import { applyIssueMode, issueModeRowsOf, type IssueModeRow } from "../../view/campaign-modes-model.js";
-import { CARDS_BY_ID, POOL_CARDS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
+import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, packNameOf } from "../../content/pool.js";
+import { campaignCardsById, campaignPool } from "../../content/campaign-pool.js";
 import { cardCountForSet, descriptorForSet } from "../../view/modular-sets.js";
 import {
   isModularSetCall,
@@ -147,10 +148,10 @@ import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import { gameInProgressOf } from "../../campaign/unfolded-game.js";
 import type { CampaignBriefingData, CampaignOpenerData } from "./routes.js";
 
-const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+const cardName = (id: string): string => campaignCardsById().get(id)?.name ?? id;
 /** A seat's hero as the table names it ("Colossus"; "Spider-Man (Peter Parker)" where a name is shared). */
 const heroNameOf = (id: CardId): string => {
-  const card = CARDS_BY_ID.get(id);
+  const card = campaignCardsById().get(id);
   return card?.type === "hero_identity" ? heroFaceDisplayName(card) : cardName(id);
 };
 /** See `scenes/campaign/dossier.ts`'s own copy of this helper — a pool field names a card by name, never an id. */
@@ -318,7 +319,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (result.kind === "pending") {
       // A Market-shaped choice (`view/campaign-market-model.ts`) gets its own screen, never this generic panel —
       // detected by shape (every option prices in the campaign's currency field), never by `campaignId`.
-      if (isMarketPendingChoice(result.choice, (id) => CARDS_BY_ID.get(id))) {
+      if (isMarketPendingChoice(result.choice, (id) => campaignCardsById().get(id))) {
         this.scale.off("resize", this.#draw, this);
         goToScreen(this, SCENES.campaignMarket, {
           runId: record.id,
@@ -409,7 +410,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const { players, campaign } = campaignService().launchConfig(record);
       // A campaign issue always names its decks; a precon-by-id seat cannot occur here.
       const decked = players.filter((player): player is PlayerSetup => "deck" in player);
-      problems = deckProblemsOf(record, { players: decked, ...(campaign ? { campaign } : {}), cards: POOL_CARDS });
+      problems = deckProblemsOf(record, { players: decked, ...(campaign ? { campaign } : {}), cards: campaignPool() });
     } catch {
       // A composed issue this build cannot even configure is the setup screen's to report, as it always was.
     }
@@ -557,7 +558,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const picksRow = record.attempt
       ? modularPicksRowOf(record.attempt.steps, modularSetIdsWithout(KNOWN_ENCOUNTER_SET_IDS, boxRoles), (id) => ({
           name: ENCOUNTER_SET_NAMES.get(id) ?? id,
-          detail: [`${cardCountForSet(id, CARDS_BY_ID)} cards`, descriptorForSet(id, CARDS_BY_ID)?.toLowerCase()]
+          detail: [
+            `${cardCountForSet(id, campaignCardsById())} cards`,
+            descriptorForSet(id, campaignCardsById())?.toLowerCase(),
+          ]
             .filter(Boolean)
             .join(" · "),
         }))
@@ -1537,7 +1541,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const optionCards = this.#cardOptionsFor(pending);
     const optionLabels = optionLabelsOf(
       pending.options,
-      (id) => CARDS_BY_ID.get(id),
+      (id) => campaignCardsById().get(id),
       packNameOf,
       (id) => (record ? issueStoryFor(record.campaignId, id)?.title : undefined),
     );
@@ -1685,7 +1689,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   /** The card each option is, when the plain option list is all cards (`cardPickOptionsOf`); null otherwise. */
   #cardOptionsFor(pending: CampaignPendingChoice): ReadonlyMap<string, PickCard> | null {
     if (this.#rolesFor(pending)) return null;
-    return cardPickOptionsOf(pending.options, (id) => CARDS_BY_ID.get(id));
+    return cardPickOptionsOf(pending.options, (id) => campaignCardsById().get(id));
   }
 
   #inspectCard(cardId: string): void {
@@ -1728,8 +1732,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
       scenario: POOL_SCENARIOS.find((scenario) => (scenario.id as string) === scenarioId),
       seatCount: record.seats.length,
       setNameOf: (id) => ENCOUNTER_SET_NAMES.get(id) ?? id,
-      cardCountOf: (id) => cardCountForSet(id, CARDS_BY_ID),
-      descriptorOf: (id) => descriptorForSet(id, CARDS_BY_ID),
+      cardCountOf: (id) => cardCountForSet(id, campaignCardsById()),
+      descriptorOf: (id) => descriptorForSet(id, campaignCardsById()),
     });
   }
 
@@ -1745,14 +1749,14 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!roles || !seat) return null;
     const role = seatRoleOf(seat, roles, this.#answers);
     const cardOf = (id: string): { type: string; aspect?: string } | undefined => {
-      const card = CARDS_BY_ID.get(id);
+      const card = campaignCardsById().get(id);
       return card ? { type: card.type, aspect: (card as { aspect?: string }).aspect ?? "" } : undefined;
     };
     if (!role || !isRoleBuildChoice(pending, role, cardOf)) return null;
-    const hero = CARDS_BY_ID.get(seat.identityCardId as string);
-    const labels = optionLabelsOf(pending.options, (id) => CARDS_BY_ID.get(id), packNameOf);
+    const hero = campaignCardsById().get(seat.identityCardId as string);
+    const labels = optionLabelsOf(pending.options, (id) => campaignCardsById().get(id), packNameOf);
     const cards = pending.options.map((id): RoleBuildCard => {
-      const card = CARDS_BY_ID.get(id)! as AnyCard & {
+      const card = campaignCardsById().get(id)! as AnyCard & {
         aspect: CoreAspect;
         cost?: number;
         specialCost?: unknown;
@@ -1794,7 +1798,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(g);
-    const data = CARDS_BY_ID.get(card.id);
+    const data = campaignCardsById().get(card.id);
     const source = artFor(data, { kind: "front" });
     const key = cardArt(this).request(this, source);
     const art = drawArt(this, key, rect, { fit: "cover" });

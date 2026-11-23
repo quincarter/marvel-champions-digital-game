@@ -36,7 +36,8 @@ import type { AnyCard } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
 import { artFor, defaultFaceFor } from "../../art/art-source.js";
 import { cardFaces } from "../../art/card-face-baker.js";
-import { CARDS_BY_ID, POOL_CARDS } from "../../content/pool.js";
+import { POOL_CARDS } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
@@ -84,7 +85,7 @@ import { SCENES } from "../keys.js";
 import { artThumbSpec } from "../roster-panel.js";
 import type { CampaignMarketData } from "./routes.js";
 
-const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
+const cardOf = (id: string): AnyCard | undefined => campaignCardsById().get(id);
 /** Every campaign's Market-priced catalog this build ships, built once (`unitCost` never changes at runtime). */
 const CATALOG = marketCatalogOf(POOL_CARDS);
 /** Every price the stall sells, cheapest first: one "jump to price" chip each, whatever the filter hides. */
@@ -339,7 +340,7 @@ export class CampaignMarketScene extends Phaser.Scene {
       if (answer.seatNumber !== seatNumber || !answer.slot.startsWith("market-") || answer.picked.length === 0) {
         continue;
       }
-      const price = (CARDS_BY_ID.get(answer.picked[0] as string) as { readonly unitCost?: number } | undefined)
+      const price = (campaignCardsById().get(answer.picked[0] as string) as { readonly unitCost?: number } | undefined)
         ?.unitCost;
       if (price !== undefined) spent += price;
     }
@@ -370,7 +371,7 @@ export class CampaignMarketScene extends Phaser.Scene {
 
   #heroNameOf = (seatNumber: number): string => {
     const seat = this.#record?.seats.find((candidate) => candidate.seatNumber === seatNumber);
-    const identity = seat ? CARDS_BY_ID.get(seat.identityCardId as string) : undefined;
+    const identity = seat ? campaignCardsById().get(seat.identityCardId as string) : undefined;
     return identity ? cardDisplayName(identity) : `Seat ${seatNumber}`;
   };
 

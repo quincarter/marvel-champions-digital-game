@@ -17,7 +17,7 @@ import { packFileArt } from "../../art/pack-art.js";
 import { loadedPacks } from "../../packs/pack-registry.js";
 import { CUSTOM_BADGE } from "../../view/custom-content.js";
 import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import {
@@ -73,7 +73,7 @@ const VOLUME_ROW_HEIGHT = 58;
 const VIEW_STOP = "volumes-view";
 
 const identityNameOf = (id: string): string => {
-  const card = CARDS_BY_ID.get(id);
+  const card = campaignCardsById().get(id);
   return card ? cardDisplayName(card) : id;
 };
 

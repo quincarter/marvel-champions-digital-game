@@ -6,6 +6,7 @@
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { heroFaceDisplayName } from "../../view/hero-names.js";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
@@ -56,8 +57,8 @@ import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignDossierData, DossierTab } from "./routes.js";
 
-const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
-const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
+const cardName = (id: string): string => campaignCardsById().get(id)?.name ?? id;
+const cardOf = (id: string): AnyCard | undefined => campaignCardsById().get(id);
 /**
  * A pool card's own type/art, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a
  * card, never an id, since a carried-forward card has no id of its own until it's composed into a game), against

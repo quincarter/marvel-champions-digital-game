@@ -17,7 +17,7 @@
  * loaded through `campaignService()` — nothing here computes campaign state.
  */
 import Phaser from "phaser";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { storyFor } from "../../campaign/story.js";
 import { ensurePictureLoaded } from "../../art/pictures.js";
 import { coverCropFavoringBeats } from "../../view/comic-crop.js";
@@ -56,7 +56,7 @@ import { SCENES } from "../keys.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignRunData } from "./routes.js";
 
-const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+const cardName = (id: string): string => campaignCardsById().get(id)?.name ?? id;
 
 /**
  * A page-based issue's own comic-page crop (`RunPageCrop`), cover-fit into `rect`: full color normally, heavily
