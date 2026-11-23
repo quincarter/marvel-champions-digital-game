@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { needsSingleSampledCanvas, rendererOptionsOf, type DeviceInfo } from "./renderer-options.js";
+import {
+  fellBackToCanvas,
+  needsSingleSampledCanvas,
+  rendererOptionsOf,
+  rendererTypeOf,
+  type DeviceInfo,
+} from "./renderer-options.js";
 
 // The device of issue #157, as its own `?diag=1` strip read it.
 const EDGE_PIXEL: DeviceInfo = {
@@ -71,19 +77,19 @@ describe("drawing at the screen's density (#328)", () => {
 });
 
 describe("a browser with no WebGL plays on Canvas (Firefox with WebGL off, Discord report)", () => {
-  test("falls back to Canvas by itself, marked as a fallback", () => {
-    expect(rendererOptionsOf("", null, 1, false)).toEqual({ canvas: true, canvasFallback: true });
+  test("Phaser picks by default: WebGL, or Canvas where there is none", () => {
+    expect(rendererTypeOf(rendererOptionsOf(""))).toBe("auto");
   });
 
-  test("?renderer=canvas is a choice, not a fallback", () => {
-    expect(rendererOptionsOf("?renderer=canvas", null, 1, false)).toEqual({ canvas: true });
+  test("?renderer=canvas and ?renderer=webgl choose for it", () => {
+    expect(rendererTypeOf(rendererOptionsOf("?renderer=canvas"))).toBe("canvas");
+    expect(rendererOptionsOf("?renderer=webgl")).toEqual({ canvas: false, webgl: true });
+    expect(rendererTypeOf(rendererOptionsOf("?renderer=webgl"))).toBe("webgl");
   });
 
-  test("?renderer=webgl asks for WebGL anyway, to see Phaser's own error", () => {
-    expect(rendererOptionsOf("?renderer=webgl", null, 1, false)).toEqual({ canvas: false });
-  });
-
-  test("a browser with WebGL keeps it", () => {
-    expect(rendererOptionsOf("", null, 1, true)).toEqual({ canvas: false });
+  test("Canvas is a fallback only when Phaser picked it by itself", () => {
+    expect(fellBackToCanvas(rendererOptionsOf(""), true)).toBe(true);
+    expect(fellBackToCanvas(rendererOptionsOf(""), false)).toBe(false);
+    expect(fellBackToCanvas(rendererOptionsOf("?renderer=canvas"), true)).toBe(false);
   });
 });

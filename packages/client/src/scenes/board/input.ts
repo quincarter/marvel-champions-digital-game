@@ -163,7 +163,13 @@ export function conflictPromptOwnsInput(scene: Phaser.Scene): boolean {
   if (key === SCENES.syncSetupPrompt || key === SCENES.syncData || key === SCENES.syncConflict) return false;
   // The global win rates question is held the same way (it opens no screen of its own).
   if (key === SCENES.globalStatsPrompt) return false;
-  return manager.isActive(SCENES.syncSetupPrompt) === true || manager.isActive(SCENES.globalStatsPrompt) === true;
+  // So is the "Drawing without WebGL" notice over Title: its Enter or B must not also press Title's menu.
+  if (key === SCENES.rendererNotice) return false;
+  return (
+    manager.isActive(SCENES.syncSetupPrompt) === true ||
+    manager.isActive(SCENES.globalStatsPrompt) === true ||
+    manager.isActive(SCENES.rendererNotice) === true
+  );
 }
 
 /** The keyboard hand in use now, read live so a change on the Controls screen applies without a restart. */

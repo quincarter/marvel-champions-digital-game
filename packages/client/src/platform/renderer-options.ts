@@ -23,14 +23,16 @@
  *  - `?renderer=webgl`: WebGL even where the browser reported none, to see Phaser's own error.
  *
  * A browser with no WebGL at all (switched off in Firefox, hardware acceleration off, a blocklisted driver) gets the
- * Canvas renderer by itself, marked `canvasFallback`, rather than Phaser's "Cannot create WebGL context, aborting."
+ * Canvas renderer by itself (`Phaser.AUTO`, which makes the same `webgl` check Phaser already made when it loaded),
+ * rather than Phaser's "Cannot create WebGL context, aborting."
  * (a Discord report: Firefox 157 on Windows). Canvas draws on the CPU at 1x (`ui/render-scale.ts`), so the game says
  * once how to turn WebGL back on (`view/webgl-help.ts`, `scenes/renderer-notice.ts`).
  */
 export interface RendererOptions {
+  /** `?renderer=canvas`: Canvas whatever the browser has. */
   readonly canvas: boolean;
-  /** Canvas because the browser has no WebGL, not because a link asked for it. */
-  readonly canvasFallback?: true;
+  /** `?renderer=webgl`: WebGL even where the browser has none. Otherwise Phaser picks (`Phaser.AUTO`). */
+  readonly webgl?: true;
   readonly transparent?: true;
   readonly preserveDrawingBuffer?: true;
   readonly antialiasGL?: false;
@@ -54,13 +56,7 @@ export const isAndroidEdge = (userAgent: string): boolean => /\bEdgA\//.test(use
 /** At this render scale and above the drawing buffer is fine enough that multisampling adds nothing. */
 export const SINGLE_SAMPLED_FROM_SCALE = 2;
 
-/** `hasWebgl` is `webglAvailable()` below: whether a plain `webgl` context could be made. */
-export function rendererOptionsOf(
-  search: string,
-  device: DeviceInfo | null = null,
-  renderScale = 1,
-  hasWebgl = true,
-): RendererOptions {
+export function rendererOptionsOf(search: string, device: DeviceInfo | null = null, renderScale = 1): RendererOptions {
   const params = new URLSearchParams(search);
   const flags = new Set((params.get("gl") ?? "").split(",").map((flag) => flag.trim()));
   const singleSampled =
@@ -68,10 +64,9 @@ export function rendererOptionsOf(
     (!flags.has("aa") &&
       ((device !== null && needsSingleSampledCanvas(device)) || renderScale >= SINGLE_SAMPLED_FROM_SCALE));
   const asked = params.get("renderer");
-  const canvasFallback = asked !== "canvas" && asked !== "webgl" && !hasWebgl;
   return {
-    canvas: asked === "canvas" || canvasFallback,
-    ...(canvasFallback ? { canvasFallback: true } : {}),
+    canvas: asked === "canvas",
+    ...(asked === "webgl" ? { webgl: true } : {}),
     ...(flags.has("alpha") ? { transparent: true } : {}),
     ...(flags.has("preserve") ? { preserveDrawingBuffer: true } : {}),
     ...(singleSampled ? { antialiasGL: false } : {}),
@@ -79,7 +74,17 @@ export function rendererOptionsOf(
   } as RendererOptions;
 }
 
-/** Whether this run fell back to Canvas: set once by `main.ts`, read by Title's notice (`scenes/renderer-notice.ts`). */
+/** The renderer type to ask Phaser for: what a link asked for, else `auto` (WebGL, or Canvas where there is none). */
+export function rendererTypeOf(options: RendererOptions): "canvas" | "webgl" | "auto" {
+  return options.canvas ? "canvas" : options.webgl ? "webgl" : "auto";
+}
+
+/** True when Phaser picked Canvas by itself: the browser had no WebGL and no link asked for Canvas. */
+export function fellBackToCanvas(options: RendererOptions, pickedCanvas: boolean): boolean {
+  return pickedCanvas && !options.canvas;
+}
+
+/** Whether this run fell back to Canvas: set once by `main.ts` at boot, read by Title's notice (`scenes/renderer-notice.ts`). */
 let fellBack = false;
 
 export function setCanvasFallback(on: boolean): void {
@@ -88,20 +93,4 @@ export function setCanvasFallback(on: boolean): void {
 
 export function canvasFallbackInUse(): boolean {
   return fellBack;
-}
-
-/**
- * Whether a plain `webgl` context can be made: the same check Phaser makes before it throws "Cannot create WebGL
- * context, aborting." (`device/Features.js`, not exported at the top level). The throwaway context is let go at once.
- */
-export function webglAvailable(doc: Document = document): boolean {
-  try {
-    const canvas = doc.createElement("canvas");
-    const gl = (canvas.getContext("webgl") ?? canvas.getContext("experimental-webgl")) as WebGLRenderingContext | null;
-    if (!gl) return false;
-    gl.getExtension("WEBGL_lose_context")?.loseContext();
-    return true;
-  } catch {
-    return false;
-  }
 }

@@ -51,6 +51,19 @@ test("without WebGL the game starts on Canvas and says once how to turn WebGL ba
   expect(errors).toEqual([]);
 });
 
+test("Enter closes the notice and presses nothing on Title underneath", async ({ page }) => {
+  await switchWebglOff(page);
+  await openApp(page);
+  await waitForScene(page, NOTICE);
+  await settle(page);
+  const before = await activeScenes(page);
+  await page.keyboard.press("Enter");
+  await waitFor(async () => ((await activeScenes(page)).includes(NOTICE) ? null : true), "the notice closes", 10000);
+  await settle(page);
+  // Title is still the screen: no New game, no other screen opened by the same press.
+  expect((await activeScenes(page)).filter((key) => !before.includes(key))).toEqual([]);
+});
+
 test("a browser with WebGL never sees the notice", async ({ page }) => {
   await openApp(page);
   await settle(page);
