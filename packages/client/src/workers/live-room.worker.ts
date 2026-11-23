@@ -7,6 +7,7 @@ import { IdbRoomStore } from "../live/live-room-store.js";
 import { IdbSeatTokenStore } from "../live/room-seat-store.js";
 import { IdbEpicLogStore } from "../live/epic-coordinator.js";
 import { LiveRoomController } from "../live/live-room-controller.js";
+import { ChatPopoutRelay } from "../live/chat-popout-protocol.js";
 import type {
   LiveControlMessage,
   LiveGameMessage,
@@ -23,6 +24,19 @@ interface WorkerGlobal {
 const worker = self as unknown as WorkerGlobal;
 
 let controller: LiveRoomController | null = null;
+
+/** The chat's pop-out window talks to this worker over a BroadcastChannel; main only hears whether one is open. */
+const popout = new ChatPopoutRelay({
+  open: (name) =>
+    new BroadcastChannel(name) as unknown as ReturnType<ConstructorParameters<typeof ChatPopoutRelay>[0]["open"]>,
+  say: (text) => controller?.onRoomCommand({ kind: "room-say", text }),
+  onOpenChange: (open) => worker.postMessage({ kind: "chat-popout", open }),
+  now: () => Date.now(),
+  every: (fn, ms) => {
+    const id = setInterval(fn, ms);
+    return () => clearInterval(id);
+  },
+});
 
 worker.addEventListener("message", (event) => {
   const message = event.data;
@@ -52,7 +66,10 @@ worker.addEventListener("message", (event) => {
               onlineName: onlineName ?? "",
               seatStore: new IdbSeatTokenStore(),
               epicStore: new IdbEpicLogStore(),
-              onState: (state) => worker.postMessage({ kind: "room", state }),
+              onState: (state) => {
+                popout.onState(state);
+                worker.postMessage({ kind: "room", state });
+              },
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
               onSalvage: (game) => worker.postMessage({ kind: "room-salvage", ...game } satisfies LiveRoomOut),
               onSealed: (sealed, rev) => worker.postMessage({ kind: "sealed", ...sealed, rev } satisfies LiveRoomOut),
@@ -65,6 +82,8 @@ worker.addEventListener("message", (event) => {
     controller.setEnabled(message.enabled);
   } else if (message.kind === "enabled") {
     controller?.setEnabled(message.on);
+  } else if (message.kind === "chat-popout-recall") {
+    popout.recall();
   } else {
     controller?.onRoomCommand(message);
   }
