@@ -666,7 +666,7 @@ export const en = {
   "hand.hidden": "Hand: {count} face down",
   "room.handsSetting.title": "Host sees every hand",
   "room.handsSetting.detail":
-    "Off: the host's screen draws other players' hands face down, like theirs. On: the host sees every hand. Watchers never see hands.",
+    "Off: the host's screen draws other players' hands face down, like theirs. On: the host sees every hand. Watchers see hands only with Everyone sees every hand.",
   "room.openHands.title": "Everyone sees every hand",
   "room.openHands.detail":
     "For teaching: every player's screen, and watchers', draws every hand face up. Off: hands stay face down, and a player can still show their own from Pause.",

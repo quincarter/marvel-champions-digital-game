@@ -669,7 +669,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "hand.hidden": "Mano: {count} boca abajo",
   "room.handsSetting.title": "El anfitrión ve todas las manos",
   "room.handsSetting.detail":
-    "Desactivado: la pantalla del anfitrión muestra las manos de los demás boca abajo, como la suya. Activado: el anfitrión ve todas las manos. Los espectadores nunca ven manos.",
+    "Desactivado: la pantalla del anfitrión muestra las manos de los demás boca abajo, como la suya. Activado: el anfitrión ve todas las manos. Los espectadores solo ven manos con Todos ven todas las manos.",
   "room.openHands.title": "Todos ven todas las manos",
   "room.openHands.detail":
     "Para enseñar: la pantalla de cada jugador, y la de los espectadores, muestra todas las manos boca arriba. Desactivado: las manos siguen boca abajo, y cada jugador puede mostrar la suya desde Pausa.",

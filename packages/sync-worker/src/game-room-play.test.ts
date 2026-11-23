@@ -401,14 +401,16 @@ describe("play together: show my hand", () => {
     expect(host.last("lobby")!.seats[0]!.showsHand).toBeUndefined();
   });
 
-  it("stores the openHands setting, host only, default off", async () => {
+  it("keeps openHands off and fixed in a started game", async () => {
     const { host, send, seated } = await setup();
     const ann = await seated("Ann", "s1");
     expect(host.last("lobby")!.settings.openHands).toBe(false);
     await send(ann, { ch: "room", kind: "lobby-set", settings: { openHands: true } });
     expect(ann.refusals.length).toBe(1);
+    // The game here has started: the host's change is refused too (the lobby test covers the open lobby).
     await send(host, { ch: "room", kind: "lobby-set", settings: { openHands: true } });
-    expect(host.last("lobby")!.settings.openHands).toBe(true);
+    expect(host.refusals).toEqual(["not-allowed"]);
+    expect(host.last("lobby")!.settings.openHands).toBe(false);
   });
 });
 

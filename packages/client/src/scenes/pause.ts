@@ -91,7 +91,7 @@ import { appSession } from "../session.js";
 import { roomCheatsOf } from "../view/room-strict.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 import { activeSeat } from "../platform/seat-play.js";
-import { roomState, setSeatShowsHand } from "../platform/room.js";
+import { onRoomState, roomState, setSeatShowsHand } from "../platform/room.js";
 import { showHandToggleOf, type ShowHandToggle } from "../view/hand-privacy.js";
 import { handoverOn, roomChatOn } from "../view/room-prompts.js";
 import { inRoomGame } from "../view/whose-turn.js";
@@ -220,6 +220,15 @@ export class PauseOverlay extends Phaser.Scene {
       if (this.sys.isActive()) this.#draw();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
+    // The room's echo of a Show my hand press changes the control's label (and a seat gained or lost, its presence).
+    let handKey = JSON.stringify(this.#showHandToggle());
+    const roomOff = onRoomState(() => {
+      const key = JSON.stringify(this.#showHandToggle());
+      if (key === handKey) return;
+      handKey = key;
+      if (this.sys.isActive()) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, roomOff);
     this.#searchClient = new SettingsSearchClient();
     this.#search = new PauseSearchSession(
       this.#searchClient,
@@ -577,9 +586,10 @@ export class PauseOverlay extends Phaser.Scene {
         ? [
             {
               id: "show-hand",
-              title: this.#showHandLabel(this.#showHandToggle()!, true),
+              title: this.#showHandLabel(this.#showHandToggle()!, false),
               detail: this.#showHandLabel(this.#showHandToggle()!, false),
-              compact: true as const,
+              // Its own full-width row in the expanded Quick reference: a fifth compact cell is under the touch
+              // target and cannot hold "Mostrar mano".
               open: () => this.#flipShowHand(),
             },
           ]

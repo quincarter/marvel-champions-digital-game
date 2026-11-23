@@ -2118,7 +2118,11 @@ export class GameRoomLogic {
           return this.refuse(socket, "lobby-changed");
         }
         // Cheats are fixed once the game has started: the table's header is the room's sign of that.
-        if (message.settings?.cheats !== undefined && message.settings.cheats !== settings.cheats) {
+        // So is "Everyone sees every hand": the watcher header's `roomHandsHidden` is written once, at the start.
+        const changesCheats = message.settings?.cheats !== undefined && message.settings.cheats !== settings.cheats;
+        const changesOpen =
+          message.settings?.openHands !== undefined && message.settings.openHands !== (settings.openHands === true);
+        if (changesCheats || changesOpen) {
           const table = this.tableOf(FIRST_TABLE);
           if (table) await this.ensureLoaded(table);
           if (table?.hasHeader) return this.refuse(socket, "not-allowed");
@@ -2299,7 +2303,7 @@ export class GameRoomLogic {
       case "seat-show-hand": {
         const seat = seatOf(message.seat);
         if (!seat) return this.refuse(socket, "no-such-seat");
-        // The holder decides. The host decides too for a seat it acts for (taken over) and for one nobody holds.
+        // The holder decides (an away holder too, so a taken-over seat can be flipped by both). The host decides too for a seat it acts for (taken over) and for one nobody holds.
         if (seat.holder !== who.id && !(isHost && (seat.takenOver === true || !seat.holder))) {
           return this.refuse(socket, "not-allowed");
         }

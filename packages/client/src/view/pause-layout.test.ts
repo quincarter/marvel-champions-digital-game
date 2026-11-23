@@ -334,6 +334,26 @@ describe("pauseLayout", () => {
       expect(sixTwoLayout.lowerContent.tableRows).toHaveLength(2);
     });
 
+    test("the four compact cells stay a touch target wide at 375 and 412", () => {
+      const details = [...QUICK_REFERENCE_DETAILS, "Music.", "Report.", "Link.", "Controls."];
+      for (const width of [375, 412]) {
+        const layout = pauseLayout(
+          { x: 0, y: 0, width, height: 700 },
+          {
+            keywordCount: 0,
+            quickReferenceDetails: details,
+            tableDetails: TABLE_DETAILS,
+            quickReferenceCompactTail: 4,
+          },
+        );
+        if (layout.kind !== "phone") throw new Error("expected phone");
+        for (const cell of layout.quickReferenceRows.slice(-4)) {
+          expect(cell.width, `cell width at ${width}`).toBeGreaterThanOrEqual(44);
+          expect(cell.height).toBeGreaterThanOrEqual(44);
+        }
+      }
+    });
+
     test("a compact tail shares one line, so the Table and Guide group keeps the room three full rows would take", () => {
       const details = [...QUICK_REFERENCE_DETAILS, "Music.", "Report.", "Controls."];
       const at = (tail: number) =>
