@@ -516,6 +516,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.off": "No",
   "room.chat.placeholder": "Escribe algo",
   "room.chat.send": "Enviar",
+  "room.chat.close": "Cerrar",
   "room.chat.empty": "Aún no hay mensajes.",
   "room.chat.off": "El chat está desactivado en esta sala.",
   "room.activity.scenario": "El anfitrión está eligiendo un escenario",

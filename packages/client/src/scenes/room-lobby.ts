@@ -203,6 +203,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #chatCount = 0;
   /** New chat arrived: the chat list scrolls to its newest line on the next draw. */
   #chatToEnd = true;
+  /** Whether the floating chat (a desktop) is open; it starts closed and keeps its choice across redraws. */
+  #chatOpen = false;
   #route: FocusRoute | null = null;
   #hints!: GlyphHints;
   #alive = false;
@@ -686,10 +688,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     // a wide screen, under them on a phone).
     const needsButton = this.#isHost() || state.connection === "ended" || this.#confirmLeave;
     const footerHeight = !needsButton ? 52 : width >= 600 ? 76 : 86;
-    const full = lobbyLayout(width, height, bar.height, this.#tab, gutter, undefined, footerHeight);
+    const full = lobbyLayout(width, height, bar.height, this.#tab, gutter, undefined, footerHeight, this.#chatOpen);
     // The keyboard is up over the Chat tab of a narrow layout: the chat gets every pixel above it, and the header and
     // the Start strip give way.
-    const compact = this.#covered > 0 && full.mode !== "wide" && this.#tab === "chat" && chatOn(state);
+    const compact = this.#covered > 0 && full.tabs !== null && this.#tab === "chat" && chatOn(state);
     const layout = compact ? this.#compactLayout(full, bar.height, gutter, width, height) : full;
     this.#activity = null;
     if (!compact) this.#drawHeader(layout.header, phone);
@@ -728,8 +730,9 @@ export class RoomLobbyScene extends Phaser.Scene {
     const titled = layout.mode !== "tabs";
     if (layout.panels.seats) this.#drawSeatsPanel(layout.panels.seats, titled);
     if (layout.panels.settings) this.#drawSettingsPanel(layout.panels.settings, titled);
-    if (layout.panels.chat) this.#drawChatPanel(layout.panels.chat, titled, phone);
+    if (layout.panels.chat) this.#drawChatPanel(layout.panels.chat, titled, phone, layout.mode === "float");
     else this.#chatInput?.setVisible(false);
+    if (layout.chatPill && chatOn(state)) this.#drawChatPill(layout.chatPill, unread);
     if (!compact) this.#drawFooter(layout.footer, phone);
     this.#route?.set(this.#order, this.#stops);
   }
@@ -1703,9 +1706,45 @@ export class RoomLobbyScene extends Phaser.Scene {
     }
   }
 
-  #drawChatPanel(rect: Rect, titled: boolean, phone: boolean): void {
+  /** Opens or closes the floating chat. Opening shows the newest line; closing leaves the draft in the field. */
+  #setChatOpen(open: boolean): void {
+    this.#chatOpen = open;
+    this.#chatToEnd = open;
+    this.#draw();
+    if (open && !this.sys.game.device.input.touch) this.#chatInput?.focus();
+  }
+
+  /** The closed floating chat: a Chat pill at the corner, with the unread count beside it. */
+  #drawChatPill(rect: Rect, unread: number): void {
+    const open = (): void => this.#setChatOpen(true);
+    this.#button({
+      kind: "primary",
+      label: t("room.tab.chat"),
+      type: typeRole.label,
+      rect,
+      ...(unread > 0 ? { value: unread > 9 ? "9+" : String(unread) } : {}),
+      onClick: open,
+    });
+    this.#addStop("chat-pill", rect, open);
+  }
+
+  #drawChatPanel(rect: Rect, titled: boolean, phone: boolean, floating = false): void {
     const state = this.#state;
+    // A floating panel is opaque and takes the pointer, so nothing under it scrolls or presses through it.
+    if (floating) this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
     const inner = this.#frame(rect, titled ? t("room.tab.chat") : null);
+    if (floating) {
+      const closeRect: Rect = { x: rect.x + rect.width - 8 - 92, y: rect.y + 3, width: 92, height: 32 };
+      const close = (): void => this.#setChatOpen(false);
+      this.#button({
+        kind: "secondary",
+        label: t("room.chat.close"),
+        type: typeRole.label,
+        rect: closeRect,
+        onClick: close,
+      });
+      this.#addStop("chat-close", closeRect, close);
+    }
     if (!chatOn(state)) {
       this.#chatInput?.setVisible(false);
       this.#text(inner.x + 2, inner.y + 4, t("room.chat.off"), 14, inner.width - 4, { alpha: 0.8 });
