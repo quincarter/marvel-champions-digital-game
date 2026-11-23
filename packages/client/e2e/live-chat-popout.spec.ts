@@ -95,8 +95,13 @@ async function say(page: Page, text: string): Promise<void> {
 
 /** Opens the host's floating chat and presses Pop out; resolves with the popup page. */
 async function popOut(host: Player): Promise<Page> {
-  await waitFor(() => hasStop(host.page, "chat-pill"), "the Chat pill", 30000);
-  await clickStop(host.page, "chat-pill", "RoomLobby");
+  // The chat is closed (a pill) the first time, and open again after it came back from a window: open it if it is not.
+  await waitFor(
+    async () => (await hasStop(host.page, "chat-pill")) ?? (await hasStop(host.page, "chat-popout")),
+    "the Chat pill or the open chat",
+    30000,
+  );
+  if (await hasStop(host.page, "chat-pill")) await clickStop(host.page, "chat-pill", "RoomLobby");
   await waitFor(() => hasStop(host.page, "chat-popout"), "the Pop out button in the open chat", 15000);
   const [popup] = await Promise.all([
     host.context.waitForEvent("page"),
@@ -139,7 +144,8 @@ test("the chat pops out, lines go both ways, and Bring back closes the window", 
   const closed = popup.waitForEvent("close", { timeout: 15000 });
   await clickStop(host.page, "chat-bring-back", "RoomLobby");
   await closed;
-  await waitFor(() => hasStop(host.page, "chat-pill"), "the Chat pill after Bring back", 15000);
+  // The chat comes back as it was when it left: the open floating panel, with its field.
+  await waitFor(() => hasStop(host.page, "chat-field"), "the chat in the lobby after Bring back", 15000);
   expect(await hasText(host.page, /Chat is in its own window/)).toBeNull();
 
   await host.context.close();
@@ -158,7 +164,7 @@ test("a pop-out that closes, or dies without a goodbye, gives the chat back to t
   const first = await popOut(host);
   await waitFor(() => hasText(host.page, /Chat is in its own window/), "the lobby notice", 15000);
   await first.close();
-  await waitFor(() => hasStop(host.page, "chat-pill"), "the Chat pill after the window closed", 10000);
+  await waitFor(() => hasStop(host.page, "chat-field"), "the chat in the lobby after the window closed", 10000);
 
   // Dies without a word: nothing it posts reaches the room (no bye, no beats), as in a crash, so only the heartbeat
   // timeout can notice. Allow the timeout plus a beat's tick and a margin.
@@ -173,7 +179,7 @@ test("a pop-out that closes, or dies without a goodbye, gives the chat back to t
     };
   });
   await waitFor(
-    () => hasStop(host.page, "chat-pill"),
+    () => hasStop(host.page, "chat-field"),
     "the chat back in the lobby once the heartbeat stops",
     POPOUT_TIMEOUT_MS + 12_000,
   );

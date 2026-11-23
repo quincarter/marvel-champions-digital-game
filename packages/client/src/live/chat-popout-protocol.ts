@@ -1,7 +1,13 @@
 /**
  * The chat's pop-out window (desktop only): a second window that shows a room's chat while the lobby (or the game) keeps
- * the screen. The room worker stays the only socket; it owns a BroadcastChannel named for the room and the pop-out
- * talks to it there (BroadcastChannel works in every current browser, unlike SharedWorker, and in a worker).
+ * the screen. The room worker stays the only socket; it owns a BroadcastChannel and the pop-out talks to it there
+ * (BroadcastChannel works in every current browser, unlike SharedWorker, and in a worker).
+ *
+ * Every tab of one browser that has joined a room has its own room worker, and they all share one BroadcastChannel
+ * namespace, so a channel named for the room alone would put two tabs' relays on one window (host and guest in one browser
+ * while playtesting: both would answer, both would send the window's line). The tab that pops out therefore mints a random
+ * token, arms its relay with it, and puts it in the window's URL and name; the channel is named for room and token, and
+ * no other relay ever joins it.
  *
  * Everything here is plain data and small classes with injected clocks, so the protocol, the heartbeat and the relay are
  * tested without a browser (`chat-popout-protocol.test.ts`).
@@ -13,8 +19,21 @@ export const POPOUT_BEAT_MS = 2000;
 /** No beat for this long and the other side is gone (a window that crashed or lost its tab says no `bye`). */
 export const POPOUT_TIMEOUT_MS = 3 * POPOUT_BEAT_MS + 500;
 
-/** One channel per room, so two rooms (or two tabs in different rooms) never hear each other. */
-export const popoutChannelName = (roomId: string): string => `mc-room-chat:${roomId}`;
+/** One channel per pop-out: the room, and the token of the tab that opened it. */
+export const popoutChannelName = (roomId: string, token: string): string => `mc-room-chat:${roomId}:${token}`;
+
+const TOKEN_BYTES = 16;
+const TOKEN_FORMAT = /^[0-9a-f]{32}$/;
+
+/** A random ownership token (hex, so it is safe in a URL and in a window label). */
+export function mintPopoutToken(
+  random: (bytes: Uint8Array<ArrayBuffer>) => Uint8Array = (b) => crypto.getRandomValues(b),
+): string {
+  return [...random(new Uint8Array(TOKEN_BYTES))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Whether `value` looks like a token `mintPopoutToken` makes; anything else never names a channel. */
+export const isPopoutToken = (value: unknown): value is string => typeof value === "string" && TOKEN_FORMAT.test(value);
 
 export interface PopoutLine {
   readonly name: string;
@@ -150,14 +169,15 @@ export interface PopoutRelayDeps {
 }
 
 /**
- * The room worker's end of the pop-out channel. `onState` feeds it each `RoomState`; it keeps a channel open while a room
- * is joined, answers a window's `hello` with the current snapshot, forwards its lines to `say`, and tells the main thread
- * whether a window is open so the lobby can show "Chat is in its own window".
+ * The room worker's end of the pop-out channel. `onState` feeds it each `RoomState`. It opens a channel only when its own
+ * tab arms it with a token (`arm`), then answers that window's `hello` with the current snapshot, forwards its lines to
+ * `say`, and tells the main thread whether a window is open so the lobby can show "Chat is in its own window".
  */
 export class ChatPopoutRelay {
   readonly #deps: PopoutRelayDeps;
   readonly #heartbeat = new Heartbeat();
   #roomId: string | null = null;
+  #token: string | null = null;
   #channel: PopoutChannel<PopoutToRoom, RoomToPopout> | null = null;
   #snapshot: PopoutSnapshot | null = null;
   #open = false;
@@ -179,12 +199,23 @@ export class ChatPopoutRelay {
     if (state.roomId !== this.#roomId) {
       this.#leave();
       this.#roomId = state.roomId;
-      const channel = this.#deps.open(popoutChannelName(state.roomId));
-      channel.onmessage = (event) => this.#hear(event.data);
-      this.#channel = channel;
     }
     this.#snapshot = popoutSnapshotOf(state);
     if (this.#open) this.#channel?.postMessage({ kind: "snapshot", snapshot: this.#snapshot });
+  }
+
+  /**
+   * This tab is about to open a pop-out window carrying `token`: listen on that token's channel and no other. A window
+   * already open under an earlier token is told to close (the tab has one pop-out at a time), and a token armed but never
+   * used is simply replaced.
+   */
+  arm(token: string): void {
+    if (!this.#roomId || !isPopoutToken(token) || token === this.#token) return;
+    this.#drop(true);
+    this.#token = token;
+    const channel = this.#deps.open(popoutChannelName(this.#roomId, token));
+    channel.onmessage = (event) => this.#hear(event.data);
+    this.#channel = channel;
   }
 
   /** Brings the chat back to the lobby: the window is told to close. */
@@ -200,15 +231,21 @@ export class ChatPopoutRelay {
   }
 
   #leave(): void {
-    if (this.#open) this.#channel?.postMessage({ kind: "left" });
+    this.#drop(false);
+    this.#roomId = null;
+    this.#snapshot = null;
+  }
+
+  /** Closes the channel; an open window is told to close (`recall`) when replaced, or that the room is left. */
+  #drop(replaced: boolean): void {
+    if (this.#open) this.#channel?.postMessage({ kind: replaced ? "recall" : "left" });
     this.#setOpen(false);
     if (this.#channel) {
       this.#channel.onmessage = null;
       this.#channel.close();
     }
     this.#channel = null;
-    this.#roomId = null;
-    this.#snapshot = null;
+    this.#token = null;
   }
 
   #hear(raw: unknown): void {
