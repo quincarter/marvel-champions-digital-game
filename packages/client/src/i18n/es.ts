@@ -561,4 +561,15 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "webglHelp.other.acceleration":
     "Activa la aceleración por hardware o de gráficos en los ajustes del navegador y reinícialo.",
   "webglHelp.otherBrowser": "O prueba otro navegador, como Chrome, Edge o Firefox.",
+  "deckBuilder.show": "mostrar",
+  "deckBuilder.showHero": "Héroe",
+  "deckBuilder.allPacks": "Todos los packs",
+  "deckBuilder.allWaves": "Todos los ciclos",
+  "deckBuilder.packsCount": "{count} packs",
+  "deckBuilder.wavesCount": "{count} ciclos",
+  "deckBuilder.pickPacksTitle": "Packs",
+  "deckBuilder.pickWavesTitle": "Ciclos",
+  "deckBuilder.pickSubtitle": "Elige todos los que quieras. Si no eliges ninguno, se muestran todos.",
+  "deckBuilder.pickAll": "Todos",
+  "deckBuilder.pickDone": "Listo",
 };

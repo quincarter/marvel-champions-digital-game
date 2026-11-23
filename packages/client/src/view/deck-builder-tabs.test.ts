@@ -59,8 +59,15 @@ describe("deck builder tabs", () => {
     expect(activeDeckFilterCount({ type: "ally" }, DEFAULT_POOL_SORT)).toBe(1);
     expect(activeDeckFilterCount({ cost: 0 }, DEFAULT_POOL_SORT)).toBe(1);
     expect(
-      activeDeckFilterCount({ type: "ally", packCode: "01", cycleId: "core" }, { primary: "cost", secondary: null }),
+      activeDeckFilterCount(
+        { type: "ally", packCodes: ["01", "02"], cycleIds: ["core"] },
+        { primary: "cost", secondary: null },
+      ),
     ).toBe(4);
+    expect(activeDeckFilterCount({ packCodes: [], cycleIds: null }, DEFAULT_POOL_SORT)).toBe(0);
+    // The Hero and Basic toggles (issue #977) count while they hide something.
+    expect(activeDeckFilterCount({ hideHero: true, hideBasic: true }, DEFAULT_POOL_SORT)).toBe(2);
+    expect(activeDeckFilterCount({ hideHero: false }, DEFAULT_POOL_SORT)).toBe(0);
   });
 });
 

@@ -560,4 +560,15 @@ export const en = {
   "webglHelp.other.acceleration":
     "Turn on hardware or graphics acceleration in your browser's settings, then restart it.",
   "webglHelp.otherBrowser": "Or try another browser, such as Chrome, Edge or Firefox.",
+  "deckBuilder.show": "show",
+  "deckBuilder.showHero": "Hero",
+  "deckBuilder.allPacks": "All packs",
+  "deckBuilder.allWaves": "All waves",
+  "deckBuilder.packsCount": "{count} packs",
+  "deckBuilder.wavesCount": "{count} waves",
+  "deckBuilder.pickPacksTitle": "Packs",
+  "deckBuilder.pickWavesTitle": "Waves",
+  "deckBuilder.pickSubtitle": "Pick as many as you like. With none picked, the pool shows them all.",
+  "deckBuilder.pickAll": "All",
+  "deckBuilder.pickDone": "Done",
 } as const;
