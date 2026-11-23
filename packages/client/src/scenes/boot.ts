@@ -63,11 +63,11 @@ export class BootScene extends Phaser.Scene {
     // A room's join link (#880): read once, here, and opened on the Play online screen, which does the joining. Only the
     // address is read now; nothing connects until that screen runs.
     const joinLink = sharedLink ? null : takeJoinLink();
-    // A reload inside a room (`#room=<CODE>`, kept in the address while in one): read, not cleared, and rejoined on the
-    // Play online screen. Any other link wins, and a `#room=` that names no room is dropped.
+    // A reload inside a room (`?room=<CODE>`, kept in the address while in one): read, not cleared, and rejoined on the
+    // Play online screen. Any other link wins, and a `?room=` that names no room is dropped.
     const roomLink = sharedLink || joinLink ? null : roomLinkOf();
     if (!roomLink && !joinLink) clearRoomAddress();
-    // A reload inside a single-player game (`#game=<saveId>`): the local save resumes straight into the game.
+    // A reload inside a single-player game (`?game=<saveId>`): the local save resumes straight into the game.
     const gameLink = sharedLink || joinLink || roomLink ? null : gameLinkOf();
     // On the web version on a desktop, the replay can open in the installed app instead (#862).
     const openInApp =

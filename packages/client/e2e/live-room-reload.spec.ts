@@ -5,7 +5,7 @@ import { quietGuide } from "./wave6-helpers-b.js";
 import { test } from "./live-room-helpers.js";
 
 /**
- * Reloading inside a room (the address keeps `#room=<CODE>`): a host or a guest who refreshes, on purpose or by accident,
+ * Reloading inside a room (the address keeps `?room=<CODE>`): a host or a guest who refreshes, on purpose or by accident,
  * comes back to the same lobby and the same seat without being asked anything. The room is a real one
  * (`live-room-helpers.ts`), the guest a second browser context. Unit tests: `platform/room-address.test.ts`,
  * `platform/room-entry-address.test.ts`, `live/room-controller.test.ts`.
@@ -57,7 +57,12 @@ async function newPlayer(browser: Browser, baseURL: string, name: string): Promi
 const hasText = async (page: Page, pattern: RegExp): Promise<true | null> =>
   (await visibleTexts(page)).some((t) => pattern.test(t.text)) ? true : null;
 
-const roomHash = (page: Page): Promise<string> => page.evaluate(() => location.hash);
+/** The room in the address: the value of ?room=, or an empty string. */
+const roomHash = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const code = new URLSearchParams(location.search).get("room");
+    return code ? `?room=${code}` : "";
+  });
 
 /** The code the lobby shows ("ABC DEF"), without its space. */
 async function lobbyCode(page: Page): Promise<string> {
@@ -82,8 +87,8 @@ test("a host who reloads in the lobby is back in the same room as its host", asy
   await waitForScene(host.page, "RoomLobby", 30000);
   const code = await lobbyCode(host.page);
   await waitFor(
-    async () => ((await roomHash(host.page)) === `#room=${code}` ? true : null),
-    "#room= in the address",
+    async () => ((await roomHash(host.page)) === `?room=${code}` ? true : null),
+    "?room= in the address",
     15000,
   );
 
@@ -92,8 +97,8 @@ test("a host who reloads in the lobby is back in the same room as its host", asy
   await guest.page.goto(`/#join=${code}`);
   await waitForScene(guest.page, "RoomLobby", 30000);
   await waitFor(
-    async () => ((await roomHash(guest.page)) === `#room=${code}` ? true : null),
-    "the guest's #room=",
+    async () => ((await roomHash(guest.page)) === `?room=${code}` ? true : null),
+    "the guest's ?room=",
     15000,
   );
   await waitFor(() => hasText(host.page, new RegExp(GUEST_NAME)), "the guest in the host's lobby", 30000);
@@ -103,7 +108,7 @@ test("a host who reloads in the lobby is back in the same room as its host", asy
   await host.page.reload();
   await waitForScene(host.page, "RoomLobby", 30000);
   expect(await lobbyCode(host.page)).toBe(code);
-  expect(await roomHash(host.page)).toBe(`#room=${code}`);
+  expect(await roomHash(host.page)).toBe(`?room=${code}`);
   expect(room.creates()).toBe(creates);
   // Still the host: the host-only controls are there, and the guest still sees it.
   await waitFor(
@@ -116,7 +121,7 @@ test("a host who reloads in the lobby is back in the same room as its host", asy
   // The guest refreshes: same lobby, still in the room.
   await guest.page.reload();
   await waitForScene(guest.page, "RoomLobby", 30000);
-  expect(await roomHash(guest.page)).toBe(`#room=${code}`);
+  expect(await roomHash(guest.page)).toBe(`?room=${code}`);
   await waitFor(() => hasText(guest.page, new RegExp(HOST_NAME)), "the host in the reloaded guest's lobby", 30000);
   await waitFor(() => hasText(host.page, new RegExp(GUEST_NAME)), "the host still sees one guest", 30000);
 
@@ -154,7 +159,7 @@ test("a guest keeps its seat across a reload, and a room that is gone sends it t
 
   await guest.page.reload();
   await waitForScene(guest.page, "RoomLobby", 30000);
-  expect(await roomHash(guest.page)).toBe(`#room=${code}`);
+  expect(await roomHash(guest.page)).toBe(`?room=${code}`);
   await waitFor(
     () => hasText(host.page, new RegExp(GUEST_NAME)),
     "the guest still in the room after its reload",
@@ -165,7 +170,7 @@ test("a guest keeps its seat across a reload, and a room that is gone sends it t
   await room.room()?.shutdown("ended");
   await guest.page.reload();
   await waitForScene(guest.page, "Online", 30000);
-  await waitFor(async () => ((await roomHash(guest.page)) === "" ? true : null), "#room= cleared", 15000);
+  await waitFor(async () => ((await roomHash(guest.page)) === "" ? true : null), "?room= cleared", 15000);
 
   await host.context.close();
   await guest.context.close();

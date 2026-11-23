@@ -253,7 +253,7 @@ export class LiveRoomController {
   }
 
   /**
-   * `#room=<CODE>` after a reload: the host token saved for that code puts this device back as the room's host (lobby
+   * `?room=<CODE>` after a reload: the host token saved for that code puts this device back as the room's host (lobby
    * and game), otherwise it joins as a guest (the stored seat tokens give its seats back).
    */
   async #rejoin(rawCode: string, rawName: string): Promise<void> {
