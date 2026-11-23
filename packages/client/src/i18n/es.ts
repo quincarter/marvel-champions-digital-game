@@ -518,6 +518,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.chat.send": "Enviar",
   "room.chat.close": "Cerrar",
   "room.chat.popout": "Abrir aparte",
+  "room.chat.popoutBlocked": "Se bloqueó la ventana emergente.",
   "room.chat.popped": "El chat está en su propia ventana.",
   "room.chat.bringBack": "Traer de vuelta",
   "popout.title": "Chat de la sala",

@@ -1,24 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { chatPopoutAllowed, chatPopoutUrl } from "./chat-popout.js";
+import { chatPopoutAllowed, chatPopoutLabel, chatPopoutUrl } from "./chat-popout.js";
 
 describe("chatPopoutAllowed", () => {
-  it("is for desktops: a desktop browser and the Tauri app", () => {
-    expect(chatPopoutAllowed({ platform: "web", form: "desktop", hasBroadcastChannel: true })).toBe(true);
-    expect(chatPopoutAllowed({ platform: "tauri", form: "desktop", hasBroadcastChannel: true })).toBe(true);
+  it("is for the browser and the Tauri app, wherever a BroadcastChannel exists", () => {
+    expect(chatPopoutAllowed({ platform: "web", hasBroadcastChannel: true })).toBe(true);
+    expect(chatPopoutAllowed({ platform: "tauri", hasBroadcastChannel: true })).toBe(true);
+    expect(chatPopoutAllowed({ platform: "web", hasBroadcastChannel: false })).toBe(false);
   });
-  it("is not for phones, tablets or the native phone shell", () => {
-    expect(chatPopoutAllowed({ platform: "web", form: "phone", hasBroadcastChannel: true })).toBe(false);
-    expect(chatPopoutAllowed({ platform: "web", form: "tablet", hasBroadcastChannel: true })).toBe(false);
-    expect(chatPopoutAllowed({ platform: "capacitor", form: "desktop", hasBroadcastChannel: true })).toBe(false);
-    expect(chatPopoutAllowed({ platform: "web", form: null, hasBroadcastChannel: true })).toBe(false);
-  });
-  it("needs a BroadcastChannel", () => {
-    expect(chatPopoutAllowed({ platform: "web", form: "desktop", hasBroadcastChannel: false })).toBe(false);
+  it("is not for the native phone and tablet shell", () => {
+    expect(chatPopoutAllowed({ platform: "capacitor", hasBroadcastChannel: true })).toBe(false);
   });
 });
 
 describe("chatPopoutUrl", () => {
   it("names the page, the room and the language, escaped", () => {
     expect(chatPopoutUrl({ roomId: "a b&c", lang: "es" })).toBe("/chat-popout.html?room=a+b%26c&lang=es");
+  });
+});
+
+describe("chatPopoutLabel", () => {
+  it("is one window per room, in the characters a window label allows", () => {
+    expect(chatPopoutLabel("Ab_9-x")).toBe("chat-popout-Ab_9-x");
+    expect(chatPopoutLabel("a b/c")).toBe("chat-popout-a_b_c");
+    expect(chatPopoutLabel("one")).not.toBe(chatPopoutLabel("two"));
   });
 });
