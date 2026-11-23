@@ -343,6 +343,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
           }
         : {}),
       ...(params.get("unread") ? { unread: Number(params.get("unread")) } : {}),
+      // `&plan=none` shows a lobby whose host has not picked the table yet.
+      ...(params.get("plan") === "none" ? { tablePlan: null } : {}),
     });
     // `&mismatch=1`: the guest is on another build than the host (the guest's own view), or a seat holder is (the host's).
     const preview =

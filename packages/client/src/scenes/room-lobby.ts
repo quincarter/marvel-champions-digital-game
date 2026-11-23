@@ -10,7 +10,7 @@
  * fires nothing (the "no tap on finger lift" rule, issue #227).
  */
 import Phaser from "phaser";
-import { currentCardsById, currentScenarios } from "../content/pool.js";
+import { currentCardsById, currentEncounterSets, currentScenarios } from "../content/pool.js";
 import { t, tPlural } from "../i18n/translate.js";
 import { loadedPacks } from "../packs/pack-registry.js";
 import { withLoadedPacks } from "../packs/game-packs.js";
@@ -18,6 +18,7 @@ import {
   leaveRoom,
   onRoomState,
   reportHostActivity,
+  resyncTablePlan,
   releaseSeat,
   requestSeat,
   roomState,
@@ -57,6 +58,10 @@ import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { RoomGameBase } from "../live/room-start.js";
 import type { DeckRefusalCode } from "../live/room-state.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import type { CardFace } from "../art/art-source.js";
+import { artThumbSpec } from "./roster-panel.js";
+import { planGrid, planPicturesCached, type PlanPicture } from "../view/room-table-plan.js";
 import type { Rect } from "../view/layout.js";
 import { hostSeesHandsOf } from "../view/hand-privacy.js";
 import { pacingOf } from "../view/villain-pacing.js";
@@ -188,7 +193,16 @@ export class RoomLobbyScene extends Phaser.Scene {
   #revealPicker = false;
   #reveal: Rect | null = null;
   #hover: HoverPreview | null = null;
-  #hoverFaces: { readonly cardId: string; readonly rect: Rect; readonly view: Rect; readonly scroll: ScrollKey }[] = [];
+  #hoverFaces: {
+    readonly cardId: string;
+    readonly face?: CardFace;
+    readonly rect: Rect;
+    readonly view: Rect;
+    readonly scroll: ScrollKey;
+  }[] = [];
+  /** The table plan's pictures waiting for their baked face (`#fillThumbs`), in the container they scroll with. */
+  #thumbs: { readonly rect: Rect; readonly url: string; parent: Phaser.GameObjects.Container | null; done: boolean }[] =
+    [];
   #tab: LobbyPanelId = "seats";
   #buttons: McButton[] = [];
   #regions: McScrollRegion[] = [];
@@ -286,7 +300,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     bindTextFieldEscape(this, () => this.#chatInput);
     this.scale.on("resize", this.#draw, this);
     // The host is back in the lobby: its setup status line (if it was showing one) is over.
-    if (!this.#preview && this.#state.role === "host") reportHostActivity("idle");
+    if (!this.#preview && this.#state.role === "host") {
+      reportHostActivity("idle");
+      // Back from a game with the draft kept: the room cleared the plan at its start, so it is sent again.
+      resyncTablePlan();
+    }
     this.#watchKeyboard();
     // The desktop hover popover over a seat's hero picture, as Table setup and the set sheets show it.
     this.#hover = new HoverPreview(this, {
@@ -295,7 +313,10 @@ export class RoomLobbyScene extends Phaser.Scene {
     });
     // A hero picture that was still loading arrives: draw again to show it.
     this.events.on(SEAT_AVATAR_READY, this.#draw, this);
+    // A face baked off the main thread arrives: fill the table plan's pictures waiting for it.
+    const offBaked = cardFaces(this).onBaked(() => this.#fillThumbs());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offBaked();
       this.#alive = false;
       this.#off?.();
       this.#off = null;
@@ -317,9 +338,10 @@ export class RoomLobbyScene extends Phaser.Scene {
   /** The hero pictures on screen now, each clipped to the scrolled list it sits in. */
   #hoverCardIds(): ReadonlyMap<string, HoverCardIdRect> {
     const found = new Map<string, HoverCardIdRect>();
-    this.#hoverFaces.forEach(({ cardId, rect, view, scroll }, index) => {
+    this.#hoverFaces.forEach(({ cardId, face, rect, view, scroll }, index) => {
       const shown = clipHoverRect({ ...rect, y: rect.y - this.#scrolls[scroll].offsetPx }, view);
-      if (shown) found.set(hoverSlotOf(cardId, `seat${index}`), { ...shown, cardId, through: true });
+      if (shown)
+        found.set(hoverSlotOf(cardId, `seat${index}`), { ...shown, cardId, ...(face ? { face } : {}), through: true });
     });
     return found;
   }
@@ -692,6 +714,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
     this.#hints.reset();
     this.#hoverFaces = [];
+    this.#thumbs = [];
     this.#stops = new Map();
     this.#order = [];
 
@@ -910,7 +933,7 @@ export class RoomLobbyScene extends Phaser.Scene {
   #drawSeatsPanel(rect: Rect, titled: boolean): void {
     const inner = this.#frame(rect, titled ? t("room.seats") : null);
     const state = this.#state;
-    this.#scrollPanel("seats", inner, (x, top, w, guard) => {
+    const region = this.#scrollPanel("seats", inner, (x, top, w, guard) => {
       let y = top + 2;
       if (this.#isHost()) {
         const hintKey = this.#state.settings?.askToSit === true ? "room.hostHint" : "room.hostHintClaim";
@@ -929,10 +952,14 @@ export class RoomLobbyScene extends Phaser.Scene {
         });
         guard.stop("setup", setupRect, () => this.#setUpTable());
         y += hit.target + 10;
+        y = this.#drawTablePlan(x, y, w, guard);
         y = this.#drawSeatCount(x, y, w, guard) + 14;
-      } else if (!state.buildMatches) {
-        const note = this.#text(x, y, t(myBuildReason(state)), 13, w, { bold: true });
-        y += note.height + 10;
+      } else {
+        y = this.#drawTablePlan(x, y, w, guard);
+        if (!state.buildMatches) {
+          const note = this.#text(x, y, t(myBuildReason(state)), 13, w, { bold: true });
+          y += note.height + 10;
+        }
       }
       if (this.#startResult) y = this.#drawStartResult(this.#startResult, x, y, w, guard) + 12;
       const rows = seatRows(state, { installed: this.#installed(), refused: this.#refused });
@@ -987,6 +1014,85 @@ export class RoomLobbyScene extends Phaser.Scene {
       }
       return y - top + 4;
     });
+    // The plan's pictures scroll with the panel: their images join the region's content once their faces are baked.
+    for (const slot of this.#thumbs) slot.parent ??= region.content;
+    this.#fillThumbs();
+  }
+
+  /**
+   * "The table": what the host picked, so everyone knows what they are up against. The villain and each modular set are
+   * pictures with their names (each opens the card hover on desktop); difficulty, Heroic and Skirmish are words. A guest
+   * sees a line saying the host has not chosen yet; the host, who has the Set up button, sees nothing until it has.
+   */
+  #drawTablePlan(x: number, top: number, w: number, guard: { clip: () => Rect }): number {
+    const plan = this.#state.tablePlan;
+    if (!plan) {
+      if (this.#isHost()) return top;
+      const none = this.#text(x, top, t("room.table.none"), 13, w, { bold: true });
+      return top + none.height + 12;
+    }
+    let y = this.#heading(x, top, w, t("room.table"));
+    const facts = [t("room.table.difficulty", { difficulty: t(`room.table.difficulty.${plan.difficulty}` as const) })];
+    if (plan.heroicLevel) facts.push(t("room.table.heroic", { level: String(plan.heroicLevel) }));
+    if (plan.skirmish) facts.push(t("room.table.skirmish"));
+    const line = this.#text(x, y, facts.join(" · "), 13, w, { bold: true });
+    y += line.height + 8;
+
+    const pictures = planPicturesCached(plan, {
+      scenarios: currentScenarios(),
+      cards: currentCardsById(),
+      encounterSets: currentEncounterSets(),
+    });
+    const all: PlanPicture[] = [pictures.villain, ...pictures.sets];
+    const { cols, size } = planGrid(all.length, w);
+    const gap = 8;
+    for (let start = 0; start < all.length; start += cols) {
+      let rowHeight = 0;
+      all.slice(start, start + cols).forEach((item, col) => {
+        const rect: Rect = { x: x + col * (size + gap), y, width: size, height: size };
+        const g = this.add.graphics();
+        g.fillStyle(PARCHMENT, 1).fillRect(rect.x, rect.y, size, size);
+        g.lineStyle(2, INK, 1).strokeRect(rect.x + 1, rect.y + 1, size - 2, size - 2);
+        if (item.artUrl) this.#thumbs.push({ rect, url: item.artUrl, parent: null, done: false });
+        if (item.cardId) {
+          this.#hoverFaces.push({
+            cardId: item.cardId,
+            ...(item.face ? { face: item.face } : {}),
+            rect,
+            view: guard.clip(),
+            scroll: "seats",
+          });
+        }
+        const kind = item.key === "villain" ? `${t("room.table.villain").toUpperCase()} · ` : "";
+        // At most two lines, so a long name never runs into the next row.
+        const name = this.#text(rect.x, rect.y + size + 3, `${kind}${item.name}`, 11, size, { bold: true }).setMaxLines(
+          2,
+        );
+        rowHeight = Math.max(rowHeight, size + 3 + Math.min(name.height, 30));
+      });
+      y += rowHeight + 8;
+    }
+    if (pictures.sets.length === 0) {
+      const none = this.#text(x, y, t("room.table.noSets"), 12, w, { alpha: 0.8 });
+      y += none.height + 6;
+    }
+    return y + 8;
+  }
+
+  /** Draws every waiting picture whose baked face is on hand. */
+  #fillThumbs(): void {
+    if (!this.#alive) return;
+    const faces = cardFaces(this);
+    for (const slot of this.#thumbs) {
+      if (slot.done) continue;
+      const rect = { ...slot.rect, width: Math.round(slot.rect.width), height: Math.round(slot.rect.height) };
+      const key = faces.request(artThumbSpec(rect, slot.url, 0.12, "cover"));
+      if (!key) continue;
+      const image = this.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+      faces.hold(key, image);
+      slot.parent?.add(image);
+      slot.done = true;
+    }
   }
 
   /** The host's seat count: fewer / more (one to four). A seat somebody holds is never dropped by a press. */

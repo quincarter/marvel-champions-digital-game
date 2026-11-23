@@ -236,6 +236,9 @@ export class LiveRoomController {
       case "room-villain-cursor":
         this.#session?.villainCursor(message.key, message.at, message.state);
         return;
+      case "room-table-plan":
+        this.#session?.tablePlan(message.plan);
+        return;
       case "room-deck":
         this.#session?.chooseDeck(message.seat, message.deck);
         return;
