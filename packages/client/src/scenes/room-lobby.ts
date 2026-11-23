@@ -212,6 +212,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #chatOpen = false;
   /** The chat is open in its own window (`live/chat-popout-protocol.ts`): the lobby's chat shows where it went. */
   #popped = false;
+  /** The browser blocked the pop-out window: the chat header says so for a few seconds. */
+  #popBlocked = false;
   /** Desktop only: a phone or a tablet has no window to put the chat in. */
   readonly #canPopOut = chatPopoutAvailable();
   #offPopout: (() => void) | null = null;
@@ -720,6 +722,7 @@ export class RoomLobbyScene extends Phaser.Scene {
       footerHeight,
       this.#chatOpen,
       this.#popped,
+      this.#covered,
     );
     // The keyboard is up over the Chat tab of a narrow layout: the chat gets every pixel above it, and the header and
     // the Start strip give way.
@@ -773,7 +776,21 @@ export class RoomLobbyScene extends Phaser.Scene {
       else this.#drawChatPill(layout.chatPill, unread);
     }
     if (!compact) this.#drawFooter(layout.footer, phone);
+    if (this.#floatRect) this.#dropStopsUnder(this.#floatRect);
     this.#route?.set(this.#order, this.#stops);
+  }
+
+  /** The open floating chat covers rows of the lists beneath it: tab and the pad must not reach what the player cannot see. */
+  #dropStopsUnder(panel: Rect): void {
+    for (const key of [...this.#order]) {
+      if (key.startsWith("chat-")) continue;
+      const stop = this.#stops.get(key);
+      if (!stop) continue;
+      const rect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+      if (!pointInRect(rect.x + rect.width / 2, rect.y + rect.height / 2, panel)) continue;
+      this.#stops.delete(key);
+      this.#order.splice(this.#order.indexOf(key), 1);
+    }
   }
 
   /** The chat-only layout while the keyboard is up: the tab strip just under the top bar, the chat above the keyboard. */
@@ -1767,7 +1784,19 @@ export class RoomLobbyScene extends Phaser.Scene {
       return;
     }
     const roomId = this.#state.roomId;
-    if (roomId) void openChatPopout(roomId, artLanguageNow());
+    if (!roomId) return;
+    this.#popBlocked = false;
+    void openChatPopout(roomId, artLanguageNow()).then((opened) => {
+      if (opened || !this.#alive) return;
+      // A blocked pop-up: say so in the chat header for a few seconds; the chat stays where it is.
+      this.#popBlocked = true;
+      this.#draw();
+      this.time.delayedCall(6000, () => {
+        if (!this.#alive) return;
+        this.#popBlocked = false;
+        this.#draw();
+      });
+    });
   }
 
   /** Brings the chat back from its window. */
@@ -1845,7 +1874,12 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.add.rectangle(rect.x + 6, rect.y + 6, rect.width, rect.height, INK).setOrigin(0, 0);
       this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
     }
-    const inner = this.#frame(rect, titled ? t("room.tab.chat") : null);
+    const framed = this.#frame(rect, titled ? t("room.tab.chat") : null);
+    let inner = framed;
+    if (this.#popBlocked && titled && !this.#popped) {
+      this.#text(framed.x + 2, framed.y - 2, t("room.chat.popoutBlocked"), 12, framed.width - 4, { bold: true });
+      inner = { ...framed, y: framed.y + 20, height: framed.height - 20 };
+    }
     if (floating) {
       this.add
         .graphics()

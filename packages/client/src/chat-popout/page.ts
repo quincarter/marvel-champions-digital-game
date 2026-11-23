@@ -12,11 +12,12 @@ import { es } from "../i18n/es.js";
 import {
   Heartbeat,
   POPOUT_BEAT_MS,
+  parseRoomToPopout,
   popoutChannelName,
   type PopoutSnapshot,
   type PopoutToRoom,
-  type RoomToPopout,
 } from "../live/chat-popout-protocol.js";
+import { detectPlatform } from "../platform/platform.js";
 import { popoutCanSay, popoutOffersClose, popoutStatusOf, type PopoutStatus } from "../live/chat-popout-view.js";
 
 const params = new URLSearchParams(location.search);
@@ -72,7 +73,23 @@ roomLabel.textContent = text("room.title");
 send.textContent = text("room.chat.send");
 input.placeholder = text("room.chat.placeholder");
 noticeButton.textContent = text("popout.closeWindow");
-noticeButton.addEventListener("click", () => window.close());
+/**
+ * Closes this window. A script-opened browser window closes itself; a Tauri window needs the window API's own close
+ * (`platform/desktop-window.ts` does the same for the game window), and `window.close()` may do nothing there.
+ */
+async function closeThisWindow(): Promise<void> {
+  if (detectPlatform() === "tauri") {
+    try {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      await getCurrentWindow().close();
+      return;
+    } catch {
+      // Falls through to the browser's close.
+    }
+  }
+  window.close();
+}
+noticeButton.addEventListener("click", () => void closeThisWindow());
 
 let snapshot: PopoutSnapshot | null = null;
 let left = false;
@@ -130,14 +147,17 @@ function render(): void {
   if (first || nearEnd) linesEl.scrollTop = linesEl.scrollHeight;
 }
 
-function hear(message: RoomToPopout): void {
+function hear(raw: unknown): void {
+  // Anything on the channel that is not a known message (or a snapshot of the right shape) is dropped unrendered.
+  const message = parseRoomToPopout(raw);
+  if (!message) return;
   heartbeat.beat(Date.now());
   silent = false;
   if (message.kind === "snapshot") {
     snapshot = message.snapshot;
     dirty = true;
   } else if (message.kind === "recall") {
-    window.close();
+    void closeThisWindow();
     return;
   } else if (message.kind === "left") {
     left = true;
@@ -154,13 +174,15 @@ document.querySelector("form")?.addEventListener("submit", (event) => {
 });
 
 if (channel) {
-  channel.onmessage = (event: MessageEvent<RoomToPopout>) => hear(event.data);
+  channel.onmessage = (event: MessageEvent<unknown>) => hear(event.data);
   heartbeat.beat(Date.now());
   post({ kind: "hello" });
   setInterval(() => {
     if (left) return;
-    post(snapshot ? { kind: "beat" } : { kind: "hello" });
+    // Heard nothing for a while (the game window reloaded, or was throttled past the timeout and wrote this window off):
+    // say hello again rather than beat, so the room takes this window back and sends the snapshot.
     const quiet = !heartbeat.alive(Date.now());
+    post(snapshot && !quiet ? { kind: "beat" } : { kind: "hello" });
     if (quiet !== silent) {
       silent = quiet;
       render();

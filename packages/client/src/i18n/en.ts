@@ -515,6 +515,7 @@ export const en = {
   "room.chat.send": "Send",
   "room.chat.close": "Close",
   "room.chat.popout": "Pop out",
+  "room.chat.popoutBlocked": "The pop-out window was blocked.",
   "room.chat.popped": "Chat is in its own window.",
   "room.chat.bringBack": "Bring back",
   "popout.title": "Room chat",
