@@ -10,6 +10,10 @@ import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { HostActivityStep, VillainCursorState } from "@mc/sync-worker/room-protocol";
+import { roomDraft, setRoomDraftListener } from "../view/room-table-setup.js";
+import type { SetupDraft } from "../view/setup-draft.js";
+import { tablePlanOf } from "../view/room-table-plan.js";
+import type { TablePlan } from "../live/room-state.js";
 import type { MessageKey } from "../i18n/translate.js";
 import { currentScenarios } from "../content/pool.js";
 import { loadedPacks } from "../packs/pack-registry.js";
@@ -89,9 +93,23 @@ let lastActivity: { readonly step: HostActivityStep; readonly scenario?: string 
 let resendActivity = false;
 /** The last villain phase cursor sent to the room (host only), forgotten on leaving it, and sent again after a drop. */
 let lastCursor: { readonly key: string; readonly at: number; readonly state: VillainCursorState } | null = null;
+/** The table plan the host last published (null when none), sent again when the room socket comes back. */
+let lastPlan: TablePlan | null = null;
+let resendPlan = false;
 
 function publish(next: RoomState): void {
+  const prev = state;
   state = next;
+  if (next.role === "host" && next.connection === "connected" && lastPlan) {
+    // The room cleared the plan (the game started): the host's copy of what it sent is stale, so a rematch's lobby sends
+    // the kept draft again (`resyncTablePlan`).
+    if (prev.tablePlan && !next.tablePlan) lastPlan = null;
+    // The room refused something as over the limit, so the plan may not have gone out: forget it and try again shortly.
+    else if (next.refusal?.reason === "rate-limited" && next.refusal.seq !== prev.refusal?.seq) {
+      lastPlan = null;
+      setTimeout(resyncTablePlan, PLAN_RETRY_MS);
+    }
+  }
   if (
     next.role === "none" ||
     next.connection === "idle" ||
@@ -101,8 +119,16 @@ function publish(next: RoomState): void {
     lastActivity = null;
     resendActivity = false;
     lastCursor = null;
-  } else if (next.connection === "reconnecting") resendActivity = true;
-  else if (next.connection === "connected" && resendActivity) {
+    lastPlan = null;
+    resendPlan = false;
+  } else if (next.connection === "reconnecting") {
+    resendActivity = true;
+    resendPlan = true;
+  } else if (next.connection === "connected" && resendPlan) {
+    resendPlan = false;
+    if (next.role === "host" && lastPlan) postRoomCommand({ kind: "room-table-plan", plan: lastPlan });
+  }
+  if (next.connection === "connected" && resendActivity) {
     resendActivity = false;
     if (next.role === "host" && lastActivity) {
       const { step, scenario } = lastActivity;
@@ -115,6 +141,37 @@ function publish(next: RoomState): void {
 }
 
 setRoomStateListener(publish);
+
+/**
+ * Host only: publishes the table the host picked (null clears it) so the lobby shows it to everyone. Memory only in the
+ * room; a dropped socket makes `publish` send the last plan again.
+ */
+export function reportTablePlan(plan: TablePlan | null): void {
+  if (state.role !== "host" || state.connection === "idle") return;
+  if (JSON.stringify(plan) === JSON.stringify(lastPlan)) return;
+  if (postRoomCommand({ kind: "room-table-plan", plan })) lastPlan = plan;
+}
+
+/** The room's plan limit refills one send every two seconds. */
+const PLAN_RETRY_MS = 2500;
+
+const planOfDraft = (draft: SetupDraft | null): TablePlan | null => {
+  if (!draft) return null;
+  const scenario = currentScenarios().find((s) => (s.id as string) === (draft.scenarioId as string));
+  return tablePlanOf(draft, scenario);
+};
+
+setRoomDraftListener((draft) => reportTablePlan(planOfDraft(draft)));
+
+/**
+ * Host only: sends the kept draft's plan when the room is not showing it (a rematch's lobby after the room cleared it at
+ * game start, or a send the room refused). Does nothing when there is no kept draft or the room already has the plan.
+ */
+export function resyncTablePlan(): void {
+  if (state.role !== "host" || state.connection !== "connected" || lastPlan !== null) return;
+  const plan = planOfDraft(roomDraft());
+  if (plan && JSON.stringify(plan) !== JSON.stringify(state.tablePlan)) reportTablePlan(plan);
+}
 
 /** Answers to the host's requests for the seats' full decks, by request id (the room worker posts them back). */
 const deckRequests = new Map<number, (decks: readonly SeatDeckEntry[] | null) => void>();

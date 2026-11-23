@@ -24,10 +24,12 @@ import type {
   TeamId,
   VillainCursorState,
   VillainPacing,
+  TablePlan,
 } from "@mc/sync-worker/room-protocol";
 
 export type {
   TeamId,
+  TablePlan,
   ChatLine,
   HostActivityStep,
   DeckRefusalCode,
@@ -380,6 +382,8 @@ export interface RoomState {
   readonly hostActivity: RoomHostActivity | null;
   /** The host's villain phase cursor (the first table's), or null before the host has shown one. */
   readonly villainCursor: RoomVillainCursor | null;
+  /** What the host picked for the table (ids), or null until it has. */
+  readonly tablePlan: TablePlan | null;
   readonly refusal: RoomRefusal | null;
   /** Host only: what seat holders asked for and the host has not answered, oldest first. Empty for a guest. */
   readonly requests: readonly RoomRequest[];
@@ -418,6 +422,7 @@ export const NO_ROOM: RoomState = {
   chatLive: 0,
   hostActivity: null,
   villainCursor: null,
+  tablePlan: null,
   refusal: null,
   requests: [],
   myRequest: null,
