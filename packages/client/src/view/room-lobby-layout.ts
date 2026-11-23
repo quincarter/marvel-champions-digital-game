@@ -92,6 +92,8 @@ export function lobbyLayout(
     const right = rightX + rightWidth;
     const bottom = footer.y - GAP;
     const panelHeight = Math.min(FLOAT_MAX_HEIGHT, Math.round(bodyHeight * 0.8));
+    // A closed chat's pill sits at the corner of the settings column: the list ends above it, so no row hides behind it.
+    const settingsHeight = chatOpen ? bodyHeight : bodyHeight - hit.target - GAP;
     return {
       mode: "float",
       header,
@@ -103,7 +105,7 @@ export function lobbyLayout(
         : { x: right - PILL_WIDTH, y: bottom - hit.target, width: PILL_WIDTH, height: hit.target },
       panels: {
         seats: { x: gutter, y: bodyTop, width: left, height: bodyHeight },
-        settings: { x: rightX, y: bodyTop, width: rightWidth, height: bodyHeight },
+        settings: { x: rightX, y: bodyTop, width: rightWidth, height: settingsHeight },
         ...(chatOpen
           ? { chat: { x: right - FLOAT_WIDTH, y: bottom - panelHeight, width: FLOAT_WIDTH, height: panelHeight } }
           : {}),
