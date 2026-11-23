@@ -81,6 +81,28 @@ export const MAX_VILLAIN_KEY_CHARS = 24;
 export const MAX_VILLAIN_CURSOR_AT = 5000;
 /** The longest scenario name a host activity carries. */
 export const MAX_ACTIVITY_SCENARIO_CHARS = 120;
+/** The difficulties a table plan carries (the client's `SetupDifficulty`). */
+export const TABLE_PLAN_DIFFICULTIES = ["standard", "expert", "extreme"] as const;
+export type TablePlanDifficulty = (typeof TABLE_PLAN_DIFFICULTIES)[number];
+/** The most modular sets, the longest id and the highest Heroic level a table plan carries. */
+export const MAX_PLAN_MODULAR_SETS = 8;
+export const MAX_PLAN_ID_CHARS = 64;
+export const MAX_PLAN_HEROIC_LEVEL = 9;
+/** Table plan messages: a burst of this many, then one every two seconds. */
+export const TABLE_PLAN_BURST = 4;
+
+/**
+ * What the host has picked for the table, as ids (each client names them from its own content). `modularSetIds` is the
+ * resolved list, never "recommended".
+ */
+export interface TablePlan {
+  readonly scenarioId: string;
+  readonly modularSetIds: readonly string[];
+  readonly difficulty: TablePlanDifficulty;
+  readonly heroicLevel?: number;
+  readonly skirmish?: boolean;
+}
+
 /** A table has at most this many seats (Marvel Champions has 1-4 heroes); a standard lobby is one table. */
 export const MAX_LOBBY_SEATS = 4;
 /** An Epic lobby has at most this many tables (each up to `MAX_LOBBY_SEATS` seats). */
@@ -635,6 +657,11 @@ export type ClientMessage =
       readonly at: number;
       readonly state: VillainCursorState;
     }
+  /**
+   * The host only: the scenario, modular sets and difficulty it picked, so the lobby can show what the table is up
+   * against. `plan: null` clears it. Relayed and kept in its own storage row (a woken room still has it), never part of the lobby row or revision.
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "table-plan"; readonly plan: TablePlan | null }
   /** Ask for a seat (the host's own request is granted at once); needs the host's build and fewer seats than allowed. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-request"; readonly seat: string }
   /** Give up a seat you hold, or withdraw a request. */
@@ -887,6 +914,8 @@ export type ServerMessage =
       readonly at: number;
       readonly state: VillainCursorState | "none";
     }
+  /** The host's table plan to everyone when it changes and to a joiner; `null` means none. Its own storage row; no lobby revision. */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "table-plan"; readonly plan: TablePlan | null }
   /** To the one participant given the seat, never broadcast: keep it and present it in `hello.seatTokens`. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-token"; readonly seat: string; readonly token: string }
   /**
@@ -1098,6 +1127,24 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const isSeatId = (v: unknown): v is string => typeof v === "string" && SEAT_ID_PATTERN.test(v);
 const shortString = (v: unknown, max: number): v is string => typeof v === "string" && v.length <= max;
 
+export function isTablePlan(v: unknown): v is TablePlan {
+  return (
+    isRecord(v) &&
+    shortString(v.scenarioId, MAX_PLAN_ID_CHARS) &&
+    v.scenarioId.length > 0 &&
+    Array.isArray(v.modularSetIds) &&
+    v.modularSetIds.length <= MAX_PLAN_MODULAR_SETS &&
+    v.modularSetIds.every((id) => shortString(id, MAX_PLAN_ID_CHARS) && id.length > 0) &&
+    TABLE_PLAN_DIFFICULTIES.some((d) => d === v.difficulty) &&
+    (v.heroicLevel === undefined ||
+      (typeof v.heroicLevel === "number" &&
+        Number.isInteger(v.heroicLevel) &&
+        v.heroicLevel >= 0 &&
+        v.heroicLevel <= MAX_PLAN_HEROIC_LEVEL)) &&
+    (v.skirmish === undefined || typeof v.skirmish === "boolean")
+  );
+}
+
 function isBuild(v: unknown): v is RoomBuild {
   return (
     isRecord(v) &&
@@ -1288,6 +1335,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
           m.at <= MAX_VILLAIN_CURSOR_AT &&
           VILLAIN_CURSOR_STATES.some((x) => x === m.state),
       );
+    case "room:table-plan":
+      return ok(m.plan === null || isTablePlan(m.plan));
     case "room:seat-decks-request":
     case "room:room-close":
       return ok(true);
