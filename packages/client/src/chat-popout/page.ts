@@ -11,6 +11,7 @@ import { en } from "../i18n/en.js";
 import { es } from "../i18n/es.js";
 import {
   Heartbeat,
+  isPopoutToken,
   POPOUT_BEAT_MS,
   parseRoomToPopout,
   popoutChannelName,
@@ -97,7 +98,9 @@ let silent = false;
 const heartbeat = new Heartbeat();
 
 const roomId = params.get("room") ?? "";
-const channel = roomId ? new BroadcastChannel(popoutChannelName(roomId)) : null;
+const token = params.get("token");
+// The channel belongs to the tab that opened this window: without its token there is no channel to join.
+const channel = roomId && isPopoutToken(token) ? new BroadcastChannel(popoutChannelName(roomId, token)) : null;
 const post = (message: PopoutToRoom): void => channel?.postMessage(message);
 
 function statusWords(status: PopoutStatus): string {
