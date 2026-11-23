@@ -197,9 +197,11 @@ export class SessionStore {
    * Picks a saved game back up. A save that no longer replays fails here with
    * the host's reason, and the host has already retired it, so it isn't offered again.
    */
-  async resume(gameId: string): Promise<void> {
-    // Device sync pulls in a newer copy of this game first (`store/resume-hook.ts`); a no-op when sync is off.
-    await runBeforeResume(gameId);
+  async resume(gameId: string, options: { readonly sync?: boolean } = {}): Promise<void> {
+    // Device sync pulls in a newer copy of this game first (`store/resume-hook.ts`); a no-op when sync is off. A reload
+    // resume skips it (`sync: false`): this device's save is the one that was being played, and single player never
+    // waits on the network.
+    if (options.sync !== false) await runBeforeResume(gameId);
     return this.#begin(() => this.#host.resume(gameId));
   }
 

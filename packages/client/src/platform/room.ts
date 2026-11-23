@@ -9,6 +9,7 @@
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
 import { syncRoomAddress } from "./room-address.js";
+import { syncGameAddress } from "./game-address.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { HostActivityStep } from "@mc/sync-worker/room-protocol";
 import { roomDraft, setRoomDraftListener } from "../view/room-table-setup.js";
@@ -91,6 +92,12 @@ function publish(next: RoomState): void {
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
   // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
   syncRoomAddress(next);
+  // A host whose room closed under a game in progress keeps playing it alone: the game takes the address at once.
+  if (next.connection === "ended" && prev.role === "host" && prev.started) {
+    const session = appSession();
+    const store = session?.store;
+    if (store) syncGameAddress(store.state, session.guidedRun);
+  }
   for (const listener of [...listeners]) listener(state);
 }
 

@@ -1100,9 +1100,11 @@ describe("rejoining the room in the address after a reload", () => {
     const t = setup({ store });
     t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
     await flush();
+    t.resolveRoomCode.mockResolvedValueOnce({ ok: false as never, failure: "not-found" } as never);
     FakeSocket.all[0]!.closeWith(1011);
     await flush();
-    expect(t.last().connection).toBe("ended");
+    // The host token is no use; as a guest the code is not found either.
+    expect(t.last()).toMatchObject({ connection: "ended", problem: "not-found" });
     expect(await store.load("room:ABC234")).toBeNull();
   });
 
@@ -1138,5 +1140,56 @@ describe("rejoining the room in the address after a reload", () => {
     t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
     await flush();
     expect(await store.load("room:ABC234")).toBeNull();
+  });
+});
+
+describe("review fixes for the reload rejoin", () => {
+  it("another tab taking the host socket (replaced) leaves the saved records for that tab", async () => {
+    const store = new MemoryRoomStore();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    expect(store.records.has("g1")).toBe(true);
+    FakeSocket.all[0]!.closeWith(4000);
+    await flush();
+    expect(t.last()).toMatchObject({ connection: "ended", problem: "replaced" });
+    expect(store.records.has("room:ABC234")).toBe(true);
+    expect(store.records.has("g1")).toBe(true);
+  });
+
+  it("a host token the room no longer knows falls back to joining the code as a guest", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.closeWith(1011);
+    await flush();
+    expect(t.resolveRoomCode).toHaveBeenCalled();
+    expect(t.last().role).toBe("guest");
+    expect(store.records.has("room:ABC234")).toBe(false);
+  });
+
+  it("host activity in the lobby refreshes the record stamp, at most once a minute", async () => {
+    const store = new MemoryRoomStore();
+    let at = 1_000;
+    const t = setup({ store, now: () => at });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    expect(store.records.get("room:ABC234")?.lastActiveAt).toBe(1_000);
+    at = 30_000;
+    t.controller.onRoomCommand({ kind: "room-say", text: "hi" });
+    await flush();
+    expect(store.records.get("room:ABC234")?.lastActiveAt).toBe(1_000);
+    at = 90_000;
+    t.controller.onRoomCommand({ kind: "room-say", text: "hi again" });
+    await flush();
+    expect(store.records.get("room:ABC234")?.lastActiveAt).toBe(90_000);
   });
 });
