@@ -73,6 +73,7 @@ import { accent, dotGrid, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McSelectionRing, McTabs, fitText, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel, type SchemePanel } from "../view/board-model.js";
+import { boardReadOnly } from "../view/board-read-only.js";
 import { highlights, type Highlights } from "../view/highlights.js";
 import { withAttackBarWording } from "../view/attack-bar.js";
 import { withForcedActions } from "../view/forced-actions.js";
@@ -632,6 +633,7 @@ export class BoardScene extends Phaser.Scene {
     holdGameArt(this);
     this.#replay = activeReplay();
     this.#leaving = false;
+    this.#villainPhaseOpen = false;
     this.#replayBarTop = false;
     // A scene is reused from game to game: each game shows its own first "not offered" notices.
     this.#unofferedShown = new Set();
@@ -978,6 +980,8 @@ export class BoardScene extends Phaser.Scene {
       (window as unknown as { __mcBoardDebug?: unknown }).__mcBoardDebug = {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         logTickerRect: () => this.#logTickerRect,
+        // Whether the table takes game input now (`view/board-read-only.ts`).
+        readOnly: () => this.#controller.readOnly,
         logOpen: () => this.#logOpen,
         logRect: () => this.#logRect,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
@@ -3021,8 +3025,18 @@ export class BoardScene extends Phaser.Scene {
 
   /** The table is read-only while it is another seat's decision: no action, no choice sheet (#881). */
   #applyGate(state: SessionState): void {
-    this.#controller.setReadOnly(this.#replay !== null || this.#leaving || this.#held(state));
+    this.#controller.setReadOnly(
+      boardReadOnly({
+        replay: this.#replay !== null,
+        leaving: this.#leaving,
+        heldElsewhere: this.#held(state),
+        villainPhaseOpen: this.#villainPhaseOpen,
+      }),
+    );
   }
+
+  /** The villain phase is open (`setVillainPhaseOpen`): every gate recomputation keeps the table still under it. */
+  #villainPhaseOpen = false;
 
   #openChat(draft?: string): void {
     if (this.scene.isActive(SCENES.roomChat)) return;
@@ -3782,7 +3796,8 @@ export class BoardScene extends Phaser.Scene {
    * decisions are answered on the phase or its sheet, never through the board.
    */
   setVillainPhaseOpen(open: boolean): void {
-    this.#controller.setReadOnly(open || this.#replay !== null);
+    this.#villainPhaseOpen = open;
+    this.#applyGate(appSession().store.state);
     // The phase takes priority over an open log (issue #550); its own Log button is the way back to it.
     if (open && this.#logOpen) {
       this.#shutLog();

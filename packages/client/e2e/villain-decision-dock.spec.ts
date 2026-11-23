@@ -60,6 +60,11 @@ const pendingChoiceId = (page: Page): Promise<string | null> =>
       ).__mcBoardDebug?.pendingChoice()?.choiceId ?? null,
   );
 
+const boardReadOnly = (page: Page): Promise<boolean | null> =>
+  page.evaluate(
+    () => (window as unknown as { __mcBoardDebug?: { readOnly(): boolean } }).__mcBoardDebug?.readOnly() ?? null,
+  );
+
 const press = async (page: Page, phone: boolean, rect: Rect): Promise<void> => {
   // A control drawn this frame takes presses from the next one: let the screen settle first.
   await settle(page);
@@ -162,6 +167,10 @@ test("issue #231: a revealed card's decision docks beside the table, tucks away 
   const before = await pendingChoiceId(page);
   await answerChoiceSheet(page);
   await waitFor(async () => ((await pendingChoiceId(page)) !== before ? true : null), "the decision answered", 15_000);
+  // The answer is a store update with the phase still open: the table stays still under it until the phase closes (a
+  // room tester played a hand card beside the docked phase, 2026-11-23, when an update cleared the phase's lock).
+  await settle(page);
+  expect(await boardReadOnly(page), "the table takes no input while the villain phase is open").toBe(true);
   expect(errors).toEqual([]);
 });
 

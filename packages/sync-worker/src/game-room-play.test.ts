@@ -110,6 +110,10 @@ describe("play together: protocol parsing", () => {
     expect(parse({ ch: "game", kind: "request-answer", table: "t1", to: "a", accepted: true })).not.toBeNull();
     expect(parse({ ch: "game", kind: "request-answer", table: "t1", to: "a", accepted: "yes" })).toBeNull();
     expect(parse({ ch: "room", kind: "take-over", seat: "s1" })).not.toBeNull();
+    expect(parse({ ch: "room", kind: "seat-show-hand", seat: "s1", on: true })).not.toBeNull();
+    expect(parse({ ch: "room", kind: "seat-show-hand", seat: "s1", on: "yes" })).toBeNull();
+    expect(parse({ ch: "room", kind: "seat-show-hand", seat: "bad seat", on: true })).toBeNull();
+    expect(parse({ ch: "room", kind: "lobby-set", settings: { openHands: "yes" } })).toBeNull();
     expect(parse({ ch: "room", kind: "give-back", seat: "bad seat" })).toBeNull();
     expect(parse({ ch: "room", kind: "lobby-set", seats: [{ id: "s1", label: "a", player: "p" }] })).not.toBeNull();
     expect(parse({ ch: "room", kind: "lobby-set", seats: [{ id: "s1", label: "a", player: {} }] })).toBeNull();
@@ -349,6 +353,64 @@ describe("play together: storage", () => {
     await send(host, { ch: "game", kind: "request-answer", table: "t1", to: ann.id, accepted: true });
     expect(storage.rowsWritten).toBe(rows);
     expect(storage.alarmsSet).toBe(alarms);
+  });
+});
+
+describe("play together: show my hand", () => {
+  it("lets a holder show and hide their hand, relays it, and refuses a bad or foreign request", async () => {
+    const { host, send, seated, join } = await setup();
+    const ann = await seated("Ann", "s1");
+    await send(ann, { ch: "room", kind: "seat-show-hand", seat: "s1", on: true });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ id: "s1", showsHand: true });
+    await send(ann, { ch: "room", kind: "seat-show-hand", seat: "s1", on: false });
+    expect(host.last("lobby")!.seats[0]!.showsHand).toBeUndefined();
+    // Not hers, and not a seat at all.
+    await send(ann, { ch: "room", kind: "seat-show-hand", seat: "s2", on: true });
+    await send(ann, { ch: "room", kind: "seat-show-hand", seat: "zz", on: true });
+    expect(ann.refusals).toEqual(["not-allowed", "no-such-seat"]);
+    // A guest with no seat may not set a held seat's hand either.
+    const wes = await join("Wes");
+    await send(wes, { ch: "room", kind: "seat-show-hand", seat: "s1", on: true });
+    expect(wes.refusals).toEqual(["not-allowed"]);
+    // The host may not flip a seat a connected holder keeps.
+    await send(host, { ch: "room", kind: "seat-show-hand", seat: "s1", on: true });
+    expect(host.refusals).toEqual(["not-allowed"]);
+  });
+
+  it("lets the host set it for a vacant or taken-over seat, keeps it across a reconnect, clears it on a new holder", async () => {
+    const { room, host, send, seated, join } = await setup();
+    const ann = await seated("Ann", "s1");
+    const token = ann.last("seat-token")!.token;
+    await send(host, { ch: "room", kind: "seat-show-hand", seat: "s2", on: true }); // nobody holds s2
+    expect(host.last("lobby")!.seats[1]).toMatchObject({ id: "s2", showsHand: true });
+    await send(ann, { ch: "room", kind: "seat-show-hand", seat: "s1", on: true });
+    await room.close(ann);
+    await send(host, { ch: "room", kind: "take-over", seat: "s1" });
+    await send(host, { ch: "room", kind: "seat-show-hand", seat: "s1", on: false }); // taken over: the host's to set
+    expect(host.last("lobby")!.seats[0]!.showsHand).toBeUndefined();
+    await send(host, { ch: "room", kind: "seat-show-hand", seat: "s1", on: true });
+    // Her return by token keeps it.
+    const back = await join("Ann", { seatTokens: [token] });
+    expect(back.last("lobby")!.seats[0]).toMatchObject({ holder: back.id, showsHand: true });
+    // The seat handed to someone else starts hidden.
+    await send(host, { ch: "room", kind: "give-back", seat: "s1" });
+    await send(back, { ch: "room", kind: "seat-release", seat: "s1" });
+    const wes = await join("Wes");
+    await send(host, { ch: "room", kind: "seat-assign", seat: "s1", participant: wes.id });
+    expect(host.last("lobby")!.seats[0]).toMatchObject({ holder: wes.id });
+    expect(host.last("lobby")!.seats[0]!.showsHand).toBeUndefined();
+  });
+
+  it("keeps openHands off and fixed in a started game", async () => {
+    const { host, send, seated } = await setup();
+    const ann = await seated("Ann", "s1");
+    expect(host.last("lobby")!.settings.openHands).toBe(false);
+    await send(ann, { ch: "room", kind: "lobby-set", settings: { openHands: true } });
+    expect(ann.refusals.length).toBe(1);
+    // The game here has started: the host's change is refused too (the lobby test covers the open lobby).
+    await send(host, { ch: "room", kind: "lobby-set", settings: { openHands: true } });
+    expect(host.refusals).toEqual(["not-allowed"]);
+    expect(host.last("lobby")!.settings.openHands).toBe(false);
   });
 });
 

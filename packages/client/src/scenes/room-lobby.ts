@@ -99,7 +99,7 @@ import type { CardFace } from "../art/art-source.js";
 import { artThumbSpec } from "./roster-panel.js";
 import { planGrid, planPicturesCached, type PlanPicture } from "../view/room-table-plan.js";
 import type { Rect } from "../view/layout.js";
-import { hostSeesHandsOf } from "../view/hand-privacy.js";
+import { hostSeesHandsOf, openHandsOf } from "../view/hand-privacy.js";
 import { pacingOf } from "../view/villain-pacing.js";
 import { lobbyLayout, type LobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import { activityDots, hostActivityWords } from "../view/room-host-activity.js";
@@ -2600,6 +2600,10 @@ export class RoomLobbyScene extends Phaser.Scene {
         t("room.handsSetting.detail"),
         hostSeesHandsOf(this.#state),
         () => this.#api.setLobby({ settings: { hostSeesHands: !hostSeesHandsOf(this.#state) } }),
+      );
+      // Chosen in the lobby: a teaching table where every seated device (and watchers) sees every hand. Off by default.
+      toggleRow("openHands", t("room.openHands.title"), t("room.openHands.detail"), openHandsOf(this.#state), () =>
+        this.#api.setLobby({ settings: { openHands: !openHandsOf(this.#state) } }),
       );
       // The host's opt-in to the public "Live now" list; off unless the host turns it on.
       toggleRow("listed", t("room.listed.title"), t("room.listed.detail"), settings.listed === true, () =>
