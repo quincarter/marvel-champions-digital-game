@@ -543,4 +543,15 @@ export const en = {
   "modStore.updateAll.stopped": "Stopped. The rest can still update.",
   "campaign.deck.packVersionClash":
     "{pack} needs {needs} {wanted}, but this campaign keeps {needs} {kept} from when it was signed. Take the {pack} cards out to save this deck.",
+  "deckBuilder.show": "show",
+  "deckBuilder.showHero": "Hero",
+  "deckBuilder.allPacks": "All packs",
+  "deckBuilder.allWaves": "All waves",
+  "deckBuilder.packsCount": "{count} packs",
+  "deckBuilder.wavesCount": "{count} waves",
+  "deckBuilder.pickPacksTitle": "Packs",
+  "deckBuilder.pickWavesTitle": "Waves",
+  "deckBuilder.pickSubtitle": "Pick as many as you like. With none picked, the pool shows them all.",
+  "deckBuilder.pickAll": "All",
+  "deckBuilder.pickDone": "Done",
 } as const;

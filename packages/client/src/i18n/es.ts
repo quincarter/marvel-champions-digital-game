@@ -544,4 +544,15 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.updateAll.stopped": "Detenido. El resto aún se puede actualizar.",
   "campaign.deck.packVersionClash":
     "{pack} necesita {needs} {wanted}, pero esta campaña conserva {needs} {kept} de cuando se firmó. Quita las cartas de {pack} para guardar este mazo.",
+  "deckBuilder.show": "mostrar",
+  "deckBuilder.showHero": "Héroe",
+  "deckBuilder.allPacks": "Todos los packs",
+  "deckBuilder.allWaves": "Todos los ciclos",
+  "deckBuilder.packsCount": "{count} packs",
+  "deckBuilder.wavesCount": "{count} ciclos",
+  "deckBuilder.pickPacksTitle": "Packs",
+  "deckBuilder.pickWavesTitle": "Ciclos",
+  "deckBuilder.pickSubtitle": "Elige todos los que quieras. Si no eliges ninguno, se muestran todos.",
+  "deckBuilder.pickAll": "Todos",
+  "deckBuilder.pickDone": "Listo",
 };
