@@ -67,3 +67,44 @@ describe("a run's summary names its custom heroes (#978)", () => {
     ]);
   });
 });
+
+describe("a deck edit that needs a newer copy of a pack the run keeps (#978)", () => {
+  it("is refused, naming both packs and versions", async () => {
+    const { CampaignService } = await import("./campaign-service.js");
+    const { MemoryCampaignStorage } = await import("../engine/campaign-storage.js");
+    const { preconDecks } = await import("../view/deck-list-model.js");
+    const { POOL_CARDS, POOL_DEPS, POOL_VERSION } = await import("../content/pool.js");
+    const base = preconDecks(POOL_VERSION)[0]!;
+    const oldA = { ...pack("a", [card("x.a.01")], "1.0.0"), name: "Pack A" } as PackRuntime;
+    const newA = { ...pack("a", [card("x.a.01")], "2.0.0"), name: "Pack A" } as PackRuntime;
+    const b = { ...pack("b", [card("x.b.01")]), name: "Pack B", requires: ["a"] } as PackRuntime;
+    let installed: readonly PackRuntime[] = [oldA];
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((c) => [c.id as string, c])) },
+      engineDeps: POOL_DEPS,
+      heroPacksOf: (seats) =>
+        installed.filter((p) =>
+          seats.some(({ deck }) => deck.cards.some((e) => (e.cardId as string).startsWith(`x.${p.id}.`))),
+        ),
+    });
+    const withA = { ...base, cards: [...base.cards, { cardId: "x.a.01" as never, quantity: 1 }] };
+    const run = await service.start({
+      campaignId: "trors",
+      seats: [{ identityCardId: base.identityCardId, deck: withA }],
+      poolVersion: POOL_VERSION,
+      seed: 1,
+    });
+    expect(run.heroPacks?.map((p) => `${p.id}@${p.version}`)).toEqual(["a@1.0.0"]);
+    installed = [newA, b];
+    const withB = { ...withA, cards: [...withA.cards, { cardId: "x.b.01" as never, quantity: 1 }] };
+    // The stub lists B's requirement A at its installed version, as `heroPacksForSeats` does.
+    const stubbed = new CampaignService({
+      storage: service.storage,
+      campaignDeps: { pool: {} },
+      engineDeps: POOL_DEPS,
+      heroPacksOf: () => [newA, b],
+    });
+    await expect(stubbed.setSeatDeck(run, 1, withB)).rejects.toThrow(/Pack B needs Pack A 2\.0\.0.*Pack A 1\.0\.0/);
+  });
+});

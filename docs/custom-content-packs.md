@@ -421,7 +421,8 @@ zip) for players who want it.
   left out). So a run never depends on what is installed: updating the pack changes nothing in it, and removing it
   leaves the run playing on from its own copy, with no reinstall asked for (a removed pack's card pictures fall back
   like any missing art). A deck edited between issues may also take cards from an installed pack the run doesn't carry
-  yet; saving the deck copies that pack in.
+  yet; saving the deck copies that pack in, unless it needs another version of a pack the run already keeps,
+  which the save refuses with a line naming both.
 
 ## 8. Phasing
 

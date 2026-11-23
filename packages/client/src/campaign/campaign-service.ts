@@ -43,6 +43,7 @@ import {
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { embeddedDefinitionOf, rememberRunPack } from "./pack-campaigns.js";
 import { poolWithRunPacks, runPacksOf, setOpenRunPacks } from "./run-packs.js";
+import { t } from "../i18n/translate.js";
 
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
@@ -441,6 +442,8 @@ export class CampaignService {
     const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
     if (!seat) throw new Error(`campaign ${record.id} has no seat ${seatNumber}`);
     if (deck.identityCardId !== seat.identityCardId) throw new Error("a campaign identity is locked (MC10 p. 3)");
+    const clash = this.#packVersionClash(record, deck);
+    if (clash) throw new Error(t("campaign.deck.packVersionClash", clash));
     return this.#put(record, {
       ...record,
       seats: record.seats.map((candidate) =>
@@ -524,6 +527,30 @@ export class CampaignService {
     await this.storage.put(next);
     for (const seatNumber of toMigrate) clearLegacyDeckFreezeOptIn(record.id, seatNumber);
     return next;
+  }
+
+  /**
+   * A pack this deck would copy into the run that needs a pack the run already keeps at another version (#978): the
+   * run's copy stays as it was signed, so the two were never checked together and a game could break. Returns the
+   * names and versions for the refusal, or null when the deck adds nothing or everything it adds fits the run's copies.
+   */
+  #packVersionClash(
+    record: CampaignRecord,
+    deck: Deck,
+  ): { readonly pack: string; readonly needs: string; readonly kept: string; readonly wanted: string } | null {
+    const carried = new Map(runPacksOf(record).map((pack) => [pack.id, pack] as const));
+    const wanted = this.#heroPacksOf([{ deck }]);
+    const byId = new Map(wanted.map((pack) => [pack.id, pack] as const));
+    for (const pack of wanted) {
+      if (carried.has(pack.id)) continue;
+      for (const id of pack.requires) {
+        const kept = carried.get(id);
+        const now = byId.get(id);
+        if (kept && now && kept.version !== now.version)
+          return { pack: pack.name, needs: kept.name, kept: kept.version, wanted: now.version };
+      }
+    }
+    return null;
   }
 
   /**
