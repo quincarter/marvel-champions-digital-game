@@ -50,6 +50,11 @@ export type LiveRoomIn =
   | { readonly kind: "room-host"; readonly name: string }
   /** `target` is a room code or a room id. */
   | { readonly kind: "room-join"; readonly target: string; readonly name: string }
+  /**
+   * Back into the room named by the address's `?room=<CODE>` after a reload: as the host when this device holds that
+   * room's host token (`live-room-store.ts`), otherwise as a guest with its stored seat tokens.
+   */
+  | { readonly kind: "room-rejoin"; readonly code: string; readonly name: string }
   /** `closeRoom`: a host who confirmed closing the lobby for everyone asks the room to shut down first. */
   | { readonly kind: "room-leave"; readonly closeRoom?: boolean }
   | {
@@ -131,6 +136,11 @@ export type LiveRoomOut =
   | { readonly kind: "room"; readonly state: RoomState }
   /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
   | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null }
+  /**
+   * A host's reload found its room with a game in progress: `gameId` is the local save to resume (it reattaches to the
+   * same room, `live-room-store.ts`). Sent before the room answers, so the screen can go straight to the board.
+   */
+  | { readonly kind: "room-resume-game"; readonly gameId: string }
   /** The room refused the host's game start as its lobby had changed (`lobby-changed`); the room dropped that game. */
   | { readonly kind: "room-start-refused" }
   /** A guest's room was closed mid-game: the game it held, sent just ahead of the room's ended state. */

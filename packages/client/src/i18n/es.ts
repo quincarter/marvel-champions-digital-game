@@ -357,6 +357,10 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "online.codeInvalid": "Eso no es un código de sala. Un código tiene 6 letras y números.",
   "online.offline": "No tienes conexión. Jugar en línea la necesita; todo lo demás funciona igual.",
   "online.connecting": "Conectando…",
+  "rejoin.title": "Reconectando",
+  "rejoin.room": "Volviendo a la sala {code}…",
+  "rejoin.game": "Retomando tu partida…",
+  "rejoin.cancel": "Cancelar",
   "online.nameTitle": "Tu nombre",
   "online.nameBody":
     "Los demás jugadores ven este nombre en tus asientos y en el chat. Puedes cambiarlo luego en Ajustes.",
