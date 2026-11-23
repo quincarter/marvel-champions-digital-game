@@ -78,6 +78,37 @@ describe("host activity from the client", () => {
     expect(plans()).toHaveLength(3);
   });
 
+  it("sends the kept draft again in a rematch's lobby, after the room cleared the plan at game start", async () => {
+    vi.useFakeTimers();
+    try {
+      const room = await import("./room.js");
+      const { keepRoomDraft, clearRoomTable } = await import("../view/room-table-setup.js");
+      const { initialSetupDraft } = await import("../view/setup-draft.js");
+      const plans = () => posted.filter((m) => m.kind === "room-table-plan");
+      listener!(hostState("connected"));
+      keepRoomDraft(initialSetupDraft({ scenarioId: "rhino", seatDeckId: null, scenarioPicked: true, seed: 1 }));
+      expect(plans()).toHaveLength(1);
+      const sent = plans()[0]!.plan as object;
+      listener!(hostState("connected", { tablePlan: sent }));
+      // The game starts: the room clears the plan. Nothing is sent while the game runs.
+      listener!(hostState("connected", { tablePlan: null }));
+      expect(plans()).toHaveLength(1);
+      // Back in the lobby with the draft kept and no plan showing: sent again, once.
+      room.resyncTablePlan();
+      room.resyncTablePlan();
+      expect(plans()).toHaveLength(2);
+      expect(plans()[1]!.plan).toEqual(sent);
+      // A plan the room refused as over the limit is tried again once its limit has refilled.
+      listener!(hostState("connected", { tablePlan: null, refusal: { reason: "rate-limited", seq: 1 } }));
+      expect(plans()).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(plans()).toHaveLength(3);
+      clearRoomTable();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("forgets a guest's room that ended as closed", async () => {
     await import("./room.js");
     const { rememberRoom, recentRooms } = await import("./recent-rooms.js");

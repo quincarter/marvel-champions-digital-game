@@ -423,7 +423,6 @@ export const en = {
   "room.table.heroic": "Heroic {level}",
   "room.table.skirmish": "Skirmish",
   "room.table.villain": "Villain",
-  "room.table.sets": "Modular sets",
   "room.table.noSets": "No modular sets",
   "room.start": "Start game",
   "room.starting": "Starting…",

@@ -438,8 +438,13 @@ export class GameRoomLogic {
   private activity: { step: HostActivityStep; scenario?: string } | null = null;
   /** The newest step that arrived over the limit: relayed once a token is free, so the last step is never lost. */
   private pendingActivity: { who: string; step: { step: HostActivityStep; scenario?: string } } | null = null;
-  /** The host's table plan (memory only, never part of the lobby revision), or null when none. */
+  /**
+   * The host's table plan, or null when none. Kept in its own storage row (`plan`), apart from the lobby row, so a woken
+   * room still has it and it never touches the lobby revision a Start compares and swaps on.
+   */
   private plan: TablePlan | null = null;
+  /** The stored plan was read, or a newer one was set since the wake (so the stored one must not overwrite it). */
+  private planLoad: Promise<void> | null = null;
   private readonly planBucket = new Map<string, { tokens: number; at: number }>();
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly activityBucket = new Map<string, { tokens: number; at: number }>();
@@ -1671,20 +1676,31 @@ export class GameRoomLogic {
       this.sendSocket(socket, { v: 1, ch: "chat", kind: "backlog", lines: [...this.backlog] });
     }
     if (this.activity) this.sendSocket(socket, { v: 1, ch: "room", kind: "host-activity", ...this.activity });
+    await this.loadPlan();
     if (this.plan) this.sendSocket(socket, { v: 1, ch: "room", kind: "table-plan", plan: this.plan });
   }
 
+  /** Loads the stored plan once per lifetime, unless a plan was set since the wake. */
+  private loadPlan(): Promise<void> {
+    this.planLoad ??= (async () => {
+      const stored = await this.storage.get<TablePlan>("plan");
+      if (stored && this.plan === null) this.plan = stored;
+    })();
+    return this.planLoad;
+  }
+
   /**
-   * The host's table plan, relayed to everyone. Memory only: no row, no lobby revision. Host only and rate limited
+   * The host's table plan, relayed to everyone and kept in its own row (never the lobby row or revision). Host only, rate limited
    * (over the limit is refused; the host's client sends its newest plan again on reconnect). An unchanged plan is not
    * relayed again, and a clear always goes through.
    */
-  private tablePlan(
+  private async tablePlan(
     socket: RoomSocket,
     who: Participant,
     message: Extract<ClientMessage, { kind: "table-plan" }>,
-  ): void {
+  ): Promise<void> {
     if (who.role !== "host" || this.meta?.code === undefined) return this.refuse(socket, "not-allowed");
+    await this.loadPlan();
     const incoming = message.plan;
     const next: TablePlan | null = incoming
       ? {
@@ -1705,6 +1721,9 @@ export class GameRoomLogic {
   private setPlan(next: TablePlan | null): void {
     if (JSON.stringify(next) === JSON.stringify(this.plan)) return;
     this.plan = next;
+    // Stored only when it changes (a clear deletes the row); a failed write leaves memory right for this lifetime.
+    this.planLoad ??= Promise.resolve();
+    void (next ? this.storage.put("plan", next) : this.storage.delete("plan")).catch(() => undefined);
     this.broadcast({ v: 1, ch: "room", kind: "table-plan", plan: next });
   }
 
@@ -2210,6 +2229,7 @@ export class GameRoomLogic {
       this.dropPendingActivity();
       this.activityBucket.clear();
       this.plan = null;
+      this.planLoad = Promise.resolve();
       this.planBucket.clear();
       this.chatBuckets.clear();
       this.lobbyBuckets.clear();

@@ -18,6 +18,7 @@ import {
   leaveRoom,
   onRoomState,
   reportHostActivity,
+  resyncTablePlan,
   releaseSeat,
   requestSeat,
   roomState,
@@ -56,7 +57,7 @@ import type { DeckRefusalCode } from "../live/room-state.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import type { CardFace } from "../art/art-source.js";
 import { artThumbSpec } from "./roster-panel.js";
-import { planGrid, planPictures, type PlanPicture } from "../view/room-table-plan.js";
+import { planGrid, planPicturesCached, type PlanPicture } from "../view/room-table-plan.js";
 import type { Rect } from "../view/layout.js";
 import { lobbyLayout, type LobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import { activityDots, hostActivityWords } from "../view/room-host-activity.js";
@@ -281,7 +282,11 @@ export class RoomLobbyScene extends Phaser.Scene {
     bindTextFieldEscape(this, () => this.#chatInput);
     this.scale.on("resize", this.#draw, this);
     // The host is back in the lobby: its setup status line (if it was showing one) is over.
-    if (!this.#preview && this.#state.role === "host") reportHostActivity("idle");
+    if (!this.#preview && this.#state.role === "host") {
+      reportHostActivity("idle");
+      // Back from a game with the draft kept: the room cleared the plan at its start, so it is sent again.
+      resyncTablePlan();
+    }
     this.#watchKeyboard();
     // The desktop hover popover over a seat's hero picture, as Table setup and the set sheets show it.
     this.#hover = new HoverPreview(this, {
@@ -981,7 +986,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const line = this.#text(x, y, facts.join(" · "), 13, w, { bold: true });
     y += line.height + 8;
 
-    const pictures = planPictures(plan, {
+    const pictures = planPicturesCached(plan, {
       scenarios: currentScenarios(),
       cards: currentCardsById(),
       encounterSets: currentEncounterSets(),
@@ -1007,7 +1012,10 @@ export class RoomLobbyScene extends Phaser.Scene {
           });
         }
         const kind = item.key === "villain" ? `${t("room.table.villain").toUpperCase()} · ` : "";
-        const name = this.#text(rect.x, rect.y + size + 3, `${kind}${item.name}`, 11, size, { bold: true });
+        // At most two lines, so a long name never runs into the next row.
+        const name = this.#text(rect.x, rect.y + size + 3, `${kind}${item.name}`, 11, size, { bold: true }).setMaxLines(
+          2,
+        );
         rowHeight = Math.max(rowHeight, size + 3 + Math.min(name.height, 30));
       });
       y += rowHeight + 8;
