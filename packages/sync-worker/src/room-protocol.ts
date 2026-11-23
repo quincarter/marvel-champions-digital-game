@@ -340,6 +340,12 @@ export interface LobbySettings {
    */
   readonly hostSeesHands?: boolean;
   /**
+   * Does every seated device draw every seat's hand face up? Default false. On, for a teaching table: each device shows
+   * all hands, and the live header tells watchers the hands are not hidden. Only what is drawn: the engine keeps every
+   * hand. A seat's own `showsHand` opens just that hand while this is off.
+   */
+  readonly openHands?: boolean;
+  /**
    * Who paces the villain phase screen on a seated guest's device. `host` (default; absent reads as `host`): the guest's
    * screen follows the host's reveal (`villain-cursor`) and has no controls to move on by itself. `each`: every player
    * steps through at their own pace. Presentation only: the engine's villain phase has already resolved either way.
@@ -452,6 +458,11 @@ export interface LobbySeat extends LobbySeatSpec {
    * refused, so two devices never act for one hero. Stored with the seat.
    */
   readonly takenOver?: boolean;
+  /**
+   * The seat's holder shows their hand to the table (`seat-show-hand`): every seated device draws it face up. Stored with
+   * the seat and kept across a reconnect like `takenOver`; cleared when the seat changes holder.
+   */
+  readonly showsHand?: boolean;
   /**
    * The holder left the seat during a game while `handover` is off: it stays reserved for them and nobody acts for it
    * until they take it again (their seat token, or asking for it).
@@ -739,6 +750,11 @@ export type ClientMessage =
   | { readonly v: 1; readonly ch: "room"; readonly kind: "take-over"; readonly seat: string }
   /** Host only: hand a taken-over seat back to its holder. */
   | { readonly v: 1; readonly ch: "room"; readonly kind: "give-back"; readonly seat: string }
+  /**
+   * Show or hide a seat's hand to the table. Its holder may set it; the host may also for a seat it has taken over or one
+   * nobody holds (a hero it runs).
+   */
+  | { readonly v: 1; readonly ch: "room"; readonly kind: "seat-show-hand"; readonly seat: string; readonly on: boolean }
   /** Lobby rooms with chat on: at most `MAX_CHAT_LENGTH` characters; 1 a second per participant, burst `CHAT_BURST`. */
   | { readonly v: 1; readonly ch: "chat"; readonly kind: "say"; readonly text: string };
 
@@ -1071,6 +1087,7 @@ function isSettingsPatch(v: unknown): boolean {
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
   if (v.hostSeesHands !== undefined && typeof v.hostSeesHands !== "boolean") return false;
+  if (v.openHands !== undefined && typeof v.openHands !== "boolean") return false;
   if (v.villainPacing !== undefined && !VILLAIN_PACINGS.some((x) => x === v.villainPacing)) return false;
   if (v.askToSit !== undefined && typeof v.askToSit !== "boolean") return false;
   if (v.chat !== undefined && typeof v.chat !== "boolean") return false;
@@ -1130,6 +1147,8 @@ export function parseClientMessage(text: string): ClientMessage | null {
     case "room:take-over":
     case "room:give-back":
       return ok(isSeatId(m.seat));
+    case "room:seat-show-hand":
+      return ok(isSeatId(m.seat) && typeof m.on === "boolean");
     case "room:seat-assign":
     case "room:seat-deny":
       return ok(isSeatId(m.seat) && typeof m.participant === "string" && m.participant.length <= 32);

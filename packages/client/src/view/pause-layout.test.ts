@@ -422,3 +422,35 @@ describe("the watch link row (#876)", () => {
     expect(layout.watchLink).toBeNull();
   });
 });
+
+describe("the Show my hand row (room games)", () => {
+  for (const size of WIDE_SIZES) {
+    for (const watchLink of [false, true]) {
+      test(`clears Manual adjust and the watch link at ${size.name}${watchLink ? ", with the watch link" : ""}`, () => {
+        const layout = pauseLayout(
+          { x: 0, y: 0, width: size.width, height: size.height },
+          { ...input(8), showHand: true, watchLink },
+        );
+        if (layout.kind !== "wide") throw new Error("expected wide");
+        const row = layout.showHand!;
+        expect(row).not.toBeNull();
+        expect(row.y).toBeGreaterThan(layout.menu.report.y);
+        expect(row.y + row.height).toBeLessThanOrEqual(layout.concedeConfirmCancel.y - 34);
+        expect(rectsOverlap(row, layout.concede)).toBe(false);
+        if (watchLink) expect(rectsOverlap(row, layout.watchLink!)).toBe(false);
+      });
+    }
+  }
+
+  test("is absent outside a room game and in a guided run", () => {
+    const wide = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, input(8));
+    if (wide.kind !== "wide") throw new Error("expected wide");
+    expect(wide.showHand).toBeNull();
+    const guided = pauseLayout(
+      { x: 0, y: 0, width: 1440, height: 900 },
+      { ...input(8), showHand: true, guidedRunActive: true },
+    );
+    if (guided.kind !== "wide") throw new Error("expected wide");
+    expect(guided.showHand).toBeNull();
+  });
+});

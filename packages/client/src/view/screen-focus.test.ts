@@ -1139,3 +1139,22 @@ describe("pauseFocusOrder with a live room (#876)", () => {
     expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).not.toContain("watch-link");
   });
 });
+
+describe("pauseFocusOrder with Show my hand", () => {
+  test("the wide menu's show-hand stop follows the watch link and precedes Manual adjust", () => {
+    const order = pauseFocusOrder({
+      kind: "wide",
+      keywordIds: [],
+      confirmingConcede: false,
+      watchLink: true,
+      showHand: true,
+    });
+    expect(order.slice(order.indexOf("report"), order.indexOf("concede"))).toEqual([
+      "report",
+      "watch-link",
+      "show-hand",
+      "manual-adjust",
+    ]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).not.toContain("show-hand");
+  });
+});

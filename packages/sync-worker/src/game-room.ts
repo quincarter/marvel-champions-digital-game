@@ -134,6 +134,7 @@ export const DEFAULT_LOBBY_SETTINGS: LobbySettings = {
   multiSeat: false,
   handover: true,
   hostSeesHands: false,
+  openHands: false,
   villainPacing: "host",
   chat: true,
   contentVersion: "",
@@ -166,6 +167,7 @@ interface StoredSeat extends LobbySeatSpec {
   holderName?: string;
   tokenHash?: string;
   takenOver?: boolean;
+  showsHand?: boolean;
   left?: boolean;
   /** The seat's full deck list: only ever sent to the host (`seat-decks`), never in the lobby broadcast. */
   deck?: RoomDeck;
@@ -698,6 +700,7 @@ export class GameRoomLogic {
         ...lobby.settings,
         handover: lobby.settings.handover !== false,
         hostSeesHands: lobby.settings.hostSeesHands === true,
+        openHands: lobby.settings.openHands === true,
         // A lobby stored before the setting existed has none: the host leads, the new default.
         villainPacing: (lobby.settings.villainPacing === "each" ? "each" : "host") satisfies VillainPacing,
       },
@@ -1767,7 +1770,10 @@ export class GameRoomLogic {
     // A change of holder clears the previous holder's own deck; the host's preset stays.
     if (seat.holder !== who.id && !seat.deckPreset) delete seat.deck;
     // Holder first: the hash below is an await, and a second message must already see the seat taken.
-    if (seat.holder !== who.id) this.resultLedger.delete(seat.id);
+    if (seat.holder !== who.id) {
+      this.resultLedger.delete(seat.id);
+      delete seat.showsHand;
+    }
     seat.holder = who.id;
     seat.holderName = who.name ?? "";
     delete seat.takenOver;
@@ -2078,6 +2084,7 @@ export class GameRoomLogic {
       delete seat.holderName;
       delete seat.tokenHash;
       delete seat.takenOver;
+      delete seat.showsHand;
       delete seat.left;
       // The holder's own deck goes with them (the next holder brings theirs); the host's preset stays, and one the
       // holder had replaced comes back. During a live game the hero is fixed (the frozen seat-to-player mapping), so the
@@ -2130,6 +2137,7 @@ export class GameRoomLogic {
           ...(message.settings?.multiSeat !== undefined ? { multiSeat: message.settings.multiSeat } : {}),
           ...(message.settings?.handover !== undefined ? { handover: message.settings.handover } : {}),
           ...(message.settings?.hostSeesHands !== undefined ? { hostSeesHands: message.settings.hostSeesHands } : {}),
+          ...(message.settings?.openHands !== undefined ? { openHands: message.settings.openHands } : {}),
           ...(message.settings?.villainPacing !== undefined ? { villainPacing: message.settings.villainPacing } : {}),
           ...(message.settings?.askToSit !== undefined ? { askToSit: message.settings.askToSit } : {}),
           ...(message.settings?.chat !== undefined ? { chat: message.settings.chat } : {}),
@@ -2285,6 +2293,19 @@ export class GameRoomLogic {
         if (!seat) return this.refuse(socket, "no-such-seat");
         if (!seat.takenOver) return;
         delete seat.takenOver;
+        persist = true;
+        break;
+      }
+      case "seat-show-hand": {
+        const seat = seatOf(message.seat);
+        if (!seat) return this.refuse(socket, "no-such-seat");
+        // The holder decides. The host decides too for a seat it acts for (taken over) and for one nobody holds.
+        if (seat.holder !== who.id && !(isHost && (seat.takenOver === true || !seat.holder))) {
+          return this.refuse(socket, "not-allowed");
+        }
+        if ((seat.showsHand === true) === message.on) return;
+        if (message.on) seat.showsHand = true;
+        else delete seat.showsHand;
         persist = true;
         break;
       }

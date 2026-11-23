@@ -149,6 +149,8 @@ export interface RoomSeat {
   readonly player: string | null;
   /** The host acts for this seat (its holder was away), until it gives it back. Nobody else may act for it. */
   readonly takenOver: boolean;
+  /** The holder chose to show this hand to the table (`LobbySeat.showsHand`); absent reads as hidden. */
+  readonly showsHand?: boolean;
   /**
    * Held, but the holder is not connected or has left the seat (handover off): the game waits on it unless the host
    * takes it over. A seat nobody holds (`holder` null, `player` set, game started) is vacant: its player left and the

@@ -63,6 +63,8 @@ export type LiveRoomIn =
       readonly seat: string;
       readonly participant?: string;
     }
+  /** Show or hide a seat's hand to the table (`seat-show-hand`); the room checks who may. */
+  | { readonly kind: "room-show-hand"; readonly seat: string; readonly on: boolean }
   | { readonly kind: "room-say"; readonly text: string }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }

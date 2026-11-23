@@ -406,6 +406,7 @@ export class RoomModel {
       mine: meId !== null && seat.holder === meId,
       player: seat.player === undefined ? null : playerIdOfSeat(seat.player),
       takenOver: seat.takenOver === true,
+      ...(seat.showsHand === true ? { showsHand: true } : {}),
       // Away: the holder is not connected, or (handover off) left the seat mid-game and has not taken it up again.
       away: seat.holder !== undefined && (seat.left === true || !this.#participants.some((p) => p.id === seat.holder)),
       requests: (seat.requested ?? []).map((id) => ({ participant: id, name: nameOf(id) })),

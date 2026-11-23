@@ -243,6 +243,9 @@ export class LiveRoomController {
       case "room-seat":
         this.#session?.seat(message.op, message.seat, message.participant);
         return;
+      case "room-show-hand":
+        this.#session?.showHand(message.seat, message.on);
+        return;
       case "room-answer":
         this.#session?.answerRequest(message.id, message.accepted);
         return;

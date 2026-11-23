@@ -667,6 +667,13 @@ export const en = {
   "room.handsSetting.title": "Host sees every hand",
   "room.handsSetting.detail":
     "Off: the host's screen draws other players' hands face down, like theirs. On: the host sees every hand. Watchers never see hands.",
+  "room.openHands.title": "Everyone sees every hand",
+  "room.openHands.detail":
+    "For teaching: every player's screen, and watchers', draws every hand face up. Off: hands stay face down, and a player can still show their own from Pause.",
+  "room.showHand.show": "Show my hand to the table",
+  "room.showHand.hide": "Hide my hand",
+  "room.showHand.showShort": "Show hand",
+  "room.showHand.hideShort": "Hide hand",
   "room.handover.title": "Host can take over or hand off a hero",
   "room.handover.detail":
     "When a player leaves, the host may play their hero or give it to someone else. Off: the game waits for them.",
