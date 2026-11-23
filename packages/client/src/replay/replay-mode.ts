@@ -12,6 +12,7 @@ import { appSession, swapSessionHost, type AppSession } from "../session.js";
 import { SessionStore } from "../store/session-store.js";
 import type { ReplayHost } from "./replay-host.js";
 import { resetReplayInspect } from "./replay-inspect.js";
+import { clearWatchAddress } from "../live/watch-link.js";
 
 interface Watching {
   readonly replay: ReplayHost;
@@ -62,6 +63,8 @@ export function leaveReplay(): void {
   const current = watching;
   if (!current) return;
   watching = null;
+  // A watched live game is no longer watched: a reload must not open it again.
+  clearWatchAddress();
   resetReplayInspect();
   const { store } = swapSessionHost(current.host, current.store);
   const session = appSession();
