@@ -8,6 +8,8 @@
  */
 import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 import { forgetRoom, roomIsOver } from "./recent-rooms.js";
+import { syncRoomAddress } from "./room-address.js";
+import { syncGameAddress } from "./game-address.js";
 import type { EngineHost, SessionConfig } from "../engine/host.js";
 import type { HostActivityStep, VillainCursorState } from "@mc/sync-worker/room-protocol";
 import { roomDraft, setRoomDraftListener } from "../view/room-table-setup.js";
@@ -57,6 +59,7 @@ import { currentCardsById, POOL_SCENARIOS } from "../content/pool.js";
 import type { DeckOption } from "../view/deck-list-model.js";
 import {
   postRoomCommand,
+  setRoomResumeGameListener,
   setChatPopoutListener,
   setRoomDecksListener,
   setRoomStateListener,
@@ -222,6 +225,14 @@ function publish(next: RoomState): void {
     if (next.role === "host" && lastCursor) postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
+  // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
+  syncRoomAddress(next);
+  // A host whose room closed under a game in progress keeps playing it alone: the game takes the address at once.
+  if (next.connection === "ended" && prev.role === "host" && prev.started) {
+    const session = appSession();
+    const store = session?.store;
+    if (store) syncGameAddress(store.state, session.guidedRun);
+  }
   for (const listener of [...listeners]) listener(state);
 }
 
@@ -395,6 +406,25 @@ export async function hostRoom(name?: string): Promise<void> {
 export async function joinRoom(codeOrId: string, name?: string): Promise<void> {
   publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
   if (!postRoomCommand({ kind: "room-join", target: codeOrId, name: nameFor(name) })) unavailable("guest");
+}
+
+/**
+ * Back into the room the address names (`?room=<CODE>`, see `room-address.ts`) after a reload: the host with its saved
+ * host token, otherwise a guest with its seat tokens. `name` as for `joinRoom`; empty: `problem: "no-name"`.
+ */
+export async function rejoinRoom(code: string, name?: string): Promise<void> {
+  publish({ ...NO_ROOM, role: "guest", connection: "connecting" });
+  if (!postRoomCommand({ kind: "room-rejoin", code, name: nameFor(name) })) unavailable("guest");
+}
+
+/**
+ * Host, after `rejoinRoom`: calls `listener` with the local save id of the game that was in progress in the room, as soon as
+ * the worker has found it (before the room answers). The screen resumes that save, which reattaches to the same room.
+ * Returns the unsubscribe.
+ */
+export function onRejoinGame(listener: (gameId: string) => void): () => void {
+  setRoomResumeGameListener(listener);
+  return () => setRoomResumeGameListener(null);
 }
 
 /** Leaves the room (a host closes its lobby for everyone). Seat tokens are kept, so joining again restores the seats. */
