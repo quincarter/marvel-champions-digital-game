@@ -68,7 +68,9 @@ export type LiveRoomIn =
     }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
   | { readonly kind: "room-follow"; readonly port: MessagePort }
-  | { readonly kind: "room-unfollow" };
+  | { readonly kind: "room-unfollow" }
+  /** Brings the chat back from its pop-out window (`live/chat-popout-protocol.ts`): the window is told to close. */
+  | { readonly kind: "chat-popout-recall" };
 
 /** The live-room worker to main (and, as `LiveStatusMessage`, to the presence worker). */
 export type LiveRoomOut =
@@ -77,7 +79,9 @@ export type LiveRoomOut =
   /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
   | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null }
   /** The room refused the host's game start as its lobby had changed (`lobby-changed`); the room dropped that game. */
-  | { readonly kind: "room-start-refused" };
+  | { readonly kind: "room-start-refused" }
+  /** The chat's pop-out window opened or went away (closed, brought back, or its heartbeat stopped). */
+  | { readonly kind: "chat-popout"; readonly open: boolean };
 
 /** The room worker to a guest's watcher, over the follow port: what a room socket would have delivered. */
 export type RoomFeedOut =
