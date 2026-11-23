@@ -1731,14 +1731,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       { x: left, y, width: column, height: hit.target },
       `${cycleLabel} ▾`,
       () => {
-        // Each press applies at once, so judge the packs against the filter the picker opened on: ticking Core and
-        // then Wave 1 keeps a Wave 1 pack that the moment with only Core ticked would have dropped.
-        const opened = this.#filter;
         this.#openPoolPick(
           t("deckBuilder.pickWavesTitle"),
-          withPicks(choices.cycles, opened.cycleIds, allWaves),
-          opened.cycleIds,
-          (chosen) => apply(withCycles({ ...this.#filter, packCodes: opened.packCodes ?? null }, chosen, packInfos())),
+          withPicks(choices.cycles, this.#filter.cycleIds, allWaves),
+          this.#filter.cycleIds,
+          (chosen) => apply(withCycles(this.#filter, chosen)),
         );
       },
       Boolean(this.#filter.cycleIds?.length),

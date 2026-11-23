@@ -477,12 +477,13 @@ export function traitFilterChoices(
 /** A trait as a player reads it: "S.H.I.E.L.D._Agent" is "S.H.I.E.L.D. Agent". */
 export const traitLabelOf = (trait: string): string => trait.replace(/_/g, " ");
 
-/** `filter` with new waves: a chosen pack outside every one of them is dropped. Empty `cycleIds` is every wave. */
-export function withCycles(filter: PoolFilter, cycleIds: readonly string[], packs: readonly PackInfo[]): PoolFilter {
-  const inWaves = (code: string): boolean =>
-    cycleIds.length === 0 || cycleIds.includes(packs.find((p) => p.code === code)?.cycleId ?? "");
-  const packCodes = (filter.packCodes ?? []).filter(inWaves);
-  return { ...filter, cycleIds: cycleIds.length ? cycleIds : null, packCodes: packCodes.length ? packCodes : null };
+/**
+ * `filter` with new waves. Empty `cycleIds` is every wave. Picked packs are kept even when no chosen wave holds them
+ * (PR #980 review): the two narrow together, so the pool may come up empty, but nothing the player picked is dropped
+ * behind their back, and the pack picker still lists those packs ticked so they can be unticked.
+ */
+export function withCycles(filter: PoolFilter, cycleIds: readonly string[]): PoolFilter {
+  return { ...filter, cycleIds: cycleIds.length ? cycleIds : null };
 }
 
 /** The one pack or wave a ◂ ▸ stepper steps from: the single one chosen, else none (= all). */

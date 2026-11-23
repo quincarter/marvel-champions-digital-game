@@ -272,13 +272,12 @@ describe("pack/cycle filter and sort", () => {
     expect(stepChoice(choices.packs, null, 1)).toBe("core");
     expect(stepChoice(choices.packs, "core", 1)).toBeNull();
     expect(stepChoice(choices.packs, null, -1)).toBe("core");
-    expect(withCycles({ packCodes: ["core"] }, ["wave1"], PACKS).packCodes).toBeNull();
-    expect(withCycles({ packCodes: ["core"] }, ["core"], PACKS).packCodes).toEqual(["core"]);
-    expect(withCycles({ packCodes: ["core", "gob"] }, ["wave1"], PACKS)).toEqual({
-      packCodes: ["gob"],
-      cycleIds: ["wave1"],
-    });
-    expect(withCycles({ packCodes: ["core"], cycleIds: ["wave1"] }, [], PACKS)).toEqual({
+    // A pack outside every chosen wave stays picked (PR #980 review): the two narrow together.
+    expect(withCycles({ packCodes: ["core"] }, ["wave1"])).toEqual({ packCodes: ["core"], cycleIds: ["wave1"] });
+    expect(browsablePool(CORE_CARDS, spiderMan, ["justice"], withCycles({ packCodes: ["core"] }, ["wave1"]))).toEqual(
+      [],
+    );
+    expect(withCycles({ packCodes: ["core"], cycleIds: ["wave1"] }, [])).toEqual({
       packCodes: ["core"],
       cycleIds: null,
     });
