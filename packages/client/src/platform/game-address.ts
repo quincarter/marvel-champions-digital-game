@@ -20,6 +20,19 @@ export function gameLinkOf(location: ReceiveLinkLocation | undefined = globalThi
   return raw !== null && SAVE_ID.test(raw) ? raw : null;
 }
 
+/** Save ids a player walked away from before they finished loading (Cancel on a rejoin): the address leaves them out. */
+const suppressed = new Set<string>();
+
+/** Keeps a loaded game out of the address until Title lets it back (`releaseGameAddress`). */
+export function suppressGameAddress(gameId: string): void {
+  suppressed.add(gameId);
+}
+
+/** Title is where a game is picked up again on purpose: every suppressed save may take the address again. */
+export function releaseGameAddress(): void {
+  suppressed.clear();
+}
+
 /** Takes `?game=` out of the address (no new history entry); everything else stays. */
 export function clearGameAddress(
   location: ReceiveLinkLocation | undefined = globalThis.location,
@@ -47,7 +60,7 @@ export function syncGameAddress(
   history: ReceiveLinkHistory | undefined = globalThis.history,
 ): void {
   if (!location || !history) return;
-  if (state.status !== "playing" || !state.gameId) return;
+  if (state.status !== "playing" || !state.gameId || suppressed.has(state.gameId)) return;
   if (state.game?.outcome || guided) {
     clearGameAddress(location, history);
     return;

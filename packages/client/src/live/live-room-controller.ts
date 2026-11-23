@@ -122,6 +122,8 @@ export class LiveRoomController {
   #lastName = "";
   /** Bumped by every session change, so a rejoin whose record read returns late knows it was overtaken. */
   #rejoinTicket = 0;
+  /** Rooms this worker left as host (Cancel, Back, Quit): a game still loading for one never reattaches to it. */
+  readonly #leftRooms = new Set<string>();
   /** A host session a rejoin resumed: when its room turns out gone, the code is joined as a guest instead. */
   #hostFallback: { readonly session: RoomSession; readonly name: string; readonly code: string } | null = null;
   /** When the lobby record's stamp was last written while hosting in the lobby. */
@@ -405,15 +407,37 @@ export class LiveRoomController {
     this.#hostFallback = null;
     const session = this.#session;
     if (!session) return;
-    // A host who leaves closes its room: the saved host token is no use any more.
-    if (session.role === "host" && session.code) {
-      void this.#deps.store?.clear(lobbyRecordKey(session.code)).catch(() => {});
-    }
+    const liveKey = this.#live?.room === session ? this.#live.gameKey : undefined;
     // The game streaming into the room is over with it: the room is told, then the socket closes.
     if (this.#live?.room === session) this.#leave();
     this.#session = null;
     session.close({ closeRoom });
+    // A host who leaves closes its room as far as this device goes: the saved host token, and the game record that names
+    // the room, are no use any more. A save that is still loading from a rejoin then finds nothing to reattach to
+    // (`#resumeEarly`, `#begin`). Written after the leave above, which saves the lobby record once more.
+    if (session.role === "host" && session.code) {
+      if (session.roomId) this.#leftRooms.add(session.roomId);
+      void this.#forgetHostedRoom(session.code, liveKey);
+    }
     this.#postRoom(NO_ROOM);
+  }
+
+  /** Drops the lobby record of a room this device left as host, and the record of the game it named. */
+  async #forgetHostedRoom(code: string, liveKey?: string): Promise<void> {
+    const store = this.#deps.store;
+    if (!store) return;
+    try {
+      const record = await store.load(lobbyRecordKey(code));
+      for (const key of new Set([liveKey, record?.liveGameKey])) if (key) await store.clear(key);
+      await store.clear(lobbyRecordKey(code));
+    } catch {
+      // A store that fails leaves the records to the idle limit.
+    }
+  }
+
+  /** Whether a saved record names a room this device already left as host. */
+  #left(record: LiveRoomRecord | null): boolean {
+    return record !== null && this.#leftRooms.has(record.roomId);
   }
 
   #postRoom(state: RoomState): void {
@@ -433,6 +457,10 @@ export class LiveRoomController {
     try {
       record = (await this.#deps.store?.load(gameKey)) ?? null;
     } catch {
+      return;
+    }
+    if (this.#left(record)) {
+      void this.#deps.store?.clear(gameKey).catch(() => {});
       return;
     }
     if (record?.code && recordFresh(record, (this.#deps.now ?? Date.now)())) this.#openPending(gameKey);
@@ -540,6 +568,10 @@ export class LiveRoomController {
         this.#attachRoom(live, session, saved?.gid);
         return;
       }
+    }
+    if (this.#left(record)) {
+      void store?.clear(live.gameKey).catch(() => {});
+      record = null;
     }
     if (record?.code) {
       const name = (record.name?.trim() || this.#lastName || this.#deps.room?.onlineName?.trim()) ?? "";

@@ -1379,3 +1379,52 @@ describe("review fixes for the reload rejoin", () => {
     expect(store.records.get("room:ABC234")?.lastActiveAt).toBe(90_000);
   });
 });
+
+describe("giving up a mid-game rejoin", () => {
+  async function hostedGame() {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    expect(store.records.get("room:ABC234")?.liveGameKey).toBe("g1");
+    return store;
+  }
+
+  it("Cancel before the save finishes loading: the save later never reattaches, and both records are gone", async () => {
+    const store = await hostedGame();
+    const t = setup({ store, onResumeGame: () => undefined });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    const sockets = FakeSocket.all.length;
+    t.controller.onRoomCommand({ kind: "room-leave" });
+    await flush();
+    expect(store.records.has("room:ABC234")).toBe(false);
+    expect(store.records.has("g1")).toBe(false);
+    // The save finishes loading after the player left: nothing connects, no room is made, no session is back.
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    await flush();
+    expect(FakeSocket.all).toHaveLength(sockets);
+    expect(t.createRoom).not.toHaveBeenCalled();
+    expect(t.last().role).toBe("none");
+  });
+
+  it("Cancel after the game reattached: the leave drops the room record, the game record and the lobby record", async () => {
+    const store = await hostedGame();
+    const t = setup({ store, onResumeGame: () => undefined });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    expect(store.records.get("g1")?.code).toBe("ABC234");
+    t.controller.onRoomCommand({ kind: "room-leave" });
+    await flush();
+    await flush();
+    expect(store.records.has("room:ABC234")).toBe(false);
+    expect(store.records.has("g1")).toBe(false);
+  });
+});

@@ -23,6 +23,7 @@ import { surface, typeRole, hit } from "../tokens.js";
 import type { LiveRoomEntry } from "@mc/sync-worker/room-protocol";
 import { pollLiveRooms, type LiveRoomsPoll } from "../platform/live-rooms.js";
 import { clearRoomAddress } from "../platform/room-address.js";
+import { clearGameAddress, suppressGameAddress } from "../platform/game-address.js";
 import { forgetRoom, rememberRoom, recentRooms, roomIsOver } from "../platform/recent-rooms.js";
 import { drawArtBackdrop } from "../ui/art-backdrop.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
@@ -93,6 +94,8 @@ export class OnlineScene extends Phaser.Scene {
   /** The listener for a rejoining host's game in progress, and whether its save is loading. */
   #offGame: (() => void) | null = null;
   #resumingGame = false;
+  /** Bumped when a rejoin is given up, so a save still loading for it knows it was abandoned. */
+  #resumeTicket = 0;
   /** The public "Live now" rooms last fetched (empty when offline or the fetch failed), and the poll that refreshes them. */
   #live: LiveRoomEntry[] = [];
   #stopPoll: LiveRoomsPoll | null = null;
@@ -214,6 +217,7 @@ export class OnlineScene extends Phaser.Scene {
 
   #back(): void {
     if (this.#busy) {
+      this.#resumeTicket++;
       this.#stopWaiting();
       leaveRoom();
       this.#busy = null;
@@ -292,6 +296,7 @@ export class OnlineScene extends Phaser.Scene {
         kind: "room",
         code,
         onCancel: () => {
+          this.#resumeTicket++;
           this.#stopWaiting();
           this.#busy = null;
           this.#joining = null;
@@ -305,10 +310,19 @@ export class OnlineScene extends Phaser.Scene {
   async #resumeHostGame(gameId: string): Promise<void> {
     if (!this.#alive || !this.#busy) return;
     this.#resumingGame = true;
+    const ticket = ++this.#resumeTicket;
     const screen = await resumeLocalSave(gameId);
-    this.#resumingGame = false;
-    if (!this.#alive || !this.#busy) return;
+    if (ticket === this.#resumeTicket) this.#resumingGame = false;
+    // Cancel, Back or the room ending came while the save loaded: the player has left, so the loaded game is put away
+    // (not taken to the board, and kept out of the address). The worker already dropped its room records on the leave.
+    if (ticket !== this.#resumeTicket || !this.#alive || !this.#busy) {
+      suppressGameAddress(gameId);
+      clearGameAddress();
+      return;
+    }
     if (screen) {
+      const state = roomState();
+      if (state.code && state.role !== "none") rememberRoom(state.code, state.role);
       this.#stopWaiting();
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, screen);
@@ -346,6 +360,7 @@ export class OnlineScene extends Phaser.Scene {
         this.scale.off("resize", this.#draw, this);
         goToScreen(this, SCENES.roomLobby);
       } else if (state.connection === "ended") {
+        this.#resumeTicket++;
         this.#stopWaiting();
         if (this.#joining && roomIsOver(state.problem)) forgetRoom(this.#joining);
         this.#message = wordsText(problemWords(state.problem ?? "unavailable"));
