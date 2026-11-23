@@ -23,7 +23,7 @@ export interface LiveRoomRecord {
 
 /**
  * The record a hosted lobby room keeps under its own code, before and apart from any game (reload rejoin): the address's
- * `#room=<CODE>` finds the host token through it, so a host who reloads in the lobby, with no game saved yet, comes back
+ * `?room=<CODE>` finds the host token through it, so a host who reloads in the lobby, with no game saved yet, comes back
  * as the host. Same shape as a game's record (`gameKey` is this key), so the one store and the idle limit serve both.
  */
 export const lobbyRecordKey = (code: string): string => `room:${code}`;

@@ -1,41 +1,47 @@
 /**
- * Opening a live game's watch link (issue #876): `#watch=<roomId>`, read at startup the way `#replay=` is
- * (`replay/replay-link.ts`). Unlike `#replay=` it stays in the address while the game is being watched, so a reload
- * (on purpose or by accident) opens the watch again instead of dropping to Title; it is removed when the watch is left
- * (`clearWatchAddress`: Title, and leaving the replay) or when the link names no room. The link itself is made by the
- * host (`watchLinkOf` in `live-publisher.ts`).
+ * Opening a live game's watch link (issue #876): `#watch=<roomId>` (what the host shares, `watchLinkOf` in
+ * `live-publisher.ts`) or `?watch=<roomId>`, read at startup the way `#replay=` is (`replay/replay-link.ts`). An incoming
+ * `#watch=` is converted to `?watch=` on arrival, and the parameter stays in the address while the game is being
+ * watched, so a reload (on purpose or by accident) opens the watch again instead of dropping to Title. It is removed when
+ * the watch is left (`clearWatchAddress`: Title, and leaving the replay) or when the link names no room.
  */
 import { ROOM_ID_PATTERN } from "@mc/sync-worker/room-protocol";
 import type { ReceiveLinkHistory, ReceiveLinkLocation } from "../save-data/receive-link.js";
+import { clearPlaceParam, paramOf, setPlaceParam } from "../platform/address-params.js";
 
-/** What a `#watch=` hash holds: the room id, `"invalid"` for a link that names no room, or null when there is none. */
+/** What a watch link holds: the room id, `"invalid"` for a link that names no room, or null when there is none. */
 export function takeWatchLink(
   location: ReceiveLinkLocation = globalThis.location,
   history: ReceiveLinkHistory = globalThis.history,
 ): string | "invalid" | null {
-  const match = /^#?watch=(.*)$/.exec(location.hash);
-  if (!match) return null;
+  const hash = /^#?watch=(.*)$/.exec(location.hash);
+  let raw: string | null;
+  if (hash) {
+    // The shared link's hash form: dropped from the address and kept as the query form below.
+    raw = hash[1] ?? "";
+    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+  } else raw = paramOf("watch", location);
+  if (raw === null) return null;
+  const bare = { hash: "", pathname: location.pathname, search: location.search };
   let id: string;
   try {
-    id = decodeURIComponent(match[1] ?? "");
+    id = hash ? decodeURIComponent(raw) : raw;
   } catch {
-    clearWatchAddress(location, history);
+    clearPlaceParam("watch", bare, history);
     return "invalid";
   }
-  if (ROOM_ID_PATTERN.test(id)) return id;
-  clearWatchAddress(location, history);
-  return "invalid";
+  if (!ROOM_ID_PATTERN.test(id)) {
+    clearPlaceParam("watch", bare, history);
+    return "invalid";
+  }
+  if (hash) setPlaceParam("watch", id, bare, history);
+  return id;
 }
 
-/** Takes `#watch=` out of the address (no new history entry); any other hash stays. */
+/** Takes `?watch=` out of the address (no new history entry); everything else stays. */
 export function clearWatchAddress(
   location: ReceiveLinkLocation | undefined = globalThis.location,
   history: ReceiveLinkHistory | undefined = globalThis.history,
 ): void {
-  if (!location || !history || !/^#?watch=/.test(location.hash)) return;
-  try {
-    history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-  } catch {
-    // An address that cannot be rewritten: nothing to undo.
-  }
+  clearPlaceParam("watch", location, history);
 }

@@ -42,7 +42,7 @@ export type LiveRoomIn =
   /** `target` is a room code or a room id. */
   | { readonly kind: "room-join"; readonly target: string; readonly name: string }
   /**
-   * Back into the room named by the address's `#room=<CODE>` after a reload: as the host when this device holds that
+   * Back into the room named by the address's `?room=<CODE>` after a reload: as the host when this device holds that
    * room's host token (`live-room-store.ts`), otherwise as a guest with its stored seat tokens.
    */
   | { readonly kind: "room-rejoin"; readonly code: string; readonly name: string }

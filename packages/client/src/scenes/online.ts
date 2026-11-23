@@ -47,7 +47,7 @@ import { bindTextFieldEscape } from "./text-field-escape.js";
 export interface OnlineData {
   /** A room code or id from a `#join=` link: joined as soon as the screen is up (after a name, when none is set). */
   readonly join?: string;
-  /** The room code in the address's `#room=` after a reload: rejoined as the host or a guest once the screen is up (after a name, when none is set). */
+  /** The room code in the address's `?room=` after a reload: rejoined as the host or a guest once the screen is up (after a name, when none is set). */
   readonly rejoin?: string;
   /** A `#join=` link that named no room. */
   readonly invalidLink?: boolean;
