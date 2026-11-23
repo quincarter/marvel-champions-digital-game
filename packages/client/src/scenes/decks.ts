@@ -3309,29 +3309,37 @@ export class DecksScene extends Phaser.Scene {
   }
 
   async #importPaste(): Promise<void> {
-    if (this.#busy) return;
-    this.#busy = true;
-    this.#rebuild();
-    const outcome = importFromPasteText(this.#pasteText, this.#importEnv());
-    await this.#applyImport(outcome);
+    await this.#runImport(async () => {
+      await this.#applyImport(importFromPasteText(this.#pasteText, this.#importEnv()));
+    });
   }
 
   async #importMarvelCdb(): Promise<void> {
+    await this.#runImport(async () => {
+      // The same flow the room deck picker uses (`platform/marvelcdb-import.ts`).
+      const result = await importMarvelCdbDeck(this.#marvelcdbText, this.#importEnv());
+      if (!result.ok) {
+        this.#status = { text: result.message, tone: "error" };
+        return;
+      }
+      await this.#applyImport({ ok: true, deck: result.deck, warnings: result.warnings });
+    });
+  }
+
+  /**
+   * One import at a time, busy until the deck is saved and the list reloaded (the rule the room deck picker's
+   * `view/import-flight.ts` keeps): a second press or Enter during a slow write is refused, and a failed write shows its error and frees
+   * the screen instead of leaving Import stuck on "Importing…".
+   */
+  async #runImport(job: () => Promise<void>): Promise<void> {
     if (this.#busy) return;
     this.#busy = true;
     this.#rebuild();
-    // The same flow the room deck picker uses (`platform/marvelcdb-import.ts`).
-    const result = await importMarvelCdbDeck(this.#marvelcdbText, this.#importEnv());
-    if (!result.ok) {
-      this.#status = { text: result.message, tone: "error" };
-      this.#busy = false;
-      this.#rebuild();
-      return;
-    }
     try {
-      await this.#applyImport({ ok: true, deck: result.deck, warnings: result.warnings });
+      await job();
     } catch (cause) {
       this.#status = { text: cause instanceof Error ? cause.message : String(cause), tone: "error" };
+    } finally {
       this.#busy = false;
       this.#rebuild();
     }
@@ -3350,8 +3358,6 @@ export class DecksScene extends Phaser.Scene {
   async #applyImport(outcome: ImportOutcome): Promise<void> {
     if (!outcome.ok) {
       this.#status = { text: outcome.problems.map((problem) => problem.message).join(" "), tone: "error" };
-      this.#busy = false;
-      this.#rebuild();
       return;
     }
     await deckStorage().put(outcome.deck);
@@ -3364,7 +3370,5 @@ export class DecksScene extends Phaser.Scene {
     this.#savedDecks = await deckStorage().list();
     this.#selectedDeckId = outcome.deck.id as string;
     this.#scrollToDeckId = outcome.deck.id as string;
-    this.#busy = false;
-    this.#rebuild();
   }
 }
