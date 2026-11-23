@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -96,8 +97,9 @@ const inWorker = new Map<string, Promise<BuiltCommunityPack>>();
 
 /**
  * The community pack `name`, built once for the run. The first caller takes the pack's lock (an atomic `mkdir`) and
- * builds it; a caller in another worker waits for the build's `done.json`. If that never comes (the builder crashed),
- * it builds the pack itself rather than hang.
+ * builds it; a caller in another worker waits for the build's `done.json` (or `failed.json`, and then throws the same
+ * error). Both markers are written to a temporary name and renamed, so a waiter never reads half a file. If neither
+ * comes (the builder crashed), the waiter builds the pack itself rather than hang.
  */
 export function builtCommunityPack(name: string): Promise<BuiltCommunityPack> {
   let pending = inWorker.get(name);
@@ -108,9 +110,16 @@ export function builtCommunityPack(name: string): Promise<BuiltCommunityPack> {
   return pending;
 }
 
+const writeMarker = (file: string, value: unknown): void => {
+  writeFileSync(`${file}.tmp`, JSON.stringify(value));
+  renameSync(`${file}.tmp`, file);
+};
+
 async function load(name: string): Promise<BuiltCommunityPack> {
-  const dir = join(buildsRoot(), name);
+  const root = buildsRoot();
+  const dir = join(root, name);
   const done = join(dir, "done.json");
+  const failed = join(dir, "failed.json");
   const read = (): BuiltCommunityPack => ({
     pack: readBuilt(join(dir, "out")),
     hasArt: (JSON.parse(readFileSync(done, "utf8")) as { hasArt: boolean }).hasArt,
@@ -124,16 +133,25 @@ async function load(name: string): Promise<BuiltCommunityPack> {
   if (!owner) {
     for (let waited = 0; waited < 180_000; waited += 100) {
       if (existsSync(done)) return read();
+      if (existsSync(failed))
+        throw new Error((JSON.parse(readFileSync(failed, "utf8")) as { message: string }).message);
       await sleep(100);
     }
-    // The other worker never finished: build a copy of our own.
-    const own = mkdtempSync(join(tmpdir(), `mc-community-${name}-`));
+    // The other worker never finished: build a copy of our own, in the run's folder so the teardown removes it.
+    const own = mkdtempSync(join(root, `${name}-own-`));
     const hasArt = stage(name, join(own, "src"));
     await buildPack(join(own, "src"), join(own, "out"));
     return { pack: readBuilt(join(own, "out")), hasArt };
   }
-  const hasArt = stage(name, join(dir, "src"));
-  await buildPack(join(dir, "src"), join(dir, "out"));
-  writeFileSync(done, JSON.stringify({ hasArt }));
+  try {
+    const hasArt = stage(name, join(dir, "src"));
+    await buildPack(join(dir, "src"), join(dir, "out"));
+    writeMarker(done, { hasArt });
+  } catch (error) {
+    writeMarker(failed, {
+      message: `${name} failed to build: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    throw error;
+  }
   return read();
 }

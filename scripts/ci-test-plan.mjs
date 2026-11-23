@@ -71,8 +71,8 @@ const CLIENT_SHARDS = 2;
 // each pack is built and then played through dozens of seeded smoke games, about two CPU-minutes in all, and sharing a
 // runner with the SDK's other tests pushed single tests past the 30 s timeout. A pack's rulings file shares the job
 // because it reads the same build (packages/mod-sdk/src/fixtures/community-pack.ts builds each pack once per run). A
-// new pack's rulings file runs in the other mod-sdk job until it is listed here; a listed file that is renamed fails
-// this job ("No test files found") rather than falling out of the run.
+// new pack's rulings file runs in the other mod-sdk job until it is listed here, and so does a listed file that is
+// renamed (it is then no longer excluded there), so no file falls out of the run.
 const MOD_SDK_PACK_TESTS = [
   "community-packs",
   "carnage-nep",

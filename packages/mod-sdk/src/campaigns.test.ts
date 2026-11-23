@@ -21,7 +21,7 @@ import {
   packCampaignDefinitions,
   packCampaignRecords,
 } from "./game.js";
-import { playCampaign, smokeTestCampaign } from "./smoke.js";
+import { playCampaign, smokeTestCampaign, smokeTestPack } from "./smoke.js";
 import { readPackInput, validatePack, type PackInput } from "./validate.js";
 
 /**
@@ -577,5 +577,14 @@ describe("playCampaign: what the smoke run catches", () => {
       expect.stringMatching(/every seed lost at node "clockmaker"/),
     ]);
     expect(result.notes.join("\n")).toMatch(/Defeat block runs only if a game is lost/);
+  });
+
+  it("passes failOnAlwaysLost through smokeTestPack, which then fails the pack", () => {
+    // One seed, so every seed loses at the first node; the pack's scenario games play once each.
+    const result = smokeTestPack({ ...pack, campaigns: [loses()] } as PackInput, { games: 1, failOnAlwaysLost: true });
+    expect(result.ok).toBe(false);
+    expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([
+      expect.stringMatching(/every seed lost at node "clockmaker"/),
+    ]);
   });
 });

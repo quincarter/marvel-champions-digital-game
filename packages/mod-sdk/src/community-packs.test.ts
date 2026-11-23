@@ -21,9 +21,9 @@ const CORE_RHINO = CORE_SCENARIOS.find((s) => String(s.id) === "rhino")!;
 const SEEDS = 3;
 
 const packFolders = communityPackNames();
-const built = new Map(
-  await Promise.all(packFolders.map(async (name) => [name, await builtCommunityPack(name)] as const)),
-);
+// Settled one by one, so a pack that fails to build fails its own test and the other packs still run.
+const settled = await Promise.allSettled(packFolders.map((name) => builtCommunityPack(name)));
+const built = new Map(packFolders.map((name, index) => [name, settled[index]!] as const));
 
 const label = (plan: SmokePlan): string =>
   [
@@ -42,7 +42,14 @@ describe("community packs", () => {
 
   for (const name of packFolders) {
     describe(name, () => {
-      const { pack, hasArt } = built.get(name)!;
+      const build = built.get(name)!;
+      if (build.status === "rejected") {
+        it("builds", () => {
+          throw build.reason;
+        });
+        return;
+      }
+      const { pack, hasArt } = build.value;
       const schedule = smokeSchedule(pack, { games: SEEDS });
       let deps: EngineDeps | undefined;
       const depsOf = (): EngineDeps => (deps ??= gameDepsWithPack(PLAYABLE_DEPS, pack));

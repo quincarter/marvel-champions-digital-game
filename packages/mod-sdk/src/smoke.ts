@@ -241,7 +241,7 @@ export function smokeTestCampaign(
   pack: PackInput,
   campaign: PackCampaign,
   deps: EngineDeps,
-  options: Pick<SmokeOptions, "games" | "maxCommands" | "failOnAlwaysLost"> = {},
+  options: Pick<SmokeOptions, "games" | "maxCommands" | "failOnAlwaysLost" | "onGame"> = {},
 ): { readonly games: readonly SmokeGame[]; readonly notes: readonly string[] } {
   const seeds = options.games ?? 3;
   const games: SmokeGame[] = [];
@@ -251,11 +251,14 @@ export function smokeTestCampaign(
     const run = playCampaign(pack, campaign, seed, deps, options.maxCommands ?? 4000);
     lostAt.push(run.lostAt);
     notes.push(...run.notes);
-    games.push(...run.games);
+    for (const game of run.games) {
+      games.push(game);
+      options.onGame?.(game);
+    }
   }
   const first = lostAt[0];
   if (options.failOnAlwaysLost && first !== null && first !== undefined && lostAt.every((node) => node === first)) {
-    games.push({
+    const failed: SmokeGame = {
       deck: SMOKE_BASE_DECK,
       scenario: campaign.record.scenarioIds[campaign.definition.graph.nodes.findIndex((n) => n.id === first)] ?? "",
       campaign: campaign.id,
@@ -266,7 +269,9 @@ export function smokeTestCampaign(
       commands: 0,
       error: `every seed lost at node "${first}": the greedy driver never won it, so the later nodes were reached only with staged wins`,
       packCardsPlayed: [],
-    });
+    };
+    games.push(failed);
+    options.onGame?.(failed);
   }
   return { games, notes };
 }
@@ -285,9 +290,10 @@ export function smokeTestPack(pack: PackInput, options: SmokeOptions = {}): Smok
     for (let seed = 1; seed <= schedule.games; seed++)
       record(playSmokeGame(pack, deps, plan, seed, schedule.maxCommands));
   for (const campaign of schedule.campaigns) {
+    // smokeTestCampaign calls onGame itself, as each game ends.
     const run = smokeTestCampaign(pack, campaign, deps, { ...options, games: schedule.games });
     notes.push(...run.notes);
-    for (const game of run.games) record(game);
+    results.push(...run.games);
   }
   if (results.length > 0 && results.every((game) => game.packCardsPlayed.length === 0))
     notes.push("no game played or revealed one of the pack's own cards; try more games (--games)");
