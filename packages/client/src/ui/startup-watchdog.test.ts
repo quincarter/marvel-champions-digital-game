@@ -72,3 +72,27 @@ describe("the failed-start panel's text (issue #157)", () => {
     expect(text.split("\n")).toContain("WebGL: not available");
   });
 });
+
+describe("the failed-start panel says how to turn WebGL back on", () => {
+  const report = (webgl: Parameters<typeof startupReportText>[0]["webgl"]) =>
+    startupReportText({
+      reason: "an error stopped the game before its first screen",
+      errors: ["Error: Cannot create WebGL context, aborting."],
+      webgl,
+      devicePixelRatio: 1,
+      screen: "1920x901",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+    });
+
+  test("Firefox's steps follow the report when WebGL is not available", () => {
+    const text = report(null);
+    expect(text).toContain("To turn WebGL back on:");
+    expect(text).toContain("1. In Settings > General > Performance");
+    expect(text).toContain("webgl.disabled");
+  });
+
+  test("none when WebGL started", () => {
+    const text = report({ version: "WebGL 2", renderer: "r", vendor: "v", maxTextureSize: 4096, maxTextureUnits: 16 });
+    expect(text).not.toContain("To turn WebGL back on:");
+  });
+});

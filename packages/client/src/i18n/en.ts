@@ -565,6 +565,25 @@ export const en = {
   "modStore.updateAll.retry": "Retry update",
   "modStore.updateAll.show": "Show them",
   "modStore.updateAll.stopped": "Stopped. The rest can still update.",
+  "rendererNotice.heading": "Drawing without WebGL",
+  "rendererNotice.body":
+    "Your browser has WebGL turned off, so the game is drawing in a slower mode. It plays the same, but it may run slower and look a little softer.",
+  "rendererNotice.stepsHeading": "To turn WebGL back on:",
+  "rendererNotice.ok": "Got it",
+  "webglHelp.firefox.acceleration":
+    'In Settings > General > Performance, clear "Use recommended performance settings", tick "Use hardware acceleration when available", then restart Firefox.',
+  "webglHelp.firefox.disabled": "Open about:config and check that webgl.disabled is false.",
+  "webglHelp.firefox.blocklist":
+    "If about:support > Graphics says WebGL is blocked, update your graphics driver, or set webgl.force-enabled to true in about:config. Restart Firefox after either.",
+  "webglHelp.chromium.acceleration":
+    'In Settings > System, turn on "Use graphics acceleration when available", then relaunch the browser.',
+  "webglHelp.chromium.gpuPage":
+    'Open {gpuPage} and check that WebGL says "Hardware accelerated". The page lists what is turning it off.',
+  "webglHelp.driver": "Update your graphics driver.",
+  "webglHelp.safari.update": "Update to the latest version of iOS or macOS.",
+  "webglHelp.other.acceleration":
+    "Turn on hardware or graphics acceleration in your browser's settings, then restart it.",
+  "webglHelp.otherBrowser": "Or try another browser, such as Chrome, Edge or Firefox.",
   "campaign.deck.packVersionClash":
     "{pack} needs {needs} {wanted}, but this campaign keeps {needs} {kept} from when it was signed. Take the {pack} cards out to save this deck.",
   "deckBuilder.show": "show",
