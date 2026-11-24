@@ -45,7 +45,7 @@ import {
 } from "../../view/change-form-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
-import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
+import { costChoicePromptFor, mergedCostSelection, type CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { CostReductionOption } from "../../view/cost-reduction-model.js";
 import {
   beginDiscardChoice,
@@ -1548,7 +1548,7 @@ export class BoardController {
       target,
       gameDeps(),
       controllerId,
-      withEntryPayers(entry, costSelection),
+      withEntryPayers(entry, mergedCostSelection(entry, costSelection)),
       costChoices,
       entry.example.type === "playCard" ? entry.example.abilityId : undefined,
       intoOf(entry),
@@ -1595,14 +1595,16 @@ export class BoardController {
   ): boolean {
     const { game } = appSession().store.state;
     if (!game) return false;
-    const choice = beginInPlayCostChoice(game, gameDeps(), entry, costSelection?.branch);
+    // The one payable branch when nobody asked which: Confirm's payment step reads its cost, not the first branch's.
+    const selection = mergedCostSelection(entry, costSelection);
+    const choice = beginInPlayCostChoice(game, gameDeps(), entry, selection?.branch);
     if (!choice) return false;
     this.#selection = {
       kind: "choosingInPlayCost",
       choice,
       target,
       controllerId,
-      ...(costSelection ? { costSelection } : {}),
+      ...(selection ? { costSelection: selection } : {}),
     };
     this.#host.redraw();
     return true;
