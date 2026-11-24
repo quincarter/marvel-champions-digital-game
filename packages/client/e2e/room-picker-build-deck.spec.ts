@@ -86,22 +86,12 @@ test("Build a deck from the picker: build and save a deck, land back on it, read
     "the new deck is judged usable",
     30_000,
   );
-  // The details open are the added deck's: a name shown on its own row is shown again in the panel.
-  const row = added[0]!;
-  const rowRect = (await stopOf(page, "RoomDeckPicker", row))!.rect;
+  // The details open are the added deck's. Its row is at the end of a long, scrolling list (off screen, so its words
+  // are not drawn), so the panel's own title says which deck it is: the precon's name, "(copy)" being what Save gives it.
   const texts = (await visibleTexts(page)).filter((t) => t.scene === "RoomDeckPicker");
-  const rowNames = texts.filter(
-    (t) =>
-      t.x >= rowRect.x &&
-      t.x < rowRect.x + rowRect.width &&
-      t.y >= rowRect.y &&
-      t.y < rowRect.y + rowRect.height &&
-      t.text.length > 3,
-  );
   const inPanel = texts.filter((t) => t.x >= use!.rect.x - 1);
-  expect(rowNames.length, "the new deck's row has words").toBeGreaterThan(0);
   expect(
-    rowNames.some((r) => inPanel.some((p) => p.text.includes(r.text))),
+    inPanel.some((t) => /Spider-Man.*\(copy\)$/.test(t.text)),
     "the open details are the new deck's",
   ).toBe(true);
   expect((await screens(page)).includes("RoomDeckPicker")).toBe(true);
