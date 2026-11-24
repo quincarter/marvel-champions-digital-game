@@ -8,11 +8,11 @@
  * last written line for a roster longer than the box wrote dialogue for.
  */
 import Phaser from "phaser";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 
 const seatHeroName = (id: string): string => {
-  const card = CARDS_BY_ID.get(id);
+  const card = campaignCardsById().get(id);
   return card ? cardDisplayName(card) : "";
 };
 import { crewLineForSeat, storyFor } from "../../campaign/story.js";

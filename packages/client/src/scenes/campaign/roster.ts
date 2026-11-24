@@ -8,7 +8,7 @@
  */
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
-import { CARDS_BY_ID, POOL_CARDS, POOL_VERSION } from "../../content/pool.js";
+import { POOL_VERSION, currentCardsById, currentPool, currentPoolKey } from "../../content/pool.js";
 import { HERO_ART, heroArtForIdentity } from "../../art/hero-art.js";
 import { artFor, artLanguageNow } from "../../art/art-source.js";
 import type { Picture } from "../../art/pictures.js";
@@ -21,7 +21,6 @@ import {
   drawActionBar,
   drawPicture,
   drawTopBar,
-  heroPicture,
 } from "../../ui/campaign-chrome.js";
 import { drawCampaignPageArt } from "../../ui/campaign-pane.js";
 import { ASPECT_CHIP_LINE_STEP, aspectChipLines, drawAspectChips } from "../../ui/aspect-chips.js";
@@ -53,8 +52,6 @@ import {
   pickerRecommendationsOf,
   preconRosterOf,
   rosterDeckOptions,
-  CUSTOM_HEROES_NOTE,
-  customHeroesLeftOut,
   rosterModelOf,
   type PickerEntry,
   type RosterModel,
@@ -78,10 +75,16 @@ import {
   type NameConflict,
 } from "../../view/name-conflicts.js";
 import { openNameConflictSheet } from "../name-conflict.js";
+import { rebuildOnPackChange } from "../../ui/pack-redraw.js";
 import type { CampaignRosterData } from "./routes.js";
 
-let pairCatalog: ReturnType<typeof pairCatalogOf> | null = null;
-const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => (pairCatalog ??= pairCatalogOf(CARDS_BY_ID));
+/** The pool's Team-Up pairs, rebuilt when the loaded packs change, so a pack hero's team-up cards are known. */
+let pairCatalog: { readonly key: string; readonly catalog: ReturnType<typeof pairCatalogOf> } | null = null;
+const rosterPairCatalog = (): ReturnType<typeof pairCatalogOf> => {
+  const key = currentPoolKey();
+  if (pairCatalog?.key !== key) pairCatalog = { key, catalog: pairCatalogOf(currentCardsById()) };
+  return pairCatalog.catalog;
+};
 
 /** A heading in the seat picker's list ("Recommended for seat #2", "All heroes"): a compact band, not a full row. */
 const PICKER_HEADING_HEIGHT = 22;
@@ -220,18 +223,24 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.#error = null;
     this.#swaps = [];
     this.#kept = [];
-    this.#model = rosterModelOf(this.#seats, POOL_CARDS);
+    this.#model = rosterModelOf(this.#seats, currentPool());
     void this.#loadSavedDecks();
+    // Installed packs load a moment after boot, and again after an install or removal: a pack hero joins the picker
+    // (and its seat's legality is checked again) when they do (#978).
+    rebuildOnPackChange(this, () => {
+      this.#model = rosterModelOf(this.#seats, currentPool());
+      this.#rebuild();
+    });
     this.#rebuild();
     fadeScreenIn(this);
   }
 
   /** Hands the worker the picker's decks when the list changes, and re-asks the open query of the new list. */
   #syncSearchDocuments(options: readonly RosterDeckOption[]): void {
-    const key = POOL_VERSION + ":" + options.map((option) => option.deck.id as string).join("|");
+    const key = currentPoolKey() + ":" + options.map((option) => option.deck.id as string).join("|");
     if (key === this.#searchDocsKey) return;
     this.#searchDocsKey = key;
-    this.#search.setDocuments(pickerSearchDocumentsOf(options, CARDS_BY_ID), key);
+    this.#search.setDocuments(pickerSearchDocumentsOf(options, currentCardsById()), key);
     const text = this.#pickerQuery;
     // After this redraw, not inside it: the answer redraws again.
     if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
@@ -277,7 +286,7 @@ export class CampaignRosterScene extends Phaser.Scene {
   #unresolved(): readonly NameConflict[] {
     const found = nameConflictsOf(
       this.#effectiveDecks().map((deck) => ({ deck })),
-      CARDS_BY_ID,
+      currentCardsById(),
       tableRulesOf(appSession().settings),
     );
     return unresolvedConflicts(found, this.#kept);
@@ -352,7 +361,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     for (const node of kept) this.children.add(node);
     this.#stops = new Map();
     this.#hints?.reset();
-    this.#model = rosterModelOf(this.#seats, POOL_CARDS);
+    this.#model = rosterModelOf(this.#seats, currentPool());
     drawCampaignPageArt(this, this.#campaignId, this.#redrawArt);
 
     const frame = campaignFrame(this);
@@ -378,7 +387,7 @@ export class CampaignRosterScene extends Phaser.Scene {
 
     // Seated Team-Up pairs: a strip above the seat cards, one row per pair, reserved only while there are some.
     this.#phoneLayout = frame.phone;
-    const pairs = seatedTeamUps(this.#seats, CARDS_BY_ID, rosterPairCatalog());
+    const pairs = seatedTeamUps(this.#seats, currentCardsById(), rosterPairCatalog());
     this.#pairs = pairs;
     const stripRows = Math.min(pairs.length, 3);
     const stripRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: stripRows * PAIR_ROW_HEIGHT };
@@ -581,7 +590,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
 
-    const picture = heroPicture(deck.identityCardId as string);
+    const picture = this.#heroPictureFor(deck.identityCardId as string);
     if (picture) drawPicture(this, picture, artRect, this.#onSceneArt, { focusY: 0.1 });
     else this.add.rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex).setOrigin(0, 0);
 
@@ -605,7 +614,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.add
       .rectangle(footerRect.x, footerRect.y, footerRect.width, footerRect.height, surface.card.hex)
       .setOrigin(0, 0);
-    const identityCard = CARDS_BY_ID.get(deck.identityCardId as string);
+    const identityCard = currentCardsById().get(deck.identityCardId as string);
     const identityName = identityCard ? cardDisplayName(identityCard) : (deck.identityCardId as string);
     const name = this.add.text(
       footerRect.x + 8,
@@ -659,8 +668,8 @@ export class CampaignRosterScene extends Phaser.Scene {
     // Keyed by the card language too: the identity scan fallback is a different picture in each (`setArtLanguage`).
     const key = `${artLanguageNow()}:${identityId}`;
     if (!this.#heroArtCache.has(key)) {
-      const art = heroArtForIdentity(HERO_ART, identityId, POOL_CARDS, () => 0);
-      const identity = CARDS_BY_ID.get(identityId);
+      const art = heroArtForIdentity(HERO_ART, identityId, currentPool(), () => 0);
+      const identity = currentCardsById().get(identityId);
       this.#heroArtCache.set(key, art ?? (identity ? artFor(identity, { kind: "hero" }) : null));
     }
     return this.#heroArtCache.get(key) ?? null;
@@ -785,15 +794,6 @@ export class CampaignRosterScene extends Phaser.Scene {
       unlocks().deckLock(deck),
     );
 
-    // A custom hero is left out of campaigns for now (#960): say so, rather than let the hero look missing.
-    if (customHeroesLeftOut(this.#savedDecks, POOL_VERSION)) {
-      const note = this.add.text(panelRect.x + 20, y, CUSTOM_HEROES_NOTE, {
-        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-        wordWrap: { width: rowWidth, useAdvancedWrap: true },
-      });
-      y += Math.ceil(note.height) + 10;
-    }
-
     if (options.length > 0) {
       const searchRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: 40 };
       this.#pickerSearch = drawSearchField(
@@ -828,7 +828,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     // From seat 2 on, with someone else seated: a pinned "Recommended" group, then everyone else; both A to Z.
     const recsKey = [seatNumber, ...this.#seats.map((deck) => deck?.id ?? "-"), options.length].join("|");
     if (this.#pickerRecs?.key !== recsKey) {
-      const recs = pickerRecommendationsOf(this.#seats, seatNumber, options, CARDS_BY_ID, rosterPairCatalog());
+      const recs = pickerRecommendationsOf(this.#seats, seatNumber, options, currentCardsById(), rosterPairCatalog());
       this.#pickerRecs = { key: recsKey, recs };
     }
     this.#syncSearchDocuments(options);
@@ -836,7 +836,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       seatNumber,
       options,
       this.#pickerRecs.recs,
-      CARDS_BY_ID,
+      currentCardsById(),
       "",
       this.#pickerQuery.trim() === "" ? null : this.#pickerRanking,
     );
@@ -909,7 +909,7 @@ export class CampaignRosterScene extends Phaser.Scene {
       const index = entry.optionIndex;
       const rec = entry.rec;
       const option = options[index]!;
-      const identityCard = CARDS_BY_ID.get(option.identityId);
+      const identityCard = currentCardsById().get(option.identityId);
       const identityName = identityCard ? cardDisplayName(identityCard) : option.identityId;
       const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: heights[entryIndex]! };
       const enabled = !option.blocked;
