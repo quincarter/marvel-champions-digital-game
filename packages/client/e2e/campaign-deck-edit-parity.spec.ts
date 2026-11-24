@@ -126,6 +126,8 @@ test("a phone starts on the volume rows and can switch to box art tiles", async 
   await waitForScene(page, "CampaignSaga");
   await settle(page);
   const volumeTwo = async () => (await routeStops(page, "CampaignSaga"))?.stops.find((stop) => stop.key === "vol-2");
+  // The shelf draws once its saved runs and unlocks are read, a moment after the scene starts (longer under load).
+  await waitFor(async () => (await volumeTwo()) ?? null, "the volumes are drawn");
   expect((await volumeTwo())!.rect.width, "a full-width row").toBeGreaterThan(300);
   await clickStop(page, "volumes-view", "CampaignSaga");
   await settle(page);
@@ -146,8 +148,8 @@ test.describe("an upright tablet", () => {
     await settle(page);
     const volumeTwo = async () => (await routeStops(page, "CampaignSaga"))?.stops.find((stop) => stop.key === "vol-2");
 
-    // Tiles: four across, under the selected campaign.
-    const tile = await volumeTwo();
+    // Tiles: four across, under the selected campaign. The shelf draws once its saved runs and unlocks are read.
+    const tile = await waitFor(async () => (await volumeTwo()) ?? null, "the volumes are drawn");
     expect(tile, "a volume tile").toBeTruthy();
     expect(tile!.rect.width).toBeLessThan(250);
     await page.touchscreen.tap(tile!.rect.x + tile!.rect.width / 2, tile!.rect.y + tile!.rect.height / 2);

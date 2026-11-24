@@ -412,6 +412,18 @@ zip) for players who want it.
   pack is missing or a different version says so and offers the download, rather than starting a game with cards
   that don't exist.
 - **Decks** that include custom cards are marked as such and are not offered to MarvelCDB export.
+- **Campaigns (#978):** a custom hero, a pack's precon and a saved deck holding custom cards are offered on the
+  campaign roster like any other deck. Signing copies the packs the seats draw on (with what they require) into the run
+  as `CampaignRecord.heroPacks` (`campaign/run-packs.ts`), the way a pack campaign's run keeps `CampaignRecord.pack`.
+  Every issue's game carries those copies (`CampaignService.launchConfig`), the campaign's choices draw from them, and
+  the campaign screens and the campaign deck editor read `content/campaign-pool.ts` (the installed pool with the open
+  run's copies swapped in: its own version of each pack it carries wins, and cards a newer installed version added are
+  left out). So a run never depends on what is installed: updating the pack changes nothing in it, and removing it
+  leaves the run playing on from its own copy, with no reinstall asked for (a removed pack's card pictures fall back
+  like any missing art). A deck edited between issues may also take cards from an installed pack the run doesn't carry
+  yet; saving the deck copies that pack in, unless it needs another version of a pack the run already keeps:
+  the campaign's choices and deck editor leave such a pack's cards out, and a save that holds one anyway is refused
+  with a line naming both.
 
 ## 8. Phasing
 
@@ -869,7 +881,7 @@ First version limits, each refused with a sentence naming it:
 - no market or shop (the `spend` op, Unit Cost filters), no roles, no `composition` (villain or set choice between
   games), `requiredModularSetIds`, set-aside cards or per-seat sets, no log field gated by modes;
 - no expert campaign rules (`expertCampaign` gates) and no elimination policy;
-- players are base heroes (a custom hero in a campaign is not offered yet).
+- `mc-pack test` plays a pack campaign with a base precon; a custom hero may still join it in the game (§7.4).
 
 `mc-pack test` plays each campaign through the real campaign runner with a base precon: between-games setup, a played
 game, the result folded into the log, at every node until the campaign ends. A loss is allowed (the loss policy runs, then

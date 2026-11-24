@@ -25,7 +25,7 @@ import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import { campaignService } from "../session.js";
 import { campaignSagaRows } from "../view/campaign-saga-model.js";
-import { basePreconDecks } from "../view/campaign-roster-model.js";
+import { preconDecks } from "../view/deck-list-model.js";
 import { SAGA_VOLUMES, storyFor } from "./story.js";
 import { campaignRecordOf, customSagaVolumes, embeddedDefinitionOf, packCampaignEntries } from "./pack-campaigns.js";
 import { progressOf } from "../progression/unlocks.js";
@@ -67,9 +67,10 @@ async function installed(): Promise<void> {
   await loadActivePacks(store);
 }
 
-const ROSTER = [basePreconDecks(POOL_VERSION).find((deck) => (deck.id as string).includes("spider-man"))!].map(
-  (deck) => ({ identityCardId: deck.identityCardId, deck }),
-);
+const ROSTER = [preconDecks(POOL_VERSION).find((deck) => (deck.id as string).includes("spider-man"))!].map((deck) => ({
+  identityCardId: deck.identityCardId,
+  deck,
+}));
 
 /** A real game state of the launched node, with only the verdict set to a win (the same substitution `campaign-service.test.ts` makes). */
 async function wonNode(record: CampaignRecord): Promise<{ state: GameState; packs: readonly string[] }> {

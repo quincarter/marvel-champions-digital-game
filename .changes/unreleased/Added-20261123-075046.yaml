@@ -1,0 +1,3 @@
+kind: Added
+body: Custom (Mod Store) heroes, pack precons and decks with custom cards can join a campaign. The run keeps its own copy of each pack, so updating or removing the pack never breaks it (#978, reported by @bluefireF5ran).
+time: 2026-11-23T07:50:46.0629617-05:00

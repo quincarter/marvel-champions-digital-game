@@ -10,6 +10,9 @@
 import Phaser from "phaser";
 import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor, campaignPageFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
+import { artFor } from "../art/art-source.js";
+import { isCustomCardCode } from "@mc/content";
+import { campaignCardsById } from "../content/campaign-pool.js";
 import { bakedKeyOf, coverFit, ensureBakedPictureLoaded, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { graySlotOf } from "../art/grayscale.js";
 import { currentRenderScale } from "./render-scale.js";
@@ -449,9 +452,15 @@ export function campaignPagePicture(campaignId: string, file: string): Picture |
   return campaignPageFor(CAMPAIGN_ART, campaignId, file);
 }
 
-/** A hero's picture by identity card id (`art/heroes/<id>-*`), always the first variant so redraws don't flicker. */
+/**
+ * A hero's picture by identity card id (`art/heroes/<id>-*`), always the first variant so redraws don't flicker. A
+ * custom (Mod Store) hero has no such picture: it shows its identity card's hero side, from the installed pack or the
+ * copy a campaign run carries (#978).
+ */
 export function heroPicture(identityId: string): Picture | null {
-  return heroArtFor(HERO_ART, identityId, () => 0);
+  const art = heroArtFor(HERO_ART, identityId, () => 0);
+  if (art || !isCustomCardCode(identityId)) return art;
+  return artFor(campaignCardsById().get(identityId), { kind: "hero" });
 }
 
 /**
