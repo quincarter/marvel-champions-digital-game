@@ -72,7 +72,30 @@ export interface LogState {
   readonly nextId: number;
   /** Encounter cards a surge dealt, so their reveal line can say so when it comes in a later command than the deal. */
   readonly surgeDealt?: readonly InstanceId[];
+  /**
+   * Encounter cards dealt facedown outside the villain phase's own deals (`DealtBefore`) and not revealed since, so the
+   * villain phase walkthrough opened after them can say where they came from (issue #984).
+   */
+  readonly dealtBefore?: readonly DealtBefore[];
 }
+
+/** What dealt an encounter card facedown (`encounterCardDealt`'s source, the engine's own word). */
+export type EncounterDealSource = Extract<GameEvent, { type: "encounterCardDealt" }>["source"];
+
+/**
+ * An encounter card dealt facedown by something other than the villain phase's step 3 (a card each, hazards) or a
+ * surge, which the strip and the log already mark: the card a player is dealt when their deck runs out (RRG 1.8
+ * "Player Deck", p. 33), or a card effect. It waits facedown for the next reveal step.
+ */
+export interface DealtBefore {
+  readonly instanceId: InstanceId;
+  readonly playerId: PlayerId;
+  readonly source: EncounterDealSource;
+}
+
+/** Whether a deal by `source` is one `DealtBefore` keeps (not step 3's own, not a surge's). */
+export const keepsDealtBefore = (source: EncounterDealSource): boolean =>
+  source !== "surge" && source !== "villainPhase" && source !== "hazard";
 
 export const emptyLog = (): LogState => ({ lines: [], round: 0, beat: 0, nextId: 1 });
 
@@ -125,15 +148,21 @@ export function appendEvents(
   // Cards a surge dealt that have not been revealed since, kept in event order as the loop runs: a deal from any other
   // source clears the mark (encounter instance ids survive the deck reset), and a reveal uses it up.
   const surgeDealt = [...(log.surgeDealt ?? [])];
+  const dealtBefore = [...(log.dealtBefore ?? [])];
   const unmark = (id: InstanceId): void => {
     const i = surgeDealt.indexOf(id);
     if (i >= 0) surgeDealt.splice(i, 1);
+    const j = dealtBefore.findIndex((card) => card.instanceId === id);
+    if (j >= 0) dealtBefore.splice(j, 1);
   };
 
   for (const [at, event] of events.entries()) {
     if (event.type === "encounterCardDealt") {
       unmark(event.instanceId);
       if (event.source === "surge") surgeDealt.push(event.instanceId);
+      else if (keepsDealtBefore(event.source)) {
+        dealtBefore.push({ instanceId: event.instanceId, playerId: event.playerId, source: event.source });
+      }
     }
     // Sent back to an encounter deck or discard unrevealed (a discard, a reset's reshuffle): it is no longer the surge's
     // facedown card, so a later reveal of it from the deck is not "from surge".
@@ -176,6 +205,7 @@ export function appendEvents(
     beat,
     nextId,
     surgeDealt: surgeDealt.slice(-40),
+    dealtBefore: dealtBefore.slice(-40),
   };
 }
 
@@ -225,6 +255,16 @@ export function plainLogLine(line: LogLine): LogLine {
 /** True when an ability's effects hold a play the player must make (`playFromHand.mustPay`, owner rulings 62B and 63B). */
 const mustPlayCardIn = (definition: unknown): boolean =>
   definition !== undefined && JSON.stringify(definition).includes('"mustPay":true');
+
+/** What dealt `instanceId`, from the `encounterCardDealt` that follows its move to the dealt pile (null if none does). */
+function dealSourceOf(burst: Burst, instanceId: InstanceId): EncounterDealSource | null {
+  for (let i = burst.at + 1; i < burst.events.length; i++) {
+    const next = burst.events[i]!;
+    if (next.type === "encounterCardDealt" && next.instanceId === instanceId) return next.source;
+    if (next.type === "cardMoved") return null;
+  }
+  return null;
+}
 
 /** The card is revealed next, before any step change or other move: it was parked, not dealt. */
 function revealedAtOnce(burst: Burst, instanceId: InstanceId): boolean {
@@ -364,8 +404,11 @@ function describe(
         // A reveal outside the villain phase (a setup reveal) parks the card there for a moment too, but is revealed at
         // once, with no step between: that is a reveal, not a deal, and the reveal's own line follows.
         if (burst && revealedAtOnce(burst, event.instanceId)) return null;
+        // The deal a deck running out costs (RRG 1.8 "Player Deck", p. 33) says so: that card is revealed in the next
+        // villain phase on top of step 3's, and a bare "dealt a facedown encounter card" left it unexplained (#984).
+        const deckRanOut = burst && dealSourceOf(burst, event.instanceId) === "deckReset";
         return {
-          text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
+          text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card${deckRanOut ? ` because ${event.to.playerId === viewer ? "your" : "their"} deck ran out` : ""}.`,
           voice: "villain",
         };
       }
