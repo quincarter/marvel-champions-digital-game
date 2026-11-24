@@ -1,0 +1,131 @@
+{
+  "id": "night-thrasher-dh-aggression",
+  "name": "Night Thrasher (Aggression) suggested deck",
+  "packCode": "night-thrasher-dh",
+  "identityCardId": "x.night-thrasher-dh.01a",
+  "aspects": ["aggression"],
+  "cards": [
+    {
+      "cardId": "x.night-thrasher-dh.02a",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.night-thrasher-dh.03",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.night-thrasher-dh.04",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.night-thrasher-dh.05",
+      "quantity": 4
+    },
+    {
+      "cardId": "x.night-thrasher-dh.06",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.night-thrasher-dh.07",
+      "quantity": 2
+    },
+    {
+      "cardId": "x.night-thrasher-dh.08",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.night-thrasher-dh.09",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.night-thrasher-dh.10",
+      "quantity": 1
+    },
+    {
+      "cardId": "x.night-thrasher-dh.11",
+      "quantity": 1
+    },
+    {
+      "cardId": "01050",
+      "quantity": 1
+    },
+    {
+      "cardId": "01051",
+      "quantity": 1
+    },
+    {
+      "cardId": "01052",
+      "quantity": 2
+    },
+    {
+      "cardId": "01053",
+      "quantity": 2
+    },
+    {
+      "cardId": "01054",
+      "quantity": 2
+    },
+    {
+      "cardId": "01055",
+      "quantity": 2
+    },
+    {
+      "cardId": "01057",
+      "quantity": 2
+    },
+    {
+      "cardId": "01065",
+      "quantity": 2
+    },
+    {
+      "cardId": "01083",
+      "quantity": 1
+    },
+    {
+      "cardId": "01084",
+      "quantity": 1
+    },
+    {
+      "cardId": "01085",
+      "quantity": 1
+    },
+    {
+      "cardId": "01086",
+      "quantity": 1
+    },
+    {
+      "cardId": "01087",
+      "quantity": 1
+    },
+    {
+      "cardId": "01088",
+      "quantity": 1
+    },
+    {
+      "cardId": "01089",
+      "quantity": 1
+    },
+    {
+      "cardId": "01090",
+      "quantity": 1
+    },
+    {
+      "cardId": "01091",
+      "quantity": 1
+    },
+    {
+      "cardId": "01092",
+      "quantity": 1
+    },
+    {
+      "cardId": "01093",
+      "quantity": 1
+    }
+  ],
+  "provenance": {
+    "verified": false,
+    "sources": [
+      "A suggested deck assembled for the digital game, not the pack author's (the source has no precon list): the 15 Night Thrasher cards and the Battle Board, the Core Set Aggression and basic cards of the Iron Man (Aggression) starter deck, with the 2 Tac Team swapped for 2 Heroic Intuition (a Justice Skill upgrade) through Dwayne Taylor's Tech Deck"
+    ]
+  }
+}

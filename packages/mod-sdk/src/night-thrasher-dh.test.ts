@@ -1,9 +1,6 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
-import { PLAYABLE_CARDS, type PackManifest, type PlayerCard, type StarterDeck } from "@mc/content";
+import { PLAYABLE_CARDS, type PlayerCard, type StarterDeck } from "@mc/content";
 import {
   applyCommand,
   createGame,
@@ -17,53 +14,25 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
-import { readPackInput, type PackInput } from "./validate.js";
-import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
+import { builtCommunityPack } from "./fixtures/community-pack.js";
 
-const SRC = fileURLToPath(new URL("../../../content-packs/community/night-thrasher-dh", import.meta.url));
 const P = "x.night-thrasher-dh.";
 const P1 = playerId("p1");
 
-const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
+// Built once for the run and shared with community-packs.test.ts (./fixtures/community-pack.ts).
+const { pack } = await builtCommunityPack("night-thrasher-dh");
+const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
-let pack: PackInput;
-let deps: EngineDeps;
-const scratch: string[] = [];
-beforeAll(async () => {
-  const root = mkdtempSync(join(tmpdir(), "mc-night-thrasher-"));
-  scratch.push(root);
-  const src = join(root, "src");
-  cpSync(SRC, src, { recursive: true });
-  dropMissingCover(src);
-  if (!existsSync(join(src, "alt-art"))) {
-    const file = join(src, "pack.json");
-    const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    delete manifest.altArt;
-    writeFileSync(file, JSON.stringify(manifest));
-  }
-  const out = join(root, "out");
-  await buildPack(src, out);
-  const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
-  const files = new Map<string, Uint8Array>();
-  for (const full of walk(out)) {
-    const path = relative(out, full).split(sep).join("/");
-    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
-      files.set(path, new Uint8Array(readFileSync(full)));
-  }
-  pack = readPackInput(manifest, files);
-  deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
-});
-afterAll(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
-
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "night-thrasher-dh-aggression")!;
+const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "night-thrasher-dh-justice")!;
+/**
+ * The deck the rulings below are staged with: the pack's precon when they were written. Their seeded games depend on its
+ * shuffle (which cards are in hand, which instance ids), so they keep it when the creator changes the precon; the
+ * "pack content" tests read the precon the pack ships now.
+ */
+const rulingsDeck = JSON.parse(
+  readFileSync(new URL("./fixtures/night-thrasher-dh-aggression-rulings-deck.json", import.meta.url), "utf8"),
+) as StarterDeck;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
@@ -106,7 +75,7 @@ function drive(
 
 /** A Rhino game with the Night Thrasher precon, in hero form, past setup, at the start of the player phase. */
 function open(seed = 1): GameState {
-  const deck = precon();
+  const deck = rulingsDeck;
   const config = coreScenario("rhino", {
     players: [{ starterDeckId: "core-spider-man-justice" }],
     seed,
@@ -349,7 +318,7 @@ describe("Cemented: each player who discarded treats its text box as blank, the 
 
   /** Night Thrasher (P1) and Spider-Man (P2), both in hero form, with Cemented (2 threat) in play. */
   function cementedTable(): { readonly state: GameState; readonly cemented: InstanceId } {
-    const deck = precon();
+    const deck = rulingsDeck;
     const config = coreScenario("rhino", {
       players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-spider-man-justice" }],
       seed: 1,
@@ -740,14 +709,16 @@ describe("Terrax the Tamer, Cosmic Ax and Cosmic Connection", () => {
 });
 
 describe("pack content", () => {
-  it("ships the suggested deck: the Battle Board (permanent) plus 40 counted cards, 15 of them Night Thrasher's", () => {
+  it("ships its starter deck: the Battle Board (permanent) plus 40 to 50 counted cards, 15 of them Night Thrasher's", () => {
     const cards = precon().cards;
     const counted = cards.filter((c) => String(c.cardId) !== `${P}02a`);
-    expect(counted.reduce((n, c) => n + c.quantity, 0)).toBe(40);
+    const size = counted.reduce((n, c) => n + c.quantity, 0);
+    expect(size).toBeGreaterThanOrEqual(40);
+    expect(size).toBeLessThanOrEqual(50);
     expect(cards.find((c) => String(c.cardId) === `${P}02a`)?.quantity).toBe(1);
     const own = counted.filter((c) => String(c.cardId).startsWith(P)).reduce((n, c) => n + c.quantity, 0);
     expect(own).toBe(15);
-    expect(precon().name).toMatch(/suggested/i);
+    expect(precon().name).toMatch(/starter deck/i);
   });
 
   it("scripts every ability, and Tech Deck is the identity's deckbuilding allowance", () => {
@@ -761,22 +732,30 @@ describe("pack content", () => {
   it("Tech Deck lets in an off-aspect Skill card of any type, and refuses a card without the trait", () => {
     const pool = cardPoolWithPack(PLAYABLE_CARDS, pack);
     const deck = precon();
-    // The precon is Aggression; Justice, Leadership and Protection cards are off-aspect for it.
+    // The precon is Justice; Aggression, Leadership and Protection cards are off-aspect for it.
     const offAspect = (skill: boolean, type: PlayerCard["type"]) =>
       pool.find(
         (c): c is PlayerCard =>
           "deckLimit" in c &&
           c.type === type &&
-          ["justice", "leadership", "protection"].includes(String(c.aspect)) &&
+          ["aggression", "leadership", "protection"].includes(String(c.aspect)) &&
           c.traits.includes("SKILL" as never) === skill &&
           !deck.cards.some((entry) => entry.cardId === c.id),
       )!;
+    // The precon already spends Tech Deck's allowance on off-aspect Skill cards; take those out so the card tested is
+    // the only one using it.
+    const offAspectOwn = new Set(
+      pool.flatMap((c) =>
+        "deckLimit" in c && ["aggression", "leadership", "protection"].includes(String(c.aspect)) ? [String(c.id)] : [],
+      ),
+    );
+    const base = deck.cards.filter((entry) => !offAspectOwn.has(String(entry.cardId)));
     const problemsWith = (card: PlayerCard) => {
       const verdict = validateDeck(
         {
           identityCardId: deck.identityCardId,
           aspects: deck.aspects,
-          cards: [...deck.cards, { cardId: card.id, quantity: 1 }],
+          cards: [...base, { cardId: card.id, quantity: 1 }],
         },
         pool,
       );
