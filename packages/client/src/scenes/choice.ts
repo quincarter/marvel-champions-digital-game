@@ -180,6 +180,7 @@ import {
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import type { SessionState } from "../store/session-store.js";
+import { localChoice, onLocalChoiceChange, type LocalChoice } from "../view/local-choice.js";
 import { choiceTakebackOf } from "../view/end-turn-takeback.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { bindExtraInput, openPauseOverBoard } from "./extra-input.js";
@@ -250,6 +251,30 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** The key and button glyphs on the sheet's controls (`ui/glyph-hints.ts`), desktop and tablet landscape only. */
   #hints!: GlyphHints;
   #unsubscribe: (() => void) | null = null;
+  #unsubscribeLocal: (() => void) | null = null;
+  /** The last `#sessionState` built, so the same store state and local decision read as the same object. */
+  #localState: { base: SessionState; local: LocalChoice; state: SessionState } | null = null;
+
+  /** The Board's own question, when it is the one this sheet shows (the engine asks nothing; `#sessionState`). */
+  #localNow(): LocalChoice | null {
+    const local = localChoice();
+    const game = appSession().store.state.game;
+    return local && game && !game.pendingChoice ? local : null;
+  }
+
+  /**
+   * The session as this sheet reads it: the store's state, with the Board's own question (`view/local-choice.ts`) as
+   * the pending choice while one is up and the engine asks nothing.
+   */
+  #sessionState(): SessionState {
+    const base = appSession().store.state;
+    const local = localChoice();
+    if (!local || !base.game || base.game.pendingChoice) return base;
+    if (this.#localState?.base !== base || this.#localState.local !== local) {
+      this.#localState = { base, local, state: { ...base, game: { ...base.game, pendingChoice: local.choice } } };
+    }
+    return this.#localState.state;
+  }
   /** The decision this sheet last drew, by `choiceSheetKey` (a bare choice id comes back after an undo). */
   #choiceId: string | null = null;
   #maxSelections = 1;
@@ -348,7 +373,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.sys.setVisible(true);
     }
     this.#wasCovered = covered;
-    const state = appSession().store.state;
+    const state = this.#sessionState();
     const pending = state.game?.pendingChoice;
     const pendingChoiceId = pending ? choiceSheetKey(shownChoiceOf(pending)) : null;
     const idle =
@@ -412,6 +437,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Before the subscribe: it runs the first draw, whose cards the popover below reads.
     resetHoverCards(this);
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
+    // The Board's own questions (an action's cost picked from cards in play) come and go without a store update.
+    this.#unsubscribeLocal = onLocalChoiceChange(() => this.#rebuild());
     const onResize = (): void => this.#rebuild();
     /**
      * The resize listener MUST be removed on shutdown.
@@ -500,6 +527,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
+      this.#unsubscribeLocal?.();
+      this.#unsubscribeLocal = null;
     });
 
     // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
@@ -600,7 +629,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * (`view/choice-fallback.ts`), paged to the screen so every answer can be reached on a phone.
    */
   #drawFallback(cause: unknown): void {
-    const choice = appSession().store.state.game?.pendingChoice;
+    const choice = this.#sessionState().game?.pendingChoice;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#focusRing?.destroy();
@@ -621,7 +650,14 @@ export class ChoiceOverlay extends Phaser.Scene {
       if (options.enabled !== false && options.onClick) stops.push({ rect: options.rect, press: options.onClick });
     };
     const redraw = (): void => this.#drawFallback(cause);
-    const answer = (ids: readonly string[]): void => void appSession().store.resolveChoice(ids);
+    const local = this.#localNow();
+    const answer = (ids: readonly string[]): void =>
+      void (local
+        ? local.answer(ids).then((taken) => {
+            // Refused (a combined total short of its mark): the sheet stays, with the reason in its note.
+            if (!taken) redraw();
+          })
+        : appSession().store.resolveChoice(ids));
 
     const { width, height } = this.scale.gameSize;
     this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(0, 0, width, height);
@@ -634,7 +670,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setWordWrapWidth(sheetWidth);
     y += title.height + 6;
     // What is being decided, in the engine's own words where they can be read: the labels alone do not say it.
-    const game = appSession().store.state.game;
+    const game = this.#sessionState().game;
     let question = "";
     try {
       question = game ? promptTitleOf(choice.prompt, gameDeps(), choice, game) : "";
@@ -651,11 +687,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     const orderNote = fallbackChoiceView(choice, []).ordered
       ? "The order you tap is the order they resolve; tap one again to take it out. "
       : "";
+    // Why Confirm waits on the Board's own cost question (a combined total short of its mark).
+    const localNote = local?.note(this.#fallback?.selected ?? []);
     const note = this.add
       .text(
         x,
         y,
-        `${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
+        `${localNote ? `${localNote}. ` : ""}${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
         textStyle(typeRole.body, surface.paper.hex, ink.secondary),
       )
       .setWordWrapWidth(sheetWidth)
@@ -765,6 +803,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       footer.push({ label: confirm.label, enabled: confirm.enabled, onClick: () => answer(state.selected) });
     }
     if (view.canChooseNone) footer.push({ label: "Choose none", enabled: true, onClick: () => answer([]) });
+    // The Board's own cost question is a play not yet made: Back out drops it, as on the normal sheet.
+    if (local) footer.push({ label: "Back out", enabled: true, onClick: () => local.backOut() });
     const each = footer.length > 0 ? (sheetWidth - (footer.length - 1) * GAP) / footer.length : 0;
     footer.forEach((button, index) => {
       addButton({
@@ -812,8 +852,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #draw(): void {
-    const { store } = appSession();
-    const state = store.state;
+    const state = this.#sessionState();
     const choice = state.game?.pendingChoice ? shownChoiceOf(state.game.pendingChoice) : undefined;
     const key = choice ? choiceSheetKey(choice) : null;
     const action = choiceSheetAction({
@@ -1053,7 +1092,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitleOf(choice.prompt, gameDeps(), choice, state.game);
+        : (this.#localNow()?.title ?? promptTitleOf(choice.prompt, gameDeps(), choice, state.game));
     const header = choiceHeaderOf(state.game, choice, gameDeps(), genericTitle);
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : header.subtitle ? 52 : 38 };
     const barG = this.add.graphics();
@@ -1065,9 +1104,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // "how did I get here", not with the answer to the question the choice is actually asking.
     // The end-of-phase "discard any cards" sheet offers "Nevermind" instead (`view/end-turn-takeback.ts`): End turn has
     // only asked it, so the whole turn end is taken back, and B on a pad does the same.
-    const takeback = this.#takebackOf(state, choice);
-    const backOutTarget =
-      takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null);
+    const takeback = this.#localNow() ? null : this.#takebackOf(state, choice);
+    // The Board's own cost question has nothing to rewind: Back out drops the play before it was sent (`#backOut`).
+    const backOutTarget = this.#localNow()
+      ? LOCAL_BACK_OUT
+      : (takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null));
     let backOutRect: Rect | null = null;
     // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
     // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
@@ -1258,7 +1299,8 @@ export class ChoiceOverlay extends Phaser.Scene {
         ? lookAtAdvisoryOf(state.game, choice)
         : isBreakChoice(choice)
           ? ""
-          : (chosenResourcesNoteOf(choice.prompt) ??
+          : (this.#localNow()?.note(this.#selected) ??
+            chosenResourcesNoteOf(choice.prompt) ??
             discardCountNoteOf(choice.prompt, choice) ??
             requiredPaymentNoteOf(state.game, choice) ??
             `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`),
@@ -1887,7 +1929,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     stripHeight: number,
     guideStrip: GuideStripContent | null,
   ): void {
-    const view = defendChoiceViewOf(game, choice, gameDeps(), appSession().store.state.perspectiveId, this.#selected);
+    const view = defendChoiceViewOf(game, choice, gameDeps(), this.#sessionState().perspectiveId, this.#selected);
     if (!view) return;
 
     this.#route = choiceFocusOrder(
@@ -2570,7 +2612,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
     const picture = defendOptionPicture(usual);
-    const game = appSession().store.state.game;
+    const game = this.#sessionState().game;
     if (picture && game) this.#drawScan(game, option.pictureInstanceId, picture);
     const textX = picture ? picture.x + picture.width + 10 : usual.x + 10;
     const textWidth = usual.x + usual.width - 10 - textX;
@@ -2681,7 +2723,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         .fillRect(area.x, area.y, 4, noteHeight - 4);
       area = { ...area, y: area.y + noteHeight, height: area.height - noteHeight };
     }
-    const barState = appSession().store.state.game;
+    const barState = this.#sessionState().game;
     this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, gameDeps()) : new Map();
     this.#tileCounters = barState ? optionCounterNotesOf(barState, choice) : new Map();
     this.#tileCaptions = barState?.pendingChoice
@@ -2701,7 +2743,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // where it is, whole and tappable: a picked card wears its ring and the number it will resolve in, instead of
     // being lifted out into a second group (which moved the second card and shrank both: QA QB-8).
     const gridArea: Rect = { ...area, y: area.y + captionHeight, height: area.height - captionHeight };
-    const game = appSession().store.state.game;
+    const game = this.#sessionState().game;
     const divideTally = game ? (divideSheetOf(game, choice, this.#selected)?.tally ?? "") : "";
     // Cards that do not fit the area whole at a readable height (a phone held sideways, a dozen options) scroll
     // in a grid inside the area instead of being cut off or shrunk (`view/choice-options-layout.ts`).
@@ -2871,7 +2913,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * ends it with the whole minutes so far. The elapsed time is read from the clock each time the digits are drawn.
    */
   #drawBreakScreen(area: Rect, sheet: Rect, commitTop: number, choice: PendingChoice, who: string): void {
-    const seed = appSession().store.state.config?.seed ?? 0;
+    const seed = this.#sessionState().config?.seed ?? 0;
     const startedAt = breakStartedAt({ seed, choiceId: String(choice.choiceId), playerId: choice.playerId }, Date.now);
     const readout = () => breakReadout(startedAt, Date.now());
     const cx = area.x + area.width / 2;
@@ -2941,7 +2983,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #paymentSheet(): PaymentSheetView | null {
-    const game = appSession().store.state.game;
+    const game = this.#sessionState().game;
     const pending = game?.pendingChoice;
     if (!game || !pending) return null;
     return paymentSheetView(game, pending, spendAnswerOf(pending, this.#selected), gameDeps());
@@ -2956,7 +2998,9 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #canCommit(choice: PendingChoice): boolean {
     const payment = this.#paymentSheet();
-    return payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
+    if (payment) return payment.canConfirm;
+    const local = this.#localNow();
+    return canConfirmChoice(choice, this.#selected.length) && (!local || local.canConfirm(this.#selected));
   }
 
   /**
@@ -3027,8 +3071,9 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
+    // The same test as the keyboard's and the pad's (`#canCommit`): a cost pick also needs its combined total (PR #992).
+    const canCommit = this.#canCommit(choice);
     const payment = this.#paymentSheet();
-    const canCommit = payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
@@ -3057,7 +3102,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           ? payment.declineLabel
           : this.#pairing
             ? "Assign none"
-            : declineLabelOf(appSession().store.state.game, choice),
+            : declineLabelOf(this.#sessionState().game, choice),
         type: typeRole.label,
         rect: {
           x: sheet.x + 20 + commitWidth,
@@ -3076,7 +3121,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         if (glyphsFitFormFactor(formFactorFor(width, height)))
           this.#hints.button(decline, DECLINE_GLYPH_IDS, "ink", {
             idsNow: () => {
-              const open = appSession().store.state.game?.pendingChoice;
+              const open = this.#sessionState().game?.pendingChoice;
               return open ? declineGlyphIdsNow(this.#declineState(open)) : null;
             },
           });
@@ -3295,7 +3340,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #pickSlotOf(optionId: string): number | null {
     const { width, height } = this.scale.gameSize;
     if (!glyphsFitFormFactor(formFactorFor(width, height))) return null;
-    const pending = appSession().store.state.game?.pendingChoice;
+    const pending = this.#sessionState().game?.pendingChoice;
     const slot = pending ? shownChoiceOf(pending).options.findIndex((o) => o.optionId === optionId) : undefined;
     return slot === undefined || slot < 0 || padPickBinding(slot) === null ? null : slot;
   }
@@ -3365,8 +3410,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #drawCardOption(slot: Rect, option: PendingChoice["options"][number], ordered: boolean): void {
-    const { store } = appSession();
-    const state = store.state.game;
+    const state = this.#sessionState().game;
     const instanceId = refInstanceId(option.ref);
     const order = this.#selected.indexOf(option.optionId);
     const picked = order >= 0;
@@ -3625,7 +3669,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   #onIntent(intent: GamepadIntent, source?: "key"): void {
     if (this.#fallbackStops) return this.#onFallbackIntent(intent);
     if (this.#motion.leaving) return;
-    const pending = appSession().store.state.game?.pendingChoice;
+    const pending = this.#sessionState().game?.pendingChoice;
     if (!pending) return;
     const choice = shownChoiceOf(pending);
     switch (intent) {
@@ -3668,7 +3712,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       case "cancel":
         // B on the end-of-phase discard sheet is Nevermind (`#takebackOf`); anywhere else it only drops focus.
         // Peeking at a teammate's side, B first puts the table back on the seat deciding (the action bar's Back).
-        if (this.#peekingAt !== null && appSession().store.state.peekSeat !== null) {
+        if (this.#peekingAt !== null && this.#sessionState().peekSeat !== null) {
           appSession().store.endSeatPeek();
           break;
         }
@@ -3760,7 +3804,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (focus.kind === "confirm" && isBreakChoice(choice) && !this.#breakManual) {
       const startedAt = breakStartedAt(
         {
-          seed: appSession().store.state.config?.seed ?? 0,
+          seed: this.#sessionState().config?.seed ?? 0,
           choiceId: String(choice.choiceId),
           playerId: choice.playerId,
         },
@@ -3922,7 +3966,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   #toggle(optionId: string, max: number): void {
     if (this.#motion.leaving) return;
-    const pending = appSession().store.state.game?.pendingChoice;
+    const pending = this.#sessionState().game?.pendingChoice;
     this.#selected =
       pending && isSpendChoice(pending)
         ? [...toggleSpendPick(pending, this.#selected, optionId)]
@@ -3932,7 +3976,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   async #confirm(): Promise<void> {
     if (this.#motion.leaving) return;
-    const pending = appSession().store.state.game?.pendingChoice;
+    const pending = this.#sessionState().game?.pendingChoice;
     const selected = pending && isSpendChoice(pending) ? spendAnswerOf(pending, this.#selected) : this.#selected;
     // Fade the moment the answer is sent, not once the store update lands —
     // dispatch is a round trip through the worker, so this runs while the
@@ -3941,8 +3985,17 @@ export class ChoiceOverlay extends Phaser.Scene {
     // here needs to run again. `done` is a no-op because stopping the scene
     // is the Board's job (`syncChoiceOverlay`), not this overlay's own.
     this.#motion.exit(this, () => {});
+    // The Board's own question is answered on the Board: the play then goes on (payment, or the command itself).
+    const local = this.#localNow();
+    if (local) {
+      if (!(await local.answer(selected))) {
+        this.#motion = new OverlayMotion();
+        this.#rebuild();
+      }
+      return;
+    }
     // The store issues this as the player the engine named, not as "the human".
-    const answered = appSession().store.state.game?.pendingChoice;
+    const answered = this.#sessionState().game?.pendingChoice;
     const accepted = await appSession().store.resolveChoice(selected);
     if (accepted && answered && isBreakChoice(answered)) clearBreakStart();
     if (!accepted) {
@@ -3953,7 +4006,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#motion = new OverlayMotion();
       // A pairing the engine refused stays on the sheet with its own words, where the player is looking.
       if (this.#pairing) {
-        this.#pairing = withRefusal(this.#pairing, appSession().store.state.error ?? "That pairing was refused");
+        this.#pairing = withRefusal(this.#pairing, this.#sessionState().error ?? "That pairing was refused");
       }
       this.#rebuild();
     }
@@ -3973,6 +4026,11 @@ export class ChoiceOverlay extends Phaser.Scene {
   async #backOut(target: number): Promise<void> {
     if (this.#motion.leaving) return;
     this.#motion.exit(this, () => {});
+    const local = this.#localNow();
+    if (local) {
+      local.backOut();
+      return;
+    }
     const accepted = await appSession().store.rewindTo(target);
     if (!accepted) {
       this.#motion = new OverlayMotion();
@@ -3983,6 +4041,9 @@ export class ChoiceOverlay extends Phaser.Scene {
 
 /** The choice as the sheet draws it (`view/divide-sheet.ts`, `view/spend-choice.ts`); answers are still the engine's ids. */
 const shownChoiceOf = (choice: PendingChoice): PendingChoice => shownSpendChoice(shownDivideChoice(choice));
+
+/** `#drawnBackOut` for the Board's own question: Back out (and B) cancel it, with no command to rewind. */
+const LOCAL_BACK_OUT = -1;
 
 /** The accuse sheet's read-only stops (a Board Member key or a chip of the picked row): Enter or I opens that card. */
 const INSPECT_STOP = "inspect:";

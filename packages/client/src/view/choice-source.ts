@@ -112,6 +112,9 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
   if (prompt.kind === "choosePaidResources") {
     return { instanceId: prompt.instanceId, abilityId: prompt.abilityId ?? null };
   }
+  // A cost that picks cards names the card paying it: an interrupt's in a window, or an action's before it is sent
+  // (`view/local-choice.ts`, which has no frame to trace back).
+  if (prompt.kind === "chooseCostCards") return { instanceId: prompt.instanceId, abilityId: prompt.abilityId };
 
   const frame = frameOf(state, choice);
   if (!frame) return null;

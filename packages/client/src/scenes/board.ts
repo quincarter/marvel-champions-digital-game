@@ -175,7 +175,8 @@ import {
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import type { LargeSchemeShape } from "../view/scheme-list-layout.js";
-import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
+import { drawTargetingPanel, TargetingScrollState, type TargetingHover } from "./board/targeting-panel.js";
+import { localChoice, setLocalChoice } from "../view/local-choice.js";
 import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
@@ -423,6 +424,10 @@ export class BoardScene extends Phaser.Scene {
   #debugPad: { sideSchemes?: number; minions?: number; environments?: number; playArea?: number } | null = null;
   /** The schemes column's scroll position, which has to survive the whole-board redraw that rebuilds its region. */
   readonly #schemeScroll = new SchemeScrollState();
+  /** The targeting panel's tiles' scroll, when they outrun it (a phone with many cards to choose from). */
+  readonly #targetingScroll = new TargetingScrollState();
+  /** Whether this draw put the targeting panel up: its tiles, not the table's cards, carry the target rings. */
+  #targetingPanelUp = false;
   /** The pulsing rings on the valid targets: redrawn alone when the schemes column scrolls under them. */
   #targetRings: McSelectionRing[] = [];
   readonly #hand = new HandScroll(() => this.#draw());
@@ -726,6 +731,8 @@ export class BoardScene extends Phaser.Scene {
       });
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, pillOff);
     }
+    // A cost pick left on the choice sheet goes with the table (`#syncLocalChoice`).
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => setLocalChoice(null));
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
@@ -900,6 +907,8 @@ export class BoardScene extends Phaser.Scene {
         phaseBand: () => this.#motion.debugPhaseBand(),
         phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
+        // The Board's own question on the choice sheet (`view/local-choice.ts`): an action's cost picked from cards in play.
+        localChoiceOptions: () => localChoice()?.choice.options.map((option) => option.optionId) ?? [],
         // The game the table draws: the villain phase replay's beat while it is behind the engine (#386), else live.
         tableGame: () => this.#villainReplay?.hold?.game ?? appSession().store.state.game,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
@@ -1549,7 +1558,8 @@ export class BoardScene extends Phaser.Scene {
    * stays visible underneath while a decision is open.
    */
   #syncChoiceOverlay(state: SessionState): void {
-    const open = state.game?.pendingChoice != null;
+    // The sheet also asks the Board's own questions (`view/local-choice.ts`): an action's cost that picks cards in play.
+    const open = state.game?.pendingChoice != null || localChoice() !== null;
     if (open && !this.#choiceOpen) {
       this.#choiceOpen = true;
       this.scene.launch(SCENES.choice);
@@ -1983,7 +1993,17 @@ export class BoardScene extends Phaser.Scene {
    */
   /** Whether it drew the panel. */
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
+    this.#targetingPanelUp = this.#drawTargetingPanelIfAsked(ctx, viewport, top);
+    // A closed panel's scroll goes with it: the next question starts at the top, even with the same cards (PR #992).
+    if (!this.#targetingPanelUp) this.#targetingScroll.forget();
+    return this.#targetingPanelUp;
+  }
+
+  #drawTargetingPanelIfAsked(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
     const kind = this.#controller.selection.kind;
+    // A cost that picks cards in play is asked on the choice sheet, as the engine asks an interrupt's cost: full card
+    // faces, the source card, Peek at table and Back out (issue #991).
+    if (this.#syncLocalChoice()) return false;
     // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
     if (
       kind !== "targeting" &&
@@ -1996,7 +2016,43 @@ export class BoardScene extends Phaser.Scene {
     const panel = this.#controller.targetingPanel();
     if (!panel) return false;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
-    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top);
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top, this.#targetingScroll);
+    return true;
+  }
+
+  /**
+   * Puts the in-play cost pick on the choice sheet while the controller asks one, and takes it off once it doesn't.
+   * True while it is up.
+   */
+  #syncLocalChoice(): boolean {
+    const decision = this.#replay ? null : this.#controller.inPlayCostDecision();
+    const current = localChoice();
+    if (!decision) {
+      if (current) {
+        setLocalChoice(null);
+        this.#syncChoiceOverlay(appSession().store.state);
+      }
+      return false;
+    }
+    if (current?.choice.choiceId !== decision.choiceId) {
+      const view = this.#controller.inPlayCostViewFor([]);
+      const many = decision.maxSelections > 1;
+      const step = view && view.step.total > 1 ? ` (${view.step.index + 1} of ${view.step.total})` : "";
+      setLocalChoice({
+        choice: decision,
+        title: `${many ? "Choose cards" : "Choose a card"} to ${view?.verb ?? "pay with"}${step}`,
+        note: (ids) => {
+          const now = this.#controller.inPlayCostViewFor(ids);
+          if (!now) return null;
+          const parts = [now.preview, now.canConfirm ? null : now.reason].filter((part) => part);
+          return parts.length > 0 ? parts.join(" · ") : null;
+        },
+        canConfirm: (ids) => this.#controller.inPlayCostViewFor(ids)?.canConfirm ?? false,
+        answer: (ids) => this.#controller.answerInPlayCost(ids),
+        backOut: () => this.#controller.cancel(),
+      });
+      this.#syncChoiceOverlay(appSession().store.state);
+    }
     return true;
   }
 
@@ -2020,7 +2076,9 @@ export class BoardScene extends Phaser.Scene {
     if (selection.kind !== "targeting") return;
     const reduced = appSession().settings.reducedMotion;
     for (const target of selection.action.targets) {
-      const rect = this.#cardRect(target);
+      // Over the targeting panel a target's ring goes on its tile, and only on the part of it on screen: a tile scrolled
+      // out of the list keeps a focus stop past the list's edge, which is no place for a ring (PR #992).
+      const rect = this.#targetingPanelUp ? this.#frame.hitRects.get(target) : this.#cardRect(target);
       if (!rect) continue;
       // A target scrolled under the chrome or the hand has no ring: it would be drawn over them.
       if (this.#hiddenByScroll(target, rect)) continue;

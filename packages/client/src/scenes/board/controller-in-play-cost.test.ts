@@ -181,3 +181,22 @@ describe("Strength in Numbers (nothing to pay): the picks alone make the command
     expect(game().players[0]!.hand.length).toBe(handBefore - 1 + 1);
   });
 });
+
+describe("the question on the decision sheet (issue #991)", () => {
+  test("is a chooseCostCards decision of the allies, answered with the sheet's picks", async () => {
+    const controller = new BoardController(host(false));
+    await controller.playCard(card);
+    const decision = controller.inPlayCostDecision()!;
+    expect(decision.prompt).toMatchObject({ kind: "chooseCostCards", mode: "exhaust" });
+    expect(decision.options.map((o) => o.optionId).sort()).toEqual([...allies].sort());
+    // Nothing picked is no answer: the sheet stays up, still asking.
+    expect(controller.inPlayCostViewFor([])?.canConfirm).toBe(false);
+    expect(await controller.answerInPlayCost([])).toBe(false);
+    expect(controller.selection.kind).toBe("choosingInPlayCost");
+    // One ally picked moves the play on to payment, with only that ally as the cost's pick.
+    expect(controller.inPlayCostViewFor([allies[1]!])?.canConfirm).toBe(true);
+    expect(await controller.answerInPlayCost([allies[1]!])).toBe(true);
+    expect(controller.selection.kind).not.toBe("choosingInPlayCost");
+    expect(controller.inPlayCostDecision()).toBeNull();
+  });
+});

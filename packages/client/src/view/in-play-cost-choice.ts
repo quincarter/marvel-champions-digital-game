@@ -18,6 +18,7 @@
 import {
   activeAbilityRefs,
   characterProfile,
+  choiceId,
   inPlayCostCandidates,
   inPlayPicksOf,
   resolveValue,
@@ -30,9 +31,11 @@ import {
   type InPlayCostMode,
   type InstanceId,
   type LegalAction,
+  type PendingChoice,
   type PlayerId,
   type ValueSpec,
 } from "@mc/engine";
+import type { AbilityId } from "@mc/content";
 import { actionAbilityCost } from "./cost-choice-model.js";
 import { cardName } from "./names.js";
 
@@ -402,4 +405,49 @@ export function inPlayCostChoiceView(
           : null,
     confirmLabel: isLastSlot(choice) ? "Confirm" : "Next",
   };
+}
+
+/** `abilityOf`'s ability by id, for the sheet's prompt. */
+function abilityIdOf(state: GameState, deps: EngineDeps, action: LegalAction["action"]): AbilityId | null {
+  if (action.kind === "useAbility") return action.abilityId;
+  if (action.kind !== "playCard") return null;
+  const ref = activeAbilityRefs(state, action.instanceId).find((r) => deps.abilities[r.id]?.trigger.kind === "action");
+  return ref?.id ?? null;
+}
+
+/**
+ * The current slot as a decision for the choice sheet (`scenes/choice.ts`): the same `chooseCostCards` question the
+ * engine raises for an interrupt's or response's cost, so an action's cost pick reads and works like every other
+ * decision (full card faces, the source card, Peek at table, Back out; issue #991). The answer is the picked cards'
+ * instance ids (`withSlotPicks`); the client still sends them as the play's `costChoices`, never as a choice answer.
+ */
+export function inPlayCostPendingChoice(
+  state: GameState,
+  deps: EngineDeps,
+  choice: InPlayCostChoiceState,
+): PendingChoice | null {
+  const slot = currentSlot(choice);
+  const abilityId = abilityIdOf(state, deps, choice.action.action);
+  if (abilityId === null) return null;
+  const offered = offeredNow(choice);
+  return {
+    choiceId: choiceId(`local-cost:${choice.source}:${choice.index}`),
+    playerId: choice.playerId,
+    prompt: { kind: "chooseCostCards", instanceId: choice.source, abilityId, slot: slot.slot, mode: slot.mode },
+    minSelections: slot.min,
+    maxSelections: Math.min(slot.max, offered.length),
+    options: offered.map((id) => ({ optionId: id, label: cardName(state, id), ref: { kind: "card", instanceId: id } })),
+    frameId: null,
+    ordered: false,
+    soleDecider: false,
+    authority: "player",
+  };
+}
+
+/** The current slot answered with exactly these cards (the sheet's selection); cards not offered are left out. */
+export function withSlotPicks(choice: InPlayCostChoiceState, ids: readonly string[]): InPlayCostChoiceState {
+  const offered = new Set<string>(offeredNow(choice));
+  const slot = currentSlot(choice);
+  const picks = ids.filter((id) => offered.has(id)).slice(0, slot.max) as InstanceId[];
+  return { ...choice, picks: { ...choice.picks, [slot.slot]: picks } };
 }
