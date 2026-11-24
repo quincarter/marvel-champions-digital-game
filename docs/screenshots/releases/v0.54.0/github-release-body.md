@@ -6,19 +6,19 @@ Your Mod Store heroes can join a campaign: a custom hero, a pack's precon or a d
 
 **[Lee el informe completo en español ↗](https://champions-digital-game.com/releases/v0.54.0/index.es.html)**
 
-![The numbers: 6 changes from your reports, 14 Mod Store packs tested and 4 ways to narrow the deck builder's pool](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-01-the-numbers.jpg)
+![The numbers: 6 changes from your reports, 14 Mod Store packs tested and 4 ways to narrow the deck builder's pool](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-01-the-numbers.jpg)
 
-![Your heroes, your campaign: Carnage from the Mod Store on Sign the roster for The Rise of Red Skull, on a desktop and an iPhone SE, and issue #1 under way](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-02-your-heroes-your-campaign.jpg)
+![Your heroes, your campaign: Carnage from the Mod Store on Sign the roster for The Rise of Red Skull, on a desktop and an iPhone SE, and issue #1 under way](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-02-your-heroes-your-campaign.jpg)
 
-![Pick your pool: the deck builder's Packs picker, the pool narrowed to the picked packs, and the Hero and Basic toggles on an iPhone SE](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-03-pick-your-pool.jpg)
+![Pick your pool: the deck builder's Packs picker, the pool narrowed to the picked packs, and the Hero and Basic toggles on an iPhone SE](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-03-pick-your-pool.jpg)
 
-![You asked, we fixed: Repurpose on the decision popup, DECK RAN OUT on the encounter strip and in the recap, Sinking Ferry and playing without WebGL](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-04-you-asked-we-fixed.jpg)
+![You asked, we fixed: Repurpose on the decision popup, DECK RAN OUT on the encounter strip and in the recap, Sinking Ferry and playing without WebGL](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-04-you-asked-we-fixed.jpg)
 
-![Also in v0.54.0: Android developer verification, all 14 Mod Store packs tested, the Mod SDK's own test job, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-05-also-in-v0-54-0.jpg)
+![Also in v0.54.0: Android developer verification, all 14 Mod Store packs tested, the Mod SDK's own test job, the README and this report](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-05-also-in-v0-54-0.jpg)
 
-![Thank you to @bluefireF5ran, @benpap24, @milanga, @andy-xxvii27, GarethMagis and our Firefox player on Discord](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-06-thank-you.jpg)
+![Thank you to @bluefireF5ran, @benpap24, @milanga, @andy-xxvii27, GarethMagis and our Firefox player on Discord](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-06-thank-you.jpg)
 
-![Code shipped since v0.53.0: 12 pull requests, 158 files, 6,828 lines added and 995 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0000000000000000000000000000000000000000/docs/screenshots/releases/v0.54.0/v0-54-0-release-07-code-shipped.jpg)
+![Code shipped since v0.53.0: 12 pull requests, 158 files, 6,828 lines added and 995 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/b7d6a52aa90e67fc5bfae301131f6664844c12bf/docs/screenshots/releases/v0.54.0/v0-54-0-release-07-code-shipped.jpg)
 
 ---
 
