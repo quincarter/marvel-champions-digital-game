@@ -171,6 +171,7 @@ import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import type { LargeSchemeShape } from "../view/scheme-list-layout.js";
 import { drawTargetingPanel, TargetingScrollState, type TargetingHover } from "./board/targeting-panel.js";
+import { localChoice, setLocalChoice } from "../view/local-choice.js";
 import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
@@ -695,6 +696,8 @@ export class BoardScene extends Phaser.Scene {
     // (#738).
     const artSourcesOff = onArtChange(() => this.#refreshArtSources());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, artSourcesOff);
+    // A cost pick left on the choice sheet goes with the table (`#syncLocalChoice`).
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => setLocalChoice(null));
     const binding: IntentBinding = {
       // A decision overlay, the villain-phase walkthrough, or Pause (and
       // whatever Pause itself launched) owns the keyboard and the pad while it
@@ -869,6 +872,8 @@ export class BoardScene extends Phaser.Scene {
         phaseBand: () => this.#motion.debugPhaseBand(),
         phaseBandLog: () => this.#motion.debugPhaseBandLog(),
         pendingChoice: () => appSession().store.state.game?.pendingChoice ?? null,
+        // The Board's own question on the choice sheet (`view/local-choice.ts`): an action's cost picked from cards in play.
+        localChoiceOptions: () => localChoice()?.choice.options.map((option) => option.optionId) ?? [],
         // The game the table draws: the villain phase replay's beat while it is behind the engine (#386), else live.
         tableGame: () => this.#villainReplay?.hold?.game ?? appSession().store.state.game,
         guideStepId: () => this.#guide?.debugStepId() ?? null,
@@ -1518,7 +1523,8 @@ export class BoardScene extends Phaser.Scene {
    * stays visible underneath while a decision is open.
    */
   #syncChoiceOverlay(state: SessionState): void {
-    const open = state.game?.pendingChoice != null;
+    // The sheet also asks the Board's own questions (`view/local-choice.ts`): an action's cost that picks cards in play.
+    const open = state.game?.pendingChoice != null || localChoice() !== null;
     if (open && !this.#choiceOpen) {
       this.#choiceOpen = true;
       this.scene.launch(SCENES.choice);
@@ -1945,6 +1951,9 @@ export class BoardScene extends Phaser.Scene {
   /** Whether it drew the panel. */
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
     const kind = this.#controller.selection.kind;
+    // A cost that picks cards in play is asked on the choice sheet, as the engine asks an interrupt's cost: full card
+    // faces, the source card, Peek at table and Back out (issue #991).
+    if (this.#syncLocalChoice()) return false;
     // The same panel carries two more questions: which cards pay a cost with a range, and whose play area a card goes to.
     if (
       kind !== "targeting" &&
@@ -1961,6 +1970,42 @@ export class BoardScene extends Phaser.Scene {
     }
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
     drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top, this.#targetingScroll);
+    return true;
+  }
+
+  /**
+   * Puts the in-play cost pick on the choice sheet while the controller asks one, and takes it off once it doesn't.
+   * True while it is up.
+   */
+  #syncLocalChoice(): boolean {
+    const decision = this.#replay ? null : this.#controller.inPlayCostDecision();
+    const current = localChoice();
+    if (!decision) {
+      if (current) {
+        setLocalChoice(null);
+        this.#syncChoiceOverlay(appSession().store.state);
+      }
+      return false;
+    }
+    if (current?.choice.choiceId !== decision.choiceId) {
+      const view = this.#controller.inPlayCostViewFor([]);
+      const many = decision.maxSelections > 1;
+      const step = view && view.step.total > 1 ? ` (${view.step.index + 1} of ${view.step.total})` : "";
+      setLocalChoice({
+        choice: decision,
+        title: `${many ? "Choose cards" : "Choose a card"} to ${view?.verb ?? "pay with"}${step}`,
+        note: (ids) => {
+          const now = this.#controller.inPlayCostViewFor(ids);
+          if (!now) return null;
+          const parts = [now.preview, now.canConfirm ? null : now.reason].filter((part) => part);
+          return parts.length > 0 ? parts.join(" · ") : null;
+        },
+        canConfirm: (ids) => this.#controller.inPlayCostViewFor(ids)?.canConfirm ?? false,
+        answer: (ids) => this.#controller.answerInPlayCost(ids),
+        backOut: () => this.#controller.cancel(),
+      });
+      this.#syncChoiceOverlay(appSession().store.state);
+    }
     return true;
   }
 

@@ -121,7 +121,7 @@ export default defineConfig({
         "energy-transfer-host.spec.ts",
         "uncanny-controller.spec.ts",
         "any-number-cost.spec.ts",
-        "pick-panel-scroll.spec.ts",
+        "repurpose-cost-sheet.spec.ts",
         "power-man-chi.spec.ts",
         "tap-redraw.spec.ts",
         "language-button.spec.ts",
