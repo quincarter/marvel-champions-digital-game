@@ -75,9 +75,17 @@ async function startWithDeckAboutToRunOut(page: Page): Promise<void> {
   await page.evaluate(async () => {
     const { store } = ((await import("/src/session.ts")) as any).appSession();
     const end = store.state.legal?.actions.legal?.find((e: any) => e.action.kind === "endTurn");
-    // One command ends the turn, empties the deck in the draw up to hand size and runs the whole villain phase: any
-    // choice after it is the next turn's, left to the walkthrough as a player would.
     if (end) await store.dispatch(end.example);
+    // The end of the player phase asks whether to discard any cards: keep them. The answer empties the deck in the draw
+    // up to hand size and runs the whole villain phase; any choice after that is left to the walkthrough.
+    for (
+      let guard = 0;
+      guard < 5 && store.state.game?.step.phase === "player" && store.state.legal?.actions.kind === "choice";
+      guard++
+    ) {
+      const choice = store.state.legal.actions.choice;
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o: any) => o.optionId));
+    }
   });
   await settle(page);
 }
