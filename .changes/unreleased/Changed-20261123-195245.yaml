@@ -1,3 +1,0 @@
-kind: Changed
-body: The Android APK carries Google's developer verification registration, so installs from GitHub keep working once Android requires verified developers.
-time: 2026-11-23T19:52:45.2061234-05:00
