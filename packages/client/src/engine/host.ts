@@ -305,6 +305,22 @@ export interface SealedEventState {
   readonly state: SealedStateWithoutPool;
 }
 
+/**
+ * A resumed game's last villain phase, for the walkthrough to be rebuilt after a reload (issue #989): the table before
+ * the command that began it, then each command from there to the end of the save with its events, the table as it had
+ * them (`states`) and the table after it. Sealed and without the card pool, like a snapshot's own state.
+ */
+export interface VillainPhaseSeedCore {
+  /** The command count before the command that began the phase: the index of that command in the save. */
+  readonly startCommand: number;
+  readonly before: SealedStateWithoutPool;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly SealedEventState[];
+    readonly after: SealedStateWithoutPool;
+  }[];
+}
+
 /** What a player may do, and who they are. Computed ahead of time by the host. */
 export interface LegalActionsFor {
   readonly playerId: PlayerId;
@@ -360,10 +376,26 @@ export interface EngineUpdate {
    */
   readonly trail?: readonly BackOutTrailEntry[];
   /**
+   * A resumed game's first update only: the last villain phase the save holds, with the commands from its start, so the
+   * walkthrough can be rebuilt after a reload (issue #989). Absent for a save with no villain phase.
+   */
+  readonly villainPhase?: VillainPhaseSeed;
+  /**
    * The table as the command had it at each of its villain-phase events that changed it, card pool re-attached (issue
    * #386): what the villain phase's replay draws while it is behind the engine. Absent when the command had none.
    */
   readonly states?: readonly { readonly at: number; readonly state: SealedGameState }[];
+}
+
+/** `VillainPhaseSeedCore` with the card pool re-attached, as the walkthrough reads it. */
+export interface VillainPhaseSeed {
+  readonly startCommand: number;
+  readonly before: SealedGameState;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly { readonly at: number; readonly state: SealedGameState }[];
+    readonly after: SealedGameState;
+  }[];
 }
 
 export type DispatchResult =
