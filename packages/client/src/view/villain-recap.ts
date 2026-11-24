@@ -13,9 +13,16 @@ import { schemePanel, seatRow } from "./board-model.js";
 import type { CardFace } from "../art/art-source.js";
 import { activationEnemyName, activationHiddenFace } from "./villain-breakdown.js";
 import { cardName, shortSeatName } from "./names.js";
+import { dealtReasonWords } from "./dealt-pile.js";
 import { activeVillainWording } from "./villain-active-change.js";
 import { mainSchemeCalloutOf } from "./villain-main-scheme.js";
-import type { ActiveVillainChange, ActivationBeat, Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
+import type {
+  ActiveVillainChange,
+  ActivationBeat,
+  DealtBefore,
+  Walkthrough,
+  WalkthroughBeat,
+} from "./villain-walkthrough.js";
 
 /** One "WHAT CHANGED" tile. */
 export interface RecapChange {
@@ -143,7 +150,7 @@ export function villainRecapOf(
           return {
             number: step.number,
             title: step.title,
-            entries: dealEntries(walkthrough, after, seatLabel),
+            entries: dealEntries(walkthrough, after, viewer, seatLabel),
           };
         case "revealEncounterCards":
           return {
@@ -500,10 +507,13 @@ function activationEntries(
 function dealEntries(
   walkthrough: Walkthrough,
   after: GameState,
+  viewer: PlayerId | null,
   seatLabel: (id: PlayerId) => string | null,
 ): RecapEntry[] {
+  const before = walkthrough.encounter.dealtBefore ?? [];
+  const earlier = before.length > 0 ? [dealtBeforeEntry(before, after, viewer, seatLabel)] : [];
   const dealt = walkthrough.encounter.dealt.filter((card) => !card.duringReveal);
-  if (dealt.length === 0 && walkthrough.steps[2]!.beats.length === 0) return [];
+  if (dealt.length === 0 && walkthrough.steps[2]!.beats.length === 0) return earlier;
   const counts = new Map<PlayerId, number>();
   for (const card of dealt) counts.set(card.playerId, (counts.get(card.playerId) ?? 0) + 1);
   const values = [...counts.values()];
@@ -521,7 +531,41 @@ function dealEntries(
         seat: seatLabel(card.playerId) ?? card.playerId,
       })),
     },
+    ...earlier,
   ];
+}
+
+/**
+ * The cards that waited facedown from before the phase (`EncounterTracking.dealtBefore`), with why each was dealt: they
+ * are revealed in step 4 with step 3's own, so without this row the reveal step showed more cards than "1 card each"
+ * (issue #984: Stampede, dealt when the player's deck ran out, then the card step 3 dealt).
+ */
+function dealtBeforeEntry(
+  before: readonly DealtBefore[],
+  after: GameState,
+  viewer: PlayerId | null,
+  seatLabel: (id: PlayerId) => string | null,
+): RecapEntry {
+  const reasons = [
+    ...new Set(
+      before.map((card) => {
+        if (card.source !== "deckReset") return dealtReasonWords(card.source, null);
+        return card.playerId === viewer
+          ? "your deck ran out"
+          : `${shortSeatName(after, card.playerId, viewer)}'s deck ran out`;
+      }),
+    ),
+  ];
+  const count = before.length;
+  return {
+    ...blank(),
+    headline: `${count} more card${count === 1 ? "" : "s"} dealt earlier: ${reasons.join(" · ")}`,
+    dealt: before.map((card) => ({
+      instanceId: card.instanceId,
+      playerId: card.playerId,
+      seat: seatLabel(card.playerId) ?? card.playerId,
+    })),
+  };
 }
 
 /**

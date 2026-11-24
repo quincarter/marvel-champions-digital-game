@@ -1462,6 +1462,7 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.villainPhase, {
       before,
       ...(logBefore.surgeDealt ? { surgeDealt: logBefore.surgeDealt } : {}),
+      ...(logBefore.dealtBefore ? { dealtBefore: logBefore.dealtBefore } : {}),
       endOfTurn: this.#refillEnded,
     } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
