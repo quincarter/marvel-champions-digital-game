@@ -9,7 +9,16 @@
 
 import { gameDeps } from "../../content/game-deps.js";
 import type { AbilityId } from "@mc/content";
-import type { Command, CostChoices, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type {
+  Command,
+  CostChoices,
+  CostSelection,
+  GameState,
+  InstanceId,
+  LegalAction,
+  PendingChoice,
+  PlayerId,
+} from "@mc/engine";
 import { paymentFor, tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
@@ -52,10 +61,12 @@ import {
   beginInPlayCostChoice,
   costChoicesOf,
   inPlayCostChoiceView,
+  inPlayCostPendingChoice,
   isLastSlot,
   offeredNow,
   slotAnswered,
   toggleInPlayPick,
+  withSlotPicks,
   type InPlayCostChoiceView,
 } from "../../view/in-play-cost-choice.js";
 import { inPlayCostPanelOf, seatOptionsOf, seatPanelOf } from "../../view/pick-panels.js";
@@ -1642,6 +1653,39 @@ export class BoardController {
     if (this.#selection.kind !== "choosingInPlayCost") return null;
     const { game } = appSession().store.state;
     return game ? inPlayCostChoiceView(game, gameDeps(), this.#selection.choice) : null;
+  }
+
+  /**
+   * The in-play cost pick as a decision for the choice sheet (`view/local-choice.ts`, issue #991), or null outside that
+   * mode or while the engine itself is asking something.
+   */
+  inPlayCostDecision(): PendingChoice | null {
+    if (this.#selection.kind !== "choosingInPlayCost") return null;
+    const { game } = appSession().store.state;
+    if (!game || game.pendingChoice) return null;
+    return inPlayCostPendingChoice(game, gameDeps(), this.#selection.choice);
+  }
+
+  /** The in-play cost picker as it would read with these cards picked for the current slot (the sheet's selection). */
+  inPlayCostViewFor(ids: readonly string[]): InPlayCostChoiceView | null {
+    if (this.#selection.kind !== "choosingInPlayCost") return null;
+    const { game } = appSession().store.state;
+    return game ? inPlayCostChoiceView(game, gameDeps(), withSlotPicks(this.#selection.choice, ids)) : null;
+  }
+
+  /**
+   * The choice sheet's answer to `inPlayCostDecision`: these cards for the current slot, then Confirm as the picker's
+   * footer did. False when the picks are not an answer the cost takes (a combined total short of its mark), so the
+   * sheet stays up.
+   */
+  async answerInPlayCost(ids: readonly string[]): Promise<boolean> {
+    if (this.#readOnly || this.#selection.kind !== "choosingInPlayCost") return false;
+    const { game } = appSession().store.state;
+    const choice = withSlotPicks(this.#selection.choice, ids);
+    if (!game || !slotAnswered(choice, game, gameDeps())) return false;
+    this.#selection = { ...this.#selection, choice };
+    await this.confirmInPlayCost();
+    return true;
   }
 
   /**

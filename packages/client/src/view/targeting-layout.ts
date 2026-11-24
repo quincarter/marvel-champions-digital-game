@@ -58,7 +58,26 @@ export interface TargetingLayout {
   readonly excluded: Rect;
   /** The source card's full text beside the target list — tablet landscape only (L06's inspector rail); null everywhere else. */
   readonly inspectorRail: Rect | null;
+  /**
+   * Where each tile is drawn, one per target in order, with the list at its top (scroll 0). A wide layout lays them in
+   * a row that wraps onto more rows once a tile would be narrower than `MIN_ROW_TILE_WIDTH`; a narrow one stacks them.
+   */
+  readonly tiles: readonly Rect[];
+  /**
+   * The tiles run past the bottom of `targets` (seven Tech upgrades for Repurpose on a phone): they scroll inside it
+   * rather than running off the screen, and leave `SCROLLBAR_ROOM` on the right for the scrollbar.
+   */
+  readonly scrolls: boolean;
+  /** One entry per line of tiles, for the scroll math (`VariableListScroll`): the line's height and the gap under it. */
+  readonly lineHeights: readonly number[];
+  /** Which line of tiles each tile sits on, to bring a focused tile into view. */
+  readonly lineOf: readonly number[];
 }
+
+/** Room kept beside scrolling tiles for the scrollbar (`McScrollRegion` draws it inside the region's right edge). */
+export const SCROLLBAR_ROOM = 12;
+/** Below this a row of tiles wraps onto another row: a narrower tile cannot hold a card's name and art. */
+export const MIN_ROW_TILE_WIDTH = 150;
 
 /** Whether this layout has the horizontal room for a side column at all (the "why not" panel on desktop, the inspector rail on tablet landscape). */
 const hasSideColumn = (formFactor: FormFactor): boolean => formFactor === "desktop" || formFactor === "tabletLandscape";
@@ -80,9 +99,16 @@ const MIN_TILE_HEIGHT = 72;
 
 /**
  * `top` is how far down `bounds` the panel itself starts: over the table it is the bottom of the top bar, which the
- * chrome buttons stay drawn on (#515). The form factor still comes from the whole of `bounds`.
+ * chrome buttons stay drawn on (#515). The form factor still comes from the whole of `bounds`. `hideExcluded`: the
+ * panel draws no "why not the others?" box (a pick of cards to pay a cost), so the tiles take its room too.
  */
-export function targetingLayout(bounds: Rect, targetCount: number, text?: TileText, top = 0): TargetingLayout {
+export function targetingLayout(
+  bounds: Rect,
+  targetCount: number,
+  text?: TileText,
+  top = 0,
+  hideExcluded = false,
+): TargetingLayout {
   const formFactor = formFactorFor(bounds.width, bounds.height);
   const margin = MARGIN[formFactor];
   const titleBarHeight = TITLE_BAR_HEIGHT[formFactor];
@@ -111,25 +137,29 @@ export function targetingLayout(bounds: Rect, targetCount: number, text?: TileTe
   if (formFactor === "desktop") {
     // The target row takes the whole width, and "why not the others?" sits under it. It used to be a column beside
     // the row, where it covered the second villain's rules text on a two-villain board (the lit board shows through).
-    const targets: Rect = { x: bounds.x + margin, y: contentTop, width: contentWidth, height: contentHeight };
-    const sized = rowTileSize(targets, targetCount, text);
-    const excludedTop = Math.min(contentBottom - 64, contentTop + sized.tile.height + GAP);
+    const area: Rect = { x: bounds.x + margin, y: contentTop, width: contentWidth, height: contentHeight };
+    const sized = rowTileSize(area, targetCount, text);
+    // The box keeps at least 64px under the rows; rows that need more scroll above it.
+    const excludedTop = hideExcluded
+      ? contentBottom + GAP
+      : Math.min(contentBottom - 64, contentTop + gridHeight(targetCount, sized.tile) + GAP);
     const excluded: Rect = {
       x: bounds.x + margin,
-      y: excludedTop,
+      y: Math.min(excludedTop, contentBottom - 64),
       width: Math.min(contentWidth, 560),
       height: Math.max(64, contentBottom - excludedTop),
     };
+    const targets: Rect = { ...area, height: Math.max(0, excludedTop - GAP - contentTop) };
     return {
       formFactor,
       titleBar,
       cancelButton,
       heading,
-      targets: { ...targets, height: Math.max(0, excludedTop - GAP - contentTop) },
-      tileSize: sized.tile,
+      targets,
       artHeight: sized.art,
       excluded,
       inspectorRail: null,
+      ...gridOf(targets, targetCount, sized.tile),
     };
   }
 
@@ -139,11 +169,11 @@ export function targetingLayout(bounds: Rect, targetCount: number, text?: TileTe
     const railWidth = Math.min(340, contentWidth * 0.34);
     const columnWidth = Math.max(0, contentWidth - railWidth - GAP);
     const excludedHeight = Math.min(96, contentHeight * 0.28);
-    const targetsHeight = Math.max(0, contentHeight - excludedHeight - GAP);
+    const targetsHeight = hideExcluded ? contentHeight : Math.max(0, contentHeight - excludedHeight - GAP);
     const targets: Rect = { x: bounds.x + margin, y: contentTop, width: columnWidth, height: targetsHeight };
     const excluded: Rect = {
       x: bounds.x + margin,
-      y: targets.y + targets.height + GAP,
+      y: Math.min(targets.y + targets.height + GAP, contentBottom - excludedHeight),
       width: columnWidth,
       height: excludedHeight,
     };
@@ -160,34 +190,85 @@ export function targetingLayout(bounds: Rect, targetCount: number, text?: TileTe
       cancelButton,
       heading,
       targets,
-      tileSize: sizedTablet.tile,
       artHeight: sizedTablet.art,
       excluded,
       inspectorRail,
+      ...gridOf(targets, targetCount, sizedTablet.tile),
     };
   }
 
   // Phone and tablet portrait: one column, target list above "why not", no rail.
   const excludedHeight = Math.min(140, contentHeight * 0.32);
-  const targetsHeight = Math.max(0, contentHeight - excludedHeight - GAP);
+  const targetsHeight = hideExcluded ? contentHeight : Math.max(0, contentHeight - excludedHeight - GAP);
   const targets: Rect = { x: bounds.x + margin, y: contentTop, width: contentWidth, height: targetsHeight };
   const excluded: Rect = {
     x: bounds.x + margin,
-    y: targets.y + targets.height + GAP,
+    y: Math.min(targets.y + targets.height + GAP, contentBottom - excludedHeight),
     width: contentWidth,
     height: excludedHeight,
   };
   const stacked = stackedTileSize(targets, targetCount, text);
+  const scrolls = targetCount * (stacked.tile.height + GAP) - GAP > targets.height + 0.5;
+  // Scrolling rows leave the scrollbar its own strip on the right.
+  const width = scrolls ? Math.max(0, targets.width - SCROLLBAR_ROOM) : targets.width;
+  const tiles = Array.from({ length: targetCount }, (_, index): Rect => ({
+    x: targets.x,
+    y: targets.y + index * (stacked.tile.height + GAP),
+    width,
+    height: stacked.tile.height,
+  }));
   return {
     formFactor,
     titleBar,
     cancelButton,
     heading,
     targets,
-    tileSize: stacked.tile,
+    tileSize: { ...stacked.tile, width },
     artHeight: stacked.art,
     excluded,
     inspectorRail: null,
+    tiles,
+    scrolls,
+    lineHeights: tiles.map((tile, index) => tile.height + (index < targetCount - 1 ? GAP : 0)),
+    lineOf: tiles.map((_, index) => index),
+  };
+}
+
+/** A wide layout's tile size, and how many tiles share one row. */
+type RowTile = Rect & { readonly columns: number };
+
+/** The rows' total height: the tiles and the gaps between them. */
+function gridHeight(count: number, tile: RowTile): number {
+  if (count <= 0) return 0;
+  return Math.ceil(count / tile.columns) * (tile.height + GAP) - GAP;
+}
+
+/** A wide layout's tiles in rows of `tile.columns`, scrolling inside `targets` when the rows are taller than it. */
+function gridOf(
+  targets: Rect,
+  count: number,
+  tile: RowTile,
+): Pick<TargetingLayout, "tiles" | "tileSize" | "scrolls" | "lineHeights" | "lineOf"> {
+  const { columns } = tile;
+  const lines = count > 0 ? Math.ceil(count / columns) : 0;
+  const scrolls = gridHeight(count, tile) > targets.height + 0.5;
+  // A scrolling grid narrows its tiles a little when they would reach the scrollbar's strip.
+  const width =
+    scrolls && columns * (tile.width + GAP) - GAP > targets.width - SCROLLBAR_ROOM
+      ? Math.max(0, (targets.width - SCROLLBAR_ROOM - (columns - 1) * GAP) / columns)
+      : tile.width;
+  const tiles = Array.from({ length: count }, (_, index): Rect => ({
+    x: targets.x + (index % columns) * (width + GAP),
+    y: targets.y + Math.floor(index / columns) * (tile.height + GAP),
+    width,
+    height: tile.height,
+  }));
+  return {
+    tiles,
+    tileSize: { x: tile.x, y: tile.y, width, height: tile.height },
+    scrolls,
+    lineHeights: Array.from({ length: lines }, (_, line) => tile.height + (line < lines - 1 ? GAP : 0)),
+    lineOf: tiles.map((_, index) => Math.floor(index / columns)),
   };
 }
 
@@ -200,19 +281,25 @@ export function targetingLayout(bounds: Rect, targetCount: number, text?: TileTe
  */
 const MAX_TILE_WIDTH = 260;
 
-/** One tile's size in a left-to-right row of `count` tiles filling `area`, capped at its own natural width. */
-function rowTileSize(area: Rect, count: number, text?: TileText): { tile: Rect; art: number } {
-  if (count <= 0) return { tile: { x: area.x, y: area.y, width: 0, height: 0 }, art: 0 };
-  const gaps = (count - 1) * GAP;
-  const width = Math.min(MAX_TILE_WIDTH, Math.max(0, (area.width - gaps) / count));
-  const cardHeight = Math.min(area.height, width / CARD_ASPECT);
+/**
+ * One tile's size in left-to-right rows filling `area`, capped at its own natural width. All `count` tiles share one row
+ * while each keeps `MIN_ROW_TILE_WIDTH`; past that they wrap onto rows of as many as fit (`columns`), and the rows
+ * scroll when they outgrow the area (`gridOf`).
+ */
+function rowTileSize(area: Rect, count: number, text?: TileText): { tile: RowTile; art: number } {
+  if (count <= 0) return { tile: { x: area.x, y: area.y, width: 0, height: 0, columns: 1 }, art: 0 };
+  const columns = Math.min(count, Math.max(1, Math.floor((area.width + GAP) / (MIN_ROW_TILE_WIDTH + GAP))));
+  const gaps = (columns - 1) * GAP;
+  const width = Math.min(MAX_TILE_WIDTH, Math.max(0, (area.width - gaps) / columns));
+  // One row may take the area's whole height; a wrapped row is never taller than a card, so the next row shows.
+  const cardHeight = columns < count ? width / CARD_ASPECT : Math.min(area.height, width / CARD_ASPECT);
   const art = Math.round(Math.min(cardHeight * 0.48, width * 1.05));
-  if (!text) return { tile: { x: area.x, y: area.y, width, height: cardHeight }, art };
+  if (!text) return { tile: { x: area.x, y: area.y, width, height: cardHeight, columns }, art };
   // Sized to its content: the art band, the measured text, the confirm line, and the padding around them.
   const wideArt = Math.round(width * 0.66);
   const needed = wideArt + 6 + text.textHeight + text.confirmReserve + TILE_PAD * 2;
   return {
-    tile: { x: area.x, y: area.y, width, height: Math.min(cardHeight, Math.max(MIN_TILE_HEIGHT, needed)) },
+    tile: { x: area.x, y: area.y, width, height: Math.min(cardHeight, Math.max(MIN_TILE_HEIGHT, needed)), columns },
     art: wideArt,
   };
 }
@@ -220,7 +307,7 @@ function rowTileSize(area: Rect, count: number, text?: TileText): { tile: Rect; 
 /**
  * One row's size in a top-to-bottom stack of `count` rows filling `area` — a phone/tablet-portrait target is a full-width
  * row, not a portrait card. With measured text the row is as tall as its text needs (a short art band above it); when
- * the rows would not all fit, the art goes first and only then the text is squeezed.
+ * the rows would not all fit, the art goes first, and when they still would not, they keep it and scroll.
  */
 function stackedTileSize(area: Rect, count: number, text?: TileText): { tile: Rect; art: number } {
   if (count <= 0) return { tile: { x: area.x, y: area.y, width: area.width, height: 0 }, art: 0 };
@@ -233,10 +320,12 @@ function stackedTileSize(area: Rect, count: number, text?: TileText): { tile: Re
   const base = text.textHeight + text.confirmReserve + TILE_PAD * 2 + 6;
   const withArt = base + PHONE_ART;
   if (withArt <= share) return { tile: { x: area.x, y: area.y, width: area.width, height: withArt }, art: PHONE_ART };
-  return {
-    tile: { x: area.x, y: area.y, width: area.width, height: Math.max(MIN_TILE_HEIGHT, Math.min(base, share)) },
-    art: 0,
-  };
+  // The art goes first, so a few more rows still fit on the screen whole.
+  if (Math.max(MIN_TILE_HEIGHT, base) <= share)
+    return { tile: { x: area.x, y: area.y, width: area.width, height: Math.max(MIN_TILE_HEIGHT, base) }, art: 0 };
+  // Even without it they don't: the rows keep their art and scroll (`targetingLayout`'s `scrolls`), never squeezed
+  // past their text or run off the screen.
+  return { tile: { x: area.x, y: area.y, width: area.width, height: withArt }, art: PHONE_ART };
 }
 
 export { hasSideColumn };

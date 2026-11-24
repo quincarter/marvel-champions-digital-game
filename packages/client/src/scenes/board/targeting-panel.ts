@@ -20,8 +20,11 @@ import { accent, border, hit, ink, surface, typeRole } from "../../tokens.js";
 import { onTap } from "../../ui/tap.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, fitWrapped, label, McButton, paintPanel } from "../../ui/widgets.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
 import type { Rect } from "../../view/layout.js";
-import { targetingLayout, TARGETING_GAP, type TileText } from "../../view/targeting-layout.js";
+import { focusSliceOf, fullyVisible, visibleSlice } from "../../view/scheme-list-layout.js";
+import { targetingLayout, type TargetingLayout, type TileText } from "../../view/targeting-layout.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import {
   touchWorded,
   type ExcludedGroup,
@@ -45,6 +48,25 @@ export interface TargetingHover {
 /** The footer a multi-pick panel keeps for its count, preview and Confirm. */
 const FOOTER_HEIGHT = 60;
 
+/**
+ * The tiles' scroll when they outrun the panel (seven Tech upgrades for Repurpose on a phone), kept by the Board across
+ * the redraws a hover, a pick or a new state makes, and reset when the panel asks about a different set of cards.
+ */
+export class TargetingScrollState {
+  readonly scroll = new VariableListScroll();
+  /** The candidates the last draw showed, as a key: a new question starts at the top. */
+  lastOptions: string | null = null;
+  /** The focused tile the last draw saw, so a wheel scroll is not undone by the next redraw. */
+  lastFocus: InstanceId | null = null;
+
+  /** The panel closed or its tiles fit: the next question that scrolls starts at the top. */
+  forget(): void {
+    this.lastOptions = null;
+    this.lastFocus = null;
+    this.scroll.reset();
+  }
+}
+
 export function drawTargetingPanel(
   ctx: BoardDrawContext,
   viewport: Rect,
@@ -52,18 +74,25 @@ export function drawTargetingPanel(
   hover: TargetingHover,
   focused: InstanceId | null,
   top = 0,
+  scrollState: TargetingScrollState = new TargetingScrollState(),
 ): void {
   const { scene } = ctx;
   // A panel that picks several tiles keeps a strip at the bottom for the count and Confirm; the tiles lay out above it.
   const bounds: Rect = panel.multi ? { ...viewport, height: viewport.height - FOOTER_HEIGHT } : viewport;
   // Tiles are as tall as their own text needs: measure it at the width a tile will have, then lay out again.
-  const probe = targetingLayout(bounds, panel.options.length, undefined, top);
-  const layout = targetingLayout(
-    bounds,
-    panel.options.length,
-    measureTileText(scene, panel, probe.tileSize.width, !panel.multi),
-    top,
-  );
+  const hideExcluded = panel.hideExcluded ?? false;
+  const probe = targetingLayout(bounds, panel.options.length, undefined, top, hideExcluded);
+  const layoutAt = (width: number): TargetingLayout =>
+    targetingLayout(
+      bounds,
+      panel.options.length,
+      measureTileText(scene, panel, width, !panel.multi),
+      top,
+      hideExcluded,
+    );
+  let layout = layoutAt(probe.tileSize.width);
+  // Scrolling tiles give up the scrollbar's strip: measure their text again at the width they are drawn.
+  if (layout.tileSize.width < probe.tileSize.width - 0.5) layout = layoutAt(layout.tileSize.width);
   // The tile that reads as the default answer (the asking seat) until something else is hovered or focused.
   const active = hover.hoveredId ?? focused ?? panel.defaultId ?? null;
 
@@ -96,33 +125,31 @@ export function drawTargetingPanel(
       border.detail,
     );
 
-  const wide = layout.formFactor === "desktop" || layout.formFactor === "tabletLandscape";
   const touch = scene.sys.game.device.input.touch;
-  panel.options.forEach((option, index) => {
-    const tile: Rect = wide
-      ? {
-          x: layout.targets.x + index * (layout.tileSize.width + TARGETING_GAP),
-          y: layout.targets.y,
-          width: layout.tileSize.width,
-          height: layout.tileSize.height,
-        }
-      : {
-          x: layout.targets.x,
-          y: layout.targets.y + index * (layout.tileSize.height + TARGETING_GAP),
-          width: layout.tileSize.width,
-          height: layout.tileSize.height,
-        };
-    drawTargetTile(
-      ctx,
-      tile,
-      layout.artHeight,
-      option,
-      active === option.instanceId,
-      hover,
-      panel.multi ?? null,
-      touch,
-    );
-  });
+  // Each tile's pick glyph is registered after the tiles are drawn: a glyph made while they draw would be swept into
+  // the scrolling container and moved by the scroll twice (its place already follows the scroll).
+  const glyphs: (() => void)[] = [];
+  const drawTiles = (offset: () => number): void =>
+    panel.options.forEach((option, index) => {
+      drawTargetTile(
+        ctx,
+        layout.tiles[index]!,
+        layout.artHeight,
+        option,
+        active === option.instanceId,
+        hover,
+        panel.multi ?? null,
+        touch,
+        offset,
+        glyphs,
+      );
+    });
+  if (layout.scrolls) drawScrollingTiles(ctx, layout, panel, scrollState, focused, drawTiles, glyphs);
+  else {
+    scrollState.forget();
+    drawTiles(() => 0);
+    for (const register of glyphs) register();
+  }
 
   // More candidates than a page of buttons: the hint that turns the page follows the heading's words.
   registerPickMore(ctx, PICK_GLYPH_HEIGHT - 4, () => ({
@@ -226,6 +253,10 @@ function drawTargetTile(
   hover: TargetingHover,
   multi: MultiPick | null,
   touch: boolean,
+  /** How far the tiles are scrolled (0 when they fit): the rings, focus and glyphs follow the tile on screen. */
+  offset: () => number,
+  /** Where the tile leaves its pick glyph's registration, for the caller to run once every tile is drawn. */
+  glyphs: (() => void)[],
 ): void {
   const { scene } = ctx;
   if (rect.width <= 0 || rect.height <= 0) return;
@@ -307,13 +338,19 @@ function drawTargetTile(
     badge.setDepth(2);
   }
 
+  // Inside a scrolling list `drawScrollingTiles` keeps the tap, ring and focus rects where the tile is on screen.
   ctx.frame.hitRects.set(option.instanceId, rect);
   ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: option.instanceId }), rect);
-  // The button (or number key) that picks this tile outright, on the art's lower right corner above the name.
-  registerPickGlyph(ctx, option.instanceId, PICK_GLYPH_HEIGHT, ({ width, height }) => ({
-    x: rect.x + rect.width - width - 8,
-    y: artHeight > 24 ? rect.y + artHeight - height / 2 - 6 : rect.y + height / 2 + 8,
-  }));
+  // The button (or number key) that picks this tile outright, on the art's lower right corner above the name; none
+  // while the tile is scrolled out of the list.
+  glyphs.push(() =>
+    registerPickGlyph(ctx, option.instanceId, PICK_GLYPH_HEIGHT, ({ width, height }) => {
+      const y = (artHeight > 24 ? rect.y + artHeight - height / 2 - 6 : rect.y + height / 2 + 8) - offset();
+      const shown = ctx.frame.hitRects.get(option.instanceId);
+      if (!shown || y - height / 2 < shown.y || y + height / 2 > shown.y + shown.height) return null;
+      return { x: rect.x + rect.width - width - 8, y };
+    }),
+  );
 
   const zone = scene.add
     .zone(rect.x, rect.y, rect.width, rect.height)
@@ -329,6 +366,111 @@ function drawTargetTile(
   });
   // The same press path as a button (`ui/tap.ts`): a tap that straddles a redraw still commits.
   onTap(zone, () => ctx.controller.tapInMode(option.instanceId), `target:${option.instanceId}`);
+}
+
+/**
+ * The tiles when they outrun `layout.targets`: drawn once at the list's top into a clipped region that moves them (a
+ * wheel, or a drag on the tiles; the scrollbar only shows where the list is, as in the schemes column, since
+ * `McScrollRegion`'s thumb takes no drag), so every candidate can be reached. A tile's tap, ring and focus rect is the
+ * part of it on screen, a tile scrolled out has no tap, and a drag that ends over a tile never presses it (the region
+ * holds its controls inert while it moves; issue #227's rule). A focused tile, and a new question's first tile, are
+ * brought into view.
+ */
+function drawScrollingTiles(
+  ctx: BoardDrawContext,
+  layout: TargetingLayout,
+  panel: TargetingPanel,
+  state: TargetingScrollState,
+  focused: InstanceId | null,
+  drawTiles: (offset: () => number) => void,
+  glyphs: readonly (() => void)[],
+): void {
+  const { scene } = ctx;
+  const viewport = layout.targets;
+  const ids = panel.options.map((option) => option.instanceId);
+  const key = ids.join(",");
+  if (state.lastOptions !== key) {
+    state.lastOptions = key;
+    state.lastFocus = null;
+    state.scroll.reset();
+  }
+  if (state.lastFocus !== focused) {
+    state.lastFocus = focused;
+    const at = focused ? ids.indexOf(focused) : -1;
+    if (at >= 0 && !fullyVisible(layout.tiles[at]!, state.scroll.offsetPx, viewport))
+      state.scroll.scrollIntoView(layout.lineOf[at]!, layout.lineHeights, viewport.height);
+  }
+  state.scroll.clamp(layout.lineHeights, viewport.height);
+
+  let armed = false;
+  let hint: ((offset: number) => void) | null = null;
+  const place = (offset: number): void => {
+    ids.forEach((id, at) => {
+      const tile = layout.tiles[at]!;
+      const slice = visibleSlice(tile, offset, viewport);
+      ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: id }), focusSliceOf(tile, offset, viewport));
+      if (slice) ctx.frame.hitRects.set(id, slice);
+      else ctx.frame.hitRects.delete(id);
+    });
+    hint?.(offset);
+    if (armed) {
+      ctx.onRegionScroll();
+      // The tiles' pick glyphs follow them; the tabbed phone layouts draw none.
+      if (!ctx.tabbed) ctx.hints.refresh();
+    }
+  };
+
+  const region = new McScrollRegion(scene, {
+    rect: viewport,
+    heights: layout.lineHeights,
+    scroll: state.scroll,
+    clipInteractive: true,
+    onScroll: place,
+  });
+  ctx.frame.regions.push(region);
+  ctx.frame.innerScroll.push(viewport);
+  const before = scene.children.list.length;
+  drawTiles(() => state.scroll.offsetPx);
+  region.content.add(scene.children.list.slice(before));
+  hint = drawMoreHint(ctx, viewport, layout.lineHeights);
+  region.syncInteractivity();
+  place(state.scroll.offsetPx);
+  // Outside the scrolling container, and placed against the on-screen slices `place` just noted.
+  for (const register of glyphs) register();
+  armed = true;
+}
+
+/**
+ * "▾ more" under the last tile on screen while there are more below, and "▴" once the list is scrolled: the cue that
+ * the list goes on, with the scrollbar beside it.
+ */
+function drawMoreHint(ctx: BoardDrawContext, viewport: Rect, heights: readonly number[]): (offset: number) => void {
+  const { scene } = ctx;
+  const total = heights.reduce((sum, height) => sum + height, 0);
+  const maxOffset = Math.max(0, total - viewport.height);
+  const band = 18;
+  const g = scene.add.graphics();
+  const style = { ...textStyle({ ...typeRole.label, size: 16 }, surface.paper.hex), fontStyle: "bold" };
+  const center = viewport.x + viewport.width / 2;
+  const down = scene.add.text(center, viewport.y + viewport.height - 10, "", style).setOrigin(0.5);
+  const up = scene.add.text(center, viewport.y + 10, "", style).setOrigin(0.5);
+  return (offset) => {
+    const more = offset < maxOffset - 0.5;
+    const back = offset > 0.5;
+    g.clear();
+    // Stepped bars, not a gradient: the strip beside them is masked, and a gradient next to a masked layer blanked the
+    // board in headless GPU runs (`schemes.ts`'s hint does the same).
+    const steps = 6;
+    const step = band / steps;
+    for (let i = 0; i < steps; i++) {
+      const alpha = 0.15 + (0.75 * (i + 1)) / steps;
+      g.fillStyle(surface.ink.hex, alpha);
+      if (more) g.fillRect(viewport.x, viewport.y + viewport.height - band + i * step, viewport.width, step);
+      if (back) g.fillRect(viewport.x, viewport.y + band - (i + 1) * step, viewport.width, step);
+    }
+    down.setText(more ? "▾ more" : "").setVisible(more);
+    up.setText(back ? "▴" : "").setVisible(back);
+  };
 }
 
 /**

@@ -553,6 +553,16 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.board, data: {} };
   }
+  // `&fixture=repurpose`: Iron Man in hero form with seven Tech upgrades in play and Repurpose in hand, for a pick panel
+  // with more cards than a phone shows at once.
+  if (screen === "board" && params.get("fixture") === "repurpose") {
+    const { store } = appSession();
+    if (!gameRunning(store)) {
+      const { startRepurposeGame } = await import("../store/dev-repurpose-game.js");
+      await startRepurposeGame(store);
+    }
+    return { key: SCENES.board, data: {} };
+  }
   // `&fixture=dynamic-duo`: Luke Cage with Dynamic Duo and every Team-Up card of his deck in hand, for the pay bar's
   // "pay with it so Dynamic Duo can find it" (issue #966).
   if (screen === "board" && params.get("fixture") === "dynamic-duo") {
