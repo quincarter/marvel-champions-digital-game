@@ -85,6 +85,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.syncData]: () => import("./sync-data.js").then((m) => m.SyncDataOverlay),
   [SCENES.steamUpdate]: () => import("./steam-update.js").then((m) => m.SteamUpdateOverlay),
   [SCENES.syncConflict]: () => import("./sync-conflict.js").then((m) => m.SyncConflictOverlay),
+  [SCENES.rendererNotice]: () => import("./renderer-notice.js").then((m) => m.RendererNoticeOverlay),
   [SCENES.syncSetupPrompt]: () => import("./sync-setup-prompt.js").then((m) => m.SyncSetupPromptOverlay),
   [SCENES.globalStatsPrompt]: () => import("./global-ask-prompt.js").then((m) => m.GlobalStatsPromptOverlay),
   [SCENES.syncSetupNotice]: () => import("./sync-setup-prompt.js").then((m) => m.SyncSetupNotice),
