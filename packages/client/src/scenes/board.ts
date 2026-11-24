@@ -419,6 +419,8 @@ export class BoardScene extends Phaser.Scene {
   readonly #schemeScroll = new SchemeScrollState();
   /** The targeting panel's tiles' scroll, when they outrun it (a phone with many cards to choose from). */
   readonly #targetingScroll = new TargetingScrollState();
+  /** Whether this draw put the targeting panel up: its tiles, not the table's cards, carry the target rings. */
+  #targetingPanelUp = false;
   /** The pulsing rings on the valid targets: redrawn alone when the schemes column scrolls under them. */
   #targetRings: McSelectionRing[] = [];
   readonly #hand = new HandScroll(() => this.#draw());
@@ -1950,6 +1952,13 @@ export class BoardScene extends Phaser.Scene {
    */
   /** Whether it drew the panel. */
   #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
+    this.#targetingPanelUp = this.#drawTargetingPanelIfAsked(ctx, viewport, top);
+    // A closed panel's scroll goes with it: the next question starts at the top, even with the same cards (PR #992).
+    if (!this.#targetingPanelUp) this.#targetingScroll.forget();
+    return this.#targetingPanelUp;
+  }
+
+  #drawTargetingPanelIfAsked(ctx: BoardDrawContext, viewport: Rect, top: number): boolean {
     const kind = this.#controller.selection.kind;
     // A cost that picks cards in play is asked on the choice sheet, as the engine asks an interrupt's cost: full card
     // faces, the source card, Peek at table and Back out (issue #991).
@@ -1964,10 +1973,7 @@ export class BoardScene extends Phaser.Scene {
       return false;
     }
     const panel = this.#controller.targetingPanel();
-    if (!panel) {
-      this.#targetingScroll.forget();
-      return false;
-    }
+    if (!panel) return false;
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
     drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top, this.#targetingScroll);
     return true;
@@ -2029,7 +2035,9 @@ export class BoardScene extends Phaser.Scene {
     if (selection.kind !== "targeting") return;
     const reduced = appSession().settings.reducedMotion;
     for (const target of selection.action.targets) {
-      const rect = this.#cardRect(target);
+      // Over the targeting panel a target's ring goes on its tile, and only on the part of it on screen: a tile scrolled
+      // out of the list keeps a focus stop past the list's edge, which is no place for a ring (PR #992).
+      const rect = this.#targetingPanelUp ? this.#frame.hitRects.get(target) : this.#cardRect(target);
       if (!rect) continue;
       // A target scrolled under the chrome or the hand has no ring: it would be drawn over them.
       if (this.#hiddenByScroll(target, rect)) continue;
