@@ -23,7 +23,7 @@ const P1 = playerId("p1");
 const { pack } = await builtCommunityPack("night-thrasher-dh");
 const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "night-thrasher-dh-aggression")!;
+const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "night-thrasher-dh-justice")!;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
@@ -721,13 +721,13 @@ describe("pack content", () => {
   it("Tech Deck lets in an off-aspect Skill card of any type, and refuses a card without the trait", () => {
     const pool = cardPoolWithPack(PLAYABLE_CARDS, pack);
     const deck = precon();
-    // The precon is Aggression; Justice, Leadership and Protection cards are off-aspect for it.
+    // The precon is Justice; Aggression, Leadership and Protection cards are off-aspect for it.
     const offAspect = (skill: boolean, type: PlayerCard["type"]) =>
       pool.find(
         (c): c is PlayerCard =>
           "deckLimit" in c &&
           c.type === type &&
-          ["justice", "leadership", "protection"].includes(String(c.aspect)) &&
+          ["aggression", "leadership", "protection"].includes(String(c.aspect)) &&
           c.traits.includes("SKILL" as never) === skill &&
           !deck.cards.some((entry) => entry.cardId === c.id),
       )!;
