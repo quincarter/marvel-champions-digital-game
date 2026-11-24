@@ -1,9 +1,6 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
-import { PLAYABLE_CARDS, type PackManifest, type StarterDeck } from "@mc/content";
+import { PLAYABLE_CARDS, type StarterDeck } from "@mc/content";
 import {
   activeAbilityRefs,
   activeEncounterDeck,
@@ -20,10 +17,8 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
-import { readPackInput, type PackInput } from "./validate.js";
-import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
+import { builtCommunityPack } from "./fixtures/community-pack.js";
 
 /**
  * Targeted engine tests for Gwenpool (by PatataSaurio): the speech bubbles, the cards that count, filter and resolve
@@ -31,50 +26,23 @@ import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
  * Rhino scenario, with the state set up by surgery (cards relabeled or moved into play) where a scenario would take
  * many turns.
  */
-const SRC = fileURLToPath(new URL("../../../content-packs/community/gwenpool-ptt", import.meta.url));
 const P = "x.gwenpool-ptt.";
 const P1 = playerId("p1");
 /** A Core Rhino encounter card with no boost icons and nothing that matters when it is boosted (Hard to Keep Down). */
 const BLANK = "01104";
 
-const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
+// Built once for the run and shared with community-packs.test.ts (./fixtures/community-pack.ts).
+const { pack } = await builtCommunityPack("gwenpool-ptt");
+const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
-let pack: PackInput;
-let deps: EngineDeps;
-const scratch: string[] = [];
-beforeAll(async () => {
-  const root = mkdtempSync(join(tmpdir(), "mc-gwenpool-"));
-  scratch.push(root);
-  const src = join(root, "src");
-  cpSync(SRC, src, { recursive: true });
-  dropMissingCover(src);
-  if (!existsSync(join(src, "alt-art"))) {
-    const file = join(src, "pack.json");
-    const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    delete manifest.altArt;
-    writeFileSync(file, JSON.stringify(manifest));
-  }
-  const out = join(root, "out");
-  await buildPack(src, out);
-  const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
-  const files = new Map<string, Uint8Array>();
-  for (const full of walk(out)) {
-    const path = relative(out, full).split(sep).join("/");
-    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
-      files.set(path, new Uint8Array(readFileSync(full)));
-  }
-  pack = readPackInput(manifest, files);
-  deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
-});
-afterAll(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
-
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "gwenpool-ptt-pool")!;
+/**
+ * The deck the rulings below are staged with: the pack's precon when they were written. Their seeded games depend on its
+ * shuffle (which cards are in hand, which instance ids), so they keep it when the creator changes the precon; the
+ * "pack content" tests read the precon the pack ships now.
+ */
+const rulingsDeck = JSON.parse(
+  readFileSync(new URL("./fixtures/gwenpool-ptt-pool-rulings-deck.json", import.meta.url), "utf8"),
+) as StarterDeck;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
@@ -129,7 +97,7 @@ function drive(
 
 /** A Rhino game with the Gwenpool precon, in hero form, past setup, at the start of the player phase. */
 function open(seed = 1): GameState {
-  const deck = precon();
+  const deck = rulingsDeck;
   const config = coreScenario("rhino", {
     players: [{ starterDeckId: "core-spider-man-justice" }],
     seed,
