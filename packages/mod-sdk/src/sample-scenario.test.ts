@@ -190,11 +190,12 @@ describe("sample-scenario pack", () => {
   });
 
   it("smoke-tests a scenario pack with mc-pack test's helper: its scenario and its modular set both play", () => {
-    const result = smokeTestPack(pack, { games: 3 });
+    // One seed: the tests above play seeds 1 to 3 of the scenario and of the Gears set; this checks what the helper plays.
+    const result = smokeTestPack(pack, { games: 1 });
     expect(result.games.filter((game) => !game.ok).map((game) => game.error)).toEqual([]);
-    expect(result.games.filter((game) => game.scenario === SCENARIO && !game.campaign)).toHaveLength(6); // standard and expert
-    expect(result.games.filter((game) => game.scenario === SCENARIO && game.difficulty === "expert")).toHaveLength(3);
-    expect(result.games.filter((game) => game.modularSet === GEARS)).toHaveLength(3);
+    expect(result.games.filter((game) => game.scenario === SCENARIO && !game.campaign)).toHaveLength(2); // standard and expert
+    expect(result.games.filter((game) => game.scenario === SCENARIO && game.difficulty === "expert")).toHaveLength(1);
+    expect(result.games.filter((game) => game.modularSet === GEARS)).toHaveLength(1);
     expect(result.ok).toBe(true);
   });
 });
