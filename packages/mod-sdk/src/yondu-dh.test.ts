@@ -1,9 +1,5 @@
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
-import { PLAYABLE_CARDS, type PackManifest, type StarterDeck } from "@mc/content";
+import { PLAYABLE_CARDS, type StarterDeck } from "@mc/content";
 import {
   activeEncounterDeck,
   applyCommand,
@@ -17,11 +13,10 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
 import { smokeTestPack } from "./smoke.js";
-import { readPackInput, validatePack, type PackInput } from "./validate.js";
-import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
+import { validatePack } from "./validate.js";
+import { builtCommunityPack } from "./fixtures/community-pack.js";
 
 /**
  * Rulings of the Yondu pack (content-packs/community/yondu-dh), staged on the real engine: each test sets up a
@@ -29,40 +24,12 @@ import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
  * ability. The pack is built from its source folder like any pack, so these run on what a client installs. The pack is a
  * DRAFT (its DRAFT file keeps it out of the generic community-packs test), so this file is its only suite for now.
  */
-const SRC = fileURLToPath(new URL("../../../content-packs/community/yondu-dh", import.meta.url));
 const P = "x.yondu-dh.";
 const P1 = playerId("p1");
 
-const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-
-let pack: PackInput;
-let deps: EngineDeps;
-const scratch: string[] = [];
-beforeAll(async () => {
-  const root = mkdtempSync(join(tmpdir(), "mc-yondu-"));
-  scratch.push(root);
-  const src = join(root, "src");
-  cpSync(SRC, src, { recursive: true });
-  dropMissingCover(src);
-  const out = join(root, "out");
-  await buildPack(src, out);
-  const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
-  const files = new Map<string, Uint8Array>();
-  for (const full of walk(out)) {
-    const path = relative(out, full).split(sep).join("/");
-    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
-      files.set(path, new Uint8Array(readFileSync(full)));
-  }
-  pack = readPackInput(manifest, files);
-  deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
-});
-afterAll(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
+// Built once for the run and shared with community-packs.test.ts (./fixtures/community-pack.ts).
+const { pack } = await builtCommunityPack("yondu-dh");
+const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
 const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "yondu-dh-aggression")!;
 
