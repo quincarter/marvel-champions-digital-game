@@ -517,6 +517,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.askToSit.title": "Pedir permiso al anfitrión para sentarse",
   "room.askToSit.detail":
     "Los invitados piden un asiento y tú los apruebas. Desactivado: los invitados ocupan un asiento libre ellos mismos antes de empezar la partida.",
+  "room.listed.headerOff": "Mostrar en En vivo",
+  "room.listed.headerOn": "Visible en En vivo",
   "room.listed.title": "Listar esta sala en En vivo",
   "room.listed.detail":
     "Cualquiera puede ver el nombre de la sala, el modo, el escenario y los asientos, y entrar a mirar o pedir un asiento. El código sigue siendo la forma de entrar, y quien lo haya visto puede seguir usándolo después de quitarla de la lista.",
