@@ -1,0 +1,3 @@
+kind: Fixed
+body: A cost that picks cards in play (Repurpose's Tech upgrade, Mutant Peacekeepers' allies) is asked on the decision popup, with full card faces that scroll, so every card can be reached on a phone; the board's target picks scroll too when they don't fit (#991, reported by GarethMagis on Discord).
+time: 2026-11-24T09:36:19.304759-05:00
