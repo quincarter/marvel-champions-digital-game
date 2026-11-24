@@ -19,16 +19,18 @@ import { NO_REFILL, trackRefill, type EndOfTurnDraws } from "./villain-end-of-tu
 import { appendWalkthrough, walkthroughSeededFrom, type Walkthrough } from "./villain-walkthrough.js";
 
 /**
- * Which game's walkthrough is open, and the command count before the command that began its villain phase. There is one
- * marker per device: a later game's phase replaces it. Scope for the upper PRs: only solo play and a room's host write
- * or use it (a guest's device follows the host's pacing, and no room role exists on this branch to tell them apart).
+ * Which game's walkthrough is open, and the command count before the command that began its villain phase. Each game
+ * keeps its own marker (`mc-villain-phase-open:<gameId>`), so two tabs playing two games never overwrite or clear each
+ * other's (review on #901, 2026-11-24). Scope for the upper PRs: only solo play and a room's host write or use it (a
+ * guest's device follows the host's pacing, and no room role exists on this branch to tell them apart).
  */
 export interface VillainPhaseMarker {
   readonly gameId: string;
   readonly commandCount: number;
 }
 
-const KEY = "mc-villain-phase-open";
+const KEY_PREFIX = "mc-villain-phase-open:";
+const keyOf = (gameId: string): string => `${KEY_PREFIX}${gameId}`;
 
 /** The browser's local storage where it exists; a sandboxed embed can throw merely reading it. */
 function defaultStorage(): Storage | null {
@@ -45,33 +47,41 @@ export function writeVillainPhaseMarker(
   storage: Pick<Storage, "setItem"> | null = defaultStorage(),
 ): void {
   try {
-    storage?.setItem(KEY, JSON.stringify(marker));
+    storage?.setItem(keyOf(marker.gameId), JSON.stringify(marker));
   } catch {
     // Storage full or blocked.
   }
 }
 
-/** The note, or null when there is none or it is not one this build wrote. */
+/** `gameId`'s note, or null when there is none, no game is named, or it is not one this build wrote. */
 export function readVillainPhaseMarker(
+  gameId: string | null,
   storage: Pick<Storage, "getItem"> | null = defaultStorage(),
 ): VillainPhaseMarker | null {
+  if (gameId === null) return null;
   try {
-    const raw = storage?.getItem(KEY);
+    const raw = storage?.getItem(keyOf(gameId));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
-    const { gameId, commandCount } = parsed as { gameId?: unknown; commandCount?: unknown };
-    if (typeof gameId !== "string" || typeof commandCount !== "number" || !Number.isInteger(commandCount)) return null;
-    return commandCount < 0 ? null : { gameId, commandCount };
+    const wanted = gameId;
+    const { gameId: stored, commandCount } = parsed as { gameId?: unknown; commandCount?: unknown };
+    if (typeof stored !== "string" || stored !== wanted) return null;
+    if (typeof commandCount !== "number" || !Number.isInteger(commandCount)) return null;
+    return commandCount < 0 ? null : { gameId: stored, commandCount };
   } catch {
     return null;
   }
 }
 
-/** The walkthrough closed: nothing to bring back. */
-export function clearVillainPhaseMarker(storage: Pick<Storage, "removeItem"> | null = defaultStorage()): void {
+/** `gameId`'s walkthrough closed: nothing to bring back for it. Another game's marker stays. */
+export function clearVillainPhaseMarker(
+  gameId: string | null,
+  storage: Pick<Storage, "removeItem"> | null = defaultStorage(),
+): void {
+  if (gameId === null) return;
   try {
-    storage?.removeItem(KEY);
+    storage?.removeItem(keyOf(gameId));
   } catch {
     // Blocked storage.
   }
