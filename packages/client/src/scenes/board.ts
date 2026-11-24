@@ -1172,7 +1172,7 @@ export class BoardScene extends Phaser.Scene {
       // and the refill as they stood just before it are known. Not a replay's seek, not a finished game.
       const seed =
         !replay && !state.game.outcome && this.#ownsVillainPhase()
-          ? villainPhaseToRebuild(readVillainPhaseMarker(), state.gameId, state.resumedVillainPhase)
+          ? villainPhaseToRebuild(readVillainPhaseMarker(state.gameId), state.gameId, state.resumedVillainPhase)
           : null;
       if (state.resumedHistory.length > 0) {
         const parts = seed

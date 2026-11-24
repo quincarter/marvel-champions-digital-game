@@ -776,7 +776,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // The guests following this screen close with it.
     this.#publishCursor(true);
     // The phase is read: a reload from here on has nothing to bring back (`view/villain-phase-resume.ts`).
-    if (!this.#review && !activeReplay()) clearVillainPhaseMarker();
+    if (!this.#review && !activeReplay()) clearVillainPhaseMarker(appSession().store.state.gameId);
     // Whatever seat a peek left the board on, the table after the phase is the board's own seat's.
     appSession().store.endSeatPeek();
     this.#tuckAway();
