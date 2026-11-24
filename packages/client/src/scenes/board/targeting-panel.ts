@@ -370,7 +370,8 @@ function drawTargetTile(
 
 /**
  * The tiles when they outrun `layout.targets`: drawn once at the list's top into a clipped region that moves them (a
- * wheel, a finger's drag, the scrollbar), so every candidate can be reached. A tile's tap, ring and focus rect is the
+ * wheel, or a drag on the tiles; the scrollbar only shows where the list is, as in the schemes column, since
+ * `McScrollRegion`'s thumb takes no drag), so every candidate can be reached. A tile's tap, ring and focus rect is the
  * part of it on screen, a tile scrolled out has no tap, and a drag that ends over a tile never presses it (the region
  * holds its controls inert while it moves; issue #227's rule). A focused tile, and a new question's first tile, are
  * brought into view.
