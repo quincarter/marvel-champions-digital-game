@@ -8,7 +8,7 @@
  * All data from `campaignIssueModel` (`view/campaign-issue-model.ts`).
  */
 import Phaser from "phaser";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { storyFor } from "../../campaign/story.js";
 import { campaignService } from "../../session.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
@@ -38,7 +38,7 @@ import { createHints, forwardHint } from "./pad-hints.js";
 import { SCENES } from "../keys.js";
 import type { CampaignIssueData } from "./routes.js";
 
-const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+const cardName = (id: string): string => campaignCardsById().get(id)?.name ?? id;
 
 export class CampaignIssueScene extends Phaser.Scene {
   #data: CampaignIssueData | null = null;

@@ -20,12 +20,12 @@ import {
 } from "../content/pool.js";
 import { resetPackArt } from "../art/pack-art.js";
 import { loadActivePacks } from "../packs/active-packs.js";
-import { loadedPacks, setLoadedPacks } from "../packs/pack-registry.js";
+import { setLoadedPacks } from "../packs/pack-registry.js";
 import { IdbPackStore } from "../packs/pack-store.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 import { canExportToMarvelCdb, customBadgeOf, deckUsesCustomCards } from "./custom-content.js";
 import { preconDecks } from "./deck-list-model.js";
-import { basePreconDecks, customHeroesLeftOut, preconRosterOf, rosterDeckOptions } from "./campaign-roster-model.js";
+import { rosterDeckOptions } from "./campaign-roster-model.js";
 import { cycleShelvesOf } from "./roster-shelves.js";
 import { seatableDeckOptionsOf } from "./seatable-decks.js";
 
@@ -120,28 +120,19 @@ describe("the pickers and the deck builder read the installed packs", () => {
     expect(canExportToMarvelCdb(mixed)).toBe(false);
   });
 
-  it("keeps pack heroes out of campaign rosters", async () => {
+  it("offers pack heroes and decks with custom cards in campaign rosters (#978)", async () => {
     await installSample();
-    expect(preconDecks().some((deck) => deckUsesCustomCards(deck))).toBe(true);
-    expect(basePreconDecks(POOL_VERSION).some((deck) => deckUsesCustomCards(deck))).toBe(false);
-    expect(basePreconDecks(POOL_VERSION).length).toBe(POOL_STARTER_DECKS.length);
     const custom = preconDecks().find((deck) => deckUsesCustomCards(deck))!;
-    expect(preconRosterOf([custom.identityCardId], POOL_VERSION)[0]).toBeNull();
     const saved = {
       ...custom,
       id: "saved-custom" as typeof custom.id,
-      source: { kind: "userBuilt" },
-    } as unknown as typeof custom;
+      source: { kind: "userBuilt", createdAt: "2026-11-23T00:00:00.000Z" },
+    } as typeof custom;
     const options = rosterDeckOptions([null], 1, [saved], POOL_VERSION);
-    expect(options.some((option) => deckUsesCustomCards(option.deck))).toBe(false);
-    // The picker says why the pack hero isn't there (#960).
-    expect(customHeroesLeftOut([], POOL_VERSION)).toBe(true);
-  });
-
-  it("explains a left-out pack hero whose pack has no precon (#960)", async () => {
-    await installSample();
-    setLoadedPacks(loadedPacks().map((pack) => ({ ...pack, decks: [] })));
-    expect(preconDecks().some((deck) => deckUsesCustomCards(deck))).toBe(false);
-    expect(customHeroesLeftOut([], POOL_VERSION)).toBe(true);
+    expect(options.filter((option) => deckUsesCustomCards(option.deck)).map((option) => option.deck.id)).toEqual([
+      custom.id,
+      saved.id,
+    ]);
+    expect(POOL_STARTER_DECKS.length).toBeLessThan(preconDecks().length);
   });
 });

@@ -864,6 +864,8 @@ export const en = {
   "modStore.updateAll.retry": "Retry update",
   "modStore.updateAll.show": "Show them",
   "modStore.updateAll.stopped": "Stopped. The rest can still update.",
+  "campaign.deck.packVersionClash":
+    "{pack} needs {needs} {wanted}, but this campaign keeps {needs} {kept} from when it was signed. Take the {pack} cards out to save this deck.",
   "deckBuilder.show": "show",
   "deckBuilder.showHero": "Hero",
   "deckBuilder.allPacks": "All packs",

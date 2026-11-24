@@ -24,12 +24,13 @@ import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import { isAttemptGame, unfoldedGameOf } from "../../campaign/unfolded-game.js";
-import { CARDS_BY_ID, POOL_VERSION } from "../../content/pool.js";
+import { POOL_VERSION } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { DeckSearchClient } from "../../view/deck-search-client.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 
 const heroNameOfCard = (id: string): string | undefined => {
-  const card = CARDS_BY_ID.get(id);
+  const card = campaignCardsById().get(id);
   return card ? cardDisplayName(card) : undefined;
 };
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
@@ -355,14 +356,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
   }
 
   #optionOf = (cardId: Parameters<typeof aftermathOptionOf>[0]): ReturnType<typeof aftermathOptionOf> =>
-    aftermathOptionOf(cardId, CARDS_BY_ID);
+    aftermathOptionOf(cardId, campaignCardsById());
 
   /** Hands the worker the picker's cards when the offered list changes, and re-asks the open query of the new list. */
   #syncSearchDocuments(optionIds: readonly string[]): void {
     const key = POOL_VERSION + ":" + optionIds.join("|");
     if (key === this.#searchDocsKey) return;
     this.#searchDocsKey = key;
-    this.#search.setDocuments(collectionPickerSearchDocumentsOf(optionIds, CARDS_BY_ID), key);
+    this.#search.setDocuments(collectionPickerSearchDocumentsOf(optionIds, campaignCardsById()), key);
     const text = this.#pickerSearchText;
     // After this redraw, not inside it: the answer redraws again.
     if (text.trim() !== "") queueMicrotask(() => this.sys.isActive() && this.#requestSearch(text));
@@ -709,7 +710,13 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // measuring it exactly: a caption is at most a couple of short lines, so a fixed clearance never has to be
     // pixel-perfect to stop the two stacks from overlapping.
     const definitionFields = definition.logFields;
-    const tags = aftermathLogTags(record, nodeId, definitionFields, CARDS_BY_ID, removalStagingFieldIds(definition));
+    const tags = aftermathLogTags(
+      record,
+      nodeId,
+      definitionFields,
+      campaignCardsById(),
+      removalStagingFieldIds(definition),
+    );
     let tagY = readingRect.y + 12 + (view.step.caption ? 66 : 0);
     const { rect: wonRect } = stamp(this, 12, tagY, `Issue #${number} · Won`, { ground: signal.caution.hex });
     tagY = wonRect.y + wonRect.height + 8;
@@ -1122,7 +1129,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     const rowsAll = collectionPickerRows(
       group.catalog.map((option) => option.cardId as string),
-      CARDS_BY_ID,
+      campaignCardsById(),
     );
     const aspects = collectionPickerAspects(rowsAll);
     this.#syncSearchDocuments(group.catalog.map((option) => option.cardId as string));
@@ -1270,7 +1277,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const isCurrent = !confirmed && seatNumber === group.currentSeatNumber;
     const decision = group.decisions[seatNumber];
     const pickedName =
-      decision?.kind === "picked" ? (CARDS_BY_ID.get(decision.cardId as string)?.name ?? decision.cardId) : null;
+      decision?.kind === "picked"
+        ? (campaignCardsById().get(decision.cardId as string)?.name ?? decision.cardId)
+        : null;
     const statusText = confirmed
       ? `${heroName}: ${pickedName ?? "—"} (confirmed)`
       : isCurrent
@@ -1323,7 +1332,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
         width: cardRect.width - 4,
         height: cardRect.height - geometry.captionHeight - 4,
       };
-      const card = CARDS_BY_ID.get(row.cardId as string);
+      const card = campaignCardsById().get(row.cardId as string);
       const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
       const art = drawArt(this, artKey, artRect);
       if (art) objects.push(art);
@@ -1447,7 +1456,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const artHeight = rect.height - artPad * 2;
     const artWidth = artHeight * (2.5 / 3.5);
     const artRect: Rect = { x: rect.x + artPad, y: rect.y + artPad, width: artWidth, height: artHeight };
-    const card = CARDS_BY_ID.get(row.option.cardId as string);
+    const card = campaignCardsById().get(row.option.cardId as string);
     const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
     const art = drawArt(this, artKey, artRect);
     // The row's own zone (when it is editable) holds the picture, so the card is `through` to it.

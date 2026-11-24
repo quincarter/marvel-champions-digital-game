@@ -210,6 +210,7 @@ import {
   choiceHiddenBy,
   dealtByBeat,
   type ActivationBeat,
+  type DealtBefore,
   type RecapPlacement,
   type InlineInterruptOption,
   type Pause,
@@ -282,6 +283,8 @@ export interface VillainPhaseLaunchData {
   readonly before: GameState | null;
   /** The log's cards a surge dealt and not yet revealed, as of before this command (`LogState.surgeDealt`). */
   readonly surgeDealt?: readonly InstanceId[];
+  /** The log's encounter cards dealt facedown before this command by anything but step 3 or a surge (issue #984). */
+  readonly dealtBefore?: readonly DealtBefore[];
   /**
    * Who drew what as the player phase ended (the draw up to hand size), which the Board folds across the commands a
    * refill can span (`view/villain-end-of-turn.ts`). Absent for a review.
@@ -430,7 +433,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#motion = new OverlayMotion();
     this.#before = data?.before ?? null;
     this.#recapScrolls.forEach((scroll) => scroll.reset());
-    this.#walkthrough = walkthroughSeededFrom(1, data?.surgeDealt);
+    this.#walkthrough = walkthroughSeededFrom(1, data?.surgeDealt, data?.dealtBefore);
     this.#revealed = 0;
     this.#version = -2;
     if (data?.seed && !data.review) {
@@ -1223,6 +1226,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             this.#latest.game,
             this.#latest.perspectiveId,
           )?.tiles.map((tile) => tile.status) ?? [])
+        : [],
+      // Each tile's marks as the strip words them ("DECK RAN OUT", "FROM SURGE"), "" for none (#984).
+      encounterMarks: this.#latest?.game
+        ? (this.#encounterStrip(
+            revealOf(this.#walkthrough, this.#revealed),
+            this.#latest.game,
+            this.#latest.perspectiveId,
+          )?.tiles.map((tile) => tile.marks.join(" · ")) ?? [])
         : [],
       waiting: this.#flipState()?.waiting ?? null,
     };

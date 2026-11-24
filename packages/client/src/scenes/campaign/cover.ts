@@ -6,7 +6,7 @@
  */
 import Phaser from "phaser";
 import { campaignDefinitionIn, campaignRecordOf } from "../../campaign/pack-campaigns.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import {
@@ -36,10 +36,10 @@ import { goToCampaignStart } from "./start-route.js";
 import { routeUnfoldedGame } from "./unfolded-game-route.js";
 import type { CampaignCoverData } from "./routes.js";
 
-const cardOf = (id: string) => CARDS_BY_ID.get(id);
+const cardOf = (id: string) => campaignCardsById().get(id);
 
 const identityNameOf = (id: string): string => {
-  const card = CARDS_BY_ID.get(id);
+  const card = campaignCardsById().get(id);
   return card ? cardDisplayName(card) : id;
 };
 

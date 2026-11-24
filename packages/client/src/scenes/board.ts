@@ -1548,6 +1548,7 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.villainPhase, {
       before: resumed ? (resumed.seed.before as GameState) : before,
       ...(phaseLog.surgeDealt ? { surgeDealt: phaseLog.surgeDealt } : {}),
+      ...(phaseLog.dealtBefore ? { dealtBefore: phaseLog.dealtBefore } : {}),
       endOfTurn: resumed ? resumed.endOfTurn : this.#refillEnded,
       ...(resumed ? { seed: resumed.seed } : {}),
     } satisfies VillainPhaseLaunchData);
