@@ -1,0 +1,3 @@
+kind: Fixed
+body: The mod SDK's community pack tests run in a CI job of their own, one test per smoke game with each pack built once per run, so they no longer time out.
+time: 2026-11-23T13:32:41.7024771-05:00
