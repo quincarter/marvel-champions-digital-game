@@ -199,7 +199,8 @@ import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { noteDeckFeat } from "../progression/deck-feats.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
-import { campaignPool } from "../content/campaign-pool.js";
+import { campaignCardsById, campaignPool } from "../content/campaign-pool.js";
+import { openRunPacksNow } from "../campaign/run-packs.js";
 import { cardSizeFactor } from "../settings.js";
 import { deckBuilderRowSizes, type DeckBuilderRowSizes } from "../view/deck-builder-rows.js";
 import {
@@ -291,14 +292,23 @@ const NARROW_SCROLLBAR_GUTTER = 10;
  * derived list below is kept until the loaded packs change, so a pack installed or removed shows on the next visit
  * and nothing is rebuilt per frame.
  */
-const poolNow = (): readonly AnyCard[] => currentPool();
+let campaignMode = false;
+/** In a campaign's deck edit, the open run's pool (`campaignPool`, #978): its own pack copies, for search and lookups too. */
+const poolNow = (): readonly AnyCard[] => (campaignMode ? campaignPool() : currentPool());
 let identitiesOf: { readonly pool: readonly AnyCard[]; readonly list: readonly HeroIdentityCard[] } | null = null;
 const identities = (): readonly HeroIdentityCard[] => {
   const now = poolNow();
   if (identitiesOf?.pool !== now) identitiesOf = { pool: now, list: identityOptions(now) };
   return identitiesOf.list;
 };
-const cardById = (): ReadonlyMap<string, AnyCard> => currentCardsById();
+const cardById = (): ReadonlyMap<string, AnyCard> => (campaignMode ? campaignCardsById() : currentCardsById());
+/** What the search worker's documents are keyed by: the loaded packs, and in a campaign the open run's pack copies. */
+const poolKeyNow = (): string =>
+  campaignMode
+    ? `${currentPoolKey()}|run:${openRunPacksNow()
+        .map((pack) => `${pack.id}@${pack.version}`)
+        .join(",")}`
+    : currentPoolKey();
 
 /**
  * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
@@ -596,6 +606,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
     this.#campaign = data.campaign ?? null;
+    campaignMode = this.#campaign !== null;
     const given = data.deck ?? null;
     // A precon is never edited in place (issue #217): the builder edits the player's own copy of it.
     this.#deck =
@@ -2222,7 +2233,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
-        const card = currentCardsById().get(entry.cardId);
+        const card = cardById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         const frame = this.add.graphics();
         frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -3378,7 +3389,7 @@ ${entry.detail}`,
       });
       return;
     }
-    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${currentPoolKey()}:${lang}`);
+    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${poolKeyNow()}:${lang}`);
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));
