@@ -652,7 +652,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     const redraw = (): void => this.#drawFallback(cause);
     const local = this.#localNow();
     const answer = (ids: readonly string[]): void =>
-      void (local ? local.answer(ids) : appSession().store.resolveChoice(ids));
+      void (local
+        ? local.answer(ids).then((taken) => {
+            // Refused (a combined total short of its mark): the sheet stays, with the reason in its note.
+            if (!taken) redraw();
+          })
+        : appSession().store.resolveChoice(ids));
 
     const { width, height } = this.scale.gameSize;
     this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(0, 0, width, height);
@@ -682,11 +687,13 @@ export class ChoiceOverlay extends Phaser.Scene {
     const orderNote = fallbackChoiceView(choice, []).ordered
       ? "The order you tap is the order they resolve; tap one again to take it out. "
       : "";
+    // Why Confirm waits on the Board's own cost question (a combined total short of its mark).
+    const localNote = local?.note(this.#fallback?.selected ?? []);
     const note = this.add
       .text(
         x,
         y,
-        `${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
+        `${localNote ? `${localNote}. ` : ""}${orderNote}Answer it here to keep playing; the error is saved for an issue report. ${message}`,
         textStyle(typeRole.body, surface.paper.hex, ink.secondary),
       )
       .setWordWrapWidth(sheetWidth)
@@ -796,6 +803,8 @@ export class ChoiceOverlay extends Phaser.Scene {
       footer.push({ label: confirm.label, enabled: confirm.enabled, onClick: () => answer(state.selected) });
     }
     if (view.canChooseNone) footer.push({ label: "Choose none", enabled: true, onClick: () => answer([]) });
+    // The Board's own cost question is a play not yet made: Back out drops it, as on the normal sheet.
+    if (local) footer.push({ label: "Back out", enabled: true, onClick: () => local.backOut() });
     const each = footer.length > 0 ? (sheetWidth - (footer.length - 1) * GAP) / footer.length : 0;
     footer.forEach((button, index) => {
       addButton({
