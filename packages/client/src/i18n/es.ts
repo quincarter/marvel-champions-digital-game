@@ -542,6 +542,25 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.updateAll.retry": "Reintentar",
   "modStore.updateAll.show": "Verlos",
   "modStore.updateAll.stopped": "Detenido. El resto aún se puede actualizar.",
+  "rendererNotice.heading": "Dibujando sin WebGL",
+  "rendererNotice.body":
+    "Tu navegador tiene WebGL desactivado, así que el juego se dibuja en un modo más lento. Se juega igual, pero puede ir más lento y verse algo menos nítido.",
+  "rendererNotice.stepsHeading": "Para volver a activar WebGL:",
+  "rendererNotice.ok": "Entendido",
+  "webglHelp.firefox.acceleration":
+    'En Ajustes > General > Rendimiento, desmarca "Usar la configuración de rendimiento recomendada", marca "Usar aceleración por hardware cuando esté disponible" y reinicia Firefox.',
+  "webglHelp.firefox.disabled": "Abre about:config y comprueba que webgl.disabled está en false.",
+  "webglHelp.firefox.blocklist":
+    "Si about:support > Gráficos dice que WebGL está bloqueado, actualiza el controlador de la tarjeta gráfica o pon webgl.force-enabled en true en about:config. Reinicia Firefox después.",
+  "webglHelp.chromium.acceleration":
+    'En Configuración > Sistema, activa "Usar aceleración de gráficos cuando esté disponible" y reinicia el navegador.',
+  "webglHelp.chromium.gpuPage":
+    'Abre {gpuPage} y comprueba que WebGL dice "Hardware accelerated". La página indica qué lo está desactivando.',
+  "webglHelp.driver": "Actualiza el controlador de la tarjeta gráfica.",
+  "webglHelp.safari.update": "Actualiza a la última versión de iOS o macOS.",
+  "webglHelp.other.acceleration":
+    "Activa la aceleración por hardware o de gráficos en los ajustes del navegador y reinícialo.",
+  "webglHelp.otherBrowser": "O prueba otro navegador, como Chrome, Edge o Firefox.",
   "campaign.deck.packVersionClash":
     "{pack} necesita {needs} {wanted}, pero esta campaña conserva {needs} {kept} de cuando se firmó. Quita las cartas de {pack} para guardar este mazo.",
   "deckBuilder.show": "mostrar",
