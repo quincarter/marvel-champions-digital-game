@@ -67,6 +67,25 @@ const WAVE_SHARDS = { 6: 2, 7: 3, 8: 3, 9: 3, 10: 2 };
 // import time (Phaser) and split in two. The client job took 10 to 13 minutes as one (2026-10-16).
 const CLIENT_SOAK = "packages/client/src/view/breakout-two-hero-soak.test.ts";
 const CLIENT_SHARDS = 2;
+// The mod SDK's community pack tests (content-packs/community, fetched by packs-fetch.mjs) run in a job of their own:
+// each pack is built and then played through dozens of seeded smoke games, about two CPU-minutes in all, and sharing a
+// runner with the SDK's other tests pushed single tests past the 30 s timeout. A pack's rulings file shares the job
+// because it reads the same build (packages/mod-sdk/src/fixtures/community-pack.ts builds each pack once per run). A
+// new pack's rulings file runs in the other mod-sdk job until it is listed here, and so does a listed file that is
+// renamed (it is then no longer excluded there), so no file falls out of the run.
+const MOD_SDK_PACK_TESTS = [
+  "community-packs",
+  "carnage-nep",
+  "gwenpool-ptt",
+  "mephisto-nep",
+  "night-thrasher-dh",
+  "punisher-pk",
+  "throg-ptt",
+  "yondu-dh",
+].map((name) => `packages/mod-sdk/src/${name}.test.ts`);
+const modSdkPackExcludes = MOD_SDK_PACK_TESTS.map(
+  (path) => `--exclude "**/${path.replace(/^packages\/mod-sdk\//, "")}"`,
+).join(" ");
 const shards = (count) => Array.from({ length: count }, (_, index) => index + 1);
 const capitalized = (text) => text[0].toUpperCase() + text.slice(1);
 
@@ -87,7 +106,16 @@ const include = [
     ? [{ name: "sync-worker", title: "Sync Worker tests", args: "--project @mc/sync-worker" }]
     : []),
   // The mod SDK's tests build and validate the sample packs; they import the cards package but nothing imports them.
-  ...(has("mod-sdk") ? [{ name: "mod-sdk", title: "Mod SDK tests", args: "--project @mc/mod-sdk" }] : []),
+  ...(has("mod-sdk")
+    ? [
+        { name: "mod-sdk", title: "Mod SDK tests", args: `--project @mc/mod-sdk ${modSdkPackExcludes}` },
+        {
+          name: "mod-sdk (community packs)",
+          title: "Community pack tests",
+          args: `--project @mc/mod-sdk ${MOD_SDK_PACK_TESTS.join(" ")}`,
+        },
+      ]
+    : []),
   ...(has("client")
     ? [
         ...shards(CLIENT_SHARDS).map((part) => ({

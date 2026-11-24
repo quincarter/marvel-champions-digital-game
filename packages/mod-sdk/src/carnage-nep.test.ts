@@ -1,9 +1,5 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
-import { PLAYABLE_CARDS, type PackManifest, type StarterDeck } from "@mc/content";
+import { PLAYABLE_CARDS, type StarterDeck } from "@mc/content";
 import {
   applyCommand,
   createGame,
@@ -17,58 +13,20 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { buildPack } from "./build.js";
 import { cardPoolWithPack, gameDepsWithPack } from "./game.js";
-import { readPackInput, type PackInput } from "./validate.js";
-import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
+import { builtCommunityPack } from "./fixtures/community-pack.js";
 
 /**
  * Rulings of the Carnage pack (content-packs/community/carnage-nep), staged on the real engine: each test sets up a
  * situation by state surgery (a damaged villain, a card in hand) and then runs the card's own scripted ability. The
  * pack is built from its source folder like any pack, so these run on what a client installs.
  */
-const SRC = fileURLToPath(new URL("../../../content-packs/community/carnage-nep", import.meta.url));
 const P = "x.carnage-nep.";
 const P1 = playerId("p1");
 
-const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-
-let pack: PackInput;
-let deps: EngineDeps;
-const scratch: string[] = [];
-beforeAll(async () => {
-  // The art is not in git: build from a copy without the alternate-art list, as community-packs.test.ts does.
-  const root = mkdtempSync(join(tmpdir(), "mc-carnage-"));
-  scratch.push(root);
-  const src = join(root, "src");
-  cpSync(SRC, src, { recursive: true });
-  dropMissingCover(src);
-  if (!existsSync(join(src, "alt-art"))) {
-    const file = join(src, "pack.json");
-    const manifest = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
-    delete manifest.altArt;
-    const { writeFileSync } = await import("node:fs");
-    writeFileSync(file, JSON.stringify(manifest));
-  }
-  const out = join(root, "out");
-  await buildPack(src, out);
-  const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
-  const files = new Map<string, Uint8Array>();
-  for (const full of walk(out)) {
-    const path = relative(out, full).split(sep).join("/");
-    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
-      files.set(path, new Uint8Array(readFileSync(full)));
-  }
-  pack = readPackInput(manifest, files);
-  deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
-});
-afterAll(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
+// Built once for the run and shared with community-packs.test.ts (./fixtures/community-pack.ts).
+const { pack } = await builtCommunityPack("carnage-nep");
+const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
 const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "carnage-nep-aggression")!;
 
@@ -421,7 +379,7 @@ describe("pack content", () => {
     expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(40);
     const own = cards.filter((c) => String(c.cardId).startsWith(P)).reduce((n, c) => n + c.quantity, 0);
     expect(own).toBe(15);
-    expect(precon().name).toMatch(/suggested/i);
+    expect(precon().name).toMatch(/starter deck/i);
   });
 
   it("scripts both of Klyntar Bond's abilities", () => {

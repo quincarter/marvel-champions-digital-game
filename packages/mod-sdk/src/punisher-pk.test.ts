@@ -1,9 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import { PLAYABLE_DEPS } from "@mc/cards";
-import { type PackManifest } from "@mc/content";
 import {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -22,10 +17,9 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { buildPack } from "./build.js";
 import { gameDepsWithPack, scenarioWithPacks } from "./game.js";
-import { readPackInput, validatePack, type PackInput } from "./validate.js";
-import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
+import { validatePack } from "./validate.js";
+import { builtCommunityPack } from "./fixtures/community-pack.js";
 
 /**
  * Rulings of The Punisher pack (content-packs/community/punisher-pk), staged on the real engine: each test sets up a
@@ -35,41 +29,12 @@ import { dropMissingCover } from "./fixtures/drop-missing-cover.js";
  * stun immunity, activating before the villain, an extra boost card on his attack, boost icons counting twice, and
  * Sinister Syndicate's "when/after [it] is attacked" hearing his attacks) have their own block at the end.
  */
-const SRC = fileURLToPath(new URL("../../../content-packs/community/punisher-pk", import.meta.url));
 const P = "x.punisher-pk.";
 const P1 = playerId("p1");
 
-const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((name) => {
-    const full = join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-
-let pack: PackInput;
-let deps: EngineDeps;
-const scratch: string[] = [];
-beforeAll(async () => {
-  // The pictures are not in git: build from a copy, as community-packs.test.ts does (this pack has no alternate art).
-  const root = mkdtempSync(join(tmpdir(), "mc-punisher-"));
-  scratch.push(root);
-  const src = join(root, "src");
-  cpSync(SRC, src, { recursive: true });
-  dropMissingCover(src);
-  const out = join(root, "out");
-  await buildPack(src, out);
-  const manifest = JSON.parse(readFileSync(join(out, "pack.json"), "utf8")) as PackManifest;
-  const files = new Map<string, Uint8Array>();
-  for (const full of walk(out)) {
-    const path = relative(out, full).split(sep).join("/");
-    if (!["pack.json", "preview.json", "thumb.webp"].includes(path) && !path.endsWith(".zip"))
-      files.set(path, new Uint8Array(readFileSync(full)));
-  }
-  pack = readPackInput(manifest, files);
-  deps = gameDepsWithPack(PLAYABLE_DEPS, pack);
-});
-afterAll(() => {
-  for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
-});
+// Built once for the run and shared with community-packs.test.ts (./fixtures/community-pack.ts).
+const { pack } = await builtCommunityPack("punisher-pk");
+const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
