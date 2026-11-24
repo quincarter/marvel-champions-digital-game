@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { PLAYABLE_DEPS, coreScenario } from "@mc/cards";
 import { PLAYABLE_CARDS, type StarterDeck } from "@mc/content";
 import {
@@ -34,7 +35,14 @@ const BLANK = "01104";
 const { pack } = await builtCommunityPack("gwenpool-ptt");
 const deps: EngineDeps = gameDepsWithPack(PLAYABLE_DEPS, pack);
 
-const precon = (): StarterDeck => pack.decks!.find((d) => d.id === "gwenpool-ptt-pool")!;
+/**
+ * The deck the rulings below are staged with: the pack's precon when they were written. Their seeded games depend on its
+ * shuffle (which cards are in hand, which instance ids), so they keep it when the creator changes the precon; the
+ * "pack content" tests read the precon the pack ships now.
+ */
+const rulingsDeck = JSON.parse(
+  readFileSync(new URL("./fixtures/gwenpool-ptt-pool-rulings-deck.json", import.meta.url), "utf8"),
+) as StarterDeck;
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
   ...state,
@@ -89,7 +97,7 @@ function drive(
 
 /** A Rhino game with the Gwenpool precon, in hero form, past setup, at the start of the player phase. */
 function open(seed = 1): GameState {
-  const deck = precon();
+  const deck = rulingsDeck;
   const config = coreScenario("rhino", {
     players: [{ starterDeckId: "core-spider-man-justice" }],
     seed,

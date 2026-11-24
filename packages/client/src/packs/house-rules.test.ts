@@ -97,7 +97,7 @@ describe("Lost Traits: the pool a game runs on", () => {
   it("loads as a house rule with its trait additions and the setup toggle's words", () => {
     expect(lostTraits.cards).toEqual([]);
     expect(lostTraits.houseRule?.traitAdditions).toHaveLength(13);
-    expect(lostTraits.houseRule?.description).toMatch(/Bluefire/);
+    expect(lostTraits.houseRule?.description).toMatch(/regain a trait/);
   });
 
   it("gives Spider-Man Web-Warrior in a game that carries the rule, and never in the app's browsing pool", () => {
