@@ -100,6 +100,12 @@ import { REVIEW_HANDLE_WIDTH, reviewHandleRect, showReviewHandle } from "../view
 import { sameFacedown, withFacedownHeld, type TableHold } from "../view/villain-replay.js";
 import { holdTableGame, tableGame } from "../view/table-game.js";
 import type { SessionState } from "../store/session-store.js";
+import type { VillainPhaseSeed } from "../engine/host.js";
+import {
+  readVillainPhaseMarker,
+  villainPhaseToRebuild,
+  writeVillainPhaseMarker,
+} from "../view/villain-phase-resume.js";
 import { CHROME_SCENES, SCENES } from "./keys.js";
 import { musicSlots, shownMusicButton } from "../ui/music-slot.js";
 import type { MusicButtonScene } from "./music-button.js";
@@ -227,6 +233,14 @@ export const VILLAIN_DOCK_CHANGED = "villain-dock-changed";
 const VILLAIN_DOCK_TWEEN_MS = 280;
 /** The form cards' fan-out and fold beside the play area (issue #308). */
 const FORM_FAN_TWEEN_MS = 280;
+
+/** A villain phase a reload brought back (issue #989): what the walkthrough is launched with. */
+interface ResumedPhase {
+  readonly seed: VillainPhaseSeed;
+  /** The log as it stood before the command that began the phase. */
+  readonly logBefore: LogState;
+  readonly endOfTurn: EndOfTurnDraws | null;
+}
 
 /** The seat whose side the table draws: a looked-at teammate's (`SessionState.peekSeat`), else the board's own. */
 function shownSeat(state: SessionState): PlayerId | null {
@@ -883,6 +897,8 @@ export class BoardScene extends Phaser.Scene {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         logTickerRect: () => this.#logTickerRect,
         logOpen: () => this.#logOpen,
+        // Whether the table takes no game action: while the villain phase is open, or in a replay (`setVillainPhaseOpen`).
+        readOnly: () => this.#controller.readOnly,
         logRect: () => this.#logRect,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
@@ -1013,6 +1029,8 @@ export class BoardScene extends Phaser.Scene {
     const rewound = fresh && state.version < this.#version ? this.#logAt.get(state.version) : undefined;
     /** The log as it stood before this command's lines, for a villain phase this command begins (`#logBeforePhase`). */
     let logBefore = this.#log;
+    /** A reload mid-phase: the phase the walkthrough comes back with (`view/villain-phase-resume.ts`). */
+    let resumedPhase: ResumedPhase | null = null;
     if (rewound) {
       this.#log = rewound.log;
       this.#cardHistory = rewound.cardHistory;
@@ -1041,9 +1059,26 @@ export class BoardScene extends Phaser.Scene {
       // A resumed game's first state carries the whole game so far: fold it first, so the panel opens on the recent lines.
       // A blind game's log never names the hidden stage 2 (`eventsForBlindLog`).
       const blind = blindRevealOf(state.config, state.game);
+      // A reload with the walkthrough open (issue #989): the history splits where the villain phase began, so the log
+      // and the refill as they stood just before it are known. Not a replay's seek, not a finished game.
+      const seed =
+        !replay && !state.game.outcome
+          ? villainPhaseToRebuild(readVillainPhaseMarker(), state.gameId, state.resumedVillainPhase)
+          : null;
       if (state.resumedHistory.length > 0) {
-        const history = eventsForBlindLog(state.resumedHistory, blind);
-        this.#log = appendEvents(this.#log, history, state.game, state.perspectiveId, gameDeps());
+        const phaseEvents = seed ? seed.commands.reduce((sum, command) => sum + command.events.length, 0) : 0;
+        const split = Math.max(0, state.resumedHistory.length - phaseEvents);
+        const before = eventsForBlindLog(state.resumedHistory.slice(0, split), blind);
+        const phase = eventsForBlindLog(state.resumedHistory.slice(split), blind);
+        this.#log = appendEvents(this.#log, before, state.game, state.perspectiveId, gameDeps());
+        if (seed) {
+          const refill = trackRefill(
+            trackRefill(NO_REFILL, state.resumedHistory.slice(0, split)).tracker,
+            seed.commands[0]?.events ?? [],
+          );
+          resumedPhase = { seed, logBefore: this.#log, endOfTurn: refill.ended };
+        }
+        this.#log = appendEvents(this.#log, phase, state.game, state.perspectiveId, gameDeps());
       }
       const latest = eventsForBlindLog(state.lastEvents, blind);
       logBefore = this.#log;
@@ -1123,7 +1158,7 @@ export class BoardScene extends Phaser.Scene {
     if (state.game.outcome && !replay) {
       // The engine finished the game inside the command; the rail may still be replaying the beats that ended it, so the
       // outcome waits for it (`releaseOutcome`). A command that ran the whole villain phase to the end opens it too.
-      if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
+      if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore, state, null);
       if (this.#villainReplayHoldsOutcome()) {
         this.#outcomeHeld = true;
         this.#draw();
@@ -1134,7 +1169,7 @@ export class BoardScene extends Phaser.Scene {
     }
     // Only a *new* command can start a villain phase; a plain redraw re-reads
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
-    if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore);
+    if (fresh) this.#openVillainWalkthrough(state.lastEvents, previousGame, logBefore, state, resumedPhase);
     if (fresh && !replay) this.#queueCampaignBeat(state);
     // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
     // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
@@ -1484,18 +1519,33 @@ export class BoardScene extends Phaser.Scene {
    * reveal cursor mid-phase. (`run()` is no safer: a RUNNING scene falls through
    * its sleeping/paused branches to the same `start()`.)
    */
-  #openVillainWalkthrough(events: readonly GameEvent[], before: GameState | null, logBefore: LogState): void {
+  #openVillainWalkthrough(
+    events: readonly GameEvent[],
+    before: GameState | null,
+    logBefore: LogState,
+    state: SessionState,
+    resumed: ResumedPhase | null,
+  ): void {
     if (this.scene.isActive(SCENES.villainPhase)) return;
     const begins = events.some(
       (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
     );
-    if (!begins) return;
-    this.#logBeforePhase = logBefore;
+    if (!begins && !resumed) return;
+    // A reload brought the phase back (issue #989): the log, the table before it and the refill are the ones from just
+    // before the command that began it, and the overlay starts with that phase's beats.
+    const phaseLog = resumed?.logBefore ?? logBefore;
+    this.#logBeforePhase = phaseLog;
     appSession().gameLog = this.#tableLog();
+    // Noted for a reload while the walkthrough is open; the overlay clears it as it closes. A replay or a game that is
+    // not saved has nothing to come back to.
+    if (begins && !this.#replay && state.gameId) {
+      writeVillainPhaseMarker({ gameId: state.gameId, commandCount: Math.max(0, state.version - 1) });
+    }
     this.scene.launch(SCENES.villainPhase, {
-      before,
-      ...(logBefore.surgeDealt ? { surgeDealt: logBefore.surgeDealt } : {}),
-      endOfTurn: this.#refillEnded,
+      before: resumed ? (resumed.seed.before as GameState) : before,
+      ...(phaseLog.surgeDealt ? { surgeDealt: phaseLog.surgeDealt } : {}),
+      endOfTurn: resumed ? resumed.endOfTurn : this.#refillEnded,
+      ...(resumed ? { seed: resumed.seed } : {}),
     } satisfies VillainPhaseLaunchData);
     this.#walkthroughLaunching = true;
     // Cleared when the walkthrough has been created, not only when a draw happens to see it active: the Board's time
