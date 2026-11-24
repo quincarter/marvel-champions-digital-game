@@ -6,7 +6,7 @@
 import Phaser from "phaser";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import { ink, signal, surface, typeRole } from "../../tokens.js";
 import { bangers } from "../../ui/campaign-chrome.js";
 import { onTap } from "../../ui/tap.js";
@@ -42,7 +42,7 @@ export function drawPickCardArt(
 ): void {
   const g = scene.add.graphics();
   g.fillStyle(surface.parchment.hex, 1).fillRect(art.x, art.y, art.width, art.height);
-  const source = artFor(CARDS_BY_ID.get(card.cardId as string), { kind: "front" });
+  const source = artFor(campaignCardsById().get(card.cardId as string), { kind: "front" });
   const key = cardArt(scene).request(scene, source);
   if (!drawArt(scene, key, art, { fit: "cover" })) {
     scene.add

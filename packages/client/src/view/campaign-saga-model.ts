@@ -194,7 +194,8 @@ export function campaignSagaRows(
 
     const story = storyFor(volume.campaignId);
     const rosterNames = summary
-      ? summary.seats.map((seat) => identityNameOf(seat.identityCardId as CardId))
+      ? // A custom hero's name comes from this run's own pack copy (#978), whatever version is installed or open.
+        summary.seats.map((seat) => seat.identityName ?? identityNameOf(seat.identityCardId as CardId))
       : (story?.castIdentityIds.map((id) => identityNameOf(id as CardId)) ?? []);
 
     let lost: SagaVolumeRow["lost"] = null;

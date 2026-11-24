@@ -7,9 +7,17 @@
  * two lookups, so this is testable without a game.
  */
 import type { InstanceId, PlayerId } from "@mc/engine";
-import { dealtByBeat, type EncounterTracking } from "./villain-walkthrough.js";
+import { dealtReasonWords } from "./dealt-pile.js";
+import { dealtByBeat, type EncounterDealSource, type EncounterTracking } from "./villain-walkthrough.js";
 
 export type EncounterTileStatus = "done" | "now" | "next" | "facedown";
+
+/** "SURGE", "FROM SURGE", or why a card dealt before the phase is here ("DECK RAN OUT", "UNIQUE RULE"). */
+export type EncounterTileMark = string;
+
+/** The mark on a card dealt facedown before the villain phase, by what dealt it (`dealtReasonWords`'s words). */
+export const dealtBeforeMark = (source: EncounterDealSource): EncounterTileMark =>
+  source === "deckReset" ? "DECK RAN OUT" : dealtReasonWords(source, null).toUpperCase();
 
 export interface EncounterTile {
   readonly instanceId: InstanceId;
@@ -20,8 +28,11 @@ export interface EncounterTile {
   readonly name: string;
   readonly status: EncounterTileStatus;
   readonly isViewer: boolean;
-  /** Plain-word marks, never colour alone: "SURGE" on the card that surged, "FROM SURGE" on the card it dealt. */
-  readonly marks: readonly ("SURGE" | "FROM SURGE")[];
+  /**
+   * Plain-word marks, never colour alone: "SURGE" on the card that surged, "FROM SURGE" on the card it dealt, and why a
+   * card dealt before the phase is here ("DECK RAN OUT", "UNIQUE RULE", "A CARD EFFECT"; issue #984).
+   */
+  readonly marks: readonly EncounterTileMark[];
 }
 
 export interface EncounterStrip {
@@ -30,6 +41,19 @@ export interface EncounterStrip {
   readonly position: { readonly index: number; readonly total: number } | null;
   /** The card being revealed on screen right now, if any. */
   readonly current: InstanceId | null;
+}
+
+/** Each player's earlier cards then their cards dealt this phase, players in step 3's deal order (then the rest). */
+function byPlayerPile(
+  before: readonly { readonly instanceId: InstanceId; readonly playerId: PlayerId }[],
+  now: readonly { readonly instanceId: InstanceId; readonly playerId: PlayerId }[],
+): { instanceId: InstanceId; playerId: PlayerId }[] {
+  const players = [...new Set([...now.map((card) => card.playerId), ...before.map((card) => card.playerId)])];
+  return players.flatMap((playerId) =>
+    [...before, ...now]
+      .filter((card) => card.playerId === playerId)
+      .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId })),
+  );
 }
 
 export function encounterStripOf(
@@ -54,9 +78,15 @@ export function encounterStripOf(
   // screen reaches its deal (issue #386: "1 OF 3" over a facedown first card told the player two surges were coming).
   // A card revealed without having been seen dealt (one put straight into play) is added at the end once its reveal is
   // shown, so the counter never undercounts what the player saw revealed.
-  const order: { instanceId: InstanceId; playerId: PlayerId }[] = encounter.dealt
-    .filter((card) => dealtByBeat(card, shownEncounterIds.length))
+  const dealtBefore = new Map((encounter.dealtBefore ?? []).map((card) => [card.instanceId, card.source]));
+  const dealtNow = encounter.dealt
+    .filter((card) => dealtByBeat(card, shownEncounterIds.length) && !dealtBefore.has(card.instanceId))
     .map((card) => ({ instanceId: card.instanceId, playerId: card.playerId }));
+  // Cards dealt before the phase waited facedown in their player's pile ahead of step 3's deal, and step 4 reveals one
+  // player's pile at a time, in player order (RRG 1.8 "Villain Phase", p. 47): so each player's earlier cards come
+  // ahead of their own step 3 cards, the players in the order step 3 dealt to them (#984).
+  const order: { instanceId: InstanceId; playerId: PlayerId }[] =
+    dealtBefore.size === 0 ? dealtNow : byPlayerPile(encounter.dealtBefore ?? [], dealtNow);
   // Also a card revealed from a surge deal made before the phase, which has no `dealt` entry; it is only listed once its
   // reveal is shown, so the badge follows the same pacing.
   const fromSurge = new Set([
@@ -96,6 +126,7 @@ export function encounterStripOf(
       marks: [
         ...(revealed && surged.has(entry.instanceId) ? (["SURGE"] as const) : []),
         ...(fromSurge.has(entry.instanceId) ? (["FROM SURGE"] as const) : []),
+        ...(dealtBefore.has(entry.instanceId) ? [dealtBeforeMark(dealtBefore.get(entry.instanceId)!)] : []),
       ],
     };
   });

@@ -22,6 +22,7 @@ import {
 } from "./campaign/pack-campaigns.js";
 import { loadedPacks } from "./packs/pack-registry.js";
 import { campaignDepsWithPacks } from "@mc/mod-sdk/game";
+import { heroPacksForSeats } from "./campaign/run-packs.js";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "./content/pool.js";
 import { gameDeps } from "./content/game-deps.js";
 import { deckFromStarterDeck } from "@mc/content";
@@ -322,6 +323,9 @@ export function campaignService(): CampaignService {
       return entry ? campaignOfPackRecord(entry) : undefined;
     },
     packOf: (campaignId) => packRefOf(loadedPacks(), campaignId),
+    // A custom hero's pack, and any pack a signed deck's cards come from, rides with the run (#978).
+    heroPacksOf: (seats) => heroPacksForSeats(seats, loadedPacks()),
+    installedPacks: loadedPacks,
     engineDeps: gameDeps,
     games: {
       list: () => appSession().store.listSaves(),

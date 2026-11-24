@@ -13,7 +13,7 @@
 import Phaser from "phaser";
 import type { AnyCard, CardId } from "@mc/content";
 import { CAMPAIGNS } from "@mc/cards";
-import { CARDS_BY_ID, POOL_CARDS } from "../../content/pool.js";
+import { campaignCardsById, campaignPool } from "../../content/campaign-pool.js";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignService } from "../../session.js";
 import { signal, surface, typeRole } from "../../tokens.js";
@@ -48,7 +48,7 @@ import type { CampaignFrozenDeckData } from "./routes.js";
 const WIDE_MIN_WIDTH = 1000;
 const LEFT_COLUMN_SHARE = 0.55;
 
-const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
+const cardOf = (id: string): AnyCard | undefined => campaignCardsById().get(id);
 
 export class CampaignFrozenDeckScene extends Phaser.Scene {
   #data: CampaignFrozenDeckData | null = null;
@@ -135,7 +135,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       return;
     }
     const context = campaignDeckContextOf(content, current, data.seatNumber, { frozenNonCampaignCards });
-    const editModel = campaignDeckEditModel(seat.deck, POOL_CARDS, context, seat.grants);
+    const editModel = campaignDeckEditModel(seat.deck, campaignPool(), context, seat.grants);
 
     // A one-shot, throwaway peek at the runner's very next question — see the file header. Never persisted.
     const nextNodeId = current.attempt?.nodeId ?? current.position.nextNodeId;
@@ -149,7 +149,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
     this.#model = frozenDeckModelOf({
       frozenCards: frozenNonCampaignCards,
       editModel,
-      pool: POOL_CARDS,
+      pool: campaignPool(),
       grants: seat.grants,
       definition,
       frozenAtNodeId: definition.graph.kind === "linear" ? (definition.graph.nodes[0]?.id ?? "") : "",

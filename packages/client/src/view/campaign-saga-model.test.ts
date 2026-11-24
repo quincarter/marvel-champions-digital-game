@@ -57,6 +57,14 @@ describe("campaignSagaRows", () => {
     expect(vol1.rosterNames).toEqual(["Hawkeye", "Spider-Woman"]);
   });
 
+  test("a custom hero is named from the run's own summary, not the installed pack (#978)", () => {
+    const custom = trorsSummary({
+      seats: [{ seatNumber: 1, identityCardId: "x.hero.01a", identityName: "Hero v1" }],
+    });
+    const rows = campaignSagaRows([custom], { definitionOf: lookup, identityNameOf: () => "Hero v2" });
+    expect(rows[0]!.rosterNames).toEqual(["Hero v1"]);
+  });
+
   test("a won-on-standard run opens volume 2 — but it stays sealed for lack of a definition", () => {
     const won = trorsSummary({ id: "c2", status: "won", position: { nextNodeId: null, resolved: {}, progress: {} } });
     const rows = campaignSagaRows([won], { definitionOf: lookup, identityNameOf: nameOf });

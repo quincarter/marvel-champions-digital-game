@@ -42,10 +42,21 @@ import {
 } from "../engine/campaign-storage.js";
 import { reconcileRewards, setRewardIncluded } from "../view/campaign-deck-edit-model.js";
 import { embeddedDefinitionOf, rememberRunPack } from "./pack-campaigns.js";
+import { packsClashingWithRun, poolWithRunPacks, runPacksOf, setOpenRunPacks } from "./run-packs.js";
+import { t } from "../i18n/translate.js";
+
+import type { PackRuntime } from "../packs/pack-runtime.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-step-model.js";
 import { easierStartBriefingOf, easierStartIsOn, withEasierStart } from "../view/campaign-easier-start-model.js";
 import { BALANCED_CAMPAIGN_ID } from "../view/campaign-balanced-model.js";
 import { clearLegacyDeckFreezeOptIn, legacyDeckFreezeOptIn } from "./deck-freeze-choice.js";
+
+/** What `heroPacksOf` reads of a seat: its deck's identity, aspects and cards. */
+type HeroPackSeat = { readonly deck: Pick<Deck, "identityCardId" | "aspects" | "cards"> };
+
+/** The `heroPacks` a log the runner returned still carries (it spreads the whole record), or undefined. */
+const heroPacksCarriedBy = (log: object): readonly PackRuntime[] | undefined =>
+  (log as { readonly heroPacks?: readonly PackRuntime[] }).heroPacks;
 
 /**
  * Every campaign box's `@mc/content` record this client knows, by `Campaign.id`. A box is playable only when
@@ -106,6 +117,13 @@ export interface CampaignServiceOptions {
    */
   readonly packOf?: (campaignId: string) => PackCampaignRef | undefined;
   /**
+   * The custom packs a new run's signed decks draw on, with what they require (`heroPacksForSeats` over the loaded
+   * packs, #978): copied into the run as `CampaignRecord.heroPacks`. Default: none (a base-cards-only build or test).
+   */
+  readonly heroPacksOf?: (seats: readonly HeroPackSeat[]) => readonly PackRuntime[];
+  /** The installed packs now (`loadedPacks`), to keep a run's choices off packs that clash with its copies. Default: none. */
+  readonly installedPacks?: () => readonly PackRuntime[];
+  /**
    * Where the run's games are kept, through the engine that owns them (`SessionStore.listSaves` / `retireSave`). When
    * given, starting a run over also retires that run's in-progress game, so it doesn't linger in the title's
    * "In-progress games" list (#276).
@@ -123,6 +141,8 @@ export class CampaignService {
   readonly #campaignDeps: () => CampaignDeps;
   readonly #contentOf: (campaignId: string) => Campaign | undefined;
   readonly #packOf: (campaignId: string) => PackCampaignRef | undefined;
+  readonly #heroPacksOf: (seats: readonly HeroPackSeat[]) => readonly PackRuntime[];
+  readonly #installedPacks: () => readonly PackRuntime[];
   readonly #engineDeps: () => EngineDeps;
   readonly #now: () => number;
   readonly #newId: () => string;
@@ -141,6 +161,8 @@ export class CampaignService {
     this.#campaignDeps = typeof campaignDeps === "function" ? campaignDeps : () => campaignDeps;
     this.#contentOf = (campaignId) => CAMPAIGN_RECORDS[campaignId] ?? options.contentOf?.(campaignId);
     this.#packOf = options.packOf ?? (() => undefined);
+    this.#heroPacksOf = options.heroPacksOf ?? (() => []);
+    this.#installedPacks = options.installedPacks ?? (() => []);
     const deps = options.engineDeps;
     this.#engineDeps = typeof deps === "function" ? deps : () => deps;
     this.#now = options.now ?? Date.now;
@@ -179,6 +201,8 @@ export class CampaignService {
     const definition = this.#definitionOf(input.campaignId);
     const pack = CAMPAIGN_RECORDS[input.campaignId] ? undefined : this.#packOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
+    const ownIds = new Set((pack?.packs ?? []).map((runtime) => runtime.id));
+    const heroPacks = this.#heroPacksOf(input.seats).filter((runtime) => !ownIds.has(runtime.id));
     // One choice for both halves: the mode gates between-game steps, the seeded fields the rules in a game.
     const balanced = input.campaignId === BALANCED_CAMPAIGN_ID ? input.balanced : undefined;
     // Expert campaign is a modification of *campaign* mode (`CampaignModeRef.expertCampaign`), which is where
@@ -213,9 +237,11 @@ export class CampaignService {
       updatedAt: at,
       ...(input.tableRules ? { tableRules: input.tableRules } : {}),
       ...(pack ? { pack } : {}),
+      ...(heroPacks.length > 0 ? { heroPacks } : {}),
     };
     await this.storage.create(record);
     if (pack) rememberRunPack(pack, input.campaignId);
+    setOpenRunPacks(runPacksOf(record));
     return record;
   }
 
@@ -227,20 +253,22 @@ export class CampaignService {
   async load(id: string): Promise<CampaignRecord | null> {
     const record = await this.storage.load(id);
     if (record?.pack) rememberRunPack(record.pack, record.campaignId as string);
+    if (record) setOpenRunPacks(runPacksOf(record));
     return record ? withRemovedCardsOutOfDecks(record) : null;
   }
 
   /**
-   * The card pool a run's choices draw from: the build's, plus the cards of the pack content the run carries that the
-   * pool does not already hold (a removed pack's cards are still there for a run that needs them).
+   * The card pool a run's choices draw from: the build's, with the pack content the run carries (its campaign's and its
+   * heroes', `runPacksOf`) swapped in (`poolWithRunPacks`): the run's own copies win over an installed version, and a
+   * removed pack's cards are still there for a run that needs them.
    */
-  #depsFor(record: Pick<CampaignRecord, "pack">): CampaignDeps {
+  #depsFor(record: Pick<CampaignRecord, "pack" | "heroPacks">): CampaignDeps {
     const base = this.#campaignDeps();
-    if (!record.pack) return base;
+    const packs = runPacksOf(record);
+    if (packs.length === 0) return base;
     const pool = Array.isArray(base.pool) ? base.pool : Object.values(base.pool);
-    const have = new Set(pool.map((card) => card.id as string));
-    const added = record.pack.packs.flatMap((pack) => pack.cards).filter((card) => !have.has(card.id as string));
-    return added.length === 0 ? base : { ...base, pool: [...pool, ...added] };
+    // A choice never offers a card of an installed pack that clashes with the run's copies, so no reward copies one in.
+    return { ...base, pool: poolWithRunPacks(pool, packs, packsClashingWithRun(this.#installedPacks(), packs)) };
   }
 
   /**
@@ -302,8 +330,10 @@ export class CampaignService {
   /** The `SessionConfig` that starts the composed issue through the ordinary host path. */
   launchConfig(record: CampaignRecord): SessionConfig {
     const config = withEasierStart(campaignLaunchConfig(this.definitionFor(record), record), record);
-    // A pack campaign's game carries the run's own pack content, never what is installed now (`withLoadedPacks` keeps it).
-    const withPacks = record.pack ? { ...config, packs: record.pack.packs } : config;
+    // A run's game carries the run's own pack content (its campaign's and its heroes'), never what is installed now
+    // (`withLoadedPacks` keeps it), so updating or removing a pack never changes a run in progress.
+    const packs = runPacksOf(record);
+    const withPacks = packs.length > 0 ? { ...config, packs } : config;
     return record.tableRules ? { ...withPacks, tableRules: record.tableRules } : withPacks;
   }
 
@@ -417,6 +447,8 @@ export class CampaignService {
     const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
     if (!seat) throw new Error(`campaign ${record.id} has no seat ${seatNumber}`);
     if (deck.identityCardId !== seat.identityCardId) throw new Error("a campaign identity is locked (MC10 p. 3)");
+    const clash = this.#packVersionClash(record, deck);
+    if (clash) throw new Error(t("campaign.deck.packVersionClash", clash));
     return this.#put(record, {
       ...record,
       seats: record.seats.map((candidate) =>
@@ -503,6 +535,80 @@ export class CampaignService {
   }
 
   /**
+   * A pack this deck would copy into the run that needs a pack the run already keeps at another version (#978): the
+   * run's copy stays as it was signed, so the two were never checked together and a game could break. Returns the
+   * names and versions for the refusal, or null when the deck adds nothing or everything it adds fits the run's copies.
+   */
+  #packVersionClash(
+    record: Pick<CampaignRecord, "pack" | "heroPacks">,
+    deckOrPack: Deck | PackRuntime,
+    wantedNow?: readonly PackRuntime[],
+    runPacks: readonly PackRuntime[] = runPacksOf(record),
+  ): { readonly pack: string; readonly needs: string; readonly kept: string; readonly wanted: string } | null {
+    const carried = new Map(runPacks.map((pack) => [pack.id, pack] as const));
+    const wanted = wantedNow ?? ("identityCardId" in deckOrPack ? this.#heroPacksOf([{ deck: deckOrPack }]) : []);
+    const byId = new Map(wanted.map((pack) => [pack.id, pack] as const));
+    const clashing = packsClashingWithRun(wanted, runPacks);
+    const candidates = "identityCardId" in deckOrPack ? wanted : [deckOrPack];
+    for (const pack of candidates) {
+      if (carried.has(pack.id) || !clashing.has(pack.id)) continue;
+      // Name the kept pack it needs at another version (directly, or the first one down its chain of requirements).
+      for (const queue = [pack], seen = new Set<string>(); queue.length > 0;) {
+        const next = queue.shift()!;
+        for (const id of next.requires) {
+          const kept = carried.get(id);
+          const now = byId.get(id);
+          if (kept && now && kept.version !== now.version)
+            return { pack: pack.name, needs: kept.name, kept: kept.version, wanted: now.version };
+          if (now && !seen.has(id)) {
+            seen.add(id);
+            queue.push(now);
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The packs a run carries for its seats after a write (#978): the ones it had, plus the installed pack of any custom
+   * card a seat's deck now holds that the run doesn't carry yet (a deck edit or a reward with a card from a pack
+   * installed after signing). Copied in once, as at signing, so the next game has it and a later update or removal of
+   * that pack never changes the run.
+   */
+  #heroPacksAfter(previous: CampaignRecord, log: CampaignLog): readonly PackRuntime[] {
+    const had = heroPacksCarriedBy(log) ?? previous.heroPacks ?? [];
+    const carried = new Set(
+      runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks: had }).map((p) => p.id),
+    );
+    // A seat's grants count too: a reward the player left out of the deck (`setSeatRewardIncluded`) is still the run's,
+    // so its pack is copied in now, before an update or removal could take its card away.
+    const wanted = this.#heroPacksOf(
+      log.seats.map((seat) => ({
+        deck: {
+          ...seat.deck,
+          cards: [...seat.deck.cards, ...(seat.grants ?? []).map((grant) => ({ cardId: grant.cardId, quantity: 1 }))],
+        },
+      })),
+    );
+    const added = wanted.filter((pack) => !carried.has(pack.id));
+    if (added.length === 0) return had;
+    // The last guard before anything is written, whatever path put the card in a deck (an edit, a fixed grant, a
+    // named choice): a pack that needs another version of one the run keeps is never copied in. The write is refused
+    // rather than storing a combination that was never checked together.
+    const runPacks = runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks: had });
+    const clashing = packsClashingWithRun(wanted, runPacks);
+    const bad = added.find((pack) => clashing.has(pack.id));
+    if (bad) {
+      const clash = this.#packVersionClash(previous, bad, wanted, runPacks);
+      throw new Error(clash ? t("campaign.deck.packVersionClash", clash) : `pack "${bad.id}" clashes with this run`);
+    }
+    const heroPacks = [...had, ...added];
+    setOpenRunPacks(runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks }));
+    return heroPacks;
+  }
+
+  /**
    * `composedAgain`: the easier start rides along when the new log still holds that node's composed issue, or when no
    * issue was composed on either side (a deck edit); a fold (an attempt before, none after) drops it, so a retry of the
    * node starts with it off. A discarded attempt is composed again, so it passes the flag to keep it.
@@ -524,6 +630,7 @@ export class CampaignService {
       issueModes: _staleModes,
       ...bare
     } = log as CampaignLog & Pick<CampaignRecord, "easierStartNodeId" | "issueModes">;
+    const heroPacks = this.#heroPacksAfter(previous, bare);
     const next: CampaignRecord = {
       ...bare,
       recordSchema: previous.recordSchema,
@@ -534,6 +641,7 @@ export class CampaignService {
       ...(previous.deckFreezeOptIns ? { deckFreezeOptIns: previous.deckFreezeOptIns } : {}),
       ...(previous.tableRules ? { tableRules: previous.tableRules } : {}),
       ...(previous.pack ? { pack: previous.pack } : {}),
+      ...(heroPacks.length > 0 ? { heroPacks } : {}),
       ...(keepEasierStart ? { easierStartNodeId: previous.easierStartNodeId } : {}),
       ...(previous.adjusted === true || options.adjusted === true ? { adjusted: true as const } : {}),
       ...(keepIssueModes && previous.issueModes ? { issueModes: previous.issueModes } : {}),
