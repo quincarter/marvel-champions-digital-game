@@ -3071,8 +3071,9 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     // A payment is judged by the engine, and declining it is its own, named control (view/payment-sheet.ts).
+    // The same test as the keyboard's and the pad's (`#canCommit`): a cost pick also needs its combined total (PR #992).
+    const canCommit = this.#canCommit(choice);
     const payment = this.#paymentSheet();
-    const canCommit = payment ? payment.canConfirm : canConfirmChoice(choice, this.#selected.length);
     const canDecline = canDeclineChoice(choice);
     const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
