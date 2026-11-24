@@ -18,6 +18,13 @@ const CHECK_MS = 50;
 const GIVE_UP_MS = 15_000;
 
 let pending = false;
+/** False once a launch has been given up (timed out, or Title left first): the overlay stops itself if it still starts. */
+let wanted = false;
+
+/** Read by the overlay as it starts: a late start, after the launch was given up, closes at once. */
+export function rendererNoticeWanted(): boolean {
+  return wanted;
+}
 
 /** True between the launch and the overlay coming up: Title's keys and pad are held. */
 export function rendererNoticePending(): boolean {
@@ -38,9 +45,12 @@ export function maybeShowRendererNotice(scene: Phaser.Scene): boolean {
   if (pending || manager.isActive(SCENES.rendererNotice)) return true;
   if (!rendererNoticeDue(canvasFallbackInUse(), rendererNoticeSeen(storage()))) return false;
   pending = true;
+  wanted = true;
   scene.input.enabled = false;
   const release = (): void => {
     pending = false;
+    // Never up in time: a start that comes later would land over whatever screen is up by then.
+    if (!manager.isActive(SCENES.rendererNotice)) wanted = false;
     timer.remove(false);
     if (scene.sys.isActive()) scene.input.enabled = true;
   };
@@ -56,9 +66,10 @@ export function maybeShowRendererNotice(scene: Phaser.Scene): boolean {
   });
   // Title going away (a link's screen, say) ends the wait; a notice still on its way is stopped as it starts.
   scene.events.once("shutdown", () => {
-    if (!pending) return;
-    pending = false;
     timer.remove(false);
+    if (!pending && manager.isActive(SCENES.rendererNotice)) return;
+    pending = false;
+    wanted = false;
     manager.stop(SCENES.rendererNotice);
   });
   scene.scene.launch(SCENES.rendererNotice);

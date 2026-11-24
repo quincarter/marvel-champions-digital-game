@@ -18,6 +18,7 @@ import { onLanguageChange } from "../language-change.js";
 import { markRendererNoticeSeen, webglHelpText } from "../view/webgl-help.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { rendererNoticeWanted } from "./renderer-notice-launch.js";
 
 const buttonType = { ...typeRole.label, size: 13 };
 const PANEL_MAX = 560;
@@ -42,6 +43,11 @@ export class RendererNoticeOverlay extends Phaser.Scene {
   }
 
   create(): void {
+    // Started after Title gave the launch up (a slow load, or Title already left): close before drawing anything.
+    if (!rendererNoticeWanted()) {
+      this.scene.stop();
+      return;
+    }
     this.#motion = new OverlayMotion();
     this.#closed = false;
     this.sys.setVisible(true);
