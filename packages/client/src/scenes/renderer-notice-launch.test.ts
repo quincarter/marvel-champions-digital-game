@@ -3,6 +3,9 @@ import type Phaser from "phaser";
 
 // The notice is due: the game fell back to Canvas and it has not been closed.
 vi.mock("../platform/renderer-options.js", () => ({ canvasFallbackInUse: () => true }));
+// The overlay's code: loads at once unless a test makes it hang.
+const loader = { load: vi.fn((_key: string) => Promise.resolve()) };
+vi.mock("./scene-loader.js", () => ({ sceneLoader: () => loader }));
 
 /** A Title stand-in: a clock the test moves, a manager whose `active` set the test controls, and its shutdown. */
 function fakeTitle() {
@@ -43,6 +46,7 @@ function fakeTitle() {
 describe("the notice's launch over Title", () => {
   beforeEach(() => {
     vi.resetModules();
+    loader.load.mockImplementation(() => Promise.resolve());
     globalThis.localStorage?.clear?.();
   });
 
@@ -76,5 +80,26 @@ describe("the notice's launch over Title", () => {
     title.leave();
     expect(launch.rendererNoticePending()).toBe(false);
     expect(launch.rendererNoticeWanted()).toBe(false);
+  });
+
+  test("launches the overlay once its code is loaded, while Title is still up", async () => {
+    const launch = await import("./renderer-notice-launch.js");
+    const title = fakeTitle();
+    launch.maybeShowRendererNotice(title.scene);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(title.raw.scene.launch).toHaveBeenCalledWith("RendererNoticeOverlay");
+  });
+
+  test("a load that hangs never queues a launch, and Title is given back after the wait", async () => {
+    loader.load.mockImplementation(() => new Promise<void>(() => undefined));
+    const launch = await import("./renderer-notice-launch.js");
+    const title = fakeTitle();
+    launch.maybeShowRendererNotice(title.scene);
+    title.advance(16_000);
+    await Promise.resolve();
+    expect(title.raw.scene.launch).not.toHaveBeenCalled();
+    expect(title.raw.input.enabled).toBe(true);
+    expect(launch.rendererNoticePending()).toBe(false);
   });
 });

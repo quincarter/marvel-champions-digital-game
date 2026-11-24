@@ -4,7 +4,7 @@
  * (`platform/renderer-options.ts`) and the player has not closed the notice on this device. Kept free of the overlay's
  * code, so Title's chunk stays small.
  *
- * The overlay loads on demand (`scenes/scene-loader.ts`), so it is not up the moment it is launched. Until it is, Title
+ * The overlay loads on demand (`scenes/scene-loader.ts`, outside its queue of deferred calls), so it is not up at once. Until it is, Title
  * takes no pointer input and `rendererNoticePending()` holds its keys and pad (`conflictPromptOwnsInput`), so nothing
  * on Title is pressed in between and the notice can never come up over the screen a press opened instead.
  */
@@ -12,6 +12,7 @@ import type Phaser from "phaser";
 import { canvasFallbackInUse } from "../platform/renderer-options.js";
 import { rendererNoticeDue, rendererNoticeSeen } from "../view/webgl-help.js";
 import { SCENES } from "./keys.js";
+import { sceneLoader } from "./scene-loader.js";
 
 /** How often the launch checks whether the overlay is up, and how long it waits before giving Title back anyway. */
 const CHECK_MS = 50;
@@ -72,6 +73,17 @@ export function maybeShowRendererNotice(scene: Phaser.Scene): boolean {
     wanted = false;
     manager.stop(SCENES.rendererNotice);
   });
-  scene.scene.launch(SCENES.rendererNotice);
+  // The overlay's code is loaded here, outside the scene loader's queue of deferred calls: a load that hangs on a bad
+  // network must never hold up the screens the player opens once Title is given back. It is launched only once it is
+  // registered (so the launch runs at once), and only while the launch is still wanted and Title is still up.
+  const loaded = sceneLoader()?.load(SCENES.rendererNotice) ?? Promise.resolve();
+  void loaded.then(
+    () => {
+      if (wanted && pending && scene.sys.isActive()) scene.scene.launch(SCENES.rendererNotice);
+    },
+    () => {
+      if (pending) release();
+    },
+  );
   return true;
 }
