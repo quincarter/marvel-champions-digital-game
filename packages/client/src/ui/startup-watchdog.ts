@@ -20,6 +20,8 @@
 import type Phaser from "phaser";
 import { SCENES } from "../scenes/keys.js";
 import { recordError } from "./error-log.js";
+import { t } from "../i18n/translate.js";
+import { webglHelpText } from "../view/webgl-help.js";
 
 const FIRST_FRAME_MS = 20_000;
 const RESTORE_GRACE_MS = 3_000;
@@ -63,7 +65,19 @@ export function startupReportText(report: StartupReport): string {
       : "WebGL: not available",
     `Screen: ${report.screen} at device pixel ratio ${report.devicePixelRatio}`,
     `Browser: ${report.userAgent}`,
+    // The game plays on Canvas without WebGL (`main.ts`), so this shows only where Canvas failed too, or under
+    // `?renderer=webgl`: turning WebGL back on is still the fix.
+    ...(gl ? [] : webglHelpLines(report.userAgent)),
   ].join("\n");
+}
+
+/** The steps to turn WebGL back on; none if the text can't be read, so the report itself always shows. */
+function webglHelpLines(userAgent: string): string[] {
+  try {
+    return ["", t("rendererNotice.stepsHeading"), webglHelpText(userAgent)];
+  } catch {
+    return [];
+  }
 }
 
 /** What this browser's WebGL reports, from a throwaway canvas; null when neither WebGL 2 nor 1 starts. */

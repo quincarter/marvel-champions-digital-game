@@ -129,6 +129,7 @@ import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { introReplay } from "./replay-entry.js";
 import { maybeAskGlobalStats } from "./global-ask-launch.js";
 import { maybeShowSyncSetupPrompt } from "./sync-setup-prompt-launch.js";
+import { maybeShowRendererNotice } from "./renderer-notice-launch.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -419,8 +420,10 @@ export class TitleScene extends Phaser.Scene {
     const syncLink = takeSyncLink();
     if (syncLink) this.scene.launch(SCENES.settings, { syncLink });
     // The one-time "Set up cross-device sync?" question; it decides for itself and stays out of a link's way.
-    // The global win rates question comes only once that one has been decided, and never in the same visit.
-    else if (!receive) void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
+    // The global win rates question comes only once that one has been decided, and never in the same visit. The
+    // "Drawing without WebGL" notice (a browser with no WebGL, on the Canvas fallback) goes first and puts both off.
+    else if (!receive && !maybeShowRendererNotice(this))
+      void maybeShowSyncSetupPrompt(this).then((asked) => maybeAskGlobalStats(this, asked));
     // Points may have moved since Boot read them (a game just ended): read again, and announce a rank gained.
     // Both reads land before the screen fades in (`holdScreenFor`), so the menu is not seen redrawing for them.
     // Any read that lands redraws the menu and checks the rank (`onProgressRead`), Boot's own included: Boot goes on
