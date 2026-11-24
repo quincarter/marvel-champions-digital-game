@@ -14,7 +14,13 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_DEPS } from "../content/pool.js";
-import { costChoicePromptFor, costChoiceTitle, describeCost } from "./cost-choice-model.js";
+import {
+  costChoicePromptFor,
+  costChoiceTitle,
+  describeCost,
+  impliedCostSelection,
+  mergedCostSelection,
+} from "./cost-choice-model.js";
 
 const ROCKET_VS_BADOON: SessionConfig = {
   scenarioId: "infiltrate-the-museum",
@@ -189,5 +195,23 @@ describe("describeCost: discardFromDeck", () => {
     // `intoTurn` flips into hero form, so the "else" branch (2) is the one currently live.
     expect(me1.identity.form).toBe("hero");
     expect(label).toBe("discard the top 2 cards of your deck");
+  });
+});
+
+describe("impliedCostSelection / mergedCostSelection (issue #993)", () => {
+  const entry = (costBranches?: readonly number[]): LegalAction =>
+    ({ ...(costBranches ? { costBranches } : {}) }) as unknown as LegalAction;
+
+  test("the one payable branch is implied; none, two or no either/or cost imply nothing", () => {
+    expect(impliedCostSelection(entry([1]))).toEqual({ branch: 1 });
+    expect(impliedCostSelection(entry([0, 1]))).toBeUndefined();
+    expect(impliedCostSelection(entry([]))).toBeUndefined();
+    expect(impliedCostSelection(entry())).toBeUndefined();
+  });
+
+  test("a counter count answered on the one payable branch keeps that branch; a picked branch wins", () => {
+    expect(mergedCostSelection(entry([1]), { counters: 2 })).toEqual({ branch: 1, counters: 2 });
+    expect(mergedCostSelection(entry([0, 1]), { branch: 0 })).toEqual({ branch: 0 });
+    expect(mergedCostSelection(entry())).toBeUndefined();
   });
 });
