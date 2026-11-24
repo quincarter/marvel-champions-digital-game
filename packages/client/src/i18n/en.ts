@@ -560,6 +560,8 @@ export const en = {
   "webglHelp.other.acceleration":
     "Turn on hardware or graphics acceleration in your browser's settings, then restart it.",
   "webglHelp.otherBrowser": "Or try another browser, such as Chrome, Edge or Firefox.",
+  "campaign.deck.packVersionClash":
+    "{pack} needs {needs} {wanted}, but this campaign keeps {needs} {kept} from when it was signed. Take the {pack} cards out to save this deck.",
   "deckBuilder.show": "show",
   "deckBuilder.showHero": "Hero",
   "deckBuilder.allPacks": "All packs",

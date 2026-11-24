@@ -9,39 +9,8 @@
  */
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
-import { deckUsesCustomCards, isCustomCard } from "./custom-content.js";
 import { NOT_READY_REASON, leadsNotReadyHero, preconDecks } from "./deck-list-model.js";
-import { POOL_CARDS, currentPool } from "../content/pool.js";
-
-/**
- * Campaigns are base content only (docs/custom-content-packs.md §11.10): a pack's precon, or a saved deck holding a
- * custom card, is never offered. The campaign screens read the base card pool, and a run would have to carry the hero's
- * pack the way a pack campaign's run carries its own (`CampaignRecord.pack`) to survive the pack being updated or removed.
- */
-export const basePreconDecks = (poolVersion: string): readonly Deck[] =>
-  preconDecks(poolVersion).filter((deck) => !deckUsesCustomCards(deck));
-
-/**
- * The seat picker's line when a custom hero or a deck holding a custom card is left out (#960), so it doesn't look
- * missing. One line covers both: a base hero's deck with a custom card is held back as well.
- */
-export const CUSTOM_HEROES_NOTE = "Custom heroes and decks with custom cards can't join a campaign yet.";
-
-/**
- * Whether the picker holds anything back for custom content (`basePreconDecks`): an installed custom hero, with or
- * without a precon in its pack, a pack precon, or a saved deck holding a custom card.
- */
-export function customHeroesLeftOut(
-  savedDecks: readonly Deck[],
-  poolVersion: string,
-  pool: readonly AnyCard[] = currentPool(),
-): boolean {
-  return (
-    pool.some((card) => card.type === "hero_identity" && isCustomCard(card.id as string)) ||
-    preconDecks(poolVersion).some(deckUsesCustomCards) ||
-    savedDecks.some(deckUsesCustomCards)
-  );
-}
+import { currentPool } from "../content/pool.js";
 import { type AspectStamp, aspectName, aspectStampsOf } from "./aspect-stamp.js";
 import { cardDisplayName } from "./hero-names.js";
 import { matchesSearch } from "./roster-filter.js";
@@ -98,7 +67,7 @@ function identityNameOf(deck: Deck, pool: CardPool): string | null {
 
 /** The box's own cast, pre-filled: one precon per `castIdentityIds`, in order, at seats 1..N. Extra seats are empty. */
 export function preconRosterOf(castIdentityIds: readonly CardId[], poolVersion: string): (Deck | null)[] {
-  const precons = basePreconDecks(poolVersion);
+  const precons = preconDecks(poolVersion);
   const seats: (Deck | null)[] = Array.from({ length: ROSTER_SEAT_COUNT }, () => null);
   castIdentityIds.forEach((identityId, index) => {
     if (index >= ROSTER_SEAT_COUNT) return;
@@ -122,9 +91,10 @@ export interface RosterDeckOption {
   readonly blockedReason: string | null;
 }
 
-/** Every precon and saved deck, for this seat's picker. An identity already seated elsewhere is listed, not
- * dropped, so a wave-2 hero at the bottom of the pool is never made unreachable by an earlier seat's pick —
- * it's shown `blocked` instead, with the seat it's already sitting in. */
+/** Every precon and saved deck, for this seat's picker: an installed pack's hero and its precon, and a saved deck
+ * holding a custom card, included (#978: the run copies their packs in, `CampaignRecord.heroPacks`). An identity
+ * already seated elsewhere is listed, not dropped, so a wave-2 hero at the bottom of the pool is never made
+ * unreachable by an earlier seat's pick — it's shown `blocked` instead, with the seat it's already sitting in. */
 export function rosterDeckOptions(
   seats: readonly (Deck | null)[],
   seatNumber: number,
@@ -132,14 +102,14 @@ export function rosterDeckOptions(
   poolVersion: string,
   /** Why a deck's hero isn't unlocked yet (`Unlocks.deckLock`: precons only), or null. Default: every deck is open. */
   deckLockOf: (deck: Deck) => string | null = () => null,
-  pool: CardPool = POOL_CARDS,
+  pool: CardPool = currentPool(),
 ): readonly RosterDeckOption[] {
   const usedElsewhere = new Map<string, number>();
   seats.forEach((deck, index) => {
     if (index + 1 === seatNumber || !deck) return;
     usedElsewhere.set(deck.identityCardId as string, index + 1);
   });
-  return [...basePreconDecks(poolVersion), ...savedDecks.filter((deck) => !deckUsesCustomCards(deck))].map((deck) => {
+  return [...preconDecks(poolVersion), ...savedDecks].map((deck) => {
     const seat = usedElsewhere.get(deck.identityCardId as string);
     const lock = leadsNotReadyHero(deck, pool) ? NOT_READY_REASON : deckLockOf(deck);
     return {

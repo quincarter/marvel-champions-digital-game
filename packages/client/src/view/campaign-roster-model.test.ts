@@ -17,7 +17,6 @@ import {
   rosterModelOf,
   savedDeckNameOf,
   type PickerEntry,
-  customHeroesLeftOut,
 } from "./campaign-roster-model.js";
 import { pairCatalogOf } from "./seat-recommendations.js";
 import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
@@ -327,14 +326,16 @@ describe("not-ready heroes in the campaign roster", () => {
   });
 });
 
-describe("customHeroesLeftOut (#960)", () => {
-  test("no note for the base game's own heroes", () => {
-    expect(customHeroesLeftOut(preconDecks(POOL_VERSION), POOL_VERSION)).toBe(false);
-  });
-
-  test("a base hero's saved deck holding a custom card is left out, so the picker says so", () => {
+describe("custom decks in the picker (#978)", () => {
+  test("a base hero's saved deck holding a custom card is offered", () => {
     const base = preconDecks(POOL_VERSION)[0]!;
-    const custom = { ...base, cards: [...base.cards, { cardId: "x.sample.card" as CardId, quantity: 1 }] } as Deck;
-    expect(customHeroesLeftOut([custom], POOL_VERSION)).toBe(true);
+    const custom = {
+      ...base,
+      id: "saved-custom" as Deck["id"],
+      source: { kind: "userBuilt", createdAt: "2026-11-23T00:00:00.000Z" },
+      cards: [...base.cards, { cardId: "x.sample.card" as CardId, quantity: 1 }],
+    } as Deck;
+    const options = rosterDeckOptions([null], 1, [custom], POOL_VERSION);
+    expect(options.some((option) => option.deck.id === custom.id)).toBe(true);
   });
 });
