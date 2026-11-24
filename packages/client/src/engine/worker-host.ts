@@ -250,6 +250,19 @@ export class WorkerEngineHost implements EngineHost {
       ...(snapshot.adjusted ? { adjusted: snapshot.adjusted } : {}),
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
+      ...(snapshot.villainPhase
+        ? {
+            villainPhase: {
+              startCommand: snapshot.villainPhase.startCommand,
+              before: { ...snapshot.villainPhase.before, cardPool: pool },
+              commands: snapshot.villainPhase.commands.map((command) => ({
+                events: command.events,
+                states: command.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })),
+                after: { ...command.after, cardPool: pool },
+              })),
+            },
+          }
+        : {}),
       ...(snapshot.states
         ? { states: snapshot.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })) }
         : {}),

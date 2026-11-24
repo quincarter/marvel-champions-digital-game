@@ -38,6 +38,7 @@ import type {
   RewindOptions,
   SavedGame,
   SessionConfig,
+  VillainPhaseSeed,
 } from "../engine/host.js";
 import { setGamePacks } from "../content/game-deps.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
@@ -67,6 +68,11 @@ export interface SessionState {
    * the recent lines instead of empty. Empty for a new game and after the first command.
    */
   readonly resumedHistory: readonly GameEvent[];
+  /**
+   * A resumed game's first state only: the last villain phase its save holds, with the commands from the one that began it,
+   * for the walkthrough to come back after a reload (issue #989). Null otherwise.
+   */
+  readonly resumedVillainPhase: VillainPhaseSeed | null;
   /** Prefetched legal actions for the player who must act. */
   readonly legal: LegalActionsFor | null;
   /**
@@ -142,6 +148,7 @@ const INITIAL: SessionState = {
   lastEvents: [],
   lastStates: [],
   resumedHistory: [],
+  resumedVillainPhase: null,
   legal: null,
   perspectiveId: null,
   offTurnSeats: [],
@@ -492,6 +499,7 @@ export class SessionStore {
       lastEvents: update.events,
       lastStates: update.states ?? [],
       resumedHistory: update.history ?? [],
+      resumedVillainPhase: update.villainPhase ?? null,
       legal: update.legal,
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       offTurnSeats: [],
