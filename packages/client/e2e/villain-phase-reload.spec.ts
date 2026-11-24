@@ -31,15 +31,13 @@ test("issue #989: a reload during the villain phase brings the walkthrough back,
 }) => {
   test.setTimeout(150_000);
   const errors = trackErrors(page);
-  await page.addInitScript(() => {
-    // Set once: a reload must not put back a setting the page changed (it changes none, but the marker is not a setting).
-    if (localStorage.getItem("mc-settings") === null) {
-      localStorage.setItem(
-        "mc-settings",
-        JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
-      );
-    }
-  });
+  // Unconditional, as the dock spec has it: the same value on the reload, which changes no setting.
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "mc-settings",
+      JSON.stringify({ version: 1, villainAutoAdvance: "off", flipEncounterCards: false, holdEncounterCards: false }),
+    ),
+  );
   await installWave6Helpers(page);
   await page.goto("/?screen=villain-decision");
   await waitFor(() => villainDebugRect(page, "startRect"), "START VILLAIN PHASE", 30_000);
