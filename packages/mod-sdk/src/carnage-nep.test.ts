@@ -379,7 +379,7 @@ describe("pack content", () => {
     expect(cards.reduce((n, c) => n + c.quantity, 0)).toBe(40);
     const own = cards.filter((c) => String(c.cardId).startsWith(P)).reduce((n, c) => n + c.quantity, 0);
     expect(own).toBe(15);
-    expect(precon().name).toMatch(/suggested/i);
+    expect(precon().name).toMatch(/starter deck/i);
   });
 
   it("scripts both of Klyntar Bond's abilities", () => {
