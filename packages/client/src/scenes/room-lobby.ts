@@ -191,6 +191,9 @@ interface Note {
   readonly until: number;
 }
 
+/** The narrowest lobby header that fits the host's Live now toggle beside the code and Copy link. */
+const LISTED_HEADER_MIN_WIDTH = 600;
+
 export class RoomLobbyScene extends Phaser.Scene {
   #state: RoomState = roomState();
   #preview = false;
@@ -248,6 +251,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #refusalSeen = 0;
   #note: Note | null = null;
   #linkCopied = false;
+  /** The host's Live now toggle sits in the header beside Copy link (a wide header); else first in the settings. */
+  #listedInHeader = false;
   #starting = false;
   /** What the host's last Start said when it did not start the game (shown in the seats panel until dismissed). */
   #startResult: StartResultView | null = null;
@@ -785,6 +790,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#activity = null;
     this.#layoutMode = layout.mode;
     this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
+    this.#listedInHeader = false;
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
     // The chat in its own window is read there.
@@ -905,6 +911,31 @@ export class RoomLobbyScene extends Phaser.Scene {
       onClick: copy,
     });
     this.#addStop("copy", copyRect, copy);
+    // The host's "List this room in Live now", up top beside Copy link where it is seen (Quin, 2026-11-23: it was
+    // buried at the bottom of the settings). A phone's header has no room for it: it leads the settings there.
+    const settings = state.settings;
+    this.#listedInHeader = this.#isHost() && settings !== null && rect.width >= LISTED_HEADER_MIN_WIDTH;
+    if (this.#listedInHeader && settings) {
+      const on = settings.listed === true;
+      const listedWidth = 210;
+      const listedRect: Rect = {
+        x: copyRect.x - listedWidth - 10,
+        y: copyRect.y,
+        width: listedWidth,
+        height: hit.target,
+      };
+      const flip = (): void => this.#api.setLobby({ settings: { listed: settings.listed !== true } });
+      this.#button({
+        kind: "onInk",
+        label: on ? t("room.listed.headerOn") : t("room.listed.headerOff"),
+        type: typeRole.label,
+        rect: listedRect,
+        selected: on,
+        enabled: state.connection !== "ended",
+        onClick: flip,
+      });
+      this.#addStop("listed", listedRect, flip);
+    }
     const words = connectionWords(state);
     if (words) {
       const line = this.add
@@ -1682,6 +1713,13 @@ export class RoomLobbyScene extends Phaser.Scene {
         y += rowH + 8;
       };
 
+      // The host's Live now toggle leads the settings when the header has no room for it (a phone).
+      const listedRow = (): void =>
+        toggleRow("listed", t("room.listed.title"), t("room.listed.detail"), settings.listed === true, () =>
+          this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
+        );
+      if (host && !this.#listedInHeader) listedRow();
+
       // How it's played.
       y = this.#heading(x, y, w, t("room.mode.title"));
       for (const mode of ["strict", "host"] as const) {
@@ -1875,10 +1913,9 @@ export class RoomLobbyScene extends Phaser.Scene {
       toggleRow("openHands", t("room.openHands.title"), t("room.openHands.detail"), openHandsOf(this.#state), () =>
         this.#api.setLobby({ settings: { openHands: !openHandsOf(this.#state) } }),
       );
-      // The host's opt-in to the public "Live now" list; off unless the host turns it on.
-      toggleRow("listed", t("room.listed.title"), t("room.listed.detail"), settings.listed === true, () =>
-        this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
-      );
+      // The host's opt-in to the public "Live now" list, off unless the host turns it on: a guest reads it here, the host
+      // has it in the header or at the top of this list.
+      if (!host) listedRow();
       return y - top;
     });
   }

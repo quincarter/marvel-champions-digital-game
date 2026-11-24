@@ -512,6 +512,8 @@ export const en = {
   "room.askToSit.title": "Ask the host to sit at the table",
   "room.askToSit.detail":
     "Guests ask for a seat and you approve them. Off: guests take an open seat themselves before the game starts.",
+  "room.listed.headerOff": "Show in Live now",
+  "room.listed.headerOn": "Shown in Live now",
   "room.listed.title": "List this room in Live now",
   "room.listed.detail":
     "Anyone can see the room's name, mode, scenario and seats, and join to watch or ask for a seat. The code stays the way in, and anyone who saw it can still use it after you unlist.",
