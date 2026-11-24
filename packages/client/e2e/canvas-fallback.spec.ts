@@ -1,6 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { activeScenes, clickText, findText, hasText, settle, trackPageErrors, waitFor } from "./helpers.js";
-import { boardRound, driveToBoard, endTurnToNextRound, waitForScene } from "./wave6-helpers-a.js";
+import {
+  boardRound,
+  driveToBoard,
+  endTurnToNextRound,
+  installWave6Helpers,
+  routeStops,
+  waitForScene,
+} from "./wave6-helpers-a.js";
 import { handRectFor, inspectAt, openApp, startGame } from "./wave6-helpers-b.js";
 
 /**
@@ -116,6 +123,7 @@ test("without WebGL a game is played on Canvas: setup screens, the board, Inspec
   await switchWebglOff(page);
   // The notice has its own test: this one is about playing.
   await page.addInitScript(() => localStorage.setItem("mc-canvas-fallback-seen", "1"));
+  await installWave6Helpers(page);
   await openApp(page);
   expect(await rendererType(page)).toBe(1);
 
@@ -125,11 +133,13 @@ test("without WebGL a game is played on Canvas: setup screens, the board, Inspec
     until: async () => ((await activeScenes(page)).includes("ScenarioSelect") ? true : null),
     untilLabel: "Scenario select opens",
   });
+  // Its shelves draw (the tile names are worker-painted pictures, so the check reads the route, not text).
   await waitFor(
-    async () => ((await hasText(page, "Rhino", "ScenarioSelect")) ? true : null),
-    "the Core Set shelf shows Rhino",
+    async () => (((await routeStops(page, "ScenarioSelect"))?.stops.length ?? 0) > 3 ? true : null),
+    "the scenario shelves are up",
     30000,
   );
+  await settle(page);
 
   await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 43523 });
   await driveToBoard(page, { timeoutMs: 120_000 });
