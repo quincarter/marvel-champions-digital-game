@@ -66,7 +66,13 @@ import { applyIosInputZoomGuard } from "./platform/ios-input-zoom.js";
 import { applyDesktopWindowOnLaunch, desktopLaunchSettings, setRenderSizeHandler } from "./platform/desktop-window.js";
 import { storedSettingsOverrides } from "./settings-store.js";
 import { applyRenderSize } from "./ui/render-resolution.js";
-import { isAndroidEdge, rendererOptionsOf } from "./platform/renderer-options.js";
+import {
+  isAndroidEdge,
+  fellBackToCanvas,
+  rendererOptionsOf,
+  rendererTypeOf,
+  setCanvasFallback,
+} from "./platform/renderer-options.js";
 import { onPowerSavingChange, watchPowerSaving } from "./platform/power-saving.js";
 import { gpuRendererName, installRenderScale } from "./ui/render-scale.js";
 import { installIdleRender } from "./ui/idle-render.js";
@@ -130,8 +136,11 @@ await startAppLinks(undefined, undefined, undefined, undefined, undefined, () =>
 );
 
 const game = new Phaser.Game({
-  // `?renderer=canvas` and `?gl=…` test links for a device whose WebGL shows black (`platform/renderer-options.ts`).
-  type: rendererOptions.canvas ? Phaser.CANVAS : Phaser.WEBGL,
+  // Canvas where the browser has no WebGL, and the `?renderer=canvas` and `?gl=…` test links for a device whose WebGL
+  // shows black (`platform/renderer-options.ts`).
+  // AUTO is WebGL, or Canvas in a browser with no WebGL at all (Firefox with it turned off) rather than stopping with
+  // "Cannot create WebGL context"; it reuses the check Phaser made when it loaded.
+  type: { canvas: Phaser.CANVAS, webgl: Phaser.WEBGL, auto: Phaser.AUTO }[rendererTypeOf(rendererOptions)],
   ...(rendererOptions.transparent ? { transparent: true } : {}),
   render: {
     // Text and pictures that are only moved (not scaled or turned) draw at whole game pixels. A label centred on an odd
@@ -180,6 +189,12 @@ const game = new Phaser.Game({
     ReportButtonScene,
   ],
 });
+// Whether Phaser picked Canvas by itself, for Title's one-time "Drawing without WebGL" notice. The renderer is chosen as
+// the game boots, before any scene is created.
+const noteRenderer = (): void =>
+  setCanvasFallback(fellBackToCanvas(rendererOptions, game.config.renderType === Phaser.CANVAS));
+if (game.isBooted) noteRenderer();
+else game.events.once(Phaser.Core.Events.BOOT, noteRenderer);
 // Dark mode (#459): before Boot draws anything, so the first frame is already in the player's scheme.
 installColorScheme(game);
 

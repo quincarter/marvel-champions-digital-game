@@ -20,9 +20,19 @@
  *  - `?gl=aa`: the multisampled buffer even on a device that matches, or at 2x and up, to compare.
  *  - `?gl=lowpower`: `powerPreference: "low-power"`.
  *  - `?renderer=canvas`: the Canvas renderer instead of WebGL.
+ *  - `?renderer=webgl`: WebGL even where the browser reported none, to see Phaser's own error.
+ *
+ * A browser with no WebGL at all (switched off in Firefox, hardware acceleration off, a blocklisted driver) gets the
+ * Canvas renderer by itself (`Phaser.AUTO`, which makes the same `webgl` check Phaser already made when it loaded),
+ * rather than Phaser's "Cannot create WebGL context, aborting."
+ * (a Discord report: Firefox 157 on Windows). Canvas draws on the CPU at 1x (`ui/render-scale.ts`), so the game says
+ * once how to turn WebGL back on (`view/webgl-help.ts`, `scenes/renderer-notice.ts`).
  */
 export interface RendererOptions {
+  /** `?renderer=canvas`: Canvas whatever the browser has. */
   readonly canvas: boolean;
+  /** `?renderer=webgl`: WebGL even where the browser has none. Otherwise Phaser picks (`Phaser.AUTO`). */
+  readonly webgl?: true;
   readonly transparent?: true;
   readonly preserveDrawingBuffer?: true;
   readonly antialiasGL?: false;
@@ -53,11 +63,34 @@ export function rendererOptionsOf(search: string, device: DeviceInfo | null = nu
     flags.has("noaa") ||
     (!flags.has("aa") &&
       ((device !== null && needsSingleSampledCanvas(device)) || renderScale >= SINGLE_SAMPLED_FROM_SCALE));
+  const asked = params.get("renderer");
   return {
-    canvas: params.get("renderer") === "canvas",
+    canvas: asked === "canvas",
+    ...(asked === "webgl" ? { webgl: true } : {}),
     ...(flags.has("alpha") ? { transparent: true } : {}),
     ...(flags.has("preserve") ? { preserveDrawingBuffer: true } : {}),
     ...(singleSampled ? { antialiasGL: false } : {}),
     ...(flags.has("lowpower") ? { powerPreference: "low-power" } : {}),
   } as RendererOptions;
+}
+
+/** The renderer type to ask Phaser for: what a link asked for, else `auto` (WebGL, or Canvas where there is none). */
+export function rendererTypeOf(options: RendererOptions): "canvas" | "webgl" | "auto" {
+  return options.canvas ? "canvas" : options.webgl ? "webgl" : "auto";
+}
+
+/** True when Phaser picked Canvas by itself: the browser had no WebGL and no link asked for Canvas. */
+export function fellBackToCanvas(options: RendererOptions, pickedCanvas: boolean): boolean {
+  return pickedCanvas && !options.canvas;
+}
+
+/** Whether this run fell back to Canvas: set once by `main.ts` at boot, read by Title's notice (`scenes/renderer-notice.ts`). */
+let fellBack = false;
+
+export function setCanvasFallback(on: boolean): void {
+  fellBack = on;
+}
+
+export function canvasFallbackInUse(): boolean {
+  return fellBack;
 }
