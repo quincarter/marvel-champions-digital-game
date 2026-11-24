@@ -1,0 +1,93 @@
+# Android developer verification: a tiny APK that proves we hold the release key for com.quincarter.marvelchampions.
+#
+# The Android Developer Console registers a package name and signing key by asking for an APK signed with that key
+# that carries the console's snippet in assets/adi-registration.properties. Its upload takes 150 MB at most, and the
+# game's APK is over 1 GB, so the console's own advice applies: an empty app with the same package name. This builds
+# one with aapt2 (no code, just the manifest and the assets file), signs it with the release keystore secret, checks
+# the certificate's SHA-256 is the registered one, and uploads it as the "android-verification-apk" artifact.
+#
+# Run it by hand (Actions > Android verification APK > Run workflow), or it runs on a pull request that changes this
+# file or the snippet. Download the artifact, unzip it, and upload the .apk in the console.
+name: Android verification APK
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/android-verification-apk.yml
+      - packages/client/android/app/src/main/assets/adi-registration.properties
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the verification APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A fork's pull request has no secrets; only this repository's branches can sign.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      PACKAGE: com.quincarter.marvelchampions
+      # The release key's certificate, as registered in the console (read from the v0.53.0 release APKs).
+      EXPECTED_SHA256: 7EF5F8C8C5323CEC2898B71853BA642FE33D4E5A72620A9517D648CCAAD72C06
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build and sign
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::The release keystore secrets are missing; a throwaway key cannot prove ownership."
+            exit 1
+          fi
+          export KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+          work="$RUNNER_TEMP/adv"
+          mkdir -p "$work/assets" out
+          echo "$KEYSTORE_BASE64" | base64 -d > "$work/release.keystore"
+          cp packages/client/android/app/src/main/assets/adi-registration.properties "$work/assets/"
+
+          tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          platform="$(ls -d "$ANDROID_HOME"/platforms/android-* | sort -V | tail -n 1)"
+          echo "Build tools: $tools; platform: $platform"
+
+          cat > "$work/AndroidManifest.xml" <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="$PACKAGE" android:versionCode="1" android:versionName="verification">
+            <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
+            <application android:hasCode="false" android:label="Marvel Champions verification" />
+          </manifest>
+          XML
+
+          "$tools/aapt2" link -o "$work/unsigned.apk" --manifest "$work/AndroidManifest.xml" \
+            -I "$platform/android.jar" -A "$work/assets"
+          "$tools/zipalign" -p -f 4 "$work/unsigned.apk" "$work/aligned.apk"
+          apk="out/MarvelChampions-verification.apk"
+          "$tools/apksigner" sign --ks "$work/release.keystore" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEY_PASSWORD --out "$apk" "$work/aligned.apk"
+          rm -f "$work/release.keystore"
+
+          certs="$("$tools/apksigner" verify --print-certs "$apk")"
+          echo "$certs"
+          actual="$(echo "$certs" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr 'a-f' 'A-F')"
+          if [ "$actual" != "$EXPECTED_SHA256" ]; then
+            echo "::error::Signed with $actual, not the registered key $EXPECTED_SHA256."
+            exit 1
+          fi
+          unzip -p "$apk" assets/adi-registration.properties
+          echo
+          ls -l "$apk"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android-verification-apk
+          path: out/MarvelChampions-verification.apk
+          if-no-files-found: error
+          retention-days: 7
