@@ -215,12 +215,20 @@ export async function putDeck(page: Page, id: string, name: string): Promise<voi
 
 export async function deckNames(page: Page): Promise<string[]> {
   return page.evaluate(async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    // Reading must never create the database: an empty "mc-decks" at version 1 (no `decks` store) is left behind, the
+    // app's own open finds nothing to upgrade, and its sync then fails with "object stores was not found". A database
+    // the app has not made yet (a fresh device, under load) is aborted on creation and reads as no decks.
+    const db = await new Promise<IDBDatabase | null>((resolve, reject) => {
       const request = indexedDB.open("mc-decks", 1);
+      request.onupgradeneeded = () => request.transaction?.abort();
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onerror = () => (request.error?.name === "AbortError" ? resolve(null) : reject(request.error));
     });
-    if (!db.objectStoreNames.contains("decks")) return [];
+    if (!db) return [];
+    if (!db.objectStoreNames.contains("decks")) {
+      db.close();
+      return [];
+    }
     const all = await new Promise<{ name: string }[]>((resolve) => {
       const request = db.transaction("decks").objectStore("decks").getAll();
       request.onsuccess = () => resolve(request.result);
