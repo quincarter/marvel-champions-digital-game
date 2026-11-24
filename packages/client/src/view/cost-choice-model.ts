@@ -17,6 +17,7 @@ import {
   playCostWith,
   resolveValue,
   type AbilityCost,
+  type CostSelection,
   type EngineDeps,
   type GameState,
   type InstanceId,
@@ -201,6 +202,27 @@ export function describeCost(
   if (cost.healCharacter) parts.push(`heal ${cost.healCharacter.amount} damage from a character you choose`);
   if (cost.discardSelf) parts.push("discard this card");
   return parts.length > 0 ? parts.join(", ") : "pay this cost";
+}
+
+/**
+ * The either/or branch an action is paid on when the player is not asked which: the one branch `legalActions` lists as
+ * payable. Without it the payment step reads the cost as the engine's default, the first branch, which may be the one
+ * that cannot be paid. Sinking Ferry with too few [energy] left only "exhaust a hero or ally you control": after the
+ * player picked the ally the board asked for two [energy] (issue #993). Undefined when there is a real choice (the
+ * branch prompt answers it) or no either/or cost.
+ */
+export function impliedCostSelection(entry: LegalAction): CostSelection | undefined {
+  const only = entry.costBranches?.length === 1 ? entry.costBranches[0] : undefined;
+  return only === undefined ? undefined : { branch: only };
+}
+
+/**
+ * The selection a payment step uses: what the player answered (a branch, a counter count) over the implied branch, so a
+ * counter count asked on the one payable branch still carries that branch.
+ */
+export function mergedCostSelection(entry: LegalAction, picked?: CostSelection): CostSelection | undefined {
+  const implied = impliedCostSelection(entry);
+  return implied || picked ? { ...implied, ...picked } : undefined;
 }
 
 /**
