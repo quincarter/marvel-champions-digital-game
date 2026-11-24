@@ -19,7 +19,7 @@ import type {
   SideSchemeRow,
 } from "../../view/campaign-side-scheme-model.js";
 import { pickRowLayout, sideSchemePickCards, type PickCard } from "../../view/campaign-briefing-model.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import type { FocusStop } from "../focus-route.js";
 import { drawPickCards } from "./briefing-pick-cards.js";
 
@@ -37,7 +37,7 @@ const CHIP_HEIGHT = hit.target;
 const ROW_GAP = 8;
 
 const pickCardsOf = (row: SideSchemeRow): readonly PickCard[] =>
-  sideSchemePickCards(row, (id) => CARDS_BY_ID.get(id)?.type);
+  sideSchemePickCards(row, (id) => campaignCardsById().get(id)?.type);
 
 function chip(ctx: SideSchemeDrawContext, rect: Rect, word: string, stopKey: string, card: SchemeCardRef): void {
   const open = (): void => ctx.inspect(card);

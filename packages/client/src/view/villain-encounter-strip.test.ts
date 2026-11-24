@@ -101,3 +101,40 @@ describe("encounterStripOf", () => {
     expect(strip(tracking, []).tiles[0]!.status).toBe("next");
   });
 });
+
+describe("cards dealt before the phase (#984)", () => {
+  // Two players: the ally's deck ran out in the player phase (an earlier card), then step 3 dealt one card each.
+  const before: EncounterTracking = {
+    dealt: [
+      { instanceId: id("stampede"), playerId: me, duringReveal: false },
+      { instanceId: id("hydra"), playerId: ally, duringReveal: false },
+    ],
+    dealtBefore: [{ instanceId: id("surge"), playerId: ally, source: "deckReset" }],
+    revealed: [],
+    current: null,
+  };
+
+  it("lists each player's earlier cards ahead of their own step 3 card, players in step 3's order", () => {
+    const result = strip(before, []);
+    expect(result.tiles.map((tile) => [tile.instanceId, tile.marks])).toEqual([
+      [id("stampede"), []],
+      [id("surge"), ["DECK RAN OUT"]],
+      [id("hydra"), []],
+    ]);
+  });
+
+  it("names what else dealt the card in the dealt pile's words", () => {
+    const unique: EncounterTracking = {
+      ...before,
+      dealtBefore: [{ instanceId: id("surge"), playerId: ally, source: "uniqueRule" }],
+    };
+    expect(strip(unique, []).tiles[1]!.marks).toEqual(["UNIQUE RULE"]);
+  });
+
+  it("keeps the step 3 order when nothing was dealt before the phase", () => {
+    expect(strip({ ...before, dealtBefore: [] }, []).tiles.map((tile) => tile.instanceId)).toEqual([
+      id("stampede"),
+      id("hydra"),
+    ]);
+  });
+});
