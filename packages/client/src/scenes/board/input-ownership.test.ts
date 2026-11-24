@@ -27,6 +27,12 @@ describe("who owns the keyboard and pad while a sync question is up", () => {
     expect(conflictPromptOwnsInput(sceneIn(SCENES.syncData, running))).toBe(false);
   });
 
+  test("the Drawing without WebGL notice holds Title, not itself", () => {
+    const running = [SCENES.title, SCENES.rendererNotice];
+    expect(conflictPromptOwnsInput(sceneIn(SCENES.title, running))).toBe(true);
+    expect(conflictPromptOwnsInput(sceneIn(SCENES.rendererNotice, running))).toBe(false);
+  });
+
   test("a conflict raised during the prompt's Join or Set up keeps its own keyboard and pad", () => {
     const running = [SCENES.title, SCENES.syncSetupPrompt, SCENES.syncData, SCENES.syncConflict];
     expect(conflictPromptOwnsInput(sceneIn(SCENES.syncConflict, running))).toBe(false);

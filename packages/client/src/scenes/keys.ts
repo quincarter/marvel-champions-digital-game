@@ -126,6 +126,8 @@ export const SCENES = {
   syncPrompt: "SyncPrompt",
   /** The one-time "Set up cross-device sync?" question (`scenes/sync-setup-prompt.ts`), launched over Title. */
   syncSetupPrompt: "SyncSetupPromptOverlay",
+  /** The one-time "Drawing without WebGL" notice (`scenes/renderer-notice.ts`), launched over Title on the Canvas fallback. */
+  rendererNotice: "RendererNoticeOverlay",
   /** The one-time "Share your results?" question for the global win rates (`scenes/global-ask-prompt.ts`), launched over Title. */
   globalStatsPrompt: "GlobalStatsPromptOverlay",
   /** The note that follows its "Not now" (`scenes/sync-setup-prompt.ts`): where to set sync up later. */
