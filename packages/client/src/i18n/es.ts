@@ -998,6 +998,8 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "modStore.updateAll.retry": "Reintentar",
   "modStore.updateAll.show": "Verlos",
   "modStore.updateAll.stopped": "Detenido. El resto aún se puede actualizar.",
+  "campaign.deck.packVersionClash":
+    "{pack} necesita {needs} {wanted}, pero esta campaña conserva {needs} {kept} de cuando se firmó. Quita las cartas de {pack} para guardar este mazo.",
   "deckBuilder.show": "mostrar",
   "deckBuilder.showHero": "Héroe",
   "deckBuilder.allPacks": "Todos los packs",

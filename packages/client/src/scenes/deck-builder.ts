@@ -59,7 +59,6 @@ import type { CardId } from "@mc/content";
 import {
   CUSTOM_SHELF_ID,
   POOL_HERO_SHELF_PACKS,
-  POOL_CARDS,
   POOL_PACKS,
   POOL_VERSION,
   currentCardsById,
@@ -200,6 +199,8 @@ import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
 import { noteDeckFeat } from "../progression/deck-feats.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import { appSession, campaignService, deckStorage } from "../session.js";
+import { campaignCardsById, campaignPool } from "../content/campaign-pool.js";
+import { openRunPacksNow } from "../campaign/run-packs.js";
 import { cardSizeFactor } from "../settings.js";
 import { deckBuilderRowSizes, type DeckBuilderRowSizes } from "../view/deck-builder-rows.js";
 import {
@@ -296,14 +297,23 @@ const NARROW_SCROLLBAR_GUTTER = 10;
  * derived list below is kept until the loaded packs change, so a pack installed or removed shows on the next visit
  * and nothing is rebuilt per frame.
  */
-const poolNow = (): readonly AnyCard[] => currentPool();
+let campaignMode = false;
+/** In a campaign's deck edit, the open run's pool (`campaignPool`, #978): its own pack copies, for search and lookups too. */
+const poolNow = (): readonly AnyCard[] => (campaignMode ? campaignPool() : currentPool());
 let identitiesOf: { readonly pool: readonly AnyCard[]; readonly list: readonly HeroIdentityCard[] } | null = null;
 const identities = (): readonly HeroIdentityCard[] => {
   const now = poolNow();
   if (identitiesOf?.pool !== now) identitiesOf = { pool: now, list: identityOptions(now) };
   return identitiesOf.list;
 };
-const cardById = (): ReadonlyMap<string, AnyCard> => currentCardsById();
+const cardById = (): ReadonlyMap<string, AnyCard> => (campaignMode ? campaignCardsById() : currentCardsById());
+/** What the search worker's documents are keyed by: the loaded packs, and in a campaign the open run's pack copies. */
+const poolKeyNow = (): string =>
+  campaignMode
+    ? `${currentPoolKey()}|run:${openRunPacksNow()
+        .map((pack) => `${pack.id}@${pack.version}`)
+        .join(",")}`
+    : currentPoolKey();
 
 /**
  * `filter` plus the search's `field:value` terms (`pool-query.ts`) as clauses this side applies; the search worker
@@ -603,6 +613,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
     this.#campaign = data.campaign ?? null;
     this.#returnTo = data.returnTo ?? null;
+    campaignMode = this.#campaign !== null;
     const given = data.deck ?? null;
     // A precon is never edited in place (issue #217): the builder edits the player's own copy of it.
     this.#deck =
@@ -616,7 +627,9 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#heroRanking = null;
     this.#poolSearch = new DeckSearchClient();
     this.#heroSearch = new DeckSearchClient();
-    this.#identity = this.#deck ? (identities().find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
+    // A campaign seat's hero may come from a pack the run carries but that is no longer installed (#978).
+    const heroes = this.#campaign ? identityOptions(campaignPool()) : identities();
+    this.#identity = this.#deck ? (heroes.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     // The sort, kept filters and card/list view the player last left (issue #531).
     const view = deckBuilderView();
     this.#filter = { ...view.filter };
@@ -993,9 +1006,12 @@ export class DeckBuilderScene extends Phaser.Scene {
   }
 
   /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
-  /** The cards this screen builds against: the base pool in a campaign (base content only, docs/custom-content-packs.md §7.4), else everything installed. */
+  /**
+   * The cards this screen builds against: everything installed, and in a campaign the cards of the packs the run carries
+   * too (`campaignPool`, #978), so a custom hero's run edits its deck even after the hero's pack is removed.
+   */
   #pool(): readonly AnyCard[] {
-    return this.#campaign ? POOL_CARDS : poolNow();
+    return this.#campaign ? campaignPool() : poolNow();
   }
 
   #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
@@ -2225,7 +2241,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       y += head.height + 10;
       for (const entry of cards) {
         if (y + thumb.height > limit) return;
-        const card = currentCardsById().get(entry.cardId);
+        const card = cardById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         const frame = this.add.graphics();
         frame.fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
@@ -3381,7 +3397,7 @@ ${entry.detail}`,
       });
       return;
     }
-    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${currentPoolKey()}:${lang}`);
+    search.setDocuments(POOL_SEARCH_DOCUMENTS(), `${poolKeyNow()}:${lang}`);
     search.search(text, (ranked) => {
       if (!this.sys.isActive()) return;
       this.#poolRanking = new Map(ranked.map((r) => [r.id, r.score]));

@@ -9,7 +9,7 @@
  */
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type ComicBeatRef, type ComicPage } from "../../campaign/story.js";
-import { CARDS_BY_ID } from "../../content/pool.js";
+import { campaignCardsById } from "../../content/campaign-pool.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { appSession, campaignService } from "../../session.js";
 import { accent, dotGrid, ink, signal, surface, typeRole } from "../../tokens.js";
@@ -161,7 +161,13 @@ export class CampaignRewindScene extends Phaser.Scene {
     this.#record = record;
     const definition = service.definitionFor(record);
     const nodeIds = definition.graph.nodes.map((node) => node.id);
-    this.#view = rewindViewOf(record, this.#data.nodeId, (id) => issueNumberOf(nodeIds, id), CARDS_BY_ID, definition);
+    this.#view = rewindViewOf(
+      record,
+      this.#data.nodeId,
+      (id) => issueNumberOf(nodeIds, id),
+      campaignCardsById(),
+      definition,
+    );
     this.#draw();
   }
 
