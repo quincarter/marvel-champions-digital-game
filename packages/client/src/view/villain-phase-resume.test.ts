@@ -38,11 +38,32 @@ const RHINO_SOLO: SessionConfig = {
 describe("the open walkthrough's marker", () => {
   test("is set, read back and cleared", () => {
     const storage = fakeStorage();
-    expect(readVillainPhaseMarker(storage)).toBeNull();
+    expect(readVillainPhaseMarker("g1", storage)).toBeNull();
     writeVillainPhaseMarker({ gameId: "g1", commandCount: 3 }, storage);
-    expect(readVillainPhaseMarker(storage)).toEqual({ gameId: "g1", commandCount: 3 });
-    clearVillainPhaseMarker(storage);
-    expect(readVillainPhaseMarker(storage)).toBeNull();
+    expect(readVillainPhaseMarker("g1", storage)).toEqual({ gameId: "g1", commandCount: 3 });
+    clearVillainPhaseMarker("g1", storage);
+    expect(readVillainPhaseMarker("g1", storage)).toBeNull();
+  });
+
+  test("two tabs in two games keep their own markers: neither overwrites nor clears the other's", () => {
+    // One device's storage, shared by both tabs.
+    const storage = fakeStorage();
+    // Tab A's walkthrough opens in game A, then tab B's in game B.
+    writeVillainPhaseMarker({ gameId: "game-a", commandCount: 12 }, storage);
+    writeVillainPhaseMarker({ gameId: "game-b", commandCount: 30 }, storage);
+    expect(readVillainPhaseMarker("game-a", storage)).toEqual({ gameId: "game-a", commandCount: 12 });
+    // Tab B closes its walkthrough: tab A's reload still finds its own.
+    clearVillainPhaseMarker("game-b", storage);
+    expect(readVillainPhaseMarker("game-b", storage)).toBeNull();
+    expect(readVillainPhaseMarker("game-a", storage)).toEqual({ gameId: "game-a", commandCount: 12 });
+  });
+
+  test("reads nothing for no game", () => {
+    const storage = fakeStorage();
+    writeVillainPhaseMarker({ gameId: "g1", commandCount: 3 }, storage);
+    expect(readVillainPhaseMarker(null, storage)).toBeNull();
+    expect(() => clearVillainPhaseMarker(null, storage)).not.toThrow();
+    expect(readVillainPhaseMarker("g1", storage)).not.toBeNull();
   });
 
   test("ignores a note that is not one this build wrote", () => {
@@ -53,10 +74,12 @@ describe("the open walkthrough's marker", () => {
       "null",
       JSON.stringify({ gameId: 1, commandCount: 2 }),
       JSON.stringify({ gameId: "g", commandCount: -1 }),
+      // Another game's note under this game's key.
+      JSON.stringify({ gameId: "other", commandCount: 2 }),
     ];
     for (const raw of notes) {
-      storage.items.set("mc-villain-phase-open", raw);
-      expect(readVillainPhaseMarker(storage)).toBeNull();
+      storage.items.set("mc-villain-phase-open:g", raw);
+      expect(readVillainPhaseMarker("g", storage)).toBeNull();
     }
   });
 
@@ -73,8 +96,8 @@ describe("the open walkthrough's marker", () => {
       },
     };
     expect(() => writeVillainPhaseMarker({ gameId: "g", commandCount: 1 }, blocked)).not.toThrow();
-    expect(readVillainPhaseMarker(blocked)).toBeNull();
-    expect(() => clearVillainPhaseMarker(blocked)).not.toThrow();
+    expect(readVillainPhaseMarker("g", blocked)).toBeNull();
+    expect(() => clearVillainPhaseMarker("g", blocked)).not.toThrow();
     expect(() => writeVillainPhaseMarker({ gameId: "g", commandCount: 1 }, null)).not.toThrow();
   });
 });
