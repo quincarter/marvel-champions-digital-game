@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { pressAt, pressHookStop, settle, waitFor } from "./helpers.js";
-import { installWave6Helpers, trackErrors, waitForScene } from "./wave6-helpers-a.js";
+import { boardRound, endTurnToNextRound, installWave6Helpers, trackErrors, waitForScene } from "./wave6-helpers-a.js";
 import { dealToFirstTurn, quietGuide } from "./wave6-helpers-b.js";
 import { stubClipboard, test, type RoomServer } from "./live-room-helpers.js";
 
@@ -55,6 +55,10 @@ async function dealIt(page: Page): Promise<void> {
 
 async function expectRoom(page: Page, room: RoomServer, opens: boolean): Promise<void> {
   if (opens) {
+    // The room opens on the first command made once the live-room worker is up. The worker starts when the game
+    // begins and, on a cold dev server, loads after the deal's own commands (Keep all, setup choices) have run, so
+    // those are only held, not streamed. End turn is a command the worker is certain to see.
+    if (room.creates() === 0) await endTurnToNextRound(page, (await boardRound(page)) ?? 1);
     await waitFor(async () => (room.creates() > 0 ? true : null), "a room after the first command", 30000);
     expect(room.creates()).toBe(1);
     await waitFor(async () => (room.sent.some((m) => m.kind === "start") ? true : null), "the game streamed", 30000);

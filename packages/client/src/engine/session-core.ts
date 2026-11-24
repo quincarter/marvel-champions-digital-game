@@ -98,6 +98,7 @@ import type {
   SealedEventState,
   SealedStateWithoutPool,
   SessionConfig,
+  VillainPhaseSeedCore,
   StateWithoutPool,
 } from "./host.js";
 
@@ -126,6 +127,8 @@ export interface Snapshot {
   readonly history?: readonly GameEvent[];
   /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
   readonly trail?: readonly BackOutTrailEntry[];
+  /** A resumed game only: its last villain phase, to rebuild the walkthrough after a reload (`EngineUpdate.villainPhase`). */
+  readonly villainPhase?: VillainPhaseSeedCore;
   /** The table at the villain phase's events, where the command had any (`EngineUpdate.states`). */
   readonly states?: readonly SealedEventState[];
   /** The game was adjusted by hand or undone past a reveal (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
@@ -193,6 +196,31 @@ export const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool 
  * from the step that opens it (its `stepChanged` is emitted with the new step already set).
  */
 export const inVillainPhase = (_event: GameEvent, state: GameState): boolean => state.step.phase === "villain";
+
+/** Whether a command's events begin a villain phase: the step that opens it, `placeThreat` (RRG 1.8 p. 29). */
+export const beginsVillainPhase = (events: readonly GameEvent[]): boolean =>
+  events.some(
+    (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
+  );
+
+/** A villain phase found in a replay, sealed for the table (`VillainPhaseSeedCore`). */
+const villainPhaseSeedOf = (phase: {
+  readonly startCommand: number;
+  readonly before: GameState;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly EventState[];
+    readonly after: GameState;
+  }[];
+}): VillainPhaseSeedCore => ({
+  startCommand: phase.startCommand,
+  before: stripSealedPool(sealForTable(phase.before)),
+  commands: phase.commands.map((command) => ({
+    events: command.events,
+    states: sealedEventStates(command.states),
+    after: stripSealedPool(sealForTable(command.after)),
+  })),
+});
 
 /**
  * The recorded states as the table may read them: sealed like the snapshot's own state, without the pool, and only
@@ -579,8 +607,17 @@ export class EngineSessionCore {
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
     const trail: BackOutTrailEntry[] = [];
+    // The villain phase the save ends in or just finished, with the commands from the one that began it (issue #989). Only
+    // a phase the walkthrough could still be open for: a command taken after the phase left the villain phase means the
+    // player started the player phase, so it is dropped, and collecting stops at the command that ends the phase.
+    let phase: {
+      startCommand: number;
+      before: GameState;
+      ended: boolean;
+      commands: { events: readonly GameEvent[]; states: readonly EventState[]; after: GameState }[];
+    } | null = null;
     for (const [index, command] of stored.commands.entries()) {
-      const result = applyCommand(state, command, depsOf(stored.meta.config));
+      const result = applyCommand(state, command, depsOf(stored.meta.config), { recordStates: inVillainPhase });
       if (!result.ok) {
         if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
         await storage.setStatus(gameId, "incompatible");
@@ -595,6 +632,12 @@ export class EngineSessionCore {
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
       record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
+      if (phase?.ended) phase = null;
+      if (beginsVillainPhase(result.events)) phase = { startCommand: index, before: state, ended: false, commands: [] };
+      if (phase) {
+        phase.commands.push({ events: result.events, states: result.states ?? [], after: result.state });
+        if (result.state.step.phase !== "villain") phase.ended = true;
+      }
       state = result.state;
       history.push(...result.events);
     }
@@ -615,7 +658,15 @@ export class EngineSessionCore {
     this.#activeAt = this.#now();
     this.#createdAt = stored.meta.createdAt;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
+    return {
+      cardPool: initialState.cardPool,
+      snapshot: {
+        ...this.#snapshot([]),
+        history,
+        trail,
+        ...(phase ? { villainPhase: villainPhaseSeedOf(phase) } : {}),
+      },
+    };
   }
 
   /**
