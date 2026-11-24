@@ -192,4 +192,28 @@ describe("custom heroes in campaigns (#978)", () => {
     });
     expect(campaignCardsById().has(identityId)).toBe(false);
   });
+
+  it("copies a pack in for a granted card the player left out of the deck", async () => {
+    await installSample();
+    const base = preconDecks(POOL_VERSION).find((d) => !deckUsesCustomCards(d))!;
+    const service = campaignService();
+    const signed = await service.start({
+      campaignId: "trors",
+      seats: [{ identityCardId: base.identityCardId, deck: base }],
+      poolVersion: POOL_VERSION,
+      seed: 6,
+    });
+    const reward = customPrecon().cards.find((entry) => entry.cardId !== customPrecon().identityCardId)!.cardId;
+    // A reward granted and left out of the deck (`inclusion: "optional"`, then not included).
+    const granted = {
+      ...signed,
+      seats: signed.seats.map((seat) => ({
+        ...seat,
+        grants: [...seat.grants, { cardId: reward, permanence: "permanent", inclusion: "optional" }],
+      })),
+    } as unknown as typeof signed;
+    const saved = await service.setSeatDeck(granted, 1, base);
+    expect(saved.seats[0]!.deck.cards.some((entry) => entry.cardId === reward)).toBe(false);
+    expect(saved.heroPacks?.map((pack) => pack.id)).toEqual(["sample-hero"]);
+  });
 });

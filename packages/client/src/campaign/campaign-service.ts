@@ -581,7 +581,16 @@ export class CampaignService {
     const carried = new Set(
       runPacksOf({ ...(previous.pack ? { pack: previous.pack } : {}), heroPacks: had }).map((p) => p.id),
     );
-    const wanted = this.#heroPacksOf(log.seats);
+    // A seat's grants count too: a reward the player left out of the deck (`setSeatRewardIncluded`) is still the run's,
+    // so its pack is copied in now, before an update or removal could take its card away.
+    const wanted = this.#heroPacksOf(
+      log.seats.map((seat) => ({
+        deck: {
+          ...seat.deck,
+          cards: [...seat.deck.cards, ...(seat.grants ?? []).map((grant) => ({ cardId: grant.cardId, quantity: 1 }))],
+        },
+      })),
+    );
     const added = wanted.filter((pack) => !carried.has(pack.id));
     if (added.length === 0) return had;
     // The last guard before anything is written, whatever path put the card in a deck (an edit, a fixed grant, a
