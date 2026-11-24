@@ -1111,7 +1111,7 @@ export class BoardScene extends Phaser.Scene {
       // A reload with the walkthrough open (issue #989): the history splits where the villain phase began, so the log
       // and the refill as they stood just before it are known. Not a replay's seek, not a finished game.
       const seed =
-        !replay && !state.game.outcome
+        !replay && !state.game.outcome && this.#ownsVillainPhase()
           ? villainPhaseToRebuild(readVillainPhaseMarker(), state.gameId, state.resumedVillainPhase)
           : null;
       if (state.resumedHistory.length > 0) {
@@ -1608,7 +1608,7 @@ export class BoardScene extends Phaser.Scene {
     appSession().gameLog = this.#tableLog();
     // Noted for a reload while the walkthrough is open; the overlay clears it as it closes. A replay or a game that is
     // not saved has nothing to come back to.
-    if (begins && !this.#replay && state.gameId) {
+    if (begins && !this.#replay && state.gameId && this.#ownsVillainPhase()) {
       writeVillainPhaseMarker({ gameId: state.gameId, commandCount: Math.max(0, state.version - 1) });
     }
     this.scene.launch(SCENES.villainPhase, {
@@ -2885,6 +2885,14 @@ export class BoardScene extends Phaser.Scene {
       if (this.scene.isActive(key)) this.scene.stop(key);
     }
     this.#choiceOpen = false;
+  }
+
+  /**
+   * Whether this device's villain phase is its own to bring back after a reload (#989): solo play, or a room's host. A
+   * seated guest's walkthrough follows the host's (`villainPacing`), so a guest never writes or uses the marker.
+   */
+  #ownsVillainPhase(): boolean {
+    return !inRoomGame(this.#room) || this.#room.role === "host";
   }
 
   /** The table is read-only while it is another seat's decision: no action, no choice sheet (#881). */
