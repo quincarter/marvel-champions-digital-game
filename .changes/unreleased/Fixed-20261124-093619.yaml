@@ -1,0 +1,3 @@
+kind: Fixed
+body: A pick of cards that doesn't fit on the screen scrolls now (Repurpose with many Tech upgrades on a phone), and on a wide screen a long row wraps onto more rows (#991, reported by GarethMagis on Discord).
+time: 2026-11-24T09:36:19.304759-05:00

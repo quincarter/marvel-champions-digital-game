@@ -170,7 +170,7 @@ import {
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes, SchemeScrollState } from "./board/schemes.js";
 import type { LargeSchemeShape } from "../view/scheme-list-layout.js";
-import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
+import { drawTargetingPanel, TargetingScrollState, type TargetingHover } from "./board/targeting-panel.js";
 import { drawSearchedPickSheet } from "./board/searched-pick-sheet.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
@@ -416,6 +416,8 @@ export class BoardScene extends Phaser.Scene {
   #debugPad: { sideSchemes?: number; minions?: number; environments?: number; playArea?: number } | null = null;
   /** The schemes column's scroll position, which has to survive the whole-board redraw that rebuilds its region. */
   readonly #schemeScroll = new SchemeScrollState();
+  /** The targeting panel's tiles' scroll, when they outrun it (a phone with many cards to choose from). */
+  readonly #targetingScroll = new TargetingScrollState();
   /** The pulsing rings on the valid targets: redrawn alone when the schemes column scrolls under them. */
   #targetRings: McSelectionRing[] = [];
   readonly #hand = new HandScroll(() => this.#draw());
@@ -1953,9 +1955,12 @@ export class BoardScene extends Phaser.Scene {
       return false;
     }
     const panel = this.#controller.targetingPanel();
-    if (!panel) return false;
+    if (!panel) {
+      this.#targetingScroll.forget();
+      return false;
+    }
     const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
-    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top);
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused, top, this.#targetingScroll);
     return true;
   }
 

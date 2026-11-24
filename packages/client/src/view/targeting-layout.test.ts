@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { REFERENCE_VIEWPORTS, rectsOverlap } from "./layout.js";
-import { targetingLayout } from "./targeting-layout.js";
+import { MIN_ROW_TILE_WIDTH, SCROLLBAR_ROOM, targetingLayout } from "./targeting-layout.js";
 
 const SIZES = [
   { name: "phone", ...REFERENCE_VIEWPORTS.phone },
@@ -99,13 +99,82 @@ describe("targetingLayout", () => {
     expect(fitted.tileSize.height).toBeGreaterThanOrEqual(fitted.artHeight + 40);
   });
 
-  test("phone: a row is as tall as its text, the art goes before the text is squeezed, and the bar holds a wrapped title", () => {
+  test("phone: a row is as tall as its text, the art goes first when rows run short, and the bar holds a wrapped title", () => {
     const bounds = { x: 0, y: 0, ...REFERENCE_VIEWPORTS.phone };
     const roomy = targetingLayout(bounds, 2, { textHeight: 60, confirmReserve: 30 });
     expect(roomy.tileSize.height).toBe(60 + 30 + 16 + 6 + roomy.artHeight);
-    const crowded = targetingLayout(bounds, 6, { textHeight: 120, confirmReserve: 30 });
+    // Four rows fit without their art: they drop it and stay on screen whole.
+    const crowded = targetingLayout(bounds, 4, { textHeight: 60, confirmReserve: 0 });
     expect(crowded.artHeight).toBe(0);
+    expect(crowded.scrolls).toBe(false);
     expect(roomy.titleBar.height).toBeGreaterThanOrEqual(60);
+  });
+
+  // Reported from an iPhone: Repurpose listed every Tech upgrade in one column that ran off the bottom of the screen.
+  const SE = { x: 0, y: 0, width: 375, height: 667 };
+  const TEXT = { textHeight: 22, confirmReserve: 0 };
+
+  test("iPhone SE: seven cards to pick scroll in the list, keep their art, and none is drawn outside it", () => {
+    const layout = targetingLayout(SE, 7, TEXT, 64, true);
+    expect(layout.scrolls).toBe(true);
+    expect(layout.artHeight).toBeGreaterThan(0);
+    expect(layout.tiles).toHaveLength(7);
+    for (const tile of layout.tiles) {
+      expect(tile.x).toBeGreaterThanOrEqual(layout.targets.x);
+      // The scrollbar keeps its strip on the right.
+      expect(tile.x + tile.width).toBeLessThanOrEqual(layout.targets.x + layout.targets.width - SCROLLBAR_ROOM + 0.001);
+    }
+    // The scroll covers every row: the last tile's bottom is the content's bottom.
+    const total = layout.lineHeights.reduce((sum, height) => sum + height, 0);
+    const last = layout.tiles[6]!;
+    expect(last.y + last.height - layout.targets.y).toBeCloseTo(total, 3);
+    expect(total).toBeGreaterThan(layout.targets.height);
+    expect(layout.lineOf).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  test("a few cards still fit without scrolling, at every size", () => {
+    for (const { name, width, height } of [...SIZES, { name: "se", width: 375, height: 667 }]) {
+      const layout = targetingLayout({ x: 0, y: 0, width, height }, 3, TEXT, 40, true);
+      expect(layout.scrolls, name).toBe(false);
+      for (const tile of layout.tiles) expect(tile.y + tile.height, name).toBeLessThanOrEqual(height);
+    }
+  });
+
+  test("a pick with no 'why not' box gives its tiles that room", () => {
+    const bounds = { x: 0, y: 0, ...REFERENCE_VIEWPORTS.phone };
+    const boxed = targetingLayout(bounds, 3, TEXT, 64);
+    const open = targetingLayout(bounds, 3, TEXT, 64, true);
+    expect(open.targets.height).toBeGreaterThan(boxed.targets.height);
+    expect(open.targets.y + open.targets.height).toBeLessThanOrEqual(bounds.height);
+  });
+
+  test("desktop and tablet landscape: a long row wraps onto more rows of readable tiles, and scrolls past its area", () => {
+    for (const viewport of [REFERENCE_VIEWPORTS.desktop, REFERENCE_VIEWPORTS.tabletLandscape]) {
+      const bounds = { x: 0, y: 0, ...viewport };
+      const layout = targetingLayout(bounds, 16, TEXT, 44, true);
+      expect(layout.tiles[0]!.width).toBeGreaterThanOrEqual(MIN_ROW_TILE_WIDTH - SCROLLBAR_ROOM);
+      expect(layout.tileSize.width).toBe(layout.tiles[0]!.width);
+      expect(layout.lineHeights.length).toBeGreaterThan(1);
+      for (const tile of layout.tiles) {
+        expect(tile.x + tile.width).toBeLessThanOrEqual(layout.targets.x + layout.targets.width + 0.001);
+      }
+      // Tiles on one row share its top; the next row starts under it.
+      const [a, b] = [layout.tiles[0]!, layout.tiles[layout.tiles.findIndex((_, i) => layout.lineOf[i] === 1)]!];
+      expect(b.y).toBeGreaterThan(a.y + a.height);
+      const total = layout.lineHeights.reduce((sum, height) => sum + height, 0);
+      expect(layout.scrolls).toBe(total > layout.targets.height);
+      // With the why-not box the rows stop above it, and scroll there.
+      const boxed = targetingLayout(bounds, 40, TEXT, 44);
+      expect(boxed.scrolls).toBe(true);
+      expect(boxed.targets.y + boxed.targets.height).toBeLessThanOrEqual(boxed.excluded.y);
+    }
+  });
+
+  test("a row that fits keeps every tile on one line, as before", () => {
+    const layout = targetingLayout({ x: 0, y: 0, ...REFERENCE_VIEWPORTS.desktop }, 3, TEXT);
+    expect(layout.scrolls).toBe(false);
+    expect(new Set(layout.tiles.map((tile) => tile.y)).size).toBe(1);
+    expect(layout.lineOf).toEqual([0, 0, 0]);
   });
 
   test("starts below the table's top bar, where the chrome buttons stay drawn (#515)", () => {
