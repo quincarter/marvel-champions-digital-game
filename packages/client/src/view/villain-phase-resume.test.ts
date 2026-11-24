@@ -2,8 +2,13 @@ import { describe, expect, test } from "vitest";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import type { SessionConfig, VillainPhaseSeed } from "../engine/host.js";
-import { SessionStore } from "../store/session-store.js";
+import { SessionStore, type SessionState } from "../store/session-store.js";
+import { POOL_DEPS } from "../content/pool.js";
+import { appendEvents, emptyLog } from "./log-lines.js";
+import { NO_REFILL, trackRefill } from "./villain-end-of-turn.js";
+import { appendWalkthrough, walkthroughSeededFrom } from "./villain-walkthrough.js";
 import {
+  splitResumedHistory,
   clearVillainPhaseMarker,
   readVillainPhaseMarker,
   seedVersionOf,
@@ -82,6 +87,8 @@ const isPhaseStart = (events: readonly { readonly type: string }[]): boolean =>
 
 /** A game played until a command begins the villain phase, saved, and resumed on a fresh host: the reload. */
 async function reloadedMidPhase(): Promise<{
+  /** Every update the played store published, as the walkthrough overlay would have taken them in live. */
+  readonly updates: readonly SessionState[];
   readonly played: SessionStore;
   readonly reloaded: SessionStore;
   readonly id: string;
@@ -89,6 +96,10 @@ async function reloadedMidPhase(): Promise<{
   const storage = new MemoryGameStorage();
   const host = new LocalEngineHost(storage);
   const played = new SessionStore(host);
+  const updates: SessionState[] = [];
+  played.subscribe((state) => {
+    if (state.game && state.version >= 0 && updates.at(-1)?.version !== state.version) updates.push(state);
+  });
   await played.start(RHINO_SOLO);
   for (let step = 0; step < 12 && played.state.commandTrail.every((entry) => !isPhaseStart(entry.events)); step++) {
     const { legal } = played.state;
@@ -105,7 +116,7 @@ async function reloadedMidPhase(): Promise<{
   const id = (await played.latestSave())!.id;
   const reloaded = new SessionStore(new LocalEngineHost(storage));
   await reloaded.resume(id, { sync: false });
-  return { played, reloaded, id };
+  return { updates, played, reloaded, id };
 }
 
 describe("a villain phase rebuilt from a save", () => {
@@ -130,11 +141,70 @@ describe("a villain phase rebuilt from a save", () => {
   }, 60_000);
 
   test("rebuilds the walkthrough a live phase would have had", async () => {
-    const { reloaded } = await reloadedMidPhase();
+    const { reloaded, updates } = await reloadedMidPhase();
     const seed = reloaded.state.resumedVillainPhase!;
-    const walkthrough = walkthroughFromSeed(seed, 1, undefined, reloaded.state.perspectiveId);
-    const beats = walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
+    const rebuilt = walkthroughFromSeed(seed, 1, undefined, reloaded.state.perspectiveId);
+    const beats = rebuilt.steps.reduce((sum, step) => sum + step.beats.length, 0);
     expect(beats).toBeGreaterThan(0);
+    // The live overlay: every update from the command that began the phase on, through `appendWalkthrough`.
+    let live = walkthroughSeededFrom(1, undefined);
+    for (const update of updates.filter((u) => u.version > seed.startCommand)) {
+      live = appendWalkthrough(
+        live,
+        update.lastEvents,
+        update.game!,
+        update.perspectiveId,
+        POOL_DEPS,
+        update.lastStates,
+      );
+    }
+    expect(rebuilt).toEqual(live);
+  }, 60_000);
+
+  test("the history split, the refill and the dealt surge cards match what the live game had", async () => {
+    const { reloaded, played } = await reloadedMidPhase();
+    const seed = reloaded.state.resumedVillainPhase!;
+    const history = reloaded.state.resumedHistory;
+    const trail = played.state.commandTrail;
+    const parts = splitResumedHistory(history, seed);
+    expect(parts.before.length + parts.phase.length).toBe(history.length);
+    expect(parts.phase).toEqual(trail.slice(seed.startCommand).flatMap((entry) => entry.events));
+    // The refill as the live game tracked it, command by command, up to the one that began the phase.
+    let live = NO_REFILL;
+    let ended = null;
+    for (const entry of trail.slice(0, seed.startCommand + 1)) {
+      const step = trackRefill(live, entry.events);
+      live = step.tracker;
+      ended = step.ended;
+    }
+    expect(parts.endOfTurn).toEqual(ended);
+    // The log before the phase folds only what came before it, so its dealt surge cards are the live game's.
+    const game = reloaded.state.game!;
+    const logBefore = appendEvents(emptyLog(), parts.before, game, reloaded.state.perspectiveId, POOL_DEPS);
+    const liveLog = appendEvents(
+      emptyLog(),
+      history.slice(0, history.length - trail.slice(seed.startCommand).flatMap((entry) => entry.events).length),
+      game,
+      reloaded.state.perspectiveId,
+      POOL_DEPS,
+    );
+    expect(logBefore.surgeDealt).toEqual(liveLog.surgeDealt);
+  }, 60_000);
+
+  test("a seed with a command taken after the phase ended is rejected", async () => {
+    const { reloaded, id } = await reloadedMidPhase();
+    const seed = reloaded.state.resumedVillainPhase!;
+    const marker = { gameId: id, commandCount: seed.startCommand };
+    const after = seed.commands.at(-1)!.after;
+    const out = { ...after, step: { ...after.step, phase: "player" } } as typeof after;
+    const inside = { ...after, step: { ...after.step, phase: "villain" } } as typeof after;
+    const ended = (index: number) => ({ ...seed.commands[0]!, after: index === 0 ? out : inside });
+    // A command left the villain phase, then another followed it: the player phase was started.
+    const stale: VillainPhaseSeed = { ...seed, commands: [ended(0), ended(1)] };
+    expect(villainPhaseToRebuild(marker, id, stale)).toBeNull();
+    // The phase ended on its last command: still open.
+    const open: VillainPhaseSeed = { ...seed, commands: [ended(1), ended(0)] };
+    expect(villainPhaseToRebuild(marker, id, open)).toBe(open);
   }, 60_000);
 
   test("is only rebuilt for the game and the command the marker names", async () => {

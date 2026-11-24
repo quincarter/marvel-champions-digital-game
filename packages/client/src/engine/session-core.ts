@@ -603,10 +603,13 @@ export class EngineSessionCore {
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
     const trail: BackOutTrailEntry[] = [];
-    // The last villain phase the save holds, with the commands from the one that began it (issue #989).
+    // The villain phase the save ends in or just finished, with the commands from the one that began it (issue #989). Only
+    // a phase the walkthrough could still be open for: a command taken after the phase left the villain phase means the
+    // player started the player phase, so it is dropped, and collecting stops at the command that ends the phase.
     let phase: {
       startCommand: number;
       before: GameState;
+      ended: boolean;
       commands: { events: readonly GameEvent[]; states: readonly EventState[]; after: GameState }[];
     } | null = null;
     for (const [index, command] of stored.commands.entries()) {
@@ -625,8 +628,12 @@ export class EngineSessionCore {
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
       record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
-      if (beginsVillainPhase(result.events)) phase = { startCommand: index, before: state, commands: [] };
-      phase?.commands.push({ events: result.events, states: result.states ?? [], after: result.state });
+      if (phase?.ended) phase = null;
+      if (beginsVillainPhase(result.events)) phase = { startCommand: index, before: state, ended: false, commands: [] };
+      if (phase) {
+        phase.commands.push({ events: result.events, states: result.states ?? [], after: result.state });
+        if (result.state.step.phase !== "villain") phase.ended = true;
+      }
       state = result.state;
       history.push(...result.events);
     }

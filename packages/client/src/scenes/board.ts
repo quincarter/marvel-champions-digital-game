@@ -103,6 +103,7 @@ import type { SessionState } from "../store/session-store.js";
 import type { VillainPhaseSeed } from "../engine/host.js";
 import {
   readVillainPhaseMarker,
+  splitResumedHistory,
   villainPhaseToRebuild,
   writeVillainPhaseMarker,
 } from "../view/villain-phase-resume.js";
@@ -897,8 +898,6 @@ export class BoardScene extends Phaser.Scene {
         focusRect: (key: string) => this.#frame.focusRects.get(key) ?? null,
         logTickerRect: () => this.#logTickerRect,
         logOpen: () => this.#logOpen,
-        // Whether the table takes no game action: while the villain phase is open, or in a replay (`setVillainPhaseOpen`).
-        readOnly: () => this.#controller.readOnly,
         logRect: () => this.#logRect,
         hitRect: (id: string) => this.#frame.hitRects.get(id as InstanceId) ?? null,
         hoverShown: () => this.#hover?.shownKey ?? null,
@@ -1066,19 +1065,24 @@ export class BoardScene extends Phaser.Scene {
           ? villainPhaseToRebuild(readVillainPhaseMarker(), state.gameId, state.resumedVillainPhase)
           : null;
       if (state.resumedHistory.length > 0) {
-        const phaseEvents = seed ? seed.commands.reduce((sum, command) => sum + command.events.length, 0) : 0;
-        const split = Math.max(0, state.resumedHistory.length - phaseEvents);
-        const before = eventsForBlindLog(state.resumedHistory.slice(0, split), blind);
-        const phase = eventsForBlindLog(state.resumedHistory.slice(split), blind);
-        this.#log = appendEvents(this.#log, before, state.game, state.perspectiveId, gameDeps());
-        if (seed) {
-          const refill = trackRefill(
-            trackRefill(NO_REFILL, state.resumedHistory.slice(0, split)).tracker,
-            seed.commands[0]?.events ?? [],
-          );
-          resumedPhase = { seed, logBefore: this.#log, endOfTurn: refill.ended };
-        }
-        this.#log = appendEvents(this.#log, phase, state.game, state.perspectiveId, gameDeps());
+        const parts = seed
+          ? splitResumedHistory(state.resumedHistory, seed)
+          : { before: state.resumedHistory, phase: [] as readonly GameEvent[], endOfTurn: null };
+        this.#log = appendEvents(
+          this.#log,
+          eventsForBlindLog(parts.before, blind),
+          state.game,
+          state.perspectiveId,
+          gameDeps(),
+        );
+        if (seed) resumedPhase = { seed, logBefore: this.#log, endOfTurn: parts.endOfTurn };
+        this.#log = appendEvents(
+          this.#log,
+          eventsForBlindLog(parts.phase, blind),
+          state.game,
+          state.perspectiveId,
+          gameDeps(),
+        );
       }
       const latest = eventsForBlindLog(state.lastEvents, blind);
       logBefore = this.#log;

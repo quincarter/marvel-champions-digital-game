@@ -14,10 +14,15 @@
  */
 import { gameDeps } from "../content/game-deps.js";
 import type { VillainPhaseSeed } from "../engine/host.js";
-import type { InstanceId, PlayerId } from "@mc/engine";
+import type { GameEvent, InstanceId, PlayerId } from "@mc/engine";
+import { NO_REFILL, trackRefill, type EndOfTurnDraws } from "./villain-end-of-turn.js";
 import { appendWalkthrough, walkthroughSeededFrom, type Walkthrough } from "./villain-walkthrough.js";
 
-/** Which game's walkthrough is open, and the command count before the command that began its villain phase. */
+/**
+ * Which game's walkthrough is open, and the command count before the command that began its villain phase. There is one
+ * marker per device: a later game's phase replaces it. Scope for the upper PRs: only solo play and a room's host write
+ * or use it (a guest's device follows the host's pacing, and no room role exists on this branch to tell them apart).
+ */
 export interface VillainPhaseMarker {
   readonly gameId: string;
   readonly commandCount: number;
@@ -83,6 +88,11 @@ export function villainPhaseToRebuild(
 ): VillainPhaseSeed | null {
   if (!marker || !seed || gameId === null || marker.gameId !== gameId) return null;
   if (seed.startCommand !== marker.commandCount || seed.commands.length === 0) return null;
+  // The phase must still be the last thing in the save: it began in the player phase, and no command but the last may
+  // have left the villain phase (a later command means the player phase was started and the walkthrough was closed).
+  if (seed.before.step.phase === "villain") return null;
+  const last = seed.commands.length - 1;
+  if (seed.commands.some((command, i) => i < last && command.after.step.phase !== "villain")) return null;
   return seed;
 }
 
@@ -105,3 +115,23 @@ export function walkthroughFromSeed(
 
 /** The store version the rebuilt phase stands at: every command of the seed has been taken in. */
 export const seedVersionOf = (seed: VillainPhaseSeed): number => seed.startCommand + seed.commands.length;
+
+/**
+ * A resumed game's history cut where the villain phase began: the events before the command that began it, the events of
+ * the phase's commands, and the end-of-turn refill as that command ended it. The Board folds the first part into its log
+ * (and keeps that log as the one from before the phase, with the surge cards it dealt), then the rest.
+ */
+export function splitResumedHistory(
+  history: readonly GameEvent[],
+  seed: VillainPhaseSeed,
+): {
+  readonly before: readonly GameEvent[];
+  readonly phase: readonly GameEvent[];
+  readonly endOfTurn: EndOfTurnDraws | null;
+} {
+  const phaseEvents = seed.commands.reduce((sum, command) => sum + command.events.length, 0);
+  const split = Math.max(0, history.length - phaseEvents);
+  const before = history.slice(0, split);
+  const endOfTurn = trackRefill(trackRefill(NO_REFILL, before).tracker, seed.commands[0]?.events ?? []).ended;
+  return { before, phase: history.slice(split), endOfTurn };
+}
