@@ -1,0 +1,3 @@
+kind: Changed
+body: The release pull request keeps a version bump picked by hand (such as bump=major) when later merges to main regenerate it, instead of falling back to the automatic version
+time: 2026-11-25T10:33:09.4155547-05:00
