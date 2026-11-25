@@ -20,6 +20,7 @@ body:
         - Controls or input problem
         - Crash, freeze or the game would not load
         - Saving or resuming a game
+        - "Online rooms: hosting, joining, the lobby, syncing or chat"
         - Something else
     validations:
       required: true
@@ -64,8 +65,33 @@ body:
     id: heroes
     attributes:
       label: Heroes and aspects
-      description: Every hero in the game and the aspect each was playing, plus the number of players.
-      placeholder: "e.g. Spider-Man (Justice) and Iron Man (Aggression), 2 players"
+      description: Every hero in the game and the aspect each was playing, plus the number of seats.
+      placeholder: "e.g. Spider-Man (Justice) and Iron Man (Aggression), 2 seats"
+  - type: dropdown
+    id: play-mode
+    attributes:
+      label: How were you playing?
+      description: >-
+        Single player is one person playing every hero on one device, however many heroes. An online room is a game
+        hosted or joined with Play online.
+      options:
+        - Single player (one person playing every hero)
+        - "Online room: Standard (one table)"
+        - "Online room: Trickster Takeover Epic Multiplayer"
+        - "Online room: Civil War Competitive"
+        - Watching someone else's live game
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: room-role
+    attributes:
+      label: Your part in the online room
+      description: Skip this unless you were in an online room.
+      options:
+        - Host
+        - Seated guest (I played a hero from my own device)
+        - Guest without a seat
   - type: input
     id: scenario
     attributes:

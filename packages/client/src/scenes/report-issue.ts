@@ -31,6 +31,7 @@ import {
   issueReportFileName,
   issueReportText,
   newIssueUrl,
+  playLineOf,
   screenshotDeviceOf,
   screenshotTipOf,
   type ReportEnvironment,
@@ -42,6 +43,8 @@ import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { displayLineOf } from "../platform/screen-settings.js";
+import { roomState } from "../platform/room.js";
+import { ReplayTransportOverlay } from "./replay-transport.js";
 
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 /** How long "Hide for a screenshot" keeps the panel away. A tap anywhere brings it back sooner. */
@@ -171,12 +174,19 @@ export class ReportIssueOverlay extends Phaser.Scene {
       viewport: { width, height },
       formFactor: formFactorFor(width, height),
       ...displayLineOf(width, height),
+      play: playLineOf(roomState(), this.#viewing()),
       screens: this.scene.manager
         .getScenes(true)
         .filter((scene) => scene !== this && scene.sys.settings.visible && scene.scene.key !== SCENES.reportButton)
         .map((scene) => scene.scene.key),
       at: new Date().toISOString(),
     };
+  }
+
+  /** The replay transport's live game or replay, when it is open under the panel. */
+  #viewing(): "live" | "replay" | null {
+    const transport = this.scene.get(SCENES.replayTransport);
+    return transport instanceof ReplayTransportOverlay && transport.sys.isActive() ? transport.viewing : null;
   }
 
   #report(): ReportInput {

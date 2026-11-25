@@ -21,6 +21,8 @@ const README = [
   // A name from before the Spanish builds, which gains its `-EN-`.
   `<a href="${REPO}/releases/download/v0.30.0/MarvelChampions-0.30.0-Linux-x64.AppImage"><img></a>`,
   `<a href="${REPO}/releases/download/v0.47.0/MarvelChampions-0.47.0-ES-Android.apk"><img></a>`,
+  `<a href="${REPO}/releases/download/v0.47.0/MarvelChampions-0.47.0-EN-iOS-unsigned.ipa"><img></a>`,
+  `<a href="${REPO}/releases/download/v0.47.0/MarvelChampions-0.47.0-ES-iOS-unsigned.ipa"><img></a>`,
   `<a href="${REPO}/releases">all releases</a>`,
 ].join("\n");
 
@@ -29,6 +31,8 @@ const NAMES = [
   "MarvelChampions-0.48.0-EN-macOS-AppleSilicon-arm64.dmg",
   "MarvelChampions-0.48.0-EN-Linux-x64.AppImage",
   "MarvelChampions-0.48.0-ES-Android.apk",
+  "MarvelChampions-0.48.0-EN-iOS-unsigned.ipa",
+  "MarvelChampions-0.48.0-ES-iOS-unsigned.ipa",
 ];
 
 describe("the README's download bump", () => {

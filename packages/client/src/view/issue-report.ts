@@ -43,6 +43,11 @@ export interface ReportEnvironment {
    * off · high-end (8 GB, Adreno 740)". Left out where the game draws at 1x as it always did (the web, desktop).
    */
   readonly display?: string;
+  /**
+   * How this device is playing (`playLineOf`): "Single player, not in an online room" or the online room's mode and
+   * this device's part in it, so a report says what the Bug report form's "How were you playing?" asks.
+   */
+  readonly play?: string;
   /** The screens and overlays running under the report panel, bottom first. */
   readonly screens: readonly string[];
   /** ISO time the report was made. */
@@ -82,6 +87,7 @@ function environmentLines(environment: ReportEnvironment): string[] {
     `Version: ${environment.version}`,
     `Platform: ${environment.platform} (${environment.formFactor}, ${environment.viewport.width}x${environment.viewport.height})`,
     `Card language: ${cardLanguageLine(environment.cardLanguage)}`,
+    ...(environment.play ? [`Play: ${environment.play}`] : []),
     ...(environment.display ? [`Display: ${environment.display}`] : []),
     `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
     `Browser: ${environment.userAgent}`,
@@ -168,6 +174,7 @@ export function newIssueUrl(environment: ReportEnvironment, replayLink: string |
       `Version: ${environment.version}`,
       `Platform: ${issuePlatformOf(environment)}`,
       `Card language: ${cardLanguageLine(environment.cardLanguage)}`,
+      ...(environment.play ? [`Play: ${environment.play}`] : []),
       `Device: ${environment.formFactor} ${viewport.width}x${viewport.height}`,
       `Browser: ${environment.userAgent}`,
       `Screen: ${environment.screens.length > 0 ? environment.screens.join(" > ") : "unknown"}`,
@@ -176,6 +183,34 @@ export function newIssueUrl(environment: ReportEnvironment, replayLink: string |
     ].join("\n"),
   });
   return `https://github.com/${ISSUE_REPO}/issues/new?${query.toString()}`;
+}
+
+/** The parts of `RoomState` (`live/room-state.ts`) a report needs, so `playLineOf` stays plain data. */
+export interface ReportRoom {
+  readonly role: "none" | "host" | "guest";
+  readonly mode: "standard" | "epic" | "competitive";
+  readonly mySeats: readonly string[];
+}
+
+const ROOM_MODE_NAMES: Readonly<Record<ReportRoom["mode"], string>> = {
+  standard: "Standard",
+  epic: "Trickster Takeover Epic Multiplayer",
+  competitive: "Civil War Competitive",
+};
+
+/**
+ * The report's Play line, in the Bug report form's words: the online room's mode and this device's part in it (Host,
+ * Seated guest, or Guest without a seat); outside a room, a live game watched from a link, a replay, or single player.
+ * `viewing` is what the replay transport has on the board, null when it is not open.
+ */
+export function playLineOf(room: ReportRoom, viewing: "live" | "replay" | null = null): string {
+  if (room.role === "none") {
+    if (viewing === "live") return "Watching someone else's live game, not in an online room";
+    if (viewing === "replay") return "Watching a replay, not in an online room";
+    return "Single player, not in an online room";
+  }
+  const part = room.role === "host" ? "Host" : room.mySeats.length > 0 ? "Seated guest" : "Guest without a seat";
+  return `Online room, ${ROOM_MODE_NAMES[room.mode]}, ${part}`;
 }
 
 export type ScreenshotDevice = "android" | "ios" | "mac" | "windows" | "other";
