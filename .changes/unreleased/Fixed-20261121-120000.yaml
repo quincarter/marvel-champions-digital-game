@@ -1,3 +1,0 @@
-kind: Fixed
-body: A live room keeps the unfinished tail of a replaced log across a wake, and no longer leaves a stale tail row after a batch that ends on a 100-chunk boundary (#876)
-time: 2026-11-21T12:00:00.0000000-05:00

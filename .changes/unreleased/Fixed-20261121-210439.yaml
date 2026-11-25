@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Multiplayer achievements: a guest''s finished room row is written only on the room''s end (with its adjusted flag), and a game the host rewinds and finishes again replaces that row instead of keeping the first result'
-time: 2026-11-21T21:04:39.8948554-05:00
