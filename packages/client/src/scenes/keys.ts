@@ -142,6 +142,8 @@ export const SCENES = {
   roomChat: "RoomChatOverlay",
   /** The host's "give this hero to…" picker for an away or vacated seat (`scenes/room-give.ts`, #881). */
   roomGive: "RoomGiveOverlay",
+  /** Epic Multiplayer (issue #882): the tables sheet, rename, host and hero pickers (`scenes/epic-sheet.ts`). */
+  epicSheet: "EpicSheetOverlay",
   /** A seated guest's "Ask for a change" note to the host (`scenes/room-ask.ts`, #881). */
   roomAsk: "RoomAskOverlay",
   /** "Rejoining room ABC123…" / "Resuming your game…" while a reload reconnects (`scenes/rejoin.ts`). */

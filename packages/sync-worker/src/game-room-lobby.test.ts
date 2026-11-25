@@ -114,7 +114,7 @@ describe("a lobby room: names, build and the lobby message", () => {
     const { host } = await setup();
     const h = await host();
     expect(h.last("welcome")!.caps).toEqual(LOBBY_ROOM_CAPS);
-    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play"]);
+    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play", "tables"]);
     expect(h.last("welcome")!.you).toMatchObject({ role: "host", name: "Hosty", build: BUILD });
     expect(h.last("lobby")).toMatchObject({
       code: CODE,

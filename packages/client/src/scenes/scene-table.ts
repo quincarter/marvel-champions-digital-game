@@ -69,6 +69,7 @@ export const SCENE_LOADERS: Readonly<Record<string, () => Promise<SceneClass>>> 
   [SCENES.onlineName]: () => import("./online-name.js").then((m) => m.OnlineNameOverlay),
   [SCENES.roomChat]: () => import("./room-chat.js").then((m) => m.RoomChatOverlay),
   [SCENES.roomGive]: () => import("./room-give.js").then((m) => m.RoomGiveOverlay),
+  [SCENES.epicSheet]: () => import("./epic-sheet.js").then((m) => m.EpicSheetOverlay),
   [SCENES.roomAsk]: () => import("./room-ask.js").then((m) => m.RoomAskOverlay),
   [SCENES.rejoin]: () => import("./rejoin.js").then((m) => m.RejoinOverlay),
   [SCENES.nameConflict]: () => import("./name-conflict.js").then((m) => m.NameConflictOverlay),

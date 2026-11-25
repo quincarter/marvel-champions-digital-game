@@ -21,8 +21,10 @@ import {
   type RoomSocketDeps,
 } from "./room-socket.js";
 import { gidOfGame, LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
-import type { RoomBuild, RoomDevice } from "@mc/sync-worker/room-protocol";
+import type { ClientMessage, RoomBuild, RoomDevice } from "@mc/sync-worker/room-protocol";
 import type { LiveControlMessage, LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
+import type { EpicLogStore } from "./epic-coordinator.js";
+import { PodLink } from "./pod-link.js";
 import { lobbyRecordKey, recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
 import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";
 import type { SeatTokenStore } from "./room-seat-store.js";
@@ -40,6 +42,8 @@ export interface LiveRoomControllerDeps {
   readonly onResync?: () => void;
   /** Hands a seat holder's proposal to the engine worker to judge (issue #881). */
   readonly onProposal?: (proposal: Extract<LiveControlMessage, { kind: "proposal" }>) => void;
+  /** Hands the pod coordinator's inbound event to the engine worker to apply as a command (Epic Multiplayer). */
+  readonly onPodInbound?: (inbound: Extract<LiveControlMessage, { kind: "pod-inbound" | "pod-release" }>) => void;
   /** The room refused the host's game start because the lobby changed first: the game was dropped from the room. */
   readonly onStartRefused?: () => void;
   /** Remembers each game's room, so a resumed game returns to it as the host. Absent: every game gets a new room. */
@@ -55,6 +59,8 @@ export interface LiveRoomControllerDeps {
     /** This device, said in every hello (the lobby's, and the publisher's for a plain watch room). */
     readonly device?: RoomDevice;
     readonly seatStore: SeatTokenStore;
+    /** Where the organizer keeps the pod coordinator's log, so a reload rebuilds it (Epic Multiplayer). */
+    readonly epicStore?: EpicLogStore;
     /** The saved online name: what a lobby room resumed after a reload says hello with when its record has none. */
     readonly onlineName?: string;
     readonly onState: (state: RoomState) => void;
@@ -96,6 +102,8 @@ interface Live {
   /** The lobby room this game was started in (`SessionConfig.room`); only a host session for that room takes it. */
   readonly roomId: string | undefined;
   readonly publisher: LivePublisher;
+  /** Epic Multiplayer: this table's side of the pod channel, when the game is a group of a pod. */
+  readonly pod: PodLink | null;
   socket: RoomSocket | null;
   /** The lobby's room, when this game streams into the room the host made (its socket is the room session's). */
   room: RoomSession | null;
@@ -147,6 +155,7 @@ export class LiveRoomController {
       case "game": {
         if (this.#live?.gameKey === message.gameKey) {
           this.#live.publisher.replaceGame(message.game);
+          if (message.pod) this.#live.pod?.game(message.pod);
           return;
         }
         if (this.#pending?.gameKey === message.gameKey) {
@@ -170,6 +179,8 @@ export class LiveRoomController {
         const live = this.#live;
         if (live?.gameKey !== message.gameKey) return;
         live.publisher.command(message.command, message.count, message.checksum, message.outcome);
+        if (message.pod)
+          live.pod?.outbound(message.pod.outbound, message.pod.inboundSeq, message.pod.awaiting === true);
         this.#touch(live);
         return;
       }
@@ -259,6 +270,30 @@ export class LiveRoomController {
         this.#session?.chat(message.text);
         this.#touchLobby();
         return;
+      case "room-epic":
+        this.#session?.setEpic(message.tables, message.pods, message.seats);
+        return;
+      case "room-table-host":
+        this.#session?.assignTableHost(message.table, message.participant);
+        return;
+      case "room-follow-tables":
+        this.#session?.followTables(message.tables);
+        return;
+      case "room-epic-start":
+        // One shared seed for the game; each table makes its own from it and its id (`tableSeedOf`).
+        this.#session?.startEpic({
+          id: Math.floor(this.#timers.random() * 0xffffffff).toString(36),
+          seed: Math.floor(this.#timers.random() * 0xffffffff),
+          at: Date.now(),
+        });
+        return;
+      case "room-pod-release":
+        // The table host ends a wait for the coordinator that has stuck: the engine refuses unless it really waits.
+        if (this.#live) this.#deps.onPodInbound?.({ kind: "pod-release", gameKey: this.#live.gameKey });
+        return;
+      case "room-epic-drop":
+        this.#session?.dropTable(message.table);
+        return;
       case "room-activity":
         this.#session?.hostActivity(message.step, message.scenario);
         return;
@@ -283,12 +318,26 @@ export class LiveRoomController {
         return;
       case "room-follow": {
         const port = message.port as unknown as FeedPort;
-        if (this.#session?.role === "guest") this.#session.follow(port);
+        if (this.#session?.canWatch) this.#session.follow(port, message.feedId);
         else port.close();
         return;
       }
       case "room-unfollow":
-        this.#session?.unfollow();
+        this.#session?.unfollow(message.feedId);
+        return;
+      case "room-dev-shared-damage": {
+        const live = this.#live;
+        if (import.meta.env.DEV && live?.pod) {
+          live.pod.injectOutbound({
+            type: "sharedVillainDamaged",
+            groupId: live.pod.table as never,
+            amount: message.amount,
+          });
+        }
+        return;
+      }
+      case "room-watch-table":
+        this.#session?.watchTable(message.table);
         return;
       default:
         return;
@@ -375,6 +424,7 @@ export class LiveRoomController {
       build: room.build,
       ...(room.device ? { device: room.device } : {}),
       seatStore: room.seatStore,
+      ...(room.epicStore ? { epicStore: room.epicStore } : {}),
       onState: (state) => {
         if (this.#session !== session) return;
         const fallback = this.#hostFallback;
@@ -470,11 +520,24 @@ export class LiveRoomController {
   }
 
   #open(game: GameMessage): void {
+    // A game started in a room streams as the table its device hosts (the first, except in an Epic room).
+    const session = this.#session;
+    const table = session && this.#takesGame(session, game.room) ? session.hostedTable : null;
     const live: Live = {
       gameKey: game.gameKey,
       roomId: game.room,
+      pod: game.pod
+        ? this.#podLink(
+            game.gameKey,
+            game.pod,
+            (m) => (live.room ? live.room.podSend(m) : false),
+            table,
+            (stuck) => live.room?.setPodStuck(stuck),
+          )
+        : null,
       publisher: new LivePublisher({
         game: game.game,
+        ...(table ? { table } : {}),
         gid: gidOfGame(game.gameKey, game.game.createdAt),
         watchBase: this.#deps.watchBase,
         send: (m) => (live.room ? live.room.send(m) : (live.socket?.send(m) ?? false)),
@@ -522,6 +585,26 @@ export class LiveRoomController {
     void this.#begin(live);
   }
 
+  /** This table's side of the pod channel: events out, inbound events to the engine worker (Epic Multiplayer). */
+  #podLink(
+    gameKey: string,
+    pod: NonNullable<GameMessage["pod"]>,
+    send: (message: ClientMessage) => boolean,
+    table: string | null,
+    onStuck: (stuck: boolean) => void,
+  ): PodLink {
+    const link = new PodLink({
+      table: table ?? pod.groupId,
+      send,
+      apply: (sequence, event) => this.#deps.onPodInbound?.({ kind: "pod-inbound", gameKey, sequence, event }),
+      onStuck,
+      setTimer: (run, ms) => this.#timers.setTimer(run, ms),
+      clearTimer: (handle) => this.#timers.clearTimer(handle),
+    });
+    link.game(pod);
+    return link;
+  }
+
   /** A resumed game goes back to the room it had (as host); otherwise, or when that room is no use, a new one. */
   async #begin(live: Live, lookups = 0): Promise<void> {
     const store = this.#deps.store;
@@ -554,7 +637,7 @@ export class LiveRoomController {
       // The lobby's room may still be being made (the game was started at once): wait for it, never make a plain room.
       await session.ready;
       if (this.#live !== live) return;
-      if (session.roomId && session.hostToken && !session.ended) {
+      if (session.roomId && session.canHost && !session.ended) {
         // A resumed game whose room was rejoined after a reload (`room-rejoin`): the room already holds its log, so the
         // publisher reconciles with it as for any resume instead of starting a log of its own.
         const saved =
@@ -608,7 +691,8 @@ export class LiveRoomController {
    * stays open after its game, and a later single-player game must not attach to it (issue #880).
    */
   #takesGame(session: RoomSession, room: string | undefined): boolean {
-    return session.role === "host" && !session.ended && room !== undefined && room === session.roomId;
+    // The room's host, or (Epic Multiplayer) a participant the organizer made a table's host: it streams that table.
+    return session.hosting && !session.ended && room !== undefined && room === session.roomId;
   }
 
   /** The game streams into the lobby's room, over the lobby's own socket. */
@@ -616,7 +700,7 @@ export class LiveRoomController {
     live.rooms++;
     live.room = room;
     if (room.roomId) live.publisher.roomOpened(room.roomId);
-    if (room.roomId && room.hostToken && room.code) {
+    if (room.roomId && room.hostToken && room.code && room.role === "host") {
       const at = (this.#deps.now ?? Date.now)();
       const record: LiveRoomRecord = {
         gameKey: live.gameKey,
@@ -635,9 +719,18 @@ export class LiveRoomController {
       this.#saveLobbyRecord(room, live.gameKey);
     }
     const hooks: GameHooks = {
-      onWelcome: (table) => live.publisher.onWelcome(table),
-      onDisconnected: () => live.publisher.onDisconnected(),
-      onMessage: (message) => live.publisher.onMessage(message),
+      onWelcome: (table) => {
+        live.publisher.onWelcome(table);
+        live.pod?.onWelcome();
+      },
+      onDisconnected: () => {
+        live.publisher.onDisconnected();
+        live.pod?.onDisconnected();
+      },
+      onMessage: (message) => {
+        live.publisher.onMessage(message);
+        live.pod?.onMessage(message);
+      },
       // Another tab took the host socket (`replaced`): that tab still depends on the saved records, so they stay.
       onEnded: (problem) => this.#end(live, problem === "replaced"),
       onProposal: (proposal) => this.#deps.onProposal?.({ kind: "proposal", gameKey: live.gameKey, ...proposal }),
@@ -795,7 +888,9 @@ export class LiveRoomController {
     if (live.retry !== null) this.#timers.clearTimer(live.retry);
     live.socket?.close();
     live.socket = null;
+    live.pod?.dispose();
     if (live.room) {
+      live.room.setPodStuck(false);
       live.room.detachGame();
       // The room is back to its lobby: no game in progress for a reload to resume.
       this.#saveLobbyRecord(live.room);

@@ -1,0 +1,3 @@
+kind: Engine
+body: Live rooms can hold several tables, each with its own host and log, and a pod channel from the table hosts to the organizer (#882)
+time: 2026-11-20T11:51:14.6139378-05:00

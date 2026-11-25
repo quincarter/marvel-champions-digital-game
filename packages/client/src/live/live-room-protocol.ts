@@ -3,7 +3,7 @@
  * socket and the publisher (`live-publisher.ts`); the main thread posts events and reads status, and the engine worker
  * streams the game over a port, as it does for Discord presence.
  */
-import type { Command, GameOutcome } from "@mc/engine";
+import type { Command, GameOutcome, PodInboundEvent, PodOutbound, SharedPodState } from "@mc/engine";
 import type {
   DeckRefusalCode,
   ProposalRefusal,
@@ -16,7 +16,14 @@ import type {
   ServerMessage,
 } from "@mc/sync-worker/room-protocol";
 import type { LiveGame, LiveStatus } from "./live-publisher.js";
-import type { LobbySeatSpec, LobbySettingsPatch, RoomState, SeatDeckEntry } from "./room-state.js";
+import type {
+  LobbyPod,
+  LobbySeatSpec,
+  LobbySettingsPatch,
+  LobbyTableSpec,
+  RoomState,
+  SeatDeckEntry,
+} from "./room-state.js";
 
 /** Main thread to the live-room worker. */
 export type LiveRoomIn =
@@ -66,6 +73,24 @@ export type LiveRoomIn =
   /** Show or hide a seat's hand to the table (`seat-show-hand`); the room checks who may. */
   | { readonly kind: "room-show-hand"; readonly seat: string; readonly on: boolean }
   | { readonly kind: "room-say"; readonly text: string }
+  // Epic Multiplayer (issue #882). Each is one call of `platform/room.ts`.
+  /** Organizer: Epic mode with these tables, pods and seats (a `lobby-set`). */
+  | {
+      readonly kind: "room-epic";
+      readonly tables: readonly LobbyTableSpec[];
+      readonly pods: readonly LobbyPod[];
+      readonly seats: readonly LobbySeatSpec[];
+    }
+  /** Organizer: makes `participant` (or nobody, `null`) the host of `table`. */
+  | { readonly kind: "room-table-host"; readonly table: string; readonly participant: string | null }
+  /** The tables whose logs this device receives. */
+  | { readonly kind: "room-follow-tables"; readonly tables: "all" | readonly string[] }
+  /** Organizer: starts the game (the signal every table host starts its own group on). */
+  | { readonly kind: "room-epic-start" }
+  /** Organizer: gives up a table whose host left (the game goes on without it). */
+  | { readonly kind: "room-epic-drop"; readonly table: string }
+  /** Table host: ends a wait for the pod coordinator that has stuck (`RoomState.epic.podStuck`). */
+  | { readonly kind: "room-pod-release" }
   /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
   | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
   /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
@@ -95,8 +120,13 @@ export type LiveRoomIn =
       readonly reason: string;
     }
   /** A guest's watcher (the replay worker) takes the room's game over this port: `RoomFeedOut` in, `RoomFeedIn` back. */
-  | { readonly kind: "room-follow"; readonly port: MessagePort }
-  | { readonly kind: "room-unfollow" }
+  | { readonly kind: "room-follow"; readonly port: MessagePort; readonly feedId?: number }
+  /** `feedId` names the feed to close: a closed old watch never closes the one that replaced it. */
+  | { readonly kind: "room-unfollow"; readonly feedId?: number }
+  /** Dev builds only: damage to the shared villain from this table's group, as if its engine had emitted it. */
+  | { readonly kind: "room-dev-shared-damage"; readonly amount: number }
+  /** Epic: watch `table` in place of the one watched now (the watch view then opens its feed again). */
+  | { readonly kind: "room-watch-table"; readonly table: string }
   /** Brings the chat back from its pop-out window (`live/chat-popout-protocol.ts`): the window is told to close. */
   | { readonly kind: "chat-popout-recall" }
   /** This tab is opening a pop-out window with `token`: its relay listens on that token's channel only. */
@@ -144,7 +174,14 @@ export interface LiveStatusMessage {
 /** Engine worker to the live-room worker, over the game port. Posted only while the setting is on. */
 export type LiveGameMessage =
   /** A game began, resumed, or the setting was switched on mid-game. A different `gameKey` is a new room. */
-  | { readonly kind: "game"; readonly gameKey: string; readonly game: LiveGame; readonly room?: string }
+  | {
+      readonly kind: "game";
+      readonly gameKey: string;
+      readonly game: LiveGame;
+      readonly room?: string;
+      /** Epic Multiplayer: a group of a pod with a remote coordinator (`EngineSessionCore.livePodGame`). */
+      readonly pod?: LivePodGame;
+    }
   /** Command number `count` was applied. `checksum` is `replayChecksum` of the state after it, when one is due. */
   | {
       readonly kind: "command";
@@ -153,6 +190,12 @@ export type LiveGameMessage =
       readonly count: number;
       readonly checksum?: string;
       readonly outcome?: GameOutcome;
+      /** Epic Multiplayer: what this command told the pod, and the inbound events the group has applied by now. */
+      readonly pod?: {
+        readonly outbound: readonly PodOutbound[];
+        readonly inboundSeq: number;
+        readonly awaiting?: boolean;
+      };
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
   /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
@@ -175,6 +218,18 @@ export type LiveGameMessage =
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
 
+/** A group of an Epic pod, as its engine announces it to the pod link when the game begins or resumes. */
+export interface LivePodGame {
+  readonly groupId: string;
+  readonly inboundSeq: number;
+  readonly shared: SharedPodState | null;
+  readonly players: number;
+  /** Every outbound event the saved log produced (a replay), so a reloaded host re-sends what the coordinator lacks. */
+  readonly outbox?: readonly PodOutbound[];
+  /** The engine waits for the coordinator's `sharedAck`. */
+  readonly awaiting?: boolean;
+}
+
 /**
  * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
  * posts the current game if it is watchable), `resync` asks for the whole game again after a gap in its log.
@@ -182,6 +237,17 @@ export type LiveGameMessage =
 export type LiveControlMessage =
   | { readonly kind: "enabled"; readonly on: boolean }
   | { readonly kind: "resync" }
+  /**
+   * The pod coordinator's inbound event `sequence` for this table's group (Epic Multiplayer): the engine worker applies it
+   * as a `Command externalEvent` at its next boundary, in order, once each.
+   */
+  | { readonly kind: "pod-release"; readonly gameKey: string }
+  | {
+      readonly kind: "pod-inbound";
+      readonly gameKey: string;
+      readonly sequence: number;
+      readonly event: PodInboundEvent;
+    }
   /**
    * A seat holder's proposal for the engine worker to judge (issue #881). `players` are the engine players behind the
    * seats the room says the proposer may act for; `command` is untrusted and `base` the log length it was built on.

@@ -1,7 +1,7 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { EventPattern } from "./abilities.js";
 import type { BasicPowerShare, Command } from "./commands.js";
-import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId } from "./ids.js";
 import type { StatusDiscardCause } from "./events.js";
 import type {
   CardDestination,
@@ -196,6 +196,12 @@ export type TriggerEventBody =
        */
       readonly redirectedBy?: InstanceId;
       /**
+       * Damage of an attack made from another group of the pod "as if [this card] were in their game area" (Epic
+       * Multiplayer; `PodInboundEvent remotePower`): `ref` names the attack there. Overkill's excess goes back to that
+       * group (owner question pending, option A: the attacker's own Avatar of Loki) rather than to this group's villain.
+       */
+      readonly remoteHit?: RemoteHit;
+      /**
        * A share of an attack's damage dealt to a character that is not the attacked character: indirect damage assigned
        * to another character (RRG 1.8 "Indirect Damage", p. 24: "Only the defending character, or the attacked player's
        * identity if the attack was undefended, is considered to have been attacked, even if other characters were
@@ -282,6 +288,8 @@ export type TriggerEventBody =
        * (`EffectSpec placeThreat.ofRemovedThreat`) takes its tokens out of that placement (ruling Nov 21, 2025).
        */
       readonly movePlacementFrameId?: FrameId;
+      /** Threat removed by a thwart made from another group of the pod (`TriggerEvent dealDamage.remoteHit`). */
+      readonly remoteHit?: RemoteHit;
     }
   | {
       readonly kind: "attack";
@@ -889,6 +897,8 @@ export type TriggerEventBody =
         readonly ranged?: true;
         /** The defeating damage's `usedStat`: overkill damage of an attack that used ATK used it too (§3.17 of wave 10). */
         readonly usedStat?: "atk";
+        /** The damage was a remote attack's (`TriggerEvent dealDamage.remoteHit`): the excess is sent back, not spilled here. */
+        readonly remote?: RemoteHit;
       };
       /**
        * The player whose card dealt the defeating damage ("after *you* defeat a
@@ -2998,4 +3008,13 @@ export function carriedByEvent(event: TriggerEvent | null | undefined): typeof N
     return { bindings: { [READIED_CARDS_SLOT]: event.readied }, vars: {} };
   if (event?.kind !== "momentRaised" || (!event.carried && !event.carriedVars)) return NOTHING_CARRIED;
   return { bindings: prefixed(event.carried), vars: prefixed(event.carriedVars) };
+}
+
+/** A remote attack's damage, as the owning group deals it (`TriggerEvent dealDamage.remoteHit`). */
+export interface RemoteHit {
+  readonly fromGroupId: GroupId;
+  /** The attacker's group's stand-in for the attacked card (`CardInstance.remoteOf`): what the attack is known by there. */
+  readonly ref: InstanceId;
+  /** The attacked card's retaliate as the power was accepted, owed to the attacker (RRG 1.8 "Retaliate X", p. 37). */
+  readonly retaliate: number;
 }

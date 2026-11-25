@@ -293,7 +293,7 @@ describe("hand-built: two groups, a remote coordinator", () => {
     expect(synergy(state, t.front)).toBe(0);
     expect(chosenGroups(events)).toEqual([{ playerId: "p1", groupId: "g2" }]);
     expect(requested(events)).toEqual([
-      { toGroupId: "g2", sourceCardId: GIANT.card.id, abilityId: GIANT.ability.ref.id, block: 1 },
+      { seq: 1, toGroupId: "g2", sourceCardId: GIANT.card.id, abilityId: GIANT.ability.ref.id, block: 1 },
     ]);
   });
 
@@ -303,7 +303,7 @@ describe("hand-built: two groups, a remote coordinator", () => {
     expect(shatter(a.state)).toBe(3);
     expect(synergy(a.state, two.front) + synergy(a.state, two.retreat)).toBe(1);
     expect(requested(a.events)).toEqual([
-      { toGroupId: "g2", sourceCardId: BEAST_DOWN.card.id, abilityId: BEAST_DOWN.ability.ref.id, block: 1 },
+      { seq: 1, toGroupId: "g2", sourceCardId: BEAST_DOWN.card.id, abilityId: BEAST_DOWN.ability.ref.id, block: 1 },
     ]);
     // This group need not be first in its pod's order.
     const three = inPod(table(1), G2, G1, G3);

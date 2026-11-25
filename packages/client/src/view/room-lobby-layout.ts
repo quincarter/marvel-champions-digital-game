@@ -52,6 +52,8 @@ export function lobbyLayout(
   gutter: number,
   headerHeight: number = LOBBY_HEADER_HEIGHT,
   footerHeight: number = LOBBY_FOOTER_HEIGHT,
+  /** The share of the body the seats panel takes when stacked (the Epic lobby's tables want more). */
+  seatsShare = 0.42,
   /** Whether a floating chat is open. */
   chatOpen = false,
   /** Whether the chat is in its own window: a floating chat then shows a small card in the pill's place. */
@@ -150,7 +152,7 @@ export function lobbyLayout(
   }
 
   if (width >= 700) {
-    const seatsHeight = Math.round(bodyHeight * 0.42);
+    const seatsHeight = Math.round(bodyHeight * seatsShare);
     const tabs: Rect = { x: gutter, y: bodyTop + seatsHeight + GAP, width: bodyWidth, height: hit.target };
     const lower = active === "chat" ? "chat" : "settings";
     const panelTop = tabs.y + tabs.height + GAP / 2;

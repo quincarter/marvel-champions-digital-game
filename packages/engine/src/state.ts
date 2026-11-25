@@ -1,6 +1,6 @@
 import type { AnyCard, CardId, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
-import type { EncounterDeckId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { OutsideFacts } from "./outside-facts.js";
 import type { RngState } from "./rng.js";
@@ -268,6 +268,14 @@ export interface CardInstance {
   /** Absent or null on every card not treated as another card type (docs/phase7-wave4.md §3.9). */
   readonly treatedAs?: TreatedAs | null;
   readonly engagedWith: PlayerId | null;
+  /**
+   * A stand-in for a card in another group's game area of the pod, placed for one basic attack or thwart "as if it were
+   * in their game area" (Epic Multiplayer; `Command remotePower`, The Mangog 55041, Door Between Worlds 55046). It has
+   * no text box here (no abilities, no keywords): the card's own keywords and statuses apply where it is. Damage or
+   * threat removal aimed at it goes to that group (`resolve/pod.ts`); it is removed once nothing is resolving. Absent
+   * on every other instance.
+   */
+  readonly remoteOf?: { readonly groupId: GroupId; readonly instanceId: InstanceId };
   /**
    * A minion an environment holds (`EffectSpec attach` with `as: "heldMinion"`; `isHeldMinion`, docs/phase7-wave9.md
    * §3.21): attached to that card, in play, engaged with no player, and still a minion that is defeated as any other.

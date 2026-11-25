@@ -49,7 +49,7 @@ describe("lobbyLayout", () => {
     expect(pill.x + pill.width).toBe(settings!.x + settings!.width);
     expect(pill.y + pill.height).toBeLessThan(closed.footer.y);
 
-    const open = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, true);
+    const open = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, undefined, true);
     expect(open.chatPill).toBeNull();
     const chat = open.panels.chat!;
     expect(open.panels.settings!.height).toBe(open.panels.seats!.height);
@@ -58,22 +58,22 @@ describe("lobbyLayout", () => {
     expect(chat.y).toBeGreaterThan(open.header.y + open.header.height);
   });
   it("lifts the open floating chat above a soft keyboard, on a touch tablet's 1366x1024", () => {
-    const plain = lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, true);
+    const plain = lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, undefined, true);
     expect(plain.mode).toBe("float");
     const keyboard = 420;
-    const lifted = lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, true, false, keyboard);
+    const lifted = lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, undefined, true, false, keyboard);
     const chat = lifted.panels.chat!;
     expect(chat.y + chat.height).toBeLessThanOrEqual(1024 - keyboard);
     expect(chat.y).toBeGreaterThan(lifted.header.y + lifted.header.height);
     expect(chat.height).toBeGreaterThanOrEqual(160);
     expect(chat.x).toBe(plain.panels.chat!.x);
     // With no keyboard the panel is where it was.
-    expect(lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, true, false, 0).panels.chat).toEqual(
-      plain.panels.chat,
-    );
+    expect(
+      lobbyLayout(1366, 1024, 56, "seats", 24, undefined, undefined, undefined, true, false, 0).panels.chat,
+    ).toEqual(plain.panels.chat);
   });
   it("swaps the pill for a card while the chat is in its own window, and the settings still end above it", () => {
-    const popped = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, true, true);
+    const popped = lobbyLayout(1440, 980, 56, "seats", 24, undefined, undefined, undefined, true, true);
     expect(popped.panels.chat).toBeUndefined();
     const card = popped.chatPill!;
     expect(card.width).toBeGreaterThan(lobbyLayout(1440, 980, 56, "seats", 24).chatPill!.width);
