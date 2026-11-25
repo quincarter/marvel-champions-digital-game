@@ -23,6 +23,14 @@ const config: CapacitorConfig = {
       signingType: "apksigner",
     },
   },
+  plugins: {
+    App: {
+      // `@capacitor/app` (App Links, #863) adds its own handler to Android's back dispatcher. Capacitor loads it after
+      // the app's own plugins, so it sits on top and takes every back, which then only steps back the webview's
+      // history and does nothing in the game (#998). Off, back reaches the game's `BackGesture` plugin (#480).
+      disableBackButtonHandler: true,
+    },
+  },
 };
 
 export default config;

@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SCENES } from "../scenes/keys.js";
 import {
@@ -169,5 +172,22 @@ describe("trapHistoryBack", () => {
     stop();
     page.pressBack();
     expect(backs).toBe(0);
+  });
+});
+
+describe("the Android app's back handlers (#998)", () => {
+  const clientRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
+
+  it("turns off @capacitor/app's back handler, which would sit on top of BackGesture's and swallow every back", () => {
+    const config = readFileSync(join(clientRoot, "capacitor.config.ts"), "utf8");
+    expect(config).toMatch(/App:\s*\{[^}]*disableBackButtonHandler:\s*true/);
+  });
+
+  it("registers the BackGesture plugin in the Android activity", () => {
+    const activity = readFileSync(
+      join(clientRoot, "android/app/src/main/java/com/quincarter/marvelchampions/MainActivity.java"),
+      "utf8",
+    );
+    expect(activity).toContain("registerPlugin(BackGesturePlugin.class)");
   });
 });
