@@ -30,9 +30,12 @@ import {
   startRoomGame,
   assignSeat,
   denySeat,
-  watchRoomGame,
+  takeOverSeat,
+  giveBackSeat,
   type RoomState,
 } from "../platform/room.js";
+import { enterSeatGame, playRoomGame } from "../platform/seat-play.js";
+import { askToConfirm } from "./end-turn-confirm.js";
 import { copyText } from "../ui/report-export.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { bangers, campaignFrame, drawTopBar } from "../ui/campaign-chrome.js";
@@ -43,6 +46,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import type { RoomProblem } from "../live/room-state.js";
 import type { OnlineData } from "./online.js";
+import { keepClosedRoomGame } from "../platform/room-continue.js";
 import { McButton, McTabs, McTextInput, fitText } from "../ui/widgets.js";
 import { HoverPreview, screenHoverArea } from "../ui/card-hover-preview.js";
 import { drawHeroAvatar, SEAT_AVATAR_READY } from "../ui/seat-avatar.js";
@@ -66,6 +70,8 @@ import type { CardFace } from "../art/art-source.js";
 import { artThumbSpec } from "./roster-panel.js";
 import { planGrid, planPicturesCached, type PlanPicture } from "../view/room-table-plan.js";
 import type { Rect } from "../view/layout.js";
+import { hostSeesHandsOf, openHandsOf } from "../view/hand-privacy.js";
+import { pacingOf } from "../view/villain-pacing.js";
 import { lobbyLayout, type LobbyLayout, type LobbyPanelId } from "../view/room-lobby-layout.js";
 import { activityDots, hostActivityWords } from "../view/room-host-activity.js";
 import { ChatSeen, unreadChatCount } from "../view/room-notices.js";
@@ -82,6 +88,7 @@ import {
   participantRows,
   deckKeyOf,
   playModeKeys,
+  villainPacingKeys,
   undoRows,
   cheatsOn,
   CHEATS_NOTE_KEY,
@@ -138,11 +145,22 @@ interface RoomApi {
   readonly releaseSeat: (seat: string) => void;
   readonly assignSeat: (seat: string, participant: string) => void;
   readonly denySeat: (seat: string, participant: string) => void;
+  readonly takeOverSeat: (seat: string) => void;
+  readonly giveBackSeat: (seat: string) => void;
   readonly say: (text: string) => void;
   readonly setLobby: typeof setLobby;
 }
 
-const REAL_API: RoomApi = { requestSeat, releaseSeat, assignSeat, denySeat, say, setLobby };
+const REAL_API: RoomApi = {
+  requestSeat,
+  releaseSeat,
+  assignSeat,
+  denySeat,
+  takeOverSeat,
+  giveBackSeat,
+  say,
+  setLobby,
+};
 
 /** The dev preview's API: nothing is sent; each call is appended to `globalThis.__mcRoomCalls` for the e2e specs to read. */
 const PREVIEW_API: RoomApi | null = import.meta.env.DEV
@@ -172,6 +190,9 @@ interface Note {
   readonly text: string;
   readonly until: number;
 }
+
+/** The narrowest lobby header that fits the host's Live now toggle beside the code and Copy link. */
+const LISTED_HEADER_MIN_WIDTH = 600;
 
 export class RoomLobbyScene extends Phaser.Scene {
   #state: RoomState = roomState();
@@ -230,6 +251,8 @@ export class RoomLobbyScene extends Phaser.Scene {
   #refusalSeen = 0;
   #note: Note | null = null;
   #linkCopied = false;
+  /** The host's Live now toggle sits in the header beside Copy link (a wide header); else first in the settings. */
+  #listedInHeader = false;
   #starting = false;
   /** What the host's last Start said when it did not start the game (shown in the seats panel until dismissed). */
   #startResult: StartResultView | null = null;
@@ -579,12 +602,15 @@ export class RoomLobbyScene extends Phaser.Scene {
     goToScreen(this, SCENES.setupDeal);
   }
 
-  /** A guest, once the host has started: opens the room's game as a watch with this guest's heroes marked. */
+  /**
+   * A guest, once the host has started: a seat that may act opens the real board and plays from this device (#881);
+   * a guest with none (a watcher, or only mismatched or taken-over seats) opens the room's game as a watch, as before.
+   */
   async #openGame(): Promise<void> {
     this.#opening = true;
     this.#say(t("room.opening"));
     this.#draw();
-    const result = await watchRoomGame();
+    const result = await playRoomGame();
     if (!this.#alive) {
       if (result.ok) result.host.dispose();
       return;
@@ -600,6 +626,30 @@ export class RoomLobbyScene extends Phaser.Scene {
       this.#openBackoff = Math.min(this.#openBackoff * 2, 30_000);
       this.#say(t(result.message));
       this.#draw();
+      return;
+    }
+    if (result.kind === "seat") {
+      this.scale.off("resize", this.#draw, this);
+      let store;
+      try {
+        store = await enterSeatGame(result.host);
+      } catch {
+        // enterSeatGame closed the seat; back off the way a failed watch does and try again when the wait is over.
+        this.#opening = false;
+        this.#openAfter = this.time.now + this.#openBackoff;
+        this.time.delayedCall(this.#openBackoff + 50, () => {
+          const state = this.#state;
+          if (this.#alive && state.role === "guest" && state.started && !this.#opening) void this.#openGame();
+        });
+        this.#openBackoff = Math.min(this.#openBackoff * 2, 30_000);
+        this.scale.on("resize", this.#draw, this);
+        this.#say(t("watch.link.gone"));
+        this.#draw();
+        return;
+      }
+      // The same rule as the host's Start, Title's Resume and the Briefing: a game still in setup opens on the Setup
+      // deal scene (so a guest who joins or reconnects mid-mulligan sees "Setting up the table"), else the board.
+      goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board, {});
       return;
     }
     const labels = this.#state.mySeats.map((id) => {
@@ -637,10 +687,17 @@ export class RoomLobbyScene extends Phaser.Scene {
   /** The room is gone (platform/room.ts already forgot it from recent rooms): drop the connection, show Play online's notice. */
   #leaveClosed(problem: RoomProblem): void {
     this.#alive = false;
+    // A seated guest whose game was running keeps it (the log is taken before the room is left): the notice offers it.
+    const kept = keepClosedRoomGame(this.#state, problem);
     leaveRoom();
     clearRoomTable();
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.online, { closedNotice: problem } satisfies OnlineData);
+    void kept.then((continueGameId) =>
+      goToScreen(this, SCENES.online, {
+        closedNotice: problem,
+        ...(continueGameId ? { continueGameId } : {}),
+      } satisfies OnlineData),
+    );
   }
 
   #goTitle(): void {
@@ -733,6 +790,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     this.#activity = null;
     this.#layoutMode = layout.mode;
     this.#floatRect = layout.mode === "float" ? (layout.panels.chat ?? null) : null;
+    this.#listedInHeader = false;
     if (!compact) this.#drawHeader(layout.header, phone);
     // What has been read: the chat on screen is read; otherwise the lines since it was last looked at are the badge.
     // The chat in its own window is read there.
@@ -853,6 +911,31 @@ export class RoomLobbyScene extends Phaser.Scene {
       onClick: copy,
     });
     this.#addStop("copy", copyRect, copy);
+    // The host's "List this room in Live now", up top beside Copy link where it is seen (Quin, 2026-11-23: it was
+    // buried at the bottom of the settings). A phone's header has no room for it: it leads the settings there.
+    const settings = state.settings;
+    this.#listedInHeader = this.#isHost() && settings !== null && rect.width >= LISTED_HEADER_MIN_WIDTH;
+    if (this.#listedInHeader && settings) {
+      const on = settings.listed === true;
+      const listedWidth = 210;
+      const listedRect: Rect = {
+        x: copyRect.x - listedWidth - 10,
+        y: copyRect.y,
+        width: listedWidth,
+        height: hit.target,
+      };
+      const flip = (): void => this.#api.setLobby({ settings: { listed: settings.listed !== true } });
+      this.#button({
+        kind: "onInk",
+        label: on ? t("room.listed.headerOn") : t("room.listed.headerOff"),
+        type: typeRole.label,
+        rect: listedRect,
+        selected: on,
+        enabled: state.connection !== "ended",
+        onClick: flip,
+      });
+      this.#addStop("listed", listedRect, flip);
+    }
     const words = connectionWords(state);
     if (words) {
       const line = this.add
@@ -1282,7 +1365,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     else g.strokeCircle(tx + 6, dotY, 6);
     const device = row.holderDevice && textWidth >= 230 ? ` · ${row.holderDevice}` : "";
     const who = held
-      ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}${device}`
+      ? `${row.holderName}${row.mine ? ` (${t("room.you")})` : ""}${row.holderConnected ? "" : ` · ${t("room.seat.away")}`}${row.takenOver ? ` · ${t("room.seat.takenOver")}` : ""}${device}`
       : t("room.seat.open");
     const holder = this.add
       .text(tx + 20, dotY, who, textStyle(typeRole.body, INK, held ? 1 : 0.7))
@@ -1316,7 +1399,7 @@ export class RoomLobbyScene extends Phaser.Scene {
     const canGive = row.candidates.length > 0 || (this.#isHost() && row.holderName === null);
     const picking = canGive && this.#picking === row.id;
     const pickHeight = picking ? (row.candidates.length > 0 ? row.candidates.length * (hit.target + 6) + 6 : 30) : 0;
-    const buttonsBottom = y + 10 + hit.target + (canGive ? 6 + hit.target : 0) + 10;
+    const buttonsBottom = y + 10 + hit.target + (canGive || row.play ? 6 + hit.target : 0) + 10;
     let cy = Math.max(ty + 6, artRect.y + art + 10, row.action ? buttonsBottom : 0);
     const topEnd = cy - y;
 
@@ -1348,6 +1431,43 @@ export class RoomLobbyScene extends Phaser.Scene {
         wrap: true,
       });
       guard.stop(`seat:${row.id}`, rect, go);
+    }
+    if (row.play) {
+      const play = row.play;
+      const playRect: Rect = {
+        x: x + w - pad - buttonWidth,
+        y: y + 10 + hit.target + 6,
+        width: buttonWidth,
+        height: hit.target,
+      };
+      const go = (): void => {
+        if (play.kind === "giveBack") {
+          this.#api.giveBackSeat(row.id);
+          return;
+        }
+        // Acting for someone is the host's call, and a returning player may find their hero moved: confirm first.
+        const hero = row.deck?.heroName ?? row.name;
+        const name = row.holderName ?? "";
+        const vacant = row.holderName === null;
+        askToConfirm(
+          this,
+          t(vacant ? "takeover.vacantTitle" : "takeover.title", { name, hero }),
+          t(vacant ? "takeover.vacantBody" : "takeover.body", { name, hero }),
+          t("takeover.confirm"),
+          () => this.#api.takeOverSeat(row.id),
+        );
+      };
+      this.#button({
+        kind: "primary",
+        label: t(play.labelKey),
+        type: { ...typeRole.label, size: 12 },
+        rect: playRect,
+        onClick: go,
+        clip: guard.clip,
+        suppressClick: guard.suppress,
+        wrap: true,
+      });
+      guard.stop(`play:${row.id}`, playRect, go);
     }
     if (canGive) {
       const giveRect: Rect = {
@@ -1593,6 +1713,13 @@ export class RoomLobbyScene extends Phaser.Scene {
         y += rowH + 8;
       };
 
+      // The host's Live now toggle leads the settings when the header has no room for it (a phone).
+      const listedRow = (): void =>
+        toggleRow("listed", t("room.listed.title"), t("room.listed.detail"), settings.listed === true, () =>
+          this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
+        );
+      if (host && !this.#listedInHeader) listedRow();
+
       // How it's played.
       y = this.#heading(x, y, w, t("room.mode.title"));
       for (const mode of ["strict", "host"] as const) {
@@ -1612,6 +1739,35 @@ export class RoomLobbyScene extends Phaser.Scene {
             suppressClick: guard.suppress,
           });
           guard.stop(`mode:${mode}`, btn, choose);
+          y += hit.target + 4;
+          const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
+          y += info.height + 10;
+        } else if (selected) {
+          const name = this.#text(x, y, t(words.title), 15, w, { bold: true });
+          const info = this.#text(x, y + name.height + 2, t(words.detail), 12, w, { alpha: 0.85 });
+          y += name.height + info.height + 12;
+        }
+      }
+
+      // Villain phase pacing (#881): who steps a guest's villain phase screen along.
+      y = this.#heading(x, y + 4, w, t("room.villain.title"));
+      for (const value of ["host", "each"] as const) {
+        const words = villainPacingKeys[value];
+        const selected = pacingOf(settings) === value;
+        if (host) {
+          const btn: Rect = { x, y, width: w, height: hit.target };
+          const choose = (): void => this.#api.setLobby({ settings: { villainPacing: value } });
+          this.#button({
+            kind: "secondary",
+            label: t(words.title),
+            type: typeRole.label,
+            rect: btn,
+            selected,
+            onClick: choose,
+            clip: guard.clip,
+            suppressClick: guard.suppress,
+          });
+          guard.stop(`villain:${value}`, btn, choose);
           y += hit.target + 4;
           const info = this.#text(x + 4, y, t(words.detail), 12, w - 8, { alpha: 0.8 });
           y += info.height + 10;
@@ -1741,10 +1897,25 @@ export class RoomLobbyScene extends Phaser.Scene {
       toggleRow("chat", t("room.chatSetting.title"), t("room.chatSetting.detail"), settings.chat, () =>
         this.#api.setLobby({ settings: { chat: !settings.chat } }),
       );
-      // The host's opt-in to the public "Live now" list; off unless the host turns it on.
-      toggleRow("listed", t("room.listed.title"), t("room.listed.detail"), settings.listed === true, () =>
-        this.#api.setLobby({ settings: { listed: settings.listed !== true } }),
+      // Chosen when opening the game (#881): may the host take over or hand off a hero when its player leaves?
+      toggleRow("handover", t("room.handover.title"), t("room.handover.detail"), settings.handover !== false, () =>
+        this.#api.setLobby({ settings: { handover: settings.handover === false } }),
       );
+      // Chosen in the lobby (#887): does the host's board draw every hand face up? Off by default.
+      toggleRow(
+        "hands",
+        t("room.handsSetting.title"),
+        t("room.handsSetting.detail"),
+        hostSeesHandsOf(this.#state),
+        () => this.#api.setLobby({ settings: { hostSeesHands: !hostSeesHandsOf(this.#state) } }),
+      );
+      // Chosen in the lobby: a teaching table where every seated device (and watchers) sees every hand. Off by default.
+      toggleRow("openHands", t("room.openHands.title"), t("room.openHands.detail"), openHandsOf(this.#state), () =>
+        this.#api.setLobby({ settings: { openHands: !openHandsOf(this.#state) } }),
+      );
+      // The host's opt-in to the public "Live now" list, off unless the host turns it on: a guest reads it here, the host
+      // has it in the header or at the top of this list.
+      if (!host) listedRow();
       return y - top;
     });
   }

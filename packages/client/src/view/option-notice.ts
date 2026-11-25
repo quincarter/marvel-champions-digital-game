@@ -20,6 +20,11 @@ export interface OptionNotice {
   readonly okLabel?: string;
   /** Offers "Don't show again", which turns these notices off (`Settings.notOfferedNotices`): an ability not offered. */
   readonly optOut?: true;
+  /**
+   * One more action beside OK, run after the notice is dismissed (the "Room closed" notice's "Continue in single
+   * player"). It takes the place of "Don't show again", so a notice offers one or the other.
+   */
+  readonly action?: { readonly label: string; readonly run: () => void };
   readonly rows: readonly OptionNoticeRow[];
 }
 

@@ -20,6 +20,7 @@
  */
 
 import Phaser from "phaser";
+import { activeSeat } from "../platform/seat-play.js";
 import type { GameOutcome, GameState, InstanceId } from "@mc/engine";
 import { gameScenarios } from "../content/game-deps.js";
 import { gameDeps } from "../content/game-deps.js";
@@ -119,7 +120,9 @@ export class GameOverScene extends Phaser.Scene {
         : null;
     this.#news = null;
     this.#extrasNews = 0;
-    if (game?.outcome && config) {
+    // A guest who played from a seat has no game of their own: nothing here counts toward their progress (#881).
+    const seatGame = activeSeat() !== null;
+    if (game?.outcome && config && !seatGame) {
       const before = extras();
       const heroIds = seated;
       // A lesson counts for nothing in the saves (`isLessonSave`), so it opens nothing here either.
@@ -146,7 +149,13 @@ export class GameOverScene extends Phaser.Scene {
       if (game.outcome.result !== "win") void refreshUnlocks().catch(() => false);
     }
     // An adjusted game (issue #791) earns no unlocks: its save is left out of them (`isAdjustedSave`).
-    if (game?.outcome?.result === "win" && config && !isCustomSave({ config }) && !appSession().store.state.adjusted) {
+    if (
+      !seatGame &&
+      game?.outcome?.result === "win" &&
+      config &&
+      !isCustomSave({ config }) &&
+      !appSession().store.state.adjusted
+    ) {
       // Worked out from this result rather than read back from storage, which may not have the save's final
       // status yet; the cache itself catches up on the refresh below.
       const before = unlocks();
@@ -159,7 +168,7 @@ export class GameOverScene extends Phaser.Scene {
       const news = newsBetween(before, after);
       this.#news = news.points > 0 || news.unlocked.length > 0 ? news : null;
       void refreshUnlocks().catch(() => false);
-    } else if (game?.outcome?.result === "win") {
+    } else if (!seatGame && game?.outcome?.result === "win") {
       // A custom-content win earns no base progress but may earn a mod achievement (§11.12): read the saves again.
       void refreshUnlocks().catch(() => false);
     }
@@ -623,6 +632,8 @@ export class GameOverScene extends Phaser.Scene {
   #playActions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
+    // A guest who played from a seat has no game of their own to run again (#881): the host decides what is next.
+    if (activeSeat()) return [];
     if (config?.campaign) {
       const campaign = config.campaign;
       return [

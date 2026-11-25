@@ -56,6 +56,13 @@
  */
 
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
+import { seatContext } from "../view/seat-context.js";
+import { handVisibleTo } from "../view/hand-privacy.js";
+import { cardRow } from "../view/layout.js";
+import { CARD_BACKS } from "../art/art-source.js";
+import { heldElsewhere } from "../view/seat-gate.js";
+import { whoseTurnOf } from "../view/whose-turn.js";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { gameDeps, gameCardsById } from "../content/game-deps.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -340,6 +347,21 @@ export class SetupDealScene extends Phaser.Scene {
     fadeScreenIn(this);
   }
 
+  /** The words that say who the setup waits for, when the pending choice is another seat's (#881); null otherwise. */
+  #waitingLine: string | null = null;
+
+  #heldChoice(choice: PendingChoice): boolean {
+    const room = seatContext();
+    return room !== null && heldElsewhere(room.room, choice.playerId, room.seatGame);
+  }
+
+  #waitingWords(choice: PendingChoice): string | null {
+    const room = seatContext();
+    if (!room || !this.#heldChoice(choice)) return null;
+    const line = whoseTurnOf(room.room, { playerId: choice.playerId, kind: "choice" });
+    return line ? t(line.key, line.params) : null;
+  }
+
   #onState(state: SessionState): void {
     if (!state.game || this.#handedOff) return;
 
@@ -356,7 +378,9 @@ export class SetupDealScene extends Phaser.Scene {
       return;
     }
 
-    this.#view = setupWalkthroughViewOf(state.game, this.#log, gameDeps(), gameCardsById());
+    this.#view = setupWalkthroughViewOf(state.game, this.#log, gameDeps(), gameCardsById(), (playerId) =>
+      handVisibleTo({ room: seatContext()?.room ?? null, watching: false, handsHidden: false }, playerId),
+    );
 
     const choice = state.game.pendingChoice;
     const isMulligan = choice !== null && choice.prompt.kind === "mulligan";
@@ -374,7 +398,8 @@ export class SetupDealScene extends Phaser.Scene {
     // Any other decision that opens during setup (a forced trigger while the villain/scheme's own "Setup:" ability
     // resolves) isn't this scene's to answer — the generic sheet handles it, same as the Board does for every other
     // in-game choice (`BoardScene#syncChoiceOverlay`).
-    const openGeneric = choice !== null && !isMulligan;
+    // A decision for another seat's hero is theirs (#881): this device only waits for it.
+    const openGeneric = choice !== null && !isMulligan && !this.#heldChoice(choice);
     if (openGeneric && !this.#choiceOpen) {
       this.#choiceOpen = true;
       this.scene.launch(SCENES.choice);
@@ -429,7 +454,10 @@ export class SetupDealScene extends Phaser.Scene {
     this.#drawChecklist(layout, checklistRows);
 
     const choice = appSession().store.state.game?.pendingChoice ?? null;
-    const mulliganChoice = choice && choice.prompt.kind === "mulligan" ? choice : null;
+    // A mulligan for another seat's hero is theirs: no controls here, and the screen says who it waits for (#881).
+    const waitingFor = choice ? this.#waitingWords(choice) : null;
+    this.#waitingLine = waitingFor;
+    const mulliganChoice = choice && choice.prompt.kind === "mulligan" && waitingFor === null ? choice : null;
     this.#route = mulliganChoice
       ? setupWalkthroughFocusOrder({ optionIds: cardChoiceDisplayOrder(mulliganChoice.options, this.#selected) })
       : [];
@@ -452,7 +480,7 @@ export class SetupDealScene extends Phaser.Scene {
   #mulliganHandCount(view: SetupWalkthroughView): number | null {
     const choice = appSession().store.state.game?.pendingChoice ?? null;
     if (choice === null || choice.prompt.kind !== "mulligan") return null;
-    return view.seats.find((seat) => seat.playerId === view.decidingPlayerId)?.hand.length ?? null;
+    return view.seats.find((seat) => seat.playerId === view.decidingPlayerId)?.handSize ?? null;
   }
 
   /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
@@ -614,10 +642,18 @@ export class SetupDealScene extends Phaser.Scene {
         .text(
           layout.handRow.x,
           layout.handRow.y,
-          "Waiting on another decision before the mulligan continues…",
+          this.#waitingLine ?? "Waiting on another decision before the mulligan continues…",
           textStyle(typeRole.body, surface.paper.hex, ink.secondary),
         )
         .setWordWrapWidth(layout.handRow.width);
+      // The seat that is deciding is another person's: its hand shows as backs and a count (#887).
+      if (decider?.handHidden && decider.handSize > 0) {
+        const below = layout.handRow.y + 28;
+        this.#drawBacks(
+          { ...layout.handRow, y: below, height: Math.max(0, layout.handRow.y + layout.handRow.height - below) },
+          decider.handSize,
+        );
+      }
     }
 
     // A solo game has no other seats, and a header over nothing reads as a bug.
@@ -680,6 +716,15 @@ export class SetupDealScene extends Phaser.Scene {
     label(this, rect.x + 8, y, seat.statusLabel.toUpperCase(), typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
+    if (seat.handHidden) {
+      this.add.text(
+        rect.x + 8,
+        y,
+        t("hand.hidden", { count: seat.handSize }),
+        textStyle(typeRole.body, surface.ink.hex),
+      );
+      return;
+    }
     const rowHeight = 32;
     seat.hand.forEach((card, index) => {
       const rowY = y + index * (rowHeight + 4);
@@ -720,6 +765,18 @@ export class SetupDealScene extends Phaser.Scene {
     });
   }
 
+  /** A hand that is not this device's to read: card backs and their count, nothing to hover, tap or inspect (#887). */
+  #drawBacks(rect: Rect, count: number): void {
+    const key = this.#art.request(this, CARD_BACKS.player);
+    for (const slot of cardRow(rect, count, { maxHeight: rect.height })) {
+      const g = this.add.graphics();
+      g.fillStyle(surface.ink.hex, 1).fillRect(slot.x - 1, slot.y - 1, slot.width + 2, slot.height + 2);
+      g.fillStyle(surface.parchment.hex, 1).fillRect(slot.x, slot.y, slot.width, slot.height);
+      drawArt(this, key, slot, { fit: "cover" });
+      g.lineStyle(1, surface.paper.hex, 0.9).strokeRect(slot.x - 0.5, slot.y - 0.5, slot.width + 1, slot.height + 1);
+    }
+  }
+
   /**
    * A single row for as many cards as read legibly at this width. Where they wouldn't — a five- or six-card hand in
    * a phone's ~360px column — the hand becomes a sideways-scrolling strip of full-height cards instead
@@ -734,6 +791,10 @@ export class SetupDealScene extends Phaser.Scene {
    * carries a thin indicator under it so the player can see there is more hand to the right.
    */
   #drawOpeningHand(rect: Rect, decider: SetupSeatStatus): void {
+    if (decider.handHidden) {
+      this.#drawBacks(rect, decider.handSize);
+      return;
+    }
     const layout = openingHandLayout(rect, decider.hand.length, this.#cardScale > 1);
     if (layout.mode === "row") {
       decider.hand.forEach((card, index) => {
@@ -983,6 +1044,13 @@ export class SetupDealScene extends Phaser.Scene {
     const mulliganLabel = this.#selected.length > 0 ? `Mulligan ${this.#selected.length}` : "Mulligan";
     const keepLabel = `Keep all ${decider.handSize}`;
 
+    if (this.#refusal) {
+      this.add
+        .text(rect.x, rect.y - 6, `Not accepted: ${this.#refusal}`, textStyle(typeRole.body, surface.paper.hex, 1))
+        .setOrigin(0, 1)
+        .setWordWrapWidth(rect.width);
+    }
+
     const mulliganWidth = Math.min(200, rect.width * 0.4);
     const keepWidth = Math.min(150, rect.width * 0.32);
     const gap = 12;
@@ -1068,12 +1136,18 @@ export class SetupDealScene extends Phaser.Scene {
 
   /** True from a commit until the pending choice changes: a double press must not resolve twice. */
   #resolving = false;
+  /** Why the last answer was refused, shown beside the mulligan controls until the next try. */
+  #refusal: string | null = null;
 
   async #confirm(): Promise<void> {
     if (this.#resolving) return;
     this.#resolving = true;
+    this.#refusal = null;
     try {
-      await appSession().store.resolveChoice(this.#selected);
+      const accepted = await appSession().store.resolveChoice(this.#selected);
+      // A refused answer (a seat's proposal the host turned down) says why on the screen, never a silent re-ask.
+      this.#refusal = accepted ? null : (appSession().store.state.error ?? "That answer was not accepted.");
+      if (!accepted && this.sys.isActive()) this.#draw();
     } finally {
       this.#resolving = false;
     }

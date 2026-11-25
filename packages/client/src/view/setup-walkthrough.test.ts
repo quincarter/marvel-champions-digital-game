@@ -70,6 +70,18 @@ describe("setupWalkthroughViewOf: right after Deal it out (Rhino, 4 seats)", () 
     expect(byKey.get("firstPlayer")?.state).toBe("pending");
   });
 
+  test("a seat whose hand is not this device's to read has no faces, only its size (#887)", () => {
+    const shown = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
+    expect(shown.seats.every((seat) => !seat.handHidden && seat.hand.length === seat.handSize)).toBe(true);
+    const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID, (id) => id === playerId("p2"));
+    for (const seat of view.seats) {
+      const mine = seat.playerId === playerId("p2");
+      expect(seat.handHidden).toBe(!mine);
+      expect(seat.hand.length > 0).toBe(mine);
+      expect(seat.handSize).toBe(shown.seats.find((s) => s.playerId === seat.playerId)!.handSize);
+    }
+  });
+
   test("all four seats are listed, in the engine's own order, none complete yet", () => {
     const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
     expect(view.seats.map((seat) => seat.playerId)).toEqual([

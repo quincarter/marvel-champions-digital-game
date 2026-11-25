@@ -53,6 +53,7 @@ worker.addEventListener("message", (event) => {
       onEnabledChange: (on) => gamePort?.postMessage({ kind: "enabled", on } satisfies LiveControlMessage),
       onStartRefused: () => worker.postMessage({ kind: "room-start-refused" }),
       onResync: () => gamePort?.postMessage({ kind: "resync" } satisfies LiveControlMessage),
+      onProposal: (proposal) => gamePort?.postMessage(proposal satisfies LiveControlMessage),
       // Rooms and the lobby (issue #880): the seat tokens live in this worker's IndexedDB, never on the main thread.
       ...(build
         ? {
@@ -65,7 +66,9 @@ worker.addEventListener("message", (event) => {
                 popout.onState(state);
                 worker.postMessage({ kind: "room", state });
               },
+              onResumeGame: (gameId) => worker.postMessage({ kind: "room-resume-game", gameId } satisfies LiveRoomOut),
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
+              onSalvage: (game) => worker.postMessage({ kind: "room-salvage", ...game } satisfies LiveRoomOut),
             },
           }
         : {}),

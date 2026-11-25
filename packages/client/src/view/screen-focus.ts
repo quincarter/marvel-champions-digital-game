@@ -378,6 +378,7 @@ export type PauseFocusInput =
       readonly guidedRunActive?: boolean;
       /** A live room is open (#876): "Copy watch link" follows the menu rows. */
       readonly watchLink?: boolean;
+      readonly showHand?: boolean;
       /** With something typed in the search: the results' stops, in draw order, in place of the cards and the log. */
       readonly searchResultIds?: readonly string[];
     }
@@ -415,6 +416,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "report",
       ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.watchLink ? ["watch-link"] : []),
+      ...(input.showHand ? ["show-hand"] : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["manual-adjust", "concede"]),
       "search",
       ...(input.searchResultIds ?? [

@@ -98,8 +98,13 @@ async function setup({ lobby = true, hooks, askToSit = true }: SetupOptions = {}
     return s;
   };
   const host = (r = room, name = "Hosty") => join(r, { token: TOKEN, name });
-  const lobbySet = (s: RoomSocket, patch: { settings?: object; seats?: object[] }, r = room) =>
-    send(r, s, { ch: "room", kind: "lobby-set", ...patch, settings: { askToSit, ...patch.settings } });
+  const lobbySet = (s: RoomSocket, patch: { settings?: object; seats?: object[]; ifRev?: number }, r = room) =>
+    send(r, s, {
+      ch: "room",
+      kind: "lobby-set",
+      ...patch,
+      ...(patch.settings || patch.seats ? { settings: { askToSit, ...patch.settings } } : {}),
+    });
   const seats = (...ids: string[]) => ids.map((id) => ({ id, label: `Hero ${id}` }));
   return { storage, clock, room, make, send, join, host, lobbySet, seats };
 }
@@ -109,7 +114,7 @@ describe("a lobby room: names, build and the lobby message", () => {
     const { host } = await setup();
     const h = await host();
     expect(h.last("welcome")!.caps).toEqual(LOBBY_ROOM_CAPS);
-    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats"]);
+    expect(LOBBY_ROOM_CAPS).toEqual(["watch", "chat", "seats", "play"]);
     expect(h.last("welcome")!.you).toMatchObject({ role: "host", name: "Hosty", build: BUILD });
     expect(h.last("lobby")).toMatchObject({
       code: CODE,
@@ -184,6 +189,24 @@ describe("who may set the lobby", () => {
     expect(w.last("lobby")!.seats.map((s) => s.label)).toEqual(["Hero s1", "Hero s2"]);
   });
 
+  it("holds Host sees every hand: off by default, host-only to set, shown to everyone (#887)", async () => {
+    const { room, host, join, lobbySet } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.hostSeesHands).toBe(false);
+    await lobbySet(w, { settings: { hostSeesHands: true } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { hostSeesHands: true } });
+    expect(h.refusals).toEqual([]);
+    expect(w.last("lobby")!.settings.hostSeesHands).toBe(true);
+    // Strict rules do not touch it, and an unrelated change keeps it.
+    await lobbySet(h, { settings: { playMode: "host" } });
+    await lobbySet(h, { settings: { chat: false } });
+    expect(h.last("lobby")!.settings.hostSeesHands).toBe(true);
+    await lobbySet(h, { settings: { hostSeesHands: false } });
+    expect(w.last("lobby")!.settings.hostSeesHands).toBe(false);
+  });
+
   it("holds the undo policy: Off in Strict, Ask when Host control starts, the host's choice after, host-only to set", async () => {
     const { room, host, join, lobbySet } = await setup();
     const h = await host();
@@ -230,6 +253,21 @@ describe("who may set the lobby", () => {
     expect(h.refusals).toEqual(["not-allowed", "bad-message"]);
   });
 
+  it("holds openHands: off by default, host-only, fixed once the game has started", async () => {
+    const { room, host, join, lobbySet, send } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.openHands).toBe(false);
+    await lobbySet(w, { settings: { openHands: true } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { openHands: true } });
+    expect(w.last("lobby")!.settings.openHands).toBe(true);
+    await send(room, h, { ch: "game", kind: "start", table: "t1", header: {} });
+    await lobbySet(h, { settings: { openHands: false } });
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(w.last("lobby")!.settings.openHands).toBe(true);
+  });
+
   it("refuses a start built from an older lobby revision and stores nothing; a matching one is taken", async () => {
     const { room, host, join, lobbySet, send } = await setup();
     const h = await host();
@@ -253,6 +291,32 @@ describe("who may set the lobby", () => {
     expect(h.last("table")!.table).toMatchObject({ hasHeader: true, commands: 0 });
     await lobbySet(h, { settings: { cheats: false } });
     expect(h.refusals).toEqual(["lobby-changed", "not-allowed"]);
+  });
+
+  it("applies a lobby-set only at the revision it names (ifRev): a match bumps by one, a mismatch stores nothing, a no-op does not bump (#881)", async () => {
+    const { room, host, lobbySet, seats } = await setup();
+    const h = await host();
+    await lobbySet(h, { seats: seats("s1", "s2") });
+    const rev = h.last("lobby")!.rev;
+    const mapped = [
+      { id: "s1", label: "Hero s1", player: "p1" },
+      { id: "s2", label: "Hero s2", player: "p2" },
+    ];
+    // A stale revision is refused and nothing is stored.
+    await lobbySet(h, { ifRev: rev - 1, seats: mapped });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.last("lobby")!.rev).toBe(rev);
+    expect(h.last("lobby")!.seats.map((s) => s.player)).toEqual([undefined, undefined]);
+    // The matching revision applies, and the revision is exactly one higher.
+    await lobbySet(h, { ifRev: rev, seats: mapped });
+    expect(h.refusals).toEqual(["lobby-changed"]);
+    expect(h.last("lobby")!.rev).toBe(rev + 1);
+    expect(h.last("lobby")!.seats.map((s) => s.player)).toEqual(["p1", "p2"]);
+    // Setting what is already set stores nothing, so the revision a start was judged at stays.
+    await lobbySet(h, { ifRev: rev + 1, seats: mapped });
+    await lobbySet(h, { seats: mapped });
+    expect(h.last("lobby")!.rev).toBe(rev + 1);
+    expect(room).toBeDefined();
   });
 
   it("tells the host its start was taken, and guards a log replacement with the revision too", async () => {
@@ -2019,6 +2083,137 @@ describe("host activity", () => {
     expect(parseClientMessage(JSON.stringify({ ...msg, step: "starting", scenario: "Rhino" }))).not.toBeNull();
     expect(parseClientMessage(JSON.stringify({ ...msg, step: "dancing" }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ ...msg, step: "table", scenario: 4 }))).toBeNull();
+  });
+});
+
+describe("villain pacing and the host's villain cursor", () => {
+  const cursor = (r: GameRoomLogic, s: RoomSocket, at: number, state = "playing", key = "2", table = "t1") =>
+    r.message(s, JSON.stringify({ v: 1, ch: "room", kind: "villain-cursor", table, key, at, state }));
+
+  it("holds Villain phase pacing: the host leads by default, host-only to set, shown to everyone", async () => {
+    const { room, host, join, lobbySet } = await setup();
+    const h = await host();
+    const w = await join(room);
+    expect(h.last("lobby")!.settings.villainPacing).toBe("host");
+    await lobbySet(w, { settings: { villainPacing: "each" } });
+    expect(w.refusals).toEqual(["not-allowed"]);
+    await lobbySet(h, { settings: { villainPacing: "each" } });
+    expect(h.refusals).toEqual([]);
+    expect(w.last("lobby")!.settings.villainPacing).toBe("each");
+    await lobbySet(h, { settings: { chat: false } });
+    expect(w.last("lobby")!.settings.villainPacing).toBe("each");
+    await lobbySet(h, { settings: { villainPacing: "host" } });
+    expect(w.last("lobby")!.settings.villainPacing).toBe("host");
+  });
+
+  it("refuses a pacing that is not one of the two", () => {
+    const send = (villainPacing: unknown) =>
+      parseClientMessage(JSON.stringify({ v: 1, ch: "room", kind: "lobby-set", settings: { villainPacing } }));
+    expect(send("host")).not.toBeNull();
+    expect(send("each")).not.toBeNull();
+    expect(send("fast")).toBeNull();
+    expect(send(1)).toBeNull();
+  });
+
+  it("validates a cursor message's shape", () => {
+    const parse = (extra: object) =>
+      parseClientMessage(
+        JSON.stringify({
+          v: 1,
+          ch: "room",
+          kind: "villain-cursor",
+          table: "t1",
+          key: "2",
+          at: 3,
+          state: "playing",
+          ...extra,
+        }),
+      );
+    expect(parse({})).not.toBeNull();
+    expect(parse({ state: "none" })).toBeNull();
+    expect(parse({ at: -1 })).toBeNull();
+    expect(parse({ at: 1.5 })).toBeNull();
+    expect(parse({ at: 100_000 })).toBeNull();
+    expect(parse({ key: "" })).toBeNull();
+    expect(parse({ key: "k".repeat(25) })).toBeNull();
+    expect(parse({ table: "bad table" })).toBeNull();
+  });
+
+  it("relays the host's cursor to guests (not back to the host), and to a joiner afterwards", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await cursor(room, h, 3);
+    expect(a.last("villain-cursor")).toEqual({
+      v: 1,
+      ch: "room",
+      kind: "villain-cursor",
+      table: "t1",
+      key: "2",
+      at: 3,
+      state: "playing",
+    });
+    expect(h.of("villain-cursor")).toHaveLength(0);
+    const late = await join(room, { name: "Late" });
+    expect(late.last("villain-cursor")).toMatchObject({ key: "2", at: 3, state: "playing" });
+  });
+
+  it("is the table host's alone: refused for a guest, and for a host naming another table", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    const b = await join(room, { name: "B" });
+    await cursor(room, a, 1);
+    expect(a.refusals).toEqual(["not-allowed"]);
+    await cursor(room, h, 1, "playing", "2", "t2");
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(b.of("villain-cursor")).toHaveLength(0);
+  });
+
+  it("stores nothing and leaves the lobby revision alone; an unchanged cursor is not relayed again", async () => {
+    const { room, host, join, storage } = await setup();
+    const h = await host();
+    const a = await join(room);
+    const rev = a.last("lobby")!.rev;
+    const before = JSON.stringify([...storage.map.entries()]);
+    await cursor(room, h, 1);
+    await cursor(room, h, 1);
+    await cursor(room, h, 2);
+    expect(a.of("villain-cursor").map((m) => m.at)).toEqual([1, 2]);
+    expect(JSON.stringify([...storage.map.entries()])).toBe(before);
+    expect(a.of("lobby").every((l) => l.rev === rev)).toBe(true);
+  });
+
+  it("relays the newest over-limit cursor once a token frees, and never refuses the host for it", async () => {
+    vi.useFakeTimers();
+    try {
+      const { room, host, join, clock } = await setup();
+      const h = await host();
+      const a = await join(room);
+      for (let at = 1; at <= 20; at++) await cursor(room, h, at);
+      expect(a.of("villain-cursor").length).toBeLessThan(20);
+      expect(a.last("villain-cursor")!.at).toBeLessThan(20);
+      expect(h.refusals).toEqual([]);
+      clock.now += 2_000;
+      await vi.advanceTimersByTimeAsync(600);
+      expect(a.last("villain-cursor")!.at).toBe(20);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears the cursor when the game is started over or rewound", async () => {
+    const { room, host, join } = await setup();
+    const h = await host();
+    const a = await join(room);
+    await cursor(room, h, 4);
+    await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "start", table: "t1", header: {} }));
+    expect(a.last("villain-cursor")).toMatchObject({ state: "none" });
+    const late = await join(room, { name: "Late" });
+    expect(late.of("villain-cursor")).toHaveLength(0);
+    await cursor(room, h, 5, "closed");
+    await room.message(h, JSON.stringify({ v: 1, ch: "game", kind: "rewind", table: "t1", to: 0 }));
+    expect(a.last("villain-cursor")).toMatchObject({ state: "none" });
   });
 });
 

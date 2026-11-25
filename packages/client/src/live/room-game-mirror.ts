@@ -12,6 +12,17 @@ import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 
 type GameMessage = Extract<ServerMessage, { ch: "game" }>;
 
+/** A room's game as a guest holds it: the table's header as the room carries it (unread, `parseLiveHeader`) and the log. */
+export interface RoomGameSalvage {
+  readonly header: unknown;
+  readonly commands: readonly unknown[];
+  /**
+   * The host took moves back in this game. Latched, conservatively: this protocol version does not say whether a rewind
+   * was an Undo past hidden information (that flag is the host's `rewind {adjusted}`), so any cut counts.
+   */
+  readonly adjusted?: true;
+}
+
 export class GameMirror {
   readonly #table: string;
   #header: unknown = undefined;
@@ -20,6 +31,11 @@ export class GameMirror {
   #checksums: Record<string, string> = {};
   #ended = false;
   #outcome: unknown = null;
+  /** The server's `total` while a multi-part `log` is still arriving: a snapshot carries it so a follower keeps assembling. */
+  #pendingTotal: number | null = null;
+  /** A rewind cut this game's log (sticky; reset only when a different game's header arrives). */
+  #cut = false;
+  #gameStamp: unknown = undefined;
 
   constructor(table: string = FIRST_TABLE) {
     this.#table = table;
@@ -33,13 +49,19 @@ export class GameMirror {
     return this.#commands.length;
   }
 
-  clear(): void {
+  /** `keepLatch`: a reconnect, which brings the same game's log again: what was latched about it is kept. */
+  clear(keepLatch = false): void {
     this.#has = false;
     this.#header = undefined;
     this.#commands = [];
     this.#checksums = {};
     this.#ended = false;
     this.#outcome = null;
+    this.#pendingTotal = null;
+    if (!keepLatch) {
+      this.#cut = false;
+      this.#gameStamp = undefined;
+    }
   }
 
   /** Applies a game message; `"gap"` when a batch does not line up (the mirror is then not to be trusted). */
@@ -47,17 +69,26 @@ export class GameMirror {
     if (message.ch !== "game" || !("table" in message) || message.table !== this.#table) return "ignored";
     const m: GameMessage = message;
     switch (m.kind) {
-      case "log":
+      case "log": {
+        // The same game's log again (a reconnect) keeps what was latched; a shorter one means the host cut it meanwhile.
+        const stamp = (m.header as { createdAt?: unknown } | null)?.createdAt;
+        if (stamp !== undefined && stamp === this.#gameStamp) {
+          if (this.#has && m.commands.length < this.#commands.length && m.total === undefined) this.#cut = true;
+        } else this.#cut = false;
+        this.#gameStamp = stamp;
         this.#has = true;
         this.#header = m.header;
         this.#commands = [...m.commands];
         this.#checksums = { ...m.checksums };
         this.#ended = false;
         this.#outcome = m.outcome ?? null;
+        this.#pendingTotal = m.total !== undefined && m.total > m.commands.length ? m.total : null;
         return "applied";
+      }
       case "commands": {
         if (!this.#has) return "ignored";
         if (m.from > this.#commands.length) return "gap";
+        if (m.from < this.#commands.length) this.#cut = true;
         this.#commands.length = m.from;
         this.#commands.push(...m.commands);
         this.#dropChecksumsAfter(m.from);
@@ -66,6 +97,7 @@ export class GameMirror {
         // finished game that has since taken commands.
         this.#ended = false;
         this.#outcome = null;
+        if (this.#pendingTotal !== null && this.#commands.length >= this.#pendingTotal) this.#pendingTotal = null;
         return "applied";
       }
       case "rewind":
@@ -73,10 +105,12 @@ export class GameMirror {
         // over says so that way): the end is cleared, as the room and `WatchFeed` do.
         if (!this.#has || m.to > this.#commands.length || (m.to === this.#commands.length && !this.#ended))
           return "ignored";
+        if (m.to < this.#commands.length) this.#cut = true;
         this.#commands.length = m.to;
         this.#dropChecksumsAfter(m.to);
         this.#ended = false;
         this.#outcome = null;
+        this.#pendingTotal = null;
         return "applied";
       case "end":
         if (!this.#has) return "ignored";
@@ -92,6 +126,15 @@ export class GameMirror {
     for (const key of Object.keys(this.#checksums)) if (Number(key) > count) delete this.#checksums[key];
   }
 
+  /**
+   * The game as it stands, for a guest whose room just closed (`live/room-continue.ts`): the header and every command
+   * held, or null when there is nothing to continue from (no game, a multi-part log still arriving, a game that is over).
+   */
+  salvage(): RoomGameSalvage | null {
+    if (!this.#has || this.#header === undefined || this.#pendingTotal !== null || this.#ended) return null;
+    return { header: this.#header, commands: [...this.#commands], ...(this.#cut ? { adjusted: true as const } : {}) };
+  }
+
   /** The whole game as the messages a fresh watcher would receive: a `log`, then `end` when the game is over. */
   snapshot(): readonly ServerMessage[] {
     if (!this.#has) return [];
@@ -101,8 +144,9 @@ export class GameMirror {
       kind: "log",
       table: this.#table,
       header: this.#header,
-      commands: this.#commands,
-      checksums: this.#checksums,
+      commands: [...this.#commands],
+      checksums: { ...this.#checksums },
+      ...(this.#pendingTotal !== null ? { total: this.#pendingTotal } : {}),
       ...(this.#ended ? { outcome: this.#outcome } : {}),
     };
     return this.#ended ? [log, { v: 1, ch: "game", kind: "end", table: this.#table, outcome: this.#outcome }] : [log];

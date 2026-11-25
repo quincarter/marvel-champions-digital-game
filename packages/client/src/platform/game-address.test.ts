@@ -72,3 +72,16 @@ describe("the game in the address", () => {
     expect(() => clearGameAddress(undefined, undefined)).not.toThrow();
   });
 });
+
+describe("a game walked away from while it loaded", () => {
+  it("stays out of the address until Title lets it back", async () => {
+    const { suppressGameAddress, releaseGameAddress } = await import("./game-address.js");
+    const p = fakePage("/");
+    suppressGameAddress(ID);
+    syncGameAddress(playing(), false, p.location, p.history);
+    expect(p.log).toEqual([]);
+    releaseGameAddress();
+    syncGameAddress(playing(), false, p.location, p.history);
+    expect(p.log).toEqual([`/?game=${ID}`]);
+  });
+});

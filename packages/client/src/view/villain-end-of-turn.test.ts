@@ -127,6 +127,26 @@ describe("endOfTurnLine", () => {
     expect(line([refillStarts, drawn(me, "b"), refilled(me, 1), begins])).toBe("You drew 1 card: Genius.");
   });
 
+  it("counts the viewer's own draws too when that hand is not this device's to read (#887)", () => {
+    const events = [
+      refillStarts,
+      drawn(me, "a"),
+      drawn(me, "b"),
+      refilled(me, 2),
+      drawn(ally, "d"),
+      refilled(ally, 1),
+      begins,
+    ];
+    const text = endOfTurnLine(
+      endOfTurnDrawsOf(events)!,
+      me,
+      (playerId) => (playerId === me ? "Spider-Man" : "Captain Marvel"),
+      (instance) => names[instance as string] ?? "?",
+      (playerId) => playerId === ally,
+    );
+    expect(text).toBe("Spider-Man drew 2 cards. Captain Marvel drew 1 card.");
+  });
+
   it("says nothing when nobody drew", () => {
     expect(line([begins])).toBe("");
   });

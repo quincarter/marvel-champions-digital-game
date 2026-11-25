@@ -201,6 +201,24 @@ describe("a live replay source", () => {
     expect(decoded.ok && "watchable" in decoded.file.config).toBe(false);
   });
 
+  test("a room game's header keeps its hidden hands for the watcher, and an exported file drops it (#887)", async () => {
+    const game = await hostedGame(5);
+    const core = new ReplayCore(HERE, null);
+    const opened = await core.open({
+      kind: "live",
+      header: { ...game.header, config: { ...game.header.config, roomHandsHidden: true } },
+      commands: game.commands,
+      checksums: game.checksums,
+      outcome: null,
+    });
+    expect(opened.info.config.roomHandsHidden).toBe(true);
+    const { bytes } = await core.exportFile();
+    const decoded = await decodeReplay(bytes);
+    expect(decoded.ok && "roomHandsHidden" in decoded.file.config).toBe(false);
+    const plain = new ReplayCore(HERE, null);
+    expect((await openLive(plain, game, 5)).info.config.roomHandsHidden).toBeUndefined();
+  });
+
   test("a header from a room with Cheats on opens adjusted on a guest's device", async () => {
     const game = await hostedGame(5);
     const plain = await new ReplayCore(HERE, null).open({

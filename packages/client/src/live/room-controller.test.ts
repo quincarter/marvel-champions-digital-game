@@ -101,11 +101,13 @@ function setup(
     onlineName?: string;
     now?: () => number;
     device?: RoomDevice;
+    onResumeGame?: (gameId: string) => void;
   } = {},
 ) {
   FakeSocket.all = [];
   const states: RoomState[] = [];
   const answers: { id: number; decks: readonly SeatDeckEntry[] | null }[] = [];
+  const salvaged: { header: unknown; commands: readonly unknown[] }[] = [];
   const timers: { run: () => void; live: boolean; ms: number }[] = [];
   const socket: RoomSocketDeps = {
     WebSocket: FakeSocket,
@@ -143,6 +145,8 @@ function setup(
       ...(options.onlineName !== undefined ? { onlineName: options.onlineName } : {}),
       onState: (s) => states.push(s),
       onDecks: (id, decks) => answers.push({ id, decks }),
+      ...(options.onResumeGame ? { onResumeGame: options.onResumeGame } : {}),
+      onSalvage: (game) => salvaged.push(game),
       createRoom,
       resolveRoomCode,
     },
@@ -152,6 +156,7 @@ function setup(
     controller,
     states,
     answers,
+    salvaged,
     createRoom,
     resolveRoomCode,
     seatStore,
@@ -905,6 +910,25 @@ describe("closing and resuming a lobby room (#901 review)", () => {
     expect(s3.kinds).not.toContain("room:room-close");
   });
 
+  it("a host who closes mid-game has sent every command before the close, so guests hold the whole log (#904)", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(2), count: 2 });
+    // Close room pressed right after a move: a streaming game sends each command as it lands, so the move is already on the
+    // socket, ahead of the close.
+    t.controller.onRoomCommand({ kind: "room-leave", closeRoom: true });
+    const game = socket.kinds.filter((k) => k.startsWith("game:") || k === "room:room-close");
+    expect(game[game.length - 1]).toBe("room:room-close");
+    const sent = socket.sent.filter((m) => m.kind === "commands").flatMap((m) => m["commands"] as unknown[]);
+    expect(sent).toEqual([cmd(1), cmd(2)]);
+  });
+
   it("shows a room the host closed as closed-host", async () => {
     const t = setup();
     t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
@@ -913,6 +937,69 @@ describe("closing and resuming a lobby room (#901 review)", () => {
     socket.welcome("watcher");
     socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
     expect(t.last()).toMatchObject({ connection: "ended", problem: "closed-host" });
+  });
+
+  describe("a guest's game when the room closes under it (#904)", () => {
+    const game = (commands: unknown[] = [{ type: "a" }, { type: "b" }], extra: object = {}) => ({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: "t1",
+      header: { h: 1 },
+      commands,
+      checksums: {},
+      ...extra,
+    });
+    const guest = async () => {
+      const t = setup();
+      t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+      await flush();
+      const socket = FakeSocket.all[0]!;
+      socket.welcome("watcher", { commands: 2, ended: false, hasHeader: true });
+      return { t, socket };
+    };
+
+    it("hands over the header and every command it holds, ahead of the ended state", async () => {
+      const { t, socket } = await guest();
+      socket.receive(game());
+      socket.receive({ v: 1, ch: "game", kind: "commands", table: "t1", from: 2, commands: [{ type: "c" }] });
+      const before = t.states.length;
+      socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(t.salvaged).toEqual([{ header: { h: 1 }, commands: [{ type: "a" }, { type: "b" }, { type: "c" }] }]);
+      expect(t.states.length).toBeGreaterThan(before);
+      expect(t.last()).toMatchObject({ connection: "ended", problem: "closed-host" });
+    });
+
+    it("hands over nothing when the game is over, still arriving, or there was none", async () => {
+      const over = await guest();
+      over.socket.receive(game());
+      over.socket.receive({ v: 1, ch: "game", kind: "end", table: "t1", outcome: { won: true } });
+      over.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(over.t.salvaged).toEqual([]);
+
+      const arriving = await guest();
+      arriving.socket.receive(game([{ type: "a" }], { total: 3 }));
+      arriving.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "idle" });
+      expect(arriving.t.salvaged).toEqual([]);
+
+      const none = await guest();
+      none.socket.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(none.t.salvaged).toEqual([]);
+    });
+
+    it("a guest leaving by itself keeps nothing, and a host is never handed one", async () => {
+      const { t, socket } = await guest();
+      socket.receive(game());
+      t.controller.onRoomCommand({ kind: "room-leave" });
+      expect(t.salvaged).toEqual([]);
+
+      const host = setup();
+      host.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+      await flush();
+      FakeSocket.all[0]!.welcome("host");
+      FakeSocket.all[0]!.receive({ v: 1, ch: "room", kind: "closed", reason: "host" });
+      expect(host.salvaged).toEqual([]);
+    });
   });
 
   it("a resumed host presents its own stored seat tokens in the hello", async () => {
@@ -1014,6 +1101,49 @@ describe("live chat count and the host's setup step (issue #880)", () => {
     socket.receive({ v: 1, ch: "room", kind: "host-activity", step: "decks" });
     socket.closeWith(1006);
     expect(t.last().hostActivity).toBeNull();
+  });
+  it("a host sends its villain phase cursor to the room, a guest never does", async () => {
+    const host = setup();
+    host.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const hostSocket = FakeSocket.all[0]!;
+    hostSocket.welcome("host");
+    host.controller.onRoomCommand({ kind: "room-villain-cursor", key: "2", at: 3, state: "playing" });
+    expect(hostSocket.sent.at(-1)).toMatchObject({
+      ch: "room",
+      kind: "villain-cursor",
+      table: "t1",
+      key: "2",
+      at: 3,
+      state: "playing",
+    });
+    const guest = setup();
+    guest.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const guestSocket = FakeSocket.all.at(-1)!;
+    guestSocket.welcome("watcher");
+    const before = guestSocket.sent.length;
+    guest.controller.onRoomCommand({ kind: "room-villain-cursor", key: "2", at: 3, state: "playing" });
+    expect(guestSocket.sent).toHaveLength(before);
+  });
+
+  it("shows the host's villain phase cursor to a guest, clears it on none, and forgets it when the socket drops", async () => {
+    const t = setup();
+    t.controller.onRoomCommand({ kind: "room-join", target: "ABC234", name: "G" });
+    await flush();
+    const socket = FakeSocket.all[0]!;
+    socket.welcome("watcher");
+    expect(t.last().villainCursor).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "2", at: 4, state: "playing" });
+    expect(t.last().villainCursor).toEqual({ key: "2", at: 4, state: "playing" });
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "-", at: 0, state: "none" });
+    expect(t.last().villainCursor).toBeNull();
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t1", key: "2", at: 5, state: "closed" });
+    // Another table's cursor is not this table's.
+    socket.receive({ v: 1, ch: "room", kind: "villain-cursor", table: "t2", key: "9", at: 1, state: "playing" });
+    expect(t.last().villainCursor).toEqual({ key: "2", at: 5, state: "closed" });
+    socket.closeWith(1006);
+    expect(t.last().villainCursor).toBeNull();
   });
 
   it("carries the host's table plan into the state, clears it on null and on a dropped socket, and ignores guests sending one", async () => {
@@ -1143,6 +1273,62 @@ describe("rejoining the room in the address after a reload", () => {
   });
 });
 
+describe("a host reloading in the middle of its room's game", () => {
+  it("saves the game in progress on the room's code record, and drops it when the game leaves the room", async () => {
+    const store = new MemoryRoomStore();
+    const t = setup({ store });
+    t.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    t.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    expect(store.records.get("room:ABC234")).toMatchObject({ liveGameKey: "g1", hostToken: "h".repeat(32) });
+    t.controller.onGameMessage({ kind: "none" });
+    await flush();
+    expect(store.records.get("room:ABC234")?.liveGameKey).toBeUndefined();
+    expect(store.records.get("room:ABC234")?.hostToken).toBe("h".repeat(32));
+  });
+
+  it("a rejoin names the save to resume, before the room answers, and the resumed game reattaches to the same room", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+
+    // The page reloads: a new worker over the same storage.
+    const resumed: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => resumed.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    expect(resumed).toEqual(["g1"]);
+    // The save is then resumed: its game message joins the rejoined room as the host, with no second room.
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    expect(t.createRoom).not.toHaveBeenCalled();
+    expect(FakeSocket.all.filter((s) => s.url.includes("room00000001"))).toHaveLength(1);
+    FakeSocket.all[0]!.open();
+    expect(FakeSocket.all[0]!.hello).toMatchObject({ name: "Hosty", token: "h".repeat(32) });
+    expect(store.records.get("g1")).toMatchObject({ roomId: "room00000001", code: "ABC234" });
+  });
+
+  it("a rejoin in the lobby, with no game in progress, names no save", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    const resumed: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => resumed.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    expect(resumed).toEqual([]);
+  });
+});
+
 describe("review fixes for the reload rejoin", () => {
   it("another tab taking the host socket (replaced) leaves the saved records for that tab", async () => {
     const store = new MemoryRoomStore();
@@ -1191,5 +1377,87 @@ describe("review fixes for the reload rejoin", () => {
     t.controller.onRoomCommand({ kind: "room-say", text: "hi again" });
     await flush();
     expect(store.records.get("room:ABC234")?.lastActiveAt).toBe(90_000);
+  });
+});
+
+describe("giving up a mid-game rejoin", () => {
+  async function hostedGame() {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+    expect(store.records.get("room:ABC234")?.liveGameKey).toBe("g1");
+    return store;
+  }
+
+  it("Cancel before the save finishes loading: the save later never reattaches, and both records are gone", async () => {
+    const store = await hostedGame();
+    const t = setup({ store, onResumeGame: () => undefined });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    const sockets = FakeSocket.all.length;
+    t.controller.onRoomCommand({ kind: "room-leave" });
+    await flush();
+    expect(store.records.has("room:ABC234")).toBe(false);
+    expect(store.records.has("g1")).toBe(false);
+    // The save finishes loading after the player left: nothing connects, no room is made, no session is back.
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    await flush();
+    expect(FakeSocket.all).toHaveLength(sockets);
+    expect(t.createRoom).not.toHaveBeenCalled();
+    expect(t.last().role).toBe("none");
+  });
+
+  it("Cancel after the game reattached: the leave drops the room record, the game record and the lobby record", async () => {
+    const store = await hostedGame();
+    const t = setup({ store, onResumeGame: () => undefined });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    expect(store.records.get("g1")?.code).toBe("ABC234");
+    t.controller.onRoomCommand({ kind: "room-leave" });
+    await flush();
+    await flush();
+    expect(store.records.has("room:ABC234")).toBe(false);
+    expect(store.records.has("g1")).toBe(false);
+  });
+});
+
+describe("a rejected host token during a mid-game rejoin", () => {
+  it("falls back to a guest, and the save that loads meanwhile never reattaches as host", async () => {
+    const store = new MemoryRoomStore();
+    const first = setup({ store });
+    first.controller.onRoomCommand({ kind: "room-host", name: "Hosty" });
+    await flush();
+    FakeSocket.all[0]!.welcome("host", { commands: 0, ended: false, hasHeader: false });
+    first.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    first.controller.onGameMessage({ kind: "command", gameKey: "g1", command: cmd(1), count: 1 });
+    await flush();
+
+    const named: string[] = [];
+    const t = setup({ store, onResumeGame: (id) => named.push(id) });
+    t.controller.onRoomCommand({ kind: "room-rejoin", code: "ABC234", name: "Hosty" });
+    await flush();
+    // The save is named before the room answers; the host welcome is slow, then the room rejects the token (gone).
+    expect(named).toEqual(["g1"]);
+    expect(t.last()).toMatchObject({ role: "host", connection: "connecting" });
+    FakeSocket.all[0]!.closeWith(1011);
+    await flush();
+    expect(t.last().role).toBe("guest");
+    // The local save finishes loading only now: it must not reconnect as the host of the room that refused it.
+    const sockets = FakeSocket.all.length;
+    t.controller.onGameMessage(gameMessage("g1", "room00000001"));
+    await flush();
+    await flush();
+    expect(t.last().role).toBe("guest");
+    expect(FakeSocket.all.filter((s) => s.url.includes("room00000001") && s.sent.some((m) => m.token))).toHaveLength(0);
+    expect(FakeSocket.all.length).toBe(sockets);
+    expect(t.createRoom).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,9 @@ const seat = (id: string, holder: string | null): RoomSeat => ({
   holderConnected: holder !== null,
   mismatch: false,
   mine: false,
+  player: null,
+  takenOver: false,
+  away: false,
   requests: [],
   requestedByMe: false,
   deck: null,
@@ -121,6 +124,22 @@ describe("the host's Start with the players' own decks", () => {
     };
     expect(await startRoomGame(BASE, duringFetch)).toEqual({ ok: false, reason: "lobby-changed" });
     expect(base.started).toHaveLength(0);
+  });
+
+  it("starts at the revision the seat mapping settled on, and returns lobby-changed when it did not (#881)", async () => {
+    const live = room([seat("s1", "a")], { rev: 4 });
+    const first = deps(live, [entry("s1", "Spidey")]);
+    const mapSeats = vi.fn(async (_judged: number) => 5 as number | null);
+    expect(await startRoomGame(BASE, { ...first.d, mapSeats })).toEqual({ ok: true });
+    expect(mapSeats).toHaveBeenCalledWith(4);
+    expect(first.started[0]).toMatchObject({ roomLobbyRev: 5 });
+
+    const second = deps(live, [entry("s1", "Spidey")]);
+    expect(await startRoomGame(BASE, { ...second.d, mapSeats: async () => null })).toEqual({
+      ok: false,
+      reason: "lobby-changed",
+    });
+    expect(second.started).toHaveLength(0);
   });
 
   it("refuses each failing seat to that seat alone and starts nothing", async () => {

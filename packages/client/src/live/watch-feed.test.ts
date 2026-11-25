@@ -27,6 +27,34 @@ describe("WatchFeed", () => {
     expect(feed.count).toBe(5);
   });
 
+  test("a log with a total waits for its continuations and emits one open, then one reset on a reconnect", () => {
+    const feed = new WatchFeed();
+    expect(feed.onMessage(log([1, 2], { total: 5, checksums: { "0": "a" } }))).toEqual([]);
+    expect(feed.opened).toBe(false);
+    expect(feed.onMessage(commands(2, [3, 4], { "4": "b" }))).toEqual([]);
+    expect(feed.onMessage(commands(4, [5]))).toMatchObject([
+      { kind: "open", commands: [1, 2, 3, 4, 5], checksums: { "0": "a", "4": "b" } },
+    ]);
+    expect(feed.count).toBe(5);
+    expect(feed.onMessage(log([1, 2], { total: 6 }))).toEqual([]);
+    expect(feed.count).toBe(5);
+    expect(feed.onMessage(commands(2, [3, 4, 5, 6]))).toMatchObject([{ kind: "reset", commands: [1, 2, 3, 4, 5, 6] }]);
+    expect(feed.count).toBe(6);
+  });
+
+  test("a part out of order drops the partial log and asks for a resync", () => {
+    const feed = new WatchFeed();
+    feed.onMessage(log([1, 2], { total: 5 }));
+    expect(feed.onMessage(commands(3, [4, 5]))).toEqual([{ kind: "resync" }]);
+    expect(feed.opened).toBe(false);
+  });
+
+  test("a log whose total it already holds, or no total (an older room), is taken as it stands", () => {
+    const feed = new WatchFeed();
+    expect(feed.onMessage(log([1, 2], { total: 2 }))).toMatchObject([{ kind: "open", commands: [1, 2] }]);
+    expect(feed.onMessage(log([1]))).toMatchObject([{ kind: "reset", commands: [1] }]);
+  });
+
   test("ignores commands before there is a log", () => {
     expect(new WatchFeed().onMessage(commands(0, [1]))).toEqual([]);
   });

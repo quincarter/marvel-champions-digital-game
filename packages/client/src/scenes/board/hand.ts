@@ -9,7 +9,8 @@ import { teamUpTagFor, type TeamUpRole } from "../../view/team-up-model.js";
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
 import { cardOf, type GameState, type InstanceId } from "@mc/engine";
-import { artFor } from "../../art/art-source.js";
+import { CARD_BACKS, artFor } from "../../art/art-source.js";
+import { t } from "../../i18n/translate.js";
 import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
@@ -145,7 +146,9 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       // The deck and discard counts moved onto the piles themselves (`piles.ts`).
       // `handLimit` is the real hand; the strip can also carry cards played "as if in your hand" (`HandCardView.from`).
       // The hand size beside it, so a hand already at a small hand size (Iron Man's 1) reads as full (#150).
-      `hand ${model.handLimit} · size ${model.myHandSize}`,
+      model.handHidden
+        ? t("hand.hidden", { count: model.handLimit })
+        : `hand ${model.handLimit} · size ${model.myHandSize}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
@@ -174,6 +177,10 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   }
 
   const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
+  if (model.handHidden) {
+    drawHiddenHand(ctx, inner, model, tabbed);
+    return;
+  }
   const fan: false | "expanded" = tabbed ? "expanded" : false;
   const row = handRow(inner, {
     handCount: model.hand.length,
@@ -250,6 +257,29 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     });
   }
 
+  drawMyPiles(ctx, row, model);
+}
+
+/**
+ * A hand that is not this device's to read (a room game's other seat, #887): the caption says so and the cards are
+ * backs with their count. Nothing here is a tap target or a hover, so the hand cannot be opened, inspected or played.
+ */
+function drawHiddenHand(ctx: BoardDrawContext, inner: Rect, model: BoardModel, tabbed: boolean): void {
+  const { scene } = ctx;
+  const row = handRow(inner, {
+    handCount: model.handLimit,
+    tableTiles: 0,
+    fan: false,
+    piles: tabbed ? "stacked" : "flank",
+  });
+  const key = ctx.art.request(scene, CARD_BACKS.player);
+  for (const slot of row.slots) {
+    const g = scene.add.graphics();
+    g.fillStyle(surface.ink.hex, 1).fillRect(slot.x - 1, slot.y - 1, slot.width + 2, slot.height + 2);
+    g.fillStyle(surface.parchment.hex, 1).fillRect(slot.x, slot.y, slot.width, slot.height);
+    drawArt(scene, key, slot, { fit: "cover" });
+    g.lineStyle(1, surface.paper.hex, 0.9).strokeRect(slot.x - 0.5, slot.y - 0.5, slot.width + 1, slot.height + 1);
+  }
   drawMyPiles(ctx, row, model);
 }
 

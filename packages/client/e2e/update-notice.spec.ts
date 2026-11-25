@@ -160,7 +160,8 @@ for (const size of FIT_SIZES) {
     await page.setViewportSize(size);
     await openAsAndroidApp(page, [APK_URL]);
     await startGame(page, { scenarioId: "rhino", decks: ["core-spider-man-justice"], seed: 4 });
-    await page.reload();
+    // A fresh visit, not a reload: a reload inside a game keeps `?game=` and resumes straight into it.
+    await page.goto("/?unlock=all");
     await waitForText(page, "Update available", { sceneKey: "Title" });
     await waitForText(page, "Continue", { sceneKey: "Title" });
     await waitForText(page, "Civil War!", { sceneKey: "Title" });

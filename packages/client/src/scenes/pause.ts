@@ -89,6 +89,13 @@ import { pauseFocusOrder } from "../view/screen-focus.js";
 import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { roomCheatsOf } from "../view/room-strict.js";
+import { askAllowedOf } from "../view/room-ask-policy.js";
+import { activeSeat } from "../platform/seat-play.js";
+import { onRoomState, roomState, setSeatShowsHand } from "../platform/room.js";
+import { showHandToggleOf, type ShowHandToggle } from "../view/hand-privacy.js";
+import { handoverOn, roomChatOn } from "../view/room-prompts.js";
+import { inRoomGame } from "../view/whose-turn.js";
+import { leaveSeatForWatch } from "./seat-drop.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
@@ -213,6 +220,15 @@ export class PauseOverlay extends Phaser.Scene {
       if (this.sys.isActive()) this.#draw();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
+    // The room's echo of a Show my hand press changes the control's label (and a seat gained or lost, its presence).
+    let handKey = JSON.stringify(this.#showHandToggle());
+    const roomOff = onRoomState(() => {
+      const key = JSON.stringify(this.#showHandToggle());
+      if (key === handKey) return;
+      handKey = key;
+      if (this.sys.isActive()) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, roomOff);
     this.#searchClient = new SettingsSearchClient();
     this.#search = new PauseSearchSession(
       this.#searchClient,
@@ -347,13 +363,50 @@ export class PauseOverlay extends Phaser.Scene {
 
   /** Manual adjust is offered when Settings allows it and the game is not a strict lobby room's (`view/room-strict.ts`). */
   #manualAdjustOn(): boolean {
+    // A seated guest does not adjust the table: in a Host control room the same place asks the host for a change (#881).
+    if (this.#seatGame()) return askAllowedOf("adjust", roomState().settings);
     return roomCheatsOf(appSession().settings, appSession().store.state.config).manualAdjust;
+  }
+
+  /** This device plays a room's game from a seat (a guest): Pause leaves instead of saving, and Concede leaves the seat. */
+  #seatGame(): boolean {
+    return activeSeat() !== null;
+  }
+
+  #adjustLabel(): string {
+    return this.#seatGame() ? t("ask.change") : "Manual adjust";
+  }
+
+  #quitLabel(): string {
+    return this.#seatGame() ? t("ask.leave") : "Save & quit";
+  }
+
+  /** What the Concede confirm says: a guest's Concede is leaving the seat, not ending the game. */
+  #concedeSentence(): string {
+    if (!this.#seatGame()) return "Concede? This ends the game for the whole table.";
+    return handoverOn(roomState())
+      ? `${t("concede.seatTitle")} ${t("concede.seatBody")}`
+      : `${t("concede.seatTitle")} ${t("concede.seatStays")}`;
   }
 
   /** Manual adjust, over this sheet (#791): Done there closes it and Pause takes input again. */
   #openManualAdjust(): void {
     if (!this.#manualAdjustOn() || this.scene.isActive(SCENES.manualAdjust)) return;
+    if (this.#seatGame()) {
+      if (!this.scene.isActive(SCENES.roomAsk)) this.scene.launch(SCENES.roomAsk);
+      return;
+    }
     this.scene.launch(SCENES.manualAdjust, { from: SCENES.pause } satisfies ManualAdjustData);
+  }
+
+  /** The room's chat is on in this room game: Pause has a Chat entry (the stats' place) (#881). */
+  #roomChat(): boolean {
+    const room = roomState();
+    return inRoomGame(room) && roomChatOn(room);
+  }
+
+  #openChat(): void {
+    if (!this.scene.isActive(SCENES.roomChat)) this.#launchOver(SCENES.roomChat, {});
   }
 
   /** Your stats, over this sheet: Back there closes it and Pause takes input again. */
@@ -394,11 +447,36 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   async #onConcedeConfirmed(): Promise<void> {
+    if (this.#seatGame()) {
+      // A guest's Concede leaves the seat and drops to the watch view; the game goes on (#881).
+      const board = this.#boardScene();
+      this.#setConfirmingConcede(false);
+      this.#resume();
+      if (board) void leaveSeatForWatch(board);
+      return;
+    }
     const conceded = await this.#dispatchConcede();
     this.#setConfirmingConcede(false);
     // The engine's refusal (already over, no seat) is in `store.state.error`,
     // which the Board shows; the overlay stays open so the player sees it.
     if (conceded) this.#resume();
+  }
+
+  /** The "Show my hand" control in a room game, else null (single player, offline, every hand already open, no seat). */
+  #showHandToggle(): ShowHandToggle | null {
+    return showHandToggleOf(roomState());
+  }
+
+  #showHandLabel(toggle: ShowHandToggle, short: boolean): string {
+    const key = toggle.on ? "room.showHand.hide" : "room.showHand.show";
+    return t(short ? (`${key}Short` as "room.showHand.showShort" | "room.showHand.hideShort") : key);
+  }
+
+  /** Flips the hands this device may show; the room echoes the new lobby state, which redraws Pause. */
+  #flipShowHand(): void {
+    const toggle = this.#showHandToggle();
+    if (!toggle) return;
+    for (const seat of toggle.seats) setSeatShowsHand(seat, !toggle.on);
   }
 
   /** Copies the live room's watch link; the item says "Link copied" for a moment after (#876). */
@@ -460,17 +538,19 @@ export class PauseOverlay extends Phaser.Scene {
       },
       {
         id: "stats",
-        title: "Your stats",
-        detail: "Your record, heroes, villains and the cards you play.",
-        open: () => this.#openStats(),
+        title: this.#roomChat() ? t("chat.title") : "Your stats",
+        detail: this.#roomChat() ? t("chat.pauseDetail") : "Your record, heroes, villains and the cards you play.",
+        open: () => (this.#roomChat() ? this.#openChat() : this.#openStats()),
       },
       // Only once the player has turned it on in Settings > More > Cheats (the owner, 2026-11-19).
       ...(this.#manualAdjustOn()
         ? [
             {
               id: "manualAdjust",
-              title: "Manual adjust",
-              detail: "Fix the table by hand after a bug or a misclick. The game stops counting.",
+              title: this.#adjustLabel(),
+              detail: this.#seatGame()
+                ? t("ask.changeDetail")
+                : "Fix the table by hand after a bug or a misclick. The game stops counting.",
               open: () => this.#openManualAdjust(),
             },
           ]
@@ -499,6 +579,18 @@ export class PauseOverlay extends Phaser.Scene {
               detail: t("live.copyLink"),
               compact: true as const,
               open: () => this.#copyWatchLink(),
+            },
+          ]
+        : []),
+      ...(this.#showHandToggle()
+        ? [
+            {
+              id: "show-hand",
+              title: this.#showHandLabel(this.#showHandToggle()!, false),
+              detail: this.#showHandLabel(this.#showHandToggle()!, false),
+              // Its own full-width row in the expanded Quick reference: a fifth compact cell is under the touch
+              // target and cannot hold "Mostrar mano".
+              open: () => this.#flipShowHand(),
             },
           ]
         : []),
@@ -563,6 +655,7 @@ export class PauseOverlay extends Phaser.Scene {
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
         guidedRunActive,
         watchLink: watchLinkUrl !== null,
+        showHand: this.#showHandToggle() !== null,
       },
     );
 
@@ -592,6 +685,7 @@ export class PauseOverlay extends Phaser.Scene {
           confirmingConcede: this.#confirmingConcede,
           guidedRunActive,
           watchLink: layout.watchLink !== null,
+          showHand: layout.showHand !== null,
         }),
         stops,
       );
@@ -706,8 +800,11 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () =>
       this.#launchOver(SCENES.settings, {}),
     );
-    this.#menuButton(stops, "stats", "onInk", "Your stats", layout.menu.stats, () => this.#openStats());
-    this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
+    // A room game's chat takes the stats slot: its stop keeps the id, so the focus route is the same (#881).
+    this.#menuButton(stops, "stats", "onInk", this.#roomChat() ? t("chat.open") : "Your stats", layout.menu.stats, () =>
+      this.#roomChat() ? this.#openChat() : this.#openStats(),
+    );
+    this.#menuButton(stops, "save-quit", "onInk", this.#quitLabel(), layout.menu.saveQuit, () => this.#saveAndQuit());
     this.#menuButton(stops, "music", "onInk", "Music", layout.menu.music, () => this.#openMusic());
     // Half a narrow sheet (tablet portrait) cannot hold the whole phrase.
     const reportLabel = layout.menu.report.width < 130 ? "Report" : "Report a problem";
@@ -715,6 +812,17 @@ export class PauseOverlay extends Phaser.Scene {
     if (layout.watchLink)
       this.#menuButton(stops, "watch-link", "onInk", watchLinkLabelOf(this.#linkCopied, false), layout.watchLink, () =>
         this.#copyWatchLink(),
+      );
+
+    const showHand = this.#showHandToggle();
+    if (layout.showHand && showHand)
+      this.#menuButton(
+        stops,
+        "show-hand",
+        "onInk",
+        this.#showHandLabel(showHand, layout.showHand.width < 200),
+        layout.showHand,
+        () => this.#flipShowHand(),
       );
 
     // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
@@ -747,7 +855,7 @@ export class PauseOverlay extends Phaser.Scene {
       // Not the primary, and in the slot the concede confirm takes over, so the two never show at once.
       // Off unless the player turned it on in Settings > More > Cheats (the owner, 2026-11-19).
       if (this.#manualAdjustOn()) {
-        this.#menuButton(stops, "manual-adjust", "onInk", "Manual adjust", layout.manualAdjust, () =>
+        this.#menuButton(stops, "manual-adjust", "onInk", this.#adjustLabel(), layout.manualAdjust, () =>
           this.#openManualAdjust(),
         );
       }
@@ -782,7 +890,7 @@ export class PauseOverlay extends Phaser.Scene {
       .text(
         layout.title.x,
         layout.concedeConfirmCancel.y - 34,
-        "Concede? This ends the game for the whole table.",
+        this.#concedeSentence(),
         textStyle(typeRole.body, accent.heroRed.hex),
       )
       .setFontSize(10)
@@ -794,7 +902,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Yes, concede",
+        label: this.#seatGame() ? t("concede.seatConfirm") : "Yes, concede",
         type: MENU_BUTTON_TYPE,
         rect: layout.concedeConfirmYes,
         onClick: () => void this.#onConcedeConfirmed(),
@@ -1113,7 +1221,7 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
       this.#button(stops, "resume", "primary", "Resume", layout.resume, () => this.#resume());
-      this.#button(stops, "save-quit", "secondary", "Save & quit", layout.saveQuit, () => this.#saveAndQuit());
+      this.#button(stops, "save-quit", "secondary", this.#quitLabel(), layout.saveQuit, () => this.#saveAndQuit());
       this.#button(stops, "concede", "quiet", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
     }
   }
@@ -2186,19 +2294,14 @@ export class PauseOverlay extends Phaser.Scene {
     const yesRect = layout.resume;
     const cancelRect = layout.saveQuit;
     this.add
-      .text(
-        layout.panel.x + 16,
-        yesRect.y - 22,
-        "Concede? This ends the game for the whole table.",
-        textStyle(typeRole.body, accent.heroRed.hex),
-      )
+      .text(layout.panel.x + 16, yesRect.y - 22, this.#concedeSentence(), textStyle(typeRole.body, accent.heroRed.hex))
       .setFontSize(11)
       .setWordWrapWidth(layout.panel.width - 32);
     stops.set("concede-confirm-yes", { rect: yesRect, activate: () => void this.#onConcedeConfirmed() });
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Yes, concede",
+        label: this.#seatGame() ? t("concede.seatConfirm") : "Yes, concede",
         type: typeRole.barTitle,
         rect: yesRect,
         onClick: () => void this.#onConcedeConfirmed(),

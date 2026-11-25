@@ -13,6 +13,7 @@ import { WorkerEngineHost } from "../engine/worker-host.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { WEB_VERSION_URL } from "../view/language-button.js";
 import { NO_LIVE_STATUS, type LiveStatus } from "../live/live-publisher.js";
+import type { RoomGameSalvage } from "../live/room-game-mirror.js";
 import type { LiveRoomIn, LiveRoomOut } from "../live/live-room-protocol.js";
 import { currentRoomDevice } from "./room-device.js";
 import { NO_ROOM, type RoomState, type SeatDeckEntry } from "../live/room-state.js";
@@ -35,6 +36,21 @@ export function watchBaseOf(
 }
 
 let roomListener: ((state: RoomState) => void) | null = null;
+/** `platform/seat-play.ts` sets this while a guest's seat game is up, so the Title can put it away (#881). */
+let seatLeaver: (() => void) | null = null;
+
+export function setSeatLeaver(leave: (() => void) | null): void {
+  seatLeaver = leave;
+}
+/** The game a closed room left this guest (`room-salvage`), until it is taken. */
+let salvaged: RoomGameSalvage | null = null;
+
+/** The game the room that just closed left this device, once: null when it left none (not mid-game, or not a guest). */
+export function takeRoomSalvage(): RoomGameSalvage | null {
+  const game = salvaged;
+  salvaged = null;
+  return game;
+}
 let startRefusedHandler: (() => void) | null = null;
 let decksListener: ((id: number, decks: readonly SeatDeckEntry[] | null) => void) | null = null;
 /** Whether the room worker last reported a room (host or guest) this device is in. */
@@ -46,10 +62,18 @@ let inRoom = false;
  * (single player never posts to the worker).
  */
 export function leaveRoomAtTitle(): void {
+  // A guest's seat game (#881) is put away first: its host and store were swapped under the session.
+  seatLeaver?.();
   if (!inRoom || !worker) return;
   inRoom = false;
   worker.postMessage({ kind: "room-leave" } satisfies LiveRoomIn);
   roomListener?.(NO_ROOM);
+}
+
+/** `platform/room.ts` hears a rejoining host's game in progress through this (one listener). */
+let resumeGameListener: ((gameId: string) => void) | null = null;
+export function setRoomResumeGameListener(listener: ((gameId: string) => void) | null): void {
+  resumeGameListener = listener;
 }
 
 let popoutListener: ((open: boolean) => void) | null = null;
@@ -120,6 +144,18 @@ function spawn(): boolean {
   next.addEventListener("message", (event: MessageEvent<LiveRoomOut>) => {
     if (event.data.kind === "room-decks") {
       decksListener?.(event.data.id, event.data.decks);
+      return;
+    }
+    if (event.data.kind === "room-resume-game") {
+      resumeGameListener?.(event.data.gameId);
+      return;
+    }
+    if (event.data.kind === "room-salvage") {
+      salvaged = {
+        header: event.data.header,
+        commands: event.data.commands,
+        ...(event.data.adjusted ? { adjusted: true as const } : {}),
+      };
       return;
     }
     if (event.data.kind === "room-start-refused") {

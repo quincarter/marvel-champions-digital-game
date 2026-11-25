@@ -4,6 +4,8 @@
  * fixture code it pulls in) from the entry chunk.
  */
 
+import type { OnlineData } from "./online.js";
+import type { Command } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
 import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { replacementCandidatesOf } from "../view/replacement-candidates.js";
@@ -330,23 +332,33 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
   // `?screen=room-lobby&as=host|guest`: a room's lobby over a made-up room (`view/room-lobby-fixture.ts`); presses are recorded in `__mcRoomCalls`, never sent.
   if (screen === "room-lobby") {
     const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const lobby = roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host", variantOf(params.get("v")), {
+      // `&activity=table&scenario=Rhino` shows the host's setup status line; `&unread=5` marks the latest 5 chat lines unread.
+      ...(params.get("activity")
+        ? {
+            hostActivity: {
+              step: params.get("activity") as "scenario" | "table" | "modular" | "decks" | "starting",
+              ...(params.get("scenario") ? { scenario: params.get("scenario")! } : {}),
+            },
+          }
+        : {}),
+      ...(params.get("unread") ? { unread: Number(params.get("unread")) } : {}),
+      // `&plan=none` shows a lobby whose host has not picked the table yet.
+      ...(params.get("plan") === "none" ? { tablePlan: null } : {}),
+    });
+    // `&mismatch=1`: the guest is on another build than the host (the guest's own view), or a seat holder is (the host's).
+    const preview =
+      params.get("mismatch") === "1"
+        ? {
+            ...lobby,
+            buildMatches: lobby.role === "host" ? lobby.buildMatches : false,
+            seats: lobby.seats.map((s, i) => (i === 0 && lobby.role === "host" ? { ...s, mismatch: true } : s)),
+          }
+        : lobby;
     return {
       key: SCENES.roomLobby,
       data: {
-        preview: roomLobbyFixture(params.get("as") === "guest" ? "guest" : "host", variantOf(params.get("v")), {
-          // `&activity=table&scenario=Rhino` shows the host's setup status line; `&unread=5` marks the latest 5 chat lines unread.
-          ...(params.get("activity")
-            ? {
-                hostActivity: {
-                  step: params.get("activity") as "scenario" | "table" | "modular" | "decks" | "starting",
-                  ...(params.get("scenario") ? { scenario: params.get("scenario")! } : {}),
-                },
-              }
-            : {}),
-          ...(params.get("unread") ? { unread: Number(params.get("unread")) } : {}),
-          // `&plan=none` shows a lobby whose host has not picked the table yet.
-          ...(params.get("plan") === "none" ? { tablePlan: null } : {}),
-        }),
+        preview,
         ...(params.get("result") === "decks" ? { startResult: "decks" } : {}),
       },
     };
@@ -360,10 +372,159 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       data: { seat: host ? "s2" : "s1", preset: host, preview: roomLobbyFixture(host ? "host" : "guest", "open") },
     };
   }
+  // `?screen=room-play-host&name=Mara[&mode=strict][&handover=0]` and `?screen=room-play-guest&code=ABC123&name=Ava` (issue #881,
+  // dev only): a real two-seat room game, the host Spider-Man (s1) and the guest Captain Marvel (s2). The host makes the
+  // room, takes s1, gives s2 to the first person who asks and starts the game (its code is `__mcRoomCode`); the guest joins,
+  // asks for s2 and lands in the lobby, which opens the board once the host has started.
+  if ((screen === "room-play-host" || screen === "room-play-guest") && import.meta.env.DEV) {
+    const room = await import("../platform/room.js");
+    const until = async (done: () => boolean, label: string, ms = 120_000): Promise<void> => {
+      const end = Date.now() + ms;
+      while (!done()) {
+        if (Date.now() > end) throw new Error(`room dev jump: timed out waiting for ${label}`);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+    (globalThis as { __mcRoomState?: unknown }).__mcRoomState = room.roomState;
+    // Lets a spec or a screenshot send a move the room will refuse (a seat acting out of turn).
+    (globalThis as { __mcDispatch?: unknown }).__mcDispatch = (command: Command) =>
+      appSession().store.dispatch(command);
+    const name = params.get("name") ?? (screen === "room-play-host" ? "Mara" : "Ava");
+    if (screen === "room-play-guest") {
+      await room.joinRoom(params.get("code") ?? "", name);
+      await until(() => room.roomState().connection === "connected" && room.roomState().seats.length > 0, "the lobby");
+      room.requestSeat("s2");
+      await until(() => room.roomState().mySeats.length > 0, "a seat");
+      return { key: SCENES.roomLobby, data: {} };
+    }
+    await room.hostRoom(name);
+    await until(() => room.roomState().connection === "connected", "the room");
+    (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode = room.roomState().code;
+    room.setLobby({
+      settings: {
+        playMode: params.get("mode") === "strict" ? "strict" : "host",
+        multiSeat: false,
+        chat: true,
+        handover: params.get("handover") !== "0",
+      },
+      seats: [
+        { id: "s1", label: "Spider-Man (Justice) - Core Set starter deck" },
+        { id: "s2", label: "Captain Marvel (Leadership) - Core Set starter deck" },
+      ],
+    });
+    room.requestSeat("s1");
+    // The guest takes s2 at once when the lobby lets it (no request), or asks for it and waits to be assigned.
+    await until(
+      () => room.roomState().seats.some((s) => s.id === "s2" && (s.holder !== null || s.requests.length > 0)),
+      "a guest taking or asking for s2",
+    );
+    const s2 = room.roomState().seats.find((s) => s.id === "s2");
+    const asker = s2?.holder === null ? s2.requests[0] : undefined;
+    if (asker) room.assignSeat("s2", asker.participant);
+    await until(() => room.roomState().seats.every((s) => s.holder !== null), "both seats held");
+    await room.startGame({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }],
+      seed: intParam(params.get("seed"), 7),
+    });
+    // `&setup=1`: through the setup deal and mulligan screen, as the lobby's Start does, instead of straight to the board.
+    return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
+  }
+  // `?screen=room-hands-board&as=host|guest&hands=0|1` (issue #887, dev only): a two-hero game on the board with a
+  // made-up room around it and no room service. The host holds Captain Marvel (p2), the guest Spider-Man (p1), who acts
+  // first, so the host's board shows the guest's hand (face down unless `hands=1`); `as=guest` is the guest's view.
+  if (screen === "room-hands-board" && import.meta.env.DEV) {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const { previewRoomState } = await import("../platform/room.js");
+    // Tips off, so the screenshot shows the table and not a first-run toast.
+    const { guidePrefs, setGuidePrefs } = await import("../guide/guide-store.js");
+    const { withLevel } = await import("../guide/guide-prefs.js");
+    setGuidePrefs(withLevel(guidePrefs(), "hints"));
+    const host = params.get("as") !== "guest";
+    const base = roomLobbyFixture(host ? "host" : "guest", "decks");
+    const seat = (id: string, player: string, mine: boolean, holder: string, name: string, label: string) => ({
+      ...base.seats[0]!,
+      id,
+      player,
+      mine,
+      holder,
+      holderName: name,
+      holderConnected: true,
+      away: false,
+      takenOver: false,
+      mismatch: false,
+      requests: [],
+      label,
+    });
+    const hostId = "p0";
+    previewRoomState({
+      ...base,
+      started: true,
+      seats: [
+        seat("s1", "p1", !host, "p1", "Ava", "Spider-Man (Justice)"),
+        seat("s2", "p2", host, hostId, "Mara", "Captain Marvel (Leadership)"),
+      ],
+      mySeats: [host ? "s2" : "s1"],
+      settings: { ...base.settings!, hostSeesHands: params.get("hands") === "1" },
+    });
+    await appSession().store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }],
+      seed: intParam(params.get("seed"), 7),
+    } as SessionConfig);
+    // `&setup=1`: the setup deal and mulligan screen instead of the board.
+    return { key: params.get("setup") === "1" ? SCENES.setupDeal : SCENES.board, data: {} };
+  }
+  // `?screen=room-villain-follow[&pacing=each][&at=N]` (issue #881, dev only): a seated guest's villain phase over a
+  // made-up room with no room service. The host leads (or `pacing=each`); `at=N` is the host's cursor, absent while the
+  // host has not started. The game is the surge fixture's Rhino game, whose villain phase has no choice for the guest.
+  if (screen === "room-villain-follow" && import.meta.env.DEV) {
+    const { roomLobbyFixture } = await import("../view/room-lobby-fixture.js");
+    const { previewRoomState } = await import("../platform/room.js");
+    const { setSeatGameUp } = await import("../view/seat-context.js");
+    const { guidePrefs, setGuidePrefs } = await import("../guide/guide-store.js");
+    const { withLevel } = await import("../guide/guide-prefs.js");
+    setGuidePrefs(withLevel(guidePrefs(), "hints"));
+    const base = roomLobbyFixture("guest", "decks");
+    const at = params.get("at");
+    previewRoomState({
+      ...base,
+      started: true,
+      seats: [
+        {
+          ...base.seats[0]!,
+          id: "s1",
+          player: "p1",
+          mine: true,
+          holder: "p1",
+          holderName: "Ava",
+          label: "Spider-Man (Justice)",
+        },
+      ],
+      mySeats: ["s1"],
+      settings: { ...base.settings!, villainPacing: params.get("pacing") === "each" ? "each" : "host" },
+      villainCursor: at === null ? null : { key: "1", at: Number(at), state: "playing" },
+    });
+    setSeatGameUp(true);
+    const { startDevSurgeGame } = await import("../store/dev-order-surge-game.js");
+    const finish = await startDevSurgeGame();
+    window.setTimeout(() => void finish(), 1500);
+    return { key: SCENES.board, data: {} };
+  }
   // `?screen=online`: Play online.
   // `&closed=host`: with the "room closed" notice over it (the guest of a room the host closed lands here).
+  // `&continue=1`: the notice also offers "Continue in single player" (for a made-up saved game id; pressing it fails).
   if (screen === "online") {
-    return { key: SCENES.online, data: params.get("closed") === "host" ? { closedNotice: "closed-host" } : {} };
+    const closed = params.get("closed") === "host";
+    const data: OnlineData = closed
+      ? {
+          closedNotice: "closed-host",
+          ...(params.get("continue") === "1" ? { continueGameId: "dev-closed-room-game" } : {}),
+        }
+      : {};
+    return { key: SCENES.online, data };
   }
   // `?screen=credits`: Art & Credits.
   if (screen === "credits") return { key: SCENES.credits, data: {} };

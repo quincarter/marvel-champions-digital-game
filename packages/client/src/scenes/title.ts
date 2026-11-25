@@ -63,7 +63,7 @@ import {
   type SteamInstall,
 } from "../platform/steam-install.js";
 import { leaveRoomAtTitle } from "../platform/live-watch.js";
-import { clearGameAddress } from "../platform/game-address.js";
+import { clearGameAddress, releaseGameAddress } from "../platform/game-address.js";
 import { clearWatchAddress } from "../live/watch-link.js";
 import { steamAdd } from "../platform/steam-add.js";
 import { lastUpdateFailed, readyUpdateVersion, selfUpdateInfo, type SelfUpdate } from "../platform/self-update.js";
@@ -295,6 +295,7 @@ export class TitleScene extends Phaser.Scene {
     // A room's game hands back here: leave the room (a no-op for every single-player visit).
     leaveRoomAtTitle();
     // Title is where a game, a watch or a room is left: none of them belongs in the address any more.
+    releaseGameAddress();
     clearGameAddress();
     clearWatchAddress();
     this.#readyDismissed = null;

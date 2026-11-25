@@ -22,7 +22,7 @@ import {
 } from "./room-socket.js";
 import { gidOfGame, LivePublisher, NO_LIVE_STATUS, type LiveStatus } from "./live-publisher.js";
 import type { RoomBuild, RoomDevice } from "@mc/sync-worker/room-protocol";
-import type { LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
+import type { LiveControlMessage, LiveGameMessage, LiveRoomIn } from "./live-room-protocol.js";
 import { lobbyRecordKey, recordFresh, type LiveRoomRecord, type LiveRoomStore } from "./live-room-store.js";
 import { RoomSession, type FeedPort, type GameHooks, type RoomSessionDeps } from "./room-session.js";
 import type { SeatTokenStore } from "./room-seat-store.js";
@@ -38,6 +38,8 @@ export interface LiveRoomControllerDeps {
   readonly onEnabledChange?: (on: boolean) => void;
   /** Asks the engine worker for the whole game again (a gap in the log). */
   readonly onResync?: () => void;
+  /** Hands a seat holder's proposal to the engine worker to judge (issue #881). */
+  readonly onProposal?: (proposal: Extract<LiveControlMessage, { kind: "proposal" }>) => void;
   /** The room refused the host's game start because the lobby changed first: the game was dropped from the room. */
   readonly onStartRefused?: () => void;
   /** Remembers each game's room, so a resumed game returns to it as the host. Absent: every game gets a new room. */
@@ -58,6 +60,10 @@ export interface LiveRoomControllerDeps {
     readonly onState: (state: RoomState) => void;
     /** The host's Start asked for the decks (`room-decks-request`): the answer, or null. */
     readonly onDecks?: (id: number, decks: readonly SeatDeckEntry[] | null) => void;
+    /** A guest's room was closed mid-game: the game it held (`RoomSessionDeps.onSalvage`). */
+    readonly onSalvage?: RoomSessionDeps["onSalvage"];
+    /** A host's rejoin found a game in progress in its room: the save to resume (`room-resume-game`). */
+    readonly onResumeGame?: (gameId: string) => void;
     readonly createRoom?: RoomSessionDeps["createRoom"];
     readonly resolveRoomCode?: RoomSessionDeps["resolveRoomCode"];
   };
@@ -116,6 +122,8 @@ export class LiveRoomController {
   #lastName = "";
   /** Bumped by every session change, so a rejoin whose record read returns late knows it was overtaken. */
   #rejoinTicket = 0;
+  /** Rooms this worker left as host (Cancel, Back, Quit): a game still loading for one never reattaches to it. */
+  readonly #leftRooms = new Set<string>();
   /** A host session a rejoin resumed: when its room turns out gone, the code is joined as a guest instead. */
   #hostFallback: { readonly session: RoomSession; readonly name: string; readonly code: string } | null = null;
   /** When the lobby record's stamp was last written while hosting in the lobby. */
@@ -168,6 +176,17 @@ export class LiveRoomController {
       case "none":
         this.#leave();
         return;
+      case "refuse":
+        // The engine worker turned a seat holder's proposal down: only the room can reach them.
+        if (this.#live?.gameKey === message.gameKey) {
+          this.#live.room?.refuseProposal(message.to, message.reason, message.base, message.pid);
+        }
+        return;
+      case "accept":
+        if (this.#live?.gameKey === message.gameKey) {
+          this.#live.room?.acceptProposal(message.to, message.base, message.pid);
+        }
+        return;
       case "rewind": {
         if (!this.#live && this.#pending?.gameKey === message.gameKey) {
           // Not streamed yet: the held game just needs its log cut.
@@ -181,7 +200,11 @@ export class LiveRoomController {
           };
           return;
         }
-        if (this.#live?.gameKey === message.gameKey) this.#live.publisher.rewind(message.to);
+        if (this.#live?.gameKey === message.gameKey) {
+          // An acceptance held for a dropped socket for a command this cut removes must not reach the room afterwards.
+          this.#live.room?.dropHeldAcceptances(message.to);
+          this.#live.publisher.rewind(message.to);
+        }
         return;
       }
     }
@@ -220,12 +243,27 @@ export class LiveRoomController {
       case "room-seat":
         this.#session?.seat(message.op, message.seat, message.participant);
         return;
+      case "room-show-hand":
+        this.#session?.showHand(message.seat, message.on);
+        return;
+      case "room-answer":
+        this.#session?.answerRequest(message.id, message.accepted);
+        return;
+      case "room-ask":
+        this.#session?.askHost(message.what, message.note);
+        return;
+      case "room-ask-clear":
+        this.#session?.clearAsk();
+        return;
       case "room-say":
         this.#session?.chat(message.text);
         this.#touchLobby();
         return;
       case "room-activity":
         this.#session?.hostActivity(message.step, message.scenario);
+        return;
+      case "room-villain-cursor":
+        this.#session?.villainCursor(message.key, message.at, message.state);
         return;
       case "room-table-plan":
         this.#session?.tablePlan(message.plan);
@@ -282,6 +320,8 @@ export class LiveRoomController {
       const session = this.#newSession("host", name);
       this.#hostFallback = { session, name, code };
       session.resumeHost(record.roomId, record.hostToken, code);
+      // The game in progress for this room: the screen resumes that save before the room even answers.
+      if (record.liveGameKey) this.#deps.room.onResumeGame?.(record.liveGameKey);
       return;
     }
     if (record && code) void this.#deps.store?.clear(lobbyRecordKey(code)).catch(() => {});
@@ -301,7 +341,7 @@ export class LiveRoomController {
   }
 
   /** Remembers a hosted lobby room under its code so a reload can find its host token (see `lobbyRecordKey`). */
-  #saveLobbyRecord(session: RoomSession): void {
+  #saveLobbyRecord(session: RoomSession, liveGameKey?: string): void {
     const store = this.#deps.store;
     const { roomId, hostToken, code } = session;
     if (!store || session.role !== "host" || session.ended || !roomId || !hostToken || !code) return;
@@ -314,6 +354,7 @@ export class LiveRoomController {
       lastActiveAt: at,
       code,
       name: session.name,
+      ...(liveGameKey ? { liveGameKey } : {}),
     };
     void store.save(record).catch(() => {});
   }
@@ -358,6 +399,7 @@ export class LiveRoomController {
       ...(room.createRoom ? { createRoom: room.createRoom } : {}),
       ...(room.resolveRoomCode ? { resolveRoomCode: room.resolveRoomCode } : {}),
       ...(this.#deps.socket ? { socket: this.#deps.socket } : {}),
+      ...(room.onSalvage ? { onSalvage: room.onSalvage } : {}),
     });
     this.#session = session;
     return session;
@@ -368,15 +410,37 @@ export class LiveRoomController {
     this.#hostFallback = null;
     const session = this.#session;
     if (!session) return;
-    // A host who leaves closes its room: the saved host token is no use any more.
-    if (session.role === "host" && session.code) {
-      void this.#deps.store?.clear(lobbyRecordKey(session.code)).catch(() => {});
-    }
+    const liveKey = this.#live?.room === session ? this.#live.gameKey : undefined;
     // The game streaming into the room is over with it: the room is told, then the socket closes.
     if (this.#live?.room === session) this.#leave();
     this.#session = null;
     session.close({ closeRoom });
+    // A host who leaves closes its room as far as this device goes: the saved host token, and the game record that names
+    // the room, are no use any more. A save that is still loading from a rejoin then finds nothing to reattach to
+    // (`#resumeEarly`, `#begin`). Written after the leave above, which saves the lobby record once more.
+    if (session.role === "host" && session.code) {
+      if (session.roomId) this.#leftRooms.add(session.roomId);
+      void this.#forgetHostedRoom(session.code, liveKey);
+    }
     this.#postRoom(NO_ROOM);
+  }
+
+  /** Drops the lobby record of a room this device left as host, and the record of the game it named. */
+  async #forgetHostedRoom(code: string, liveKey?: string): Promise<void> {
+    const store = this.#deps.store;
+    if (!store) return;
+    try {
+      const record = await store.load(lobbyRecordKey(code));
+      for (const key of new Set([liveKey, record?.liveGameKey])) if (key) await store.clear(key);
+      await store.clear(lobbyRecordKey(code));
+    } catch {
+      // A store that fails leaves the records to the idle limit.
+    }
+  }
+
+  /** Whether a saved record names a room this device already left as host. */
+  #left(record: LiveRoomRecord | null): boolean {
+    return record !== null && this.#leftRooms.has(record.roomId);
   }
 
   #postRoom(state: RoomState): void {
@@ -396,6 +460,10 @@ export class LiveRoomController {
     try {
       record = (await this.#deps.store?.load(gameKey)) ?? null;
     } catch {
+      return;
+    }
+    if (this.#left(record)) {
+      void this.#deps.store?.clear(gameKey).catch(() => {});
       return;
     }
     if (record?.code && recordFresh(record, (this.#deps.now ?? Date.now)())) this.#openPending(gameKey);
@@ -487,9 +555,26 @@ export class LiveRoomController {
       await session.ready;
       if (this.#live !== live) return;
       if (session.roomId && session.hostToken && !session.ended) {
-        this.#attachRoom(live, session);
+        // A resumed game whose room was rejoined after a reload (`room-rejoin`): the room already holds its log, so the
+        // publisher reconciles with it as for any resume instead of starting a log of its own.
+        const saved =
+          record?.code &&
+          record.gameKey === live.gameKey &&
+          record.roomId === session.roomId &&
+          recordFresh(record, now)
+            ? record
+            : null;
+        if (saved) {
+          live.publisher.requireAdmittedRoom();
+          if (saved.gid) live.publisher.adoptGid(saved.gid);
+        }
+        this.#attachRoom(live, session, saved?.gid);
         return;
       }
+    }
+    if (this.#left(record)) {
+      void store?.clear(live.gameKey).catch(() => {});
+      record = null;
     }
     if (record?.code) {
       const name = (record.name?.trim() || this.#lastName || this.#deps.room?.onlineName?.trim()) ?? "";
@@ -547,6 +632,7 @@ export class LiveRoomController {
       live.record = record;
       live.touchedAt = at;
       void this.#deps.store?.save(record).catch(() => {});
+      this.#saveLobbyRecord(room, live.gameKey);
     }
     const hooks: GameHooks = {
       onWelcome: (table) => live.publisher.onWelcome(table),
@@ -554,6 +640,7 @@ export class LiveRoomController {
       onMessage: (message) => live.publisher.onMessage(message),
       // Another tab took the host socket (`replaced`): that tab still depends on the saved records, so they stay.
       onEnded: (problem) => this.#end(live, problem === "replaced"),
+      onProposal: (proposal) => this.#deps.onProposal?.({ kind: "proposal", gameKey: live.gameKey, ...proposal }),
     };
     room.attachGame(hooks);
   }
@@ -635,7 +722,7 @@ export class LiveRoomController {
     live.touchedAt = at;
     live.record = { ...record, lastActiveAt: at };
     void store.save(live.record).catch(() => {});
-    if (live.room) this.#saveLobbyRecord(live.room);
+    if (live.room) this.#saveLobbyRecord(live.room, live.gameKey);
   }
 
   #connect(live: Live, roomId: string, hostToken: string): void {
@@ -710,6 +797,8 @@ export class LiveRoomController {
     live.socket = null;
     if (live.room) {
       live.room.detachGame();
+      // The room is back to its lobby: no game in progress for a reload to resume.
+      this.#saveLobbyRecord(live.room);
       live.room = null;
     }
     if (this.#live !== live) return;

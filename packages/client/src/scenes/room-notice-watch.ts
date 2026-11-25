@@ -6,6 +6,7 @@
  */
 import type Phaser from "phaser";
 import { leaveRoom, onRoomState, type RoomState } from "../platform/room.js";
+import { keepClosedRoomGame } from "../platform/room-continue.js";
 import { clearRoomTable } from "../view/room-table-setup.js";
 import type { RoomProblem } from "../live/room-state.js";
 import { goToScreen } from "../ui/transitions.js";
@@ -25,10 +26,13 @@ import { sceneLoader } from "./scene-loader.js";
 
 /**
  * The room closed under a player who is in a game: leave the room (the seat follower and the room's connection end
- * with it; a guest's game is the host's, so nothing of it is saved for them), stop every game scene, and go to Play
+ * with it; a seated guest's game is saved first, as a single-player game they can continue), stop every game scene, and go to Play
  * online, which says why. Works from any in-game scene because it reads the room, not the screen.
  */
-function leaveToClosedRoom(game: Phaser.Game, problem: RoomProblem): void {
+function leaveToClosedRoom(game: Phaser.Game, problem: RoomProblem, state: RoomState): void {
+  // A seated guest's game is kept before the room is left (the log is the room worker's, handed over as the room ended):
+  // Play online then offers to carry on with it in single player.
+  const kept = keepClosedRoomGame(state, problem);
   leaveRoom();
   clearRoomTable();
   const active = game.scene.getScenes(true);
@@ -40,7 +44,12 @@ function leaveToClosedRoom(game: Phaser.Game, problem: RoomProblem): void {
     if (scene === main || CHROME_SCENES.has(key) || key === SCENES.music || key === SCENES.boot) continue;
     scene.scene.stop();
   }
-  goToScreen(main, SCENES.online, { closedNotice: problem } satisfies OnlineData);
+  void kept.then((continueGameId) =>
+    goToScreen(main, SCENES.online, {
+      closedNotice: problem,
+      ...(continueGameId ? { continueGameId } : {}),
+    } satisfies OnlineData),
+  );
 }
 
 export function startRoomNoticeWatch(game: Phaser.Game): () => void {
@@ -61,7 +70,7 @@ export function startRoomNoticeWatch(game: Phaser.Game): () => void {
       const active = game.scene.getScenes(true).map((scene) => scene.scene.key);
       const closed = roomClosedInGame(before, state, active);
       if (closed) {
-        leaveToClosedRoom(game, closed);
+        leaveToClosedRoom(game, closed, state);
         return;
       }
     }

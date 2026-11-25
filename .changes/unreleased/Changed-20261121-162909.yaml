@@ -1,0 +1,3 @@
+kind: Changed
+body: "In a room game the host's board and setup screen show other players' hands face down, like a guest's; a Host sees every hand lobby setting turns them back on for the host only, and live watchers never see hands (#887)"
+time: 2026-11-21T16:29:09.7415847-05:00

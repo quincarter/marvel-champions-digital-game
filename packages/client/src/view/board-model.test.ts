@@ -70,6 +70,16 @@ describe("boardModel", () => {
     viewer = store.state.perspectiveId!;
   }, 60_000);
 
+  test("a hand that is not this device's to read has no faces, only its count (#887)", () => {
+    const shown = boardModel(state, viewer, CORE_DEPS);
+    expect(shown.handHidden).toBe(false);
+    expect(shown.hand.length).toBeGreaterThan(0);
+    const hidden = boardModel(state, viewer, CORE_DEPS, null, "played", false);
+    expect(hidden.handHidden).toBe(true);
+    expect(hidden.hand).toEqual([]);
+    expect(hidden.handLimit).toBe(shown.handLimit);
+  });
+
   test("names every panel from @mc/content, never from a placeholder", () => {
     const model = boardModel(state, viewer, CORE_DEPS);
 

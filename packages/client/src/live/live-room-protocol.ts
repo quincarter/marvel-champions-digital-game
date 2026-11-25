@@ -6,7 +6,9 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type {
   DeckRefusalCode,
+  ProposalRefusal,
   HostActivityStep,
+  VillainCursorState,
   TablePlan,
   RoomBuild,
   RoomDeck,
@@ -48,16 +50,37 @@ export type LiveRoomIn =
   | { readonly kind: "room-rejoin"; readonly code: string; readonly name: string }
   /** `closeRoom`: a host who confirmed closing the lobby for everyone asks the room to shut down first. */
   | { readonly kind: "room-leave"; readonly closeRoom?: boolean }
-  | { readonly kind: "room-lobby"; readonly settings?: LobbySettingsPatch; readonly seats?: readonly LobbySeatSpec[] }
+  | {
+      readonly kind: "room-lobby";
+      readonly settings?: LobbySettingsPatch;
+      readonly seats?: readonly LobbySeatSpec[];
+      /** Compare and swap: the lobby revision the change was worked out against; the room refuses it if it moved on. */
+      readonly ifRev?: number;
+    }
   | {
       readonly kind: "room-seat";
-      readonly op: "request" | "release" | "assign" | "deny";
+      readonly op: "request" | "release" | "assign" | "deny" | "take-over" | "give-back";
       readonly seat: string;
       readonly participant?: string;
     }
+  /** Show or hide a seat's hand to the table (`seat-show-hand`); the room checks who may. */
+  | { readonly kind: "room-show-hand"; readonly seat: string; readonly on: boolean }
   | { readonly kind: "room-say"; readonly text: string }
+  /** Host only (issue #881): the answer to a seat holder's request (`RoomState.requests`), once the host has done what it asks. */
+  | { readonly kind: "room-answer"; readonly id: string; readonly accepted: boolean }
+  /** Guest only (issue #881): asks the host to undo or change something; the answer arrives as `RoomState.myRequest`. */
+  | { readonly kind: "room-ask"; readonly what: "undo" | "adjust"; readonly note: string }
+  /** Guest only: dismisses the answer to the last request. */
+  | { readonly kind: "room-ask-clear" }
   /** Host only: the setup step the host is in (`idle` clears it), shown to everyone as a status line. */
   | { readonly kind: "room-activity"; readonly step: HostActivityStep; readonly scenario?: string }
+  /** Host only: where my villain phase screen is, for guests' screens to follow (relayed, memory only). */
+  | {
+      readonly kind: "room-villain-cursor";
+      readonly key: string;
+      readonly at: number;
+      readonly state: VillainCursorState;
+    }
   /** Host only: the table the host picked, as ids (`null` clears it), shown to everyone in the lobby. */
   | { readonly kind: "room-table-plan"; readonly plan: TablePlan | null }
   /** My deck for a seat I hold, or (host only) a preset for any seat. */
@@ -85,8 +108,20 @@ export type LiveRoomOut =
   | { readonly kind: "room"; readonly state: RoomState }
   /** The answer to a `room-decks-request`: the lists, or null when the room did not answer or this is not the host. */
   | { readonly kind: "room-decks"; readonly id: number; readonly decks: readonly SeatDeckEntry[] | null }
+  /**
+   * A host's reload found its room with a game in progress: `gameId` is the local save to resume (it reattaches to the
+   * same room, `live-room-store.ts`). Sent before the room answers, so the screen can go straight to the board.
+   */
+  | { readonly kind: "room-resume-game"; readonly gameId: string }
   /** The room refused the host's game start as its lobby had changed (`lobby-changed`); the room dropped that game. */
   | { readonly kind: "room-start-refused" }
+  /** A guest's room was closed mid-game: the game it held, sent just ahead of the room's ended state. */
+  | {
+      readonly kind: "room-salvage";
+      readonly header: unknown;
+      readonly commands: readonly unknown[];
+      readonly adjusted?: true;
+    }
   /** The chat's pop-out window opened or went away (closed, brought back, or its heartbeat stopped). */
   | { readonly kind: "chat-popout"; readonly open: boolean };
 
@@ -120,6 +155,23 @@ export type LiveGameMessage =
       readonly outcome?: GameOutcome;
     }
   | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
+  /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
+  | {
+      readonly kind: "refuse";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly reason: ProposalRefusal;
+      readonly base: number;
+      readonly pid?: number;
+    }
+  /** A seat holder's proposal was applied (issue #881): the room tells `to` alone, ahead of the command's own echo. */
+  | {
+      readonly kind: "accept";
+      readonly gameKey: string;
+      readonly to: string;
+      readonly base: number;
+      readonly pid?: number;
+    }
   /** The game now on the table is not watchable (or there is none): leave the previous game's room. */
   | { readonly kind: "none" };
 
@@ -127,4 +179,22 @@ export type LiveGameMessage =
  * The live-room worker to the engine worker, over the same port: `enabled` says the worker is up (the engine then
  * posts the current game if it is watchable), `resync` asks for the whole game again after a gap in its log.
  */
-export type LiveControlMessage = { readonly kind: "enabled"; readonly on: boolean } | { readonly kind: "resync" };
+export type LiveControlMessage =
+  | { readonly kind: "enabled"; readonly on: boolean }
+  | { readonly kind: "resync" }
+  /**
+   * A seat holder's proposal for the engine worker to judge (issue #881). `players` are the engine players behind the
+   * seats the room says the proposer may act for; `command` is untrusted and `base` the log length it was built on.
+   */
+  | {
+      readonly kind: "proposal";
+      readonly gameKey: string;
+      readonly from: string;
+      readonly players: readonly string[];
+      readonly command: unknown;
+      readonly base: number;
+      /** The proposer's id for the proposal, echoed in a refusal of it. */
+      readonly pid?: number;
+      /** The proposer's state identity at `base` (`replayChecksum`); absent means the proposal cannot be judged current. */
+      readonly stamp?: string;
+    };

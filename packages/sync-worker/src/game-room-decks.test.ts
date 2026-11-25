@@ -399,6 +399,26 @@ describe("seat decks: presets and own decks together", () => {
   });
 });
 
+describe("seat decks: a running game", () => {
+  it("refuses a different deck while the game is live, and accepts one again once the table has ended", async () => {
+    const { join, h, assign, setDeck, send } = await setup();
+    const a = await join("Ann");
+    await assign("s1", a);
+    await setDeck(a, "s1");
+    await send(h, { ch: "game", kind: "start", table: "t1", header: { h: 1 } });
+    const before = a.last("lobby")!.seats[0]!.deck;
+    await setDeck(a, "s1", deck({ name: "Other deck" }));
+    await setDeck(h, "s1", deck({ name: "Host preset" }));
+    expect(a.refusals).toEqual(["not-allowed"]);
+    expect(h.refusals).toEqual(["not-allowed"]);
+    expect(h.last("lobby")!.seats[0]!.deck).toEqual(before);
+    await send(h, { ch: "game", kind: "end", table: "t1", outcome: {} });
+    await setDeck(a, "s1", deck({ name: "Other deck" }));
+    expect(a.refusals).toEqual(["not-allowed"]);
+    expect(h.last("lobby")!.seats[0]!.deck!.name).toBe("Other deck");
+  });
+});
+
 describe("seat decks: the room-wide limit", () => {
   it("stops a crowd of fresh participants that each stay under their own limit", async () => {
     const { join, h, assign, setDeck, send } = await setup();
