@@ -8,6 +8,7 @@ import {
   issueReportText,
   jsonBlock,
   newIssueUrl,
+  playLineOf,
   screenshotDeviceOf,
   screenshotTipOf,
   type ReportEnvironment,
@@ -203,5 +204,34 @@ describe("the Display line (#320)", () => {
       `Display: ${display}`,
     );
     expect(issueReportText({ environment, game: null, snapshot: {} })).not.toContain("Display:");
+  });
+});
+
+describe("the report's Play line", () => {
+  test("names single player or the online room's mode and this device's part", () => {
+    expect(playLineOf({ role: "none", mode: "standard", mySeats: [] })).toBe("Single player, not in an online room");
+    expect(playLineOf({ role: "host", mode: "standard", mySeats: ["s1"] })).toBe("Online room, Standard, host");
+    expect(playLineOf({ role: "guest", mode: "epic", mySeats: ["s2"] })).toBe(
+      "Online room, Trickster Takeover Epic Multiplayer, seated guest",
+    );
+    expect(playLineOf({ role: "guest", mode: "competitive", mySeats: [] })).toBe(
+      "Online room, Civil War Competitive, guest without a seat",
+    );
+  });
+
+  test("goes into the log and the form's Game details when there is one", () => {
+    const play = "Online room, Standard, host";
+    expect(issueReportText({ environment: { ...environment, play }, game: null, snapshot: {} })).toContain(
+      `Play: ${play}`,
+    );
+    const details = new URL(newIssueUrl({ ...environment, play })).searchParams.get("game-details") ?? "";
+    expect(details).toContain(`Play: ${play}`);
+    expect(new URL(newIssueUrl(environment)).searchParams.get("game-details")).not.toContain("Play:");
+  });
+
+  test("the Bug report form asks how the game was played", () => {
+    const form = readFileSync(new URL("../../../../.github/ISSUE_TEMPLATE/bug_report.yml", import.meta.url), "utf8");
+    expect(form).toContain("id: play-mode");
+    expect(form).toContain("id: room-role");
   });
 });
