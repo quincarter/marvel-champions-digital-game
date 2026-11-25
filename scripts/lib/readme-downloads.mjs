@@ -10,11 +10,13 @@ export const BUTTON_SVGS = [
   "download-macos-intel",
   "download-linux",
   "download-android",
+  "download-ios",
   "download-windows-es",
   "download-macos-apple-silicon-es",
   "download-macos-intel-es",
   "download-linux-es",
   "download-android-es",
+  "download-ios-es",
 ].map((name) => `.github/assets/readme/${name}.svg`);
 
 const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)$/;
@@ -50,7 +52,7 @@ export function bumpReadme(readme, tag) {
       // The top buttons are the English downloads; names carry `-EN-` from the first release with Spanish builds
       // (#337). The OS has to follow, so the Spanish buttons' `-ES-` names don't match here.
       .replace(
-        /releases\/download\/v\d+\.\d+\.\d+\/MarvelChampions-\d+\.\d+\.\d+-(EN-)?(Windows|macOS|Linux|Android)/g,
+        /releases\/download\/v\d+\.\d+\.\d+\/MarvelChampions-\d+\.\d+\.\d+-(EN-)?(Windows|macOS|Linux|Android|iOS)/g,
         `releases/download/${version}/MarvelChampions-${bare}-EN-$2`,
       )
       // The Spanish buttons, in the README's folded Spanish installs section.

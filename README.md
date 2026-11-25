@@ -28,6 +28,7 @@ to be a genuinely playable video game driven by a deterministic rules engine.
 <p align="center">
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-EN-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux.svg" alt="Download for Linux (AppImage)" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-EN-Android.apk"><img src=".github/assets/readme/download-android.svg" alt="Download for Android" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-EN-iOS-unsigned.ipa"><img src=".github/assets/readme/download-ios.svg" alt="Download for iPhone and iPad (sideload)" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases"><img src=".github/assets/readme/all-releases.svg" alt="View all releases" height="48"></a>
 </p>
 
@@ -46,11 +47,13 @@ Cartas en español, con los escaneos de <a href="https://github.com/alaintxu/mc-
 <p align="center">
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-ES-Linux-x64.AppImage"><img src=".github/assets/readme/download-linux-es.svg" alt="Descargar para Linux, AppImage (español)" height="48"></a>
   <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-ES-Android.apk"><img src=".github/assets/readme/download-android-es.svg" alt="Descargar para Android (español)" height="48"></a>
+  <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/download/v0.55.0/MarvelChampions-0.55.0-ES-iOS-unsigned.ipa"><img src=".github/assets/readme/download-ios-es.svg" alt="Descargar para iPhone y iPad (español, instalación manual)" height="48"></a>
   <a href="https://marvel.champions-digital-game.com/"><img src=".github/assets/readme/play-in-browser-es.svg" alt="Jugar en el navegador" height="48"></a>
 </p>
 
 <p align="center"><sub>The web version carries both languages: it starts in your browser's language, and the globe button next to the music button switches it. For the Spanish <code>.msi</code>, <code>.deb</code> or <code>.rpm</code>, look for <code>-ES-</code> in <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>.<br>
-La versión web incluye los dos idiomas: empieza en el idioma de tu navegador y el botón del globo, junto al de la música, lo cambia. Para el <code>.msi</code>, <code>.deb</code> o <code>.rpm</code> en español, busca <code>-ES-</code> en <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">todas las versiones</a>.</sub></p>
+For iPhone and iPad, sideload the Spanish <code>.ipa</code> with a free Apple ID: <a href="docs/project/ios-install.md">install guide</a>.<br>
+La versión web incluye los dos idiomas: empieza en el idioma de tu navegador y el botón del globo, junto al de la música, lo cambia. Para el <code>.msi</code>, <code>.deb</code> o <code>.rpm</code> en español, busca <code>-ES-</code> en <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">todas las versiones</a>. Para iPhone y iPad, instala el <code>.ipa</code> en español con un Apple ID gratuito: <a href="docs/project/ios-install.es.md">guía de instalación</a>.</sub></p>
 
 </details>
 
@@ -65,6 +68,8 @@ La versión web incluye los dos idiomas: empieza en el idioma de tu navegador y 
   <a href="CONTRIBUTING.md"><img src=".github/assets/readme/contributing.svg" alt="Contributing" height="48"></a>
 </p>
 
+<p align="center"><b>iPhone and iPad:</b> the game isn't on the App Store. Download the <code>.ipa</code> above and sideload it with a free Apple ID through SideStore, AltStore or Sideloadly: <a href="docs/project/ios-install.md">step-by-step iOS install guide</a> (<a href="docs/project/ios-install.es.md">en español</a>). Or play in Safari and add it to your Home Screen.</p>
+
 <p align="center"><sub>Each download button names the release it fetches and is updated by every release. For the all-users Windows <code>.msi</code>, a Linux <code>.deb</code> or <code>.rpm</code>, or an older version, see <a href="https://github.com/quincarter/marvel-champions-digital-game/releases">all releases</a>. Not sure which issue type fits? Use the <a href="https://github.com/quincarter/marvel-champions-digital-game/issues/new/choose">issue chooser</a>.</sub></p>
 
 > [!NOTE]
@@ -75,6 +80,7 @@ La versión web incluye los dos idiomas: empieza en el idioma de tu navegador y 
   <a href="#overview--philosophy">Overview</a> ·
   <a href="#tech-stack">Tech stack</a> ·
   <a href="#community">Community</a> ·
+  <a href="#mods">Mods</a> ·
   <a href="#roadmap">Roadmap</a> ·
   <a href="docs/project/current-status.md">Current status</a> ·
   <a href="docs/project/architecture.md">Architecture</a> ·
@@ -107,7 +113,9 @@ This project is built **rules-engine-first**:
 
 - **Language**: TypeScript, strict mode in every package
 - **Monorepo**: pnpm workspaces (Node.js >= 22)
-- **Client**: Phaser 4 + rexUI (`phaser4-rex-plugins`) + Vite; Tauri 2 (desktop) and Capacitor (Android)
+- **Client**: Phaser 4 + rexUI (`phaser4-rex-plugins`) + Vite; Tauri 2 (desktop) and Capacitor (Android, iOS)
+- **Online**: a Cloudflare Worker with Durable Objects for device sync, live game rooms and watching; the Mod Store's packs on Cloudflare R2
+- **Mods**: the mod SDK and its `mc-pack` CLI, published to npm as `@champions-digital-game/mod-sdk`
 - **Testing**: Vitest unit and scenario suites, Playwright end-to-end suite
 - **Lint and format**: oxlint and oxfmt
 - **Changelog**: Changie
@@ -131,30 +139,51 @@ How the packages fit together, and how to run the game locally, is in [Architect
   merge. Step by step:
   [CONTRIBUTING.md, Contributing images and music](CONTRIBUTING.md#contributing-images-and-music).
 
+## Mods
+
+Community heroes, villains, scenarios, campaigns and house rules install from the **Mod Store** in the game (on the
+Title menu). Every pack in it is reviewed and played before it is published, with its creator's permission.
+
+| You want to                       | Start here                                                                                                                                                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ask for a mod to be added         | The [Mod request](https://github.com/quincarter/marvel-champions-digital-game/issues/new?template=mod_request.yml) issue form: the mod, its creator, their permission and a download link                                 |
+| Make a pack                       | [`marvel-champions-mod-template`](https://github.com/quincarter/marvel-champions-mod-template): make your repo from the template, write cards and abilities with the DSL, and its CI validates, tests and builds the pack |
+| Learn the pack format and the DSL | [Custom content packs](docs/custom-content-packs.md) (the design, `pack.json`, the review process) and the [mod SDK README](packages/mod-sdk/README.md) (the source layout and the `mc-pack` CLI)                         |
+| Submit or update a pack           | A pull request to the Mod Store registry, [`marvel-champions-mods`](https://github.com/quincarter/marvel-champions-mods), adding or bumping your `packs/<id>.yaml` entry                                                  |
+| Report a bug in a pack            | Report a problem on the pack's Mod Store page, or open an issue on the pack's own repository                                                                                                                              |
+| Use the SDK in your own tools     | [`@champions-digital-game/mod-sdk`](https://www.npmjs.com/package/@champions-digital-game/mod-sdk) on npm, also attached to every release as a tarball                                                                    |
+
+How the template, the registry and the store fit together is in
+[Architecture](docs/project/architecture.md#the-other-repositories-and-how-their-content-gets-in).
+
 ## Roadmap
 
 Every released Marvel Champions product, from the Core Set through Shadowland (October 16, 2026), is playable end to
-end.
+end, alone or online with friends. **v1.0.0** is the release that brings online multiplayer.
 
-| Phase | What it covers                                                                                                | Status                                                                                                                                                                                                                                                                                                                                    |
-| ----- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Foundations: monorepo, card schema, tech stack                                                                | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
-| 1     | Headless rules engine: state machine, turn structure, timing windows, keywords, replayable command log        | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
-| 2     | Card content pipeline and the Core Set: MarvelCDB ingestion, the ability DSL, all 233 Core Set cards scripted | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
-| 3     | Encounter and villain AI: villain phase automation, boost, decisions routed to the player the rules name      | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
-| 4     | Client: the Phaser 4 tabletop on desktop, tablet and phone                                                    | ✅ Done, with ongoing improvements: playable end to end on desktop, tablet and phone                                                                                                                                                                                                                                                      |
-| 5     | Online multiplayer: 2–4 players over a network, reconnects, Epic Multiplayer for Loki                         | 🟡 In progress: cross-platform saves and device sync done ([#340](https://github.com/quincarter/marvel-champions-digital-game/pull/340), [#343](https://github.com/quincarter/marvel-champions-digital-game/pull/343), [#354](https://github.com/quincarter/marvel-champions-digital-game/pull/354)); the live relay for 2–4 players next |
-| 6     | Rules QA: ruling-by-ruling tests, replay fixtures, drift detection on new errata                              | 🟡 Ongoing: per-wave rules audits, random-deck soaks, MarvelCDB decklist games, a Rules Reference v1.8 audit                                                                                                                                                                                                                              |
-| 7     | Content beyond the Core Set, in release order                                                                 | ✅ Done: every released product through Shadowland (cycle 11)                                                                                                                                                                                                                                                                             |
-| 8     | Polish: onboarding, settings, audio, packaging, undo                                                          | ✅ Done, with ongoing improvements: Guided mode, settings, music, desktop and Android builds and undo                                                                                                                                                                                                                                     |
-| 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                                                                                                                                                                                                                                                   |
+| Phase | What it covers                                                                                                | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Foundations: monorepo, card schema, tech stack                                                                | ✅ Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 1     | Headless rules engine: state machine, turn structure, timing windows, keywords, replayable command log        | ✅ Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2     | Card content pipeline and the Core Set: MarvelCDB ingestion, the ability DSL, all 233 Core Set cards scripted | ✅ Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 3     | Encounter and villain AI: villain phase automation, boost, decisions routed to the player the rules name      | ✅ Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 4     | Client: the Phaser 4 tabletop on desktop, tablet and phone                                                    | ✅ Done, with ongoing improvements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 5     | Online multiplayer: 2–4 players over a network, reconnects, Epic Multiplayer for Loki                         | ✅ Done in v1.0.0: watch a live game from a link, online rooms with a lobby and chat, players on their own devices, Trickster Takeover Epic Multiplayer, Civil War Competitive and multiplayer achievements ([#876](https://github.com/quincarter/marvel-champions-digital-game/issues/876), [#880](https://github.com/quincarter/marvel-champions-digital-game/issues/880)–[#883](https://github.com/quincarter/marvel-champions-digital-game/issues/883), [#909](https://github.com/quincarter/marvel-champions-digital-game/issues/909)) |
+| 6     | Rules QA: ruling-by-ruling tests, replay fixtures, drift detection on new errata                              | 🟡 Ongoing: per-wave rules audits, random-deck soaks, MarvelCDB decklist games, a Rules Reference v1.8 audit                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 7     | Content beyond the Core Set, in release order                                                                 | ✅ Done: every released product through Shadowland (cycle 11); Elektra and Iron Fist wait for their official text                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 8     | Polish: onboarding, settings, audio, packaging, undo                                                          | ✅ Done, with ongoing improvements: Guided mode, settings, music, desktop, Android and iOS builds, self-updating desktop apps, undo and replays                                                                                                                                                                                                                                                                                                                                                                                             |
+| 9     | Decks: precons, MarvelCDB import, in-app deck builder                                                         | ✅ Done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 10    | Mods: the Mod Store, the mod SDK and community packs                                                          | ✅ Done, with community packs added in batches                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Next up:
 
-1. **Online multiplayer** (Phase 5): live 2–4 player games over the network, built on the save sync that already
-   carries games between devices. About two-thirds done.
-2. **Civil War's competitive mode** (team versus team), which the game marks as coming soon.
-3. **Hero AI** to fill seats with computer-controlled heroes.
+1. **More online play**: keep a room going when its host leaves ([#884](https://github.com/quincarter/marvel-champions-digital-game/issues/884)), find a game from a public list
+   ([#885](https://github.com/quincarter/marvel-champions-digital-game/issues/885)), reconnect to your seat from another device ([#886](https://github.com/quincarter/marvel-champions-digital-game/issues/886)), and hidden hands between Civil War
+   Competitive teams ([#924](https://github.com/quincarter/marvel-champions-digital-game/issues/924)).
+2. **Online play without the cloud**: rooms on a local network ([#956](https://github.com/quincarter/marvel-champions-digital-game/issues/956)) and a room server you can run yourself
+   ([#973](https://github.com/quincarter/marvel-champions-digital-game/issues/973)).
+3. **Elektra and Iron Fist**, once their official card text is published.
+4. **Hero AI** to fill seats with computer-controlled heroes.
 
 What you can play today is in [Current status](docs/project/current-status.md). The detailed plan, decisions and per-wave specs are in [PLAN.md](PLAN.md) and [`docs/`](docs).
 
@@ -162,15 +191,18 @@ What you can play today is in [Current status](docs/project/current-status.md). 
 
 ## More
 
-| Page                                               | What's in it                                                                           |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [Current status](docs/project/current-status.md)   | What you can play today and what the next release adds                                 |
-| [Architecture](docs/project/architecture.md)       | The four packages, how they depend on each other, running it locally                   |
-| [Downloads](docs/project/downloads.md)             | Every installer, unsigned macOS builds, Linux launch options, the in-app update notice |
-| [Contributing](CONTRIBUTING.md)                    | Setup, tests, CI, conventions, card data and the release flow                          |
-| [PLAN.md](PLAN.md)                                 | The full roadmap, decisions and per-phase detail                                       |
-| [Rules authority](docs/project/rules-authority.md) | Which rules source wins a conflict, and every RRG and rulings page                     |
-| [CHANGELOG.md](CHANGELOG.md)                       | Every release's changes                                                                |
+| Page                                                   | What's in it                                                                                             |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| [Current status](docs/project/current-status.md)       | What you can play today and what the next release adds                                                   |
+| [Architecture](docs/project/architecture.md)           | The packages, the other repositories, online rooms, mods, running it locally                             |
+| [Downloads](docs/project/downloads.md)                 | Every installer, unsigned macOS builds, Linux launch options, the in-app update notice                   |
+| [iPhone and iPad install](docs/project/ios-install.md) | Sideloading the `.ipa` with a free Apple ID, step by step ([en español](docs/project/ios-install.es.md)) |
+| [Custom content packs](docs/custom-content-packs.md)   | The Mod Store, the pack format, the DSL, and how a pack is reviewed and published                        |
+| [Live game rooms](docs/live-game-rooms.md)             | How watching, rooms, playing together, Epic and Competitive work online                                  |
+| [Contributing](CONTRIBUTING.md)                        | Setup, tests, CI, conventions, card data and the release flow                                            |
+| [PLAN.md](PLAN.md)                                     | The full roadmap, decisions and per-phase detail                                                         |
+| [Rules authority](docs/project/rules-authority.md)     | Which rules source wins a conflict, and every RRG and rulings page                                       |
+| [CHANGELOG.md](CHANGELOG.md)                           | Every release's changes                                                                                  |
 
 ## License
 
