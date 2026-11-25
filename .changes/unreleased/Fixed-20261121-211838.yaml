@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Competitive rooms: a team change can no longer land while a game is starting, and a failed save at a reveal, start or game end now refuses cleanly instead of leaving a half-reset room.'
-time: 2026-11-21T21:18:38.025488-05:00

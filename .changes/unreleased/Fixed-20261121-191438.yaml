@@ -1,3 +1,0 @@
-kind: Fixed
-body: A guest in a room game now sets up the table on the same Setting up the table screen as the host, and a refused mulligan answer says why instead of the prompt coming back silently (#881)
-time: 2026-11-21T19:14:38.7179603-05:00

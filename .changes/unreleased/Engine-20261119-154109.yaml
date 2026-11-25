@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Live game rooms on the sync Worker: one Durable Object per room relays the host''s game log to watchers over WebSockets, stored in frozen chunks, and is shaped for chat, player seats and several tables next (#876)'
-time: 2026-11-19T15:41:09.2915358-05:00
