@@ -1,0 +1,3 @@
+kind: Fixed
+body: A Competitive room saves a team's new sealed scenario and the readiness it clears in one write, so a wake never pairs a new scenario with the old approval.
+time: 2026-11-21T21:02:03.8198693-05:00

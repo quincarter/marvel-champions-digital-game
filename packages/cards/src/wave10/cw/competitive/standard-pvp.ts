@@ -6,7 +6,6 @@ import {
   chooseCards,
   chosen,
   cards,
-  competitiveOnly,
   constant,
   dealAsEncounterCard,
   dealtEncounterCount,
@@ -39,6 +38,10 @@ import {
   whenRevealedHero,
   you,
   yourTeam,
+  yourLeadersSetAsideCards,
+  takeIntoHand,
+  enemyAttacksEnemy,
+  yourLeader,
 } from "../../../dsl/index.js";
 
 /** "Each player on your team": the players of the team whose area holds the card (MC56 p. 20). */
@@ -75,7 +78,9 @@ const RIGHTEOUS_CAUSE = whenRevealed(
  * happens (MC56 p. 6).
  */
 const WHATEVER_IT_TAKES_ALTER_EGO = whenRevealedAlterEgo(
-  ifThen(inCompetitiveMode(), [competitiveOnly("The enemy leader attacks your leader.")]),
+  // MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); Q5, Q6 (settled 2026-11-20): the
+  // leader-versus-leader attack.
+  enemyAttacksEnemy(enemyLeader, yourLeader, { boost: true }),
 );
 
 /** Whatever It Takes, Hero face: "The enemy leader attacks you." */
@@ -135,14 +140,19 @@ const NOW_ITS_PERSONAL_CONSTANT = constant();
 /**
  * Now It's Personal, Action: "Remove this card from the game -> each player on your team chooses 2 of your leader's
  * set-aside player cards and adds them to their hand." The removal is the first effect (no self-removal cost exists).
- * The leader's set-aside cards belong to a leader and its team, which the engine has no area for (plan question 12,
- * milestone M6); cooperatively "your leader" cannot be resolved, so only the removal happens (MC56 p. 6).
+ * MC56 p. 16 (defeating Choosing Sides earns two of your leader's basic player cards, then part of that player's deck);
+ * Q12 A per owner decision 2026-11-20: they go to hand now and are that player's own cards from then on (taken into
+ * hand, so owned: they discard and reshuffle with that player's deck); in 2v2 the players choose in turn, in player
+ * order, from the four set aside, so each takes two; in 1v1 the other two stay set aside. Cooperatively "your leader"
+ * cannot be resolved, so only the removal happens (MC56 p. 6).
  */
 const NOW_ITS_PERSONAL_ACTION = action(
   moveCards(cards(self), "removedFromGame"),
   ifThen(inCompetitiveMode(), [
-    competitiveOnly(
-      "Each player on your team chooses 2 of your leader's set-aside player cards and adds them to their hand.",
+    forEachPlayer(
+      yourTeam,
+      chooseCards("earned", yourLeadersSetAsideCards(), { min: 2, max: 2, chooser: thatPlayer }),
+      takeIntoHand(cards(chosen("earned")), thatPlayer),
     ),
   ]),
 );
@@ -154,9 +164,9 @@ const NOW_ITS_PERSONAL_ACTION = action(
  * when the mode is built: each card once, registered under the registration code (56125 to 56128) and the resistance
  * code (56203 to 56206), the two printings being the same cards (plan question 15).
  *
- * Written with `enemyLeader`, `yourTeam` and `enemyTeamChooses`; the sentences the engine cannot yet run are
- * `competitiveOnly` markers under `inCompetitiveMode()`: Whatever It Takes's leader-versus-leader attack, and Now It's
- * Personal's set-aside player cards of a leader. Choosing Sides' damage cap names the villain for want of a leader query.
+ * Written with `enemyLeader`, `yourTeam` and `enemyTeamChooses`; the competitive sentences run under
+ * `inCompetitiveMode()`, Now It's Personal's reward included (`yourLeadersSetAsideCards`, plan M6). Choosing Sides'
+ * damage cap names the villain for want of a leader query.
  *
  * Cards (10):
  * - 56125 Righteous Cause (treachery)

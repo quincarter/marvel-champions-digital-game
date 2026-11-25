@@ -54,11 +54,30 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
 import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
 import { isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { seatResultOf } from "../view/team-outcome.js";
 import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { t } from "../i18n/translate.js";
 import { openReplay, replayErrorKey } from "../replay/replay-files.js";
 import { introReplay } from "./replay-entry.js";
+import { floatingThemeSlot } from "../view/theme-button.js";
+import {
+  HoverPreview,
+  hoverCardsOf,
+  noteHoverCard,
+  resetHoverCards,
+  screenHoverArea,
+} from "../ui/card-hover-preview.js";
+import { competitiveWideLayout, competitiveTallLayout } from "../view/competitive-game-over-layout.js";
+import { drawResultPanel, drawTeamColumn, type CompetitiveKit } from "./game-over-competitive.js";
+import { competitiveGameOverOf } from "../view/competitive-game-over.js";
+
+/**
+ * The result as the table's records read it: a competitive game's per-team result (`result: "teams"`, MC56 p. 17) counts
+ * as played but unresolved, like a concession, until the competitive game-over screen words it (plan M9).
+ */
+const tableResult = (outcome: GameOutcome): "win" | "loss" | "conceded" =>
+  outcome.result === "teams" ? "conceded" : outcome.result;
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -87,7 +106,9 @@ export class GameOverScene extends Phaser.Scene {
    */
   #outcomeArt: Picture | null = null;
   /** The picture key whose load is in flight, so a redraw while waiting doesn't queue it twice. */
-  #loadingArt: string | null = null;
+  #loadingArt = new Set<string>();
+  /** The desktop hover popover over every card scan this screen shows (a leader, a hero, the card that ended the game). */
+  #hover: HoverPreview | null = null;
   /** What this win earned toward progression (`progression/unlocks.ts`), shown as a ribbon. Null on a loss. */
   #news: UnlockNews | null = null;
   /** How many things this game opened in Extras (`progression/extras.ts`), win or lose. */
@@ -112,11 +133,39 @@ export class GameOverScene extends Phaser.Scene {
     });
     // Inspect opens over this screen for the card that ended the game, and has the keys while it is up.
     this.#route = new FocusRoute(this, { blocked: () => this.scene.isActive(SCENES.inspect) });
+    this.#hover = new HoverPreview(this, {
+      cards: () => hoverCardsOf(this),
+      area: (pointer) =>
+        screenHoverArea(this, pointer, {
+          blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.competitiveOver),
+        }),
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#hover?.destroy();
+      this.#hover = null;
+    });
     const { game, config } = appSession().store.state;
     const seated = config ? config.players.map(identityOfSeat).filter((id): id is string => id !== null) : [];
+    // A competitive game's scene is the one for the leader this device's team faced, in this device's own result.
+    const competitive =
+      game?.outcome?.result === "teams" ? competitiveGameOverOf(game, config, config?.localSeats) : null;
+    const heardResult = game?.outcome ? seatResultOf(game.outcome, game.teams, config?.localSeats) : null;
     this.#outcomeArt =
       game?.outcome && config
-        ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result, Math.random, config.villainSetId, seated)
+        ? outcomeArtFor(
+            ART_CATALOG,
+            competitive?.facedScenarioId ?? config.scenarioId,
+            competitive
+              ? heardResult === "win"
+                ? "win"
+                : heardResult === "loss"
+                  ? "loss"
+                  : "conceded"
+              : tableResult(game.outcome),
+            Math.random,
+            config.villainSetId,
+            seated,
+          )
         : null;
     this.#news = null;
     this.#extrasNews = 0;
@@ -136,7 +185,7 @@ export class GameOverScene extends Phaser.Scene {
           ? before.progress
           : withEndedGame(before.progress, {
               scenarioId: config.scenarioId,
-              result: game.outcome.result,
+              result: tableResult(game.outcome),
               heroIds,
               gameId: appSession().store.state.gameId ?? null,
               deckCardIds: [...new Set(Object.values(game.instances).map((instance) => instance.cardId as string))],
@@ -174,7 +223,9 @@ export class GameOverScene extends Phaser.Scene {
     }
     if (game?.outcome && config) {
       const packCode = gameScenarios().find((s) => s.id === config.scenarioId)?.packCode;
-      appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
+      // The music is this device's result (`seatResultOf`): a competitive win plays win music; a tie is neutral.
+      const heard = seatResultOf(game.outcome, game.teams, config.localSeats);
+      appSession().music?.playOutcome(config.scenarioId, heard === "tie" ? "conceded" : heard, packCode);
     }
     this.#draw();
     fadeScreenIn(this);
@@ -188,6 +239,7 @@ export class GameOverScene extends Phaser.Scene {
     this.#status = null;
     this.#stops = new Map();
     this.#order = [];
+    resetHoverCards(this);
 
     const { store } = appSession();
     const { game, record, config } = store.state;
@@ -220,13 +272,14 @@ export class GameOverScene extends Phaser.Scene {
           this.#draw(overflow);
           return;
         }
-      } else this.#drawWide(model, config, width, height);
+      } else this.#drawWide(model, config, width, height, ribbon ? ribbon.rect.y + ribbon.rect.height + 8 : 0);
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-    if (ribbon) this.#drawNews(ribbon, width);
+    if (ribbon) this.#drawNews(ribbon);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
+    this.#hover?.onDraw();
   }
 
   /**
@@ -236,29 +289,46 @@ export class GameOverScene extends Phaser.Scene {
    */
   #newsRibbon(news: UnlockNews | null, width: number): { readonly text: Phaser.GameObjects.Text; readonly rect: Rect } {
     const parts = newsParts(news, this.#extrasNews);
-    const wrap = width - 64;
+    // The dark mode toggle floats at the top centre (`floatingThemeSlot`): the ribbon sits beside it, to its right, and
+    // on a phone, where the toggle is a tab on the top edge, just under it, so the two never overlap.
+    const toggle = floatingThemeSlot({ width });
+    const beside = width >= 600;
+    const left = beside ? toggle.x + toggle.width + 10 : 16;
+    const top = beside ? 10 : toggle.y + toggle.height + 4;
+    const room = width - left - 16;
     const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1)
       .setOrigin(0.5, 0.5)
       .setAlign("center")
-      .setWordWrapWidth(wrap);
-    const ribbonWidth = Math.min(width - 32, text.width + 40);
+      .setWordWrapWidth(room - 24);
+    const ribbonWidth = Math.min(room, text.width + 40);
     const ribbonHeight = Math.max(34, Math.ceil(text.height) + 18);
-    return { text, rect: { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: ribbonHeight } };
+    return {
+      text,
+      rect: { x: beside ? left : (width - ribbonWidth) / 2, y: top, width: ribbonWidth, height: ribbonHeight },
+    };
   }
 
-  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }, width: number): void {
+  #drawNews(ribbon: { readonly text: Phaser.GameObjects.Text; readonly rect: Rect }): void {
     const { text, rect } = ribbon;
     const ground = this.add.graphics();
     ground.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     ground.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
-    text.setPosition(width / 2, rect.y + rect.height / 2);
+    text.setPosition(rect.x + rect.width / 2, rect.y + rect.height / 2);
     this.children.bringToTop(ground);
     this.children.bringToTop(text);
   }
 
   /** Screens - Desktop #12. */
-  #drawWide(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
-    const ground = model.tone === "win" ? signal.heal.hex : accent.heroRed.hex;
+  #drawWide(
+    model: GameOverModel,
+    config: SessionConfig | null,
+    width: number,
+    height: number,
+    /** The bottom of the news ribbon plus a gap: the header starts below it, so a long ribbon never covers it. */
+    ribbonClear = 0,
+  ): void {
+    // A competitive tie (issue #883) is neither green nor red: the neutral ink ground, paper text over it.
+    const ground = model.tone === "win" ? signal.heal.hex : model.tone === "tie" ? surface.ink.hex : accent.heroRed.hex;
     this.cameras.main.setBackgroundColor(cssOf(ground));
     // D12 draws no art window: its ground color *is* the result (red for a loss, green for a win). So the
     // result's scene goes behind everything, under a wash of that same ground — the tint keeps its meaning and
@@ -269,19 +339,28 @@ export class GameOverScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", GROUND_DOTS);
 
     const pad = Math.round(Math.min(48, width * 0.034));
+    const top = Math.max(pad, ribbonClear);
     const gap = Math.round(Math.min(20, width * 0.014));
     const blowWidth = Math.round(Math.min(280, width * 0.2));
     const sideWidth = Math.round(Math.min(330, width * 0.24));
 
     // Header: meta line, headline, and the final blow box on the right.
-    label(this, pad, pad, model.meta, typeRole.label, surface.paper.hex, 0.85).setFontSize(12);
-    const headlineWidth = width - pad * 2 - blowWidth - gap;
-    const headlineSize = Math.round(Math.max(44, Math.min(104, width * 0.072)));
-    const headline = this.#display(pad, pad + 22, model.headline, headlineSize, surface.paper.hex, headlineWidth);
+    label(this, pad, top, model.meta, typeRole.label, surface.paper.hex, 0.85).setFontSize(12);
+    const competitive = model.competitive ?? null;
+    // A competitive result has no final blow box, so its headline (a side and a result, longer than "Victory") takes the width.
+    const headlineWidth = width - pad * 2 - (competitive ? 0 : blowWidth + gap);
+    const headlineSize = Math.round(Math.max(44, Math.min(104, width * (competitive ? 0.06 : 0.072))));
+    const headline = this.#display(pad, top + 22, model.headline, headlineSize, surface.paper.hex, headlineWidth);
 
     let headerBottom = headline.y + headline.height;
+    if (competitive) {
+      const line = this.add
+        .text(pad, headerBottom + 6, model.summary, textStyle(typeRole.emphasis, surface.paper.hex, 0.92))
+        .setWordWrapWidth(headlineWidth);
+      headerBottom = line.y + line.height;
+    }
     if (model.finalBlow) {
-      const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
+      const box: Rect = { x: width - pad - blowWidth, y: top, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
       const caption = label(this, box.x + 16, box.y + 16, "Final blow", typeRole.label, surface.paper.hex, ink.meta);
       // The card whose text ended the game, when one did: its scan, which opens Inspect for the whole text.
@@ -319,11 +398,28 @@ export class GameOverScene extends Phaser.Scene {
     const bodyBottom = height - pad;
     const mainWidth = width - pad * 2 - sideWidth - gap;
 
+    if (competitive) {
+      const layout = competitiveWideLayout({
+        main: { x: pad, y: bodyTop, width: mainWidth, height: bodyBottom - bodyTop },
+        winner: competitive.teams[0]?.winner ? 0 : competitive.teams[1]?.winner ? 1 : null,
+        cardCounts: [competitive.teams[0]!.heroes.length + 1, competitive.teams[1]!.heroes.length + 1],
+        panelLines: competitive.panel.lines.length,
+      });
+      const winnerShown = competitive.teams.some((team) => team.winner);
+      competitive.teams.forEach((team, index) =>
+        drawTeamColumn(this.#kit(), team, layout.columns[index]!, {
+          winnerShown,
+          displaySize: Math.round(Math.max(18, Math.min(28, width * 0.02))),
+        }),
+      );
+      drawResultPanel(this.#kit(), competitive, layout.panel);
+    }
+
     // Three paper stat cards.
     const cardGap = 14;
     const cardWidth = (mainWidth - cardGap * 2) / 3;
     const cardHeight = 96;
-    model.stats.forEach((stat, index) => {
+    (competitive ? [] : model.stats).forEach((stat, index) => {
       const x = pad + index * (cardWidth + cardGap);
       const g = this.add.graphics();
       g.fillStyle(surface.paper.hex, 1).fillRect(x, bodyTop, cardWidth, cardHeight);
@@ -343,10 +439,15 @@ export class GameOverScene extends Phaser.Scene {
     });
 
     // The rounds where it turned.
-    const beatsTop = bodyTop + cardHeight + 16;
-    // As tall as its lines, so one line is a short strip and the leader's picture shows below it.
-    const beatsHeight = beatsPanelHeight(this.#beatRowHeights(model, mainWidth), Math.max(120, bodyBottom - beatsTop));
-    this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: beatsHeight }, model);
+    if (!competitive) {
+      const beatsTop = bodyTop + cardHeight + 16;
+      // As tall as its lines, so one line is a short strip and the leader's picture shows below it.
+      const beatsHeight = beatsPanelHeight(
+        this.#beatRowHeights(model, mainWidth),
+        Math.max(120, bodyBottom - beatsTop),
+      );
+      this.#beatsPanel({ x: pad, y: beatsTop, width: mainWidth, height: beatsHeight }, model);
+    }
 
     // Right column: the table, then the actions.
     const sideX = width - pad - sideWidth;
@@ -396,8 +497,8 @@ export class GameOverScene extends Phaser.Scene {
    */
   #drawOutcomeArt(picture: Picture, panel: Rect): boolean {
     if (!this.textures.exists(picture.key)) {
-      if (this.#loadingArt === picture.key) return false;
-      this.#loadingArt = picture.key;
+      if (this.#loadingArt.has(picture.key)) return false;
+      this.#loadingArt.add(picture.key);
       ensurePictureLoaded(this, picture, () => this.#draw());
       return false;
     }
@@ -419,7 +520,8 @@ export class GameOverScene extends Phaser.Scene {
     cardTop = 10,
   ): number {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
-    const accentHue = model.tone === "win" ? signal.caution.hex : accent.heroRed.hex;
+    const accentHue =
+      model.tone === "win" ? signal.caution.hex : model.tone === "tie" ? surface.paper.hex : accent.heroRed.hex;
     const pad = 16;
 
     // The art window across the top (P11 "Defeat art" / P17): this result's scene from `art/`, edge to edge;
@@ -471,10 +573,36 @@ export class GameOverScene extends Phaser.Scene {
       .setWordWrapWidth(column);
     y = summary.y + summary.height + 12;
 
+    const competitive = model.competitive ?? null;
+    if (competitive) {
+      // Civil War Competitive: the two teams' leader pictures and scans stand where the number boxes do.
+      // Where the buttons will start, so a tall screen gives the columns the room above them.
+      const buttonsTop = tallActionsLayout({
+        pad,
+        column,
+        width,
+        height,
+        top: 0,
+        actions: this.#actions(config).length,
+      }).actions[0]?.y;
+      const layout = competitiveTallLayout({
+        x: pad,
+        y,
+        width: column,
+        room: buttonsTop === undefined ? 0 : buttonsTop - 30 - y,
+        cardCounts: [competitive.teams[0]!.heroes.length + 1, competitive.teams[1]!.heroes.length + 1],
+      });
+      const winnerShown = competitive.teams.some((team) => team.winner);
+      competitive.teams.forEach((team, index) =>
+        drawTeamColumn(this.#kit(), team, layout.columns[index]!, { winnerShown, displaySize: 15 }),
+      );
+      y = layout.bottom + 12;
+    }
+
     const boxGap = 7;
     const boxWidth = (column - boxGap * 2) / 3;
     const boxHeight = 58;
-    model.quickStats.forEach((stat, index) => {
+    (competitive ? [] : model.quickStats).forEach((stat, index) => {
       const x = pad + index * (boxWidth + boxGap);
       const g = this.add.graphics();
       g.lineStyle(2.5, model.tone === "win" ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
@@ -486,7 +614,7 @@ export class GameOverScene extends Phaser.Scene {
       label(this, x + 9, y + 8, stat.label, typeRole.label, surface.paper.hex, ink.meta).setFontSize(8);
       this.#display(x + 9, y + 22, stat.value, 24, surface.paper.hex);
     });
-    y += boxHeight + 12;
+    if (!competitive) y += boxHeight + 12;
 
     if (model.mvp) {
       const row = this.add.graphics();
@@ -535,15 +663,17 @@ export class GameOverScene extends Phaser.Scene {
    * the rectangle the scan covers, or null while its picture has not arrived (the art cache redraws this screen when
    * it does), so the caller lays the words out around what is really there.
    */
-  #causeCard(instanceId: InstanceId, slot: Rect): Rect | null {
+  #causeCard(instanceId: InstanceId, slot: Rect, center = false): Rect | null {
     const game = appSession().store.state.game;
     const card = game?.cardPool[game.instances[instanceId]?.cardId ?? ""];
     if (!game || !card) return null;
     const key = cardArt(this).request(this, artFor(card, faceOf(game, instanceId)));
     const image = drawArt(this, key, slot, { fit: "contain" });
     if (!image) return null;
-    image.setPosition(slot.x, slot.y);
-    const rect: Rect = { x: slot.x, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    const left = center ? slot.x + (slot.width - image.displayWidth) / 2 : slot.x;
+    image.setPosition(left, slot.y);
+    const rect: Rect = { x: left, y: slot.y, width: image.displayWidth, height: image.displayHeight };
+    noteHoverCard(this, instanceId, rect);
     this.add.graphics().lineStyle(2, surface.paper.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     const open = (): void => {
       if (!this.scene.isActive(SCENES.inspect)) this.scene.launch(SCENES.inspect, { instanceId });
@@ -557,6 +687,16 @@ export class GameOverScene extends Phaser.Scene {
     this.#order.push(stop);
     this.#stops.set(stop, { rect, activate: open });
     return rect;
+  }
+
+  /** The campaign screen's own pieces, lent to the competitive result's drawing (`game-over-competitive.ts`). */
+  #kit(): CompetitiveKit {
+    return {
+      scene: this,
+      display: (x, y, text, size, color, wrapWidth) => this.#display(x, y, text, size, color, wrapWidth),
+      scan: (instanceId, slot, center) => this.#causeCard(instanceId, slot, center),
+      picture: (picture, panel) => this.#drawOutcomeArt(picture, panel),
+    };
   }
 
   /** The wrapped height of each beat's text at this panel width, measured on throwaway text. */
@@ -626,7 +766,21 @@ export class GameOverScene extends Phaser.Scene {
   #actions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
-    return [...this.#playActions(config), this.#replayAction()];
+    // Civil War Competitive: the result sheet can be opened again after it was closed (#883).
+    const sheet =
+      appSession().store.state.game?.outcome?.result === "teams"
+        ? [
+            {
+              label: t("comp.over.reopen"),
+              primary: false,
+              run: () => {
+                if (!this.scene.isActive(SCENES.competitiveOver)) this.scene.launch(SCENES.competitiveOver);
+              },
+              unavailable: undefined,
+            },
+          ]
+        : [];
+    return [...this.#playActions(config), this.#replayAction(), ...sheet];
   }
 
   #playActions(

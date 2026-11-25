@@ -100,6 +100,7 @@ import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
+import { concedeRouteOf } from "../view/competitive-concede.js";
 import { SCENES } from "./keys.js";
 import type { PlayerStatsData } from "./player-stats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -315,6 +316,12 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #setConfirmingConcede(value: boolean): void {
+    // Civil War Competitive (#883): the team's forfeit or leaving alone, on its own sheet, not the one-line confirm.
+    const { game, perspectiveId } = appSession().store.state;
+    if (value && perspectiveId && concedeRouteOf(game, this.#seatGame()) === "sheet") {
+      if (!this.scene.isActive(SCENES.competitiveConcede)) this.scene.launch(SCENES.competitiveConcede);
+      return;
+    }
     this.#confirmingConcede = value;
     this.#draw();
   }

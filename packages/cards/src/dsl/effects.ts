@@ -750,11 +750,14 @@ export const enemyScheme = (
      * theirs alone. Works on a card that is not in play (a treachery's When Revealed).
      */
     readonly wouldPlaceThreat?: readonly EffectArg[];
+    /** "Do not give him a boost card for this activation." (The Futurist 56129): no boost card at all. */
+    readonly noBoost?: boolean;
   } = {},
 ): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
+  ...(opts.noBoost ? { boost: false as const } : {}),
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
   ...bonusTiming(opts),
@@ -889,15 +892,28 @@ export const basicPowerBy = (
     ...(opts.terms ? { terms: opts.terms } : {}),
   };
 };
+/**
+ * An enemy attacks another enemy (engine `EffectSpec enemyAttacksEnemy`). `boost: true` deals the attacker its boost card
+ * (a villain or villainous minion only) and turns any already on it; `boost: "held"` deals none and turns only those
+ * already on it ("do not give it a boost card", Excessive Force 56090). `atkBonus` and `keywords` are "+1 ATK for this
+ * attack and this attack gains piercing": carried by this attack only.
+ */
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,
-  opts: { readonly bind?: string; readonly boost?: true } = {},
+  opts: {
+    readonly bind?: string;
+    readonly boost?: true | "held";
+    readonly atkBonus?: Amount;
+    readonly keywords?: readonly AttackKeyword[];
+  } = {},
 ): EffectSpec => ({
   kind: "enemyAttacksEnemy",
   attacker,
   target,
-  ...(opts.boost ? { boost: true as const } : {}),
+  ...(opts.boost ? { boost: opts.boost } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
   ...withBind(opts.bind),
 });
 /**
@@ -1683,6 +1699,11 @@ export const encounterSetAside = (filter?: TargetQuery, opts: { readonly random?
   ...(filter ? { filter } : {}),
   ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
+/**
+ * "Your leader's set-aside player cards" (Now It's Personal, MC56 p. 16): the basic player cards of the effect's team's
+ * own leader still set aside (`CardSelector encounterSetAside.yourLeadersCards`). None cooperatively (MC56 p. 6).
+ */
+export const yourLeadersSetAsideCards = (): CardSelector => ({ kind: "encounterSetAside", yourLeadersCards: true });
 /** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
 /** The removed-from-game area: "search … set-aside area, and removed-from-game area for …" (Loose Ends, 27135). */
@@ -2527,7 +2548,14 @@ export const revealSetAside = (filter: TargetQuery, player: PlayerRef = you, slo
   selectCards(slot, encounterSetAside(filter)),
   revealCard({ kind: "slot", slot }, player),
 ];
-export const shuffleEncounterDeck = (): EffectSpec => ({ kind: "shuffleEncounterDeck" });
+/**
+ * Shuffle "the encounter deck"; `deckOf` names another villain's deck where the card text does ("your leader's
+ * encounter deck", after searching it with `encounterCards(…, deckOf)`).
+ */
+export const shuffleEncounterDeck = (deckOf?: TargetRef): EffectSpec => ({
+  kind: "shuffleEncounterDeck",
+  ...(deckOf ? { deckOf } : {}),
+});
 export const discardEncounterUntil = (filter: TargetQuery, bind: string): EffectSpec => ({
   kind: "discardEncounterUntil",
   filter,
@@ -2883,7 +2911,7 @@ export const spendResources = (
   resources: ResourceRequirement,
   bind: string,
   player: PlayerRef = you,
-  opts: { readonly distinctTypes?: number; readonly required?: true } = {},
+  opts: { readonly distinctTypes?: number; readonly required?: true; readonly times?: Amount } = {},
 ): EffectSpec => ({
   kind: "spendResources",
   player,
@@ -2891,6 +2919,7 @@ export const spendResources = (
   bind,
   ...(opts.distinctTypes !== undefined ? { distinctTypes: opts.distinctTypes } : {}),
   ...(opts.required ? { required: true as const } : {}),
+  ...(opts.times !== undefined ? { times: amount(opts.times) } : {}),
 });
 /**
  * "You may spend X [mental] resources to prevent X of that threat" (Battle of Wits, `aos` 50175; A.I.M. Interference

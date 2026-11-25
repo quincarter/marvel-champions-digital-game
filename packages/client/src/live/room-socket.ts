@@ -95,6 +95,7 @@ const KINDS: Readonly<Record<string, ReadonlySet<string>>> = {
     "table-host-token",
     "seat-decks",
     "deck-refused",
+    "sealed",
     "host-activity",
     "villain-cursor",
     "table-plan",

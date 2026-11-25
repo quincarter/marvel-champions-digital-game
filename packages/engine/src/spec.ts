@@ -126,6 +126,14 @@ export type AttachCategory = "ally" | "minion" | "sideScheme";
 export interface TargetQuery {
   readonly categories?: readonly TargetCategory[];
   /**
+   * The query reaches the other team's game area too: a card that "specifically refers to" the other side of the table
+   * (MC56 p. 16: card abilities "completely ignore cards on the other side of the table unless they specifically refer
+   * to them"; Drafted 56080's "a minion engaged with" the enemy team, Bullseye 56088's "an attachment from your
+   * leader"). Read on the query itself. Without it a query matches only cards in the effect's own game area. It carries
+   * into the query's `anyOf` alternatives and its `not`, so it need not be repeated there.
+   */
+  readonly anyGameArea?: true;
+  /**
    * "At the mission", "in the mission area", "the [MISSION] side scheme" (MC45 p. 5; docs/phase7-wave8.md §3.33): only
    * a card in the in-play scenario area of this name (`ZoneId scenarioPlayArea`), or attached to one. This is how an
    * ability "refers to the mission area": a card in a closed area is matched by a query that names the area and by no
@@ -890,7 +898,12 @@ export type TargetRef =
    * (p. 39) names no "you", a Boost ability's "you" is the player the enemy is scheming against, as
    * `gameAbilityFrames` reads it.
    */
-  | { readonly kind: "mainScheme"; readonly of?: "central" | "yours" }
+  /**
+   * `of: "yourLeader"`: "your leader's main scheme" (Double Agent 56211, Spectacular! 56182, Neighborhood Hero 56183,
+   * Cloak 56194, Darkforce 56196): the main scheme of the game area the team's leader is in (MC56 p. 16); none with one
+   * team (MC56 p. 6: "your leader" cannot be resolved).
+   */
+  | { readonly kind: "mainScheme"; readonly of?: "central" | "yours" | "yourLeader" }
   | { readonly kind: "identityOf"; readonly player: PlayerRef }
   /** "The villain corresponding to the attached side scheme" (Held Hostage): each undefeated villain whose signature side scheme the ref names. */
   | { readonly kind: "villainOfSideScheme"; readonly scheme: TargetRef }
@@ -973,7 +986,14 @@ export type PlayerRef =
    * when no player removed it (The Search for Spiral, `mojo` 39016; owner decision Q64, docs/phase7-wave6-handoff.md).
    */
   | { readonly kind: "orElse"; readonly first: PlayerRef; readonly otherwise: PlayerRef }
-  | { readonly kind: "firstPlayer" }
+  /**
+   * The first player. With two teams each team has its own first player token (MC56 p. 16), and this is the token
+   * holder of the team the effect is read for (`contextTeam`); `of: "enemy"` is the other team's: "deal it to the
+   * first player on the enemy team" (Calculated Risk 57074). Not `enemyTeamDecider`, which names who answers a choice
+   * given to the enemy team and need not hold its token. With one team the enemy team is the players (MC56 p. 6), so
+   * both read as the first player; with two teams and no team to read for, `of: "enemy"` names nobody.
+   */
+  | { readonly kind: "firstPlayer"; readonly of?: "yours" | "enemy" }
   | { readonly kind: "each" }
   | { readonly kind: "id"; readonly playerId: PlayerId }
   /** The player(s) picked by `choosePlayer` into this slot ("choose a player. That player …"). */
@@ -2316,8 +2336,31 @@ export type EffectSpec =
        * Activation)" step 1, p. 8), turned faceup and resolved with the effect's controller as "you": FFG ruling
        * January 26, 2026 (4), "Headpool's controller resolves the minion's boost card"; owner decision 2026-10-16 (audit
        * finding 14). Its icons add to the ATK dealt. Absent (Moondragon, §4 Q12): no boost card.
+       *
+       * Only a villain or a villainous minion is dealt one (`getsBoostCard`; RRG v1.8 Attack (Enemy Activation) p. 8
+       * step 1): a plain minion attacking a leader (Venom 56087, Iron Fist 56190) gets none. Boost cards already
+       * facedown on the attacker (Taskmaster's Academy 57026, The People's Hero 56210) are turned with it and their
+       * icons added (competitive plan M3; owner question pending, built at A). With two teams the card comes from the
+       * deck of the area the attacker is in and is turned by the first player of the team there (MC56 p. 16; Q5, Q6,
+       * N5).
+       *
+       * `"held"`: "(do not give it a boost card)" (Excessive Force 56090, Iron Fist 56190's Boost): no card is dealt,
+       * and only the boost cards already facedown on the attacker are turned (the same owner question, A).
        */
-      readonly boost?: true;
+      readonly boost?: true | "held";
+      /**
+       * "[Attacker] gets +1 ATK for this attack" on the attack this effect initiates (a leader-versus-leader attack, MC56
+       * p. 16): evaluated once, as this effect resolves, and carried on this attack's own event frame (`vars.atkBonus`),
+       * as `enemyAttack.atkBonus` is for an activation. Read when the damage is dealt, beside the attacker's ATK and
+       * any boost icons, so it ends with the attack and never reaches another one. A "—" ATK attacker still makes no
+       * attack (RRG 1.8 "Dash (Value)", p. 15).
+       */
+      readonly atkBonus?: ValueSpec;
+      /**
+       * "This attack gains piercing": attack keywords carried by exactly the attack this effect initiates (one var per
+       * keyword on its event frame, read by `attackKeywordsOf`), as `enemyAttack.keywords`. Not the attacker's.
+       */
+      readonly keywords?: readonly AttackKeyword[];
       readonly bind?: string;
     }
   /**
@@ -3021,7 +3064,9 @@ export type EffectSpec =
    * cannot play events until after that attack resolves."). `attack` says which attack:
    * - `"current"` (the default): the attack or activation already resolving (`currentActivationFrameId`), the same
    *   frame `modifyStatUntil`'s `"endOfAttack"` names. Not created outside one.
-   * - `"initiated"`: the attack the **next `enemyAttack` of this same effects frame** initiates. It is written
+   * - `"initiated"`: the attack the **next `enemyAttack` (or `enemyAttacksEnemy`: "it attacks your leader instead.
+   *   She cannot take more than 3 damage from this attack", Provoked Response 56133) of this same effects frame**
+   *   initiates. It is written
    *   *before* that `enemyAttack`, so the rule is already active when the attack begins, its interrupt windows
    *   included. The printed sentence comes after the attack, but it covers the attack's whole resolution. Until the
    *   attack is initiated the rule waits on the frame (`LastingDuration awaitingAttack`); `enemyAttack` then retimes
@@ -3872,6 +3917,13 @@ export type EffectSpec =
       readonly distinctTypes?: number;
       readonly required?: true;
       readonly x?: { readonly max: ValueSpec };
+      /**
+       * "Spend resources equal to that ally's cost" (Switching Sides 56158): `resources` is the price of one and is
+       * taken this many times, read as the effect resolves (`printedCost` of the card). A price of 0 or less asks
+       * nothing and binds `<bind>.made` 0, so a script offers a free card some other way. Not combined with `x` or
+       * `required`.
+       */
+      readonly times?: ValueSpec;
     }
   /**
    * "You may place any number of ratings counters on The Champion to reduce this damage by 1 for each counter placed
@@ -4062,7 +4114,14 @@ export type EffectSpec =
       readonly perPlayerAs?: number;
       readonly fromEncounterDeck?: true;
     }
-  | { readonly kind: "shuffleEncounterDeck" }
+  /**
+   * Shuffles "the encounter deck" (`effectEncounterDeckId`: the active villain's, or with two teams the deck of the
+   * leader in the effect's own area). `deckOf` names another villain's deck where card text does, as the `encounter`
+   * card selector's `deckOf`: "Search the top 5 cards of your leader's encounter deck …" shuffles that deck once the
+   * search is done (RRG 1.8 "Search", p. 39), and "your leader" sits in the other team's area (MC56 p. 16). Each deck
+   * a named villain has is shuffled once; a ref that names no villain with a deck shuffles nothing.
+   */
+  | { readonly kind: "shuffleEncounterDeck"; readonly deckOf?: TargetRef }
   /**
    * "Create the Experimental Weapons deck" / "Shuffle every other encounter side scheme into the side-scheme deck"
    * (docs/phase7-wave2.md §3.3): every card of the encounter deck matching the scenario deck's `contents` (its encounter
@@ -5251,15 +5310,19 @@ export type EffectSpec =
    * phase begins" (so "until the next villain phase begins" lasts on to the next phase played), none of steps one to
    * five, no "villain phase ends"; the round still ends (`phaseEnding { phase: "round" }`: temporary, "at/until the end
    * of the round"). Cards dealt meanwhile wait for the next villain phase played (RRG 1.8 "Deal", p. 15). Q101 (open,
-   * default A): the first player token stays (`SKIPPED_VILLAIN_PHASE_PASSES_TOKEN`, `flow.ts`).
+   * default A): the first player token stays (`SKIPPED_VILLAIN_PHASE_PASSES_TOKEN`, `flow.ts`). With two teams the skip
+   * is the creating team's (`GameState.villainPhasesToSkipByTeam`; MC56 pp. 16, 20 + N8): only that team's next villain
+   * phase is skipped, and the other team's in the same round is played.
    */
   | { readonly kind: "skipNextVillainPhase" }
   /**
    * "When the villain phase would begin, instead remove this card from the game → start another player phase" (custom
-   * content): adds 1 to `GameState.villainPhasesReplacedByPlayerPhase`. The next villain phase does not happen and a
-   * player phase is played in its place, **within the same round**: the round does not end and no new one starts, so
-   * the round number, the first player, "until the end of the round" effects and "once per round" limits all carry on
-   * (RRG 1.8 "Round Overview", p. 4: the round ends only at step 10, after the villain phase). No threat is placed,
+   * content): adds 1 to `GameState.villainPhasesReplacedByPlayerPhase` (with two teams, the creating team's count in
+   * `villainPhasesReplacedByTeam`, and that team plays the extra phase in place of its own villain phase). The next
+   * villain phase does not happen and a player phase is played in its place, **within the same round**: the round does
+   * not end and no new one starts, so the round number, the first player, "until the end of the round" effects and
+   * "once per round" limits all carry on (RRG 1.8 "Round Overview", p. 4: the round ends only at step 10, after the
+   * villain phase). No threat is placed,
    * nothing activates, no card is dealt or revealed and the first player token is not passed. The extra player phase
    * is a player phase like any other (RRG 1.8 "Player Phase", p. 34): it begins ("when the player phase begins"
    * answers it, "once per phase" limits are fresh), each player takes a turn in player order, and it ends with every
@@ -6317,7 +6380,17 @@ export type CardSelector =
    * of the matching cards at random, from the game's seeded RNG ("Place 1 random set-aside Captive ally facedown beneath
    * this scheme", Captured by Hydra; docs/phase7-wave2.md §3.12).
    */
-  | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
+  | {
+      readonly kind: "encounterSetAside";
+      readonly filter?: TargetQuery;
+      readonly random?: ValueSpec;
+      /**
+       * "Your leader's set-aside player cards" (Now It's Personal, 56128b / 56206b; MC56 p. 16): only the four basic
+       * player cards of the effect's team's own leader still set aside (`TeamState.leaderCardIds`). None in a game
+       * without stored teams, where "your leader" cannot be resolved (MC56 p. 6).
+       */
+      readonly yourLeadersCards?: true;
+    }
   /**
    * The removed-from-game area (`GameState.removedFromGame`): "search the encounter deck, discard pile, set-aside area,
    * **and removed-from-game area** for a copy of your obligation" (Loose Ends, `sm` 27135). Card text that names this

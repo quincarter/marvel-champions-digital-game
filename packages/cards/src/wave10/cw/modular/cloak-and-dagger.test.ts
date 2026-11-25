@@ -154,13 +154,11 @@ describe("registry", () => {
     expect(r["56198.when-defeated"]!.trigger).toMatchObject({ kind: "whenDefeated" });
   });
 
-  it("the two competitive-only sentences are written out in full, not dropped", () => {
-    expect(competitiveOnlyTexts(MODULAR_CLOAK_AND_DAGGER["56194.when-revealed"]!)).toEqual([
-      "In competitive mode, remove 2 threat from your leader's main scheme.",
-    ]);
-    expect(competitiveOnlyTexts(MODULAR_CLOAK_AND_DAGGER["56196.darkforce-forced-response"]!)).toEqual([
-      "remove an equal amount of threat from your leader's main scheme.",
-    ]);
+  it("the two competitive sentences are scripted against your leader's main scheme (M3), no marker left", () => {
+    for (const ref of ["56194.when-revealed", "56196.darkforce-forced-response"]) {
+      expect(competitiveOnlyTexts(MODULAR_CLOAK_AND_DAGGER[ref]!)).toEqual([]);
+      expect(JSON.stringify(MODULAR_CLOAK_AND_DAGGER[ref])).toContain('"of":"yourLeader"');
+    }
   });
 
   it("setup: the encounter deck holds one copy of each card", () => {

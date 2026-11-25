@@ -1,6 +1,6 @@
 import type { AnyCard, CardId, EvidenceCombination, Trait, VillainSideLetter } from "@mc/content";
 import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
-import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, GameAreaId, GroupId, InstanceId, PlayerId, TeamId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { OutsideFacts } from "./outside-facts.js";
 import type { RngState } from "./rng.js";
@@ -12,6 +12,7 @@ import type { EncounterDealSource, LeaveCauseSide, TriggerEvent } from "./trigge
 import type { PodState } from "./pod.js";
 import type { GameMode } from "./game-mode.js";
 import type { TeamState } from "./team.js";
+import type { CompetitiveOutcome, CompetitiveState } from "./competitive-outcome.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -429,6 +430,13 @@ export interface VillainState {
    * defeated villain is out of play. With several villains the game goes on until every one is defeated.
    */
   readonly defeated: boolean;
+  /**
+   * A competitive leader defeated during its opponents' hero phase, kept in play (MC56 p. 17: it "does not leave play
+   * immediately … so it can still be targeted by resistance player card effects"): `defeated` stays true (the defeat is
+   * not reversed), its text stays active, it never initiates an activation (Q10 A per owner decision 2026-11-20), and
+   * it is in play until the game ends (`cardsInPlay`). Absent in every other game.
+   */
+  readonly defeatedInPlay?: true;
   /** This villain's own encounter deck (every villain of a single-deck scenario shares the one deck). */
   readonly encounterDeckId: EncounterDeckId;
   /**
@@ -708,6 +716,15 @@ export interface MainSchemeState {
    * game, so saves are unchanged.
    */
   readonly playArea?: PlayerId;
+  /**
+   * The game area this main scheme is in, in a game with two teams (docs/competitive-mode-plan.md §3.2; MC56 p. 15:
+   * each team's half of the table holds the main scheme deck it faces). Setup makes the first team's scheme
+   * `GameState.mainScheme` and the second team's an `extraMainSchemes` entry, so each completes and advances as a
+   * shared stage does (RRG 1.8 "Main Scheme", p. 27), and tags each with its team's area: "the main scheme" in that
+   * area is this one (`mainSchemeFor`), and the scheme is in that area (`areaOfCard`). Absent in every other game, so
+   * saves are unchanged.
+   */
+  readonly gameAreaId?: GameAreaId;
 }
 
 /**
@@ -855,6 +872,19 @@ export interface SetAsideModularSet {
 }
 
 /**
+ * `GameState.madeSinceVillainPhaseBegan`: the counts and ids made once the villain phase had begun
+ * (`villain-phase-begun.ts`).
+ */
+export interface MadeSinceVillainPhaseBegan {
+  /** Skips of the next villain phase made since: they are the following villain phase's. */
+  readonly skip?: number;
+  /** Replacements by a player phase made since: they are the following villain phase's. */
+  readonly replace?: number;
+  /** "Until the next villain phase begins" effects made since: they last past step one, to the next one. */
+  readonly lastingEffectIds?: readonly string[];
+}
+
+/**
  * Steps that iterate players carry the remaining player order explicitly, so a
  * player being eliminated mid-step can't shift anyone else's place in line.
  */
@@ -884,6 +914,14 @@ export type GameStep =
    * II step 12's abilities have fully resolved and before step 14's draw. Reached only by a game that has some.
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
+  /**
+   * RRG 1.8 Appendix II step 12 (p. 51) for each team's game area after the first, in a game with two teams: the team
+   * becomes the active team, so "the first player" and "the encounter deck" of its scheme's and leader's Setup and When
+   * Revealed abilities are its own, and those abilities go on the stack. Each area sets up on its own, the first
+   * (registration) team's first (MC56 p. 14; Q4 A per owner decision 2026-11-20). With `remainingTeamIds` empty the
+   * first team is active again and setup goes on to the draw. Reached only by a game with two teams.
+   */
+  | { readonly phase: "setup"; readonly kind: "teamScenarioSetup"; readonly remainingTeamIds: readonly TeamId[] }
   | {
       readonly phase: "setup";
       readonly kind: "drawStartingHands";
@@ -1000,6 +1038,13 @@ export type GameStep =
       readonly delayedResolved?: boolean;
       readonly villainPhaseSkipped?: true;
     }
+  /**
+   * One team's phase has ended and `teamId`'s phase of kind `phase` begins next, within the same round (MC56 p. 16,
+   * p. 20: registration hero, resistance hero, registration villain, resistance villain; one shared round per owner
+   * decision Q3 B, 2026-11-20). The ending phase's end-of-phase effects have been put on the stack; once they resolve,
+   * `teamId` becomes the active team (`activeTeamChanged`) and its phase begins. Reached only by a game with two teams.
+   */
+  | { readonly phase: "player" | "villain"; readonly kind: "teamHandover"; readonly teamId: TeamId }
   | { readonly phase: "gameOver"; readonly kind: "gameOver" };
 
 export type GameOutcome =
@@ -1039,7 +1084,14 @@ export type GameOutcome =
    * It carries a `reason` like every other outcome so `GameOutcome.reason` stays total for the readers that switch
    * on it, plus `byPlayerId` for the seat that gave up.
    */
-  | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
+  | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId }
+  /**
+   * A competitive game's end (MC56 p. 17; docs/competitive-mode-plan.md M5): a result per team, decided once both sides
+   * have played an equal number of phases. `decision` is "win" (one team won, by a win condition or by the tie-break),
+   * "tie" (nothing separated them, or the tie-breaks are off) or "bothLose" (both teams lost in the window). See
+   * `CompetitiveOutcome` (`competitive-outcome.ts`).
+   */
+  | CompetitiveOutcome;
 
 /** One reveal in `GameState.revealedThisRound`. `phase` is the phase it happened in (a round has one of each). */
 export interface RevealRecord {
@@ -1100,6 +1152,12 @@ export interface GameState {
   readonly round: number;
   readonly step: GameStep;
   /**
+   * What was made for "the next villain phase" once the villain phase about to place step one's threat had begun, so
+   * left to the villain phase after it (`villain-phase-begun.ts`, PR #923 review P1). Absent unless something was;
+   * removed at step one's place, or when that beginning is cancelled.
+   */
+  readonly madeSinceVillainPhaseBegan?: MadeSinceVillainPhaseBegan;
+  /**
    * "Skip the next villain phase" (`EffectSpec skipNextVillainPhase`, docs/phase7-wave11-hero-packs.md H3.7): how many
    * of the villain phases to come are skipped. Each player phase's end reads it; above 0, it counts one off and the
    * round ends with no villain phase (`flow.ts` `finishPlayerPhase`). Absent is 0.
@@ -1111,6 +1169,21 @@ export interface GameState {
    * villain phase would begin (`flow.ts`), ahead of `villainPhasesToSkip`. Absent is 0, and it is removed again at 0.
    */
   readonly villainPhasesReplacedByPlayerPhase?: number;
+  /**
+   * `villainPhasesToSkip` for each team of a game with two teams whose phases a team plays (`activeTeamId` set), keyed
+   * by team id: a skip belongs to the team whose player made it, and only that team's next villain phase reads it
+   * (MC56 pp. 16, 20; N8 per owner decision 2026-11-20). The shared `villainPhasesToSkip` stays unused then. An entry
+   * is removed at 0 and the field when empty, so it is absent in every game without teams.
+   */
+  readonly villainPhasesToSkipByTeam?: Readonly<Partial<Record<TeamId, number>>>;
+  /** `villainPhasesReplacedByPlayerPhase` for each team, as `villainPhasesToSkipByTeam` is for skips. */
+  readonly villainPhasesReplacedByTeam?: Readonly<Partial<Record<TeamId, number>>>;
+  /**
+   * The team playing a player phase in place of its villain phase (`villainPhasesReplacedByTeam`), while that phase is
+   * played: when it ends, that team's villain phase follows, not the next team's phase (`flow.ts` `finishPlayerPhase`).
+   * Absent otherwise, and in every game without teams.
+   */
+  readonly playerPhaseInsteadTeamId?: TeamId;
   readonly firstPlayerId: PlayerId;
   /**
    * The number of players who started the scenario, the one count every per player value reads (RRG 1.8 "Per Player
@@ -1336,6 +1409,12 @@ export interface GameState {
    */
   readonly encounterTopAnnounced?: InstanceId;
   /**
+   * With two teams (MC56 p. 16: each side of the table has its own encounter deck), `encounterTopAnnounced` per deck:
+   * the card last logged as showing on top of each, by deck id (`announceDeckTops`). The log's memory and nothing else.
+   * Absent in every game without teams, and while no card is showing.
+   */
+  readonly encounterTopsAnnounced?: Readonly<Record<string, InstanceId>>;
+  /**
    * Cards played this round, by title, across every player: RRG 1.8 "Max, Maximum" (p. 28), "'Max X per [period]'
    * imposes a maximum number of times that copies of that card can be played", and a cancelled card still counts.
    * Reset when the round ends.
@@ -1524,6 +1603,27 @@ export interface GameState {
    * is absent. **Absent** in every game setup makes, so every game before the field serializes as before.
    */
   readonly teams?: readonly TeamState[];
+  /**
+   * The team whose phase it is, in a game with two teams (docs/competitive-mode-plan.md §3.7, M2; MC56 p. 16: the
+   * registration team's hero phase, the resistance team's hero phase, the registration team's villain phase, the
+   * resistance team's villain phase, one shared round per owner decision Q3 B, 2026-11-20). The other team's side of the
+   * table is inactive: it takes no action (owner decision Q11 A), while its triggered abilities still fire and it
+   * answers choices addressed to it. Read through `activeTeamOf` (`team.ts`).
+   *
+   * Kept here rather than on each `GameStep`: the step is rebuilt as a literal at every step change, and the team does
+   * not change with it. While a team is active, `firstPlayerId` is that team's first player (each team has its own
+   * token, `TeamState.firstPlayerId`) and `activeVillainId` is the leader in that team's game area, so "the first
+   * player" and "the encounter deck" of every existing reader mean the active team's (N2 per owner decision
+   * 2026-11-20). Each change is logged `activeTeamChanged`. **Absent** in every game without two teams, and in a
+   * hand-built two-team test state, whose phases then run for the whole table as before.
+   */
+  readonly activeTeamId?: TeamId;
+  /**
+   * A competitive game's end rules and its pending end (`competitive-outcome.ts`; MC56 p. 17): the tie-break policy (Q9
+   * C) and, once a team has won or lost, the triggers met so far and the phase the game closes after. Set by competitive
+   * setup only; absent in every other game.
+   */
+  readonly competitive?: CompetitiveState;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

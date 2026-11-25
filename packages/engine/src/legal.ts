@@ -136,6 +136,8 @@ import type { Form, GameState } from "./state.js";
 import { displayNameOf } from "./visibility.js";
 import { healCostChoices } from "./heal-cost.js";
 import { anyThwartCost } from "./thwart-cost.js";
+import { onInactiveTeam } from "./team.js";
+import { firstPlayerOfCard } from "./team-phases.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
@@ -1636,7 +1638,7 @@ export const forcedActionOptionId = (instanceId: InstanceId, abilityId: AbilityI
  * triggered by any player and is put to the first player.
  */
 const forcedActionPlayer = (state: GameState, id: InstanceId): PlayerId =>
-  controllerOf(state, id) ?? uncontrolledYouOf(state, id) ?? state.firstPlayerId;
+  controllerOf(state, id) ?? uncontrolledYouOf(state, id) ?? firstPlayerOfCard(state, id);
 
 /**
  * The "Forced Action" abilities `playerId` must still resolve before the player phase can end (RRG 1.8 "Action", p. 6;
@@ -1765,6 +1767,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   if (step.ended) return waiting(null);
   const player = getPlayer(state, playerId);
   if (!player || player.eliminated) return waiting(step.activePlayerId);
+  // The other team's phase: this side of the table is inactive and has nothing to take (MC56 p. 16; Q11 A).
+  if (onInactiveTeam(state, playerId)) return waiting(step.activePlayerId);
   const ownTurn = step.activePlayerId === playerId;
 
   const results: Evaluated[] = [];

@@ -22,6 +22,7 @@ import type {
   R2PutOptionsLike,
 } from "./env.js";
 
+/** Like the real storage, rows are structured-cloned on write and on read: a stored object is never the live one. */
 export class MemoryStorage implements KeyValueStorage {
   readonly map = new Map<string, unknown>();
   alarm: number | null = null;
@@ -36,10 +37,10 @@ export class MemoryStorage implements KeyValueStorage {
     if (typeof key !== "string") {
       if (key.length > 128) throw new Error("get: more than 128 keys");
       const found = new Map<string, T>();
-      for (const k of key) if (this.map.has(k)) found.set(k, this.map.get(k) as T);
+      for (const k of key) if (this.map.has(k)) found.set(k, structuredClone(this.map.get(k)) as T);
       return found;
     }
-    return this.map.get(key) as T | undefined;
+    return structuredClone(this.map.get(key)) as T | undefined;
   }
   put(key: string, value: unknown): Promise<void>;
   put(entries: Record<string, unknown>): Promise<void>;
@@ -47,11 +48,11 @@ export class MemoryStorage implements KeyValueStorage {
     if (typeof key !== "string") {
       const entries = Object.entries(key);
       if (entries.length > 128) throw new Error("put: more than 128 keys");
-      for (const [k, v] of entries) this.map.set(k, v);
+      for (const [k, v] of entries) this.map.set(k, structuredClone(v));
       this.rowsWritten += entries.length;
       return;
     }
-    this.map.set(key, value);
+    this.map.set(key, structuredClone(value));
     this.rowsWritten += 1;
   }
   delete(key: string): Promise<boolean>;

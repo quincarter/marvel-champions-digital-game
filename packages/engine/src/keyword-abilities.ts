@@ -27,7 +27,7 @@ export const TEMPORARY_ABILITY: KeywordAbility = {
   keyword: "temporary",
   abilityId: abilityId("keyword:temporary"),
   definition: {
-    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: ["villain", "round"] } } },
+    trigger: { kind: "interrupt", forced: true, on: { on: "phaseEnding", eventIs: { phase: "round" } } },
     effects: [{ kind: "discardFromPlay", target: { kind: "self" } }],
   },
 };

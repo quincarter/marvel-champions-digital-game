@@ -15,6 +15,7 @@
  */
 import type { GameState } from "@mc/engine";
 import {
+  isCompetitiveSave,
   isCurrentSchema,
   writtenByNewerApp,
   type GameStorage,
@@ -29,7 +30,10 @@ export const BACKFILL_BUSY = -1;
 
 /** Whether a saved game needs its card numbers filled in. */
 export function needsBackfill(meta: SaveMeta, writer: WriterStamp): boolean {
-  if (meta.status !== "won" && meta.status !== "lost") return false;
+  // A competitive game's save may be a tie (`seatResultOf`, issue #883): still a finished game with a summary to fill.
+  const finished =
+    meta.status === "won" || meta.status === "lost" || (meta.status === "tie" && isCompetitiveSave(meta));
+  if (!finished) return false;
   if (meta.guided) return false;
   // Card numbers kept, and every number this build's summary has (`SUMMARY_VERSION`).
   if (meta.summary?.seats !== undefined && (meta.summary.version ?? 1) >= SUMMARY_VERSION) return false;
@@ -45,7 +49,11 @@ export type ReplaySummary = (
 
 /** Why a replay is not this game's story: it must end the way the save says, in the same round, for the same reason. */
 function sameEnding(meta: SaveMeta, state: GameState, summary: GameSummary): boolean {
-  if ((state.outcome?.result === "win") !== (meta.status === "won")) return false;
+  // A competitive game's save holds one device's team result (`seatResultOf`, issue #883), never a table win: its
+  // replay must end as a competitive game too, and the reason and round below say the rest.
+  if (state.outcome?.result === "teams") {
+    if (meta.outcome && meta.outcome.result !== "teams") return false;
+  } else if ((state.outcome?.result === "win") !== (meta.status === "won")) return false;
   if (state.round !== meta.round) return false;
   if (meta.outcome && state.outcome?.reason !== meta.outcome.reason) return false;
   return meta.summary ? summary.lossReason === meta.summary.lossReason : true;

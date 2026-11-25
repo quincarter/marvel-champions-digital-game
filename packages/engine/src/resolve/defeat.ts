@@ -35,12 +35,12 @@ import {
   mustInstance,
   mustPlayer,
   mustVillain,
-  nextClockwisePlayer,
   playerOrder,
   undefeatedVillains,
   villainOf,
   villainStageCount,
   villainStageOf,
+  areaOfCard,
 } from "../query.js";
 import { defeatHeldOff, leavingPlayLoses } from "../rules.js";
 import { nextInt, shuffle } from "../rng.js";
@@ -63,6 +63,9 @@ import { attachmentHostCandidates, inciteFrames, revealNewFaceFrame } from "./re
 import { applyFirstPlayerControl } from "./state-checks.js";
 import { heard } from "./triggers.js";
 import { engagementFrame } from "./enter-play.js";
+import { teamFirstPlayerOf, teamOf } from "../team.js";
+import { teamEliminated } from "../competitive-outcome.js";
+import { firstPlayerOfCard, nextClockwiseTeammate, setTeamFirstPlayer } from "../team-phases.js";
 
 /** The cause every completion's advance records (`MainSchemeState.advancedBy`, docs/phase7-wave7.md §3.12). */
 const BY_COMPLETION: MainSchemeAdvancedBy = { cause: "completed", sourceInstanceId: null };
@@ -212,7 +215,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   });
   // Venom Goblin's main schemes turn to their environment face instead (docs/phase7-wave5.md §3.3).
   if (mainSchemeStageOf(ctx.state, scheme).onCompletion === "flipToOtherFace") {
-    const frames = flipMainSchemeStage(ctx, schemeId, true, ctx.state.firstPlayerId);
+    const frames = flipMainSchemeStage(ctx, schemeId, true, firstPlayerOfCard(ctx.state, schemeId));
     // Waiting for its attachments' "when this leaves play" interrupts; the flip, and its frames, come after (§4.1 Q32).
     if (frames === "waiting") return;
     if (frames !== false) {
@@ -226,9 +229,19 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     // RRG 1.8 "When Completed Abilities" (p. 48): "When a main scheme is complete, all 'When Completed' abilities on
     // the card resolve", as a forced interrupt to the completion, so a losing stage's resolve before the loss ("When
     // Completed: Defeat Robert Kelly", The Injured Senator 2B; docs/phase7-wave6.md §3.75). The loss waits beneath them.
-    const beforeLoss = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
+    const beforeLoss = gameAbilityFrames(
+      ctx,
+      schemeId,
+      ["whenCompleted"],
+      null,
+      undefined,
+      firstPlayerOfCard(ctx.state, schemeId),
+    );
     if (beforeLoss.length === 0) {
-      endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
+      // Competitive: the final stage completed is the loss of the team in its area, the other team's win condition; the
+      // game ends only per MC56 p. 17 (`endGame` records it). MC56 pp. 16-17, 20 (scenario rules override RRG per Golden
+      // Rule, RRG p. 4).
+      endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" }, { instanceId: schemeId });
       return;
     }
     pushFrames(ctx, [
@@ -252,13 +265,20 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   if (next === "alternatives") {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     pushFrames(ctx, [
-      ...gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId),
+      ...gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, firstPlayerOfCard(ctx.state, schemeId)),
       eventFrame(ctx, { kind: "mainSchemeCompleted", schemeInstanceId: schemeId, stageIndex: scheme.stageIndex }),
     ]);
     return;
   }
   // RRG 1.8 "When Completed Abilities" (p. 48): a forced interrupt to the completion, so they resolve before the advance.
-  const whenCompleted = gameAbilityFrames(ctx, schemeId, ["whenCompleted"], null, undefined, ctx.state.firstPlayerId);
+  const whenCompleted = gameAbilityFrames(
+    ctx,
+    schemeId,
+    ["whenCompleted"],
+    null,
+    undefined,
+    firstPlayerOfCard(ctx.state, schemeId),
+  );
   if (whenCompleted.length === 0) {
     advanceMainScheme(ctx, schemeId, next, BY_COMPLETION);
     return;
@@ -511,7 +531,7 @@ export function advanceMainScheme(
   }
   emit(ctx, { type: "mainSchemeAdvanced", stageIndex: nextIndex, ...which, advancedBy });
   pushFrames(ctx, [
-    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], ctx.state.firstPlayerId),
+    ...mainSchemeStageFrames(ctx, schemeId, "whenRevealed", ["whenRevealed"], firstPlayerOfCard(ctx.state, schemeId)),
     // Its own incite, printed or granted ("Each other encounter card gains incite 1"), on the new stage itself, with
     // its When Revealed abilities (docs/phase7-wave6.md §3.65, §4 Q37). No other reveal step: a main scheme advance
     // is not a reveal frame (§4.1 Q36 makes only a villain's new face one).
@@ -883,6 +903,30 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId, ignoreWhenDe
     // villain's last stage card (Loki I, `mts` 21160–21164; the Brotherhood of Mutants, `mut_gen` 32121–32124;
     // docs/phase7-wave4.md §3.7). A defeated villain is out of play either way.
     const toVictoryDisplay = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
+    // Competitive: the leader's defeat is the win condition of the team whose area holds it (MC56 p. 17; N3 per owner
+    // decision 2026-11-20, a leader-versus-leader attack included). Defeated during its opponents' hero phase it does
+    // not leave play (p. 17: "so it can still be targeted"); it stays, defeated, until the game ends, and never
+    // initiates an activation (Q10 A per owner decision 2026-11-20). MC56 pp. 16-17, 20 (scenario rules override RRG
+    // per Golden Rule, RRG p. 4).
+    if (ctx.state.teams) {
+      const area = areaOfCard(ctx.state, villainId);
+      const staysInPlay =
+        area !== null &&
+        ctx.state.step.phase === "player" &&
+        ctx.state.teams.some((team) => team.areaId === area.areaId && team.teamId === ctx.state.activeTeamId);
+      updateVillain(ctx, villainId, (v) => ({
+        ...v,
+        defeated: true,
+        ...(staysInPlay ? { defeatedInPlay: true as const } : {}),
+      }));
+      emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
+      pushFrames(ctx, whenDefeated);
+      endGame(ctx, { result: "win", reason: "villainDefeated" }, { instanceId: villainId });
+      if (staysInPlay || ctx.state.outcome) return null;
+      leaveVillainRow(ctx, villainId);
+      if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
+      return removeDefeatedVillain(ctx, villainId);
+    }
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
     leaveVillainRow(ctx, villainId);
     if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
@@ -1093,11 +1137,12 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   if (player.eliminated) return;
 
-  if (ctx.state.firstPlayerId === playerId) {
-    const next = nextClockwisePlayer(ctx.state, playerId);
+  // With two teams, the player's own team's token, to a teammate (MC56 p. 16, p. 20: "in 2v2 … your remaining
+  // teammate"); `teamFirstPlayerOf` and `nextClockwiseTeammate` are the table's token and seat order otherwise.
+  if (teamFirstPlayerOf(ctx.state, teamOf(ctx.state, playerId)) === playerId) {
+    const next = nextClockwiseTeammate(ctx.state, playerId);
     if (next) {
-      ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
-      emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
+      setTeamFirstPlayer(ctx, next.playerId);
       // "The first player controls …" is a constant ability, so a card that says it changes control with the token, at
       // step 1 ("the first player token immediately passes", RRG 1.8 "First Player", p. 19). It has left this player's
       // play area before step 3 discards the cards there that they do not own, so an encounter set's ally the first
@@ -1106,7 +1151,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     }
   }
 
-  const nextSeat = nextClockwisePlayer(ctx.state, playerId);
+  const nextSeat = nextClockwiseTeammate(ctx.state, playerId);
   // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
   const notOwnedPermanent = (id: InstanceId): boolean =>
     getInstance(ctx.state, id)?.ownerId !== playerId && isPermanent(ctx.state, id, ctx.deps);
@@ -1219,12 +1264,24 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const [lost] = lostBy;
   if (lost) {
     const { source, cause } = lost;
-    endGame(ctx, {
-      result: "loss",
-      reason: "cardAbility",
-      sourceInstanceId: source,
-      ...(source !== cause ? { causeInstanceId: cause } : {}),
-    });
+    endGame(
+      ctx,
+      {
+        result: "loss",
+        reason: "cardAbility",
+        sourceInstanceId: source,
+        ...(source !== cause ? { causeInstanceId: cause } : {}),
+      },
+      { instanceId: source, playerId },
+    );
+  }
+  // Competitive: a team with every identity defeated has lost, the other team's win condition (MC56 p. 17, Q8 A: any
+  // cause); with every seat out the game closes at once (`closeCompetitiveIfDue`). MC56 pp. 16-17, 20 (scenario rules
+  // override RRG per Golden Rule, RRG p. 4).
+  if (ctx.state.teams) {
+    const team = teamOf(ctx.state, playerId);
+    if (teamEliminated(ctx.state, team)) endGame(ctx, { result: "loss", reason: "allPlayersDefeated" }, { playerId });
+    return;
   }
   if (ctx.state.players.every((p) => p.eliminated)) {
     endGame(ctx, { result: "loss", reason: "allPlayersDefeated" });

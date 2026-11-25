@@ -99,6 +99,7 @@ describe("what a probe compares (`PROBE_FIELDS`)", () => {
         "abilityUses",
         "deckTopsAnnounced",
         "encounterTopAnnounced",
+        "encounterTopsAnnounced",
         "hitPointsSeen",
         "nextChoiceSeq",
         "nextFrameSeq",

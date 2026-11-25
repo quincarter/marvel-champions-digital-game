@@ -85,6 +85,8 @@ export interface SeatHostOptions {
    * their seats away, as if they had disconnected. The game goes on; the host may take a seat over or hand it on.
    */
   readonly leaveSeats?: () => void;
+  /** A Competitive room's game: Concede is the seat's proposal (the team's forfeit, or leaving a 2v2 alone), not leaving the seat. */
+  readonly proposesConcede?: () => boolean;
   /** Tests: fixes the id generation (default random per host) so proposal ids are predictable. */
   readonly pidGeneration?: number;
 }
@@ -184,7 +186,7 @@ export class SeatEngineHost implements EngineHost {
     if (this.#disposed || !current) return Promise.resolve(this.#failed(command, t("seat.msg.notOpen")));
     if (this.#status.over || this.#status.failed) return Promise.resolve(this.#failed(command, t("seat.msg.over")));
     // Never a proposal: a seat's Concede is leaving the seat. The table is shown as it is, without this device's heroes.
-    if (command.type === "concede" && this.#o.leaveSeats) {
+    if (command.type === "concede" && this.#o.leaveSeats && !this.#o.proposesConcede?.()) {
       this.#o.leaveSeats();
       return Promise.resolve({ ok: true, update: current });
     }
@@ -282,7 +284,11 @@ export class SeatEngineHost implements EngineHost {
         const current = this.#current;
         // The host says it ahead of the log's echo. If the log is already past the base, what stands at the base decides:
         // my command (ok), or another (stale). A longer log alone proves nothing: a rewind and replacement lengthens it too.
-        if (current && current.version > pending.base) {
+        // A concession is applied at whatever count the host is at, so the log moving on says nothing about it.
+        if (current && pending.command.type === "concede") {
+          // Its echo may have come before the acceptance: the same rule as the append path decides.
+          if (this.#concedeAt(pending, this.#log, 0) >= 0) this.#settle(pending, { ok: true, update: current });
+        } else if (current && current.version > pending.base) {
           this.#settleOn(pending, this.#verdict(pending, this.#log[pending.base], false), current);
         }
         return;
@@ -315,6 +321,13 @@ export class SeatEngineHost implements EngineHost {
     const landed: { pending: Pending; verdict: Verdict }[] = [];
     if (change.type === "append") {
       for (const pending of this.#pending) {
+        if (pending.command.type === "concede") {
+          // Never stale by position: the host applies a concession at the count it is at (the judge skips the base and
+          // stamp check). It lands with its acceptance, as the first appended command at or after its base that says
+          // the same thing; commands other seats got in first are theirs.
+          if (this.#concedeAt(pending, change.commands, change.from) >= 0) landed.push({ pending, verdict: "ok" });
+          continue;
+        }
         const command = change.commands[pending.base - change.from];
         if (pending.base < change.from || command === undefined) continue;
         const verdict = this.#verdict(pending, command, false);
@@ -376,6 +389,11 @@ export class SeatEngineHost implements EngineHost {
         this.#settle(pending, this.#failed(pending.command, t("seat.msg.changed")));
         continue;
       }
+      if (pending.command.type === "concede") {
+        // Never stale by position (see the append path): it lands when the log holds it at or after its base.
+        if (this.#concedeAt(pending, next, 0) >= 0) this.#settle(pending, { ok: true, update });
+        continue;
+      }
       this.#settleOn(pending, this.#verdict(pending, next[pending.base], true), update);
     }
   }
@@ -384,6 +402,15 @@ export class SeatEngineHost implements EngineHost {
     if (verdict === "ok") this.#settle(pending, { ok: true, update });
     else if (verdict === "stale") this.#settle(pending, this.#failed(pending.command, refusalMessage("stale")));
     else if (verdict === "changed") this.#settle(pending, this.#failed(pending.command, t("seat.msg.changed")));
+  }
+
+  /**
+   * Where an accepted concession stands in `commands` (which start at log position `from`): the first command at or
+   * after its base that says the same thing, or -1 (also when the host has not accepted it yet).
+   */
+  #concedeAt(pending: Pending, commands: readonly Command[], from: number): number {
+    if (!pending.accepted) return -1;
+    return commands.findIndex((c, i) => from + i >= pending.base && sameCommand(c, pending.command));
   }
 
   /**

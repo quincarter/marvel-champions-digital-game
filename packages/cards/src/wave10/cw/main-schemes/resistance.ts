@@ -3,7 +3,6 @@ import {
   attackInProgress,
   chooseCards,
   chosen,
-  competitiveOnly,
   constant,
   dealAsEncounterCard,
   defineAbilities,
@@ -53,19 +52,21 @@ const ENEMY_LEADER = query("villain");
 /**
  * 1A Setup, on the stage 1 chosen (56141a, 56172a, 56199a, 56200a read the same): "In competitive mode, the enemy team
  * finds the Choosing Sides side scheme and your team reveals it. In cooperative mode, find the chosen leader's side
- * scheme and reveal it." The competitive sentence is a marker. The cooperative branch finds the one side scheme of the
- * villain's own encounter set (the chosen leader's set) in the encounter deck or its discard pile and the first player
- * reveals it. Local to this module: the registration module writes the same Setup.
+ * scheme and reveal it." In competitive mode the find reaches only this stage's own side of the table, so it takes the
+ * copy of Choosing Sides in the encounter deck this team faces, and the team's first player reveals it (as the
+ * registration module's Setup; MC56 pp. 14-16, scenario rules override RRG per Golden Rule, RRG p. 4; Q4 A per owner
+ * decision 2026-11-20). The cooperative branch finds the one side scheme of the villain's own encounter set (the chosen
+ * leader's set) in the encounter deck or its discard pile and the first player reveals it. Local to this module: the
+ * registration module writes the same Setup.
  */
+/** The Standard PvP set's permanent side scheme (56128a, 56206a), by title: either printing (Q15). */
+const CHOOSING_SIDES = query("sideScheme", { titled: { names: ["Choosing Sides"] } });
+
 const resistanceSetup = () =>
   setup(
     ifThen(
       inCompetitiveMode(),
-      [
-        competitiveOnly(
-          "In competitive mode, the enemy team finds the Choosing Sides side scheme and your team reveals it.",
-        ),
-      ],
+      [revealCard(find(CHOOSING_SIDES), firstPlayer)],
       [revealCard(find(query("sideScheme", encounterSetOf(theVillain))), firstPlayer)],
     ),
   );

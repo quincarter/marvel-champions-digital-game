@@ -1,6 +1,6 @@
 import type { CardId, KeywordInstance, Trait } from "@mc/content";
 import type { EventPattern, RuleSpec } from "./abilities.js";
-import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { FrameId, InstanceId, PlayerId, TeamId } from "./ids.js";
 import type { EffectSpec, StatName, TargetQuery, ValueSpec } from "./spec.js";
 import type { Bindings, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -23,8 +23,12 @@ export type LastingDuration =
    * villain phase, and through the whole player phase after it. RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect
    * expires as soon as the timing point specified by its duration is reached", so it is gone before anything answers
    * the villain phase beginning and before step one (`expireNextVillainPhaseEffects`).
+   *
+   * `teamId`, in a game whose phases a team plays: the team that made it, whose next unskipped villain phase alone ends
+   * it (MC56 pp. 16, 20 + N8, 2026-11-20, settled by the rules expert for PR #923; `addLastingEffect` sets it). Absent
+   * in every game without teams.
    */
-  | { readonly kind: "nextVillainPhaseBegins" }
+  | { readonly kind: "nextVillainPhaseBegins"; readonly teamId?: TeamId }
   /**
    * "Until the end of the player phase" (Take a Stand, 62015; docs/phase7-wave11-hero-packs.md H3.9): ends as the
    * player phase in progress ends, or, made during a villain phase, as the next player phase ends (RRG 1.8 "Lasting

@@ -65,10 +65,19 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { activeAbilityRefs, cardsInPlay } from "../select.js";
 import { keywordAbilityOf } from "../keyword-abilities.js";
-import { candidatesFor, hearerKey, hearersOf, stillAnswers, stillOffered, unofferedAbilities } from "./triggers.js";
+import {
+  candidatesFor,
+  hearerKey,
+  hearersOf,
+  leaderAttacksLeader,
+  stillAnswers,
+  stillOffered,
+  unofferedAbilities,
+} from "./triggers.js";
 import { damageConstantsBeforeWouldTake, toughEndsDamageWindow } from "./event.js";
 import { holdResponsesForReveal } from "./reveal-hold.js";
 import { holdResponsesForSentence } from "./sentence-hold.js";
+import { firstPlayerOfCard } from "../team-phases.js";
 
 export function pushWindow(
   ctx: Ctx,
@@ -207,7 +216,12 @@ function windowCandidates(
  */
 const perilBarred = (ctx: Ctx, candidate: TriggerCandidate): boolean =>
   !candidate.forced &&
-  perilBarsTrigger(ctx.state, ctx.deps, candidate.controllerId ?? ctx.state.firstPlayerId, candidate.instanceId);
+  perilBarsTrigger(
+    ctx.state,
+    ctx.deps,
+    candidate.controllerId ?? firstPlayerOfCard(ctx.state, candidate.instanceId),
+    candidate.instanceId,
+  );
 
 /**
  * "After you discard cards" (`EventPattern.together`): an ability whose pattern answers the occurrence once is one
@@ -356,9 +370,22 @@ const wouldKindsOf = (deps: EngineDeps): ReadonlySet<string> => {
   return kinds;
 };
 
+/**
+ * Whether some `would` interrupt's event kind can hear `event` (`patternHearsKind`): its own kind, or, for a leader
+ * attacking the other leader in competitive play only (`leaderAttacksLeader`), "when [enemy] would attack"
+ * (`enemyAttack`: Webbed Up 01009 on the attacking leader) and "when [this] would be attacked" (`attack`). Every other
+ * enemy attacking an enemy keeps the window it always had.
+ */
+const wouldKindHears = (ctx: Ctx, event: TriggerEvent): boolean => {
+  const kinds = wouldKindsOf(ctx.deps);
+  if (kinds.has(event.kind)) return true;
+  if (!leaderAttacksLeader(ctx.state, event)) return false;
+  return kinds.has("enemyAttack") || kinds.has("attack");
+};
+
 /** Whether a `would` interrupt answers this event now, so its window has the earlier tier to run. */
 const hasWouldCandidates = (ctx: Ctx, event: TriggerEvent): boolean =>
-  wouldKindsOf(ctx.deps).has(event.kind) &&
+  wouldKindHears(ctx, event) &&
   [true, false].some((forced) =>
     candidatesFor(ctx.state, ctx.deps, event, "interrupt", forced).some((candidate) => isWould(ctx.deps, candidate)),
   );
@@ -805,7 +832,7 @@ export const candidateOption =
  * first player, which is a simplification worth revisiting for multiplayer.
  */
 function controllersToAsk(state: GameState, candidates: readonly TriggerCandidate[]): readonly PlayerId[] {
-  const owners = new Set(candidates.map((c) => c.controllerId ?? state.firstPlayerId));
+  const owners = new Set(candidates.map((c) => c.controllerId ?? firstPlayerOfCard(state, c.instanceId)));
   return playerOrder(state)
     .map((p) => p.playerId)
     .filter((id) => owners.has(id));
@@ -817,7 +844,7 @@ function askNextController(ctx: Ctx, frame: Frame<"window">): void {
   // A "(defense)" ability an earlier-asked player picked holds this attack's defense for them (`windowDefenseBar`).
   const mine = frame.pending.filter(
     (c) =>
-      (c.controllerId ?? ctx.state.firstPlayerId) === current &&
+      (c.controllerId ?? firstPlayerOfCard(ctx.state, c.instanceId)) === current &&
       stillImminent(ctx, frame, c) &&
       conditionStillMet(ctx, frame, c) &&
       windowDefenseBar(ctx.state, ctx.deps, frame.queue, c) === null &&
@@ -883,7 +910,7 @@ const candidateKey = (candidate: TriggerCandidate): string => `${candidate.insta
  * requires resolved is the engine's reading (authority step 5); no ruling covers it.
  */
 const costPayerOf = (ctx: Ctx, candidate: TriggerCandidate): PlayerId =>
-  candidate.controllerId ?? ctx.state.firstPlayerId;
+  candidate.controllerId ?? firstPlayerOfCard(ctx.state, candidate.instanceId);
 
 /** The cards in play the player has picked for this candidate's cost so far (`Frame<"window">.costPicks`). */
 function costChoicesFor(frame: Frame<"window">, candidate: TriggerCandidate): CostChoices {
@@ -1417,7 +1444,7 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
   // (`triggerableBy`, docs/phase7-wave6.md §3.11) is one option id per player offered it.
   const asking = frame.awaiting === "order" ? null : (frame.askingPlayerIds[0] ?? null);
   const answerable = frame.pending.filter(
-    (c) => asking === null || (c.controllerId ?? ctx.state.firstPlayerId) === asking,
+    (c) => asking === null || (c.controllerId ?? firstPlayerOfCard(ctx.state, c.instanceId)) === asking,
   );
   const byOption = new Map(answerable.map((c) => [optionIdOf(c, frame.pending), c]));
   const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);

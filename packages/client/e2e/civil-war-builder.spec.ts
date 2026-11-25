@@ -209,13 +209,13 @@ for (const size of sizes) {
       expect(errors).toEqual([]);
     });
 
-    test("Competitive is present, disabled, says Coming soon, and tapping it changes nothing", async ({ page }) => {
+    test("Competitive is present, disabled, says Online rooms, and tapping it changes nothing", async ({ page }) => {
       const errors = await openBuilder(page);
       await act(page, "civil:step:5");
       const before = await view(page);
       const competitive = before.modeOptions.find((m) => m.id === "competitive")!;
       expect(competitive.enabled).toBe(false);
-      expect(competitive.note).toBe("Coming soon");
+      expect(competitive.note).toBe("Online rooms");
       expect(before.modeOptions.find((m) => m.id === "cooperative")!.selected).toBe(true);
       const draft = await debug<unknown>(page, "draft");
       await act(page, "civil:mode:competitive");
@@ -223,7 +223,9 @@ for (const size of sizes) {
       const after = await view(page);
       expect(after.modeOptions.find((m) => m.id === "cooperative")!.selected).toBe(true);
       expect(after.modeOptions.find((m) => m.id === "competitive")!.selected).toBe(false);
-      expect(await status(page)).toBe("Competitive mode is coming soon. Play this scenario cooperatively for now.");
+      expect(await status(page)).toBe(
+        "Competitive mode is played in an online room. Play this scenario cooperatively here.",
+      );
       expect(errors).toEqual([]);
     });
 

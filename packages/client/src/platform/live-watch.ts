@@ -70,6 +70,15 @@ export function leaveRoomAtTitle(): void {
   roomListener?.(NO_ROOM);
 }
 
+let sealedListener:
+  | ((sealed: { readonly registration: unknown; readonly resistance: unknown; readonly rev: number }) => void)
+  | null = null;
+
+/** `platform/room.ts` hears a Competitive host's sealed scenarios through this (one listener, one answer per reveal). */
+export function setSealedListener(listener: typeof sealedListener): void {
+  sealedListener = listener;
+}
+
 /** `platform/room.ts` hears a rejoining host's game in progress through this (one listener). */
 let resumeGameListener: ((gameId: string) => void) | null = null;
 export function setRoomResumeGameListener(listener: ((gameId: string) => void) | null): void {
@@ -172,6 +181,14 @@ function spawn(): boolean {
     if (event.data.kind === "room") {
       inRoom = event.data.state.role !== "none";
       roomListener?.(event.data.state);
+      return;
+    }
+    if (event.data.kind === "sealed") {
+      sealedListener?.({
+        registration: event.data.registration,
+        resistance: event.data.resistance,
+        rev: event.data.rev,
+      });
       return;
     }
     status = event.data.status;

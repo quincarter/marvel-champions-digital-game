@@ -13,7 +13,13 @@
  * unfinished, or one from before summaries) says only what its save knows.
  */
 import { hit } from "../tokens.js";
-import { isCurrentSchema, isLessonSave, writtenByNewerApp, type SaveMeta } from "../engine/game-storage.js";
+import {
+  isCompetitiveSave,
+  isCurrentSchema,
+  isLessonSave,
+  writtenByNewerApp,
+  type SaveMeta,
+} from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { CLIENT_VERSION } from "../version.js";
 import { aspectName, aspectStampOf, type AspectStamp } from "./aspect-stamp.js";
@@ -23,7 +29,8 @@ import type { GamesListNames } from "./games-list-model.js";
 import type { Rect } from "./layout.js";
 
 /** `conceded`: the players gave the game up, which the save stores as `abandoned` (`EngineSessionCore.statusOf`). */
-export type PastGameResult = "won" | "lost" | "conceded" | "unfinished";
+/** `tie`: a competitive game (issue #883) this device's team neither won nor lost (`view/team-outcome.ts`). */
+export type PastGameResult = "won" | "lost" | "tie" | "conceded" | "unfinished";
 
 /** Why the game ended, as the row and the details word it. */
 export type PastGameReason =
@@ -36,6 +43,8 @@ export type PastGameReason =
   /** The encounter deck ran out where a scenario loses on it (`GameOutcome` `encounterDeckExhausted`). */
   | "encounterDeckExhausted"
   | "unfinished"
+  /** A competitive game (MC56 p. 17): its per-team result, worded by the competitive game-over screen. */
+  | "competitive"
   /** Won or lost, but the save does not say how. */
   | "unknown";
 
@@ -107,8 +116,15 @@ export function resultOf(save: Pick<SaveMeta, "status" | "outcome">): PastGameRe
       return "won";
     case "lost":
       return "lost";
-    case "abandoned":
-      return (save.outcome as { readonly result?: string } | null)?.result === "conceded" ? "conceded" : "unfinished";
+    case "tie":
+      return "tie";
+    case "abandoned": {
+      // A competitive team's forfeit seen from both sides (hot seat, `seatResultOf`) is a concession too (issue #883).
+      const outcome = save.outcome as { readonly result?: string; readonly reason?: string } | null;
+      const conceded =
+        outcome?.result === "conceded" || (outcome?.result === "teams" && outcome.reason === "teamConceded");
+      return conceded ? "conceded" : "unfinished";
+    }
     default:
       return null;
   }
@@ -118,6 +134,7 @@ function reasonOf(save: SaveMeta, result: PastGameResult): PastGameReason {
   if (result === "unfinished") return "unfinished";
   if (result === "conceded") return "conceded";
   const outcome = save.outcome as { readonly result: string; readonly reason?: string } | null;
+  if (outcome?.result === "teams") return "competitive";
   if (outcome?.result === "win") return "villainDefeated";
   if (outcome?.reason === "mainSchemeCompleted") return "schemeCompleted";
   if (outcome?.reason === "allPlayersDefeated") return "heroesDefeated";
@@ -249,7 +266,7 @@ export function pastGameRowsOf(
 ): readonly PastGameRow[] {
   return saves
     .filter((save) => isPastGame(save, appVersion))
-    .filter((save) => filter === "all" || resultOf(save) === filter)
+    .filter((save) => inTab(save, filter))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((save) => {
       const result = resultOf(save)!;
@@ -311,9 +328,18 @@ export function pastGameCounts(
   const past = saves.filter((save) => isPastGame(save, appVersion));
   return {
     all: past.length,
-    won: past.filter((save) => save.status === "won").length,
-    lost: past.filter((save) => save.status === "lost").length,
+    won: past.filter((save) => inTab(save, "won")).length,
+    lost: past.filter((save) => inTab(save, "lost")).length,
   };
+}
+
+/**
+ * Whether a save belongs under a filter tab. A competitive game counts as played only (the owner, 2026-11-20; issue
+ * #883): it is listed under All, never under Won or Lost, whatever its team's result.
+ */
+function inTab(save: SaveMeta, filter: PastGameFilter): boolean {
+  if (filter === "all") return true;
+  return !isCompetitiveSave(save) && resultOf(save) === filter;
 }
 
 /** Whole minutes played, at least one: "42". Null when the save didn't count the time. */

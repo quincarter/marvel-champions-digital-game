@@ -21,12 +21,14 @@ import type {
   RoomDeck,
   RoomDeckSummary,
   RoomDevice,
+  TeamId,
   VillainCursorState,
   VillainPacing,
   TablePlan,
 } from "@mc/sync-worker/room-protocol";
 
 export type {
+  TeamId,
   TablePlan,
   ChatLine,
   HostActivityStep,
@@ -167,6 +169,8 @@ export interface RoomSeat {
   /** Who asked for it and awaits the host (what the host's approve and deny buttons act on). */
   readonly requests: readonly RoomSeatRequest[];
   readonly requestedByMe: boolean;
+  /** Competitive rooms: the seat's team; null in any other room, and before the host puts the seat on a team. */
+  readonly team?: TeamId | null;
 }
 
 /**
@@ -327,6 +331,31 @@ export interface EpicState {
   readonly podStuck: boolean;
 }
 
+/** One team of a Competitive room (issue #883, docs/live-game-rooms.md section 11). */
+export interface CompetitiveTeam {
+  readonly team: TeamId;
+  /** Ids of the seats on the team, in seat order (the first is the team's first player's seat). */
+  readonly seats: readonly string[];
+  /** A scenario for the other team is sealed in the room (its contents are never in the state, on any device but the host's reveal). */
+  readonly submitted: boolean;
+  readonly ready: boolean;
+}
+
+/** A Competitive room's part of `RoomState`; `RoomState.competitive` is null in any other room. */
+export interface CompetitiveState {
+  /** The team of the seats I hold; null when I hold none (a host who only runs the table, a watcher). */
+  readonly myTeam: TeamId | null;
+  readonly teams: Readonly<Record<TeamId, CompetitiveTeam>>;
+  /** The tie-break option (plan Q9 C): on unless the host turned it off. */
+  readonly tieBreaks: boolean;
+  /** Every seat is on a team and the teams are a 1v1 or a 2v2 (what the room checks at the reveal). */
+  readonly sized: boolean;
+  /** Both teams are sized, have a scenario sealed and are ready: the host's `startCompetitive` will be answered. */
+  readonly canStart: boolean;
+  /** The room's revision of the teams, readiness and scenarios (`LobbyState.competitive.rev`); 0 from an older room. */
+  readonly rev: number;
+}
+
 export interface RoomState {
   readonly role: RoomRole;
   readonly connection: RoomConnection;
@@ -374,6 +403,8 @@ export interface RoomState {
   readonly mode: LobbyMode;
   /** Epic rooms only; null in a standard room. */
   readonly epic: EpicState | null;
+  /** Competitive rooms only (`mode` `competitive`); null in any other. */
+  readonly competitive: CompetitiveState | null;
 }
 
 export const NO_ROOM: RoomState = {
@@ -402,6 +433,7 @@ export const NO_ROOM: RoomState = {
   gameOver: false,
   mode: "standard",
   epic: null,
+  competitive: null,
 };
 
 /** At most this many chat lines are kept in `RoomState.chat`. */

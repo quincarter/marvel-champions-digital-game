@@ -22,7 +22,7 @@ describe("skipNextVillainPhase / nextVillainPhaseBegins / on.roundEnding", () =>
   });
 
   it("'when the round ends' hears a skipped phase's round end; 'when the villain phase ends' does not", () => {
-    expect(on.roundEnding()).toEqual({ on: "phaseEnding", eventIs: { phase: ["villain", "round"] } });
+    expect(on.roundEnding()).toEqual({ on: "phaseEnding", eventIs: { phase: "round" } });
     expect(on.phaseEnding("villain")).toEqual({ on: "phaseEnding", eventIs: { phase: "villain" } });
   });
 });

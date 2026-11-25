@@ -73,6 +73,7 @@ worker.addEventListener("message", (event) => {
               onResumeGame: (gameId) => worker.postMessage({ kind: "room-resume-game", gameId } satisfies LiveRoomOut),
               onDecks: (id, decks) => worker.postMessage({ kind: "room-decks", id, decks }),
               onSalvage: (game) => worker.postMessage({ kind: "room-salvage", ...game } satisfies LiveRoomOut),
+              onSealed: (sealed, rev) => worker.postMessage({ kind: "sealed", ...sealed, rev } satisfies LiveRoomOut),
             },
           }
         : {}),

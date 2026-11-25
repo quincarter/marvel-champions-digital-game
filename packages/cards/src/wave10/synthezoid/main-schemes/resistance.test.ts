@@ -86,7 +86,9 @@ describe("registry", () => {
     expect(SYNTHEZOID_MAIN_SCHEMES_RESISTANCE_SKIPPED).toEqual({});
     expect([...abilityRefIds(card())].sort()).toEqual([...REFS].sort());
     for (const ref of REFS) expect(validateDefinition(SYNTHEZOID_MAIN_SCHEMES_RESISTANCE[ref]!), ref).toEqual([]);
-    expect(competitiveOnlyTexts(SYNTHEZOID_MAIN_SCHEMES_RESISTANCE["57044a.setup"]!)).toEqual([SETUP_SENTENCE]);
+    // SETUP_SENTENCE is scripted now (competitive plan M1): no marker, Choosing Sides found on this side of the table.
+    expect(competitiveOnlyTexts(SYNTHEZOID_MAIN_SCHEMES_RESISTANCE["57044a.setup"]!), SETUP_SENTENCE).toEqual([]);
+    expect(JSON.stringify(SYNTHEZOID_MAIN_SCHEMES_RESISTANCE["57044a.setup"])).toContain('"names":["Choosing Sides"]');
     expect(card().stages.map((s) => [s.printedCardId, s.stageNumber, s.completionLoses ?? false])).toEqual([
       [PROTECT_SECRET_IDENTITIES, 1, false],
       [EXPOSE_OVERREACH, 2, true],

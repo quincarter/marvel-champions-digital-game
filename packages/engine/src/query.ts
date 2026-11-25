@@ -751,6 +751,11 @@ export const areaOfPlayer = (state: GameState, playerId: PlayerId): GameAreaStat
  */
 export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | null {
   if (state.gameAreas.length === 0) return null;
+  // A team's main scheme is a shared stage tagged with its area (`MainSchemeState.gameAreaId`, two-team games only).
+  const tagged = state.teams
+    ? sharedMainSchemes(state).find((scheme) => scheme.instanceId === id)?.gameAreaId
+    : undefined;
+  if (tagged !== undefined) return areaById(state, tagged);
   for (const area of state.gameAreas) {
     if (
       area.mainScheme?.instanceId === id ||
@@ -779,9 +784,30 @@ export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | nu
     case "separateDeck":
     case "separateDiscard":
       return areaOfPlayer(state, zone.playerId);
+    case "encounterDeck":
+    case "encounterDiscard":
+      return encounterDeckArea(state, zone.deckId);
     default:
       return null;
   }
+}
+
+const areaById = (state: GameState, areaId: GameAreaState["areaId"]): GameAreaState | null =>
+  state.gameAreas.find((area) => area.areaId === areaId) ?? null;
+
+/**
+ * The game area an encounter deck and its discard pile are in, in a game with two teams: the area of the team that
+ * faces the leader drawing from it (MC56 p. 15: each half of the table holds "the enemy leader, the encounter deck, the
+ * main scheme deck"; p. 20: "Cards in your opponent's game area are not in play in your game area"). Null in every
+ * other game: with separate game areas (Kang) an encounter deck is in every area, as before.
+ */
+export function encounterDeckArea(state: GameState, deckId: EncounterDeckId): GameAreaState | null {
+  if (!state.teams) return null;
+  for (const team of state.teams) {
+    const area = team.areaId === null ? null : areaById(state, team.areaId);
+    if (area?.villainIds.some((id) => villainOf(state, id)?.encounterDeckId === deckId)) return area;
+  }
+  return null;
 }
 
 /**
@@ -833,7 +859,9 @@ export const mainSchemeStateOf = (state: GameState, id: InstanceId): MainSchemeS
 
 /** "The main scheme" in an area: that area's own stage (null once removed), or the central one outside any area. */
 export const mainSchemeFor = (state: GameState, area: GameAreaState | null): MainSchemeState | null =>
-  area ? area.mainScheme : state.mainScheme;
+  area
+    ? (area.mainScheme ?? sharedMainSchemes(state).find((scheme) => scheme.gameAreaId === area.areaId) ?? null)
+    : state.mainScheme;
 
 /**
  * "The villain" in an area: its active villain (null when it has none), or the game's active villain outside any area
@@ -1584,6 +1612,7 @@ export function beforeStartingHandsDrawn(state: GameState): boolean {
     case "scenarioSetup":
     case "villainSetupAbilities":
     case "scenarioSetupInstructions":
+    case "teamScenarioSetup":
     case "drawStartingHands":
       return true;
     case "mulligan":

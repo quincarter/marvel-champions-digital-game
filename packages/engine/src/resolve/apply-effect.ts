@@ -1,11 +1,19 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import {
+  creatingTeamOf,
+  firstPlayerOfAreaHolding,
+  setTeamVillainPhaseCount,
+  teamVillainPhaseCount,
+} from "../team-phases.js";
+import { teamOf } from "../team.js";
 import { imminentAttach, imminentAttachHeard, resolveImminentAttach } from "./imminent-attach.js";
 import { placeCountersOrAnnounce } from "./counters-being-placed.js";
 import { announceDeckTops } from "../deck-top.js";
 import { discardTopOfEncounterDeck, encounterTopDiscardVars } from "../encounter-discard-cost.js";
 import type { CardId, VillainSideLetter } from "@mc/content";
 import { nextInt, shuffle } from "../rng.js";
+import { clearMadeSinceVillainPhaseBegan, noteRequestSinceVillainPhaseBegan } from "../villain-phase-begun.js";
 import {
   type Ctx,
   emit,
@@ -72,7 +80,6 @@ import { activationVarsOf } from "../defend-preview.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { AttachmentBound, LastingDuration, LastingEffectBody, LastingScope } from "../lasting.js";
 import {
-  activeEncounterDeckId,
   cardBackOf,
   cardOf,
   currentName,
@@ -120,6 +127,7 @@ import {
   resolveRef,
   resolveValue,
   sourcePlayerOf,
+  effectEncounterDeckId,
 } from "../select.js";
 import type { DefeatPlacement, EffectSpec, PlayerRef, StatName } from "../spec.js";
 import { type GameState, NO_STATUSES } from "../state.js";
@@ -1029,16 +1037,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const inPlay = cardsInPlay(ctx.state);
       const [attacker] = targets(effect.attacker).filter((id) => inPlay.includes(id));
       const [target] = targets(effect.target).filter((id) => id !== attacker && inPlay.includes(id));
-      if (!attacker || !target) return;
+      // A rule waiting on "this attack" (`applyRuleUntil` `attack: "initiated"`) ends with no attack made.
+      const noAttack = (): void => settleAwaitingAttackEffects(ctx, frame.frameId, null);
+      if (!attacker || !target) return noAttack();
+      // A defeated leader kept in play never initiates an activation, an attack included (Q10 A per owner decision
+      // 2026-11-20; MC56 p. 17).
+      if (villainOf(ctx.state, attacker)?.defeated) return noAttack();
       if (!categoriesOf(ctx.state, attacker).includes("enemy") || !categoriesOf(ctx.state, target).includes("enemy"))
-        return;
+        return noAttack();
       // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
       // This is an attack, so a stunned attacker spends its stun, even though it is not an activation.
       if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
         announceStatusDiscarded(ctx, discardStatusCards(ctx, attacker, "stunned", "cancelledAttack"));
-        return;
+        return noAttack();
       }
-      pushEvents(
+      // With two teams the boost card is turned by the first player of the team whose area the attacker is in, the
+      // defending leader's team when a leader attacks a leader (MC56 p. 16 step 2; Q5, settled 2026-11-20). Whether a
+      // card is dealt at all is the attacker's (`getsBoostCard`): RRG v1.8 Attack (Enemy Activation) p. 8 step 1: only a
+      // villain or villainous minion gets a boost; MC56 p. 16 covers leader attacks only.
+      // An encounter card's effect has no controller (Energy Channel 56098 making Captain Marvel attack a leader): with
+      // two teams that first player still turns it; in any other game a controller is needed, as before.
+      const boostPlayerId = effect.boost
+        ? (firstPlayerOfAreaHolding(ctx.state, attacker) ?? frame.controllerId ?? null)
+        : null;
+      const [pushed] = pushEvents(
         ctx,
         [
           {
@@ -1046,11 +1068,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attackerInstanceId: attacker,
             targetInstanceId: target,
             sourceInstanceId: frame.selfInstanceId,
-            ...(effect.boost && frame.controllerId ? { boostPlayerId: frame.controllerId } : {}),
+            ...(boostPlayerId ? { boostPlayerId } : {}),
+            ...(boostPlayerId && effect.boost === "held" ? { heldBoostOnly: true as const } : {}),
           },
         ],
         reportTo(effect.bind),
+        // "+1 ATK for this attack and this attack gains piercing": on this attack's own event frame, read as its damage
+        // is dealt (`applyEnemyAttacksEnemy`), so it ends with this attack, as `enemyAttack.atkBonus` / `keywords` do.
+        {
+          ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+          ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
+        },
       );
+      // "She cannot take more than 3 damage from this attack" (Provoked Response 56133): a rule written before this
+      // effect with `attack: "initiated"` is now scoped to this attack.
+      settleAwaitingAttackEffects(ctx, frame.frameId, pushed ?? null);
       return;
     }
     case "thwart": {
@@ -1376,7 +1408,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // shuffled on its own with the game's seeded RNG, the encounter deck beneath left in its order.
       const [order, rng] = shuffle(ids, ctx.state.rng);
       ctx.state = { ...ctx.state, rng };
-      const deckId = activeEncounterDeckId(ctx.state);
+      const deckId = effectEncounterDeckId(ctx.state, context);
       for (const id of [...order].reverse()) {
         moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
@@ -2257,6 +2289,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           threatRemoved,
         },
         { kind: effect.until },
+        undefined,
+        context,
       );
       return;
     }
@@ -2979,16 +3013,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "skipNextVillainPhase":
-      // docs/phase7-wave11-hero-packs.md H3.7: read at the next player phase's end (`flow.ts` `finishPlayerPhase`).
-      ctx.state = { ...ctx.state, villainPhasesToSkip: (ctx.state.villainPhasesToSkip ?? 0) + 1 };
-      return;
-    case "replaceNextVillainPhaseWithPlayerPhase":
+    case "replaceNextVillainPhaseWithPlayerPhase": {
+      const which = effect.kind === "skipNextVillainPhase" ? "skip" : "replace";
+      // With two teams the next villain phase is the creating team's own, whichever team's phase it is made in (MC56
+      // pp. 16, 20 + N8, 2026-11-20, settled by the rules expert for PR #923): only that team's next villain phase
+      // reads it (`flow.ts` `executeTeamHandover`).
+      const team = creatingTeamOf(ctx.state, context.controllerId, context.selfInstanceId);
+      // Made once the villain phase about to start has begun (its beginning's window is open): the next one's.
+      noteRequestSinceVillainPhaseBegan(ctx, which, team);
+      if (team !== null) {
+        setTeamVillainPhaseCount(ctx, which, team, teamVillainPhaseCount(ctx.state, which, team) + 1);
+        return;
+      }
+      if (which === "skip") {
+        // docs/phase7-wave11-hero-packs.md H3.7: read at the next player phase's end (`flow.ts` `finishPlayerPhase`).
+        ctx.state = { ...ctx.state, villainPhasesToSkip: (ctx.state.villainPhasesToSkip ?? 0) + 1 };
+        return;
+      }
       // Read where the villain phase would begin (`flow.ts` `finishPlayerPhase`, `playerPhaseInsteadNow`).
       ctx.state = {
         ...ctx.state,
         villainPhasesReplacedByPlayerPhase: (ctx.state.villainPhasesReplacedByPlayerPhase ?? 0) + 1,
       };
       return;
+    }
     case "grantAdditionalMulligans": {
       // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.
       const amount = Math.max(0, Math.trunc(effect.amount));
@@ -3056,6 +3104,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const scheme of targets(effect.scheme)) completeMainScheme(ctx, scheme);
       return;
     case "endGame":
+      // Competitive: the result is the team's on whose side this card is (`endGame`'s `side`; MC56 p. 17).
       endGame(
         ctx,
         effect.result === "win"
@@ -3069,6 +3118,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
                 sourceInstanceId: context.selfInstanceId ?? ctx.state.mainScheme.instanceId,
               }
             : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
+        { instanceId: context.selfInstanceId, playerId: context.selfInstanceId ? null : context.controllerId },
       );
       return;
     case "addVillain": {
@@ -3448,6 +3498,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx.state = { ...ctx.state, lastingEffects: [...ctx.state.lastingEffects, restored] };
         emit(ctx, { type: "lastingEffectAdded", effect: restored });
       }
+      // Nor has the villain phase begun (`villain-phase-begun.ts`): what was noted as made since it began is this
+      // phase's after all, so step one's place takes it. That includes a skip made earlier in the same interrupt
+      // window, before the cancel (RRG 1.8 "Cancel", p. 11, and "Replacement Effect", p. 37: the replaced beginning is
+      // not considered to have occurred).
+      if (triggering.event.kind === "phaseBeginning" && triggering.event.phase === "villain")
+        clearMadeSinceVillainPhaseBegan(ctx);
       updateFrame(ctx, frame.eventFrameId, (target) =>
         target.kind === "event"
           ? { ...target, cancelled: true, ...(endsAnyway ? { endedEarly: true as const } : {}) }
@@ -3815,7 +3871,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         } else {
           body = { kind: "traitGrant", trait: effect.trait, scope, ...reach, ...(effect.loses ? { loses: true } : {}) };
         }
-        addLastingEffect(ctx, body, duration, bound);
+        addLastingEffect(ctx, body, duration, bound, context);
         return;
       }
       addLastingEffect(
@@ -3830,6 +3886,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               ...(effect.loses ? { loses: true } : {}),
             },
         duration,
+        undefined,
+        context,
       );
       return;
     }
@@ -3886,7 +3944,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           rulePlayerId && "player" in effect.rule
             ? { ...effect.rule, player: { kind: "id" as const, playerId: rulePlayerId } }
             : effect.rule;
-        addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, duration);
+        addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, duration, undefined, context);
       }
       return;
     }
@@ -3907,6 +3965,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           },
         },
         { kind: effect.until },
+        undefined,
+        context,
       );
       return;
     }
@@ -3934,6 +3994,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         { kind: "blankTextBox", targets: ids, ...source, ...(forPlayers ? { forPlayers } : {}) },
         duration,
+        undefined,
+        context,
       );
       return;
     }
@@ -4109,10 +4171,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // Krahllak's Blessing (`shadowland` 65019, "Attached villain attacks that character", after a minion's attack on
       // the villain: a minion is "a character", RRG 1.8 "Character", p. 12) has the villain attack that minion the same
       // way: an attack on an enemy, not an activation against a player.
-      // The `enemyAttack`'s own modifiers (`keywords`, `atkBonus`, extra boost cards, `statBonusTiming`) are not carried
-      // over: `enemyAttacksEnemy` has none, and no card that can reach this branch prints one (an `enemyAttack` with
-      // `keywords`, such as Batroc's Leaping Kick 50096 or Energy Channel 56098, only ever aims at a player's character).
-      // A card that needs one here needs the field on `enemyAttacksEnemy` first.
+      // The `enemyAttack`'s `keywords` and an eager `atkBonus` carry over, as `enemyAttacksEnemy` takes both for this
+      // attack only; no current card reaches this branch with either. Extra boost cards and a deferred bonus
+      // (`statBonusTiming`) do not: `enemyAttacksEnemy` has neither, and no card that can reach this branch prints one.
       if (effect.kind === "enemyAttack" && effect.targetCharacter) {
         const inPlayNow = cardsInPlay(ctx.state);
         const [aimed] = targets(effect.targetCharacter).filter(
@@ -4124,6 +4185,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             attacker: effect.enemies,
             target: effect.targetCharacter,
             ...(effect.boost === false ? {} : { boost: true as const }),
+            ...(effect.atkBonus && effect.statBonusTiming === undefined ? { atkBonus: effect.atkBonus } : {}),
+            ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
             ...(effect.bind !== undefined ? { bind: effect.bind } : {}),
           };
           applyEffect(ctx, routed, context, frame);
@@ -4149,6 +4212,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const attacksAgainst = (player: { readonly identity: { readonly form: string } }): boolean =>
         effect.kind === "enemyActivation" ? player.identity.form === "hero" : effect.kind === "enemyAttack";
       const against = effect.against ? resolvePlayers(ctx.state, effect.against, context) : null;
+      // An unengaged enemy activated by a card with no "against you" (The Futurist 56129, "Your Iron Man leader
+      // schemes"): the ability's controller, unless the enemy is on the other side of the table, where the activation
+      // is against the first player of the team there, the player who turns its boost cards (MC56 p. 16, Q5; engine
+      // reading, authority step 5).
+      const activatesAgainstOnItsSide = (enemy: InstanceId): PlayerId | null => {
+        const controller = frame.controllerId;
+        const there = firstPlayerOfAreaHolding(ctx.state, enemy);
+        if (there === null || controller === null) return controller ?? there;
+        return teamOf(ctx.state, controller).playerIds.includes(there) ? controller : there;
+      };
       const inPlayNow = cardsInPlay(ctx.state);
       const [character] =
         effect.kind === "enemyAttack" && effect.targetCharacter
@@ -4232,7 +4305,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           effect.kind === "enemyAttack" && effect.targetCharacter
             ? [characterController].filter((p): p is PlayerId => p !== null)
             : (against ??
-              [getInstance(ctx.state, enemy)?.engagedWith ?? frame.controllerId].filter(
+              [getInstance(ctx.state, enemy)?.engagedWith ?? activatesAgainstOnItsSide(enemy)].filter(
                 (p): p is PlayerId => p !== null,
               ));
         for (const playerId of players) {
@@ -4487,15 +4560,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "buildScenarioDeck":
       buildScenarioDeck(ctx, effect.name, effect.from);
       return;
-    case "shuffleEncounterDeck":
-      shuffleEncounterDeck(ctx);
+    case "shuffleEncounterDeck": {
+      if (!effect.deckOf) {
+        shuffleEncounterDeck(ctx, effectEncounterDeckId(ctx.state, context));
+        return;
+      }
+      // "Your leader's encounter deck": each deck the ref's villains have, once, as the `encounter` selector's `deckOf`.
+      const deckIds = new Set(targets(effect.deckOf).flatMap((id) => villainOf(ctx.state, id)?.encounterDeckId ?? []));
+      for (const deckId of deckIds) shuffleEncounterDeck(ctx, deckId);
       return;
+    }
     case "discardEncounterUntil": {
       // Finding nothing does not mark the text before a "then" unresolved: RRG 1.8 "Encounter Deck" (p. 17), "If the
       // encounter deck is emptied this way, that card ability is considered to be fulfilled." A following "Reveal that
       // minion" with no minion does (`revealCard`, `revealFoundNothing`).
       // Bounded by the number of encounter cards, so a deck with no match can't loop forever.
-      const deckId = activeEncounterDeckId(ctx.state);
+      const deckId = effectEncounterDeckId(ctx.state, context);
       const piles = encounterDeckOf(ctx.state, deckId);
       const limit = piles.deck.length + piles.discard.length;
       let found: InstanceId | null = null;

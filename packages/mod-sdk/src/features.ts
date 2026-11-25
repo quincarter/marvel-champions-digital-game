@@ -179,6 +179,7 @@ function collectCost(cost: Json, found: Set<string>): void {
 export const TARGET_QUERY_FIELDS: readonly string[] = [
   "categories",
   "inScenarioPlayArea",
+  "anyGameArea",
   "controller",
   "engagedWith",
   "trait",

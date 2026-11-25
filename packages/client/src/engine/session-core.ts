@@ -25,7 +25,7 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { cardsOfComposedSets, playableStarterDeckSetup } from "@mc/cards";
+import { cardsOfComposedSets, civilWarCompetitive, playableStarterDeckSetup } from "@mc/cards";
 import { notReadySeatIdentity } from "./not-ready-seats.js";
 import { cardId } from "@mc/content";
 import { previousGameFacts } from "./previous-game-facts.js";
@@ -80,6 +80,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
+import { seatResultOfState } from "../view/team-outcome.js";
 import { BACKFILL_BUSY, backfillSummaries } from "./summary-backfill.js";
 
 /** Commands a backfill replay runs between yields. */
@@ -283,6 +284,7 @@ const BASE_DECK_IDS: ReadonlySet<string> = new Set(POOL_STARTER_DECKS.map((deck)
  * every standalone game and for a campaign save written before this field existed, so neither's setup changes.
  */
 const scenarioFor = (config: SessionConfig) => {
+  if (config.competitive) return competitiveScenarioFor(config);
   const view = viewOf(config);
   // A pack's own scenario, or a pack's modular set at any scenario, goes through the SDK's builder, which knows the
   // packs' scenario and encounter set records; every other game takes the base builder exactly as before.
@@ -345,6 +347,44 @@ const scenarioFor = (config: SessionConfig) => {
 };
 
 /**
+ * A Civil War Competitive game's setup (issue #883): each team's seats and the scenario it sealed for the other,
+ * through `@mc/cards`' `civilWarCompetitive`, which refuses what MC56 forbids (a team on the wrong side, a team of 0 or
+ * 3, a 1v2 or 2v1 table). The tie-break option (plan Q9 C) rides into the engine's `competitive` setup.
+ */
+function competitiveScenarioFor(config: SessionConfig) {
+  const competitive = config.competitive!;
+  const [first, second] = competitive.teams;
+  const team = (t: typeof first, players: SessionConfig["players"]) => ({
+    leaderScenarioId: t.leaderScenarioId,
+    scenario: {
+      ...(t.modularSetIds.length > 0 ? { modularSetIds: t.modularSetIds } : {}),
+      ...(t.mainSchemeStageIds.length > 0 ? { mainSchemeStageIds: t.mainSchemeStageIds } : {}),
+      ...(t.extraModularSetIds?.length ? { extraModularSetIds: t.extraModularSetIds } : {}),
+    },
+    players,
+  });
+  let built: ReturnType<typeof civilWarCompetitive>;
+  try {
+    built = civilWarCompetitive({
+      seed: config.seed,
+      ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+      teams: [
+        team(first, config.players.slice(0, first.playerCount)),
+        team(second, config.players.slice(first.playerCount)),
+      ],
+    });
+  } catch (cause) {
+    // A choice MC56 forbids (a 1v2 table, a set of the other side): the same `SetupError` an engine refusal is, so a
+    // hot-seat start, a resume or a replay file reports it as a setup that cannot be made rather than a crash.
+    throw new SetupError({ code: "invalid_setup", command: null, message: describeCause(cause) });
+  }
+  const setup = built.competitive
+    ? { ...built, competitive: { ...built.competitive, tieBreaks: competitive.tieBreaks } }
+    : built;
+  return config.tableRules ? { ...setup, tableRules: config.tableRules } : setup;
+}
+
+/**
  * One group of an Epic Multiplayer game (issue #882): `@mc/cards`' `epicGroupScenario`'s last step (the pod record of a
  * scenario with neutral cards, made a group of a pod with a coordinator outside this engine), applied to a scenario
  * already built here so packs, tables rules and the rest of the setup go through the one `scenarioFor`.
@@ -378,16 +418,16 @@ const usesPackContent = (config: SessionConfig, packs: readonly PackRuntime[]): 
 const viewOf = (config: SessionConfig | null) => poolViewOfPacks(config?.packs);
 const depsOf = (config: SessionConfig | null): EngineDeps => viewOf(config).deps;
 
-const statusOf = (state: GameState): SaveStatus =>
-  state.outcome
-    ? state.outcome.result === "win"
-      ? "won"
-      : // A concession is a real, finished session that resolved to neither a win nor a loss, which is exactly what
-        // `abandoned` already means to `view/results-history.ts`: played, but not a result.
-        state.outcome.result === "conceded"
-        ? "abandoned"
-        : "lost"
-    : "active";
+/**
+ * The save's status. A competitive game counts this device's team's result (`seatResultOf`): won, lost or a tie.
+ * A concession is a real, finished session that resolved to neither a win nor a loss, which is exactly what `abandoned`
+ * already means to `view/results-history.ts`: played, but not a result.
+ */
+const statusOf = (state: GameState, config: SessionConfig | null): SaveStatus => {
+  const result = seatResultOfState(state, config?.localSeats);
+  if (result === null) return "active";
+  return result === "win" ? "won" : result === "loss" ? "lost" : result === "tie" ? "tie" : "abandoned";
+};
 
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
@@ -755,7 +795,7 @@ export class EngineSessionCore {
         updatedAt: this.#played(),
         ...this.#playedField(),
         ...this.#adjustedField(),
-        status: statusOf(state),
+        status: statusOf(state, config),
         outcome: state.outcome,
         summary: summarizeGame(state, record, depsOf(config), config.players),
       };
@@ -816,6 +856,7 @@ export class EngineSessionCore {
       players,
       command,
       strict: config.roomPlayMode === "strict",
+      ...(config.roomTeams ? { teamOf: (id: string) => config.roomTeams?.[id] } : {}),
     });
     if (!verdict.ok) return verdict;
     const before = this.#version;
@@ -990,7 +1031,7 @@ export class EngineSessionCore {
       updatedAt: at,
       ...this.#playedField(),
       ...this.#adjustedField(),
-      status: statusOf(state),
+      status: statusOf(state, this.#config),
       outcome: state.outcome,
       summary: summarizeGame(state, this.#record, depsOf(this.#config), this.#config?.players),
     };

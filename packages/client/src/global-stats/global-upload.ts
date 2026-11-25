@@ -10,7 +10,7 @@
  * (`startGlobalUploads`): the worker's `saved` message reaches the main thread as `notifySaveDataChanged`, and a game's
  * ending is one of those writes. A run with sharing off reads one localStorage key and stops.
  */
-import type { SaveMeta } from "../engine/game-storage.js";
+import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import { onSaveDataChanged } from "../sync/save-data-changed.js";
 import { syncServiceUrl } from "../save-data/transfer-config.js";
 import { POOL_STATS_NAMES } from "../view/player-stats-names.js";
@@ -85,6 +85,8 @@ export async function runGlobalUpload(store: UploadStore, overrides: Partial<Upl
         (meta) =>
           !meta.guided &&
           !meta.adjusted &&
+          // A competitive game is played only, never a result (issue #883).
+          !isCompetitiveSave(meta) &&
           (meta.status === "won" || meta.status === "lost") &&
           !sent.has(meta.id) &&
           meta.updatedAt >= since &&

@@ -40,6 +40,12 @@ export type EngineErrorCode =
   | "invalid_choice"
   | "wrong_phase"
   | "not_active_player"
+  /**
+   * A player of the inactive team tried to act during the other team's phase (MC56 p. 16: "During the other team's
+   * phases, your side of the table is inactive"; Q11 A per owner decision 2026-11-20). Only a game with two teams
+   * raises it; that team still answers the choices addressed to it (`resolveChoice`). `message` is shown verbatim.
+   */
+  | "inactive_team"
   | "unknown_player"
   | "unknown_instance"
   | "unknown_card"

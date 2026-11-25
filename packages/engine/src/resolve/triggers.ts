@@ -32,7 +32,8 @@ import {
 } from "../resources.js";
 import type { AbilityId } from "@mc/content";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { cardOf, getInstance, getPlayer, playerOrder } from "../query.js";
+import { areaOfCard, cardOf, getInstance, getPlayer, playerOrder } from "../query.js";
+import { eventSides } from "../event-sides.js";
 import {
   activeAbilityRefs,
   activeRules,
@@ -74,6 +75,7 @@ import { interruptBarredByUnpreventable } from "./unpreventable.js";
 import { KEYWORD_ABILITIES } from "../keyword-abilities.js";
 import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 import { enteredPlaySince } from "../entered-since.js";
+import { firstPlayerOfCard, onActiveSide } from "../team-phases.js";
 
 /**
  * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
@@ -243,15 +245,84 @@ function matchesPattern(
   /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
   controllerOverride?: PlayerId,
 ): boolean {
+  // Read once, and only by an alternative that is not exempt (`heardOnThisSide`).
+  let onThisSide: boolean | undefined;
+  const heard = () => (onThisSide ??= heardOnThisSide(state, event, selfId));
+  return matchesPatternFields(state, pattern, event, timing, selfId, deps, heard, false, controllerOverride);
+}
+
+function matchesPatternFields(
+  state: GameState,
+  pattern: EventPattern,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  selfId: InstanceId,
+  deps: EngineDeps,
+  heard: () => boolean,
+  /** An enclosing pattern's own fields already reach the other side (`refersToOtherSide`). */
+  exempt: boolean,
+  controllerOverride?: PlayerId,
+): boolean {
   if (spillUnheard(pattern, event)) return false;
   if (!matchesOwnFields(state, pattern, event, timing, selfId, deps, controllerOverride)) return false;
-  // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well.
-  return (
-    pattern.anyOf === undefined ||
-    pattern.anyOf.some((alternative) =>
-      matchesPattern(state, alternative, event, timing, selfId, deps, controllerOverride),
-    )
+  const reaches = exempt || refersToOtherSide(pattern);
+  // "After [this] or [that]" (`EventPattern.anyOf`): one whole alternative must match as well, each with its own
+  // reach: an alternative's `anyGameArea` query exempts that alternative only.
+  if (pattern.anyOf === undefined) return reaches || heard();
+  return pattern.anyOf.some((alternative) =>
+    matchesPatternFields(state, alternative, event, timing, selfId, deps, heard, reaches, controllerOverride),
   );
+}
+
+/**
+ * On a split table, an event about the other side is not heard here.
+ *
+ * Competitive, MC56 pp. 16-17: "Card abilities on your side of the table completely ignore cards on the other side of
+ * the table unless they specifically refer to them." The Once and Future Kang's separate game areas: "Cards and
+ * components in one game area cannot affect another game area (with the exception of the text on stage 2B)" (rules
+ * expert, 2026-11-20, option A), so a trigger there hears only events in its own area too.
+ *
+ * A pattern's queries are already limited to the listening card's area (`inContextArea`); this scopes the event itself
+ * the same way, so a pattern that names no query (Black Widow 01075's "when a card is revealed") hears only an event on
+ * its own side (`TriggerEvent.sides`, read where the event's cards and players were when it was made), or one on no
+ * side (naming only an environment, Kang's stage 2B, a set-aside card, or nothing at all). A card in every area (an
+ * environment, stage 2B) hears everything.
+ *
+ * Exceptions: a pattern whose own fields hold an `anyGameArea` query "specifically refers to" the other side and hears
+ * every event (per `anyOf` alternative, `matchesPatternFields`); a leader's attack on the other leader is on both sides,
+ * so both pass here and `onAttackingLeadersSide` narrows "an enemy attacks" to the attacker's side (N11 per owner
+ * decision 2026-11-20); phase and villain-step events name no card and keep their own active-team scope
+ * (`hearsTeamPhase`, N8). A game whose players share one game area is unchanged, and an Epic Multiplayer pod's groups
+ * are separate games.
+ */
+// MC56 pp. 16-17, 20 (scenario rules override RRG per Golden Rule, RRG p. 4); audit finding 5 (#883). Kang: FFG
+// ruling Mar 6 2025 (Azazel); environments and stage 2B are in every area (RRG 1.8 FAQ p. 60).
+function heardOnThisSide(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
+  if (state.gameAreas.length === 0) return true;
+  const selfArea = areaOfCard(state, selfId);
+  if (selfArea === null) return true;
+  const sides = eventSides(state, event);
+  // Nothing the event names is on a side: it is not about the other side.
+  return sides.length === 0 || sides.includes(selfArea.areaId);
+}
+
+const otherSideRefs = new WeakMap<EventPattern, boolean>();
+
+/**
+ * Whether a pattern's own fields hold a query that reaches the other side (`TargetQuery.anyGameArea`), at any depth
+ * inside them. Its `anyOf` alternatives are not read here: each is its own (`matchesPatternFields`).
+ */
+function refersToOtherSide(pattern: EventPattern): boolean {
+  const known = otherSideRefs.get(pattern);
+  if (known !== undefined) return known;
+  const reaches = (value: unknown): boolean => {
+    if (Array.isArray(value)) return value.some(reaches);
+    if (value === null || typeof value !== "object") return false;
+    return Object.entries(value).some(([key, inner]) => (key === "anyGameArea" && inner === true) || reaches(inner));
+  };
+  const found = Object.entries(pattern).some(([key, value]) => key !== "anyOf" && reaches(value));
+  otherSideRefs.set(pattern, found);
+  return found;
 }
 
 /**
@@ -271,6 +342,46 @@ function spillUnheard(pattern: EventPattern, event: TriggerEvent): boolean {
   return !asksResult(pattern);
 }
 
+/**
+ * Competitive: phase begin/end events, and the villain phase's own steps ("after resolving step 1 of the villain
+ * phase", "at the start of step three"), are scoped to the active team's area (MC56 p. 16 "their entire hero phase",
+ * per-team first player token); round end is shared after phase 4 (plan §1.10 Q3). Owner decision pending, A
+ * recommended. So a card on the inactive side hears neither the other team's phases beginning or ending nor their
+ * villain steps (Vision 57040 flips its mass form once a round; Public Outrage 56122b resolves once, in its own
+ * villain phase), but "when the round ends" (`"round"` among the phases a pattern hears) is heard on both sides at the
+ * round's one end. A pattern that names no phase (any phase beginning or ending) is scoped to the active side like the
+ * rest: it hears the round's end only as the villain phase that ends it, on that side. Every card hears every phase
+ * in a game with no active team.
+ */
+function hearsTeamPhase(
+  state: GameState,
+  pattern: EventPattern,
+  event: Extract<
+    TriggerEvent,
+    { kind: "phaseBeginning" | "phaseEnding" | "villainStepResolved" | "villainStepStarting" }
+  >,
+  selfId: InstanceId,
+): boolean {
+  if (state.activeTeamId === undefined) return true;
+  if (event.kind !== "phaseBeginning" && event.kind !== "phaseEnding") return onActiveSide(state, selfId);
+  const phases = pattern.eventIs?.phase;
+  const hearsRound = phases === "round" || (Array.isArray(phases) && phases.includes("round"));
+  if (hearsRound && event.kind === "phaseEnding" && endsRound(event)) return true;
+  return onActiveSide(state, selfId);
+}
+
+/**
+ * Whether a phase end is the round's end, the one `"round"` among a pattern's phases hears ("when the round ends":
+ * `on.roundEnding()`, the temporary keyword): the villain phase's end (RRG 1.8 "Villain Phase", p. 47, step 6b), or the
+ * round's alone when its villain phase was skipped (`phase: "round"`, docs/phase7-wave11-hero-packs.md H3.7). Not a
+ * villain phase that leaves the round going: the first team's, with two teams (`roundContinues`; MC56 p. 16, one shared
+ * round, Q3 B per owner decision 2026-11-20). The round's `"round"` is read on its own, never instead of another phase
+ * the pattern lists: `["villain", "round"]` hears both teams' villain phases ending.
+ */
+function endsRound(event: Extract<TriggerEvent, { kind: "phaseEnding" }>): boolean {
+  return event.phase !== "player" && event.roundContinues !== true;
+}
+
 /** A pattern's own fields, without its `anyOf` alternatives. */
 function matchesOwnFields(
   state: GameState,
@@ -281,8 +392,20 @@ function matchesOwnFields(
   deps: EngineDeps,
   controllerOverride?: PlayerId,
 ): boolean {
-  // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`).
-  if (!patternHearsKind(pattern, event.kind)) return false;
+  // "When/After [this card] is attacked" also hears an enemy's attack on it (`patternHearsKind`), and "when/after
+  // [enemy] attacks" hears a leader's attack on the other leader (`leaderAttacksLeader`), from its side only.
+  if (!patternHearsKind(pattern, event.kind)) {
+    if (!hearsLeaderAttack(state, pattern, event)) return false;
+    if (!onAttackingLeadersSide(state, event, selfId)) return false;
+  }
+  if (
+    (event.kind === "phaseBeginning" ||
+      event.kind === "phaseEnding" ||
+      event.kind === "villainStepResolved" ||
+      event.kind === "villainStepStarting") &&
+    !hearsTeamPhase(state, pattern, event, selfId)
+  )
+    return false;
   // A card discarded from an encounter deck is heard only by a pattern that asks for one (docs/phase7-wave9.md §3.43
   // (b)), so "after you discard a card from the top of your deck" stays a player deck's.
   if (event.kind === "cardDiscardedFromDeck" && event.deck === "encounter" && !hearsEncounterDeckDiscard(pattern))
@@ -529,9 +652,13 @@ function matchesRest(
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;
     for (const [key, expected] of Object.entries(pattern.eventIs)) {
-      // A list: any one of its values (docs/phase7-wave4.md §3.36).
-      const matches =
-        typeof expected === "string" ? carried[key] === expected : expected.includes(carried[key] as string);
+      // A list: any one of its values (docs/phase7-wave4.md §3.36). A phase end's `"round"` is the round's end
+      // (`endsRound`), each value read on its own, so `["villain", "round"]` still hears every villain phase's end.
+      const one = (value: string): boolean =>
+        event.kind === "phaseEnding" && key === "phase" && value === "round"
+          ? endsRound(event)
+          : carried[key] === value;
+      const matches = typeof expected === "string" ? one(expected) : expected.some(one);
       if (!matches) return false;
     }
   }
@@ -824,6 +951,39 @@ function unanswerable(state: GameState, event: TriggerEvent, timing: WindowTimin
   return nothingToAnswer(event, timing);
 }
 
+/**
+ * A leader attacking the other leader in competitive play (`enemyAttacksEnemy` between two villains of a two-team
+ * game; MC56 p. 16). N11 A per owner decision 2026-11-20: it is an attack, so the attacker's own "when/after [X]
+ * attacks" abilities (`enemyAttack` patterns) hear it, though it is no activation (patterns asking for one do not);
+ * every other game keeps wave 3 Q12 (an enemy attacking an enemy is heard by no "when [enemy] attacks").
+ * MC56 p. 16 (no defender: defense-labelled abilities unusable, RRG v1.8 Defend p. 14), p. 20 FAQ (Energy Channel
+ * fires on leader-vs-leader); RRG v1.8 Attack p. 8 ("attacks you" needs an attacked player): the event names no
+ * player, so a pattern for an attack against "you" never matches it, and `gatherCandidates` drops defense-labelled
+ * abilities.
+ */
+export function leaderAttacksLeader(state: GameState, event: TriggerEvent): boolean {
+  if (event.kind !== "enemyAttacksEnemy" || state.teams === undefined) return false;
+  const leaders = state.villains.map((villain) => villain.instanceId);
+  return leaders.includes(event.attackerInstanceId) && leaders.includes(event.targetInstanceId);
+}
+
+/**
+ * Whether the card `selfId` is on the side of the table whose area holds the attacking leader of a leader-vs-leader
+ * attack: the team fighting that leader, whose own leader is the one attacked. Only that team hears it as "an enemy
+ * attacks"; the attacking team never does. A card in a hand or deck is on its player's side (`areaOfCard`).
+ */
+// MC56 p. 16: "enemy" = the leader you are fighting + minions on your side; only the team whose area holds the attacking leader hears "an enemy attacks" (N11: defense-labelled and "attacks you" excluded)
+function onAttackingLeadersSide(state: GameState, event: TriggerEvent, selfId: InstanceId): boolean {
+  if (event.kind !== "enemyAttacksEnemy") return true;
+  const attackerArea = areaOfCard(state, event.attackerInstanceId);
+  const selfArea = areaOfCard(state, selfId);
+  return attackerArea !== null && selfArea !== null && attackerArea.areaId === selfArea.areaId;
+}
+
+/** An `enemyAttack` pattern hearing a leader's attack on the other leader (`leaderAttacksLeader`). */
+const hearsLeaderAttack = (state: GameState, pattern: EventPattern, event: TriggerEvent): boolean =>
+  patternHearsKind(pattern, "enemyAttack") && leaderAttacksLeader(state, event);
+
 function gatherCandidates(
   state: GameState,
   deps: EngineDeps,
@@ -864,7 +1024,7 @@ function gatherCandidates(
       const named = forced ? null : triggeringPlayers(state, deps, id, trigger, event);
       if (named) {
         for (const playerId of named) {
-          if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+          if (trigger.firstPlayerOnly === true && playerId !== firstPlayerOfCard(state, id)) continue;
           if (triggeredAbilityForbidden(state, deps, id, trigger, playerId, noTriggers)) continue;
           if (offeredTo(state, deps, id, ref.id, definition, event, playerId)) {
             found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: playerId, definition }, forced));
@@ -878,13 +1038,14 @@ function gatherCandidates(
       if (!forced && isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
-      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
+      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== firstPlayerOfCard(state, id))
+        continue;
       // An uncontrolled card whose "you" the rules name (an obligation, an attachment on a player card, an environment in
       // a player's play area: `uncontrolledYouOf`) resolves as that player.
       const acting =
         controllerId ??
         (trigger.firstPlayerOnly === true
-          ? state.firstPlayerId
+          ? firstPlayerOfCard(state, id)
           : (uncontrolledYouOf(state, id) ??
             (forced ? actingPlayerOf(event, trigger.on, timing) : offeredPlayerOf(state, event, trigger.on, timing))));
       if (acting !== null && triggeredAbilityForbidden(state, deps, id, trigger, acting, noTriggers)) continue;
@@ -894,7 +1055,7 @@ function gatherCandidates(
       if (trigger.notWhileResolving === true && abilityResolving(state, id, ref.id)) continue;
       const limitPlayer =
         controllerId ??
-        (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on, timing));
+        (trigger.firstPlayerOnly === true ? firstPlayerOfCard(state, id) : actingPlayerOf(event, trigger.on, timing));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, timing, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
@@ -917,7 +1078,10 @@ function gatherCandidates(
   // response on a player card, forced or optional, in play, in hand or out of play, from the first setup step until
   // the first player phase begins; a "Setup" ability is its own trigger kind and never gathered here. Keywords are
   // kept: "entering play during setup triggers Toughness" (ruling, April 30, 2026 (3) #2).
-  const settled = found.filter(
+  const unlabelled = leaderAttacksLeader(state, event)
+    ? found.filter((candidate) => deps.abilities[candidate.abilityId]?.label?.includes("defense") !== true)
+    : found;
+  const settled = unlabelled.filter(
     (candidate) =>
       !(state.step.phase === "setup" && isPlayerCard(state, candidate.instanceId)) &&
       // A response to a discard whose card a response has since moved, that needed that card (issue #928).
@@ -1035,7 +1199,7 @@ export function unofferedAbilities(
       if (isCaptiveAlly(state, id)) continue;
       const controllerId = controllerOf(state, id);
       if (controllerId === null) continue;
-      if (trigger.firstPlayerOnly === true && controllerId !== state.firstPlayerId) continue;
+      if (trigger.firstPlayerOnly === true && controllerId !== firstPlayerOfCard(state, id)) continue;
       noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
       if (triggeredAbilityForbidden(state, deps, id, trigger, controllerId, noTriggers)) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
@@ -1342,7 +1506,7 @@ export function hearersOf(
   const listens = (definition: AbilityDefinition | undefined): boolean => {
     const trigger = definition?.trigger;
     if (!trigger || trigger.kind !== timing || trigger.forced) return false;
-    return patternHearsKind(trigger.on, event.kind);
+    return patternHearsKind(trigger.on, event.kind) || hearsLeaderAttack(state, trigger.on, event);
   };
   const found: string[] = [];
   for (const id of cardsInPlay(state)) {

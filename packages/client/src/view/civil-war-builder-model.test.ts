@@ -23,7 +23,7 @@ import {
   type CivilWarRandomizer,
 } from "./civil-war-builder-model.js";
 import { cardsRandomizer } from "./civil-war-random.js";
-import { GAME_MODE_OPTIONS, COMPETITIVE_TAPPED_MESSAGE } from "./game-mode-options.js";
+import { GAME_MODE_OPTIONS, competitiveTappedMessage } from "./game-mode-options.js";
 import { initialSetupDraft, setDifficulty, setModularSetIds, toSessionConfig, type SetupDraft } from "./setup-draft.js";
 import { offerOf } from "./setup-options.js";
 
@@ -443,9 +443,9 @@ describe("10. game mode", () => {
     const d = draftFor(IRON);
     const r = act(d, "civil:mode:competitive");
     expect(r.draft).toBe(d);
-    expect(r.status).toBe(COMPETITIVE_TAPPED_MESSAGE);
+    expect(r.status).toBe(competitiveTappedMessage());
     expect(view(d, { status: r.status }).statusLine).toBe(
-      "Competitive mode is coming soon. Play this scenario cooperatively for now.",
+      "Competitive mode is played in an online room. Play this scenario cooperatively here.",
     );
     expect(act(d, "civil:mode:cooperative").status).toBeNull();
   });

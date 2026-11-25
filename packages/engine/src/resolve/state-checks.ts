@@ -64,6 +64,7 @@ import {
 import { abilityFrame, eventFrame } from "./frames.js";
 import { syncOwnTreatments, syncRuleTreatments } from "../treat-as.js";
 import { announceStatusDiscarded } from "./status-discarded.js";
+import { firstPlayerOfCard } from "../team-phases.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
 const registriesWithRuleKind = new Map<RuleSpec["kind"], WeakMap<AbilityRegistry, boolean>>();
@@ -203,7 +204,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
         // A card nobody controls acts for the player its "you" names (`uncontrolledYouOf`), else for the first player,
         // as scheme and villain abilities do.
         controllerId:
-          controllerOf(ctx.state, instanceId) ?? uncontrolledYouOf(ctx.state, instanceId) ?? ctx.state.firstPlayerId,
+          controllerOf(ctx.state, instanceId) ??
+          uncontrolledYouOf(ctx.state, instanceId) ??
+          firstPlayerOfCard(ctx.state, instanceId),
         forced: true,
         fromHand: false,
       },
@@ -347,8 +350,11 @@ function applyKeptExhaustion(ctx: Ctx): void {
 export function applyFirstPlayerControl(ctx: Ctx): void {
   if (!hasRuleKind(ctx.deps.abilities, "controlledByFirstPlayer") && !scenarioHasRule(ctx, "controlledByFirstPlayer"))
     return;
-  const first = ctx.state.firstPlayerId;
   for (const { rule, context } of activeRules(ctx.state, ctx.deps, "controlledByFirstPlayer")) {
+    // With two teams, the first player of the side of the table the rule's card is on (MC56 p. 16).
+    const first = context.selfInstanceId
+      ? firstPlayerOfCard(ctx.state, context.selfInstanceId)
+      : ctx.state.firstPlayerId;
     for (const id of cardsInPlay(ctx.state)) {
       if (!matchesQuery(ctx.state, id, rule.target, context)) continue;
       const from = controllerOf(ctx.state, id);

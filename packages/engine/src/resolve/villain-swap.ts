@@ -17,6 +17,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { eventFrame, gameAbilityFrames } from "./frames.js";
 import { revealNewFaceFrame } from "./reveal.js";
 import { heard } from "./triggers.js";
+import { firstPlayerOfCard } from "../team-phases.js";
 
 /** The set-aside villain cards whose title is `title`, in set-aside order. */
 function setAsideVillainsTitled(ctx: Ctx, title: string | undefined): readonly InstanceId[] {
@@ -147,7 +148,14 @@ export function advanceToSetAsideVillain(
   // When Defeated on the card resolves. The advance replaces the defeat's usual course (the dial resets, so the
   // defeat sweep never reaches `defeatVillainStage`), so its abilities are read here, from the card being defeated,
   // before the exchange, and resolve after the advance (docs/phase7-wave4.md §3.48, §4 Q21).
-  const whenDefeated = gameAbilityFrames(ctx, villainId, ["whenDefeated"], defeat, undefined, ctx.state.firstPlayerId);
+  const whenDefeated = gameAbilityFrames(
+    ctx,
+    villainId,
+    ["whenDefeated"],
+    defeat,
+    undefined,
+    firstPlayerOfCard(ctx.state, villainId),
+  );
   const { from, to } = exchangeCards(ctx, villainId, setAsideId);
   // RRG 1.8 "Villain Defeat" (p. 47): "Excess damage … does not carry over", the new card's dial is its own.
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
