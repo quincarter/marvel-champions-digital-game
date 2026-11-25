@@ -374,6 +374,10 @@ export interface RoomState {
   /** The lobby's revision (`LobbyState.rev`): changes whenever a seat's holder or deck, or the settings, change. */
   readonly rev: number;
   readonly seats: readonly RoomSeat[];
+  /** The table this device follows as its game (`"main"` outside Epic Multiplayer). */
+  readonly tableId: string | null;
+  /** The table's persisted admission id (`TableInfo.gid`): stable across lobby changes, new for a rematch; null until known. */
+  readonly gid: string | null;
   /** Ids of the seats I hold, in seat order. */
   readonly mySeats: readonly string[];
   /** The newest chat lines (at most `MAX_CHAT_KEPT`), oldest first. */
@@ -419,6 +423,8 @@ export const NO_ROOM: RoomState = {
   settings: null,
   rev: 0,
   seats: [],
+  tableId: null,
+  gid: null,
   mySeats: [],
   chat: [],
   chatLive: 0,

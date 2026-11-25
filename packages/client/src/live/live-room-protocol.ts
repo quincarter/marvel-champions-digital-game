@@ -215,7 +215,8 @@ export type LiveGameMessage =
         readonly awaiting?: boolean;
       };
     }
-  | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number }
+  /** `adjusted`: the cut was an acknowledged Undo past a reveal, so the game counts for nothing (#909). */
+  | { readonly kind: "rewind"; readonly gameKey: string; readonly to: number; readonly adjusted?: true }
   /** A seat holder's proposal was turned down (issue #881): the room sends it to `to` (a participant id) alone. */
   | {
       readonly kind: "refuse";

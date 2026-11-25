@@ -28,6 +28,9 @@ const won = (scenarioId: string) => ({
 });
 const history: AchievementHistory = { saves: [won("rhino"), won("klaw")], campaigns: [] };
 
+// A family nothing is defined in yet (one a later module fills) has no heading in the list.
+const LISTED_FAMILIES = ACHIEVEMENT_FAMILIES.filter((f) => ACHIEVEMENTS.some((a) => a.family === f.id));
+
 const achievement = (rows: readonly TrophyRow[], id: string) => {
   const row = rows.find((r) => r.kind === "achievement" && r.id === id);
   if (!row || row.kind !== "achievement") throw new Error(`no row ${id}`);
@@ -40,7 +43,7 @@ describe("trophyRowsOf", () => {
   it("lists every achievement once, under its family heading, in the Trophy Room's order", () => {
     expect(rows.filter((r) => r.kind === "achievement")).toHaveLength(ACHIEVEMENTS.length);
     const headings = rows.flatMap((r) => (r.kind === "section" ? [r.id] : []));
-    expect(headings).toEqual(ACHIEVEMENT_FAMILIES.map((f) => f.id));
+    expect(headings).toEqual(LISTED_FAMILIES.map((f) => f.id));
     // Each achievement follows its own family's heading.
     let family = "";
     for (const row of rows) {
@@ -58,10 +61,10 @@ describe("trophyRowsOf", () => {
     const statuses = achievementStatuses(history);
     const folded = trophyRowsOf(statuses, DEFAULT_TROPHY_VIEW);
     expect(folded.every((r) => r.kind === "section" && !r.expanded)).toBe(true);
-    expect(folded).toHaveLength(ACHIEVEMENT_FAMILIES.length);
+    expect(folded).toHaveLength(LISTED_FAMILIES.length);
     const one = trophyRowsOf(statuses, { ...DEFAULT_TROPHY_VIEW, expanded: new Set(["wins"]) });
     const wins = ACHIEVEMENTS.filter((a) => a.family === "wins").length;
-    expect(one).toHaveLength(ACHIEVEMENT_FAMILIES.length + wins);
+    expect(one).toHaveLength(LISTED_FAMILIES.length + wins);
     expect(one[0]).toMatchObject({ kind: "section", id: "wins", expanded: true });
     expect(one.slice(1, 1 + wins).every((r) => r.kind === "achievement")).toBe(true);
   });
@@ -79,7 +82,7 @@ describe("trophyRowsOf", () => {
     };
 
     it("by category keeps the book's order, and reverses it descending", () => {
-      const labels = ACHIEVEMENT_FAMILIES.map((f) => f.label);
+      const labels = LISTED_FAMILIES.map((f) => f.label);
       expect(headings({})).toEqual(labels);
       expect(headings({ descending: true })).toEqual([...labels].reverse());
     });

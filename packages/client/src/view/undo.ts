@@ -284,6 +284,7 @@ export const UNDO_EVENT_VERDICTS: Readonly<Record<GameEvent["type"], readonly [V
   podInboundReceived: [STOPS, "another group's table"],
   podInboundApplied: [STOPS, "another group's table"],
   remoteStandIn: [STOPS, "a power made on another group's card"],
+  remotePowerSettled: [STOPS, "another group's table"],
   podWaitReleased: [STOPS, "a wait for another group's table"],
   sharedStateChanged: [STOPS, "another group's table"],
   startingHandCreditApplied: [STOPS, "setup"],

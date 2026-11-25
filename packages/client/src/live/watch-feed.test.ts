@@ -157,6 +157,21 @@ describe("WatchFeed", () => {
     ]);
   });
 
+  test("reads the adjusted flag on the end and on a rewind, even to the count held (#909)", () => {
+    const feed = new WatchFeed();
+    feed.onMessage(log([1, 2]));
+    expect(feed.onMessage({ v: 1, ch: "game", kind: "rewind", table: T, to: 2 })).toEqual([]);
+    expect(feed.onMessage({ v: 1, ch: "game", kind: "rewind", table: T, to: 2, adjusted: true })).toEqual([
+      { kind: "rewind", to: 2, adjusted: true },
+    ]);
+    expect(feed.onMessage({ v: 1, ch: "game", kind: "rewind", table: T, to: 1, adjusted: true })).toEqual([
+      { kind: "rewind", to: 1, adjusted: true },
+    ]);
+    expect(feed.onMessage({ v: 1, ch: "game", kind: "end", table: T, outcome: 1, adjusted: true })).toEqual([
+      { kind: "end", outcome: 1, adjusted: true },
+    ]);
+  });
+
   test("ignores another table's messages", () => {
     const feed = new WatchFeed();
     expect(feed.onMessage({ ...(log([1]) as object), table: "t2" } as ServerMessage)).toEqual([]);

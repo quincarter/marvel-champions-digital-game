@@ -45,13 +45,13 @@ function fakeCore() {
       calls.push(`append ${commands.length}`);
       return info(length);
     },
-    liveRewind: (to) => {
+    liveRewind: (to, adjusted) => {
       length = to;
-      calls.push(`rewind ${to}`);
+      calls.push(`rewind ${to}${adjusted ? " adjusted" : ""}`);
       return info(length);
     },
-    liveEnd: () => {
-      calls.push("end");
+    liveEnd: (_outcome, adjusted) => {
+      calls.push(adjusted ? "end adjusted" : "end");
       return info(length, { outcome: {} as never });
     },
   };
@@ -122,6 +122,21 @@ describe("LiveWatcher", () => {
     expect(calls).toEqual(["open 2", "append 1", "rewind 1", "end"]);
     expect(events.slice(1).map((e) => (e.type === "info" ? e.change : e.type))).toEqual(["append", "rewind", "end"]);
     expect(events[1]).toMatchObject({ added: 1 });
+    w.dispose();
+  });
+
+  test("hands the host's adjusted flag on a rewind and on the end to the replay (#909)", async () => {
+    const { w, calls, socket } = watcher();
+    const opening = w.open();
+    const s = socket();
+    s.onopen?.({});
+    s.say(welcome);
+    s.say(log([1, 2]));
+    await opening;
+    s.say({ ch: "game", kind: "rewind", table: "t1", to: 2, adjusted: true });
+    s.say({ ch: "game", kind: "end", table: "t1", outcome: { result: "defeat" }, adjusted: true });
+    await flush();
+    expect(calls).toEqual(["open 2", "rewind 2 adjusted", "end adjusted"]);
     w.dispose();
   });
 

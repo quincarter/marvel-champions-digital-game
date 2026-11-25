@@ -6,7 +6,14 @@ import type { ChoiceId, EncounterDeckId, FrameId, GameAreaId, InstanceId, Player
 import type { CardPosition, ChoiceBehalf, PendingChoice, UnavailableOptions } from "./choices.js";
 import type { Adjustment, DelegableCostPart } from "./commands.js";
 import type { GroupId } from "./ids.js";
-import type { PodInboundEvent, PodOutboundEvent, SharedEvent, SharedPodState, SharedResult } from "./pod.js";
+import type {
+  PodInboundEvent,
+  PodOutboundEvent,
+  RemotePower,
+  SharedEvent,
+  SharedPodState,
+  SharedResult,
+} from "./pod.js";
 import type {
   AccusationGuess,
   FacedownRole,
@@ -884,6 +891,16 @@ export type GameEvent =
       readonly unpreventable?: true;
       /** Consequential damage, and for what (`TriggerEvent dealDamage.consequentialFrom`), so a log can say so. */
       readonly consequentialFrom?: "attack" | "thwart";
+      /**
+       * Excess damage (RRG 1.8 "Excess Damage", p. 19; "Overkill", p. 31): the damage `amount` taken beyond the hit
+       * points the target had remaining before it, so present only when this damage brought the target to (or past)
+       * its hit points. It is the same value overkill spills and every "excess damage" ability counts
+       * (`excessDamageOf` in resolve/event.ts): measured on the damage taken, after reductions, caps, tough and
+       * preventions, plus any `excessDamageBonus` (Follow Through), and recorded whether or not the attack has
+       * overkill or the defeat that follows happens. Absent when there is none. Informational only (achievements);
+       * nothing in the engine reads it back.
+       */
+      readonly excess?: number;
     }
   | {
       readonly type: "damagePrevented";
@@ -943,7 +960,16 @@ export type GameEvent =
       readonly withInstanceIds: readonly InstanceId[];
       readonly playerId: PlayerId;
     }
-  | { readonly type: "damageHealed"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  | {
+      readonly type: "damageHealed";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      /**
+       * The card whose ability, cost or basic power healed the damage (`healDamage`'s `sourceInstanceId`), so a log or
+       * an achievement can tell who healed whom. Absent when no card did. Informational only.
+       */
+      readonly sourceInstanceId?: InstanceId;
+    }
   /**
    * A heal of damage the target had healed nothing: a `RuleSpec cannotBeHealed` matched it (docs/phase7-wave6.md
    * §3.12, "Robert Kelly cannot be healed by player card effects"). `sourceInstanceId` is the card whose ability, cost
@@ -2066,6 +2092,20 @@ export type GameEvent =
       readonly ignored?: "attack" | "thwart";
       readonly groupId?: GroupId;
       readonly remoteInstanceId?: InstanceId;
+    }
+  /**
+   * In the attacker's group: how a remote basic power of one of its players ended in the group whose card it was made
+   * against (inbound `remotePowerSettled`, after `remotePowerResolved`). `defeated`: the attack defeated the card (The
+   * Mangog, 55041) or the thwart cleared it (Door Between Worlds, 55046), read as the card having left play once the hit
+   * and what answered it had resolved there. Informational only (achievements): nothing else changes.
+   */
+  | {
+      readonly type: "remotePowerSettled";
+      readonly fromGroupId: GroupId;
+      readonly playerId: PlayerId;
+      readonly power: RemotePower;
+      readonly cardId: CardId;
+      readonly defeated: boolean;
     }
   /**
    * Counters that were to be placed on a card and were not, because the card may hold no more of them (`RuleSpec

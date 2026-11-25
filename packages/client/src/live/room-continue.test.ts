@@ -3,6 +3,7 @@ import type { Command, LegalActions } from "@mc/engine";
 import type { ServerMessage } from "@mc/sync-worker/room-protocol";
 import { FIRST_TABLE } from "@mc/sync-worker/room-protocol";
 import { MemoryGameStorage, isAdjustedSave } from "../engine/game-storage.js";
+import { isRoomGuestSave, isRoomSave, mySeatsOf } from "../engine/room-play.js";
 import type { SessionConfig } from "../engine/host.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -109,6 +110,10 @@ describe("a guest's log as a local saved game", () => {
     const meta = (await storage.list())[0]!;
     expect(isAdjustedSave(meta)).toBe(false);
     expect(await storage.list()).toHaveLength(1);
+    // The room-play readers (#909) see a plain solo game: not a room row, not a guest copy, every seat this device's.
+    expect(isRoomSave(meta)).toBe(false);
+    expect(isRoomGuestSave(meta)).toBe(false);
+    expect(mySeatsOf(meta)).toEqual(["p1", "p2"]);
   });
 
   test("a room played with Cheats on stays adjusted, so the continued game counts for nothing", async () => {
@@ -133,12 +138,54 @@ describe("a guest's log as a local saved game", () => {
     expect(isAdjustedSave(meta)).toBe(true);
   });
 
+  test("a guest that missed the flagged rewind in a reconnect gap latches adjusted from the room's log frame", async () => {
+    const { mirror } = await hostedGame(4);
+    const before = mirror.salvage()!;
+    // The link drops; the host's flagged rewind goes out while the guest is away. The reconnect brings the room's log.
+    mirror.clear(true);
+    mirror.apply({
+      v: 1,
+      ch: "game",
+      kind: "log",
+      table: FIRST_TABLE,
+      header: before.header,
+      commands: before.commands.slice(0, 3),
+      checksums: {},
+      adjusted: true,
+    } as ServerMessage);
+    const salvage = mirror.salvage()!;
+    expect(salvage.adjusted).toBe(true);
+    const save = roomGameSave(salvage, ROOM, deps());
+    expect(save.ok && save.meta.adjusted).toBe(true);
+    // Without the flag on the log (a game played by the rules), nothing is latched.
+    const plain = (await hostedGame(4)).mirror;
+    expect(plain.salvage()!.adjusted).toBeUndefined();
+  });
+
+  test("an ordinary cutting rewind, without the flag, does not mark the game adjusted", async () => {
+    const { mirror } = await hostedGame(4);
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);
+    expect(mirror.salvage()!.commands).toHaveLength(2);
+    expect(mirror.salvage()!.adjusted).toBeUndefined();
+  });
+
+  test("a rewind to the current count carrying the flag still latches, and an adjusted end does too", async () => {
+    const first = (await hostedGame(3)).mirror;
+    first.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 3, adjusted: true } as ServerMessage);
+    expect(first.salvage()!.adjusted).toBe(true);
+    const second = (await hostedGame(3)).mirror;
+    second.apply({ v: 1, ch: "game", kind: "end", table: FIRST_TABLE, outcome: null, adjusted: true } as ServerMessage);
+    // The game is over, so there is nothing to continue from; reopening it keeps the latch.
+    second.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 3 } as ServerMessage);
+    expect(second.salvage()!.adjusted).toBe(true);
+  });
+
   test("a reconnect that brings the same game's log again keeps the latch; a rewind to the same count cuts nothing", async () => {
     const { mirror } = await hostedGame(4);
     const before = mirror.salvage()!;
     mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 4 } as ServerMessage);
     expect(mirror.salvage()!.adjusted).toBeUndefined();
-    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2 } as ServerMessage);
+    mirror.apply({ v: 1, ch: "game", kind: "rewind", table: FIRST_TABLE, to: 2, adjusted: true } as ServerMessage);
     mirror.clear(true);
     mirror.apply({
       v: 1,

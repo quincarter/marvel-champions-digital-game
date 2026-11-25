@@ -25,6 +25,7 @@ import {
   type PodOutboundEvent,
   type PodState,
   type ReachableCard,
+  type RemoteHitSettling,
   type RemotePower,
   type SharedEvent,
   type SharedPodState,
@@ -178,6 +179,8 @@ export function applyInbound(ctx: Ctx, result: SharedResult): void {
 export function settlePod(ctx: Ctx): boolean {
   const pod = ctx.state.pod;
   if (!pod) return false;
+  // First, so the outcome is read as the hit's own resolution left it, before anything queued behind it applies.
+  if (settleRemoteHits(ctx, pod)) return true;
   const [next, ...rest] = pod.pendingResults ?? [];
   if (next !== undefined) {
     const { pendingResults: _taken, ...kept } = pod;
@@ -289,6 +292,17 @@ function applyQueuedInbound(ctx: Ctx, event: PodInboundEvent): void {
       return resolveRemotePowerResult(ctx, event);
     case "overkillExcess":
       return resolveOverkillExcess(ctx, event);
+    case "remotePowerSettled":
+      // How this group's remote power ended where its target is: logged for the game record, nothing else changes.
+      emit(ctx, {
+        type: "remotePowerSettled",
+        fromGroupId: event.fromGroupId,
+        playerId: event.playerId,
+        power: event.power,
+        cardId: event.cardId,
+        defeated: event.defeated,
+      });
+      return;
     case "podReachable":
       return recordPodReachable(ctx, event);
   }
@@ -384,6 +398,18 @@ function resolveRemotePower(ctx: Ctx, event: Extract<PodInboundEvent, { kind: "r
     });
     return;
   }
+  const cardId = cardOf(ctx.state, target)?.id;
+  if (cardId !== undefined) {
+    const settling: RemoteHitSettling = {
+      ref: event.ref,
+      fromGroupId: event.fromGroupId,
+      playerId: event.playerId,
+      targetInstanceId: target,
+      cardId,
+      power: event.power,
+    };
+    setPod(ctx, { ...pod, remoteHitsSettling: [...(pod.remoteHitsSettling ?? []), settling] });
+  }
   const hit: RemoteHit = {
     fromGroupId: event.fromGroupId,
     ref: event.ref,
@@ -432,6 +458,53 @@ export function reportRemoteHit(ctx: Ctx, hit: RemoteHit, target: InstanceId, po
     retaliate: lost ? 0 : hit.retaliate,
     ...(lost ? { lost: true as const } : {}),
   });
+  // Its outcome is told at the next quiet point (`settleRemoteHits`); a hit on a card already gone has none.
+  const now = ctx.state.pod;
+  const settling = now?.remoteHitsSettling;
+  if (!now || !settling?.some((entry) => entry.ref === hit.ref && entry.fromGroupId === hit.fromGroupId)) return;
+  const kept = settling.flatMap((entry) =>
+    entry.ref !== hit.ref || entry.fromGroupId !== hit.fromGroupId
+      ? [entry]
+      : lost
+        ? []
+        : [{ ...entry, hit: true as const }],
+  );
+  setPod(ctx, withSettling(now, kept));
+}
+
+const withSettling = (pod: PodState, settling: readonly RemoteHitSettling[]): PodState => {
+  const { remoteHitsSettling: _old, ...rest } = pod;
+  return settling.length > 0 ? { ...rest, remoteHitsSettling: settling } : rest;
+};
+
+/**
+ * At a quiet point, the accepted remote powers whose hit has applied and resolved (`PodState.remoteHitsSettling`) are
+ * reported back to their groups as `remotePowerSettled`: `defeated` when the card has left play since (engine reading:
+ * nothing but the hit and what answered it resolved in between, so leaving play is the attack's defeat of The Mangog
+ * or the thwart's clearing of Door Between Worlds; a card kept in play at no threat or no hit points is not). One whose
+ * hit never applied is dropped. Not after the game has ended here: nothing more is sent. True when anything changed.
+ */
+function settleRemoteHits(ctx: Ctx, pod: PodState): boolean {
+  const settling = pod.remoteHitsSettling;
+  if (!settling || settling.length === 0) return false;
+  setPod(ctx, withSettling(pod, []));
+  if (ctx.state.outcome) return true;
+  const inPlay = cardsInPlay(ctx.state);
+  for (const entry of settling) {
+    if (!entry.hit) continue;
+    emitPodEvent(ctx, {
+      type: "remotePowerSettled",
+      groupId: pod.groupId,
+      toGroupId: entry.fromGroupId,
+      ref: entry.ref,
+      playerId: entry.playerId,
+      targetInstanceId: entry.targetInstanceId,
+      cardId: entry.cardId,
+      power: entry.power,
+      defeated: !inPlay.includes(entry.targetInstanceId),
+    });
+  }
+  return true;
 }
 
 /**

@@ -159,16 +159,16 @@ export class ReplayCore {
   }
 
   /** The host cut its log to the first `to` commands. */
-  liveRewind(to: number): ReplayInfo {
+  liveRewind(to: number, adjusted = false): ReplayInfo {
     const session = this.#require();
-    session.liveRewind(to);
+    session.liveRewind(to, adjusted);
     return session.info;
   }
 
   /** The game ended. */
-  liveEnd(outcome: GameOutcome | null): ReplayInfo {
+  liveEnd(outcome: GameOutcome | null, adjusted = false): ReplayInfo {
     const session = this.#require();
-    session.liveEnd(outcome);
+    session.liveEnd(outcome, adjusted);
     return session.info;
   }
 

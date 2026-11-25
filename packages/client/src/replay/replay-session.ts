@@ -248,7 +248,7 @@ export class ReplaySession {
   }
 
   /** The host cut its log to the first `to` commands (an Undo or Back out). */
-  liveRewind(to: number): void {
+  liveRewind(to: number, adjusted = false): void {
     const live = this.#requireLive();
     const target = Math.max(0, Math.min(Math.floor(to), this.#cursor.length));
     this.#cursor.truncate(target);
@@ -260,14 +260,14 @@ export class ReplaySession {
     const { state } = this.#cursor.at(target);
     live.written.truncateTo(target, state);
     live.round = state.round;
-    this.#info = { ...this.#info, outcome: null };
+    this.#info = { ...this.#info, outcome: null, ...(adjusted ? { adjusted: true } : {}) };
     this.#refresh(target);
   }
 
   /** The game ended: from here the replay is an ordinary one. */
-  liveEnd(outcome: GameOutcome | null): void {
+  liveEnd(outcome: GameOutcome | null, adjusted = false): void {
     this.#requireLive();
-    this.#info = { ...this.#info, outcome };
+    this.#info = { ...this.#info, outcome, ...(adjusted ? { adjusted: true } : {}) };
   }
 
   #requireLive(): LiveTracking {

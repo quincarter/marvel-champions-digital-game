@@ -23,6 +23,7 @@ import type {
   SessionConfig,
   UpdateListener,
 } from "./host.js";
+import type { RoomPlayRecord } from "./room-play.js";
 import { EngineSessionCore, type Snapshot } from "./session-core.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -90,6 +91,10 @@ export class LocalEngineHost implements EngineHost {
 
   retireSave(gameId: string): Promise<void> {
     return this.#core.retireSave(gameId);
+  }
+
+  recordRoomPlay(gameId: string, roomPlay: RoomPlayRecord): Promise<void> {
+    return this.#core.recordRoomPlay(gameId, roomPlay);
   }
 
   listSaves(): Promise<readonly SaveMeta[]> {

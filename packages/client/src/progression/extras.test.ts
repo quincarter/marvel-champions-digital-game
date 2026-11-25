@@ -329,3 +329,27 @@ describe("promo cards (#192)", () => {
     expect(new Extras(NO_EXTRAS_PROGRESS, { everything: true }).countOf(entries).open).toBe(entries.length);
   });
 });
+
+describe("extrasProgressOf: room games (#909)", () => {
+  const seats = [{ identityCardId: "01001a" }, { identityCardId: "01010a" }];
+  const roomPlay = (mySeats: string[], cheats = false) => ({ role: "host", gameKey: "r:1", mySeats, cheats });
+  it("a room row counts only the heroes of the seats this device held", () => {
+    const progress = extrasProgressOf([{ ...save("won", "rhino", seats), roomPlay: roomPlay(["p2"]) }], []);
+    expect(progress.playedHeroIds).toEqual(["01010a"]);
+    expect(progress.heroWins).toEqual({ "01010a": 1 });
+  });
+  it("a host with no seat and Cheats on earn no hero; a row without roomPlay counts every seat", () => {
+    const none = extrasProgressOf([{ ...save("won", "rhino", seats), roomPlay: roomPlay([]) }], []);
+    expect(none.playedHeroIds).toEqual([]);
+    const cheats = extrasProgressOf([{ ...save("won", "rhino", seats), roomPlay: roomPlay(["p1", "p2"], true) }], []);
+    expect(cheats.playedHeroIds).toEqual([]);
+    expect(extrasProgressOf([save("won", "rhino", seats)], []).playedHeroIds).toEqual(["01001a", "01010a"]);
+  });
+  it("one game held as a host row and a guest row counts once, with both seats credited", () => {
+    const host = { ...save("won", "rhino", seats), roomPlay: roomPlay(["p1"]) };
+    const guest = { ...save("won", "rhino", seats), roomPlay: { ...roomPlay(["p2"]), role: "guest" } };
+    const progress = extrasProgressOf([host, guest], []);
+    expect(progress.playedHeroIds).toEqual(["01001a", "01010a"]);
+    expect(progress.heroWins).toEqual({ "01001a": 1, "01010a": 1 });
+  });
+});

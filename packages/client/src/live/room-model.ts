@@ -558,6 +558,8 @@ export class RoomModel {
       settings: lobby?.settings ?? null,
       rev: lobby?.rev ?? 0,
       seats,
+      tableId: this.#view,
+      gid: this.#table?.gid ?? null,
       mySeats: seats.filter((s) => s.mine).map((s) => s.id),
       chat: this.#chat,
       chatLive: this.#chatLive,

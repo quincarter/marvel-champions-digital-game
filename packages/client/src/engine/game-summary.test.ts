@@ -245,6 +245,22 @@ describe("summarizeGame: what the stats screen reads", () => {
   }, 120_000);
 });
 
+describe("summarizeGame: version 7 counters (#909)", () => {
+  test("a real game's summary carries the multiplayer counter groups, each folded from the record", async () => {
+    const { state, record } = await passiveLoss();
+    const summary = summarizeGame(state, record)!;
+    expect(summary.version).toBe(7);
+    expect(record.together).toBeDefined();
+    expect(summary.together).toBeDefined();
+    expect(summary.feats).toBeDefined();
+    expect(summary.boosts).toBeDefined();
+    expect(summary.endState).toBeDefined();
+    // A record folded before the counters existed still summarizes.
+    const { together: _t, feats: _f, boosts: _b, actor: _a, ...older } = record;
+    expect(summarizeGame(state, older)!.together).toEqual(summary.together);
+  }, 120_000);
+});
+
 describe("summarizeGame: version 2 numbers (#529)", () => {
   test("a real game's summary carries draws, the encounter cards revealed and what hurt the hero", async () => {
     const { state, record } = await passiveLoss();

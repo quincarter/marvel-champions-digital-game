@@ -91,6 +91,7 @@ const SILENT: ReadonlySet<string> = new Set([
   "podInboundApplied",
   "podWaitReleased",
   "remoteStandIn",
+  "remotePowerSettled",
   "stepChanged",
   "targetChosen",
   // Setup's record of the two competitive teams; the board shows the two sides.

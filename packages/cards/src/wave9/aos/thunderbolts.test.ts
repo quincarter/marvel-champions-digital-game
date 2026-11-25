@@ -676,7 +676,7 @@ describe("Thunderbolt Backup (50131b): when the round ends, the most damaged Thu
     expect(inst(after, m1)).toMatchObject({ engagedWith: P1 });
     expect(damageOf(after, m1)).toBe(0);
     expect(types(events, "damageHealed").filter((h) => h.targetInstanceId === m2)).toEqual([
-      { type: "damageHealed", targetInstanceId: m2, amount: 2 },
+      { type: "damageHealed", targetInstanceId: m2, amount: 2, sourceInstanceId: expect.any(String) },
     ]);
   });
 

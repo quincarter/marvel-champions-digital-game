@@ -41,6 +41,8 @@ const once = (values: readonly string[]): string[] => [...new Set(values)];
 
 export function globalResultOf(meta: SaveMeta, names: StatsNames, id: string): GlobalResult | null {
   if (meta.guided || meta.adjusted || (meta.status !== "won" && meta.status !== "lost")) return null;
+  // A guest's copy of a room game is never sent, so a game counts once (the host's row); Cheats on counts for nothing (#909).
+  if (meta.roomPlay?.role === "guest" || meta.roomPlay?.cheats) return null;
   // A Skirmish game is shorter than the difficulty it would be counted under, so it stays out of the global numbers.
   if (meta.config.modes?.skirmish) return null;
   // A competitive game counts as played only, never a win or a loss (the owner, 2026-11-20; issue #883).

@@ -17,8 +17,8 @@ import { WatchFeed, type WatchAction } from "./watch-feed.js";
 export interface LiveWatchCore {
   open(source: ReplayOpenSource): Promise<ReplayOpened>;
   liveAppend(commands: readonly Command[], checksums?: Readonly<Record<string, string>>): ReplayInfo;
-  liveRewind(to: number): ReplayInfo;
-  liveEnd(outcome: GameOutcome | null): ReplayInfo;
+  liveRewind(to: number, adjusted?: boolean): ReplayInfo;
+  liveEnd(outcome: GameOutcome | null, adjusted?: boolean): ReplayInfo;
 }
 
 /**
@@ -188,12 +188,12 @@ export class LiveWatcher {
       }
       case "rewind":
         if (!this.#info) return;
-        this.#info = core.liveRewind(action.to);
+        this.#info = core.liveRewind(action.to, action.adjusted === true);
         emit({ type: "info", info: this.#info, change: "rewind", added: 0 });
         return;
       case "end":
         if (!this.#info) return;
-        this.#info = core.liveEnd((action.outcome ?? null) as GameOutcome | null);
+        this.#info = core.liveEnd((action.outcome ?? null) as GameOutcome | null, action.adjusted === true);
         emit({ type: "info", info: this.#info, change: "end", added: 0 });
         return;
       case "resync":

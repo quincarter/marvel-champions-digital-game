@@ -52,6 +52,7 @@ import { SAGA_VOLUMES } from "../campaign/story.js";
 import { cardDisplayName } from "../view/hero-names.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
 import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
+import { mergeRoomGames } from "./room-seats.js";
 import { customEarned, customHeroMode, customLockText, customScenarioMode } from "./custom-unlock.js";
 
 /** What a win is worth, and what opening something by hand costs. */
@@ -67,7 +68,18 @@ export const POINTS = {
   unlockCampaign: 300,
   /** One scenario, on its own: the same as the first win it stands in for. */
   unlockScenario: 100,
+  /**
+   * First win with friends (#909, the owner's provisional choice A): once per table size, for the first room win at
+   * that many seats, won while holding a seat. Keyed by the number of seats in the game.
+   */
+  friendsWin: { 2: 50, 3: 100, 4: 150 },
 } as const;
+
+/** Every point the friends bonus can ever pay: one first win at each table size. For `MAX_LIFETIME_POINTS`. */
+export const MAX_FRIENDS_WIN_POINTS: number = Object.values(POINTS.friendsWin).reduce((a, b) => a + b, 0);
+
+const friendsWinPoints = (tableSize: number): number =>
+  (POINTS.friendsWin as Readonly<Record<number, number>>)[tableSize] ?? 0;
 
 export type UnlockGate =
   /** Beat any of `scenarioIds`; the gate reads "Beat" plus the first one's villain. */
@@ -266,6 +278,11 @@ export interface UnlockProgress {
   readonly wonExpertScenarioIds: readonly string[];
   readonly wonCampaignIds: readonly string[];
   readonly wonExpertCampaignIds: readonly string[];
+  /**
+   * Table sizes (seats in the game) at which this device has won a room game while holding a seat: each pays the
+   * friends bonus once. Absent is none.
+   */
+  readonly friendsWinTables?: readonly number[];
 }
 
 /** Whether the unlock path has a row for this cycle. A box with none yet (its wave is still being built) has no page. */
@@ -331,6 +348,16 @@ const scenarioKey = (scenarioId: string): string => `scenario:${scenarioId}`;
 const isExpert = (difficulty: string | undefined): boolean => difficulty === "expert" || difficulty === "extreme";
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();
 
+/** The part of `SaveMeta.roomPlay` progress reads. */
+interface RoomPlayFacts {
+  readonly role: string;
+  readonly gameKey: string;
+  readonly mode: string;
+  readonly mySeats: readonly string[];
+  readonly friends?: readonly string[];
+  readonly cheats: boolean;
+}
+
 /**
  * Progress from the two storage listings. Only a `won` row counts: a loss, a concession or an abandoned run is
  * not a clear.
@@ -344,7 +371,10 @@ export function progressOf(
       readonly difficulty?: string;
       readonly modes?: { readonly skirmish?: unknown };
       readonly packs?: readonly unknown[];
+      readonly players?: readonly unknown[];
     };
+    /** Set on a room game (#909). Absent: a game played alone, counted as before. */
+    readonly roomPlay?: RoomPlayFacts;
   }[],
   campaigns: readonly {
     readonly status: string;
@@ -356,10 +386,30 @@ export function progressOf(
     readonly modes?: { readonly campaign?: { readonly expertCampaign?: boolean } };
   }[],
 ): UnlockProgress {
-  const wonSaves = saves.filter(
+  const wonSaves = mergeRoomGames(saves).filter((s) => {
     // A competitive win unlocks nothing: it is a game played, not a scenario won (issue #883).
-    (s) => s.status === "won" && !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s),
-  );
+    if (s.status !== "won" || isLessonSave(s) || isCustomSave(s) || isAdjustedSave(s) || isCompetitiveSave(s)) {
+      return false;
+    }
+    const room = s.roomPlay;
+    if (!room) return true;
+    // A room game counts only for a device that held a seat, and never with Cheats on (#909). A game seen as both a
+    // host row and a guest row on one synced account counts once, by its game key.
+    if (room.cheats || room.mySeats.length === 0 || room.mode === "competitive") return false;
+    return true;
+  });
+  const friendsWinTables = [
+    ...new Set(
+      wonSaves.flatMap((s) =>
+        s.roomPlay &&
+        (s.roomPlay.friends?.length ?? 0) > 0 &&
+        s.config.players &&
+        friendsWinPoints(s.config.players.length) > 0
+          ? [s.config.players.length]
+          : [],
+      ),
+    ),
+  ].sort((a, b) => a - b);
   const wonCampaigns = campaigns.filter((c) => c.status === "won" && c.pack === undefined && !isAdjustedCampaign(c));
   return {
     wonScenarioIds: unique(wonSaves.map((s) => s.config.scenarioId)),
@@ -373,12 +423,13 @@ export function progressOf(
     wonExpertCampaignIds: unique(
       wonCampaigns.filter((c) => c.modes?.campaign?.expertCampaign === true).map((c) => c.campaignId),
     ),
+    ...(friendsWinTables.length > 0 ? { friendsWinTables } : {}),
   };
 }
 
 export function sameProgress(a: UnlockProgress, b: UnlockProgress): boolean {
   const key = (p: UnlockProgress): string =>
-    [p.wonScenarioIds, p.wonExpertScenarioIds, p.wonCampaignIds, p.wonExpertCampaignIds]
+    [p.wonScenarioIds, p.wonExpertScenarioIds, p.wonCampaignIds, p.wonExpertCampaignIds, p.friendsWinTables ?? []]
       .map((l) => l.join(","))
       .join("|");
   return key(a) === key(b);
@@ -443,8 +494,8 @@ export interface UnlockHero {
 
 /** Every hero in the pool, once each (Captain Marvel has two precons), in pool order. */
 export const UNLOCK_HEROES: readonly UnlockHero[] = (() => {
-  const seen = new Set<string>();
   const heroes: UnlockHero[] = [];
+  const seen = new Set<string>();
   for (const deck of POOL_STARTER_DECKS) {
     const id = deck.identityCardId as string;
     if (seen.has(id)) continue;
@@ -721,6 +772,7 @@ export class Unlocks {
       p.wonExpertScenarioIds.length * POINTS.firstExpertWin +
       p.wonCampaignIds.length * POINTS.campaign +
       p.wonExpertCampaignIds.length * POINTS.expertCampaign +
+      (p.friendsWinTables ?? []).reduce((sum, size) => sum + friendsWinPoints(size), 0) +
       this.achievementPoints;
     const spent = this.prefs.charges.reduce((sum, charge) => sum + charge.points, 0);
     return { earned, spent, total: earned - spent };
@@ -739,6 +791,10 @@ export class Unlocks {
       ...p.wonExpertCampaignIds.map((id) => ({
         label: `Expert Campaign: ${campaignNameOf(id)}`,
         points: POINTS.expertCampaign,
+      })),
+      ...(p.friendsWinTables ?? []).map((size) => ({
+        label: `First win with friends: ${size} players`,
+        points: friendsWinPoints(size),
       })),
       ...(this.achievementPoints > 0 ? [{ label: "Achievements", points: this.achievementPoints }] : []),
     ];

@@ -77,6 +77,18 @@ export function progressionGuideOf(): readonly GuideSection[] {
       ],
     },
     {
+      heading: "Playing with friends",
+      paragraphs: [
+        "A game in a room counts for you only if you held a seat in it. A host who only watched, a game with Cheats " +
+          "on and an adjusted game earn nothing. A guest's game counts toward their own hero like a game played " +
+          "alone, and a Civil War Competitive game is played only, so it earns no firsts.",
+      ],
+      bullets: [
+        `First win with friends: ${POINTS.friendsWin[2]} for your first room win at a table of 2 seats, ` +
+          `${POINTS.friendsWin[3]} at 3 and ${POINTS.friendsWin[4]} at 4. Each table size pays once.`,
+      ],
+    },
+    {
       heading: "Unlocking by hand",
       paragraphs: [
         "Don't want to play through? Unlock something right where you find it locked: a precon in Seats, a " +

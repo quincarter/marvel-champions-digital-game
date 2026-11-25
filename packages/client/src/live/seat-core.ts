@@ -16,7 +16,7 @@ import type { Command, EngineDeps, GameEvent, GameState, LegalActions, PlayerId 
 import { poolViewOfPacks } from "../content/pool.js";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "../engine/game-record.js";
-import type { CardPool, LegalActionsFor } from "../engine/host.js";
+import type { CardPool, LegalActionsFor, StateWithoutPool } from "../engine/host.js";
 import {
   inVillainPhase,
   rebuildBaseline,
@@ -190,6 +190,17 @@ export class SeatCore {
    */
   stampAt(base: number): string {
     return this.#state && base === this.#commands.length ? replayChecksum(this.#state) : "";
+  }
+
+  /** What a finished copy of this game needs (#909): the config as this seat knows it, the baseline without its pool, the log. */
+  finishedInput(): {
+    readonly config: NonNullable<Snapshot["config"]>;
+    readonly initialState: StateWithoutPool;
+    readonly commands: readonly Command[];
+  } | null {
+    if (!this.#config || !this.#initial) return null;
+    const { cardPool: _cardPool, ...initialState } = this.#initial;
+    return { config: this.#config, initialState, commands: [...this.#commands] };
   }
 
   get length(): number {

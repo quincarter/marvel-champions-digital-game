@@ -9,6 +9,7 @@
 
 import type { Command, EngineError, EngineErrorCode, IllegalDeck, LegalActions, PlayerId } from "@mc/engine";
 import type { SaveMeta } from "./game-storage.js";
+import type { RoomPlayRecord } from "./room-play.js";
 import type { CardPool, RewindOptions, SessionConfig, StateWithoutPool } from "./host.js";
 import type { Snapshot } from "./session-core.js";
 import type { PaymentState } from "../view/payment-model.js";
@@ -31,6 +32,7 @@ export type HostRequest =
   | { readonly kind: "activeSaves"; readonly id: number }
   | { readonly kind: "retireSave"; readonly id: number; readonly gameId: string }
   | { readonly kind: "listSaves"; readonly id: number }
+  | { readonly kind: "recordRoomPlay"; readonly id: number; readonly gameId: string; readonly roomPlay: RoomPlayRecord }
   | { readonly kind: "backfillSummaries"; readonly id: number; readonly ids?: readonly string[] }
   /** Fire and forget: the port the worker posts the Discord presence summary to (no reply). */
   | { readonly kind: "presencePort"; readonly id: 0; readonly port: MessagePort }
@@ -59,6 +61,7 @@ export type HostResponse =
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
   | { readonly kind: "activeSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
   | { readonly kind: "retired"; readonly id: number }
+  | { readonly kind: "roomPlayRecorded"; readonly id: number }
   | { readonly kind: "listSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
   | { readonly kind: "backfilled"; readonly id: number; readonly written: number }
   /**

@@ -24,6 +24,10 @@ import { HERO_QUOTES } from "./hero-quotes.js";
 import { isAdjustedCampaign } from "../engine/campaign-storage.js";
 import { isAdjustedSave, isCompetitiveSave, isCustomSave, isLessonSave } from "../engine/game-storage.js";
 import type { GameSummary } from "../engine/game-summary.js";
+import type { RoomPlayRecord } from "../engine/room-play.js";
+import { EPIC_COMPETITIVE_ACHIEVEMENTS } from "./achievements-epic-competitive.js";
+import { FEATS_ACHIEVEMENTS } from "./achievements-feats.js";
+import { TOGETHER_ACHIEVEMENTS } from "./achievements-together.js";
 import { identityOfSeat } from "./extras.js";
 import {
   MOD_ACHIEVEMENT_ROWS,
@@ -32,9 +36,18 @@ import {
   type ModFacts,
   type PackAchievementSource,
 } from "./mod-achievements.js";
+import {
+  countsForAchievements,
+  mergeRoomGames,
+  mySeatIndexesOf,
+  multiplayerFactsOf,
+  type MultiplayerDef,
+  type MultiplayerFacts,
+} from "./room-seats.js";
 import { TEAM_UP_TROPHIES, teamUpPairLabel, teamUpTrophyId } from "./team-up-trophies.js";
 import {
   DEFAULT_UNLOCK_PREFS,
+  MAX_FRIENDS_WIN_POINTS,
   POINTS,
   UNLOCK_CAMPAIGNS,
   UNLOCK_HEROES,
@@ -54,6 +67,10 @@ export type AchievementFamily =
   | "heroes"
   | "expert"
   | "feats"
+  | "together"
+  | "epic"
+  | "competitive"
+  | "hosting"
   | "decks"
   | "funny"
   | "teamups"
@@ -69,6 +86,11 @@ export const ACHIEVEMENT_FAMILIES: readonly { readonly id: AchievementFamily; re
   { id: "heroes", label: "Heroes" },
   { id: "expert", label: "Expert and Heroic" },
   { id: "feats", label: "Feats" },
+  // Multiplayer (#909): after the solo feats, before deck building.
+  { id: "together", label: "Playing together" },
+  { id: "epic", label: "Epic Multiplayer" },
+  { id: "competitive", label: "Civil War Competitive" },
+  { id: "hosting", label: "Watching and hosting" },
   { id: "decks", label: "Deck building" },
   { id: "teamups", label: "Team-up stories" },
   { id: "funny", label: "The funny ones" },
@@ -83,6 +105,10 @@ export interface AchievementSave {
   readonly round?: number;
   /** What the game's end recorded (`SaveMeta.summary`); absent on a save from before it existed. */
   readonly summary?: GameSummary | null;
+  /** Set once an adjusted game was played (`SaveMeta.adjusted`, #791). */
+  readonly adjusted?: true;
+  /** How this device played a room game (`SaveMeta.roomPlay`, #909); absent on a game played alone. */
+  readonly roomPlay?: RoomPlayRecord;
   readonly config: {
     readonly scenarioId: string;
     readonly difficulty?: string;
@@ -112,6 +138,8 @@ export interface AchievementHistory {
   readonly howToPlay?: { readonly done: number; readonly total: number };
   /** True once Settings ▸ Unlocks' "Unlock everything" has ever been turned on (`progression.ts`). */
   readonly unlockedEverything?: boolean;
+  /** How many live games this device watched to the end (`platform/watch-history.ts`). */
+  readonly watched?: number;
   /** The deck building feats noted so far (`deck-feats.ts`), with a built deck in your decks counting as built. */
   readonly decks?: DeckFeats;
   /**
@@ -170,6 +198,8 @@ interface Facts {
   readonly teamUpsPlayed: number;
   /** The mod facts (`mod-achievements.ts`): read from custom-content games too, and only by the Mods family. */
   readonly mods: ModFacts;
+  /** What the multiplayer modules read: per-game rows that count, competitive rows, hosted rows, watched games. */
+  readonly multiplayer: MultiplayerFacts;
 }
 
 /** `{ current, target }`, or null when the history can't answer yet. */
@@ -219,13 +249,29 @@ const FINALES: ReadonlyMap<string, string> = new Map(
 
 export function factsOf(history: AchievementHistory): Facts {
   // A competitive game is played only: it earns no achievement and no champion points (the owner, 2026-11-20; #883).
-  const real = history.saves.filter(
-    (s) => !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s),
+  // A room row also needs a seat of this device in it and Cheats off (`countsForAchievements`).
+  const savesOnce = mergeRoomGames(history.saves);
+  const real = savesOnce.filter(
+    (s) =>
+      !isLessonSave(s) && !isCustomSave(s) && !isAdjustedSave(s) && !isCompetitiveSave(s) && countsForAchievements(s),
   );
   const wonSaves = real.filter((s) => s.status === "won");
   const lostSaves = real.filter((s) => s.status === "lost");
+  // A room row credits only the seats this device held; a game played alone keeps every seat (`room-seats.ts`).
+  const mySeats = (s: AchievementSave): readonly object[] =>
+    s.roomPlay === undefined ? s.config.players : mySeatIndexesOf(s).map((i) => s.config.players[i]!);
   const heroesOf = (s: AchievementSave): string[] =>
-    s.config.players.map(identityOfSeat).filter((id): id is string => id !== null);
+    mySeats(s)
+      .map(identityOfSeat)
+      .filter((id): id is string => id !== null);
+  const myWinners = (s: AchievementSave) => {
+    const mine = new Set(heroesOf(s));
+    return (s.summary?.winners ?? []).filter((w) => s.roomPlay === undefined || mine.has(w.identityCardId));
+  };
+  const defeatedOf = (s: AchievementSave): number =>
+    s.roomPlay !== undefined && s.summary?.seats
+      ? mySeatIndexesOf(s).filter((i) => s.summary?.seats?.[i]?.defeated === true).length
+      : (s.summary?.heroesDefeated ?? 0);
   const campaigns = history.campaigns.filter(
     (c) => c.status === "won" && c.pack === undefined && !isAdjustedCampaign(c),
   );
@@ -235,7 +281,7 @@ export function factsOf(history: AchievementHistory): Facts {
     wonScenarios: new Set(wonSaves.map((s) => s.config.scenarioId)),
     expertWonScenarios: new Set(wonSaves.filter(isExpert).map((s) => s.config.scenarioId)),
     wonHeroes: new Set(wonSaves.flatMap(heroesOf)),
-    wonAspects: new Set(wonSaves.flatMap((s) => s.config.players.flatMap(seatAspects))),
+    wonAspects: new Set(wonSaves.flatMap((s) => mySeats(s).flatMap(seatAspects))),
     wonCampaigns: new Set(campaigns.map((c) => c.campaignId)),
     expertWonCampaigns: new Set(
       campaigns.filter((c) => c.modes?.campaign?.expertCampaign === true).map((c) => c.campaignId),
@@ -250,17 +296,23 @@ export function factsOf(history: AchievementHistory): Facts {
     round1Losses: lostSaves.filter((s) => s.round === 1).length,
     wonTables: wonSaves.map((s) => new Set(heroesOf(s))),
     wonMatchups: new Set(wonSaves.flatMap((s) => heroesOf(s).map((hero) => `${s.config.scenarioId}|${hero}`))),
-    heroesDefeated: real.reduce((sum, s) => sum + (s.summary?.heroesDefeated ?? 0), 0),
+    heroesDefeated: real.reduce((sum, s) => sum + defeatedOf(s), 0),
     schemeLosses: lostSaves.filter((s) => s.summary?.lossReason === "schemeCompleted").length,
     oneHitPointWinners: new Set(
       wonSaves.flatMap((s) =>
-        (s.summary?.winners ?? []).filter((w) => w.hitPoints === 1 && w.inHeroForm).map((w) => w.identityCardId),
+        myWinners(s)
+          .filter((w) => w.hitPoints === 1 && w.inHeroForm)
+          .map((w) => w.identityCardId),
       ),
     ),
     noAllyWins: wonSaves.filter((s) => s.summary != null && s.summary.alliesPlayed === 0).length,
     howToPlay: history.howToPlay ?? null,
     finalBlows: new Set(
-      wonSaves.flatMap((s) => (s.summary?.finalBlowBy ? [`${s.config.scenarioId}|${s.summary.finalBlowBy}`] : [])),
+      wonSaves.flatMap((s) =>
+        s.summary?.finalBlowBy && (s.roomPlay === undefined || heroesOf(s).includes(s.summary.finalBlowBy))
+          ? [`${s.config.scenarioId}|${s.summary.finalBlowBy}`]
+          : [],
+      ),
     ),
     playedHeroes: new Set([...wonSaves, ...lostSaves].flatMap(heroesOf)),
     unlockedEverything: history.unlockedEverything === true,
@@ -268,6 +320,7 @@ export function factsOf(history: AchievementHistory): Facts {
     seatCountsPlayed: new Set([...wonSaves, ...lostSaves].map((s) => s.config.players.length)),
     teamUpsPlayed: real.reduce((sum, s) => sum + (s.summary?.teamUpsPlayed ?? 0), 0),
     mods: modFactsOf(history),
+    multiplayer: multiplayerFactsOf(savesOnce, (s) => isLessonSave(s) || isCustomSave(s), history.watched ?? 0),
   };
 }
 
@@ -362,6 +415,11 @@ const ARCH_ENEMIES: readonly (Matchup & { readonly hero: string; readonly foe: s
 const hulk = heroIdNamed("Hulk") ?? "10001a";
 const thor = heroIdNamed("Thor");
 const sheHulk = heroIdNamed("She-Hulk");
+
+/** A multiplayer module's definition as an `AchievementDef`, its `measure` reading `Facts.multiplayer`. */
+function multiplayerAchievement({ measure, ...fields }: MultiplayerDef): AchievementDef {
+  return def({ ...fields, measure: (f) => measure(f.multiplayer) });
+}
 
 export const ACHIEVEMENTS: readonly AchievementDef[] = [
   // Battles won
@@ -830,6 +888,9 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     measure: (f) => count(f.oneHitPointWinners.has(hulk) ? 1 : 0, 1),
   }),
 
+  // Multiplayer (#909): each module defines its own list over `Facts.multiplayer`.
+  ...[...TOGETHER_ACHIEVEMENTS, ...EPIC_COMPETITIVE_ACHIEVEMENTS, ...FEATS_ACHIEVEMENTS].map(multiplayerAchievement),
+
   // Mods (§11.12): 0 points each, by owner decision (2026-11-13), so mods never move a rank.
   ...MOD_ACHIEVEMENT_ROWS.map((row) =>
     def({
@@ -923,11 +984,22 @@ export function lifetimePointsOf(history: AchievementHistory): number {
   return basePointsOf(history) + achievementPointsOf(history);
 }
 
+/** Points the multiplayer work (#909) added to what can be earned: its three achievement modules and the friends bonus. */
+export const MULTIPLAYER_POINTS: number =
+  [...TOGETHER_ACHIEVEMENTS, ...EPIC_COMPETITIVE_ACHIEVEMENTS, ...FEATS_ACHIEVEMENTS].reduce(
+    (sum, a) => sum + (a.points ?? 0),
+    0,
+  ) + MAX_FRIENDS_WIN_POINTS;
+
 /** Every point there is to earn: every first win and Expert win, every campaign, every achievement. */
 export const MAX_LIFETIME_POINTS: number =
   POOL_SCENARIOS.length * (POINTS.firstWin + POINTS.firstExpertWin) +
   UNLOCK_CAMPAIGNS.length * (POINTS.campaign + POINTS.expertCampaign) +
-  ACHIEVEMENTS.reduce((sum, a) => sum + a.points, 0);
+  ACHIEVEMENTS.reduce((sum, a) => sum + a.points, 0) +
+  MAX_FRIENDS_WIN_POINTS;
+
+/** Everything there was to earn before the multiplayer points; the base the middle ranks are still measured from. */
+export const LEGACY_MAX_LIFETIME_POINTS: number = MAX_LIFETIME_POINTS - MULTIPLAYER_POINTS;
 
 export interface Rank {
   readonly rank: number;
@@ -939,6 +1011,9 @@ export interface Rank {
 /**
  * Titles are placeholders (docs/achievements.md). Thresholds are fractions of `MAX_LIFETIME_POINTS` so the last rank
  * needs everything; rank 2 is one first win, so a new player ranks up in the first session.
+ *
+ * #909: ranks 3 to 8 are fractions of `LEGACY_MAX_LIFETIME_POINTS`, not of the new max, so the multiplayer achievements
+ * (and the friends bonus) never raise a threshold and nobody drops a rank. Only the last rank grows: it needs it all.
  */
 const RANK_TITLES = [
   "Sidekick in Training",
@@ -964,7 +1039,7 @@ export const RANKS: readonly Rank[] = RANK_TITLES.map((title, i) => ({
         ? POINTS.firstWin
         : i === 8
           ? MAX_LIFETIME_POINTS
-          : roundTo50(MAX_LIFETIME_POINTS * RANK_FRACTIONS[i]!),
+          : roundTo50(LEGACY_MAX_LIFETIME_POINTS * RANK_FRACTIONS[i]!),
 }));
 
 /** The highest rank `lifetimePoints` reaches. */

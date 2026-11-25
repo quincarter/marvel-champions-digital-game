@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Game events: a heal names the card that healed, a lethal hit records its excess damage, and Epic Multiplayer records which table defeated Loki and whether a cross-table attack or thwart defeated its target (#909)'
+time: 2026-11-21T16:01:48.5580013-05:00

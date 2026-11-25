@@ -17,7 +17,7 @@ import type { CorePlayer } from "@mc/cards";
 import { isCompetitiveSave, type SaveMeta } from "../engine/game-storage.js";
 import { isPastGame } from "./past-games-model.js";
 import type { GameSummary, SeatSummary } from "../engine/game-summary.js";
-import { deckKeyOfPlayer, villainNameOf } from "./deck-insights.js";
+import { dedupeRoomGames, deckKeyOfPlayer, isMySeatIndex, isRoomCheatSave, villainNameOf } from "./deck-insights.js";
 import { byDesigner, matchupsOf, winTierOf, type MatchupAxes, type Matchups, type WinTier } from "./matchup-grid.js";
 
 export interface StatsNames {
@@ -333,7 +333,7 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
   const detailed = meta.summary?.seats;
   if (detailed) {
     return detailed.flatMap((seat, index): SeatFacts[] =>
-      seat.satOut
+      seat.satOut || !isMySeatIndex(meta, index)
         ? []
         : [
             {
@@ -345,7 +345,8 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
           ],
     );
   }
-  return meta.config.players.flatMap((player: CorePlayer): SeatFacts[] => {
+  return meta.config.players.flatMap((player: CorePlayer, index): SeatFacts[] => {
+    if (!isMySeatIndex(meta, index)) return [];
     if ("starterDeckId" in player) {
       const starter = (names.forSave?.(meta) ?? names).starterDeck(player.starterDeckId);
       return starter
@@ -371,12 +372,15 @@ function seatsOf(meta: SaveMeta, names: StatsNames): SeatFacts[] {
 }
 
 function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
-  if (meta.guided || meta.adjusted) return null;
+  if (meta.guided || meta.adjusted || isRoomCheatSave(meta)) return null;
   // A competitive game counts as played only: no win or loss, no hero win rate (the owner, 2026-11-20; issue #883).
   if (isCompetitiveSave(meta)) return null;
   if (meta.status !== "won" && meta.status !== "lost") return null;
   const summary = meta.summary ?? null;
   const lossReason = meta.status === "won" ? null : (summary?.lossReason ?? lossReasonOfOutcome(meta));
+  const seats = seatsOf(meta, names);
+  // A room game this device held no seat in (a host who only hosted) has no hero to count (#909).
+  if (seats.length === 0) return null;
   return {
     gameId: isPastGame(meta) ? meta.id : null,
     result: meta.status,
@@ -395,7 +399,7 @@ function factsOf(meta: SaveMeta, names: StatsNames): GameFacts | null {
     lossReason: lossReason === "conceded" || lossReason === "competitive" ? "other" : lossReason,
     lossCause: lossCauseOfMeta(meta),
     heroesDefeated: summary ? summary.heroesDefeated : null,
-    seats: seatsOf(meta, names),
+    seats,
     detailed: summary?.seats !== undefined,
     sideSchemes: summary?.sideSchemes ?? null,
     platform: meta.lastPlayedOn?.platform ?? null,
@@ -468,7 +472,11 @@ function lossesOf(games: readonly GameFacts[]): { losses?: readonly LossPart[] }
 }
 
 const isConcession = (meta: SaveMeta): boolean =>
-  !meta.guided && !meta.adjusted && meta.status === "abandoned" && meta.outcome?.result === "conceded";
+  !meta.guided &&
+  !meta.adjusted &&
+  !isRoomCheatSave(meta) &&
+  meta.status === "abandoned" &&
+  meta.outcome?.result === "conceded";
 
 interface Tally {
   wins: number;
@@ -1858,6 +1866,8 @@ function markSignature(view: HeroCardsView, names: StatsNames): HeroCardsView {
 }
 
 export function playerStatsOf(saves: readonly SaveMeta[], names: StatsNames, filter: StatsFilter = {}): PlayerStats {
+  // One row per room game, even when a synced account holds it as both the host's row and a guest's (#909).
+  saves = dedupeRoomGames(saves);
   const facts = saves.flatMap((meta) => factsOf(meta, names) ?? []);
   // One name per villain key, the newest game's, so an older save (named by its scenario) and a newer one (named by
   // its villains) land in the same row.

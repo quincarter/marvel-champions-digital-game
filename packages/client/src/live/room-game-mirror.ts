@@ -17,8 +17,8 @@ export interface RoomGameSalvage {
   readonly header: unknown;
   readonly commands: readonly unknown[];
   /**
-   * The host took moves back in this game. Latched, conservatively: this protocol version does not say whether a rewind
-   * was an Undo past hidden information (that flag is the host's `rewind {adjusted}`), so any cut counts.
+   * The game was adjusted (issue #909): the room relayed `adjusted` on a `rewind` (an acknowledged Undo past a reveal)
+   * or on the `end`. Latched from those frames only; an ordinary cutting rewind does not mark it.
    */
   readonly adjusted?: true;
 }
@@ -33,8 +33,8 @@ export class GameMirror {
   #outcome: unknown = null;
   /** The server's `total` while a multi-part `log` is still arriving: a snapshot carries it so a follower keeps assembling. */
   #pendingTotal: number | null = null;
-  /** A rewind cut this game's log (sticky; reset only when a different game's header arrives). */
-  #cut = false;
+  /** A frame said this game was adjusted (sticky; reset only when a different game's header arrives). */
+  #adjusted = false;
   #gameStamp: unknown = undefined;
 
   constructor(table: string = FIRST_TABLE) {
@@ -59,7 +59,7 @@ export class GameMirror {
     this.#outcome = null;
     this.#pendingTotal = null;
     if (!keepLatch) {
-      this.#cut = false;
+      this.#adjusted = false;
       this.#gameStamp = undefined;
     }
   }
@@ -70,11 +70,11 @@ export class GameMirror {
     const m: GameMessage = message;
     switch (m.kind) {
       case "log": {
-        // The same game's log again (a reconnect) keeps what was latched; a shorter one means the host cut it meanwhile.
+        // The same game's log again (a reconnect) keeps what was latched; another game's header starts clean.
         const stamp = (m.header as { createdAt?: unknown } | null)?.createdAt;
-        if (stamp !== undefined && stamp === this.#gameStamp) {
-          if (this.#has && m.commands.length < this.#commands.length && m.total === undefined) this.#cut = true;
-        } else this.#cut = false;
+        if (stamp === undefined || stamp !== this.#gameStamp) this.#adjusted = false;
+        // The room remembers the latch with the table: a guest that missed the flagged frame (a reconnect gap) gets it here.
+        if (m.adjusted === true) this.#adjusted = true;
         this.#gameStamp = stamp;
         this.#has = true;
         this.#header = m.header;
@@ -88,7 +88,6 @@ export class GameMirror {
       case "commands": {
         if (!this.#has) return "ignored";
         if (m.from > this.#commands.length) return "gap";
-        if (m.from < this.#commands.length) this.#cut = true;
         this.#commands.length = m.from;
         this.#commands.push(...m.commands);
         this.#dropChecksumsAfter(m.from);
@@ -103,9 +102,9 @@ export class GameMirror {
       case "rewind":
         // A rewind to the current count cuts nothing, but it reopens a finished game (a resumed host whose game is not
         // over says so that way): the end is cleared, as the room and `WatchFeed` do.
+        if (this.#has && m.adjusted === true) this.#adjusted = true;
         if (!this.#has || m.to > this.#commands.length || (m.to === this.#commands.length && !this.#ended))
           return "ignored";
-        if (m.to < this.#commands.length) this.#cut = true;
         this.#commands.length = m.to;
         this.#dropChecksumsAfter(m.to);
         this.#ended = false;
@@ -116,6 +115,7 @@ export class GameMirror {
         if (!this.#has) return "ignored";
         this.#ended = true;
         this.#outcome = m.outcome;
+        if (m.adjusted === true) this.#adjusted = true;
         return "applied";
       default:
         return "ignored";
@@ -132,7 +132,11 @@ export class GameMirror {
    */
   salvage(): RoomGameSalvage | null {
     if (!this.#has || this.#header === undefined || this.#pendingTotal !== null || this.#ended) return null;
-    return { header: this.#header, commands: [...this.#commands], ...(this.#cut ? { adjusted: true as const } : {}) };
+    return {
+      header: this.#header,
+      commands: [...this.#commands],
+      ...(this.#adjusted ? { adjusted: true as const } : {}),
+    };
   }
 
   /** The whole game as the messages a fresh watcher would receive: a `log`, then `end` when the game is over. */
@@ -148,7 +152,18 @@ export class GameMirror {
       checksums: { ...this.#checksums },
       ...(this.#pendingTotal !== null ? { total: this.#pendingTotal } : {}),
       ...(this.#ended ? { outcome: this.#outcome } : {}),
+      // The latch goes with the game: a seat attached after the flagged rewind or end must still see it (#909).
+      ...(this.#adjusted ? { adjusted: true as const } : {}),
     };
-    return this.#ended ? [log, { v: 1, ch: "game", kind: "end", table: this.#table, outcome: this.#outcome }] : [log];
+    if (!this.#ended) return [log];
+    const end: ServerMessage = {
+      v: 1,
+      ch: "game",
+      kind: "end",
+      table: this.#table,
+      outcome: this.#outcome,
+      ...(this.#adjusted ? { adjusted: true as const } : {}),
+    };
+    return [log, end];
   }
 }

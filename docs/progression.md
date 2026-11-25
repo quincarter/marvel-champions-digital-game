@@ -69,6 +69,24 @@ Only firsts count, so replaying a villain already beaten earns nothing more.
 | Completing a campaign                            | 500    |
 | Completing it as an Expert Campaign              | +250   |
 
+#### Playing with friends
+
+A room game (`SaveMeta.roomPlay`) counts toward these firsts for this device only when it held a seat:
+
+- A host who held no seat earns no firsts from it. A guest's row earns the same firsts as a solo game, from the
+  guest's own record.
+- A game with Cheats on, an adjusted game and a Civil War Competitive game earn nothing here.
+- A game seen as both a host row and a guest row on one synced account counts once (`roomPlay.gameKey`).
+- A game played alone is counted exactly as before.
+
+| Bonus                                         | Points |
+| --------------------------------------------- | ------ |
+| First win with friends, at a table of 2 seats | 50     |
+| First win with friends, at a table of 3 seats | 100    |
+| First win with friends, at a table of 4 seats | 150    |
+
+The bonus is once per table size: the number of seats in the game (standard or Epic room, won while holding a seat).
+
 Earned points are never stored. They're derived from the same rows the results history and the Saga shelf read:
 `won` saves in `mc-saves` and `won` campaign records in `mc-campaigns` (`progressOf`, `Unlocks.points`).
 

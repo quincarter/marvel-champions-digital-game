@@ -80,6 +80,7 @@ import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
 import { summarizeGame } from "./game-summary.js";
+import { isRoomGuestSave, type RoomPlayRecord } from "./room-play.js";
 import { seatResultOfState } from "../view/team-outcome.js";
 import { BACKFILL_BUSY, backfillSummaries } from "./summary-backfill.js";
 
@@ -429,6 +430,47 @@ const statusOf = (state: GameState, config: SessionConfig | null): SaveStatus =>
   return result === "win" ? "won" : result === "loss" ? "lost" : result === "tie" ? "tie" : "abandoned";
 };
 
+/**
+ * A guest's finished copy of a room game (#909), built by replaying the log it watched: the row `GameStorage.createFinished`
+ * writes. Status, round, outcome and summary come out as they do for a game this device played (`statusOf`,
+ * `summarizeGame`), counted for the seats the guest held (`roomPlay.mySeats`). Null when the log does not replay or
+ * the game is not over, so a half game never becomes a row.
+ */
+export function finishedGuestRow(
+  base: Pick<SaveMeta, "id" | "config" | "createdAt" | "updatedAt"> & { readonly roomPlay: RoomPlayRecord },
+  storedInitialState: StateWithoutPool,
+  commands: readonly Command[],
+): { readonly meta: SaveMeta; readonly initialState: StateWithoutPool; readonly commands: readonly Command[] } | null {
+  const config = base.config;
+  const baseline = rebuildBaseline(config, storedInitialState);
+  let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState, depsOf(config));
+  let state = baseline.initialState;
+  for (const command of commands) {
+    const result = applyCommand(state, command, depsOf(config));
+    if (!result.ok) return null;
+    record = recordEvents(record, result.events, result.state, depsOf(config));
+    state = result.state;
+  }
+  const status = statusOf(state, { ...config, localSeats: base.roomPlay.mySeats });
+  if (status === "active") return null;
+  const meta: SaveMeta = {
+    id: base.id,
+    schema: SAVE_SCHEMA,
+    config,
+    createdAt: base.createdAt,
+    updatedAt: base.updatedAt,
+    status,
+    round: state.round,
+    commandCount: commands.length,
+    outcome: state.outcome,
+    campaignId: null,
+    campaignNodeId: null,
+    summary: summarizeGame(state, record, depsOf(config), config.players),
+    roomPlay: base.roomPlay,
+  };
+  return { meta, initialState: storedInitialState, commands };
+}
+
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
 /** What rebuilding a stored game's replay baseline produces. */
@@ -646,6 +688,9 @@ export class EngineSessionCore {
     if (!storage) throw new Error("there is no saved-games storage to resume from");
     const stored = await storage.load(gameId);
     if (!stored) throw new Error("that saved game is no longer there");
+    // A guest's copy of a room game is a record of a game the host owns: nothing here to pick back up.
+    if (isRoomGuestSave(stored.meta))
+      throw new Error("this is a finished room game kept for your record; it cannot be resumed");
     // A save from an older schema is retired deliberately, before any replay is attempted: its baseline state is a
     // shape this engine no longer has, even if its commands would happen to apply.
     // A save from a NEWER build (another linked device) is left exactly as it is: marking it would sync back and
@@ -897,7 +942,7 @@ export class EngineSessionCore {
     if (!storage) return null;
     // Newest first: a current game is offered, an older-schema one is retired on the way, and one from a newer
     // build is skipped untouched.
-    const active = (await storage.list()).filter((meta) => meta.status === "active");
+    const active = (await storage.list()).filter((meta) => meta.status === "active" && !isRoomGuestSave(meta));
     for (const meta of active.sort((a, b) => b.updatedAt - a.updatedAt)) {
       // Continue never offers a game this build cannot play; the games list shows it as "update to continue".
       if (isNewerSchema(meta) || writtenByNewerApp(meta, this.#appVersion)) continue;
@@ -917,7 +962,7 @@ export class EngineSessionCore {
     if (!storage) return [];
     const found: SaveMeta[] = [];
     for (const meta of await storage.list()) {
-      if (meta.status !== "active" || meta.guided) continue;
+      if (meta.status !== "active" || meta.guided || isRoomGuestSave(meta)) continue;
       if (isNewerSchema(meta)) continue;
       // Returned for a newer-app game too (untouched): the list rows it as "update to continue" (`gameRowsOf`).
       if (isCurrentSchema(meta)) found.push(meta);
@@ -932,6 +977,39 @@ export class EngineSessionCore {
    */
   async retireSave(gameId: string): Promise<void> {
     await this.#storage?.setStatus(gameId, "abandoned", this.#now());
+  }
+
+  /**
+   * Records how this device played the room game `gameId` (`SaveMeta.roomPlay`). Queued behind the running game's own
+   * writes, so it lands after the command appends in flight rather than racing them.
+   */
+  async recordRoomPlay(gameId: string, roomPlay: RoomPlayRecord): Promise<void> {
+    const storage = this.#storage;
+    if (!storage) return;
+    const stamp = this.#now();
+    // Fail closed: the save must be this room's game. An offline save (no room), a save of another room, or one of
+    // another admission of this room (a rematch, told apart by the gid the save already recorded) is not this game, and
+    // a late update of one room game must never land on it.
+    const saved = (await storage.list()).find((meta) => meta.id === gameId);
+    const saveRoom = gameId === this.#gameId ? this.#config?.room : saved?.config.room;
+    if (saveRoom === undefined) throw new Error(`game ${gameId} is not a room game`);
+    if (saveRoom !== roomPlay.roomId) {
+      throw new Error(`game ${gameId} belongs to room ${saveRoom}, not ${roomPlay.roomId}`);
+    }
+    const known = saved?.roomPlay;
+    if (known?.gid !== undefined && (known.gid !== roomPlay.gid || known.gameKey !== roomPlay.gameKey)) {
+      throw new Error(`game ${gameId} is room game ${known.gameKey}, not ${roomPlay.gameKey}`);
+    }
+    if (gameId === this.#gameId) {
+      const run = this.#writes.then(() => storage.setRoomPlay(gameId, roomPlay, stamp));
+      this.#writes = run.catch((cause: unknown) => {
+        this.#saveError ??= describeCause(cause);
+      });
+      // The caller learns of a failed write too (it keeps the record dirty and retries), beside the save error.
+      await run;
+      return;
+    }
+    await storage.setRoomPlay(gameId, roomPlay, stamp);
   }
 
   /**
@@ -1116,6 +1194,7 @@ export class EngineSessionCore {
         outcome: session.state.outcome,
         checksums: this.#liveChecksums(session),
         ...(this.#lobbyRev !== undefined ? { lobbyRev: this.#lobbyRev } : {}),
+        ...(this.#adjusted ? { adjusted: true } : {}),
       }),
     };
   }

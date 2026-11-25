@@ -16,7 +16,8 @@ describe("progressionGuideOf", () => {
   });
 
   it("states every point value the progression runs on", () => {
-    for (const value of Object.values(POINTS)) expect(guideText).toContain(String(value));
+    const values = Object.values(POINTS).flatMap((v) => (typeof v === "number" ? [v] : Object.values(v)));
+    for (const value of values) expect(guideText).toContain(String(value));
   });
 
   it("names every wave and every hero outside the Core Set", () => {
@@ -44,6 +45,9 @@ describe("docs/progression.md", () => {
       ["One hero's precon", POINTS.unlockHero],
       ["One campaign", POINTS.unlockCampaign],
       ["One scenario", POINTS.unlockScenario],
+      ["First win with friends, at a table of 2", POINTS.friendsWin[2]],
+      ["First win with friends, at a table of 3", POINTS.friendsWin[3]],
+      ["First win with friends, at a table of 4", POINTS.friendsWin[4]],
     ];
     for (const [label, value] of rows) {
       const line = doc.split("\n").find((l) => l.includes(label));

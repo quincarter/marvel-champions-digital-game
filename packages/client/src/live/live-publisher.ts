@@ -49,7 +49,10 @@ export interface LiveGame {
   readonly packs?: readonly ReplayPackRef[];
   readonly createdAt: number;
   readonly initialState: StateWithoutPool;
-  /** The game was started with room Cheats on (`SessionConfig.roomCheats`): carried to the header. */
+  /**
+   * The game counts for nothing: it was started with room Cheats on (`SessionConfig.roomCheats`) or the session has
+   * been adjusted since (`EngineSessionCore` `#adjusted`). Carried to the header, and sticky once set (#909).
+   */
   readonly adjusted?: true;
   /** The commands so far: none for a new game, the log for a resumed one. */
   readonly commands: readonly Command[];
@@ -103,6 +106,8 @@ export interface RoomTableState {
   readonly checkpoint?: { readonly count: number; readonly sum: string } | null;
   /** The room holds a log it has not stored: its `gid` is the durable admission, and its count and checkpoint claim nothing. */
   readonly dirty?: boolean;
+  /** The room holds this game as adjusted (its sticky latch). Absent: it does not, or an older room does not say. */
+  readonly adjusted?: boolean;
 }
 
 export interface LivePublisherOptions {
@@ -135,6 +140,8 @@ const sizeOf = (value: unknown): number => encoder.encode(JSON.stringify(value))
 /** Room for a message's envelope (version, channel, kind, table, from) around its commands and checksums. */
 const ENVELOPE_BYTES = 1024;
 const sameCommand = (a: unknown, b: unknown): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+const isAdjust = (command: Command): boolean => command.type === "adjust";
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
@@ -188,6 +195,10 @@ export class LivePublisher {
   /** The room's durable admission is this game's own and only its log is unstored: resending the log is allowed. */
   #repair = false;
   #header: LiveTableHeader;
+  /** The game is adjusted (header flag, a Manual adjust in the log, or an acknowledged Undo past a reveal). Never cleared. */
+  #adjusted: boolean;
+  /** The room has not been told of an adjustment made since its last frame: the next flush sends it. */
+  #adjustedUnsent = false;
   #commands: Command[];
   /** Checksums by command count (a string key, as the room has them). */
   #checksums: Record<string, string>;
@@ -218,6 +229,7 @@ export class LivePublisher {
     if (options.gid) this.#gid = options.gid;
     this.#lobbyRev = options.game.lobbyRev;
     this.#header = headerOf(options.game);
+    this.#adjusted = options.game.adjusted === true || options.game.commands.some(isAdjust);
     this.#commands = [...options.game.commands];
     this.#checksums = { ...options.game.checksums };
     this.#outcome = options.game.outcome ?? null;
@@ -247,17 +259,22 @@ export class LivePublisher {
       return;
     }
     this.#commands.push(command);
+    if (isAdjust(command)) this.#markAdjusted();
     if (checksum !== undefined) this.#checksums[String(count)] = checksum;
     if (outcome) this.#outcome = outcome;
     this.#flush();
   }
 
-  /** An Undo or Back out cut the log to its first `to` commands. */
-  rewind(to: number): void {
+  /**
+   * An Undo or Back out cut the log to its first `to` commands. `adjusted`: the cut was an Undo past a reveal that the
+   * host acknowledged, so the game now counts for nothing (#909); the room is told with the cut.
+   */
+  rewind(to: number, adjusted = false): void {
     if (to < 0 || to > this.#commands.length) {
       this.#onResync?.();
       return;
     }
+    if (adjusted) this.#markAdjusted();
     this.#commands.length = to;
     for (const key of Object.keys(this.#checksums)) if (Number(key) > to) delete this.#checksums[key];
     this.#outcome = null;
@@ -274,6 +291,8 @@ export class LivePublisher {
     const limit = Math.min(this.#commands.length, game.commands.length);
     while (common < limit && sameCommand(this.#commands[common], game.commands[common])) common++;
     this.#header = headerOf(game);
+    if (game.adjusted === true || game.commands.some(isAdjust)) this.#markAdjusted();
+    else if (this.#adjusted) this.#header = { ...this.#header, adjusted: true };
     this.#commands = [...game.commands];
     this.#checksums = { ...game.checksums };
     this.#outcome = game.outcome ?? null;
@@ -319,6 +338,10 @@ export class LivePublisher {
       this.#replaceTable = true;
       this.#repair = true;
     }
+    // The room holds this very game but not that it is adjusted (its latch write failed and it restarted, or it is an
+    // older room): the host's own game knows, so it says so again with a rewind to the count the room holds (below).
+    if (this.#roomHeader && this.#adjusted && table?.gid !== undefined && table.gid === this.#gid && !table.adjusted)
+      this.#adjustedUnsent = true;
     // The room's command count does not say it holds this game: a host resumed from a save can meet a room with the
     // same number of different commands, and a rewind the socket took but the room never received leaves the room's old
     // prefix behind a count the host has since reached again. So every welcome checks: the room's latest checksum is compared with ours at the same count; with no
@@ -388,6 +411,11 @@ export class LivePublisher {
       this.#gaveUp = true;
       this.#onGiveUp?.();
     }
+  }
+
+  /** The game counts for nothing (#909): for tests. */
+  get adjusted(): boolean {
+    return this.#adjusted;
   }
 
   #retryStart(): void {
@@ -518,11 +546,20 @@ export class LivePublisher {
     }
     // The room is ahead of this log (a cut made while it was away, or since), or still shows an ended table that is not.
     const target = Math.min(this.#lowWater, this.#commands.length);
-    if (this.#roomCount > target || (this.#roomEnded && !this.#outcome)) {
+    // A rewind also goes when the game was just adjusted and the room is not told: a cut to the count it holds.
+    if (this.#roomCount > target || (this.#roomEnded && !this.#outcome) || this.#adjustedUnsent) {
       const to = Math.min(this.#roomCount, target);
-      if (!this.#sendMessage({ ch: "game", kind: "rewind", table: this.#table, to })) return;
+      const cut = this.#sendMessage({
+        ch: "game",
+        kind: "rewind",
+        table: this.#table,
+        to,
+        ...(this.#adjusted ? { adjusted: true as const } : {}),
+      });
+      if (!cut) return;
       this.#roomCount = to;
       this.#roomEnded = false;
+      this.#adjustedUnsent = false;
     }
     this.#lowWater = Number.POSITIVE_INFINITY;
     while (this.#roomCount < this.#commands.length) {
@@ -541,10 +578,24 @@ export class LivePublisher {
       this.#roomCount = to;
     }
     if (this.#outcome && !this.#roomEnded) {
-      if (this.#sendMessage({ ch: "game", kind: "end", table: this.#table, outcome: this.#outcome })) {
+      const ended = this.#sendMessage({
+        ch: "game",
+        kind: "end",
+        table: this.#table,
+        outcome: this.#outcome,
+        ...(this.#adjusted ? { adjusted: true as const } : {}),
+      });
+      if (ended) {
         this.#roomEnded = true;
       }
     }
+  }
+
+  /** Remembers the game is adjusted: the header a later `start` / `log` carries says so, and the room is told. */
+  #markAdjusted(): void {
+    if (!this.#adjusted) this.#adjustedUnsent = true;
+    this.#adjusted = true;
+    this.#header = { ...this.#header, adjusted: true };
   }
 
   #sendMessage(body: DistributiveOmit<ClientMessage, "v">): boolean {

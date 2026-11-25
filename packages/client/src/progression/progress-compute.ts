@@ -30,6 +30,8 @@ export type ProgressCampaigns = Parameters<typeof progressOf>[1] &
 export interface ProgressInputs {
   readonly howToPlay: { readonly done: number; readonly total: number };
   readonly unlockedEverything: boolean;
+  /** How many live games this device watched to the end (`platform/watch-history.ts`). */
+  readonly watched: number;
   readonly deckFeats: DeckFeats;
   readonly mods: NonNullable<AchievementHistory["mods"]>;
 }
@@ -66,6 +68,7 @@ export function historyOf(inputs: ProgressInputs, reads: ProgressReads): Achieve
     howToPlay: inputs.howToPlay,
     // The player's own switch, not the `?unlock=all` dev param.
     unlockedEverything: inputs.unlockedEverything,
+    watched: inputs.watched,
     // A deck built before the feat was noted still counts while it is in your decks.
     decks: { ...inputs.deckFeats, built: inputs.deckFeats.built || reads.decksBuilt },
     mods: inputs.mods,

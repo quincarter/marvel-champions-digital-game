@@ -34,6 +34,7 @@ import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta, SavedGuidedRun } from "./game-storage.js";
+import type { RoomPlayRecord } from "./room-play.js";
 
 /**
  * What the session flow collects across the Scenario → Seats → Deck screens.
@@ -503,6 +504,11 @@ export interface EngineHost {
   retireSave(gameId: string): Promise<void>;
   /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). */
   listSaves(): Promise<readonly SaveMeta[]>;
+  /**
+   * Records how this device played the room game `gameId` (`SaveMeta.roomPlay`, #909) on its save row, in the
+   * engine's own storage owner. Absent on hosts that keep no saves of their own (replay, dev state, a seat host).
+   */
+  recordRoomPlay?(gameId: string, roomPlay: RoomPlayRecord): Promise<void>;
   /**
    * Fills in the card numbers of games finished before the save summary had them, by replaying their logs
    * (`engine/summary-backfill.ts`); resolves to how many games were written.

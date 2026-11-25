@@ -231,7 +231,13 @@ async function handle(request: HostRequest): Promise<void> {
         publishPresence();
         {
           const gameKey = liveOn ? core.liveGameKey() : null;
-          if (gameKey) liveSend({ kind: "rewind", gameKey, to: request.commandCount });
+          if (gameKey)
+            liveSend({
+              kind: "rewind",
+              gameKey,
+              to: request.commandCount,
+              ...(request.options?.adjusted ? { adjusted: true as const } : {}),
+            });
         }
         return;
       }
@@ -261,6 +267,12 @@ async function handle(request: HostRequest): Promise<void> {
         await core.retireSave(request.gameId);
         reply({ kind: "retired", id: request.id });
         announceSaved("round");
+        return;
+      }
+      case "recordRoomPlay": {
+        await core.recordRoomPlay(request.gameId, request.roomPlay);
+        reply({ kind: "roomPlayRecorded", id: request.id });
+        announceSaved("game");
         return;
       }
       case "listSaves": {

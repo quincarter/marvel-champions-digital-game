@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Room achievements: a failed set-aside of a reopened result is retried, room data never lands on an offline save or another game in the same room, and a seat released before Start doesn''t count as played (#909)'
+time: 2026-11-22T08:04:03.4297803-05:00

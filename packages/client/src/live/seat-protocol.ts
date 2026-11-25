@@ -6,6 +6,7 @@ import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import type { ProposalRefusal, RefusalReason } from "@mc/sync-worker/room-protocol";
 import { FIRST_TABLE, type ClientMessage } from "@mc/sync-worker/room-protocol";
 import type { CardPool } from "../engine/host.js";
+import type { RoomPlayRecord } from "../engine/room-play.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
 import type { PaymentState } from "../view/payment-model.js";
 import type { JudgedPayment } from "../view/payment-verdict.js";
@@ -66,6 +67,8 @@ export type SeatEvent =
   | { readonly type: "presence"; readonly hostConnected: boolean; readonly watchers: number }
   /** The game ended (its outcome came, or the room closed): no more commands. */
   | { readonly type: "over"; readonly reason: "ended" | "closed" }
+  /** A guest's finished row was written, replaced or set aside after the `finish` call had answered (#909). */
+  | { readonly type: "saved" }
   /** Following stopped for good: the game could not be read or applied here. */
   | { readonly type: "failed" };
 
@@ -79,6 +82,11 @@ export interface SeatBackend {
   setPlayers(players: readonly SeatPlayer[]): Promise<SeatSnapshot>;
   legalActions(playerId: PlayerId): Promise<LegalActions>;
   judgePayment(playerId: PlayerId, payment: PaymentState): Promise<JudgedPayment>;
+  /**
+   * The room's game ended and this device played it as a guest (#909): writes the guest's own finished save row, once per
+   * `roomPlay.gameKey`. Settles true when a row was written, false when none was (a watcher, a repeat, no storage).
+   */
+  finish(record: RoomPlayRecord): Promise<boolean>;
   onEvent(listener: (event: SeatEvent) => void): void;
   dispose(): void;
 }
@@ -91,6 +99,11 @@ export type SeatRequest =
       /** The room worker's feed, as for a watcher (`room-follow`). */
       readonly feed: MessagePort;
       readonly device?: RoomDevice;
+      /**
+       * The admitted game's identity (`RoomPlayRecord.gameKey`), when the room has told it: a stored result for it
+       * is checked against the room's log at join (#909).
+       */
+      readonly gameKey?: string;
     }
   | {
       readonly kind: "propose";
@@ -101,6 +114,7 @@ export type SeatRequest =
     }
   | { readonly kind: "players"; readonly id: number; readonly players: readonly SeatPlayer[] }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
+  | { readonly kind: "finish"; readonly id: number; readonly record: RoomPlayRecord }
   | { readonly kind: "judgePayment"; readonly id: number; readonly playerId: PlayerId; readonly payment: PaymentState };
 
 export type SeatResponse =
@@ -113,5 +127,6 @@ export type SeatResponse =
     }
   | { readonly kind: "players"; readonly id: number; readonly snapshot: SeatSnapshot }
   | { readonly kind: "legalActions"; readonly id: number; readonly actions: LegalActions }
+  | { readonly kind: "finished"; readonly id: number; readonly written: boolean }
   | { readonly kind: "paymentJudged"; readonly id: number; readonly judged: JudgedPayment }
   | { readonly kind: "failed"; readonly id: number; readonly message: string; readonly code?: string };

@@ -245,7 +245,8 @@ describe("§3.12 'cannot be healed by player card effects' (Protect the Senator)
     const { state, events } = play(game.state, SIGNAL.id);
     expect(damageOf(state, game.kelly)).toBe(1);
     expect(events.filter((e) => e.type === "damageHealed")).toEqual([
-      { type: "damageHealed", targetInstanceId: game.kelly, amount: 2 },
+      // The encounter card that healed him (#909).
+      { type: "damageHealed", targetInstanceId: game.kelly, amount: 2, sourceInstanceId: expect.any(String) },
     ]);
     expect(events.some((e) => e.type === "healBlocked")).toBe(false);
   });

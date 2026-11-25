@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { POOL_SCENARIOS } from "../content/pool.js";
 import {
   ACHIEVEMENTS,
+  LEGACY_MAX_LIFETIME_POINTS,
   MAX_LIFETIME_POINTS,
+  MULTIPLAYER_POINTS,
   NO_HISTORY,
   RANKS,
   UNTRACKED_ACHIEVEMENT_IDS,
@@ -17,7 +19,7 @@ import {
   type AchievementSave,
 } from "./achievements.js";
 import type { GameSummary } from "../engine/game-summary.js";
-import { UNLOCK_HEROES, progressOf } from "./unlocks.js";
+import { MAX_FRIENDS_WIN_POINTS, UNLOCK_HEROES, progressOf } from "./unlocks.js";
 import { HERO_QUOTES } from "./hero-quotes.js";
 import { TEAM_UP_TROPHIES, teamUpTrophyId } from "./team-up-trophies.js";
 
@@ -294,6 +296,15 @@ describe("points and rank", () => {
     for (let i = 1; i < RANKS.length; i++) expect(RANKS[i]!.threshold).toBeGreaterThan(RANKS[i - 1]!.threshold);
     expect(RANKS[8]!.threshold).toBe(MAX_LIFETIME_POINTS);
     expect(RANKS[8]!.title).toBe("Ultimate Champion");
+  });
+
+  it("keeps ranks 1 to 8 where they were before the multiplayer points, and the last needs the new max (#909)", () => {
+    // Pre-#909 max 38365 (RANK_FRACTIONS of it, rounded to 50); the multiplayer modules and the friends bonus add 4050.
+    expect(LEGACY_MAX_LIFETIME_POINTS).toBe(38365);
+    expect(MULTIPLAYER_POINTS).toBe(3750 + MAX_FRIENDS_WIN_POINTS);
+    expect(MAX_LIFETIME_POINTS).toBe(38365 + 3750 + 300);
+    expect(RANKS.slice(0, 8).map((r) => r.threshold)).toEqual([0, 100, 1150, 3050, 6900, 12650, 19950, 29150]);
+    expect(RANKS[8]!.threshold).toBe(42415);
   });
 
   it("ranks by lifetime points, reaching rank 2 with the first win", () => {

@@ -386,6 +386,20 @@ export function receiveOutbound(
         });
       break;
     }
+    // The owning table's word on whether a cross-table attack defeated, or thwart cleared, its target (#909): the
+    // attacker's table logs it for its achievements.
+    case "remotePowerSettled":
+      if (inPod(event.toGroupId))
+        step.send(event.toGroupId, {
+          kind: "remotePowerSettled",
+          fromGroupId: groupId,
+          ref: event.ref,
+          playerId: event.playerId,
+          cardId: event.cardId,
+          power: event.power,
+          defeated: event.defeated,
+        });
+      break;
     case "overkillExcess":
       if (inPod(event.toGroupId) && step.outcome === "playing")
         step.send(event.toGroupId, {

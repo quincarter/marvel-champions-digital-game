@@ -37,6 +37,11 @@ export interface SharedPodState {
    * are final.
    */
   readonly status: "playing" | "schemeCompleted" | "won" | "lost";
+  /**
+   * The group whose shared event took the shared villain's last hit points (`applySharedEvent`): the table that dealt
+   * the final damage. Informational only (achievements; no rule reads it). Absent until the villain is defeated.
+   */
+  readonly defeatedByGroup?: GroupId;
 }
 
 /** Why threat was placed on the shared scheme (MC55 p. 21, the "two ways"). */
@@ -75,7 +80,10 @@ export function applySharedEvent(
     const villainDamage = shared.villainDamage + dealt;
     const remaining = shared.villainHp - villainDamage;
     if (remaining === 0)
-      return { shared: { ...shared, villainDamage, status: "won" }, results: ["sharedVillainDefeated"] };
+      return {
+        shared: { ...shared, villainDamage, status: "won", defeatedByGroup: event.groupId },
+        results: ["sharedVillainDefeated"],
+      };
     const flips =
       !shared.villainFlipped && shared.villainFlipAtRemaining !== null && remaining <= shared.villainFlipAtRemaining;
     return flips
@@ -187,6 +195,28 @@ export interface PodState {
    * none is waiting.
    */
   readonly inFlight?: readonly RemotePowerInFlight[];
+  /**
+   * Remote powers of other groups this group accepted against its cards (inbound `remotePower`), until the first quiet
+   * point after their hit, where each is reported back as `remotePowerSettled` (`settlePod`). Oldest first; absent when
+   * none waits. Informational only: no rule reads it.
+   */
+  readonly remoteHitsSettling?: readonly RemoteHitSettling[];
+}
+
+/**
+ * Another group's remote power this group accepted (`PodState.remoteHitsSettling`), until its outcome here is known:
+ * whether the hit left the card out of play once what it brought about had resolved.
+ */
+export interface RemoteHitSettling {
+  /** The attacker's group's stand-in, which names the power there. */
+  readonly ref: InstanceId;
+  readonly fromGroupId: GroupId;
+  readonly playerId: PlayerId;
+  readonly targetInstanceId: InstanceId;
+  readonly cardId: CardId;
+  readonly power: RemotePower;
+  /** The hit applied with the card in play (`reportRemoteHit`); one never applied is dropped without a report. */
+  readonly hit?: true;
 }
 
 /** A remote power this group made, until the owning group answers (`PodState.inFlight`). */
@@ -282,6 +312,23 @@ export type PodOutboundEvent =
       readonly lost?: true;
     }
   /**
+   * Another group's accepted remote power, settled here: once nothing was resolving after its hit (the damage, a defeat
+   * and what answered them), whether the card it was made against had left play (`defeated`: the attack defeated it,
+   * or the thwart cleared it). Sent after `remotePowerResolved`, which goes as the hit applies, before its outcome is
+   * known. Informational only (achievements): the attacker's group logs it and nothing else changes.
+   */
+  | {
+      readonly type: "remotePowerSettled";
+      readonly groupId: GroupId;
+      readonly toGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly playerId: PlayerId;
+      readonly targetInstanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly power: RemotePower;
+      readonly defeated: boolean;
+    }
+  /**
    * A remote attack with Overkill defeated the card here: the excess, measured after its damage resolved (RRG 1.8
    * "Overkill", p. 31), owed to the attacker's group (owner question pending, option A: the attacker's own Avatar of
    * Loki).
@@ -347,6 +394,16 @@ export type PodInboundEvent =
       readonly retaliate: number;
       readonly refused?: string;
       readonly lost?: true;
+    }
+  /** How this group's remote power ended where its target is (outbound `remotePowerSettled`); logged, nothing more. */
+  | {
+      readonly kind: "remotePowerSettled";
+      readonly fromGroupId: GroupId;
+      readonly ref: InstanceId;
+      readonly playerId: PlayerId;
+      readonly cardId: CardId;
+      readonly power: RemotePower;
+      readonly defeated: boolean;
     }
   /** Overkill's excess from this group's remote attack, dealt to this group's villain (owner question, option A). */
   | {

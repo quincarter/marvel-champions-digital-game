@@ -302,6 +302,8 @@ abstract class Endpoint {
 export class HostSide extends Endpoint {
   readonly resyncs: number[] = [];
   gaveUp = false;
+  /** The welcome handed to the publisher carries the table's admission id, as the controller's does. Off by default. */
+  reportGid = false;
   publisher!: LivePublisher;
 
   constructor(bus: FaultBus, game: LiveGame) {
@@ -338,7 +340,14 @@ export class HostSide extends Endpoint {
     if (message.ch === "room" && message.kind === "welcome") {
       const t = message.tables.find((x) => x.id === "t1");
       const state: RoomTableState | undefined = t
-        ? { commands: t.commands, ended: t.ended, hasHeader: t.hasHeader, checkpoint: t.checkpoint ?? null }
+        ? {
+            commands: t.commands,
+            ended: t.ended,
+            hasHeader: t.hasHeader,
+            checkpoint: t.checkpoint ?? null,
+            ...(this.reportGid && t.gid !== undefined ? { gid: t.gid } : {}),
+            ...(t.adjusted ? { adjusted: true } : {}),
+          }
         : undefined;
       this.publisher.onWelcome(state);
     } else {
