@@ -23,20 +23,31 @@ import {
 } from "./protocol.js";
 import { GLOBAL_PATH, handleGlobal } from "./global-handler.js";
 import { handleReplay, REPLAY_PATH } from "./replay-handler.js";
-import { handleRoom, ROOM_PATH } from "./room-handler.js";
+import { handleLiveRooms, handleRoom, LIVE_ROOMS_PATH, ROOM_PATH } from "./room-handler.js";
 import { handleSync, SYNC_PATH } from "./sync-handler.js";
 import { turnstileOk } from "./turnstile.js";
 import { defaultRandomBytes, generateRoomCode, type RandomBytes } from "./room-code.js";
 
 export { clientKey };
 
+/** The slice of the Workers edge cache (`caches.default`) the live list uses. */
+export interface EdgeCacheLike {
+  match(request: Request): Promise<Response | undefined>;
+  put(request: Request, response: Response): Promise<void>;
+}
+
 export interface HandlerDeps {
+  /** The edge cache; absent where there is none (tests, a local run), and every read then goes to the directory. */
+  readonly cache?: EdgeCacheLike | undefined;
   readonly now: () => number;
   readonly randomBytes: RandomBytes;
   readonly fetch: typeof fetch;
 }
 
 export const defaultDeps: HandlerDeps = {
+  get cache() {
+    return (globalThis as { caches?: { default?: EdgeCacheLike } }).caches?.default;
+  },
   now: () => Date.now(),
   randomBytes: defaultRandomBytes,
   fetch: (input, init) => fetch(input, init),
@@ -137,6 +148,8 @@ export async function handleRequest(request: Request, env: Env, deps: HandlerDep
 
   const replayMatch = REPLAY_PATH.exec(url.pathname);
   if (replayMatch) return handleReplay(request, env, deps, cors, origin, replayMatch);
+
+  if (LIVE_ROOMS_PATH.test(url.pathname)) return handleLiveRooms(request, env, deps, cors, origin);
 
   const gameRoomMatch = ROOM_PATH.exec(url.pathname);
   if (gameRoomMatch) return handleRoom(request, env, deps, cors, origin, gameRoomMatch);

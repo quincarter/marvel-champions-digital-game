@@ -306,3 +306,86 @@ describe("LiveWatcher", () => {
     expect(events.at(-1)).toEqual({ type: "closed", reason: "ended" });
   });
 });
+
+describe("LiveWatcher on a room worker's feed (issue #880)", () => {
+  function feedWatcher() {
+    FakeSocket.all = [];
+    const { core, calls } = fakeCore();
+    const events: LiveWatchEvent[] = [];
+    const posted: unknown[] = [];
+    const feed = {
+      onmessage: null as ((event: { readonly data: unknown }) => void) | null,
+      postMessage: (m: unknown) => void posted.push(m),
+      close: vi.fn(),
+    };
+    const w = new LiveWatcher({
+      core,
+      baseUrl: "http://sync",
+      roomId: "A".repeat(12),
+      packs: [],
+      feed,
+      emit: (event) => events.push(event),
+    });
+    const say = (message: unknown) =>
+      feed.onmessage?.({ data: { kind: "server", message: { v: 1, ...(message as object) } } });
+    return { w, calls, events, posted, feed, say };
+  }
+
+  test("opens and follows what the feed delivers, with no socket of its own", async () => {
+    const { w, calls, say, feed } = feedWatcher();
+    const opening = w.open();
+    say(welcome);
+    say(log([1, 2]));
+    await opening;
+    say({ ch: "game", kind: "commands", table: "t1", from: 2, commands: [3] });
+    await flush();
+    expect(calls).toEqual(["open 2", "append 1"]);
+    expect(FakeSocket.all).toHaveLength(0);
+    w.dispose();
+    expect(feed.close).toHaveBeenCalled();
+  });
+
+  test("asks the worker for the game again on a gap", async () => {
+    const { w, say, posted } = feedWatcher();
+    const opening = w.open();
+    say(log([1, 2]));
+    await opening;
+    say({ ch: "game", kind: "commands", table: "t1", from: 9, commands: [3] });
+    await flush();
+    expect(posted).toEqual([{ kind: "resync" }]);
+    w.dispose();
+  });
+});
+
+describe("LiveWatcher hello device", () => {
+  test("a watcher's own hello carries the device it was given, and none otherwise", () => {
+    for (const device of [{ platform: "web", form: "phone" } as const, undefined]) {
+      FakeSocket.all = [];
+      const { core } = fakeCore();
+      const w = new LiveWatcher({
+        core,
+        baseUrl: "http://sync",
+        roomId: "A".repeat(12),
+        packs: [],
+        emit: () => undefined,
+        ...(device ? { device } : {}),
+        deps: {
+          WebSocket: FakeSocket as never,
+          setTimer: () => undefined,
+          clearTimer: () => undefined,
+          random: () => 0.5,
+        },
+      });
+      void w.open().catch(() => undefined);
+      FakeSocket.all.at(-1)!.onopen?.({});
+      expect(FakeSocket.all.at(-1)!.sent[0]).toEqual({
+        v: 1,
+        ch: "room",
+        kind: "hello",
+        caps: ["watch"],
+        ...(device ? { device } : {}),
+      });
+      w.dispose();
+    }
+  });
+});

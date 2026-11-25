@@ -113,7 +113,7 @@ import {
   toggleHoodIncludedSet,
   type HoodModularSetOption,
 } from "../view/hood-modular-sets.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural } from "../i18n/translate.js";
 import { liveWatchDefault } from "../platform/live-watch.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
@@ -170,6 +170,8 @@ import type { BuilderContext } from "../view/civil-war-builder-model.js";
 import type { CivilWarBuilderData } from "./civil-war-builder.js";
 import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
+import { reportRoomSetup } from "./room-setup-report.js";
+import { keepRoomDraft, leaveRoomSetup, roomSetupActive } from "../view/room-table-setup.js";
 import { cardHoverFactor, tableRulesOf, type FirstPlayerTokenMotion } from "../settings.js";
 import type { InstanceId } from "@mc/engine";
 import type { GlyphHints } from "../ui/glyph-hints.js";
@@ -351,6 +353,7 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   create(): void {
+    reportRoomSetup("table", this.#draft.scenarioId as string);
     rebuildOnPackChange(this, () => this.#rebuild());
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     appSession().music?.playTitle();
@@ -422,6 +425,12 @@ export class TableSetupScene extends Phaser.Scene {
     if (this.#starting || this.#leaving) return;
     this.#leaving = true;
     this.scale.off("resize", this.#rebuild, this);
+    // Room mode (#880): there is no hero step (players bring their own decks), so Back returns to the lobby.
+    if (roomSetupActive()) {
+      leaveRoomSetup();
+      goToScreen(this, SCENES.roomLobby);
+      return;
+    }
     goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
   }
 
@@ -477,7 +486,13 @@ export class TableSetupScene extends Phaser.Scene {
     const seatedOptions = this.#draft.seats
       .map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId))
       .filter((o): o is DeckOption => o !== undefined);
-    const players = seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
+    // Room mode (#880): the heroes are not known yet, so the preview is dealt with stand-in precon heroes, one per seat.
+    const players = roomSetupActive()
+      ? deckOptions
+          .filter((o) => o.seatable && o.deck.source.kind === "precon")
+          .slice(0, this.#draft.seats.length)
+          .map((option) => corePlayerForSeat(option))
+      : seatedOptions.map((option) => corePlayerForSeat(option, this.#draft.deckSwaps));
 
     // A Civil War build: the read-only summary stands in for the picker (one tile per line, then "Edit scenario").
     this.#cwSummary = civilWarTableSummaryOf(this.#draft, CW_SUMMARY_CONTEXT);
@@ -550,7 +565,8 @@ export class TableSetupScene extends Phaser.Scene {
         compositionRows = compositionRowsOf(preview.encounterDeck);
         whatsInThereRows = whatsInThereRowsOf(preview.encounterDeck);
         if (sessionOptions.blind) whatsInThereRows = blindWhatsInThereRows(whatsInThereRows);
-        nemesisStandby = nemesisStandbyOf(preview.encounterDeck);
+        // Which nemesis sets come in depends on the heroes, which a room's players choose later.
+        nemesisStandby = roomSetupActive() ? null : nemesisStandbyOf(preview.encounterDeck);
         gameSummaryRows = gameSummaryRowsOf(preview, tableRulesOf(appSession().settings));
         encounterDeckSize = preview.encounterDeckSize;
       }
@@ -783,7 +799,9 @@ export class TableSetupScene extends Phaser.Scene {
       bodyColor,
     );
     const seatCells = this.#seatCells(deckOptions);
-    if (layout.wide && layout.randomControl.width > 0) {
+    if (roomSetupActive()) {
+      this.#drawRoomSeatsNote(layout.seatingRow, bodyColor);
+    } else if (layout.wide && layout.randomControl.width > 0) {
       const roll = (): void => {
         this.#draft = setFirstPlayerIndex(
           this.#draft,
@@ -891,7 +909,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Dealing it out…" : "Deal it out",
+        label: this.#starting ? "Dealing it out…" : roomSetupActive() ? t("room.setupDone") : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
         enabled: !this.#starting && this.#dealBlocked === null,
@@ -1273,7 +1291,8 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     if (id === "firstPlayer") {
-      this.#drawCompactFirstPlayerRow(rect, data.seatCells);
+      if (roomSetupActive()) this.#drawRoomSeatsNote(rect, surface.ink.hex);
+      else this.#drawCompactFirstPlayerRow(rect, data.seatCells);
       return;
     }
     if (id === "header:seed") {
@@ -1427,6 +1446,7 @@ export class TableSetupScene extends Phaser.Scene {
       if (barred) return;
       const scenario = this.#scenario();
       this.#draft = toggleModularSet(this.#draft, scenario, option.id, undefined, this.#allowMoreModular());
+      reportRoomSetup("modular", this.#draft.scenarioId as string);
       this.#rebuild();
     };
     this.#buttons.push(
@@ -1771,7 +1791,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Dealing it out…" : "Deal it out",
+        label: this.#starting ? "Dealing it out…" : roomSetupActive() ? t("room.setupDone") : "Deal it out",
         type: typeRole.barTitle,
         rect: layout.dealItOut,
         enabled: !this.#starting && this.#dealBlocked === null,
@@ -2509,6 +2529,7 @@ export class TableSetupScene extends Phaser.Scene {
       if (barred) return;
       const scenario = this.#scenario();
       this.#draft = toggleModularSet(this.#draft, scenario, option.id, undefined, this.#allowMoreModular());
+      reportRoomSetup("modular", this.#draft.scenarioId as string);
       this.#rebuild();
     };
     this.#buttons.push(
@@ -2787,6 +2808,7 @@ export class TableSetupScene extends Phaser.Scene {
     if (!this.sys.isActive()) return;
     const scenario = this.#scenario();
     this.#draft = toggleModularSet(this.#draft, scenario, setId, undefined, this.#allowMoreModular());
+    reportRoomSetup("modular", this.#draft.scenarioId as string);
     this.#rebuild();
   }
 
@@ -2868,6 +2890,16 @@ export class TableSetupScene extends Phaser.Scene {
         },
       };
     });
+  }
+
+  /** Room mode: in place of the seating row, a note that the players bring their own hero and deck (#880). */
+  #drawRoomSeatsNote(rect: Rect, color: number): void {
+    const count = this.#draft.seats.length;
+    const note = this.add
+      .text(rect.x, rect.y + 4, tPlural("room.setup.seatsNote", count), textStyle(typeRole.body, color))
+      .setFontSize(13)
+      .setWordWrapWidth(rect.width, true);
+    void note;
   }
 
   /** SEATING & FIRST PLAYER: one horizontal row. `includeRandom` adds a dashed "Random" cell at the end (narrow, matching P12); wide keeps Random on the section-header line instead (`#rebuild`). */
@@ -3102,7 +3134,8 @@ export class TableSetupScene extends Phaser.Scene {
 
   /** The wide and narrow layouts' watch toggle: a checkbox card (the check mark and the words, never colour alone). */
   #drawWatchToggle(rect: Rect): void {
-    if (rect.height <= 0) return;
+    // A room's game is always watchable (it streams to the room), so the choice is not offered (#880).
+    if (rect.height <= 0 || roomSetupActive()) return;
     const onClick = (): void => this.#toggleWatchable();
     this.#buttons.push(new McButton(this, { kind: "onInk", label: "", type: typeRole.label, rect, onClick }));
     this.#stops.set("watch", { rect, activate: onClick });
@@ -3129,12 +3162,27 @@ export class TableSetupScene extends Phaser.Scene {
     fitText(words, rect.width - size - 30, typeRole.label.size);
   }
 
+  /**
+   * Room mode (#880): the host is setting the table up for a room, so this does not deal. The draft is kept (it names
+   * no heroes: every player brings their own deck) and the lobby comes back.
+   */
+  #finishForRoom(): void {
+    keepRoomDraft(this.#draft);
+    this.#leaving = true;
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.roomLobby);
+  }
+
   async #start(players: readonly ReturnType<typeof corePlayerForSeat>[]): Promise<void> {
     // A press during a screen change (Back, then Start inside the fade) must not deal a game behind the screen.
     if (this.#starting || this.#leaving) return;
     if (this.#dealBlocked !== null) return;
     if (parseSeed(this.#seedText) === null) {
       this.#status?.setText("seed must be a whole number");
+      return;
+    }
+    if (roomSetupActive()) {
+      this.#finishForRoom();
       return;
     }
     this.#starting = true;

@@ -17,6 +17,7 @@ describe("settingsSectionsOf", () => {
       "play-area-order",
       "scheme-fan-background",
       "hero-art",
+      "online-name",
       "card-hover",
       "music-volume",
       "effects-volume",

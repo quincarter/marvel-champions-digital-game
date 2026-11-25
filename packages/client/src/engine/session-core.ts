@@ -96,6 +96,7 @@ import type {
   SealedEventState,
   SealedStateWithoutPool,
   SessionConfig,
+  VillainPhaseSeedCore,
   StateWithoutPool,
 } from "./host.js";
 
@@ -124,6 +125,8 @@ export interface Snapshot {
   readonly history?: readonly GameEvent[];
   /** A resumed game only: each replayed command with its events and RNG draw counts (`EngineUpdate.trail`). */
   readonly trail?: readonly BackOutTrailEntry[];
+  /** A resumed game only: its last villain phase, to rebuild the walkthrough after a reload (`EngineUpdate.villainPhase`). */
+  readonly villainPhase?: VillainPhaseSeedCore;
   /** The table at the villain phase's events, where the command had any (`EngineUpdate.states`). */
   readonly states?: readonly SealedEventState[];
   /** The game was adjusted by hand or undone past a reveal (`SaveMeta.adjusted`, issue #791). Absent otherwise. */
@@ -133,6 +136,11 @@ export interface Snapshot {
 export type CoreDispatch =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly error: EngineError };
+
+/** A strict lobby room's game (`SessionConfig.roomPlayMode`) takes no Undo, Back out or Manual adjust. */
+export const STRICT_REFUSAL = "Strict rules: the host turned this off";
+/** A room whose Undo setting is Off (`SessionConfig.roomUndo`) takes no Undo or Back out either. */
+export const UNDO_OFF_REFUSAL = "The host turned Undo off";
 
 /**
  * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
@@ -184,6 +192,31 @@ export const stripSealedPool = (state: SealedGameState): SealedStateWithoutPool 
  * from the step that opens it (its `stepChanged` is emitted with the new step already set).
  */
 export const inVillainPhase = (_event: GameEvent, state: GameState): boolean => state.step.phase === "villain";
+
+/** Whether a command's events begin a villain phase: the step that opens it, `placeThreat` (RRG 1.8 p. 29). */
+export const beginsVillainPhase = (events: readonly GameEvent[]): boolean =>
+  events.some(
+    (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
+  );
+
+/** A villain phase found in a replay, sealed for the table (`VillainPhaseSeedCore`). */
+const villainPhaseSeedOf = (phase: {
+  readonly startCommand: number;
+  readonly before: GameState;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly EventState[];
+    readonly after: GameState;
+  }[];
+}): VillainPhaseSeedCore => ({
+  startCommand: phase.startCommand,
+  before: stripSealedPool(sealForTable(phase.before)),
+  commands: phase.commands.map((command) => ({
+    events: command.events,
+    states: sealedEventStates(command.states),
+    after: stripSealedPool(sealForTable(command.after)),
+  })),
+});
 
 /**
  * The recorded states as the table may read them: sealed like the snapshot's own state, without the pool, and only
@@ -386,6 +419,8 @@ export class EngineSessionCore {
   #writes: Promise<void> = Promise.resolve();
   #saveError: string | null = null;
   #config: SessionConfig | null = null;
+  /** The lobby revision a new room game was built from (`SessionConfig.roomLobbyRev`); none for a resumed game. */
+  #lobbyRev: number | undefined;
   /**
    * Time played in this game so far (`SaveMeta.playedMs`), this session's and every earlier one's. Undefined for a game
    * resumed from a save made before the field existed: a part of its time would read as all of it.
@@ -431,7 +466,10 @@ export class EngineSessionCore {
 
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(given: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
-    const config = await this.#withHistoryFacts(given);
+    // The lobby revision is for the live stream's first start only: kept out of the config that is saved and replayed.
+    const { roomLobbyRev, ...unrevised } = given;
+    this.#lobbyRev = roomLobbyRev;
+    const config = await this.#withHistoryFacts(unrevised);
     // Backstop for the deck gates (`verdictOf`): a hero from a not-ready pack never starts a new game. Resume and
     // replay (`rebuildBaseline`) are left alone so a game that already exists still loads.
     const view = viewOf(config);
@@ -456,7 +494,8 @@ export class EngineSessionCore {
     this.#saveError = null;
     this.#gameId = null;
     this.#playedMs = 0;
-    this.#adjusted = false;
+    // A room's game with Cheats on counts for nothing from its first command (docs/live-game-rooms.md section 8).
+    this.#adjusted = config.roomCheats === true;
     const startedAt = this.#now();
     this.#activeAt = startedAt;
     this.#createdAt = startedAt;
@@ -482,6 +521,7 @@ export class EngineSessionCore {
         // `exactOptionalPropertyTypes`: `guided` is absent, not `undefined`, on a plain game (`SaveMeta.guided`'s
         // own doc comment — additive, no `SAVE_SCHEMA` bump).
         ...(config.guided ? { guided: config.guided } : {}),
+        ...(config.roomCheats ? { adjusted: true as const } : {}),
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet
@@ -563,8 +603,17 @@ export class EngineSessionCore {
     let state = initialState;
     const history: GameEvent[] = [...baseline.setupEvents];
     const trail: BackOutTrailEntry[] = [];
+    // The villain phase the save ends in or just finished, with the commands from the one that began it (issue #989). Only
+    // a phase the walkthrough could still be open for: a command taken after the phase left the villain phase means the
+    // player started the player phase, so it is dropped, and collecting stops at the command that ends the phase.
+    let phase: {
+      startCommand: number;
+      before: GameState;
+      ended: boolean;
+      commands: { events: readonly GameEvent[]; states: readonly EventState[]; after: GameState }[];
+    } | null = null;
     for (const [index, command] of stored.commands.entries()) {
-      const result = applyCommand(state, command, depsOf(stored.meta.config));
+      const result = applyCommand(state, command, depsOf(stored.meta.config), { recordStates: inVillainPhase });
       if (!result.ok) {
         if (writtenByOtherBuild(stored.meta, this.#writer)) throw new Error(NEWER_SAVE_MESSAGE);
         await storage.setStatus(gameId, "incompatible");
@@ -579,12 +628,19 @@ export class EngineSessionCore {
         rngDraws: { before: state.rng.draws, after: result.state.rng.draws },
       });
       record = recordEvents(record, result.events, result.state, depsOf(stored.meta.config));
+      if (phase?.ended) phase = null;
+      if (beginsVillainPhase(result.events)) phase = { startCommand: index, before: state, ended: false, commands: [] };
+      if (phase) {
+        phase.commands.push({ events: result.events, states: result.states ?? [], after: result.state });
+        if (result.state.step.phase !== "villain") phase.ended = true;
+      }
       state = result.state;
       history.push(...result.events);
     }
 
     this.#session = { state, log: { initialState, commands: stored.commands } };
     this.#config = stored.meta.config;
+    this.#lobbyRev = undefined;
     this.#version = stored.commands.length;
     this.#record = record;
     this.#gameId = gameId;
@@ -598,7 +654,15 @@ export class EngineSessionCore {
     this.#activeAt = this.#now();
     this.#createdAt = stored.meta.createdAt;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: initialState.cardPool, snapshot: { ...this.#snapshot([]), history, trail } };
+    return {
+      cardPool: initialState.cardPool,
+      snapshot: {
+        ...this.#snapshot([]),
+        history,
+        trail,
+        ...(phase ? { villainPhase: villainPhaseSeedOf(phase) } : {}),
+      },
+    };
   }
 
   /**
@@ -617,6 +681,8 @@ export class EngineSessionCore {
     const session = this.#require();
     const config = this.#config;
     if (!config) throw new Error("no setup config to rewind against");
+    if (config.roomPlayMode === "strict") throw new Error(STRICT_REFUSAL);
+    if (config.roomUndo === "off") throw new Error(UNDO_OFF_REFUSAL);
     if (commandCount < 0 || commandCount > session.log.commands.length) {
       throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
     }
@@ -664,6 +730,9 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
+    if (command.type === "adjust" && this.#config?.roomPlayMode === "strict") {
+      return { ok: false, error: { code: "internal_error", message: STRICT_REFUSAL, command } };
+    }
     const result = sessionApply(session, command, depsOf(this.#config), { recordStates: inVillainPhase });
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
@@ -897,13 +966,14 @@ export class EngineSessionCore {
   }
 
   /** The game as the live room's header and log (`live/`): null with no game or when it is not `watchable`. */
-  liveGame(): { readonly gameKey: string; readonly game: LiveGame } | null {
+  liveGame(): { readonly gameKey: string; readonly game: LiveGame; readonly room?: string } | null {
     const session = this.#session;
     const config = this.#config;
     const gameKey = this.liveGameKey();
     if (!session || !config || !gameKey) return null;
     return {
       gameKey,
+      ...(config.room ? { room: config.room } : {}),
       game: liveGameOf({
         writer: {
           appVersion: this.#writer.appVersion,
@@ -916,6 +986,7 @@ export class EngineSessionCore {
         commands: session.log.commands,
         outcome: session.state.outcome,
         checksums: this.#liveChecksums(session),
+        ...(this.#lobbyRev !== undefined ? { lobbyRev: this.#lobbyRev } : {}),
       }),
     };
   }

@@ -1,0 +1,3 @@
+kind: Fixed
+body: Live rooms now compare a fingerprint of the rules code as well as the version, so a guest on a different build (a preview against a release) is told to update instead of being let into a seat and refused every move
+time: 2026-11-21T19:53:33.4175318-05:00

@@ -16,7 +16,9 @@ export type SoundEffect =
   | "spell-cast"
   | "cloak-of-levitation"
   | "shield-toss"
-  | "versus-whoosh";
+  | "versus-whoosh"
+  | "room-enter"
+  | "chat-message";
 
 /** How loud each one plays, under the music's own level. */
 export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
@@ -30,6 +32,8 @@ export const SOUND_EFFECT_VOLUME: Readonly<Record<SoundEffect, number>> = {
   "cloak-of-levitation": 0.7,
   "shield-toss": 0.7,
   "versus-whoosh": 0.7,
+  "room-enter": 0.6,
+  "chat-message": 0.6,
 };
 
 /**

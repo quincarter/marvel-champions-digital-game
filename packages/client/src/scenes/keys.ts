@@ -51,6 +51,12 @@ export const SCENES = {
   playerStats: "PlayerStats",
   /** Past games (`scenes/past-games.ts`, #706): finished games to watch, share or export, reached from Title. */
   pastGames: "PastGames",
+  /** Play online (`scenes/online.ts`, #880): Host a room or Join one by its code. */
+  online: "Online",
+  /** A room's lobby (`scenes/room-lobby.ts`, #880): people, seats, host controls and chat before the game. */
+  roomLobby: "RoomLobby",
+  /** The room's deck picker (`scenes/room-deck-picker.ts`, #880): choose a deck from this device for a seat. */
+  roomDeckPicker: "RoomDeckPicker",
   /** Art & Credits (`scenes/credits.ts`): who made the art, music and card scans, reached from Extras. */
   credits: "Credits",
   /** The Mod Store (`scenes/mod-store.ts`): browse, install, update and remove community packs, reached from Extras. */
@@ -130,6 +136,10 @@ export const SCENES = {
   unlockConfirm: "UnlockConfirmOverlay",
   /** "Cards that can't be played" (`scenes/name-conflict.ts`): a same-name clash between seated heroes and decks, over either seat screen. */
   nameConflict: "NameConflictOverlay",
+  /** "Your name" for online play (`scenes/online-name.ts`, #880): asked once, changed in Settings. */
+  onlineName: "OnlineNameOverlay",
+  /** "Rejoining room ABC123…" / "Resuming your game…" while a reload reconnects (`scenes/rejoin.ts`). */
+  rejoin: "RejoinOverlay",
   /** "Pick a deck" (`scenes/hero-decks-sheet.ts`): a hero with several decks, over Take your seats. */
   heroDecks: "HeroDecksSheet",
   /** A deck's options (`scenes/deck-actions-sheet.ts`, #958): a tapped deck on a phone or tablet, over Decks & Collection. */
@@ -194,6 +204,8 @@ export const SCENES = {
   achievementToast: "AchievementToast",
   /** The "Controller connected" toast (`scenes/pad-toast.ts`): runs only while it shows. */
   padToast: "PadToast",
+  /** The room's "joined" / "left" toasts (#880, `scenes/room-toast.ts`): runs only while one shows. */
+  roomToast: "RoomToast",
   /** The "Building your stats" toast (`scenes/backfill-toast.ts`, #529): runs only while older games are filled in. */
   backfillToast: "BackfillToast",
 } as const;
@@ -207,6 +219,7 @@ export const CHROME_SCENES: ReadonlySet<string> = new Set([
   SCENES.powerSavingNotice,
   SCENES.achievementToast,
   SCENES.padToast,
+  SCENES.roomToast,
   SCENES.backfillToast,
   SCENES.syncPrompt,
   SCENES.syncSetupNotice,

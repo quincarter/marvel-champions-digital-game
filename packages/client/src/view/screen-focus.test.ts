@@ -679,6 +679,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",
@@ -693,6 +694,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",
@@ -715,12 +717,25 @@ describe("screen focus routes", () => {
     expect(order.slice(order.indexOf("settings"), order.indexOf("settings") + 2)).toEqual(["settings", "quit"]);
   });
 
-  test('the Title menu: "civil-war" follows Campaign once the Civil War box is open, and is absent before', () => {
+  test('the Title menu: "civil-war" follows Campaign and Play online once the Civil War box is open, and is absent before', () => {
     expect(titleMenuFocusOrder({ continuable: false })).not.toContain("civil-war");
     expect(titleMenuFocusOrder({ continuable: false, civilWar: false })).not.toContain("civil-war");
     const open = titleMenuFocusOrder({ continuable: true, civilWar: true });
-    expect(open.indexOf("civil-war")).toBe(open.indexOf("campaign") + 1);
+    expect(open.indexOf("civil-war")).toBe(open.indexOf("play-online") + 1);
     expect(open[open.indexOf("civil-war") + 1]).toBe("extras");
+  });
+
+  test("the Title's Play online panel replaces the menu button: Host and Join follow the menu rows, before the footer links", () => {
+    const order = titleMenuFocusOrder({ continuable: false, quit: true, discord: true, onlinePanel: true });
+    expect(order).not.toContain("play-online");
+    expect(order.slice(order.indexOf("quit"), order.indexOf("quit") + 4)).toEqual([
+      "quit",
+      "play-online-host",
+      "play-online-join",
+      "discord",
+    ]);
+    expect(titleMenuFocusOrder({ continuable: false })).toContain("play-online");
+    expect(titleMenuFocusOrder({ continuable: false })).not.toContain("play-online-host");
   });
 
   test("Past games: Back, filters, file button, export, search, each game's row, then the details' actions", () => {
@@ -794,6 +809,7 @@ describe("screen focus routes", () => {
       "new-game",
       "decks",
       "campaign",
+      "play-online",
       "extras",
       "past-games",
       "trophies",

@@ -44,6 +44,9 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.sideStoryReader,
   SCENES.trophyRoom,
   SCENES.pastGames,
+  SCENES.online,
+  SCENES.roomLobby,
+  SCENES.roomDeckPicker,
   SCENES.credits,
   SCENES.modStore,
   // Dev-only demo scenes: reachable only through `?screen=…` jumps (`scenes/boot-dev-jump.ts`).
@@ -73,6 +76,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.unlocks,
   SCENES.unlockConfirm,
   SCENES.nameConflict,
+  SCENES.onlineName,
+  SCENES.rejoin,
   SCENES.heroDecks,
   SCENES.deckActions,
   SCENES.searchHelp,
@@ -109,6 +114,8 @@ export const SCENE_ORDER: readonly string[] = [
   SCENES.achievementToast,
   // The controller toast: a notice with one button, over everything but the sync prompts and the chrome.
   SCENES.padToast,
+  // The room's join toasts: the same kind of notice, with a close button.
+  SCENES.roomToast,
   // The stats backfill toast: the same kind of notice, at the bottom.
   SCENES.backfillToast,
   SCENES.steamUpdate,
@@ -200,7 +207,9 @@ export const COMPANIONS: Readonly<Record<string, readonly string[]>> = {
     SCENES.syncData,
     SCENES.rules,
     SCENES.unlockConfirm,
+    SCENES.onlineName,
   ],
+  [SCENES.online]: [SCENES.onlineName, SCENES.optionNotice, SCENES.rejoin],
   [SCENES.saveData]: [SCENES.syncData],
   [SCENES.syncSetupPrompt]: [SCENES.syncData],
   [SCENES.setupDeal]: [SCENES.choice, SCENES.inspect],

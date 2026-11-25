@@ -117,7 +117,10 @@
  */
 
 import { GlyphHints } from "../ui/glyph-hints.js";
+import type { VillainPhaseSeed } from "../engine/host.js";
+import { clearVillainPhaseMarker, seedVersionOf, walkthroughFromSeed } from "../view/villain-phase-resume.js";
 import type { GlyphGround } from "../ui/input-glyph.js";
+import { roomUndoOffOf } from "../view/room-strict.js";
 import { primaryGlyphShown } from "../view/primary-activation.js";
 import { pickGlyphSpecs } from "../view/input-glyph-model.js";
 import { padPickBinding, padPickSlotOf } from "../view/pick-assign.js";
@@ -289,6 +292,11 @@ export interface VillainPhaseLaunchData {
   readonly endOfTurn?: EndOfTurnDraws | null;
   /** Reopen a finished phase's recap for review from the Board's drawer handle (`view/villain-review.ts`). */
   readonly review?: VillainReview;
+  /**
+   * A reload brought the game back mid-phase (issue #989): the phase the save already resolved, its commands from the one
+   * that began it. The walkthrough starts with the beats those commands produced, as if it had watched them live.
+   */
+  readonly seed?: VillainPhaseSeed;
 }
 
 const totalBeatsOf = (walkthrough: Walkthrough): number =>
@@ -428,6 +436,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#walkthrough = walkthroughSeededFrom(1, data?.surgeDealt, data?.dealtBefore);
     this.#revealed = 0;
     this.#version = -2;
+    if (data?.seed && !data.review) {
+      this.#walkthrough = walkthroughFromSeed(data.seed, 1, data.surgeDealt, appSession().store.state.perspectiveId);
+      // The store already stands at the end of the seed's commands: nothing more to take in until the next command.
+      this.#version = seedVersionOf(data.seed);
+    }
     this.#hidden = false;
     this.#hiddenChoice = null;
     this.#presentation = "full";
@@ -661,6 +674,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   #close(): void {
     if (this.#motion.leaving) return;
+    // The phase is read: a reload from here on has nothing to bring back (`view/villain-phase-resume.ts`).
+    if (!this.#review && !activeReplay()) clearVillainPhaseMarker(appSession().store.state.gameId);
     // Whatever seat a peek left the board on, the table after the phase is the board's own seat's.
     appSession().store.endSeatPeek();
     this.#tuckAway();
@@ -1118,7 +1133,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (!this.#gateEligible() || state.game.outcome) return null;
     // Pause shows the game's log: once it has been opened over the gate the phase may have been read.
     if (this.scene.isActive(SCENES.pause) || this.#logView) return null;
-    if (state.inFlight || state.version !== state.commandTrail.length) return null;
+    if (state.inFlight || state.version !== state.commandTrail.length || roomUndoOffOf(state.config)) return null;
     return gateTakebackOf(state.commandTrail, state.perspectiveId, state.game);
   }
 

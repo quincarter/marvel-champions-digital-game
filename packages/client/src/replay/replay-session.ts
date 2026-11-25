@@ -82,9 +82,26 @@ export interface ReplayInfo {
 
 /** A setup without its packs' data, which a replay file never carries (`ReplayFile.config`). */
 export function withoutPacks(config: SessionConfig): SessionConfig {
-  // `watchable` is the host's own setting for the game being streamed, not part of the game: never written to a file.
-  if (config.packs === undefined && config.watchable === undefined) return config;
-  const { packs: _packs, watchable: _watchable, ...rest } = config;
+  // `watchable`, `room`, `roomPlayMode` and `roomUndo` are the host's own settings for the game being streamed, not part of the game: never written to a file.
+  if (
+    config.packs === undefined &&
+    config.watchable === undefined &&
+    config.room === undefined &&
+    config.roomPlayMode === undefined &&
+    config.roomUndo === undefined &&
+    config.roomCheats === undefined
+  ) {
+    return config;
+  }
+  const {
+    packs: _packs,
+    watchable: _watchable,
+    room: _room,
+    roomPlayMode: _roomPlayMode,
+    roomUndo: _roomUndo,
+    roomCheats: _roomCheats,
+    ...rest
+  } = config;
   return rest;
 }
 

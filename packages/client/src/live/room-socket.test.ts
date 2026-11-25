@@ -310,3 +310,35 @@ describe("room socket, a room that is gone or replaced", () => {
     expect(onReplaced).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("room socket hello device", () => {
+  const deps: RoomSocketDeps = {
+    WebSocket: FakeSocket,
+    setTimer: () => undefined,
+    clearTimer: () => undefined,
+    random: () => 0.5,
+  };
+  const helloOf = (device?: { platform: "linux"; form: "desktop" }) => {
+    FakeSocket.all = [];
+    const socket = new RoomSocket({
+      baseUrl: "https://sync.example",
+      roomId: "abcdefghijkl",
+      ...(device ? { device } : {}),
+      onConnection: () => undefined,
+      onMessage: () => undefined,
+      deps,
+    });
+    socket.connect();
+    FakeSocket.all[0]!.open();
+    return JSON.parse(FakeSocket.all[0]!.sent[0]!) as Record<string, unknown>;
+  };
+
+  it("carries the device in the hello when there is one, and only those two fields", () => {
+    const hello = helloOf({ platform: "linux", form: "desktop" });
+    expect(hello.device).toEqual({ platform: "linux", form: "desktop" });
+  });
+
+  it("leaves it out when there is none", () => {
+    expect("device" in helloOf()).toBe(false);
+  });
+});

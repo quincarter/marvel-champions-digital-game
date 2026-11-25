@@ -6,6 +6,7 @@ import { LiveRoomController } from "./live-room-controller.js";
 import type { LiveGameMessage } from "./live-room-protocol.js";
 import type { CreateRoomResult, RoomSocketDeps, WebSocketLike } from "./room-socket.js";
 import type { LiveStatus } from "./live-publisher.js";
+import { gidOfGame } from "./live-publisher.js";
 import { flakyIdb } from "./fake-idb.js";
 import { IdbRoomStore, MemoryRoomStore, type LiveRoomStore } from "./live-room-store.js";
 
@@ -502,6 +503,22 @@ describe("live room controller", () => {
       expect(createRoom).toHaveBeenCalledTimes(1);
       expect(FakeSocket.all).toHaveLength(0);
       expect(statuses.some((s) => s.watchUrl)).toBe(false);
+    });
+
+    it("the start's gid comes from the game's identity, so a record write that failed first cannot lose it", async () => {
+      const store = new MemoryRoomStore();
+      vi.spyOn(store, "save").mockRejectedValueOnce(new Error("disk full"));
+      const { controller, timers } = setup([], store);
+      const held = gameMessage("g1");
+      controller.onGameMessage(held);
+      controller.onGameMessage(command("g1", 1));
+      for (let i = 0; i < 5; i++) await settle();
+      timers[0]!.run();
+      for (let i = 0; i < 5; i++) await settle();
+      FakeSocket.all[0]!.welcome("host");
+      const start = FakeSocket.all[0]!.sent.find((m) => m.kind === "start") as { gid?: string };
+      const created = (held as { game: { createdAt: number } }).game.createdAt;
+      expect(start.gid).toBe(gidOfGame("g1", created));
     });
 
     it("saves a new room's record, and clears it when the game is left or the room closes", async () => {

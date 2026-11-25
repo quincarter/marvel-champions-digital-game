@@ -12,6 +12,7 @@
  * what the host reports about that — the game's `record` and any `saveError`.
  */
 
+import { roomUndoOffOf } from "../view/room-strict.js";
 import {
   type ChoiceId,
   type Command,
@@ -34,6 +35,7 @@ import type {
   RewindOptions,
   SavedGame,
   SessionConfig,
+  VillainPhaseSeed,
 } from "../engine/host.js";
 import { setGamePacks } from "../content/game-deps.js";
 import type { BackOutTrailEntry } from "../view/back-out.js";
@@ -63,6 +65,11 @@ export interface SessionState {
    * the recent lines instead of empty. Empty for a new game and after the first command.
    */
   readonly resumedHistory: readonly GameEvent[];
+  /**
+   * A resumed game's first state only: the last villain phase its save holds, with the commands from the one that began it,
+   * for the walkthrough to come back after a reload (issue #989). Null otherwise.
+   */
+  readonly resumedVillainPhase: VillainPhaseSeed | null;
   /** Prefetched legal actions for the player who must act. */
   readonly legal: LegalActionsFor | null;
   /**
@@ -138,6 +145,7 @@ const INITIAL: SessionState = {
   lastEvents: [],
   lastStates: [],
   resumedHistory: [],
+  resumedVillainPhase: null,
   legal: null,
   perspectiveId: null,
   offTurnSeats: [],
@@ -196,9 +204,11 @@ export class SessionStore {
    * Picks a saved game back up. A save that no longer replays fails here with
    * the host's reason, and the host has already retired it, so it isn't offered again.
    */
-  async resume(gameId: string): Promise<void> {
-    // Device sync pulls in a newer copy of this game first (`store/resume-hook.ts`); a no-op when sync is off.
-    await runBeforeResume(gameId);
+  async resume(gameId: string, options: { readonly sync?: boolean } = {}): Promise<void> {
+    // Device sync pulls in a newer copy of this game first (`store/resume-hook.ts`); a no-op when sync is off. A reload
+    // resume skips it (`sync: false`): this device's save is the one that was being played, and single player never
+    // waits on the network.
+    if (options.sync !== false) await runBeforeResume(gameId);
     return this.#begin(() => this.#host.resume(gameId));
   }
 
@@ -339,6 +349,8 @@ export class SessionStore {
    */
   async rewindTo(commandCount: number, options?: RewindOptions): Promise<boolean> {
     if (this.#state.inFlight) return false;
+    // A strict room's game, or one whose Undo is Off, takes nothing back (`view/room-strict.ts`); the engine host refuses it too.
+    if (roomUndoOffOf(this.#state.config)) return false;
     this.#set({ ...this.#state, inFlight: true });
     try {
       const update = await this.#host.rewindTo(commandCount, options);
@@ -451,6 +463,7 @@ export class SessionStore {
       lastEvents: update.events,
       lastStates: update.states ?? [],
       resumedHistory: update.history ?? [],
+      resumedVillainPhase: update.villainPhase ?? null,
       legal: update.legal,
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       offTurnSeats: [],

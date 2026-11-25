@@ -88,6 +88,41 @@ export interface SessionConfig {
    * and the scenario ignore it, and the live header and replay files leave it out. Absent: not streamed.
    */
   readonly watchable?: true;
+  /**
+   * The lobby room this game belongs to (issue #880): the room's id, set by `platform/room.ts` `startGame` for the game
+   * a host starts from its lobby. The live-room worker attaches a game to the host's lobby room only when this matches
+   * (a later single-player game never joins an old lobby). Like `watchable`, it never reaches the rules and the live
+   * header and replay files leave it out.
+   */
+  readonly room?: string;
+  /**
+   * How a lobby room's game is played (issue #880): `"strict"` takes Undo, Back out and Manual adjust away from the
+   * host and the engine host refuses them (`view/room-strict.ts`); `"host"` and absent change nothing. Set by
+   * `platform/room.ts` `startGame` from the lobby's rules. Like `room`, it never reaches the rules and the live header
+   * and replay files leave it out.
+   */
+  readonly roomPlayMode?: "strict" | "host";
+  /**
+   * Who may Undo in a lobby room's game (`LobbyUndo` in the sync worker): `"off"` makes the engine host refuse every
+   * rewind (Undo and Back out), `"host"` and `"ask"` allow them on the host's device (a guest's ask is #904). Strict
+   * rooms are `"off"` whatever this says. Set by `platform/room.ts` `startGame`; absent changes nothing. Like
+   * `roomPlayMode`, it never reaches the rules and the live header and replay files leave it out.
+   */
+  readonly roomUndo?: "off" | "host" | "ask";
+  /**
+   * A lobby room's game with Cheats on (the host's lobby setting): the game starts marked adjusted
+   * (`SaveMeta.adjusted`, issue #791) so nobody's stats, achievements or unlock points count it, and the host's own
+   * Settings > Cheats apply to it (`view/room-strict.ts` `roomCheatsOf`). Absent or false: the host's cheats are
+   * unavailable in the room's game. The live header and replay files leave it out (the header carries `adjusted`).
+   */
+  readonly roomCheats?: boolean;
+  /**
+   * The lobby revision (`RoomState.rev`) a lobby room's host built this game from. The live stream's first `start`
+   * carries it so the room refuses a game built from a lobby that has since changed (`lobby-changed`). Only a new
+   * game takes it: the session keeps it apart from the saved config, so a resumed game and the replay and live
+   * headers never see it. Absent: the room takes the start as it always has.
+   */
+  readonly roomLobbyRev?: number;
   readonly seed: number;
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
@@ -248,6 +283,22 @@ export interface SealedEventState {
   readonly state: SealedStateWithoutPool;
 }
 
+/**
+ * A resumed game's last villain phase, for the walkthrough to be rebuilt after a reload (issue #989): the table before
+ * the command that began it, then each command from there to the end of the save with its events, the table as it had
+ * them (`states`) and the table after it. Sealed and without the card pool, like a snapshot's own state.
+ */
+export interface VillainPhaseSeedCore {
+  /** The command count before the command that began the phase: the index of that command in the save. */
+  readonly startCommand: number;
+  readonly before: SealedStateWithoutPool;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly SealedEventState[];
+    readonly after: SealedStateWithoutPool;
+  }[];
+}
+
 /** What a player may do, and who they are. Computed ahead of time by the host. */
 export interface LegalActionsFor {
   readonly playerId: PlayerId;
@@ -293,10 +344,26 @@ export interface EngineUpdate {
    */
   readonly trail?: readonly BackOutTrailEntry[];
   /**
+   * A resumed game's first update only: the last villain phase the save holds, with the commands from its start, so the
+   * walkthrough can be rebuilt after a reload (issue #989). Absent for a save with no villain phase.
+   */
+  readonly villainPhase?: VillainPhaseSeed;
+  /**
    * The table as the command had it at each of its villain-phase events that changed it, card pool re-attached (issue
    * #386): what the villain phase's replay draws while it is behind the engine. Absent when the command had none.
    */
   readonly states?: readonly { readonly at: number; readonly state: SealedGameState }[];
+}
+
+/** `VillainPhaseSeedCore` with the card pool re-attached, as the walkthrough reads it. */
+export interface VillainPhaseSeed {
+  readonly startCommand: number;
+  readonly before: SealedGameState;
+  readonly commands: readonly {
+    readonly events: readonly GameEvent[];
+    readonly states: readonly { readonly at: number; readonly state: SealedGameState }[];
+    readonly after: SealedGameState;
+  }[];
 }
 
 export type DispatchResult =

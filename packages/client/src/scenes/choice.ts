@@ -179,6 +179,7 @@ import {
 } from "../view/pair-cards-model.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
+import { roomUndoOffOf } from "../view/room-strict.js";
 import type { SessionState } from "../store/session-store.js";
 import { localChoice, onLocalChoiceChange, type LocalChoice } from "../view/local-choice.js";
 import { choiceTakebackOf } from "../view/end-turn-takeback.js";
@@ -1105,10 +1106,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The end-of-phase "discard any cards" sheet offers "Nevermind" instead (`view/end-turn-takeback.ts`): End turn has
     // only asked it, so the whole turn end is taken back, and B on a pad does the same.
     const takeback = this.#localNow() ? null : this.#takebackOf(state, choice);
-    // The Board's own cost question has nothing to rewind: Back out drops the play before it was sent (`#backOut`).
+    // The Board's own cost question has nothing to rewind: Back out drops the play before it was sent (`#backOut`), so
+    // a room's Undo setting does not apply to it.
     const backOutTarget = this.#localNow()
       ? LOCAL_BACK_OUT
-      : (takeback ?? (state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null));
+      : (takeback ??
+        (state.perspectiveId && !roomUndoOffOf(state.config)
+          ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId)
+          : null));
     let backOutRect: Rect | null = null;
     // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
     // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
@@ -4014,7 +4019,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** Nevermind on the end-of-phase discard sheet (`view/end-turn-takeback.ts`): the count to rewind to, or null. */
   #takebackOf(state: SessionState, choice: PendingChoice): number | null {
-    if (!state.perspectiveId || choice.playerId !== state.perspectiveId) return null;
+    if (!state.perspectiveId || choice.playerId !== state.perspectiveId || roomUndoOffOf(state.config)) return null;
     return choiceTakebackOf(state.commandTrail, choice, state.perspectiveId);
   }
 

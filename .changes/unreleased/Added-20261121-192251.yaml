@@ -1,0 +1,3 @@
+kind: Added
+body: 'Rooms: the lobby shows what the host is doing in setup (picking a scenario, setting the table, checking decks), and the room keeps its chat history for late joiners after it sleeps (#880)'
+time: 2026-11-21T19:22:51.2501234-05:00

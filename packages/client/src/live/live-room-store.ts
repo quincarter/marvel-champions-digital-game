@@ -12,9 +12,21 @@ export interface LiveRoomRecord {
   readonly roomId: string;
   readonly hostToken: string;
   readonly createdAt: number;
+  /** Set for a lobby room (issue #880): its 6-character code, and the host's name for the same room's `hello`. */
+  readonly code?: string;
+  readonly name?: string;
+  /** The admission id of the game the lobby room admitted (from `started`): lets a reloaded host resume it before its first command. */
+  readonly gid?: string;
   /** When the host last published (written at most once a minute); absent on a record from before this field. */
   readonly lastActiveAt?: number;
 }
+
+/**
+ * The record a hosted lobby room keeps under its own code, before and apart from any game (reload rejoin): the address's
+ * `?room=<CODE>` finds the host token through it, so a host who reloads in the lobby, with no game saved yet, comes back
+ * as the host. Same shape as a game's record (`gameKey` is this key), so the one store and the idle limit serve both.
+ */
+export const lobbyRecordKey = (code: string): string => `room:${code}`;
 
 export interface LiveRoomStore {
   load(gameKey: string): Promise<LiveRoomRecord | null>;

@@ -275,6 +275,11 @@ export interface DeckBuilderSceneData {
   readonly railTab?: "deck" | "games";
   /** Open on this narrow tab: coming back from Deck check, on the Deck tab that opened it. */
   readonly tab?: DeckBuilderTab;
+  /**
+   * Where Back (and Delete) go instead of Decks, for a builder opened from another screen (the room deck picker's "Edit
+   * deck"). That screen is given `focusDeckId` (the deck just saved, if any) on top of `data`.
+   */
+  readonly returnTo?: CampaignReturn;
 }
 
 /** The identity row's art window, wide for its height: a cover crop of the hero's face and shoulders. */
@@ -517,6 +522,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** Unsubscribes the Start from step's wait for its hero picture. */
   #bannerBaked: (() => void) | null = null;
   #busy = false;
+  #returnTo: CampaignReturn | null = null;
   #campaign: DeckBuilderCampaignData | null = null;
   /** Recomputed every `#rebuild` from `#deck`/`#campaign` — the row-level marks the pool list and "your deck" panel both read; `null` outside campaign mode. */
   #campaignModel: CampaignDeckEditModel | null = null;
@@ -606,6 +612,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#rows = deckBuilderRowSizes(cardSizeFactor(appSession().settings.cardSize));
     this.#campaign = data.campaign ?? null;
+    this.#returnTo = data.returnTo ?? null;
     campaignMode = this.#campaign !== null;
     const given = data.deck ?? null;
     // A precon is never edited in place (issue #217): the builder edits the player's own copy of it.
@@ -839,6 +846,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         return;
       }
       if (campaign) goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
+      else if (this.#returnTo) this.#leaveToReturn();
       // After a Save, Decks opens on the deck just saved (its row selected and in view).
       else goToScreen(this, SCENES.decks, this.#savedDeckId ? { focusDeckId: this.#savedDeckId } : undefined);
     };
@@ -3777,7 +3785,16 @@ ${entry.detail}`,
     this.#busy = true;
     this.#rebuild();
     await deckStorage().remove(saved.id);
-    goToScreen(this, SCENES.decks);
+    if (this.#returnTo) this.#leaveToReturn(false);
+    else goToScreen(this, SCENES.decks);
+  }
+
+  /** Back to the screen that opened the builder, told which deck was just saved (it reopens on it). */
+  #leaveToReturn(withSaved = true): void {
+    const back = this.#returnTo;
+    if (!back) return;
+    const focusDeckId = withSaved ? this.#savedDeckId : null;
+    goToScreen(this, back.key, { ...back.data, ...(focusDeckId ? { focusDeckId } : {}) });
   }
 
   async #save(): Promise<void> {
