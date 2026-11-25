@@ -66,7 +66,7 @@ import sentinelCover from "../../../site/landing/showcase/batch-2/sentinel.webp"
 import spiderPunisherCover from "../../../site/landing/showcase/batch-2/spider-punisher.webp";
 import theRoseCover from "../../../site/landing/showcase/batch-2/the-rose.webp";
 import throgCover from "../../../site/landing/showcase/batch-2/throg.webp";
-import multiplayerArt from "../../../site/landing/showcase/multiplayer-coming-soon.jpg";
+import multiplayerArt from "../../../site/landing/showcase/multiplayer-assemble-online.jpg";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string): T => document.getElementById(id) as T;
 

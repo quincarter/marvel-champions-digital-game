@@ -87,11 +87,12 @@ const en = {
   "news.notes": "Release notes",
   "news.all": "Every release",
 
-  "mp.kick": "Multiplayer · Coming soon",
+  "mp.kick": "Multiplayer · Out now in v1.0.0",
   "mp.title": 'Play <span class="g">together</span>',
-  "mp.text": "Online play is being built now. Here's a sneak peek of what's coming.",
+  "mp.text":
+    "Online play is here. Pick Play online on the Title to host a room or join one. It's brand new, so if something breaks, report it and we'll fix it fast.",
   "mp.alt":
-    "Multiplayer, coming soon: Assemble online, over a row of hero art, with Co-op rooms, Epic Multiplayer, Civil War: team vs team and Watch live",
+    "Multiplayer, out now in version 1.0.0: Assemble online, over a row of hero art, with Co-op rooms, Epic Multiplayer, Civil War: team vs team and Watch live",
   "mp.rooms": "Host a room and invite friends with a code or a link.",
   "mp.seats": "One to four players, each on their own device with their own hero and deck, with a lobby and chat.",
   "mp.watch": "Watch a game live from a link.",
@@ -210,11 +211,12 @@ const es: Catalog<LandingKey> = {
   "news.notes": "Notas de la versión",
   "news.all": "Todas las versiones",
 
-  "mp.kick": "Multijugador · Próximamente",
+  "mp.kick": "Multijugador · Ya disponible en la v1.0.0",
   "mp.title": 'Juntos <span class="g">en línea</span>',
-  "mp.text": "El juego en línea se está construyendo ahora. Aquí tienes un adelanto de lo que viene.",
+  "mp.text":
+    "El juego en línea ya está aquí. Elige Play online en la pantalla de título para crear una sala o unirte a una. Es totalmente nuevo, así que si algo falla, repórtalo y lo arreglaremos pronto.",
   "mp.alt":
-    "Multijugador, próximamente: Assemble online, sobre una fila de arte de héroes, con Co-op rooms, Epic Multiplayer, Civil War: team vs team y Watch live",
+    "Multijugador, ya disponible en la versión 1.0.0: Assemble online, sobre una fila de arte de héroes, con Co-op rooms, Epic Multiplayer, Civil War: team vs team y Watch live",
   "mp.rooms": "Crea una sala e invita a tus amigos con un código o un enlace.",
   "mp.seats":
     "De uno a cuatro jugadores, cada uno en su propio dispositivo con su héroe y su mazo, con una sala de espera y chat.",
