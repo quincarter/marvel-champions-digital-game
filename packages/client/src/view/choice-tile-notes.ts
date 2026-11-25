@@ -7,9 +7,13 @@
  *
  * Payment captions (issue #569): a card to exhaust says what exhausting it adds, and a hand card spent with its own
  * ability says what that way takes. Every number is the engine's (`paymentOptionsPool`).
+ *
+ * Engaged seats (issue #1001): two facedown Drones are both a card back, so in a game of more than one seat each
+ * minion option says who it is engaged with, "vs Iron Man", the way its tile on the board does.
  */
 import {
   cardsInPlay,
+  isMinion,
   paymentOptionsPool,
   type ChoiceRef,
   type EngineDeps,
@@ -17,7 +21,8 @@ import {
   type InstanceId,
   type PendingChoice,
 } from "@mc/engine";
-import { counterNote, countersOf } from "./board-model.js";
+import { counterNote, countersOf, engagedNameOf } from "./board-model.js";
+import { engagedChipWords } from "./engaged-chips.js";
 import { playedCardOf } from "./payment-sheet.js";
 import { exhaustTileOptionsOf, isSpendChoice, spendOptionNote } from "./spend-choice.js";
 
@@ -38,6 +43,41 @@ export function optionCounterNotesOf(state: GameState, choice: PendingChoice): R
     if (note) notes.set(option.optionId, note);
   }
   return notes;
+}
+
+/**
+ * Who each minion option is engaged with, by option id: the seat's name as the board's chip gives it ("Iron Man", or
+ * "Iron Man 2" when two seats play him). Empty in a one-seat game, where every minion is engaged with the one hero,
+ * and for a minion engaged with nobody (held, captive). `engagedNoteForms` words it for a tile or a row.
+ */
+export function optionEngagedNamesOf(state: GameState, choice: PendingChoice): ReadonlyMap<string, string> {
+  const notes = new Map<string, string>();
+  if (WORDED_PROMPTS.has(choice.prompt.kind) || state.players.length < 2) return notes;
+  const inPlay = new Set(cardsInPlay(state));
+  for (const option of choice.options) {
+    const id = refInstanceId(option.ref);
+    if (!id || !inPlay.has(id) || !isMinion(state, id)) continue;
+    const name = engagedNameOf(state, state.instances[id]?.engagedWith ?? null);
+    if (name) notes.set(option.optionId, name);
+  }
+  return notes;
+}
+
+/**
+ * The ways to word an engaged note, longest first: "vs Spider-Man (Peter Parker)", "vs Spider-Man", then the board
+ * chip's short form "vs S.-Man". A tile takes the first that fits its width as drawn; a row has room for the first.
+ */
+export function engagedNoteForms(name: string | undefined): readonly string[] {
+  if (!name) return [];
+  // The alter ego's name goes first, before any seat number ("Spider-Man (Peter Parker) 2" is "Spider-Man 2").
+  const base = name.replace(/\s*\([^)]*\)/, "").trim() || name;
+  return [...new Set([`vs ${name}`, `vs ${base}`, engagedChipWords(base, 0)])];
+}
+
+/** An option's lines under its scan, joined: who it is engaged with, then what it holds ("vs Iron Man · 2 backup"). */
+export function joinTileNotes(...notes: readonly (string | undefined)[]): string | undefined {
+  const shown = notes.filter((note): note is string => !!note);
+  return shown.length > 0 ? shown.join(" · ") : undefined;
 }
 
 /** A note as a card tile fits it, a phone tile being 60 px wide: "2 backup counters" reads "2 backup". */

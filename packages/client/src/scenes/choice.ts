@@ -98,7 +98,15 @@ import { roomState } from "../platform/room.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceTileBarsOf, type TileBar } from "../view/choice-tile-bars.js";
 import { divideSheetOf, shownDivideChoice } from "../view/divide-sheet.js";
-import { choiceNoteOf, optionCounterNotesOf, spendCaptionsOf, tileCounterNote } from "../view/choice-tile-notes.js";
+import {
+  choiceNoteOf,
+  engagedNoteForms,
+  joinTileNotes,
+  optionCounterNotesOf,
+  optionEngagedNamesOf,
+  spendCaptionsOf,
+  tileCounterNote,
+} from "../view/choice-tile-notes.js";
 import { isSpendChoice, shownSpendChoice, spendAnswerOf, toggleSpendPick } from "../view/spend-choice.js";
 import { fallbackChoiceView, fallbackPages, toggleFallbackPick } from "../view/choice-fallback.js";
 import { recordError } from "../ui/error-log.js";
@@ -237,6 +245,8 @@ export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
   /** What each card tile's copy holds, and a payment tile's caption (`view/choice-tile-notes.ts`), by shown option id. */
   #tileCounters: ReadonlyMap<string, string> = new Map();
+  /** Who each minion tile is engaged with, in a game of more than one seat (issue #1001). */
+  #tileEngaged: ReadonlyMap<string, string> = new Map();
   #tileCaptions: ReadonlyMap<string, string> = new Map();
   /** The collection search's page (`view/collection-search.ts`), kept for the choice it belongs to across redraws. */
   #collectionPage = { choiceId: "", page: 0 };
@@ -1456,6 +1466,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rowHeight = hit.target;
     // An option can carry a second line (Agents of S.H.I.E.L.D.'s "Flips a Board Member"), so rows are not all one height.
     const rowCounters = state.game ? optionCounterNotesOf(state.game, choice) : new Map<string, string>();
+    // Two facedown Drones read the same: each minion row says who it is engaged with (issue #1001).
+    const rowEngaged = state.game ? optionEngagedNamesOf(state.game, choice) : new Map<string, string>();
     const optionText = (option: (typeof choice.options)[number]): string => {
       const text = aosOptionLabelOf(
         state.game,
@@ -1466,7 +1478,10 @@ export class ChoiceOverlay extends Phaser.Scene {
             ? groupOptionLabel(roomState().epic, optionLabelOf(state.game, option))
             : optionLabelOf(state.game, option),
       );
-      const held = rowCounters.get(option.optionId);
+      const held = joinTileNotes(
+        engagedNoteForms(rowEngaged.get(option.optionId))[0],
+        rowCounters.get(option.optionId),
+      );
       return held ? `${text}\n${held}` : text;
     };
     // A long option (an evidence card's Setup runs to 140 characters) wraps over several lines instead of being cut off.
@@ -2744,6 +2759,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const barState = this.#sessionState().game;
     this.#tileBars = barState ? choiceTileBarsOf(barState, choice, this.#selected, gameDeps()) : new Map();
     this.#tileCounters = barState ? optionCounterNotesOf(barState, choice) : new Map();
+    this.#tileEngaged = barState ? optionEngagedNamesOf(barState, choice) : new Map();
     this.#tileCaptions = barState?.pendingChoice
       ? spendCaptionsOf(barState, barState.pendingChoice, choice, gameDeps())
       : new Map();
@@ -3442,7 +3458,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     const bar = this.#tileBars.get(option.optionId);
     const barHeight = bar ? (bar.kind === "threat" ? 24 : 34) : 0;
     // What this copy holds, in a line of its own under the scan (issue #571): a card's own face never shows its counters.
-    const counters = this.#tileCounters.get(option.optionId);
+    // A minion's line starts with who it is engaged with (issue #1001): two facedown Drones are the same card back.
+    const holds = this.#tileCounters.get(option.optionId);
+    const holdsNote = holds ? tileCounterNote(holds) : undefined;
+    const engagedForms = engagedNoteForms(this.#tileEngaged.get(option.optionId));
+    const counters = joinTileNotes(engagedForms[0], holdsNote);
     const countersHeight = counters ? 18 : 0;
     const inner: Rect = {
       x: slot.x + 3,
@@ -3525,11 +3545,16 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     if (counters) {
       const held = this.add
-        .text(inner.x + inner.width / 2, inner.y + inner.height + countersHeight / 2, tileCounterNote(counters), {
+        .text(inner.x + inner.width / 2, inner.y + inner.height + countersHeight / 2, counters, {
           ...textStyle(typeRole.label, surface.ink.hex),
           fontSize: "11px",
         })
         .setOrigin(0.5);
+      // "vs Spider-Man (Peter Parker)" gives way to "vs Spider-Man", then "vs S.-Man", before the font shrinks.
+      for (const form of engagedForms.slice(1)) {
+        if (held.width <= inner.width - 4) break;
+        held.setText(joinTileNotes(form, holdsNote) ?? "");
+      }
       fitText(held, inner.width - 4, 11);
     }
 
