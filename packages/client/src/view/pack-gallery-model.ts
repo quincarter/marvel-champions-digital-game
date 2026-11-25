@@ -205,9 +205,13 @@ export function gallerySectionsOf(input: GalleryInput): {
     .map((id) => input.baseCards.get(id)!)
     .sort((a, b) => a.name.localeCompare(b.name));
   for (const card of base) add(card, "deck", deck.get(card.id as string) ?? 1);
+  // A rebuilt face gets its own tile even when the precon holds the same official card: the deck tile shows the printed
+  // picture, the rule tile the rule's. Only a code listed twice among the rule's faces shows once.
+  const ruleCodes = new Set<string>();
   for (const { code, card } of [...(input.ruleFaces ?? [])].sort((a, b) => a.code.localeCompare(b.code))) {
-    if (records.has(code)) continue;
-    records.set(code, card);
+    if (ruleCodes.has(code)) continue;
+    ruleCodes.add(code);
+    if (!records.has(code)) records.set(code, card);
     const face = ruleFaceOf(code, card);
     const model = cardInspectModel(card, face);
     const list = groups.get("rule") ?? [];

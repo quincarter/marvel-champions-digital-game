@@ -86,6 +86,20 @@ describe("the pack gallery", () => {
     expect(sections[2]!.cards.map((card) => [card.cardId, card.rebuilt])).toEqual([[baseAlly.id, undefined]]);
   });
 
+  it("gives a rebuilt face its own tile when the precon holds the same official card", () => {
+    const { sections, records } = gallerySectionsOf({
+      cards: [],
+      decks: [deck([[baseAlly.id as string, 2]])],
+      baseCards,
+      ruleFaces: [{ code: baseAlly.id as string, card: baseAlly }],
+    });
+    expect(sections.map((section) => [section.id, section.cards.map((card) => [card.cardId, card.rebuilt])])).toEqual([
+      ["rule", [[baseAlly.id, true]]],
+      ["deck", [[baseAlly.id, undefined]]],
+    ]);
+    expect(records.get(baseAlly.id as string)).toBe(baseAlly);
+  });
+
   it("is empty for a pack with no cards", () => {
     expect(gallerySectionsOf({ cards: [], decks: [], baseCards }).sections).toEqual([]);
     expect(galleryCountText(1)).toBe("1 card");
