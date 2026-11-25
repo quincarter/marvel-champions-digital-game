@@ -310,6 +310,11 @@ export class ReplayTransportOverlay extends Phaser.Scene {
     super(SCENES.replayTransport);
   }
 
+  /** What is on the board for a report (`view/issue-report.ts` `playLineOf`): a live game followed, or a replay. */
+  get viewing(): "live" | "replay" {
+    return this.#live ? "live" : "replay";
+  }
+
   create(): void {
     const host = activeReplay();
     if (!host) {

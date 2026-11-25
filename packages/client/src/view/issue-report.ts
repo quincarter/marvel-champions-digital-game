@@ -199,12 +199,17 @@ const ROOM_MODE_NAMES: Readonly<Record<ReportRoom["mode"], string>> = {
 };
 
 /**
- * The report's Play line, in the Bug report form's words: single player, or the online room's mode and this device's
- * part in it (host, seated guest, or a guest without a seat).
+ * The report's Play line, in the Bug report form's words: the online room's mode and this device's part in it (Host,
+ * Seated guest, or Guest without a seat); outside a room, a live game watched from a link, a replay, or single player.
+ * `viewing` is what the replay transport has on the board, null when it is not open.
  */
-export function playLineOf(room: ReportRoom): string {
-  if (room.role === "none") return "Single player, not in an online room";
-  const part = room.role === "host" ? "host" : room.mySeats.length > 0 ? "seated guest" : "guest without a seat";
+export function playLineOf(room: ReportRoom, viewing: "live" | "replay" | null = null): string {
+  if (room.role === "none") {
+    if (viewing === "live") return "Watching someone else's live game, not in an online room";
+    if (viewing === "replay") return "Watching a replay, not in an online room";
+    return "Single player, not in an online room";
+  }
+  const part = room.role === "host" ? "Host" : room.mySeats.length > 0 ? "Seated guest" : "Guest without a seat";
   return `Online room, ${ROOM_MODE_NAMES[room.mode]}, ${part}`;
 }
 

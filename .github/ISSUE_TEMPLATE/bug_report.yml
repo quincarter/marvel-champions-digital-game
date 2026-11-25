@@ -20,7 +20,7 @@ body:
         - Controls or input problem
         - Crash, freeze or the game would not load
         - Saving or resuming a game
-        - Online rooms: hosting, joining, the lobby, syncing or chat
+        - "Online rooms: hosting, joining, the lobby, syncing or chat"
         - Something else
     validations:
       required: true
@@ -87,11 +87,11 @@ body:
     id: room-role
     attributes:
       label: Your part in the online room
-      description: Skip this for a single player game.
+      description: Skip this unless you were in an online room.
       options:
         - Host
         - Seated guest (I played a hero from my own device)
-        - Guest without a seat, or watching
+        - Guest without a seat
   - type: input
     id: scenario
     attributes:
