@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Android: the back gesture and back button step back a screen again, instead of doing nothing (#998)'
+time: 2026-11-24T20:27:15.7286669-05:00
