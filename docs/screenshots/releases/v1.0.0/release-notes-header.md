@@ -26,4 +26,4 @@ Marvel Champions is now a game you play together. Host a room or join one with a
 
 ![Thank you to GarethMagis, @bluefireF5ran and everyone on Discord who played the previews](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0b515fd28b3b25521e69013df9ab30b64e65ba02/docs/screenshots/releases/v1.0.0/v1-0-0-release-10-thank-you.jpg)
 
-![Code shipped since v0.55.0: 9 pull requests, 878 files, 96,084 lines added and 1,251 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0b515fd28b3b25521e69013df9ab30b64e65ba02/docs/screenshots/releases/v1.0.0/v1-0-0-release-11-code-shipped.jpg)
+![Code shipped since v0.55.0: 9 pull requests, 879 files, 96,085 lines added and 1,252 removed](https://raw.githubusercontent.com/quincarter/marvel-champions-digital-game/0b515fd28b3b25521e69013df9ab30b64e65ba02/docs/screenshots/releases/v1.0.0/v1-0-0-release-11-code-shipped.jpg)
