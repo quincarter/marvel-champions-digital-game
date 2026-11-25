@@ -169,7 +169,9 @@ export type TransportControl =
   | "exit"
   | "move"
   /** Pause and hand the keyboard and the pad to the table, to look around it read-only (#735). */
-  | "inspect";
+  | "inspect"
+  /** A live game (#876): back to the newest move. Takes Export log's place while a game is followed. */
+  | "live";
 
 export interface TransportLayout {
   readonly kind: "row" | "stacked" | "phone";
@@ -196,6 +198,8 @@ export interface TransportLayoutOptions {
   readonly titleBar?: Rect | null;
   /** The bar is at the top of the screen, so its banner goes under it. */
   readonly onTop?: boolean;
+  /** A live game is followed (#876): "live" takes Export log's rect, so no layout gains a control or loses room. */
+  readonly live?: boolean;
 }
 
 const BUTTON = 40;
@@ -209,6 +213,17 @@ const TRACK_HEIGHT = 8;
  * End on a keyboard still go there) and shortens words.
  */
 export function transportLayout(bar: Rect, options: TransportLayoutOptions = {}): TransportLayout {
+  const layout = baseLayout(bar, options);
+  if (!options.live) return layout;
+  const log = layout.controls.get("exportLog");
+  if (!log) return layout;
+  const controls = new Map(layout.controls);
+  controls.delete("exportLog");
+  controls.set("live", log);
+  return { ...layout, controls };
+}
+
+function baseLayout(bar: Rect, options: TransportLayoutOptions): TransportLayout {
   const bannerHeight = options.bannerHeight ?? 22;
   const controls = new Map<TransportControl, Rect>();
   const banner: Rect = {

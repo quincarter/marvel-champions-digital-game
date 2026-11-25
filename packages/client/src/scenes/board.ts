@@ -135,6 +135,11 @@ import { drawCharacter } from "./board/character-panel.js";
 import { drawDealtPile } from "./board/dealt-pile.js";
 import { dealtCaption, dealtReasonsOf } from "../view/dealt-pile.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
+import { liveStatus, onLiveStatus } from "../platform/live-watch.js";
+import { watchBadgeOf, watchToastOf, type WatchShareOutcome } from "../view/live-watch-ui.js";
+import { livePillKey, livePillOf } from "../view/live-pill.js";
+import { deliverReplayLink } from "../replay/replay-share.js";
+import { t } from "../i18n/translate.js";
 import { BoardFirstPlayerToken } from "./board/first-player-token.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { glyphsFitLayout } from "../view/glyph-placement.js";
@@ -380,6 +385,8 @@ export class BoardScene extends Phaser.Scene {
     barStops: () => ({ count: this.#frame.barStops.length, cancel: this.#frame.focusRects.has("cancel") }),
     hasMusicStop: () => this.#frame.focusRects.has(focusKey({ kind: "music" })),
     openMusic: () => (this.scene.manager.getScene(SCENES.musicButton) as MusicButtonScene | null)?.togglePlayer(),
+    hasWatchStop: () => this.#frame.focusRects.has(focusKey({ kind: "watch" })),
+    shareWatchLink: () => this.#shareWatchLink(),
     hasThemeStop: () => this.#frame.focusRects.has(focusKey({ kind: "theme" })),
     toggleTheme: () => (this.scene.manager.getScene(SCENES.themeButton) as ThemeButtonScene | null)?.toggle(),
     hasDiscardStop: () => this.#frame.focusRects.has(focusKey({ kind: "discard" })),
@@ -469,6 +476,8 @@ export class BoardScene extends Phaser.Scene {
 
   /** The replay being watched (#693), or null for a game: the table is then read-only and the transport runs over it. */
   #replay: ReplayHost | null = null;
+  /** The line the top bar's watch control shows for a moment after a press (#876). */
+  #watchToast: string | null = null;
   #replayBarTop = false;
 
   constructor() {
@@ -698,6 +707,30 @@ export class BoardScene extends Phaser.Scene {
     // (#738).
     const artSourcesOff = onArtChange(() => this.#refreshArtSources());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, artSourcesOff);
+    // The watcher badge on the top bar (#876): drawn again only when its count changes, not on every status post.
+    const badgeKey = (status: ReturnType<typeof liveStatus>): string => {
+      const badge = watchBadgeOf(status);
+      return badge ? String(badge.count) : "";
+    };
+    let badgeShown = badgeKey(liveStatus());
+    const liveOff = onLiveStatus((status) => {
+      const key = badgeKey(status);
+      if (key === badgeShown) return;
+      badgeShown = key;
+      if (this.#model && !this.#replay) this.#draw();
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, liveOff);
+    // A watcher's pill (#876): drawn again only when its words change (the host leaving, the feed failing, the end).
+    if (this.#replay) {
+      let pillShown = livePillKey(livePillOf(this.#replay.live));
+      const pillOff = this.#replay.onLiveState((state) => {
+        const key = livePillKey(livePillOf(state));
+        if (key === pillShown) return;
+        pillShown = key;
+        if (this.#model) this.#draw();
+      });
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, pillOff);
+    }
     // A cost pick left on the choice sheet goes with the table (`#syncLocalChoice`).
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => setLocalChoice(null));
     const binding: IntentBinding = {
@@ -1712,6 +1745,14 @@ export class BoardScene extends Phaser.Scene {
     const drawTopBand = (): void => {
       drawChrome(this, zones.chrome!, model, {
         notSaving: appSession().store.state.saveError !== null,
+        ...(this.#replay
+          ? { live: livePillOf(this.#replay.live) }
+          : {
+              watchers: watchBadgeOf(liveStatus()),
+              onWatch: () => this.#shareWatchLink(),
+              watchToast: this.#watchToast,
+              onWatchRect: (rect: Rect) => this.#frame.focusRects.set(focusKey({ kind: "watch" }), rect),
+            }),
         onMenu: () => this.#openPause(),
         ...(this.#hasEvidence() ? { onEvidence: () => this.#openEvidence() } : {}),
         buttons: this.#frame.buttons,
@@ -2673,6 +2714,32 @@ export class BoardScene extends Phaser.Scene {
     const onRoute = this.#controller.focusOrder().some((stop) => sameTarget(stop, target));
     if (onRoute && this.#focusRegion === "board" && !sameTarget(this.#focus, target)) this.#setFocus(target);
     this.#controller.activate(target);
+  }
+
+  /**
+   * The top bar's watch control (#876): a phone with a share sheet offers it, anywhere else the link is copied; a
+   * toast says so. A browser that refuses both shows the link itself to copy by hand.
+   */
+  #shareWatchLink(): void {
+    const url = liveStatus().watchUrl;
+    if (!url) return;
+    const coarse = globalThis.matchMedia?.("(pointer: coarse)").matches === true;
+    const share =
+      coarse && typeof navigator.share === "function" ? { share: (data: ShareData) => navigator.share(data) } : {};
+    void deliverReplayLink(url, t("live.shareTitle"), {
+      ...share,
+      copy: (text) => navigator.clipboard.writeText(text),
+    }).then((outcome: WatchShareOutcome) => {
+      const toast = watchToastOf(outcome, url);
+      if (!toast || !this.sys.isActive()) return;
+      this.#watchToast = toast;
+      this.#draw();
+      this.time.delayedCall(outcome === "manual" ? 8000 : 2500, () => {
+        if (this.#watchToast !== toast) return;
+        this.#watchToast = null;
+        if (this.sys.isActive()) this.#draw();
+      });
+    });
   }
 
   /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */

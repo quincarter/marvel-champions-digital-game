@@ -9,6 +9,7 @@
  * same `EngineHost` interface.
  */
 
+import type { Command, GameOutcome } from "@mc/engine";
 import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
 import { saveReason } from "./save-reason.js";
@@ -17,6 +18,8 @@ import { playPlatformOfWorkerName } from "../platform/play-platform.js";
 import { POOL_VERSION } from "../content/pool.js";
 import { CLIENT_VERSION } from "../version.js";
 import { buildCommit } from "../view/app-version.js";
+import { isChecksumPosition } from "../replay/replay-file.js";
+import type { LiveControlMessage, LiveGameMessage } from "../live/live-room-protocol.js";
 
 // The main thread names this worker for its platform (`create-host.ts`): a worker cannot see the Tauri/Capacitor shell.
 // The app and card-pool versions are compile-time facts of this bundle, so the worker stamps them itself (device sync
@@ -72,6 +75,43 @@ function publishPresence(): void {
   }
 }
 
+let livePort: MessagePort | null = null;
+/** Off until the live-room worker says it is up; only a `watchable` game is ever read or sent (`core.liveGameKey`). */
+let liveOn = false;
+
+const liveSend = (message: LiveGameMessage): void => {
+  if (!livePort || !liveOn) return;
+  try {
+    livePort.postMessage(message);
+  } catch {
+    // Watching is a nicety: it never fails a command.
+  }
+};
+
+/** The whole game to the live-room worker: a game began or resumed, or the setting just came on. */
+function publishLiveGame(): void {
+  if (!livePort || !liveOn) return;
+  const live = core.liveGame();
+  // A game that is not watchable says so, so the live worker leaves the room of the game that was on the table before.
+  liveSend(live ? { kind: "game", ...live } : { kind: "none" });
+}
+
+/** The command just applied, with a checksum when one is due and the outcome when it ended the game. */
+function publishLiveCommand(command: Command, count: number, outcome: GameOutcome | null): void {
+  if (!livePort || !liveOn) return;
+  const gameKey = core.liveGameKey();
+  if (!gameKey) return;
+  const checksum = outcome || isChecksumPosition(count) ? core.liveChecksum() : undefined;
+  liveSend({
+    kind: "command",
+    gameKey,
+    command,
+    count,
+    ...(checksum === undefined ? {} : { checksum }),
+    ...(outcome ? { outcome } : {}),
+  });
+}
+
 async function handle(request: HostRequest): Promise<void> {
   try {
     switch (request.kind) {
@@ -89,17 +129,31 @@ async function handle(request: HostRequest): Promise<void> {
         presencePort.start();
         return;
       }
+      case "livePort": {
+        livePort = request.port;
+        liveOn = false;
+        // The live-room worker answers over this port with the setting; the game follows once it is on.
+        livePort.addEventListener("message", (e: MessageEvent<LiveControlMessage>) => {
+          // `enabled`: the live-room worker is up (the game follows if it is watchable); `resync`: its log has a gap.
+          if (e.data.kind === "enabled") liveOn = e.data.on;
+          publishLiveGame();
+        });
+        livePort.start();
+        return;
+      }
       case "start": {
         const { cardPool, snapshot } = await core.start(request.config);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         announceSaved("game");
         publishPresence();
+        publishLiveGame();
         return;
       }
       case "resume": {
         const { cardPool, snapshot } = await core.resume(request.gameId);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         publishPresence();
+        publishLiveGame();
         return;
       }
       case "dispatch": {
@@ -108,6 +162,7 @@ async function handle(request: HostRequest): Promise<void> {
         if (result.ok) {
           announceSaved(saveReason(result.snapshot));
           publishPresence();
+          publishLiveCommand(request.command, result.snapshot.version, result.snapshot.state.outcome);
         }
         return;
       }
@@ -119,6 +174,10 @@ async function handle(request: HostRequest): Promise<void> {
         });
         announceSaved("game");
         publishPresence();
+        {
+          const gameKey = liveOn ? core.liveGameKey() : null;
+          if (gameKey) liveSend({ kind: "rewind", gameKey, to: request.commandCount });
+        }
         return;
       }
       case "legalActions": {

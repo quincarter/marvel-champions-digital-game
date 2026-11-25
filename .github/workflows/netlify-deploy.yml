@@ -457,9 +457,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename')
-          if grep -q '^packages/sync-worker/' <<< "$files"; then
+          # A pull request with another stacked on it (an open PR whose base is this one's branch) leaves staging to the
+          # top of its stack: the top's Worker carries everything below it, and a lower one that deployed last would
+          # put an older Worker under the top's preview (its start then fails on a room without the newer messages).
+          above=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$HEAD_REF" --state open --json number --jq 'length')
+          if [ "$above" != "0" ]; then
+            echo "::notice::A pull request is stacked on this one; the top of the stack deploys the staging Worker."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          elif grep -q '^packages/sync-worker/' <<< "$files"; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This pull request doesn't change packages/sync-worker; skipping the staging deploy."
@@ -487,7 +495,18 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             pnpm exec wrangler deploy --env=""
           else
-            pnpm exec wrangler deploy --env staging
+            # One staging Worker serves every pull request. A stacked pull request lower in a stack than one already
+            # deployed has fewer Durable Object migrations than the staging script, and Cloudflare refuses to step it
+            # back (code 10074). The higher pull request's Worker is a superset, so keep it rather than fail.
+            set +e
+            pnpm exec wrangler deploy --env staging 2>&1 | tee deploy.log
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -ne 0 ] && grep -q "code: 10074" deploy.log && grep -q "was not found in your wrangler" deploy.log; then
+              echo "::notice::The staging Worker already carries newer migrations from another pull request; keeping it."
+              exit 0
+            fi
+            exit "$status"
           fi
 
   # The site pages (site/, vite.site.config.ts): the moved page the old Netlify address serves once SITE_MOVED is set,

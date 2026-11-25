@@ -34,6 +34,7 @@ import { setStartupPacksLoad } from "./packs/startup-packs.js";
 import { installSceneLoader, startIdlePreload } from "./scenes/scene-loader.js";
 import { startPadToastWatch } from "./scenes/pad-toast-watch.js";
 import { startDiscordPresence } from "./platform/discord-presence.js";
+import { startLiveWatch } from "./platform/live-watch.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
 import { MusicScene } from "./audio/music-controller.js";
@@ -249,6 +250,7 @@ watchStartup(game);
 // The "Controller connected" toast (`scenes/pad-toast.ts`), fed by the browser's gamepad events.
 startPadToastWatch(game);
 startDiscordPresence(game);
+startLiveWatch();
 
 // Device sync (#276, `sync/sync-wiring.ts`): its code loads after the first frame, so it stays out of the entry chunk. It
 // syncs in the background when this device is linked, and leaves alone the game on the table (the Board, or its deal),

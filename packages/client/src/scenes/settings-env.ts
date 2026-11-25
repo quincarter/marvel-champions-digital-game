@@ -23,6 +23,7 @@ import {
   cardLanguageRowInfoOf,
   couchModeRowInfoOf,
   discordRowInfoOf,
+  liveWatchRowInfoOf,
   displayModeRowInfoOf,
   frameRateRowInfoOf,
   gameVolumeRowInfoOf,
@@ -139,6 +140,7 @@ export function settingsDeviceRowsFor(
     const discord = discordRowInfoOf(settings);
     add(discord.id, { title: discord.title, detail: discord.unavailable ?? discord.detail });
   }
+  add("live-watch", liveWatchRowInfoOf(settings));
   add("steam-deck", { title: "Steam Deck", detail: STEAM_DECK_DETAIL });
   add("steam-install", { title: STEAM_INSTALL_ROW_TITLE, detail: STEAM_INSTALL_ROW_DETAIL });
   add("steam-add", { title: t("steamAdd.row.title"), detail: t("steamAdd.row.detail") });

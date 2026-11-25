@@ -34,6 +34,8 @@ export const PRESENCE_APP_NAME = "Marvel Champions Digital Edition";
 
 const MAX_TEXT = 128;
 const MAX_LABEL = 32;
+/** Discord's own limit on a button's URL. */
+const MAX_URL = 512;
 const SEPARATOR = " · ";
 
 /** Which screen family the app is on. */
@@ -71,6 +73,12 @@ export interface PresenceGame {
   readonly heroArtCodes?: readonly string[] | null;
 }
 
+/** A live room (issue #876): the link a watcher opens and how many are watching. */
+export interface PresenceLive {
+  readonly watchUrl: string;
+  readonly watchers: number;
+}
+
 export interface PresenceSnapshot {
   readonly screen: PresenceScreen;
   /** Unix seconds the current game, or the current spell in the menus, began. */
@@ -78,6 +86,8 @@ export interface PresenceSnapshot {
   /** The campaign box the campaign screens are in, when known. */
   readonly campaignName?: string | null;
   readonly game?: PresenceGame | null;
+  /** The game's live room, while it is open: adds the "Watch live" button and the watcher count (in a game only). */
+  readonly live?: PresenceLive | null;
 }
 
 /** `text` cut to `max` characters (whole code points) with an ellipsis. */
@@ -146,6 +156,13 @@ const MENU_STATES: Readonly<Record<Exclude<PresenceScreen, "game" | "gameOver" |
   setup: "Setting up a game",
 };
 
+/** The state line with " · N watching" on its end: the game's own words give way, so the count is never the part cut. */
+export function stateWithWatchers(state: string, watchers: number): string | undefined {
+  if (watchers <= 0) return text(state);
+  const suffix = `${SEPARATOR}${watchers} watching`;
+  return text(`${clipText(state, MAX_TEXT - [...suffix].length)}${suffix}`);
+}
+
 /** The activity for a snapshot, or null when there is nothing to show. */
 export function presenceOf(snapshot: PresenceSnapshot | null): DiscordActivity | null {
   if (snapshot === null) return null;
@@ -160,10 +177,12 @@ export function presenceOf(snapshot: PresenceSnapshot | null): DiscordActivity |
     const heroArt = publicArtUrl(game.heroArt);
     const caption = join(game.villain, game.villainStage);
     const heroes = heroesLabel(game.heroes);
+    const live = snapshot.live && snapshot.live.watchUrl.length <= MAX_URL ? snapshot.live : null;
     return withoutUndefined({
       ...base,
+      ...(live ? { buttons: [...base.buttons, { label: clipText("Watch live", MAX_LABEL), url: live.watchUrl }] } : {}),
       details: text(gameDetails(game)),
-      state: text(gameState(game)),
+      state: stateWithWatchers(gameState(game), live?.watchers ?? 0),
       largeImage: villainArt ?? PRESENCE_LOGO_KEY,
       largeText: text(villainArt ? caption : PRESENCE_APP_NAME),
       // The hero's face rides in the corner only beside the villain's; alone it is the big picture.
