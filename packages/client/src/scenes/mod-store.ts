@@ -139,6 +139,7 @@ import { clipHoverRect, hoverSlotOf, type HoverCardIdRect } from "../view/card-h
 import {
   GALLERY_HEADING_HEIGHT,
   galleryCardCount,
+  galleryFocusKey,
   galleryCountText,
   galleryGridOf,
   galleryPictureHeight,
@@ -1698,7 +1699,7 @@ export class ModStoreScene extends Phaser.Scene {
     rows.forEach((row, rowIndex) => {
       if (row.kind !== "tiles") return;
       row.cards.forEach((card, column) => {
-        const key = `card:${card.cardId}`;
+        const key = galleryFocusKey(card);
         stops.set(key, {
           rect: () => extrasTileRect(column, grid, list.rectFor(rowIndex)),
           activate: () => this.#inspectCard(card),

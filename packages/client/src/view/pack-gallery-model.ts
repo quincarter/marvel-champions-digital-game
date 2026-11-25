@@ -253,6 +253,13 @@ export function gallerySectionsOf(input: GalleryInput): {
   return { sections, records };
 }
 
+/**
+ * A gallery tile's focus stop key. A rebuilt face keeps a key of its own, since the precon may hold the same official
+ * card under the same code.
+ */
+export const galleryFocusKey = (card: GalleryCard): string =>
+  card.rebuilt ? `card:rebuilt:${card.cardId}` : `card:${card.cardId}`;
+
 /** The sections without their groupings: how many distinct cards the gallery shows. */
 export const galleryCardCount = (sections: readonly GallerySection[]): number =>
   sections.reduce((sum, section) => sum + section.cards.length, 0);

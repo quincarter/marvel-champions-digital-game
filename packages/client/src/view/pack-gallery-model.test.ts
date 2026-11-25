@@ -7,6 +7,7 @@ import {
   galleryCardCount,
   galleryCountText,
   galleryFlat,
+  galleryFocusKey,
   galleryGridOf,
   galleryPictureHeight,
   galleryRowsOf,
@@ -98,6 +99,8 @@ describe("the pack gallery", () => {
       ["deck", [[baseAlly.id, undefined]]],
     ]);
     expect(records.get(baseAlly.id as string)).toBe(baseAlly);
+    const keys = galleryFlat(sections).map(galleryFocusKey);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("is empty for a pack with no cards", () => {
