@@ -23,6 +23,11 @@ export interface GalleryCard {
    * is keyed by the official picture code it rebuilds, so `cardId` may be a face code; `records` maps it to the card.
    */
   readonly face?: CardFace;
+  /**
+   * A house rule's rebuilt face (the "Official cards it rebuilds" group): drawn in the rule's own picture. Every other
+   * tile of a house rule, the rule's own cards and its precon's official cards, shows its usual picture.
+   */
+  readonly rebuilt?: true;
 }
 
 /** The first line of the page's load status, and what it says. A symbol and words, never color alone. */
@@ -200,13 +205,17 @@ export function gallerySectionsOf(input: GalleryInput): {
     .map((id) => input.baseCards.get(id)!)
     .sort((a, b) => a.name.localeCompare(b.name));
   for (const card of base) add(card, "deck", deck.get(card.id as string) ?? 1);
+  // A rebuilt face gets its own tile even when the precon holds the same official card: the deck tile shows the printed
+  // picture, the rule tile the rule's. Only a code listed twice among the rule's faces shows once.
+  const ruleCodes = new Set<string>();
   for (const { code, card } of [...(input.ruleFaces ?? [])].sort((a, b) => a.code.localeCompare(b.code))) {
-    if (records.has(code)) continue;
-    records.set(code, card);
+    if (ruleCodes.has(code)) continue;
+    ruleCodes.add(code);
+    if (!records.has(code)) records.set(code, card);
     const face = ruleFaceOf(code, card);
     const model = cardInspectModel(card, face);
     const list = groups.get("rule") ?? [];
-    list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face });
+    list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face, rebuilt: true });
     groups.set("rule", list);
   }
   // The encounter sets as groups: nemesis first, then the scenario's own, then the modular sets, each in first-named order.
@@ -243,6 +252,13 @@ export function gallerySectionsOf(input: GalleryInput): {
   });
   return { sections, records };
 }
+
+/**
+ * A gallery tile's focus stop key. A rebuilt face keeps a key of its own, since the precon may hold the same official
+ * card under the same code.
+ */
+export const galleryFocusKey = (card: GalleryCard): string =>
+  card.rebuilt ? `card:rebuilt:${card.cardId}` : `card:${card.cardId}`;
 
 /** The sections without their groupings: how many distinct cards the gallery shows. */
 export const galleryCardCount = (sections: readonly GallerySection[]): number =>
