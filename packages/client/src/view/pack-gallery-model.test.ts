@@ -71,6 +71,21 @@ describe("the pack gallery", () => {
     ]);
   });
 
+  it("marks only a house rule's rebuilt faces, so its own cards and its precon's official cards keep their pictures", () => {
+    const ruleCard = asPack(core("upgrade"), { id: "x.rule.01", aspect: "hero:01001a" });
+    const rebuilt = core("hero_identity");
+    const { sections } = gallerySectionsOf({
+      cards: [ruleCard],
+      decks: [deck([[baseAlly.id as string, 2]])],
+      baseCards,
+      ruleFaces: [{ code: rebuilt.id as string, card: rebuilt }],
+    });
+    expect(sections.map((section) => section.id)).toEqual(["rule", "hero", "deck"]);
+    expect(sections[0]!.cards.map((card) => card.rebuilt)).toEqual([true]);
+    expect(sections[1]!.cards.map((card) => card.rebuilt)).toEqual([undefined]);
+    expect(sections[2]!.cards.map((card) => [card.cardId, card.rebuilt])).toEqual([[baseAlly.id, undefined]]);
+  });
+
   it("is empty for a pack with no cards", () => {
     expect(gallerySectionsOf({ cards: [], decks: [], baseCards }).sections).toEqual([]);
     expect(galleryCountText(1)).toBe("1 card");

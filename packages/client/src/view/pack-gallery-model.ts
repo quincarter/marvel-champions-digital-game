@@ -23,6 +23,11 @@ export interface GalleryCard {
    * is keyed by the official picture code it rebuilds, so `cardId` may be a face code; `records` maps it to the card.
    */
   readonly face?: CardFace;
+  /**
+   * A house rule's rebuilt face (the "Official cards it rebuilds" group): drawn in the rule's own picture. Every other
+   * tile of a house rule, the rule's own cards and its precon's official cards, shows its usual picture.
+   */
+  readonly rebuilt?: true;
 }
 
 /** The first line of the page's load status, and what it says. A symbol and words, never color alone. */
@@ -206,7 +211,7 @@ export function gallerySectionsOf(input: GalleryInput): {
     const face = ruleFaceOf(code, card);
     const model = cardInspectModel(card, face);
     const list = groups.get("rule") ?? [];
-    list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face });
+    list.push({ cardId: code, name: model.name, typeLine: model.typeLine, quantity: 1, face, rebuilt: true });
     groups.set("rule", list);
   }
   // The encounter sets as groups: nemesis first, then the scenario's own, then the modular sets, each in first-named order.

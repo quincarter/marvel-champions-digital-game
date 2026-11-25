@@ -1760,13 +1760,14 @@ export class ModStoreScene extends Phaser.Scene {
   }
 
   /**
-   * The art for one gallery card of the page's pack (see `#artOf`). A house rule's tile is drawn in the rule's own
-   * picture of the face it rebuilds: the installed pack's file, else the store's copy; null until one arrives.
+   * The art for one gallery card of the page's pack (see `#artOf`). A house rule's rebuilt face is drawn in the rule's
+   * own picture of it: the installed pack's file, else the store's copy; null until one arrives. Its other tiles (its own
+   * cards, the official cards of its precon) take the usual picture, like any pack's.
    */
   #artOfTile(record: AnyCard, card?: GalleryCard): ArtSource | null {
     const context = this.#pageContext;
     if (!context) return null;
-    if (context.rule && card) {
+    if (context.rule && card?.rebuilt) {
       if (loadedPacks().some((pack) => pack.id === context.packId))
         return houseRuleFaceFor(context.packId, card.cardId, artLanguageNow());
       const url =
@@ -1785,8 +1786,8 @@ export class ModStoreScene extends Phaser.Scene {
    */
   #inspectCard(card: GalleryCard): void {
     const record = this.#pageContext?.records.get(card.cardId);
-    // A house rule's tile is keyed by the face code it rebuilds; the record is the official card it belongs to.
-    if (record && currentCardsById().has(record.id as string) && !this.#pageContext?.rule) {
+    // A house rule's rebuilt face is keyed by the face code it rebuilds; the record is the official card it belongs to.
+    if (record && currentCardsById().has(record.id as string) && !card.rebuilt) {
       this.scene.launch(SCENES.inspect, {
         card: { cardId: record.id, face: card.face ?? defaultFaceFor(record) },
       } satisfies InspectData);
@@ -1830,8 +1831,8 @@ export class ModStoreScene extends Phaser.Scene {
         const picture = clipHoverRect({ ...tile, height: galleryPictureHeight(grid) }, view);
         if (!picture) return;
         const record = context.records.get(card.cardId);
-        // A house rule's face shows the rule's picture, not the printed one the pool has.
-        const inPool = currentCardsById().has(card.cardId) && !context.rule;
+        // A house rule's rebuilt face shows the rule's picture, not the printed one the pool has.
+        const inPool = currentCardsById().has(card.cardId) && !card.rebuilt;
         // A card the pool does not have (a pack not installed yet) carries its own record and picture to the popover.
         const art = record && !inPool ? this.#artOfTile(record, card) : null;
         found.set(hoverSlotOf(card.cardId, row.first + column), {
