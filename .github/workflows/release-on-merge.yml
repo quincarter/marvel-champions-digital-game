@@ -156,13 +156,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUMP_INPUT: ${{ github.event.inputs.bump || 'auto' }}
         run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "v*")
           if [ "${BUMP_INPUT}" != "auto" ]; then
             NEXT_TAG=$(changie next "${BUMP_INPUT}")
           else
             NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
+            # A bump picked by hand (bump=major for v1.0.0) sticks: a later merge to main never prepares a lower
+            # version than the open release PR already holds, as long as that version is still unreleased. A lookup
+            # or comparison that fails stops the job, so a hiccup never regenerates the PR at a lower version.
+            OPEN_TITLE=""
+            for attempt in 1 2 3 4; do
+              if OPEN_TITLE=$(gh pr list --head release/next --base main --state open --json title -q '.[0].title // ""'); then
+                break
+              fi
+              if [ "$attempt" -eq 4 ]; then echo "::error::Couldn't read the open release PR."; exit 1; fi
+              sleep $((attempt * 15))
+            done
+            OPEN_TAG=$(printf '%s' "${OPEN_TITLE}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)
+            if [ -n "${OPEN_TAG}" ]; then
+              KEEP=0
+              node scripts/release-version.mjs keep "${OPEN_TAG}" "${NEXT_TAG}" "${PREV_TAG}" || KEEP=$?
+              if [ "${KEEP}" -eq 0 ]; then
+                echo "Keeping ${OPEN_TAG} from the open release PR (auto alone would give v${NEXT_TAG#v})."
+                NEXT_TAG="${OPEN_TAG}"
+              elif [ "${KEEP}" -ne 1 ]; then
+                echo "::error::Couldn't compare ${OPEN_TAG} with v${NEXT_TAG#v}."
+                exit 1
+              fi
+            fi
           fi
           TAG="v${NEXT_TAG#v}"
-          PREV_TAG=$(git describe --tags --abbrev=0 --match "v*")
           echo "Preparing ${TAG}."
 
           # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements

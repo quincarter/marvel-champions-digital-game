@@ -1,0 +1,1205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>v1.0.0 · Marvel Champions: Digital Edition</title>
+    <meta
+      name="description"
+      content="What's new in v1.0.0 of the fan-made Marvel Champions digital game: online multiplayer. Host or join a room and play your own hero from your own device, watch a game live from a link, play Trickster Takeover's Epic Multiplayer against one Loki and Civil War Competitive team against team, and earn 49 new achievements."
+    />
+    <meta property="og:title" content="Marvel Champions: Digital Edition v1.0.0" />
+    <meta
+      property="og:description"
+      content="Assemble Online: play Marvel Champions together, each on your own device, watch games live, take on one Loki across many tables, and pick a side in Civil War."
+    />
+    <meta property="og:image" content="https://champions-digital-game.com/releases/v1.0.0/img/og.jpg" />
+    <style>
+      @font-face {
+        font-family: "Bangers";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/bangers-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 700;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Public Sans";
+        font-weight: 800;
+        font-display: swap;
+        src: url("../../fonts/public-sans-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "IBM Plex Mono";
+        font-weight: 400;
+        font-display: swap;
+        src: url("../../fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+      }
+      html {
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: #15110e;
+      }
+      body {
+        margin: 0;
+      }
+      img {
+        max-width: 100%;
+      }
+      /* Layout: the v1.0.0 release report, a comic page in the game's own house style. Self-contained like
+   sync-info.html: no scripts and no outside hosts, the game's own fonts from public/fonts/. Ink pages in dark, paper pages in light,
+   red and gold bands per feature, screenshots framed like panels. */
+      :root {
+        --bg: #15110e;
+        --bg2: #211b17;
+        --fg: #f2ede1;
+        --muted: #b9b0a2;
+        --line: #3a322b;
+        --panel: #f2ede1;
+        --panel-fg: #15110e;
+        --panel-muted: #4a423b;
+        --shadow: #3a322b;
+        --gold: #f0b42a;
+        --gold-ink: #15110e;
+        --red: #c8102e;
+        --red-fg: #f2ede1;
+        --blue: #6f9cf0;
+        --green: #4fbf73;
+        --frame: #f2ede1;
+        color-scheme: dark;
+        --d: "Bangers", Impact, "Arial Black", sans-serif;
+        --b: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --m: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font: 400 17px/1.6 var(--b);
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding-block: 48px 64px;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      b,
+      strong {
+        font-weight: 700;
+      }
+      a {
+        color: inherit;
+        text-underline-offset: 3px;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--gold);
+        outline-offset: 2px;
+      }
+      .kick {
+        font: 700 12px var(--b);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      h1 {
+        font: 400 clamp(54px, 9vw, 112px)/0.92 var(--d);
+        margin: 14px 0 0;
+        letter-spacing: 0.01em;
+        text-wrap: balance;
+      }
+      h1 .g {
+        color: var(--gold);
+      }
+      .top {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px 40px;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 3px solid var(--fg);
+        padding-bottom: 26px;
+      }
+      .top > div {
+        min-width: 0;
+      }
+      .meta {
+        font: 13px/2 var(--m);
+        color: var(--muted);
+      }
+      .meta .v {
+        color: var(--gold);
+        font-weight: 500;
+      }
+      .notice {
+        display: flex;
+        gap: 14px;
+        align-items: flex-start;
+        border: 2px dashed var(--gold);
+        padding: 14px 18px;
+        margin: 28px 0 0;
+        color: var(--muted);
+        font-size: 16px;
+      }
+      .notice .tag {
+        flex: none;
+        background: var(--gold);
+        color: var(--gold-ink);
+        font: 700 11px var(--b);
+        letter-spacing: 0.2em;
+        padding: 4px 8px;
+        text-transform: uppercase;
+        margin-top: 2px;
+      }
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+        gap: 34px;
+        align-items: center;
+        margin: 36px 0 40px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 3px solid var(--gold);
+        border-radius: 60px;
+        padding: 16px 22px;
+        background: var(--bg2);
+      }
+      .star {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--gold);
+        color: var(--gold-ink);
+        display: grid;
+        place-items: center;
+        font-size: 21px;
+        flex: none;
+      }
+      .pill.feat {
+        display: inline-flex;
+        border-width: 2px;
+        padding: 10px 18px 10px 12px;
+        margin: 0 0 24px;
+        max-width: 100%;
+      }
+      .pill.feat .star {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+      }
+      .pill.feat span {
+        font-size: 18px;
+      }
+      .pill small {
+        display: block;
+        font: 700 11px var(--b);
+        letter-spacing: 0.24em;
+        color: var(--gold);
+        text-transform: uppercase;
+      }
+      .pill span {
+        font: 700 22px/1.2 var(--b);
+      }
+      .intro p {
+        font-size: 19px;
+        line-height: 1.7;
+        color: var(--muted);
+        margin: 0;
+        max-width: 66ch;
+      }
+      .intro p b {
+        color: var(--fg);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .tile {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 22px 24px;
+        box-shadow: 8px 8px 0 var(--shadow);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .tile h4 {
+        font: 700 12px var(--b);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        margin: 0 0 6px;
+      }
+      .tile .n {
+        font: 400 58px/1 var(--d);
+        margin: 4px 0 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile p {
+        margin: 0;
+        font-size: 15.5px;
+        line-height: 1.5;
+        color: var(--panel-muted);
+      }
+      .tile.big {
+        grid-column: span 2;
+        background: var(--red);
+        color: var(--red-fg);
+        box-shadow: 8px 8px 0 var(--gold);
+      }
+      .tile.big p {
+        color: var(--red-fg);
+      }
+      .tile.big .n {
+        font-size: 96px;
+      }
+      .c-red {
+        color: #c8102e;
+      }
+      .c-blue {
+        color: #1d4fb0;
+      }
+      .c-green {
+        color: #1f7a3b;
+      }
+      .band {
+        background: var(--red);
+        color: var(--red-fg);
+        padding: 18px 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin: 64px 0 24px;
+      }
+      .band h2 {
+        font: 400 clamp(38px, 5.4vw, 62px)/1 var(--d);
+        margin: 0;
+        text-wrap: balance;
+      }
+      .band .lab {
+        font: 700 12px/1.6 var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .band.gold {
+        background: var(--gold);
+        color: var(--gold-ink);
+      }
+      .lead {
+        font-size: 20px;
+        line-height: 1.65;
+        color: var(--muted);
+        max-width: 68ch;
+        margin: 0 0 26px;
+      }
+      .lead b {
+        color: var(--fg);
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .box {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 24px 26px;
+        min-width: 0;
+      }
+      .box h3 {
+        font: 400 30px/1.05 var(--d);
+        color: var(--gold);
+        margin: 0 0 12px;
+        letter-spacing: 0.02em;
+      }
+      .box p {
+        color: var(--muted);
+        margin: 0 0 12px;
+      }
+      .box p b,
+      ul.ck b {
+        color: var(--fg);
+      }
+      ul.ck {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 10px;
+      }
+      ul.ck li {
+        color: var(--muted);
+        padding-left: 26px;
+        position: relative;
+        line-height: 1.5;
+      }
+      ul.ck li:before {
+        content: "✔";
+        color: var(--gold);
+        position: absolute;
+        left: 0;
+      }
+      .shots {
+        display: grid;
+        gap: 20px;
+        margin: 0 0 26px;
+      }
+      .s2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .s-phone {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 260px);
+        align-items: start;
+      }
+      .tracks {
+        list-style: none;
+        padding: 0;
+        margin: 0 0 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .tracks li {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2px 14px;
+        border-bottom: 1px dashed var(--line);
+        padding-bottom: 7px;
+        font-weight: 700;
+        line-height: 1.4;
+      }
+      .tracks li span {
+        font: 12px/1.6 var(--m);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .s-cards {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+        align-items: start;
+      }
+      .pair {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      figure {
+        margin: 0;
+        min-width: 0;
+      }
+      figure img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border: 3px solid var(--frame);
+        background: #000;
+      }
+      figure.a img {
+        border-color: var(--gold);
+      }
+      figcaption {
+        font: 700 12px/1.5 var(--b);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      figure.a figcaption {
+        color: var(--gold);
+      }
+      .ico {
+        display: inline-block;
+        width: 1.45em;
+        height: 1.45em;
+        vertical-align: -0.38em;
+        margin: 0 0.15em;
+      }
+      .rep {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid var(--gold);
+        border-radius: 40px;
+        padding: 5px 14px 5px 6px;
+        font: 700 14px var(--b);
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
+      .rep .star {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .paper {
+        background: var(--panel);
+        color: var(--panel-fg);
+        padding: 24px 26px;
+        box-shadow: 8px 8px 0 var(--red);
+        border: 2px solid #000;
+        min-width: 0;
+      }
+      .paper .eb {
+        font: 700 12px var(--b);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #c8102e;
+      }
+      .paper h3 {
+        font: 400 34px/1.05 var(--d);
+        margin: 6px 0 12px;
+        text-wrap: balance;
+      }
+      .paper p {
+        font-size: 16px;
+        line-height: 1.6;
+        color: var(--panel-muted);
+        margin: 10px 0;
+      }
+      .paper b {
+        color: var(--panel-fg);
+      }
+      .src {
+        font: 12.5px/1.6 var(--m);
+        color: #6f6558;
+        border-top: 1px solid #cfc5b2;
+        padding-top: 10px;
+        margin-top: 14px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 26px;
+      }
+      .cards3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .paper.wide {
+        grid-column: 1/-1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+        gap: 26px;
+        align-items: center;
+      }
+      .cols3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .person.wide {
+        grid-column: 1/-1;
+      }
+      .thanks {
+        background: var(--gold);
+        color: var(--gold-ink);
+        padding: 44px 40px;
+        box-shadow: 12px 12px 0 var(--red);
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 36px;
+        margin-top: 64px;
+      }
+      .thanks h2 {
+        font: 400 clamp(70px, 10vw, 130px)/0.85 var(--d);
+        margin: 0;
+      }
+      .thanks .side p {
+        font: 600 18px/1.6 var(--b);
+        margin: 24px 0 0;
+      }
+      .people {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .person {
+        background: #15110e;
+        color: #f2ede1;
+        padding: 20px 22px;
+        min-width: 0;
+      }
+      .person h3 {
+        font: 400 30px/1.1 var(--d);
+        color: #f0b42a;
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      .person p {
+        margin: 8px 0 0;
+        font-size: 15.5px;
+        line-height: 1.55;
+        color: #b9b0a2;
+      }
+      .person p b {
+        color: #fff;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .credits {
+        border: 2px solid var(--line);
+        background: var(--bg2);
+        padding: 16px 22px;
+        margin-top: 24px;
+        font-size: 15.5px;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+      .foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 40px;
+        justify-content: space-between;
+        border-top: 2px solid var(--line);
+        margin-top: 56px;
+        padding-top: 22px;
+        font-size: 15px;
+        color: var(--muted);
+      }
+      @media (max-width: 900px) {
+        .grid,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .intro,
+        .thanks {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .cards3,
+        .cols3 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .paper.wide {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .cols,
+        .cards,
+        .s2,
+        .s-phone,
+        .s-cards,
+        .people {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .s-phone figure:last-child {
+          max-width: 280px;
+        }
+        .tile.big .n {
+          font-size: 72px;
+        }
+        .tile .n {
+          font-size: 46px;
+        }
+        .thanks {
+          padding: 32px 22px;
+        }
+        .lead,
+        .intro p {
+          font-size: 17.5px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .moon {
+          transition: transform 0.4s;
+        }
+        .pill:hover .moon {
+          transform: rotate(-25deg);
+        }
+      }
+      code {
+        font: 14px var(--m);
+        color: var(--gold);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <div class="kick">Marvel Champions: Digital Edition · Release report</div>
+          <h1>Assemble<br /><span class="g">Online</span></h1>
+        </div>
+        <div class="meta">
+          <span class="v">v1.0.0</span> · release PR
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/pull/1007">#1007</a><br />after v0.55.0
+          (Nov 25)<br />Android · iOS · Web · Windows · macOS · Linux<br />Nov 25, 2026<span data-history-link
+            ><br /><a href="../index.html#v1.0.0">All releases</a> · <a href="index.es.html" lang="es">Español</a></span
+          >
+        </div>
+      </header>
+
+      <section class="intro">
+        <div class="pill">
+          <div class="star">★</div>
+          <div><small>Achievement unlocked</small><span>Version 1.0.0</span></div>
+        </div>
+        <p>
+          <b>Marvel Champions is now a game you play together.</b> Host a room, share a 6-character code, and your
+          friends play their own heroes from their own phones, tablets and computers, with a lobby, chat and their own
+          decks. Or send a link and let anyone watch your game live. Trickster Takeover's Epic Multiplayer puts several
+          tables against one Loki, and Civil War Competitive pits two teams against each other, leader against leader.
+          This is version 1.0.0: every released Marvel Champions product, playable alone or online.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="This release in numbers">
+        <div class="tile big">
+          <h4>Ways to play online</h4>
+          <div class="n">4</div>
+          <p>watch a live game, co-op rooms, Epic Multiplayer and Civil War Competitive.</p>
+        </div>
+        <div class="tile">
+          <h4>New trophies</h4>
+          <div class="n c-blue">49</div>
+          <p>for playing together, Epic, Competitive, watching and hosting.</p>
+        </div>
+        <div class="tile">
+          <h4>Players at a table</h4>
+          <div class="n c-green">1–4</div>
+          <p>each on their own device, with their own hero and deck.</p>
+        </div>
+      </section>
+
+      <div class="box" style="margin-top: 26px">
+        <h3>Brand new, so tell us what breaks</h3>
+        <p>
+          Online play is the biggest thing we've ever shipped, and it is very new. You will likely find bugs. When you
+          do, report them from Pause ▸ Report a problem, a GitHub issue or the community Discord, and say it was an
+          online room (the Bug report form now asks). We'll work through them quickly. Single player and offline play
+          are untouched: nothing online starts until you choose Play online.
+        </p>
+      </div>
+
+      <!-- ============ PLAY TOGETHER ============ -->
+      <div class="band gold">
+        <h2>Play together</h2>
+        <div class="lab">Issue #881 · PR #904</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Avengers, Assemble!</span></div>
+      </div>
+      <p class="lead">
+        <b>Every player plays their own hero, on their own device.</b> The host's device runs the game, and every move a
+        guest makes is checked by the host's rules engine against the table that guest saw, so everyone stays on the
+        same game.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/play-guest-turn.webp"
+            alt="A guest's board in a room game: Captain Marvel's turn on the guest's own device, against Rhino, with Spider-Man held by the host"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>A guest's turn, on the guest's own device</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <div class="box">
+          <h3>At the table</h3>
+          <ul class="ck">
+            <li>A whose-turn line in the top bar says who is acting, and your board unlocks when it is your turn.</li>
+            <li>
+              Ask the host to undo, or ask for a change, from your board. The host accepts or declines, and Strict rooms
+              have no Undo at all.
+            </li>
+            <li>A player who drops out can be taken over or handed to someone else, or the table can wait for them.</li>
+            <li>In-game chat, with an unread badge and a sound when it arrives while you're away.</li>
+            <li>
+              Hands stay hidden from the other players. Show my hand shows yours to the table, and the host can open
+              every hand for a teaching game.
+            </li>
+            <li>The host picks who paces the villain phase: the host leads, or each player goes at their own pace.</li>
+            <li>
+              Reload, and you're back in your room and game. If the host closes the room mid-game, a guest keeps the
+              game as a single-player save.
+            </li>
+          </ul>
+        </div>
+        <figure class="a">
+          <img
+            src="img/play-guest-phone.webp"
+            alt="The same room game on an iPhone SE, with the guest's hero and hand and Your turn in the top bar"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/play-host-request.webp"
+            alt="The host's board with a guest's request to undo their last move, and Decline and Accept buttons"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>A guest asks the host to undo</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/play-away-seat.webp"
+            alt="The host's board saying Captain Marvel's player is away, with Take over, Give to, Message and Wait"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>A player drops out: take over, hand off or wait</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ ROOMS ============ -->
+      <div class="band gold">
+        <h2>Rooms and the lobby</h2>
+        <div class="lab">Issue #880 · PR #901</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Nick Fury Calls the Team</span></div>
+      </div>
+      <p class="lead">
+        <b>Play online is on the Title.</b> Set your online name, host a room and share its 6-character code or link, or
+        join a friend's. The host sets up the table, everyone takes a seat and picks a deck, and the game starts when
+        every seat is ready.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/lobby-host.webp"
+            alt="A room's lobby on the host's screen: the room code 8F2 CH9, Copy link, the seats, the host's settings and chat"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The host's lobby: code, seats, settings and chat</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/lobby-host-phone.webp"
+            alt="The same lobby on an iPhone SE, with tabs for the seats, the settings and chat"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/take-a-seat.webp"
+            alt="A guest's lobby with Spider-Man taken by the guest, a seat preset with a deck, and the host's table settings"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Take a seat and bring your own deck</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/table-plan.webp"
+            alt="The lobby after the host set up the table: Rhino and Bomb Scare with Standard difficulty, shown to everyone"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Everyone sees the table the host set up</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Your deck, checked</h3>
+          <p>
+            Each player picks their own hero and deck, custom and Mod Store decks included, from a grid of hero tiles.
+            Build a new deck or import one from MarvelCDB without leaving the room. The host can preset a deck for a
+            seat, and checks every deck at Start, telling only that player why theirs was turned down.
+          </p>
+        </div>
+        <div class="box">
+          <h3>The host's room</h3>
+          <p>
+            Choose Standard, Epic or Competitive from three comic box-art tiles. Pick Strict or Host control play, who
+            may Undo (Off, Host only or Ask the host), house rules, allowed mods and whether cheats are on. List the
+            room in Live now so others can find it (off by default). Everyone sees each person's device in the lobby.
+          </p>
+        </div>
+      </div>
+      <div class="shots" style="margin-top: 26px">
+        <figure class="a">
+          <img
+            src="img/lobby-chat.webp"
+            alt="The lobby on a wide screen with the chat open as a panel at the bottom right, full of messages"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Chat floats on a wide screen, and pops out into its own window</figcaption>
+        </figure>
+      </div>
+
+      <!-- ============ WATCH ============ -->
+      <div class="band gold">
+        <h2>Watch live</h2>
+        <div class="lab">Issue #876 · PR #878</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>The Watcher Is Watching</span></div>
+      </div>
+      <p class="lead">
+        <b>Let anyone watch your game from a link.</b> Turn it on for a game in setup, or always in Settings, then share
+        the link from the eye on the board's top bar or from Pause. Watchers follow every move in the replay viewer,
+        with a LIVE marker, and hands stay hidden from them.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/watch-live.webp"
+            alt="A watcher's view of a live game in the replay viewer, with the transport bar at the bottom"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Watching a live game</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/watch-live-phone.webp"
+            alt="A live game watched on an iPhone SE"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <p>
+          <b>On Discord:</b> while your game is open to watchers, your Discord card shows a Watch live button and how
+          many people are watching.
+        </p>
+      </div>
+
+      <!-- ============ EPIC ============ -->
+      <div class="band gold">
+        <h2>Epic Multiplayer: many tables, one Loki</h2>
+        <div class="lab">Issue #882 · PR #905</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Glorious Purpose</span></div>
+      </div>
+      <p class="lead">
+        <b>Trickster Takeover, the way it was meant to be played.</b> Several tables of one to four players, each with
+        its own host, take on one shared Loki, God of Lies and one Worlds Collide, through a pod that keeps every table
+        in step.
+      </p>
+      <div class="shots">
+        <figure class="a">
+          <img
+            src="img/epic-board.webp"
+            alt="An Epic Multiplayer table after Loki flipped: Loki the Wretch, the pod strip naming every table and Worlds Collide in the neutral area"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Loki has flipped: the pod strip shows every table</figcaption>
+        </figure>
+      </div>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/epic-lobby.webp"
+            alt="The Epic lobby: tables, pods, each table's host and heroes"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Epic lobby: tables, pods, hosts and heroes</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/epic-mangog.webp"
+            alt="Another table's Mangog offered as a target, with its card hover"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Attack another table's Mangog</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>The flip, the stop rule, and the win and loss for every table, by the rules.</li>
+          <li>Real attacks and thwarts on another table's Mangog and Door Between Worlds.</li>
+          <li>Watchers switch between tables from the Tables sheet.</li>
+        </ul>
+      </div>
+
+      <!-- ============ CIVIL WAR ============ -->
+      <div class="band gold">
+        <h2>Civil War Competitive: pick a side</h2>
+        <div class="lab">Issue #883 · PR #923</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Whose Side Are You On?</span></div>
+      </div>
+      <p class="lead">
+        <b>Registration against Resistance, in an online room.</b> Pick a side for each seat (1v1 or 2v2), seal a
+        scenario for the other team, ready up, and play with both areas on the board, leader against leader.
+      </p>
+      <div class="shots s2">
+        <figure class="a">
+          <img
+            src="img/cw-board.webp"
+            alt="A Civil War Competitive board: Registration's hero phase, with Captain America leading the other team"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Leader against leader</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/cw-lobby.webp"
+            alt="The Civil War Competitive lobby: Registration and Resistance seats, the sealed scenario and Ready"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>Pick a side, seal a scenario, ready up</figcaption>
+        </figure>
+      </div>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/cw-result.webp"
+            alt="Registration Victory: the result screen with Iron Man's art, both teams' leaders and cards, and the tie-breaks"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The result screen, with the tie-breaks</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/cw-result-phone.webp"
+            alt="The same result on an iPhone SE"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="cols">
+        <div class="box">
+          <h3>Every leader card plays</h3>
+          <p>
+            Every Synthezoid Smackdown leader player card is scripted, from She-Hulk's and Vision's to Calculated Risk
+            and Synthezoid Strike, with two-team tests for the Standard PvP cards and the pool cards that fire on the
+            other team's turn. Choosing Sides shows the leader cards a team earns.
+          </p>
+        </div>
+        <div class="box">
+          <h3>Friendly play, for now</h3>
+          <p>
+            The host's device sees the whole game, and the lobby says so. Hiding each team's hand from the other is next
+            (#924). Competitive games count as played only: no unlocks, achievements or win rates.
+          </p>
+        </div>
+      </div>
+
+      <!-- ============ ACHIEVEMENTS ============ -->
+      <div class="band gold">
+        <h2>Multiplayer achievements</h2>
+        <div class="lab">Issue #909 · PR #954</div>
+      </div>
+      <div class="pill feat">
+        <div class="star">★</div>
+        <div><small>Achievement unlocked</small><span>Earth's Mightiest Teammates</span></div>
+      </div>
+      <p class="lead">
+        <b>49 new achievements.</b> For playing together, Epic Multiplayer, Civil War Competitive, watching and hosting,
+        plus table feats from @bluefireF5ran's list and a first-win-with-friends bonus by table size.
+      </p>
+      <div class="shots s-phone">
+        <figure class="a">
+          <img
+            src="img/trophies.webp"
+            alt="The Trophy Room's Playing Together family, with Tag Team, No One Left Behind and more"
+            width="1280"
+            height="871"
+            loading="lazy"
+          />
+          <figcaption>The Trophy Room's new families</figcaption>
+        </figure>
+        <figure class="a">
+          <img
+            src="img/trophies-phone.webp"
+            alt="Playing Together achievements on an iPhone SE"
+            width="375"
+            height="667"
+            loading="lazy"
+          />
+          <figcaption>On an iPhone SE</figcaption>
+        </figure>
+      </div>
+      <div class="box">
+        <p>
+          <b>Fair points:</b> each device keeps its own result of a room game, a host's room games count only for the
+          seats they played, and a room with Cheats on or an adjusted game earns no points, achievements or stats.
+        </p>
+      </div>
+
+      <!-- ============ ROAD TO 1.0 ============ -->
+      <div class="band">
+        <h2>The road to 1.0</h2>
+        <div class="lab">Everything you can play in v1.0.0</div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            <b>Every released product</b>, from the Core Set through Shadowland: 64 packs, 69 heroes, 68 scenarios and
+            331 encounter sets, each card scripted against its printed text and errata.
+          </li>
+          <li><b>All eleven campaigns</b>, with expert rules, story beats and each box's between-game choices.</li>
+          <li><b>The Mod Store</b>: reviewed community heroes, villains, scenarios, campaigns and house rules.</li>
+          <li><b>Decks</b>: precons, the deck builder and MarvelCDB import, checked against the deckbuilding rules.</li>
+          <li><b>Replays and Past games</b>, Your stats, the Trophy Room, Extras and Guided mode.</li>
+          <li><b>Your saves on every device</b>, with no login.</li>
+          <li>
+            <b>Everywhere</b>: the browser, Windows, macOS, Linux, Android, and iPhone and iPad, in English and Spanish.
+          </li>
+          <li><b>And now online</b>, with everything above.</li>
+        </ul>
+      </div>
+
+      <!-- ============ ALSO ============ -->
+      <div class="band">
+        <h2>Also in v1.0.0</h2>
+        <div class="lab">PRs #1010 and this report</div>
+      </div>
+      <div class="box">
+        <ul class="ck">
+          <li>
+            The Title on a tablet or desktop shows Play online as a comic splash panel with the live-rooms count, and
+            Play online is a split screen with your recent rooms to rejoin.
+          </li>
+          <li>
+            The Bug report form asks whether you were playing single player or in an online room, and the in-game report
+            says it for you.
+          </li>
+          <li>
+            The README has iPhone and iPad download buttons and a Mods section, and the docs describe online play.
+          </li>
+          <li>
+            In The Once and Future Kang's separate game areas, triggered abilities and Team-Up hear only their own area.
+          </li>
+          <li>The landing page's multiplayer section says Out now, and the release keeps its version 1.0.0.</li>
+          <li>This report, in English and Spanish.</li>
+        </ul>
+      </div>
+
+      <!-- ============ THANKS ============ -->
+      <section class="thanks">
+        <div class="side">
+          <h2>Thank you!</h2>
+          <p>
+            Online play is new, so keep the reports coming from Pause ▸ Report a problem, a GitHub issue or the
+            community Discord.
+          </p>
+        </div>
+        <div class="people" style="align-items: start">
+          <div class="person wide">
+            <h3>GarethMagis</h3>
+            <p>
+              Tested the multiplayer previews and asked for Show my hand, Build a deck in the room and a villain phase
+              that stays locked.
+            </p>
+          </div>
+          <div class="person">
+            <h3>@bluefireF5ran</h3>
+            <p>Gave us the table feats behind the multiplayer achievements, <b>#909</b>.</p>
+          </div>
+          <div class="person">
+            <h3>Everyone on Discord</h3>
+            <p>Who played the preview builds and sent feedback while rooms were being built.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CODE ============ -->
+      <div class="band">
+        <h2>Code shipped</h2>
+        <div class="lab">Since v0.55.0</div>
+      </div>
+      <section class="stats" aria-label="Code shipped since v0.55.0">
+        <div class="tile">
+          <h4>Pull requests</h4>
+          <div class="n">9</div>
+          <p>merged into main.</p>
+        </div>
+        <div class="tile">
+          <h4>Files changed</h4>
+          <div class="n">879</div>
+          <p>across the engine, the client, the sync Worker, the cards and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines added</h4>
+          <div class="n c-green">96,100</div>
+          <p>live rooms, Epic and Competitive play, their tests and this report.</p>
+        </div>
+        <div class="tile">
+          <h4>Lines removed</h4>
+          <div class="n c-red">1,252</div>
+          <p>across the same pull requests.</p>
+        </div>
+      </section>
+      <div class="credits">
+        The soundtrack is AI-generated with Gemini. The sound effects are royalty-free sounds from assorted websites.
+        Controller art: Xbox One controller by Akshay Kumar (ArtStation), PlayStation controller by Uttam Das
+        (Vecteezy), Switch icon by Sweet Farm (Noun Project).
+      </div>
+
+      <footer class="foot">
+        <span
+          >Marvel Champions: Digital Edition is a fan-made, non-commercial project. Marvel Champions, its card text,
+          artwork and characters belong to Fantasy Flight Games and Marvel.</span
+        >
+        <span
+          ><a href="../../">Play in your browser ↗</a> ·
+          <a data-history-link href="../index.html#v1.0.0">All releases</a><span data-history-link> ·</span>
+          <a href="https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v1.0.0"
+            >Downloads ↗</a
+          ></span
+        >
+      </footer>
+    </div>
+  </body>
+</html>
