@@ -16,6 +16,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * `minimize`, which sends the app to the background as Android's own back does at an app's first screen. The
  * androidx dispatcher also takes Android 16's predictive back, which no longer calls `onBackPressed`. While the page
  * has no listener (it has not loaded, or it failed to), back does what it always did.
+ *
+ * The dispatcher asks the handler added last first, and Capacitor loads npm plugins after this one, so any npm plugin
+ * with a back handler of its own must have it turned off: `@capacitor/app`'s is, by `disableBackButtonHandler` in
+ * `capacitor.config.ts` (#998).
  */
 @CapacitorPlugin(name = "BackGesture")
 public class BackGesturePlugin extends Plugin {

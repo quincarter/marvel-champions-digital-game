@@ -7,6 +7,7 @@ import {
   galleryCardCount,
   galleryCountText,
   galleryFlat,
+  galleryFocusKey,
   galleryGridOf,
   galleryPictureHeight,
   galleryRowsOf,
@@ -69,6 +70,37 @@ describe("the pack gallery", () => {
       ["villain", "Villain and scheme"],
       ["scenario", "Rhino"],
     ]);
+  });
+
+  it("marks only a house rule's rebuilt faces, so its own cards and its precon's official cards keep their pictures", () => {
+    const ruleCard = asPack(core("upgrade"), { id: "x.rule.01", aspect: "hero:01001a" });
+    const rebuilt = core("hero_identity");
+    const { sections } = gallerySectionsOf({
+      cards: [ruleCard],
+      decks: [deck([[baseAlly.id as string, 2]])],
+      baseCards,
+      ruleFaces: [{ code: rebuilt.id as string, card: rebuilt }],
+    });
+    expect(sections.map((section) => section.id)).toEqual(["rule", "hero", "deck"]);
+    expect(sections[0]!.cards.map((card) => card.rebuilt)).toEqual([true]);
+    expect(sections[1]!.cards.map((card) => card.rebuilt)).toEqual([undefined]);
+    expect(sections[2]!.cards.map((card) => [card.cardId, card.rebuilt])).toEqual([[baseAlly.id, undefined]]);
+  });
+
+  it("gives a rebuilt face its own tile when the precon holds the same official card", () => {
+    const { sections, records } = gallerySectionsOf({
+      cards: [],
+      decks: [deck([[baseAlly.id as string, 2]])],
+      baseCards,
+      ruleFaces: [{ code: baseAlly.id as string, card: baseAlly }],
+    });
+    expect(sections.map((section) => [section.id, section.cards.map((card) => [card.cardId, card.rebuilt])])).toEqual([
+      ["rule", [[baseAlly.id, true]]],
+      ["deck", [[baseAlly.id, undefined]]],
+    ]);
+    expect(records.get(baseAlly.id as string)).toBe(baseAlly);
+    const keys = galleryFlat(sections).map(galleryFocusKey);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 
   it("is empty for a pack with no cards", () => {
