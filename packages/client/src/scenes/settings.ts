@@ -146,6 +146,7 @@ import {
 import { surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, type McTextInput } from "../ui/widgets.js";
+import { onTap } from "../ui/tap.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import "@mc/ui";
 import type { BodyControl, BodyList, BodyRect, BodyRow, McSettingsBody } from "@mc/ui";
@@ -1598,12 +1599,10 @@ export class SettingsOverlay extends Phaser.Scene {
   #drawResolutionList(bounds: Rect, stops: Map<string, FocusStop>): string[] {
     const info = this.#resolutionInfo;
     if (info === null) return [];
-    // A press outside the body (the header, the tabs) closes the list too; inside the body its backdrop does.
-    this.add
-      .zone(0, 0, bounds.width, bounds.height)
-      .setOrigin(0, 0)
-      .setInteractive()
-      .on("pointerup", () => this.#closeResolutionList());
+    // A tap outside the body (the header, the tabs) closes the list too; inside the body its backdrop does. A tap, not
+    // a bare release: a swipe that lifts over the header must leave the list open (CLAUDE.md, no tap on finger lift).
+    const outside = this.add.zone(0, 0, bounds.width, bounds.height).setOrigin(0, 0).setInteractive();
+    onTap(outside, () => this.#closeResolutionList(), "resolution-list-outside");
     return info.options.map((option, i) => {
       const key = `list:${i}`;
       stops.set(
