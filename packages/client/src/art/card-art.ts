@@ -452,6 +452,28 @@ export interface DrawArtOptions {
 }
 
 /**
+ * The texture key `drawArt` draws `given` from in `rect`: the table copy, or the full-size copy once it is in for a
+ * slot too big for the table copy (asked for here). Null when `given` is not a texture. A screen that keeps what it
+ * drew compares this key's texture with the one it drew from, so a full copy arriving, or evicted while the table copy
+ * stays, is noticed.
+ */
+export function artKeyFor(
+  scene: Phaser.Scene,
+  given: string | null,
+  rect: Rect,
+  options: DrawArtOptions = {},
+): string | null {
+  if (!given || !scene.textures.exists(given)) return null;
+  const table = scene.textures.get(given).getSourceImage();
+  if (!table.width || !table.height) return null;
+  const scale =
+    (options.fit ?? "contain") === "cover"
+      ? Math.max(rect.width / table.width, rect.height / table.height)
+      : Math.min(rect.width / table.width, rect.height / table.height);
+  return cardArt(scene).upgrade(scene, given, table.height * scale);
+}
+
+/**
  * Draws a loaded scan into `rect`. Returns null when the key isn't a texture,
  * so a caller can draw its own frame in the same pass without asking twice.
  *
@@ -475,10 +497,9 @@ export function drawArt(
     fit === "cover"
       ? Math.max(rect.width / width, rect.height / height)
       : Math.min(rect.width / width, rect.height / height);
-  const table = scene.textures.get(given).getSourceImage();
-  if (!table.width || !table.height) return null;
-  const key = cardArt(scene).upgrade(scene, given, table.height * fitScale(table.width, table.height));
-  const size = key === given ? table : scene.textures.get(key).getSourceImage();
+  const key = artKeyFor(scene, given, rect, options);
+  if (!key) return null;
+  const size = scene.textures.get(key).getSourceImage();
   const sourceWidth = size.width;
   const sourceHeight = size.height;
   if (!sourceWidth || !sourceHeight) return null;
