@@ -105,16 +105,36 @@ export function divideSheetOf(
     const engaged = engagedOf(state, instanceId);
     return engaged ? [engaged] : [];
   });
-  const full = picked.map(
-    ({ instanceId, count, engaged }) => `${cardName(state, instanceId)}${engaged ? ` (vs ${engaged})` : ""} ${count}`,
+  const full = distinctNames(
+    picked.map(({ instanceId, engaged }) => `${cardName(state, instanceId)}${engaged ? ` (vs ${engaged})` : ""}`),
+  ).map((name, index) => `${name} ${picked[index]!.count}`);
+  // A minion engaged with a seat is named by that seat alone, in the shortest form no other seat shares; two picked
+  // cards that would then read the same (two minions engaged with one hero) keep their card names, and two copies of
+  // one card with one hero are numbered in table order (Codex, PR #1014).
+  const seatOnly = picked.map(({ instanceId, engaged }) =>
+    engaged ? engagedNoteForms(engaged, seats).at(-1)! : cardName(state, instanceId),
   );
-  // A minion engaged with a seat is named by that seat alone, in the shortest form no other seat shares.
-  const brief = picked.map(({ instanceId, count, engaged }) =>
-    engaged ? `${engagedNoteForms(engaged, seats).at(-1)} ${count}` : `${cardName(state, instanceId)} ${count}`,
-  );
+  const brief = distinctNames(
+    seatOnly.map((name, index) => {
+      const { instanceId, engaged } = picked[index]!;
+      const shared = seatOnly.filter((other) => other === name).length > 1;
+      return shared && engaged ? `${cardName(state, instanceId)} ${name}` : name;
+    }),
+  ).map((name, index) => `${name} ${picked[index]!.count}`);
   const tally = `${full.join(" · ")} · ${leftWords}`;
   const tallies = [...new Set([tally, [leftWords, ...full].join(" · "), [leftWords, ...brief].join(" · ")])];
   return { labels, tally, tallies };
+}
+
+/** Numbers the names that repeat, in order ("Drone minion #1", "Drone minion #2"); a name that is unique is left alone. */
+export function distinctNames(names: readonly string[]): readonly string[] {
+  const seen = new Map<string, number>();
+  return names.map((name) => {
+    if (names.filter((other) => other === name).length < 2) return name;
+    const nth = (seen.get(name) ?? 0) + 1;
+    seen.set(name, nth);
+    return `${name} #${nth}`;
+  });
 }
 
 function engagedOf(state: GameState, instanceId: InstanceId): string | null {

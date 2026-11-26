@@ -3,7 +3,7 @@ import { activeVillain, cardsInPlay, choiceId, type PendingChoice } from "@mc/en
 import { LocalEngineHost } from "../engine/local-host.js";
 import { startEngagedTargetGame } from "../store/dev-engaged-target-game.js";
 import { SessionStore } from "../store/session-store.js";
-import { divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
+import { distinctNames, divideSheetOf, shownDivideChoice } from "./divide-sheet.js";
 import { playerName } from "./names.js";
 
 const store = new SessionStore(new LocalEngineHost());
@@ -108,6 +108,14 @@ describe("damage divided among minions engaged with different seats (issue #1001
     expect(parts).toHaveLength(2);
     expect(new Set(parts).size).toBe(2);
     expect(seats).toHaveLength(2);
+  });
+
+  test("names that repeat in a tally are numbered in order (Codex, PR #1014)", () => {
+    expect(distinctNames(["Drone minion vs I. Man", "Drone minion vs I. Man", "vs S.-Man"])).toEqual([
+      "Drone minion vs I. Man #1",
+      "Drone minion vs I. Man #2",
+      "vs S.-Man",
+    ]);
   }, 120_000);
 });
 
