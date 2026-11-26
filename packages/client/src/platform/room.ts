@@ -76,7 +76,7 @@ import {
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
-import { selfAnsweredRequests } from "../view/room-notices.js";
+import { selfAnswered } from "../view/room-notices.js";
 import { keepHostSettings } from "../view/host-settings-memory.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
@@ -185,6 +185,8 @@ let resendActivity = false;
 let lastCursor: { readonly key: string; readonly at: number; readonly state: VillainCursorState } | null = null;
 /** The table plan the host last published (null when none), sent again when the room socket comes back. */
 let lastPlan: TablePlan | null = null;
+/** Guests' Undo requests this host's device already answered by itself (`selfAnswered`). */
+const selfAnsweredIds = new Set<string>();
 let resendPlan = false;
 
 function publish(next: RoomState): void {
@@ -247,7 +249,13 @@ function publish(next: RoomState): void {
     if (store) syncGameAddress(store.state, session.guidedRun);
   }
   // A guest's own Undo, where the room lets each player take back their own moves: done here at once (GarethMagis).
-  for (const request of selfAnsweredRequests(prev, next)) void answerRequest(request.id, true);
+  // Each request once, whenever it shows up (an Undo asked before the host switched the setting included).
+  for (const request of next.requests) {
+    if (!selfAnswered(next, request) || selfAnsweredIds.has(request.id)) continue;
+    selfAnsweredIds.add(request.id);
+    void answerRequest(request.id, true);
+  }
+  if (next.role !== "host") selfAnsweredIds.clear();
   for (const listener of [...listeners]) listener(state);
 }
 
@@ -722,7 +730,7 @@ export async function seatMappingAt(judgedRev: number): Promise<number | null> {
   if (state.rev !== judgedRev) return null;
   if (seatsMapped(state)) return judgedRev;
   const refusals = state.refusal?.seq ?? 0;
-  setLobby({ ifRev: judgedRev, seats: seatMappingOf(state) });
+  setLobby({ ifRev: judgedRev, seats: seatMappingOf(state), keep: false });
   const settled = (now: RoomState): boolean =>
     (seatsMapped(now) && now.rev === judgedRev + 1) ||
     now.rev > judgedRev + 1 ||
@@ -748,7 +756,7 @@ export async function startGame(config: SessionConfig): Promise<void> {
     (!state.started || state.gameOver) &&
     !seatsMapped(state)
   ) {
-    setLobby({ seats: seatMappingOf(state) });
+    setLobby({ seats: seatMappingOf(state), keep: false });
   }
   await appSession().store.start({
     ...config,
@@ -1073,6 +1081,7 @@ export async function startCompetitive(options: CompetitiveStartOptions): Promis
           label: s.label,
           ...(order.includes(s.id) ? { player: `p${order.indexOf(s.id) + 1}` } : {}),
         })),
+        keep: false,
       });
       const settled = (now: RoomState): boolean =>
         (mapped(now) && now.rev === judgedRev + 1) ||

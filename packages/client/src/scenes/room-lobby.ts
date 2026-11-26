@@ -520,11 +520,9 @@ export class RoomLobbyScene extends Phaser.Scene {
         this.#seatsDefaulted = true;
         // The host's settings from its last room, kept on this device (GarethMagis), or the room's defaults.
         const kept = readHostSettings();
-        setLobby({
-          seats: seatSpecsOf(clampSeatCount(kept.seats ?? ROOM_SEATS_DEFAULT)),
-          ...(hasKeptSettings(kept) ? { settings: kept.settings } : {}),
-          keep: false,
-        });
+        // Two messages: a room that refuses the kept settings (an older Worker, the rate limit) still gets its seats.
+        setLobby({ seats: seatSpecsOf(clampSeatCount(kept.seats ?? ROOM_SEATS_DEFAULT)), keep: false });
+        if (hasKeptSettings(kept)) setLobby({ settings: kept.settings, keep: false });
       }
     }
     if (state.refusal && state.refusal.seq !== this.#refusalSeen) {

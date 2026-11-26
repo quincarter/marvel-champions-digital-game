@@ -637,6 +637,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "prompt.acceptedUndo": "El anfitrión aceptó y deshizo la jugada.",
   "prompt.acceptedChange": "El anfitrión aceptó el cambio.",
   "prompt.declinedUndo": "El anfitrión dijo que no a deshacer.",
+  "prompt.ownUndoFailed": "Esa jugada no se pudo deshacer.",
   "prompt.declinedChange": "El anfitrión dijo que no al cambio.",
   "prompt.more_one": "1 más esperando",
   "prompt.more_other": "{count} más esperando",

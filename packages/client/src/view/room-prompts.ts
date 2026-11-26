@@ -30,7 +30,13 @@ export type RoomPrompt =
       readonly note: string;
     }
   /** Guest: my own request, waiting or answered. */
-  | { readonly kind: "answer"; readonly what: "undo" | "adjust"; readonly status: "waiting" | "accepted" | "declined" };
+  | {
+      readonly kind: "answer";
+      readonly what: "undo" | "adjust";
+      readonly status: "waiting" | "accepted" | "declined";
+      /** The room lets each player undo their own moves: nobody decided, the move just could not be taken back. */
+      readonly own?: true;
+    };
 
 /** What a button on a prompt does. */
 export type PromptActionId = "take-over" | "give-back" | "accept" | "decline" | "dismiss" | "message" | "wait" | "give";
@@ -92,7 +98,12 @@ export function roomPromptsOf(
     }
   } else if (room.myRequest && !(ownUndo && room.myRequest.what === "undo" && room.myRequest.status !== "declined")) {
     // Under "each player" an Undo needs no word back unless it could not be done.
-    prompts.push({ kind: "answer", what: room.myRequest.what, status: room.myRequest.status });
+    prompts.push({
+      kind: "answer",
+      what: room.myRequest.what,
+      status: room.myRequest.status,
+      ...(ownUndo && room.myRequest.what === "undo" ? { own: true as const } : {}),
+    });
   }
   return prompts;
 }
@@ -155,7 +166,9 @@ export function promptViewOf(
               ? "prompt.acceptedUndo"
               : "prompt.acceptedChange"
             : asked === "undo"
-              ? "prompt.declinedUndo"
+              ? prompt.own
+                ? "prompt.ownUndoFailed"
+                : "prompt.declinedUndo"
               : "prompt.declinedChange";
       return {
         prompt,

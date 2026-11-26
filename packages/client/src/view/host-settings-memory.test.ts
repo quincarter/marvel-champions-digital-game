@@ -28,6 +28,10 @@ describe("the host's kept room settings", () => {
     expect(keptPartOf({ chat: false, mods: [], tableRules: { x: 1 }, mode: "epic" })).toEqual({ chat: false });
   });
 
+  it("never keeps a public listing or cheats: each room chooses those afresh", () => {
+    expect(keptPartOf({ listed: true, cheats: true, playMode: "host" })).toEqual({ playMode: "host" });
+  });
+
   it("starts from nothing when nothing, or nothing readable, is kept", () => {
     const storage = memory();
     expect(hasKeptSettings(readHostSettings(storage))).toBe(false);

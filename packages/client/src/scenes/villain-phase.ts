@@ -713,15 +713,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return followsHost(seatContext());
   }
 
-  /**
-   * Whose eyes the phase's narration reads through: in a room, this device's own hero rather than whoever must act, so
-   * another seat's defend reads "Rhino attacks Ava's hero · Ava declares a defender", not "you" (#1017).
-   */
   /** Who the store shows acting: what this screen lets the player answer is keyed on them, never on the narration. */
   #actor(): PlayerId | null {
     return this.#latest?.perspectiveId ?? null;
   }
 
+  /**
+   * Whose eyes the phase's narration reads through: in a room, this device's own hero rather than whoever must act, so
+   * another seat's defend reads "Rhino attacks Ava's hero · Ava declares a defender", not "you" (#1017).
+   */
   #viewer(state: { readonly perspectiveId: PlayerId | null }): PlayerId | null {
     const room = seatContext();
     return narrationViewer(room?.room ?? null, state.perspectiveId, room?.seatGame ?? false);
@@ -1013,8 +1013,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (state.version !== this.#version) {
       // A guest's catch-up (a batch of the host's moves, a reconnect's log) carries no events of its own: the commands
       // it skipped are taken from the trail, so the screen does not stay on the last step it knew (#1017).
-      const game = state.game;
-      const takeIn = commandsToTakeIn(this.#version, { ...state, game });
+      const takeIn = commandsToTakeIn(this.#version, { ...state, game: state.game });
       this.#version = state.version;
       for (const command of takeIn) {
         const before = totalBeatsOf(this.#walkthrough);

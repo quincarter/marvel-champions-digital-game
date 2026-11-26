@@ -59,9 +59,21 @@ export function newRequestsForHost(prev: RoomState, next: RoomState): RoomState[
  * nothing is asked of the host (or sounded).
  */
 export function selfAnsweredRequests(prev: RoomState, next: RoomState): RoomState["requests"] {
-  const settings = next.settings;
-  if (!settings || lobbyUndoFor(settings.playMode, settings.undo) !== "own") return [];
-  return newRequestsForHost(prev, next).filter((request) => request.what === "undo");
+  return newRequestsForHost(prev, next).filter((request) => selfAnswered(next, request));
+}
+
+/**
+ * Whether the host's device answers `request` by itself: an Undo while the room lets each player take back their own
+ * moves. Read against the room now, so an Undo asked before the host switched to it is answered too.
+ */
+export function selfAnswered(room: RoomState, request: RoomState["requests"][number]): boolean {
+  const settings = room.settings;
+  return (
+    room.role === "host" &&
+    request.what === "undo" &&
+    !!settings &&
+    lobbyUndoFor(settings.playMode, settings.undo) === "own"
+  );
 }
 
 /** The new requests the host is asked to answer, and hears: every one it does not answer by itself. */

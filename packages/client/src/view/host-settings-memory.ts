@@ -14,10 +14,13 @@ export interface KeptHostSettings {
   readonly seats?: number;
 }
 
+/**
+ * Not kept: `listed` (a room shown on the public "Live now" list) and `cheats` (a game that counts for nobody) are
+ * chosen afresh for each room, so a host never opens a public room, or one that earns nothing, without choosing to.
+ */
 const KEPT_KEYS = [
   "playMode",
   "undo",
-  "cheats",
   "multiSeat",
   "handover",
   "tieBreaks",
@@ -26,7 +29,6 @@ const KEPT_KEYS = [
   "villainPacing",
   "askToSit",
   "chat",
-  "listed",
 ] as const satisfies readonly (keyof LobbySettingsPatch)[];
 
 /** The part of a settings change that is kept. */

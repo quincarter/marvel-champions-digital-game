@@ -133,3 +133,25 @@ describe("room chat unread", () => {
     resetChatRead();
   });
 });
+
+describe("Each player Undo (GarethMagis, 2026-11-25)", () => {
+  const own = { ...settings, undo: "own" as const };
+  const ask = { id: "r1", from: "g1", name: "Ava", what: "undo" as const, note: "" };
+
+  it("puts no guest Undo to the host, which does it by itself; a change is still asked", () => {
+    expect(roomPromptsOf(hostRoom({ settings: own, requests: [ask] }), null)).toEqual([]);
+    const change = { ...ask, id: "r2", what: "adjust" as const };
+    expect(roomPromptsOf(hostRoom({ settings: own, requests: [change] }), null).map((p) => p.kind)).toEqual([
+      "request",
+    ]);
+  });
+
+  it("tells the guest nothing while it is done, and says why when the move could not be taken back", () => {
+    const guest = { ...NO_ROOM, role: "guest" as const, settings: own };
+    for (const status of ["waiting", "accepted"] as const) {
+      expect(roomPromptsOf({ ...guest, myRequest: { what: "undo", status, seq: 1 } }, null)).toEqual([]);
+    }
+    const failed = { ...guest, myRequest: { what: "undo" as const, status: "declined" as const, seq: 2 } };
+    expect(promptViewOf(roomPromptsOf(failed, null))?.titleKey).toBe("prompt.ownUndoFailed");
+  });
+});

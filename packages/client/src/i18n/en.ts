@@ -634,6 +634,7 @@ export const en = {
   "prompt.acceptedUndo": "The host agreed and undid the move.",
   "prompt.acceptedChange": "The host agreed to the change.",
   "prompt.declinedUndo": "The host said no to the undo.",
+  "prompt.ownUndoFailed": "That move could not be taken back.",
   "prompt.declinedChange": "The host said no to the change.",
   "prompt.more_one": "1 more waiting",
   "prompt.more_other": "{count} more waiting",
