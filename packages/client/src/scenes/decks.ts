@@ -108,13 +108,15 @@ import { cardNamesReady, loadCardNames, localizedNameOf } from "../view/card-nam
 import { localizedLabelOf } from "../view/card-text.js";
 import { testedCatalog } from "../view/seatable-decks.js";
 import { isDesktopType } from "../ui/desktop-type.js";
-import { cardArt } from "../art/card-art.js";
-import { artFor, artLanguageNow } from "../art/art-source.js";
+import { cardArt, type ArtRedraw } from "../art/card-art.js";
+import { artFor, artLanguageNow, type ArtSource } from "../art/art-source.js";
 import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { drawPictureAspectChips } from "../ui/aspect-chips.js";
 import { drawArt } from "../art/card-art.js";
+import { drawArtSlot } from "../art/art-slot.js";
+import { markRenderDirty } from "../ui/idle-render.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
 import {
   exportDecklistText,
@@ -445,6 +447,8 @@ export class DecksScene extends Phaser.Scene {
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
   #poolList: McVirtualList | null = null;
+  /** A scan drawn outside the pool grid this draw was not on hand yet, so its arrival redraws the screen. */
+  #paneArtMissing = false;
   #poolListScroll = new ListScroll();
   /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
   #notesList: McVirtualList | null = null;
@@ -524,7 +528,7 @@ export class DecksScene extends Phaser.Scene {
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     appSession().music?.playTitle();
-    const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    const artOff = cardArt(this).onArrived((why) => this.#artArrived(why));
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => this.#hoverCardIds(),
@@ -752,7 +756,30 @@ export class DecksScene extends Phaser.Scene {
     return all;
   }
 
+  /**
+   * Scans arrived. The card pool's tiles fill themselves in (`art/art-slot.ts`); only a scan the screen drew outside
+   * the pool grid (a deck's card list, the stats pane's picture) needs the screen drawn again, and so does a change of every
+   * face's source.
+   */
+  #artArrived(why: ArtRedraw): void {
+    // "all": a new card language or a pack's pictures, so every tile may have a new source.
+    if (why === "all" || this.#paneArtMissing) {
+      this.#rebuild();
+      return;
+    }
+    this.#poolList?.refreshRows();
+    markRenderDirty();
+  }
+
+  /** A scan outside the pool grid; one still on its way marks the screen to be drawn again when it lands. */
+  #drawPaneArt(source: ArtSource | null | undefined, rect: Rect): void {
+    const art = cardArt(this);
+    if (drawArt(this, art.request(this, source ?? null), rect)) return;
+    if (source && !art.isMissing(source.key)) this.#paneArtMissing = true;
+  }
+
   #rebuild(): void {
+    this.#paneArtMissing = false;
     // The deck's options, when up, redraw with this draw's statuses (#958 review).
     if (this.scene.isActive(SCENES.deckActions))
       this.time.delayedCall(0, () => (this.scene.get(SCENES.deckActions) as DeckActionsSheet | null)?.refresh());
@@ -1122,7 +1149,7 @@ export class DecksScene extends Phaser.Scene {
         const card = currentCardsById().get(entry.cardId);
         const pic: Rect = { x: left, y, width: thumb.width, height: thumb.height };
         this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-        drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+        this.#drawPaneArt(artFor(card, { kind: "front" }), pic);
         noteHoverCardId(this, entry.cardId, pic, true);
         const text = this.add
           .text(
@@ -2367,6 +2394,7 @@ export class DecksScene extends Phaser.Scene {
     deck: Deck,
   ): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
+    const waiting: (() => boolean)[] = [];
     const startIndex = rowIndex * geometry.columns;
     const countInRow = Math.min(geometry.columns, cards.length - startIndex);
     for (let col = 0; col < countInRow; col++) {
@@ -2386,21 +2414,18 @@ export class DecksScene extends Phaser.Scene {
       const artFill = this.add.graphics();
       artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
       objects.push(artFill);
-      const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
-      const art = drawArt(this, key, artRect);
-      if (art) objects.push(art);
-      else
-        objects.push(
-          label(
-            this,
-            artRect.x + artRect.width / 2,
-            artRect.y + artRect.height / 2,
-            "no scan",
-            typeRole.label,
-            surface.ink.hex,
-            ink.meta,
-          ).setOrigin(0.5),
-        );
+      const fill = drawArtSlot(this, artFor(card, { kind: "front" }), artRect, objects, () =>
+        label(
+          this,
+          artRect.x + artRect.width / 2,
+          artRect.y + artRect.height / 2,
+          "no scan",
+          typeRole.label,
+          surface.ink.hex,
+          ink.meta,
+        ).setOrigin(0.5),
+      );
+      waiting.push(fill);
       const ruleY = artRect.y + artRect.height + 2;
       const rule = this.add.graphics();
       rule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, ruleY, cardRect.width, 2.5);
@@ -2444,7 +2469,7 @@ export class DecksScene extends Phaser.Scene {
         ).setWordWrapWidth(cardRect.width - 16),
       );
     }
-    return { objects };
+    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
   }
 
   /**
@@ -2507,7 +2532,7 @@ export class DecksScene extends Phaser.Scene {
       height: Math.min(130, column * 0.42) * (88 / 63),
     };
     this.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(pic.x, pic.y, pic.width, pic.height);
-    drawArt(this, cardArt(this).request(this, artFor(card, { kind: "front" })), pic);
+    this.#drawPaneArt(artFor(card, { kind: "front" }), pic);
     noteHoverCardId(this, card.id as string, pic, true);
     const textX = pic.x + pic.width + 10;
     const textWidth = left + column - textX;

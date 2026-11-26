@@ -105,12 +105,15 @@ export function cardArt(scene: Phaser.Scene): CardArt {
 /** How long arrivals are gathered before the screens showing them redraw. Short enough to read as "the art popped in". */
 const ARRIVAL_WINDOW_MS = 120;
 
+/** Why `CardArt.onArrived` listeners are called: scans landed, or every face may have a new source. */
+export type ArtRedraw = "arrival" | "all";
+
 export class CardArt {
   /** Keys already handed to the loader, so one scan is fetched once. */
   readonly #requested = new Set<string>();
   /** Keys the server has no scan for. The generated frame is the answer for these. */
   readonly #missing = new Set<string>();
-  readonly #listeners = new Set<() => void>();
+  readonly #listeners = new Set<(why: ArtRedraw) => void>();
   /** Scenes whose loader this cache has already hooked. */
   readonly #hooked = new WeakSet<Phaser.Scene>();
   /** Requested but not yet handed to a loader. */
@@ -144,8 +147,12 @@ export class CardArt {
   readonly #lastUsed = new Map<string, number>();
   #tick = 0;
 
-  /** Called when art arrives, so the board can redraw with it. */
-  onArrived(listener: () => void): () => void {
+  /**
+   * Called when art arrives, so the board can redraw with it. `why` is "arrival" for scans landing, and "all" when
+   * every face may have a new source (a card language switch, a pack's pictures): a screen that fills tiles in place
+   * (`art/art-slot.ts`) draws itself again for "all", since its tiles were drawn from the old sources.
+   */
+  onArrived(listener: (why: ArtRedraw) => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   }
@@ -175,7 +182,7 @@ export class CardArt {
 
   /** Tells every screen showing art to redraw, as an arrival does (a card language switch). */
   redrawAll(): void {
-    this.#fireListeners();
+    this.#fireListeners("all");
   }
 
   /** True when the server has said it has no scan for this key. */
@@ -329,8 +336,8 @@ export class CardArt {
     });
   }
 
-  #fireListeners(): void {
-    for (const listener of [...this.#listeners]) listener();
+  #fireListeners(why: ArtRedraw = "arrival"): void {
+    for (const listener of [...this.#listeners]) listener(why);
   }
 }
 

@@ -72,7 +72,9 @@ import Phaser from "phaser";
 import type { CoreAspect, Deck } from "@mc/content";
 import { POOL_VERSION, currentCardsById, currentDeps, currentPool } from "../content/pool.js";
 import { artFor, artLanguageNow } from "../art/art-source.js";
-import { cardArt, drawArt } from "../art/card-art.js";
+import { cardArt } from "../art/card-art.js";
+import { drawArtSlot } from "../art/art-slot.js";
+import { markRenderDirty } from "../ui/idle-render.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
 import {
   costCurveBars,
@@ -282,7 +284,16 @@ export class DeckCheckScene extends Phaser.Scene {
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
-    const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    // Only the card grid shows scans, and its tiles fill themselves in (`art/art-slot.ts`): no redraw of the screen,
+    // unless every face may have a new source (a card language switch, a pack's pictures).
+    const artOff = cardArt(this).onArrived((why) => {
+      if (why === "all") {
+        this.#rebuild();
+        return;
+      }
+      this.#cardList?.refreshRows();
+      markRenderDirty();
+    });
     resetHoverCards(this);
     this.#hover = new HoverPreview(this, {
       cardIds: () => {
@@ -1056,14 +1067,15 @@ export class DeckCheckScene extends Phaser.Scene {
         ],
       };
     const objects: Phaser.GameObjects.GameObject[] = [];
+    const waiting: (() => boolean)[] = [];
     for (let col = 0; col < slot.count; col++) {
       const entry = slot.group.entries[slot.startIndex + col];
       if (!entry) continue;
       const cell = poolCellRect(geometry, rect, col);
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      objects.push(...this.#renderCardCell(cardRect, entry));
+      this.#renderCardCell(cardRect, entry, objects, waiting);
     }
-    return { objects };
+    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
   }
 
   /**
@@ -1097,8 +1109,12 @@ export class DeckCheckScene extends Phaser.Scene {
    * browsing a *pool*, not reading a card this deck already runs. A missing scan draws "no scan" rather than
    * blocking anything — art availability never blocks this screen (CLAUDE.md).
    */
-  #renderCardCell(cardRect: Rect, entry: DeckListEntry): readonly Phaser.GameObjects.GameObject[] {
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  #renderCardCell(
+    cardRect: Rect,
+    entry: DeckListEntry,
+    objects: Phaser.GameObjects.GameObject[],
+    waiting: (() => boolean)[],
+  ): void {
     const g = this.add.graphics();
     paintPanel(g, cardRect, "card", "rest");
     objects.push(g);
@@ -1154,21 +1170,18 @@ export class DeckCheckScene extends Phaser.Scene {
     artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
     objects.push(artFill);
     const card = currentCardsById().get(entry.cardId as string);
-    const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
-    const art = drawArt(this, key, artRect);
-    if (art) objects.push(art);
-    else
-      objects.push(
-        label(
-          this,
-          artRect.x + artRect.width / 2,
-          artRect.y + artRect.height / 2,
-          t("deckCheck.noScan"),
-          typeRole.label,
-          surface.ink.hex,
-          ink.meta,
-        ).setOrigin(0.5),
-      );
+    const fill = drawArtSlot(this, artFor(card, { kind: "front" }), artRect, objects, () =>
+      label(
+        this,
+        artRect.x + artRect.width / 2,
+        artRect.y + artRect.height / 2,
+        t("deckCheck.noScan"),
+        typeRole.label,
+        surface.ink.hex,
+        ink.meta,
+      ).setOrigin(0.5),
+    );
+    waiting.push(fill);
 
     const footerRuleY = artRect.y + artRect.height + 2;
     const footerRule = this.add.graphics();
@@ -1199,8 +1212,6 @@ export class DeckCheckScene extends Phaser.Scene {
       .fillRect(cardRect.x + cardRect.width - qtyWidth, cardRect.y - 2, qtyWidth, qtyHeight);
     qtyText.setPosition(cardRect.x + cardRect.width - qtyWidth / 2, cardRect.y - 2 + qtyHeight / 2).setOrigin(0.5);
     objects.push(qtyBg, qtyText);
-
-    return objects;
   }
 
   /**
@@ -1209,6 +1220,7 @@ export class DeckCheckScene extends Phaser.Scene {
    */
   #renderFaceGroupRow(rect: Rect, group: DeckFaceGroup, layout: DeckFaceGroupLayout): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
+    const waiting: (() => boolean)[] = [];
     const count = group.tiles.length;
     const title = group.identity
       ? t("deckCheck.identityFaces", { count })
@@ -1227,21 +1239,18 @@ export class DeckCheckScene extends Phaser.Scene {
       const frame = this.add.graphics();
       paintPanel(frame, artRect, "card", "rest");
       objects.push(frame);
-      const key = cardArt(this).request(this, tile.art);
-      const picture = drawArt(this, key, artRect);
-      if (picture) objects.push(picture);
-      else
-        objects.push(
-          label(
-            this,
-            artRect.x + artRect.width / 2,
-            artRect.y + artRect.height / 2,
-            t("deckCheck.noScan"),
-            typeRole.label,
-            surface.ink.hex,
-            ink.meta,
-          ).setOrigin(0.5),
-        );
+      const fill = drawArtSlot(this, tile.art, artRect, objects, () =>
+        label(
+          this,
+          artRect.x + artRect.width / 2,
+          artRect.y + artRect.height / 2,
+          t("deckCheck.noScan"),
+          typeRole.label,
+          surface.ink.hex,
+          ink.meta,
+        ).setOrigin(0.5),
+      );
+      waiting.push(fill);
       const captionY = rect.y + spot.y + a.height + 3;
       objects.push(
         label(this, x + spot.x, captionY, tile.label.toUpperCase(), typeRole.label, surface.ink.hex, ink.meta),
@@ -1253,7 +1262,7 @@ export class DeckCheckScene extends Phaser.Scene {
       fitWrapped(name, spot.width, 1, 13);
       objects.push(name);
     });
-    return { objects };
+    return waiting.length > 0 ? { objects, refresh: () => waiting.forEach((fill) => fill()) } : { objects };
   }
 
   #inspectFace(group: DeckFaceGroup, tile: number): void {
