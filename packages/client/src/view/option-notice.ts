@@ -6,8 +6,7 @@
  */
 import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
 import { t, type MessageKey } from "../i18n/translate.js";
-import { abilityNameOf, unavailableOptionReasons, unofferedReason } from "./ability-refusal.js";
-import { cardName } from "./names.js";
+import { abilityNameOf, cardName, unavailableOptionReasons, unofferedReason } from "./ability-refusal.js";
 
 export type OptionNoticeRow =
   | { readonly kind: "taken"; readonly label: string }

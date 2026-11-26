@@ -34,7 +34,29 @@ import {
 } from "@mc/engine";
 import type { AbilityId } from "@mc/content";
 import { t, type MessageKey } from "../i18n/translate.js";
-import { cardName } from "./names.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { localizedFaceOf } from "./card-text.js";
+import { cardName as englishCardName } from "./names.js";
+import { localizedTraitOf } from "./trait-names.js";
+
+/**
+ * A card's name as this notice shows it: in Spanish when the card language is Spanish and the table's text has the card's
+ * printed name, and the card reads as that printed name (a facedown card, a flipped side or an identity form keeps the
+ * name the table shows), else as `cardName` gives it. Display only: nothing matches on it.
+ */
+export function cardName(state: GameState, id: InstanceId): string {
+  const shown = englishCardName(state, id);
+  const card = state.instances[id] ? state.cardPool[state.instances[id]!.cardId as string] : undefined;
+  if (!card || card.name !== shown) return shown;
+  return localizedFaceOf(card.id as string, artLanguageNow())?.n ?? shown;
+}
+
+/** A card named in a query, by its English name, as this notice shows it (Spanish when the table has it). */
+function namedCard(state: GameState, name: string): string {
+  const lang = artLanguageNow();
+  const card = Object.values(state.cardPool).find((c) => c.name === name);
+  return (card && localizedFaceOf(card.id as string, lang)?.n) || name;
+}
 
 /** The engine's refusal sentence for any ability whose condition is unmet: what a reason falls back to. */
 export const CONDITION_UNMET = "its condition is not met";
@@ -44,8 +66,8 @@ type Query = { readonly trait?: string; readonly name?: string };
 const titleCase = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 
 /** "a Labor card" for a trait query, "Appeal to Athena" for a named one, null for a query it cannot word. */
-function queryNoun(query: Query): string | null {
-  if (query.name) return query.name;
+function queryNoun(state: GameState, query: Query): string | null {
+  if (query.name) return namedCard(state, query.name);
   if (query.trait) return `${traitWord(query.trait)} card`;
   return null;
 }
@@ -64,13 +86,13 @@ function failedClause(
   const read = (value: ValueSpec): number =>
     resolveValue(state, value, { ...context, event: null, bindings: {} }, context.deps);
   if (clause.kind === "not" && clause.of.kind === "exists") {
-    const noun = queryNoun(clause.of.query as Query);
+    const noun = queryNoun(state, clause.of.query as Query);
     if (!noun) return null;
     const present = read({ kind: "count", query: clause.of.query });
     return present > 0 ? `${/^[AEIOU]/.test(noun) ? "an" : "a"} ${noun} is in play` : null;
   }
   if (clause.kind === "exists") {
-    const noun = queryNoun(clause.query as Query);
+    const noun = queryNoun(state, clause.query as Query);
     if (!noun) return null;
     return read({ kind: "count", query: clause.query }) > 0 ? null : `no ${noun} is in play`;
   }
@@ -147,11 +169,12 @@ const alreadyWords = (name: string, status: "confused" | "stunned"): string =>
 
 /** A trait as cards print it in a sentence: "Avenger", "X-Men", and an acronym ("S.H.I.E.L.D.") as it is. */
 const traitWord = (trait: string): string =>
-  trait.includes(".")
+  localizedTraitOf(trait, artLanguageNow()) ??
+  (trait.includes(".")
     ? trait
     : trait.replace(/[A-Za-z]+/g, (word, at: number) =>
         at > 0 && SMALL_WORDS.has(word.toLowerCase()) ? word.toLowerCase() : titleCase(word),
-      );
+      ));
 
 /** Words a printed trait keeps lower case after its first ("Hero for Hire"). */
 const SMALL_WORDS: ReadonlySet<string> = new Set(["for", "of", "the", "and"]);
@@ -283,7 +306,7 @@ function optionAt(node: unknown, index: number, label: string): ChooseOneOption 
  * An option's own unmet condition, in words, for the shapes printed conditions use; null for any other. "Remove 2 threat
  * from a scheme" while no scheme holds threat (Nick Fury `core` 01084) is "no scheme has threat on it".
  */
-function conditionClause(condition: Predicate | undefined): string | null {
+function conditionClause(state: GameState, condition: Predicate | undefined): string | null {
   // "At least 1 card attached here" (Plot Convenience `deadpool` 44050: "Add 1 card attached here to your hand").
   if (
     condition?.kind === "compare" &&
@@ -301,7 +324,7 @@ function conditionClause(condition: Predicate | undefined): string | null {
   // An option offered only while a named card is in play (`inPlay(name)`): "Place 2 infamy counters on Criminal
   // Enterprise" once that card has flipped (Hired Gun `gob` 02007, #967).
   if (typeof query.name === "string" && Object.keys(query).length === 1)
-    return t("refusal.notInPlay", { name: query.name });
+    return t("refusal.notInPlay", { name: namedCard(state, query.name) });
   const categories = query.categories ?? [];
   if (
     categories.length === 1 &&
@@ -337,7 +360,7 @@ export function unavailableOptionReasons(
     // A condition is worded from its own shape; a missing target from what the engine recorded when it barred the
     // option. Neither is re-judged against the state now, which a resumed game's log may read long after (#414 review).
     if (reason === "condition") {
-      why = conditionClause(definition ? optionAt(definition.effects, index, label)?.condition : undefined);
+      why = conditionClause(state, definition ? optionAt(definition.effects, index, label)?.condition : undefined);
     }
     if (reason === "noTarget" && missing?.blocked) {
       const { instanceId, status, cause } = missing.blocked;
