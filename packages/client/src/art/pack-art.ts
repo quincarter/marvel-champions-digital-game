@@ -255,8 +255,23 @@ export function releasePackArt(key: string): void {
   const info = fileOfKey.get(key);
   if (!info) return;
   store?.revoke(info.id, info.path);
+  // `fileOfKey` stays: `currentPackArt` needs it to resolve a source drawn before this eviction.
   urls.delete(key);
-  fileOfKey.delete(key);
+}
+
+/**
+ * `source` as it stands now. A source held from before `releasePackArt` carries a revoked blob URL; asking for that
+ * would fail the load and mark the picture missing. This gives the fresh URL (reading it from the store again, and
+ * null until it arrives, when the change is announced). A source this module did not hand out is returned as it is.
+ */
+export function currentPackArt(source: ArtSource): ArtSource | null {
+  const info = fileOfKey.get(source.key);
+  if (!info) return source;
+  const url = urls.get(source.key);
+  if (url !== undefined) return url === source.url ? source : { key: source.key, url };
+  const pack = packs.get(info.id);
+  if (pack && source.key === packArtKey(pack.id, pack.version, info.path)) ensure(pack, info.path);
+  return null;
 }
 
 /** Test seam: forgets every pack and URL. */

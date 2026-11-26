@@ -1352,7 +1352,7 @@ export const en = {
     "Plays the songs you've earned in Extras, shuffled, in menus and games. Openers, Game over and finales keep their own.",
   "settings.confirmEndTurn.title": "Confirm before ending turn",
   "settings.confirmEndTurn.detail":
-    "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
+    "Ask before End turn while you can still make a basic attack, thwart or recover, or an ally can still attack or thwart. Off ends the turn straight away.",
   "settings.notOffered.title": "Explain abilities not offered",
   "settings.notOffered.detail":
     "The first time a card's interrupt or response can't be used (no target, or a cost you can't pay), say why. The log always says it.",

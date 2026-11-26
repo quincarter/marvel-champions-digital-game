@@ -153,7 +153,12 @@ export class McSheet extends LitElement {
     // One-line texts shrink to fit their width, as Phaser's `fitText` does: smaller down to the floor, then without a
     // closing parenthetical ("Spider-Man (Peter Parker)"), then cut with an ellipsis.
     for (const text of this.renderRoot.querySelectorAll<HTMLElement>("[data-fit]")) {
-      const words = [...text.childNodes].find((node): node is Text => node.nodeType === Node.TEXT_NODE);
+      // Marked text is a run of Lit-owned fragments and `mark` elements: never write into those. It only shrinks by
+      // font size, and the CSS `text-overflow: ellipsis` on the span does any cutting.
+      const words =
+        text.childElementCount > 0
+          ? undefined
+          : [...text.childNodes].find((node): node is Text => node.nodeType === Node.TEXT_NODE);
       const full = text.dataset.full ?? words?.data ?? "";
       if (words) words.data = full;
       text.style.fontSize = text.dataset.size ?? "";
@@ -247,7 +252,9 @@ export class McSheet extends LitElement {
           node.uppercase ? "text-transform:uppercase" : "",
           node.align ? `text-align:${node.align}` : "",
           width,
-          node.fitWidth !== undefined ? `max-width:${node.fitWidth}px;overflow:hidden` : "",
+          node.fitWidth !== undefined
+            ? `max-width:${node.fitWidth}px;overflow:hidden${node.marks?.length ? ";text-overflow:ellipsis" : ""}`
+            : "",
         ].join(";");
         return html`<span
           class="part text"
