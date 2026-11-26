@@ -12,6 +12,9 @@
  *   panel in the DOM, above this one), which leaves this panel shown under it;
  * - it stacks in the scenes' draw order (`panelZIndex`), so a pop-up scene's panel drawn above this scene's sits
  *   above it;
+ * - a region made with `shownUnder` stays shown under the scenes it names (a bar that covers only its own corner of the
+ *   screen, like the replay transport, leaves a panel elsewhere on the screen uncovered; such a scene must not draw over
+ *   the panel's box, since the DOM would hide what it drew there);
  * - a chrome scene's objects (`CHROME_SCENES`: a toast, the corner buttons) are cut out of it, so a toast that lands
  *   over the panel is seen and can be pressed (a clip path also clips hit testing).
  *
@@ -86,19 +89,31 @@ export function holesAbove(scenes: readonly { readonly key: string }[], key: str
   });
 }
 
+const NO_SCENES: ReadonlySet<string> = new Set();
+
 /** Whether a scene drawn above `key` (later in `scenes`, the draw order) is drawn and isn't chrome. */
-export function coveredAbove(scenes: readonly SceneLike[], key: string, chrome: ReadonlySet<string>): boolean {
+export function coveredAbove(
+  scenes: readonly SceneLike[],
+  key: string,
+  chrome: ReadonlySet<string>,
+  /** Scenes the panel stays shown under (`DomRegion`'s `shownUnder`). */
+  passes: ReadonlySet<string> = NO_SCENES,
+): boolean {
   const at = scenes.findIndex((scene) => scene.key === key);
   if (at < 0) return false;
   for (let index = at + 1; index < scenes.length; index++) {
     const scene = scenes[index]!;
-    if (scene.active && scene.visible && !chrome.has(scene.key) && !scene.overlay) return true;
+    if (scene.active && scene.visible && !chrome.has(scene.key) && !passes.has(scene.key) && !scene.overlay)
+      return true;
   }
   return false;
 }
 
 /** Whether a scene's DOM (its panel, its focus ring) shows right now, and how opaque. */
-export function sceneLayerState(scene: Phaser.Scene): { readonly shown: boolean; readonly opacity: number } {
+export function sceneLayerState(
+  scene: Phaser.Scene,
+  passes: ReadonlySet<string> = NO_SCENES,
+): { readonly shown: boolean; readonly opacity: number } {
   const settings = scene.sys.settings;
   const scenes: SceneLike[] = scene.game.scene.scenes.map((other) => ({
     key: other.sys.settings.key,
@@ -106,7 +121,7 @@ export function sceneLayerState(scene: Phaser.Scene): { readonly shown: boolean;
     visible: other.sys.settings.visible,
     overlay: overlayScenes.has(other.sys.settings.key),
   }));
-  const shown = settings.visible && scene.sys.isActive() && !coveredAbove(scenes, settings.key, CHROME_SCENES);
+  const shown = settings.visible && scene.sys.isActive() && !coveredAbove(scenes, settings.key, CHROME_SCENES, passes);
   const camera = scene.cameras?.main;
   const opacity = camera ? regionOpacity(camera.fadeEffect as unknown as FadeLike, camera.alpha) : 1;
   return { shown, opacity };
@@ -265,13 +280,23 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #z = -1;
   #destroyed = false;
   readonly #overlay: boolean;
+  readonly #shownUnder: ReadonlySet<string>;
 
   /**
    * `overlay`: the scene draws its own scrim and panel in the DOM, over the scene under it (a pop-up). Panels under it
    * then stay shown, dimmed by its scrim, instead of hiding while it is up.
+   *
+   * `shownUnder`: keys of scenes that draw over only part of the screen (and not over this panel), so the panel stays
+   * shown while they are up instead of hiding.
    */
-  constructor(scene: Phaser.Scene, element: E, rect: Rect, options: { readonly overlay?: boolean } = {}) {
+  constructor(
+    scene: Phaser.Scene,
+    element: E,
+    rect: Rect,
+    options: { readonly overlay?: boolean; readonly shownUnder?: readonly string[] } = {},
+  ) {
     this.#scene = scene;
+    this.#shownUnder = new Set(options.shownUnder ?? []);
     this.#overlay = options.overlay ?? false;
     if (this.#overlay) overlayScenes.add(scene.sys.settings.key);
     liveRegions.add(this);
@@ -358,7 +383,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
 
   #sync(): void {
     if (this.#destroyed) return;
-    const state = sceneLayerState(this.#scene);
+    const state = sceneLayerState(this.#scene, this.#shownUnder);
     const follow = this.#follow?.active ? this.#follow : null;
     const shown = state.shown && !this.#hidden;
     const opacity = state.opacity * (follow ? follow.alpha : 1);

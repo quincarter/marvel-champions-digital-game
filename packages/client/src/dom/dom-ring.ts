@@ -38,11 +38,13 @@ class DomFocusRing implements FocusRing {
   readonly #element: HTMLDivElement;
   readonly #color: number | undefined;
   readonly #scene: Phaser.Scene;
+  readonly #passes: ReadonlySet<string> | undefined;
   /** Shown by the route (`show`), as against hidden with its scene (an overlay above, a sleeping scene). */
   #wanted = false;
 
-  constructor(scene: Phaser.Scene, color: number | undefined) {
+  constructor(scene: Phaser.Scene, color: number | undefined, passes?: ReadonlySet<string>) {
     this.#color = color;
+    this.#passes = passes;
     this.#scene = scene;
     this.#element = document.createElement("div");
     this.#element.className = "mc-focus-ring";
@@ -61,7 +63,7 @@ class DomFocusRing implements FocusRing {
   }
 
   #sync(): void {
-    const { shown, opacity } = sceneLayerState(this.#scene);
+    const { shown, opacity } = sceneLayerState(this.#scene, this.#passes);
     this.#element.style.display = this.#wanted && shown ? "block" : "none";
     this.#element.style.opacity = String(opacity);
     // Over its own scene's panel and under the panel of a scene drawn above (`panelZIndex`).
@@ -98,13 +100,16 @@ class DomFocusRing implements FocusRing {
 
 let keyframesAdded = false;
 
-/** A `FocusRoute` `ring` for a screen whose stops are on a DOM panel. */
-export function domFocusRing(scene: Phaser.Scene, color: number | undefined): FocusRing {
+/**
+ * A `FocusRoute` `ring` for a screen whose stops are on a DOM panel. `passes`: the scenes the ring stays shown under
+ * (`DomRegion`'s `shownUnder`).
+ */
+export function domFocusRing(scene: Phaser.Scene, color: number | undefined, passes?: ReadonlySet<string>): FocusRing {
   if (!keyframesAdded) {
     keyframesAdded = true;
     const style = document.createElement("style");
     style.textContent = "@keyframes mc-ring-pulse { from { opacity: 1; } to { opacity: 0.45; } }";
     document.head.append(style);
   }
-  return new DomFocusRing(scene, color);
+  return new DomFocusRing(scene, color, passes);
 }

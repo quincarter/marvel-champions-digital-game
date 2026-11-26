@@ -56,3 +56,10 @@ export {
   type LaidCell,
   type McGlyphGround,
 } from "./components/mc-glyph/mc-glyph.js";
+export {
+  McGameLog,
+  type GameLogClose,
+  type GameLogLine,
+  type GameLogTag,
+  type GameLogVoice,
+} from "./components/mc-game-log/mc-game-log.js";

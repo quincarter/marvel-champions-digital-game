@@ -49,6 +49,22 @@ describe("coveredAbove", () => {
   });
 });
 
+describe("coveredAbove, scenes a panel stays shown under", () => {
+  const chrome = new Set<string>();
+  const scenes = [
+    { key: "Board", active: true, visible: true },
+    { key: "ReplayTransport", active: true, visible: true },
+    { key: "Pause", active: true, visible: true },
+  ];
+
+  it("ignores a scene it is told to stay shown under, and still hides under any other", () => {
+    const passes = new Set(["ReplayTransport"]);
+    expect(coveredAbove(scenes.slice(0, 2), "Board", chrome)).toBe(true);
+    expect(coveredAbove(scenes.slice(0, 2), "Board", chrome, passes)).toBe(false);
+    expect(coveredAbove(scenes, "Board", chrome, passes), "Pause still covers it").toBe(true);
+  });
+});
+
 describe("clipWithHoles", () => {
   const box = { x: 100, y: 50, width: 400, height: 300 };
 
