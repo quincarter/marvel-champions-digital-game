@@ -15,7 +15,7 @@ describe("rosterSizeFor", () => {
 
 describe("copySizeFor", () => {
   it("caps a display copy's long edge", () => {
-    expect(copySizeFor("display", 3975, 3056)).toEqual({ width: 2048, height: 1575 });
+    expect(copySizeFor("display", 3975, 3056)).toEqual({ width: 2810, height: 2160 });
     expect(copySizeFor("display", 600, 927)).toEqual({ width: 600, height: 927 });
   });
 });

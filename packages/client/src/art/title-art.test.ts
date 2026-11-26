@@ -2,6 +2,7 @@ import { readdirSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import {
   TITLE_ART_SIZES,
+  displayCopyOf,
   coverFit,
   pickTitleArt,
   pickTitleArtFor,
@@ -133,5 +134,22 @@ describe("pickTitleArtFor", () => {
     expect(offered({ width: 1056, height: 1080 }, 1)).toContain("rise-of-apocalypse.jpeg");
     expect(offered({ width: 1056, height: 1080 }, 1)).toContain("wallpaper-2.jpg");
     expect(real.length).toBeGreaterThan(offered({ width: 1056, height: 1080 }, 1).length);
+  });
+});
+
+describe("displayCopyOf", () => {
+  test("a picture with a copy gets the :display key and its size is still found", () => {
+    const name = Object.keys(TITLE_ART_SIZES)[0]!;
+    const art: TitleArt = { key: `title-art:${name}`, url: "/full" };
+    const copy = displayCopyOf(art);
+    if (copy !== art) {
+      expect(copy.key).toBe(`title-art:${name}:display`);
+      expect(copy.url).not.toBe("/full");
+    }
+    expect(titleArtSizeOf(copy)).toEqual(TITLE_ART_SIZES[name]);
+  });
+  test("a picture with no copy comes back as it was", () => {
+    const art: TitleArt = { key: "title-art:nope.png", url: "/x" };
+    expect(displayCopyOf(art)).toBe(art);
   });
 });

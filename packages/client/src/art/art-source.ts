@@ -203,6 +203,8 @@ export interface ArtSource {
   /** Stable Phaser texture key. Derived from the path, so two cards sharing art share a texture. */
   readonly key: string;
   readonly url: string;
+  /** A roster-size copy of `url` (`Picture.tileUrl`); a card scan has none. */
+  readonly tileUrl?: string;
 }
 
 /** The art for one face, or null when the content has no reference for it. */

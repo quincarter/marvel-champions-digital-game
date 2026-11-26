@@ -64,7 +64,7 @@ export const TITLE_ART_MAX_UPSCALE = 1.5;
 
 /** A picture's size by its texture key (`title-art:<file name>`), or null for one not in the table. */
 export function titleArtSizeOf(picture: Picture): { readonly width: number; readonly height: number } | null {
-  return TITLE_ART_SIZES[picture.key.slice(picture.key.indexOf(":") + 1)] ?? null;
+  return TITLE_ART_SIZES[picture.key.slice(picture.key.indexOf(":") + 1).replace(/:display$/, "")] ?? null;
 }
 
 /**

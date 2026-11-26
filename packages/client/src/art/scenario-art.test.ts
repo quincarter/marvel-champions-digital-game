@@ -221,3 +221,17 @@ describe("an outcome scene for a hero at the table", () => {
     expect(ART_CATALOG.withHero.get("kingpin")?.some((s) => s.identityId === "60001a")).toBe(true);
   });
 });
+
+describe("parseArtCatalog tile copies", () => {
+  test("tileUrl is set only where a copy exists, and url is untouched", () => {
+    const tiled = parseArtCatalog(
+      { "../art/scenarios/rhino/villain.jpg": "/v", "../art/scenarios/rhino/intro.jpg": "/i" },
+      {},
+      { "../art/scenarios/rhino/villain.jpg": "/v-tile" },
+    );
+    expect(villainArtFor(tiled, "rhino", () => 0)).toMatchObject({ url: "/v", tileUrl: "/v-tile" });
+    const intro = tiled.scenarios.get("rhino")?.intro[0];
+    expect(intro?.url).toBe("/i");
+    expect(intro).not.toHaveProperty("tileUrl");
+  });
+});

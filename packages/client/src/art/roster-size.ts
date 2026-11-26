@@ -15,8 +15,11 @@ export const ROSTER_DENSITY = 2;
 export const ROSTER_QUALITY = 72;
 /** The import query that asks for the roster copy of a picture (`import url from "art/…/hero.jpg?roster"`). */
 export const ROSTER_QUERY = "roster";
-/** The longest side of a display copy (a title picture drawn in a panel), in px. */
-export const DISPLAY_LONG_EDGE = 2048;
+/**
+ * The shortest side of a display copy (a title picture drawn in a panel), in px: a landscape picture cover-crops by its
+ * height, so this keeps it sharp on a 4K screen (2160 px tall) and a retina laptop. Never enlarged.
+ */
+export const DISPLAY_SHORT_EDGE = 2160;
 /** The import query that asks for the display copy of a title picture. */
 export const DISPLAY_QUERY = "display";
 
@@ -45,7 +48,7 @@ export function copySizeFor(
 ): { readonly width: number; readonly height: number } {
   if (kind === "roster") return rosterSizeFor(width, height);
   if (width <= 0 || height <= 0) return { width, height };
-  const scale = Math.min(1, DISPLAY_LONG_EDGE / Math.max(width, height));
+  const scale = Math.min(1, DISPLAY_SHORT_EDGE / Math.min(width, height));
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 

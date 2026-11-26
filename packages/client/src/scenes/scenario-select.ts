@@ -1065,7 +1065,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const villainCard =
       picture || hasRandomChosenVillain(s) ? undefined : currentCardsById().get(s.villainCardId as string);
     const artUrl =
-      (picture && "tileUrl" in picture ? (picture.tileUrl as string | undefined) : undefined) ??
+      picture?.tileUrl ??
       picture?.url ??
       (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
       null;
