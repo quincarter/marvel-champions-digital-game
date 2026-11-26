@@ -102,7 +102,7 @@ describe("refusal wording in Spanish", () => {
     setArtLanguage("es");
     const [notice] = optionNoticesOf(events, game, null, POOL_DEPS);
     expect(notice!.title).toBe("ES Work-Life Balance: solo una opción");
-    const unavailable = notice.rows.find((row) => row.kind === "unavailable");
+    const unavailable = notice!.rows.find((row) => row.kind === "unavailable");
     expect(unavailable).toMatchObject({
       why: "ES Jessica Jones tiene Firmeza y no puede recibir cartas de Estado «Confundido»",
     });
