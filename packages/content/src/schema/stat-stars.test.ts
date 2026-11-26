@@ -63,6 +63,9 @@ describe("statStars", () => {
   it("every starred stat in the raw records is emitted, and nothing else carries one", () => {
     const raw = rawStars();
     expect(raw.size).toBeGreaterThan(500);
+    // Stars MarvelCDB sets that the printed card doesn't carry, removed by a `clearStarFlags` correction: Helpful
+    // Bystander 64013 prints dashes for THW and ATK, unstarred (curation/iron_fist.ts).
+    for (const cleared of ["64013:thw", "64013:atk"]) expect(raw.delete(cleared)).toBe(true);
     expect(emittedStars(PLAYABLE_CARDS)).toBe(raw.size);
   });
 
