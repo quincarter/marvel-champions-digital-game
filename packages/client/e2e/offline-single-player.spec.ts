@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { activeScenes, pressEndTurn, pressHookStop, settle, waitFor } from "./helpers.js";
-import { installWave6Helpers, trackErrors, waitForScene } from "./wave6-helpers-a.js";
-import { answerChoice, dealToFirstTurn, findVisibleText, gameFacts, quietGuide } from "./wave6-helpers-b.js";
+import { answerChoiceSheet, installWave6Helpers, trackErrors, waitForScene } from "./wave6-helpers-a.js";
+import { dealToFirstTurn, findVisibleText, gameFacts, quietGuide } from "./wave6-helpers-b.js";
 import { clickStop } from "./wave6-helpers-a.js";
 
 /**
@@ -46,6 +46,11 @@ test("offline: a single-player game with watching on starts, plays, saves and re
       postRoomCommand: (message: { kind: string }) => boolean;
     };
     live.postRoomCommand({ kind: "room-leave" });
+    // The worker card pictures are decoded in: an installed app has its script on disk, a dev server only online.
+    const bake = (await import("/src/art/picture-bake-client.ts")) as unknown as {
+      decodedBakedPicture: (url: string, slot: { width: number; height: number }, gray: boolean) => Promise<unknown>;
+    };
+    await bake.decodedBakedPicture("/card-art/bundles/cards/marvel-player-back.webp", { width: 1, height: 64 }, false);
   });
 
   await context.setOffline(true);
@@ -59,7 +64,7 @@ test("offline: a single-player game with watching on starts, plays, saves and re
   // The end-of-turn choices (discard any cards) are answered as a player would; the villain phase then runs by itself.
   await waitFor(
     async () => {
-      if ((await activeScenes(page)).includes("ChoiceOverlay")) await answerChoice(page, 0);
+      if ((await activeScenes(page)).includes("ChoiceOverlay")) await answerChoiceSheet(page);
       return (await gameFacts<number>(page, "(state) => state.version")) > before + 1 ? true : null;
     },
     "the end turn and the villain phase to run offline",
@@ -70,7 +75,7 @@ test("offline: a single-player game with watching on starts, plays, saves and re
   await waitFor(
     async () => {
       if ((await activeScenes(page)).includes("ChoiceOverlay")) {
-        await answerChoice(page, 0);
+        await answerChoiceSheet(page);
         return null;
       }
       const facts = await gameFacts<{ round: number; phase: string }>(
