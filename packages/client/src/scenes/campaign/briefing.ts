@@ -1053,7 +1053,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   /** The Briefing's mode rows for the composed issue; empty when it cannot be launched. */
   #issueModesFor(record: CampaignRecord): readonly IssueModeRow[] {
     try {
-      return issueModeRowsOf(campaignService().launchConfig(record).scenarioId, record.issueModes ?? {});
+      const config = campaignService().launchConfig(record);
+      return issueModeRowsOf(config.scenarioId, record.issueModes ?? {}, config.villainSetId);
     } catch {
       return [];
     }
@@ -1063,7 +1064,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   async #setIssueMode(action: string): Promise<void> {
     const record = this.#record;
     if (!record?.attempt || this.#starting || this.#toggling) return;
-    const scenarioId = campaignService().launchConfig(record).scenarioId;
+    const { scenarioId, villainSetId } = campaignService().launchConfig(record);
     // The calls this issue already answered ride along, as they do through a deck edit (`#editDecks`): composing again
     // never asks them twice, and an issue picked on this visit does not replay its comic.
     if (record.attempt) {
@@ -1076,7 +1077,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     try {
       this.#record = await campaignService().setIssueModes(
         record,
-        applyIssueMode(scenarioId, record.issueModes ?? {}, action),
+        applyIssueMode(scenarioId, record.issueModes ?? {}, action, villainSetId),
       );
     } catch (error) {
       this.#startError = error instanceof Error ? error.message : "Couldn't save the mode";

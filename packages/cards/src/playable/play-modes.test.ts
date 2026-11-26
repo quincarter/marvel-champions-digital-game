@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { PLAYABLE_SCENARIO_RECORDS } from "../modular-pool.js";
 import { PLAYABLE_DEPS, playableScenario } from "./index.js";
 import { playableScenarioOffer } from "./scenario-options.js";
+import { firstLegal, settle } from "../testing/harness.js";
 
 const seats = [{ starterDeckId: CORE_STARTER_DECKS[0]!.id }];
 const build = (scenarioId: string, modes: PlayModes) =>
@@ -80,6 +81,86 @@ describe("skirmish mode", () => {
       expect(() => build(scenarioId, { skirmish: {} })).toThrow(/no skirmish mode/);
     },
   );
+
+  describe("at Fear No Evil, against the chosen Underling villain (MC60 p. 5; issue #995)", () => {
+    const UNDERLING_SCENARIOS = [
+      "art-museum-heist",
+      "the-getaway",
+      "protection-racket",
+      "the-raft-breakout",
+      "stop-the-presses",
+    ];
+
+    it.each(UNDERLING_SCENARIOS)("offers the chosen villain's versions at %s", (scenarioId) => {
+      expect(playableScenarioOffer(scenarioId).skirmish).toEqual({ versions: ["1", "2"], printed: false });
+      expect(playableScenarioOffer(scenarioId, { villainSetId: "electro", modes: { expert: true } }).skirmish).toEqual({
+        versions: ["2", "3"],
+        printed: false,
+      });
+      // Typhoid Mary is one double-sided card that wins by its own text: nothing to shorten.
+      expect(playableScenarioOffer(scenarioId, { villainSetId: "typhoid_mary" }).skirmish).toBeNull();
+      expect(() =>
+        playableScenario("art-museum-heist", {
+          players: seats,
+          seed: 1,
+          villainSetId: "typhoid_mary",
+          modes: { skirmish: { villainVersion: "1" } },
+        }),
+      ).toThrow(/no skirmish mode/);
+    });
+
+    it("plays Electro III without Electric Charge, which only stages I and II find (RRG 1.8 p. 29)", () => {
+      // Skirmish puts "only the chosen version" into play: Electro III's When Revealed places counters on Electric
+      // Charge but never finds it, so the Permanent card stays set aside and Electro's charge effects do nothing.
+      const charge = (villainVersion: string) => {
+        const config = playableScenario("art-museum-heist", {
+          players: seats,
+          seed: 1,
+          villainSetId: "electro",
+          modes: { expert: true, skirmish: { villainVersion } },
+        });
+        const game = createGame(config, PLAYABLE_DEPS);
+        if (!game.ok) throw new Error("no game");
+        // Through setup to the first player turn.
+        const state = settle(game.state, firstLegal, (s) => s.step.phase === "player", PLAYABLE_DEPS);
+        const villain = state.villains[0]!;
+        const card = Object.values(state.instances).find((i) => (i.cardId as string) === "60079");
+        return { stage: villain.stageIndex, attachedTo: card?.attachedTo ?? null, villainId: villain.instanceId, card };
+      };
+      const two = charge("2");
+      expect(two.stage).toBe(1);
+      expect(two.attachedTo).toBe(two.villainId);
+      expect(two.card?.counters["charge"]).toBe(2);
+      const three = charge("3");
+      expect(three.stage).toBe(2);
+      expect(three.attachedTo).toBeNull();
+      expect(three.card?.counters["charge"] ?? 0).toBe(0);
+    });
+
+    it("is not offered at Kingpin, one double-sided villain card per mode", () => {
+      expect(playableScenarioOffer("kingpin").skirmish).toBeNull();
+    });
+
+    it("sets up a game at every villain and version, in both difficulties", () => {
+      for (const villainSetId of ["hammerhead", "bullseye", "electro", "purple_man"])
+        for (const expert of [{}, { expert: true as const }]) {
+          const offer = playableScenarioOffer("art-museum-heist", { villainSetId, modes: expert }).skirmish;
+          expect(offer?.versions.length, villainSetId).toBe(2);
+          for (const villainVersion of offer!.versions) {
+            const config = playableScenario("art-museum-heist", {
+              players: seats,
+              seed: 1,
+              villainSetId,
+              modes: { ...expert, skirmish: { villainVersion } },
+            });
+            const label = `${villainSetId} ${villainVersion}`;
+            expect(config.villainStartStageIndex, label).toBe(Number(villainVersion) - 1);
+            expect(config.villainLastStageIndex, label).toBe(Number(villainVersion) - 1);
+            expect(createGame(config, PLAYABLE_DEPS).ok, label).toBe(true);
+          }
+        }
+    });
+  });
 
   it("sets up a game at every scenario and version, in both difficulties", () => {
     for (const scenario of PLAYABLE_SCENARIO_RECORDS) {

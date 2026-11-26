@@ -386,6 +386,22 @@ describe("Fear No Evil villain choice (docs/phase7-wave11-scenarios.md S1.2)", (
     expect(reconcileWithOffer({ ...draftFor("kingpin"), villainId: "hammerhead" }).villainId).toBeNull();
   });
 
+  test("skirmish offers the chosen villain's versions, and none against Typhoid Mary (issue #995)", () => {
+    expect(rowIds(draftFor("the-getaway"))).toContain("skirmish");
+    expect(rowIds(draftFor("kingpin"))).not.toContain("skirmish");
+    const bullseye = apply(draftFor("the-getaway"), "villain:next", "skirmish:2");
+    expect(bullseye.skirmish).toEqual({ villainVersion: "2" });
+    const scenario = POOL_SCENARIOS.find((s) => s.id === "the-getaway");
+    const config = toSessionConfig(bullseye, PLAYERS as never, scenario);
+    expect(config.villainSetId).toBe("bullseye");
+    expect(config.modes?.skirmish).toEqual({ villainVersion: "2" });
+    // Typhoid Mary is one double-sided card that wins by its own text: the row goes and the choice with it.
+    const mary = apply(bullseye, "villain:next", "villain:next", "villain:next");
+    expect(mary.villainId).toBe("typhoid_mary");
+    expect(rowIds(mary)).not.toContain("skirmish");
+    expect(mary.skirmish ?? null).toBeNull();
+  });
+
   test("Protection Racket sends one distinct main scheme per seat in standard and none in expert", () => {
     const scenario = POOL_SCENARIOS.find((s) => s.id === "protection-racket")!;
     const two = [...PLAYERS, ...PLAYERS] as never;
