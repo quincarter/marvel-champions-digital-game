@@ -543,8 +543,12 @@ export class SessionStore {
     } catch {
       return;
     }
-    if (this.#state.version !== update.version || this.#state.offTurnSeat !== null || found.length === 0) return;
-    this.#set({ ...this.#state, offTurnSeats: found });
+    // In a room game only this device's own heroes: the host's engine knows every seat's Actions, but Act for a seat
+    // someone else holds opened a side of the table this device may not play from.
+    const room = seatContext();
+    const here = room ? found.filter((playerId) => !heldElsewhere(room.room, playerId, room.seatGame)) : found;
+    if (this.#state.version !== update.version || this.#state.offTurnSeat !== null || here.length === 0) return;
+    this.#set({ ...this.#state, offTurnSeats: here });
   }
 
   #set(next: SessionState): void {

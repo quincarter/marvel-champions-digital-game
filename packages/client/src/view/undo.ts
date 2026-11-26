@@ -415,7 +415,11 @@ export type UndoOffer =
     }
   | { readonly kind: "unavailable"; readonly reason: string }
   /** A seated guest's Undo (#881): it asks the host, who decides; nothing is rewound here. */
-  | { readonly kind: "ask" };
+  /**
+   * A seated guest's Undo goes to the host's device. `own`: the room lets each player take back their own moves
+   * (`LobbyUndo` `own`), so the host's device does it at once, within single player's limits; otherwise the host is asked.
+   */
+  | { readonly kind: "ask"; readonly own?: true };
 
 /** Says why nothing earlier can be undone, the reason the disabled Undo button shows. */
 export const UNDO_REASONS = {

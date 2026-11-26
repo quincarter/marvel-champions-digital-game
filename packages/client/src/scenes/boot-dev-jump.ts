@@ -499,7 +499,7 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
       data: { seat: host ? "s2" : "s1", preset: host, preview: roomLobbyFixture(host ? "host" : "guest", "open") },
     };
   }
-  // `?screen=room-play-host&name=Mara[&mode=strict][&handover=0]` and `?screen=room-play-guest&code=ABC123&name=Ava` (issue #881,
+  // `?screen=room-play-host&name=Mara[&mode=strict][&handover=0][&undo=ask]` and `?screen=room-play-guest&code=ABC123&name=Ava` (issue #881,
   // dev only): a real two-seat room game, the host Spider-Man (s1) and the guest Captain Marvel (s2). The host makes the
   // room, takes s1, gives s2 to the first person who asks and starts the game (its code is `__mcRoomCode`); the guest joins,
   // asks for s2 and lands in the lobby, which opens the board once the host has started.
@@ -530,6 +530,8 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     room.setLobby({
       settings: {
         playMode: params.get("mode") === "strict" ? "strict" : "host",
+        // `&undo=ask|host|off|own`: the room's Undo policy (absent: the room's default for the mode).
+        ...(params.get("undo") ? { undo: params.get("undo") as "ask" } : {}),
         multiSeat: false,
         chat: true,
         handover: params.get("handover") !== "0",

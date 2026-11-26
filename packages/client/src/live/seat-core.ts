@@ -270,6 +270,20 @@ export class SeatCore {
     this.#check.observe(this.#commands.length, after);
   }
 
+  /**
+   * Whether a catch-up can use the last villain phase: a batch that reaches into it, or a reopened log that ends inside
+   * it (or on the command that left it). Never a rewind, and never a catch-up of later turns only: each phase is many
+   * full tables, cloned across the worker boundary, and the screen would not read them.
+   */
+  #phaseUsedBy(change: SeatChange): boolean {
+    const phase = this.#phase;
+    if (!phase) return false;
+    const end = phase.startCommand + phase.commands.length;
+    if (change.type === "append") return change.from < end;
+    if (change.type === "open" || change.type === "reset") return end === this.#commands.length;
+    return false;
+  }
+
   #history(): readonly GameEvent[] {
     return [...this.#setupEvents, ...this.#events.flat()];
   }
@@ -296,7 +310,7 @@ export class SeatCore {
       config: this.#config,
       gameId: null,
       ...(resumed ? { history: this.#history(), trail: this.#trail } : {}),
-      ...(resumed && this.#phase ? { villainPhase: villainPhaseSeedOf(this.#phase) } : {}),
+      ...(resumed && this.#phaseUsedBy(change) ? { villainPhase: villainPhaseSeedOf(this.#phase!) } : {}),
       change,
     };
   }

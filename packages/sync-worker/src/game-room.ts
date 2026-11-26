@@ -2669,7 +2669,7 @@ export class GameRoomLogic {
       }
     }
     const playMode = patch?.playMode ?? settings.playMode;
-    // Switching to Host control without naming one starts at Ask; Strict forces Off, whatever was sent.
+    // Switching to Host control without naming one starts at Own (each player undoes their own moves); Strict forces Off.
     const undoChoice = patch?.undo ?? (playMode !== settings.playMode ? undefined : settings.undo);
     const next: LobbySettings = {
       ...settings,

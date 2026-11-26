@@ -167,7 +167,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   // powers and End turn. Drawn, greyed with its reason, for as long as it is the hero's own turn.
   const undo = controller.undoOffer();
   // "Ask host to undo" (a seated guest's Undo, #881) needs more room than "Undo".
-  const asking = undo?.kind === "ask";
+  const asking = undo?.kind === "ask" && undo.own !== true;
   const undoWidth = undo
     ? stacked
       ? Math.min(asking ? 150 : 110, rect.width * (asking ? 0.4 : 0.3))
@@ -255,7 +255,9 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       // Taking the previous hero's End turn back (`view/end-turn-takeback.ts`) reads as what it is.
       label:
         undo.kind === "ask"
-          ? t("ask.undo")
+          ? undo.own
+            ? "Undo"
+            : t("ask.undo")
           : undo.kind === "available" && undo.command.type === "endTurn"
             ? "Nevermind"
             : "Undo",

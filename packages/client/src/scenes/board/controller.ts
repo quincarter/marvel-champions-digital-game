@@ -2114,10 +2114,20 @@ export class BoardController {
     if (seat?.seatGame) {
       if (game.outcome || game.pendingChoice) return null;
       if (!seatOfPlayerIn(seat.room, perspectiveId)?.mine) return null;
+      const policy = seatUndoPolicyOf(seat.room.settings);
+      // Each player undoes their own moves: offered exactly as single player's Undo is (back to a draw or reveal, or the
+      // start of the turn), and done by the host's device at once (GarethMagis, 2026-11-25).
+      if (policy === "own") {
+        const own = undoOf(commandTrail, game, perspectiveId, { pastReveals: false });
+        if (!own) return null;
+        return own.kind === "available" && own.revealed !== true
+          ? { kind: "ask", own: true }
+          : own.kind === "unavailable"
+            ? own
+            : { kind: "unavailable", reason: UNDO_REASONS.revealed };
+      }
       // Ask only under the "ask" policy; Host only and Off say why where Undo would be (#904).
-      return seatUndoPolicyOf(seat.room.settings) === "ask"
-        ? { kind: "ask" }
-        : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
+      return policy === "ask" ? { kind: "ask" } : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
     }
     // A lobby room that turned Undo off (Strict rules, or the host's Undo setting): Undo stays on the bar, greyed, with why.
     if (roomUndoOffOf(config)) {
@@ -2184,9 +2194,10 @@ export class BoardController {
    */
   async undo(): Promise<void> {
     // The guest's ask goes to the host, which undoes the acting hero's last move; it is offered on my own hero's turn only.
-    if (this.undoOffer()?.kind === "ask") {
+    const asked = this.undoOffer();
+    if (asked?.kind === "ask") {
       askHost("undo");
-      this.#noteUndo(t("ask.undoSent"));
+      this.#noteUndo(t(asked.own ? "ask.undoOwnSent" : "ask.undoSent"));
       return;
     }
     if (this.#readOnly) return;

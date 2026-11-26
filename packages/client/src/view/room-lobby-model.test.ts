@@ -391,14 +391,18 @@ describe("a host preset over a deck its holder chose", () => {
 });
 
 describe("the Undo and Cheats rows", () => {
-  it("Strict offers only Off; Host control offers Off, Host only and Ask, Ask selected by default", () => {
+  it("Strict offers only Off; Host control offers Off, Host only, Ask and Each player, Each player by default", () => {
     expect(undoRows(settings).map((r) => [r.value, r.selected])).toEqual([["off", true]]);
     const host = { ...settings, playMode: "host" as const, undo: "ask" as const };
     expect(undoRows(host).map((r) => [r.value, r.selected])).toEqual([
       ["off", false],
       ["host", false],
       ["ask", true],
+      ["own", false],
     ]);
+    // A Host control room with no Undo choice (or an unreadable one) lets each player take back their own moves.
+    const { undo: _undo, ...unset } = host;
+    expect(undoRows(unset as typeof host).find((r) => r.selected)?.value).toBe("own");
     expect(undoRows({ ...host, undo: "host" }).find((r) => r.selected)?.value).toBe("host");
     expect(undoRows({ ...settings, undo: "ask" }).find((r) => r.selected)?.value).toBe("off");
   });
@@ -406,6 +410,8 @@ describe("the Undo and Cheats rows", () => {
   it("explains each choice in one line, in English and Spanish", () => {
     expect(t("room.undo.hostDetail")).toBe("The host may Undo or Back out; guests cannot ask.");
     expect(es["room.undo.askDetail"]).toContain("invitados");
+    expect(t("room.undo.own")).toBe("Each player");
+    expect(es["room.undo.ownDetail"]).toContain("propias jugadas");
     expect(t(CHEATS_NOTE_KEY)).toBe("No one earns points, achievements or stats from a game with cheats on.");
     expect(es[CHEATS_NOTE_KEY]).toContain("Nadie gana");
     expect(cheatsOn(settings)).toBe(false);

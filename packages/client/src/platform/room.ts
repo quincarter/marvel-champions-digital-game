@@ -76,6 +76,8 @@ import {
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
 import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
+import { selfAnsweredRequests } from "../view/room-notices.js";
+import { keepHostSettings } from "../view/host-settings-memory.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
@@ -244,6 +246,8 @@ function publish(next: RoomState): void {
     const store = session?.store;
     if (store) syncGameAddress(store.state, session.guidedRun);
   }
+  // A guest's own Undo, where the room lets each player take back their own moves: done here at once (GarethMagis).
+  for (const request of selfAnsweredRequests(prev, next)) void answerRequest(request.id, true);
   for (const listener of [...listeners]) listener(state);
 }
 
@@ -460,8 +464,18 @@ export function setLobby(change: {
   readonly seats?: readonly LobbySeatSpec[];
   /** Compare and swap: the lobby revision this change was worked out against (the room refuses it if it moved on). */
   readonly ifRev?: number;
+  /** Not a choice of the host's (a new lobby's own defaults): not kept for the next room. */
+  readonly keep?: false;
 }): void {
-  postRoomCommand({ kind: "room-lobby", ...change });
+  const { keep, ...sent } = change;
+  postRoomCommand({ kind: "room-lobby", ...sent });
+  // The host's choices are kept on this device, so its next room opens with them (`view/host-settings-memory.ts`).
+  if (state.role === "host" && keep !== false) {
+    keepHostSettings({
+      ...(sent.settings ? { settings: sent.settings } : {}),
+      ...(sent.seats ? { seats: sent.seats.length } : {}),
+    });
+  }
 }
 
 /** Asks for a seat (the host's own request is granted at once). */

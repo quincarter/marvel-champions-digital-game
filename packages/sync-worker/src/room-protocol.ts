@@ -345,12 +345,20 @@ export type LobbyPlayMode = "strict" | "host";
  * Who may Undo in the room's game: `off` nobody, `host` the host alone (guests cannot ask), `ask` the host, and guests
  * may ask the host. Strict rules force `off`; Host control starts at `ask`. See `lobbyUndoFor`.
  */
-export type LobbyUndo = "off" | "host" | "ask";
+/**
+ * Who may Undo in a Host control room. `off`: nobody. `host`: the host only. `ask`: the host, and a guest by asking the
+ * host, who accepts or declines. `own` (the default, GarethMagis and Quin, 2026-11-25): every player takes back their own
+ * moves as single player's Undo does, back to a card draw or reveal or the start of their turn; a guest's Undo is done by
+ * the host's device at once, with nothing for the host to answer.
+ */
+export type LobbyUndo = "off" | "host" | "ask" | "own";
 
-/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`ask` when none was or it is unreadable). */
+const LOBBY_UNDO: ReadonlySet<unknown> = new Set<LobbyUndo>(["off", "host", "ask", "own"]);
+
+/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`own` when none was or it is unreadable). */
 export function lobbyUndoFor(playMode: LobbyPlayMode, undo: unknown): LobbyUndo {
   if (playMode === "strict") return "off";
-  return undo === "off" || undo === "host" || undo === "ask" ? undo : "ask";
+  return LOBBY_UNDO.has(undo) ? (undo as LobbyUndo) : "own";
 }
 
 export interface LobbyMod {
@@ -1380,7 +1388,7 @@ function isDeck(v: unknown): v is RoomDeck {
 function isSettingsPatch(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (v.playMode !== undefined && v.playMode !== "strict" && v.playMode !== "host") return false;
-  if (v.undo !== undefined && v.undo !== "off" && v.undo !== "host" && v.undo !== "ask") return false;
+  if (v.undo !== undefined && !LOBBY_UNDO.has(v.undo)) return false;
   if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;

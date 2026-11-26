@@ -127,7 +127,7 @@ export interface SessionConfig {
    * rooms are `"off"` whatever this says. Set by `platform/room.ts` `startGame`; absent changes nothing. Like
    * `roomPlayMode`, it never reaches the rules and the live header and replay files leave it out.
    */
-  readonly roomUndo?: "off" | "host" | "ask";
+  readonly roomUndo?: "off" | "host" | "ask" | "own";
   /**
    * A lobby room's game with Cheats on (the host's lobby setting): the game starts marked adjusted
    * (`SaveMeta.adjusted`, issue #791) so nobody's stats, achievements or unlock points count it, and the host's own

@@ -19,12 +19,15 @@ const CONFIG: SessionConfig = {
 };
 
 /** Plays the host's game until its first villain phase is over: decisions declined (or their first option), turns ended. */
-async function hostThroughVillainPhase(): Promise<{ core: EngineSessionCore; phaseStart: number }> {
+async function hostThroughVillainPhase(extra = 0): Promise<{ core: EngineSessionCore; phaseStart: number }> {
   const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
   let state: GameState = (await core.start(CONFIG)).snapshot.state as GameState;
   let phaseStart = -1;
   for (let step = 0; step < 200; step++) {
-    if (phaseStart >= 0 && state.step.phase !== "villain") return { core, phaseStart };
+    if (phaseStart >= 0 && state.step.phase !== "villain") {
+      if (extra === 0) return { core, phaseStart };
+      extra -= 1;
+    }
     const choice = state.pendingChoice;
     let tried: Command[] = [];
     if (choice) {
@@ -95,5 +98,40 @@ describe("a seat's catch-up carries its villain phase (#1017)", () => {
     const snapshot = seat.append(live.commands.slice(phaseStart, phaseStart + 1));
     expect(snapshot.events.length).toBeGreaterThan(0);
     expect(snapshot.villainPhase).toBeUndefined();
+  });
+
+  test("a batch past the phase keeps the phase to the command that left it", async () => {
+    const { core, phaseStart } = await hostThroughVillainPhase(1);
+    const live = core.liveGame()!.game;
+    const seat = new SeatCore();
+    seat.open(
+      { header: headerOf(live), commands: live.commands.slice(0, phaseStart), checksums: {}, packs: loadedPacks() },
+      "open",
+    );
+    const rest = live.commands.slice(phaseStart);
+    const snapshot = seat.append(rest);
+    const phase = snapshot.villainPhase!;
+    // The last command of the batch is the next player turn's: not part of the phase.
+    expect(phase.commands.length).toBe(rest.length - 1);
+    expect(phase.commands.at(-1)!.after.step.phase).not.toBe("villain");
+  });
+
+  test("a reopened log that ends on the phase carries it, with no event states; a rewind or later turns do not", async () => {
+    const { core, phaseStart } = await hostThroughVillainPhase(2);
+    const live = core.liveGame()!.game;
+    const total = live.commands.length;
+    const seat = new SeatCore();
+    // A reconnect's whole log, ending on the command that left the phase.
+    const ends = total - 2;
+    const reopened = seat.open(
+      { header: headerOf(live), commands: live.commands.slice(0, ends), checksums: {}, packs: loadedPacks() },
+      "reset",
+    );
+    expect(reopened.snapshot.villainPhase?.startCommand).toBe(phaseStart);
+    expect(reopened.snapshot.villainPhase?.commands.every((command) => command.states.length === 0)).toBe(true);
+    // Later turns only: nothing of the phase is wanted.
+    expect(seat.append(live.commands.slice(ends, total)).villainPhase).toBeUndefined();
+    // A rewind never carries it.
+    expect(seat.rewind(phaseStart + 1).villainPhase).toBeUndefined();
   });
 });

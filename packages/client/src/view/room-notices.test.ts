@@ -5,6 +5,7 @@ import {
   ChatSoundGate,
   CHAT_SOUND_GAP_MS,
   newChatFromOthers,
+  newRequestsForHost,
   participantChanges,
   roomClosedInGame,
   unreadChatCount,
@@ -138,5 +139,21 @@ describe("unread chat", () => {
     seen.markSeen("R1", 5);
     expect(seen.seenFor("R1")).toBe(5);
     expect(seen.seenFor("R2")).toBe(0);
+  });
+});
+
+describe("newRequestsForHost", () => {
+  const ask = (id: string) => ({ id, from: "g1", name: "Ava", what: "undo" as const, note: "" });
+
+  it("names a guest's new Undo or change request on the host's device", () => {
+    const before = room({ role: "host", requests: [ask("r1")] });
+    expect(newRequestsForHost(before, room({ role: "host", requests: [ask("r1"), ask("r2")] }))).toEqual([ask("r2")]);
+    expect(newRequestsForHost(before, room({ role: "host", requests: [ask("r1")] }))).toEqual([]);
+  });
+
+  it("stays quiet on a guest's device and across rooms", () => {
+    expect(newRequestsForHost(room(), room({ requests: [ask("r1")] }))).toEqual([]);
+    const other = room({ role: "host", roomId: "R2", requests: [ask("r1")] });
+    expect(newRequestsForHost(room({ role: "host" }), other)).toEqual([]);
   });
 });

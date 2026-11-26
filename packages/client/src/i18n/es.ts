@@ -499,6 +499,9 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "room.undo.hostDetail": "El anfitrión puede Deshacer o Retroceder; los invitados no pueden pedirlo.",
   "room.undo.ask": "Pedir al anfitrión",
   "room.undo.askDetail": "El anfitrión puede Deshacer, y los invitados pueden pedírselo.",
+  "room.undo.own": "Cada jugador",
+  "room.undo.ownDetail":
+    "Cada uno deshace sus propias jugadas, como en un jugador: hasta robar una carta o el comienzo de su turno.",
   "room.cheats.title": "Trucos",
   "room.cheats.detail":
     "El Deshacer más allá de un turno y el Ajuste manual del anfitrión funcionan en esta partida. No cambia al empezar.",
@@ -643,6 +646,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "ask.undo": "Pedir deshacer",
   "ask.undoLong": "Pedir al anfitrión que deshaga",
   "ask.undoSent": "Pediste al anfitrión que deshaga.",
+  "ask.undoOwnSent": "Deshaciendo…",
   "ask.change": "Pedir un cambio",
   "ask.changeDetail": "Pide al anfitrión que arregle o cambie algo en la mesa. Él decide.",
   "ask.title": "Pedir un cambio",
