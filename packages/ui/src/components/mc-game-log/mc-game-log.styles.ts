@@ -178,5 +178,15 @@ export const McGameLogStyles = css`
     cursor: pointer;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    /* A native button, drawn as the chip was. */
+    appearance: none;
+    border: 0;
+    border-radius: 0;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+  .newer:focus-visible {
+    outline: 3px solid var(--mc-line-paper);
+    outline-offset: -5px;
   }
 `;

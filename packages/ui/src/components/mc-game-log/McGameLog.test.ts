@@ -147,6 +147,108 @@ describe("mc-game-log", () => {
     log.remove();
   });
 
+  it("makes the chip a native button that Enter, Space or a synthesized click activates with no pointer", async () => {
+    for (const press of [
+      (b: HTMLElement) =>
+        b.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })),
+      (b: HTMLElement) => b.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })),
+      (b: HTMLElement) => b.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 })),
+    ]) {
+      const log = await mounted();
+      stub(log, { top: 0, height: 1000, view: 250 });
+      log.scroller!.dispatchEvent(new Event("scroll"));
+      await log.updateComplete;
+      const button = chip(log)!;
+      expect(button.tagName).toBe("BUTTON");
+      expect(button.getAttribute("type")).toBe("button");
+      press(button);
+      await log.updateComplete;
+      expect(log.scroller!.scrollTop).toBe(1000);
+      expect(log.following).toBe(true);
+      expect(chip(log)).toBeNull();
+      log.remove();
+    }
+  });
+
+  it("does not take the click that follows a pointer tap as a second activation", async () => {
+    const log = await mounted();
+    stub(log, { top: 0, height: 1000, view: 250 });
+    log.scroller!.dispatchEvent(new Event("scroll"));
+    await log.updateComplete;
+    const button = chip(log)!;
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
+    await log.updateComplete;
+    expect(log.scroller!.scrollTop, "a pointer click is the tap's job").toBe(0);
+    log.remove();
+  });
+
+  describe("resizes", () => {
+    type Callback = () => void;
+    const made: { callback: Callback; targets: Element[] }[] = [];
+    const original = globalThis.ResizeObserver;
+    afterEach(() => {
+      globalThis.ResizeObserver = original;
+      made.length = 0;
+    });
+    const install = (): void => {
+      globalThis.ResizeObserver = class {
+        readonly entry: { callback: Callback; targets: Element[] };
+        constructor(callback: Callback) {
+          this.entry = { callback, targets: [] };
+          made.push(this.entry);
+        }
+        observe(target: Element): void {
+          if (!this.entry.targets.includes(target)) this.entry.targets.push(target);
+        }
+        unobserve(): void {}
+        disconnect(): void {}
+      } as unknown as typeof ResizeObserver;
+    };
+
+    it("watches the scroller as well as the list, so a height-only change is seen", async () => {
+      install();
+      const log = await mounted();
+      const targets = made.flatMap((entry) => entry.targets);
+      expect(targets).toContain(log.scroller);
+      expect(targets).toContain(log.shadowRoot!.querySelector(".list"));
+      log.remove();
+    });
+
+    it("stays at the newest line when the viewport shrinks while following", async () => {
+      install();
+      const log = await mounted();
+      const state = { top: 900, height: 1000, view: 100 };
+      stub(log, state);
+      log.scroller!.dispatchEvent(new Event("scroll"));
+      expect(log.following).toBe(true);
+      // The viewport gets 60px shorter: scrollTop no longer reaches the bottom.
+      state.view = 40;
+      made.forEach((entry) => entry.callback());
+      await log.updateComplete;
+      expect(log.scroller!.scrollTop).toBe(1000);
+      expect(log.following).toBe(true);
+      log.remove();
+    });
+
+    it("remeasures reading back when the chip first appears and the list gets shorter", async () => {
+      install();
+      const log = await mounted();
+      const state = { top: 0, height: 1000, view: 250 };
+      stub(log, state);
+      log.scroller!.dispatchEvent(new Event("scroll"));
+      await log.updateComplete;
+      expect(chip(log)?.textContent?.trim()).toBe("▼ 7 newer · latest");
+      // The chip's 38px came out of the scroller: one more line is below the view now.
+      state.view = 150;
+      made.forEach((entry) => entry.callback());
+      await log.updateComplete;
+      expect(log.following, "reading back stays reading back").toBe(false);
+      expect(log.scroller!.scrollTop).toBe(0);
+      expect(chip(log)?.textContent?.trim()).toBe("▼ 8 newer · latest");
+      log.remove();
+    });
+  });
+
   it("raises mc-activate with the key close on a tap of the close button", async () => {
     const log = await mounted();
     const keys: string[] = [];
