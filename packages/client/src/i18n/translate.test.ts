@@ -77,3 +77,11 @@ describe("every catalog against English", () => {
     });
   }
 });
+
+describe("the game log's chip in Spanish", () => {
+  it("names the action, Ir al final, both with newer lines below and without", () => {
+    const es = CATALOGS.es as Partial<Record<MessageKey, string>>;
+    expect(es["log.newer"]).toContain("Ir al final");
+    expect(es["log.latest"]).toBe("▼ Ir al final");
+  });
+});
