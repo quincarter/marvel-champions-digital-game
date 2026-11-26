@@ -620,7 +620,7 @@ export class HoverPreview {
     return {
       container,
       size: { width: size.width, height: size.height + extra },
-      waitingFor: image ? null : (model.art?.key ?? null),
+      waitingFor: image ? cardArt(this.scene).fullOnTheWay(image.texture.key) : (model.art?.key ?? null),
     };
   }
 
@@ -671,7 +671,7 @@ export class HoverPreview {
     return {
       container,
       size: { width: size.width, height: size.height + STRIP_GAP + stripHeight },
-      waitingFor: image ? null : key,
+      waitingFor: image ? cardArt(this.scene).fullOnTheWay(image.texture.key) : key,
     };
   }
 
@@ -713,7 +713,11 @@ export class HoverPreview {
           drawGeneratedFace(this.scene, rect, faceModelOf(card, face ?? defaultFaceFor(card))),
         ),
     );
-    return { container, size, waitingFor: image ? null : (model.art?.key ?? null) };
+    return {
+      container,
+      size,
+      waitingFor: image ? cardArt(this.scene).fullOnTheWay(image.texture.key) : (model.art?.key ?? null),
+    };
   }
 
   /** What stands in for a scan that has not arrived or does not exist: name, type line and rules text on paper. */
