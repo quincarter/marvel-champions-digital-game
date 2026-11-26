@@ -3621,21 +3621,31 @@ export class ChoiceOverlay extends Phaser.Scene {
     // (`view/divide-sheet.ts`); two tiles for the same scheme read apart by their point number.
     const divide = state?.pendingChoice ? divideSheetOf(state, state.pendingChoice, this.#selected) : null;
     const divided = divide?.labels.get(option.optionId);
-    if (divided) {
-      const caption = this.add
-        .text(
-          0,
-          0,
-          [divided.name, divided.engaged, `${divided.holds} · point ${divided.ordinal}`].filter(Boolean).join("\n"),
-          {
-            ...textStyle(typeRole.label, surface.paper.hex),
-            fontSize: "11px",
-            align: "center",
-          },
-        )
-        .setOrigin(0.5);
-      fitWrapped(caption, inner.width - 8, 4, 11);
-      const bandHeight = Math.max(20, Math.ceil(caption.height) + 8);
+    if (divided && divide) {
+      // Three lines fitted on their own, so a long card name can never push the point number or who a minion is
+      // engaged with out of the band: the name wraps to two lines at most, the other two keep one line each.
+      const style = { ...textStyle(typeRole.label, surface.paper.hex), fontSize: "11px", align: "center" };
+      const room = inner.width - 8;
+      const name = this.add.text(0, 0, divided.name, style).setOrigin(0.5, 0);
+      fitWrapped(name, room, 2, 11);
+      const lines = [name];
+      if (divided.engaged) {
+        // "vs Spider-Man (Peter Parker)" gives way to a shorter form no other seat on the sheet shares (issue #1001).
+        const seats = [...divide.labels.values()].flatMap((label) => (label.engaged ? [label.engaged] : []));
+        const forms = engagedNoteForms(divided.engaged, seats);
+        const engaged = this.add.text(0, 0, forms[0]!, style).setOrigin(0.5, 0);
+        for (const form of forms.slice(1)) {
+          if (engaged.width <= room) break;
+          engaged.setText(form);
+        }
+        fitText(engaged, room, 11);
+        lines.push(engaged);
+      }
+      const point = this.add.text(0, 0, `${divided.holds} · point ${divided.ordinal}`, style).setOrigin(0.5, 0);
+      fitText(point, room, 11);
+      lines.push(point);
+      const textHeight = lines.reduce((sum, line) => sum + Math.ceil(line.height), 0);
+      const bandHeight = Math.max(20, textHeight + 8);
       const band: Rect = {
         x: inner.x,
         y: inner.y + inner.height - bandHeight,
@@ -3643,8 +3653,12 @@ export class ChoiceOverlay extends Phaser.Scene {
         height: bandHeight,
       };
       this.add.graphics().fillStyle(surface.ink.hex, 0.88).fillRect(band.x, band.y, band.width, band.height);
-      caption.setPosition(band.x + band.width / 2, band.y + band.height / 2);
-      this.children.bringToTop(caption);
+      let y = band.y + 4;
+      for (const line of lines) {
+        line.setPosition(band.x + band.width / 2, y);
+        this.children.bringToTop(line);
+        y += Math.ceil(line.height);
+      }
     }
 
     // Agents of S.H.I.E.L.D.: which Board Member gets a secret counter. Each card says how many it holds and whether

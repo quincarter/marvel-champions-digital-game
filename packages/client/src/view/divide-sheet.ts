@@ -14,8 +14,9 @@ export interface DivideOptionLabel {
   /** The card this point is for. */
   readonly name: string;
   /**
-   * "vs Iron Man": who a minion is engaged with, in a game of more than one seat, so two facedown Drones taking a
-   * share of the damage read apart (issue #1001). Null for any other card, and in a one-seat game.
+   * The seat a minion is engaged with ("Iron Man"), in a game of more than one seat, so two facedown Drones taking a
+   * share of the damage read apart (issue #1001); the sheet words it with `engagedNoteForms`. Null for any other card,
+   * and in a one-seat game.
    */
   readonly engaged: string | null;
   /** "Threat 3", "Damage 2" — what the card holds now, before any of the division. */
@@ -89,7 +90,7 @@ export function divideSheetOf(
   const parts = order.flatMap((instanceId) => {
     const count = counts.get(instanceId);
     const engaged = engagedOf(state, instanceId);
-    return count ? [`${cardName(state, instanceId)}${engaged ? ` (${engaged})` : ""} ${count}`] : [];
+    return count ? [`${cardName(state, instanceId)}${engaged ? ` (vs ${engaged})` : ""} ${count}`] : [];
   });
   const left = prompt.amount - selected.length;
   const tally = parts.length === 0 ? "" : `${parts.join(" · ")} · ${left > 0 ? `${left} to place` : "all placed"}`;
@@ -98,8 +99,7 @@ export function divideSheetOf(
 
 function engagedOf(state: GameState, instanceId: InstanceId): string | null {
   if (!isMinion(state, instanceId)) return null;
-  const name = engagedNameOf(state, state.instances[instanceId]?.engagedWith ?? null);
-  return name ? `vs ${name}` : null;
+  return engagedNameOf(state, state.instances[instanceId]?.engagedWith ?? null);
 }
 
 function holdsOf(state: GameState, instanceId: InstanceId, what: string): string {

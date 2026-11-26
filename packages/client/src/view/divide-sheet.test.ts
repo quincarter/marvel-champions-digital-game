@@ -77,10 +77,10 @@ describe("damage divided among minions engaged with different seats (issue #1001
       options: drones.map((id) => ({ optionId: `${id}#1`, label: id, ref: { kind: "card", instanceId: id } })),
     } as unknown as PendingChoice;
     const sheet = divideSheetOf(game, divide, [`${drones[0]}#1`])!;
-    const seats = drones.map((id) => `vs ${playerName(game, game.instances[id]!.engagedWith!)}`);
+    const seats = drones.map((id) => playerName(game, game.instances[id]!.engagedWith!));
     expect(drones.map((id) => sheet.labels.get(`${id}#1`)?.engaged)).toEqual(seats);
     expect(new Set(seats).size).toBe(2);
-    expect(sheet.tally).toContain(`(${seats[0]}) 1`);
+    expect(sheet.tally).toContain(`(vs ${seats[0]}) 1`);
   }, 120_000);
 });
 
