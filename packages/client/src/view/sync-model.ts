@@ -4,6 +4,7 @@
  * prompt's text and buttons. `scenes/sync-data.ts` and `scenes/sync-conflict.ts` draw these; `sync/sync-service.ts`
  * does the work.
  */
+import { t } from "../i18n/translate.js";
 import { formatRecoveryCode, parseRecoveryCode } from "@mc/sync-worker/sync-protocol";
 import type { TransferFailure } from "../save-data/transfer-client.js";
 import { linkFragmentOf, type SyncLinkAddress } from "../sync/sync-link.js";
@@ -15,8 +16,8 @@ import { NO_STATUS, type SaveDataStatus } from "./save-data-model.js";
 /** Emitted on the game's event bus when the conflict prompt closes, so the watcher can open the next game's. */
 export const CONFLICT_CLOSED = "mc-sync-conflict-closed";
 
-export const SYNC_ROW_TITLE = "Sync across devices";
-export const SYNC_ROW_DETAIL = "Keep your saved games, decks and campaigns in step on every device you play on.";
+export const syncRowTitle = (): string => t("sync.syncRowTitle");
+export const syncRowDetail = (): string => t("sync.syncRowDetail");
 
 /** The sync screen's steps. `home` is the status and the actions (which ones depend on whether sync is on). */
 export type SyncStep =
@@ -59,7 +60,7 @@ export function syncStepWorking(step: SyncStep): boolean {
 
 /**
  * A step Escape or the ✕ may not leave: the recovery code was shown once and the player has neither said they saved it
- * nor copied it. `SETUP_LOCK_NOTICE` says so on the screen.
+ * nor copied it. `setupLockNotice()` says so on the screen.
  */
 export function syncStepMustAcknowledge(step: SyncStep): boolean {
   return step.kind === "setup" && typeof step.phase === "object" && step.phase.copied !== true;
@@ -93,40 +94,30 @@ export function syncLinkUrlOf(
 
 // ---- wording -------------------------------------------------------------------------------------------------------
 
-export const UNAVAILABLE_TEXT = "Online sync is unavailable right now. Your saves stay on this device.";
+export const unavailableText = (): string => t("sync.unavailableText");
 
-export const SYNC_OFF_INTRO =
-  "Sync copies your saves to a private space online, scrambled so only your devices can read them, and keeps every device up to date. Your saves always stay on this device too.";
-export const SYNC_ON_INTRO =
-  "This device is synced. Your saves are copied to a private space online, scrambled so only your devices can read them.";
-export const SETUP_HELP =
-  "This is your recovery code. It is the only key to your synced saves: nobody, including us, can get it back for you. Write it down or save it somewhere safe. You will need it to sync another device.";
+export const syncOffIntro = (): string => t("sync.syncOffIntro");
+export const syncOnIntro = (): string => t("sync.syncOnIntro");
+export const setupHelp = (): string => t("sync.setupHelp");
 /** Under the new recovery code while the ✕ is locked, so the screen doesn't read as one that can't be closed. */
-export const SETUP_LOCK_NOTICE = "To close this, copy your code or press I've saved my code.";
-export const SHOW_CODE_HELP =
-  "Type this code on another device (Save data, Sync across devices, Join with a recovery code) to bring your saves to it. Keep it private: anyone with this code can read and change your synced saves.";
-export const LINK_HELP =
-  "On the other device, scan this QR code with its camera. The link works once and expires in 15 minutes.";
-export const LINK_TYPE_HELP = "Or type this code on the other device. Your recovery code works there too.";
-export const JOIN_HELP =
-  "Type the link code or the 25-character recovery code shown on a device that is already synced. This device's saves and that device's saves are merged; nothing is deleted.";
-export const JOIN_LINK_TITLE = "Join this device to your synced saves?";
-export const JOIN_LINK_BODY =
-  "This device was linked from another one. Joining merges the saves on both; nothing is deleted. A game both devices changed will ask you which copy to keep.";
-export const JOIN_LINK_SWITCH_BODY =
-  "This device is already synced to another space. Joining switches it to the one this link belongs to and forgets the old recovery code (write it down first if you want to come back). The saves on this device are kept and merged; nothing is deleted. A game both devices changed will ask you which copy to keep.";
-export const UNLINK_TITLE = "Unlink this device?";
-export const UNLINK_BODY =
-  "This device stops syncing. Its saves stay on it, and your cloud copy stays for your other devices. To sync it again you will need your recovery code, so look at it first if you have not written it down.";
+export const setupLockNotice = (): string => t("sync.setupLockNotice");
+export const showCodeHelp = (): string => t("sync.showCodeHelp");
+export const linkHelp = (): string => t("sync.linkHelp");
+export const linkTypeHelp = (): string => t("sync.linkTypeHelp");
+export const joinHelp = (): string => t("sync.joinHelp");
+export const joinLinkTitle = (): string => t("sync.joinLinkTitle");
+export const joinLinkBody = (): string => t("sync.joinLinkBody");
+export const joinLinkSwitchBody = (): string => t("sync.joinLinkSwitchBody");
+export const unlinkTitle = (): string => t("sync.unlinkTitle");
+export const unlinkBody = (): string => t("sync.unlinkBody");
 
 /** The status line as shown on both Save data and the sync screen: a linked device is starting, not off, before its first run. */
 export function syncStatusDisplay(linked: boolean, status: SyncStatus, now: number): string {
-  return linked && status.state === "off" ? "Starting…" : syncStatusText(status, now);
+  return linked && status.state === "off" ? t("sync.starting") : syncStatusText(status, now);
 }
 
-export const DELETE_TITLE = "Delete your cloud data?";
-export const DELETE_BODY =
-  "This deletes the synced copy of your saves online, for every device. Saves already on each device stay, but they will stop syncing. This can't be undone.";
+export const deleteTitle = (): string => t("sync.deleteTitle");
+export const deleteBody = (): string => t("sync.deleteBody");
 
 /** The status line under the section title: "Synced 2 min ago", "Offline, changes waiting", "Off". */
 export function syncStatusText(status: SyncStatus, now: number): string {
@@ -141,19 +132,19 @@ export function syncStatusNeedsAttention(status: SyncStatus): boolean {
 function linkFailureText(failure: TransferFailure): string {
   switch (failure.kind) {
     case "not-found":
-      return "That link has expired or was already used. Make a new one on the other device.";
+      return t("sync.link.notFound");
     case "unavailable":
-      return UNAVAILABLE_TEXT;
+      return unavailableText();
     case "unsupported":
-      return "This browser can't sync saves online. Your saves stay on this device.";
+      return t("sync.unsupported");
     case "rate-limited":
-      return "Too many tries from this device just now. Wait a minute, then try again.";
+      return t("sync.rateLimited");
     case "blocked":
-      return "Too many wrong tries from this device. Online sync is paused here for a while; try again later.";
+      return t("sync.link.blocked");
     case "too-large":
-      return "That link is too large to read. Make a new one on the other device.";
+      return t("sync.link.tooLarge");
     case "damaged":
-      return `The link couldn't be read (${failure.detail}). Make a new one on the other device.`;
+      return t("sync.link.damaged", { detail: failure.detail });
   }
 }
 
@@ -162,50 +153,64 @@ export function syncFailureStatusOf(failure: SyncServiceFailure): SaveDataStatus
   const error = (text: string): SaveDataStatus => ({ tone: "error", text });
   switch (failure.kind) {
     case "unavailable":
-      return error(UNAVAILABLE_TEXT);
+      return error(unavailableText());
     case "unsupported":
-      return error("This browser can't sync saves online. Your saves stay on this device.");
+      return error(t("sync.unsupported"));
     case "wrong-code":
     case "not-found":
-      return error("That recovery code didn't match any synced saves. Check it and try again.");
+      return error(t("sync.wrongCode"));
     case "invalid-code":
-      return error("That isn't a recovery code. It has 25 letters and numbers, like ABCDE-FGHJK-MNPQR-STUVW-XYZ23.");
+      return error(t("sync.invalidCode"));
     case "rate-limited":
-      return error("Too many tries from this device just now. Wait a minute, then try again.");
+      return error(t("sync.rateLimited"));
     case "blocked":
-      return error("Too many wrong codes from this device. Online sync is paused here for a while; try again later.");
+      return error(t("sync.blocked"));
     case "space-full":
-      return error(
-        "Your cloud space is full (10 MB). Removing decks you no longer use frees space; finished games stay in it.",
-      );
+      return error(t("sync.spaceFull"));
     case "too-large":
-      return error("A save is too large to sync.");
+      return error(t("sync.tooLarge"));
     case "storage":
-      return error("This browser wouldn't keep the recovery code, so sync could not be turned on here.");
+      return error(t("sync.storage"));
     case "link":
       return error(linkFailureText(failure.failure));
     case "not-on":
-      return error("Sync is off on this device.");
+      return error(t("sync.notOn"));
     case "error":
       // The detail is for the log, never for the player.
       console.warn("device sync:", failure.message);
-      return error("Sync hit a problem. Try again in a moment.");
+      return error(t("sync.error"));
   }
 }
 
-export const COPIED_STATUS: SaveDataStatus = { tone: "ok", text: "Code copied." };
+export const COPIED_STATUS: SaveDataStatus = {
+  tone: "ok",
+  get text() {
+    return t("sync.copied");
+  },
+};
 export const COPY_FAILED_STATUS: SaveDataStatus = {
   tone: "error",
-  text: "Couldn't copy to the clipboard. Read the code off the screen instead.",
+  get text() {
+    return t("sync.copyFailed");
+  },
 };
-export const JOINED_STATUS: SaveDataStatus = { tone: "ok", text: "Joined. Bringing your saves over…" };
+export const JOINED_STATUS: SaveDataStatus = {
+  tone: "ok",
+  get text() {
+    return t("sync.joined");
+  },
+};
 export const UNLINKED_STATUS: SaveDataStatus = {
   tone: "ok",
-  text: "This device no longer syncs. Its saves are untouched.",
+  get text() {
+    return t("sync.unlinked");
+  },
 };
 export const DELETED_STATUS: SaveDataStatus = {
   tone: "ok",
-  text: "Your cloud data is deleted and this device no longer syncs. Its saves are untouched.",
+  get text() {
+    return t("sync.deleted");
+  },
 };
 
 export { NO_STATUS };
@@ -239,8 +244,9 @@ export interface ConflictPrompt {
 }
 
 function sideOf(heading: string, side: GameConflict["local"], newer: boolean, now: number): ConflictSide {
-  const played = side.updatedAt > 0 ? `played ${agoText(side.updatedAt, now)}` : "play time unknown";
-  return { heading, line: `Round ${side.round}, ${played}`, newer };
+  const played =
+    side.updatedAt > 0 ? t("sync.conflict.played", { ago: agoText(side.updatedAt, now) }) : t("sync.conflict.unknown");
+  return { heading, line: t("sync.conflict.line", { round: side.round, played }), newer };
 }
 
 /** What the prompt for one conflicted game says and offers. */
@@ -248,21 +254,23 @@ export function conflictPromptOf(conflict: GameConflict, now: number): ConflictP
   const localNewer = conflict.local.updatedAt > conflict.remote.updatedAt;
   const remoteNewer = conflict.remote.updatedAt > conflict.local.updatedAt;
   const buttons: ConflictButton[] = [
-    { choice: "keep-local", label: "Keep this device", detail: "The other device's copy is replaced." },
-    { choice: "keep-remote", label: "Keep the other device", detail: "This device's copy is replaced." },
+    { choice: "keep-local", label: t("sync.conflict.keepLocal"), detail: t("sync.conflict.keepLocalDetail") },
+    { choice: "keep-remote", label: t("sync.conflict.keepRemote"), detail: t("sync.conflict.keepRemoteDetail") },
   ];
   if (!conflict.campaign) {
-    buttons.push({ choice: "keep-both", label: "Keep both", detail: "Both copies stay, as two saved games." });
+    buttons.push({
+      choice: "keep-both",
+      label: t("sync.conflict.keepBoth"),
+      detail: t("sync.conflict.keepBothDetail"),
+    });
   }
   return {
-    title: "Which copy do you want to keep?",
-    body: `${conflict.label} was played on two devices since they last synced, and the two games went different ways.`,
-    local: sideOf("This device", conflict.local, localNewer, now),
-    remote: sideOf("The other device", conflict.remote, remoteNewer, now),
+    title: t("sync.conflict.title"),
+    body: t("sync.conflict.body", { label: conflict.label }),
+    local: sideOf(t("sync.conflict.thisDevice"), conflict.local, localNewer, now),
+    remote: sideOf(t("sync.conflict.otherDevice"), conflict.remote, remoteNewer, now),
     buttons,
     defaultChoice: conflict.campaign ? "keep-local" : "keep-both",
-    campaignNote: conflict.campaign
-      ? "Keep both isn't offered for a campaign game: a campaign mission counts one attempt at a time."
-      : null,
+    campaignNote: conflict.campaign ? t("sync.conflict.campaignNote") : null,
   };
 }

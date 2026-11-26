@@ -329,6 +329,10 @@ export async function devScreenJump(): Promise<{ readonly key: string; readonly 
     }
     return { key: SCENES.controls, data: {} };
   }
+  // `?screen=unlocks[&guide=1]` and `?screen=save-data`: Settings' Unlocks and Save data sheets (as `settings` opens them).
+  if (screen === "unlocks")
+    return { key: SCENES.unlocks, data: params.get("guide") === "1" ? { guideSection: 0 } : {} };
+  if (screen === "save-data") return { key: SCENES.saveData, data: {} };
   // `?screen=room-lobby&competitive=host|guest[&phase=building|sealed|ready][&size=2][&side=resistance]`: the Civil War Competitive
   // lobby over a made-up room (`view/competitive-room-fixture.ts`, issue #883). Presses are recorded in `__mcRoomCalls`. Dev only.
   if (screen === "room-lobby" && params.get("competitive") !== null && import.meta.env.DEV) {

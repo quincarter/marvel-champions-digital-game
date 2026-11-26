@@ -9,11 +9,10 @@ import { t } from "../i18n/translate.js";
 /** Settings' Save data row, read when drawn so a language switch shows at once. */
 export const saveDataRowTitle = (): string => t("settings.saveData.title");
 export const saveDataRowDetail = (): string => t("settings.saveData.detail");
-export const EXPORT_ROW_TITLE = "Export";
-export const EXPORT_ROW_DETAIL = "Save everything on this device to a file you can keep or move to another device.";
-export const IMPORT_ROW_TITLE = "Import";
-export const IMPORT_ROW_DETAIL =
-  "Load a save file made by Export. It replaces what's on this device, after you confirm.";
+export const exportRowTitle = (): string => t("saveData.exportRowTitle");
+export const exportRowDetail = (): string => t("saveData.exportRowDetail");
+export const importRowTitle = (): string => t("saveData.importRowTitle");
+export const importRowDetail = (): string => t("saveData.importRowDetail");
 
 /** A step is the file waiting for the player's yes/no, the send or receive screen, or nothing (the action rows). */
 export type SaveDataStep =
@@ -41,13 +40,13 @@ const messageOf = (error: unknown): string => (error instanceof Error && error.m
 
 /** Status after an export attempt; `undefined` error means it went out. */
 export function exportStatusOf(error?: unknown): SaveDataStatus {
-  if (error === undefined) return { tone: "ok", text: "Exported." };
+  if (error === undefined) return { tone: "ok", text: t("saveData.exported") };
   if (isCancelledShare(error)) return NO_STATUS;
-  return { tone: "error", text: `Couldn't export: ${messageOf(error)}` };
+  return { tone: "error", text: t("saveData.exportFailed", { detail: messageOf(error) }) };
 }
 
 export function importFailedStatusOf(error: unknown): SaveDataStatus {
-  return { tone: "error", text: `Couldn't import: ${messageOf(error)}` };
+  return { tone: "error", text: t("saveData.importFailed", { detail: messageOf(error) }) };
 }
 
 /** A picked file that didn't parse: its own error text, as written by the parser. */
@@ -65,12 +64,13 @@ export interface ReplaceConfirm {
 /** `syncOn`: this device is linked for device sync, whose other devices are not touched by a replace. */
 export function replaceConfirmOf(file: SaveFile, syncOn = false): ReplaceConfirm {
   return {
-    title: "Replace everything on this device?",
+    title: t("saveData.replace.title"),
     body:
-      `This file has ${describeSaveFileSummary(saveFileSummaryOf(file))}. ` +
-      "Your current saved games, decks, campaigns, unlocks and settings will be overwritten. This can't be undone." +
-      (syncOn ? " Sync is on: your other devices keep their saves, and anything only there comes back here." : ""),
-    confirmLabel: "Replace",
-    cancelLabel: "Cancel",
+      t("saveData.replace.fileHas", { what: describeSaveFileSummary(saveFileSummaryOf(file)) }) +
+      " " +
+      t("saveData.replace.overwritten") +
+      (syncOn ? " " + t("saveData.replace.syncOn") : ""),
+    confirmLabel: t("saveData.replace.confirm"),
+    cancelLabel: t("saveData.cancel"),
   };
 }

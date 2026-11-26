@@ -13,6 +13,7 @@
  * Pure data: the Board decides what is available and calls `layerSheet` to draw the sheet by the action bar.
  */
 
+import { t } from "../i18n/translate.js";
 import { padGlyphSpec, type PadGlyphSpec } from "./input-glyph-model.js";
 import {
   ABILITIES_PER_PAGE,
@@ -32,20 +33,20 @@ export {
   type PadLayer,
 } from "./pad-layer-bindings.js";
 
-const ACTION_LABELS: Readonly<Record<LayerActionId, string>> = {
-  attack: "Attack",
-  thwart: "Thwart",
-  recover: "Recover",
-  changeForm: "Change form",
-  undo: "Undo",
-  endTurn: "End turn",
-  ability1: "Ability 1",
-  ability2: "Ability 2",
-  ability3: "Ability 3",
-  ability4: "Ability 4",
-  pagePrevious: "Previous abilities",
-  pageNext: "More abilities",
-};
+const actionLabels = (): Readonly<Record<LayerActionId, string>> => ({
+  attack: t("controls.layer.attack"),
+  thwart: t("controls.layer.thwart"),
+  recover: t("controls.layer.recover"),
+  changeForm: t("controls.layer.changeForm"),
+  undo: t("controls.layer.undo"),
+  endTurn: t("controls.layer.endTurn"),
+  ability1: t("controls.layer.ability1"),
+  ability2: t("controls.layer.ability2"),
+  ability3: t("controls.layer.ability3"),
+  ability4: t("controls.layer.ability4"),
+  pagePrevious: t("controls.layer.pagePrevious"),
+  pageNext: t("controls.layer.pageNext"),
+});
 
 /** What the Board knows right now, for the sheet. Anything left out reads as available. */
 export interface LayerAvailability {
@@ -88,12 +89,13 @@ export function layerSheet(
   swap: boolean,
   availability: LayerAvailability = {},
 ): LayerSheet {
+  const labels = actionLabels();
   const abilities = availability.abilities ?? [];
   const page = Math.min(Math.max(0, availability.abilityPage ?? 0), abilityPageCount(abilities) - 1);
   const rows = LAYER_BUTTONS[layer].map(([index, action]): LayerRow => {
     const glyph = padGlyphSpec(index, family, swap);
     if (layer === "lt") {
-      return { action, glyph, label: ACTION_LABELS[action], enabled: availability.enabled?.[action] ?? true };
+      return { action, glyph, label: labels[action], enabled: availability.enabled?.[action] ?? true };
     }
     const slot = abilitySlotOf(action);
     if (slot !== null) {
@@ -103,7 +105,8 @@ export function layerSheet(
         glyph,
         // A legend (no ability list) just names the slot.
         label:
-          name ?? (availability.abilities === undefined ? ACTION_LABELS[action] : `${ACTION_LABELS[action]} (none)`),
+          name ??
+          (availability.abilities === undefined ? labels[action] : t("controls.layer.none", { label: labels[action] })),
         // Without an ability list the sheet is a legend (the Controls screen): every slot reads as available.
         enabled: availability.abilities === undefined ? true : name !== undefined,
       };
@@ -112,7 +115,7 @@ export function layerSheet(
     return {
       action,
       glyph,
-      label: ACTION_LABELS[action],
+      label: labels[action],
       enabled: availability.abilities === undefined ? true : more,
     };
   });

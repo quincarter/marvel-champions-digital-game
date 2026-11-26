@@ -8,6 +8,7 @@
  * Pure: the scenes draw into these rectangles. The default edge is the bottom: on a tabbed board (phone, tablet in
  * portrait) the main scheme and the enemy list both start at the top of the tab, and the foot only ever holds the hand.
  */
+import { t } from "../i18n/translate.js";
 import { hit } from "../tokens.js";
 import { CHROME_HEIGHT, isTabbed, type FormFactor, type Rect } from "./layout.js";
 
@@ -53,7 +54,7 @@ export function flipPeekEdge(): PeekEdge {
 
 /** MOVE's label names where the banner goes, in words and an arrow (never the arrow alone). */
 export function peekMoveLabel(current: PeekEdge): string {
-  return current === "bottom" ? "Top ▴" : "Bottom ▾";
+  return current === "bottom" ? t("peek.top") : t("peek.bottom");
 }
 
 /** The top of the free band on a full-screen sheet: under the title bar, and under the tab rail where the board has one. */

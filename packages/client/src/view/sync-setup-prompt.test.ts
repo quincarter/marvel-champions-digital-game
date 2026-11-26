@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
-  SYNC_NOTICE_BODY,
+  syncNoticeBody,
   hasProgressKeys,
   titleIsTopScene,
   SYNC_PROMPTED_KEY,
   SYNC_SEEN_KEY,
-  SYNC_SETUP_LATER,
+  syncSetupLater,
   markSyncPromptAnswered,
   markSyncPromptSeen,
   shouldShowSyncSetupPrompt,
@@ -68,8 +68,8 @@ describe("sync setup prompt decision", () => {
 
 describe("sync setup prompt wording and markers", () => {
   test("the pointer line is exact and the notice repeats it", () => {
-    expect(SYNC_SETUP_LATER).toBe("You can set this up any time in Settings → More → Save data → Sync across devices.");
-    expect(SYNC_NOTICE_BODY).toBe(SYNC_SETUP_LATER);
+    expect(syncSetupLater()).toBe("You can set this up any time in Settings → More → Save data → Sync across devices.");
+    expect(syncNoticeBody()).toBe(syncSetupLater());
   });
 
   test("the markers are not mc- keys, so an export and a sync never carry them", () => {

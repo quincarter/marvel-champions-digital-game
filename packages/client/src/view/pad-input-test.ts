@@ -4,6 +4,8 @@
  * whether its presses reach the page at all (the Linux webview, 2026-10-24).
  */
 
+import { t } from "../i18n/translate.js";
+
 export interface RawPad {
   readonly connected: boolean;
   readonly mapping: string;
@@ -30,6 +32,6 @@ export function padInputNow(pads: readonly (RawPad | null)[]): string | null {
 
 /** The test line: the last input seen (kept after release), and a note when the pad's layout is not the standard one. */
 export function padInputTestLine(lastSeen: string | null, mapping: string | null): string {
-  const seen = lastSeen === null ? "Press a button to test it" : `Last input: ${lastSeen}`;
-  return mapping === null || mapping === "standard" ? seen : `${seen} · layout "${mapping}" is not standard`;
+  const seen = lastSeen === null ? t("controls.test.press") : t("controls.test.last", { input: lastSeen });
+  return mapping === null || mapping === "standard" ? seen : t("controls.test.nonStandard", { seen, mapping });
 }

@@ -44,6 +44,7 @@ function host(): SettingsSearchHost {
     unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
     globalConsent: "unset",
     controls: false,
+    language: "en" as const,
     extra: [reference],
   });
   return searchHost;
@@ -144,6 +145,7 @@ describe("rows Pause has no control for", () => {
       unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
       globalConsent: "unset",
       controls: false,
+      language: "en" as const,
     });
     const inline = new Set<string>(rowsNow().map((row) => row.id));
     for (const [query, id] of [
@@ -232,6 +234,7 @@ describe("PauseSearchSession", () => {
     unlocks: { progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS },
     globalConsent: "unset" as const,
     controls: false,
+    language: "en" as const,
   });
 
   it("drops the last answer the moment the query changes, and never takes an older query's late answer", () => {
