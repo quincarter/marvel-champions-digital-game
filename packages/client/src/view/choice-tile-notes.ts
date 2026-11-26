@@ -63,11 +63,20 @@ export function optionEngagedNamesOf(state: GameState, choice: PendingChoice): R
   return notes;
 }
 
-/** "vs Spider-Man (Peter Parker)", "vs Spider-Man" and the board chip's "vs S.-Man", longest first. */
+/**
+ * "vs Spider-Man (Peter Parker)", "vs Spider-Man" and the board chip's "vs S.-Man", then the name in brackets on its
+ * own, "vs Peter Parker" and "vs P. Parker": the part that tells two Spider-Men apart when their hero name can't.
+ */
 function noteForms(name: string): readonly string[] {
   // The alter ego's name goes first, before any seat number ("Spider-Man (Peter Parker) 2" is "Spider-Man 2").
   const base = name.replace(/\s*\([^)]*\)/, "").trim() || name;
-  return [...new Set([`vs ${name}`, `vs ${base}`, engagedChipWords(base, 0)])];
+  const forms = [`vs ${name}`, `vs ${base}`, engagedChipWords(base, 0)];
+  const bracket = /\(([^)]+)\)(.*)$/.exec(name);
+  if (bracket) {
+    const aside = `${bracket[1]!.trim()}${bracket[2]!.trimEnd()}`;
+    forms.push(`vs ${aside}`, engagedChipWords(aside, 0));
+  }
+  return [...new Set(forms)];
 }
 
 /**

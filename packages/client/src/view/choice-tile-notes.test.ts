@@ -110,6 +110,8 @@ describe("who a minion option is engaged with (issue #1001)", () => {
       "vs Spider-Man (Peter Parker)",
       "vs Spider-Man",
       "vs S.-Man",
+      "vs Peter Parker",
+      "vs P. Parker",
     ]);
     expect(engagedNoteForms("Captain Marvel")).toEqual(["vs Captain Marvel", "vs C. Marvel"]);
     expect(engagedNoteForms("Hulk")).toEqual(["vs Hulk"]);
@@ -117,20 +119,34 @@ describe("who a minion option is engaged with (issue #1001)", () => {
       "vs Spider-Man (Peter Parker) 2",
       "vs Spider-Man 2",
       "vs S.-M. 2",
+      "vs Peter Parker 2",
+      "vs P. P. 2",
     ]);
     expect(engagedNoteForms(undefined)).toEqual([]);
   });
 
   test("a shorter form two seats would share is never offered (Codex, PR #1014)", () => {
     const names = ["Spider-Man (Peter Parker)", "Spider-Man (Miles Morales)", "Iron Man"];
-    expect(engagedNoteForms("Spider-Man (Peter Parker)", names)).toEqual(["vs Spider-Man (Peter Parker)"]);
-    expect(engagedNoteForms("Spider-Man (Miles Morales)", names)).toEqual(["vs Spider-Man (Miles Morales)"]);
+    // Their hero name is shared, so a narrow tile falls back on the name in brackets, never the bare hero name (a
+    // tile that only shrank and clipped the whole would drop the brackets first: Codex, PR #1014).
+    expect(engagedNoteForms("Spider-Man (Peter Parker)", names)).toEqual([
+      "vs Spider-Man (Peter Parker)",
+      "vs Peter Parker",
+      "vs P. Parker",
+    ]);
+    expect(engagedNoteForms("Spider-Man (Miles Morales)", names)).toEqual([
+      "vs Spider-Man (Miles Morales)",
+      "vs Miles Morales",
+      "vs M. Morales",
+    ]);
     expect(engagedNoteForms("Iron Man", names)).toEqual(["vs Iron Man"]);
     // The same seat's name twice (two minions engaged with one hero) is not another seat.
     expect(engagedNoteForms("Spider-Man (Peter Parker)", ["Spider-Man (Peter Parker)", "Iron Man"])).toEqual([
       "vs Spider-Man (Peter Parker)",
       "vs Spider-Man",
       "vs S.-Man",
+      "vs Peter Parker",
+      "vs P. Parker",
     ]);
   });
 });
