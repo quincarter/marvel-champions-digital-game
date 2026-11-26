@@ -49,4 +49,10 @@ describe("GLOSSARY_ES", () => {
     expect(GLOSSARY_ES["find"]!.definition).toMatch(/cartas de Encuentro boca abajo/);
     expect(GLOSSARY_ES["find"]!.definition).toMatch(/retiradas de la partida/);
   });
+
+  it("Encontrar no vuelve a enfrentar un esbirro ya enfrentado; Vulnerable con Tesón espera dos cartas (RRG 1.8 pp. 19, 48)", () => {
+    expect(GLOSSARY_ES["find"]!.definition).toMatch(/salvo que ya estuviera enfrentado contigo/);
+    expect(GLOSSARY_ES["vulnerable"]!.definition).toMatch(/antes de aplicar el daño/);
+    expect(GLOSSARY_ES["vulnerable"]!.definition).toMatch(/Tesón, solo se descarta cuando tiene dos/);
+  });
 });
