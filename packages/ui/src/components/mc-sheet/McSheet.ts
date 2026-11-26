@@ -88,6 +88,8 @@ export interface SheetButton {
   readonly labelShift?: number;
   /** No label slide (reduced motion). */
   readonly still?: boolean;
+  /** The keyboard chord that presses this button, as `aria-keyshortcuts` (e.g. "Escape", "Control+K"). */
+  readonly keyshortcuts?: string;
 }
 
 /** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
@@ -305,6 +307,7 @@ export class McSheet extends LitElement {
           ?still=${node.still ?? false}
           ?disabled=${node.disabled !== undefined}
           .reason=${typeof node.disabled === "string" ? node.disabled : ""}
+          aria-keyshortcuts=${node.keyshortcuts ?? nothing}
           @mc-press=${() => this.#activate(node.key)}
         ></mc-button>`;
       case "glyph":

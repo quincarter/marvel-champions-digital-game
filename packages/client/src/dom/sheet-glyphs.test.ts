@@ -25,7 +25,7 @@ const snapshot = (
 });
 
 interface Built {
-  buttons: { labelShift?: number; still?: boolean; key: string }[];
+  buttons: { labelShift?: number; still?: boolean; keyshortcuts?: string; key: string }[];
   glyphs: { key?: string; openness: number; x: number; y: number }[];
 }
 
@@ -34,7 +34,8 @@ function stubBuilder(wordWidth = 60): { builder: never; built: Built } {
   const built: Built = { buttons: [], glyphs: [] };
   const builder = {
     measure: () => ({ width: wordWidth, height: 16 }),
-    button: (options: { key: string; labelShift?: number; still?: boolean }) => built.buttons.push(options),
+    button: (options: { key: string; labelShift?: number; still?: boolean; keyshortcuts?: string }) =>
+      built.buttons.push(options),
     glyph: (options: { key?: string; openness: number; x: number; y: number }) => built.glyphs.push(options),
   };
   return { builder: builder as never, built };
@@ -88,6 +89,15 @@ describe("SheetGlyphs", () => {
     expect(folded.built.buttons[0]!.labelShift).toBeUndefined();
     // The glyph stays where it will open, so the fold only animates it.
     expect(folded.built.glyphs[0]!.x).toBe(open.built.glyphs[0]!.x);
+  });
+
+  it("exposes the keyboard chord on the button as aria-keyshortcuts", () => {
+    const glyphs = make();
+    deliver(snapshot(keyboard));
+    const { builder, built } = stubBuilder();
+    glyphs.reset();
+    glyphs.button(builder, entry);
+    expect(built.buttons[0]!.keyshortcuts).toBeTruthy();
   });
 
   it("hangs a glyph that does not fit beside the word, and drops it when that spot is covered", () => {
