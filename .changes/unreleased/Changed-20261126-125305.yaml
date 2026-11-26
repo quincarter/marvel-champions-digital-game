@@ -1,0 +1,3 @@
+kind: Changed
+body: The scenario and hero pickers load small WebP copies of villain and hero pictures, and the guide page a display-size cover, made at build time, so a phone no longer downloads full-size art for roster tiles.
+time: 2026-11-26T12:53:05.0405667-05:00

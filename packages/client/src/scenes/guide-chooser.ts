@@ -23,7 +23,7 @@ import { onLanguageChange } from "../language-change.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
 import { onTap } from "../ui/tap.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
-import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
+import { TITLE_ART, coverFit, displayCopyOf, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import { ensurePictureLoaded } from "../art/pictures.js";
 import {
   GUIDE_CHOOSER_OPTIONS,
@@ -77,7 +77,8 @@ export class GuideChooserScene extends Phaser.Scene {
       this.#hints.dispose();
     });
     this.#selected = "full";
-    this.#art = pickTitleArt(TITLE_ART, null);
+    const picked = pickTitleArt(TITLE_ART, null);
+    this.#art = picked ? displayCopyOf(picked) : null;
     // Start is "forward": it presses Suit up.
     this.#route = new FocusRoute(this, { onCancel: () => this.#decline(), primary: () => "suit-up" });
     this.#rebuild();

@@ -74,6 +74,7 @@ function slotOf<S extends string>(stem: string, slots: readonly S[]): S | null {
 export function parseArtCatalog(
   files: Readonly<Record<string, string>>,
   focusFiles: Readonly<Record<string, unknown>> = {},
+  tileFiles: Readonly<Record<string, string>> = {},
 ): ArtCatalog {
   const focusOf = new Map<string, PictureFocus>();
   for (const [fullPath, raw] of Object.entries(focusFiles)) {
@@ -96,7 +97,11 @@ export function parseArtCatalog(
     const parts = underArt.split("/");
     const file = parts[parts.length - 1] ?? "";
     const stem = file.slice(0, file.lastIndexOf("."));
-    const picture: Picture = { key: `scene-art:${underArt}`, url: files[fullPath]! };
+    const picture: Picture = {
+      key: `scene-art:${underArt}`,
+      url: files[fullPath]!,
+      ...(tileFiles[fullPath] ? { tileUrl: tileFiles[fullPath] } : {}),
+    };
 
     if (parts[0] === "scenarios" && parts.length === 3) {
       if (parts[1]!.startsWith("_")) continue;
@@ -229,10 +234,24 @@ const files = {
   }) as Record<string, string>),
 };
 
+// The roster-size copies of the villain pictures (`vite-roster-art.ts`), for Scenario select's tiles.
+const tileFiles = {
+  ...(import.meta.glob("../../../../art/scenarios/*/villain.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?roster",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/scenarios/*/villain-[0-9]*.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?roster",
+    import: "default",
+  }) as Record<string, string>),
+};
+
 const focusFiles = import.meta.glob("../../../../art/scenarios/*/focus.json", {
   eager: true,
   import: "default",
 }) as Record<string, unknown>;
 
 /** Everything in `art/scenarios/`, `art/outcomes/` and `art/packs/`. */
-export const ART_CATALOG: ArtCatalog = parseArtCatalog(files, focusFiles);
+export const ART_CATALOG: ArtCatalog = parseArtCatalog(files, focusFiles, tileFiles);

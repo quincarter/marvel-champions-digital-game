@@ -14,10 +14,27 @@ const files = import.meta.glob("../../../../art/title/*.{png,jpg,jpeg,webp,avif}
   import: "default",
 }) as Record<string, string>;
 
+// Panel-size WebP copies (`vite-roster-art.ts`), for a screen that shows a title picture in a part of the screen.
+const displayFiles = import.meta.glob("../../../../art/title/*.{png,jpg,jpeg,webp,avif}", {
+  eager: true,
+  query: "?display",
+  import: "default",
+}) as Record<string, string>;
+
 /** Every picture in `art/title/`, in a stable (path-sorted) order. */
 export const TITLE_ART: readonly TitleArt[] = Object.keys(files)
   .sort()
   .map((path) => ({ key: `title-art:${path.slice(path.lastIndexOf("/") + 1)}`, url: files[path]! }));
+
+/**
+ * `art` as its panel-size copy, under its own texture key (the full-size one may be loaded too, and a key holds one
+ * image). For a picture drawn in a panel rather than across the screen, so a phone does not fetch a 3.5 MB cover.
+ */
+export function displayCopyOf(art: TitleArt): TitleArt {
+  const file = art.key.slice(art.key.indexOf(":") + 1);
+  const path = Object.keys(displayFiles).find((p) => p.slice(p.lastIndexOf("/") + 1) === file);
+  return path ? { ...art, key: `${art.key}:display`, url: displayFiles[path]! } : art;
+}
 
 /** One title picture at random, never the one shown last time when there is a choice. */
 export const pickTitleArt = pickPicture;

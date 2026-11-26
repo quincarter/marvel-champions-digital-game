@@ -1944,7 +1944,7 @@ export class SeatsScene extends Phaser.Scene {
     // card's own scan, as before. Only the URL: the card-face worker fetches and decodes it, downscaled to the card.
     const picture = this.#heroPictureFor(option.deck.identityCardId as string);
     const scanUrl = (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null;
-    const artUrl = picture?.url ?? scanUrl;
+    const artUrl = picture?.tileUrl ?? picture?.url ?? scanUrl;
     const entry = active.get(option.deck.id as string);
     const sourceText =
       testedSubtitleOf(option.deck, testedCatalog()) ??
