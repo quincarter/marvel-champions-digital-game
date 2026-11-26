@@ -28,7 +28,7 @@ import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { sceneTakesPresses } from "./activation-gate.js";
 import { cancelPressesWithin } from "@mc/ui";
-import { drawnChromeBox, type DrawnObject } from "./chrome-holes.js";
+import { drawnChromeBoxes, type DrawnObject } from "./chrome-holes.js";
 import { uiLayer } from "./ui-layer.js";
 
 /** The camera fade's current darkness, 0 (none) to 1 (black), as `Phaser.Cameras.Scene2D.Effects.Fade` holds it. */
@@ -239,10 +239,7 @@ function chromeBoxes(game: Phaser.Game, region: Rect): Rect[] {
     // A scene fading out (or fully dark) draws nothing, so its objects cut nothing.
     if (camera && regionOpacity(camera.fadeEffect as unknown as FadeLike, camera.alpha) <= 0) continue;
     const view = { x: 0, y: 0, width: camera?.width ?? region.width, height: camera?.height ?? region.height };
-    for (const object of scene.children.list) {
-      const box = drawnChromeBox(object as unknown as DrawnObject, view);
-      if (box) boxes.push(box);
-    }
+    boxes.push(...drawnChromeBoxes(scene.children.list as unknown as DrawnObject[], view));
   }
   return boxes;
 }

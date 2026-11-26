@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawnChromeBox, type DrawnObject } from "./chrome-holes.js";
+import { drawnChromeBox, drawnChromeBoxes, type DrawnObject } from "./chrome-holes.js";
 
 const camera = { x: 0, y: 0, width: 448, height: 784 };
 const button = (extra: Partial<DrawnObject> = {}, bounds = { x: 200, y: 92, width: 40, height: 26 }): DrawnObject => ({
@@ -41,5 +41,27 @@ describe("drawnChromeBox", () => {
   });
   it("cuts nothing for an object without bounds", () => {
     expect(drawnChromeBox({ visible: true }, camera)).toBeNull();
+  });
+});
+
+describe("drawnChromeBoxes", () => {
+  const zone = (): DrawnObject => button({ type: "Zone" }, { x: 284, y: 70, width: 52, height: 40 });
+  const frame = (commands: number): DrawnObject => ({
+    type: "Graphics",
+    visible: true,
+    alpha: 1,
+    commandBuffer: Array.from({ length: commands }),
+  });
+  it("cuts the hit Zone's hole while the button's Graphics is drawn", () => {
+    expect(drawnChromeBoxes([frame(10), zone()], camera)).toEqual([{ x: 284, y: 70, width: 52, height: 40 }]);
+  });
+  it("cuts nothing for a Zone left behind once its Graphics was cleared", () => {
+    expect(drawnChromeBoxes([frame(0), zone()], camera)).toEqual([]);
+  });
+  it("cuts nothing for a Zone whose Graphics is hidden", () => {
+    expect(drawnChromeBoxes([{ ...frame(10), visible: false }, zone()], camera)).toEqual([]);
+  });
+  it("still cuts a toast's own box", () => {
+    expect(drawnChromeBoxes([button()], camera)).toHaveLength(1);
   });
 });
