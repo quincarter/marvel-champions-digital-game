@@ -270,6 +270,15 @@ describe("play together: watching a room game from its watch link (#1021)", () =
     expect(w.refusals).toEqual(["not-allowed"]);
   });
 
+  it("tells a watch link to a table the room lacks so at once: the refusal, and a welcome without it", async () => {
+    // The watcher reads this as gone (`client/src/live/watch-feed.ts`), never as a host yet to start.
+    const ctx = await setup();
+    const w = await watchLink(ctx, { follow: ["t2"] });
+    expect(w.refusals).toEqual(["no-such-table"]);
+    expect(w.of("refused")[0]!).toBe(w.sent.find((m) => m.kind === "refused" || m.kind === "welcome"));
+    expect(w.last("welcome")!.tables.map((t) => t.id)).toEqual(["t1"]);
+  });
+
   it("gives a named watch link an ordinary watcher, not a read-only one", async () => {
     const ctx = await setup();
     const w = await watchLink(ctx, { name: "Gareth" });
