@@ -12,6 +12,7 @@ import type { McSheet } from "@mc/ui";
 import type Phaser from "phaser";
 import { surface } from "../tokens.js";
 import { isDesktopType } from "../ui/desktop-type.js";
+import { ActivationGate } from "./activation-gate.js";
 import { DomRegion, renderNow } from "./dom-region.js";
 import { SheetBuilder } from "./sheet-builder.js";
 import type { Rect } from "../view/layout.js";
@@ -20,12 +21,16 @@ export class PopupSheet {
   readonly #scene: Phaser.Scene;
   readonly #onActivate: (key: string) => void;
   #region: DomRegion<McSheet> | null = null;
+  /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
+  readonly #gate: ActivationGate;
 
   /** `onActivate` hears a button's key when it is tapped. */
   constructor(scene: Phaser.Scene, onActivate: (key: string) => void) {
     this.#scene = scene;
     this.#onActivate = onActivate;
+    this.#gate = new ActivationGate(scene);
     scene.events.once("shutdown", () => {
+      this.#gate.destroy();
       this.#region = null;
     });
   }
@@ -47,6 +52,7 @@ export class PopupSheet {
     if (!this.#region) {
       const element = document.createElement("mc-sheet") as McSheet;
       element.addEventListener("mc-activate", (event) => {
+        if (!this.#gate.take()) return;
         this.#onActivate((event as CustomEvent<{ key: string }>).detail.key);
       });
       this.#region = new DomRegion(this.#scene, element, { x: 0, y: 0, width, height }, { overlay: true });
