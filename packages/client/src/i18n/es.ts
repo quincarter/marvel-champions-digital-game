@@ -1278,7 +1278,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "log.close": "Cerrar",
   "log.villainPhase": "◂ Fase del villano",
   "log.empty": "Lo que pasa en la mesa se anota aquí.",
-  "log.newer": "▼ {count} más recientes · último",
+  "log.newer": "▼ Nuevas entradas: {count} · Ir al final",
   "log.latest": "▼ último",
   "log.status.stunned": "Aturdido",
   "log.status.confused": "Confundido",
@@ -1379,7 +1379,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Reproduce en orden aleatorio las canciones que has ganado en Extras, en los menús y las partidas. Las entradas, el fin de partida y los finales conservan la suya.",
   "settings.confirmEndTurn.title": "Confirmar antes de terminar el turno",
   "settings.confirmEndTurn.detail":
-    "Pregunta antes de Terminar turno si tú o un aliado aún podéis hacer un ataque básico, una intervención básica o una recuperación básica. Desactivado termina el turno al momento.",
+    "Pregunta antes de terminar el turno si todavía puedes realizar un ataque básico, una intervención básica o una recuperación básica, o si uno de tus aliados puede atacar o intervenir. Si desactivas esta opción, el turno termina inmediatamente.",
   "settings.notOffered.title": "Explicar habilidades no ofrecidas",
   "settings.notOffered.detail":
     "La primera vez que no se pueda usar la interrupción o respuesta de una carta (sin objetivo, o con un coste que no puedes pagar), explica por qué. El registro siempre lo dice.",
@@ -1655,7 +1655,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pause.onCard": "En {card}.",
   "pause.jump": "Ir a un momento",
   "pause.logEmpty": "Todavía no ha pasado nada.",
-  "pause.logUndoHint": "Toca un momento ↶ para deshacer hasta él",
+  "pause.logUndoHint": "Toca un momento marcado con ↶ para volver a ese punto de la partida",
   "pause.logUndoNone": "Solo se pueden deshacer tus propias jugadas de este turno",
   "pause.fullLogNote":
     "Cada momento conservado, el más reciente primero. Toca «Registro completo» otra vez para volver a la cuadrícula de palabras clave.",
@@ -1731,13 +1731,12 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "En orden de jugadores: el villano se activa contra ese jugador y luego cada esbirro enfrentado a él, en el orden que ese jugador elija.",
   "rules.villain.dealEncounterCards.label": "3. Repartir cartas de Encuentro",
   "rules.villain.dealEncounterCards.detail":
-    "A cada jugador se le reparte una carta de Encuentro boca abajo (más el nivel heroico, en modo Heroico) y luego una más por cada icono de Riesgo en juego.",
+    "A cada jugador se le reparte una carta de Encuentro boca abajo (más el nivel heroico, en modo Heroico). Luego se reparte una carta adicional por cada icono de Riesgo en juego, una por icono en total, siguiendo el orden de jugadores a partir del Jugador inicial.",
   "rules.villain.revealEncounterCards.label": "4. Mostrar cartas de Encuentro",
   "rules.villain.revealEncounterCards.detail":
-    "El jugador inicial muestra y resuelve de una en una las cartas que le repartieron, y luego cada uno de los demás jugadores hace lo mismo por orden de turno.",
-  "rules.villain.passFirstPlayer.label": "5. Pasar el jugador inicial",
-  "rules.villain.passFirstPlayer.detail":
-    "El indicador de jugador inicial pasa al siguiente jugador en el sentido de las agujas del reloj.",
+    "El jugador inicial muestra y resuelve de una en una las cartas que le repartieron, en el orden en que se repartieron, y luego cada uno de los demás jugadores hace lo mismo siguiendo el orden de jugadores.",
+  "rules.villain.passFirstPlayer.label": "5. Ceder la ficha de Jugador inicial",
+  "rules.villain.passFirstPlayer.detail": "La ficha de Jugador inicial pasa al siguiente jugador en sentido horario.",
   "rules.villain.endOfRound.label": "6. Fin de la ronda",
   "rules.villain.endOfRound.detail":
     "Terminan los efectos «hasta el final de la ronda», se resuelven los efectos postergados y empieza una ronda nueva.",

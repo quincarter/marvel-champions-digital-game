@@ -63,6 +63,18 @@ describe("LabelBitmapCache", () => {
     expect(cache.bytes).toBe(1600);
   });
 
+  it("keeps no more labels than its count cap, however small they are (the WebKit memory report)", () => {
+    // Byte budget ample for all of them; the count cap of three drops the least recently used.
+    const cache = new LabelBitmapCache(1_000_000, 3);
+    for (const key of ["a", "b", "c"]) cache.set(key, label(2, 2));
+    cache.get("a");
+    cache.set("d", label(2, 2));
+    expect(cache.size).toBe(3);
+    expect(cache.get("b")).toBeUndefined();
+    expect(cache.get("a")).toBeDefined();
+    expect(cache.bytes).toBe(3 * 16);
+  });
+
   it("replaces a key without counting it twice", () => {
     const cache = new LabelBitmapCache(1600);
     cache.set("a", label(10, 10));

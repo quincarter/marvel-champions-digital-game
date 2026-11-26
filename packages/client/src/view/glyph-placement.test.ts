@@ -134,6 +134,12 @@ describe("sizes and gating", () => {
     expect(specsSignature(null)).toBe("");
     expect(specsSignature([{ kind: "key", label: "Z", name: "Z key" }])).toBe("key:Z");
   });
+
+  it("tells pad glyphs with the same label but another shape, color or art apart", () => {
+    const a = { kind: "pad", label: "A", shape: "face", symbol: null, name: "A" } as const;
+    expect(specsSignature([a])).not.toBe(specsSignature([{ ...a, color: 0x00ff00 }]));
+    expect(specsSignature([a])).not.toBe(specsSignature([{ ...a, shape: "shoulder" }]));
+  });
 });
 
 describe("the focused-card legend", () => {

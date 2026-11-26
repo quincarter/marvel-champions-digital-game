@@ -101,7 +101,7 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   teamUp: {
     name: "Equipo",
     definition:
-      "Esta palabra clave nombra a dos personajes. Un jugador solo puede incluir la carta en su mazo si su identidad es uno de los dos, y no puede jugarla salvo que ambos personajes estén en juego con su cara de héroe (una identidad de alter ego no cuenta).",
+      "Esta palabra clave nombra a dos personajes. Un jugador solo puede incluir la carta en su mazo si el título de héroe o de alter ego de su identidad coincide con uno de los dos. La carta solo se puede jugar mientras ambos personajes nombrados estén en juego como personajes amistosos, ya sea como identidad en cualquiera de sus caras o como Aliado cuyo título o subtítulo coincida.",
   },
   amplify: {
     name: "Amplificación",
@@ -214,7 +214,7 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   threat: {
     name: "Amenaza",
     definition:
-      "La Amenaza es lo que se acumula en el plan principal y en los planes secundarios a medida que pasan las fases del villano. Si la Amenaza del plan principal llega a su objetivo, el villano gana la partida.",
+      "La Amenaza es lo que se acumula en el Plan principal y en los planes secundarios a medida que pasan las fases del villano. Cuando la Amenaza del Plan principal llega a su objetivo, esa etapa se completa y entra la siguiente etapa del Plan principal. Si se completa la última etapa, el villano gana la partida, salvo que el escenario diga otra cosa.",
   },
   mainScheme: {
     name: "Plan principal",

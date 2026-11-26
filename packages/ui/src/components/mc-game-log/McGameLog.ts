@@ -181,11 +181,19 @@ export class McGameLog extends LitElement {
     const scroller = this.scroller;
     const place = this.#place;
     if (scroller && place) {
-      for (const line of scroller.querySelectorAll<HTMLElement>(".line")) {
-        if (line.dataset.id === place.id) {
-          scroller.scrollTop = line.offsetTop - place.offset;
-          break;
-        }
+      const rows = new Map<string, HTMLElement>();
+      for (const line of scroller.querySelectorAll<HTMLElement>(".line")) rows.set(line.dataset.id ?? "", line);
+      const kept = rows.get(place.id);
+      if (kept) {
+        scroller.scrollTop = kept.offsetTop - place.offset;
+      } else {
+        // The retention limit trimmed the anchor: the nearest line after it that survives (else the first line), at
+        // offset 0, so the reader is never thrown into unrelated later history.
+        const before = (changed.get("lines") as readonly GameLogLine[] | undefined) ?? [];
+        const at = before.findIndex((row) => row.id === place.id);
+        const successor = at < 0 ? undefined : before.slice(at + 1).find((row) => rows.has(row.id));
+        const target = (successor && rows.get(successor.id)) ?? scroller.querySelector<HTMLElement>(".line");
+        if (target) scroller.scrollTop = target.offsetTop;
       }
     }
     this.#measure();
