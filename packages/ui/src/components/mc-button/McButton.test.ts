@@ -64,6 +64,15 @@ describe("mc-button", () => {
     host.remove();
   });
 
+  it("does not press when it was disabled while held", async () => {
+    const { element, presses } = await button();
+    element.dispatchEvent(pointer("pointerdown", 10, 10));
+    element.disabled = true;
+    element.dispatchEvent(pointer("pointerup", 10, 10));
+    expect(presses()).toBe(0);
+    element.remove();
+  });
+
   it("does nothing while disabled, and reflects its state for the stylesheet", async () => {
     const { element, presses } = await button();
     element.disabled = true;

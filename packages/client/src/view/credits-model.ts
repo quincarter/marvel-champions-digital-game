@@ -1,8 +1,8 @@
 /**
  * The Art & Credits screen (`scenes/credits.ts`) as plain data: the fan-project notice, then one section per group of
  * `content/credits.ts`, each entry a row, worded in the player's language. The screen's own words, the notices and the
- * group titles are translated (`i18n/`); an entry's title and credit line are names, works and sources, and stay as
- * the repo records them. Rows are read-only text, so a phone swipe that lifts over one fires nothing (CLAUDE.md, no
+ * group titles come from `i18n/`; each entry's place, credit and notice in Spanish from `content/credits-es.ts`
+ * (names, titles, URLs and licence identifiers stay as written). An entry's title is the work's or the source's name. Rows are read-only text, so a phone swipe that lifts over one fires nothing (CLAUDE.md, no
  * tap on finger lift).
  */
 import {
@@ -17,6 +17,8 @@ import {
   type CreditGroup,
 } from "../content/credits.js";
 import { t, type MessageKey } from "../i18n/translate.js";
+import { artLanguageNow } from "../art/art-source.js";
+import { CREDITS_ES } from "../content/credits-es.js";
 
 export type CreditsRow =
   | { readonly kind: "notice"; readonly text: string }
@@ -52,7 +54,13 @@ const translated = (text: string): string => {
   return key ? t(key) : text;
 };
 
-export const shownInLabelOf = (entry: CreditEntry): string => t("credits.shownIn", { where: entry.shownIn });
+/** An entry's place, credit and notice in the player's language. */
+function wordsOf(entry: CreditEntry): { readonly shownIn: string; readonly credit: string; readonly notice: string } {
+  const spanish = artLanguageNow() === "es" ? CREDITS_ES[entry.id] : undefined;
+  return spanish ?? { shownIn: entry.shownIn, credit: translated(entry.credit), notice: translated(entry.notice) };
+}
+
+export const shownInLabelOf = (entry: CreditEntry): string => t("credits.shownIn", { where: wordsOf(entry).shownIn });
 
 export function creditsRowsOf(): readonly CreditsRow[] {
   const rows: CreditsRow[] = CREDITS_INTRO.map((text) => ({ kind: "notice", text: translated(text) }));
@@ -67,8 +75,8 @@ export function creditsRowsOf(): readonly CreditsRow[] {
         title: entry.title,
         lines: [
           { text: shownInLabelOf(entry), tone: "small" },
-          { text: translated(entry.credit), tone: "body" },
-          { text: translated(entry.notice), tone: "small" },
+          { text: wordsOf(entry).credit, tone: "body" },
+          { text: wordsOf(entry).notice, tone: "small" },
           ...(entry.url ? [{ text: entry.url, tone: "small" as const }] : []),
         ],
       });

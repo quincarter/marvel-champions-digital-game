@@ -3,6 +3,7 @@ import { CREDITS, CREDIT_GROUPS, CREDITS_INTRO, FFG_MARVEL } from "../content/cr
 import { en } from "../i18n/en.js";
 import { es } from "../i18n/es.js";
 import { useEnglish, useSpanish } from "../i18n/test-language.js";
+import { CREDITS_ES } from "../content/credits-es.js";
 import { creditsRowsOf } from "./credits-model.js";
 
 afterEach(useEnglish);
@@ -57,5 +58,20 @@ describe("creditsRowsOf", () => {
     const ffg = spanish.find((row) => row.kind === "entry" && row.entry.notice === FFG_MARVEL);
     expect(ffg?.kind === "entry" && ffg.lines.some((line) => line.text === es["credits.notice.ffgMarvel"])).toBe(true);
     expect(en["credits.intro.fanProject"]).toBe(CREDITS_INTRO[0]);
+  });
+
+  it("has every entry's place, credit and notice in Spanish, and draws them whole", () => {
+    for (const entry of CREDITS) {
+      const spanish = CREDITS_ES[entry.id];
+      expect(spanish, entry.id).toBeDefined();
+      for (const field of [spanish!.shownIn, spanish!.credit, spanish!.notice]) expect(field.trim()).not.toBe("");
+    }
+    useSpanish();
+    const game = creditsRowsOf().find((row) => row.kind === "entry" && row.entry.id === "game");
+    // A notice no other entry shares (the AGPL line) reads in Spanish, with the licence's name kept.
+    const lines = game?.kind === "entry" ? game.lines.map((line) => line.text) : [];
+    expect(lines).toContain(CREDITS_ES["game"]!.notice);
+    expect(CREDITS_ES["game"]!.notice).toMatch(/AGPL/);
+    expect(lines.some((line) => line.includes(CREDITS_ES["game"]!.shownIn))).toBe(true);
   });
 });
