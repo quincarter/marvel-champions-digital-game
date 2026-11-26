@@ -54,7 +54,8 @@ import {
   cheatUnlockWarningOf,
   manualAdjustRowInfoOf,
 } from "./settings-rows.js";
-import { POWER_SAVING_ROW_NOTE } from "./power-saving-notice.js";
+import { powerSavingRowNote } from "./power-saving-notice.js";
+import { useEnglish, useSpanish } from "../i18n/test-language.js";
 import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
 import { defaultSettings, tableRulesOf, type Settings } from "../settings.js";
 
@@ -251,7 +252,7 @@ describe("settingsRowInfoOf", () => {
     for (const row of saving) {
       const before = usual.find((r) => r.id === row.id)!.detail;
       const followsMode = row.id === "reduced-motion" || row.id === "sharper-text";
-      expect(row.detail, row.id).toBe(followsMode ? `${before} ${POWER_SAVING_ROW_NOTE}` : before);
+      expect(row.detail, row.id).toBe(followsMode ? `${before} ${powerSavingRowNote()}` : before);
     }
   });
 
@@ -640,7 +641,7 @@ describe("the Android app's Screen rows", () => {
   });
 
   test("in power saving mode the row says it follows the mode", () => {
-    expect(frameRateRowInfoOf({ ...BASE, frameRate: "30" }, 120, true).detail).toContain(POWER_SAVING_ROW_NOTE);
+    expect(frameRateRowInfoOf({ ...BASE, frameRate: "30" }, 120, true).detail).toContain(powerSavingRowNote());
     expect(nextSettingsAfterFrameRate(BASE, "30").frameRate).toBe("30");
   });
 });
@@ -827,5 +828,37 @@ describe("cheatUnlockWarningOf: turning on a way for a game to stop counting ask
   });
   test("any other change asks nothing", () => {
     expect(cheatUnlockWarningOf(base, { ...base, sound: !base.sound })).toBeNull();
+  });
+});
+
+describe("the rows in Spanish (#390)", () => {
+  afterEach(useEnglish);
+
+  test("titles, details and option labels read in the language picked, at call time", () => {
+    useSpanish();
+    const rows = settingsRowInfoOf(BASE);
+    expect(rows.find((row) => row.id === "reduced-motion")?.title).toBe("Movimiento reducido");
+    expect(rows.find((row) => row.id === "dark-mode")?.title).toBe("Modo oscuro");
+    const villain = villainRowInfoOf(BASE);
+    expect(villain.autoAdvance.title).toBe("Avance automático");
+    expect(villain.autoAdvance.options.map((o) => o.label)).toEqual(["No", "Tras una pausa", "Sí"]);
+    expect(cardSizeRowInfoOf(BASE).options.map((o) => o.label)).toEqual([
+      "Ajustar",
+      "Mismo tamaño",
+      "Grande",
+      "Extra grande",
+    ]);
+    expect(guideRowInfoOf(defaultGuidePrefs)[0]).toMatchObject({ title: "Nivel de guía" });
+    expect(cheatUnlockWarningOf(BASE, { ...BASE, allowManualAdjust: true })?.title).toBe("ESTA PARTIDA NO CONTARÁ");
+    useEnglish();
+    expect(settingsRowInfoOf(BASE).find((row) => row.id === "reduced-motion")?.title).toBe("Reduced motion");
+  });
+
+  test("the power saving note and the filled-in sentences follow the language too", () => {
+    useSpanish();
+    expect(frameRateRowInfoOf({ ...BASE, frameRate: "30" }, 120, true).detail).toBe(
+      "Limita el juego a 30 fps, lo que ahorra batería y calor. " + powerSavingRowNote(),
+    );
+    expect(powerSavingRowNote()).toMatch(/^El modo de ahorro de energía está activado/);
   });
 });

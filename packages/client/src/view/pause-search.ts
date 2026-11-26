@@ -21,7 +21,7 @@ import type {
   SettingsSearchResult,
 } from "./settings-search.js";
 import {
-  GUIDE_LEVEL_SEARCH_DETAIL,
+  guideLevelSearchDetail,
   achievementPopupPlaceRowInfoOf,
   achievementPopupSizeRowInfoOf,
   achievementPopupTimeRowInfoOf,
@@ -215,7 +215,7 @@ export function pauseSettingRowsOf(settings: Settings, guide: GuidePrefs, env: P
       rows.push({
         id: row.id,
         title: row.title,
-        detail: GUIDE_LEVEL_SEARCH_DETAIL,
+        detail: guideLevelSearchDetail(),
         control: { kind: "choice", options: row.options, selected: row.selected },
         apply: (state, value) =>
           value === undefined

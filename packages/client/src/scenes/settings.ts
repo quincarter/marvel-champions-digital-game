@@ -27,7 +27,7 @@
 import Phaser from "phaser";
 import type { OnlineNameData } from "./online-name.js";
 import {
-  GUIDE_LEVEL_SEARCH_DETAIL,
+  guideLevelSearchDetail,
   guideRowInfoOf,
   guideRowDetailOf,
   nextGuidePrefsAfterRow,
@@ -180,14 +180,14 @@ import { askToConfirm } from "./end-turn-confirm.js";
 import { SCENES } from "./keys.js";
 import {
   CONTROLS_ROW,
-  CONTROLS_ROW_DETAIL,
+  controlsRowDetail,
   RULES_ROW,
-  RULES_ROW_DETAIL,
-  RULES_ROW_TITLE,
+  rulesRowDetail,
+  rulesRowTitle,
   SAVE_DATA_ROW,
   STATS_ROW,
-  STATS_ROW_DETAIL,
-  STEAM_DECK_DETAIL,
+  statsRowDetail,
+  steamDeckDetail,
   UNLOCKS_ROW,
   controlsShown,
   couchBaseOf,
@@ -206,8 +206,8 @@ import { heroPromoShown } from "../view/hero-art-choice.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import type { TransferCode } from "@mc/sync-worker/protocol";
 import type { SaveDataSceneData } from "./save-data.js";
-import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
+import { saveDataRowDetail, saveDataRowTitle } from "../view/save-data-model.js";
+import { steamInstallRowDetail, steamInstallRowTitle, STEAM_UPDATE_CLOSED } from "../view/steam-update.js";
 import { t } from "../i18n/translate.js";
 import { knownSteamAdd, steamAdd } from "../platform/steam-add.js";
 import { DOWNLOADS_URL } from "../view/language-button.js";
@@ -793,10 +793,15 @@ export class SettingsOverlay extends Phaser.Scene {
       stops,
     );
     const title = this.add
-      .text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
+      .text(
+        layout.header.x + 16,
+        layout.header.y + layout.header.height / 2,
+        caseOf(typeRole.barTitle, t("settings.title")),
+        {
+          ...textStyle(typeRole.barTitle, surface.paper.hex),
+          fontSize: "24px",
+        },
+      )
       .setOrigin(0, 0.5);
     // The dark mode toggle (#459) sits in the header's middle, clear of the title on the left and the pad hints and
     // the search and close buttons on the right, rather than floating over the panel's top border. Past the title
@@ -825,7 +830,7 @@ export class SettingsOverlay extends Phaser.Scene {
         layout.tabs,
         "search-field",
         "",
-        "Search settings, rules, unlocks…",
+        t("settings.searchPlaceholder"),
         (value) => this.#onSearchChange(value),
         this.#searchInput,
         stops,
@@ -895,7 +900,7 @@ export class SettingsOverlay extends Phaser.Scene {
   #drawResults(room: Rect, results: readonly SettingsSearchResult[], stops: Map<string, FocusStop>): readonly string[] {
     if (results.length === 0) {
       this.add
-        .text(room.x, room.y + 14, "Nothing matches that search.", textStyle(typeRole.body, surface.paper.hex, 0.8))
+        .text(room.x, room.y + 14, t("settings.noResults"), textStyle(typeRole.body, surface.paper.hex, 0.8))
         .setFontSize(12);
       return [];
     }
@@ -1138,7 +1143,7 @@ export class SettingsOverlay extends Phaser.Scene {
       if (row.kind === "segmented") {
         items.set(row.id, {
           title: row.title,
-          detail: GUIDE_LEVEL_SEARCH_DETAIL,
+          detail: guideLevelSearchDetail(),
           spec: { kind: "level", id: row.id },
           draw: (item, stops) => {
             this.#drawGuideLevelRow(item.row, row, item.slot, stops);
@@ -1169,12 +1174,12 @@ export class SettingsOverlay extends Phaser.Scene {
         },
       });
     };
-    door(UNLOCKS_ROW, "Unlocks", unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
-    door(STATS_ROW, "Your stats", STATS_ROW_DETAIL, () => this.#openStats());
-    door(SAVE_DATA_ROW, SAVE_DATA_ROW_TITLE, SAVE_DATA_ROW_DETAIL, () => this.#openSaveData());
-    door(CONTROLS_ROW, "Controls", CONTROLS_ROW_DETAIL, () => this.#openControls());
-    door(RULES_ROW, RULES_ROW_TITLE, RULES_ROW_DETAIL, () => this.#openRules());
-    door("steam-install", STEAM_INSTALL_ROW_TITLE, STEAM_INSTALL_ROW_DETAIL, () => this.#openSteamUpdate());
+    door(UNLOCKS_ROW, t("settings.unlocks.title"), unlocksSummaryOf(unlocks()), () => this.#openUnlocks());
+    door(STATS_ROW, t("settings.stats.title"), statsRowDetail(), () => this.#openStats());
+    door(SAVE_DATA_ROW, saveDataRowTitle(), saveDataRowDetail(), () => this.#openSaveData());
+    door(CONTROLS_ROW, t("settings.controls.title"), controlsRowDetail(), () => this.#openControls());
+    door(RULES_ROW, rulesRowTitle(), rulesRowDetail(), () => this.#openRules());
+    door("steam-install", steamInstallRowTitle(), steamInstallRowDetail(), () => this.#openSteamUpdate());
     items.set("steam-add", {
       title: t("steamAdd.row.title"),
       detail: t("steamAdd.row.detail"),
@@ -1197,14 +1202,23 @@ export class SettingsOverlay extends Phaser.Scene {
     });
     items.set("steam-deck", {
       title: "Steam Deck",
-      detail: STEAM_DECK_DETAIL,
-      spec: { kind: "toggle", id: "steam-deck", detail: STEAM_DECK_DETAIL },
+      detail: steamDeckDetail(),
+      spec: { kind: "toggle", id: "steam-deck", detail: steamDeckDetail() },
       draw: (item, stops) => {
         const use = (): void => {
           this.#pendingResolution = null;
           this.#setWindow({ ...appSession().settings, ...HANDHELD_DISPLAY });
         };
-        this.#drawDoorRow(item.row, "steam-deck", "Steam Deck", STEAM_DECK_DETAIL, item.slot, stops, use, "Use");
+        this.#drawDoorRow(
+          item.row,
+          "steam-deck",
+          "Steam Deck",
+          steamDeckDetail(),
+          item.slot,
+          stops,
+          use,
+          t("settings.use"),
+        );
         return ["steam-deck"];
       },
     });
@@ -1510,7 +1524,7 @@ export class SettingsOverlay extends Phaser.Scene {
             kind: "button",
             key: "resolution:apply",
             rect: this.#bodyRect(apply),
-            label: "Apply",
+            label: t("settings.apply"),
             look: pending ? "primary" : "secondary",
             ...(pending ? {} : { disabled: true as const }),
           },
@@ -1654,7 +1668,9 @@ export class SettingsOverlay extends Phaser.Scene {
         rect: this.#bodyRect(rect),
         ...this.#rowText(row.title, row.detail, rect.width - 100),
         rowKey: id,
-        controls: [this.#rowButton(id, rect, { label: row.on ? "ON" : "OFF", on: row.on })],
+        controls: [
+          this.#rowButton(id, rect, { label: row.on ? t("settings.toggleOn") : t("settings.toggleOff"), on: row.on }),
+        ],
       },
       { [id]: activate },
       stops,
@@ -1674,7 +1690,13 @@ export class SettingsOverlay extends Phaser.Scene {
         ...(unavailable === undefined ? { rowKey: row.id } : {}),
         controls: [
           this.#rowButton(row.id, rect, {
-            label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
+            label: unavailable
+              ? "—"
+              : row.kind === "toggle"
+                ? row.on
+                  ? t("settings.toggleOn")
+                  : t("settings.toggleOff")
+                : t("settings.open"),
             on,
             ...(unavailable !== undefined ? { unavailable } : {}),
           }),
@@ -1711,7 +1733,7 @@ export class SettingsOverlay extends Phaser.Scene {
     _index: number,
     stops: Map<string, FocusStop>,
     activate: () => void,
-    buttonLabel = "Open ▸",
+    buttonLabel = t("settings.open"),
   ): void {
     this.#addBodyRow(
       {
@@ -1736,7 +1758,7 @@ export class SettingsOverlay extends Phaser.Scene {
         ...(row.unavailable === undefined ? { rowKey: row.id } : {}),
         controls: [
           this.#rowButton(row.id, rect, {
-            label: row.unavailable ? "—" : row.on ? "ON" : "OFF",
+            label: row.unavailable ? "—" : row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
             on: row.on,
             ...(row.unavailable !== undefined ? { unavailable: row.unavailable } : {}),
           }),

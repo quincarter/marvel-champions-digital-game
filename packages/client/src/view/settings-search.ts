@@ -18,6 +18,7 @@ import {
   type PreparedDocument,
   type SearchDocument,
 } from "./deck-search.js";
+import { t } from "../i18n/translate.js";
 import type { TextRange } from "./settings-search-line.js";
 import type { SettingsItemId, SettingsTabId } from "./settings-sections.js";
 import {
@@ -145,7 +146,7 @@ export function settingsRowEntriesOf(
             id: `setting:${item}`,
             title: row.title,
             detail: row.detail,
-            place: `Settings ▸ ${tab.label}`,
+            place: t("settings.searchPlace", { tab: tab.label }),
             target: { kind: "setting", item, tab: tab.id } satisfies SettingsSearchTarget,
             ...(SETTINGS_KEYWORDS[item] ? { keywords: SETTINGS_KEYWORDS[item] } : {}),
           },

@@ -3,6 +3,7 @@
  * place that says which setting sits under which heading, in draw order, so the scene only draws and a test can check
  * that every setting shows up exactly once. Pure data: the scene still owns each row's control.
  */
+import { t, type MessageKey } from "../i18n/translate.js";
 import { EARNED_ITEMS } from "../progression/earned-items.js";
 import type { GuideSettingsRowId, SettingsRowId } from "./settings-rows.js";
 
@@ -114,7 +115,7 @@ export function settingsSectionsOf(input: {
   return [
     {
       id: "gameplay",
-      title: "Gameplay",
+      title: t("settings.section.gameplay"),
       items: [
         "confirm-end-turn",
         "not-offered-notices",
@@ -128,17 +129,17 @@ export function settingsSectionsOf(input: {
     },
     {
       id: "cards-left",
-      title: "Cards left",
+      title: t("settings.section.cardsLeft"),
       items: ["deck-counts-hero", "deck-counts-encounter", "deck-boost-average"],
     },
     {
       id: "villain",
-      title: "Villain phase",
+      title: t("settings.section.villain"),
       items: ["villain-auto", "villain-hold", "villain-flip", "villain-flip-speed", "villain-speed", "villain-dock"],
     },
     {
       id: "cards",
-      title: "Cards",
+      title: t("settings.section.cards"),
       items: [
         "card-size",
         "large-schemes",
@@ -158,17 +159,23 @@ export function settingsSectionsOf(input: {
       ? [
           {
             id: "window",
-            title: "Window",
+            title: t("settings.section.window"),
             items: ["display-mode", "resolution", ...(input.steamDeck ? (["steam-deck"] as const) : [])],
           } satisfies SettingsSection,
         ]
       : []),
     ...(input.screenSettings
-      ? [{ id: "screen", title: "Screen", items: ["render-scale", "frame-rate"] } satisfies SettingsSection]
+      ? [
+          {
+            id: "screen",
+            title: t("settings.section.screen"),
+            items: ["render-scale", "frame-rate"],
+          } satisfies SettingsSection,
+        ]
       : []),
     {
       id: "motion",
-      title: "Animation and display",
+      title: t("settings.section.motion"),
       items: [
         ...(input.couchMode ? (["couch-mode"] as const) : []),
         ...(input.powerSaving ? (["power-saving"] as const) : []),
@@ -182,7 +189,7 @@ export function settingsSectionsOf(input: {
     },
     {
       id: "sound",
-      title: "Sound",
+      title: t("settings.section.sound"),
       items: [
         "sound",
         ...(input.gameVolume ? (["game-volume"] as const) : []),
@@ -191,10 +198,10 @@ export function settingsSectionsOf(input: {
         "music-shuffle",
       ],
     },
-    { id: "guide", title: "Guide", items: input.guideRowIds },
+    { id: "guide", title: t("settings.section.guide"), items: input.guideRowIds },
     {
       id: "more",
-      title: "More",
+      title: t("settings.section.more"),
       items: [
         "unlocks",
         "stats",
@@ -210,17 +217,23 @@ export function settingsSectionsOf(input: {
     },
     {
       id: "achievements",
-      title: "Achievements",
+      title: t("settings.section.achievements"),
       items: ["achievement-popup-time", "achievement-popup-place", "achievement-popup-size"],
     },
-    { id: "custom", title: "Custom content", items: ["custom-placement", "custom-unlocked"] },
+    { id: "custom", title: t("settings.section.custom"), items: ["custom-placement", "custom-unlocked"] },
     // Every setting that can stop a game counting toward stats, achievements and champion points, in one place (#899,
     // the owner, 2026-11-20): off by default, each with a warning before it turns on. A new setting that marks a game
     // Adjusted (`isAdjustedSave`) belongs here.
     ...(input.cheats === false
       ? []
-      : [{ id: "cheats" as const, title: "Cheats", items: ["undo-past-turn", "manual-adjust"] as const }]),
-    { id: "earned", title: "Earned items", items: EARNED_ITEMS.map((item) => item.id) },
+      : [
+          {
+            id: "cheats" as const,
+            title: t("settings.section.cheats"),
+            items: ["undo-past-turn", "manual-adjust"] as const,
+          },
+        ]),
+    { id: "earned", title: t("settings.section.earned"), items: EARNED_ITEMS.map((item) => item.id) },
   ];
 }
 
@@ -235,15 +248,15 @@ export interface SettingsTab {
 /** Which sections each tab shows, left to right. Labels stay short ("Game", not "Gameplay"). Sound has a tab of its own where the rail has room for six (#243); a phone's narrow rail keeps five, with Sound under Display. A tab with two sections heads each one; a tab with one doesn't repeat its own name. */
 const TAB_SECTIONS: readonly {
   readonly id: SettingsTabId;
-  readonly label: string;
+  readonly label: MessageKey;
   readonly sections: readonly SettingsSectionId[];
 }[] = [
-  { id: "gameplay", label: "Game", sections: ["gameplay", "cards-left", "villain"] },
-  { id: "cards", label: "Cards", sections: ["cards"] },
-  { id: "display", label: "Display", sections: ["window", "screen", "motion"] },
-  { id: "sound", label: "Sound", sections: ["sound"] },
-  { id: "guide", label: "Guide", sections: ["guide"] },
-  { id: "more", label: "More", sections: ["more", "achievements", "custom", "cheats", "earned"] },
+  { id: "gameplay", label: "settings.tab.gameplay", sections: ["gameplay", "cards-left", "villain"] },
+  { id: "cards", label: "settings.tab.cards", sections: ["cards"] },
+  { id: "display", label: "settings.tab.display", sections: ["window", "screen", "motion"] },
+  { id: "sound", label: "settings.tab.sound", sections: ["sound"] },
+  { id: "guide", label: "settings.tab.guide", sections: ["guide"] },
+  { id: "more", label: "settings.tab.more", sections: ["more", "achievements", "custom", "cheats", "earned"] },
 ];
 
 /** The Settings panel's tabs (owner, 2026-10-16: one tab at a time instead of one long scroll), built from `settingsSectionsOf`'s sections. */
@@ -257,7 +270,7 @@ export function settingsTabsOf(
   const soundTab = input.soundTab !== false;
   return TAB_SECTIONS.filter((tab) => soundTab || tab.id !== "sound").map((tab) => ({
     id: tab.id,
-    label: tab.label,
+    label: t(tab.label),
     sections: [...tab.sections, ...(!soundTab && tab.id === "display" ? (["sound"] as const) : [])].flatMap((id) =>
       sections.filter((s) => s.id === id),
     ),

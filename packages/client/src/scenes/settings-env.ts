@@ -38,11 +38,11 @@ import type { SettingsRowText } from "../view/settings-search.js";
 import { knownMixerVolume } from "../platform/app-volume.js";
 import { desktopMonitor, resolutionOptionsFor } from "../platform/desktop-window.js";
 import { knownHardware } from "../platform/device-hardware.js";
-import { hardwareSummaryOf, recommendedScreenOf, tierLabelOf } from "../platform/device-tier.js";
+import { hardwareSummaryOf, recommendedScreenOf } from "../platform/device-tier.js";
 import { knownRefreshInfo } from "../platform/screen-settings.js";
 import { powerSavingRowOf } from "../view/power-saving-notice.js";
-import { SAVE_DATA_ROW_DETAIL, SAVE_DATA_ROW_TITLE } from "../view/save-data-model.js";
-import { STEAM_INSTALL_ROW_DETAIL, STEAM_INSTALL_ROW_TITLE } from "../view/steam-update.js";
+import { saveDataRowDetail, saveDataRowTitle } from "../view/save-data-model.js";
+import { steamInstallRowDetail, steamInstallRowTitle } from "../view/steam-update.js";
 import { unlocksSummaryOf } from "../view/unlocks-model.js";
 import { unlocks } from "../progression/progression.js";
 
@@ -52,20 +52,19 @@ export const UNLOCKS_ROW = "unlocks";
 /** The Save data row's own id: a door to `scenes/save-data.ts`, right after Unlocks. */
 export const SAVE_DATA_ROW = "save-data";
 export const STATS_ROW = "stats";
-export const STATS_ROW_DETAIL = "Your record, heroes, villains, side schemes and the cards you play.";
+export const statsRowDetail = (): string => t("settings.stats.detail");
 
 /** The Rules reference row: a door to `scenes/rules.ts`'s glossary, right after Save data (owner, 2026-10-01). */
 export const RULES_ROW = "rules";
-export const RULES_ROW_TITLE = "Rules reference";
-export const RULES_ROW_DETAIL = "Look up any keyword, rule or ruling, with the cards it applies to.";
+export const rulesRowTitle = (): string => t("settings.rules.title");
+export const rulesRowDetail = (): string => t("settings.rules.detail");
 
 /** The Steam Deck row (SteamOS and Bazzite only): back to the display a Deck starts with. */
-export const STEAM_DECK_DETAIL =
-  "Fullscreen at the screen's own resolution (1280 × 800 on the Deck), what this device starts with.";
+export const steamDeckDetail = (): string => t("settings.steamDeck.detail");
 
 /** The Controls row: a door to `scenes/controls.ts`, the drawn controller and the keyboard's keys. */
 export const CONTROLS_ROW = "controls";
-export const CONTROLS_ROW_DETAIL = "Your controller's buttons, the keyboard shortcuts and the on-screen hints.";
+export const controlsRowDetail = (): string => t("settings.controls.detail");
 
 /** The narrowest tab cell that still shows "Display" and "Sound" whole (#243). */
 const SOUND_TAB_MIN_CELL = 64;
@@ -98,7 +97,7 @@ export function screenSettingsShown(): boolean {
 export function screenAdviceOf() {
   const hardware = knownHardware();
   const recommended = recommendedScreenOf(hardware);
-  return { ...recommended, tier: tierLabelOf(recommended.tier), summary: hardwareSummaryOf(hardware) };
+  return { ...recommended, tier: t(`settings.tier.${recommended.tier}`), summary: hardwareSummaryOf(hardware) };
 }
 
 /**
@@ -142,14 +141,14 @@ export function settingsDeviceRowsFor(
     add(discord.id, { title: discord.title, detail: discord.unavailable ?? discord.detail });
   }
   add("live-watch", liveWatchRowInfoOf(settings));
-  add("steam-deck", { title: "Steam Deck", detail: STEAM_DECK_DETAIL });
-  add("steam-install", { title: STEAM_INSTALL_ROW_TITLE, detail: STEAM_INSTALL_ROW_DETAIL });
+  add("steam-deck", { title: "Steam Deck", detail: steamDeckDetail() });
+  add("steam-install", { title: steamInstallRowTitle(), detail: steamInstallRowDetail() });
   add("steam-add", { title: t("steamAdd.row.title"), detail: t("steamAdd.row.detail") });
-  add(UNLOCKS_ROW, { title: "Unlocks", detail: unlocksSummaryOf(unlocks()) });
-  add(STATS_ROW, { title: "Your stats", detail: STATS_ROW_DETAIL });
-  add(SAVE_DATA_ROW, { title: SAVE_DATA_ROW_TITLE, detail: SAVE_DATA_ROW_DETAIL });
-  add(CONTROLS_ROW, { title: "Controls", detail: CONTROLS_ROW_DETAIL });
-  add(RULES_ROW, { title: RULES_ROW_TITLE, detail: RULES_ROW_DETAIL });
+  add(UNLOCKS_ROW, { title: t("settings.unlocks.title"), detail: unlocksSummaryOf(unlocks()) });
+  add(STATS_ROW, { title: t("settings.stats.title"), detail: statsRowDetail() });
+  add(SAVE_DATA_ROW, { title: saveDataRowTitle(), detail: saveDataRowDetail() });
+  add(CONTROLS_ROW, { title: t("settings.controls.title"), detail: controlsRowDetail() });
+  add(RULES_ROW, { title: rulesRowTitle(), detail: rulesRowDetail() });
   return rows;
 }
 

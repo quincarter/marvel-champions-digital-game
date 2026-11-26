@@ -175,6 +175,18 @@ describe("taps", () => {
 });
 
 describe("summaries", () => {
+  it("reads in Spanish once Spanish is picked (#390)", () => {
+    useSpanish();
+    try {
+      const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });
+      expect(unlocksSummaryOf(rich(byHand))).toMatch(
+        /^600 puntos de campeón · 2 de 12 ciclos abiertos · 1 desbloqueado con puntos\. Siguiente: /,
+      );
+    } finally {
+      useEnglish();
+    }
+  });
+
   it("leads with champion points", () => {
     expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 12 waves open. Next: Beat Rhino to unlock Wave 1.");
     const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });

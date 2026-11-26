@@ -4,9 +4,11 @@
  */
 import { describeSaveFileSummary, saveFileSummaryOf, type SaveFile } from "../save-data/save-file.js";
 import type { TransferStep } from "./save-transfer-model.js";
+import { t } from "../i18n/translate.js";
 
-export const SAVE_DATA_ROW_TITLE = "Save data";
-export const SAVE_DATA_ROW_DETAIL = "Export or import your saved games, decks, campaigns, unlocks and settings.";
+/** Settings' Save data row, read when drawn so a language switch shows at once. */
+export const saveDataRowTitle = (): string => t("settings.saveData.title");
+export const saveDataRowDetail = (): string => t("settings.saveData.detail");
 export const EXPORT_ROW_TITLE = "Export";
 export const EXPORT_ROW_DETAIL = "Save everything on this device to a file you can keep or move to another device.";
 export const IMPORT_ROW_TITLE = "Import";

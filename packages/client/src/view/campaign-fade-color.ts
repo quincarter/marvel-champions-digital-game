@@ -5,13 +5,15 @@
  */
 import { surface } from "../tokens.js";
 import type { CampaignFadeColor } from "../settings.js";
+import type { MessageKey } from "../i18n/translate.js";
 
-export const CAMPAIGN_FADE_COLOR_LABELS: Readonly<Record<CampaignFadeColor, string>> = {
-  grey: "Grey",
-  blue: "Blue",
-  red: "Red",
-  purple: "Purple",
-  green: "Green",
+/** Each colour's name on the Fade color row, as a catalog key (`t` reads it in the current language). */
+export const CAMPAIGN_FADE_COLOR_KEYS: Readonly<Record<CampaignFadeColor, MessageKey>> = {
+  grey: "settings.fadeColor.grey",
+  blue: "settings.fadeColor.blue",
+  red: "settings.fadeColor.red",
+  purple: "settings.fadeColor.purple",
+  green: "settings.fadeColor.green",
 };
 
 /** Each ground, dark enough for `PANE_TEXT_COLOR` at AA contrast through the art and the veil (see the test). */

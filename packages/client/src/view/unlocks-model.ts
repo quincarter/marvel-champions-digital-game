@@ -21,7 +21,7 @@ import {
 } from "../progression/unlocks.js";
 import { POOL_SCENARIOS } from "../content/pool.js";
 import { artLanguageNow } from "../art/art-source.js";
-import { t } from "../i18n/translate.js";
+import { t, tPlural } from "../i18n/translate.js";
 import {
   customFreeHint,
   customHeroMode,
@@ -382,15 +382,17 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
 
 /** The one line Settings shows under "Unlocks". */
 export function unlocksSummaryOf(unlocks: Unlocks): string {
-  if (unlocks.everything) return "Unlock everything is on: everything is open, and champion points are off.";
-  const points = `${formatPoints(unlocks.points().total)} champion points`;
+  if (unlocks.everything) return t("settings.unlocks.everything");
+  const total = unlocks.points().total;
+  const points = tPlural("settings.unlocks.points", total, { points: formatPoints(total) });
   const waves = unlocks.waves();
   const open = waves.filter((w) => w.unlocked).length;
   const next = waves.find((w) => !w.unlocked);
   const byHand =
     unlocks.prefs.heroIds.filter((id) => !unlocks.heroEarned(id)).length +
     unlocks.prefs.campaignIds.filter((id) => !unlocks.campaignEarned(id)).length;
-  const parts = [points, `${open} of ${waves.length} waves open`];
-  if (byHand > 0) parts.push(`${byHand} unlocked by hand`);
-  return `${parts.join(" · ")}.${next?.lockReasonIn("en") ? ` Next: ${next.lockReasonIn("en")}.` : ""}`;
+  const parts = [points, t("settings.unlocks.waves", { open, total: waves.length })];
+  if (byHand > 0) parts.push(tPlural("settings.unlocks.byHand", byHand));
+  const reason = next?.lockReasonIn(artLanguageNow());
+  return `${parts.join(" · ")}.${reason ? ` ${t("settings.unlocks.next", { reason })}` : ""}`;
 }

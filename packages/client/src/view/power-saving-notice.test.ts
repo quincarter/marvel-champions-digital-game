@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  POWER_SAVING_ROW_NOTE,
+  powerSavingRowNote,
   powerSavingFooterOf,
   powerSavingNoticeOf,
   powerSavingRowOf,
@@ -23,7 +23,7 @@ describe("power saving notice", () => {
   test("the Title footer shows a line only while the mode is on", () => {
     expect(powerSavingFooterOf(true)).toBe("Power saving detected · lighter effects, 30 fps");
     expect(powerSavingFooterOf(false)).toBeNull();
-    expect(POWER_SAVING_ROW_NOTE).toMatch(/unless you change it/);
+    expect(powerSavingRowNote()).toMatch(/unless you change it/);
   });
 
   test("a player who turned lighter play off is told the game runs as usual", () => {

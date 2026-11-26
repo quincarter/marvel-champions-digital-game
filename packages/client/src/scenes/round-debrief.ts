@@ -29,7 +29,7 @@ import {
   type RoundDebriefLayout,
   type RoundDebriefLessonRow,
 } from "../view/round-debrief-model.js";
-import { GUIDE_LEVEL_OPTIONS } from "../view/settings-rows.js";
+import { guideLevelOptions } from "../view/settings-rows.js";
 import { withLevel, type GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { GlyphHints } from "../ui/glyph-hints.js";
@@ -274,9 +274,9 @@ export class RoundDebriefScene extends Phaser.Scene {
 
     const rect = layout.guideLevel;
     const gap = 4;
-    const cellWidth = (rect.width - gap * (GUIDE_LEVEL_OPTIONS.length - 1)) / GUIDE_LEVEL_OPTIONS.length;
+    const cellWidth = (rect.width - gap * (guideLevelOptions().length - 1)) / guideLevelOptions().length;
     const stopIds: string[] = [];
-    GUIDE_LEVEL_OPTIONS.forEach((option, i) => {
+    guideLevelOptions().forEach((option, i) => {
       const cellRect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
       const selected = content.level === option.value;
       const activate = (): void => this.#setGuideLevel(option.value);
@@ -338,7 +338,7 @@ export class RoundDebriefScene extends Phaser.Scene {
     this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     const stops = new Map<string, FocusStop>();
     for (const id of guideStops) {
-      const option = GUIDE_LEVEL_OPTIONS.find((o) => `guide-level:${o.value}` === id)!;
+      const option = guideLevelOptions().find((o) => `guide-level:${o.value}` === id)!;
       stops.set(id, {
         rect: this.#cellRects.get(id) ?? layout.guideLevel,
         activate: () => this.#setGuideLevel(option.value),

@@ -5,6 +5,7 @@
  */
 import { POWER_SAVING_FPS } from "../platform/power-saving.js";
 import type { Settings } from "../settings.js";
+import { t } from "../i18n/translate.js";
 
 export interface PowerSavingNotice {
   readonly heading: string;
@@ -48,13 +49,15 @@ export function powerSavingRowOf(
   detected: boolean,
 ): { readonly title: string; readonly detail: string; readonly on: boolean } {
   return {
-    title: "Lighter play in power saving",
+    title: t("settings.powerSaving.title"),
     detail:
-      `When the device is in power saving mode: reduced motion, 1x text and ${POWER_SAVING_FPS} fps. Off plays as usual.` +
-      (detected ? " Power saving mode is on now." : ""),
+      t("settings.powerSaving.detail", { fps: POWER_SAVING_FPS }) +
+      (detected ? ` ${t("settings.powerSaving.detectedNow")}` : ""),
     on: settings.powerSavingAdjust,
   };
 }
 
 /** The sentence a Settings row's detail gains while power saving mode is on, for the rows the mode turns down. */
-export const POWER_SAVING_ROW_NOTE = "Power saving mode is on, so this follows it unless you change it here.";
+export function powerSavingRowNote(): string {
+  return t("settings.powerSaving.rowNote");
+}

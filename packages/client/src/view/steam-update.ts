@@ -43,8 +43,9 @@ export const STEAM_UPDATE_CLOSED = "steam-update-closed";
 /** The Title footer and bug reports: how this install got here. */
 export const STEAM_SCRIPT_TAG = "Steam script";
 
-export const STEAM_INSTALL_ROW_TITLE = "Steam install";
-export const STEAM_INSTALL_ROW_DETAIL = "Installed by the Steam script. Run it again to get the latest version.";
+/** Settings' Steam install row, read when drawn so a language switch shows at once. */
+export const steamInstallRowTitle = (): string => t("settings.steamInstall.title");
+export const steamInstallRowDetail = (): string => t("settings.steamInstall.detail");
 
 const LOG_PATH = "~/.marvel-champions/update.log";
 
