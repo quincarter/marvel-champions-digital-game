@@ -121,6 +121,16 @@ export class McGameLog extends LitElement {
     return this.#following;
   }
 
+  /**
+   * The controller's activate press: back down to the newest line when the "newer" chip is showing (true), else nothing
+   * (false), so the press falls through to whatever it does with the log focused.
+   */
+  jumpToLatest(): boolean {
+    if (this.#following) return false;
+    this.scrollToLatest();
+    return true;
+  }
+
   /** Back down to the newest line, and following it again. */
   scrollToLatest(): void {
     const scroller = this.scroller;
@@ -135,11 +145,8 @@ export class McGameLog extends LitElement {
     // A line measured after it first showed (the browser skips far lines until then) must not leave a following list
     // above the bottom.
     if (typeof ResizeObserver !== "undefined") {
-      this.#resize = new ResizeObserver(() => {
-        if (this.#following) this.scrollToLatest();
-      });
-      const list = this.renderRoot.querySelector(".list");
-      if (list) this.#resize.observe(list);
+      this.#resize = new ResizeObserver(() => this.#onResize());
+      this.#observe();
     }
   }
 
@@ -150,9 +157,25 @@ export class McGameLog extends LitElement {
   }
 
   override firstUpdated(): void {
-    const list = this.renderRoot.querySelector(".list");
-    if (list) this.#resize?.observe(list);
+    this.#observe();
     this.scrollToLatest();
+  }
+
+  /**
+   * Watches the list (a line measured late) and the scroller itself: its height changes with the panel, the viewport
+   * and the "newer" chip appearing, none of which need change the list's size. Observing twice is harmless.
+   */
+  #observe(): void {
+    const list = this.renderRoot.querySelector(".list");
+    const scroller = this.renderRoot.querySelector(".scroller");
+    if (list) this.#resize?.observe(list);
+    if (scroller) this.#resize?.observe(scroller);
+  }
+
+  /** Following keeps the newest line in view; reading back only remeasures. Neither changes a size it watches. */
+  #onResize(): void {
+    if (this.#following) this.scrollToLatest();
+    else this.#measure();
   }
 
   /**
@@ -236,6 +259,16 @@ export class McGameLog extends LitElement {
     return count;
   }
 
+  /** The chip by keyboard (Enter or Space) or a synthesized click (no pointer: `detail` 0); a tap is `tapped`'s. */
+  readonly #onChipKey = (event: KeyboardEvent): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    this.scrollToLatest();
+  };
+  readonly #onChipClick = (event: MouseEvent): void => {
+    if (event.detail === 0) this.scrollToLatest();
+  };
+
   readonly #press = (): void => {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key: "close" }, bubbles: true, composed: true }));
   };
@@ -281,9 +314,15 @@ export class McGameLog extends LitElement {
       </div>
       ${
         this._behind
-          ? html`<div class="newer" ${tapped(() => this.scrollToLatest())}>
+          ? html`<button
+              class="newer"
+              type="button"
+              ${tapped(() => this.scrollToLatest())}
+              @keydown=${this.#onChipKey}
+              @click=${this.#onChipClick}
+            >
               ${this._newer > 0 ? this.newerLabel.replace("{count}", String(this._newer)) : this.latestLabel}
-            </div>`
+            </button>`
           : nothing
       }
     </div>`;
