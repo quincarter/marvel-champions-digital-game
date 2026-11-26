@@ -245,12 +245,14 @@ export class SheetBuilder {
     /** The label slides with no animation (reduced motion). */
     readonly still?: boolean;
     readonly keyshortcuts?: string;
+    readonly alpha?: number;
   }): void {
     const type = options.type;
     this.nodes.push({
       ...(options.labelShift ? { labelShift: options.labelShift } : {}),
       ...(options.still ? { still: true } : {}),
       ...(options.keyshortcuts ? { keyshortcuts: options.keyshortcuts } : {}),
+      ...(options.alpha !== undefined ? { opacity: options.alpha } : {}),
       kind: "button",
       key: options.key,
       rect: this.#rect(options.rect),
@@ -304,6 +306,7 @@ export class SheetBuilder {
     readonly openness: number;
     readonly still?: boolean;
     readonly key?: string;
+    readonly alpha?: number;
   }): void {
     this.nodes.push({
       kind: "glyph",
@@ -314,6 +317,7 @@ export class SheetBuilder {
       ground: options.ground,
       openness: options.openness,
       ...(options.still ? { still: true } : {}),
+      ...(options.alpha !== undefined ? { opacity: options.alpha } : {}),
       ...(options.key !== undefined ? { key: options.key } : {}),
     });
   }

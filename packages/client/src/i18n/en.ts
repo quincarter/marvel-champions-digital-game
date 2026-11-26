@@ -2268,4 +2268,5 @@ export const en = {
   "guide.wave.reward": "{hero} for {villain}",
   "guide.wave.opens": "{name}: {opens}.",
   "guide.wave.rewards": "Then, a villain each: {rewards}.",
+  "controls.section.buttons": "BUTTONS",
 } as const;

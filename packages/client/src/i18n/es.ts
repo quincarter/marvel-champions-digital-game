@@ -2310,4 +2310,5 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "guide.wave.reward": "{hero} por {villain}",
   "guide.wave.opens": "{name}: {opens}.",
   "guide.wave.rewards": "Después, un villano por cada uno: {rewards}.",
+  "controls.section.buttons": "BOTONES",
 };

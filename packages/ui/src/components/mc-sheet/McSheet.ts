@@ -104,6 +104,8 @@ export interface SheetButton {
   readonly still?: boolean;
   /** The keyboard chord that presses this button, as `aria-keyshortcuts` (e.g. "Escape", "Control+K"). */
   readonly keyshortcuts?: string;
+  /** Faded but still pressable (a setting that has no effect while another is off). */
+  readonly opacity?: number;
 }
 
 /** A key or controller-button glyph (`mc-glyph`) at its left edge `x`, vertically centered on `y`. Never takes a press. */
@@ -115,6 +117,7 @@ export interface SheetGlyph {
   /** The glyph's height in px, already scaled by the hint size setting. */
   readonly height: number;
   readonly ground: McGlyphGround;
+  readonly opacity?: number;
   /** 0 (folded away) to 1 (open). */
   readonly openness: number;
   /** No fold animation (reduced motion). */
@@ -626,7 +629,7 @@ export class McSheet extends LitElement {
         return html`<mc-button
           class="part"
           data-key=${node.key}
-          style=${`${px(node.rect)}${node.size ? `;--mc-button-size:${node.size}px` : ""};--mc-label-shift:${node.labelShift ?? 0}px;--mc-label-ms:${node.labelShift ? GLYPH_EXPAND_MS : GLYPH_COLLAPSE_MS}ms`}
+          style=${`${px(node.rect)}${node.opacity !== undefined ? `;opacity:${node.opacity}` : ""}${node.size ? `;--mc-button-size:${node.size}px` : ""};--mc-label-shift:${node.labelShift ?? 0}px;--mc-label-ms:${node.labelShift ? GLYPH_EXPAND_MS : GLYPH_COLLAPSE_MS}ms`}
           kind=${node.look}
           .label=${node.label}
           ?selected=${node.selected ?? false}
@@ -643,7 +646,7 @@ export class McSheet extends LitElement {
         return html`<mc-glyph
           class="part"
           data-key=${node.key ?? nothing}
-          style=${`left:${node.x}px;top:${node.y - node.height / 2}px`}
+          style=${`left:${node.x}px;top:${node.y - node.height / 2}px${node.opacity !== undefined ? `;opacity:${node.opacity}` : ""}`}
           .specs=${node.specs}
           .height=${node.height}
           .ground=${node.ground}
