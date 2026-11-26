@@ -19,3 +19,14 @@ export {
   type SettingsBodyModel,
 } from "./components/mc-settings-body/mc-settings-body.js";
 export { onTap, TAP_SLOP_PX } from "./shared/tap.js";
+export {
+  McSheet,
+  type SheetBox,
+  type SheetButton,
+  type SheetDots,
+  type SheetNode,
+  type SheetRect,
+  type SheetScroll,
+  type SheetTap,
+  type SheetText,
+} from "./components/mc-sheet/mc-sheet.js";
