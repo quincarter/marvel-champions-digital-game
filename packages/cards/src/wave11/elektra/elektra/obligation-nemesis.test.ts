@@ -84,6 +84,7 @@ describe("63032 Hand Blademaster", () => {
 });
 
 /** Ends P1's turn and answers every prompt first-legal until the villain phase is over, collecting the events. */
+let lastState: GameState;
 function villainPhaseEvents(state: GameState): GameEvent[] {
   const events: GameEvent[] = [];
   let current = state;
@@ -104,6 +105,7 @@ function villainPhaseEvents(state: GameState): GameEvent[] {
       selectedOptionIds: firstLegal(current),
     });
   }
+  lastState = current;
   return events;
 }
 
@@ -122,6 +124,39 @@ describe("63033 Hand Archer", () => {
     expect(by(A).length).toBeGreaterThan(0);
     expect(by(ARCHER).every((h) => Boolean(h.ranged))).toBe(true);
     expect(by(A).some((h) => Boolean(h.ranged))).toBe(false);
+  });
+});
+
+describe("63031 Hand Katana: revealed from the encounter deck", () => {
+  /** The second encounter card is retagged as a Hand Katana, then P1 ends the turn and the villain phase reveals it. */
+  function reveal(state: GameState): { after: GameState; katana: InstanceId } {
+    // The villain's attack flips the first boost card, then the encounter card is dealt: the Katana is second from the top.
+    const katana = activeEncounterDeck(state).deck[1]!;
+    const staged = patchInstance(state, katana, { cardId: "63031" as never });
+    const events = villainPhaseEvents(staged);
+    expect(events.length).toBeGreaterThan(0);
+    return { after: lastState, katana };
+  }
+  const hostOf = (s: GameState, k: InstanceId) => inst(s, k).attachedTo;
+
+  it("attaches to the Hand minion with the highest printed hit points (Aka 4 over Blademaster 3)", () => {
+    const staged = engageMinion(engageMinion(game(), "63032", A), "63029", B);
+    const { after, katana } = reveal(staged);
+    expect(hostOf(after, katana)).toBe(B);
+    expect(inst(after, B).attachments).toContain(katana);
+  });
+
+  it("with two tied highest-HP Hand minions it attaches to one of them", () => {
+    const staged = engageMinion(engageMinion(game(), "63032", A), "63032", B);
+    const { after, katana } = reveal(staged);
+    expect([A, B]).toContain(hostOf(after, katana));
+  });
+
+  it("with no Hand minion in play (a non-Hand minion does not count) it attaches to the villain", () => {
+    const staged = engageMinion(game(), "01102", "m-sandman");
+    const { after, katana } = reveal(staged);
+    expect(hostOf(after, katana)).toBe(after.activeVillainId);
+    expect(inst(after, "m-sandman" as InstanceId).attachments).not.toContain(katana);
   });
 });
 
