@@ -479,6 +479,15 @@ describe("pauseFor", () => {
     );
   });
 
+  // #1017: another seat's defend starts with that hero's name, which keeps its capital.
+  test("another seat's defend names its hero, capital and all", () => {
+    const defend = choice("player", "declareDefender");
+    const otherSeat = played.state.players.find((p) => p.playerId !== played.viewer);
+    const viewerOf = otherSeat?.playerId ?? ("player-does-not-exist" as PlayerId);
+    const label = pauseFor(defend, played.state, viewerOf).label;
+    expect(label).toMatch(/^Auto-advance paused — [A-Z].* declares a defender$/);
+  });
+
   // Issue #172: Chaos Control / Scarlet Witch's Crest open while the interrupt panel hides the boost panel.
   test("a boost-count window names the card being counted and its icons, and carries it for the panel", () => {
     const villain = activeVillain(played.state);

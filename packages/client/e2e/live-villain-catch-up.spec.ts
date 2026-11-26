@@ -113,6 +113,8 @@ test("a guest's villain phase screen takes a catch-up batch and closes with the 
     let holding = false;
     let released = false;
     let guestReachedRecap = false;
+    let shotDefend = false;
+    let shotRecap = false;
     const deadline = Date.now() + 180_000;
     while (Date.now() < deadline) {
       const h = await texts(host.page, "VillainPhaseOverlay");
@@ -124,6 +126,16 @@ test("a guest's villain phase screen takes a catch-up batch and closes with the 
         wordedAsGuests.push(g.join(" | "));
       }
       if (g.some((t) => t.startsWith("RECAP"))) guestReachedRecap = true;
+      // `SHOOT_DIR`: the PR's screenshots of the guest's screen, worded from the guest's own hero.
+      const shoot = process.env.SHOOT_DIR;
+      if (shoot && !shotDefend && g.some((t) => /DECLARES A DEFENDER/.test(t))) {
+        shotDefend = true;
+        await guest.page.screenshot({ path: `${shoot}/guest-host-defend-desktop.png` });
+      }
+      if (shoot && !shotRecap && g.some((t) => t.startsWith("RECAP"))) {
+        shotRecap = true;
+        await guest.page.screenshot({ path: `${shoot}/guest-recap-after-batch-desktop.png` });
+      }
       if (holding && h.some((t) => t.startsWith("RECAP"))) {
         room.holdHostCommands(false);
         holding = false;
