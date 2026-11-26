@@ -90,7 +90,8 @@ export function divideSheetOf(
   const copyOf = new Map(order.map((instanceId, index) => [instanceId, copies[index]] as const));
   const named = (instanceId: InstanceId): string => {
     const copy = copyOf.get(instanceId);
-    return `${cardName(state, instanceId)}${copy ? ` #${copy}` : ""}`;
+    // The number leads, so a long name cut to fit a tile never takes it (Codex, PR #1014).
+    return `${copy ? `#${copy} ` : ""}${cardName(state, instanceId)}`;
   };
 
   const labels = new Map<string, DivideOptionLabel>();

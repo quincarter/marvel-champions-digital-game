@@ -126,11 +126,11 @@ describe("damage divided among minions engaged with different seats (issue #1001
     } as unknown as PendingChoice;
     // Only the second copy picked: its tile and its tally entry both say #2.
     const sheet = divideSheetOf(twin as never, divide, ["twin#1"])!;
-    expect(sheet.labels.get("twin#1")?.name).toBe(`${nameOf(scheme)} #2`);
-    expect(sheet.labels.get(`${scheme}#1`)?.name).toBe(`${nameOf(scheme)} #1`);
-    expect(sheet.tally).toBe(`${nameOf(scheme)} #2 1 · 2 to place`);
+    expect(sheet.labels.get("twin#1")?.name).toBe(`#2 ${nameOf(scheme)}`);
+    expect(sheet.labels.get(`${scheme}#1`)?.name).toBe(`#1 ${nameOf(scheme)}`);
+    expect(sheet.tally).toBe(`#2 ${nameOf(scheme)} 1 · 2 to place`);
     // Every tally form keeps the copy number, the compact one included.
-    for (const form of sheet.tallies) expect(form).toContain(`${nameOf(scheme)} #2 1`);
+    for (const form of sheet.tallies) expect(form).toContain(`#2 ${nameOf(scheme)} 1`);
   }, 120_000);
 });
 
