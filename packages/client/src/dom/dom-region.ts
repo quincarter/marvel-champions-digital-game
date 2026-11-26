@@ -132,6 +132,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #opacity = -1;
   #shown: boolean | null = null;
   #clip: string | null = null;
+  #live: boolean | null = null;
   #destroyed = false;
 
   constructor(scene: Phaser.Scene, element: E, rect: Rect) {
@@ -184,6 +185,13 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     if (Math.abs(opacity - this.#opacity) > 0.001) {
       this.#opacity = opacity;
       this.#wrap.style.opacity = String(opacity);
+    }
+    // Presses follow the scene's own input: an overlay playing its exit turns its input off (`exitOverlay`), and its
+    // panel stops taking taps with it.
+    const live = this.#scene.input?.enabled !== false;
+    if (live !== this.#live) {
+      this.#live = live;
+      this.#wrap.style.pointerEvents = live ? "auto" : "none";
     }
     const clip = shown ? clipWithHoles(this.#rect, chromeBoxes(this.#scene.game)) : null;
     if (clip !== this.#clip) {
