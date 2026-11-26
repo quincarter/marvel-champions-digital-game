@@ -85,12 +85,52 @@ export async function installWave6Helpers(page: Page): Promise<void> {
         };
         for (const child of scene.children.list) walk(child);
       }
+      // The Lit panels over the canvas (`src/dom/dom-region.ts`), by the scene each names in `data-scene`: an
+      // element's own text, when it is inside the panel and every scrolling box it sits in (as `__mcFindText` reads it).
+      const running = new Set(game.scene.scenes.filter((s) => s.sys.isActive()).map((s) => s.sys.settings.key));
+      for (const wrap of Array.from(document.getElementById("mc-ui")?.children ?? []) as HTMLElement[]) {
+        const key = wrap.dataset.scene;
+        if (!key || !running.has(key) || wrap.style.visibility === "hidden" || wrap.style.opacity === "0") continue;
+        const view = wrap.getBoundingClientRect();
+        const inside = (box: DOMRect, clip: DOMRect): boolean =>
+          box.right > clip.left && box.left < clip.right && box.bottom > clip.top && box.top < clip.bottom;
+        const visit = (node: Element | ShadowRoot): void => {
+          for (const child of Array.from(node.children)) {
+            const own = Array.from(child.childNodes)
+              .filter((n) => n.nodeType === Node.TEXT_NODE)
+              .map((n) => n.textContent ?? "")
+              .join("")
+              .trim();
+            if (own) {
+              const box = child.getBoundingClientRect();
+              let shown = box.width > 0 && box.height > 0 && inside(box, view);
+              for (let at: Node | null = child.parentNode; at && at !== wrap && shown;) {
+                if (at instanceof Element && ["auto", "scroll", "hidden"].includes(getComputedStyle(at).overflowY))
+                  shown = inside(box, at.getBoundingClientRect());
+                at = at instanceof ShadowRoot ? at.host : at.parentNode;
+              }
+              if (shown)
+                out.push({
+                  scene: key,
+                  text: own,
+                  x: box.x + box.width / 2,
+                  y: box.y + box.height / 2,
+                  w: box.width,
+                  h: box.height,
+                });
+            }
+            if (child.shadowRoot) visit(child.shadowRoot);
+            visit(child);
+          }
+        };
+        visit(wrap);
+      }
       return out;
     };
   });
 }
 
-/** Every drawn, visible, non-empty Phaser text in the running scenes (what the player can read right now). */
+/** Every drawn, visible, non-empty text in the running scenes, Phaser's and the Lit panels' (what the player can read now). */
 export async function visibleTexts(page: Page): Promise<VisibleText[]> {
   return page.evaluate(() => (window as unknown as { __mcVisibleTexts: () => VisibleText[] }).__mcVisibleTexts());
 }
