@@ -161,12 +161,12 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   find: {
     name: "Encontrar",
     definition:
-      "Una instrucción para buscar una carta concreta en todas las zonas de la partida donde pueda estar (zonas de juego, cartas apartadas, mazos, pilas de descartes, etc.). No alcanza las cartas de Encuentro boca abajo en una zona en juego (como las cartas de Encuentro repartidas o las cartas de Aumento, aunque estas no estén en juego), la zona de victoria, las cartas retiradas de la partida ni nada que esté fuera de la partida. Si encuentras y muestras un esbirro que ya está en juego, se enfrenta a ti y resuelve su «Cuando se muestre esta carta» y sus palabras clave, pero conserva sus fichas y sus cartas vinculadas y no vuelve a entrar en juego.",
+      "Una instrucción para buscar una carta concreta en todas las zonas de la partida donde pueda estar (zonas de juego, cartas apartadas, mazos, pilas de descartes, etc.). No alcanza las cartas de Encuentro boca abajo en una zona en juego (como las cartas de Encuentro repartidas o las cartas de Aumento, aunque estas no estén en juego), la zona de victoria, las cartas retiradas de la partida ni nada que esté fuera de la partida. Si encuentras y muestras un esbirro que ya está en juego, resuelve su «Cuando se muestre esta carta» y sus palabras clave, conserva sus fichas y sus cartas vinculadas, no vuelve a entrar en juego y se enfrenta a ti salvo que ya estuviera enfrentado contigo.",
   },
   vulnerable: {
     name: "Vulnerable",
     definition:
-      "Un personaje con esta palabra clave se descarta en cuanto queda aturdido o confundido, en vez de recibir la carta de Estado, y ese descarte no cuenta como derrotarlo.",
+      "Un personaje con esta palabra clave se descarta en cuanto queda aturdido o confundido, y ese descarte no cuenta como derrotarlo. Si a la vez recibiera daño suficiente para derrotarlo y quedara aturdido o confundido, se descarta antes de aplicar el daño, así que no se considera derrotado. Si además tiene Tesón, solo se descarta cuando tiene dos cartas de Estado de Aturdido o dos de Confundido.",
   },
   discount: {
     name: "Descuento X (rasgo)",
