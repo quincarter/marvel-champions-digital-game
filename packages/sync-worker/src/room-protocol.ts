@@ -129,6 +129,9 @@ export const POD_PER_SECOND = 10;
 /** Proposals per participant: a burst of this many, then `PROPOSAL_PER_SECOND` a second. */
 export const PROPOSAL_BURST = 10;
 export const PROPOSAL_PER_SECOND = 4;
+/** The longest `moves` fingerprint on a bound Undo `request`, in characters. */
+export const MAX_UNDO_MOVES_CHARS = 64;
+
 /** The longest `note` on a `request`, in characters. */
 export const MAX_REQUEST_NOTE_CHARS = 140;
 /** The longest `player` string on a seat. */
@@ -921,6 +924,8 @@ export type ClientMessage =
       readonly base?: number;
       readonly target?: number;
       readonly epoch?: number;
+      /** A fingerprint of the moves between `target` and `base` (at most `MAX_UNDO_MOVES_CHARS`), opaque to the room. */
+      readonly moves?: string;
     }
   /** Host only: answer a `request`. The room sends it to participant `to` alone. */
   | {
@@ -1202,9 +1207,11 @@ export type ServerMessage =
       readonly what: RequestKind;
       readonly note: string;
       readonly rid?: number;
-      /** The table a bound Undo was asked on (see the client's `request`). */
+      /** The table a bound Undo was asked on (see the client's `request`), and the log epoch the room admitted it in. */
       readonly base?: number;
       readonly target?: number;
+      readonly moves?: string;
+      readonly epoch?: number;
     }
   /** To the requester alone: the host's answer. An accepted undo or adjust arrives as the log's own rewind or command. */
   | {
@@ -1569,6 +1576,7 @@ export function parseClientMessage(text: string): ClientMessage | null {
           (m.base === undefined || isCount(m.base)) &&
           (m.target === undefined || isCount(m.target)) &&
           (m.epoch === undefined || isCount(m.epoch)) &&
+          (m.moves === undefined || (typeof m.moves === "string" && m.moves.length <= MAX_UNDO_MOVES_CHARS)) &&
           (m.note === undefined || (typeof m.note === "string" && m.note.length <= MAX_REQUEST_NOTE_CHARS * 4)),
       );
     case "game:request-answer":

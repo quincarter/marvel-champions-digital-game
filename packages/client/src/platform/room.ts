@@ -78,6 +78,7 @@ import { setSeatContextSource } from "../view/seat-context.js";
 import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
 import { selfAnswered } from "../view/room-notices.js";
 import type { UndoBinding } from "../live/live-room-protocol.js";
+import { boundUndoMatches } from "../view/undo-binding.js";
 import { keepHostSettings, keptFromRoom } from "../view/host-settings-memory.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
@@ -397,7 +398,7 @@ function playersOfParticipant(participantId: string): string[] {
  */
 async function undoMoveOf(
   participantId: string,
-  bound: { readonly base?: number; readonly target?: number } = {},
+  bound: { readonly base?: number; readonly target?: number; readonly moves?: string } = {},
 ): Promise<boolean> {
   const { store } = appSession();
   const { game, commandTrail, version } = store.state;
@@ -409,7 +410,11 @@ async function undoMoveOf(
   for (const player of playersOfParticipant(participantId)) {
     const offer = undoOf(commandTrail, game, player as PlayerId, { pastReveals: false });
     if (offer?.kind !== "available" || offer.revealed === true) continue;
-    if (bound.target !== undefined && offer.target !== bound.target) continue;
+    // A bound Undo (Each player): the very history the guest saw, the same count, target and moves (#1019 review).
+    if (bound.base !== undefined && bound.target !== undefined && bound.moves !== undefined) {
+      const asked = { base: bound.base, target: bound.target, moves: bound.moves };
+      if (!boundUndoMatches(commandTrail, version, offer.target, asked)) continue;
+    } else if (bound.target !== undefined && offer.target !== bound.target) continue;
     try {
       return await store.rewindTo(offer.target, { fromVersion: version });
     } catch {

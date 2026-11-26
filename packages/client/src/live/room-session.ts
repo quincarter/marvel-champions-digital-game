@@ -812,7 +812,12 @@ export class RoomSession {
       note: note.trim().slice(0, 140),
       rid,
       ...(bind
-        ? { base: bind.base, target: bind.target, ...(bind.epoch === undefined ? {} : { epoch: bind.epoch }) }
+        ? {
+            base: bind.base,
+            target: bind.target,
+            moves: bind.moves,
+            ...(bind.epoch === undefined ? {} : { epoch: bind.epoch }),
+          }
         : {}),
     });
     this.#publish();

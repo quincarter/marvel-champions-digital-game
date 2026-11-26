@@ -294,5 +294,7 @@ export type LiveControlMessage =
 export interface UndoBinding {
   readonly base: number;
   readonly target: number;
+  /** `view/undo-binding.ts`'s fingerprint of the moves between `target` and `base`. */
+  readonly moves: string;
   readonly epoch?: number;
 }

@@ -76,6 +76,7 @@ import { seatUndoPolicyOf } from "../../view/room-ask-policy.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
 import { askHost, roomState } from "../../platform/room.js";
 import { activeSeat } from "../../platform/seat-play.js";
+import { bindUndo } from "../../view/undo-binding.js";
 import { seatOfPlayerIn } from "../../live/room-state.js";
 import { seatContext, seatNoRewind } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
@@ -2201,10 +2202,12 @@ export class BoardController {
         // Each player: bound to the table this guest sees, one at a time (#1019 review). The host's device does it
         // only while its table still matches, so a move of this guest's still on its way is never the one taken back.
         if (this.#undoing || roomState().myRequest?.status === "waiting") return;
-        const { version, inFlight } = appSession().store.state;
+        const { version, inFlight, commandTrail } = appSession().store.state;
         if (inFlight) return;
+        const bound = bindUndo(commandTrail, version, asked.own.target);
+        if (!bound) return;
         const epoch = activeSeat()?.epoch;
-        askHost("undo", "", { base: version, target: asked.own.target, ...(epoch === undefined ? {} : { epoch }) });
+        askHost("undo", "", { ...bound, ...(epoch === undefined ? {} : { epoch }) });
         this.#noteUndo(t("ask.undoOwnSent"));
         return;
       }

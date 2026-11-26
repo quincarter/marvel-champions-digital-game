@@ -370,6 +370,8 @@ export class RoomModel {
             ...(message.rid === undefined ? {} : { rid: message.rid }),
             ...(message.base === undefined ? {} : { base: message.base }),
             ...(message.target === undefined ? {} : { target: message.target }),
+            ...(message.moves === undefined ? {} : { moves: message.moves }),
+            ...(message.epoch === undefined ? {} : { epoch: message.epoch }),
           },
         ];
         return true;

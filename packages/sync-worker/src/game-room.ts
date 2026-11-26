@@ -3576,6 +3576,9 @@ export class GameRoomLogic {
       ...(message.rid === undefined ? {} : { rid: message.rid }),
       ...(message.base === undefined ? {} : { base: message.base }),
       ...(message.target === undefined ? {} : { target: message.target }),
+      ...(message.moves === undefined ? {} : { moves: message.moves }),
+      // The epoch it was admitted in: the host can tell it from a later log (`epoch` on its own table's messages).
+      ...(message.base === undefined ? {} : { epoch: table.epoch }),
     });
   }
 

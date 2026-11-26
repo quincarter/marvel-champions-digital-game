@@ -74,6 +74,7 @@ export function selfAnswered(room: RoomState, request: RoomState["requests"][num
     request.what === "undo" &&
     request.base !== undefined &&
     request.target !== undefined &&
+    request.moves !== undefined &&
     !!settings &&
     lobbyUndoFor(settings.playMode, settings.undo) === "own"
   );

@@ -136,7 +136,16 @@ describe("room chat unread", () => {
 
 describe("Each player Undo (GarethMagis, 2026-11-25)", () => {
   const own = { ...settings, undo: "own" as const };
-  const ask = { id: "r1", from: "g1", name: "Ava", what: "undo" as const, note: "", base: 12, target: 11 };
+  const ask = {
+    id: "r1",
+    from: "g1",
+    name: "Ava",
+    what: "undo" as const,
+    note: "",
+    base: 12,
+    target: 11,
+    moves: "0123456789abcdef",
+  };
 
   it("puts no guest Undo to the host, which does it by itself; a change is still asked", () => {
     expect(roomPromptsOf(hostRoom({ settings: own, requests: [ask] }), null)).toEqual([]);
@@ -145,7 +154,7 @@ describe("Each player Undo (GarethMagis, 2026-11-25)", () => {
       "request",
     ]);
     // An Undo asked without its table (under Ask, before the host switched) is still the host's to answer.
-    const { base: _base, target: _target, ...unbound } = ask;
+    const { base: _base, target: _target, moves: _moves, ...unbound } = ask;
     expect(roomPromptsOf(hostRoom({ settings: own, requests: [unbound] }), null).map((p) => p.kind)).toEqual([
       "request",
     ]);
