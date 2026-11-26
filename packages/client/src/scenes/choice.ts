@@ -3641,7 +3641,10 @@ export class ChoiceOverlay extends Phaser.Scene {
         fitText(engaged, room, 11);
         lines.push(engaged);
       }
-      const point = this.add.text(0, 0, `${divided.holds} · point ${divided.ordinal}`, style).setOrigin(0.5, 0);
+      // The point number leads: a narrow tile cuts the line from its end, and the number is what tells two tiles for
+      // one card apart ("Point 2 · Damage 0").
+      const pointWords = [`Point ${divided.ordinal}`, divided.holds].filter(Boolean).join(" · ");
+      const point = this.add.text(0, 0, pointWords, style).setOrigin(0.5, 0);
       fitText(point, room, 11);
       lines.push(point);
       const textHeight = lines.reduce((sum, line) => sum + Math.ceil(line.height), 0);
