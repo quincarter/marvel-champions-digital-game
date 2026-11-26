@@ -13,7 +13,7 @@ import type Phaser from "phaser";
 import { surface } from "../tokens.js";
 import { isDesktopType } from "../ui/desktop-type.js";
 import { ActivationGate } from "./activation-gate.js";
-import { DomRegion, renderNow } from "./dom-region.js";
+import { DomRegion, renderNow, type Followed } from "./dom-region.js";
 import { SheetBuilder } from "./sheet-builder.js";
 import type { Rect } from "../view/layout.js";
 
@@ -22,6 +22,7 @@ export class PopupSheet {
   readonly #onActivate: (key: string) => void;
   readonly #onHover: ((key: string, over: boolean) => void) | undefined;
   #region: DomRegion<McSheet> | null = null;
+  #followed: Followed | null = null;
   /** One activation a frame, none once the scene stops or turns its input off (a second Send/Concede/Confirm tap). */
   readonly #gate: ActivationGate;
 
@@ -35,6 +36,12 @@ export class PopupSheet {
       this.#gate.destroy();
       this.#region = null;
     });
+  }
+
+  /** Rises and fades with an invisible Phaser anchor the scene's `OverlayMotion` tweens (as `scenes/pause.ts` does). */
+  follow(anchor: Followed | null): void {
+    this.#followed = anchor;
+    this.#region?.follow(anchor);
   }
 
   /** The panel element once mounted (to reach a part, e.g. to scroll a region). */
@@ -69,6 +76,7 @@ export class PopupSheet {
         });
       }
       this.#region = new DomRegion(this.#scene, element, { x: 0, y: 0, width, height }, { overlay: true });
+      if (this.#followed) this.#region.follow(this.#followed);
     }
     const region = this.#region;
     region.setRect({ x: 0, y: 0, width, height });
