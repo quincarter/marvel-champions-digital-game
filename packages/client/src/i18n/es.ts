@@ -1368,7 +1368,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
     "Reproduce en orden aleatorio las canciones que has ganado en Extras, en los menús y las partidas. Las entradas, el fin de partida y los finales conservan la suya.",
   "settings.confirmEndTurn.title": "Confirmar antes de terminar el turno",
   "settings.confirmEndTurn.detail":
-    "Pregunta antes de Terminar turno si tú o un aliado aún podéis hacer un ataque básico, una intervención básica o una recuperación básica. Desactivado termina el turno al momento.",
+    "Pregunta antes de terminar el turno si todavía puedes realizar un ataque básico, una intervención básica o una recuperación básica, o si uno de tus aliados puede atacar o intervenir. Si desactivas esta opción, el turno termina inmediatamente.",
   "settings.notOffered.title": "Explicar habilidades no ofrecidas",
   "settings.notOffered.detail":
     "La primera vez que no se pueda usar la interrupción o respuesta de una carta (sin objetivo, o con un coste que no puedes pagar), explica por qué. El registro siempre lo dice.",
@@ -1644,7 +1644,7 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "pause.onCard": "En {card}.",
   "pause.jump": "Ir a un momento",
   "pause.logEmpty": "Todavía no ha pasado nada.",
-  "pause.logUndoHint": "Toca un momento ↶ para deshacer hasta él",
+  "pause.logUndoHint": "Toca un momento marcado con ↶ para volver a ese punto de la partida",
   "pause.logUndoNone": "Solo se pueden deshacer tus propias jugadas de este turno",
   "pause.fullLogNote":
     "Cada momento conservado, el más reciente primero. Toca «Registro completo» otra vez para volver a la cuadrícula de palabras clave.",

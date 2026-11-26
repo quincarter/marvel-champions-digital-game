@@ -16,6 +16,7 @@ import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { McTextInput } from "../ui/widgets.js";
 import type { Rect } from "../view/layout.js";
+import { layoutChatList } from "../view/room-chat-layout.js";
 import { markChatRead } from "../view/room-chat-unread.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -26,7 +27,6 @@ export interface RoomChatData {
   readonly draft?: string;
 }
 
-const LINE_GAP = 4;
 const buttonType = { ...typeRole.label, size: 13 };
 const lineSpec = typeRole.body;
 const mineSpec = { ...typeRole.body, weight: 700 as const };
@@ -122,32 +122,30 @@ export class RoomChatOverlay extends Phaser.Scene {
     const footer = fieldHeight + 10 + hit.target + 16;
     const listTop = box.y + 14 + titleSize.height + 10;
     const listHeight = box.y + box.height - footer - listTop;
+    const newLine = this.#state.chat.length !== this.#lastLines;
     this.#lastLines = this.#state.chat.length;
-    const shown = this.#state.chat.slice(-60);
+    const shown = this.#state.chat;
     if (shown.length === 0) {
       b.text(box.x + 16, listTop, t("chat.empty"), typeRole.body, { color: surface.ink.hex, alpha: 0.7 });
     }
-    // Newest first, each line wrapped whole, until the list is full; then laid out oldest to newest.
-    const made: { text: string; mine: boolean; height: number }[] = [];
-    let used = 0;
-    for (let index = shown.length - 1; index >= 0; index -= 1) {
-      const line = shown[index]!;
-      const who = line.mine ? "" : `${line.name ?? ""}: `;
-      const text = `${who}${line.text}`;
-      const spec = line.mine ? mineSpec : lineSpec;
-      const height = b.measure(text, spec, { size: 13, wrapWidth: textWidth }).height + LINE_GAP;
-      if (used + height > listHeight && made.length > 0) break;
-      used += height;
-      made.unshift({ text, mine: line.mine === true, height });
-    }
-    let at = listTop;
-    for (const line of made) {
-      b.text(box.x + 16, at, line.text, line.mine ? mineSpec : lineSpec, {
-        size: 13,
-        wrapWidth: textWidth,
-        color: surface.ink.hex,
+    // Every line goes into a scrolling region bounded to its rect, so a long note or a narrow phone scrolls inside
+    // it instead of drawing over the field and buttons. A new line scrolls the list to the newest.
+    const layout = layoutChatList(
+      shown,
+      listHeight,
+      (text, mine) => b.measure(text, mine ? mineSpec : lineSpec, { size: 13, wrapWidth: textWidth }).height,
+    );
+    if (shown.length > 0) {
+      const listRect: Rect = { x: box.x + 16, y: listTop, width: textWidth, height: layout.viewHeight };
+      b.scroll("chat-list", listRect, layout.contentHeight, (inner) => {
+        for (const line of layout.lines) {
+          inner.text(box.x + 16, line.y, line.text, line.mine ? mineSpec : lineSpec, {
+            size: 13,
+            wrapWidth: textWidth,
+            color: surface.ink.hex,
+          });
+        }
       });
-      at += line.height;
     }
     const fieldRect: Rect = {
       x: box.x + 16,
@@ -173,6 +171,10 @@ export class RoomChatOverlay extends Phaser.Scene {
     b.button({ key: "send", rect: sendRect, label: t("chat.send"), look: "primary", type: buttonType });
     // The field is a Phaser DOM element under the panel: left out of it, it is seen and pressed.
     this.#panel.mount(b, width, height, [fieldRect]);
+    if (newLine) {
+      const list = this.#panel.element?.elementOf("chat-list");
+      if (list) list.scrollTop = list.scrollHeight;
+    }
     const stops = new Map<string, FocusStop>([
       ["field", { rect: fieldRect, activate: () => this.#input?.focus() }],
       ["close", { rect: closeRect, activate: () => this.#close() }],

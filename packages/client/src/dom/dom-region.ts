@@ -23,6 +23,7 @@
 import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
+import { sceneTakesPresses } from "./activation-gate.js";
 import { uiLayer } from "./ui-layer.js";
 
 /** The camera fade's current darkness, 0 (none) to 1 (black), as `Phaser.Cameras.Scene2D.Effects.Fade` holds it. */
@@ -282,6 +283,16 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     this.#wrap.dataset.scene = scene.sys.settings.key;
     Object.assign(this.#wrap.style, { position: "absolute", pointerEvents: "auto", opacity: "0" });
     this.#wrap.append(element);
+    // Every panel's `mc-activate` is stopped here, before its scene hears it, while the scene isn't taking presses
+    // (stopped, paused, input off for an exit): `pointer-events` follows the scene only at `postupdate`, so a tap in
+    // that gap would otherwise still act.
+    this.#wrap.addEventListener(
+      "mc-activate",
+      (event) => {
+        if (this.#destroyed || !sceneTakesPresses(this.#scene)) event.stopPropagation();
+      },
+      true,
+    );
     this.#layer.append(this.#wrap);
     this.setRect(rect);
     this.#sync();
