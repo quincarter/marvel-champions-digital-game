@@ -9,7 +9,7 @@
  */
 import type Phaser from "phaser";
 import type { ArtSource } from "./art-source.js";
-import { cardArt, drawArt, type DrawArtOptions } from "./card-art.js";
+import { artKeyFor, cardArt, drawArt, type DrawArtOptions } from "./card-art.js";
 import type { Rect } from "../view/layout.js";
 
 /** The parts of a container (or the scene's display list) a slot uses to put the picture where the stand-in was. */
@@ -27,6 +27,11 @@ export interface ArtSlotDeps {
    * the same key is a new texture: a picture drawn from the old one must be drawn again.
    */
   readonly identity: (key: string) => unknown;
+  /**
+   * The key `draw` draws `key` from (`artKeyFor`): the full-size copy for a big slot once it is in, else `key`. A
+   * picture drawn from another texture than this one is drawn again. Defaults to `key`.
+   */
+  readonly drawKey?: (key: string) => string;
   /** Draws the scan into the slot (`drawArt`). */
   readonly draw: (key: string) => Phaser.GameObjects.GameObject | null;
   /** Where an object with no container sits: the scene's display list. */
@@ -45,13 +50,14 @@ export function placeArtSlot(
   objects: Phaser.GameObjects.GameObject[],
   placeholder: () => Phaser.GameObjects.GameObject,
 ): () => boolean {
+  const drawKeyOf = (key: string): string => deps.drawKey?.(key) ?? key;
   const key = deps.request();
   const drawn = key ? deps.draw(key) : null;
   /** What the slot shows now: the picture, or the stand-in until it arrives. */
   let shown = drawn ?? placeholder();
   let isPicture = drawn !== null;
   /** The texture the shown picture was drawn from. */
-  let drawnFrom = drawn && key ? deps.identity(key) : null;
+  let drawnFrom = drawn && key ? deps.identity(drawKeyOf(key)) : null;
   objects.push(shown);
 
   /** Puts `next` where `shown` is, in the row's objects and on screen, and destroys `shown`. */
@@ -73,13 +79,13 @@ export function placeArtSlot(
     // one must count as in use.
     const now = deps.request();
     if (isPicture) {
-      if (now && deps.identity(now) === drawnFrom) return true;
+      if (now && deps.identity(drawKeyOf(now)) === drawnFrom) return true;
       if (now) {
         // Evicted and loaded again between two refreshes: the picture still points at the removed texture.
         const again = deps.draw(now);
         if (again) {
           swap(again);
-          drawnFrom = deps.identity(now);
+          drawnFrom = deps.identity(drawKeyOf(now));
           return true;
         }
       }
@@ -93,7 +99,7 @@ export function placeArtSlot(
     if (!picture) return false;
     swap(picture);
     isPicture = true;
-    drawnFrom = deps.identity(now);
+    drawnFrom = deps.identity(drawKeyOf(now));
     return true;
   };
 }
@@ -112,6 +118,7 @@ export function drawArtSlot(
     {
       request: () => art.request(scene, source ?? null),
       identity: (key) => (scene.textures.exists(key) ? scene.textures.get(key) : null),
+      drawKey: (key) => artKeyFor(scene, key, rect, options) ?? key,
       draw: (key) => drawArt(scene, key, rect, options),
       sceneList: scene.children as unknown as SlotParent,
     },
