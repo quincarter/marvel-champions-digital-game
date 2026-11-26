@@ -114,7 +114,7 @@ import { cardFaces } from "../art/card-face-baker.js";
 import { HERO_ART, heroArtForIdentity } from "../art/hero-art.js";
 import { renderArtThumb } from "./roster-panel.js";
 import { drawPictureAspectChips } from "../ui/aspect-chips.js";
-import { drawArt } from "../art/card-art.js";
+import { artKeyFor, drawArt } from "../art/card-art.js";
 import { drawArtSlot } from "../art/art-slot.js";
 import { markRenderDirty } from "../ui/idle-render.js";
 import { browsablePool, duplicateDeck, subtitleCutFrom, type PoolFilter } from "../view/deck-builder-model.js";
@@ -450,7 +450,7 @@ export class DecksScene extends Phaser.Scene {
   /** A scan drawn outside the pool grid this draw was not on hand yet, so its arrival redraws the screen. */
   #paneArtMissing = false;
   /** The scans drawn outside the pool grid this draw, asked for again on each arrival. */
-  #paneArt: { readonly source: ArtSource; readonly texture: unknown }[] = [];
+  #paneArt: { readonly source: ArtSource; readonly rect: Rect; readonly texture: unknown }[] = [];
   #poolListScroll = new ListScroll();
   /** The author's notes in a community deck's detail rail: a list of wrapped lines, so a long write-up scrolls. */
   #notesList: McVirtualList | null = null;
@@ -769,10 +769,11 @@ export class DecksScene extends Phaser.Scene {
     const art = cardArt(this);
     // Evicted (gone now), or evicted and loaded again (a new texture under the same key): either way the drawn picture
     // no longer shows, and the screen is drawn again.
-    const paneEvicted = this.#paneArt.some(({ source, texture }) => {
+    const paneEvicted = this.#paneArt.some(({ source, rect, texture }) => {
       const key = art.request(this, source);
       if (key === null) return !art.isMissing(source.key);
-      return this.textures.get(key) !== texture;
+      // The texture `drawArt` would draw from now (the full copy arriving or leaving counts), not the table copy.
+      return this.textures.get(artKeyFor(this, key, rect) ?? key) !== texture;
     });
     if (why === "all" || this.#paneArtMissing || paneEvicted) {
       this.#rebuild();
@@ -785,8 +786,10 @@ export class DecksScene extends Phaser.Scene {
   /** A scan outside the pool grid; one still on its way marks the screen to be drawn again when it lands. */
   #drawPaneArt(source: ArtSource | null | undefined, rect: Rect): void {
     const art = cardArt(this);
-    if (drawArt(this, art.request(this, source ?? null), rect)) {
-      if (source) this.#paneArt.push({ source, texture: this.textures.get(source.key) });
+    const image = drawArt(this, art.request(this, source ?? null), rect);
+    if (image) {
+      // The drawn image's own texture: the full-size copy for a big rect, not necessarily the table key's.
+      if (source) this.#paneArt.push({ source, rect, texture: image.texture });
       return;
     }
     if (source && !art.isMissing(source.key)) this.#paneArtMissing = true;

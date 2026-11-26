@@ -39,7 +39,7 @@ export const MECHANIC_TRYITS_ES: Readonly<Record<string, { readonly title: strin
   },
   cable: {
     title: "Cable: planes secundarios de jugador",
-    tagline: "Interviene en uno y luego juega un segundo en el límite.",
+    tagline: "Intervén en uno y luego juega un segundo hasta llegar al límite.",
   },
   x23: {
     title: "X-23: Especialistas",
@@ -67,7 +67,7 @@ export const MECHANIC_TRYITS_ES: Readonly<Record<string, { readonly title: strin
   },
   magneto: {
     title: "Magneto: Atracción magnética",
-    tagline: "Descarta hasta una carta MAGNÉTICO y añádela a tu mano.",
+    tagline: "Descarta cartas de tu mazo hasta que salga una con el rasgo Magnético y añádela a tu mano.",
   },
   nickFury: {
     title: "Nick Furia: Sigilo y Asalto",
