@@ -135,6 +135,9 @@ export const POD_PER_SECOND = 10;
 /** Proposals per participant: a burst of this many, then `PROPOSAL_PER_SECOND` a second. */
 export const PROPOSAL_BURST = 10;
 export const PROPOSAL_PER_SECOND = 4;
+/** The longest `moves` fingerprint on a bound Undo `request`, in characters. */
+export const MAX_UNDO_MOVES_CHARS = 64;
+
 /** The longest `note` on a `request`, in characters. */
 export const MAX_REQUEST_NOTE_CHARS = 140;
 /** The longest `player` string on a seat. */
@@ -356,12 +359,20 @@ export type LobbyPlayMode = "strict" | "host";
  * Who may Undo in the room's game: `off` nobody, `host` the host alone (guests cannot ask), `ask` the host, and guests
  * may ask the host. Strict rules force `off`; Host control starts at `ask`. See `lobbyUndoFor`.
  */
-export type LobbyUndo = "off" | "host" | "ask";
+/**
+ * Who may Undo in a Host control room. `off`: nobody. `host`: the host only. `ask`: the host, and a guest by asking the
+ * host, who accepts or declines. `own` (the default, GarethMagis and Quin, 2026-11-25): every player takes back their own
+ * moves as single player's Undo does, back to a card draw or reveal or the start of their turn; a guest's Undo is done by
+ * the host's device at once, with nothing for the host to answer.
+ */
+export type LobbyUndo = "off" | "host" | "ask" | "own";
 
-/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`ask` when none was or it is unreadable). */
+const LOBBY_UNDO: ReadonlySet<unknown> = new Set<LobbyUndo>(["off", "host", "ask", "own"]);
+
+/** The undo policy a mode allows: Strict is always `off`, otherwise the chosen one (`own` when none was or it is unreadable). */
 export function lobbyUndoFor(playMode: LobbyPlayMode, undo: unknown): LobbyUndo {
   if (playMode === "strict") return "off";
-  return undo === "off" || undo === "host" || undo === "ask" ? undo : "ask";
+  return LOBBY_UNDO.has(undo) ? (undo as LobbyUndo) : "own";
 }
 
 export interface LobbyMod {
@@ -916,6 +927,16 @@ export type ClientMessage =
       readonly note?: string;
       /** The asker's id for this ask, echoed in the host's `request-answer` and in the room's refusal of it. */
       readonly rid?: number;
+      /**
+       * An Undo the host's device does by itself (`LobbyUndo` `own`) is bound to the table the asker saw: the command
+       * count (`base`), the count the Undo goes back to (`target`) and the log epoch. The room refuses one from another
+       * epoch (`out-of-order`); the host does it only when its own table still matches.
+       */
+      readonly base?: number;
+      readonly target?: number;
+      readonly epoch?: number;
+      /** A fingerprint of every move up to `base` (at most `MAX_UNDO_MOVES_CHARS`), opaque to the room. */
+      readonly moves?: string;
     }
   /** Host only: answer a `request`. The room sends it to participant `to` alone. */
   | {
@@ -1197,6 +1218,11 @@ export type ServerMessage =
       readonly what: RequestKind;
       readonly note: string;
       readonly rid?: number;
+      /** The table a bound Undo was asked on (see the client's `request`), and the log epoch the room admitted it in. */
+      readonly base?: number;
+      readonly target?: number;
+      readonly moves?: string;
+      readonly epoch?: number;
     }
   /** To the requester alone: the host's answer. An accepted undo or adjust arrives as the log's own rewind or command. */
   | {
@@ -1391,7 +1417,7 @@ function isDeck(v: unknown): v is RoomDeck {
 function isSettingsPatch(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (v.playMode !== undefined && v.playMode !== "strict" && v.playMode !== "host") return false;
-  if (v.undo !== undefined && v.undo !== "off" && v.undo !== "host" && v.undo !== "ask") return false;
+  if (v.undo !== undefined && !LOBBY_UNDO.has(v.undo)) return false;
   if (v.cheats !== undefined && typeof v.cheats !== "boolean") return false;
   if (v.multiSeat !== undefined && typeof v.multiSeat !== "boolean") return false;
   if (v.handover !== undefined && typeof v.handover !== "boolean") return false;
@@ -1558,6 +1584,10 @@ export function parseClientMessage(text: string): ClientMessage | null {
         isTable(m.table) &&
           (m.what === "undo" || m.what === "adjust") &&
           (m.rid === undefined || isCount(m.rid)) &&
+          (m.base === undefined || isCount(m.base)) &&
+          (m.target === undefined || isCount(m.target)) &&
+          (m.epoch === undefined || isCount(m.epoch)) &&
+          (m.moves === undefined || (typeof m.moves === "string" && m.moves.length <= MAX_UNDO_MOVES_CHARS)) &&
           (m.note === undefined || (typeof m.note === "string" && m.note.length <= MAX_REQUEST_NOTE_CHARS * 4)),
       );
     case "game:request-answer":

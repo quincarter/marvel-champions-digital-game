@@ -6,6 +6,7 @@
  */
 import type { RoomChatLine, RoomDevice, RoomProblem, RoomState } from "../live/room-state.js";
 import { closedUnderPlayer } from "./room-lobby-model.js";
+import { lobbyUndoFor } from "@mc/sync-worker/room-protocol";
 
 /** One person arriving in or leaving the room I am in. */
 export interface ParticipantChange {
@@ -40,6 +41,49 @@ export function newChatFromOthers(prev: RoomState, next: RoomState): RoomChatLin
   const fresh = next.chatLive - prev.chatLive;
   if (fresh <= 0 || prev.roomId !== next.roomId) return [];
   return next.chat.slice(-fresh).filter((line) => !line.mine);
+}
+
+/**
+ * Requests that reached the host since `prev` (a guest asking for an Undo or a change): they sound, focused window or
+ * not, because a host who missed the prompt kept the asker waiting (GarethMagis, 2026-11-25).
+ */
+export function newRequestsForHost(prev: RoomState, next: RoomState): RoomState["requests"] {
+  if (next.role !== "host" || prev.roomId !== next.roomId) return [];
+  const known = new Set((prev.requests ?? []).map((request) => request.id));
+  return (next.requests ?? []).filter((request) => !known.has(request.id));
+}
+
+/**
+ * The new requests the host's device answers by itself: a guest's Undo when the room lets each player take back their
+ * own moves (`LobbyUndo` `own`). The host's usual Undo for that guest's hero does it, within single player's limits, and
+ * nothing is asked of the host (or sounded).
+ */
+export function selfAnsweredRequests(prev: RoomState, next: RoomState): RoomState["requests"] {
+  return newRequestsForHost(prev, next).filter((request) => selfAnswered(next, request));
+}
+
+/**
+ * Whether the host's device answers `request` by itself: an Undo while the room lets each player take back their own
+ * moves, and bound to the table the guest saw (`RoomRequest.base` / `target`).
+ */
+export function selfAnswered(room: RoomState, request: RoomState["requests"][number]): boolean {
+  const settings = room.settings;
+  // Only a bound Undo: one asked under "Ask the host" before the host switched stays the host's to answer.
+  return (
+    room.role === "host" &&
+    request.what === "undo" &&
+    request.base !== undefined &&
+    request.target !== undefined &&
+    request.moves !== undefined &&
+    !!settings &&
+    lobbyUndoFor(settings.playMode, settings.undo) === "own"
+  );
+}
+
+/** The new requests the host is asked to answer, and hears: every one it does not answer by itself. */
+export function requestsForHostToAnswer(prev: RoomState, next: RoomState): RoomState["requests"] {
+  const self = new Set(selfAnsweredRequests(prev, next).map((request) => request.id));
+  return newRequestsForHost(prev, next).filter((request) => !self.has(request.id));
 }
 
 /** The sounds a state change calls for: someone else joined, and chat from someone else (when allowed to sound). */

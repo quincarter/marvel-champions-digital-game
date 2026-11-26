@@ -5,6 +5,10 @@ import {
   ChatSoundGate,
   CHAT_SOUND_GAP_MS,
   newChatFromOthers,
+  newRequestsForHost,
+  requestsForHostToAnswer,
+  selfAnswered,
+  selfAnsweredRequests,
   participantChanges,
   roomClosedInGame,
   unreadChatCount,
@@ -138,5 +142,71 @@ describe("unread chat", () => {
     seen.markSeen("R1", 5);
     expect(seen.seenFor("R1")).toBe(5);
     expect(seen.seenFor("R2")).toBe(0);
+  });
+});
+
+describe("newRequestsForHost", () => {
+  const ask = (id: string) => ({ id, from: "g1", name: "Ava", what: "undo" as const, note: "" });
+
+  it("names a guest's new Undo or change request on the host's device", () => {
+    const before = room({ role: "host", requests: [ask("r1")] });
+    expect(newRequestsForHost(before, room({ role: "host", requests: [ask("r1"), ask("r2")] }))).toEqual([ask("r2")]);
+    expect(newRequestsForHost(before, room({ role: "host", requests: [ask("r1")] }))).toEqual([]);
+  });
+
+  it("stays quiet on a guest's device and across rooms", () => {
+    expect(newRequestsForHost(room(), room({ requests: [ask("r1")] }))).toEqual([]);
+    const other = room({ role: "host", roomId: "R2", requests: [ask("r1")] });
+    expect(newRequestsForHost(room({ role: "host" }), other)).toEqual([]);
+  });
+});
+
+describe("the host's own answers to Each player Undo", () => {
+  const settings = {
+    playMode: "host" as const,
+    undo: "own" as const,
+    cheats: false,
+    tableRules: {},
+    mods: [],
+    multiSeat: false,
+    chat: true,
+    appVersion: "1",
+    contentVersion: "1",
+  };
+  // A bound Undo: the table the guest saw (`base`) and the count its Undo goes back to (`target`).
+  const undo = {
+    id: "r1",
+    from: "g1",
+    name: "Ava",
+    what: "undo" as const,
+    note: "",
+    base: 12,
+    target: 11,
+    moves: "0123456789abcdef",
+  };
+  const change = { id: "r2", from: "g1", name: "Ava", what: "adjust" as const, note: "" };
+
+  it("answers a guest's Undo by itself, with no sound, and still sounds for a change", () => {
+    const before = room({ role: "host", settings });
+    const after = room({ role: "host", settings, requests: [undo, change] });
+    expect(selfAnsweredRequests(before, after)).toEqual([undo]);
+    expect(requestsForHostToAnswer(before, after)).toEqual([change]);
+  });
+
+  it("leaves every request to the host under Ask the host, and never answers on a guest's device", () => {
+    const ask = { ...settings, undo: "ask" as const };
+    expect(selfAnswered(room({ role: "host", settings: ask }), undo)).toBe(false);
+    expect(
+      requestsForHostToAnswer(
+        room({ role: "host", settings: ask }),
+        room({ role: "host", settings: ask, requests: [undo] }),
+      ),
+    ).toEqual([undo]);
+    expect(selfAnswered(room({ settings }), undo)).toBe(false);
+  });
+
+  it("leaves an Undo asked without its table (under Ask, before a switch) to the host", () => {
+    const { base: _base, target: _target, moves: _moves, ...unbound } = undo;
+    expect(selfAnswered(room({ role: "host", settings }), unbound)).toBe(false);
   });
 });

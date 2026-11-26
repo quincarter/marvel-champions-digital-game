@@ -307,6 +307,9 @@ export class SessionStore {
         return false;
       }
       const drawsAfter = this.#state.game?.rng.draws;
+      // A room guest's move that landed inside a catch-up batch already came with the batch's whole trail (#1017):
+      // appending it again would put the trail one past the version, and every trail index after it one command off.
+      if (this.#state.commandTrail.length >= this.#state.version) return true;
       // The host's update already landed through #absorb, which cleared inFlight; append this command to the
       // trail after, so it lines up with `commandTrail.length === version` the same way `#absorb` already holds.
       this.#set({
@@ -390,6 +393,9 @@ export class SessionStore {
   async takeOffTurnSeat(playerId: PlayerId): Promise<boolean> {
     const { game, version } = this.#state;
     if (!game || this.#state.inFlight || !this.#state.offTurnSeats.includes(playerId)) return false;
+    // In a room, only a hero this device holds right now (#1019 review).
+    const room = seatContext();
+    if (room && heldElsewhere(room.room, playerId, room.seatGame)) return false;
     const actions = await this.#host.legalActions(playerId);
     if (this.#state.version !== version || !hasOffTurnAction(actions)) return false;
     this.#set({
@@ -541,6 +547,9 @@ export class SessionStore {
       return;
     }
     if (this.#state.version !== update.version || this.#state.offTurnSeat !== null || found.length === 0) return;
+    // Every seat the engine says holds an Action, whoever holds it in a room: who may press Act is the room's to say,
+    // and it changes without an engine update (a take-over, a seat given back), so it is read where Act is drawn and
+    // pressed (`offTurnSeatsHere`, `takeOffTurnSeat`).
     this.#set({ ...this.#state, offTurnSeats: found });
   }
 

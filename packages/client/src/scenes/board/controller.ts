@@ -74,7 +74,9 @@ import { BUTTON_ONLY_SELECTIONS, focusOrder, withBarStops, type FocusTarget } fr
 import { roomCheatsOf, roomUndoOffOf, seatUndoReason, undoOffReason } from "../../view/room-strict.js";
 import { seatUndoPolicyOf } from "../../view/room-ask-policy.js";
 import { handoverTakebackOf } from "../../view/end-turn-takeback.js";
-import { askHost } from "../../platform/room.js";
+import { askHost, roomState } from "../../platform/room.js";
+import { activeSeat } from "../../platform/seat-play.js";
+import { bindUndo } from "../../view/undo-binding.js";
 import { seatOfPlayerIn } from "../../live/room-state.js";
 import { seatContext, seatNoRewind } from "../../view/seat-context.js";
 import { t } from "../../i18n/translate.js";
@@ -2114,10 +2116,20 @@ export class BoardController {
     if (seat?.seatGame) {
       if (game.outcome || game.pendingChoice) return null;
       if (!seatOfPlayerIn(seat.room, perspectiveId)?.mine) return null;
+      const policy = seatUndoPolicyOf(seat.room.settings);
+      // Each player undoes their own moves: offered exactly as single player's Undo is (back to a draw or reveal, or the
+      // start of the turn), and done by the host's device at once (GarethMagis, 2026-11-25).
+      if (policy === "own") {
+        const own = undoOf(commandTrail, game, perspectiveId, { pastReveals: false });
+        if (!own) return null;
+        return own.kind === "available" && own.revealed !== true
+          ? { kind: "ask", own: { target: own.target } }
+          : own.kind === "unavailable"
+            ? own
+            : { kind: "unavailable", reason: UNDO_REASONS.revealed };
+      }
       // Ask only under the "ask" policy; Host only and Off say why where Undo would be (#904).
-      return seatUndoPolicyOf(seat.room.settings) === "ask"
-        ? { kind: "ask" }
-        : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
+      return policy === "ask" ? { kind: "ask" } : { kind: "unavailable", reason: seatUndoReason(seat.room.settings) };
     }
     // A lobby room that turned Undo off (Strict rules, or the host's Undo setting): Undo stays on the bar, greyed, with why.
     if (roomUndoOffOf(config)) {
@@ -2184,7 +2196,21 @@ export class BoardController {
    */
   async undo(): Promise<void> {
     // The guest's ask goes to the host, which undoes the acting hero's last move; it is offered on my own hero's turn only.
-    if (this.undoOffer()?.kind === "ask") {
+    const asked = this.undoOffer();
+    if (asked?.kind === "ask") {
+      if (asked.own) {
+        // Each player: bound to the table this guest sees, one at a time (#1019 review). The host's device does it
+        // only while its table still matches, so a move of this guest's still on its way is never the one taken back.
+        if (this.#undoing || roomState().myRequest?.status === "waiting") return;
+        const { version, inFlight, commandTrail } = appSession().store.state;
+        if (inFlight) return;
+        const bound = bindUndo(commandTrail, version, asked.own.target);
+        if (!bound) return;
+        const epoch = activeSeat()?.epoch;
+        askHost("undo", "", { ...bound, ...(epoch === undefined ? {} : { epoch }) });
+        this.#noteUndo(t("ask.undoOwnSent"));
+        return;
+      }
       askHost("undo");
       this.#noteUndo(t("ask.undoSent"));
       return;
