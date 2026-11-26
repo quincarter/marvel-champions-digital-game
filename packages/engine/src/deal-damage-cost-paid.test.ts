@@ -226,7 +226,7 @@ describe("#1012 §6, RRG 1.8 'Cost' p. 14 and 'Replacement Effect' p. 37: cost d
     expect(events.some((e) => e.type === "costDamageSettled")).toBe(false);
   });
 
-  it("taking damage as a cost, replaced: none of it was taken, so the cost is not paid (RRG 1.8 "Cost", p. 14)", () => {
+  it("taking damage as a cost, replaced: none of it was taken, so the cost is not paid (RRG 1.8 Cost, p. 14)", () => {
     const { state: table, ids } = withInPlay(PLATING_SELF.id);
     const plating = ids[0]!;
     const given = giveCard(table, P1, TAKE_DRAW.id);
