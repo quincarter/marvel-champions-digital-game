@@ -93,6 +93,16 @@ Owner: `game-client-engineer`.
 
 ### Stack decision: pure Phaser 4 + rexUI
 
+**Revised 2026-11-26 (the owner): Lit panels over the table.** Profiling on the rig (research notes in the owner's vault, "Lit panels over Phaser research") found the panel screens' jank came from Phaser mechanics the DOM doesn't have: a screen rebuilt whole when card pictures arrived, a per-frame signature over every object (`ui/idle-render.ts`), and one texture per label. The table itself was smooth. So the text-heavy screens move, one screen per PR, to Lit web components in `packages/ui` (`@mc/ui`), drawn over the canvas with the same look:
+
+- `@mc/ui` is presentational: no Phaser, engine or client imports; the client passes every value in, already translated. Components follow the three-file pattern (`McThing.ts`, `mc-thing.styles.ts`, `mc-thing.ts` registering the tag) and use Lit without decorators.
+- The scene stays the screen: navigation, store subscriptions, focus route, its chrome. It mounts its panel with `src/dom/dom-region.ts` at a layout `Rect` (game coordinates are the canvas's CSS pixels in `Scale.RESIZE`); the region follows the scene's camera fade and hides under an overlay.
+- Design tokens reach CSS through `src/dom/ui-layer.ts` (per color channel, per scheme, plus the desktop small-type bump). A focus ring over a panel is `src/dom/dom-ring.ts`. Nothing Phaser draws can sit above a panel, so a screen is wholly one layer where they overlap.
+- Phaser keeps the Board, the decision sheet, the villain phase, Inspect and every animated card surface.
+- e2e text search (`e2e/helpers.ts`) also walks the panels, by `data-scene`.
+
+The original decision follows.
+
 Decided 2026-09-11. It was first decided as a Phaser table inside a Lit app, then revised the same day. `@mc/client` is a Vite + TypeScript app built on **Phaser 4** (released 2026-04-10; pinned to `^4.2.1`, the current line — 4.1.x was the plan of record before 4.2 shipped, and `phaser4-rex-plugins@4.2.0` tracks 4.2). Its UI toolkit is **rexUI**, via the `phaser4-rex-plugins` package. Phaser draws every screen, the table and every overlay; there is no DOM UI framework.
 
 - **Why.** A unified game feel was prioritized over DOM convenience:
