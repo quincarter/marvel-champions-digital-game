@@ -7,6 +7,8 @@
 import type { MessageKey, Params } from "../i18n/translate.js";
 import { seatOfPlayerIn, type RoomState } from "../live/room-state.js";
 import { heroNameOf, type Acting } from "./whose-turn.js";
+import { seatUndoPolicyOf } from "./room-ask-policy.js";
+import { selfAnswered } from "./room-notices.js";
 
 export type RoomPrompt =
   /** Host: the game waits on a seat whose holder is away. */
@@ -29,7 +31,13 @@ export type RoomPrompt =
       readonly note: string;
     }
   /** Guest: my own request, waiting or answered. */
-  | { readonly kind: "answer"; readonly what: "undo" | "adjust"; readonly status: "waiting" | "accepted" | "declined" };
+  | {
+      readonly kind: "answer";
+      readonly what: "undo" | "adjust";
+      readonly status: "waiting" | "accepted" | "declined";
+      /** The room lets each player undo their own moves: nobody decided, the move just could not be taken back. */
+      readonly own?: true;
+    };
 
 /** What a button on a prompt does. */
 export type PromptActionId = "take-over" | "give-back" | "accept" | "decline" | "dismiss" | "message" | "wait" | "give";
@@ -67,6 +75,7 @@ export function roomPromptsOf(
   waiting: ReadonlySet<string> = new Set(),
 ): readonly RoomPrompt[] {
   const prompts: RoomPrompt[] = [];
+  const ownUndo = seatUndoPolicyOf(room.settings) === "own";
   if (room.role === "host") {
     const found = acting ? seatOfPlayerIn(room, acting.playerId) : null;
     if (found && (found.away || found.seat.holder === null) && !found.takenOver && !waiting.has(found.seat.id)) {
@@ -84,10 +93,18 @@ export function roomPromptsOf(
       }
     }
     for (const request of room.requests) {
+      // A guest's own Undo under "each player" is done by this device at once (`selfAnsweredRequests`): nothing to ask.
+      if (selfAnswered(room, request)) continue;
       prompts.push({ kind: "request", id: request.id, name: request.name, what: request.what, note: request.note });
     }
-  } else if (room.myRequest) {
-    prompts.push({ kind: "answer", what: room.myRequest.what, status: room.myRequest.status });
+  } else if (room.myRequest && !(ownUndo && room.myRequest.what === "undo" && room.myRequest.status !== "declined")) {
+    // Under "each player" an Undo needs no word back unless it could not be done.
+    prompts.push({
+      kind: "answer",
+      what: room.myRequest.what,
+      status: room.myRequest.status,
+      ...(ownUndo && room.myRequest.what === "undo" ? { own: true as const } : {}),
+    });
   }
   return prompts;
 }
@@ -150,7 +167,9 @@ export function promptViewOf(
               ? "prompt.acceptedUndo"
               : "prompt.acceptedChange"
             : asked === "undo"
-              ? "prompt.declinedUndo"
+              ? prompt.own
+                ? "prompt.ownUndoFailed"
+                : "prompt.declinedUndo"
               : "prompt.declinedChange";
       return {
         prompt,

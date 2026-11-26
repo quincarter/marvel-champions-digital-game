@@ -1,0 +1,3 @@
+kind: Fixed
+body: Music no longer starts a new song at full volume before fading to your volume setting, as on the Rhino intro comic (#1018, reported by GarethMagis)
+time: 2026-11-25T19:48:03.0132595-05:00

@@ -12,16 +12,18 @@
  * are answered from the full state, as the local engine worker does.
  */
 import { applyCommand, legalActions as queryLegalActions, sessionApply, startSession } from "@mc/engine";
-import type { Command, EngineDeps, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
+import type { Command, EngineDeps, EventState, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import { poolViewOfPacks } from "../content/pool.js";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "../engine/game-record.js";
 import type { CardPool, LegalActionsFor, StateWithoutPool } from "../engine/host.js";
 import {
+  beginsVillainPhase,
   inVillainPhase,
   rebuildBaseline,
   sealedEventStates,
   stripSealedPool,
+  villainPhaseSeedOf,
   type Snapshot,
 } from "../engine/session-core.js";
 import type { PackRuntime } from "../packs/pack-runtime.js";
@@ -71,6 +73,17 @@ export class SeatCore {
   #commands: Command[] = [];
   #events: (readonly GameEvent[])[] = [];
   #trail: BackOutTrailEntry[] = [];
+  /**
+   * The log's last villain phase, command by command with the table each left (and, for commands that arrived after the
+   * open, the table at each of its events), kept until the next phase begins. A catch-up (a batch of the host's moves, a
+   * reconnect's log) is published without events; this lets the villain phase screen replay what it missed with the
+   * table as it stood at each step rather than the table at the end (#1017).
+   */
+  #phase: {
+    startCommand: number;
+    before: GameState;
+    commands: { events: readonly GameEvent[]; states: readonly EventState[]; after: GameState }[];
+  } | null = null;
   #check = new LiveChecksumCheck();
   #players: readonly SeatPlayer[] = [];
 
@@ -146,7 +159,7 @@ export class SeatCore {
       const result = sessionApply(session, command, deps, { recordStates: inVillainPhase });
       if (!result.ok) throw new Error(`the host's move no longer applies here: ${result.error.message}`);
       session = result.session;
-      this.#push(command, before, result.events, result.session.state);
+      this.#push(command, before, result.events, result.session.state, result.states ?? []);
       events.push(...result.events);
       if (commands.length === 1) states = sealedEventStates(result.states ?? []);
     }
@@ -219,6 +232,7 @@ export class SeatCore {
     this.#commands = [];
     this.#events = [];
     this.#trail = [];
+    this.#phase = null;
     this.#record = this.#baseRecord;
     let state = initial;
     for (const [index, command] of commands.entries()) {
@@ -230,9 +244,41 @@ export class SeatCore {
       state = result.state;
     }
     this.#state = state;
+    this.#recordPhaseStates();
   }
 
-  #push(command: Command, before: GameState, events: readonly GameEvent[], after: GameState): void {
+  /**
+   * A replayed log (an open, a reconnect's reset, a rewind) applies its commands without event states. The last villain
+   * phase is played again from the table before it, recording the table at each of its events, so a guest that
+   * reconnected mid-phase sees the board move with the beats it catches up on (#1019 review). One phase only.
+   */
+  #recordPhaseStates(): void {
+    const phase = this.#phase;
+    if (!phase) return;
+    const deps = this.#need();
+    let session = startSession(phase.before);
+    for (const [i, entry] of phase.commands.entries()) {
+      const command = this.#commands[phase.startCommand + i];
+      if (!command) return;
+      const result = sessionApply(session, command, deps, { recordStates: inVillainPhase });
+      if (!result.ok) return;
+      session = result.session;
+      phase.commands[i] = { ...entry, states: result.states ?? [] };
+    }
+  }
+
+  #push(
+    command: Command,
+    before: GameState,
+    events: readonly GameEvent[],
+    after: GameState,
+    states: readonly EventState[] = [],
+  ): void {
+    if (beginsVillainPhase(events)) this.#phase = { startCommand: this.#commands.length, before, commands: [] };
+    // The phase's own commands, up to and including the one that leaves it.
+    const phase = this.#phase;
+    const last = phase?.commands.at(-1);
+    if (phase && (!last || last.after.step.phase === "villain")) phase.commands.push({ events, states, after });
     this.#commands.push(command);
     this.#events.push(events);
     this.#trail.push({
@@ -243,6 +289,20 @@ export class SeatCore {
     });
     this.#record = recordEvents(this.#record, events, after, this.#need());
     this.#check.observe(this.#commands.length, after);
+  }
+
+  /**
+   * Whether a catch-up can use the last villain phase: a batch that reaches into it, or a reopened log that ends inside
+   * it (or on the command that left it). Never a rewind, and never a catch-up of later turns only: each phase is many
+   * full tables, cloned across the worker boundary, and the screen would not read them.
+   */
+  #phaseUsedBy(change: SeatChange): boolean {
+    const phase = this.#phase;
+    if (!phase) return false;
+    const end = phase.startCommand + phase.commands.length;
+    if (change.type === "append") return change.from < end;
+    if (change.type === "open" || change.type === "reset") return end === this.#commands.length;
+    return false;
   }
 
   #history(): readonly GameEvent[] {
@@ -271,6 +331,7 @@ export class SeatCore {
       config: this.#config,
       gameId: null,
       ...(resumed ? { history: this.#history(), trail: this.#trail } : {}),
+      ...(resumed && this.#phaseUsedBy(change) ? { villainPhase: villainPhaseSeedOf(this.#phase!) } : {}),
       change,
     };
   }

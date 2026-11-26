@@ -109,6 +109,8 @@ import { setMask } from "../../ui/rex.js";
 import { clipToViewport } from "../../ui/scroll-clip.js";
 import { bindDragSurface } from "../../ui/hold-target.js";
 import { onTap } from "../../ui/tap.js";
+import { seatContext } from "../../view/seat-context.js";
+import { offTurnSeatsHere } from "../../view/seat-gate.js";
 
 export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const g = ctx.scene.add.graphics();
@@ -1915,7 +1917,12 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     const drawn = beside.row;
     ctx.frame.hitRects.set(seat.identityInstanceId, drawn);
     // A seat holding an Action for this turn (RRG "Player Turn", pp. 34-35): a button takes the board to that seat.
-    const acts = !seat.eliminated && appSession().store.state.offTurnSeats.includes(seat.playerId);
+    const room = seatContext();
+    const acts =
+      !seat.eliminated &&
+      offTurnSeatsHere(appSession().store.state.offTurnSeats, room?.room ?? null, room?.seatGame ?? false).includes(
+        seat.playerId,
+      );
     // View: only from an idle table the board's own seat is on (a selection in progress, or acting off turn, keeps it).
     const views =
       !seat.eliminated &&

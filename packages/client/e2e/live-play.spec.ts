@@ -45,7 +45,7 @@ test("a seated guest acts from their own device and the whose-turn line follows 
 }, info) => {
   test.skip(info.project.name !== "desktop", "two desktop contexts");
   test.setTimeout(240_000);
-  const host = await open(browser, baseURL!, "/?screen=room-play-host&name=Mara&setup=1");
+  const host = await open(browser, baseURL!, "/?screen=room-play-host&name=Mara&setup=1&undo=ask");
   const code = await waitFor(
     async () => (await host.page.evaluate(() => (globalThis as { __mcRoomCode?: string | null }).__mcRoomCode)) ?? null,
     "the room code",

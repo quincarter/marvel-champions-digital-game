@@ -207,7 +207,7 @@ describe("who may set the lobby", () => {
     expect(w.last("lobby")!.settings.hostSeesHands).toBe(false);
   });
 
-  it("holds the undo policy: Off in Strict, Ask when Host control starts, the host's choice after, host-only to set", async () => {
+  it("holds the undo policy: Off in Strict, Each player when Host control starts, the host's choice after, host-only to set", async () => {
     const { room, host, join, lobbySet } = await setup();
     const h = await host();
     const w = await join(room);
@@ -215,7 +215,7 @@ describe("who may set the lobby", () => {
     await lobbySet(h, { settings: { undo: "host" } });
     expect(h.last("lobby")!.settings.undo).toBe("off");
     await lobbySet(h, { settings: { playMode: "host" } });
-    expect(w.last("lobby")!.settings).toMatchObject({ playMode: "host", undo: "ask" });
+    expect(w.last("lobby")!.settings).toMatchObject({ playMode: "host", undo: "own" });
     await lobbySet(h, { settings: { undo: "host" } });
     expect(w.last("lobby")!.settings.undo).toBe("host");
     await lobbySet(h, { settings: { chat: false } });

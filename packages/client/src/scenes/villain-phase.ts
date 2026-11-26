@@ -272,10 +272,19 @@ import { t } from "../i18n/translate.js";
 import { seatContext, seatNoRewind } from "../view/seat-context.js";
 import type { RoomVillainCursor } from "../live/room-state.js";
 import { onRoomState, reportVillainCursor } from "../platform/room.js";
-import { cursorFor, followPlan, followsHost, hostCursorOf, pacingOf, phaseKeyOf } from "../view/villain-pacing.js";
+import { commandsToTakeIn } from "../view/villain-phase-catch-up.js";
+import { heldElsewhere, narrationViewer } from "../view/seat-gate.js";
+import {
+  cursorFor,
+  followPlan,
+  followsHost,
+  followsHostNow,
+  hostCursorOf,
+  pacingOf,
+  phaseKeyOf,
+} from "../view/villain-pacing.js";
 import { whoseTurnOf } from "../view/whose-turn.js";
 import { handVisibleHere } from "./hand-privacy-here.js";
-import { heldElsewhere } from "../view/seat-gate.js";
 import {
   abilityName,
   drawInterruptAnswer,
@@ -449,7 +458,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#revealed = 0;
     this.#version = -2;
     if (data?.seed && !data.review) {
-      this.#walkthrough = walkthroughFromSeed(data.seed, 1, data.surgeDealt, appSession().store.state.perspectiveId);
+      this.#walkthrough = walkthroughFromSeed(data.seed, 1, data.surgeDealt, this.#viewer(appSession().store.state));
       // The store already stands at the end of the seed's commands: nothing more to take in until the next command.
       this.#version = seedVersionOf(data.seed);
     }
@@ -548,7 +557,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#roomOff = onRoomState((room) => {
       if (room.villainCursor === cursorSeen) return;
       cursorSeen = room.villainCursor;
-      if (!this.#following() || this.#motion.leaving) return;
+      // `#followsRoom`, not `#following`: a cursor that went away may hand the screen to the guest (#1017).
+      if (!this.#followsRoom() || this.#motion.leaving) return;
       this.#syncTiming();
       this.#draw();
     });
@@ -686,8 +696,35 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * replay are the player's own and never follow.
    */
   #following(): boolean {
+    if (!this.#followsRoom()) return false;
+    // Nothing of the host's left to follow once the phase is over here: play on alone rather than wait for Skip (#1017).
+    return followsHostNow({
+      followsRoom: true,
+      cursor: this.#hostCursor(),
+      // Before the first state arrives nothing is known to be over.
+      phaseOver: !!this.#latest?.game && this.#latest.game.step.phase !== "villain",
+      complete: this.#walkthrough.complete,
+    });
+  }
+
+  /** The lobby says the host leads this (guest's, live) screen, whether or not there is a cursor to follow right now. */
+  #followsRoom(): boolean {
     if (this.#review || activeReplay()) return false;
     return followsHost(seatContext());
+  }
+
+  /** Who the store shows acting: what this screen lets the player answer is keyed on them, never on the narration. */
+  #actor(): PlayerId | null {
+    return this.#latest?.perspectiveId ?? null;
+  }
+
+  /**
+   * Whose eyes the phase's narration reads through: in a room, this device's own hero rather than whoever must act, so
+   * another seat's defend reads "Rhino attacks Ava's hero · Ava declares a defender", not "you" (#1017).
+   */
+  #viewer(state: { readonly perspectiveId: PlayerId | null }): PlayerId | null {
+    const room = seatContext();
+    return narrationViewer(room?.room ?? null, state.perspectiveId, room?.seatGame ?? false);
   }
 
   /** The host's cursor, when it is about this phase (a cursor left from another phase is ignored). */
@@ -838,7 +875,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       walkthrough: this.#walkthrough,
       before: this.#before,
       after: game,
-      viewer: this.#latest?.perspectiveId ?? null,
+      viewer: this.#latest ? this.#viewer(this.#latest) : null,
     };
   }
 
@@ -974,23 +1011,30 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
 
     if (state.version !== this.#version) {
+      // A guest's catch-up (a batch of the host's moves, a reconnect's log) carries no events of its own: the commands
+      // it skipped are taken from the trail, so the screen does not stay on the last step it knew (#1017).
+      const takeIn = commandsToTakeIn(this.#version, { ...state, game: state.game });
       this.#version = state.version;
-      const before = totalBeatsOf(this.#walkthrough);
-      this.#walkthrough = appendWalkthrough(
-        this.#walkthrough,
-        state.lastEvents,
-        state.game,
-        state.perspectiveId,
-        gameDeps(),
-        state.lastStates,
-      );
-      const after = totalBeatsOf(this.#walkthrough);
-      // A fresh villain phase clears the previous one's beats (the walkthrough
-      // shows one phase at a time) — the reveal cursor follows suit.
-      if (after < before) {
-        this.#revealed = 0;
-        this.#released = new Set();
-        this.#recapExpanded = false;
+      for (const command of takeIn) {
+        const before = totalBeatsOf(this.#walkthrough);
+        const round = this.#walkthrough.round;
+        this.#walkthrough = appendWalkthrough(
+          this.#walkthrough,
+          command.events,
+          command.after,
+          this.#viewer(state),
+          gameDeps(),
+          command.states,
+        );
+        // A fresh villain phase clears the previous one's beats (the walkthrough shows one phase at a time), the reveal
+        // cursor follows suit. Checked after each command: one catch-up can close a phase and open the next, whose
+        // recap then compares against the table just before it.
+        if (totalBeatsOf(this.#walkthrough) < before || this.#walkthrough.round !== round) {
+          this.#revealed = 0;
+          this.#released = new Set();
+          this.#recapExpanded = false;
+          if (command.phaseBefore) this.#before = command.phaseBefore;
+        }
       }
     }
 
@@ -1667,7 +1711,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const state = this.#latest;
     if (!state?.game) return;
     const game = state.game;
-    const viewer = state.perspectiveId;
+    // Two readings of "who is looking": `actor`, the hero the store shows (whoever must act), decides what this screen
+    // lets the player do; `viewer`, the hero this device holds in a room, words the narration, so another seat's attack
+    // or defend never reads as "you" (#1017). Outside a room, and for a decision this device acts for, they are the same.
+    const actor = state.perspectiveId;
+    const viewer = this.#viewer(state);
     // The table keeps the round and step the rail is on while the engine's run is ahead of it, and has no End turn or
     // Undo until the phase closes (`BoardScene.setVillainReplay`).
     if (!this.#review) {
@@ -1682,7 +1730,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // `inspectModel` wants a real seat; every render past setup has one, and
     // the rare moment it doesn't (no perspective assigned yet) falls back to
     // whoever's actually deciding right now rather than throwing.
-    const viewerId: PlayerId = viewer ?? game.firstPlayerId;
+    const viewerId: PlayerId = actor ?? game.firstPlayerId;
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -1719,7 +1767,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
     const layout = villainPhaseLayout(bounds, formFactor, boostCount);
     const pausedInline =
-      this.#shownPause() && game.pendingChoice && !this.#heldChoice() && inlineInterruptFor(game.pendingChoice, viewer);
+      this.#shownPause() && game.pendingChoice && !this.#heldChoice() && inlineInterruptFor(game.pendingChoice, actor);
 
     // Docked beside the table (D1/D2) unless the player turned the docked table off, or this form factor's docked
     // shape is not drawn yet; then the full-screen panel below. The recap and the viewer's own defend dock too
@@ -1746,7 +1794,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     });
     // The hand stays in view beside every docked shape, so it says when each card can answer (#129, #138).
     const docked = kind !== "full" && !(this.#hidden && (kind === "rail" || kind === "band"));
-    boardScene?.setVillainHandTags(docked ? this.#handTags(game, viewer) : null);
+    boardScene?.setVillainHandTags(docked ? this.#handTags(game, actor) : null);
     // A docked decision widens the rail only when it is decided on cards; a list of answers reads in the ordinary rail.
     const cardDecision =
       dockedDecisionId !== null &&
@@ -1784,7 +1832,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           this.#drawLogView(kind, panel, formFactor);
           return;
         }
-        if (this.#drawDockedAnswer(kind, panel, null, dockedDefendId, dockedDecisionId, dockedRecap, game, viewer))
+        if (
+          this.#drawDockedAnswer(kind, panel, null, dockedDefendId, dockedDecisionId, dockedRecap, game, actor, viewer)
+        )
           return;
         this.#drawRail(kind, panel, reveal, game, viewer, viewerId);
         return;
@@ -1807,6 +1857,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             dockedDecisionId,
             dockedRecap,
             game,
+            actor,
             viewer,
           )
         )
@@ -1926,7 +1977,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // the first frame it appeared, tappable only once the cursor happened to catch up on its own.
     const pause = this.#shownPause();
     const inline =
-      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, this.#actor()) : null;
 
     const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
     if (logRect) stops.set("log", { rect: logRect, activate: () => this.toggleLog() });
@@ -2037,9 +2088,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     decisionId: string | null,
     recap: boolean,
     game: GameState,
+    actor: PlayerId | null,
     viewer: PlayerId | null,
   ): boolean {
-    if (defendId !== null) return this.#drawDefend(kind, panel, footer, game, viewer);
+    if (defendId !== null) return this.#drawDefend(kind, panel, footer, game, actor);
     if (decisionId !== null) {
       this.#drawDockedDecision(kind, panel, footer, decisionId);
       return true;
@@ -3302,7 +3354,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#presentation = kind;
     const pause = this.#shownPause();
     let inline =
-      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, this.#actor()) : null;
     const strip = this.#encounterStrip(reveal, game, viewer);
     const revealing = reveal.steps[3]?.revealStatus === "active" && strip !== null && strip.tiles.length > 0;
     const subject = (revealing ? strip?.current : null) ?? this.#walkthrough.activation?.enemyInstanceId ?? null;
@@ -3517,7 +3569,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const layout = peekBannerLayout(area, peekEdge(), footer.width < 600, 720, seats.length);
     const pause = this.#shownPause();
     let inline =
-      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+      pause && game.pendingChoice && !this.#heldChoice() ? inlineInterruptFor(game.pendingChoice, this.#actor()) : null;
     const peekStrip = this.#encounterStrip(reveal, game, viewer);
     const gate = this.#gate(game, viewer, peekStrip?.current ?? this.#walkthrough.activation?.enemyInstanceId ?? null);
     if (gate?.kind === "start") inline = null;

@@ -62,6 +62,11 @@ export interface RoomServer {
   room(): ServerRoom | null;
   /** A raw watcher in `roomId` (it counts in the roster); `leave()` drops it. */
   joinWatcher(roomId: string): Promise<{ leave(): void }>;
+  /**
+   * Holds the host's `commands` batches while on, and hands them on as one batch when turned off, the way the host's
+   * own log goes out after its socket comes back (#1017): a guest takes such a catch-up with no events of its own.
+   */
+  holdHostCommands(on: boolean): void;
   stop(): Promise<void>;
 }
 
@@ -89,6 +94,8 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
   let creates = 0;
   let sockets = 0;
   let newest: string | null = null;
+  let holding = false;
+  const releases = new Set<() => void>();
 
   const roomOf = (id: string): ServerRoom => ({
     id,
@@ -183,14 +190,34 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
       clients.add(ws);
       // Messages are handled one at a time per socket, as the Durable Object does.
       let chain: Promise<void> = Promise.resolve();
+      const held: { readonly commands: readonly unknown[]; readonly checksums?: Record<string, string> }[] = [];
+      const release = (): void => {
+        const first = held[0];
+        if (!first) return;
+        const merged = {
+          ...first,
+          commands: held.flatMap((batch) => batch.commands),
+          checksums: Object.assign({}, ...held.map((batch) => batch.checksums ?? {})) as Record<string, string>,
+        };
+        held.length = 0;
+        const text = JSON.stringify(merged);
+        chain = chain.then(() => room.logic.message(adapter, text));
+      };
+      releases.add(release);
       ws.on("message", (data) => {
         const text = data.toString();
         const parsed = JSON.parse(text) as Omit<Sent, "host">;
         if (parsed.kind === "hello") isHost = typeof parsed.token === "string";
+        if (holding && isHost && parsed.kind === "commands") {
+          sent.push({ ...parsed, host: isHost });
+          held.push(parsed as unknown as (typeof held)[number]);
+          return;
+        }
         sent.push({ ...parsed, host: isHost });
         chain = chain.then(() => room.logic.message(adapter, text));
       });
       ws.on("close", () => {
+        releases.delete(release);
         clients.delete(ws);
         chain = chain.then(() => room.logic.close(adapter));
       });
@@ -224,6 +251,10 @@ export async function startRoomServer(options: RoomServerOptions = {}, waitMs = 
           }
         });
       }),
+    holdHostCommands: (on) => {
+      holding = on;
+      if (!on) for (const release of releases) release();
+    },
     stop: () =>
       new Promise((resolve) => {
         for (const client of clients) client.close();
