@@ -13,6 +13,15 @@ export interface TapOptions {
   readonly enabled?: () => boolean;
 }
 
+/**
+ * Whether the point is inside `rect`. A box with no size (a host drawn as `display: contents`, or no layout at all) can't
+ * be hit-tested, so it doesn't refuse the release: the other checks still decide.
+ */
+function contains(rect: DOMRect, x: number, y: number): boolean {
+  if (rect.width === 0 && rect.height === 0) return true;
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
+
 /** Calls `handler` on each tap on `element`; returns the function that stops listening. */
 export function onTap(
   element: HTMLElement,
@@ -26,6 +35,8 @@ export function onTap(
     scrolled: boolean;
     /** Where every element under the press stood: a scroll inside a component's shadow root never reaches the window. */
     offsets: readonly (readonly [Element, number, number])[];
+    /** The clipping ancestors (scroll viewports) the press went through: a release outside one is not on the control. */
+    clips: readonly Element[];
   } | null = null;
   const onScroll = (): void => {
     if (press) press.scrolled = true;
@@ -40,7 +51,14 @@ export function onTap(
       .composedPath()
       .filter((node): node is Element => node instanceof Element)
       .map((node) => [node, node.scrollTop, node.scrollLeft] as const);
-    press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false, offsets };
+    const clips = offsets
+      .map(([node]) => node)
+      .filter((node) => {
+        if (node === element) return false;
+        const { overflowX, overflowY } = getComputedStyle(node);
+        return [overflowX, overflowY].some((value) => value !== "visible" && value !== "");
+      });
+    press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false, offsets, clips };
     // Any scroll under way (a list this control sits in) cancels the press: a swipe, not a tap.
     window.addEventListener("scroll", onScroll, true);
   };
@@ -52,6 +70,10 @@ export function onTap(
     if (options.enabled?.() === false) return;
     if (held.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
     if (Math.hypot(event.clientX - held.x, event.clientY - held.y) > TAP_SLOP_PX) return;
+    // Touch pointers are captured at the press, so the release arrives here even from outside the element (and
+    // pointerleave is suppressed): check where the finger actually lifted.
+    if (![element, ...held.clips].every((node) => contains(node.getBoundingClientRect(), event.clientX, event.clientY)))
+      return;
     handler(event);
   };
   const move = (event: PointerEvent): void => {
@@ -67,6 +89,7 @@ export function onTap(
   element.addEventListener("pointermove", move);
   element.addEventListener("pointercancel", end);
   element.addEventListener("pointerleave", end);
+  element.addEventListener("lostpointercapture", end);
   return () => {
     end();
     element.removeEventListener("pointerdown", down);
@@ -74,6 +97,7 @@ export function onTap(
     element.removeEventListener("pointermove", move);
     element.removeEventListener("pointercancel", end);
     element.removeEventListener("pointerleave", end);
+    element.removeEventListener("lostpointercapture", end);
   };
 }
 
