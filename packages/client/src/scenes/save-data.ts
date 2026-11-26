@@ -12,6 +12,7 @@
  * from a `#receive=` link, `save-data/receive-link.ts`) and lands on the same replace confirm as Import. Wording
  * and the countdown are in `view/save-transfer-model.ts`.
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { hit, signal, statHue, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -35,10 +36,10 @@ import {
   replaceConfirmOf,
   type SaveDataStatus,
   type SaveDataStep,
-  EXPORT_ROW_DETAIL,
-  EXPORT_ROW_TITLE,
-  IMPORT_ROW_DETAIL,
-  IMPORT_ROW_TITLE,
+  exportRowDetail,
+  exportRowTitle,
+  importRowDetail,
+  importRowTitle,
 } from "../view/save-data-model.js";
 import {
   codeTextOf,
@@ -46,19 +47,19 @@ import {
   COPY_FAILED_STATUS,
   countdownOf,
   receiveLinkOf,
-  RECEIVE_ROW_DETAIL,
-  RECEIVE_ROW_TITLE,
-  SEND_ROW_DETAIL,
-  SEND_ROW_TITLE,
+  receiveRowDetail,
+  receiveRowTitle,
+  sendRowDetail,
+  sendRowTitle,
   transferFailureStatusOf,
   sendFailedStatusOf,
   typedCodeOf,
 } from "../view/save-transfer-model.js";
 import { syncService } from "../sync/sync-wiring.js";
-import { syncStatusDisplay, SYNC_ROW_TITLE } from "../view/sync-model.js";
+import { syncStatusDisplay, syncRowTitle } from "../view/sync-model.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
 import { finishedIdsOf, readConsent, turnOffGlobalStats, turnOnGlobalStats } from "../global-stats/global-consent.js";
-import { GLOBAL_ROW_FAILED, GLOBAL_ROW_TITLE, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
+import { globalRowFailed, globalRowTitle, globalRowButton, globalRowDetail } from "../view/global-stats-ui.js";
 import { appSession } from "../session.js";
 import type { SyncDataSceneData } from "./sync-data.js";
 import { drawBetaTagBeside } from "../ui/beta-tag.js";
@@ -180,7 +181,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       }
     }
     if (!this.sys.isActive() || this.#step.kind !== "menu") return;
-    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: GLOBAL_ROW_FAILED });
+    this.#set({ kind: "menu" }, saved ? NO_STATUS : { tone: "error", text: globalRowFailed() });
   }
 
   #close(): void {
@@ -230,7 +231,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     else this.#set({ kind: "confirm", file: picked.file }, NO_STATUS);
   }
 
-  /** Uploads the save and shows its code. Also "New code" once a code has run out. */
+  /** Uploads the save and shows its code. Also t("saveData.newCode") once a code has run out. */
   async #send(): Promise<void> {
     // A new code is asked for from the menu, or from a Send screen whose code has run out; never mid-request.
     const from = this.#step;
@@ -379,7 +380,7 @@ export class SaveDataOverlay extends Phaser.Scene {
     if (!working) this.#hints.button(this.#buttons.at(-1)!, ["cancel"], "ink");
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     this.add
-      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, "Save data"), {
+      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, t("settings.saveData.title")), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "24px",
       })
@@ -398,13 +399,13 @@ export class SaveDataOverlay extends Phaser.Scene {
     else y = this.#drawMenu(x, y, rowWidth, bodyBottom - y, working, stops, order);
 
     if (this.#status.tone !== "none" || working) {
-      const text = working ? "Working…" : this.#status.text;
+      const text = working ? t("saveData.working") : this.#status.text;
       const error = this.#status.tone === "error" && !working;
       const line = this.add
         .text(
           x,
           y + 16,
-          error ? `Problem: ${text}` : text,
+          error ? t("saveData.problem", { text }) : text,
           textStyle(typeRole.body, error ? signal.caution.hex : surface.paper.hex, 0.95),
         )
         .setFontSize(12)
@@ -414,7 +415,13 @@ export class SaveDataOverlay extends Phaser.Scene {
         const rect: Rect = { x, y: y + 10, width: Math.min(rowWidth, 200), height: hit.primary };
         const exportNow = (): void => void this.#export();
         this.#buttons.push(
-          new McButton(this, { kind: "secondary", label: "Export", type: buttonType, rect, onClick: exportNow }),
+          new McButton(this, {
+            kind: "secondary",
+            label: t("saveData.button.export"),
+            type: buttonType,
+            rect,
+            onClick: exportNow,
+          }),
         );
         stops.set("status-export", { rect, activate: exportNow });
         order.push("status-export");
@@ -441,36 +448,44 @@ export class SaveDataOverlay extends Phaser.Scene {
   ): number {
     const rows = [
       {
-        title: EXPORT_ROW_TITLE,
-        detail: EXPORT_ROW_DETAIL,
-        label: "Export",
+        title: exportRowTitle(),
+        detail: exportRowDetail(),
+        label: t("saveData.button.export"),
         run: () => void this.#export(),
         id: "export",
       },
       {
-        title: IMPORT_ROW_TITLE,
-        detail: IMPORT_ROW_DETAIL,
-        label: "Import",
+        title: importRowTitle(),
+        detail: importRowDetail(),
+        label: t("saveData.button.import"),
         run: () => void this.#import(),
         id: "import",
       },
-      { title: SEND_ROW_TITLE, detail: SEND_ROW_DETAIL, label: "Send", run: () => void this.#send(), id: "send" },
       {
-        title: RECEIVE_ROW_TITLE,
-        detail: RECEIVE_ROW_DETAIL,
-        label: "Receive",
+        title: sendRowTitle(),
+        detail: sendRowDetail(),
+        label: t("saveData.button.send"),
+        run: () => void this.#send(),
+        id: "send",
+      },
+      {
+        title: receiveRowTitle(),
+        detail: receiveRowDetail(),
+        label: t("saveData.button.receive"),
         run: () => this.#set({ kind: "receive", phase: "typing", input: "" }, NO_STATUS),
         id: "receive",
       },
       {
-        title: SYNC_ROW_TITLE,
-        detail: `Status: ${syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now())}`,
-        label: "Sync",
+        title: syncRowTitle(),
+        detail: t("sync.statusLine", {
+          status: syncStatusDisplay(syncService().isOn(), syncService().status.get(), Date.now()),
+        }),
+        label: t("saveData.button.sync"),
         run: () => this.#openSync(),
         id: "sync",
       },
       {
-        title: GLOBAL_ROW_TITLE,
+        title: globalRowTitle(),
         detail: globalRowDetail(readConsent()),
         label: globalRowButton(readConsent()),
         run: () => void this.#toggleGlobal(),
@@ -588,7 +603,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       .text(
         x,
         top,
-        caseOf(typeRole.sectionHeader, SEND_ROW_TITLE),
+        caseOf(typeRole.sectionHeader, sendRowTitle()),
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setWordWrapWidth(column);
@@ -600,9 +615,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       .text(
         x,
         title.y + title.height + 8,
-        short
-          ? "Type this code on the other device, or scan the QR code."
-          : "On the other device open Settings, Save data, Receive from another device, then type this code or scan the QR code with its camera. The code works once.",
+        short ? t("saveData.send.helpShort") : t("saveData.send.help"),
         textStyle(typeRole.body, surface.paper.hex, 0.85),
       )
       .setFontSize(12)
@@ -636,10 +649,10 @@ export class SaveDataOverlay extends Phaser.Scene {
     }
     y += this.#countdown.height + 12;
 
-    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    const back = { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
     const first = left.expired
-      ? { id: "new-code", label: "New code", onClick: () => void this.#send() }
-      : { id: "copy", label: "Copy code", onClick: () => this.#copy(phase.code) };
+      ? { id: "new-code", label: t("saveData.newCode"), onClick: () => void this.#send() }
+      : { id: "copy", label: t("saveData.copyCode"), onClick: () => this.#copy(phase.code) };
     this.#primary = first.onClick;
     return Math.max(qrBottom, this.#drawPair(x, y, column, first, back, stops, order));
   }
@@ -656,7 +669,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       .text(
         x,
         top,
-        caseOf(typeRole.sectionHeader, RECEIVE_ROW_TITLE),
+        caseOf(typeRole.sectionHeader, receiveRowTitle()),
         textStyle(typeRole.sectionHeader, surface.paper.hex),
       )
       .setWordWrapWidth(rowWidth);
@@ -666,7 +679,7 @@ export class SaveDataOverlay extends Phaser.Scene {
       .text(
         x,
         title.y + title.height + 8,
-        "On the other device open Settings, Save data, Send to another device. Type the code it shows. It replaces what's on this device, after you confirm.",
+        t("saveData.receive.help"),
         textStyle(typeRole.body, surface.paper.hex, 0.85),
       )
       .setFontSize(12)
@@ -679,8 +692,8 @@ export class SaveDataOverlay extends Phaser.Scene {
     stops.set("code", { rect: fieldRect, activate: () => field.focus() });
     order.push("code");
 
-    const receive = { id: "receive", label: "Receive", onClick: () => void this.#receive() };
-    const back = { id: "back-menu", label: "Back", onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
+    const receive = { id: "receive", label: t("saveData.button.receive"), onClick: () => void this.#receive() };
+    const back = { id: "back-menu", label: t("saveData.back"), onClick: () => this.#set({ kind: "menu" }, NO_STATUS) };
     this.#primary = receive.onClick;
     return this.#drawPair(x, fieldRect.y + fieldRect.height + 14, fieldRect.width, receive, back, stops, order);
   }

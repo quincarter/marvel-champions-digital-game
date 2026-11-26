@@ -10,6 +10,7 @@
  * overlay, back to Settings. Rows and wording come from `view/unlocks-model.ts`; this scene draws them and saves a
  * choice through `setUnlockPrefs`, which every picker reads the next time it draws.
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { ink, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -206,7 +207,7 @@ export class UnlocksOverlay extends Phaser.Scene {
       .text(
         header.x + 16,
         header.y + header.height / 2,
-        caseOf(typeRole.barTitle, this.#guide ? "How it works" : "Unlocks"),
+        caseOf(typeRole.barTitle, this.#guide ? t("unlocks.guideTitle") : t("settings.unlocks.title")),
         {
           ...textStyle(typeRole.barTitle, surface.paper.hex),
           fontSize: "24px",
@@ -220,7 +221,7 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
-        label: this.#guide ? "◂ Unlocks" : "How it works",
+        label: this.#guide ? "◂ " + t("settings.unlocks.title") : t("unlocks.guideTitle"),
         type: typeRole.label,
         rect: guideRect,
         onClick: toggleGuide,
@@ -277,7 +278,7 @@ export class UnlocksOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: row.on ? "secondary" : "quiet",
-          label: row.on ? "ON" : "OFF",
+          label: row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
           type: typeRole.label,
           rect: toggle,
           selected: row.on,

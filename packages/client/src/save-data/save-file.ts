@@ -12,6 +12,8 @@
  *
  * Nothing in here touches storage: `save-data.ts` does the reading and writing, so this stays pure and tested.
  */
+import { artLanguageNow } from "../art/art-source.js";
+import { listAnd, t, tPlural } from "../i18n/translate.js";
 import { SAVED_DATABASES, SAVED_LOCAL_STORAGE_PREFIX, type DatabaseSpec } from "./databases.js";
 
 export const SAVE_FILE_FORMAT = "mc-save-data";
@@ -93,20 +95,20 @@ export function parseSaveFile(text: string): ParseResult {
   try {
     raw = JSON.parse(text);
   } catch {
-    return { ok: false, error: "This file isn't a Marvel Champions save file." };
+    return { ok: false, error: t("saveData.err.notSave") };
   }
   if (!isRecord(raw) || raw.format !== SAVE_FILE_FORMAT) {
-    return { ok: false, error: "This file isn't a Marvel Champions save file." };
+    return { ok: false, error: t("saveData.err.notSave") };
   }
   const { version, exportedAt, appVersion, databases, localStorage } = raw;
   if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
-    return { ok: false, error: "This save file has no format version." };
+    return { ok: false, error: t("saveData.err.noVersion") };
   }
   if (version > SAVE_FILE_VERSION) {
-    return { ok: false, error: "This save file was made by a newer version of the game. Update, then try again." };
+    return { ok: false, error: t("saveData.err.newer") };
   }
   if (!isRecord(databases) || !isRecord(localStorage)) {
-    return { ok: false, error: "This save file is incomplete." };
+    return { ok: false, error: t("saveData.err.incomplete") };
   }
 
   const known: Record<string, SavedDatabase> = {};
@@ -114,14 +116,14 @@ export function parseSaveFile(text: string): ParseResult {
     const entry = databases[spec.name];
     if (entry === undefined) continue;
     const problem = checkDatabase(spec, entry);
-    if (problem) return { ok: false, error: `This save file is damaged: ${problem}.` };
+    if (problem) return { ok: false, error: t("saveData.err.damaged", { detail: problem }) };
     known[spec.name] = entry as unknown as SavedDatabase;
   }
 
   const entries: Record<string, string> = {};
   for (const [key, value] of Object.entries(localStorage)) {
     if (!key.startsWith(SAVED_LOCAL_STORAGE_PREFIX) || typeof value !== "string") {
-      return { ok: false, error: `This save file is damaged: unexpected setting "${key}".` };
+      return { ok: false, error: t("saveData.err.badSetting", { key }) };
     }
     entries[key] = value;
   }
@@ -155,32 +157,33 @@ export function saveFileSummaryOf(file: SaveFile): SaveFileSummary {
   };
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
 /** One line for the import confirm: "3 saved games, 1 campaign and unlocks and points, exported 30 Sep 2026". */
 export function describeSaveFileSummary(summary: SaveFileSummary, locale?: string): string {
   const parts = [
-    summary.games ? plural(summary.games, "saved game") : null,
-    summary.decks ? plural(summary.decks, "deck") : null,
-    summary.campaigns ? plural(summary.campaigns, "campaign") : null,
-    summary.unlocks ? "unlocks and points" : null,
-    summary.settings ? "settings" : null,
+    summary.games ? tPlural("saveData.summary.games", summary.games) : null,
+    summary.decks ? tPlural("saveData.summary.decks", summary.decks) : null,
+    summary.campaigns ? tPlural("saveData.summary.campaigns", summary.campaigns) : null,
+    summary.unlocks ? t("saveData.summary.unlocks") : null,
+    summary.settings ? t("saveData.summary.settings") : null,
   ].filter((part): part is string => part !== null);
   const what =
     parts.length === 0
-      ? "nothing saved"
+      ? t("saveData.summary.nothing")
       : parts.length === 1
         ? parts[0]!
-        : `${parts.slice(0, -1).join(", ")}, ${parts.at(-1)!}`;
+        : artLanguageNow() === "en"
+          ? `${parts.slice(0, -1).join(", ")}, ${parts.at(-1)!}`
+          : listAnd(parts);
   if (!summary.exportedAt) return what;
-  const when = new Date(summary.exportedAt).toLocaleDateString(locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return `${what}, exported ${when}`;
+  const when = new Date(summary.exportedAt).toLocaleDateString(
+    locale ?? (artLanguageNow() === "en" ? undefined : artLanguageNow()),
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    },
+  );
+  return t("saveData.summary.exported", { what, when });
 }
 
 /** `marvel-champions-save-2026-09-30.json`, dated by local time. */

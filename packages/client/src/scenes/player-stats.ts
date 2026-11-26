@@ -66,7 +66,7 @@ import { scenarioCardIdOf } from "../view/random-villain.js";
 import { loadPlayerStats } from "../view/player-stats-client.js";
 import { loadGlobalStats } from "../global-stats/global-stats-client.js";
 import {
-  GLOBAL_ROW_FAILED,
+  globalRowFailed,
   globalTabViewOf,
   SHARE_LABEL,
   SHARE_LINE,
@@ -698,7 +698,7 @@ export class PlayerStatsScene extends Phaser.Scene {
     const line = this.add.text(
       x,
       y,
-      this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
+      this.#shareFailed ? `${globalRowFailed()} ${SHARE_LINE}` : SHARE_LINE,
       textStyle(typeRole.body, surface.ink.hex, ink.secondary),
     );
     fitWrapped(line, width, 2, phone ? 11 : 12);

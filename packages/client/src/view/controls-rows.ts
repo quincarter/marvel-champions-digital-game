@@ -4,6 +4,7 @@
  * `view/input-shortcuts.ts`, so the wording and the glyphs can't drift from the tables the handlers read.
  */
 
+import { t } from "../i18n/translate.js";
 import { GLYPH_SIZE_MAX, GLYPH_SIZE_MIN, GLYPH_SIZE_STEP, clampGlyphSize, type Settings } from "../settings.js";
 import { padGlyphSpec, type GlyphSpec, type PadGlyphSpec } from "./input-glyph-model.js";
 import type { GlyphSource } from "./input-mode.js";
@@ -48,31 +49,29 @@ export interface PadStatus {
  * DETECTED pad's family, never the label override in settings.
  */
 export function padStatusOf(rawId: string | null, pad: PadIdentity | null): PadStatus {
-  if (rawId === null) return { connected: false, text: "No controller connected" };
+  if (rawId === null) return { connected: false, text: t("controls.status.none") };
   if (pad?.steam) {
     return {
       connected: true,
-      text: pad.handheld ? "Steam Deck controls · through Steam Input" : "Steam Input controller · through Steam",
+      text: pad.handheld ? t("controls.status.deck") : t("controls.status.steam"),
     };
   }
   return {
     connected: true,
-    text: `${padFamilyName(pad?.family ?? "xbox")} controller connected · ${padDisplayName(rawId)}`,
+    text: t("controls.status.connected", { family: padFamilyName(pad?.family ?? "xbox"), pad: padDisplayName(rawId) }),
   };
 }
 
 /** The one line under the drawing that says how this layout acts. */
 export function controllerCaptionOf(family: PadFamily, pad: PadIdentity | null, swap: boolean): string {
   if (pad?.steam) {
-    return "Steam Input sends its own layout, so buttons act as Steam sends them: A confirms, B backs out.";
+    return t("controls.caption.steam");
   }
   if (family === "nintendo") {
-    return swap
-      ? "Switch layout: A (right) confirms and B (bottom) backs out, as on a Switch."
-      : "Buttons act by position: the bottom button confirms and the right one backs out.";
+    return swap ? t("controls.caption.switchSwap") : t("controls.caption.switchPos");
   }
-  if (family === "playstation") return "✕ confirms and ○ backs out. L1 / R1 page lists and jump between zones.";
-  return "A confirms and B backs out. LB / RB page lists and jump between zones.";
+  if (family === "playstation") return t("controls.caption.ps");
+  return t("controls.caption.xbox");
 }
 
 export interface SegmentedRowInfo<V extends string> {
@@ -84,18 +83,18 @@ export interface SegmentedRowInfo<V extends string> {
   readonly dimmed?: boolean;
 }
 
-const PAD_FAMILY_LABELS: Readonly<Record<PadFamilySetting, string>> = {
-  auto: "Auto",
+const padFamilyLabels = (): Readonly<Record<PadFamilySetting, string>> => ({
+  auto: t("controls.auto"),
   xbox: "Xbox",
   playstation: "PlayStation",
   nintendo: "Switch",
-};
+});
 
 export function padFamilyRowInfoOf(settings: Settings): SegmentedRowInfo<PadFamilySetting> {
   return {
-    title: "Button labels",
-    detail: "Auto follows the connected controller. Pick one when the wrong labels show.",
-    options: PAD_FAMILY_SETTING_VALUES.map((value) => ({ value, label: PAD_FAMILY_LABELS[value] })),
+    title: t("controls.labels.title"),
+    detail: t("controls.labels.detail"),
+    options: PAD_FAMILY_SETTING_VALUES.map((value) => ({ value, label: padFamilyLabels()[value] })),
     selected: settings.padGlyphFamily,
   };
 }
@@ -106,13 +105,12 @@ export function nextSettingsAfterPadFamily(settings: Settings, value: PadFamilyS
 
 export function glyphSourceRowInfoOf(settings: Settings): SegmentedRowInfo<GlyphSource> {
   return {
-    title: "Show hints for",
-    detail:
-      "Auto follows what you used last. On a Steam Deck in Desktop Mode, Steam turns the buttons into keys: pick Controller.",
+    title: t("controls.source.title"),
+    detail: t("controls.source.detail"),
     options: [
-      { value: "auto", label: "Auto" },
-      { value: "pad", label: "Controller" },
-      { value: "keyboard", label: "Keyboard" },
+      { value: "auto", label: t("controls.auto") },
+      { value: "pad", label: t("controls.source.pad") },
+      { value: "keyboard", label: t("controls.source.keyboard") },
     ],
     selected: settings.glyphSource,
     dimmed: !settings.inputGlyphs,
@@ -123,7 +121,7 @@ export function nextSettingsAfterGlyphSource(settings: Settings, value: GlyphSou
   return { ...settings, glyphSource: value };
 }
 
-export const STEAM_NINTENDO_DETAIL = "Off under Steam: Steam Input has its own Nintendo layout option";
+export const steamNintendoDetail = (): string => t("controls.nintendo.steam");
 
 export interface ControlsToggleInfo {
   readonly id: "nintendo" | "hints";
@@ -138,10 +136,8 @@ export function nintendoToggleInfoOf(settings: Settings, pad: PadIdentity | null
   const steam = pad?.steam === true;
   return {
     id: "nintendo",
-    title: "Use Nintendo Switch layout",
-    detail: steam
-      ? STEAM_NINTENDO_DETAIL
-      : "On a Nintendo-style controller, buttons act by their printed label: A (right) confirms, B (bottom) backs out.",
+    title: t("controls.nintendo.title"),
+    detail: steam ? steamNintendoDetail() : t("controls.nintendo.detail"),
     on: steam ? false : settings.nintendoLayout,
     ...(steam ? { locked: { chip: "STEAM" } } : {}),
   };
@@ -154,8 +150,8 @@ export function nextSettingsAfterNintendo(settings: Settings): Settings {
 export function hintsToggleInfoOf(settings: Settings): ControlsToggleInfo {
   return {
     id: "hints",
-    title: "Show button and key hints",
-    detail: "Draws the key or button for a control beside it while a keyboard or controller is in use. Never on touch.",
+    title: t("controls.hints.title"),
+    detail: t("controls.hints.detail"),
     on: settings.inputGlyphs,
   };
 }
@@ -177,8 +173,8 @@ export interface HintSizeRowInfo {
 export function hintSizeRowInfoOf(settings: Settings): HintSizeRowInfo {
   return {
     id: "hintSize",
-    title: "Hint size",
-    detail: "How big the key and button hints draw, 75% to 200%.",
+    title: t("controls.hintSize.title"),
+    detail: t("controls.hintSize.detail"),
     percent: clampGlyphSize(settings.glyphSize),
     dimmed: !settings.inputGlyphs,
   };
@@ -205,11 +201,11 @@ export const steppedGlyphSize = (percent: number, direction: -1 | 1): number =>
 
 export function keyboardHandRowInfoOf(settings: Settings): SegmentedRowInfo<KeyboardHand> {
   return {
-    title: "Keyboard hand",
-    detail: "Right moves every shortcut to the right hand, for a mouse in your left hand.",
+    title: t("controls.hand.title"),
+    detail: t("controls.hand.detail"),
     options: [
-      { value: "left", label: "Left" },
-      { value: "right", label: "Right" },
+      { value: "left", label: t("controls.hand.left") },
+      { value: "right", label: t("controls.hand.right") },
     ],
     selected: settings.keyboardHand,
   };
@@ -253,86 +249,86 @@ interface PadRowDef {
   readonly note: string;
 }
 
-const PAD_ROWS: readonly PadRowDef[] = [
+const padRowDefs = (): readonly PadRowDef[] => [
   {
     id: "move",
     fixed: fixedGlyph("D-pad", "dpad", "D-pad", "dpad"),
-    action: "Move focus",
-    note: "Everywhere; the left stick does the same",
+    action: t("controls.pad.move.action"),
+    note: t("controls.pad.move.note"),
   },
   {
     id: "activate",
     index: 0,
-    action: "Select · play the focused card",
-    note: "Everywhere; on the table it plays or uses the card",
+    action: t("controls.pad.activate.action"),
+    note: t("controls.pad.activate.note"),
   },
-  { id: "cancel", index: 1, action: "Back · cancel", note: "Everywhere; with nothing open on the table, Pause" },
+  { id: "cancel", index: 1, action: t("controls.pad.cancel.action"), note: t("controls.pad.cancel.note") },
   {
     id: "guide",
     index: 2,
-    action: "Move focus to the guide",
-    note: "On the table, when the guide is showing. On a decision with Decline: Decline",
+    action: t("controls.pad.guide.action"),
+    note: t("controls.pad.guide.note"),
   },
-  { id: "inspect", index: 3, action: "Inspect · hold to zoom", note: "Where a card has focus" },
+  { id: "inspect", index: 3, action: t("controls.pad.inspect.action"), note: t("controls.pad.inspect.note") },
   {
     id: "pagePrevious",
     index: 4,
-    action: "Previous zone · page",
-    note: "Table: previous zone. Lists: previous page. Picking a target: hold with A / B / X / Y",
+    action: t("controls.pad.pagePrevious.action"),
+    note: t("controls.pad.pagePrevious.note"),
   },
   {
     id: "pageNext",
     index: 5,
-    action: "Next zone · page",
-    note: "Table: next zone. Lists: next page. Picking a target: hold with A / B / X / Y",
+    action: t("controls.pad.pageNext.action"),
+    note: t("controls.pad.pageNext.note"),
   },
   {
     id: "view",
     index: 8,
-    action: "Villain phase recap · hold for game log",
-    note: "On the table: tap reopens the last villain phase, hold opens the log. Peek on a decision popup",
+    action: t("controls.pad.view.action"),
+    note: t("controls.pad.view.note"),
   },
   {
     id: "pause",
     index: 9,
-    action: "Pause · pay / confirm",
-    note: "Anywhere in a game; with a payment or other decision ready to confirm, it pays or confirms",
+    action: t("controls.pad.pause.action"),
+    note: t("controls.pad.pause.note"),
   },
   {
     id: "scroll",
     fixed: fixedGlyph("RS", "stick", "Right stick", "rstick"),
-    action: "Scroll",
-    note: "The list, hand or log under focus",
+    action: t("controls.pad.scroll.action"),
+    note: t("controls.pad.scroll.note"),
   },
   {
     id: "expand",
     index: 11,
-    action: "Expand · collapse · cards left",
-    note: "On a decision popup. On the table, lists the cards left in your decks when that setting is on",
+    action: t("controls.pad.expand.action"),
+    note: t("controls.pad.expand.note"),
   },
   {
     id: "discard",
     index: 10,
-    action: "Open your discard pile",
-    note: "On the table, when the pile has a card in it. A on the pile does the same",
+    action: t("controls.pad.discard.action"),
+    note: t("controls.pad.discard.note"),
   },
 ];
 
 /** What each layer row says it does and where. */
-const LAYER_NOTES: Readonly<Record<string, string>> = {
-  attack: "Your hero's basic attack",
-  thwart: "Your hero's basic thwart",
-  recover: "The alter-ego's basic recover",
-  changeForm: "Hero / alter-ego",
-  undo: "Takes back the last step",
-  endTurn: "Asks first if actions remain",
-  ability1: "The first ability usable now on your cards in play",
-  ability2: "The second usable ability",
-  ability3: "The third usable ability",
-  ability4: "The fourth usable ability",
-  pagePrevious: "When there are more than four abilities",
-  pageNext: "When there are more than four abilities",
-};
+const layerNotes = (): Readonly<Record<string, string>> => ({
+  attack: t("controls.layerNote.attack"),
+  thwart: t("controls.layerNote.thwart"),
+  recover: t("controls.layerNote.recover"),
+  changeForm: t("controls.layerNote.changeForm"),
+  undo: t("controls.layerNote.undo"),
+  endTurn: t("controls.layerNote.endTurn"),
+  ability1: t("controls.layerNote.ability1"),
+  ability2: t("controls.layerNote.ability2"),
+  ability3: t("controls.layerNote.ability3"),
+  ability4: t("controls.layerNote.ability4"),
+  pagePrevious: t("controls.layerNote.page"),
+  pageNext: t("controls.layerNote.page"),
+});
 
 export interface PadLayerSection {
   readonly id: "holdLt" | "holdRt";
@@ -345,7 +341,7 @@ function layerRowOf(row: LayerRow, trigger: GlyphSpec | null): ControlsListRow {
     id: row.action,
     glyphs: [...(trigger ? [trigger] : []), ...(row.glyph ? [row.glyph] : [])],
     action: row.label,
-    note: LAYER_NOTES[row.action] ?? "",
+    note: layerNotes()[row.action] ?? "",
   };
 }
 
@@ -355,12 +351,12 @@ export function padLayerSectionsOf(family: PadFamily, swap: boolean): readonly P
     const sheet = layerSheet(layer, family, swap);
     return { id, title, rows: sheet.rows.map((row) => layerRowOf(row, sheet.trigger)) };
   };
-  return [section("lt", "holdLt", "HOLD LT"), section("rt", "holdRt", "HOLD RT")];
+  return [section("lt", "holdLt", t("controls.holdLt")), section("rt", "holdRt", t("controls.holdRt"))];
 }
 
 /** The BUTTONS list for a family, with the Nintendo swap already applied to each glyph. */
 export function padRowsOf(family: PadFamily, swap: boolean): readonly ControlsListRow[] {
-  return PAD_ROWS.map((def) => {
+  return padRowDefs().map((def) => {
     const spec = def.fixed
       ? fixedFor(def.fixed, family)
       : def.index === undefined
@@ -392,69 +388,74 @@ export function keyboardGroupsOf(hand: KeyboardHand = "left"): readonly Keyboard
   return [
     {
       id: "everywhere",
-      title: "EVERYWHERE",
+      title: t("controls.group.everywhere"),
       rows: [
         {
           id: "move",
           glyphs: capsOf(["moveUp", "moveLeft", "moveDown", "moveRight"], hand),
-          action: "Move focus",
-          note: "To the nearest control that way; the arrow keys work too",
+          action: t("controls.kb.move.action"),
+          note: t("controls.kb.move.note"),
         },
-        shortcutRow("select", hand, left ? "Enter works too" : "Everywhere", "Select · press"),
-        shortcutRow("back", hand, "Esc works too; with nothing open on the table, Pause", "Back · cancel"),
-        shortcutRow("inspect", hand, "Where a card has focus"),
-        shortcutRow("guide", hand, "On the table, when the guide is showing. On a decision with Decline: Decline"),
-        { id: "tab", glyphs: [key("Tab")], action: "Next control", note: "Shift+Tab goes back" },
+        shortcutRow(
+          "select",
+          hand,
+          left ? t("controls.kb.select.leftNote") : t("controls.kb.select.rightNote"),
+          t("controls.kb.select.action"),
+        ),
+        shortcutRow("back", hand, t("controls.kb.back.note"), t("controls.kb.back.action")),
+        shortcutRow("inspect", hand, t("controls.kb.inspect.note")),
+        shortcutRow("guide", hand, t("controls.kb.guide.note")),
+        { id: "tab", glyphs: [key("Tab")], action: t("controls.kb.tab.action"), note: t("controls.kb.tab.note") },
         {
           id: "page",
           glyphs: [key("PgUp"), key("PgDn")],
-          action: "Page a list",
-          note: "Home and End jump to the ends",
+          action: t("controls.kb.page.action"),
+          note: t("controls.kb.page.note"),
         },
       ],
     },
     {
       id: "table",
-      title: "ON THE TABLE",
+      title: t("controls.group.table"),
       rows: [
-        shortcutRow("attack", hand, "Your hero's basic attack"),
-        shortcutRow("thwart", hand, "Your hero's basic thwart"),
-        shortcutRow("recover", hand, "The alter-ego's basic recover"),
-        shortcutRow("changeForm", hand, "Hero / alter-ego"),
+        shortcutRow("attack", hand, t("controls.kb.attack")),
+        shortcutRow("thwart", hand, t("controls.kb.thwart")),
+        shortcutRow("recover", hand, t("controls.kb.recover")),
+        shortcutRow("changeForm", hand, t("controls.kb.changeForm")),
         {
           id: "abilities",
           glyphs: capsOf(["ability1", "ability2", "ability3", "ability4"], hand),
-          action: "Card abilities",
-          note: "The first four usable abilities on your cards in play, in table order",
+          action: t("controls.kb.abilities.action"),
+          note: t("controls.kb.abilities.note"),
         },
-        shortcutRow("endTurn", hand, "Asks first if actions remain"),
-        shortcutRow("undo", hand, "Takes back the last step"),
+        shortcutRow("endTurn", hand, t("controls.kb.endTurn")),
+        shortcutRow("undo", hand, t("controls.kb.undo")),
         {
           id: "zones",
           glyphs: capsOf(["zoneUp", "zoneDown"], hand),
-          action: "Zone up · down",
-          note: "Jump between hand, play area, villain and actions",
+          action: t("controls.kb.zones.action"),
+          note: t("controls.kb.zones.note"),
         },
-        shortcutRow("recap", hand, "Reopens the last villain phase's recap"),
-        shortcutRow("log", hand, "Opens the game log"),
-        shortcutRow("confirm", hand, "Pays, plays or confirms the decision open on the table"),
-        shortcutRow("teamUp", hand, "When a Team-Up is available"),
-        shortcutRow("evidence", hand, "When evidence is on the table"),
-        shortcutRow("discard", hand, "When your discard pile has a card in it"),
-        shortcutRow("deckLeft", hand, "When a Cards left setting is on"),
+        shortcutRow("recap", hand, t("controls.kb.recap")),
+        shortcutRow("log", hand, t("controls.kb.log")),
+        shortcutRow("confirm", hand, t("controls.kb.confirm")),
+        shortcutRow("teamUp", hand, t("controls.kb.teamUp")),
+        shortcutRow("evidence", hand, t("controls.kb.evidence")),
+        shortcutRow("discard", hand, t("controls.kb.discard")),
+        shortcutRow("deckLeft", hand, t("controls.kb.deckLeft")),
       ],
     },
     {
       id: "popup",
-      title: "DECISION POPUP",
+      title: t("controls.group.popup"),
       rows: [
-        shortcutRow("peek", hand, "Shows the table behind the popup"),
-        shortcutRow("expand", hand, "Opens or closes the full popup"),
+        shortcutRow("peek", hand, t("controls.kb.peek")),
+        shortcutRow("expand", hand, t("controls.kb.expand")),
         {
           id: "choose",
           glyphs: capsOf(["ability1", "ability2", "ability3"], hand),
-          action: "Answer a small choice",
-          note: "The numbered option",
+          action: t("controls.kb.choose.action"),
+          note: t("controls.kb.choose.note"),
         },
       ],
     },

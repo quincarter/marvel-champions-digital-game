@@ -2,6 +2,7 @@
  * What the player sees of device sync: a small observable status and the one line that says it ("Synced 2 min ago").
  * Plain data and plain functions; the scheduler writes it, a screen subscribes.
  */
+import { t, tPlural } from "../i18n/translate.js";
 import type { SyncRunFailure } from "./sync-engine.js";
 
 export type SyncState = "off" | "syncing" | "synced" | "pending" | "offline" | "error";
@@ -20,7 +21,7 @@ export interface SyncStatus {
   readonly newerElsewhere?: boolean;
 }
 
-export const NEWER_ELSEWHERE_TEXT = "Another device has a newer version of the game";
+export const newerElsewhereText = (): string => t("sync.status.newerElsewhereText");
 
 export const OFF_STATUS: SyncStatus = { state: "off", lastSyncedAt: null };
 
@@ -59,60 +60,65 @@ export class SyncStatusStore {
   }
 }
 
-/** "just now", "2 min ago", "3 h ago", "5 days ago". */
+/** t("sync.ago.now"), "2 min ago", "3 h ago", "5 days ago". */
 export function agoText(then: number, now: number): string {
   const seconds = Math.max(0, Math.floor((now - then) / 1000));
-  if (seconds < 45) return "just now";
+  if (seconds < 45) return t("sync.ago.now");
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${Math.max(1, minutes)} min ago`;
+  if (minutes < 60) return t("sync.ago.min", { count: Math.max(1, minutes) });
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t("sync.ago.hours", { count: hours });
   const days = Math.round(hours / 24);
-  return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return tPlural("sync.ago.days", days);
 }
 
 export function failureText(failure: SyncRunFailure | undefined): string {
   switch (failure?.kind) {
     case "space-full":
-      return "Cloud space is full";
+      return t("sync.status.full");
     case "not-found":
-      return "Cloud data not found";
+      return t("sync.status.notFound");
     case "rate-limited":
-      return "Too many requests, trying again later";
+      return t("sync.status.rate");
     case "blocked":
-      return "Sync is paused for a while";
+      return t("sync.status.blocked");
     case "unsupported":
-      return "Sync isn't available here";
+      return t("sync.status.unsupported");
     case "too-large":
-      return "A save is too large to sync";
+      return t("sync.status.tooLarge");
     case "retry-later":
-      return "Busy, trying again soon";
+      return t("sync.status.retry");
     case "unavailable":
-      return "Sync service unavailable";
+      return t("sync.status.unavailable");
     case "error":
-      return "Sync hit a problem";
+      return t("sync.status.error");
     default:
-      return "Sync failed";
+      return t("sync.status.failed");
   }
 }
 
 /** The line with the newer-build note after it ("Synced 2 min ago · Another device has a newer version of the game"). */
 function withNote(line: string, status: SyncStatus): string {
-  return status.newerElsewhere ? `${line} · ${NEWER_ELSEWHERE_TEXT}` : line;
+  return status.newerElsewhere ? `${line} · ${newerElsewhereText()}` : line;
 }
 
 export function statusLine(status: SyncStatus, now: number): string {
   switch (status.state) {
     case "off":
-      return "Off";
+      return t("sync.status.off");
     case "syncing":
-      return "Syncing…";
+      return t("sync.status.syncing");
     case "synced":
-      return withNote(status.lastSyncedAt === null ? "Synced" : `Synced ${agoText(status.lastSyncedAt, now)}`, status);
+      return withNote(
+        status.lastSyncedAt === null
+          ? t("sync.status.synced")
+          : t("sync.status.syncedAgo", { ago: agoText(status.lastSyncedAt, now) }),
+        status,
+      );
     case "pending":
-      return withNote("Changes waiting to sync", status);
+      return withNote(t("sync.status.pending"), status);
     case "offline":
-      return "Offline, changes waiting";
+      return t("sync.status.offline");
     case "error":
       return failureText(status.failure);
   }

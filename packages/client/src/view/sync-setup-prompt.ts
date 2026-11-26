@@ -6,7 +6,7 @@
  * The markers deliberately do not start with `mc-`: every `mc-*` key travels in a save export and is synced, and
  * "this device was asked" is about the device, like the recovery code's own `mcsync.code`.
  */
-import { SYNC_ROW_TITLE } from "./sync-model.js";
+import { syncRowTitle } from "./sync-model.js";
 
 /** Set once the player has answered (Set up, Join or Not now); the prompt is never shown again after it. */
 export const SYNC_PROMPTED_KEY = "mcsync.prompted";
@@ -17,7 +17,7 @@ export const SYNC_SETUP_TITLE = "Set up cross-device sync?";
 export const SYNC_SETUP_BODY =
   "Keep your saves in step across your phone, tablet and computer. There is no account to make, and your saves are encrypted so only your devices can read them.";
 /** Where the settings live, spelled with the on-screen labels (Settings tab "More", row "Save data", the sync row). */
-export const SYNC_SETUP_PATH = `Settings → More → Save data → ${SYNC_ROW_TITLE}`;
+export const SYNC_SETUP_PATH = `Settings → More → Save data → ${syncRowTitle()}`;
 export const SYNC_SETUP_LATER = `You can set this up any time in ${SYNC_SETUP_PATH}.`;
 
 export const SYNC_SETUP_BUTTONS = {

@@ -45,7 +45,7 @@
  */
 import { isCustomCardCode, type Scenario } from "@mc/content";
 import type { CardLanguage } from "../art/card-language.js";
-import { t } from "../i18n/translate.js";
+import { t, type MessageKey } from "../i18n/translate.js";
 import { artLanguageNow } from "../art/art-source.js";
 import { CARDS_BY_ID, POOL_HERO_SHELF_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import { SAGA_VOLUMES } from "../campaign/story.js";
@@ -468,6 +468,30 @@ export function villainLabelOf(scenarioId: string): string {
   return scenario.name.toLowerCase().includes(villain.toLowerCase()) ? villain : `${villain} (${scenario.name})`;
 }
 
+const NAME_KEYS: Readonly<Record<string, MessageKey>> = {
+  "Core Set": "unlock.name.core",
+  "Wave 1": "unlock.name.wave1",
+  "The Rise of Red Skull": "unlock.name.trors",
+  "Galaxy's Most Wanted": "unlock.name.gmw",
+  "The Galaxy's Most Wanted": "unlock.name.gmw2",
+  "The Mad Titan's Shadow": "unlock.name.mts",
+  "Sinister Motives": "unlock.name.sm",
+  "Mutant Genesis": "unlock.name.mutgen",
+  MojoMania: "unlock.name.mojo",
+  "NeXt Evolution": "unlock.name.next",
+  "Age of Apocalypse": "unlock.name.aoa",
+  "Agents of S.H.I.E.L.D.": "unlock.name.aos",
+  "Civil War": "unlock.name.cw",
+  "Fear No Evil": "unlock.name.fne",
+  Shadowland: "unlock.name.shadowland",
+};
+
+/** A wave or campaign box's name as the player's language prints it (the English one where there is none). */
+export function localName(name: string, lang: CardLanguage = artLanguageNow()): string {
+  const key = NAME_KEYS[name];
+  return key === undefined ? name : t(key, undefined, lang);
+}
+
 /** A gate in words: "Beat Rhino", "Complete the Sinister Motives campaign". */
 export function gateHintOf(gate: UnlockGate, lang: CardLanguage = artLanguageNow()): string {
   if (gate.kind === "scenarioWin") {
@@ -476,7 +500,7 @@ export function gateHintOf(gate: UnlockGate, lang: CardLanguage = artLanguageNow
   // English prints "Complete The Rise of Red Skull campaign", not "the The Rise".
   return t(
     gate.campaign.startsWith("The ") ? "unlock.completeCampaignThe" : "unlock.completeCampaign",
-    { campaign: gate.campaign },
+    { campaign: localName(gate.campaign, lang) },
     lang,
   );
 }
@@ -484,7 +508,10 @@ export function gateHintOf(gate: UnlockGate, lang: CardLanguage = artLanguageNow
 /** A gate in few words, for a locked tile: "Beat Rhino", "Finish Age of Apocalypse" (no leading "The"). */
 export function gateShortOf(gate: UnlockGate): string {
   if (gate.kind === "scenarioWin") return gateHintOf(gate);
-  return t("unlock.finish", { campaign: gate.campaign.replace(/^The /, "") });
+  const lang = artLanguageNow();
+  return t("unlock.finish", {
+    campaign: lang === "en" ? gate.campaign.replace(/^The /, "") : localName(gate.campaign, lang),
+  });
 }
 
 export interface UnlockHero {
@@ -607,7 +634,7 @@ export class Unlocks {
             lockReasonIn(lang: CardLanguage) {
               return unlocked || !gate
                 ? null
-                : t("unlock.toUnlock", { hint: gateHintOf(gate, lang), name: wave.name }, lang);
+                : t("unlock.toUnlock", { hint: gateHintOf(gate, lang), name: localName(wave.name, lang) }, lang);
             },
           },
         ];
@@ -647,7 +674,7 @@ export class Unlocks {
     if (!wave) return null;
     const lock = this.waveLock(wave.cycleId, lang);
     if (!lock || !wave.gate) return lock;
-    const name = wave.campaignId === campaignId ? wave.name : campaignNameOf(campaignId);
+    const name = localName(wave.campaignId === campaignId ? wave.name : campaignNameOf(campaignId), lang);
     return t("unlock.toUnlock", { hint: gateHintOf(wave.gate, lang), name }, lang);
   }
 
@@ -783,21 +810,27 @@ export class Unlocks {
   pointsSources(): readonly { readonly label: string; readonly points: number }[] {
     const p = this.progress;
     return [
-      ...p.wonScenarioIds.map((id) => ({ label: `First win: ${villainLabelOf(id)}`, points: POINTS.firstWin })),
+      ...p.wonScenarioIds.map((id) => ({
+        label: t("unlock.src.firstWin", { name: villainLabelOf(id) }),
+        points: POINTS.firstWin,
+      })),
       ...p.wonExpertScenarioIds.map((id) => ({
-        label: `First Expert win: ${villainLabelOf(id)}`,
+        label: t("unlock.src.firstExpert", { name: villainLabelOf(id) }),
         points: POINTS.firstExpertWin,
       })),
-      ...p.wonCampaignIds.map((id) => ({ label: `Campaign: ${campaignNameOf(id)}`, points: POINTS.campaign })),
+      ...p.wonCampaignIds.map((id) => ({
+        label: t("unlock.src.campaign", { name: localName(campaignNameOf(id)) }),
+        points: POINTS.campaign,
+      })),
       ...p.wonExpertCampaignIds.map((id) => ({
-        label: `Expert Campaign: ${campaignNameOf(id)}`,
+        label: t("unlock.src.expertCampaign", { name: localName(campaignNameOf(id)) }),
         points: POINTS.expertCampaign,
       })),
       ...(p.friendsWinTables ?? []).map((size) => ({
-        label: `First win with friends: ${size} players`,
+        label: t("unlock.src.friends", { size }),
         points: friendsWinPoints(size),
       })),
-      ...(this.achievementPoints > 0 ? [{ label: "Achievements", points: this.achievementPoints }] : []),
+      ...(this.achievementPoints > 0 ? [{ label: t("unlock.src.achievements"), points: this.achievementPoints }] : []),
     ];
   }
 

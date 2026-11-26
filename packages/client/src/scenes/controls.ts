@@ -9,6 +9,7 @@
  * scroll region carry its `clip` and `suppressClick`.
  */
 import Phaser from "phaser";
+import { t } from "../i18n/translate.js";
 import { onInputDeviceChange, inputDevice } from "../platform/input-device.js";
 import { appSession } from "../session.js";
 import { ink, minType, signal, surface, typeRole } from "../tokens.js";
@@ -66,8 +67,8 @@ import { INPUT_TEST_HEIGHT } from "../view/controls-layout.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
-export const REMAP_BUTTONS_LABEL = "Remap buttons · coming next";
-export const REMAP_KEYS_LABEL = "Remap keys · coming next";
+export const remapButtonsLabel = (): string => t("controls.remap.buttons");
+export const remapKeysLabel = (): string => t("controls.remap.keys");
 
 /** The tab Controls last showed, so it reopens where the player left it (the keyboard when no pad is in use). */
 let lastTab: ControlsTab | null = null;
@@ -279,7 +280,7 @@ export class ControlsOverlay extends Phaser.Scene {
     frame.lineStyle(4, surface.paper.hex, 1).strokeRect(panel.x, panel.y, panel.width, panel.height);
     frame.fillStyle(surface.paper.hex, 0.4).fillRect(header.x, header.y + header.height - 2, header.width, 2);
     this.add
-      .text(header.x + 20, header.y + header.height / 2, caseOf(typeRole.barTitle, "Controls"), {
+      .text(header.x + 20, header.y + header.height / 2, caseOf(typeRole.barTitle, t("settings.controls.title")), {
         ...textStyle(typeRole.barTitle, surface.paper.hex),
         fontSize: "24px",
       })
@@ -306,8 +307,8 @@ export class ControlsOverlay extends Phaser.Scene {
     this.#tabs = new McTabs(this, {
       rect: layout.tabs,
       tabs: [
-        { id: "controller", label: "CONTROLLER" },
-        { id: "keyboard", label: "KEYBOARD" },
+        { id: "controller", label: t("controls.tab.controller") },
+        { id: "keyboard", label: t("controls.tab.keyboard") },
       ],
       activeId: tab,
       onSelect: (id) => this.#setTab(id as ControlsTab),
@@ -356,7 +357,7 @@ export class ControlsOverlay extends Phaser.Scene {
             .text(
               diagram.x + diagram.width / 2,
               diagram.y + diagram.height / 2,
-              "Picture didn't load",
+              t("controls.pictureFailed"),
               textStyle(typeRole.body, surface.paper.hex, 0.8),
             )
             .setFontSize(12)
@@ -428,7 +429,7 @@ export class ControlsOverlay extends Phaser.Scene {
     });
 
     // Footer: the remap buttons, disabled until remapping lands.
-    const footerLabels = tab === "controller" ? [REMAP_BUTTONS_LABEL, "Reset to defaults"] : [REMAP_KEYS_LABEL];
+    const footerLabels = tab === "controller" ? [remapButtonsLabel(), t("controls.reset")] : [remapKeysLabel()];
     this.#captureInto(container, () => {
       content.footer.forEach((rect, i) => {
         const r = toScreen(rect);
@@ -440,7 +441,7 @@ export class ControlsOverlay extends Phaser.Scene {
             rect: r,
             enabled: false,
             onClick: () => undefined,
-            reason: "Remapping is coming in a later update.",
+            reason: t("controls.remap.reason"),
             clip,
             suppressClick: suppress,
           }),

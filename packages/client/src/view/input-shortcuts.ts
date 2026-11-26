@@ -16,6 +16,7 @@
  */
 
 import type { GamepadIntent } from "./gamepad.js";
+import { t } from "../i18n/translate.js";
 import { keyLabelOfCode } from "./key-labels.js";
 
 export type KeyboardHand = "left" | "right";
@@ -237,55 +238,273 @@ export const SHORTCUTS: readonly Shortcut[] = [
     id: "activate",
     keys: shortcutCaps("activate", "left"),
     padIntent: "activate",
-    label: "Select / play the focused card",
+    get label() {
+      return t("controls.shortcut.select.play");
+    },
   },
-  { id: "select", keys: shortcutCaps("select", "left"), padIntent: "activate", label: "Select" },
-  { id: "cancel", keys: shortcutCaps("cancel", "left"), padIntent: "cancel", label: "Back / cancel" },
-  { id: "back", keys: shortcutCaps("back", "left"), padIntent: "cancel", label: "Back" },
-  { id: "inspect", keys: shortcutCaps("inspect", "left"), padIntent: "inspect", label: "Inspect the focused card" },
-  { id: "guide", keys: shortcutCaps("guide", "left"), padIntent: "toggleGuide", label: "Move focus to the guide" },
-  { id: "moveUp", keys: shortcutCaps("moveUp", "left"), padIntent: "up", label: "Move up" },
-  { id: "moveDown", keys: shortcutCaps("moveDown", "left"), padIntent: "down", label: "Move down" },
-  { id: "moveLeft", keys: shortcutCaps("moveLeft", "left"), padIntent: "left", label: "Move left" },
-  { id: "moveRight", keys: shortcutCaps("moveRight", "left"), padIntent: "right", label: "Move right" },
-  { id: "attack", keys: shortcutCaps("attack", "left"), padIntent: null, label: "Attack" },
-  { id: "thwart", keys: shortcutCaps("thwart", "left"), padIntent: null, label: "Thwart" },
-  { id: "recover", keys: shortcutCaps("recover", "left"), padIntent: null, label: "Recover" },
-  { id: "changeForm", keys: shortcutCaps("changeForm", "left"), padIntent: null, label: "Change form" },
-  { id: "ability1", keys: shortcutCaps("ability1", "left"), padIntent: null, label: "First ability" },
-  { id: "ability2", keys: shortcutCaps("ability2", "left"), padIntent: null, label: "Second ability" },
-  { id: "ability3", keys: shortcutCaps("ability3", "left"), padIntent: null, label: "Third ability" },
-  { id: "ability4", keys: shortcutCaps("ability4", "left"), padIntent: null, label: "Fourth ability" },
-  { id: "endTurn", keys: shortcutCaps("endTurn", "left"), padIntent: "endTurn", label: "End turn" },
-  { id: "undo", keys: shortcutCaps("undo", "left"), padIntent: "undo", label: "Undo" },
-  { id: "pause", keys: shortcutCaps("pause", "left"), padIntent: "pause", label: "Pause" },
+  {
+    id: "select",
+    keys: shortcutCaps("select", "left"),
+    padIntent: "activate",
+    get label() {
+      return t("controls.shortcut.select");
+    },
+  },
+  {
+    id: "cancel",
+    keys: shortcutCaps("cancel", "left"),
+    padIntent: "cancel",
+    get label() {
+      return t("controls.shortcut.backCancel");
+    },
+  },
+  {
+    id: "back",
+    keys: shortcutCaps("back", "left"),
+    padIntent: "cancel",
+    get label() {
+      return t("controls.shortcut.back");
+    },
+  },
+  {
+    id: "inspect",
+    keys: shortcutCaps("inspect", "left"),
+    padIntent: "inspect",
+    get label() {
+      return t("controls.shortcut.inspect");
+    },
+  },
+  {
+    id: "guide",
+    keys: shortcutCaps("guide", "left"),
+    padIntent: "toggleGuide",
+    get label() {
+      return t("controls.shortcut.guide");
+    },
+  },
+  {
+    id: "moveUp",
+    keys: shortcutCaps("moveUp", "left"),
+    padIntent: "up",
+    get label() {
+      return t("controls.shortcut.moveUp");
+    },
+  },
+  {
+    id: "moveDown",
+    keys: shortcutCaps("moveDown", "left"),
+    padIntent: "down",
+    get label() {
+      return t("controls.shortcut.moveDown");
+    },
+  },
+  {
+    id: "moveLeft",
+    keys: shortcutCaps("moveLeft", "left"),
+    padIntent: "left",
+    get label() {
+      return t("controls.shortcut.moveLeft");
+    },
+  },
+  {
+    id: "moveRight",
+    keys: shortcutCaps("moveRight", "left"),
+    padIntent: "right",
+    get label() {
+      return t("controls.shortcut.moveRight");
+    },
+  },
+  {
+    id: "attack",
+    keys: shortcutCaps("attack", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.attack");
+    },
+  },
+  {
+    id: "thwart",
+    keys: shortcutCaps("thwart", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.thwart");
+    },
+  },
+  {
+    id: "recover",
+    keys: shortcutCaps("recover", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.recover");
+    },
+  },
+  {
+    id: "changeForm",
+    keys: shortcutCaps("changeForm", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.changeForm");
+    },
+  },
+  {
+    id: "ability1",
+    keys: shortcutCaps("ability1", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.ability1");
+    },
+  },
+  {
+    id: "ability2",
+    keys: shortcutCaps("ability2", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.ability2");
+    },
+  },
+  {
+    id: "ability3",
+    keys: shortcutCaps("ability3", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.ability3");
+    },
+  },
+  {
+    id: "ability4",
+    keys: shortcutCaps("ability4", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.ability4");
+    },
+  },
+  {
+    id: "endTurn",
+    keys: shortcutCaps("endTurn", "left"),
+    padIntent: "endTurn",
+    get label() {
+      return t("controls.shortcut.endTurn");
+    },
+  },
+  {
+    id: "undo",
+    keys: shortcutCaps("undo", "left"),
+    padIntent: "undo",
+    get label() {
+      return t("controls.shortcut.undo");
+    },
+  },
+  {
+    id: "pause",
+    keys: shortcutCaps("pause", "left"),
+    padIntent: "pause",
+    get label() {
+      return t("controls.shortcut.pause");
+    },
+  },
   {
     id: "confirm",
     keys: shortcutCaps("confirm", "left"),
     padIntent: "pause",
-    label: "Pay / confirm the open decision",
+    get label() {
+      return t("controls.shortcut.confirm");
+    },
   },
-  { id: "recap", keys: shortcutCaps("recap", "left"), padIntent: "view", label: "Villain phase recap" },
-  { id: "log", keys: shortcutCaps("log", "left"), padIntent: "view", label: "Game log" },
-  { id: "zoneUp", keys: shortcutCaps("zoneUp", "left"), padIntent: "pagePrevious", label: "Previous zone" },
-  { id: "zoneDown", keys: shortcutCaps("zoneDown", "left"), padIntent: "pageNext", label: "Next zone" },
-  { id: "zonePrevious", keys: shortcutCaps("zonePrevious", "left"), padIntent: "pagePrevious", label: "Previous zone" },
-  { id: "zoneNext", keys: shortcutCaps("zoneNext", "left"), padIntent: "pageNext", label: "Next zone" },
-  { id: "peek", keys: shortcutCaps("peek", "left"), padIntent: "view", label: "Peek at table (decision popup)" },
+  {
+    id: "recap",
+    keys: shortcutCaps("recap", "left"),
+    padIntent: "view",
+    get label() {
+      return t("controls.shortcut.recap");
+    },
+  },
+  {
+    id: "log",
+    keys: shortcutCaps("log", "left"),
+    padIntent: "view",
+    get label() {
+      return t("controls.shortcut.log");
+    },
+  },
+  {
+    id: "zoneUp",
+    keys: shortcutCaps("zoneUp", "left"),
+    padIntent: "pagePrevious",
+    get label() {
+      return t("controls.shortcut.zonePrevious");
+    },
+  },
+  {
+    id: "zoneDown",
+    keys: shortcutCaps("zoneDown", "left"),
+    padIntent: "pageNext",
+    get label() {
+      return t("controls.shortcut.zoneNext");
+    },
+  },
+  {
+    id: "zonePrevious",
+    keys: shortcutCaps("zonePrevious", "left"),
+    padIntent: "pagePrevious",
+    get label() {
+      return t("controls.shortcut.zonePrevious");
+    },
+  },
+  {
+    id: "zoneNext",
+    keys: shortcutCaps("zoneNext", "left"),
+    padIntent: "pageNext",
+    get label() {
+      return t("controls.shortcut.zoneNext");
+    },
+  },
+  {
+    id: "peek",
+    keys: shortcutCaps("peek", "left"),
+    padIntent: "view",
+    get label() {
+      return t("controls.shortcut.peek");
+    },
+  },
   {
     id: "expand",
     keys: shortcutCaps("expand", "left"),
     padIntent: "expand",
-    label: "Expand / collapse a decision popup",
+    get label() {
+      return t("controls.shortcut.expand");
+    },
   },
-  { id: "teamUp", keys: shortcutCaps("teamUp", "left"), padIntent: null, label: "Team-Up" },
-  { id: "evidence", keys: shortcutCaps("evidence", "left"), padIntent: null, label: "Evidence" },
-  { id: "discard", keys: shortcutCaps("discard", "left"), padIntent: "discard", label: "Open your discard pile" },
+  {
+    id: "teamUp",
+    keys: shortcutCaps("teamUp", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.teamUp");
+    },
+  },
+  {
+    id: "evidence",
+    keys: shortcutCaps("evidence", "left"),
+    padIntent: null,
+    get label() {
+      return t("controls.shortcut.evidence");
+    },
+  },
+  {
+    id: "discard",
+    keys: shortcutCaps("discard", "left"),
+    padIntent: "discard",
+    get label() {
+      return t("controls.shortcut.discard");
+    },
+  },
   {
     id: "deckLeft",
     keys: shortcutCaps("deckLeft", "left"),
     padIntent: "expand",
-    label: "List the cards left in your decks",
+    get label() {
+      return t("controls.shortcut.deckLeft");
+    },
   },
 ];
 

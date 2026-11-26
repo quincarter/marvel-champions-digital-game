@@ -38,10 +38,10 @@ import type { PadFamily, PadIdentity } from "./pad-family.js";
 import { progressionGuideOf } from "./progression-guide.js";
 import { everyGlossaryEntry, villainPhaseOrder } from "./rules-reference.js";
 import type { RulesTab } from "./rules-layout.js";
-import { EXPORT_ROW_DETAIL, EXPORT_ROW_TITLE, IMPORT_ROW_DETAIL, IMPORT_ROW_TITLE } from "./save-data-model.js";
-import { RECEIVE_ROW_DETAIL, RECEIVE_ROW_TITLE, SEND_ROW_DETAIL, SEND_ROW_TITLE } from "./save-transfer-model.js";
-import { SYNC_ROW_DETAIL, SYNC_ROW_TITLE } from "./sync-model.js";
-import { GLOBAL_ROW_TITLE, globalRowDetail } from "./global-stats-ui.js";
+import { exportRowDetail, exportRowTitle, importRowDetail, importRowTitle } from "./save-data-model.js";
+import { receiveRowDetail, receiveRowTitle, sendRowDetail, sendRowTitle } from "./save-transfer-model.js";
+import { syncRowDetail, syncRowTitle } from "./sync-model.js";
+import { globalRowTitle, globalRowDetail } from "./global-stats-ui.js";
 import type { StatsTab } from "./player-stats-layout.js";
 import { printAndPlayRowOf, unlockAllRowOf, unlockListRowsOf } from "./unlocks-model.js";
 import type { GlobalConsent } from "../global-stats/global-consent.js";
@@ -211,12 +211,12 @@ function saveDataEntries(globalConsent: GlobalConsent): readonly SettingsSearchE
     target: { kind: "saveData", row: id },
   });
   return [
-    row("export", EXPORT_ROW_TITLE, EXPORT_ROW_DETAIL),
-    row("import", IMPORT_ROW_TITLE, IMPORT_ROW_DETAIL),
-    row("send", SEND_ROW_TITLE, SEND_ROW_DETAIL),
-    row("receive", RECEIVE_ROW_TITLE, RECEIVE_ROW_DETAIL),
-    row("sync", SYNC_ROW_TITLE, SYNC_ROW_DETAIL),
-    row("global", GLOBAL_ROW_TITLE, globalRowDetail(globalConsent)),
+    row("export", exportRowTitle(), exportRowDetail()),
+    row("import", importRowTitle(), importRowDetail()),
+    row("send", sendRowTitle(), sendRowDetail()),
+    row("receive", receiveRowTitle(), receiveRowDetail()),
+    row("sync", syncRowTitle(), syncRowDetail()),
+    row("global", globalRowTitle(), globalRowDetail(globalConsent)),
   ];
 }
 

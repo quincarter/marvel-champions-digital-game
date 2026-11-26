@@ -7,6 +7,7 @@
  *
  * Returns every object it made, so a caller can parent them into a scroll region's content container.
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { font } from "../tokens.js";
 import type { DrawingKind } from "../view/controls-rows.js";
@@ -86,9 +87,19 @@ function pictureOf(
   return scene.textures.exists(key) ? { id, key } : null;
 }
 
+const DRAWING_TEXT: Readonly<Record<string, () => string>> = {
+  "Prev zone": () => t("controls.drawing.prevZone"),
+  "Next zone": () => t("controls.drawing.nextZone"),
+  "hold: actions": () => t("controls.drawing.holdActions"),
+  "hold: abilities": () => t("controls.drawing.holdAbilities"),
+  Trackpad: () => t("controls.drawing.trackpad"),
+  "Back buttons (dashed): set them in Steam Input": () => t("controls.drawing.backButtons"),
+  "STEAM and QUICK stay Steam's. Steam + X opens its keyboard.": () => t("controls.drawing.steamKeys"),
+};
+
 export function labelOf(ref: string, family: PadFamily): string {
   const index = LABEL_INDEX[ref];
-  if (index === undefined) return ref;
+  if (index === undefined) return DRAWING_TEXT[ref]?.() ?? ref;
   return padGlyphOf(family, index)?.label ?? "";
 }
 

@@ -189,7 +189,7 @@ import {
   AGAINST_NOTE_SHARE_IN_SETTINGS,
   AGAINST_NOTE_STALE,
   AGAINST_NOTE_UNAVAILABLE,
-  GLOBAL_ROW_FAILED,
+  globalRowFailed,
   SHARE_LABEL,
   SHARE_LINE,
   type AgainstSource,
@@ -2204,7 +2204,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const text = this.add.text(
         left,
         y,
-        this.#shareFailed ? `${GLOBAL_ROW_FAILED} ${SHARE_LINE}` : SHARE_LINE,
+        this.#shareFailed ? `${globalRowFailed()} ${SHARE_LINE}` : SHARE_LINE,
         textStyle(typeRole.body, fg, onDark ? ink.secondary : ink.label),
       );
       fitWrapped(text, column, 2, type.note);

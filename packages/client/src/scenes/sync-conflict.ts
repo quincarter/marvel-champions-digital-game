@@ -9,6 +9,7 @@
  * When the Board is up, "Peek at table" steps the panel aside for a compact banner (`view/peek-banner.ts`) so the table
  * can be looked over before choosing.
  */
+import { t } from "../i18n/translate.js";
 import Phaser from "phaser";
 import { hit, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
@@ -127,7 +128,7 @@ export class SyncConflictOverlay extends Phaser.Scene {
         .text(
           layout.text.x,
           layout.text.y + layout.text.height / 2,
-          "Which copy to keep?",
+          t("sync.conflict.titleShort"),
           textStyle(typeRole.label, surface.paper.hex),
         )
         .setOrigin(0, 0.5);
@@ -147,7 +148,7 @@ export class SyncConflictOverlay extends Phaser.Scene {
       );
       const backButton = new McButton(this, {
         kind: "secondary",
-        label: "Back",
+        label: t("saveData.back"),
         type: buttonType,
         rect: layout.back,
         onClick: back,
@@ -226,7 +227,12 @@ export class SyncConflictOverlay extends Phaser.Scene {
     textRow(caseOf(typeRole.sectionHeader, prompt.title), textStyle(typeRole.sectionHeader, surface.paper.hex), 20, 8);
     textRow(prompt.body, textStyle(typeRole.body, surface.paper.hex, 0.9), 14, 12);
     for (const side of [prompt.local, prompt.remote]) {
-      textRow(`${side.heading}${side.newer ? " (newer)" : ""}`, textStyle(typeRole.label, surface.paper.hex), 13, 0);
+      textRow(
+        `${side.heading}${side.newer ? " " + t("sync.conflict.newer") : ""}`,
+        textStyle(typeRole.label, surface.paper.hex),
+        13,
+        0,
+      );
       textRow(side.line, textStyle(typeRole.body, surface.paper.hex, 0.85), 13, 8);
     }
     for (const button of prompt.buttons) {
@@ -245,7 +251,7 @@ export class SyncConflictOverlay extends Phaser.Scene {
       buttonRow(
         {
           id: "peek",
-          label: "Peek at table ▾",
+          label: t("sync.conflict.peek"),
           primary: false,
           width: Math.min(inner, 220),
           onClick: () => this.#setPeek(true),

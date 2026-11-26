@@ -3,6 +3,7 @@
  * Everyone" source on Your stats and the deck builder, and the notes each state of a load gets. Pure: no Phaser, no
  * storage and no network (`global-stats/` holds those).
  */
+import { t } from "../i18n/translate.js";
 import type { GlobalStats } from "@mc/sync-worker/global-protocol";
 import type { GlobalLoad } from "../global-stats/global-stats-client.js";
 import { globalSectionsOf } from "../global-stats/global-stats-model.js";
@@ -11,13 +12,14 @@ import type { StatsNames, StatsSection } from "./player-stats-model.js";
 import type { StatsTab, StatsTabEntry } from "./player-stats-layout.js";
 
 /** Settings, spelled with the on-screen labels (tab "More", row "Save data", this row). */
-export const GLOBAL_ROW_TITLE = "Share anonymous game results";
+export const globalRowTitle = (): string => t("global.globalRowTitle");
 
 /** The Settings row's one line of detail: the state first, then what it does. */
 export const globalRowDetail = (consent: GlobalConsent): string =>
-  `${consent === "on" ? "On" : "Off"}. Sends the result of each game you finish from now on, with no name or account.`;
-export const globalRowButton = (consent: GlobalConsent): string => (consent === "on" ? "Turn off" : "Turn on");
-export const GLOBAL_ROW_FAILED = "Could not save this choice on this device.";
+  t(consent === "on" ? "global.detailOn" : "global.detailOff");
+export const globalRowButton = (consent: GlobalConsent): string =>
+  consent === "on" ? t("global.turnOff") : t("global.turnOn");
+export const globalRowFailed = (): string => t("global.globalRowFailed");
 
 export type StatsSource = "you" | "everyone";
 export const SOURCE_LABELS: Readonly<Record<StatsSource, string>> = { you: "You", everyone: "Everyone" };
