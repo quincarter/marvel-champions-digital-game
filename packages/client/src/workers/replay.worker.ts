@@ -45,6 +45,8 @@ async function handle(request: ReplayRequest): Promise<void> {
           baseUrl: request.syncUrl,
           roomId: request.roomId,
           ...(request.device ? { device: request.device } : {}),
+          ...(request.name ? { name: request.name } : {}),
+          ...(request.table ? { table: request.table } : {}),
           packs: request.packs,
           // The browser's MessagePort, narrowed to the few members the watcher uses.
           ...(request.feed ? { feed: request.feed as unknown as LiveFeedPort } : {}),

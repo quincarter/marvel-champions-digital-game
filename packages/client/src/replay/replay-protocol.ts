@@ -20,6 +20,10 @@ export type ReplayRequest =
       readonly feed?: MessagePort;
       /** This device's platform and form, for the watcher's own hello (read on main, `platform/room-device.ts`). */
       readonly device?: RoomDevice;
+      /** A watch link's own socket: the viewer's online name for its hello, when they have set one (#1021). */
+      readonly name?: string;
+      /** A watch link's own socket: the table its link names, when not the first (#1021). */
+      readonly table?: string;
     }
   | { readonly kind: "snapshot"; readonly id: number; readonly n: number; readonly played: boolean }
   | { readonly kind: "export"; readonly id: number }
