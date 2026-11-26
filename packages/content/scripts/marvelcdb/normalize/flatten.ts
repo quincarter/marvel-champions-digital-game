@@ -61,6 +61,34 @@ export function applyTypeCorrections(
 }
 
 /**
+ * Applies `Correction.clearStarFlags`: clears the named star flags on the correction's record (or its nested back face).
+ * A flag that is not set is an error, so a MarvelCDB fix upstream is noticed instead of leaving a dead correction.
+ */
+export function applyStarFlagCorrections(
+  raw: readonly RawCard[],
+  corrections: readonly Correction[],
+  errors: string[],
+): readonly RawCard[] {
+  const starred = corrections.filter((c) => c.clearStarFlags !== undefined);
+  if (starred.length === 0) return raw;
+  const fix = (r: RawCard): RawCard => {
+    let out = r;
+    for (const c of starred) {
+      if (c.code !== r.code) continue;
+      for (const f of c.clearStarFlags ?? []) {
+        if (r[f] !== true) errors.push(`${r.code}: clearStarFlags ${f} is not set in MarvelCDB already`);
+        else out = { ...out, [f]: false };
+      }
+    }
+    return out;
+  };
+  return raw.map((r) => {
+    const top = fix(r);
+    return r.linked_card ? { ...top, linked_card: fix(r.linked_card) } : top;
+  });
+}
+
+/**
  * Applies `PackCuration.setRecodes`: re-files the named top-level records (and their nested back faces) under the
  * curated set code and name. A missing code, or a record already in the target set, is an error, so a MarvelCDB fix
  * upstream is noticed instead of leaving a dead entry.

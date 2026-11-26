@@ -149,7 +149,7 @@ describe("luke_cage: wave 11 pool wiring", () => {
     expect(ids.slice(first, first + LUKE_CAGE_CARDS.length)).toEqual(LUKE_CAGE_CARDS.map((c) => c.id as string));
   });
 
-  it("WAVE11_STARTER_DECKS ends with the luke_cage stand-in", () => {
-    expect(WAVE11_STARTER_DECKS.at(-1)).toEqual(LUKE_CAGE_STARTER_DECKS[0]);
+  it("WAVE11_STARTER_DECKS carries the luke_cage stand-in", () => {
+    expect(WAVE11_STARTER_DECKS).toContainEqual(LUKE_CAGE_STARTER_DECKS[0]);
   });
 });

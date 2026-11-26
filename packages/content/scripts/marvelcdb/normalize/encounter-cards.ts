@@ -49,7 +49,16 @@ export function normalizeEncounterCard(
   const separateDeck = curation.separateDecks?.find(
     (d) => d.cardFamily === "encounter" && d.cardCodes.includes(r.code),
   );
-  if (r.faction_code !== "encounter" && !isCampaignCard && !(separateDeck && r.faction_code === "hero"))
+  // A Linked encounter card MarvelCDB files with no set at all and its linking card's aspect as faction (Elektra's
+  // Backstab, Misdirect and Sabotage, "Linked (Double-Cross)": justice, null `card_set_code`) is an encounter card in
+  // no encounter set; only its linking card shuffles it in.
+  const isUnsetLinked = !r.card_set_code && hasLinkedKeyword(r);
+  if (
+    r.faction_code !== "encounter" &&
+    !isCampaignCard &&
+    !isUnsetLinked &&
+    !(separateDeck && r.faction_code === "hero")
+  )
     errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
   const encounterCommon = {
@@ -64,6 +73,7 @@ export function normalizeEncounterCard(
     // ordinary member of its encounter set, so the encounter deck builder can shuffle it in.
     encounterSetIds:
       separateDeck ||
+      isUnsetLinked ||
       (!isCampaignCard && ctx.heroBySet.has(set) && (r.type_code === "obligation" || hasLinkedKeyword(r)))
         ? []
         : [brand("encounterSet", set)],
