@@ -703,7 +703,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Find",
     definition:
-      "An instruction to search every in-game area a card could be in (play areas, decks, discard piles, set-aside area, etc.) for a specific card; it can't reach facedown cards in play or the victory display, and can't reach a collection outside the current game.",
+      "An instruction to search every game area a card could be in (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play areas (dealt or boost cards), the victory display, cards removed from the game and anything outside the game. A minion found already in play engages you and resolves When Revealed and its keywords, but keeps its tokens and attachments and does not enter play again.",
     sources: [
       { kind: "rrg", page: 19 },
       { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
@@ -947,7 +947,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Victory X",
     definition:
-      "When a card with 'Victory X' would leave play by being defeated (or, for a card with 'Uses', by running out of counters), it goes to the shared victory display instead of a discard pile, where it's worth X victory points.",
+      "When a character or side scheme with Victory X is defeated, it goes to the victory display instead of a discard pile, where it is worth X victory points. An attachment or upgrade with Victory X goes there when the card it is attached to is defeated (that card is discarded as normal). A card with Uses and Victory X goes there when its last counter is removed.",
     sources: [{ kind: "rrg", page: 46 }],
   },
   villainous: {

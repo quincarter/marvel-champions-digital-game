@@ -126,7 +126,7 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   victory: {
     name: "Victoria X",
     definition:
-      "Cuando una carta con Victoria X va a salir del juego porque la derrotan (o, si tiene Usos, porque se queda sin contadores), va a la zona de victoria compartida en vez de a una pila de descartes, y allí vale X puntos de victoria.",
+      "Cuando un personaje o un plan secundario con Victoria X es derrotado, va a la zona de victoria en vez de a una pila de descartes, y allí vale X puntos de victoria. Una carta vinculada o una Mejora con Victoria X va a la zona de victoria cuando se derrota la carta a la que está vinculada (esa carta se descarta como siempre). Una carta con Usos y Victoria X va allí cuando se le retira su último contador.",
   },
   alliance: {
     name: "Alianza",
@@ -161,7 +161,7 @@ export const GLOSSARY_ES: Readonly<Record<string, GlossaryTextEs>> = {
   find: {
     name: "Encontrar",
     definition:
-      "Una instrucción para buscar una carta concreta en todas las zonas de la partida donde pueda estar (zonas de juego, mazos, pilas de descartes, cartas apartadas, etc.); no alcanza cartas boca abajo en juego ni la zona de victoria, ni una colección fuera de la partida.",
+      "Una instrucción para buscar una carta concreta en todas las zonas de la partida donde pueda estar (zonas de juego, cartas apartadas, mazos, pilas de descartes, etc.). No alcanza las cartas de Encuentro boca abajo en una zona en juego (como las cartas de Encuentro repartidas o las cartas de Aumento, aunque estas no estén en juego), la zona de victoria, las cartas retiradas de la partida ni nada que esté fuera de la partida. Si encuentras y muestras un esbirro que ya está en juego, se enfrenta a ti y resuelve su «Cuando se muestre esta carta» y sus palabras clave, pero conserva sus fichas y sus cartas vinculadas y no vuelve a entrar en juego.",
   },
   vulnerable: {
     name: "Vulnerable",

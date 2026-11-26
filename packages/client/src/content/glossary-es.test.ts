@@ -43,4 +43,10 @@ describe("GLOSSARY_ES", () => {
     expect(GLOSSARY_ES["teamUp"]!.definition).not.toMatch(/no cuenta/);
     expect(GLOSSARY_ES["threat"]!.definition).toMatch(/esa etapa se completa/);
   });
+
+  it("Victoria X en una carta vinculada y lo que Encontrar no alcanza (RRG 1.8 pp. 19, 46)", () => {
+    expect(GLOSSARY_ES["victory"]!.definition).toMatch(/se derrota la carta a la que está vinculada/);
+    expect(GLOSSARY_ES["find"]!.definition).toMatch(/cartas de Encuentro boca abajo/);
+    expect(GLOSSARY_ES["find"]!.definition).toMatch(/retiradas de la partida/);
+  });
 });

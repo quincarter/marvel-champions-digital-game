@@ -366,6 +366,14 @@ describe("wave 8 mechanics (guided mode section 3.14)", () => {
     expect(threat.sources).toContainEqual({ kind: "rrg", page: 27 });
   });
 
+  it("Victory X on an attachment counts when the attached card is defeated; Find skips facedown encounter cards (RRG 1.8 pp. 19, 46)", () => {
+    expect(glossaryEntry("victory")!.definition).toMatch(/when the card it is attached to is defeated/);
+    const find = glossaryEntry("find")!.definition;
+    expect(find).toMatch(/facedown encounter cards/);
+    expect(find).toMatch(/removed from the game/);
+    expect(find).toMatch(/does not enter play again/);
+  });
+
   it("uses American spelling and no dashes in what a player reads", () => {
     for (const id of WAVE_8_IDS) {
       const entry = glossaryEntry(id)!;
