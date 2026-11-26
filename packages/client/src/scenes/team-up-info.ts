@@ -182,7 +182,7 @@ export class TeamUpInfoOverlay extends Phaser.Scene {
       const cx = box.x + box.width / 2;
       const cy = box.y + portraitTop + radius;
       ground.fillStyle(surface.ink.hex, 1).fillCircle(cx, cy, radius);
-      const key = ensurePictureLoaded(this, picture, () => this.#draw(), { fitScreen: true });
+      const key = ensurePictureLoaded(this, picture, () => this.#draw());
       if (key) {
         const source = this.textures.get(key).getSourceImage() as { width: number; height: number };
         // Its corners cut away in the texture rather than by a circular mask: a Mask filter on an Android phone can

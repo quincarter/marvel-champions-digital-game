@@ -20,7 +20,6 @@ import { canvasOf } from "./bitmap-canvas.js";
 import { decodedBakedPicture } from "./picture-bake-client.js";
 import { GRAY_BUCKETS, grayKeyOf, scaledKeyOf, type Size } from "./grayscale.js";
 import { focusedOffset, type PictureFocus } from "./focus.js";
-import { currentRenderScale } from "../ui/render-scale.js";
 
 export { focusedOffset, type PictureFocus };
 
@@ -99,33 +98,8 @@ export function isPictureSettled(scene: Phaser.Scene, key: string): boolean {
   return textures.exists(key) || !(inFlight.get(textures)?.has(key) ?? false);
 }
 
-export function ensurePictureLoaded(
-  scene: Phaser.Scene,
-  picture: Picture,
-  onReady: () => void,
-  options: { readonly fitScreen?: boolean } = {},
-): string | null {
-  const screen = options.fitScreen ? screenSlotOf(scene) : null;
-  return ensureTextureLoaded(
-    scene,
-    picture.key,
-    () => (screen ? decodedBakedPicture(picture.url, screen, false) : decodedPicture(picture.url)),
-    onReady,
-  );
-}
-
-/**
- * The screen in device pixels, for `fitScreen`: a picture only ever drawn within the screen and placed by its own size
- * (a wallpaper, a hero's portrait, a team-up) is decoded no bigger (a hero's art kept a 32 MB texture for the whole
- * game). Not the default: a comic page is cropped and panned in its own pixels (`view/comic-crop.ts`), so it keeps its
- * size. Null before the scene has a size. The cap is the window's size when the picture first loads.
- */
-function screenSlotOf(scene: Phaser.Scene): Size | null {
-  const width = scene.scale?.width ?? 0;
-  const height = scene.scale?.height ?? 0;
-  if (width <= 0 || height <= 0) return null;
-  const scale = currentRenderScale();
-  return { width: Math.ceil(width * scale), height: Math.ceil(height * scale) };
+export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onReady: () => void): string | null {
+  return ensureTextureLoaded(scene, picture.key, () => decodedPicture(picture.url), onReady);
 }
 
 /**

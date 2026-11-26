@@ -72,10 +72,23 @@ const TABLE_SHARE = 0.34;
 const MIN_TABLE_HEIGHT = 360;
 /** A slot this much taller than the table copy is still drawn from it: a few percent of upscaling doesn't show. */
 const UPGRADE_SLACK = 1.12;
-/** A slot no picture is larger than: `bakedSizeOf` never scales up, so this decodes the scan at its own size. */
-const FULL_SLOT: Size = { width: 100_000, height: 100_000 };
+/**
+ * The full copy's size: the scan's own (`bakedSizeOf` never scales up; a scan is 900 pixels tall), but never taller
+ * than this, so one oversized picture can't take a large share of the budget and evict its own table copy.
+ */
+const FULL_SLOT: Size = { width: 1, height: 1400 };
+const FULL_SUFFIX = "#full";
 /** The full-size copy's texture key, beside the table copy (which keeps the source's own key). */
-const fullKeyOf = (key: string): string => `${key}#full`;
+const fullKeyOf = (key: string): string => `${key}${FULL_SUFFIX}`;
+/** Decodes running at once. A cold screen asks for dozens of scans; each decode holds the whole scan while it runs. */
+const MAX_DECODES = 4;
+
+interface DecodeJob {
+  readonly textures: Phaser.Textures.TextureManager;
+  readonly key: string;
+  readonly url: string;
+  readonly slot: Size;
+}
 
 /** Fetches and decodes `url` no larger than `slot` (off the main thread where it can), or null for a missing scan. */
 export type ScanDecoder = (url: string, slot: Size) => Promise<HTMLCanvasElement | null>;
@@ -130,6 +143,15 @@ export class CardArt {
   readonly #lastUsed = new Map<string, number>();
   #tick = 0;
   #notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Decodes waiting for a free slot, oldest first. */
+  #queue: DecodeJob[] = [];
+  #decoding = 0;
+  /** Decodes running or queued, by url: a pack picture's blob: URL is not revoked while one still reads it. */
+  readonly #urlsInUse = new Map<string, number>();
+  /** Evicted pack pictures whose URL a decode still reads, by url: revoked once it settles. */
+  readonly #revokeLater = new Map<string, string>();
+  /** A scan's own height once a full copy has been decoded, by url: no full copy is asked for a table copy as tall. */
+  readonly #nativeHeight = new Map<string, number>();
   readonly #decode: ScanDecoder;
   readonly #budget: number;
   readonly #renderScale: () => number;
@@ -158,9 +180,20 @@ export class CardArt {
     // the only signal eviction uses, so a key still being drawn is always the
     // last one evicted, never the first.
     this.#lastUsed.set(source.key, ++this.#tick);
-    this.#sources.set(source.key, source);
-    if (scene.textures.exists(source.key)) return source.key;
+    if (scene.textures.exists(source.key)) {
+      this.#sources.set(source.key, source);
+      return source.key;
+    }
+    // The full-size copy alone (its table copy evicted to make room for it) draws a table slot just as well, and
+    // loading the table copy again would only evict the full one in turn.
+    const full = fullKeyOf(source.key);
+    if (scene.textures.exists(full)) {
+      this.#lastUsed.set(full, this.#tick);
+      this.#sources.set(source.key, source);
+      return full;
+    }
     if (this.#missing.has(source.key)) return null;
+    this.#sources.set(source.key, source);
     this.#load(scene.textures, source.key, source.url, this.#tableSlot(scene));
     return null;
   }
@@ -172,15 +205,19 @@ export class CardArt {
    * this cache did not load is its own answer.
    */
   upgrade(scene: Phaser.Scene, key: string, slotHeight: number): string {
+    if (key.endsWith(FULL_SUFFIX)) return key;
     const source = this.#sources.get(key);
     if (!source || !scene.textures.exists(key)) return key;
     const height = scene.textures.get(key).getSourceImage().height;
     if (!height || slotHeight * this.#renderScale() <= height * UPGRADE_SLACK) return key;
+    // The scan itself is no taller than the table copy (a small scan, or a big window): nothing better to fetch.
+    const native = this.#nativeHeight.get(source.url);
+    if (native !== undefined && native <= height) return key;
     const full = fullKeyOf(key);
+    // Both copies are in use: the table copy must not be the one evicted to make room for the full one.
     this.#lastUsed.set(full, ++this.#tick);
+    this.#lastUsed.set(key, this.#tick);
     if (scene.textures.exists(full)) return full;
-    // No bigger scan than the table copy (it was already full size), or none to be had: the table copy it is.
-    if (this.#missing.has(full)) return key;
     this.#load(scene.textures, full, source.url, FULL_SLOT);
     return key;
   }
@@ -191,7 +228,7 @@ export class CardArt {
    */
   fullOnTheWay(key: string): string | null {
     const full = fullKeyOf(key);
-    return this.#requested.has(full) && !this.#missing.has(full) && !this.#resident.has(full) ? full : null;
+    return this.#requested.has(full) && !this.#resident.has(full) ? full : null;
   }
 
   /** Tells every screen showing art to redraw, as an arrival does (a card language switch). */
@@ -211,40 +248,83 @@ export class CardArt {
     return total;
   }
 
+  /** Test/diagnostic hook: decodes running now, and sources remembered. */
+  get stats(): { readonly decoding: number; readonly queued: number; readonly sources: number } {
+    return { decoding: this.#decoding, queued: this.#queue.length, sources: this.#sources.size };
+  }
+
   /** The table copy's size: a share of the screen's height in device pixels, never below a floor. */
   #tableSlot(scene: Phaser.Scene): Size {
     const screen = (scene.scale?.height ?? 0) * this.#renderScale();
     return { width: 1, height: Math.max(MIN_TABLE_HEIGHT, Math.round(screen * TABLE_SHARE)) };
   }
 
+  /** Queues a decode; at most `MAX_DECODES` run at once, so a cold screen of new cards doesn't decode them all at once. */
   #load(textures: Phaser.Textures.TextureManager, key: string, url: string, slot: Size): void {
     if (this.#requested.has(key)) return;
     this.#requested.add(key);
-    this.#decode(url, slot).then(
-      (canvas) => {
-        if (!canvas) {
-          this.#missing.add(key);
-        } else if (this.#noBiggerThanTable(textures, key, canvas.height)) {
-          // A full-size copy no bigger than its table copy (a small scan, or a big window): not kept, never asked again.
-          canvas.width = 0;
-          canvas.height = 0;
-          this.#missing.add(key);
-        } else if (!textures.exists(key)) {
-          textures.addImage(key, canvas as unknown as HTMLImageElement);
-          this.#track(textures, key);
-        }
-        this.#notify();
-      },
-      () => {
-        // A decode that threw (no answer at all): forget it was asked for, so the next draw asks again.
-        this.#requested.delete(key);
-      },
-    );
+    this.#queue.push({ textures, key, url, slot });
+    this.#pump();
   }
 
-  #noBiggerThanTable(textures: Phaser.Textures.TextureManager, key: string, height: number): boolean {
-    if (!key.endsWith("#full")) return false;
-    const table = key.slice(0, -"#full".length);
+  #pump(): void {
+    while (this.#decoding < MAX_DECODES) {
+      const job = this.#queue.shift();
+      if (!job) return;
+      this.#decoding++;
+      this.#urlsInUse.set(job.url, (this.#urlsInUse.get(job.url) ?? 0) + 1);
+      this.#decode(job.url, job.slot)
+        .then(
+          (canvas) => this.#landed(job, canvas),
+          // A decode that threw (no answer at all): forget it was asked for, so the next draw asks again.
+          () => this.#requested.delete(job.key),
+        )
+        .finally(() => {
+          this.#decoding--;
+          const left = (this.#urlsInUse.get(job.url) ?? 1) - 1;
+          if (left > 0) this.#urlsInUse.set(job.url, left);
+          else {
+            this.#urlsInUse.delete(job.url);
+            // An evicted pack picture's blob: URL waited for this decode before it was revoked.
+            const revoke = this.#revokeLater.get(job.url);
+            if (revoke !== undefined) {
+              this.#revokeLater.delete(job.url);
+              releasePackArt(revoke);
+            }
+          }
+          this.#pump();
+        });
+    }
+  }
+
+  #landed(job: DecodeJob, canvas: HTMLCanvasElement | null): void {
+    const { textures, key } = job;
+    const full = key.endsWith(FULL_SUFFIX);
+    if (!canvas) {
+      // No table copy is a missing scan. A full copy that failed after its table copy loaded is not (its pack URL may
+      // have been revoked by an eviction meanwhile): forget it was asked for, and the next hover asks again.
+      if (full) this.#requested.delete(key);
+      else this.#missing.add(key);
+    } else if (full && this.#tableCovers(textures, key, canvas.height)) {
+      // The scan is no taller than its table copy: not kept, and not fetched again while the table copy is this size.
+      this.#nativeHeight.set(job.url, canvas.height);
+      this.#requested.delete(key);
+      canvas.width = 0;
+      canvas.height = 0;
+    } else if (!this.#requested.has(key) || textures.exists(key)) {
+      canvas.width = 0;
+      canvas.height = 0;
+    } else {
+      if (full) this.#nativeHeight.set(job.url, canvas.height);
+      textures.addImage(key, canvas as unknown as HTMLImageElement);
+      this.#track(textures, key);
+    }
+    this.#notify();
+  }
+
+  /** Whether the table copy of a full key is already as tall as the full scan turned out to be. */
+  #tableCovers(textures: Phaser.Textures.TextureManager, key: string, height: number): boolean {
+    const table = key.slice(0, -FULL_SUFFIX.length);
     return textures.exists(table) && textures.get(table).getSourceImage().height >= height;
   }
 
@@ -287,8 +367,18 @@ export class CardArt {
           source.height = 0;
         }
       }
-      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again).
-      if (!key.endsWith("#full")) releasePackArt(key);
+      const table = key.endsWith(FULL_SUFFIX) ? key.slice(0, -FULL_SUFFIX.length) : key;
+      const url = this.#sources.get(table)?.url;
+      // The source stays while either copy is resident or wanted; past that a redraw that wants it hands it over again.
+      if (!textures.exists(table) && !textures.exists(fullKeyOf(table)) && !this.#requested.has(table)) {
+        this.#sources.delete(table);
+        if (url !== undefined) this.#nativeHeight.delete(url);
+      }
+      if (key.endsWith(FULL_SUFFIX)) continue;
+      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again), once no decode
+      // still reads it (a full copy on its way).
+      if (url !== undefined && this.#urlsInUse.has(url)) this.#revokeLater.set(url, key);
+      else releasePackArt(key);
     }
   }
 

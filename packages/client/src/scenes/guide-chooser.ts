@@ -285,7 +285,7 @@ export class GuideChooserScene extends Phaser.Scene {
         .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight)
         .setDepth(ART_DEPTH);
     };
-    if (ensurePictureLoaded(this, art, place, { fitScreen: true }) !== null) place();
+    if (ensurePictureLoaded(this, art, place) !== null) place();
   }
 
   /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen), then either goes to How to win (G6b) or

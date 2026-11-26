@@ -12,6 +12,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CardArt, type ScanDecoder } from "./card-art.js";
+import { releasePackArt } from "./pack-art.js";
+
+vi.mock("./pack-art.js", () => ({ releasePackArt: vi.fn() }));
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 
 type Size = { readonly width: number; readonly height: number };
@@ -41,7 +44,7 @@ class FakeTextures {
 class FakeScene {
   readonly textures = new FakeTextures();
   readonly game = {};
-  constructor(readonly scale: { readonly height: number } = { height: 900 }) {}
+  constructor(readonly scale: { height: number } = { height: 900 }) {}
 }
 
 /** Native scan sizes by url; a url with none staged is a 404. Records every decode asked for. */
@@ -65,12 +68,16 @@ const urlOf = (key: string): string => `/card-art/${key}.png`;
 
 /** Lets every pending decode settle. */
 const settle = async (): Promise<void> => {
-  for (let i = 0; i < 5; i++) await Promise.resolve();
+  for (let i = 0; i < 30; i++) await Promise.resolve();
 };
 
-function setup(options: { screenHeight?: number; renderScale?: number } = {}) {
+function setup(options: { screenHeight?: number; renderScale?: number; budget?: number; decode?: ScanDecoder } = {}) {
   const decoder = new FakeDecoder();
-  const art = new CardArt({ decode: decoder.decode, budgetBytes: BUDGET, renderScale: () => options.renderScale ?? 1 });
+  const art = new CardArt({
+    decode: options.decode ?? decoder.decode,
+    budgetBytes: options.budget ?? BUDGET,
+    renderScale: () => options.renderScale ?? 1,
+  });
   const raw = new FakeScene({ height: options.screenHeight ?? 900 });
   const scene = raw as unknown as import("phaser").Scene;
   return { art, raw, scene, decoder };
@@ -277,5 +284,132 @@ describe("CardArt table copies (the WebKit memory report)", () => {
       await settle();
     }
     expect(art.residentBytes()).toBeLessThanOrEqual(BUDGET);
+  });
+
+  it("asks for a full scan again after its table copy is decoded smaller (a smaller window)", async () => {
+    // A big window: the table copy is the scan's own 900 px, so a full copy has nothing more to give.
+    const { art, raw, scene, decoder } = setup({
+      screenHeight: 3000,
+      budget: 627 * 900 * 4 + 2 * 251 * 360 * 4 + 1000,
+    });
+    decoder.stage(urlOf("a"), { width: 627, height: 900 });
+    art.request(scene, source("a"));
+    await settle();
+    art.upgrade(scene, "a", 2000);
+    await settle();
+    expect(scene.textures.exists("a#full")).toBe(false);
+    // The window shrinks; other cards push the table copy out; it comes back at 360 px.
+    raw.scale.height = 500;
+    for (const key of ["b", "c", "d"]) {
+      decoder.stage(urlOf(key), { width: 627, height: 900 });
+      art.request(scene, source(key));
+      await settle();
+    }
+    expect(scene.textures.exists("a")).toBe(false);
+    art.request(scene, source("a"));
+    await settle();
+    expect(scene.textures.get("a").getSourceImage().height).toBe(360);
+    expect(art.upgrade(scene, "a", 700)).toBe("a");
+    await settle();
+    expect(art.upgrade(scene, "a", 700)).toBe("a#full");
+  });
+
+  it("caps a full copy's height, so one huge picture can't take the budget", async () => {
+    const { art, scene, decoder } = setup();
+    decoder.stage(urlOf("stage"), { width: 4000, height: 3000 });
+    art.request(scene, source("stage"));
+    await settle();
+    art.upgrade(scene, "stage", 5000);
+    await settle();
+    expect(scene.textures.get("stage#full").getSourceImage().height).toBe(1400);
+  });
+
+  it("settles when the full and table copies can't both fit: the full copy alone draws the card", async () => {
+    // Room for the full copy (627x900) and little else.
+    const { art, scene, decoder } = setup({ budget: 627 * 900 * 4 + 1000 });
+    decoder.stage(urlOf("a"), { width: 627, height: 900 });
+    for (let i = 0; i < 10; i++) {
+      const key = art.request(scene, source("a"));
+      if (key) art.upgrade(scene, key, 700);
+      await settle();
+    }
+    // Table copy, then the full copy, then nothing more: the full copy answers the table's request too.
+    expect(decoder.asked).toHaveLength(2);
+    expect(art.request(scene, source("a"))).toBe("a#full");
+  });
+});
+
+describe("CardArt decoding", () => {
+  it("runs at most four decodes at once, and drains its queue through failures", async () => {
+    let running = 0;
+    let most = 0;
+    const waiting: (() => void)[] = [];
+    const decode: ScanDecoder = (url) =>
+      new Promise((resolve, reject) => {
+        running++;
+        most = Math.max(most, running);
+        waiting.push(() => {
+          running--;
+          if (url.includes("bad")) reject(new Error("decode failed"));
+          else resolve({ width: 100, height: 140 } as HTMLCanvasElement);
+        });
+      });
+    const { art, scene } = setup({ decode });
+    for (let i = 0; i < 20; i++) art.request(scene, source(i % 3 === 0 ? `bad-${i}` : `c${i}`));
+    expect(art.stats).toMatchObject({ decoding: 4, queued: 16 });
+    while (waiting.length > 0) {
+      waiting.shift()!();
+      await settle();
+    }
+    expect(most).toBe(4);
+    expect(art.stats).toMatchObject({ decoding: 0, queued: 0 });
+    expect(scene.textures.exists("c1")).toBe(true);
+    // A failed decode is asked for again on the next draw.
+    expect(art.request(scene, source("bad-0"))).toBeNull();
+    expect(art.stats.decoding).toBe(1);
+  });
+
+  it("forgets the sources of evicted cards over a long run", async () => {
+    const { art, scene, decoder } = setup({ budget: 20 * 360 * 500 * 4 });
+    for (let i = 0; i < 300; i++) {
+      decoder.stage(urlOf(`card-${i}`), { width: 627, height: 900 });
+      art.request(scene, source(`card-${i}`));
+      await settle();
+    }
+    // About forty cards fit the budget; the other 260 are forgotten.
+    expect(art.stats.sources).toBeLessThanOrEqual(45);
+  });
+
+  it("keeps a pack picture's URL until a full copy that reads it has landed, and retries a full copy that failed", async () => {
+    const release = vi.mocked(releasePackArt);
+    release.mockClear();
+    let fail = false;
+    let hold: (() => void) | null = null;
+    const decoder = new FakeDecoder();
+    const decode: ScanDecoder = (url, slot) =>
+      slot.height === 1400
+        ? new Promise((resolve) => {
+            hold = () => resolve(fail ? null : decoder.decode(url, slot));
+          })
+        : decoder.decode(url, slot);
+    const { art, scene } = setup({ decode, budget: 2 * 360 * 251 * 4 });
+    decoder.stage(urlOf("p"), { width: 627, height: 900 });
+    art.request(scene, source("p"));
+    await settle();
+    art.upgrade(scene, "p", 700);
+    // Two other cards push the table copy out while the full copy is on its way.
+    for (const key of ["x", "y"]) {
+      decoder.stage(urlOf(key), { width: 627, height: 900 });
+      art.request(scene, source(key));
+      await settle();
+    }
+    expect(scene.textures.exists("p")).toBe(false);
+    expect(release).not.toHaveBeenCalledWith("p");
+    fail = true;
+    hold!();
+    await settle();
+    expect(release).toHaveBeenCalledWith("p");
+    // The failed full copy is not a missing scan: the next hover asks again.
+    expect(art.isMissing("p#full")).toBe(false);
   });
 });

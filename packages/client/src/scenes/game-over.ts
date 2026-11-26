@@ -499,7 +499,7 @@ export class GameOverScene extends Phaser.Scene {
     if (!this.textures.exists(picture.key)) {
       if (this.#loadingArt.has(picture.key)) return false;
       this.#loadingArt.add(picture.key);
-      ensurePictureLoaded(this, picture, () => this.#draw(), { fitScreen: true });
+      ensurePictureLoaded(this, picture, () => this.#draw());
       return false;
     }
     const fit = coverFit(this.textures.get(picture.key).getSourceImage() as { width: number; height: number }, panel);

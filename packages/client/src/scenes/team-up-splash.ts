@@ -119,7 +119,7 @@ export class TeamUpSplashOverlay extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.#close());
 
-    const key = ensurePictureLoaded(this, this.#data.picture, () => this.#draw(), { fitScreen: true });
+    const key = ensurePictureLoaded(this, this.#data.picture, () => this.#draw());
     if (!key) {
       this.#motion.enter(this, { scrim: [scrim], panels: [] });
       return;
