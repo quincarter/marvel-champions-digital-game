@@ -8,6 +8,8 @@ import Phaser from "phaser";
 import { domFocusRing } from "../dom/dom-ring.js";
 import { PopupSheet } from "../dom/popup-sheet.js";
 import { SheetGlyphs } from "../dom/sheet-glyphs.js";
+import { glyphsFitFormFactor } from "../view/glyph-placement.js";
+import { formFactorFor } from "../view/layout.js";
 import { t } from "../i18n/translate.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
@@ -111,6 +113,9 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       alpha: 0.9,
     });
 
+    // Glyphs are for desktop and tablet landscape (`glyphsFitFormFactor`): a phone or a portrait tablet with a keyboard
+    // or a pad gets plain buttons, as every other screen does.
+    const glyphsFit = glyphsFitFormFactor(formFactorFor(width, height));
     const buttonWidth = (textWidth - 12) / 2;
     const buttonY = box.y + box.height - 20 - buttonHeight;
     const keepRect: Rect = { x: box.x + 20, y: buttonY, width: buttonWidth, height: buttonHeight };
@@ -121,7 +126,7 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       label: this.#data.cancelLabel ?? t("confirm.keepPlaying"),
       look: "secondary",
       type: buttonType,
-      ids: ["cancel"],
+      ids: glyphsFit ? ["cancel"] : [],
       ground: "paper",
     });
     this.#glyphs.button(b, {
@@ -130,9 +135,10 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       label: this.#data.confirmLabel ?? t("confirm.endTurn"),
       look: "primary",
       type: buttonType,
-      ids: ["activate"],
+      ids: glyphsFit ? ["activate"] : [],
       ground: "ink",
-      idsNow: (set) => (this.#route?.focused === "ok" ? ["activate"] : set === "pad" ? ["confirm"] : null),
+      idsNow: (set) =>
+        !glyphsFit ? null : this.#route?.focused === "ok" ? ["activate"] : set === "pad" ? ["confirm"] : null,
     });
     this.#panel.mount(b, width, height);
     const stops = new Map([
