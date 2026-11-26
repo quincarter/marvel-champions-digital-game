@@ -71,7 +71,7 @@ const overlayScenes = new Set<string>();
  * The holes (a Phaser text field) each overlay region leaves, by scene key. A Phaser DOM element sits under every
  * panel, so a panel below the overlay is cut at the same places, or it would cover the field through the hole.
  */
-const overlayHoles = new Map<string, readonly Rect[]>();
+const overlayHoles = new Map<string, readonly Rect[] | (() => readonly Rect[])>();
 
 /** Every live region, so one overlay's holes reach the panels under it at once. */
 const liveRegions = new Set<{ readonly resync: () => void }>();
@@ -80,7 +80,10 @@ const liveRegions = new Set<{ readonly resync: () => void }>();
 export function holesAbove(scenes: readonly { readonly key: string }[], key: string): Rect[] {
   const at = scenes.findIndex((scene) => scene.key === key);
   if (at < 0) return [];
-  return scenes.slice(at + 1).flatMap((scene) => overlayHoles.get(scene.key) ?? []);
+  return scenes.slice(at + 1).flatMap((scene) => {
+    const holes = overlayHoles.get(scene.key);
+    return typeof holes === "function" ? holes() : (holes ?? []);
+  });
 }
 
 /** Whether a scene drawn above `key` (later in `scenes`, the draw order) is drawn and isn't chrome. */
@@ -277,7 +280,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   setHoles(rects: readonly Rect[] | (() => readonly Rect[])): void {
     this.#holes = rects;
     if (this.#overlay) {
-      overlayHoles.set(this.#scene.sys.settings.key, typeof rects === "function" ? rects() : rects);
+      overlayHoles.set(this.#scene.sys.settings.key, rects);
       for (const region of liveRegions) region.resync();
     }
     this.#sync();

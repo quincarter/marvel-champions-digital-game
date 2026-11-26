@@ -131,5 +131,11 @@ test("the Board's End turn confirm is a panel and ends the turn from its button"
     10_000,
   );
   await expect(confirmSheet(page)).toHaveCount(0);
+  // It ended the turn (not just closed): the villain phase comes up.
+  await waitFor(
+    async () => ((await activeScenes(page)).includes("VillainPhaseOverlay") ? true : null),
+    "the villain phase follows",
+    20_000,
+  );
   expect(errors).toEqual([]);
 });
