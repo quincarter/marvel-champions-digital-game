@@ -1255,6 +1255,11 @@ export class McTextInput {
   #coveredByOtherScene = false;
   /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
   #requestedVisible = true;
+
+  /** Whether the field is on screen now: asked to show, and no scene running above its own (a panel over it uses this). */
+  get shown(): boolean {
+    return this.#requestedVisible && !this.#coveredByOtherScene;
+  }
   /** The `clip-path` cutting a card hover popover out of the field (`coverWith`), or "" when none overlaps it. */
   #clip = "";
 

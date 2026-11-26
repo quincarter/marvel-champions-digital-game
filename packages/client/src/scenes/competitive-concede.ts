@@ -4,11 +4,11 @@
  * command each sends are `view/competitive-concede.ts`; the engine decides what a concession means.
  */
 import Phaser from "phaser";
+import { domFocusRing } from "../dom/dom-ring.js";
+import { PopupSheet } from "../dom/popup-sheet.js";
 import { appSession } from "../session.js";
 import { hit, surface, typeRole } from "../tokens.js";
 import { destroyChildren } from "../ui/destroy-children.js";
-import { textStyle } from "../ui/theme.js";
-import { McButton } from "../ui/widgets.js";
 import { t } from "../i18n/translate.js";
 import { concedeChoicesOf, type ConcedeChoice } from "../view/competitive-concede.js";
 import type { Rect } from "../view/layout.js";
@@ -18,22 +18,24 @@ import { SCENES } from "./keys.js";
 const INK = surface.ink.hex;
 const PAPER = surface.paper.hex;
 
+/** A Lit panel over the canvas (`dom/popup-sheet.ts`), above Pause's; the scene keeps the shield, route and commands. */
 export class CompetitiveConcedeOverlay extends Phaser.Scene {
-  #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #panel!: PopupSheet;
+  /** What each button does this draw, by key. */
+  #actions = new Map<string, () => void>();
 
   constructor() {
     super(SCENES.competitiveConcede);
   }
 
   create(): void {
-    this.#route = new FocusRoute(this, { onCancel: () => this.#close(), primary: () => "cancel" });
+    this.#panel = new PopupSheet(this, (key) => this.#actions.get(key)?.());
+    this.#route = new FocusRoute(this, { ring: domFocusRing, onCancel: () => this.#close(), primary: () => "cancel" });
     const redraw = (): void => this.#draw();
     this.scale.on("resize", redraw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", redraw, this);
-      for (const b of this.#buttons) b.destroy();
-      this.#buttons = [];
     });
     this.#draw();
   }
@@ -57,43 +59,34 @@ export class CompetitiveConcedeOverlay extends Phaser.Scene {
   }
 
   #draw(): void {
-    for (const b of this.#buttons) b.destroy();
-    this.#buttons = [];
     destroyChildren(this);
+    this.#actions = new Map();
     const stops = new Map<string, FocusStop>();
     const order: string[] = [];
     const choices = this.#choices();
     const { width, height } = this.scale.gameSize;
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+    const b = this.#panel.begin(width, height);
     const boxW = Math.min(520, width - 16);
     const x = (width - boxW) / 2 + 16;
     const w = boxW - 32;
+    const detailSpec = typeRole.body;
+    const detailOptions = { size: 13, wrapWidth: w };
     // Measure first so the box fits its words on the smallest phone.
-    let y = 0;
-    const lay = (text: string, size: number, bold: boolean, at: number): Phaser.GameObjects.Text =>
-      this.add
-        .text(x, at, text, textStyle(bold ? typeRole.rowTitle : typeRole.body, INK))
-        .setFontSize(size)
-        .setWordWrapWidth(w, true);
-    const heights = choices.map((c) => lay(t(c.detailKey), 13, false, -1000).height);
-    this.children.list.slice(-heights.length).forEach((n) => n.destroy());
+    const heights = choices.map((c) => b.measure(t(c.detailKey), detailSpec, detailOptions).height);
     const total = 28 + choices.reduce((sum, _c, i) => sum + heights[i]! + hit.target + 18, 0) + hit.target + 16;
     const boxH = Math.min(height - 16, total + 30);
     const top = (height - boxH) / 2;
-    const g = this.add.graphics();
-    g.fillStyle(PAPER, 1).fillRect((width - boxW) / 2, top, boxW, boxH);
-    g.lineStyle(4, INK, 1).strokeRect((width - boxW) / 2, top, boxW, boxH);
-    y = top + 14;
-    const button = (rect: Rect, label: string, kind: "primary" | "secondary", key: string, run: () => void): void => {
-      this.#buttons.push(
-        new McButton(this, { kind, label, type: { ...typeRole.label, size: 12 }, rect, onClick: run, wrap: true }),
-      );
+    b.box({ x: (width - boxW) / 2, y: top, width: boxW, height: boxH }, { fill: PAPER, stroke: INK, strokeWidth: 4 });
+    let y = top + 14;
+    const button = (rect: Rect, label: string, look: "primary" | "secondary", key: string, run: () => void): void => {
+      b.button({ key, rect, label, look, type: { ...typeRole.label, size: 12 } });
+      this.#actions.set(key, run);
       stops.set(key, { rect, activate: run });
       order.push(key);
     };
     for (const choice of choices) {
-      const detail = lay(t(choice.detailKey), 13, false, y);
+      const detail = b.text(x, y, t(choice.detailKey), detailSpec, { ...detailOptions, color: INK });
       y += detail.height + 6;
       button(
         { x, y, width: w, height: hit.target },
@@ -105,6 +98,7 @@ export class CompetitiveConcedeOverlay extends Phaser.Scene {
       y += hit.target + 12;
     }
     button({ x, y, width: w, height: hit.target }, t("comp.over.cancel"), "primary", "cancel", () => this.#close());
+    this.#panel.mount(b, width, height);
     this.#route?.set(order, stops);
   }
 }

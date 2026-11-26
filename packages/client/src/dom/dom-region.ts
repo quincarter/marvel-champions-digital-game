@@ -8,7 +8,10 @@
  * - it fades with the scene's camera (`fadeScreenIn`, `goToScreen`'s fade-out, a held entrance), since a camera fade
  *   only darkens the canvas;
  * - it hides while a scene drawn above this one is up (an overlay), since the DOM always sits over the canvas and
- *   would otherwise cover it;
+ *   would otherwise cover it, unless that scene is itself an `overlay` region (a pop-up that draws its own scrim and
+ *   panel in the DOM, above this one), which leaves this panel shown under it;
+ * - it stacks in the scenes' draw order (`panelZIndex`), so a pop-up scene's panel drawn above this scene's sits
+ *   above it;
  * - a chrome scene's objects (`CHROME_SCENES`: a toast, the corner buttons) are cut out of it, so a toast that lands
  *   over the panel is seen and can be pressed (a clip path also clips hit testing).
  *
@@ -41,6 +44,43 @@ export interface SceneLike {
   /** Drawn this frame: running, or paused (a paused scene still renders); not sleeping or stopped. */
   readonly active: boolean;
   readonly visible: boolean;
+  /** Draws its own scrim and panel in the DOM (`DomRegion`'s `overlay`), so a panel under it stays shown. */
+  readonly overlay?: boolean;
+}
+
+/**
+ * The CSS z-index of a scene's panel wrapper: its place in the scenes' draw order (`game.scene.scenes`), so a panel
+ * drawn by a scene above sits above this one. Ten apart, so the scene's focus ring sits just over its own panel
+ * (`ringZIndex`) and under the next scene's. 0 (no stacking) for a scene not in the list.
+ */
+export function panelZIndex(scenes: readonly { readonly key: string }[], key: string): number {
+  const at = scenes.findIndex((scene) => scene.key === key);
+  return at < 0 ? 0 : (at + 1) * 10;
+}
+
+/** The z-index of a scene's focus ring: over its own panel, under the panel of the scene above. */
+export function ringZIndex(scenes: readonly { readonly key: string }[], key: string): number {
+  const panel = panelZIndex(scenes, key);
+  return panel === 0 ? 10 : panel + 5;
+}
+
+/** Scene keys whose live region is an overlay (`DomRegion`'s `overlay` option). */
+const overlayScenes = new Set<string>();
+
+/**
+ * The holes (a Phaser text field) each overlay region leaves, by scene key. A Phaser DOM element sits under every
+ * panel, so a panel below the overlay is cut at the same places, or it would cover the field through the hole.
+ */
+const overlayHoles = new Map<string, readonly Rect[]>();
+
+/** Every live region, so one overlay's holes reach the panels under it at once. */
+const liveRegions = new Set<{ readonly resync: () => void }>();
+
+/** The holes of overlay scenes drawn above `key` (later in the draw order), in game coordinates. */
+export function holesAbove(scenes: readonly { readonly key: string }[], key: string): Rect[] {
+  const at = scenes.findIndex((scene) => scene.key === key);
+  if (at < 0) return [];
+  return scenes.slice(at + 1).flatMap((scene) => overlayHoles.get(scene.key) ?? []);
 }
 
 /** Whether a scene drawn above `key` (later in `scenes`, the draw order) is drawn and isn't chrome. */
@@ -49,7 +89,7 @@ export function coveredAbove(scenes: readonly SceneLike[], key: string, chrome: 
   if (at < 0) return false;
   for (let index = at + 1; index < scenes.length; index++) {
     const scene = scenes[index]!;
-    if (scene.active && scene.visible && !chrome.has(scene.key)) return true;
+    if (scene.active && scene.visible && !chrome.has(scene.key) && !scene.overlay) return true;
   }
   return false;
 }
@@ -61,6 +101,7 @@ export function sceneLayerState(scene: Phaser.Scene): { readonly shown: boolean;
     key: other.sys.settings.key,
     active: other.sys.isActive() || other.sys.isPaused(),
     visible: other.sys.settings.visible,
+    overlay: overlayScenes.has(other.sys.settings.key),
   }));
   const shown = settings.visible && scene.sys.isActive() && !coveredAbove(scenes, settings.key, CHROME_SCENES);
   const camera = scene.cameras?.main;
@@ -184,13 +225,23 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #clip: string | null = null;
   #live: boolean | null = null;
   #hidden = false;
-  #holes: readonly Rect[] = [];
+  /** Rects left out of the panel, or a function read each frame (a field that hides itself while covered). */
+  #holes: readonly Rect[] | (() => readonly Rect[]) = [];
   #follow: Followed | null = null;
   #offset = "";
+  #z = -1;
   #destroyed = false;
+  readonly #overlay: boolean;
 
-  constructor(scene: Phaser.Scene, element: E, rect: Rect) {
+  /**
+   * `overlay`: the scene draws its own scrim and panel in the DOM, over the scene under it (a pop-up). Panels under it
+   * then stay shown, dimmed by its scrim, instead of hiding while it is up.
+   */
+  constructor(scene: Phaser.Scene, element: E, rect: Rect, options: { readonly overlay?: boolean } = {}) {
     this.#scene = scene;
+    this.#overlay = options.overlay ?? false;
+    if (this.#overlay) overlayScenes.add(scene.sys.settings.key);
+    liveRegions.add(this);
     this.element = element;
     this.#rect = rect;
     this.#layer = uiLayer(scene.game);
@@ -223,8 +274,12 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
    * Leaves `rects` (game coordinates) out of the panel, seen and pressed through it: a Phaser DOM element the scene
    * keeps under the panel (a search field, `McTextInput`), which would otherwise be covered.
    */
-  setHoles(rects: readonly Rect[]): void {
+  setHoles(rects: readonly Rect[] | (() => readonly Rect[])): void {
     this.#holes = rects;
+    if (this.#overlay) {
+      overlayHoles.set(this.#scene.sys.settings.key, typeof rects === "function" ? rects() : rects);
+      for (const region of liveRegions) region.resync();
+    }
     this.#sync();
   }
 
@@ -253,6 +308,11 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     return gameRectOf(target, this.#layer);
   }
 
+  /** Re-reads the scenes' state now (another region's holes changed). */
+  resync(): void {
+    this.#sync();
+  }
+
   #sync(): void {
     if (this.#destroyed) return;
     const state = sceneLayerState(this.#scene);
@@ -274,12 +334,24 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     }
     // Presses follow the scene's own input: an overlay playing its exit turns its input off (`exitOverlay`), and its
     // panel stops taking taps with it.
+    const scenes = this.#scene.game.scene.scenes.map((other) => ({ key: other.sys.settings.key }));
+    const z = panelZIndex(scenes, this.#scene.sys.settings.key);
+    if (z !== this.#z) {
+      this.#z = z;
+      this.#wrap.style.zIndex = z > 0 ? String(z) : "";
+    }
     const live = this.#scene.input?.enabled !== false;
     if (live !== this.#live) {
       this.#live = live;
       this.#wrap.style.pointerEvents = live ? "auto" : "none";
     }
-    const clip = shown ? clipWithHoles(this.#rect, [...chromeBoxes(this.#scene.game), ...this.#holes]) : null;
+    const clip = shown
+      ? clipWithHoles(this.#rect, [
+          ...chromeBoxes(this.#scene.game),
+          ...(typeof this.#holes === "function" ? this.#holes() : this.#holes),
+          ...holesAbove(scenes, this.#scene.sys.settings.key),
+        ])
+      : null;
     if (clip !== this.#clip) {
       this.#clip = clip;
       this.#wrap.style.clipPath = clip ?? "";
@@ -289,6 +361,12 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   destroy(): void {
     if (this.#destroyed) return;
     this.#destroyed = true;
+    liveRegions.delete(this);
+    if (this.#overlay) {
+      overlayScenes.delete(this.#scene.sys.settings.key);
+      overlayHoles.delete(this.#scene.sys.settings.key);
+      for (const region of liveRegions) region.resync();
+    }
     this.#scene.events.off("postupdate", this.#sync, this);
     for (const event of STATE_EVENTS) this.#scene.events.off(event, this.#sync, this);
     this.#scene.events.off("shutdown", this.destroy, this);

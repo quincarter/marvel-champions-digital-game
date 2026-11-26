@@ -708,8 +708,9 @@ export class PauseOverlay extends Phaser.Scene {
     }
     const region = this.#region;
     region.setRect({ x: 0, y: 0, width, height });
-    // The search field is a Phaser DOM element under the panel: left out of it, it is seen and pressed.
-    region.setHoles([searchRect]);
+    // The search field is a Phaser DOM element under the panel: left out of it, it is seen and pressed. Only while it
+    // shows: under a pop-up it hides itself, and the hole would show the board through the panel.
+    region.setHoles(() => (this.#searchInput?.shown ? [searchRect] : []));
     region.element.nodes = this.#b.nodes;
     renderNow(region.element);
     if (this.#lowerFromTop) {

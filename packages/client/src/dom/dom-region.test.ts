@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { clipWithHoles, coveredAbove, disjointUnion, regionOpacity } from "./dom-region.js";
+import {
+  clipWithHoles,
+  coveredAbove,
+  disjointUnion,
+  holesAbove,
+  panelZIndex,
+  regionOpacity,
+  ringZIndex,
+} from "./dom-region.js";
 
 describe("regionOpacity", () => {
   it("follows the camera fade: hidden while black, clear once the fade is over", () => {
@@ -73,5 +81,65 @@ describe("disjointUnion", () => {
 
   it("leaves one rect as it is", () => {
     expect(disjointUnion([{ x: 5, y: 6, width: 7, height: 8 }])).toEqual([{ x: 5, y: 6, width: 7, height: 8 }]);
+  });
+});
+
+describe("coveredAbove with a pop-up that draws its own panel", () => {
+  const chrome = new Set(["MusicButton"]);
+  const scenes = [
+    { key: "Board", active: true, visible: true },
+    { key: "Pause", active: true, visible: true },
+    { key: "Confirm", active: true, visible: true, overlay: true },
+    { key: "MusicButton", active: true, visible: true },
+  ];
+
+  it("leaves the panel under it shown, since the pop-up's scrim and panel are DOM above it", () => {
+    expect(coveredAbove(scenes, "Pause", chrome)).toBe(false);
+  });
+
+  it("still covers the scene below Pause, which Pause (not an overlay) draws over", () => {
+    expect(coveredAbove(scenes, "Board", chrome)).toBe(true);
+  });
+
+  it("is covered by a Phaser-drawn scene above the pop-up all the same", () => {
+    const over = [...scenes.slice(0, 3), { key: "Inspect", active: true, visible: true }];
+    expect(coveredAbove(over, "Pause", chrome)).toBe(true);
+  });
+
+  it("is covered only while a non-overlay scene is drawn above", () => {
+    const gone = scenes.map((scene) => (scene.key === "Confirm" ? { ...scene, active: false } : scene));
+    expect(coveredAbove(gone, "Pause", chrome)).toBe(false);
+    const phaser = scenes.map((scene) => (scene.key === "Confirm" ? { ...scene, overlay: false } : scene));
+    expect(coveredAbove(phaser, "Pause", chrome)).toBe(true);
+  });
+});
+
+describe("panelZIndex", () => {
+  const scenes = [{ key: "Board" }, { key: "Pause" }, { key: "Confirm" }];
+
+  it("stacks panels in the scenes' draw order, so a pop-up drawn above Pause sits above its panel", () => {
+    expect(panelZIndex(scenes, "Confirm")).toBeGreaterThan(panelZIndex(scenes, "Pause"));
+    expect(panelZIndex(scenes, "Pause")).toBeGreaterThan(panelZIndex(scenes, "Board"));
+  });
+
+  it("follows a scene brought to the top", () => {
+    const moved = [{ key: "Board" }, { key: "Confirm" }, { key: "Pause" }];
+    expect(panelZIndex(moved, "Pause")).toBeGreaterThan(panelZIndex(moved, "Confirm"));
+  });
+
+  it("puts a scene's focus ring over its own panel and under the panel of the scene above", () => {
+    expect(ringZIndex(scenes, "Pause")).toBeGreaterThan(panelZIndex(scenes, "Pause"));
+    expect(ringZIndex(scenes, "Pause")).toBeLessThan(panelZIndex(scenes, "Confirm"));
+  });
+
+  it("gives a scene that is not listed no stacking", () => {
+    expect(panelZIndex(scenes, "Nope")).toBe(0);
+  });
+});
+
+describe("holesAbove", () => {
+  it("is empty for a scene with no overlay above it, or one not listed", () => {
+    expect(holesAbove([{ key: "Board" }, { key: "Pause" }], "Board")).toEqual([]);
+    expect(holesAbove([{ key: "Board" }], "Nope")).toEqual([]);
   });
 });

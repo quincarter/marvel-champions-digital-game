@@ -614,6 +614,13 @@ export const es: Readonly<Partial<Record<keyof typeof en, string>>> = {
   "concede.seatBody": "Tu héroe sigue en la mesa; el anfitrión puede tomar su control o dárselo a otra persona.",
   "concede.seatConfirm": "Salir de la partida",
   "concede.seatStays": "Tu asiento sigue siendo tuyo y la partida te espera.",
+  "confirm.title": "¿Terminar tu turno?",
+  "confirm.keepPlaying": "Seguir jugando",
+  "confirm.endTurn": "Terminar turno",
+  "confirm.cancel": "Cancelar",
+  "confirm.wontCountTitle": "Esta partida no contará",
+  "confirm.wontCountWarning":
+    "Si sigues adelante, esta partida dejará de contar para tus estadísticas y logros, aunque ganes.",
   "prompt.away": "{name} se desconectó ({hero}). ¿Tomas el control de su héroe o hablas con esa persona primero?",
   "prompt.awayWait": "{name} se desconectó ({hero}). La partida espera a que vuelva.",
   "prompt.message": "Escribir",

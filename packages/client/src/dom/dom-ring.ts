@@ -11,7 +11,7 @@ import { selectionRing } from "../tokens.js";
 import type { FocusRing } from "../scenes/focus-route.js";
 import type { Rect } from "../view/layout.js";
 import { uiLayer } from "./ui-layer.js";
-import { sceneLayerState } from "./dom-region.js";
+import { ringZIndex, sceneLayerState } from "./dom-region.js";
 
 const css = (hex: number): string => `#${hex.toString(16).padStart(6, "0")}`;
 
@@ -64,6 +64,9 @@ class DomFocusRing implements FocusRing {
     const { shown, opacity } = sceneLayerState(this.#scene);
     this.#element.style.display = this.#wanted && shown ? "block" : "none";
     this.#element.style.opacity = String(opacity);
+    // Over its own scene's panel and under the panel of a scene drawn above (`panelZIndex`).
+    const scenes = this.#scene.game.scene.scenes.map((other) => ({ key: other.sys.settings.key }));
+    this.#element.style.zIndex = String(ringZIndex(scenes, this.#scene.sys.settings.key));
   }
 
   get graphics(): { readonly visible: boolean } {

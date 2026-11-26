@@ -606,6 +606,13 @@ export const en = {
   "concede.seatBody": "Your hero stays at the table; the host can take it over or hand it to someone else.",
   "concede.seatConfirm": "Leave the game",
   "concede.seatStays": "Your seat stays yours and the game waits for you to come back.",
+  "confirm.title": "End your turn?",
+  "confirm.keepPlaying": "Keep playing",
+  "confirm.endTurn": "End turn",
+  "confirm.cancel": "Cancel",
+  "confirm.wontCountTitle": "This game won't count",
+  "confirm.wontCountWarning":
+    "If you go ahead, this game will no longer count toward your stats or achievements, even if you win.",
   "prompt.away": "{name} disconnected ({hero}). Take over their hero, or check in with them first?",
   "prompt.awayWait": "{name} disconnected ({hero}). The game waits for them to come back.",
   "prompt.message": "Message",

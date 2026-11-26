@@ -98,6 +98,7 @@ export default defineConfig({
       testMatch: [
         "settings-lit-panel.spec.ts",
         "pause-lit-panel.spec.ts",
+        "popups-lit-panel.spec.ts",
         "credits-lit-panel.spec.ts",
         "mod-store-play.spec.ts",
         "past-games.spec.ts",
