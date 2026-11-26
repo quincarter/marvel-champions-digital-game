@@ -261,7 +261,7 @@ test("a room game's watch link opens the game and follows it, for a viewer with 
   test.setTimeout(300_000);
   const errors = trackErrors(page);
   // A real room game (`scenes/boot-dev-jump.ts`): the host makes a lobby room, seats a guest and starts the game.
-  const host = await newPlayer(browser, baseURL!, "/?screen=room-play-host&name=Mara");
+  const host = await newPlayer(browser, baseURL!, "/?screen=room-play-host&name=Mara&setup=1");
   let guest: HostGame | null = null;
   try {
     const code = await waitFor(
@@ -271,9 +271,9 @@ test("a room game's watch link opens the game and follows it, for a viewer with 
       60000,
     );
     guest = await newPlayer(browser, baseURL!, `/?screen=room-play-guest&code=${code}&name=Ava`);
-    await waitForScene(host.page, "Board", 90000);
+    await waitForScene(host.page, "SetupDeal", 90000);
     const live = room.room()!;
-    await waitFor(async () => (live.logLength() > 0 ? true : null), "the room holds the game", 30000);
+    // A room game straight to the board has its header in the room and may hold no commands yet.
     // The link the host's game shares (the Discord Watch live button's), as the host's own status says it.
     const url = await waitFor(
       () =>
@@ -302,15 +302,17 @@ test("a room game's watch link opens the game and follows it, for a viewer with 
       30000,
     );
 
-    // The host plays on: the watcher follows to the newest move.
+    // The players play on (each keeps their opening hand): the watcher follows to the newest move.
     const held = live.logLength();
-    await clickText(host.page, "End turn", { sceneKey: "Board", timeoutMs: 45000 });
-    await waitFor(async () => (live.logLength() > held ? true : null), "the host's next move", 30000);
+    await clickText(host.page, "Keep all", { sceneKey: "SetupDeal", timeoutMs: 60000 });
+    await clickText(guest.page, "Keep all", { sceneKey: "SetupDeal", timeoutMs: 60000 });
+    await waitFor(async () => (live.logLength() > held ? true : null), "the players' next moves", 45000);
     await waitFor(
       positionIs(page, () => live.logLength()),
       "following the newest move",
       30000,
     );
+    await waitFor(async () => ((await hasWord(page, /^LIVE$/)) ? true : null), "still LIVE", 15000);
     expect(errors).toEqual([]);
   } finally {
     await guest?.context.close();
