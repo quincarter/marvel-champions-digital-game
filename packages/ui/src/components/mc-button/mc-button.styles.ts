@@ -49,7 +49,6 @@ export const McButtonStyles = css`
     letter-spacing: 2px;
   }
 
-  :host([kind="secondary"]:hover:not([disabled])),
   :host([kind="secondary"][selected]) {
     --fill: var(--mc-fill-ink);
     --ink: var(--mc-text-paper);
@@ -59,10 +58,6 @@ export const McButtonStyles = css`
     --stroke: 2px;
     --ink-alpha: 0.75;
   }
-  :host([kind="quiet"]:hover:not([disabled])) {
-    --fill: var(--mc-fill-parchment);
-    --ink-alpha: 1;
-  }
 
   :host([kind="primary"]) {
     --stroke: 3px;
@@ -70,17 +65,12 @@ export const McButtonStyles = css`
     --ink: var(--mc-text-paper);
     --line: var(--mc-line-red);
   }
-  :host([kind="primary"]:hover:not([disabled])) {
-    --fill: var(--mc-fill-red-deep);
-    --line: var(--mc-line-red-deep);
-  }
 
   :host([kind="onInk"]) {
     --fill: var(--mc-fill-ink);
     --ink: var(--mc-text-paper);
     --line: var(--mc-line-paper);
   }
-  :host([kind="onInk"]:hover:not([disabled])),
   :host([kind="onInk"][selected]) {
     --fill: var(--mc-fill-red);
     --line: var(--mc-line-red);
@@ -109,5 +99,25 @@ export const McButtonStyles = css`
     box-shadow:
       inset 0 0 0 1.5px var(--fill),
       inset 0 0 0 4.5px var(--mc-line-paper);
+  }
+
+  /* Hover only where there is one: on a phone a tapped button would keep its hover look after the tap. */
+  @media (hover: hover) {
+    :host([kind="secondary"]:hover:not([disabled])) {
+      --fill: var(--mc-fill-ink);
+      --ink: var(--mc-text-paper);
+    }
+    :host([kind="quiet"]:hover:not([disabled])) {
+      --fill: var(--mc-fill-parchment);
+      --ink-alpha: 1;
+    }
+    :host([kind="primary"]:hover:not([disabled])) {
+      --fill: var(--mc-fill-red-deep);
+      --line: var(--mc-line-red-deep);
+    }
+    :host([kind="onInk"]:hover:not([disabled])) {
+      --fill: var(--mc-fill-red);
+      --line: var(--mc-line-red);
+    }
   }
 `;

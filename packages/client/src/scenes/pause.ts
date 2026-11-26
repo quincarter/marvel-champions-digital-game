@@ -1466,7 +1466,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: control.on ? "secondary" : "quiet",
-        label: enabled ? (control.on ? "ON" : "OFF") : "—",
+        label: enabled ? (control.on ? t("settings.toggleOn") : t("settings.toggleOff")) : "—",
         type: typeRole.label,
         rect: toggleRect,
         enabled,
@@ -1921,7 +1921,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: row.on ? "secondary" : "quiet",
-        label: row.unavailable ? "—" : row.on ? "ON" : "OFF",
+        label: row.unavailable ? "—" : row.on ? t("settings.toggleOn") : t("settings.toggleOff"),
         type: typeRole.label,
         rect: toggleRect,
         enabled: row.unavailable === undefined,
@@ -2244,7 +2244,13 @@ export class PauseOverlay extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
-        label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
+        label: unavailable
+          ? "—"
+          : row.kind === "toggle"
+            ? row.on
+              ? t("settings.toggleOn")
+              : t("settings.toggleOff")
+            : t("settings.open"),
         type: typeRole.label,
         rect: controlRect,
         enabled: unavailable === undefined,

@@ -71,11 +71,21 @@ export interface BodyHeading {
   readonly title: string;
 }
 
+/** An open dropdown list (the Resolution field's): its options over the rows, and a tap anywhere else closes it. */
+export interface BodyList {
+  readonly rect: BodyRect;
+  readonly rowHeight: number;
+  readonly options: readonly { readonly key: string; readonly label: string; readonly selected: boolean }[];
+  /** The key a tap outside the list sends. */
+  readonly closeKey: string;
+}
+
 export interface SettingsBodyModel {
   /** The content's whole height, so the list scrolls exactly as far as the rows go. */
   readonly height: number;
   readonly headings: readonly BodyHeading[];
   readonly rows: readonly BodyRow[];
+  readonly list?: BodyList;
 }
 
 const px = (rect: BodyRect): string => `left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px`;
@@ -119,6 +129,12 @@ export class McSettingsBody extends LitElement {
     this.dispatchEvent(new CustomEvent("mc-activate", { detail: { key }, bubbles: true, composed: true }));
   }
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    // Labels are fitted to their cells by measuring: measure again once the web fonts are in.
+    void document.fonts?.ready.then(() => this.requestUpdate());
+  }
+
   override updated(): void {
     // A long label ("Standard", "Extra large") on a narrow segment shrinks to fit its cell, as Phaser's `fitText` does.
     for (const label of this.renderRoot.querySelectorAll<HTMLElement>(".cell:not([data-detail]) .label")) {
@@ -136,11 +152,8 @@ export class McSettingsBody extends LitElement {
       if (this.#untap.has(element)) continue;
       this.#untap.set(
         element,
-        onTap(element, (event) => {
-          if (event.composedPath().some((node) => node instanceof Element && node.matches("mc-button, .cell, .field")))
-            return;
-          this.#activate(element.dataset.rowKey!);
-        }),
+        // The row's controls are drawn beside it, not inside it, so a tap here is never also a control's.
+        onTap(element, () => this.#activate(element.dataset.rowKey!)),
       );
     }
     for (const [element, stop] of this.#untap)
@@ -167,9 +180,32 @@ export class McSettingsBody extends LitElement {
               <span class="rule"></span>
             </div>`,
         )}
-        ${model.rows.map((row) => this.#row(row))}
+        ${model.rows.map((row) => this.#row(row))} ${model.list ? this.#list(model.list, model.height) : nothing}
       </div>
     </div>`;
+  }
+
+  /** The open dropdown: a backdrop over the rows that closes it, and its options in a box (scrolling past eight). */
+  #list(list: BodyList, height: number) {
+    return html`<div
+        class="backdrop"
+        style=${`height:${height}px`}
+        ${tapped(() => this.#activate(list.closeKey))}
+      ></div>
+      <div class="list scroller" style=${px(list.rect)}>
+        ${list.options.map(
+          (option) =>
+            html`<mc-button
+              class="option"
+              data-key=${option.key}
+              style=${`height:${list.rowHeight}px`}
+              kind=${option.selected ? "secondary" : "quiet"}
+              .label=${option.label}
+              ?selected=${option.selected}
+              @mc-press=${() => this.#activate(option.key)}
+            ></mc-button>`,
+        )}
+      </div>`;
   }
 
   #row(row: BodyRow) {

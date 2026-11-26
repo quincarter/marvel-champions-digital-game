@@ -147,9 +147,8 @@ import { surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, type McTextInput } from "../ui/widgets.js";
 import type { SyncLinkAddress } from "../sync/sync-link.js";
-import { McScrollRegion } from "../ui/scroll-region.js";
 import "@mc/ui";
-import type { BodyControl, BodyRect, BodyRow, McSettingsBody } from "@mc/ui";
+import type { BodyControl, BodyList, BodyRect, BodyRow, McSettingsBody } from "@mc/ui";
 import { DomRegion, renderNow } from "../dom/dom-region.js";
 import { domFocusRing } from "../dom/dom-ring.js";
 import {
@@ -159,7 +158,6 @@ import {
   type SettingsItemSpec,
 } from "../view/settings-layout.js";
 import type { Rect } from "../view/layout.js";
-import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { appSession } from "../session.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { onPowerSavingChange, powerSavingOn, powerSavingState } from "../platform/power-saving.js";
@@ -294,15 +292,14 @@ export class SettingsOverlay extends Phaser.Scene {
   #bodyActions = new Map<string, () => void>();
   /** The rows the body is given this draw. */
   #bodyRows: BodyRow[] = [];
+  /** The open Resolution list this draw, drawn by the body over its rows. */
+  #bodyList: BodyList | null = null;
   /** Where the body sits this draw, so rows can be placed relative to it. */
   #bodyOrigin = { x: 0, y: 0 };
   /** The Resolution the player picked in the dropdown, not yet applied; null when nothing is pending. */
   #pendingResolution: Resolution | null = null;
   #resolutionListOpen = false;
-  #resolutionListScroll = new VariableListScroll();
-  #listRegion: McScrollRegion | null = null;
-  /** Where the Resolution field was last drawn (screen space) and what it lists, for the open list. */
-  #resolutionField: Rect | null = null;
+  /** What the Resolution field lists, for the open list. */
   #resolutionInfo: SegmentedInfo<Resolution> | null = null;
   /** The search (#576): shown in the tab rail's place while open, with the results in place of the rows. */
   #searchOpen = false;
@@ -714,8 +711,6 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#tabs?.destroy();
     this.#tabs = null;
-    this.#listRegion?.destroy();
-    this.#listRegion = null;
     this.#resultsList?.destroy();
     this.#resultsList = null;
     // The field outlives a redraw: rebuilding a DOM <input> mid-keystroke would drop the caret.
@@ -892,8 +887,8 @@ export class SettingsOverlay extends Phaser.Scene {
     }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
     this.#body?.follow(panel);
-    // The search's results and the open Resolution list are still drawn in Phaser, under the DOM: the body steps aside.
-    this.#body?.setHidden(results !== null || this.#resolutionListOpen);
+    // The search's results are still drawn in Phaser, under the DOM: the body steps aside while they show.
+    this.#body?.setHidden(results !== null);
   }
 
   /** The ranked results, in the room the rows had, or a line saying there are none. Returns their stops in order. */
@@ -1225,16 +1220,8 @@ export class SettingsOverlay extends Phaser.Scene {
     return items;
   }
 
-  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on (its own doc comment), same as `scenes/table-setup.ts`'s own `#captureInto`. */
-  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
-    const before = this.children.list.length;
-    draw();
-    const added = this.children.list.slice(before);
-    if (added.length > 0) container.add(added);
-  }
-
   /** A stop inside the body scroll region: its rect tracks the current scroll offset, and taking focus scrolls it into view. */
-  #bodyStop(elementKey: string, activate: () => void): FocusStop {
+  #bodyStop(elementKey: string, activate: () => void, rowKey?: string): FocusStop {
     const element = (): HTMLElement | null => this.#body?.element.elementOf(elementKey) ?? null;
     return {
       rect: () => {
@@ -1243,7 +1230,11 @@ export class SettingsOverlay extends Phaser.Scene {
       },
       view: () => this.#body?.rect ?? { x: 0, y: 0, width: 0, height: 0 },
       activate,
-      ensureVisible: () => element()?.scrollIntoView({ block: "nearest" }),
+      ensureVisible: () => {
+        if (rowKey && rowKey !== elementKey)
+          this.#body?.element.elementOf(rowKey)?.scrollIntoView({ block: "nearest" });
+        element()?.scrollIntoView({ block: "nearest" });
+      },
     };
   }
 
@@ -1260,15 +1251,18 @@ export class SettingsOverlay extends Phaser.Scene {
   ): readonly string[] {
     if (!this.#body) {
       const element = document.createElement("mc-settings-body");
-      element.addEventListener("mc-activate", (event) =>
-        this.#bodyActions.get((event as CustomEvent<{ key: string }>).detail.key)?.(),
-      );
+      element.addEventListener("mc-activate", (event) => {
+        // Closing already (its exit is playing): a second tap must not change a setting or open another screen.
+        if (this.#motion.leaving) return;
+        this.#bodyActions.get((event as CustomEvent<{ key: string }>).detail.key)?.();
+      });
       this.#body = new DomRegion(this, element, viewport);
     }
     const body = this.#body;
     body.setRect(viewport);
     this.#bodyActions = new Map();
     this.#bodyRows = [];
+    this.#bodyList = null;
     this.#bodyOrigin = { x: viewport.x, y: viewport.y };
 
     const stopIds: string[] = [];
@@ -1283,11 +1277,18 @@ export class SettingsOverlay extends Phaser.Scene {
         stopIds.push(...ids);
       }
     }
-    body.element.model = { height: content.totalHeight, headings, rows: this.#bodyRows };
+    body.element.model = {
+      height: content.totalHeight,
+      headings,
+      rows: this.#bodyRows,
+      ...(this.#bodyList ? { list: this.#bodyList } : {}),
+    };
     renderNow(body.element);
     const scroller = body.element.scroller;
     if (this.#bodyFromTop && scroller) scroller.scrollTop = 0;
     this.#bodyFromTop = false;
+    if (this.#bodyList)
+      body.element.elementOf(`list:${this.#resolutionPickedIndex()}`)?.scrollIntoView({ block: "nearest" });
     return stopIds;
   }
 
@@ -1309,7 +1310,7 @@ export class SettingsOverlay extends Phaser.Scene {
       const action = actions[elementKey] ?? actions[row.rowKey ?? ""] ?? Object.values(actions)[0];
       stops.set(
         stop,
-        this.#bodyStop(elementKey, () => action?.()),
+        this.#bodyStop(elementKey, () => action?.(), row.key),
       );
     }
   }
@@ -1492,13 +1493,11 @@ export class SettingsOverlay extends Phaser.Scene {
     const picked = this.#pendingResolution ?? info.selected;
     const field: Rect = { x: control.x, y: control.y, width: control.width - APPLY_WIDTH - 8, height: control.height };
     const apply: Rect = { x: field.x + field.width + 8, y: control.y, width: APPLY_WIDTH, height: control.height };
-    // Where the field is on screen right now, for the list: content space less the body's scroll.
+    // How far the body is scrolled, so the open list goes under the field only when it shows there.
     const scrolled = this.#body?.element.scroller?.scrollTop ?? 0;
-    this.#resolutionField = { ...field, y: this.#bodyOrigin.y + field.y - scrolled };
     this.#resolutionInfo = info;
     const open = (): void => {
       this.#resolutionListOpen = true;
-      this.#resolutionListScroll = new VariableListScroll();
       this.#draw();
     };
     const pending = this.#pendingResolution !== null && this.#pendingResolution !== info.selected;
@@ -1542,6 +1541,35 @@ export class SettingsOverlay extends Phaser.Scene {
     );
     // A tap on the field opens the list without moving the ring into it; the pad's A does both.
     this.#bodyActions.set("resolution:field", open);
+    if (this.#resolutionListOpen) {
+      const visible = Math.min(info.options.length, LIST_VISIBLE_ROWS);
+      const height = visible * LIST_ROW_HEIGHT + 4;
+      const viewport = this.#body?.rect.height ?? 0;
+      const below = field.y + field.height + height <= scrolled + viewport - 8;
+      const box: Rect = {
+        x: field.x,
+        y: below ? field.y + field.height + 2 : field.y - height - 2,
+        width: field.width,
+        height,
+      };
+      this.#bodyList = {
+        rect: this.#bodyRect(box),
+        rowHeight: LIST_ROW_HEIGHT,
+        closeKey: "list:close",
+        options: info.options.map((option, i) => ({
+          key: `list:${i}`,
+          label: option.label,
+          selected: option.value === picked,
+        })),
+      };
+      this.#bodyActions.set("list:close", () => this.#closeResolutionList());
+      info.options.forEach((option, i) =>
+        this.#bodyActions.set(`list:${i}`, () => {
+          this.#pickResolution(option.value);
+          this.#closeResolutionList();
+        }),
+      );
+    }
   }
 
   /** Index in the open list of the size shown as picked (the pending one, else the one in effect). */
@@ -1568,85 +1596,31 @@ export class SettingsOverlay extends Phaser.Scene {
    * choice, which Apply then puts into effect.
    */
   #drawResolutionList(bounds: Rect, stops: Map<string, FocusStop>): string[] {
-    const field = this.#resolutionField;
     const info = this.#resolutionInfo;
-    if (field === null || info === null) return [];
+    if (info === null) return [];
+    // A press outside the body (the header, the tabs) closes the list too; inside the body its backdrop does.
     this.add
       .zone(0, 0, bounds.width, bounds.height)
       .setOrigin(0, 0)
       .setInteractive()
       .on("pointerup", () => this.#closeResolutionList());
-    const visible = Math.min(info.options.length, LIST_VISIBLE_ROWS);
-    const height = visible * LIST_ROW_HEIGHT + 4;
-    const below = field.y + field.height + height <= bounds.y + bounds.height - 8;
-    const box: Rect = {
-      x: field.x,
-      y: below ? field.y + field.height + 2 : field.y - height - 2,
-      width: field.width,
-      height,
-    };
-    const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    g.lineStyle(2, surface.paper.hex, 1).strokeRect(box.x + 1, box.y + 1, box.width - 2, box.height - 2);
-    // Swallows presses on the box's own border so they don't close it.
-    this.add.zone(box.x, box.y, box.width, box.height).setOrigin(0, 0).setInteractive();
-    const viewport: Rect = { x: box.x + 2, y: box.y + 2, width: box.width - 4, height: box.height - 4 };
-    this.#listRegion = new McScrollRegion(this, {
-      rect: viewport,
-      heights: info.options.map(() => LIST_ROW_HEIGHT),
-      scroll: this.#resolutionListScroll,
-      clipInteractive: true,
-    });
-    const region = this.#listRegion;
-    const picked = this.#pendingResolution ?? info.selected;
-    const pickedIndex = this.#resolutionPickedIndex();
-    const ids: string[] = [];
-    info.options.forEach((option, i) => {
-      const pick = (): void => {
-        this.#pendingResolution = option.value === info.selected ? null : option.value;
-      };
-      ids.push(`list:${i}`);
-      stops.set(`list:${i}`, {
-        rect: () => ({
-          x: viewport.x,
-          y: viewport.y + i * LIST_ROW_HEIGHT - this.#resolutionListScroll.offsetPx,
-          width: viewport.width - 8,
-          height: LIST_ROW_HEIGHT,
-        }),
-        activate: () => {
-          pick();
+    return info.options.map((option, i) => {
+      const key = `list:${i}`;
+      stops.set(
+        key,
+        this.#bodyStop(key, () => {
+          this.#pickResolution(option.value);
           this.#closeResolutionList(true);
-        },
-        ensureVisible: () => region.scrollIntoView(i),
-      });
-      const row: Rect = {
-        x: viewport.x,
-        y: viewport.y + i * LIST_ROW_HEIGHT,
-        width: viewport.width - 8,
-        height: LIST_ROW_HEIGHT,
-      };
-      const selected = option.value === picked;
-      this.#captureInto(region.content, () => {
-        this.#buttons.push(
-          new McButton(this, {
-            kind: selected ? "secondary" : "quiet",
-            label: option.label,
-            type: typeRole.label,
-            rect: row,
-            selected,
-            onClick: () => {
-              pick();
-              this.#closeResolutionList();
-            },
-            clip: () => region.rect,
-            suppressClick: () => region.isDragSuppressingClick,
-          }),
-        );
-      });
+        }),
+      );
+      return key;
     });
-    region.syncInteractivity();
-    region.scrollIntoView(pickedIndex);
-    return ids;
+  }
+
+  /** Makes `value` the pending Resolution, which Apply puts into effect (none when it is already the one in effect). */
+  #pickResolution(value: Resolution): void {
+    const info = this.#resolutionInfo;
+    this.#pendingResolution = info !== null && value === info.selected ? null : value;
   }
 
   #setTokenMotion(value: FirstPlayerTokenMotion): void {

@@ -19,7 +19,14 @@ export function onTap(
   handler: (event: PointerEvent) => void,
   options: TapOptions = {},
 ): () => void {
-  let press: { id: number; x: number; y: number; scrolled: boolean } | null = null;
+  let press: {
+    id: number;
+    x: number;
+    y: number;
+    scrolled: boolean;
+    /** Where every element under the press stood: a scroll inside a component's shadow root never reaches the window. */
+    offsets: readonly (readonly [Element, number, number])[];
+  } | null = null;
   const onScroll = (): void => {
     if (press) press.scrolled = true;
   };
@@ -29,7 +36,11 @@ export function onTap(
   };
   const down = (event: PointerEvent): void => {
     if (event.button !== 0 || options.enabled?.() === false) return;
-    press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false };
+    const offsets = event
+      .composedPath()
+      .filter((node): node is Element => node instanceof Element)
+      .map((node) => [node, node.scrollTop, node.scrollLeft] as const);
+    press = { id: event.pointerId, x: event.clientX, y: event.clientY, scrolled: false, offsets };
     // Any scroll under way (a list this control sits in) cancels the press: a swipe, not a tap.
     window.addEventListener("scroll", onScroll, true);
   };
@@ -37,6 +48,7 @@ export function onTap(
     const held = press;
     end();
     if (!held || held.id !== event.pointerId || held.scrolled) return;
+    if (held.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
     if (Math.hypot(event.clientX - held.x, event.clientY - held.y) > TAP_SLOP_PX) return;
     handler(event);
   };

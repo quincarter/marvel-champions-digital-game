@@ -13,6 +13,7 @@ export {
   type BodyControl,
   type BodyField,
   type BodyHeading,
+  type BodyList,
   type BodyRect,
   type BodyRow,
   type SettingsBodyModel,

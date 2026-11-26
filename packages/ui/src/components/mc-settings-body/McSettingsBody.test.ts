@@ -96,4 +96,31 @@ describe("mc-settings-body", () => {
     expect(keys).toEqual(["card-size:small", "reduced-motion", "reduced-motion"]);
     body.remove();
   });
+
+  it("draws an open dropdown over the rows: a tap on an option picks it, a tap beside it closes it", async () => {
+    const body = document.createElement("mc-settings-body");
+    body.model = {
+      ...model,
+      list: {
+        rect: rect(2, 60, 200, 76),
+        rowHeight: 36,
+        closeKey: "list:close",
+        options: [
+          { key: "list:0", label: "1280 × 720", selected: false },
+          { key: "list:1", label: "1920 × 1080", selected: true },
+        ],
+      },
+    };
+    document.body.append(body);
+    await body.updateComplete;
+    const keys: string[] = [];
+    body.addEventListener("mc-activate", (event) => keys.push((event as CustomEvent<{ key: string }>).detail.key));
+    const picked = body.elementOf("list:1") as HTMLElementTagNameMap["mc-button"];
+    await picked.updateComplete;
+    expect(picked.hasAttribute("selected")).toBe(true);
+    tap(picked);
+    tap(body.shadowRoot!.querySelector(".backdrop")!);
+    expect(keys).toEqual(["list:1", "list:close"]);
+    body.remove();
+  });
 });

@@ -15,6 +15,7 @@ export type {
   BodyControl,
   BodyField,
   BodyHeading,
+  BodyList,
   BodyRect,
   BodyRow,
   SettingsBodyModel,

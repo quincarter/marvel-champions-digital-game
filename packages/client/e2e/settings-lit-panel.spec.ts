@@ -74,11 +74,20 @@ test("a tap flips a switch; a swipe that lifts over one only scrolls", async ({ 
   await expect(toggle).toBeVisible();
   const before = await switchLabel(page, "confirm-end-turn");
 
-  // A swipe from lower in the list that ends on the switch: the list scrolls, the switch stays.
+  // A swipe that starts on the switch, travels and lifts back over it: on a phone the list scrolls under the finger
+  // (the switch rides along under it), with a mouse the pointer simply goes away and comes back. Neither is a tap.
   const box = (await toggle.boundingBox())!;
-  const target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-  await drag(page, phone, { x: target.x, y: target.y + 160 }, target);
+  const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const scrollTop = () =>
+    body(page).evaluate((element) => (element as unknown as { scroller: HTMLElement }).scroller.scrollTop);
+  const scrolledBefore = await scrollTop();
+  if (phone) await drag(page, true, start, { x: start.x, y: start.y - 150 });
+  else {
+    await drag(page, false, start, { x: start.x, y: start.y + 80 });
+    await drag(page, false, { x: start.x, y: start.y + 80 }, start);
+  }
   await page.waitForTimeout(400);
+  if (phone) expect(await scrollTop()).toBeGreaterThan(scrolledBefore);
   expect(await switchLabel(page, "confirm-end-turn")).toBe(before);
 
   // A tap flips it.

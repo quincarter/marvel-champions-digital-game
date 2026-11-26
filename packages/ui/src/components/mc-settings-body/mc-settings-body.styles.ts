@@ -157,4 +157,26 @@ export const McSettingsBodyStyles = css`
     font-size: var(--mc-small-10, 10px);
     font-weight: 800;
   }
+
+  .backdrop {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 1;
+  }
+  .list {
+    position: absolute;
+    z-index: 2;
+    box-sizing: border-box;
+    padding: 2px 10px 2px 2px;
+    background: var(--mc-fill-ink);
+    outline: 2px solid var(--mc-line-paper);
+    outline-offset: -1px;
+    display: flex;
+    flex-direction: column;
+  }
+  .option {
+    flex: 0 0 auto;
+  }
 `;
