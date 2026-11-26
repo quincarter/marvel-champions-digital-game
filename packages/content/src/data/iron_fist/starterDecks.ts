@@ -40,11 +40,11 @@ export const IRON_FIST_STARTER_DECKS: readonly StarterDeck[] = [
       { cardId: cardId("64025"), quantity: 1 },
     ],
     provenance: {
-      verified: false,
+      verified: true,
       sources: [
-        "STAND-IN, NOT A PRINTED LIST: no decklist card or insert page for Iron Fist is available. Counts follow MarvelCDB public decklist 69859 (\"Iron Fist - precon deck\", posted 2026-11-16, \"precon deck for the Iron Fist (protection aspect)\"). Every copy count is within the record's quantity. Replace with the printed list when the owner supplies it.",
+        "Owner-confirmed precon (Quin, 2026-11-26: the list matches the starter deck cards; treat it as the precon). no decklist card or insert page for Iron Fist is available. Counts follow MarvelCDB public decklist 69859 (\"Iron Fist - precon deck\", posted 2026-11-16, \"precon deck for the Iron Fist (protection aspect)\"). Every copy count is within the record's quantity. The owner will supply the printed list later.",
       ],
-      note: "40 cards. Unverified against the printed card.",
+      note: "40 cards. Confirmed by the owner against the starter deck cards (2026-11-26).",
     },
   },
 ];

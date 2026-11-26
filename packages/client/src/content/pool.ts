@@ -487,7 +487,7 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...FNE_STARTER_DECKS,
   ...JJ_STARTER_DECKS,
   ...LUKE_CAGE_STARTER_DECKS,
-  // Elektra (Aggression) and Iron Fist (Protection), released 2026-11-25; stand-in lists from MarvelCDB's precon decklists.
+  // Elektra (Aggression) and Iron Fist (Protection), released 2026-11-25; the owner confirmed both lists (2026-11-26).
   ...ELEKTRA_STARTER_DECKS,
   ...IRON_FIST_STARTER_DECKS,
 ];

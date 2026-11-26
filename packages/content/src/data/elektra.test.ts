@@ -53,7 +53,7 @@ describe("elektra: the pack", () => {
     expect(ELEKTRA_ENCOUNTER_SETS.map((s) => s.id as string)).toEqual(["elektra_nemesis"]);
     expect(ELEKTRA_STARTER_DECKS).toHaveLength(1);
     const deck = ELEKTRA_STARTER_DECKS[0]!;
-    expect(deck.provenance.verified).toBe(false);
+    expect(deck.provenance.verified).toBe(true); // owner-confirmed against the starter deck cards, 2026-11-26;
     expect(deck.identityCardId as string).toBe("63001a");
     expect(deck.cards.reduce((a, c) => a + c.quantity, 0)).toBe(40);
   });

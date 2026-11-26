@@ -48,7 +48,7 @@ describe("iron_fist: the pack", () => {
     expect(IRON_FIST_ENCOUNTER_SETS.map((s) => s.id as string)).toEqual(["iron_fist_nemesis"]);
     expect(IRON_FIST_STARTER_DECKS).toHaveLength(1);
     const deck = IRON_FIST_STARTER_DECKS[0]!;
-    expect(deck.provenance.verified).toBe(false);
+    expect(deck.provenance.verified).toBe(true); // owner-confirmed against the starter deck cards, 2026-11-26;
     expect(deck.identityCardId as string).toBe("64001a");
     expect(deck.cards.reduce((n, c) => n + c.quantity, 0)).toBe(40);
     for (const { cardId, quantity } of deck.cards)

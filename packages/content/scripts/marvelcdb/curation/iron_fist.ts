@@ -13,7 +13,7 @@
  * corrections below say. 64029's scheme icon is the acceleration icon (MarvelCDB agrees; the earlier fan preview's
  * crisis reading was wrong). Davos prints the traits K'un-Lun. Martial Artist.
  *
- * Starter deck: no printed list is available, so MarvelCDB decklist 69859 stands in, `verified: false`.
+ * Starter deck: no printed list is available, so MarvelCDB decklist 69859 is used; the owner confirmed it against the starter deck cards (2026-11-26).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -99,11 +99,11 @@ export const IRON_FIST_CURATION: PackCuration = {
       },
       obligationCode: "64026", // Lack of Chi
       nemesisCodes: ["64027", "64028", "64029"], // Davos, Crane Daughter, Steel Serpent
-      verified: false,
+      verified: true,
       sources: [
-        'STAND-IN, NOT A PRINTED LIST: no decklist card or insert page for Iron Fist is available. Counts follow MarvelCDB public decklist 69859 ("Iron Fist - precon deck", posted 2026-11-16, "precon deck for the Iron Fist (protection aspect)"). Every copy count is within the record\'s quantity. Replace with the printed list when the owner supplies it.',
+        'Owner-confirmed precon (Quin, 2026-11-26: the list matches the starter deck cards; treat it as the precon). no decklist card or insert page for Iron Fist is available. Counts follow MarvelCDB public decklist 69859 ("Iron Fist - precon deck", posted 2026-11-16, "precon deck for the Iron Fist (protection aspect)"). Every copy count is within the record\'s quantity. The owner will supply the printed list later.',
       ],
-      note: "40 cards. Unverified against the printed card.",
+      note: "40 cards. Confirmed by the owner against the starter deck cards (2026-11-26).",
     },
   ],
 };

@@ -94,11 +94,11 @@ export const ELEKTRA_CURATION: PackCuration = {
       },
       obligationCode: "63028", // Conditioned by the Hand
       nemesisCodes: ["63029", "63030", "63031", "63032", "63033"], // Aka, The Fist Fits in the Hand, Hand Katana, Hand Blademaster, Hand Archer
-      verified: false,
+      verified: true,
       sources: [
-        'STAND-IN, NOT A PRINTED LIST: no decklist card or insert page for Elektra is available (the Hall of Heroes page prints "Starter Deck" as plain text). Counts follow MarvelCDB public decklist 69860 ("Elektra - precon deck", posted 2026-11-16) and decklist 70085 ("Elektra Precon", posted 2026-11-21, "Elektra\'s Preconstructed deck"), which list identical slots (40 cards, aggression). Every copy count is within the record\'s quantity. Replace with the printed list when the owner supplies it.',
+        'Owner-confirmed precon (Quin, 2026-11-26: the list matches the starter deck cards; treat it as the precon). no decklist card or insert page for Elektra is available (the Hall of Heroes page prints "Starter Deck" as plain text). Counts follow MarvelCDB public decklist 69860 ("Elektra - precon deck", posted 2026-11-16) and decklist 70085 ("Elektra Precon", posted 2026-11-21, "Elektra\'s Preconstructed deck"), which list identical slots (40 cards, aggression). Every copy count is within the record\'s quantity. The owner will supply the printed list later.',
       ],
-      note: "40 cards: 15 Elektra, 17 Aggression, 8 basic. Unverified against the printed card.",
+      note: "40 cards: 15 Elektra, 17 Aggression, 8 basic. Confirmed by the owner against the starter deck cards (2026-11-26).",
     },
   ],
 
