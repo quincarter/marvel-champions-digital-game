@@ -703,7 +703,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Find",
     definition:
-      "An instruction to search every game area (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play areas (dealt or boost cards), the victory display, cards removed from the game and anything outside the game. A minion found already in play engages you and resolves When Revealed and its keywords, but keeps its tokens and attachments and does not enter play again.",
+      "An instruction to search every game area (play areas, set-aside area, decks, discard piles) for a specific card. It skips facedown encounter cards in play (dealt or boost cards), the victory display, cards removed from or outside the game. A minion found and revealed in play resolves When Revealed and its keywords, keeps its tokens and attachments, does not enter play, and engages you unless already engaged.",
     sources: [
       { kind: "rrg", page: 19 },
       { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
@@ -966,7 +966,7 @@ const KEYWORD_RAW: Record<KeywordName, UntaggedEntry<KeywordName>> = {
     kind: "keyword",
     displayName: "Vulnerable",
     definition:
-      "A character with this keyword is discarded the instant it becomes stunned or confused, rather than picking up the status card — and this discard isn't counted as that character being defeated.",
+      "A character with this keyword is discarded when it becomes stunned or confused, and this does not count as defeating it. If it would take enough damage to defeat it and become stunned or confused at the same time, it is discarded before the damage is applied, so it is not defeated. If it also has Steady, it is discarded only once it has two stunned or two confused status cards.",
     sources: [
       { kind: "rrg", page: 48 },
       { kind: "rulebook", label: "Agents of S.H.I.E.L.D. rulebook p. 3" },
