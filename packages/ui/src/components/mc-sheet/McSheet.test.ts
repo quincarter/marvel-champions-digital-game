@@ -74,4 +74,42 @@ describe("mc-sheet", () => {
     expect(keys).toEqual(["resume", "card", "moment:1"]);
     sheet.remove();
   });
+  describe("fitWidth with marks", () => {
+    const label = (marks: { start: number; end: number }[]): SheetNode => ({
+      kind: "text",
+      key: "label",
+      x: 0,
+      y: 0,
+      text: "Spider-Man (Peter Parker)",
+      font: "body",
+      size: 16,
+      weight: 400,
+      color: "#fff",
+      fitWidth: 40,
+      marks,
+    });
+
+    for (const [name, marks] of [
+      ["a match at index 0", [{ start: 0, end: 6 }]],
+      ["a match mid-string", [{ start: 7, end: 10 }]],
+    ] as const) {
+      it(`keeps the text and the marks intact with ${name}, across renders`, async () => {
+        const sheet = document.createElement("mc-sheet");
+        sheet.nodes = [label([...marks])];
+        document.body.append(sheet);
+        await sheet.updateComplete;
+        for (let again = 0; again < 3; again++) {
+          sheet.nodes = [label([...marks])];
+          sheet.requestUpdate();
+          await sheet.updateComplete;
+        }
+        const element = sheet.elementOf("label")!;
+        expect(element.textContent).toBe("Spider-Man (Peter Parker)");
+        const marked = element.querySelectorAll("mark");
+        expect(marked).toHaveLength(1);
+        expect(marked[0]!.textContent).toBe("Spider-Man (Peter Parker)".slice(marks[0].start, marks[0].end));
+        sheet.remove();
+      });
+    }
+  });
 });
