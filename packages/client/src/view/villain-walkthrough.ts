@@ -846,7 +846,8 @@ export function pauseFor(
           yours
           ? `Auto-advance paused for your ${windowTimingOf(choice)}`
           : `Auto-advance paused for ${who}`
-      : `Auto-advance paused — ${lowerFirst(decisionLabel(choice, state, viewer))}`;
+      : // Another seat's decision starts with that hero's name, which keeps its capital ("Spider-Man declares a defender").
+        `Auto-advance paused — ${yours ? lowerFirst(decisionLabel(choice, state, viewer)) : decisionLabel(choice, state, viewer)}`;
 
   return {
     playerId: choice.playerId,

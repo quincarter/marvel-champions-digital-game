@@ -125,6 +125,11 @@ export class SeatEngineHost implements EngineHost {
    * acceptance counts only for the epoch it names. Undefined until a change names one, or from an older room.
    */
   #epoch: number | undefined;
+
+  /** The room's log epoch this seat's table is on (a bound Undo carries it, #1019 review). */
+  get epoch(): number | undefined {
+    return this.#epoch;
+  }
   #status: SeatStatus = INITIAL_SEAT_STATUS;
   #disposed = false;
   /**
@@ -463,6 +468,20 @@ export class SeatEngineHost implements EngineHost {
       gameId: null,
       ...(snapshot.history ? { history: snapshot.history } : {}),
       ...(snapshot.trail ? { trail: snapshot.trail } : {}),
+      // A catch-up's villain phase, command by command, so the screen replays it with the table at each step (#1017).
+      ...(snapshot.villainPhase
+        ? {
+            villainPhase: {
+              startCommand: snapshot.villainPhase.startCommand,
+              before: { ...snapshot.villainPhase.before, cardPool: pool },
+              commands: snapshot.villainPhase.commands.map((command) => ({
+                events: command.events,
+                states: command.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })),
+                after: { ...command.after, cardPool: pool },
+              })),
+            },
+          }
+        : {}),
       ...(snapshot.states
         ? { states: snapshot.states.map(({ at, state }) => ({ at, state: { ...state, cardPool: pool } })) }
         : {}),

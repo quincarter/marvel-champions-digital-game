@@ -189,6 +189,16 @@ export interface RoomRequest {
   readonly note: string;
   /** The asker's id for the ask, echoed in the answer so it lands on that ask (absent from an older client). */
   readonly rid?: number;
+  /**
+   * A bound Undo (`LobbyUndo` `own`): the command count the asker saw and the count its Undo goes back to. The host's
+   * device does it by itself only while its table still matches; an Undo without them is the host's to answer.
+   */
+  readonly base?: number;
+  readonly target?: number;
+  /** A fingerprint of every move up to `base` (`view/undo-binding.ts`): the host's table must hold the same history. */
+  readonly moves?: string;
+  /** The log epoch the room admitted it in. */
+  readonly epoch?: number;
 }
 
 /**

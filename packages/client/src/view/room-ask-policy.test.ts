@@ -24,3 +24,11 @@ describe("what a guest may ask the host for", () => {
     expect(seatUndoPolicyOf({ playMode: "host", undo: "ask" })).toBe("ask");
   });
 });
+
+describe("Each player Undo", () => {
+  it("lets a guest's Undo through, to be done by the host's device", () => {
+    expect(askAllowedOf("undo", { playMode: "host", undo: "own", cheats: false })).toBe(true);
+    expect(seatUndoPolicyOf({ playMode: "host", undo: "own" })).toBe("own");
+    expect(seatUndoPolicyOf({ playMode: "strict", undo: "own" })).toBe("off");
+  });
+});

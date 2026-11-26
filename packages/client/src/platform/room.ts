@@ -75,7 +75,11 @@ import {
   type SealedScenarios,
 } from "../live/competitive-start.js";
 import { setSeatContextSource } from "../view/seat-context.js";
-import { cursorToSend } from "../view/villain-pacing.js";
+import { cursorToSend, someoneArrived } from "../view/villain-pacing.js";
+import { selfAnswered } from "../view/room-notices.js";
+import type { UndoBinding } from "../live/live-room-protocol.js";
+import { boundUndoMatches } from "../view/undo-binding.js";
+import { keepHostSettings, keptFromRoom } from "../view/host-settings-memory.js";
 import { askAllowedOf } from "../view/room-ask-policy.js";
 
 export type {
@@ -183,6 +187,13 @@ let resendActivity = false;
 let lastCursor: { readonly key: string; readonly at: number; readonly state: VillainCursorState } | null = null;
 /** The table plan the host last published (null when none), sent again when the room socket comes back. */
 let lastPlan: TablePlan | null = null;
+/**
+ * The host changed this room's settings or seats itself: the room's own answer is kept for the next room
+ * (`view/host-settings-memory.ts`), never the change as sent (the room may normalize or refuse it).
+ */
+let hostEdited = false;
+/** Guests' Undo requests this host's device already answered by itself (`selfAnswered`). */
+const selfAnsweredIds = new Set<string>();
 let resendPlan = false;
 
 function publish(next: RoomState): void {
@@ -224,6 +235,14 @@ function publish(next: RoomState): void {
       postRoomCommand({ kind: "room-activity", step, ...(scenario ? { scenario } : {}) });
     }
     if (next.role === "host" && lastCursor) postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
+  } else if (
+    next.role === "host" &&
+    next.connection === "connected" &&
+    lastCursor &&
+    someoneArrived(prev.participants, next.participants)
+  ) {
+    // A guest joined or reconnected: the room may have forgotten the cursor while it sat idle, closed included (#1017).
+    postRoomCommand({ kind: "room-villain-cursor", ...lastCursor });
   }
   if (next.connection === "ended" && next.code && roomIsOver(next.problem)) forgetRoom(next.code);
   // `?room=<CODE>` follows the room, whichever way it was entered (hosted, typed code, link, recent room, reload).
@@ -236,6 +255,19 @@ function publish(next: RoomState): void {
     const store = session?.store;
     if (store) syncGameAddress(store.state, session.guidedRun);
   }
+  if (next.role !== "host" || prev.roomId !== next.roomId) hostEdited = false;
+  else {
+    const kept = keptFromRoom(prev, next, hostEdited);
+    if (kept) keepHostSettings(kept);
+  }
+  // A guest's own Undo, where the room lets each player take back their own moves: done here at once (GarethMagis).
+  // Each request once, whenever it shows up (an Undo asked before the host switched the setting included).
+  for (const request of next.requests ?? []) {
+    if (!selfAnswered(next, request) || selfAnsweredIds.has(request.id)) continue;
+    selfAnsweredIds.add(request.id);
+    void answerRequest(request.id, true);
+  }
+  if (next.role !== "host") selfAnsweredIds.clear();
   for (const listener of [...listeners]) listener(state);
 }
 
@@ -364,13 +396,25 @@ function playersOfParticipant(participantId: string): string[] {
  * Undo needs the host's own acknowledgement at the board, so such a request is declined here. True when a move was taken
  * back. The rewind carries the version the target was worked out from, so a command that landed meanwhile refuses it.
  */
-async function undoMoveOf(participantId: string): Promise<boolean> {
+async function undoMoveOf(
+  participantId: string,
+  bound: { readonly base?: number; readonly target?: number; readonly moves?: string } = {},
+): Promise<boolean> {
   const { store } = appSession();
   const { game, commandTrail, version } = store.state;
   if (!game) return false;
+  // A bound Undo (Each player) takes back only the move the guest saw: the table must still be the one it was asked
+  // on, and its Undo must go back to the same count. A move of the guest's that reached this table since, or a rewind,
+  // makes it a different Undo, which is declined rather than done (#1019 review).
+  if (bound.base !== undefined && bound.base !== version) return false;
   for (const player of playersOfParticipant(participantId)) {
     const offer = undoOf(commandTrail, game, player as PlayerId, { pastReveals: false });
     if (offer?.kind !== "available" || offer.revealed === true) continue;
+    // A bound Undo (Each player): the very history the guest saw, the same count, target and moves (#1019 review).
+    if (bound.base !== undefined && bound.target !== undefined && bound.moves !== undefined) {
+      const asked = { base: bound.base, target: bound.target, moves: bound.moves };
+      if (!boundUndoMatches(commandTrail, version, offer.target, asked)) continue;
+    } else if (bound.target !== undefined && offer.target !== bound.target) continue;
     try {
       return await store.rewindTo(offer.target, { fromVersion: version });
     } catch {
@@ -452,8 +496,13 @@ export function setLobby(change: {
   readonly seats?: readonly LobbySeatSpec[];
   /** Compare and swap: the lobby revision this change was worked out against (the room refuses it if it moved on). */
   readonly ifRev?: number;
+  /** Not a choice of the host's (a new lobby's own defaults): not kept for the next room. */
+  readonly keep?: false;
 }): void {
-  postRoomCommand({ kind: "room-lobby", ...change });
+  const { keep, ...sent } = change;
+  postRoomCommand({ kind: "room-lobby", ...sent });
+  // The host's own choice: what the room makes of it (normalized, or refused) is kept once it comes back (`publish`).
+  if (state.role === "host" && keep !== false) hostEdited = true;
 }
 
 /** Asks for a seat (the host's own request is granted at once). */
@@ -488,13 +537,13 @@ export async function answerRequest(id: string, accepted: boolean): Promise<void
   // The room's policy decides what may be asked: an undo only under "ask", a change only with cheats on (#904).
   if (!askAllowedOf(request.what, state.settings)) answer = false;
   // An accepted undo is the host's usual Undo; if it cannot be done now (nothing to take back, Strict) the answer is no.
-  if (answer && request.what === "undo") answer = await undoMoveOf(request.from);
+  if (answer && request.what === "undo") answer = await undoMoveOf(request.from, request);
   postRoomCommand({ kind: "room-answer", id, accepted: answer });
 }
 
 /** Guest only (Host control rooms): asks the host to undo, or to change something, with a short note (at most 140 characters). */
-export function askHost(what: "undo" | "adjust", note = ""): void {
-  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140) });
+export function askHost(what: "undo" | "adjust", note = "", bind?: UndoBinding): void {
+  postRoomCommand({ kind: "room-ask", what, note: note.trim().slice(0, 140), ...(bind ? { bind } : {}) });
 }
 
 /** Guest only: dismisses the host's answer to my last request. */
@@ -700,7 +749,7 @@ export async function seatMappingAt(judgedRev: number): Promise<number | null> {
   if (state.rev !== judgedRev) return null;
   if (seatsMapped(state)) return judgedRev;
   const refusals = state.refusal?.seq ?? 0;
-  setLobby({ ifRev: judgedRev, seats: seatMappingOf(state) });
+  setLobby({ ifRev: judgedRev, seats: seatMappingOf(state), keep: false });
   const settled = (now: RoomState): boolean =>
     (seatsMapped(now) && now.rev === judgedRev + 1) ||
     now.rev > judgedRev + 1 ||
@@ -726,7 +775,7 @@ export async function startGame(config: SessionConfig): Promise<void> {
     (!state.started || state.gameOver) &&
     !seatsMapped(state)
   ) {
-    setLobby({ seats: seatMappingOf(state) });
+    setLobby({ seats: seatMappingOf(state), keep: false });
   }
   await appSession().store.start({
     ...config,
@@ -1051,6 +1100,7 @@ export async function startCompetitive(options: CompetitiveStartOptions): Promis
           label: s.label,
           ...(order.includes(s.id) ? { player: `p${order.indexOf(s.id) + 1}` } : {}),
         })),
+        keep: false,
       });
       const settled = (now: RoomState): boolean =>
         (mapped(now) && now.rev === judgedRev + 1) ||
