@@ -3,7 +3,7 @@ import type { ServerMessage } from "@mc/sync-worker/room-protocol";
 import type { ReplayInfo } from "../replay/replay-session.js";
 import type { ReplayOpened, ReplayOpenSource } from "../replay/replay-core.js";
 import type { WebSocketLike } from "./room-socket.js";
-import { LiveWatcher, type LiveWatchCore } from "./watch-controller.js";
+import { LiveWatcher, WATCH_OPEN_TIMEOUT_MS, WATCH_WAIT_TIMEOUT_MS, type LiveWatchCore } from "./watch-controller.js";
 import type { LiveWatchEvent } from "./watch-events.js";
 
 class FakeSocket implements WebSocketLike {
@@ -471,6 +471,59 @@ describe("LiveWatcher table (#1021)", () => {
     });
     await opened;
     expect(calls).toEqual(["open 2"]);
+    w.dispose();
+  });
+
+  const t2Watcher = () => {
+    FakeSocket.all = [];
+    const { core, calls } = fakeCore();
+    const timers: number[] = [];
+    const w = new LiveWatcher({
+      core,
+      baseUrl: "http://sync",
+      roomId: "A".repeat(12),
+      packs: [],
+      emit: () => undefined,
+      table: "t2",
+      deps: {
+        WebSocket: FakeSocket as never,
+        setTimer: (_run, ms) => (timers.push(ms), timers.length),
+        clearTimer: () => undefined,
+        random: () => 0.5,
+      },
+    });
+    const opening = w.open();
+    const socket = FakeSocket.all.at(-1)!;
+    socket.onopen?.({});
+    return { w, opening, socket, calls, timers };
+  };
+
+  test("a link to a table the room does not have fails as gone at once, not after waiting for a host", async () => {
+    const { opening, socket, calls, timers } = t2Watcher();
+    // What the room sends a hello that follows an unknown table: the refusal, then a welcome without that table.
+    socket.say({ ch: "room", kind: "refused", reason: "no-such-table" });
+    socket.say(welcome);
+    await expect(opening).rejects.toMatchObject({ code: "missing" });
+    expect(calls).toEqual([]);
+    // Only the first open clock was armed: the 45-second wait for a host never started.
+    expect(timers).toEqual([WATCH_OPEN_TIMEOUT_MS]);
+  });
+
+  test("a welcome that does not list the linked table is gone too, even without the refusal", async () => {
+    const { opening, socket } = t2Watcher();
+    socket.say(welcome);
+    await expect(opening).rejects.toMatchObject({ code: "missing" });
+  });
+
+  test("a listed table with no game yet still waits for its host", async () => {
+    const { w, opening, socket, timers } = t2Watcher();
+    opening.catch(() => undefined);
+    socket.say({
+      ...welcome,
+      tables: [...welcome.tables, { id: "t2", hostConnected: false, commands: 0, ended: false, hasHeader: false }],
+    });
+    await Promise.resolve();
+    expect(timers).toEqual([WATCH_OPEN_TIMEOUT_MS, WATCH_WAIT_TIMEOUT_MS]);
     w.dispose();
   });
 });

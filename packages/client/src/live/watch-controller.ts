@@ -221,6 +221,11 @@ export class LiveWatcher {
         if (this.#opening) this.#failOpening(new ReplayOpenError("full"));
         else this.#failFollowing();
         return;
+      case "missing":
+        // The room says the linked table is not there: it is gone now, not a host still to start (#1021).
+        if (this.#opening) this.#failOpening(new ReplayOpenError("missing"));
+        else this.#failFollowing();
+        return;
       case "presence":
         this.#presence = { type: "presence", hostConnected: action.hostConnected, watchers: action.watchers };
         if (!this.#opening) emit(this.#presence);
