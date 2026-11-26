@@ -917,6 +917,19 @@ def read_manifest() -> tuple[list[str], dict[str, list[str]]]:
     return header, rows
 
 
+def read_contributed_locale_scans(root: Path) -> dict[str, str]:
+    """`<lang>/contributed.tsv`: translated scans added to the repo by hand (file name -> who gave them). `localize`
+    keeps these as they are instead of pairing them from the community source."""
+    path = root / "contributed.tsv"
+    rows: dict[str, str] = {}
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.startswith("#") and not line.startswith("file\t"):
+                name, source = (line.split("\t") + [""])[:2]
+                rows[name] = source
+    return rows
+
+
 def read_owner_scans() -> dict[str, list[str]]:
     """The cards whose local scan is the owner's own (`scans`), by code. `fetch` and `trim` leave these alone."""
     rows = {}
@@ -934,6 +947,7 @@ def write_owner_scans(rows: dict[str, list[str]]) -> None:
         "# Cards whose bundled scan is the owner's own, saved by `scripts/fetch_card_art.py scans`. `fetch` never",
         "# replaces these with a Hall of Heroes copy, and `trim` never crops them (they are cut to the card edge).",
         "# The Shadowland (65xxx) rows are from a community scan folder shared by u/Ok-Replacement-9793 on Reddit.",
+        "# The Elektra (63xxx) and Iron Fist (64xxx) rows, and their Spanish scans, were contributed by bluefireF5ran.",
         "code\tpack\tname\tsaved",
     ]
     lines += ["\t".join(rows[code]) for code in sorted(rows)]
@@ -1878,6 +1892,8 @@ def localize(args: argparse.Namespace) -> None:
         cached = [cache / f"{t}.webp" for t in wanted if (cache / f"{t}.webp").exists()]
         tr_hash = {p.stem: turns for p, turns in pool.map(_hash_turns, cached, chunksize=32)}
 
+    # Translated scans contributed straight to the repo (`contributed.tsv`): never replaced or removed as stale here.
+    contributed = read_contributed_locale_scans(root)
     pairs: dict[str, FacePair] = {}
     left_out: list[str] = []
     for en, tr in groups.values():
@@ -1920,9 +1936,18 @@ def localize(args: argparse.Namespace) -> None:
     with ProcessPoolExecutor() as pool:
         encoded = pool.map(_encode_locale, [(cache / f"{pair.scan}.webp", pair.turn) for _, pair in jobs], chunksize=8)
         for (e, pair), webp in zip(jobs, encoded):
+            if e in contributed:
+                continue
             replace_bytes(out_dir / e, webp)
             keep.add(e)
             rows.append(f"bundles/cards/{e}\t{pair.scan}\t{pair.distance}\t{pair.turn}")
+    for e in sorted(contributed):
+        if not (out_dir / e).exists():
+            print(f"[!] contributed scan missing: {e} (run `pnpm assets:fetch card-art-es` first)")
+        else:
+            keep.add(e)
+            rows.append(f"bundles/cards/{e}\t{contributed[e]}\t-\t0")
+    rows.sort()
     stale = [p for p in out_dir.iterdir() if p.name not in keep]
     for p in stale:
         p.unlink()

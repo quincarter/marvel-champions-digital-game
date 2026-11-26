@@ -89,6 +89,11 @@ export interface Correction {
    */
   readonly schemeIcons?: { readonly crisis?: number; readonly acceleration?: number; readonly hazard?: number };
   /**
+   * The printed amplify icon count where raw's `scheme_amplify` is missing (Elektra's reprint 63027 Dance with the Devil
+   * prints the icon like 60031, but MarvelCDB sends none). Replaces what raw says; opt-in per card.
+   */
+  readonly amplifyIcons?: number;
+  /**
    * Whether a side scheme's starting threat is per player where MarvelCDB sends `base_threat_fixed: true`
    * (wave 8, `ncrawler` 48033 The Crazy Gang prints "2" with the per player icon; raw has `base_threat_fixed: true`).
    * Replaces `!base_threat_fixed`. Side schemes only; opt-in per card.
@@ -131,6 +136,18 @@ export interface Correction {
   readonly boostGrantedBy?: readonly string[];
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
+  /**
+   * MarvelCDB star flags (`attack_star`, `thwart_star`, ...) that the printed card does not carry, cleared from the raw
+   * record before anything reads it (wave 11, `iron_fist` 64013 Helpful Bystander: dashed THW and ATK, MarvelCDB sets
+   * both star flags, the scan prints no star on either stat). A flag that is already false is an error.
+   */
+  readonly clearStarFlags?: readonly (
+    | "attack_star"
+    | "thwart_star"
+    | "defense_star"
+    | "health_star"
+    | "recover_star"
+  )[];
   /**
    * Confirms a printed dash cost from the card image (wave 2, docs/phase7-wave2.md §1.3/§5.1): MarvelCDB sends
    * no `cost` at all for a card that "cannot be played and can only enter play through other means" (RRG 1.8
