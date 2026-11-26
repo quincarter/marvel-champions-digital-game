@@ -8,6 +8,7 @@ import {
   GUARDED_EVENTS,
   panelZIndex,
   regionOpacity,
+  inputCoveredAbove,
   regionTakesEvents,
   ringZIndex,
 } from "./dom-region.js";
@@ -144,6 +145,38 @@ describe("coveredAbove with a pop-up that draws its own panel", () => {
     expect(coveredAbove(gone, "Pause", chrome)).toBe(false);
     const phaser = scenes.map((scene) => (scene.key === "Confirm" ? { ...scene, overlay: false } : scene));
     expect(coveredAbove(phaser, "Pause", chrome)).toBe(true);
+  });
+});
+
+describe("inputCoveredAbove with a pop-up that draws its own panel", () => {
+  const chrome = new Set(["MusicButton"]);
+  const scenes = [
+    { key: "Settings", active: true, visible: true },
+    { key: "OnlineName", active: true, visible: true, overlay: true },
+    { key: "MusicButton", active: true, visible: true },
+  ];
+
+  it("takes input from the panel under a DOM pop-up that coveredAbove leaves drawn", () => {
+    expect(coveredAbove(scenes, "Settings", chrome)).toBe(false);
+    expect(inputCoveredAbove(scenes, "Settings", chrome)).toBe(true);
+  });
+
+  it("lets chrome scenes and shownUnder scenes through", () => {
+    expect(
+      inputCoveredAbove(
+        scenes.filter((scene) => scene.key !== "OnlineName"),
+        "Settings",
+        chrome,
+      ),
+    ).toBe(false);
+    expect(inputCoveredAbove(scenes, "Settings", chrome, new Set(["OnlineName"]))).toBe(false);
+  });
+
+  it("ignores a pop-up that is gone, hidden or below, and a scene that is not listed", () => {
+    const gone = scenes.map((scene) => (scene.key === "OnlineName" ? { ...scene, active: false } : scene));
+    expect(inputCoveredAbove(gone, "Settings", chrome)).toBe(false);
+    expect(inputCoveredAbove(scenes, "OnlineName", chrome)).toBe(false);
+    expect(inputCoveredAbove(scenes, "Nope", chrome)).toBe(false);
   });
 });
 

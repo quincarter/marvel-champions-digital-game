@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HOLD_MS, onHold, onTap } from "./tap.js";
+import { cancelPressesWithin, HOLD_MS, onHold, onTap } from "./tap.js";
 
 const rect = (left: number, top: number, right: number, bottom: number): DOMRect =>
   ({ left, top, right, bottom, width: right - left, height: bottom - top, x: left, y: top }) as DOMRect;
@@ -25,6 +25,37 @@ function setup(): { button: HTMLElement; scroller: HTMLElement; handler: ReturnT
 
 afterEach(() => {
   document.body.innerHTML = "";
+});
+
+describe("cancelPressesWithin", () => {
+  it("disarms a tap armed inside the host (through a shadow root), so its release presses nothing", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const button = document.createElement("button");
+    shadow.append(button);
+    button.getBoundingClientRect = () => rect(0, 0, 100, 40);
+    const handler = vi.fn();
+    onTap(button, handler);
+    fire(button, "pointerdown", 50, 20);
+    cancelPressesWithin(host);
+    fire(button, "pointerup", 50, 20);
+    expect(handler).not.toHaveBeenCalled();
+    // A fresh press afterwards taps again.
+    fire(button, "pointerdown", 50, 20);
+    fire(button, "pointerup", 50, 20);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a press outside the host armed", () => {
+    const { button, handler } = setup();
+    const other = document.createElement("div");
+    document.body.append(other);
+    fire(button, "pointerdown", 50, 20);
+    cancelPressesWithin(other);
+    fire(button, "pointerup", 50, 20);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("onTap", () => {

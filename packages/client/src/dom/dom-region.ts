@@ -27,6 +27,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CHROME_SCENES } from "../scenes/keys.js";
 import { sceneTakesPresses } from "./activation-gate.js";
+import { cancelPressesWithin } from "@mc/ui";
 import { uiLayer } from "./ui-layer.js";
 
 /** The camera fade's current darkness, 0 (none) to 1 (black), as `Phaser.Cameras.Scene2D.Effects.Fade` holds it. */
@@ -110,18 +111,47 @@ export function coveredAbove(
   return false;
 }
 
+/**
+ * Whether a scene drawn above `key` takes input from it: as `coveredAbove`, but a DOM overlay (a pop-up) counts too.
+ * Such a panel stays drawn under its pop-up, dimmed, yet must take no press: a finger already down on it would lift
+ * through implicit pointer capture and still change the setting under the prompt. Chrome scenes and `passes` let input
+ * through, as they do for the render check.
+ */
+export function inputCoveredAbove(
+  scenes: readonly SceneLike[],
+  key: string,
+  chrome: ReadonlySet<string>,
+  passes: ReadonlySet<string> = NO_SCENES,
+): boolean {
+  return coveredAbove(
+    scenes.map((scene) => ({ ...scene, overlay: false })),
+    key,
+    chrome,
+    passes,
+  );
+}
+
+function sceneLikes(scene: Phaser.Scene): SceneLike[] {
+  return scene.game.scene.scenes.map((other) => ({
+    key: other.sys.settings.key,
+    active: other.sys.isActive() || other.sys.isPaused(),
+    visible: other.sys.settings.visible,
+    overlay: overlayScenes.has(other.sys.settings.key),
+  }));
+}
+
+/** Whether a scene drawn above this one (a pop-up included) takes its input away. */
+export function sceneInputCovered(scene: Phaser.Scene, passes: ReadonlySet<string> = NO_SCENES): boolean {
+  return inputCoveredAbove(sceneLikes(scene), scene.sys.settings.key, CHROME_SCENES, passes);
+}
+
 /** Whether a scene's DOM (its panel, its focus ring) shows right now, and how opaque. */
 export function sceneLayerState(
   scene: Phaser.Scene,
   passes: ReadonlySet<string> = NO_SCENES,
 ): { readonly shown: boolean; readonly opacity: number } {
   const settings = scene.sys.settings;
-  const scenes: SceneLike[] = scene.game.scene.scenes.map((other) => ({
-    key: other.sys.settings.key,
-    active: other.sys.isActive() || other.sys.isPaused(),
-    visible: other.sys.settings.visible,
-    overlay: overlayScenes.has(other.sys.settings.key),
-  }));
+  const scenes = sceneLikes(scene);
   const shown = settings.visible && scene.sys.isActive() && !coveredAbove(scenes, settings.key, CHROME_SCENES, passes);
   const camera = scene.cameras?.main;
   const opacity = camera ? regionOpacity(camera.fadeEffect as unknown as FadeLike, camera.alpha) : 1;
@@ -283,6 +313,8 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #rect: Rect;
   #opacity = -1;
   #shown: boolean | null = null;
+  /** Whether the panel took input at the last sync (shown, and no scene above takes it away). */
+  #inputOpen = false;
   #clip: string | null = null;
   #live: boolean | null = null;
   #hidden = false;
@@ -404,7 +436,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   /** Whether the scene and the panel's cover state let an event through right now (read live, not at the last frame). */
   #takesEvents(): boolean {
     return regionTakesEvents(
-      sceneTakesPresses(this.#scene),
+      sceneTakesPresses(this.#scene) && !sceneInputCovered(this.#scene, this.#shownUnder),
       sceneLayerState(this.#scene, this.#shownUnder).shown,
       this.#hidden,
     );
@@ -429,9 +461,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
     if (shown !== this.#shown) {
       this.#shown = shown;
       this.#wrap.style.visibility = shown ? "visible" : "hidden";
-      // Covered or hidden: a press-and-hold still being timed must not fire an Inspect from under the modal.
-      if (!shown) (this.element as { cancelHolds?: () => void }).cancelHolds?.();
     }
+    // Input lost (covered, or a pop-up above that leaves the panel drawn) or hidden: a press-and-hold being timed must
+    // not fire an Inspect from under the modal, nor a tap armed before it opened release into the panel.
+    const inputOpen = shown && !sceneInputCovered(this.#scene, this.#shownUnder);
+    if (this.#inputOpen && !inputOpen) {
+      (this.element as { cancelHolds?: () => void }).cancelHolds?.();
+      cancelPressesWithin(this.element);
+    }
+    this.#inputOpen = inputOpen;
     if (Math.abs(opacity - this.#opacity) > 0.001) {
       this.#opacity = opacity;
       this.#wrap.style.opacity = String(opacity);

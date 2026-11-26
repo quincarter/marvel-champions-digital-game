@@ -40,6 +40,31 @@ function pointOnControl(element: Element, clips: readonly Element[], x: number, 
   return [element, ...clips].every((node) => contains(node.getBoundingClientRect(), x, y));
 }
 
+/** Armed-press cancels of every element with an `onTap` listener. */
+const tapCancels = new Map<Element, () => void>();
+
+/** The elements up the composed tree (through shadow roots) from `node`, itself included. */
+function composedAncestors(node: Node): Node[] {
+  const chain: Node[] = [];
+  let at: Node | null = node;
+  while (at) {
+    chain.push(at);
+    const root: Node = at.getRootNode();
+    at = at.parentNode ?? (root instanceof ShadowRoot ? root.host : null);
+  }
+  return chain;
+}
+
+/**
+ * Disarms every press (a tap waiting for its release, a hold being timed) on an element inside `host`, shadow roots
+ * included: the panel lost input to a modal above it, so a finger already down on it must not press anything when it lifts.
+ */
+export function cancelPressesWithin(host: Element): void {
+  for (const [element, cancel] of [...tapCancels, ...holdCancels]) {
+    if (composedAncestors(element).includes(host)) cancel();
+  }
+}
+
 /** Calls `handler` on each tap on `element`; returns the function that stops listening. */
 export function onTap(
   element: HTMLElement,
@@ -97,6 +122,7 @@ export function onTap(
     )
       end();
   };
+  tapCancels.set(element, end);
   element.addEventListener("pointerdown", down);
   element.addEventListener("pointerup", up);
   element.addEventListener("pointermove", move);
@@ -105,6 +131,7 @@ export function onTap(
   element.addEventListener("lostpointercapture", end);
   return () => {
     end();
+    tapCancels.delete(element);
     element.removeEventListener("pointerdown", down);
     element.removeEventListener("pointerup", up);
     element.removeEventListener("pointermove", move);
@@ -125,7 +152,7 @@ export const HOLD_SLOP_PX = 12;
  * that ends a hold that fired never also taps, however long the press lasted after it fired. Returns the function that
  * stops listening.
  */
-const holdCancels = new WeakMap<Element, () => void>();
+const holdCancels = new Map<Element, () => void>();
 
 /** Disarms a press on `element` that `onHold` is timing, so its hold never fires (the screen went under a modal). */
 export function cancelHold(element: Element): void {

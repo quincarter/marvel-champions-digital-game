@@ -18,7 +18,7 @@ export {
   type BodyRow,
   type SettingsBodyModel,
 } from "./components/mc-settings-body/mc-settings-body.js";
-export { onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
+export { cancelPressesWithin, onHold, onTap, HOLD_MS, HOLD_SLOP_PX, TAP_SLOP_PX } from "./shared/tap.js";
 export {
   McSheet,
   type SheetBox,
