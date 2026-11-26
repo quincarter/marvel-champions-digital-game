@@ -37,6 +37,34 @@ describe("onHold", () => {
     expect(held).not.toHaveBeenCalled();
   });
 
+  it("is no hold when an ancestor scrolls under a pointer that never moves", () => {
+    const list = document.createElement("div");
+    const element = document.createElement("div");
+    list.append(element);
+    document.body.append(list);
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown"));
+    list.scrollTop = 40;
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+    // Nothing scrolled: still a hold.
+    element.dispatchEvent(pointer("pointerdown"));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).toHaveBeenCalledTimes(1);
+    list.remove();
+  });
+
+  it("is no hold when the element loses pointer capture before the timer fires", () => {
+    const element = document.createElement("div");
+    const held = vi.fn();
+    onHold(element, held);
+    element.dispatchEvent(pointer("pointerdown"));
+    element.dispatchEvent(pointer("lostpointercapture"));
+    vi.advanceTimersByTime(HOLD_MS + 1);
+    expect(held).not.toHaveBeenCalled();
+  });
+
   it("never taps on the release of a hold, however long the press lasts after the hold fires", () => {
     const element = document.createElement("div");
     const held = vi.fn();

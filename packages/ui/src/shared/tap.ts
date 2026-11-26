@@ -96,6 +96,8 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     lastX: number;
     lastY: number;
     timer: ReturnType<typeof setTimeout>;
+    /** Where every element under the press stood: a list can scroll under a held pointer that never moves. */
+    offsets: readonly (readonly [Element, number, number])[];
   } | null = null;
   /** The pointer whose hold fired and whose release is still to come; cleared by that release or the next press. */
   let fired: number | null = null;
@@ -108,16 +110,22 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     end();
     fired = null;
     const held = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    const offsets = event
+      .composedPath()
+      .filter((node): node is Element => node instanceof Element)
+      .map((node) => [node, node.scrollTop, node.scrollLeft] as const);
     const timer = setTimeout(() => {
       const now = press;
       if (now?.id !== held.id) return;
       press = null;
       // Where the pointer is now, not whether it ever wandered: a wobble that comes back is still a hold.
       if (Math.hypot(now.lastX - now.x, now.lastY - now.y) > HOLD_SLOP_PX) return;
+      // The content moved under a still pointer (wheel, trackpad, programmatic scroll): not the card pressed any more.
+      if (now.offsets.some(([node, top, left]) => node.scrollTop !== top || node.scrollLeft !== left)) return;
       fired = held.id;
       handler(event);
     }, HOLD_MS);
-    press = { ...held, lastX: held.x, lastY: held.y, timer };
+    press = { ...held, lastX: held.x, lastY: held.y, timer, offsets };
   };
   const move = (event: PointerEvent): void => {
     if (press?.id !== event.pointerId) return;
@@ -147,6 +155,7 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
   element.addEventListener("pointermove", move);
   element.addEventListener("pointerup", up, { capture: true });
   element.addEventListener("pointercancel", end);
+  element.addEventListener("lostpointercapture", leave);
   element.addEventListener("pointerleave", leave);
   element.addEventListener("contextmenu", menu);
   return () => {
@@ -155,6 +164,7 @@ export function onHold(element: HTMLElement, handler: (event: Event) => void): (
     element.removeEventListener("pointermove", move);
     element.removeEventListener("pointerup", up, { capture: true });
     element.removeEventListener("pointercancel", end);
+    element.removeEventListener("lostpointercapture", leave);
     element.removeEventListener("pointerleave", leave);
     element.removeEventListener("contextmenu", menu);
   };
