@@ -140,15 +140,17 @@ export function abilityRefusalReason(
   controllerId: PlayerId,
   abilityId: AbilityId,
   deps: EngineDeps,
-  fallback: string = CONDITION_UNMET,
+  fallback?: string,
 ): string {
+  // Absent: the display default, in the player's language. A supplied sentence (the engine's own) is shown as given.
+  const otherwise = fallback ?? t("refusal.reason.condition");
   const trigger = deps.abilities[abilityId]?.trigger as { readonly while?: Predicate } | undefined;
-  if (!trigger?.while) return fallback;
+  if (!trigger?.while) return otherwise;
   for (const clause of clausesOf(trigger.while)) {
     const reason = failedClause(state, clause, { selfInstanceId: instanceId, controllerId, deps });
     if (reason) return reason;
   }
-  return fallback;
+  return otherwise;
 }
 
 /** The noun for a query of one category the target wording knows ("ally"); any other query is not worded. */
@@ -204,6 +206,9 @@ const SMALL_WORDS: ReadonlySet<string> = new Set(["for", "of", "the", "and"]);
 /** A query's worded kind: "Avenger ally", whether it leaves out the ability's own card, and whose cards it reads. */
 export interface QueryNoun {
   readonly noun: string;
+  /** The noun with no trait ("ally") and the trait alone ("Avenger"; null for none), for a caller that words qualifiers. */
+  readonly base: string;
+  readonly trait: string | null;
   /** "Another Dora Milaje ally" (`not: { self: true }`, `self: false`, `excluding` the card itself). */
   readonly other: boolean;
   /** Any player's cards (no `controller`, or `"any"`), not only the payer's. */
@@ -250,6 +255,8 @@ export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null
   const word = t(`refusal.noun.${noun}` as MessageKey);
   return {
     noun: query.trait ? t("refusal.noun.withTrait", { trait: traitWord(query.trait), noun: word }) : word,
+    base: word,
+    trait: query.trait ? traitWord(query.trait) : null,
     other,
     anyone,
   };
@@ -259,16 +266,20 @@ export function queryNounOf(query: TargetQuery, payer = false): QueryNoun | null
  * "You control no ally", "you control no other Avenger ally", "there is no other Dora Milaje ally in play": what is
  * missing, from a query's shape alone (`queryNounOf`); null otherwise.
  */
-function noMatchClause(
+export function noMatchClause(
   query: TargetQuery,
   /** A cost's pick: its cards are the payer's (`queryNounOf`), "ready" ones (`readiness`), "other" than the card. */
   pick: { readonly other: boolean; readonly readiness: "ready" | "exhausted" | "" } | null = null,
 ): string | null {
   const kind = queryNounOf(query, pick !== null);
   if (!kind) return null;
-  let noun = kind.noun;
+  // English puts the trait before the qualifiers ("other ready Avenger ally"); Spanish after ("otro aliado preparado
+  // con el rasgo Vengador"), so the trait goes on last when the language's wording asks (`refusal.noun.traitLast`).
+  const traitLast = kind.trait !== null && t("refusal.noun.traitLast") === "1";
+  let noun = traitLast ? kind.base : kind.noun;
   if (pick?.readiness) noun = t(`refusal.noun.${pick.readiness}` as MessageKey, { noun });
   if (kind.other || pick?.other) noun = t("refusal.noun.other", { noun });
+  if (traitLast) noun = t("refusal.noun.withTrait", { trait: kind.trait!, noun });
   return t(kind.anyone ? "refusal.noneInPlay" : "refusal.youControlNone", { noun });
 }
 
@@ -515,7 +526,12 @@ export function unofferedReason(
 
 /** The ability's printed name ("New Labors of Hercules"), or "This ability" when the card does not print one. */
 export function abilityNameOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string {
-  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? t("refusal.thisAbility");
+  return printedAbilityLabel(state, instanceId, abilityId) ?? t("refusal.thisAbility");
+}
+
+/** The ability's printed name, or null when the card prints none (the model keeps the absence; display words it). */
+export function printedAbilityLabel(state: GameState, instanceId: InstanceId, abilityId: AbilityId): string | null {
+  return activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label ?? null;
 }
 
 /**

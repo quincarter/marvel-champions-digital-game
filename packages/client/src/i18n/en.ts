@@ -665,6 +665,7 @@ export const en = {
   "refusal.noun.support": "support",
   "refusal.noun.character": "character",
   "refusal.noun.withTrait": "{trait} {noun}",
+  "refusal.noun.traitLast": "0",
   "refusal.noun.other": "other {noun}",
   "refusal.noun.ready": "ready {noun}",
   "refusal.noun.exhausted": "exhausted {noun}",
