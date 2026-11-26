@@ -12,9 +12,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CardArt, type ScanDecoder } from "./card-art.js";
-import { currentPackArt, releasePackArt } from "./pack-art.js";
+import { currentPackArt, isPackArtKey, leasePackUrl, releasePackArt } from "./pack-art.js";
 
-vi.mock("./pack-art.js", () => ({ releasePackArt: vi.fn(), currentPackArt: vi.fn((held: ArtSource) => held) }));
+vi.mock("./pack-art.js", () => ({
+  releasePackArt: vi.fn(),
+  currentPackArt: vi.fn((held: ArtSource) => held),
+  leasePackUrl: vi.fn(() => null),
+  isPackArtKey: vi.fn(() => false),
+}));
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 
 type Size = { readonly width: number; readonly height: number };
@@ -380,7 +385,7 @@ describe("CardArt decoding", () => {
     expect(art.stats.sources).toBeLessThanOrEqual(45);
   });
 
-  it("keeps a pack picture's URL until a full copy that reads it has landed, and retries a full copy that failed", async () => {
+  it("retries a full copy that failed after its table copy was evicted", async () => {
     const release = vi.mocked(releasePackArt);
     release.mockClear();
     let fail = false;
@@ -404,7 +409,7 @@ describe("CardArt decoding", () => {
       await settle();
     }
     expect(scene.textures.exists("p")).toBe(false);
-    expect(release).not.toHaveBeenCalledWith("p");
+    // The eviction asks pack-art to release; its lease for the running decode defers the revoke.
     fail = true;
     hold!();
     await settle();
@@ -504,5 +509,117 @@ describe("CardArt with a pack picture held across an eviction", () => {
     expect(art.isMissing(held!.key)).toBe(false);
     real.resetPackArt();
     resolve.mockImplementation((s) => s);
+  });
+});
+
+describe("CardArt and PackLeases share one URL lifetime (pack-art owns it)", () => {
+  const manifest = {
+    id: "demo",
+    version: "1.0.0",
+    languages: { base: "en", available: ["en"] },
+    files: [{ path: "cards/en/x.demo.01a.webp", bytes: 1, sha256: "" }],
+  } as unknown as Parameters<typeof import("./pack-art.js").setPackArt>[0][number];
+
+  async function rig() {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    vi.mocked(currentPackArt).mockImplementation(real.currentPackArt);
+    vi.mocked(releasePackArt).mockImplementation(real.releasePackArt);
+    vi.mocked(leasePackUrl).mockImplementation(real.leasePackUrl);
+    vi.mocked(isPackArtKey).mockImplementation(real.isPackArtKey);
+    let serial = 0;
+    const revoked: string[] = [];
+    const store = {
+      objectUrl: async (id: string, path: string) => `blob:${id}/${path}#${++serial}`,
+      revoke: (id: string, path?: string) => void revoked.push(`${id}/${path ?? "*"}`),
+    };
+    real.setPackArt([manifest], store);
+    real.packArtFor("x.demo.01a", "en");
+    await vi.advanceTimersByTimeAsync(250);
+    const held = real.packArtFor("x.demo.01a", "en")!;
+    expect(held).not.toBeNull();
+    const gates: (() => void)[] = [];
+    const sizes = new Map<string, Size>();
+    const decode: ScanDecoder = (url, slot) =>
+      new Promise((done) =>
+        gates.push(() => {
+          const size = sizes.get(url);
+          done(size ? ({ width: size.width, height: Math.min(size.height, slot.height) } as HTMLCanvasElement) : null);
+        }),
+      );
+    const { art, scene } = setup({ decode });
+    sizes.set(held.url, { width: 300, height: 400 });
+    return { real, art, scene, held, gates, revoked };
+  }
+
+  const reset = async (): Promise<void> => {
+    const real = await vi.importActual<typeof import("./pack-art.js")>("./pack-art.js");
+    real.resetPackArt();
+    vi.mocked(currentPackArt).mockImplementation((s) => s);
+    vi.mocked(releasePackArt).mockReset();
+    vi.mocked(leasePackUrl).mockImplementation(() => null);
+    vi.mocked(isPackArtKey).mockImplementation(() => false);
+  };
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(reset);
+
+  it("keeps the URL for a re-requested decode when the DOM lease is released after an eviction", async () => {
+    const { real, art, scene, held, gates, revoked } = await rig();
+    // The table texture is there, Rules holds a lease, then the texture is evicted.
+    art.request(scene, held);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(scene.textures.exists(held.key)).toBe(true);
+    const dom = new real.PackLeases();
+    dom.begin();
+    dom.image(held);
+    dom.end();
+    real.releasePackArt(held.key);
+    scene.textures.remove(held.key);
+    expect(revoked).toEqual([]);
+    // Hover asks for the same key again while the lease is alive: a new decode starts on the retained URL.
+    // (a fresh request: CardArt's own bookkeeping saw the eviction)
+    const again = new CardArt({
+      decode: (url, slot) =>
+        new Promise((done) =>
+          gates.push(() => done({ width: 300, height: Math.min(400, slot.height) } as HTMLCanvasElement)),
+        ),
+      budgetBytes: BUDGET,
+      renderScale: () => 1,
+    });
+    again.request(scene, held);
+    expect(gates).toHaveLength(1);
+    // The row unmounts: the DOM lease goes while the decode is still reading.
+    dom.dispose();
+    expect(revoked).toEqual([]);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(again.isMissing(held.key)).toBe(false);
+    expect(scene.textures.exists(held.key)).toBe(true);
+    // The new texture owns the URL now: still not revoked, still current.
+    expect(revoked).toEqual([]);
+    expect(real.currentPackArt(held)?.url).toBe(held.url);
+  });
+
+  it("revokes an evicted URL when the last decode lease lets go", async () => {
+    const { real, art, scene, held, gates, revoked } = await rig();
+    art.request(scene, held);
+    // Evicted while its first decode is still reading.
+    real.releasePackArt(held.key);
+    expect(revoked).toEqual([]);
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
+  });
+
+  it("refreshPackArt does not revoke a URL a decode reads, and its stale failure is not cached as missing", async () => {
+    const { real, art, scene, held, gates, revoked } = await rig();
+    art.request(scene, held);
+    real.refreshPackArt(held.key, held.url);
+    expect(revoked).toEqual([]);
+    // The decode finds nothing at the URL (a stale failure): the picture is retried, not missing, once the URL moved on.
+    gates.splice(0).forEach((open) => open());
+    await settle();
+    expect(revoked).toEqual(["demo/cards/en/x.demo.01a.webp"]);
   });
 });

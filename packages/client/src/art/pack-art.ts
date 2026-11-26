@@ -270,6 +270,16 @@ const leaseCounts = new Map<string, number>();
 /** Keys whose eviction asked for a revoke while leased: done when the last lease is released. */
 const revokeOnRelease = new Set<string>();
 
+/** How many `CardArt` decodes read each key's URL (a subset of `leaseCounts`). */
+const decodeCounts = new Map<string, number>();
+
+export interface PackLeaseOptions {
+  /** The hold is a `CardArt` decode reading the URL (`refreshPackArt` never revokes under one). */
+  readonly decode?: boolean;
+  /** The decode will become the key's texture: a pending eviction revoke is cancelled. */
+  readonly takesTexture?: boolean;
+}
+
 /** A hold on one pack picture's blob URL, for a DOM `<img>` that outlives Phaser's texture. */
 export interface PackUrlLease {
   readonly url: string;
@@ -282,16 +292,24 @@ export interface PackUrlLease {
  * defers revoking it until every lease is released. Null when the URL is not resolved (an art change is announced
  * when it arrives) or `key` is not a pack picture.
  */
-export function leasePackUrl(key: string): PackUrlLease | null {
+export function leasePackUrl(key: string, opts: PackLeaseOptions = {}): PackUrlLease | null {
   const url = urls.get(key);
   if (url === undefined || !isPackArtKey(key)) return null;
   leaseCounts.set(key, (leaseCounts.get(key) ?? 0) + 1);
+  if (opts.decode) decodeCounts.set(key, (decodeCounts.get(key) ?? 0) + 1);
+  // A new texture is being made from this URL: an eviction's pending revoke is moot, the texture's own eviction asks again.
+  if (opts.takesTexture) revokeOnRelease.delete(key);
   let released = false;
   return {
     url,
     release(): void {
       if (released) return;
       released = true;
+      if (opts.decode) {
+        const decodes = (decodeCounts.get(key) ?? 1) - 1;
+        if (decodes > 0) decodeCounts.set(key, decodes);
+        else decodeCounts.delete(key);
+      }
       const left = (leaseCounts.get(key) ?? 1) - 1;
       if (left > 0) {
         leaseCounts.set(key, left);
@@ -350,6 +368,12 @@ export function refreshPackArt(key: string, failedUrl: string | undefined): void
   if (!info) return;
   const current = urls.get(key);
   if (current !== undefined && (failedUrl === undefined || current === failedUrl)) {
+    // A decode still reads this URL: revoking now would fail it (and cache the picture missing). The revoke waits for
+    // its release; the URL stays current meanwhile.
+    if ((decodeCounts.get(key) ?? 0) > 0) {
+      revokeOnRelease.add(key);
+      return;
+    }
     store?.revoke(info.id, info.path);
     urls.delete(key);
     const pack = packs.get(info.id);
@@ -379,6 +403,7 @@ export function resetPackArt(): void {
   store = undefined;
   urls.clear();
   leaseCounts.clear();
+  decodeCounts.clear();
   revokeOnRelease.clear();
   fileOfKey.clear();
   resolving.clear();

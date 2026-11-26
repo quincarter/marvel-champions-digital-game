@@ -32,7 +32,7 @@ import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 import { onArtChange, onLanguageChange } from "../language-change.js";
-import { currentPackArt, releasePackArt } from "./pack-art.js";
+import { currentPackArt, isPackArtKey, leasePackUrl, releasePackArt, type PackUrlLease } from "./pack-art.js";
 import { artBudgetBytes } from "./memory-budget.js";
 import { decodedBakedPicture } from "./picture-bake-client.js";
 import type { Size } from "./grayscale.js";
@@ -80,6 +80,7 @@ const FULL_SLOT: Size = { width: 1, height: 1400 };
 const FULL_SUFFIX = "#full";
 /** The full-size copy's texture key, beside the table copy (which keeps the source's own key). */
 const fullKeyOf = (key: string): string => `${key}${FULL_SUFFIX}`;
+const tableKeyOf = (key: string): string => (key.endsWith(FULL_SUFFIX) ? key.slice(0, -FULL_SUFFIX.length) : key);
 /** Decodes running at once. A cold screen asks for dozens of scans; each decode holds the whole scan while it runs. */
 const MAX_DECODES = 4;
 
@@ -149,10 +150,6 @@ export class CardArt {
   /** Decodes waiting for a free slot, oldest first. */
   #queue: DecodeJob[] = [];
   #decoding = 0;
-  /** Decodes running or queued, by url: a pack picture's blob: URL is not revoked while one still reads it. */
-  readonly #urlsInUse = new Map<string, number>();
-  /** Evicted pack pictures whose URL a decode still reads, by url: revoked once it settles. */
-  readonly #revokeLater = new Map<string, string>();
   /** A scan's own height once a full copy has been decoded, by url: no full copy is asked for a table copy as tall. */
   readonly #nativeHeight = new Map<string, number>();
   readonly #decode: ScanDecoder;
@@ -294,7 +291,8 @@ export class CardArt {
         continue;
       }
       this.#decoding++;
-      this.#urlsInUse.set(job.url, (this.#urlsInUse.get(job.url) ?? 0) + 1);
+      // A pack picture's blob: URL is leased (pack-art.ts owns its lifetime) for as long as this decode reads it.
+      const lease: PackUrlLease | null = leasePackUrl(table, { decode: true, takesTexture: table === job.key });
       this.#decode(job.url, job.slot)
         .then(
           (canvas) => this.#landed(job, canvas),
@@ -303,17 +301,7 @@ export class CardArt {
         )
         .finally(() => {
           this.#decoding--;
-          const left = (this.#urlsInUse.get(job.url) ?? 1) - 1;
-          if (left > 0) this.#urlsInUse.set(job.url, left);
-          else {
-            this.#urlsInUse.delete(job.url);
-            // An evicted pack picture's blob: URL waited for this decode before it was revoked.
-            const revoke = this.#revokeLater.get(job.url);
-            if (revoke !== undefined) {
-              this.#revokeLater.delete(job.url);
-              releasePackArt(revoke);
-            }
-          }
+          lease?.release();
           this.#pump();
         });
     }
@@ -326,6 +314,8 @@ export class CardArt {
       // No table copy is a missing scan. A full copy that failed after its table copy loaded is not (its pack URL may
       // have been revoked by an eviction meanwhile): forget it was asked for, and the next hover asks again.
       if (full) this.#requested.delete(key);
+      else if (isPackArtKey(key) && currentPackArt({ key: tableKeyOf(key), url: job.url })?.url !== job.url)
+        this.#requested.delete(key);
       else this.#missing.add(key);
     } else if (full && this.#tableCovers(textures, key, canvas.height)) {
       // The scan is no taller than its table copy: not kept, and not fetched again while the table copy is this size.
@@ -397,10 +387,9 @@ export class CardArt {
         if (url !== undefined) this.#nativeHeight.delete(url);
       }
       if (key.endsWith(FULL_SUFFIX)) continue;
-      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again), once no decode
-      // still reads it (a full copy on its way).
-      if (url !== undefined && this.#urlsInUse.has(url)) this.#revokeLater.set(url, key);
-      else releasePackArt(key);
+      // A pack picture was loaded from a blob: URL; revoke it (a later ask reads the store again). A decode still
+      // reading it holds a lease, so pack-art.ts revokes on the last release.
+      if (url !== undefined) releasePackArt(key);
     }
   }
 
