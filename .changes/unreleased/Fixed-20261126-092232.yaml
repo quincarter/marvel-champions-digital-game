@@ -1,0 +1,3 @@
+kind: Fixed
+body: Crushing Blow can be played for free when its cost is reduced to 0, even with no [physical] resource in hand (#1028).
+time: 2026-11-26T09:22:32.4223517-05:00

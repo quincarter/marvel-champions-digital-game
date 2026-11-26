@@ -603,9 +603,12 @@ function withPaymentOnlyWallets(
   const seen = new Set(walletList.map((wallet) => JSON.stringify(wallet)));
   const filtered: (readonly Payment[])[] = [];
   for (const wallet of walletList) {
+    // Kept even when nothing is left: a cost reduced to 0 is paid with no resources, which the restriction never
+    // refuses (FAQ "Crushing Blow (#2)", RRG 1.8 p. 60; issue #1028, where a hand of only refused resources made a
+    // free Crushing Blow read as unaffordable).
     const kept = wallet.filter(accepts);
     const key = JSON.stringify(kept);
-    if (kept.length === 0 || seen.has(key)) continue;
+    if (seen.has(key)) continue;
     seen.add(key);
     filtered.push(kept);
   }
