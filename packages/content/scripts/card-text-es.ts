@@ -112,6 +112,23 @@ const same = (a: string, b: string): boolean => a.trim().toLowerCase() === b.tri
 const SPANISH_MATCHES_CORRECTED_ENGLISH = new Set(["12028"]);
 
 /**
+ * Words MarvelCDB's Spanish drops that change a rule, put back: `[code, as MarvelCDB words it, as the card means it]`.
+ * The number check cannot see these (no digits differ). The run stops when a phrase is no longer there, so a fix on
+ * MarvelCDB's side is noticed and the entry removed. Add one only after reading the Spanish against the English card.
+ * - 60100 Conversion: "Attached minion's SCH is equal to its base THW"; the Spanish says only "su INT" (issue #995).
+ */
+const SPANISH_TEXT_CORRECTIONS: readonly (readonly [string, string, string])[] = [
+  ["60100", "es igual a su INT y", "es igual a su INT básica y"],
+];
+
+const correctedSpanish = (code: string, text: string): string =>
+  SPANISH_TEXT_CORRECTIONS.filter(([at]) => at === code).reduce((fixed, [, from, to]) => {
+    if (!fixed.includes(from))
+      throw new Error(`${code}: "${from}" is no longer in MarvelCDB's Spanish; drop the correction`);
+    return fixed.replace(from, to);
+  }, text);
+
+/**
  * The data's printed English for `code`: the card's own top-level `text.printed` (4-space indent), searched only within
  * its own record (up to the next `id: cardId(`), so a nested ability's `printed` or the next card's is never read. A
  * double-sided card's other face is not looked up: list single-face cards only.
@@ -155,7 +172,7 @@ for (const [code, card] of es) {
   const fields: Record<string, string> = {};
   const name = (card.name ?? "").trim();
   if (name && !same(name, english.name ?? "")) fields.n = name;
-  const text = plain(card.text);
+  const text = correctedSpanish(code, plain(card.text));
   const englishText = plain(english.real_text ?? english.text);
   // A translation whose numbers disagree may be another card's text, flavor and all: the face keeps only its name.
   const wrong = text !== "" && englishText !== "" && !sameNumbers(text, englishText);

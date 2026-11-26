@@ -4,11 +4,10 @@
  */
 import { describe, expect, test } from "vitest";
 import type { CampaignChoiceAnswer } from "@mc/engine";
-import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { MemoryCampaignStorage, type CampaignRecord } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
-import { POOL_VERSION } from "../content/pool.js";
 import { applyIssueMode, issueModeRowsOf } from "../view/campaign-modes-model.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { CampaignService } from "./campaign-service.js";

@@ -163,12 +163,14 @@ describe("the Inspect sheet in Spanish", () => {
       /Respuesta obligada: después de que Cabeza de Martillo ataque/,
     );
     expect(cardInspectModel(card("60089"), { kind: "front" }).rulesText).toMatch(/^Vincula esta carta a Cabeza/);
+    // MarvelCDB drops "base" from Conversion; the generator puts it back (SPANISH_TEXT_CORRECTIONS).
+    expect(cardInspectModel(card("60100"), { kind: "front" }).rulesText).toContain("es igual a su INT básica y");
     const scheme = card("60121a");
     expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "A" }).rulesText).toMatch(
       /^Contenido: el Villano Secuaz elegido/,
     );
     expect(cardInspectModel(scheme, { kind: "mainSchemeStage", stageIndex: 0, side: "B" }).rulesText).toMatch(
-      /^\[?.*X es 1 más que el número de Accesorio Arte/,
+      /^\S+ X es 1 más que el número de Accesorio Arte vinculados al Villano\./,
     );
   });
 
