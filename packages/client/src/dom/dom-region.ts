@@ -182,6 +182,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
   #clip: string | null = null;
   #live: boolean | null = null;
   #hidden = false;
+  #holes: readonly Rect[] = [];
   #follow: Followed | null = null;
   #offset = "";
   #destroyed = false;
@@ -214,6 +215,15 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
       width: `${rect.width}px`,
       height: `${rect.height}px`,
     });
+  }
+
+  /**
+   * Leaves `rects` (game coordinates) out of the panel, seen and pressed through it: a Phaser DOM element the scene
+   * keeps under the panel (a search field, `McTextInput`), which would otherwise be covered.
+   */
+  setHoles(rects: readonly Rect[]): void {
+    this.#holes = rects;
+    this.#sync();
   }
 
   /** Hides the region whatever its scene does (the scene shows something else in its place for now). */
@@ -267,7 +277,7 @@ export class DomRegion<E extends HTMLElement = HTMLElement> {
       this.#live = live;
       this.#wrap.style.pointerEvents = live ? "auto" : "none";
     }
-    const clip = shown ? clipWithHoles(this.#rect, chromeBoxes(this.#scene.game)) : null;
+    const clip = shown ? clipWithHoles(this.#rect, [...chromeBoxes(this.#scene.game), ...this.#holes]) : null;
     if (clip !== this.#clip) {
       this.#clip = clip;
       this.#wrap.style.clipPath = clip ?? "";
